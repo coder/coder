@@ -1,5 +1,5 @@
 import { useTheme } from "@emotion/react";
-import type { ChangeTypes, FileDiffMetadata } from "@pierre/diffs";
+import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
@@ -21,6 +21,7 @@ import {
 	useState,
 } from "react";
 import { cn } from "utils/cn";
+import { changeColor, changeLabel } from "./diffColors";
 
 // -------------------------------------------------------------------
 // Public interface
@@ -119,40 +120,6 @@ function estimateDiffHeight(fileDiff: FileDiffMetadata): number {
 // -------------------------------------------------------------------
 // File tree data model
 // -------------------------------------------------------------------
-
-/** Maps a diff change type to a Tailwind text-color class. */
-function changeColor(type?: ChangeTypes): string | undefined {
-	switch (type) {
-		case "new":
-			return "text-green-700 dark:text-green-300";
-		case "deleted":
-			return "text-red-700 dark:text-red-300";
-		case "rename-pure":
-		case "rename-changed":
-			return "text-orange-700 dark:text-orange-300";
-		case "change":
-			return "text-orange-700 dark:text-orange-300";
-		default:
-			return undefined;
-	}
-}
-
-/** Short letter shown after the filename, matching VS Code style. */
-function changeLabel(type: ChangeTypes): string {
-	switch (type) {
-		case "new":
-			return "A";
-		case "deleted":
-			return "D";
-		case "rename-pure":
-		case "rename-changed":
-			return "R";
-		case "change":
-			return "M";
-		default:
-			return "";
-	}
-}
 
 interface FileTreeNode {
 	name: string;

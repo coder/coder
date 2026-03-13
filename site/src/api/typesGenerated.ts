@@ -1091,6 +1091,8 @@ export interface ChatDiffStatus {
 	readonly chat_id: string;
 	readonly url?: string;
 	readonly pull_request_state?: string;
+	readonly pull_request_title: string;
+	readonly pull_request_draft: boolean;
 	readonly changes_requested: boolean;
 	readonly additions: number;
 	readonly deletions: number;
@@ -1150,6 +1152,7 @@ export const ChatInputPartTypes: ChatInputPartType[] = [
 export interface ChatMessage {
 	readonly id: number;
 	readonly chat_id: string;
+	readonly created_by?: string;
 	readonly model_config_id?: string;
 	readonly created_at: string;
 	readonly role: string;
@@ -1172,6 +1175,7 @@ export interface ChatMessagePart {
 	readonly result?: Record<string, string>;
 	readonly result_delta?: string;
 	readonly is_error?: boolean;
+	readonly provider_executed?: boolean;
 	readonly source_id?: string;
 	readonly url?: string;
 	readonly title?: string;
@@ -1245,6 +1249,9 @@ export interface ChatModelAnthropicProviderOptions {
 	readonly thinking?: ChatModelAnthropicThinkingOptions;
 	readonly effort?: string;
 	readonly disable_parallel_tool_use?: boolean;
+	readonly web_search_enabled?: boolean;
+	readonly allowed_domains?: readonly string[];
+	readonly blocked_domains?: readonly string[];
 }
 
 // From codersdk/chats.go
@@ -1266,6 +1273,7 @@ export interface ChatModelCallConfig {
 	readonly top_k?: number;
 	readonly presence_penalty?: number;
 	readonly frequency_penalty?: number;
+	readonly cost?: ModelCostConfig;
 	readonly provider_options?: ChatModelProviderOptions;
 }
 
@@ -1296,6 +1304,7 @@ export interface ChatModelGoogleProviderOptions {
 	readonly cached_content?: string;
 	readonly safety_settings?: readonly ChatModelGoogleSafetySetting[];
 	readonly threshold?: string;
+	readonly web_search_enabled?: boolean;
 }
 
 // From codersdk/chats.go
@@ -1352,6 +1361,9 @@ export interface ChatModelOpenAIProviderOptions {
 	readonly service_tier?: string;
 	readonly structured_outputs?: boolean;
 	readonly strict_json_schema?: boolean;
+	readonly web_search_enabled?: boolean;
+	readonly search_context_size?: string;
+	readonly allowed_domains?: readonly string[];
 }
 
 // From codersdk/chats.go
@@ -1609,6 +1621,14 @@ export interface ChatStreamRetry {
  */
 export interface ChatStreamStatus {
 	readonly status: ChatStatus;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatSystemPromptResponse is the response for getting the chat system prompt.
+ */
+export interface ChatSystemPromptResponse {
+	readonly system_prompt: string;
 }
 
 // From codersdk/chats.go
@@ -2065,6 +2085,10 @@ export interface CreateUserRequestWithOrgs {
 	 * OrganizationIDs is a list of organization IDs that the user should be a member of.
 	 */
 	readonly organization_ids: readonly string[];
+	/**
+	 * Service accounts are admin-managed accounts that cannot login.
+	 */
+	readonly service_account?: boolean;
 }
 
 // From codersdk/workspaces.go
@@ -2683,6 +2707,12 @@ export interface ExternalAuthConfig {
 	 */
 	readonly regex: string;
 	/**
+	 * APIBaseURL is the base URL for provider REST API calls
+	 * (e.g., "https://api.github.com" for GitHub). Derived from
+	 * defaults when not explicitly configured.
+	 */
+	readonly api_base_url: string;
+	/**
 	 * DisplayName is shown in the UI to identify the auth config.
 	 */
 	readonly display_name: string;
@@ -3252,8 +3282,8 @@ export interface LinkConfig {
 /**
  * ListChatsOptions are optional parameters for ListChats.
  */
-export interface ListChatsOptions {
-	readonly Archived: boolean | null;
+export interface ListChatsOptions extends Pagination {
+	readonly Query: string;
 }
 
 // From codersdk/inboxnotification.go
@@ -3379,6 +3409,22 @@ export interface MinimalUser {
 	readonly username: string;
 	readonly name?: string;
 	readonly avatar_url?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ModelCostConfig stores pricing metadata for a chat model.
+ */
+export interface ModelCostConfig {
+	/**
+	 * Pricing is stored as configuration metadata and currently only needs to
+	 * round-trip cleanly through the API and admin UI. If we later use these
+	 * values for billing-grade arithmetic, switch to a fixed-point type.
+	 */
+	readonly input_price_per_million_tokens?: number;
+	readonly output_price_per_million_tokens?: number;
+	readonly cache_read_price_per_million_tokens?: number;
+	readonly cache_write_price_per_million_tokens?: number;
 }
 
 // From netcheck/netcheck.go
@@ -6303,6 +6349,14 @@ export interface UpdateChatRequest {
 	readonly title: string;
 }
 
+// From codersdk/chats.go
+/**
+ * UpdateChatSystemPromptRequest is the request to update the chat system prompt.
+ */
+export interface UpdateChatSystemPromptRequest {
+	readonly system_prompt: string;
+}
+
 // From codersdk/updatecheck.go
 /**
  * UpdateCheckResponse contains information on the latest release of Coder.
@@ -6461,6 +6515,15 @@ export interface UpdateTemplateMeta {
 export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
 	readonly terminal_font: TerminalFontName;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateUserChatCustomPromptRequest is the request to update a user's
+ * custom chat prompt.
+ */
+export interface UpdateUserChatCustomPromptRequest {
+	readonly custom_prompt: string;
 }
 
 // From codersdk/notifications.go
@@ -6685,6 +6748,15 @@ export interface UserActivityInsightsResponse {
 export interface UserAppearanceSettings {
 	readonly theme_preference: string;
 	readonly terminal_font: TerminalFontName;
+}
+
+// From codersdk/chats.go
+/**
+ * UserChatCustomPromptResponse is the response for getting a user's
+ * custom chat prompt.
+ */
+export interface UserChatCustomPromptResponse {
+	readonly custom_prompt: string;
 }
 
 // From codersdk/insights.go

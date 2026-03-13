@@ -1,5 +1,6 @@
 import type { ChatQueuedMessage } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
@@ -8,7 +9,6 @@ import {
 import {
 	ArrowUpIcon,
 	CornerDownLeftIcon,
-	Loader2Icon,
 	PencilIcon,
 	Trash2Icon,
 } from "lucide-react";
@@ -288,7 +288,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
 										>
 											{isItemBusy && busyItem.action === "promote" ? (
-												<Loader2Icon className="h-3.5 w-3.5 animate-spin" />
+												<Spinner className="h-3.5 w-3.5" loading />
 											) : (
 												<ArrowUpIcon className="h-3.5 w-3.5" />
 											)}
@@ -307,7 +307,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 											className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-destructive"
 										>
 											{isItemBusy && busyItem.action === "delete" ? (
-												<Loader2Icon className="h-3.5 w-3.5 animate-spin" />
+												<Spinner className="h-3.5 w-3.5" loading />
 											) : (
 												<Trash2Icon className="h-3.5 w-3.5" />
 											)}

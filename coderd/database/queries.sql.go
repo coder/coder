@@ -2360,50 +2360,6 @@ func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 	return i, err
 }
 
-const getChatModelConfigByProviderAndModel = `-- name: GetChatModelConfigByProviderAndModel :one
-SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
-FROM
-    chat_model_configs
-WHERE
-    provider = $1::text
-    AND model = $2::text
-    AND deleted = FALSE
-ORDER BY
-    updated_at DESC,
-    created_at DESC,
-    id DESC
-LIMIT 1
-`
-
-type GetChatModelConfigByProviderAndModelParams struct {
-	Provider string `db:"provider" json:"provider"`
-	Model    string `db:"model" json:"model"`
-}
-
-func (q *sqlQuerier) GetChatModelConfigByProviderAndModel(ctx context.Context, arg GetChatModelConfigByProviderAndModelParams) (ChatModelConfig, error) {
-	row := q.db.QueryRowContext(ctx, getChatModelConfigByProviderAndModel, arg.Provider, arg.Model)
-	var i ChatModelConfig
-	err := row.Scan(
-		&i.ID,
-		&i.Provider,
-		&i.Model,
-		&i.DisplayName,
-		&i.CreatedBy,
-		&i.UpdatedBy,
-		&i.Enabled,
-		&i.IsDefault,
-		&i.Deleted,
-		&i.DeletedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ContextLimit,
-		&i.CompressionThreshold,
-		&i.Options,
-	)
-	return i, err
-}
-
 const getChatModelConfigs = `-- name: GetChatModelConfigs :many
 SELECT
     id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options
@@ -2968,7 +2924,7 @@ func (q *sqlQuerier) UpdateChatProvider(ctx context.Context, arg UpdateChatProvi
 	return i, err
 }
 
-const acquireChat = `-- name: AcquireChat :one
+const acquireChats = `-- name: AcquireChats :many
 UPDATE
     chats
 SET
@@ -2978,7 +2934,7 @@ SET
     updated_at = $1::timestamptz,
     worker_id = $2::uuid
 WHERE
-    id = (
+    id = ANY(
         SELECT
             id
         FROM
@@ -2990,40 +2946,157 @@ WHERE
         FOR UPDATE
             SKIP LOCKED
         LIMIT
-            1
+            $3::int
     )
 RETURNING
     id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
 `
 
-type AcquireChatParams struct {
+type AcquireChatsParams struct {
 	StartedAt time.Time `db:"started_at" json:"started_at"`
 	WorkerID  uuid.UUID `db:"worker_id" json:"worker_id"`
+	NumChats  int32     `db:"num_chats" json:"num_chats"`
 }
 
-// Acquires a pending chat for processing. Uses SKIP LOCKED to prevent
-// multiple replicas from acquiring the same chat.
-func (q *sqlQuerier) AcquireChat(ctx context.Context, arg AcquireChatParams) (Chat, error) {
-	row := q.db.QueryRowContext(ctx, acquireChat, arg.StartedAt, arg.WorkerID)
-	var i Chat
-	err := row.Scan(
-		&i.ID,
-		&i.OwnerID,
-		&i.WorkspaceID,
-		&i.Title,
-		&i.Status,
-		&i.WorkerID,
-		&i.StartedAt,
-		&i.HeartbeatAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ParentChatID,
-		&i.RootChatID,
-		&i.LastModelConfigID,
-		&i.Archived,
-		&i.LastError,
-	)
-	return i, err
+// Acquires up to @num_chats pending chats for processing. Uses SKIP LOCKED
+// to prevent multiple replicas from acquiring the same chat.
+func (q *sqlQuerier) AcquireChats(ctx context.Context, arg AcquireChatsParams) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, acquireChats, arg.StartedAt, arg.WorkerID, arg.NumChats)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.Archived,
+			&i.LastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const acquireStaleChatDiffStatuses = `-- name: AcquireStaleChatDiffStatuses :many
+WITH acquired AS (
+    UPDATE
+        chat_diff_statuses
+    SET
+        -- Claim for 5 minutes. The worker sets the real stale_at
+        -- after refresh. If the worker crashes, rows become eligible
+        -- again after this interval.
+        stale_at = NOW() + INTERVAL '5 minutes',
+        updated_at = NOW()
+    WHERE
+        chat_id IN (
+            SELECT
+                cds.chat_id
+            FROM
+                chat_diff_statuses cds
+            INNER JOIN
+                chats c ON c.id = cds.chat_id
+            WHERE
+                cds.stale_at <= NOW()
+                AND cds.git_remote_origin != ''
+                AND cds.git_branch != ''
+                AND c.archived = FALSE
+            ORDER BY
+                cds.stale_at ASC
+            FOR UPDATE OF cds
+                SKIP LOCKED
+            LIMIT
+                $1::int
+        )
+    RETURNING chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft
+)
+SELECT
+    acquired.chat_id, acquired.url, acquired.pull_request_state, acquired.changes_requested, acquired.additions, acquired.deletions, acquired.changed_files, acquired.refreshed_at, acquired.stale_at, acquired.created_at, acquired.updated_at, acquired.git_branch, acquired.git_remote_origin, acquired.pull_request_title, acquired.pull_request_draft,
+    c.owner_id
+FROM
+    acquired
+INNER JOIN
+    chats c ON c.id = acquired.chat_id
+`
+
+type AcquireStaleChatDiffStatusesRow struct {
+	ChatID           uuid.UUID      `db:"chat_id" json:"chat_id"`
+	Url              sql.NullString `db:"url" json:"url"`
+	PullRequestState sql.NullString `db:"pull_request_state" json:"pull_request_state"`
+	ChangesRequested bool           `db:"changes_requested" json:"changes_requested"`
+	Additions        int32          `db:"additions" json:"additions"`
+	Deletions        int32          `db:"deletions" json:"deletions"`
+	ChangedFiles     int32          `db:"changed_files" json:"changed_files"`
+	RefreshedAt      sql.NullTime   `db:"refreshed_at" json:"refreshed_at"`
+	StaleAt          time.Time      `db:"stale_at" json:"stale_at"`
+	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at"`
+	GitBranch        string         `db:"git_branch" json:"git_branch"`
+	GitRemoteOrigin  string         `db:"git_remote_origin" json:"git_remote_origin"`
+	PullRequestTitle string         `db:"pull_request_title" json:"pull_request_title"`
+	PullRequestDraft bool           `db:"pull_request_draft" json:"pull_request_draft"`
+	OwnerID          uuid.UUID      `db:"owner_id" json:"owner_id"`
+}
+
+func (q *sqlQuerier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int32) ([]AcquireStaleChatDiffStatusesRow, error) {
+	rows, err := q.db.QueryContext(ctx, acquireStaleChatDiffStatuses, limitVal)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AcquireStaleChatDiffStatusesRow
+	for rows.Next() {
+		var i AcquireStaleChatDiffStatusesRow
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.Url,
+			&i.PullRequestState,
+			&i.ChangesRequested,
+			&i.Additions,
+			&i.Deletions,
+			&i.ChangedFiles,
+			&i.RefreshedAt,
+			&i.StaleAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.GitBranch,
+			&i.GitRemoteOrigin,
+			&i.PullRequestTitle,
+			&i.PullRequestDraft,
+			&i.OwnerID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const archiveChatByID = `-- name: ArchiveChatByID :exec
@@ -3033,6 +3106,26 @@ WHERE id = $1 OR root_chat_id = $1
 
 func (q *sqlQuerier) ArchiveChatByID(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, archiveChatByID, id)
+	return err
+}
+
+const backoffChatDiffStatus = `-- name: BackoffChatDiffStatus :exec
+UPDATE
+    chat_diff_statuses
+SET
+    stale_at = $1::timestamptz,
+    updated_at = NOW()
+WHERE
+    chat_id = $2::uuid
+`
+
+type BackoffChatDiffStatusParams struct {
+	StaleAt time.Time `db:"stale_at" json:"stale_at"`
+	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+func (q *sqlQuerier) BackoffChatDiffStatus(ctx context.Context, arg BackoffChatDiffStatusParams) error {
+	_, err := q.db.ExecContext(ctx, backoffChatDiffStatus, arg.StaleAt, arg.ChatID)
 	return err
 }
 
@@ -3060,18 +3153,6 @@ type DeleteChatMessagesAfterIDParams struct {
 
 func (q *sqlQuerier) DeleteChatMessagesAfterID(ctx context.Context, arg DeleteChatMessagesAfterIDParams) error {
 	_, err := q.db.ExecContext(ctx, deleteChatMessagesAfterID, arg.ChatID, arg.AfterID)
-	return err
-}
-
-const deleteChatMessagesByChatID = `-- name: DeleteChatMessagesByChatID :exec
-DELETE FROM
-    chat_messages
-WHERE
-    chat_id = $1::uuid
-`
-
-func (q *sqlQuerier) DeleteChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatMessagesByChatID, chatID)
 	return err
 }
 
@@ -3150,7 +3231,7 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 
 const getChatDiffStatusByChatID = `-- name: GetChatDiffStatusByChatID :one
 SELECT
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft
 FROM
     chat_diff_statuses
 WHERE
@@ -3174,13 +3255,15 @@ func (q *sqlQuerier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.
 		&i.UpdatedAt,
 		&i.GitBranch,
 		&i.GitRemoteOrigin,
+		&i.PullRequestTitle,
+		&i.PullRequestDraft,
 	)
 	return i, err
 }
 
 const getChatDiffStatusesByChatIDs = `-- name: GetChatDiffStatusesByChatIDs :many
 SELECT
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft
 FROM
     chat_diff_statuses
 WHERE
@@ -3210,6 +3293,8 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds [
 			&i.UpdatedAt,
 			&i.GitBranch,
 			&i.GitRemoteOrigin,
+			&i.PullRequestTitle,
+			&i.PullRequestDraft,
 		); err != nil {
 			return nil, err
 		}
@@ -3226,7 +3311,7 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds [
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by
 FROM
     chat_messages
 WHERE
@@ -3252,13 +3337,14 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 		&i.CacheReadTokens,
 		&i.ContextLimit,
 		&i.Compressed,
+		&i.CreatedBy,
 	)
 	return i, err
 }
 
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by
 FROM
     chat_messages
 WHERE
@@ -3299,6 +3385,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 			&i.CacheReadTokens,
 			&i.ContextLimit,
 			&i.Compressed,
+			&i.CreatedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -3330,7 +3417,7 @@ WITH latest_compressed_summary AS (
         1
 )
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by
 FROM
     chat_messages
 WHERE
@@ -3395,6 +3482,7 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 			&i.CacheReadTokens,
 			&i.ContextLimit,
 			&i.Compressed,
+			&i.CreatedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -3454,17 +3542,51 @@ WHERE
         WHEN $2 :: boolean IS NULL THEN true
         ELSE chats.archived = $2 :: boolean
     END
+    AND CASE
+        -- This allows using the last element on a page as effectively a cursor.
+        -- This is an important option for scripts that need to paginate without
+        -- duplicating or missing data.
+        WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+            -- The pagination cursor is the last ID of the previous page.
+            -- The query is ordered by the updated_at field, so select all
+            -- rows before the cursor.
+            (updated_at, id) < (
+                SELECT
+                    updated_at, id
+                FROM
+                    chats
+                WHERE
+                    id = $3
+            )
+        )
+        ELSE true
+    END
 ORDER BY
-    updated_at DESC
+    -- Deterministic and consistent ordering of all rows, even if they share
+    -- a timestamp. This is to ensure consistent pagination.
+    (updated_at, id) DESC OFFSET $4
+LIMIT
+    -- The chat list is unbounded and expected to grow large.
+    -- Default to 50 to prevent accidental excessively large queries.
+    COALESCE(NULLIF($5 :: int, 0), 50)
 `
 
 type GetChatsByOwnerIDParams struct {
-	OwnerID  uuid.UUID    `db:"owner_id" json:"owner_id"`
-	Archived sql.NullBool `db:"archived" json:"archived"`
+	OwnerID   uuid.UUID    `db:"owner_id" json:"owner_id"`
+	Archived  sql.NullBool `db:"archived" json:"archived"`
+	AfterID   uuid.UUID    `db:"after_id" json:"after_id"`
+	OffsetOpt int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt  int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 func (q *sqlQuerier) GetChatsByOwnerID(ctx context.Context, arg GetChatsByOwnerIDParams) ([]Chat, error) {
-	rows, err := q.db.QueryContext(ctx, getChatsByOwnerID, arg.OwnerID, arg.Archived)
+	rows, err := q.db.QueryContext(ctx, getChatsByOwnerID,
+		arg.OwnerID,
+		arg.Archived,
+		arg.AfterID,
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -3500,6 +3622,49 @@ func (q *sqlQuerier) GetChatsByOwnerID(ctx context.Context, arg GetChatsByOwnerI
 		return nil, err
 	}
 	return items, nil
+}
+
+const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
+SELECT
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by
+FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+    AND role = $2::text
+ORDER BY
+    created_at DESC, id DESC
+LIMIT
+    1
+`
+
+type GetLastChatMessageByRoleParams struct {
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	Role   string    `db:"role" json:"role"`
+}
+
+func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error) {
+	row := q.db.QueryRowContext(ctx, getLastChatMessageByRole, arg.ChatID, arg.Role)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.ModelConfigID,
+		&i.CreatedAt,
+		&i.Role,
+		&i.Content,
+		&i.Visibility,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
+		&i.Compressed,
+		&i.CreatedBy,
+	)
+	return i, err
 }
 
 const getStaleChats = `-- name: GetStaleChats :many
@@ -3617,13 +3782,14 @@ WITH updated_chat AS (
     UPDATE
         chats
     SET
-        last_model_config_id = $2::uuid
+        last_model_config_id = $3::uuid
     WHERE
         id = $1::uuid
-        AND $2::uuid IS NOT NULL
+        AND $3::uuid IS NOT NULL
 )
 INSERT INTO chat_messages (
     chat_id,
+    created_by,
     model_config_id,
     role,
     content,
@@ -3639,24 +3805,26 @@ INSERT INTO chat_messages (
 ) VALUES (
     $1::uuid,
     $2::uuid,
-    $3::text,
-    $4::jsonb,
-    $5::chat_message_visibility,
-    $6::bigint,
+    $3::uuid,
+    $4::text,
+    $5::jsonb,
+    $6::chat_message_visibility,
     $7::bigint,
     $8::bigint,
     $9::bigint,
     $10::bigint,
     $11::bigint,
     $12::bigint,
-    COALESCE($13::boolean, FALSE)
+    $13::bigint,
+    COALESCE($14::boolean, FALSE)
 )
 RETURNING
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by
 `
 
 type InsertChatMessageParams struct {
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
+	CreatedBy           uuid.NullUUID         `db:"created_by" json:"created_by"`
 	ModelConfigID       uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
 	Role                string                `db:"role" json:"role"`
 	Content             pqtype.NullRawMessage `db:"content" json:"content"`
@@ -3674,6 +3842,7 @@ type InsertChatMessageParams struct {
 func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessageParams) (ChatMessage, error) {
 	row := q.db.QueryRowContext(ctx, insertChatMessage,
 		arg.ChatID,
+		arg.CreatedBy,
 		arg.ModelConfigID,
 		arg.Role,
 		arg.Content,
@@ -3704,6 +3873,7 @@ func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessag
 		&i.CacheReadTokens,
 		&i.ContextLimit,
 		&i.Compressed,
+		&i.CreatedBy,
 	)
 	return i, err
 }
@@ -3729,106 +3899,6 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 		&i.CreatedAt,
 	)
 	return i, err
-}
-
-const listChatsByRootID = `-- name: ListChatsByRootID :many
-SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
-FROM
-    chats
-WHERE
-    root_chat_id = $1::uuid
-ORDER BY
-    created_at ASC
-`
-
-func (q *sqlQuerier) ListChatsByRootID(ctx context.Context, rootChatID uuid.UUID) ([]Chat, error) {
-	rows, err := q.db.QueryContext(ctx, listChatsByRootID, rootChatID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Chat
-	for rows.Next() {
-		var i Chat
-		if err := rows.Scan(
-			&i.ID,
-			&i.OwnerID,
-			&i.WorkspaceID,
-			&i.Title,
-			&i.Status,
-			&i.WorkerID,
-			&i.StartedAt,
-			&i.HeartbeatAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ParentChatID,
-			&i.RootChatID,
-			&i.LastModelConfigID,
-			&i.Archived,
-			&i.LastError,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listChildChatsByParentID = `-- name: ListChildChatsByParentID :many
-SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error
-FROM
-    chats
-WHERE
-    parent_chat_id = $1::uuid
-ORDER BY
-    created_at ASC
-`
-
-func (q *sqlQuerier) ListChildChatsByParentID(ctx context.Context, parentChatID uuid.UUID) ([]Chat, error) {
-	rows, err := q.db.QueryContext(ctx, listChildChatsByParentID, parentChatID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Chat
-	for rows.Next() {
-		var i Chat
-		if err := rows.Scan(
-			&i.ID,
-			&i.OwnerID,
-			&i.WorkspaceID,
-			&i.Title,
-			&i.Status,
-			&i.WorkerID,
-			&i.StartedAt,
-			&i.HeartbeatAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ParentChatID,
-			&i.RootChatID,
-			&i.LastModelConfigID,
-			&i.Archived,
-			&i.LastError,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const popNextQueuedMessage = `-- name: PopNextQueuedMessage :one
@@ -3938,7 +4008,7 @@ SET
 WHERE
     id = $3::bigint
 RETURNING
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by
 `
 
 type UpdateChatMessageByIDParams struct {
@@ -3966,6 +4036,7 @@ func (q *sqlQuerier) UpdateChatMessageByID(ctx context.Context, arg UpdateChatMe
 		&i.CacheReadTokens,
 		&i.ContextLimit,
 		&i.Compressed,
+		&i.CreatedBy,
 	)
 	return i, err
 }
@@ -4070,6 +4141,8 @@ INSERT INTO chat_diff_statuses (
     chat_id,
     url,
     pull_request_state,
+    pull_request_title,
+    pull_request_draft,
     changes_requested,
     additions,
     deletions,
@@ -4080,17 +4153,21 @@ INSERT INTO chat_diff_statuses (
     $1::uuid,
     $2::text,
     $3::text,
-    $4::boolean,
-    $5::integer,
-    $6::integer,
+    $4::text,
+    $5::boolean,
+    $6::boolean,
     $7::integer,
-    $8::timestamptz,
-    $9::timestamptz
+    $8::integer,
+    $9::integer,
+    $10::timestamptz,
+    $11::timestamptz
 )
 ON CONFLICT (chat_id) DO UPDATE
 SET
     url = EXCLUDED.url,
     pull_request_state = EXCLUDED.pull_request_state,
+    pull_request_title = EXCLUDED.pull_request_title,
+    pull_request_draft = EXCLUDED.pull_request_draft,
     changes_requested = EXCLUDED.changes_requested,
     additions = EXCLUDED.additions,
     deletions = EXCLUDED.deletions,
@@ -4099,13 +4176,15 @@ SET
     stale_at = EXCLUDED.stale_at,
     updated_at = NOW()
 RETURNING
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft
 `
 
 type UpsertChatDiffStatusParams struct {
 	ChatID           uuid.UUID      `db:"chat_id" json:"chat_id"`
 	Url              sql.NullString `db:"url" json:"url"`
 	PullRequestState sql.NullString `db:"pull_request_state" json:"pull_request_state"`
+	PullRequestTitle string         `db:"pull_request_title" json:"pull_request_title"`
+	PullRequestDraft bool           `db:"pull_request_draft" json:"pull_request_draft"`
 	ChangesRequested bool           `db:"changes_requested" json:"changes_requested"`
 	Additions        int32          `db:"additions" json:"additions"`
 	Deletions        int32          `db:"deletions" json:"deletions"`
@@ -4119,6 +4198,8 @@ func (q *sqlQuerier) UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDif
 		arg.ChatID,
 		arg.Url,
 		arg.PullRequestState,
+		arg.PullRequestTitle,
+		arg.PullRequestDraft,
 		arg.ChangesRequested,
 		arg.Additions,
 		arg.Deletions,
@@ -4141,6 +4222,8 @@ func (q *sqlQuerier) UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDif
 		&i.UpdatedAt,
 		&i.GitBranch,
 		&i.GitRemoteOrigin,
+		&i.PullRequestTitle,
+		&i.PullRequestDraft,
 	)
 	return i, err
 }
@@ -4176,7 +4259,7 @@ SET
     stale_at = EXCLUDED.stale_at,
     updated_at = NOW()
 RETURNING
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft
 `
 
 type UpsertChatDiffStatusReferenceParams struct {
@@ -4210,6 +4293,8 @@ func (q *sqlQuerier) UpsertChatDiffStatusReference(ctx context.Context, arg Upse
 		&i.UpdatedAt,
 		&i.GitBranch,
 		&i.GitRemoteOrigin,
+		&i.PullRequestTitle,
+		&i.PullRequestDraft,
 	)
 	return i, err
 }
@@ -5250,8 +5335,10 @@ WHERE
 AND
     user_id = $5
 AND
+    oauth_refresh_token = $6
+AND
     -- Required for sqlc to generate a parameter for the oauth_refresh_token_key_id
-    $6 :: text = $6 :: text
+    $7 :: text = $7 :: text
 `
 
 type UpdateExternalAuthLinkRefreshTokenParams struct {
@@ -5260,9 +5347,14 @@ type UpdateExternalAuthLinkRefreshTokenParams struct {
 	UpdatedAt                 time.Time `db:"updated_at" json:"updated_at"`
 	ProviderID                string    `db:"provider_id" json:"provider_id"`
 	UserID                    uuid.UUID `db:"user_id" json:"user_id"`
+	OldOauthRefreshToken      string    `db:"old_oauth_refresh_token" json:"old_oauth_refresh_token"`
 	OAuthRefreshTokenKeyID    string    `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 }
 
+// Optimistic lock: only update the row if the refresh token in the database
+// still matches the one we read before attempting the refresh. This prevents
+// a concurrent caller that lost a token-refresh race from overwriting a valid
+// token stored by the winner.
 func (q *sqlQuerier) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg UpdateExternalAuthLinkRefreshTokenParams) error {
 	_, err := q.db.ExecContext(ctx, updateExternalAuthLinkRefreshToken,
 		arg.OauthRefreshFailureReason,
@@ -5270,6 +5362,7 @@ func (q *sqlQuerier) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg
 		arg.UpdatedAt,
 		arg.ProviderID,
 		arg.UserID,
+		arg.OldOauthRefreshToken,
 		arg.OAuthRefreshTokenKeyID,
 	)
 	return err
@@ -5330,30 +5423,6 @@ func (q *sqlQuerier) GetFileByID(ctx context.Context, id uuid.UUID) (File, error
 		&i.ID,
 	)
 	return i, err
-}
-
-const getFileIDByTemplateVersionID = `-- name: GetFileIDByTemplateVersionID :one
-SELECT
-	files.id
-FROM
-	files
-JOIN
-	provisioner_jobs ON
-		provisioner_jobs.storage_method = 'file'
-		AND provisioner_jobs.file_id = files.id
-JOIN
-	template_versions ON template_versions.job_id = provisioner_jobs.id
-WHERE
-	template_versions.id = $1
-LIMIT
-	1
-`
-
-func (q *sqlQuerier) GetFileIDByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (uuid.UUID, error) {
-	row := q.db.QueryRowContext(ctx, getFileIDByTemplateVersionID, templateVersionID)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
 }
 
 const getFileTemplates = `-- name: GetFileTemplates :many
@@ -5460,18 +5529,6 @@ func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File
 		&i.ID,
 	)
 	return i, err
-}
-
-const deleteGitSSHKey = `-- name: DeleteGitSSHKey :exec
-DELETE FROM
-	gitsshkeys
-WHERE
-	user_id = $1
-`
-
-func (q *sqlQuerier) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteGitSSHKey, userID)
-	return err
 }
 
 const getGitSSHKey = `-- name: GetGitSSHKey :one
@@ -5796,49 +5853,6 @@ func (q *sqlQuerier) InsertUserGroupsByID(ctx context.Context, arg InsertUserGro
 		return nil, err
 	}
 	return items, nil
-}
-
-const insertUserGroupsByName = `-- name: InsertUserGroupsByName :exec
-WITH groups AS (
-    SELECT
-        id
-    FROM
-        groups
-    WHERE
-        groups.organization_id = $2 AND
-        groups.name = ANY($3 :: text [])
-)
-INSERT INTO
-    group_members (user_id, group_id)
-SELECT
-    $1,
-    groups.id
-FROM
-    groups
-`
-
-type InsertUserGroupsByNameParams struct {
-	UserID         uuid.UUID `db:"user_id" json:"user_id"`
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	GroupNames     []string  `db:"group_names" json:"group_names"`
-}
-
-// InsertUserGroupsByName adds a user to all provided groups, if they exist.
-func (q *sqlQuerier) InsertUserGroupsByName(ctx context.Context, arg InsertUserGroupsByNameParams) error {
-	_, err := q.db.ExecContext(ctx, insertUserGroupsByName, arg.UserID, arg.OrganizationID, pq.Array(arg.GroupNames))
-	return err
-}
-
-const removeUserFromAllGroups = `-- name: RemoveUserFromAllGroups :exec
-DELETE FROM
-	group_members
-WHERE
-	user_id = $1
-`
-
-func (q *sqlQuerier) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, removeUserFromAllGroups, userID)
-	return err
 }
 
 const removeUserFromGroups = `-- name: RemoveUserFromGroups :many
@@ -8825,44 +8839,6 @@ func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID)
 	return i, err
 }
 
-const getOAuth2ProviderAppByRegistrationToken = `-- name: GetOAuth2ProviderAppByRegistrationToken :one
-SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps WHERE registration_access_token = $1
-`
-
-func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken []byte) (OAuth2ProviderApp, error) {
-	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppByRegistrationToken, registrationAccessToken)
-	var i OAuth2ProviderApp
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Name,
-		&i.Icon,
-		&i.CallbackURL,
-		pq.Array(&i.RedirectUris),
-		&i.ClientType,
-		&i.DynamicallyRegistered,
-		&i.ClientIDIssuedAt,
-		&i.ClientSecretExpiresAt,
-		pq.Array(&i.GrantTypes),
-		pq.Array(&i.ResponseTypes),
-		&i.TokenEndpointAuthMethod,
-		&i.Scope,
-		pq.Array(&i.Contacts),
-		&i.ClientUri,
-		&i.LogoUri,
-		&i.TosUri,
-		&i.PolicyUri,
-		&i.JwksUri,
-		&i.Jwks,
-		&i.SoftwareID,
-		&i.SoftwareVersion,
-		&i.RegistrationAccessToken,
-		&i.RegistrationClientUri,
-	)
-	return i, err
-}
-
 const getOAuth2ProviderAppCodeByID = `-- name: GetOAuth2ProviderAppCodeByID :one
 SELECT id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri FROM oauth2_provider_app_codes WHERE id = $1
 `
@@ -9698,32 +9674,6 @@ func (q *sqlQuerier) UpdateOAuth2ProviderAppByID(ctx context.Context, arg Update
 		&i.SoftwareVersion,
 		&i.RegistrationAccessToken,
 		&i.RegistrationClientUri,
-	)
-	return i, err
-}
-
-const updateOAuth2ProviderAppSecretByID = `-- name: UpdateOAuth2ProviderAppSecretByID :one
-UPDATE oauth2_provider_app_secrets SET
-    last_used_at = $2
-WHERE id = $1 RETURNING id, created_at, last_used_at, hashed_secret, display_secret, app_id, secret_prefix
-`
-
-type UpdateOAuth2ProviderAppSecretByIDParams struct {
-	ID         uuid.UUID    `db:"id" json:"id"`
-	LastUsedAt sql.NullTime `db:"last_used_at" json:"last_used_at"`
-}
-
-func (q *sqlQuerier) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg UpdateOAuth2ProviderAppSecretByIDParams) (OAuth2ProviderAppSecret, error) {
-	row := q.db.QueryRowContext(ctx, updateOAuth2ProviderAppSecretByID, arg.ID, arg.LastUsedAt)
-	var i OAuth2ProviderAppSecret
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.LastUsedAt,
-		&i.HashedSecret,
-		&i.DisplaySecret,
-		&i.AppID,
-		&i.SecretPrefix,
 	)
 	return i, err
 }
@@ -12596,65 +12546,11 @@ func (q *sqlQuerier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID 
 	return items, nil
 }
 
-const getProvisionerJobsByIDs = `-- name: GetProvisionerJobsByIDs :many
-SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
-FROM
-	provisioner_jobs
-WHERE
-	id = ANY($1 :: uuid [ ])
-`
-
-func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJob, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerJobsByIDs, pq.Array(ids))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ProvisionerJob
-	for rows.Next() {
-		var i ProvisionerJob
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.StartedAt,
-			&i.CanceledAt,
-			&i.CompletedAt,
-			&i.Error,
-			&i.OrganizationID,
-			&i.InitiatorID,
-			&i.Provisioner,
-			&i.StorageMethod,
-			&i.Type,
-			&i.Input,
-			&i.WorkerID,
-			&i.FileID,
-			&i.Tags,
-			&i.ErrorCode,
-			&i.TraceMetadata,
-			&i.JobStatus,
-			&i.LogsLength,
-			&i.LogsOverflowed,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getProvisionerJobsByIDsWithQueuePosition = `-- name: GetProvisionerJobsByIDsWithQueuePosition :many
 WITH filtered_provisioner_jobs AS (
 	-- Step 1: Filter provisioner_jobs
 	SELECT
-		id, created_at
+		id, created_at, tags
 	FROM
 		provisioner_jobs
 	WHERE
@@ -12669,21 +12565,32 @@ pending_jobs AS (
 	WHERE
 		job_status = 'pending'
 ),
-online_provisioner_daemons AS (
-	SELECT id, tags FROM provisioner_daemons pd
-	WHERE pd.last_seen_at IS NOT NULL AND pd.last_seen_at >= (NOW() - ($2::bigint || ' ms')::interval)
+unique_daemon_tags AS (
+	SELECT DISTINCT tags FROM provisioner_daemons pd
+	WHERE pd.last_seen_at IS NOT NULL
+	  AND pd.last_seen_at >= (NOW() - ($2::bigint || ' ms')::interval)
+),
+relevant_daemon_tags AS (
+	SELECT udt.tags
+	FROM unique_daemon_tags udt
+	WHERE EXISTS (
+		SELECT 1 FROM filtered_provisioner_jobs fpj
+		WHERE provisioner_tagset_contains(udt.tags, fpj.tags)
+	)
 ),
 ranked_jobs AS (
 	-- Step 3: Rank only pending jobs based on provisioner availability
 	SELECT
 		pj.id,
 		pj.created_at,
-		ROW_NUMBER() OVER (PARTITION BY opd.id ORDER BY pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC, pj.created_at ASC) AS queue_position,
-		COUNT(*) OVER (PARTITION BY opd.id) AS queue_size
+		ROW_NUMBER() OVER (PARTITION BY rdt.tags ORDER BY pj.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid ASC, pj.created_at ASC) AS queue_position,
+		COUNT(*) OVER (PARTITION BY rdt.tags) AS queue_size
 	FROM
 		pending_jobs pj
-			INNER JOIN online_provisioner_daemons opd
-					ON provisioner_tagset_contains(opd.tags, pj.tags) -- Join only on the small pending set
+	INNER JOIN
+		relevant_daemon_tags rdt
+	ON
+		provisioner_tagset_contains(rdt.tags, pj.tags)
 ),
 final_jobs AS (
 	-- Step 4: Compute best queue position and max queue size per job
@@ -14442,17 +14349,6 @@ func (q *sqlQuerier) GetAnnouncementBanners(ctx context.Context) (string, error)
 	return value, err
 }
 
-const getAppSecurityKey = `-- name: GetAppSecurityKey :one
-SELECT value FROM site_configs WHERE key = 'app_signing_key'
-`
-
-func (q *sqlQuerier) GetAppSecurityKey(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getAppSecurityKey)
-	var value string
-	err := row.Scan(&value)
-	return value, err
-}
-
 const getApplicationName = `-- name: GetApplicationName :one
 SELECT value FROM site_configs WHERE key = 'application_name'
 `
@@ -14464,15 +14360,16 @@ func (q *sqlQuerier) GetApplicationName(ctx context.Context) (string, error) {
 	return value, err
 }
 
-const getCoordinatorResumeTokenSigningKey = `-- name: GetCoordinatorResumeTokenSigningKey :one
-SELECT value FROM site_configs WHERE key = 'coordinator_resume_token_signing_key'
+const getChatSystemPrompt = `-- name: GetChatSystemPrompt :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_system_prompt'), '') :: text AS chat_system_prompt
 `
 
-func (q *sqlQuerier) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getCoordinatorResumeTokenSigningKey)
-	var value string
-	err := row.Scan(&value)
-	return value, err
+func (q *sqlQuerier) GetChatSystemPrompt(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatSystemPrompt)
+	var chat_system_prompt string
+	err := row.Scan(&chat_system_prompt)
+	return chat_system_prompt, err
 }
 
 const getDERPMeshKey = `-- name: GetDERPMeshKey :one
@@ -14578,17 +14475,6 @@ func (q *sqlQuerier) GetOAuth2GithubDefaultEligible(ctx context.Context) (bool, 
 	return column_1, err
 }
 
-const getOAuthSigningKey = `-- name: GetOAuthSigningKey :one
-SELECT value FROM site_configs WHERE key = 'oauth_signing_key'
-`
-
-func (q *sqlQuerier) GetOAuthSigningKey(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getOAuthSigningKey)
-	var value string
-	err := row.Scan(&value)
-	return value, err
-}
-
 const getPrebuildsSettings = `-- name: GetPrebuildsSettings :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'prebuilds_settings'), '{}') :: text AS prebuilds_settings
@@ -14658,16 +14544,6 @@ func (q *sqlQuerier) UpsertAnnouncementBanners(ctx context.Context, value string
 	return err
 }
 
-const upsertAppSecurityKey = `-- name: UpsertAppSecurityKey :exec
-INSERT INTO site_configs (key, value) VALUES ('app_signing_key', $1)
-ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'app_signing_key'
-`
-
-func (q *sqlQuerier) UpsertAppSecurityKey(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertAppSecurityKey, value)
-	return err
-}
-
 const upsertApplicationName = `-- name: UpsertApplicationName :exec
 INSERT INTO site_configs (key, value) VALUES ('application_name', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'application_name'
@@ -14678,13 +14554,13 @@ func (q *sqlQuerier) UpsertApplicationName(ctx context.Context, value string) er
 	return err
 }
 
-const upsertCoordinatorResumeTokenSigningKey = `-- name: UpsertCoordinatorResumeTokenSigningKey :exec
-INSERT INTO site_configs (key, value) VALUES ('coordinator_resume_token_signing_key', $1)
-ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'coordinator_resume_token_signing_key'
+const upsertChatSystemPrompt = `-- name: UpsertChatSystemPrompt :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_chat_system_prompt', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_system_prompt'
 `
 
-func (q *sqlQuerier) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertCoordinatorResumeTokenSigningKey, value)
+func (q *sqlQuerier) UpsertChatSystemPrompt(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatSystemPrompt, value)
 	return err
 }
 
@@ -14770,16 +14646,6 @@ WHERE site_configs.key = 'oauth2_github_default_eligible'
 
 func (q *sqlQuerier) UpsertOAuth2GithubDefaultEligible(ctx context.Context, eligible bool) error {
 	_, err := q.db.ExecContext(ctx, upsertOAuth2GithubDefaultEligible, eligible)
-	return err
-}
-
-const upsertOAuthSigningKey = `-- name: UpsertOAuthSigningKey :exec
-INSERT INTO site_configs (key, value) VALUES ('oauth_signing_key', $1)
-ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'oauth_signing_key'
-`
-
-func (q *sqlQuerier) UpsertOAuthSigningKey(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertOAuthSigningKey, value)
 	return err
 }
 
@@ -17101,21 +16967,6 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 	return i, err
 }
 
-const getTemplateVersionHasAITask = `-- name: GetTemplateVersionHasAITask :one
-SELECT EXISTS (
-	SELECT 1
-	FROM template_versions
-	WHERE id = $1 AND has_ai_task = TRUE
-)
-`
-
-func (q *sqlQuerier) GetTemplateVersionHasAITask(ctx context.Context, id uuid.UUID) (bool, error) {
-	row := q.db.QueryRowContext(ctx, getTemplateVersionHasAITask, id)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
 	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, has_ai_task, has_external_agent, created_by_avatar_url, created_by_username, created_by_name
@@ -18220,38 +18071,6 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 	return i, err
 }
 
-const updateUserLinkedID = `-- name: UpdateUserLinkedID :one
-UPDATE
-	user_links
-SET
-	linked_id = $1
-WHERE
-	user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims
-`
-
-type UpdateUserLinkedIDParams struct {
-	LinkedID  string    `db:"linked_id" json:"linked_id"`
-	UserID    uuid.UUID `db:"user_id" json:"user_id"`
-	LoginType LoginType `db:"login_type" json:"login_type"`
-}
-
-func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinkedIDParams) (UserLink, error) {
-	row := q.db.QueryRowContext(ctx, updateUserLinkedID, arg.LinkedID, arg.UserID, arg.LoginType)
-	var i UserLink
-	err := row.Scan(
-		&i.UserID,
-		&i.LoginType,
-		&i.LinkedID,
-		&i.OAuthAccessToken,
-		&i.OAuthRefreshToken,
-		&i.OAuthExpiry,
-		&i.OAuthAccessTokenKeyID,
-		&i.OAuthRefreshTokenKeyID,
-		&i.Claims,
-	)
-	return i, err
-}
-
 const createUserSecret = `-- name: CreateUserSecret :one
 INSERT INTO user_secrets (
     id,
@@ -18557,19 +18376,19 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
 FROM
 	users
 WHERE
-	(LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($2)) AND
+	(LOWER(username) = LOWER($1) OR ($2 != '' AND LOWER(email) = LOWER($2))) AND
 	deleted = false
 LIMIT
 	1
 `
 
 type GetUserByEmailOrUsernameParams struct {
-	Username string `db:"username" json:"username"`
-	Email    string `db:"email" json:"email"`
+	Username string      `db:"username" json:"username"`
+	Email    interface{} `db:"email" json:"email"`
 }
 
 func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error) {
@@ -18594,13 +18413,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
+		&i.IsServiceAccount,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
 FROM
 	users
 WHERE
@@ -18631,8 +18451,26 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
+		&i.IsServiceAccount,
 	)
 	return i, err
+}
+
+const getUserChatCustomPrompt = `-- name: GetUserChatCustomPrompt :one
+SELECT
+	value as chat_custom_prompt
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'chat_custom_prompt'
+`
+
+func (q *sqlQuerier) GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserChatCustomPrompt, userID)
+	var chat_custom_prompt string
+	err := row.Scan(&chat_custom_prompt)
+	return chat_custom_prompt, err
 }
 
 const getUserCount = `-- name: GetUserCount :one
@@ -18705,7 +18543,7 @@ func (q *sqlQuerier) GetUserThemePreference(ctx context.Context, userID uuid.UUI
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, COUNT(*) OVER() AS count
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, COUNT(*) OVER() AS count
 FROM
 	users
 WHERE
@@ -18846,6 +18684,7 @@ type GetUsersRow struct {
 	HashedOneTimePasscode    []byte         `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
 	OneTimePasscodeExpiresAt sql.NullTime   `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
 	IsSystem                 bool           `db:"is_system" json:"is_system"`
+	IsServiceAccount         bool           `db:"is_service_account" json:"is_service_account"`
 	Count                    int64          `db:"count" json:"count"`
 }
 
@@ -18893,6 +18732,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 			&i.HashedOneTimePasscode,
 			&i.OneTimePasscodeExpiresAt,
 			&i.IsSystem,
+			&i.IsServiceAccount,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -18909,7 +18749,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system FROM users WHERE id = ANY($1 :: uuid [ ])
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account FROM users WHERE id = ANY($1 :: uuid [ ])
 `
 
 // This shouldn't check for deleted, because it's frequently used
@@ -18943,6 +18783,7 @@ func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User
 			&i.HashedOneTimePasscode,
 			&i.OneTimePasscodeExpiresAt,
 			&i.IsSystem,
+			&i.IsServiceAccount,
 		); err != nil {
 			return nil, err
 		}
@@ -18969,27 +18810,30 @@ INSERT INTO
 		updated_at,
 		rbac_roles,
 		login_type,
-		status
+		status,
+		is_service_account
 	)
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9,
 		-- if the status passed in is empty, fallback to dormant, which is what
 		-- we were doing before.
-		COALESCE(NULLIF($10::text, '')::user_status, 'dormant'::user_status)
-	) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
+		COALESCE(NULLIF($10::text, '')::user_status, 'dormant'::user_status),
+		$11::bool
+	) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
 `
 
 type InsertUserParams struct {
-	ID             uuid.UUID      `db:"id" json:"id"`
-	Email          string         `db:"email" json:"email"`
-	Username       string         `db:"username" json:"username"`
-	Name           string         `db:"name" json:"name"`
-	HashedPassword []byte         `db:"hashed_password" json:"hashed_password"`
-	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
-	RBACRoles      pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
-	LoginType      LoginType      `db:"login_type" json:"login_type"`
-	Status         string         `db:"status" json:"status"`
+	ID               uuid.UUID      `db:"id" json:"id"`
+	Email            string         `db:"email" json:"email"`
+	Username         string         `db:"username" json:"username"`
+	Name             string         `db:"name" json:"name"`
+	HashedPassword   []byte         `db:"hashed_password" json:"hashed_password"`
+	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at"`
+	RBACRoles        pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
+	LoginType        LoginType      `db:"login_type" json:"login_type"`
+	Status           string         `db:"status" json:"status"`
+	IsServiceAccount bool           `db:"is_service_account" json:"is_service_account"`
 }
 
 func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User, error) {
@@ -19004,6 +18848,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		arg.RBACRoles,
 		arg.LoginType,
 		arg.Status,
+		arg.IsServiceAccount,
 	)
 	var i User
 	err := row.Scan(
@@ -19025,6 +18870,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
+		&i.IsServiceAccount,
 	)
 	return i, err
 }
@@ -19080,6 +18926,33 @@ func (q *sqlQuerier) UpdateInactiveUsersToDormant(ctx context.Context, arg Updat
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateUserChatCustomPrompt = `-- name: UpdateUserChatCustomPrompt :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'chat_custom_prompt', $2)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'chat_custom_prompt'
+RETURNING user_id, key, value
+`
+
+type UpdateUserChatCustomPromptParams struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	ChatCustomPrompt string    `db:"chat_custom_prompt" json:"chat_custom_prompt"`
+}
+
+func (q *sqlQuerier) UpdateUserChatCustomPrompt(ctx context.Context, arg UpdateUserChatCustomPromptParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateUserChatCustomPrompt, arg.UserID, arg.ChatCustomPrompt)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
 }
 
 const updateUserDeletedByID = `-- name: UpdateUserDeletedByID :exec
@@ -19164,7 +19037,7 @@ SET
 	last_seen_at = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
 `
 
 type UpdateUserLastSeenAtParams struct {
@@ -19195,6 +19068,7 @@ func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLas
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
+		&i.IsServiceAccount,
 	)
 	return i, err
 }
@@ -19214,7 +19088,7 @@ SET
 WHERE
 	id = $2
 	AND NOT is_system
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
 `
 
 type UpdateUserLoginTypeParams struct {
@@ -19244,6 +19118,7 @@ func (q *sqlQuerier) UpdateUserLoginType(ctx context.Context, arg UpdateUserLogi
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
+		&i.IsServiceAccount,
 	)
 	return i, err
 }
@@ -19259,7 +19134,7 @@ SET
 	name = $6
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
 `
 
 type UpdateUserProfileParams struct {
@@ -19300,6 +19175,7 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
+		&i.IsServiceAccount,
 	)
 	return i, err
 }
@@ -19311,7 +19187,7 @@ SET
 	quiet_hours_schedule = $2
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
 `
 
 type UpdateUserQuietHoursScheduleParams struct {
@@ -19341,6 +19217,7 @@ func (q *sqlQuerier) UpdateUserQuietHoursSchedule(ctx context.Context, arg Updat
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
+		&i.IsServiceAccount,
 	)
 	return i, err
 }
@@ -19353,7 +19230,7 @@ SET
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
 	id = $2
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
 `
 
 type UpdateUserRolesParams struct {
@@ -19383,6 +19260,7 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
+		&i.IsServiceAccount,
 	)
 	return i, err
 }
@@ -19396,7 +19274,7 @@ SET
 	-- If the user is logging in, set last_seen_at to updated_at.
 	last_seen_at = CASE WHEN $4 :: boolean THEN $3 :: timestamptz ELSE last_seen_at END
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
 `
 
 type UpdateUserStatusParams struct {
@@ -19433,6 +19311,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.HashedOneTimePasscode,
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
+		&i.IsServiceAccount,
 	)
 	return i, err
 }
@@ -21808,48 +21687,6 @@ func (q *sqlQuerier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
 	return err
 }
 
-const getDeploymentDAUs = `-- name: GetDeploymentDAUs :many
-SELECT
-	(created_at at TIME ZONE cast($1::integer as text))::date as date,
-	user_id
-FROM
-	workspace_agent_stats
-WHERE
-	connection_count > 0
-GROUP BY
-	date, user_id
-ORDER BY
-	date ASC
-`
-
-type GetDeploymentDAUsRow struct {
-	Date   time.Time `db:"date" json:"date"`
-	UserID uuid.UUID `db:"user_id" json:"user_id"`
-}
-
-func (q *sqlQuerier) GetDeploymentDAUs(ctx context.Context, tzOffset int32) ([]GetDeploymentDAUsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getDeploymentDAUs, tzOffset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetDeploymentDAUsRow
-	for rows.Next() {
-		var i GetDeploymentDAUsRow
-		if err := rows.Scan(&i.Date, &i.UserID); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getDeploymentWorkspaceAgentStats = `-- name: GetDeploymentWorkspaceAgentStats :one
 WITH stats AS (
     SELECT
@@ -21986,54 +21823,6 @@ func (q *sqlQuerier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, 
 		&i.SessionCountReconnectingPTY,
 	)
 	return i, err
-}
-
-const getTemplateDAUs = `-- name: GetTemplateDAUs :many
-SELECT
-	(created_at at TIME ZONE cast($2::integer as text))::date as date,
-	user_id
-FROM
-	workspace_agent_stats
-WHERE
-	template_id = $1 AND
-	connection_count > 0
-GROUP BY
-	date, user_id
-ORDER BY
-	date ASC
-`
-
-type GetTemplateDAUsParams struct {
-	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
-	TzOffset   int32     `db:"tz_offset" json:"tz_offset"`
-}
-
-type GetTemplateDAUsRow struct {
-	Date   time.Time `db:"date" json:"date"`
-	UserID uuid.UUID `db:"user_id" json:"user_id"`
-}
-
-func (q *sqlQuerier) GetTemplateDAUs(ctx context.Context, arg GetTemplateDAUsParams) ([]GetTemplateDAUsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateDAUs, arg.TemplateID, arg.TzOffset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetTemplateDAUsRow
-	for rows.Next() {
-		var i GetTemplateDAUsRow
-		if err := rows.Scan(&i.Date, &i.UserID); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getWorkspaceAgentStats = `-- name: GetWorkspaceAgentStats :many
@@ -23247,44 +23036,6 @@ func (q *sqlQuerier) GetWorkspaceBuildParameters(ctx context.Context, workspaceB
 	return items, nil
 }
 
-const getWorkspaceBuildParametersByBuildIDs = `-- name: GetWorkspaceBuildParametersByBuildIDs :many
-SELECT
-    workspace_build_parameters.workspace_build_id, workspace_build_parameters.name, workspace_build_parameters.value
-FROM
-    workspace_build_parameters
-JOIN
-    workspace_builds ON workspace_builds.id = workspace_build_parameters.workspace_build_id
-JOIN
-    workspaces ON workspaces.id = workspace_builds.workspace_id
-WHERE
-    workspace_build_parameters.workspace_build_id = ANY($1 :: uuid[])
-    -- Authorize Filter clause will be injected below in GetAuthorizedWorkspaceBuildParametersByBuildIDs
-    -- @authorize_filter
-`
-
-func (q *sqlQuerier) GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIds []uuid.UUID) ([]WorkspaceBuildParameter, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceBuildParametersByBuildIDs, pq.Array(workspaceBuildIds))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkspaceBuildParameter
-	for rows.Next() {
-		var i WorkspaceBuildParameter
-		if err := rows.Scan(&i.WorkspaceBuildID, &i.Name, &i.Value); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const insertWorkspaceBuildParameters = `-- name: InsertWorkspaceBuildParameters :exec
 INSERT INTO
     workspace_build_parameters (workspace_build_id, name, value)
@@ -23695,7 +23446,7 @@ JOIN workspaces w ON wb.workspace_id = w.id
 JOIN templates t ON w.template_id = t.id
 JOIN organizations o ON t.organization_id = o.id
 JOIN workspace_resources wr ON wr.job_id = wb.job_id
-JOIN workspace_agents wa ON wa.resource_id = wr.id
+JOIN workspace_agents wa ON wa.resource_id = wr.id AND wa.parent_id IS NULL
 WHERE wb.job_id = (SELECT job_id FROM workspace_resources WHERE workspace_resources.id = $1)
 GROUP BY wb.created_at, wb.transition, t.name, o.name, w.owner_id
 `

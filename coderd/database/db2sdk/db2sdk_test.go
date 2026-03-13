@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"charm.land/fantasy"
-	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -438,80 +437,59 @@ func TestAIBridgeInterception(t *testing.T) {
 	}
 }
 
-func TestChatMessage_ReasoningPartWithoutPersistedTitleIsEmpty(t *testing.T) {
+func TestChatMessage_PreservesProviderExecutedOnToolResults(t *testing.T) {
 	t.Parallel()
 
-	assistantContent, err := json.Marshal([]fantasy.Content{
-		fantasy.ReasoningContent{
-			Text: "Plan migration",
-			ProviderMetadata: fantasy.ProviderMetadata{
-				fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
-					ItemID:  "reasoning-1",
-					Summary: []string{"Plan migration"},
-				},
-			},
-		},
-	})
+	toolCallID := uuid.New().String()
+	toolName := "web_search"
+
+	// Build assistant content blocks with ProviderExecuted set.
+	toolCall := fantasy.ToolCallContent{
+		ToolCallID:       toolCallID,
+		ToolName:         toolName,
+		Input:            `{"query":"test"}`,
+		ProviderExecuted: true,
+	}
+	toolResult := fantasy.ToolResultContent{
+		ToolCallID:       toolCallID,
+		ToolName:         toolName,
+		Result:           fantasy.ToolResultOutputContentText{Text: `{"results":[]}`},
+		ProviderExecuted: true,
+	}
+
+	tcJSON, err := json.Marshal(toolCall)
+	require.NoError(t, err)
+	trJSON, err := json.Marshal(toolResult)
 	require.NoError(t, err)
 
-	message := db2sdk.ChatMessage(database.ChatMessage{
-		ID:        1,
-		ChatID:    uuid.New(),
-		CreatedAt: time.Now(),
-		Role:      string(fantasy.MessageRoleAssistant),
+	rawContent := json.RawMessage("[" + string(tcJSON) + "," + string(trJSON) + "]")
+
+	dbMsg := database.ChatMessage{
+		ID:     1,
+		ChatID: uuid.New(),
+		Role:   string(fantasy.MessageRoleAssistant),
 		Content: pqtype.NullRawMessage{
-			RawMessage: assistantContent,
+			RawMessage: rawContent,
 			Valid:      true,
 		},
-	})
-
-	require.Len(t, message.Content, 1)
-	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Content[0].Type)
-	require.Equal(t, "Plan migration", message.Content[0].Text)
-	require.Empty(t, message.Content[0].Title)
-}
-
-func TestChatMessage_ReasoningPartPrefersPersistedTitle(t *testing.T) {
-	t.Parallel()
-
-	reasoningContent, err := json.Marshal(fantasy.ReasoningContent{
-		Text: "Verify schema updates, then apply changes in order.",
-		ProviderMetadata: fantasy.ProviderMetadata{
-			fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
-				ItemID: "reasoning-1",
-				Summary: []string{
-					"**Metadata-derived title**\n\nLonger explanation.",
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	var envelope map[string]any
-	require.NoError(t, json.Unmarshal(reasoningContent, &envelope))
-	dataValue, ok := envelope["data"].(map[string]any)
-	require.True(t, ok)
-	dataValue["title"] = "Persisted stream title"
-
-	encodedReasoning, err := json.Marshal(envelope)
-	require.NoError(t, err)
-	assistantContent, err := json.Marshal([]json.RawMessage{encodedReasoning})
-	require.NoError(t, err)
-
-	message := db2sdk.ChatMessage(database.ChatMessage{
-		ID:        1,
-		ChatID:    uuid.New(),
 		CreatedAt: time.Now(),
-		Role:      string(fantasy.MessageRoleAssistant),
-		Content: pqtype.NullRawMessage{
-			RawMessage: assistantContent,
-			Valid:      true,
-		},
-	})
+	}
 
-	require.Len(t, message.Content, 1)
-	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, message.Content[0].Type)
-	require.Equal(t, "Persisted stream title", message.Content[0].Title)
+	result := db2sdk.ChatMessage(dbMsg)
+
+	require.Len(t, result.Content, 2)
+
+	// First part: tool call.
+	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, result.Content[0].Type)
+	require.Equal(t, toolCallID, result.Content[0].ToolCallID)
+	require.Equal(t, toolName, result.Content[0].ToolName)
+	require.True(t, result.Content[0].ProviderExecuted, "tool call should preserve ProviderExecuted")
+
+	// Second part: tool result.
+	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, result.Content[1].Type)
+	require.Equal(t, toolCallID, result.Content[1].ToolCallID)
+	require.Equal(t, toolName, result.Content[1].ToolName)
+	require.True(t, result.Content[1].ProviderExecuted, "tool result should preserve ProviderExecuted")
 }
 
 func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {

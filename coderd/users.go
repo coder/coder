@@ -356,7 +356,33 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.UserLoginType == "" {
+	// Service accounts must use login_type 'none' and have no password
+	// or email.
+	if req.ServiceAccount {
+		// The client can omit login type for a service account and it will be
+		// set for them below. But if they request the wrong one, we have to let
+		// them know.
+		if req.UserLoginType != "" && req.UserLoginType != codersdk.LoginTypeNone {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Service accounts must use login type 'none'.",
+			})
+			return
+		}
+		if req.Password != "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Password cannot be set for service accounts.",
+			})
+			return
+		}
+		if req.Email != "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Email cannot be set for service accounts.",
+			})
+			return
+		}
+
+		req.UserLoginType = codersdk.LoginTypeNone
+	} else if req.UserLoginType == "" {
 		// Default to password auth
 		req.UserLoginType = codersdk.LoginTypePassword
 	}
@@ -1510,16 +1536,17 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			status = string(*req.UserStatus)
 		}
 		params := database.InsertUserParams{
-			ID:             uuid.New(),
-			Email:          req.Email,
-			Username:       req.Username,
-			Name:           codersdk.NormalizeRealUsername(req.Name),
-			CreatedAt:      dbtime.Now(),
-			UpdatedAt:      dbtime.Now(),
-			HashedPassword: []byte{},
-			RBACRoles:      rbacRoles,
-			LoginType:      req.LoginType,
-			Status:         status,
+			ID:               uuid.New(),
+			Email:            req.Email,
+			Username:         req.Username,
+			Name:             codersdk.NormalizeRealUsername(req.Name),
+			CreatedAt:        dbtime.Now(),
+			UpdatedAt:        dbtime.Now(),
+			HashedPassword:   []byte{},
+			RBACRoles:        rbacRoles,
+			LoginType:        req.LoginType,
+			Status:           status,
+			IsServiceAccount: req.ServiceAccount,
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {

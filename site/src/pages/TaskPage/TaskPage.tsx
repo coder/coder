@@ -5,6 +5,7 @@ import { template as templateQueryOptions } from "api/queries/templates";
 import {
 	workspaceByOwnerAndName,
 	workspaceByOwnerAndNameKey,
+	workspacePermissions,
 } from "api/queries/workspaces";
 import type {
 	Task,
@@ -118,6 +119,7 @@ const TaskPage = () => {
 			return state.error ? false : 5_000;
 		},
 	});
+	const { data: permissions } = useQuery(workspacePermissions(workspace));
 	const refetch = taskQuery.error ? taskQuery.refetch : workspaceQuery.refetch;
 	const error = taskQuery.error ?? workspaceQuery.error;
 	const waitingStatuses: WorkspaceStatus[] = ["starting", "pending"];
@@ -361,7 +363,11 @@ const TaskPage = () => {
 		<TaskPageLayout>
 			<title>{pageTitle(task.display_name)}</title>
 
-			<TaskTopbar task={task} workspace={workspace} />
+			<TaskTopbar
+				task={task}
+				workspace={workspace}
+				canUpdatePermissions={permissions?.updateWorkspace ?? false}
+			/>
 			{content}
 
 			<ModifyPromptDialog

@@ -375,7 +375,7 @@ module "personalize" {
 module "mux" {
   count           = data.coder_workspace.me.start_count
   source          = "registry.coder.com/coder/mux/coder"
-  version         = "1.3.1"
+  version         = "1.4.0"
   agent_id        = coder_agent.dev.id
   subdomain       = true
   display_name    = "Mux"
@@ -904,7 +904,6 @@ resource "coder_app" "develop_sh" {
   icon         = "${data.coder_workspace.me.access_url}/emojis/1f4bb.png" // 💻
   command      = "screen -x develop_sh"
   share        = "authenticated"
-  subdomain    = true
   open_in      = "tab"
   order        = 0
 }

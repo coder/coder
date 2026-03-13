@@ -12,8 +12,8 @@ import {
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Loader2Icon } from "lucide-react";
-import { type FC, useMemo, useState } from "react";
+import { Spinner } from "components/Spinner/Spinner";
+import { type FC, type ReactNode, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { cn } from "utils/cn";
 import { formatProviderLabel } from "../modelOptions";
@@ -203,12 +203,16 @@ interface ChatModelAdminPanelProps {
 	className?: string;
 	section?: ChatModelAdminSection;
 	sectionLabel?: string;
+	sectionDescription?: string;
+	sectionBadge?: ReactNode;
 }
 
 export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	className,
 	section = "providers",
 	sectionLabel,
+	sectionDescription,
+	sectionBadge,
 }) => {
 	const queryClient = useQueryClient();
 	const [requestedProvider, setRequestedProvider] = useState<string | null>(
@@ -301,7 +305,7 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 		<div className={cn("flex min-h-full flex-col space-y-3", className)}>
 			{isLoading && (
 				<div className="flex items-center gap-1.5 text-xs text-content-secondary">
-					<Loader2Icon className="h-4 w-4 animate-spin" />
+					<Spinner className="h-4 w-4" loading />
 					Loading
 				</div>
 			)}
@@ -311,6 +315,8 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 				{section === "providers" ? (
 					<ProvidersSection
 						sectionLabel={sectionLabel}
+						sectionDescription={sectionDescription}
+						sectionBadge={sectionBadge}
 						providerStates={providerStates}
 						providerConfigsUnavailable={providerConfigsUnavailable}
 						isProviderMutationPending={isProviderMutationPending}
@@ -327,6 +333,8 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 				) : (
 					<ModelsSection
 						sectionLabel={sectionLabel}
+						sectionDescription={sectionDescription}
+						sectionBadge={sectionBadge}
 						providerStates={providerStates}
 						selectedProvider={selectedProvider}
 						selectedProviderState={selectedProviderState}

@@ -9,11 +9,6 @@ import { Avatar } from "components/Avatar/Avatar";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "components/Collapsible/Collapsible";
-import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -23,6 +18,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
+import { Spinner } from "components/Spinner/Spinner";
 import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
@@ -32,9 +28,15 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	EllipsisIcon,
+	FilterIcon,
+	GitMergeIcon,
+	GitPullRequestArrowIcon,
+	GitPullRequestClosedIcon,
+	GitPullRequestDraftIcon,
 	Loader2Icon,
 	PanelLeftCloseIcon,
 	PauseIcon,
+	SettingsIcon,
 	SquarePenIcon,
 	Trash2Icon,
 } from "lucide-react";
@@ -48,6 +50,7 @@ import {
 	useContext,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import { NavLink, useParams } from "react-router";
@@ -71,7 +74,13 @@ interface AgentsSidebarProps {
 	isLoading?: boolean;
 	loadError?: unknown;
 	onRetryLoad?: () => void;
+	hasNextPage?: boolean;
+	onLoadMore?: () => void;
+	isFetchingNextPage?: boolean;
+	archivedFilter: "active" | "archived";
+	onArchivedFilterChange?: (filter: "active" | "archived") => void;
 	onCollapse?: () => void;
+	onOpenSettings?: () => void;
 }
 
 const statusConfig = {
@@ -91,6 +100,37 @@ type ChatTree = {
 
 const getStatusConfig = (status: ChatStatus) => {
 	return statusConfig[status] ?? statusConfig.completed;
+};
+
+/**
+ * Returns the icon and className to use for a PR state, or undefined
+ * if there is no PR linked. Only overrides the icon when the chat
+ * is not actively executing (pending/running/paused/error).
+ */
+const getPRIconConfig = (
+	diffStatus: ChatDiffStatus | undefined,
+): { icon: typeof CheckIcon; className: string } | undefined => {
+	const state = diffStatus?.pull_request_state;
+	if (!state) {
+		return undefined;
+	}
+	if (state === "merged") {
+		return { icon: GitMergeIcon, className: "text-git-merged" };
+	}
+	if (state === "closed") {
+		return {
+			icon: GitPullRequestClosedIcon,
+			className: "text-git-deleted-bright",
+		};
+	}
+	// state === "open"
+	if (diffStatus?.pull_request_draft) {
+		return {
+			icon: GitPullRequestDraftIcon,
+			className: "text-content-secondary",
+		};
+	}
+	return { icon: GitPullRequestArrowIcon, className: "text-git-added-bright" };
 };
 
 const asNonEmptyString = (value: unknown): string | undefined => {
@@ -304,8 +344,6 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 	);
 	const hasChildren = childIDs.length > 0;
 	const isDelegated = Boolean(getParentChatID(chat));
-	const config = getStatusConfig(chat.status);
-	const StatusIcon = config.icon;
 	const isDelegatedExecuting =
 		isDelegated && (chat.status === "pending" || chat.status === "running");
 	const modelName = getModelDisplayName(
@@ -319,6 +357,13 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 			: undefined;
 	const subtitle = errorReason || modelName;
 	const diffStatus = getChatDiffStatus(chat);
+	const baseConfig = getStatusConfig(chat.status);
+	const prConfig =
+		chat.status === "waiting" || chat.status === "completed"
+			? getPRIconConfig(diffStatus)
+			: undefined;
+	const config = prConfig ?? baseConfig;
+	const StatusIcon = config.icon;
 	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;
@@ -330,14 +375,6 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
-	const isExecuting =
-		chat.status === "pending" ||
-		chat.status === "running" ||
-		(hasChildren &&
-			childIDs.some((id) => {
-				const c = chatById.get(id);
-				return c?.status === "pending" || c?.status === "running";
-			}));
 
 	return (
 		<div className="flex min-w-0 flex-col">
@@ -360,12 +397,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 					<div
 						className={cn(
 							"flex h-5 w-5 items-center justify-center rounded-md",
-							hasChildren &&
-								!isExecuting &&
-								"[@media(hover:hover)]:group-hover:invisible",
-							hasChildren &&
-								isExecuting &&
-								"[@media(hover:hover)]:group-hover/icon:invisible",
+							hasChildren && "[@media(hover:hover)]:group-hover/icon:invisible",
 						)}
 					>
 						<StatusIcon
@@ -384,9 +416,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 							onClick={() => toggleExpanded(chatID)}
 							className={cn(
 								"absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
-								isExecuting
-									? "[@media(hover:hover)]:group-hover/icon:visible"
-									: "[@media(hover:hover)]:group-hover:visible",
+								"[@media(hover:hover)]:group-hover/icon:visible",
 							)}
 							data-testid={`agents-tree-toggle-${chat.id}`}
 							aria-label={isExpanded ? "Collapse" : "Expand"}
@@ -416,13 +446,13 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 								<div className="flex min-w-0 items-center gap-1.5">
 									{hasLinkedDiffStatus && hasLineStats && (
 										<span
-											className="inline-flex shrink-0 items-center gap-0.5 font-mono text-xs font-medium leading-none tabular-nums"
+											className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
 											title={`${filesChangedLabel}, +${additions} -${deletions}`}
 										>
-											<span className="text-green-700 dark:text-green-500">
+											<span className="text-git-added-bright">
 												+{additions}
 											</span>
-											<span className="text-red-700 dark:text-red-400">
+											<span className="text-git-deleted-bright">
 												&minus;{deletions}
 											</span>{" "}
 										</span>
@@ -445,7 +475,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 				</NavLink>
 				<div className="relative mr-1 mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
 					{isArchivingThisChat ? (
-						<Loader2Icon className="h-3.5 w-3.5 animate-spin text-content-secondary" />
+						<Spinner className="h-3.5 w-3.5 text-content-secondary" loading />
 					) : (
 						<>
 							<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
@@ -536,7 +566,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isLoading = false,
 		loadError,
 		onRetryLoad,
+		hasNextPage,
+		onLoadMore,
+		isFetchingNextPage,
+		archivedFilter,
+		onArchivedFilterChange,
 		onCollapse,
+		onOpenSettings,
 	} = props;
 	const { agentId, chatId } = useParams<{
 		agentId?: string;
@@ -547,7 +583,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const { appearance, buildInfo } = useDashboard();
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
-	const [isArchivedExpanded, setIsArchivedExpanded] = useState(false);
 
 	const chatTree = useMemo(() => buildChatTree(chats), [chats]);
 	const chatById = useMemo(() => {
@@ -566,24 +601,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		() => chatTree.rootIds.filter((chatID) => visibleChatIDs.has(chatID)),
 		[chatTree.rootIds, visibleChatIDs],
 	);
-	const activeRootIDs = useMemo(
-		() =>
-			visibleRootIDs.filter((id) => {
-				const chat = chatById.get(id);
-				return chat && !chat.archived;
-			}),
-		[visibleRootIDs, chatById],
-	);
-	const archivedRootIDs = useMemo(
-		() =>
-			visibleRootIDs.filter((id) => {
-				const chat = chatById.get(id);
-				return chat?.archived;
-			}),
-		[visibleRootIDs, chatById],
-	);
-	const effectiveArchivedExpanded =
-		normalizedSearch && archivedRootIDs.length > 0 ? true : isArchivedExpanded;
 
 	// Auto-expand ancestors of the active chat so it's always visible.
 	useEffect(() => {
@@ -658,18 +675,53 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							<CoderIcon className="h-6 w-6 fill-content-primary" />
 						)}
 					</NavLink>
-					{onCollapse && (
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={onCollapse}
-							aria-label="Collapse sidebar"
-							className="h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
-						>
-							<PanelLeftCloseIcon />
-						</Button>
-					)}
-				</div>
+					<div className="flex items-center gap-0.5">
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="subtle"
+									size="icon"
+									aria-label="Filter agents"
+									className={cn(
+										"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
+										archivedFilter === "archived" && "text-content-primary",
+									)}
+								>
+									<FilterIcon />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem
+									onSelect={() => onArchivedFilterChange?.("active")}
+								>
+									Active
+									{archivedFilter === "active" && (
+										<CheckIcon className="ml-auto h-3.5 w-3.5" />
+									)}
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onSelect={() => onArchivedFilterChange?.("archived")}
+								>
+									Archived
+									{archivedFilter === "archived" && (
+										<CheckIcon className="ml-auto h-3.5 w-3.5" />
+									)}
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+						{onCollapse && (
+							<Button
+								variant="subtle"
+								size="icon"
+								onClick={onCollapse}
+								aria-label="Collapse sidebar"
+								className="h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
+							>
+								<PanelLeftCloseIcon />
+							</Button>
+						)}
+					</div>
+				</div>{" "}
 				<Button
 					size="sm"
 					variant="subtle"
@@ -718,16 +770,20 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						</>
 					) : (
 						<ChatTreeContext.Provider value={chatTreeCtx}>
-							{activeRootIDs.length === 0 && archivedRootIDs.length === 0 ? (
+							{visibleRootIDs.length === 0 ? (
 								<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-									{normalizedSearch ? "No matching agents" : "No agents yet"}
+									{normalizedSearch
+										? "No matching agents"
+										: archivedFilter === "archived"
+											? "No archived agents"
+											: "No agents yet"}
 								</div>
 							) : (
-								<div className="divide-y divide-border">
-									{activeRootIDs.length > 0 && (
+								<div>
+									{visibleRootIDs.length > 0 && (
 										<div className="pb-2">
 											{TIME_GROUPS.map((group) => {
-												const groupChats = activeRootIDs
+												const groupChats = visibleRootIDs
 													.map((id) => chatById.get(id))
 													.filter(
 														(chat): chat is Chat =>
@@ -757,77 +813,94 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 											})}
 										</div>
 									)}
-									{archivedRootIDs.length > 0 && (
-										<Collapsible
-											className="pt-2"
-											open={effectiveArchivedExpanded}
-											onOpenChange={setIsArchivedExpanded}
-										>
-											<CollapsibleTrigger asChild>
-												<div className="mb-1 ml-2.5 flex cursor-pointer items-center justify-between text-xs font-medium text-content-secondary">
-													<span>Archived ({archivedRootIDs.length})</span>
-													{effectiveArchivedExpanded ? (
-														<ChevronDownIcon className="h-3 w-3" />
-													) : (
-														<ChevronRightIcon className="h-3 w-3" />
-													)}
-												</div>
-											</CollapsibleTrigger>
-											<CollapsibleContent>
-												<div className="flex flex-col gap-0.5">
-													{archivedRootIDs.map((id) => {
-														const chat = chatById.get(id);
-														if (!chat) return null;
-														return (
-															<ChatTreeNode
-																key={chat.id}
-																chat={chat}
-																isChildNode={false}
-															/>
-														);
-													})}
-												</div>
-											</CollapsibleContent>
-										</Collapsible>
-									)}
 								</div>
+							)}
+							{(hasNextPage || isFetchingNextPage) && (
+								<LoadMoreSentinel
+									onLoadMore={onLoadMore}
+									isFetchingNextPage={isFetchingNextPage}
+								/>
 							)}
 						</ChatTreeContext.Provider>
 					)}
 				</div>
 			</ScrollArea>
 			<div className="hidden border-0 border-t border-solid md:block">
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
+				<div className="flex items-center">
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<button
+								type="button"
+								className="flex min-w-0 flex-1 items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors"
+							>
+								{" "}
+								<Avatar
+									fallback={user.username}
+									src={user.avatar_url}
+									size="sm"
+									className="rounded-full"
+								/>{" "}
+								<span className="truncate text-sm text-content-secondary">
+									{user.name || user.username}
+								</span>
+							</button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="start" className="min-w-auto w-[260px]">
+							<UserDropdownContent
+								user={user}
+								buildInfo={buildInfo}
+								supportLinks={
+									appearance.support_links?.filter(
+										(link) => link.location !== "navbar",
+									) ?? []
+								}
+								onSignOut={signOut}
+							/>
+						</DropdownMenuContent>
+					</DropdownMenu>
+					{onOpenSettings && (
 						<button
 							type="button"
-							className="flex w-full items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors"
+							onClick={onOpenSettings}
+							className="flex shrink-0 items-center justify-center bg-transparent border-0 cursor-pointer p-2 mr-1 rounded-md text-content-secondary hover:text-content-primary hover:bg-surface-tertiary/50 transition-colors"
+							aria-label="Settings"
 						>
-							<Avatar
-								fallback={user.username}
-								src={user.avatar_url}
-								size="sm"
-								className="rounded-full"
-							/>{" "}
-							<span className="truncate text-sm text-content-secondary">
-								{user.name || user.username}
-							</span>
+							<SettingsIcon className="h-4 w-4" />
 						</button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start" className="min-w-auto w-[260px]">
-						<UserDropdownContent
-							user={user}
-							buildInfo={buildInfo}
-							supportLinks={
-								appearance.support_links?.filter(
-									(link) => link.location !== "navbar",
-								) ?? []
-							}
-							onSignOut={signOut}
-						/>
-					</DropdownMenuContent>
-				</DropdownMenu>
+					)}
+				</div>
 			</div>
+		</div>
+	);
+};
+
+const LoadMoreSentinel: FC<{
+	onLoadMore?: () => void;
+	isFetchingNextPage?: boolean;
+}> = ({ onLoadMore, isFetchingNextPage }) => {
+	const sentinelRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		const el = sentinelRef.current;
+		if (!el || !onLoadMore) return;
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries[0]?.isIntersecting) {
+					onLoadMore();
+				}
+			},
+			{ threshold: 0 },
+		);
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, [onLoadMore]);
+
+	return (
+		<div ref={sentinelRef} className="flex items-center justify-center py-2">
+			{isFetchingNextPage && (
+				<Spinner className="h-4 w-4 text-content-secondary" loading />
+			)}
 		</div>
 	);
 };

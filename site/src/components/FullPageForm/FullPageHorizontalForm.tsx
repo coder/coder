@@ -35,7 +35,7 @@ export const FullPageHorizontalForm: FC<FullPageHorizontalFormProps> = ({
 				{detail && <PageHeaderSubtitle>{detail}</PageHeaderSubtitle>}
 			</PageHeader>
 
-			<main>{children}</main>
+			<div>{children}</div>
 		</Margins>
 	);
 };

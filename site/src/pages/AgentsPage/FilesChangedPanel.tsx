@@ -1,9 +1,5 @@
 import { useTheme } from "@emotion/react";
-import type {
-	ChangeTypes,
-	DiffLineAnnotation,
-	FileDiffMetadata,
-} from "@pierre/diffs";
+import type { DiffLineAnnotation, FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { chatDiffContents, chatDiffStatus } from "api/queries/chats";
@@ -38,6 +34,7 @@ import {
 import { useQuery } from "react-query";
 import { cn } from "utils/cn";
 import type { ChatMessageInputRef } from "./AgentChatInput";
+import { changeColor, changeLabel } from "./diffColors";
 
 interface FilesChangedPanelProps {
 	chatId: string;
@@ -89,6 +86,7 @@ function extractDiffContent(
 	const file = parsedFiles.find((f) => f.name === fileName);
 	if (!file) return "";
 
+	const lines = side === "additions" ? file.additionLines : file.deletionLines;
 	const collected: string[] = [];
 	for (const hunk of file.hunks) {
 		let addLine = hunk.additionStart;
@@ -96,10 +94,14 @@ function extractDiffContent(
 
 		for (const block of hunk.hunkContent) {
 			if (block.type === "context") {
-				for (const line of block.lines) {
+				for (let i = 0; i < block.lines; i++) {
 					const ln = side === "additions" ? addLine : delLine;
 					if (ln >= startLine && ln <= endLine) {
-						collected.push(line);
+						const idx =
+							side === "additions"
+								? block.additionLineIndex + i
+								: block.deletionLineIndex + i;
+						if (lines[idx] != null) collected.push(lines[idx]);
 					}
 					addLine++;
 					delLine++;
@@ -107,23 +109,25 @@ function extractDiffContent(
 			} else {
 				// ChangeContent block.
 				if (side === "deletions") {
-					for (const line of block.deletions) {
+					for (let i = 0; i < block.deletions; i++) {
 						if (delLine >= startLine && delLine <= endLine) {
-							collected.push(line);
+							const line = lines[block.deletionLineIndex + i];
+							if (line != null) collected.push(line);
 						}
 						delLine++;
 					}
 					// Addition lines in a change block still advance
 					// the addition counter.
-					addLine += block.additions.length;
+					addLine += block.additions;
 				} else {
 					// side === "additions"
 					// Deletion lines in a change block still advance
 					// the deletion counter.
-					delLine += block.deletions.length;
-					for (const line of block.additions) {
+					delLine += block.deletions;
+					for (let i = 0; i < block.additions; i++) {
 						if (addLine >= startLine && addLine <= endLine) {
-							collected.push(line);
+							const line = lines[block.additionLineIndex + i];
+							if (line != null) collected.push(line);
 						}
 						addLine++;
 					}
@@ -174,40 +178,6 @@ function parsePullRequestUrl(url: string): {
 // -------------------------------------------------------------------
 // File tree data model
 // -------------------------------------------------------------------
-
-/** Maps a diff change type to a Tailwind text-color class. */
-function changeColor(type?: ChangeTypes): string | undefined {
-	switch (type) {
-		case "new":
-			return "text-green-700 dark:text-green-300";
-		case "deleted":
-			return "text-red-700 dark:text-red-300";
-		case "rename-pure":
-		case "rename-changed":
-			return "text-orange-700 dark:text-orange-300";
-		case "change":
-			return "text-orange-700 dark:text-orange-300";
-		default:
-			return undefined;
-	}
-}
-
-/** Short letter shown after the filename, matching VS Code style. */
-function changeLabel(type: ChangeTypes): string {
-	switch (type) {
-		case "new":
-			return "A";
-		case "deleted":
-			return "D";
-		case "rename-pure":
-		case "rename-changed":
-			return "R";
-		case "change":
-			return "M";
-		default:
-			return "";
-	}
-}
 
 interface FileTreeNode {
 	name: string;
@@ -552,13 +522,20 @@ export const FilesChangedPanel: FC<FilesChangedPanelProps> = ({
 		try {
 			// The cacheKeyPrefix enables the worker pool's LRU cache
 			// so highlighted ASTs are reused across re-renders instead
-			// of being re-computed on every render cycle.
-			const patches = parsePatchFiles(diff, `chat-${chatId}`);
+			// of being re-computed on every render cycle. We include
+			// dataUpdatedAt so that when the diff content changes
+			// (e.g. new commits pushed) the old cached highlight AST
+			// is not reused with mismatched line indices, which would
+			// cause DiffHunksRenderer.processDiffResult to throw.
+			const patches = parsePatchFiles(
+				diff,
+				`chat-${chatId}-${diffContentsQuery.dataUpdatedAt}`,
+			);
 			return patches.flatMap((p) => p.files);
 		} catch {
 			return [];
 		}
-	}, [diffContentsQuery.data?.diff, chatId]);
+	}, [diffContentsQuery.data?.diff, diffContentsQuery.dataUpdatedAt, chatId]);
 
 	const handleSubmitComment = useCallback(
 		(text: string) => {

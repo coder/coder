@@ -113,6 +113,10 @@ These options apply to all providers:
 | Top K                 | Limits token selection to the top K candidates.                                                  |
 | Presence Penalty      | Penalizes tokens that have already appeared in the conversation.                                 |
 | Frequency Penalty     | Penalizes tokens proportional to how often they have appeared.                                   |
+| Input Price           | Optional USD price metadata for input tokens, recorded per 1M tokens.                            |
+| Output Price          | Optional USD price metadata for output tokens, recorded per 1M tokens.                           |
+| Cache Read Price      | Optional USD price metadata for cache read tokens, recorded per 1M tokens.                       |
+| Cache Write Price     | Optional USD price metadata for cache creation/write tokens, recorded per 1M tokens.             |
 
 ### Provider-specific options
 

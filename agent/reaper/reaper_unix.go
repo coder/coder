@@ -64,7 +64,7 @@ func ForkReap(opt ...Option) (int, error) {
 		o(opts)
 	}
 
-	go reap.ReapChildren(opts.PIDs, nil, nil, nil)
+	go reap.ReapChildren(opts.PIDs, nil, opts.Done, nil)
 
 	pwd, err := os.Getwd()
 	if err != nil {

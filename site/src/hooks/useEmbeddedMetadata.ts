@@ -3,10 +3,12 @@ import type {
 	BuildInfoResponse,
 	Entitlements,
 	Experiment,
+	Organization,
 	Region,
 	User,
 	UserAppearanceSettings,
 } from "api/typesGenerated";
+import type { Permissions } from "modules/permissions";
 import { useMemo, useSyncExternalStore } from "react";
 export const DEFAULT_METADATA_KEY = "property";
 
@@ -31,6 +33,8 @@ type AvailableMetadata = Readonly<{
 	"build-info": BuildInfoResponse;
 	"tasks-tab-visible": boolean;
 	"agents-tab-visible": boolean;
+	permissions: Permissions;
+	organizations: Organization[];
 }>;
 
 export type MetadataKey = keyof AvailableMetadata;
@@ -94,6 +98,8 @@ export class MetadataManager implements MetadataManagerApi {
 			regions: this.registerRegionValue(),
 			"tasks-tab-visible": this.registerValue<boolean>("tasks-tab-visible"),
 			"agents-tab-visible": this.registerValue<boolean>("agents-tab-visible"),
+			permissions: this.registerValue<Permissions>("permissions"),
+			organizations: this.registerValue<Organization[]>("organizations"),
 		};
 	}
 

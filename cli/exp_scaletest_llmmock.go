@@ -57,7 +57,9 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 				return xerrors.Errorf("start mock LLM server: %w", err)
 			}
 			defer func() {
-				_ = srv.Stop()
+				if err := srv.Stop(); err != nil {
+					logger.Error(ctx, "failed to stop mock LLM server", slog.Error(err))
+				}
 			}()
 
 			_, _ = fmt.Fprintf(inv.Stdout, "Mock LLM API server started on %s\n", srv.APIAddress())

@@ -68,6 +68,8 @@ const meta: Meta<typeof AgentsSidebar> = {
 		onArchiveAndDeleteWorkspace: fn(),
 		onNewAgent: fn(),
 		isCreating: false,
+		archivedFilter: "active" as const,
+		onArchivedFilterChange: fn(),
 	},
 	parameters: {
 		layout: "fullscreen",
@@ -309,7 +311,7 @@ export const ActiveChatAncestryExpanded: Story = {
 
 const todayTimestamp = new Date().toISOString();
 
-export const ArchivedAgentsCollapsed: Story = {
+export const ActiveFilterShowsActiveAgents: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -322,17 +324,8 @@ export const ArchivedAgentsCollapsed: Story = {
 				title: "Active agent two",
 				updated_at: todayTimestamp,
 			}),
-			buildChat({
-				id: "archived-1",
-				title: "Archived agent one",
-				archived: true,
-			}),
-			buildChat({
-				id: "archived-2",
-				title: "Archived agent two",
-				archived: true,
-			}),
 		],
+		archivedFilter: "active",
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -345,37 +338,28 @@ export const ArchivedAgentsCollapsed: Story = {
 		await waitFor(() => {
 			expect(canvas.getByText("Active agent one")).toBeInTheDocument();
 			expect(canvas.getByText("Active agent two")).toBeInTheDocument();
-			expect(canvas.getByText("Archived (2)")).toBeInTheDocument();
 		});
-		expect(canvas.queryByText("Archived agent one")).not.toBeInTheDocument();
-		expect(canvas.queryByText("Archived agent two")).not.toBeInTheDocument();
+		expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
 	},
 };
 
-export const ArchivedAgentsExpanded: Story = {
+export const ArchivedFilterShowsArchivedAgents: Story = {
 	args: {
 		chats: [
-			buildChat({
-				id: "active-1",
-				title: "Active agent one",
-				updated_at: todayTimestamp,
-			}),
-			buildChat({
-				id: "active-2",
-				title: "Active agent two",
-				updated_at: todayTimestamp,
-			}),
 			buildChat({
 				id: "archived-1",
 				title: "Archived agent one",
 				archived: true,
+				updated_at: todayTimestamp,
 			}),
 			buildChat({
 				id: "archived-2",
 				title: "Archived agent two",
 				archived: true,
+				updated_at: todayTimestamp,
 			}),
 		],
+		archivedFilter: "archived",
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -386,13 +370,10 @@ export const ArchivedAgentsExpanded: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
-			expect(canvas.getByText("Archived (2)")).toBeInTheDocument();
-		});
-		await userEvent.click(canvas.getByText("Archived (2)"));
-		await waitFor(() => {
 			expect(canvas.getByText("Archived agent one")).toBeInTheDocument();
 			expect(canvas.getByText("Archived agent two")).toBeInTheDocument();
 		});
+		expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
 	},
 };
 
@@ -475,6 +456,8 @@ export const WithDiffStats: Story = {
 				diff_status: {
 					chat_id: "diff-both",
 					url: "https://github.com/coder/coder/pull/1",
+					pull_request_title: "",
+					pull_request_draft: false,
 					changes_requested: false,
 					additions: 42,
 					deletions: 7,
@@ -488,6 +471,8 @@ export const WithDiffStats: Story = {
 				diff_status: {
 					chat_id: "diff-add-only",
 					url: "https://github.com/coder/coder/pull/2",
+					pull_request_title: "",
+					pull_request_draft: false,
 					changes_requested: false,
 					additions: 120,
 					deletions: 0,
@@ -501,6 +486,8 @@ export const WithDiffStats: Story = {
 				diff_status: {
 					chat_id: "diff-del-only",
 					url: "https://github.com/coder/coder/pull/3",
+					pull_request_title: "",
+					pull_request_draft: false,
 					changes_requested: false,
 					additions: 0,
 					deletions: 35,
@@ -514,6 +501,8 @@ export const WithDiffStats: Story = {
 				diff_status: {
 					chat_id: "diff-none",
 					url: "https://github.com/coder/coder/pull/4",
+					pull_request_title: "",
+					pull_request_draft: false,
 					changes_requested: false,
 					additions: 0,
 					deletions: 0,
@@ -558,6 +547,8 @@ export const WithDiffStatsLight: Story = {
 				diff_status: {
 					chat_id: "diff-both-light",
 					url: "https://github.com/coder/coder/pull/1",
+					pull_request_title: "",
+					pull_request_draft: false,
 					changes_requested: false,
 					additions: 42,
 					deletions: 7,
@@ -571,6 +562,8 @@ export const WithDiffStatsLight: Story = {
 				diff_status: {
 					chat_id: "diff-add-only-light",
 					url: "https://github.com/coder/coder/pull/2",
+					pull_request_title: "",
+					pull_request_draft: false,
 					changes_requested: false,
 					additions: 120,
 					deletions: 0,
@@ -584,6 +577,8 @@ export const WithDiffStatsLight: Story = {
 				diff_status: {
 					chat_id: "diff-del-only-light",
 					url: "https://github.com/coder/coder/pull/3",
+					pull_request_title: "",
+					pull_request_draft: false,
 					changes_requested: false,
 					additions: 0,
 					deletions: 35,
@@ -607,13 +602,87 @@ export const WithDiffStatsLight: Story = {
 	},
 };
 
-export const ArchivedAgentUnarchiveOption: Story = {
+export const WithPRStateIcons: Story = {
 	args: {
 		chats: [
 			buildChat({
-				id: "archived-unarchive",
-				title: "Archived agent with unarchive",
-				archived: true,
+				id: "pr-open",
+				title: "Open pull request",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "pr-open",
+					url: "https://github.com/coder/coder/pull/100",
+					pull_request_state: "open",
+					pull_request_title: "feat: add new feature",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 50,
+					deletions: 10,
+					changed_files: 4,
+				},
+			}),
+			buildChat({
+				id: "pr-draft",
+				title: "Draft pull request",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "pr-draft",
+					url: "https://github.com/coder/coder/pull/101",
+					pull_request_state: "open",
+					pull_request_title: "wip: draft changes",
+					pull_request_draft: true,
+					changes_requested: false,
+					additions: 20,
+					deletions: 5,
+					changed_files: 2,
+				},
+			}),
+			buildChat({
+				id: "pr-merged",
+				title: "Merged pull request",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "pr-merged",
+					url: "https://github.com/coder/coder/pull/102",
+					pull_request_state: "merged",
+					pull_request_title: "feat: completed feature",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 200,
+					deletions: 80,
+					changed_files: 12,
+				},
+			}),
+			buildChat({
+				id: "pr-closed",
+				title: "Closed pull request",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "pr-closed",
+					url: "https://github.com/coder/coder/pull/103",
+					pull_request_state: "closed",
+					pull_request_title: "fix: abandoned approach",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 15,
+					deletions: 3,
+					changed_files: 1,
+				},
+			}),
+			buildChat({
+				id: "pr-no-state",
+				title: "No PR state (branch only)",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "pr-no-state",
+					url: "https://github.com/coder/coder/tree/my-branch",
+					pull_request_title: "",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 10,
+					deletions: 2,
+					changed_files: 1,
+				},
 			}),
 		],
 	},
@@ -623,13 +692,28 @@ export const ArchivedAgentUnarchiveOption: Story = {
 			routing: agentsRouting,
 		}),
 	},
+};
+
+export const ArchivedAgentUnarchiveOption: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archived-unarchive",
+				title: "Archived agent with unarchive",
+				archived: true,
+				updated_at: todayTimestamp,
+			}),
+		],
+		archivedFilter: "archived",
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Expand archived section
-		await waitFor(() => {
-			expect(canvas.getByText("Archived (1)")).toBeInTheDocument();
-		});
-		await userEvent.click(canvas.getByText("Archived (1)"));
 		await waitFor(() => {
 			expect(
 				canvas.getByText("Archived agent with unarchive"),

@@ -18,6 +18,15 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// withDone returns an option that stops the reaper goroutine when t
+// completes, preventing goroutine accumulation across subtests.
+func withDone(t *testing.T) reaper.Option {
+	t.Helper()
+	done := make(chan struct{})
+	t.Cleanup(func() { close(done) })
+	return reaper.WithDone(done)
+}
+
 // TestReap checks that's the reaper is successfully reaping
 // exited processes and passing the PIDs through the shared
 // channel.
@@ -36,6 +45,7 @@ func TestReap(t *testing.T) {
 		reaper.WithPIDCallback(pids),
 		// Provide some argument that immediately exits.
 		reaper.WithExecArgs("/bin/sh", "-c", "exit 0"),
+		withDone(t),
 	)
 	require.NoError(t, err)
 	require.Equal(t, 0, exitCode)
@@ -89,6 +99,7 @@ func TestForkReapExitCodes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			exitCode, err := reaper.ForkReap(
 				reaper.WithExecArgs("/bin/sh", "-c", tt.command),
+				withDone(t),
 			)
 			require.NoError(t, err)
 			require.Equal(t, tt.expectedCode, exitCode, "exit code mismatch for %q", tt.command)
@@ -118,6 +129,7 @@ func TestReapInterrupt(t *testing.T) {
 		exitCode, err := reaper.ForkReap(
 			reaper.WithPIDCallback(pids),
 			reaper.WithCatchSignals(os.Interrupt),
+			withDone(t),
 			// Signal propagation does not extend to children of children, so
 			// we create a little bash script to ensure sleep is interrupted.
 			reaper.WithExecArgs("/bin/sh", "-c", fmt.Sprintf("pid=0; trap 'kill -USR2 %d; kill -TERM $pid' INT; sleep 10 &\npid=$!; kill -USR1 %d; wait", os.Getpid(), os.Getpid())),

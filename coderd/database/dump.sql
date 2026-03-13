@@ -1187,7 +1187,9 @@ CREATE TABLE chat_diff_statuses (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     git_branch text DEFAULT ''::text NOT NULL,
-    git_remote_origin text DEFAULT ''::text NOT NULL
+    git_remote_origin text DEFAULT ''::text NOT NULL,
+    pull_request_title text DEFAULT ''::text NOT NULL,
+    pull_request_draft boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE chat_files (
@@ -1215,7 +1217,8 @@ CREATE TABLE chat_messages (
     cache_creation_tokens bigint,
     cache_read_tokens bigint,
     context_limit bigint,
-    compressed boolean DEFAULT false NOT NULL
+    compressed boolean DEFAULT false NOT NULL,
+    created_by uuid
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -1468,7 +1471,10 @@ CREATE TABLE users (
     hashed_one_time_passcode bytea,
     one_time_passcode_expires_at timestamp with time zone,
     is_system boolean DEFAULT false NOT NULL,
+    is_service_account boolean DEFAULT false NOT NULL,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL)))),
+    CONSTRAINT users_email_not_empty CHECK (((is_service_account = true) = (email = ''::text))),
+    CONSTRAINT users_service_account_login_type CHECK (((is_service_account = false) OR (login_type = 'none'::login_type))),
     CONSTRAINT users_username_min_length CHECK ((length(username) >= 1))
 );
 
@@ -1483,6 +1489,8 @@ COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-pass
 COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
 
 COMMENT ON COLUMN users.is_system IS 'Determines if a user is a system user, and therefore cannot login or perform normal actions';
+
+COMMENT ON COLUMN users.is_service_account IS 'Determines if a user is an admin-managed account that cannot login';
 
 CREATE VIEW group_members_expanded AS
  WITH all_members AS (
@@ -3534,6 +3542,8 @@ CREATE INDEX idx_chats_last_model_config_id ON chats USING btree (last_model_con
 
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
 
+CREATE INDEX idx_chats_owner_updated_id ON chats USING btree (owner_id, updated_at DESC, id DESC);
+
 CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
 
 CREATE INDEX idx_chats_pending ON chats USING btree (status) WHERE (status = 'pending'::chat_status);
@@ -3596,7 +3606,7 @@ CREATE INDEX idx_user_deleted_deleted_at ON user_deleted USING btree (deleted_at
 
 CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes USING btree (changed_at);
 
-CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
+CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE ((deleted = false) AND (email <> ''::text));
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
 
@@ -3646,7 +3656,7 @@ CREATE UNIQUE INDEX user_secrets_user_file_path_idx ON user_secrets USING btree 
 
 CREATE UNIQUE INDEX user_secrets_user_name_idx ON user_secrets USING btree (user_id, name);
 
-CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE (deleted = false);
+CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE ((deleted = false) AND (email <> ''::text));
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
 

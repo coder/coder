@@ -4577,6 +4577,7 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		// Update a shared with user to have a name and avatar
 		_, err := db.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
 			ID:        sharedWithUser.ID,
+			Email:     sharedWithUser.Email,
 			Username:  sharedWithUser.Username,
 			Name:      "Shared User Name",
 			AvatarURL: "/emojis/1fae1.png",
@@ -4664,6 +4665,7 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		// Update a shared with user to have a name and avatar
 		_, err := db.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
 			ID:        sharedWithUser.ID,
+			Email:     sharedWithUser.Email,
 			Username:  sharedWithUser.Username,
 			Name:      "Shared User Name",
 			AvatarURL: "/emojis/1fae1.png",

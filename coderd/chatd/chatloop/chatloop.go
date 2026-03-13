@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"charm.land/fantasy"
@@ -61,6 +62,12 @@ type RunOptions struct {
 	// separate field because the conversion requires knowledge
 	// of the provider, which lives in chatd, not chatloop.
 	ProviderOptions fantasy.ProviderOptions
+
+	// ProviderTools are provider-native tools (like web search)
+	// that are passed directly to the provider API alongside
+	// function tool definitions. These are not necessarily
+	// executed server-side; handling is provider-specific.
+	ProviderTools []fantasy.Tool
 
 	PersistStep        func(context.Context, PersistedStep) error
 	PublishMessagePart func(
@@ -151,11 +158,23 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 			if !ok {
 				continue
 			}
-			toolParts = append(toolParts, fantasy.ToolResultPart{
-				ToolCallID:      result.ToolCallID,
-				Output:          result.Result,
-				ProviderOptions: fantasy.ProviderOptions(result.ProviderMetadata),
-			})
+			part := fantasy.ToolResultPart{
+				ToolCallID:       result.ToolCallID,
+				Output:           result.Result,
+				ProviderExecuted: result.ProviderExecuted,
+				ProviderOptions:  fantasy.ProviderOptions(result.ProviderMetadata),
+			}
+			// Provider-executed tool results (e.g. web_search)
+			// must stay in the assistant message so the result
+			// block appears inline after the corresponding
+			// server_tool_use block. This matches the persistence
+			// layer in chatd.go which keeps them in
+			// assistantBlocks.
+			if result.ProviderExecuted {
+				assistantParts = append(assistantParts, part)
+			} else {
+				toolParts = append(toolParts, part)
+			}
 		default:
 			continue
 		}
@@ -204,7 +223,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 		opts.PublishMessagePart(role, part)
 	}
 
-	tools := buildToolDefinitions(opts.Tools, opts.ActiveTools)
+	tools := buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
 	applyAnthropicCaching := shouldApplyAnthropicPromptCaching(opts.Model)
 
 	messages := opts.Messages
@@ -305,8 +324,20 @@ func Run(ctx context.Context, opts RunOptions) error {
 				for _, tr := range toolResults {
 					result.content = append(result.content, tr)
 				}
-			}
 
+				// Check for interruption after tool execution.
+				// Tools that were canceled mid-flight produce error
+				// results via ctx cancellation. Persist the full
+				// step (assistant blocks + tool results) through
+				// the interrupt-safe path so nothing is lost.
+				if ctx.Err() != nil {
+					if errors.Is(context.Cause(ctx), ErrInterrupted) {
+						persistInterruptedStep(ctx, opts, &result)
+						return ErrInterrupted
+					}
+					return ctx.Err()
+				}
+			}
 			// Extract context limit from provider metadata.
 			contextLimit := extractContextLimit(result.providerMetadata)
 			if !contextLimit.Valid && opts.ContextLimitFallback > 0 {
@@ -315,16 +346,21 @@ func Run(ctx context.Context, opts RunOptions) error {
 					Valid: true,
 				}
 			}
-
-			// Persist the step — errors propagate directly.
+			// Persist the step. If persistence fails because
+			// the chat was interrupted between the previous
+			// check and here, fall back to the interrupt-safe
+			// path so partial content is not lost.
 			if err := opts.PersistStep(ctx, PersistedStep{
 				Content:      result.content,
 				Usage:        result.usage,
 				ContextLimit: contextLimit,
 			}); err != nil {
+				if errors.Is(err, ErrInterrupted) {
+					persistInterruptedStep(ctx, opts, &result)
+					return ErrInterrupted
+				}
 				return xerrors.Errorf("persist step: %w", err)
 			}
-
 			lastUsage = result.usage
 			lastProviderMetadata = result.providerMetadata
 
@@ -428,27 +464,6 @@ func processStepStream(
 	activeReasoningContent := make(map[string]reasoningState)
 	// Track tool names by ID for input delta publishing.
 	toolNames := make(map[string]string)
-	// Track reasoning text/titles for title extraction.
-	reasoningTitles := make(map[string]string)
-	reasoningText := make(map[string]string)
-
-	setReasoningTitleFromText := func(id string, text string) {
-		if id == "" || strings.TrimSpace(text) == "" {
-			return
-		}
-		if reasoningTitles[id] != "" {
-			return
-		}
-		reasoningText[id] += text
-		if !strings.ContainsAny(reasoningText[id], "\r\n") {
-			return
-		}
-		title := chatprompt.ReasoningTitleFromFirstLine(reasoningText[id])
-		if title == "" {
-			return
-		}
-		reasoningTitles[id] = title
-	}
 
 	for part := range stream {
 		switch part.Type {
@@ -485,12 +500,9 @@ func processStepStream(
 				active.options = part.ProviderMetadata
 				activeReasoningContent[part.ID] = active
 			}
-			setReasoningTitleFromText(part.ID, part.Delta)
-			title := reasoningTitles[part.ID]
 			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-				Type:  codersdk.ChatMessagePartTypeReasoning,
-				Text:  part.Delta,
-				Title: title,
+				Type: codersdk.ChatMessagePartTypeReasoning,
+				Text: part.Delta,
 			})
 
 		case fantasy.StreamPartTypeReasoningEnd:
@@ -504,21 +516,6 @@ func processStepStream(
 				}
 				result.content = append(result.content, content)
 				delete(activeReasoningContent, part.ID)
-
-				// Derive reasoning title at end of reasoning
-				// block if we haven't yet.
-				if reasoningTitles[part.ID] == "" {
-					reasoningTitles[part.ID] = chatprompt.ReasoningTitleFromFirstLine(
-						reasoningText[part.ID],
-					)
-				}
-				title := reasoningTitles[part.ID]
-				if title != "" {
-					publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-						Type:  codersdk.ChatMessagePartTypeReasoning,
-						Title: title,
-					})
-				}
 			}
 		case fantasy.StreamPartTypeToolInputStart:
 			activeToolCalls[part.ID] = &fantasy.ToolCallContent{
@@ -532,17 +529,19 @@ func processStepStream(
 			}
 
 		case fantasy.StreamPartTypeToolInputDelta:
+			var providerExecuted bool
 			if toolCall, exists := activeToolCalls[part.ID]; exists {
 				toolCall.Input += part.Delta
+				providerExecuted = toolCall.ProviderExecuted
 			}
 			toolName := toolNames[part.ID]
 			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-				Type:       codersdk.ChatMessagePartTypeToolCall,
-				ToolCallID: part.ID,
-				ToolName:   toolName,
-				ArgsDelta:  part.Delta,
+				Type:             codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID:       part.ID,
+				ToolName:         toolName,
+				ArgsDelta:        part.Delta,
+				ProviderExecuted: providerExecuted,
 			})
-
 		case fantasy.StreamPartTypeToolInputEnd:
 			// No callback needed; the full tool call arrives in
 			// StreamPartTypeToolCall.
@@ -582,6 +581,24 @@ func processStepStream(
 				chatprompt.PartFromContent(sourceContent),
 			)
 
+		case fantasy.StreamPartTypeToolResult:
+			// Provider-executed tool results (e.g. web search)
+			// are emitted by the provider and added directly
+			// to the step content for multi-turn round-tripping.
+			// This mirrors fantasy's agent.go accumulation logic.
+			if part.ProviderExecuted {
+				tr := fantasy.ToolResultContent{
+					ToolCallID:       part.ID,
+					ToolName:         part.ToolCallName,
+					ProviderExecuted: part.ProviderExecuted,
+					ProviderMetadata: part.ProviderMetadata,
+				}
+				result.content = append(result.content, tr)
+				publishMessagePart(
+					fantasy.MessageRoleTool,
+					chatprompt.PartFromContent(tr),
+				)
+			}
 		case fantasy.StreamPartTypeFinish:
 			result.usage = part.Usage
 			result.finishReason = part.FinishReason
@@ -609,14 +626,22 @@ func processStepStream(
 		}
 	}
 
-	result.shouldContinue = len(result.toolCalls) > 0 &&
+	hasLocalToolCalls := false
+	for _, tc := range result.toolCalls {
+		if !tc.ProviderExecuted {
+			hasLocalToolCalls = true
+			break
+		}
+	}
+	result.shouldContinue = hasLocalToolCalls &&
 		result.finishReason == fantasy.FinishReasonToolCalls
 	return result, nil
 }
 
-// executeTools runs each tool call sequentially after the stream
-// completes. Results are published via onResult as each tool
-// finishes.
+// executeTools runs all tool calls concurrently after the stream
+// completes. Results are published via onResult in the original
+// tool-call order after all tools finish, preserving deterministic
+// event ordering for SSE subscribers.
 func executeTools(
 	ctx context.Context,
 	allTools []fantasy.AgentTool,
@@ -627,16 +652,51 @@ func executeTools(
 		return nil
 	}
 
+	// Filter out provider-executed tool calls. These were
+	// handled server-side by the LLM provider (e.g., web
+	// search) and their results are already in the stream
+	// content.
+	localToolCalls := make([]fantasy.ToolCallContent, 0, len(toolCalls))
+	for _, tc := range toolCalls {
+		if !tc.ProviderExecuted {
+			localToolCalls = append(localToolCalls, tc)
+		}
+	}
+	if len(localToolCalls) == 0 {
+		return nil
+	}
+
 	toolMap := make(map[string]fantasy.AgentTool, len(allTools))
 	for _, t := range allTools {
 		toolMap[t.Info().Name] = t
 	}
 
-	results := make([]fantasy.ToolResultContent, 0, len(toolCalls))
-	for _, tc := range toolCalls {
-		tr := executeSingleTool(ctx, toolMap, tc)
-		results = append(results, tr)
-		if onResult != nil {
+	results := make([]fantasy.ToolResultContent, len(localToolCalls))
+	var wg sync.WaitGroup
+	wg.Add(len(localToolCalls))
+	for i, tc := range localToolCalls {
+		go func(i int, tc fantasy.ToolCallContent) {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					results[i] = fantasy.ToolResultContent{
+						ToolCallID: tc.ToolCallID,
+						ToolName:   tc.ToolName,
+						Result: fantasy.ToolResultOutputContentError{
+							Error: xerrors.Errorf("tool panicked: %v", r),
+						},
+					}
+				}
+			}()
+			results[i] = executeSingleTool(ctx, toolMap, tc)
+		}(i, tc)
+	}
+	wg.Wait()
+
+	// Publish results in the original tool-call order so SSE
+	// subscribers see a deterministic event sequence.
+	if onResult != nil {
+		for _, tr := range results {
 			onResult(tr)
 		}
 	}
@@ -786,8 +846,9 @@ func persistInterruptedStep(
 			continue
 		}
 		content = append(content, fantasy.ToolResultContent{
-			ToolCallID: tc.ToolCallID,
-			ToolName:   tc.ToolName,
+			ToolCallID:       tc.ToolCallID,
+			ToolName:         tc.ToolName,
+			ProviderExecuted: tc.ProviderExecuted,
 			Result: fantasy.ToolResultOutputContentError{
 				Error: xerrors.New(interruptedToolResultErrorMessage),
 			},
@@ -807,9 +868,10 @@ func persistInterruptedStep(
 
 // buildToolDefinitions converts AgentTool definitions into the
 // fantasy.Tool slice expected by fantasy.Call. When activeTools
-// is non-empty, only tools whose name appears in the list are
-// included. This mirrors fantasy's agent.prepareTools filtering.
-func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string) []fantasy.Tool {
+// is non-empty, only function tools whose name appears in the
+// list are included. Provider tools bypass this filter and are
+// always appended unconditionally.
+func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, providerTools []fantasy.Tool) []fantasy.Tool {
 	prepared := make([]fantasy.Tool, 0, len(tools))
 	for _, tool := range tools {
 		info := tool.Info()
@@ -829,6 +891,7 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string) []fan
 			ProviderOptions: tool.ProviderOptions(),
 		})
 	}
+	prepared = append(prepared, providerTools...)
 	return prepared
 }
 

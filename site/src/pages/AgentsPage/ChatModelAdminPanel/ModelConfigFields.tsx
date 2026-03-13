@@ -24,6 +24,10 @@ import type {
 	ModelConfigFormBuildResult,
 	ModelFormValues,
 } from "./modelConfigFormLogic";
+import {
+	getPricingPlaceholderForField,
+	pricingFieldNames,
+} from "./pricingFields";
 
 /** Sentinel value for Select components to represent "no selection". */
 const unsetSelectValue = "__unset__";
@@ -49,6 +53,11 @@ function snakeToPrettyLabel(jsonName: string): string {
  * Derive a sensible placeholder from the field schema type.
  */
 function placeholderForField(field: FieldSchema): string {
+	const pricingPlaceholder = getPricingPlaceholderForField(field.json_name);
+	if (pricingPlaceholder !== undefined) {
+		return pricingPlaceholder;
+	}
+
 	switch (field.type) {
 		case "integer":
 		case "number":
@@ -364,27 +373,25 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 };
 
 /**
- * General model config fields (max output tokens, temperature,
- * top P, etc.) intended to be shown under an "Advanced" section.
- *
- * Fields are driven by the auto-generated schema in
- * `api/chatModelOptions`.
+ * Shared renderer for general model config fields backed by the
+ * top-level ChatModelCallConfig schema.
  */
-export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
-	form,
-	fieldErrors,
-	disabled,
-}) => {
+const GeneralFieldsGroup: FC<
+	ModelConfigFieldsProps & {
+		fields: FieldSchema[];
+	}
+> = ({ form, fieldErrors, disabled, fields }) => {
 	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
-	const fields = getVisibleGeneralFields();
 
 	return (
 		<>
 			{fields.map((field) => {
-				// General field keys use camelCase of the json_name directly
-				// under "config.", matching the existing form state shape:
-				// config.maxOutputTokens, config.temperature, etc.
-				const camelName = snakeToCamel(field.json_name);
+				// General field keys support nested json_name values, such as
+				// cost.input_price_per_million_tokens.
+				const camelName = field.json_name
+					.split(".")
+					.map(snakeToCamel)
+					.join(".");
 				const fieldKey = `config.${camelName}`;
 				const label = snakeToPrettyLabel(field.json_name);
 
@@ -401,5 +408,54 @@ export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 				);
 			})}
 		</>
+	);
+};
+
+/**
+ * General pricing fields shown in the main form body so admins can
+ * define optional pricing metadata without opening the advanced section.
+ */
+export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
+	provider,
+	form,
+	fieldErrors,
+	disabled,
+}) => {
+	return (
+		<GeneralFieldsGroup
+			provider={provider}
+			form={form}
+			fieldErrors={fieldErrors}
+			disabled={disabled}
+			fields={getVisibleGeneralFields().filter(({ json_name }) =>
+				pricingFieldNames.has(json_name),
+			)}
+		/>
+	);
+};
+
+/**
+ * General model config fields (max output tokens, temperature,
+ * top P, etc.) intended to be shown under an "Advanced" section.
+ *
+ * Fields are driven by the auto-generated schema in
+ * `api/chatModelOptions`.
+ */
+export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
+	provider,
+	form,
+	fieldErrors,
+	disabled,
+}) => {
+	return (
+		<GeneralFieldsGroup
+			provider={provider}
+			form={form}
+			fieldErrors={fieldErrors}
+			disabled={disabled}
+			fields={getVisibleGeneralFields().filter(
+				({ json_name }) => !pricingFieldNames.has(json_name),
+			)}
+		/>
 	);
 };

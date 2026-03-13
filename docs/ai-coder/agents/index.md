@@ -1,9 +1,5 @@
 # Coder Agents
 
-> [!NOTE]
-> Coder Agents is currently in internal preview. We are actively developing
-> the feature and demoing it with customers for feedback.
-
 Coder Agents is a chat interface and API for delegating development work and research to coding agents in your Coder deployment. Developers describe the work they want done, and Coder Agents handles selecting a template, provisioning a workspace, and executing the task.
 
 Coder Agents includes its own self-hosted AI coding
@@ -12,7 +8,7 @@ agent that runs the agent loop directly within the Coder control plane.
 No specialized software, API keys, or network access is required inside your workspace. The only requirement is network access between the control plane and external LLM providers.
 
 <video autoplay playsinline loop>
-  <source src="https://github.com/coder/coder/blob/main/docs/images/guides/ai-agents/coder-agents-ui.mp4?raw=true" type="video/mp4">
+  <source src="https://raw.githubusercontent.com/coder/coder/refs/heads/main/docs/images/guides/ai-agents/coder-agents-ui.mp4" type="video/mp4">
 Your browser does not support the video tag.
 </video>
 
@@ -24,6 +20,11 @@ shell execution — and works with any LLM provider you configure.
 
 It is not a wrapper around third-party agent tools like Claude Code
 or Codex.
+
+Coder Agents is not a replacement for your text editor or IDE. It is the
+primary interface where developers work with and orchestrate coding agents.
+Developers still connect to workspaces via VS Code, Cursor, JetBrains, or any
+other editor to review, refine, and complete work that the agent produces.
 
 ## Who Coder Agents is for
 
@@ -43,11 +44,6 @@ strong fit for:
 
 Coder Agents runs entirely self-hosted. There is no SaaS or managed component — the agent
 loop, chat history, and all tool execution happen within your Coder deployment.
-
-Coder Agents is not a replacement for your text editor or IDE. It is the
-primary interface where developers work with and orchestrate coding agents.
-Developers still connect to workspaces via VS Code, Cursor, JetBrains, or any
-other editor to review, refine, and complete work that the agent produces.
 
 ## How it works
 
