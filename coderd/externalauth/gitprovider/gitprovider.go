@@ -79,6 +79,23 @@ type PRStatus struct {
 	// ChangesRequested is a convenience boolean: true if any
 	// reviewer's current state is "changes_requested".
 	ChangesRequested bool
+	// AuthorLogin is the login/username of the PR author.
+	AuthorLogin string
+	// AuthorAvatarURL is the avatar URL of the PR author.
+	AuthorAvatarURL string
+	// BaseBranch is the target branch the PR will merge into.
+	BaseBranch string
+	// PRNumber is the PR number (e.g. 1347).
+	PRNumber int
+	// Commits is the number of commits in the PR.
+	Commits int32
+	// Approved is true when at least one reviewer has approved
+	// and no reviewer has outstanding changes requested.
+	Approved bool
+	// ReviewerCount is the number of distinct reviewers who
+	// have left a decisive review (approved, changes_requested,
+	// or dismissed).
+	ReviewerCount int32
 	// FetchedAt is when this status was fetched.
 	FetchedAt time.Time
 }
