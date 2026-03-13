@@ -199,11 +199,9 @@ export const getURLWithSearchParams = <T extends object>(
 	}
 
 	const searchParams = new URLSearchParams();
-	for (const [key, value] of Object.entries(options) as Array<
-		[string, SerializableSearchParamValue]
-	>) {
+	for (const [key, value] of Object.entries(options)) {
 		if (value !== undefined && value !== "") {
-			searchParams.append(key, value.toString());
+			searchParams.append(key, String(value));
 		}
 	}
 
