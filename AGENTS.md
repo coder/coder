@@ -209,6 +209,20 @@ seems like it should use `time.Sleep`, read through https://github.com/coder/qua
 - Follow [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md)
 - Commit format: `type(scope): message`
 
+### Frontend Patterns
+
+- Prefer existing shared UI components and utilities over custom
+  implementations. Reuse common primitives such as loading, table, and error
+  handling components when they fit the use case.
+- Use Storybook stories for all component and page testing, including
+  visual presentation, user interactions, keyboard navigation, focus
+  management, and accessibility behavior. Do not create standalone
+  vitest/RTL test files for components or pages. Stories double as living
+  documentation, visual regression coverage, and interaction test suites
+  via `play` functions. Reserve plain vitest files for pure logic only:
+  utility functions, data transformations, hooks tested via
+  `renderHook()`, and query/cache operations with no rendered output.
+
 ### Writing Comments
 
 Code comments should be clear, well-formatted, and add meaningful context.
