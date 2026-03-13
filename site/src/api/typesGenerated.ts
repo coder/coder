@@ -32,6 +32,9 @@ export interface AIBridgeConfig {
 	readonly openai: AIBridgeOpenAIConfig;
 	readonly anthropic: AIBridgeAnthropicConfig;
 	readonly bedrock: AIBridgeBedrockConfig;
+	/**
+	 * Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	 */
 	readonly inject_coder_mcp_tools: boolean;
 	readonly retention: number;
 	readonly max_concurrency: number;
@@ -1070,6 +1073,96 @@ export interface Chat {
 
 // From codersdk/chats.go
 /**
+ * ChatCostChatBreakdown contains per-root-chat cost aggregation.
+ */
+export interface ChatCostChatBreakdown {
+	readonly root_chat_id: string;
+	readonly chat_title: string;
+	readonly total_cost_micros: number;
+	readonly message_count: number;
+	readonly total_input_tokens: number;
+	readonly total_output_tokens: number;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatCostModelBreakdown contains per-model cost aggregation.
+ */
+export interface ChatCostModelBreakdown {
+	readonly model_config_id: string;
+	readonly display_name: string;
+	readonly provider: string;
+	readonly model: string;
+	readonly total_cost_micros: number;
+	readonly message_count: number;
+	readonly total_input_tokens: number;
+	readonly total_output_tokens: number;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatCostSummary is the response from the chat cost summary endpoint.
+ */
+export interface ChatCostSummary {
+	readonly start_date: string;
+	readonly end_date: string;
+	readonly total_cost_micros: number;
+	readonly priced_message_count: number;
+	readonly unpriced_message_count: number;
+	readonly total_input_tokens: number;
+	readonly total_output_tokens: number;
+	readonly by_model: readonly ChatCostModelBreakdown[];
+	readonly by_chat: readonly ChatCostChatBreakdown[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatCostSummaryOptions are optional query parameters for GetChatCostSummary.
+ */
+export interface ChatCostSummaryOptions {
+	readonly StartDate: string;
+	readonly EndDate: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatCostUserRollup contains per-user cost aggregation for admin views.
+ */
+export interface ChatCostUserRollup {
+	readonly user_id: string;
+	readonly username: string;
+	readonly name: string;
+	readonly avatar_url: string;
+	readonly total_cost_micros: number;
+	readonly message_count: number;
+	readonly chat_count: number;
+	readonly total_input_tokens: number;
+	readonly total_output_tokens: number;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatCostUsersOptions are optional query parameters for GetChatCostUsers.
+ */
+export interface ChatCostUsersOptions extends Pagination {
+	readonly StartDate: string;
+	readonly EndDate: string;
+	readonly Username: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatCostUsersResponse is the response from the admin chat cost users endpoint.
+ */
+export interface ChatCostUsersResponse {
+	readonly start_date: string;
+	readonly end_date: string;
+	readonly count: number;
+	readonly users: readonly ChatCostUserRollup[];
+}
+
+// From codersdk/chats.go
+/**
  * ChatDiffContents represents the resolved diff text for a chat.
  */
 export interface ChatDiffContents {
@@ -1155,7 +1248,7 @@ export interface ChatMessage {
 	readonly created_by?: string;
 	readonly model_config_id?: string;
 	readonly created_at: string;
-	readonly role: string;
+	readonly role: ChatMessageRole;
 	readonly content?: readonly ChatMessagePart[];
 	readonly usage?: ChatMessageUsage;
 }
@@ -1163,6 +1256,13 @@ export interface ChatMessage {
 // From codersdk/chats.go
 /**
  * ChatMessagePart is a structured chunk of a chat message.
+ *
+ * WARNING: This type is both an API wire type and a database
+ * persistence format. Its JSON layout is stored in the
+ * chat_messages.content column. Field additions, renames, type
+ * changes, and omitempty behavior all affect backward-compatible
+ * deserialization of stored rows. Treat changes to this struct
+ * with the same care as a database migration.
  */
 export interface ChatMessagePart {
 	readonly type: ChatMessagePartType;
@@ -1175,7 +1275,6 @@ export interface ChatMessagePart {
 	readonly result?: Record<string, string>;
 	readonly result_delta?: string;
 	readonly is_error?: boolean;
-	readonly provider_executed?: boolean;
 	readonly source_id?: string;
 	readonly url?: string;
 	readonly title?: string;
@@ -1193,6 +1292,11 @@ export interface ChatMessagePart {
 	 * The code content from the diff that was commented on.
 	 */
 	readonly content?: string;
+	/**
+	 * ProviderExecuted indicates the tool call was executed by
+	 * the provider (e.g. Anthropic computer use).
+	 */
+	readonly provider_executed?: boolean;
 }
 
 // From codersdk/chats.go
@@ -1216,6 +1320,16 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 ];
 
 // From codersdk/chats.go
+export type ChatMessageRole = "assistant" | "system" | "tool" | "user";
+
+export const ChatMessageRoles: ChatMessageRole[] = [
+	"assistant",
+	"system",
+	"tool",
+	"user",
+];
+
+// From codersdk/chats.go
 /**
  * ChatMessageUsage contains token usage information for a chat message.
  */
@@ -1227,6 +1341,15 @@ export interface ChatMessageUsage {
 	readonly cache_creation_tokens?: number;
 	readonly cache_read_tokens?: number;
 	readonly context_limit?: number;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatMessagesResponse contains the messages and queued messages for a chat.
+ */
+export interface ChatMessagesResponse {
+	readonly messages: readonly ChatMessage[];
+	readonly queued_messages: readonly ChatQueuedMessage[];
 }
 
 // From codersdk/chats.go
@@ -1587,7 +1710,7 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
  * ChatStreamMessagePart is a streamed message part update.
  */
 export interface ChatStreamMessagePart {
-	readonly role?: string;
+	readonly role?: ChatMessageRole;
 	readonly part: ChatMessagePart;
 }
 
@@ -1629,16 +1752,6 @@ export interface ChatStreamStatus {
  */
 export interface ChatSystemPromptResponse {
 	readonly system_prompt: string;
-}
-
-// From codersdk/chats.go
-/**
- * ChatWithMessages is a chat along with its messages.
- */
-export interface ChatWithMessages {
-	readonly chat: Chat;
-	readonly messages: readonly ChatMessage[];
-	readonly queued_messages: readonly ChatQueuedMessage[];
 }
 
 // From codersdk/client.go
@@ -2370,6 +2483,24 @@ export interface DatabaseReport extends BaseReport {
 	readonly threshold_ms: number;
 }
 
+// From codersdk/debug.go
+/**
+ * DebugProfileOptions are options for collecting debug profiles from the
+ * server via the consolidated /debug/profile endpoint.
+ */
+export interface DebugProfileOptions {
+	/**
+	 * Duration controls how long time-based profiles (cpu, trace) run.
+	 * Zero uses the server default (10s).
+	 */
+	readonly Duration: number;
+	/**
+	 * Profiles is the list of profile types to collect. Nil or empty uses
+	 * the server default (cpu, heap, allocs, block, mutex, goroutine).
+	 */
+	readonly Profiles: readonly string[];
+}
+
 // From codersdk/externalauth.go
 export interface DeleteExternalAuthByIDResponse {
 	/**
@@ -2694,8 +2825,17 @@ export interface ExternalAuthConfig {
 	readonly scopes: readonly string[];
 	readonly device_flow: boolean;
 	readonly device_code_url: string;
+	/**
+	 * Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	 */
 	readonly mcp_url: string;
+	/**
+	 * Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	 */
 	readonly mcp_tool_allow_regex: string;
+	/**
+	 * Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	 */
 	readonly mcp_tool_deny_regex: string;
 	/**
 	 * Regex allows API requesters to match an auth config by
@@ -3416,15 +3556,10 @@ export interface MinimalUser {
  * ModelCostConfig stores pricing metadata for a chat model.
  */
 export interface ModelCostConfig {
-	/**
-	 * Pricing is stored as configuration metadata and currently only needs to
-	 * round-trip cleanly through the API and admin UI. If we later use these
-	 * values for billing-grade arithmetic, switch to a fixed-point type.
-	 */
-	readonly input_price_per_million_tokens?: number;
-	readonly output_price_per_million_tokens?: number;
-	readonly cache_read_price_per_million_tokens?: number;
-	readonly cache_write_price_per_million_tokens?: number;
+	readonly input_price_per_million_tokens?: string;
+	readonly output_price_per_million_tokens?: string;
+	readonly cache_read_price_per_million_tokens?: string;
+	readonly cache_write_price_per_million_tokens?: string;
 }
 
 // From netcheck/netcheck.go

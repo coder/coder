@@ -39,7 +39,7 @@
 		--surface-sky: 191, 67%, 89%;
 		--surface-red: 0 93% 94%;
 		--surface-purple: 259, 100%, 95%;
-		--surface-magenta: 290, 100%, 95%;
+		--surface-magenta: 289 100% 98%;
 		--border-purple: 255 92% 76%;
 		--border-default: 240 6% 90%;
 		--border-success: 142 76% 36%;
@@ -53,11 +53,10 @@
 		--radius: 0.5rem;
 		--highlight-purple: 271, 61%, 35%;
 		--highlight-green: 143 64% 24%;
-		--highlight-orange: 30 100% 54%;
-		--highlight-grey: 240 5% 65%;
+		--highlight-orange: 30 100% 32%;
 		--highlight-sky: 195, 61%, 22%;
 		--highlight-red: 0 74% 42%;
-		--highlight-magenta: 295, 68%, 46%;
+		--highlight-magenta: 295, 68%, 40%;
 		--git-added: 142 72% 29%;
 		--git-deleted: 0 74% 42%;
 		--git-modified: 17 88% 40%;
@@ -121,7 +120,6 @@
 		--highlight-purple: 269, 100%, 74%;
 		--highlight-green: 141 79% 85%;
 		--highlight-orange: 31 100% 70%;
-		--highlight-grey: 240 4% 46%;
 		--highlight-sky: 188, 75%, 80%;
 		--highlight-red: 0 91% 71%;
 		--highlight-magenta: 292, 100%, 78%;
@@ -217,5 +215,16 @@
 @layer utilities {
 	.text-xs-mono {
 		@apply text-xs font-mono font-medium;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
 	}
 }

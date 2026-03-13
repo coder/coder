@@ -7,10 +7,13 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -52,7 +55,7 @@ type ChatMessage struct {
 	CreatedBy     *uuid.UUID        `json:"created_by,omitempty" format:"uuid"`
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
-	Role          string            `json:"role"`
+	Role          ChatMessageRole   `json:"role"`
 	Content       []ChatMessagePart `json:"content,omitempty"`
 	Usage         *ChatMessageUsage `json:"usage,omitempty"`
 }
@@ -68,6 +71,17 @@ type ChatMessageUsage struct {
 	ContextLimit        *int64 `json:"context_limit,omitempty"`
 }
 
+// ChatMessageRole represents the role of a chat message sender.
+type ChatMessageRole string
+
+// ChatMessageRole enums.
+const (
+	ChatMessageRoleSystem    ChatMessageRole = "system"
+	ChatMessageRoleUser      ChatMessageRole = "user"
+	ChatMessageRoleAssistant ChatMessageRole = "assistant"
+	ChatMessageRoleTool      ChatMessageRole = "tool"
+)
+
 // ChatMessagePartType represents a structured message part type.
 type ChatMessagePartType string
 
@@ -82,24 +96,30 @@ const (
 )
 
 // ChatMessagePart is a structured chunk of a chat message.
+//
+// WARNING: This type is both an API wire type and a database
+// persistence format. Its JSON layout is stored in the
+// chat_messages.content column. Field additions, renames, type
+// changes, and omitempty behavior all affect backward-compatible
+// deserialization of stored rows. Treat changes to this struct
+// with the same care as a database migration.
 type ChatMessagePart struct {
-	Type             ChatMessagePartType `json:"type"`
-	Text             string              `json:"text,omitempty"`
-	Signature        string              `json:"signature,omitempty"`
-	ToolCallID       string              `json:"tool_call_id,omitempty"`
-	ToolName         string              `json:"tool_name,omitempty"`
-	Args             json.RawMessage     `json:"args,omitempty"`
-	ArgsDelta        string              `json:"args_delta,omitempty"`
-	Result           json.RawMessage     `json:"result,omitempty"`
-	ResultDelta      string              `json:"result_delta,omitempty"`
-	IsError          bool                `json:"is_error,omitempty"`
-	ProviderExecuted bool                `json:"provider_executed,omitempty"`
-	SourceID         string              `json:"source_id,omitempty"`
-	URL              string              `json:"url,omitempty"`
-	Title            string              `json:"title,omitempty"`
-	MediaType        string              `json:"media_type,omitempty"`
-	Data             []byte              `json:"data,omitempty"`
-	FileID           uuid.NullUUID       `json:"file_id,omitempty" format:"uuid"`
+	Type        ChatMessagePartType `json:"type"`
+	Text        string              `json:"text,omitempty"`
+	Signature   string              `json:"signature,omitempty"`
+	ToolCallID  string              `json:"tool_call_id,omitempty"`
+	ToolName    string              `json:"tool_name,omitempty"`
+	Args        json.RawMessage     `json:"args,omitempty"`
+	ArgsDelta   string              `json:"args_delta,omitempty"`
+	Result      json.RawMessage     `json:"result,omitempty"`
+	ResultDelta string              `json:"result_delta,omitempty"`
+	IsError     bool                `json:"is_error,omitempty"`
+	SourceID    string              `json:"source_id,omitempty"`
+	URL         string              `json:"url,omitempty"`
+	Title       string              `json:"title,omitempty"`
+	MediaType   string              `json:"media_type,omitempty"`
+	Data        []byte              `json:"data,omitempty"`
+	FileID      uuid.NullUUID       `json:"file_id,omitempty" format:"uuid"`
 	// The following fields are only set when Type is
 	// ChatInputPartTypeFileReference.
 	FileName  string `json:"file_name,omitempty"`
@@ -107,6 +127,87 @@ type ChatMessagePart struct {
 	EndLine   int    `json:"end_line,omitempty"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content,omitempty"`
+	// ProviderMetadata holds provider-specific response metadata
+	// (e.g. Anthropic cache control hints) as raw JSON. Internal
+	// only: stripped by db2sdk before API responses.
+	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-"`
+	// ProviderExecuted indicates the tool call was executed by
+	// the provider (e.g. Anthropic computer use).
+	ProviderExecuted bool `json:"provider_executed,omitempty"`
+}
+
+// StripInternal removes internal-only fields that must not be
+// sent to API clients. Call before publishing via REST or SSE.
+//
+// Note: ArgsDelta and ResultDelta are intentionally preserved.
+// They are streaming-only fields consumed by the frontend via
+// SSE message_part events (see processStepStream in chatloop).
+func (p *ChatMessagePart) StripInternal() {
+	p.ProviderMetadata = nil
+	if p.FileID.Valid {
+		p.Data = nil
+	}
+}
+
+// ChatMessageText builds a text chat message part.
+func ChatMessageText(text string) ChatMessagePart {
+	return ChatMessagePart{Type: ChatMessagePartTypeText, Text: text}
+}
+
+// ChatMessageReasoning builds a reasoning chat message part.
+func ChatMessageReasoning(text string) ChatMessagePart {
+	return ChatMessagePart{Type: ChatMessagePartTypeReasoning, Text: text}
+}
+
+// ChatMessageToolCall builds a tool-call chat message part.
+func ChatMessageToolCall(toolCallID, toolName string, args json.RawMessage) ChatMessagePart {
+	return ChatMessagePart{
+		Type:       ChatMessagePartTypeToolCall,
+		ToolCallID: toolCallID,
+		ToolName:   toolName,
+		Args:       args,
+	}
+}
+
+// ChatMessageToolResult builds a tool-result chat message part.
+func ChatMessageToolResult(toolCallID, toolName string, result json.RawMessage, isError bool) ChatMessagePart {
+	return ChatMessagePart{
+		Type:       ChatMessagePartTypeToolResult,
+		ToolCallID: toolCallID,
+		ToolName:   toolName,
+		Result:     result,
+		IsError:    isError,
+	}
+}
+
+// ChatMessageFile builds a file chat message part.
+func ChatMessageFile(fileID uuid.UUID, mediaType string) ChatMessagePart {
+	return ChatMessagePart{
+		Type:      ChatMessagePartTypeFile,
+		FileID:    uuid.NullUUID{UUID: fileID, Valid: true},
+		MediaType: mediaType,
+	}
+}
+
+// ChatMessageFileReference builds a file-reference chat message part.
+func ChatMessageFileReference(fileName string, startLine, endLine int, content string) ChatMessagePart {
+	return ChatMessagePart{
+		Type:      ChatMessagePartTypeFileReference,
+		FileName:  fileName,
+		StartLine: startLine,
+		EndLine:   endLine,
+		Content:   content,
+	}
+}
+
+// ChatMessageSource builds a source chat message part.
+func ChatMessageSource(sourceID, sourceURL, title string) ChatMessagePart {
+	return ChatMessagePart{
+		Type:     ChatMessagePartTypeSource,
+		SourceID: sourceID,
+		URL:      sourceURL,
+		Title:    title,
+	}
 }
 
 // ChatInputPartType represents an input part type for user chat input.
@@ -167,9 +268,8 @@ type UploadChatFileResponse struct {
 	ID uuid.UUID `json:"id" format:"uuid"`
 }
 
-// ChatWithMessages is a chat along with its messages.
-type ChatWithMessages struct {
-	Chat           Chat                `json:"chat"`
+// ChatMessagesResponse contains the messages and queued messages for a chat.
+type ChatMessagesResponse struct {
 	Messages       []ChatMessage       `json:"messages"`
 	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
 }
@@ -422,13 +522,10 @@ type ChatModelVercelProviderOptions struct {
 
 // ModelCostConfig stores pricing metadata for a chat model.
 type ModelCostConfig struct {
-	// Pricing is stored as configuration metadata and currently only needs to
-	// round-trip cleanly through the API and admin UI. If we later use these
-	// values for billing-grade arithmetic, switch to a fixed-point type.
-	InputPricePerMillionTokens      *float64 `json:"input_price_per_million_tokens,omitempty" description:"Input token price in USD per 1M tokens"`
-	OutputPricePerMillionTokens     *float64 `json:"output_price_per_million_tokens,omitempty" description:"Output token price in USD per 1M tokens"`
-	CacheReadPricePerMillionTokens  *float64 `json:"cache_read_price_per_million_tokens,omitempty" description:"Cache read token price in USD per 1M tokens"`
-	CacheWritePricePerMillionTokens *float64 `json:"cache_write_price_per_million_tokens,omitempty" description:"Cache write or cache creation token price in USD per 1M tokens"`
+	InputPricePerMillionTokens      *decimal.Decimal `json:"input_price_per_million_tokens,omitempty" description:"Input token price in USD per 1M tokens"`
+	OutputPricePerMillionTokens     *decimal.Decimal `json:"output_price_per_million_tokens,omitempty" description:"Output token price in USD per 1M tokens"`
+	CacheReadPricePerMillionTokens  *decimal.Decimal `json:"cache_read_price_per_million_tokens,omitempty" description:"Cache read token price in USD per 1M tokens"`
+	CacheWritePricePerMillionTokens *decimal.Decimal `json:"cache_write_price_per_million_tokens,omitempty" description:"Cache write or cache creation token price in USD per 1M tokens"`
 }
 
 // ChatModelCallConfig configures per-call model behavior defaults.
@@ -449,10 +546,10 @@ func (c *ChatModelCallConfig) UnmarshalJSON(data []byte) error {
 	type chatModelCallConfigAlias ChatModelCallConfig
 	aux := struct {
 		*chatModelCallConfigAlias
-		InputPricePerMillionTokens      *float64 `json:"input_price_per_million_tokens,omitempty"`
-		OutputPricePerMillionTokens     *float64 `json:"output_price_per_million_tokens,omitempty"`
-		CacheReadPricePerMillionTokens  *float64 `json:"cache_read_price_per_million_tokens,omitempty"`
-		CacheWritePricePerMillionTokens *float64 `json:"cache_write_price_per_million_tokens,omitempty"`
+		InputPricePerMillionTokens      *decimal.Decimal `json:"input_price_per_million_tokens,omitempty"`
+		OutputPricePerMillionTokens     *decimal.Decimal `json:"output_price_per_million_tokens,omitempty"`
+		CacheReadPricePerMillionTokens  *decimal.Decimal `json:"cache_read_price_per_million_tokens,omitempty"`
+		CacheWritePricePerMillionTokens *decimal.Decimal `json:"cache_write_price_per_million_tokens,omitempty"`
 	}{
 		chatModelCallConfigAlias: (*chatModelCallConfigAlias)(c),
 	}
@@ -569,7 +666,7 @@ type ChatQueuedMessage struct {
 
 // ChatStreamMessagePart is a streamed message part update.
 type ChatStreamMessagePart struct {
-	Role string          `json:"role,omitempty"`
+	Role ChatMessageRole `json:"role,omitempty"`
 	Part ChatMessagePart `json:"part"`
 }
 
@@ -611,6 +708,76 @@ type ChatStreamEvent struct {
 type chatStreamEnvelope struct {
 	Type ServerSentEventType `json:"type"`
 	Data json.RawMessage     `json:"data,omitempty"`
+}
+
+// ChatCostSummaryOptions are optional query parameters for GetChatCostSummary.
+type ChatCostSummaryOptions struct {
+	StartDate time.Time
+	EndDate   time.Time
+}
+
+// ChatCostUsersOptions are optional query parameters for GetChatCostUsers.
+type ChatCostUsersOptions struct {
+	StartDate time.Time
+	EndDate   time.Time
+	Username  string
+	Pagination
+}
+
+// ChatCostSummary is the response from the chat cost summary endpoint.
+type ChatCostSummary struct {
+	StartDate            time.Time                `json:"start_date" format:"date-time"`
+	EndDate              time.Time                `json:"end_date" format:"date-time"`
+	TotalCostMicros      int64                    `json:"total_cost_micros"`
+	PricedMessageCount   int64                    `json:"priced_message_count"`
+	UnpricedMessageCount int64                    `json:"unpriced_message_count"`
+	TotalInputTokens     int64                    `json:"total_input_tokens"`
+	TotalOutputTokens    int64                    `json:"total_output_tokens"`
+	ByModel              []ChatCostModelBreakdown `json:"by_model"`
+	ByChat               []ChatCostChatBreakdown  `json:"by_chat"`
+}
+
+// ChatCostModelBreakdown contains per-model cost aggregation.
+type ChatCostModelBreakdown struct {
+	ModelConfigID     uuid.UUID `json:"model_config_id" format:"uuid"`
+	DisplayName       string    `json:"display_name"`
+	Provider          string    `json:"provider"`
+	Model             string    `json:"model"`
+	TotalCostMicros   int64     `json:"total_cost_micros"`
+	MessageCount      int64     `json:"message_count"`
+	TotalInputTokens  int64     `json:"total_input_tokens"`
+	TotalOutputTokens int64     `json:"total_output_tokens"`
+}
+
+// ChatCostChatBreakdown contains per-root-chat cost aggregation.
+type ChatCostChatBreakdown struct {
+	RootChatID        uuid.UUID `json:"root_chat_id" format:"uuid"`
+	ChatTitle         string    `json:"chat_title"`
+	TotalCostMicros   int64     `json:"total_cost_micros"`
+	MessageCount      int64     `json:"message_count"`
+	TotalInputTokens  int64     `json:"total_input_tokens"`
+	TotalOutputTokens int64     `json:"total_output_tokens"`
+}
+
+// ChatCostUserRollup contains per-user cost aggregation for admin views.
+type ChatCostUserRollup struct {
+	UserID            uuid.UUID `json:"user_id" format:"uuid"`
+	Username          string    `json:"username"`
+	Name              string    `json:"name"`
+	AvatarURL         string    `json:"avatar_url"`
+	TotalCostMicros   int64     `json:"total_cost_micros"`
+	MessageCount      int64     `json:"message_count"`
+	ChatCount         int64     `json:"chat_count"`
+	TotalInputTokens  int64     `json:"total_input_tokens"`
+	TotalOutputTokens int64     `json:"total_output_tokens"`
+}
+
+// ChatCostUsersResponse is the response from the admin chat cost users endpoint.
+type ChatCostUsersResponse struct {
+	StartDate time.Time            `json:"start_date" format:"date-time"`
+	EndDate   time.Time            `json:"end_date" format:"date-time"`
+	Count     int64                `json:"count"`
+	Users     []ChatCostUserRollup `json:"users"`
 }
 
 // ListChatsOptions are optional parameters for ListChats.
@@ -773,6 +940,71 @@ func (c *Client) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.U
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// GetChatCostSummary returns an aggregate cost summary for the specified
+// user. Zero-valued StartDate or EndDate fields are omitted from the
+// request, letting the server apply its own defaults (typically the last
+// 30 days).
+func (c *Client) GetChatCostSummary(ctx context.Context, user string, opts ChatCostSummaryOptions) (ChatCostSummary, error) {
+	qp := url.Values{}
+	if !opts.StartDate.IsZero() {
+		qp.Set("start_date", opts.StartDate.Format(time.RFC3339))
+	}
+	if !opts.EndDate.IsZero() {
+		qp.Set("end_date", opts.EndDate.Format(time.RFC3339))
+	}
+	reqURL := fmt.Sprintf("/api/experimental/chats/cost/%s/summary", user)
+	if len(qp) > 0 {
+		reqURL += "?" + qp.Encode()
+	}
+	res, err := c.Request(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return ChatCostSummary{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatCostSummary{}, ReadBodyAsError(res)
+	}
+	var summary ChatCostSummary
+	return summary, json.NewDecoder(res.Body).Decode(&summary)
+}
+
+// GetChatCostUsers returns a per-user cost rollup for the deployment
+// (admin only). Zero-valued StartDate or EndDate fields are omitted from
+// the request, letting the server apply its own defaults (typically the
+// last 30 days).
+func (c *Client) GetChatCostUsers(ctx context.Context, opts ChatCostUsersOptions) (ChatCostUsersResponse, error) {
+	qp := url.Values{}
+	if !opts.StartDate.IsZero() {
+		qp.Set("start_date", opts.StartDate.Format(time.RFC3339))
+	}
+	if !opts.EndDate.IsZero() {
+		qp.Set("end_date", opts.EndDate.Format(time.RFC3339))
+	}
+	if opts.Username != "" {
+		qp.Set("username", opts.Username)
+	}
+	if opts.Limit > 0 {
+		qp.Set("limit", strconv.Itoa(opts.Limit))
+	}
+	if opts.Offset > 0 {
+		qp.Set("offset", strconv.Itoa(opts.Offset))
+	}
+	reqURL := "/api/experimental/chats/cost/users"
+	if len(qp) > 0 {
+		reqURL += "?" + qp.Encode()
+	}
+	res, err := c.Request(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return ChatCostUsersResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatCostUsersResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatCostUsersResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // GetChatSystemPrompt returns the deployment-wide chat system prompt.
@@ -980,18 +1212,32 @@ func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamC
 	}), nil
 }
 
-// GetChat returns a chat by ID, including its messages.
-func (c *Client) GetChat(ctx context.Context, chatID uuid.UUID) (ChatWithMessages, error) {
+// GetChat returns a chat by ID.
+func (c *Client) GetChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s", chatID), nil)
 	if err != nil {
-		return ChatWithMessages{}, err
+		return Chat{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ChatWithMessages{}, ReadBodyAsError(res)
+		return Chat{}, ReadBodyAsError(res)
 	}
-	var chat ChatWithMessages
+	var chat Chat
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
+// GetChatMessages returns the messages and queued messages for a chat.
+func (c *Client) GetChatMessages(ctx context.Context, chatID uuid.UUID) (ChatMessagesResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/messages", chatID), nil)
+	if err != nil {
+		return ChatMessagesResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatMessagesResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatMessagesResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 func (c *Client) ArchiveChat(ctx context.Context, chatID uuid.UUID) error {

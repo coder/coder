@@ -20,13 +20,14 @@ SHELL := bash
 .ONESHELL:
 
 # When MAKE_TIMED=1, replace SHELL with a wrapper that prints
-# elapsed wall-clock time for each recipe. pre-commit sets this on
-# its sub-makes so every parallel job reports its duration. Ad-hoc
-# usage: make MAKE_TIMED=1 test
+# elapsed wall-clock time for each recipe. pre-commit and pre-push
+# set this on their sub-makes so every parallel job reports its
+# duration. Ad-hoc usage: make MAKE_TIMED=1 test
 ifdef MAKE_TIMED
 SHELL := $(CURDIR)/scripts/lib/timed-shell.sh
 .SHELLFLAGS = $@ -ceu
 export MAKE_TIMED
+export MAKE_LOGDIR
 endif
 
 # This doesn't work on directories.
@@ -113,9 +114,9 @@ VERSION      := $(shell ./scripts/version.sh)
 POSTGRES_VERSION ?= 17
 POSTGRES_IMAGE   ?= us-docker.pkg.dev/coder-v2-images-public/public/postgres:$(POSTGRES_VERSION)
 
-# Limit parallel Make jobs in pre-commit. Defaults to nproc/4
-# (min 2) since lint and build targets have internal parallelism.
-# Override: make pre-commit PARALLEL_JOBS=8
+# Limit parallel Make jobs in pre-commit/pre-push. Defaults to
+# nproc/4 (min 2) since test, lint, and build targets have internal
+# parallelism. Override: make pre-push PARALLEL_JOBS=8
 PARALLEL_JOBS ?= $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 8); echo $$(( n / 4 > 2 ? n / 4 : 2 )))
 
 # Use the highest ZSTD compression level in release builds to
@@ -515,6 +516,9 @@ install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 
 BOLD := $(shell tput bold 2>/dev/null)
 GREEN := $(shell tput setaf 2 2>/dev/null)
+RED := $(shell tput setaf 1 2>/dev/null)
+YELLOW := $(shell tput setaf 3 2>/dev/null)
+DIM := $(shell tput dim 2>/dev/null || tput setaf 8 2>/dev/null)
 RESET := $(shell tput sgr0 2>/dev/null)
 
 fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/biome fmt/markdown
@@ -713,12 +717,15 @@ lint/typos: build/typos-$(TYPOS_VERSION)
 	build/typos-$(TYPOS_VERSION) --config .github/workflows/typos.toml
 .PHONY: lint/typos
 
-# pre-commit mirrors the fast local CI checks.
+# pre-commit and pre-push mirror CI checks locally.
 #
-# It runs checks that don't need external services (Docker,
+# pre-commit runs checks that don't need external services (Docker,
 # Playwright). This is the git pre-commit hook default since Docker
 # and browser issues in the local environment would otherwise block
 # all commits.
+#
+# pre-push adds heavier checks: Go tests, JS tests, and site build.
+# The pre-push hook is allowlisted, see scripts/githooks/pre-push.
 #
 # pre-commit uses two phases: gen+fmt first, then lint+build. This
 # avoids races where gen's `go run` creates temporary .go files that
@@ -729,34 +736,55 @@ lint/typos: build/typos-$(TYPOS_VERSION)
 define check-unstaged
 	unstaged="$$(git diff --name-only)"
 	if [[ -n $$unstaged ]]; then
-		echo "ERROR: unstaged changes in tracked files:"
-		echo "$$unstaged"
-		echo
-		echo "Review each change (git diff), verify correctness, then stage:"
-		echo "  git add -u && git commit"
+		echo "$(RED)✗ check unstaged changes$(RESET)"
+		echo "$$unstaged" | sed 's/^/  - /'
+		echo ""
+		echo "$(DIM)  Verify generated changes are correct before staging:$(RESET)"
+		echo "$(DIM)    git diff$(RESET)"
+		echo "$(DIM)    git add -u && git commit$(RESET)"
 		exit 1
 	fi
+endef
+define check-untracked
 	untracked=$$(git ls-files --other --exclude-standard)
 	if [[ -n $$untracked ]]; then
-		echo "WARNING: untracked files (not in this commit, won't be in CI):"
-		echo "$$untracked"
-		echo
+		echo "$(YELLOW)? check untracked files$(RESET)"
+		echo "$$untracked" | sed 's/^/  - /'
+		echo ""
+		echo "$(DIM)  Review if these should be committed or added to .gitignore.$(RESET)"
 	fi
 endef
 
 pre-commit:
 	start=$$(date +%s)
-	echo "=== Phase 1/2: gen + fmt ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 gen fmt
+	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-commit.XXXXXX")
+	echo "$(BOLD)pre-commit$(RESET) ($$logdir)"
+	echo "gen + fmt:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir gen fmt
 	$(check-unstaged)
-	echo "=== Phase 2/2: lint + build ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 \
+	echo "lint + build:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
 		lint \
 		lint/typos \
 		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 	$(check-unstaged)
-	echo "$(BOLD)$(GREEN)=== pre-commit passed in $$(( $$(date +%s) - $$start ))s ===$(RESET)"
+	$(check-untracked)
+	rm -rf $$logdir
+	echo "$(GREEN)✓ pre-commit passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
 .PHONY: pre-commit
+
+pre-push:
+	start=$$(date +%s)
+	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-push.XXXXXX")
+	echo "$(BOLD)pre-push$(RESET) ($$logdir)"
+	echo "test + build site:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
+		test \
+		test-js \
+		site/out/index.html
+	rm -rf $$logdir
+	echo "$(GREEN)✓ pre-push passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
+.PHONY: pre-push
 
 offlinedocs/check: offlinedocs/node_modules/.installed
 	cd offlinedocs/

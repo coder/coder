@@ -970,9 +970,12 @@ type ExternalAuthConfig struct {
 	ExtraTokenKeys      []string `json:"-" yaml:"extra_token_keys"`
 	DeviceFlow          bool     `json:"device_flow" yaml:"device_flow"`
 	DeviceCodeURL       string   `json:"device_code_url" yaml:"device_code_url"`
-	MCPURL              string   `json:"mcp_url" yaml:"mcp_url"`
-	MCPToolAllowRegex   string   `json:"mcp_tool_allow_regex" yaml:"mcp_tool_allow_regex"`
-	MCPToolDenyRegex    string   `json:"mcp_tool_deny_regex" yaml:"mcp_tool_deny_regex"`
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	MCPURL string `json:"mcp_url" yaml:"mcp_url"`
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	MCPToolAllowRegex string `json:"mcp_tool_allow_regex" yaml:"mcp_tool_allow_regex"`
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	MCPToolDenyRegex string `json:"mcp_tool_deny_regex" yaml:"mcp_tool_deny_regex"`
 	// Regex allows API requesters to match an auth config by
 	// a string (e.g. coder.com) instead of by it's type.
 	//
@@ -3712,13 +3715,14 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Inject Coder MCP tools",
-			Description: "Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
+			Description: "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release. Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
 			Flag:        "aibridge-inject-coder-mcp-tools",
 			Env:         "CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS",
 			Value:       &c.AI.BridgeConfig.InjectCoderMCPTools,
 			Default:     "false",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "inject_coder_mcp_tools",
+			Hidden:      true,
 		},
 		{
 			Name:        "AI Bridge Data Retention Duration",
@@ -3997,16 +4001,17 @@ Write out the current server config as YAML to stdout.`,
 }
 
 type AIBridgeConfig struct {
-	Enabled             serpent.Bool            `json:"enabled" typescript:",notnull"`
-	OpenAI              AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
-	Anthropic           AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
-	Bedrock             AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
-	InjectCoderMCPTools serpent.Bool            `json:"inject_coder_mcp_tools" typescript:",notnull"`
-	Retention           serpent.Duration        `json:"retention" typescript:",notnull"`
-	MaxConcurrency      serpent.Int64           `json:"max_concurrency" typescript:",notnull"`
-	RateLimit           serpent.Int64           `json:"rate_limit" typescript:",notnull"`
-	StructuredLogging   serpent.Bool            `json:"structured_logging" typescript:",notnull"`
-	SendActorHeaders    serpent.Bool            `json:"send_actor_headers" typescript:",notnull"`
+	Enabled   serpent.Bool            `json:"enabled" typescript:",notnull"`
+	OpenAI    AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
+	Anthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
+	Bedrock   AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	InjectCoderMCPTools serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
+	Retention           serpent.Duration `json:"retention" typescript:",notnull"`
+	MaxConcurrency      serpent.Int64    `json:"max_concurrency" typescript:",notnull"`
+	RateLimit           serpent.Int64    `json:"rate_limit" typescript:",notnull"`
+	StructuredLogging   serpent.Bool     `json:"structured_logging" typescript:",notnull"`
+	SendActorHeaders    serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
 	// Circuit breaker protects against cascading failures from upstream AI
 	// provider rate limits (429, 503, 529 overloaded).
 	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled" typescript:",notnull"`

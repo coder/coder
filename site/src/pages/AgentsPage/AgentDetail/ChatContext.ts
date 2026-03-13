@@ -1,5 +1,5 @@
 import { watchChat } from "api/api";
-import { chatKey, updateInfiniteChatsCache } from "api/queries/chats";
+import { chatMessagesKey, updateInfiniteChatsCache } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 import { asRecord, asString } from "components/ai-elements/runtimeTypeUtils";
 import {
@@ -417,7 +417,7 @@ interface UseChatStoreOptions {
 	chatID: string | undefined;
 	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	chatRecord: TypesGen.Chat | undefined;
-	chatData: TypesGen.ChatWithMessages | undefined;
+	chatMessagesData: TypesGen.ChatMessagesResponse | undefined;
 	chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
 	setChatErrorReason: (chatID: string, reason: string) => void;
 	clearChatErrorReason: (chatID: string) => void;
@@ -444,7 +444,7 @@ export const useChatStore = (
 		chatID,
 		chatMessages,
 		chatRecord,
-		chatData,
+		chatMessagesData,
 		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
@@ -519,22 +519,22 @@ export const useChatStore = (
 				return;
 			}
 			const nextQueuedMessages = queuedMessages ?? [];
-			queryClient.setQueryData<TypesGen.ChatWithMessages | undefined>(
-				chatKey(chatID),
-				(currentChat) => {
-					if (!currentChat) {
-						return currentChat;
+			queryClient.setQueryData<TypesGen.ChatMessagesResponse | undefined>(
+				chatMessagesKey(chatID),
+				(currentData) => {
+					if (!currentData) {
+						return currentData;
 					}
 					if (
 						chatQueuedMessagesEqualByID(
-							currentChat.queued_messages,
+							currentData.queued_messages,
 							nextQueuedMessages,
 						)
 					) {
-						return currentChat;
+						return currentData;
 					}
 					return {
-						...currentChat,
+						...currentData,
 						queued_messages: nextQueuedMessages,
 					};
 				},
@@ -568,7 +568,7 @@ export const useChatStore = (
 	}, [chatID, store]);
 
 	useEffect(() => {
-		if (!chatID || !chatData) {
+		if (!chatID || !chatMessagesData) {
 			return;
 		}
 		// Allow re-hydration from REST as long as the WebSocket hasn't
@@ -584,7 +584,7 @@ export const useChatStore = (
 		}
 		queuedMessagesHydratedChatIDRef.current = chatID;
 		store.setQueuedMessages(chatQueuedMessages);
-	}, [chatData, chatID, chatQueuedMessages, store]);
+	}, [chatMessagesData, chatID, chatQueuedMessages, store]);
 
 	useEffect(() => {
 		cancelScheduledStreamReset();

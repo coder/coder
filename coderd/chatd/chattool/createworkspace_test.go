@@ -108,3 +108,35 @@ func TestWaitForAgentReady(t *testing.T) {
 		require.Empty(t, result)
 	})
 }
+
+func TestCheckExistingWorkspace_DeletedWorkspace(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	workspaceID := uuid.New()
+
+	// Mock GetChatByID returns a chat linked to a workspace.
+	db.EXPECT().
+		GetChatByID(gomock.Any(), chatID).
+		Return(database.Chat{
+			ID:          chatID,
+			WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		}, nil)
+
+	// Mock GetWorkspaceByID returns a soft-deleted workspace.
+	db.EXPECT().
+		GetWorkspaceByID(gomock.Any(), workspaceID).
+		Return(database.Workspace{
+			ID:      workspaceID,
+			Deleted: true,
+		}, nil)
+
+	result, done, err := checkExistingWorkspace(
+		context.Background(), db, chatID, nil,
+	)
+	require.NoError(t, err)
+	require.False(t, done, "should allow creation for deleted workspace")
+	require.Nil(t, result)
+}
