@@ -37,7 +37,6 @@ func TestMain(m *testing.M) {
 // reducing the repeated setup/teardown boilerplate across every test function.
 type detectorTestEnv struct {
 	t        *testing.T
-	Ctx      context.Context
 	DB       database.Store
 	Pubsub   pubsub.Pubsub
 	detector *jobreaper.Detector
@@ -58,7 +57,6 @@ func newDetectorTestEnv(ctx context.Context, t *testing.T) *detectorTestEnv {
 
 	return &detectorTestEnv{
 		t:        t,
-		Ctx:      ctx,
 		DB:       db,
 		Pubsub:   ps,
 		detector: detector,
@@ -188,12 +186,12 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
-	requireTerminatedJob(env.Ctx, t, env.DB, currentBuild.Build.JobID, now, jobreaper.Hung)
+	requireTerminatedJob(ctx, t, env.DB, currentBuild.Build.JobID, now, jobreaper.Hung)
 
 	// Check that the provisioner state was copied.
-	build, err := env.DB.GetWorkspaceBuildByID(env.Ctx, currentBuild.Build.ID)
+	build, err := env.DB.GetWorkspaceBuildByID(ctx, currentBuild.Build.ID)
 	require.NoError(t, err)
-	provisionerStateRow, err := env.DB.GetWorkspaceBuildProvisionerStateByID(env.Ctx, build.ID)
+	provisionerStateRow, err := env.DB.GetWorkspaceBuildProvisionerStateByID(ctx, build.ID)
 	require.NoError(t, err)
 	require.Equal(t, expectedWorkspaceBuildState, provisionerStateRow.ProvisionerState)
 }
@@ -243,12 +241,12 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
-	requireTerminatedJob(env.Ctx, t, env.DB, currentBuild.Build.JobID, now, jobreaper.Hung)
+	requireTerminatedJob(ctx, t, env.DB, currentBuild.Build.JobID, now, jobreaper.Hung)
 
 	// Check that the provisioner state was NOT copied.
-	build, err := env.DB.GetWorkspaceBuildByID(env.Ctx, currentBuild.Build.ID)
+	build, err := env.DB.GetWorkspaceBuildByID(ctx, currentBuild.Build.ID)
 	require.NoError(t, err)
-	provisionerStateRow, err := env.DB.GetWorkspaceBuildProvisionerStateByID(env.Ctx, build.ID)
+	provisionerStateRow, err := env.DB.GetWorkspaceBuildProvisionerStateByID(ctx, build.ID)
 	require.NoError(t, err)
 	require.Equal(t, expectedWorkspaceBuildState, provisionerStateRow.ProvisionerState)
 }
@@ -287,12 +285,12 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
-	requireTerminatedJob(env.Ctx, t, env.DB, currentBuild.Build.JobID, now, jobreaper.Hung)
+	requireTerminatedJob(ctx, t, env.DB, currentBuild.Build.JobID, now, jobreaper.Hung)
 
 	// Check that the provisioner state was NOT updated.
-	build, err := env.DB.GetWorkspaceBuildByID(env.Ctx, currentBuild.Build.ID)
+	build, err := env.DB.GetWorkspaceBuildByID(ctx, currentBuild.Build.ID)
 	require.NoError(t, err)
-	provisionerStateRow, err := env.DB.GetWorkspaceBuildProvisionerStateByID(env.Ctx, build.ID)
+	provisionerStateRow, err := env.DB.GetWorkspaceBuildProvisionerStateByID(ctx, build.ID)
 	require.NoError(t, err)
 	require.Equal(t, expectedWorkspaceBuildState, provisionerStateRow.ProvisionerState)
 }
@@ -330,12 +328,12 @@ func TestDetectorPendingWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testin
 	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
-	requireTerminatedJob(env.Ctx, t, env.DB, currentBuild.Build.JobID, now, jobreaper.Pending)
+	requireTerminatedJob(ctx, t, env.DB, currentBuild.Build.JobID, now, jobreaper.Pending)
 
 	// Check that the provisioner state was NOT updated.
-	build, err := env.DB.GetWorkspaceBuildByID(env.Ctx, currentBuild.Build.ID)
+	build, err := env.DB.GetWorkspaceBuildByID(ctx, currentBuild.Build.ID)
 	require.NoError(t, err)
-	provisionerStateRow, err := env.DB.GetWorkspaceBuildProvisionerStateByID(env.Ctx, build.ID)
+	provisionerStateRow, err := env.DB.GetWorkspaceBuildProvisionerStateByID(ctx, build.ID)
 	require.NoError(t, err)
 	require.Equal(t, expectedWorkspaceBuildState, provisionerStateRow.ProvisionerState)
 }
@@ -389,7 +387,7 @@ func TestDetectorWorkspaceBuildForDormantWorkspace(t *testing.T) {
 	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
 
 	// Check that the current provisioner job was updated.
-	requireTerminatedJob(env.Ctx, t, env.DB, currentBuild.Build.JobID, now, jobreaper.Hung)
+	requireTerminatedJob(ctx, t, env.DB, currentBuild.Build.JobID, now, jobreaper.Hung)
 }
 
 func TestDetectorHungOtherJobTypes(t *testing.T) {
@@ -465,8 +463,8 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 	require.Contains(t, stats.TerminatedJobIDs, templateDryRunJob.ID)
 
 	// Check that both jobs were terminated as hung.
-	requireTerminatedJob(env.Ctx, t, env.DB, templateImportJob.ID, now, jobreaper.Hung)
-	requireTerminatedJob(env.Ctx, t, env.DB, templateDryRunJob.ID, now, jobreaper.Hung)
+	requireTerminatedJob(ctx, t, env.DB, templateImportJob.ID, now, jobreaper.Hung)
+	requireTerminatedJob(ctx, t, env.DB, templateDryRunJob.ID, now, jobreaper.Hung)
 }
 
 func TestDetectorPendingOtherJobTypes(t *testing.T) {
@@ -541,8 +539,8 @@ func TestDetectorPendingOtherJobTypes(t *testing.T) {
 	require.Contains(t, stats.TerminatedJobIDs, templateDryRunJob.ID)
 
 	// Check that both jobs were terminated as pending.
-	requireTerminatedJob(env.Ctx, t, env.DB, templateImportJob.ID, now, jobreaper.Pending)
-	requireTerminatedJob(env.Ctx, t, env.DB, templateDryRunJob.ID, now, jobreaper.Pending)
+	requireTerminatedJob(ctx, t, env.DB, templateImportJob.ID, now, jobreaper.Pending)
+	requireTerminatedJob(ctx, t, env.DB, templateDryRunJob.ID, now, jobreaper.Pending)
 }
 
 func TestDetectorHungCanceledJob(t *testing.T) {
@@ -595,7 +593,7 @@ func TestDetectorHungCanceledJob(t *testing.T) {
 	require.Contains(t, stats.TerminatedJobIDs, templateImportJob.ID)
 
 	// Check that the job was updated.
-	requireTerminatedJob(env.Ctx, t, env.DB, templateImportJob.ID, now, jobreaper.Hung)
+	requireTerminatedJob(ctx, t, env.DB, templateImportJob.ID, now, jobreaper.Hung)
 }
 
 func TestDetectorPushesLogs(t *testing.T) {
@@ -679,7 +677,7 @@ func TestDetectorPushesLogs(t *testing.T) {
 					insertParams.Source = append(insertParams.Source, database.LogSourceProvisioner)
 					insertParams.Output = append(insertParams.Output, fmt.Sprintf("Output %d", i))
 				}
-				logs, err := env.DB.InsertProvisionerJobLogs(env.Ctx, insertParams)
+				logs, err := env.DB.InsertProvisionerJobLogs(ctx, insertParams)
 				require.NoError(t, err)
 				require.Len(t, logs, 10)
 			}
@@ -709,7 +707,7 @@ func TestDetectorPushesLogs(t *testing.T) {
 
 			// Get the jobs after the given time and check that they are what we
 			// expect.
-			logs, err := env.DB.GetProvisionerLogsAfterID(env.Ctx, database.GetProvisionerLogsAfterIDParams{
+			logs, err := env.DB.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
 				JobID:        templateImportJob.ID,
 				CreatedAfter: after,
 			})
@@ -730,7 +728,7 @@ func TestDetectorPushesLogs(t *testing.T) {
 			}
 
 			// Double check the full log count.
-			logs, err = env.DB.GetProvisionerLogsAfterID(env.Ctx, database.GetProvisionerLogsAfterIDParams{
+			logs, err = env.DB.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
 				JobID:        templateImportJob.ID,
 				CreatedAfter: 0,
 			})
