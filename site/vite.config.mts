@@ -31,7 +31,7 @@ export default defineConfig({
 		outDir: path.resolve(__dirname, "./out"),
 		emptyOutDir: false, // We need to keep the /bin folder and GITKEEP files
 		sourcemap: "hidden",
-		rollupOptions: {
+		rolldownOptions: {
 			input: {
 				index: path.resolve(__dirname, "./index.html"),
 				serviceWorker: path.resolve(__dirname, "./src/serviceWorker.ts"),
