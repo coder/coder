@@ -521,10 +521,16 @@ SELECT
             AND (
                 cm.input_tokens IS NOT NULL
                 OR cm.output_tokens IS NOT NULL
+                OR cm.reasoning_tokens IS NOT NULL
+                OR cm.cache_creation_tokens IS NOT NULL
+                OR cm.cache_read_tokens IS NOT NULL
             )
     )::bigint AS unpriced_message_count,
     COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+    (
+        COALESCE(SUM(cm.output_tokens), 0)
+        + COALESCE(SUM(cm.reasoning_tokens), 0)
+    )::bigint AS total_output_tokens
 FROM
     chat_messages cm
 JOIN
@@ -546,7 +552,10 @@ SELECT
     COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
     COUNT(*)::bigint AS message_count,
     COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+    (
+        COALESCE(SUM(cm.output_tokens), 0)
+        + COALESCE(SUM(cm.reasoning_tokens), 0)
+    )::bigint AS total_output_tokens
 FROM
     chat_messages cm
 JOIN
@@ -573,7 +582,10 @@ WITH chat_costs AS (
         COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
         COUNT(*)::bigint AS message_count,
         COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+        (
+            COALESCE(SUM(cm.output_tokens), 0)
+            + COALESCE(SUM(cm.reasoning_tokens), 0)
+        )::bigint AS total_output_tokens
     FROM chat_messages cm
     JOIN chats c ON c.id = cm.chat_id
     WHERE c.owner_id = @owner_id::uuid
@@ -606,7 +618,10 @@ WITH chat_cost_users AS (
         COUNT(*)::bigint AS message_count,
         COUNT(DISTINCT COALESCE(c.root_chat_id, c.id))::bigint AS chat_count,
         COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+        (
+            COALESCE(SUM(cm.output_tokens), 0)
+            + COALESCE(SUM(cm.reasoning_tokens), 0)
+        )::bigint AS total_output_tokens
     FROM
         chat_messages cm
     JOIN
