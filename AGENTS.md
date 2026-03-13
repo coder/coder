@@ -100,6 +100,28 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemRestrict
 app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 ```
 
+### API Design
+
+- Add swagger annotations when introducing new HTTP endpoints. Do this in
+  the same change as the handler so the docs do not get missed before
+  release.
+- For user-scoped or resource-scoped routes, prefer path parameters over
+  query parameters when that matches existing route patterns.
+
+### Database Query Naming
+
+- Use `ByX` when `X` is the lookup or filter column.
+- Use `PerX` or `GroupedByX` when `X` is the aggregation or grouping
+  dimension.
+- Avoid `ByX` names for grouped queries.
+
+### Database-to-SDK Conversions
+
+- Extract explicit db-to-SDK conversion helpers instead of inlining large
+  conversion blocks inside handlers.
+- Keep nullable-field handling, type coercion, and response shaping in the
+  converter so handlers stay focused on request flow and authorization.
+
 ## Quick Reference
 
 ### Full workflows available in imported WORKFLOWS.md
@@ -183,6 +205,15 @@ seems like it should use `time.Sleep`, read through https://github.com/coder/qua
 
 - Follow [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md)
 - Commit format: `type(scope): message`
+
+### Frontend Patterns
+
+- Prefer existing shared UI components and utilities over custom
+  implementations. Reuse common primitives such as loading, table, and error
+  handling components when they fit the use case.
+- Use Storybook for component UI testing when adding or changing frontend
+  component behavior. Do not introduce one-off component tests in a
+  different framework without a clear reason.
 
 ### Writing Comments
 
