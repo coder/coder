@@ -243,7 +243,7 @@ func (s *anthropicServer) writeNonStreamingResponse(w http.ResponseWriter, resp 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("anthropic-version", "2023-06-01")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		s.t.Logf("writeNonStreamingResponse: failed to encode response: %v", err)
+		s.t.Errorf("writeNonStreamingResponse: failed to encode response: %v", err)
 	}
 }
 

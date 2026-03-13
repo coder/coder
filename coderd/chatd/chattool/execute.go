@@ -3,6 +3,7 @@ package chattool
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -248,15 +249,15 @@ func pollProcess(
 			outputResp, outputErr := conn.ProcessOutput(bgCtx, processID)
 			bgCancel()
 			output := truncateOutput(outputResp.Output)
-			timeoutMsg := fmt.Sprintf("command timed out after %s", timeout)
+			timeoutErr := fmt.Errorf("command timed out after %s", timeout)
 			if outputErr != nil {
-				timeoutMsg += fmt.Sprintf(" (failed to get output: %v)", outputErr)
+				timeoutErr = errors.Join(timeoutErr, fmt.Errorf("failed to get output: %w", outputErr))
 			}
 			return ExecuteResult{
 				Success:   false,
 				Output:    output,
 				ExitCode:  -1,
-				Error:     timeoutMsg,
+				Error:     timeoutErr.Error(),
 				Truncated: outputResp.Truncated,
 			}
 		case <-ticker.C:
