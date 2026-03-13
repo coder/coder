@@ -157,14 +157,14 @@ func TestExtractJSON(t *testing.T) {
 			expected: "{\n  \"display_name\": \"Fix bug\",\n  \"task_name\": \"fix-bug\"\n}",
 		},
 		{
-			name:     "FencedNoNewline",
+			name:     "FencedNoNewlinePassthrough",
 			input:    "```json{\"display_name\": \"Fix bug\", \"task_name\": \"fix-bug\"}```",
-			expected: `{"display_name": "Fix bug", "task_name": "fix-bug"}`,
+			expected: "```json{\"display_name\": \"Fix bug\", \"task_name\": \"fix-bug\"}```",
 		},
 		{
-			name:     "FencedNoNewlineNoLanguage",
-			input:    "`````{\"display_name\": \"Fix bug\", \"task_name\": \"fix-bug\"}```",
-			expected: `{"display_name": "Fix bug", "task_name": "fix-bug"}`,
+			name:     "NonJSONFencedContent",
+			input:    "```foo: {}, bar: {}```",
+			expected: "```foo: {}, bar: {}```",
 		},
 	}
 

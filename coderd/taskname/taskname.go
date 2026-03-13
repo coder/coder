@@ -98,23 +98,21 @@ var (
 
 // extractJSON strips optional markdown code fences (```json or
 // ```) that LLMs sometimes wrap around JSON output, returning
-// only the inner JSON string.
+// only the inner JSON string. Only well-formed fences with a
+// newline after the opening backticks are stripped; malformed
+// fences are left untouched so that json.Unmarshal fails
+// cleanly and the caller can fall back to other strategies.
 func extractJSON(s string) string {
 	s = strings.TrimSpace(s)
 	if strings.HasPrefix(s, "```") {
-		// Remove the opening fence line (```json or ```).
+		// Only strip when there is a newline separating the
+		// fence line from the body. Without one we cannot
+		// reliably tell the fence from the content.
 		if idx := strings.Index(s, "\n"); idx != -1 {
 			s = s[idx+1:]
-		} else {
-			// No newline: strip the backticks and any language
-			// tag up to the first '{' or '['.
-			if start := strings.IndexAny(s, "{["); start != -1 {
-				s = s[start:]
-			}
+			s = strings.TrimSuffix(s, "```")
+			s = strings.TrimSpace(s)
 		}
-		// Remove the closing fence.
-		s = strings.TrimSuffix(s, "```")
-		s = strings.TrimSpace(s)
 	}
 	return s
 }
