@@ -4,6 +4,7 @@ package cli
 
 import (
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -91,34 +92,25 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			if llmMockURL != "" {
 				_, _ = fmt.Fprintf(inv.Stderr, "Bootstrapping mock LLM provider at %s...\n", llmMockURL)
 
-				providers, err := client.ListChatProviders(ctx)
+				// Try to create a DB-backed openai-compat provider. If one
+				// already exists the server returns 409 and we proceed.
+				enabled := true
+				_, err = client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+					Provider:    "openai-compat",
+					DisplayName: scaletestProviderDisplayName,
+					APIKey:      "scaletest-api-key",
+					BaseURL:     llmMockURL,
+					Enabled:     &enabled,
+				})
 				if err != nil {
-					return xerrors.Errorf("list chat providers: %w", err)
-				}
-
-				var existingProvider *codersdk.ChatProviderConfig
-				for i := range providers {
-					if providers[i].Provider == "openai-compat" {
-						existingProvider = &providers[i]
-						break
-					}
-				}
-
-				if existingProvider != nil {
-					_, _ = fmt.Fprintf(inv.Stderr, "Reusing existing openai-compat provider %s (display name: %q)\n", existingProvider.ID, existingProvider.DisplayName)
-				} else {
-					enabled := true
-					created, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-						Provider:    "openai-compat",
-						DisplayName: scaletestProviderDisplayName,
-						APIKey:      "scaletest-api-key",
-						BaseURL:     llmMockURL,
-						Enabled:     &enabled,
-					})
-					if err != nil {
+					// A 409 means the provider already exists in the DB — that's fine.
+					var sdkErr *codersdk.Error
+					if !xerrors.As(err, &sdkErr) || sdkErr.StatusCode() != http.StatusConflict {
 						return xerrors.Errorf("create scaletest chat provider: %w", err)
 					}
-					_, _ = fmt.Fprintf(inv.Stderr, "Created scaletest openai-compat provider %s\n", created.ID)
+					_, _ = fmt.Fprintf(inv.Stderr, "openai-compat provider already exists, proceeding...\n")
+				} else {
+					_, _ = fmt.Fprintf(inv.Stderr, "Created openai-compat provider pointing at %s\n", llmMockURL)
 				}
 
 				modelConfigs, err := client.ListChatModelConfigs(ctx)
