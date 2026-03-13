@@ -105,14 +105,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				}
 
 				if existingProvider != nil {
-					if existingProvider.DisplayName != scaletestProviderDisplayName {
-						return xerrors.Errorf(
-							"an openai-compat provider already exists (display name: %q) but is not scaletest-owned (%q); "+
-								"cannot bootstrap mock LLM provider without risking shared deployment state",
-							existingProvider.DisplayName, scaletestProviderDisplayName,
-						)
-					}
-					_, _ = fmt.Fprintf(inv.Stderr, "Reusing existing scaletest openai-compat provider %s\n", existingProvider.ID)
+					_, _ = fmt.Fprintf(inv.Stderr, "Reusing existing openai-compat provider %s (display name: %q)\n", existingProvider.ID, existingProvider.DisplayName)
 				} else {
 					enabled := true
 					created, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
