@@ -1,3 +1,4 @@
+import { getErrorMessage } from "api/errors";
 import {
 	chatCostSummary,
 	chatCostUsers,
@@ -20,6 +21,15 @@ import {
 import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
 import { SearchField } from "components/SearchField/SearchField";
+import { Spinner } from "components/Spinner/Spinner";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
@@ -27,24 +37,17 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import dayjs from "dayjs";
+import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { LucideIcon } from "lucide-react";
 import {
 	BarChart3Icon,
 	BoxesIcon,
 	KeyRoundIcon,
-	Loader2Icon,
 	ShieldIcon,
 	UserIcon,
 	XIcon,
 } from "lucide-react";
-import {
-	type FC,
-	type FormEvent,
-	useCallback,
-	useEffect,
-	useMemo,
-	useState,
-} from "react";
+import { type FC, type FormEvent, useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatCostMicros, formatTokenCount } from "utils/analytics";
@@ -83,6 +86,43 @@ const AdminBadge: FC = () => (
 );
 
 const pageSize = 10;
+
+const UserRow: FC<{
+	user: TypesGen.ChatCostUserRollup;
+	onSelect: (user: TypesGen.ChatCostUserRollup) => void;
+}> = ({ user, onSelect }) => {
+	const { role: _role, ...clickableRowProps } = useClickableTableRow({
+		onClick: () => onSelect(user),
+	});
+
+	return (
+		<TableRow {...clickableRowProps}>
+			<TableCell className="min-w-[220px] px-4 py-3">
+				<AvatarData
+					title={user.name || user.username}
+					subtitle={`@${user.username}`}
+					src={user.avatar_url}
+					imgFallbackText={user.username}
+				/>
+			</TableCell>
+			<TableCell className="px-4 py-3 text-right">
+				{formatCostMicros(user.total_cost_micros)}
+			</TableCell>
+			<TableCell className="px-4 py-3 text-right">
+				{user.message_count.toLocaleString()}
+			</TableCell>
+			<TableCell className="px-4 py-3 text-right">
+				{user.chat_count.toLocaleString()}
+			</TableCell>
+			<TableCell className="px-4 py-3 text-right">
+				{formatTokenCount(user.total_input_tokens)}
+			</TableCell>
+			<TableCell className="px-4 py-3 text-right">
+				{formatTokenCount(user.total_output_tokens)}
+			</TableCell>
+		</TableRow>
+	);
+};
 
 const UsageContent: FC = () => {
 	const [selectedUser, setSelectedUser] =
@@ -209,16 +249,14 @@ const UsageContent: FC = () => {
 					aria-label="Loading usage"
 					className="flex min-h-[240px] items-center justify-center"
 				>
-					<Loader2Icon className="h-8 w-8 animate-spin text-content-secondary" />
+					<Spinner size="lg" loading className="text-content-secondary" />
 				</div>
 			)}
 
-			{usersQuery.isError && (
+			{usersQuery.error != null && (
 				<div className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
 					<p className="m-0 text-sm text-content-secondary">
-						{usersQuery.error instanceof Error
-							? usersQuery.error.message
-							: "Failed to load usage data."}
+						{getErrorMessage(usersQuery.error, "Failed to load usage data.")}
 					</p>
 					<Button
 						variant="outline"
@@ -238,60 +276,38 @@ const UsageContent: FC = () => {
 					</p>
 				) : (
 					<>
-						<div className="overflow-x-auto rounded-lg border border-border-default">
-							<table className="w-full text-sm">
-								<thead>
-									<tr className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
-										<th className="px-4 py-3">User</th>
-										<th className="px-4 py-3 text-right">Total Cost</th>
-										<th className="px-4 py-3 text-right">Messages</th>
-										<th className="px-4 py-3 text-right">Chats</th>
-										<th className="px-4 py-3 text-right">Input Tokens</th>
-										<th className="px-4 py-3 text-right">Output Tokens</th>
-									</tr>
-								</thead>
-								<tbody>
+						<div className="overflow-hidden rounded-lg border border-border-default">
+							<Table>
+								<TableHeader>
+									<TableRow className="text-left text-xs uppercase tracking-wide text-content-secondary">
+										<TableHead className="px-4 py-3">User</TableHead>
+										<TableHead className="px-4 py-3 text-right">
+											Total Cost
+										</TableHead>
+										<TableHead className="px-4 py-3 text-right">
+											Messages
+										</TableHead>
+										<TableHead className="px-4 py-3 text-right">
+											Chats
+										</TableHead>
+										<TableHead className="px-4 py-3 text-right">
+											Input Tokens
+										</TableHead>
+										<TableHead className="px-4 py-3 text-right">
+											Output Tokens
+										</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
 									{usersQuery.data.users.map((user) => (
-										<tr
+										<UserRow
 											key={user.user_id}
-											className="cursor-pointer border-t border-border-default transition-colors hover:bg-surface-secondary/50"
-											onClick={() => setSelectedUser(user)}
-											onKeyDown={(event) => {
-												if (event.key === "Enter" || event.key === " ") {
-													event.preventDefault();
-													setSelectedUser(user);
-												}
-											}}
-											role="button"
-											tabIndex={0}
-										>
-											<td className="px-4 py-3 min-w-[220px]">
-												<AvatarData
-													title={user.name || user.username}
-													subtitle={`@${user.username}`}
-													src={user.avatar_url}
-													imgFallbackText={user.username}
-												/>
-											</td>
-											<td className="px-4 py-3 text-right">
-												{formatCostMicros(user.total_cost_micros)}
-											</td>
-											<td className="px-4 py-3 text-right">
-												{user.message_count.toLocaleString()}
-											</td>
-											<td className="px-4 py-3 text-right">
-												{user.chat_count.toLocaleString()}
-											</td>
-											<td className="px-4 py-3 text-right">
-												{formatTokenCount(user.total_input_tokens)}
-											</td>
-											<td className="px-4 py-3 text-right">
-												{formatTokenCount(user.total_output_tokens)}
-											</td>
-										</tr>
+											user={user}
+											onSelect={setSelectedUser}
+										/>
 									))}
-								</tbody>
-							</table>
+								</TableBody>
+							</Table>
 						</div>
 						<PaginationWidgetBase
 							totalRecords={usersQuery.data.count}
@@ -410,19 +426,13 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 	}, [canManageChatModelConfigs]);
 
 	const [userActiveSection, setUserActiveSection] =
-		useState<ConfigureAgentsSection>("behavior");
+		useState<ConfigureAgentsSection>(initialSection);
 
 	const activeSection = configureSectionOptions.some(
 		(s) => s.id === userActiveSection,
 	)
 		? userActiveSection
 		: (configureSectionOptions[0]?.id ?? "behavior");
-
-	useEffect(() => {
-		if (open) {
-			setUserActiveSection(initialSection);
-		}
-	}, [initialSection, open]);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
