@@ -297,11 +297,12 @@ describe("chat cost query factories", () => {
 		const query = chatCostSummary(user, params);
 
 		expect(chatCostSummaryKey(user, params)).toEqual([
-			"chatCostSummary",
+			"chats",
+			"costSummary",
 			user,
 			params,
 		]);
-		expect(query.queryKey).toEqual(["chatCostSummary", user, params]);
+		expect(query.queryKey).toEqual(["chats", "costSummary", user, params]);
 		await query.queryFn();
 		expect(API.getChatCostSummary).toHaveBeenCalledWith(user, params);
 	});
@@ -320,8 +321,8 @@ describe("chat cost query factories", () => {
 
 		const query = chatCostUsers(params);
 
-		expect(chatCostUsersKey(params)).toEqual(["chatCostUsers", params]);
-		expect(query.queryKey).toEqual(["chatCostUsers", params]);
+		expect(chatCostUsersKey(params)).toEqual(["chats", "costUsers", params]);
+		expect(query.queryKey).toEqual(["chats", "costUsers", params]);
 		expect(query.queryKey).not.toEqual(chatCostSummaryKey("me", params));
 		await query.queryFn();
 		expect(API.getChatCostUsers).toHaveBeenCalledWith(params);
