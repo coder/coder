@@ -1107,6 +1107,13 @@ func TestUserOIDC(t *testing.T) {
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusForbidden,
+			AssertResponse: func(t testing.TB, resp *http.Response) {
+				data, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				body := string(data)
+				require.Contains(t, body, "Email not verified")
+				require.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
+			},
 		},
 		{
 			Name: "EmailNotAString",
@@ -1144,6 +1151,14 @@ func TestUserOIDC(t *testing.T) {
 				"coder.com",
 			},
 			StatusCode: http.StatusForbidden,
+			AssertResponse: func(t testing.TB, resp *http.Response) {
+				data, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				body := string(data)
+				require.Contains(t, body, "Unauthorized email")
+				require.Contains(t, body, "is not from an authorized domain")
+				require.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
+			},
 		},
 		{
 			Name: "EmailDomainWithLeadingAt",
@@ -1170,6 +1185,14 @@ func TestUserOIDC(t *testing.T) {
 				"@coder.com",
 			},
 			StatusCode: http.StatusForbidden,
+			AssertResponse: func(t testing.TB, resp *http.Response) {
+				data, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				body := string(data)
+				require.Contains(t, body, "Unauthorized email")
+				require.Contains(t, body, "is not from an authorized domain")
+				require.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
+			},
 		},
 		{
 			Name: "EmailDomainCaseInsensitive",
@@ -2062,6 +2085,10 @@ func TestOIDCDomainErrorMessage(t *testing.T) {
 
 		require.Contains(t, string(data), "is not from an authorized domain")
 		require.Contains(t, string(data), "Please contact your administrator")
+		// Verify the response is a rendered HTML error page, not raw JSON.
+		require.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
+		require.Contains(t, string(data), "Unauthorized email")
+		require.Contains(t, string(data), "/login")
 
 		for _, domain := range allowedDomains {
 			require.NotContains(t, string(data), domain)
@@ -2091,10 +2118,118 @@ func TestOIDCDomainErrorMessage(t *testing.T) {
 
 		require.Contains(t, string(data), "is not from an authorized domain")
 		require.Contains(t, string(data), "Please contact your administrator")
+		// Verify the response is a rendered HTML error page, not raw JSON.
+		require.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
+		require.Contains(t, string(data), "Unauthorized email")
+		require.Contains(t, string(data), "/login")
 
 		for _, domain := range allowedDomains {
 			require.NotContains(t, string(data), domain)
 		}
+	})
+}
+
+// TestOIDCErrorPageRendering verifies that OIDC authentication errors
+// (unauthorized email domain, unverified email) render a user-friendly
+// HTML error page instead of raw JSON.
+func TestOIDCErrorPageRendering(t *testing.T) {
+	t.Parallel()
+
+	// assertIsHTMLErrorPage checks that the response is a rendered static
+	// HTML error page with the expected title and description fragment.
+	assertIsHTMLErrorPage := func(t *testing.T, resp *http.Response, expectedTitle, expectedDescFragment string) {
+		t.Helper()
+
+		data, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		body := string(data)
+
+		// Should be HTML, not JSON.
+		require.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
+		require.Contains(t, body, "<!doctype html>")
+
+		// Should contain the expected title and description.
+		require.Contains(t, body, expectedTitle)
+		require.Contains(t, body, expectedDescFragment)
+
+		// Should contain a "Back to login" link.
+		require.Contains(t, body, "/login")
+		require.Contains(t, body, "Back to login")
+
+		// Should NOT contain JSON markers.
+		require.NotContains(t, body, `"message"`)
+		require.NotContains(t, body, `"detail"`)
+	}
+
+	t.Run("UnauthorizedEmailDomain", func(t *testing.T) {
+		t.Parallel()
+
+		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+			cfg.EmailDomain = []string{"coder.com"}
+		})
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+
+		claims := jwt.MapClaims{
+			"email":          "user@evil.corp",
+			"email_verified": true,
+			"sub":            uuid.NewString(),
+		}
+		_, resp := fake.AttemptLogin(t, client, claims)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+		assertIsHTMLErrorPage(t, resp, "Unauthorized email", "is not from an authorized domain")
+	})
+
+	t.Run("MalformedEmailNoDomain", func(t *testing.T) {
+		t.Parallel()
+
+		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+			cfg.EmailDomain = []string{"coder.com"}
+		})
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+
+		claims := jwt.MapClaims{
+			"email":          "no-at-sign",
+			"email_verified": true,
+			"sub":            uuid.NewString(),
+		}
+		_, resp := fake.AttemptLogin(t, client, claims)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+		assertIsHTMLErrorPage(t, resp, "Unauthorized email", "is not from an authorized domain")
+	})
+
+	t.Run("EmailNotVerified", func(t *testing.T) {
+		t.Parallel()
+
+		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+
+		claims := jwt.MapClaims{
+			"email":          "kyle@kwc.io",
+			"email_verified": false,
+			"sub":            uuid.NewString(),
+		}
+		_, resp := fake.AttemptLogin(t, client, claims)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+		assertIsHTMLErrorPage(t, resp, "Email not verified", "Verify the")
 	})
 }
 
