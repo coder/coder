@@ -103,12 +103,10 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	} = outletContext;
 	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
-	const [configureDialogKey, setConfigureDialogKey] = useState(0);
 	const [configureAgentsInitialSection, setConfigureAgentsInitialSection] =
 		useState<ConfigureAgentsSection>("behavior");
 	const [isUserAnalyticsDialogOpen, setUserAnalyticsDialogOpen] =
 		useState(false);
-	const [analyticsDialogKey, setAnalyticsDialogKey] = useState(0);
 	const outlet = useOutlet();
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
@@ -145,12 +143,10 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onArchivedFilterChange={onArchivedFilterChange}
 					onCollapse={onCollapseSidebar}
 					onOpenAnalytics={() => {
-						setAnalyticsDialogKey((key) => key + 1);
 						setUserAnalyticsDialogOpen(true);
 					}}
 					onOpenSettings={() => {
 						setConfigureAgentsInitialSection("behavior");
-						setConfigureDialogKey((key) => key + 1);
 						setConfigureAgentsDialogOpen(true);
 					}}
 				/>
@@ -210,7 +206,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 			</div>
 
 			<ConfigureAgentsDialog
-				key={configureDialogKey}
+				key={String(isConfigureAgentsDialogOpen)}
 				open={isConfigureAgentsDialogOpen}
 				onOpenChange={setConfigureAgentsDialogOpen}
 				canManageChatModelConfigs={isAgentsAdmin}
@@ -218,7 +214,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 				initialSection={configureAgentsInitialSection}
 			/>
 			<UserAnalyticsDialog
-				key={analyticsDialogKey}
+				key={String(isUserAnalyticsDialogOpen)}
 				open={isUserAnalyticsDialogOpen}
 				onOpenChange={setUserAnalyticsDialogOpen}
 			/>
