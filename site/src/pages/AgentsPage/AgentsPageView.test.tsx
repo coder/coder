@@ -1,9 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type * as TypesGen from "api/typesGenerated";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { type AgentsOutletContext, AgentsPageView } from "./AgentsPageView";
+
+let configureMountCount = 0;
+let analyticsMountCount = 0;
 
 vi.mock("react-router", async () => {
 	const actual =
@@ -38,21 +41,59 @@ vi.mock("./AgentsSidebar", () => ({
 vi.mock("./ConfigureAgentsDialog", () => ({
 	ConfigureAgentsDialog: ({
 		open,
+		onOpenChange,
 		initialSection,
 	}: {
 		open: boolean;
+		onOpenChange: (open: boolean) => void;
 		initialSection?: string;
-	}) =>
-		open ? (
-			<div data-testid="configure-dialog">
+	}) => {
+		const [mountId] = useState(() => {
+			configureMountCount += 1;
+			return configureMountCount;
+		});
+
+		if (!open) {
+			return null;
+		}
+
+		return (
+			<div data-testid="configure-dialog" data-mount-id={mountId}>
 				section:{initialSection ?? "behavior"}
+				<button type="button" onClick={() => onOpenChange(false)}>
+					Close configure
+				</button>
 			</div>
-		) : null,
+		);
+	},
 }));
 
 vi.mock("./UserAnalyticsDialog", () => ({
-	UserAnalyticsDialog: ({ open }: { open: boolean }) =>
-		open ? <div data-testid="user-analytics-dialog">analytics</div> : null,
+	UserAnalyticsDialog: ({
+		open,
+		onOpenChange,
+	}: {
+		open: boolean;
+		onOpenChange: (open: boolean) => void;
+	}) => {
+		const [mountId] = useState(() => {
+			analyticsMountCount += 1;
+			return analyticsMountCount;
+		});
+
+		if (!open) {
+			return null;
+		}
+
+		return (
+			<div data-testid="user-analytics-dialog" data-mount-id={mountId}>
+				analytics
+				<button type="button" onClick={() => onOpenChange(false)}>
+					Close analytics
+				</button>
+			</div>
+		);
+	},
 }));
 
 vi.mock("./AgentCreateForm", () => ({
@@ -110,6 +151,8 @@ const defaultProps = {
 
 describe("AgentsPageView analytics entrypoint", () => {
 	beforeEach(() => {
+		configureMountCount = 0;
+		analyticsMountCount = 0;
 		vi.clearAllMocks();
 	});
 
@@ -156,5 +199,59 @@ describe("AgentsPageView analytics entrypoint", () => {
 		expect(screen.getByTestId("configure-dialog")).toHaveTextContent(
 			"section:behavior",
 		);
+	});
+});
+
+describe("AgentsPageView keyed dialog remounts", () => {
+	beforeEach(() => {
+		configureMountCount = 0;
+		analyticsMountCount = 0;
+		vi.clearAllMocks();
+	});
+
+	it("remounts the configure dialog when reopened", async () => {
+		const user = userEvent.setup();
+		render(<AgentsPageView {...defaultProps} isAgentsAdmin />);
+
+		await user.click(screen.getByRole("button", { name: /open settings/i }));
+
+		const initialMountId = screen
+			.getByTestId("configure-dialog")
+			.getAttribute("data-mount-id");
+
+		await user.click(screen.getByRole("button", { name: /close configure/i }));
+		expect(screen.queryByTestId("configure-dialog")).not.toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: /open settings/i }));
+
+		const reopenedMountId = screen
+			.getByTestId("configure-dialog")
+			.getAttribute("data-mount-id");
+
+		expect(reopenedMountId).not.toBe(initialMountId);
+	});
+
+	it("remounts the analytics dialog when reopened", async () => {
+		const user = userEvent.setup();
+		render(<AgentsPageView {...defaultProps} isAgentsAdmin />);
+
+		await user.click(screen.getByRole("button", { name: /open analytics/i }));
+
+		const initialMountId = screen
+			.getByTestId("user-analytics-dialog")
+			.getAttribute("data-mount-id");
+
+		await user.click(screen.getByRole("button", { name: /close analytics/i }));
+		expect(
+			screen.queryByTestId("user-analytics-dialog"),
+		).not.toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: /open analytics/i }));
+
+		const reopenedMountId = screen
+			.getByTestId("user-analytics-dialog")
+			.getAttribute("data-mount-id");
+
+		expect(reopenedMountId).not.toBe(initialMountId);
 	});
 });
