@@ -163,6 +163,13 @@ export const watchChatGit = (chatId: string): WebSocket => {
 	return createWebSocket(`/api/experimental/chats/${chatId}/git/watch`);
 };
 
+export const watchChatDesktop = (chatId: string): WebSocket => {
+	const socket = createWebSocket(`/api/experimental/chats/${chatId}/desktop`);
+	// RFB is a binary protocol — noVNC expects arraybuffer, not blob.
+	socket.binaryType = "arraybuffer";
+	return socket;
+};
+
 export const watchAgentContainers = (
 	agentId: string,
 ): OneWayWebSocket<TypesGen.WorkspaceAgentListContainersResponse> => {
