@@ -1,6 +1,7 @@
 package taskname
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -155,6 +156,16 @@ func TestExtractJSON(t *testing.T) {
 			input:    "```json\n{\n  \"display_name\": \"Fix bug\",\n  \"task_name\": \"fix-bug\"\n}\n```",
 			expected: "{\n  \"display_name\": \"Fix bug\",\n  \"task_name\": \"fix-bug\"\n}",
 		},
+		{
+			name:     "FencedNoNewline",
+			input:    "```json{\"display_name\": \"Fix bug\", \"task_name\": \"fix-bug\"}```",
+			expected: `{"display_name": "Fix bug", "task_name": "fix-bug"}`,
+		},
+		{
+			name:     "FencedNoNewlineNoLanguage",
+			input:    "`````{\"display_name\": \"Fix bug\", \"task_name\": \"fix-bug\"}```",
+			expected: `{"display_name": "Fix bug", "task_name": "fix-bug"}`,
+		},
 	}
 
 	for _, tc := range tests {
@@ -168,12 +179,14 @@ func TestExtractJSON(t *testing.T) {
 
 // fakeAnthropicSSE builds a minimal Anthropic Messages SSE stream
 // whose sole text content is the provided string.
-func fakeAnthropicSSE(text string) string {
-	// Escape for JSON embedding.
-	escaped := strings.ReplaceAll(text, `\`, `\\`)
-	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
-	escaped = strings.ReplaceAll(escaped, "\n", `\n`)
-	escaped = strings.ReplaceAll(escaped, "\t", `\t`)
+func fakeAnthropicSSE(t *testing.T, text string) string {
+	t.Helper()
+
+	// Use json.Marshal to produce a correctly escaped JSON
+	// string value, then strip the surrounding quotes.
+	escapedBytes, err := json.Marshal(text)
+	require.NoError(t, err)
+	escaped := string(escapedBytes[1 : len(escapedBytes)-1])
 
 	return fmt.Sprintf(`event: message_start
 data: {"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","model":"claude-haiku-4-5-20241022","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"output_tokens":1}}}
@@ -230,7 +243,7 @@ func TestGenerateFromAnthropicMock(t *testing.T) {
 
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "text/event-stream")
-				_, _ = w.Write([]byte(fakeAnthropicSSE(tc.responseText)))
+				_, _ = w.Write([]byte(fakeAnthropicSSE(t, tc.responseText)))
 			}))
 			t.Cleanup(srv.Close)
 

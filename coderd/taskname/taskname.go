@@ -105,6 +105,12 @@ func extractJSON(s string) string {
 		// Remove the opening fence line (```json or ```).
 		if idx := strings.Index(s, "\n"); idx != -1 {
 			s = s[idx+1:]
+		} else {
+			// No newline: strip the backticks and any language
+			// tag up to the first '{' or '['.
+			if start := strings.IndexAny(s, "{["); start != -1 {
+				s = s[start:]
+			}
 		}
 		// Remove the closing fence.
 		s = strings.TrimSuffix(s, "```")
