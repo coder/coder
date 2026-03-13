@@ -21,11 +21,18 @@ import (
 	"github.com/coder/serpent"
 )
 
+const (
+	scaletestProviderDisplayName = "Scaletest LLM Mock"
+	scaletestModelName           = "scaletest-model"
+	scaletestModelDisplayName    = "Scaletest Model"
+)
+
 func (r *RootCmd) scaletestChat() *serpent.Command {
 	var (
 		count           int64
 		workspaceID     string
 		prompt          string
+		llmMockURL      string
 		tracingFlags    = &scaletestTracingFlags{}
 		prometheusFlags = &scaletestPrometheusFlags{}
 		timeoutStrategy = &timeoutFlags{}
@@ -80,6 +87,83 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				return xerrors.Errorf("workspace %s has no agents in its latest build", ws.Name)
 			}
 
+			var modelConfigID *uuid.UUID
+			if llmMockURL != "" {
+				_, _ = fmt.Fprintf(inv.Stderr, "Bootstrapping mock LLM provider at %s...\n", llmMockURL)
+
+				providers, err := client.ListChatProviders(ctx)
+				if err != nil {
+					return xerrors.Errorf("list chat providers: %w", err)
+				}
+
+				var existingProvider *codersdk.ChatProviderConfig
+				for i := range providers {
+					if providers[i].Provider == "openai-compat" {
+						existingProvider = &providers[i]
+						break
+					}
+				}
+
+				if existingProvider != nil {
+					if existingProvider.DisplayName != scaletestProviderDisplayName {
+						return xerrors.Errorf(
+							"an openai-compat provider already exists (display name: %q) but is not scaletest-owned (%q); "+
+								"cannot bootstrap mock LLM provider without risking shared deployment state",
+							existingProvider.DisplayName, scaletestProviderDisplayName,
+						)
+					}
+					_, _ = fmt.Fprintf(inv.Stderr, "Reusing existing scaletest openai-compat provider %s\n", existingProvider.ID)
+				} else {
+					enabled := true
+					created, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+						Provider:    "openai-compat",
+						DisplayName: scaletestProviderDisplayName,
+						APIKey:      "scaletest-api-key",
+						BaseURL:     llmMockURL,
+						Enabled:     &enabled,
+					})
+					if err != nil {
+						return xerrors.Errorf("create scaletest chat provider: %w", err)
+					}
+					_, _ = fmt.Fprintf(inv.Stderr, "Created scaletest openai-compat provider %s\n", created.ID)
+				}
+
+				modelConfigs, err := client.ListChatModelConfigs(ctx)
+				if err != nil {
+					return xerrors.Errorf("list chat model configs: %w", err)
+				}
+
+				var existingModelConfig *codersdk.ChatModelConfig
+				for i := range modelConfigs {
+					if modelConfigs[i].Provider == "openai-compat" && modelConfigs[i].Model == scaletestModelName {
+						existingModelConfig = &modelConfigs[i]
+						break
+					}
+				}
+
+				if existingModelConfig != nil {
+					modelConfigID = &existingModelConfig.ID
+					_, _ = fmt.Fprintf(inv.Stderr, "Reusing existing scaletest model config %s\n", existingModelConfig.ID)
+				} else {
+					enabled := true
+					isDefault := false
+					contextLimit := int64(4096)
+					created, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+						Provider:     "openai-compat",
+						Model:        scaletestModelName,
+						DisplayName:  scaletestModelDisplayName,
+						Enabled:      &enabled,
+						IsDefault:    &isDefault,
+						ContextLimit: &contextLimit,
+					})
+					if err != nil {
+						return xerrors.Errorf("create scaletest chat model config: %w", err)
+					}
+					modelConfigID = &created.ID
+					_, _ = fmt.Fprintf(inv.Stderr, "Created scaletest model config %s\n", created.ID)
+				}
+			}
+
 			reg := prometheus.NewRegistry()
 			metrics := chat.NewMetrics(reg)
 
@@ -117,6 +201,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				cfg := chat.Config{
 					WorkspaceID:       wsID,
 					Prompt:            prompt,
+					ModelConfigID:     modelConfigID,
 					ReadyWaitGroup:    readyWG,
 					StartChan:         startChan,
 					Metrics:           metrics,
@@ -208,6 +293,11 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			Description: "Text prompt to send in each chat.",
 			Default:     "Reply with one short sentence.",
 			Value:       serpent.StringOf(&prompt),
+		},
+		{
+			Flag:        "llm-mock-url",
+			Description: "URL of the mock LLM server (e.g. http://127.0.0.1:8080/v1). When set, bootstraps an openai-compat chat provider and model config pointing at this URL.",
+			Value:       serpent.StringOf(&llmMockURL),
 		},
 	}
 	output.attach(&cmd.Options)
