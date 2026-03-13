@@ -630,13 +630,13 @@ type ChatDiffStatus struct {
 	Additions        int32      `json:"additions"`
 	Deletions        int32      `json:"deletions"`
 	ChangedFiles     int32      `json:"changed_files"`
-	AuthorLogin     *string `json:"author_login,omitempty"`
-	AuthorAvatarURL *string `json:"author_avatar_url,omitempty"`
-	BaseBranch      *string `json:"base_branch,omitempty"`
-	PRNumber        *int32  `json:"pr_number,omitempty"`
-	Commits         *int32  `json:"commits,omitempty"`
-	Approved        *bool   `json:"approved,omitempty"`
-	ReviewerCount   *int32  `json:"reviewer_count,omitempty"`
+	AuthorLogin      *string    `json:"author_login,omitempty"`
+	AuthorAvatarURL  *string    `json:"author_avatar_url,omitempty"`
+	BaseBranch       *string    `json:"base_branch,omitempty"`
+	PRNumber         *int32     `json:"pr_number,omitempty"`
+	Commits          *int32     `json:"commits,omitempty"`
+	Approved         *bool      `json:"approved,omitempty"`
+	ReviewerCount    *int32     `json:"reviewer_count,omitempty"`
 	RefreshedAt      *time.Time `json:"refreshed_at,omitempty" format:"date-time"`
 	StaleAt          *time.Time `json:"stale_at,omitempty" format:"date-time"`
 }
