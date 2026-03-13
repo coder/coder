@@ -2,7 +2,7 @@ import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { ExternalImage } from "components/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import {
 	Tooltip,
@@ -61,7 +61,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 		<div className="sticky top-0 bg-surface-primary z-40 border-0 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6">
 			<NavLink to="/workspaces">
 				{logo_url ? (
-					<ExternalImage className="h-7" src={logo_url} alt="Custom Logo" />
+					<ExternalImage className="h-7" src={logo_url} alt="Custom logo" />
 				) : (
 					<CoderIcon className="h-7 w-7 fill-content-primary" />
 				)}

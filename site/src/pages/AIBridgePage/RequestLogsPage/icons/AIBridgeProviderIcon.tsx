@@ -1,5 +1,5 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { CircleQuestionMarkIcon } from "lucide-react";
 import { cn } from "utils/cn";
 
@@ -14,21 +14,21 @@ export const AIBridgeProviderIcon = ({
 	switch (provider) {
 		case "openai":
 			return (
-				<ExternalImage
+				<DecorativeImage
 					src="/icon/openai.svg"
 					className={cn(iconClassName, className)}
 				/>
 			);
 		case "anthropic":
 			return (
-				<ExternalImage
+				<DecorativeImage
 					src="/icon/claude.svg"
 					className={cn(iconClassName, className)}
 				/>
 			);
 		case "copilot":
 			return (
-				<ExternalImage
+				<DecorativeImage
 					src="/icon/github.svg"
 					className={cn(iconClassName, className)}
 				/>

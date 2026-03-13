@@ -1,4 +1,4 @@
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { ExternalImage } from "components/ExternalImage";
 import { ServerIcon } from "lucide-react";
 import type { FC } from "react";
 import { cn } from "utils/cn";

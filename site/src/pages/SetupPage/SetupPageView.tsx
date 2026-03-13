@@ -8,7 +8,7 @@ import type * as TypesGen from "api/typesGenerated";
 import { isAxiosError } from "axios";
 import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { FormFields, VerticalForm } from "components/Form/Form";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { PasswordField } from "components/PasswordField/PasswordField";
@@ -168,7 +168,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						<>
 							<Button className="w-full" asChild type="submit" size="lg">
 								<a href="/api/v2/users/oauth2/github/callback">
-									<ExternalImage src="/icon/github.svg" />
+									<DecorativeImage src="/icon/github.svg" />
 									{Language.githubCreate}
 								</a>
 							</Button>

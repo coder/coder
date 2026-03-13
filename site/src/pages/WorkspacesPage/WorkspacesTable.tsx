@@ -20,7 +20,7 @@ import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { Checkbox } from "components/Checkbox/Checkbox";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
 import { Spinner } from "components/Spinner/Spinner";
@@ -790,7 +790,7 @@ const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 			href={link.href}
 			onClick={link.onClick}
 		>
-			<ExternalImage src={app.icon ?? "/icon/widgets.svg"} />
+			<DecorativeImage src={app.icon ?? "/icon/widgets.svg"} />
 		</BaseIconLink>
 	);
 };

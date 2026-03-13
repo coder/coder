@@ -1,6 +1,6 @@
 import type { AuthMethods } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { KeyIcon } from "lucide-react";
 import { type FC, useId } from "react";
 import { Language } from "./Language";
@@ -32,7 +32,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 							redirectTo,
 						)}`}
 					>
-						<ExternalImage src="/icon/github.svg" />
+						<DecorativeImage src="/icon/github.svg" />
 						{Language.githubSignIn}
 					</a>
 				</Button>

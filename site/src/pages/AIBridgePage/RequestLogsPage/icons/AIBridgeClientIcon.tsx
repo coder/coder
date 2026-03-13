@@ -1,5 +1,5 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { CircleQuestionMarkIcon } from "lucide-react";
 import { cn } from "utils/cn";
 
@@ -17,49 +17,49 @@ export const AIBridgeClientIcon = ({
 	switch (client) {
 		case "Claude Code":
 			return (
-				<ExternalImage
+				<DecorativeImage
 					src="/icon/claude.svg"
 					className={cn(iconClassName, className)}
 				/>
 			);
 		case "Codex":
 			return (
-				<ExternalImage
+				<DecorativeImage
 					src="/icon/openai-codex.svg"
 					className={cn(iconClassName, className)}
 				/>
 			);
 		case "Kilo Code":
 			return (
-				<ExternalImage
+				<DecorativeImage
 					src="/icon/kilo-code.svg"
 					className={cn(iconClassName, className)}
 				/>
 			);
 		case "Roo Code":
 			return (
-				<ExternalImage
+				<DecorativeImage
 					src="/icon/roo-code.svg"
 					className={cn(iconClassName, className)}
 				/>
 			);
 		case "Mux":
 			return (
-				<ExternalImage
+				<DecorativeImage
 					src="/icon/mux.svg"
 					className={cn(iconClassName, className)}
 				/>
 			);
 		case "Zed":
 			return (
-				<ExternalImage
+				<DecorativeImage
 					src="/icon/zed.svg"
 					className={cn(iconClassName, className)}
 				/>
 			);
 		case "Cursor":
 			return (
-				<ExternalImage
+				<DecorativeImage
 					src="/icon/cursor.svg"
 					className={cn(iconClassName, className)}
 				/>
@@ -67,7 +67,7 @@ export const AIBridgeClientIcon = ({
 		case "GitHub Copilot (VS Code)":
 		case "GitHub Copilot (CLI)":
 			return (
-				<ExternalImage
+				<DecorativeImage
 					src="/icon/github-copilot.svg"
 					className={cn(iconClassName, className)}
 				/>

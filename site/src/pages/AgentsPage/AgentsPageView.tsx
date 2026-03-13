@@ -1,7 +1,7 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { ExternalImage } from "components/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { PanelLeftIcon } from "lucide-react";
 import { type FC, useState } from "react";
@@ -153,7 +153,11 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 								className="inline-flex shrink-0 md:hidden"
 							>
 								{logoUrl ? (
-									<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
+									<ExternalImage
+										className="h-6"
+										src={logoUrl}
+										alt="Custom logo"
+									/>
 								) : (
 									<CoderIcon className="h-6 w-6 fill-content-primary" />
 								)}

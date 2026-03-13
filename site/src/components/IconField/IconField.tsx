@@ -3,7 +3,7 @@ import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { Loader } from "components/Loader/Loader";
 import {
 	Popover,
@@ -56,8 +56,7 @@ export const IconField: FC<IconFieldProps> = ({
 								},
 							}}
 						>
-							<ExternalImage
-								alt=""
+							<DecorativeImage
 								src={textFieldProps.value}
 								// This prevent browser to display the ugly error icon if the
 								// image path is wrong or user didn't finish typing the url

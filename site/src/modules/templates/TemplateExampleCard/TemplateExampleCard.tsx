@@ -2,7 +2,7 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import type { TemplateExample } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { Pill } from "components/Pill/Pill";
 import type { FC, HTMLAttributes } from "react";
 import { Link as RouterLink } from "react-router";
@@ -21,7 +21,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 		<div css={styles.card} {...divProps}>
 			<div css={styles.header}>
 				<div css={styles.icon}>
-					<ExternalImage
+					<DecorativeImage
 						src={example.icon}
 						css={{ width: "100%", height: "100%", objectFit: "contain" }}
 					/>

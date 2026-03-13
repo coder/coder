@@ -15,7 +15,7 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { LastSeen } from "components/LastSeen/LastSeen";
 import { TableCell, TableRow } from "components/Table/Table";
 import {
@@ -269,7 +269,7 @@ const LoginType: FC<LoginTypeProps> = ({ authMethods, value }) => {
 		icon = <BanIcon css={styles.icon} />;
 	} else if (value === "github") {
 		displayName = "GitHub";
-		icon = <ExternalImage src="/icon/github.svg" css={styles.icon} />;
+		icon = <DecorativeImage src="/icon/github.svg" css={styles.icon} />;
 	} else if (value === "token") {
 		displayName = "Token";
 		icon = <KeyIcon css={styles.icon} />;

@@ -5,7 +5,7 @@ import CardContent from "@mui/material/CardContent";
 import Stack from "@mui/material/Stack";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
@@ -70,7 +70,7 @@ export const CreateTemplateGalleryPageView: FC<
 										css={{ alignItems: "center" }}
 									>
 										<div css={styles.icon}>
-											<ExternalImage
+											<DecorativeImage
 												src="/emojis/1f4e1.png"
 												css={{
 													width: "100%",

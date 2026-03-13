@@ -6,7 +6,7 @@ import type {
 } from "api/typesGenerated";
 import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
@@ -180,7 +180,7 @@ const AppLink: FC<AppLinkProps> = ({ app, agent, workspace }) => {
 				target="_blank"
 				rel="noreferrer"
 			>
-				{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
+				{app.icon ? <DecorativeImage src={app.icon} /> : <LayoutGridIcon />}
 				{link.label}
 			</a>
 		</Button>

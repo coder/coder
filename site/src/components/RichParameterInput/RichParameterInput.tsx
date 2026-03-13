@@ -7,7 +7,7 @@ import RadioGroup from "@mui/material/RadioGroup";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
 import type { TemplateVersionParameter } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
@@ -185,11 +185,7 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 			<Stack direction="row" alignItems="center">
 				{parameter.icon && (
 					<span css={styles.labelIconWrapper}>
-						<ExternalImage
-							css={styles.labelIcon}
-							alt="Parameter icon"
-							src={parameter.icon}
-						/>
+						<DecorativeImage css={styles.labelIcon} src={parameter.icon} />
 					</span>
 				)}
 
@@ -334,11 +330,7 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 						label={
 							<Stack direction="row" alignItems="center">
 								{option.icon && (
-									<ExternalImage
-										css={styles.optionIcon}
-										src={option.icon}
-										alt="Parameter icon"
-									/>
+									<DecorativeImage css={styles.optionIcon} src={option.icon} />
 								)}
 								{option.description ? (
 									<Stack
