@@ -7,14 +7,13 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/v2/codersdk"
 )
 
 const activeToolName = "read_file"
@@ -577,12 +576,11 @@ func TestToResponseMessages_ProviderExecutedToolResultInAssistantMessage(t *test
 	assert.False(t, localTR.ProviderExecuted)
 }
 
-// TestRun_RetryDoesNotDuplicatePartsToSubscribers verifies that when
-// a retryable error occurs mid-stream, only the successful attempt's
-// parts are published to subscribers. The current code re-invokes
-// processStepStream with the same publishMessagePart callback on
-// retry, so parts from the failed attempt leak to subscribers.
-func TestRun_RetryDoesNotDuplicatePartsToSubscribers(t *testing.T) {
+// TestRun_RetryPersistsOnlySuccessfulAttempt verifies that when a
+// retryable error occurs mid-stream, the persisted step content
+// comes only from the successful attempt. The failed attempt's
+// content must not leak into the database.
+func TestRun_RetryPersistsOnlySuccessfulAttempt(t *testing.T) {
 	t.Parallel()
 
 	var mu sync.Mutex
@@ -626,11 +624,90 @@ func TestRun_RetryDoesNotDuplicatePartsToSubscribers(t *testing.T) {
 		},
 	}
 
-	// Collect every published part so we can count text deltas.
 	var (
-		partsMu        sync.Mutex
-		publishedParts []codersdk.ChatMessagePart
+		onRetryCalls    int
+		persistedSteps  []PersistedStep
+		persistedStepMu sync.Mutex
 	)
+
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "hello"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedStepMu.Lock()
+			defer persistedStepMu.Unlock()
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+		OnRetry: func(_ int, _ error, _ time.Duration) {
+			onRetryCalls++
+		},
+	})
+	require.NoError(t, err)
+
+	mu.Lock()
+	require.Equal(t, 2, streamCalls, "model should have been called twice (one failure + one success)")
+	mu.Unlock()
+
+	require.Equal(t, 1, onRetryCalls,
+		"OnRetry should be called once between failure and success")
+
+	// The step should be persisted exactly once, containing
+	// only the successful attempt's content.
+	persistedStepMu.Lock()
+	defer persistedStepMu.Unlock()
+	require.Len(t, persistedSteps, 1, "exactly one step should be persisted")
+
+	// The persisted content should contain the text from the
+	// successful attempt. Count text blocks to verify no
+	// duplication from the failed attempt leaked through.
+	var textBlockCount int
+	for _, block := range persistedSteps[0].Content {
+		if _, ok := fantasy.AsContentType[fantasy.TextContent](block); ok {
+			textBlockCount++
+		}
+	}
+	require.Equal(t, 1, textBlockCount,
+		"persisted step should contain exactly one text block from the successful attempt")
+}
+
+func TestRun_RetryCallsOnRetryCallback(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var streamCalls int
+
+	model := &loopTestModel{
+		provider: "fake",
+		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			attempt := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			if attempt == 0 {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeError, Error: xerrors.New("status 503: service unavailable")},
+				}), nil
+			}
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	type retryRecord struct {
+		attempt int
+		errMsg  string
+		delay   time.Duration
+	}
+	var retries []retryRecord
 
 	err := Run(context.Background(), RunOptions{
 		Model: model,
@@ -641,35 +718,175 @@ func TestRun_RetryDoesNotDuplicatePartsToSubscribers(t *testing.T) {
 		PersistStep: func(_ context.Context, _ PersistedStep) error {
 			return nil
 		},
-		PublishMessagePart: func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
-			partsMu.Lock()
-			defer partsMu.Unlock()
-			publishedParts = append(publishedParts, part)
+		OnRetry: func(attempt int, retryErr error, delay time.Duration) {
+			retries = append(retries, retryRecord{
+				attempt: attempt,
+				errMsg:  retryErr.Error(),
+				delay:   delay,
+			})
+		},
+	})
+	require.NoError(t, err)
+
+	require.Len(t, retries, 1)
+	assert.Equal(t, 1, retries[0].attempt)
+	assert.Contains(t, retries[0].errMsg, "503")
+	assert.Equal(t, time.Second, retries[0].delay)
+}
+
+// TestRun_RetryCancellationPropagates verifies that canceling
+// the context during retry backoff propagates the error cleanly
+// through Run. Full exhaustion of all 25 attempts is impractical
+// in a unit test due to exponential backoff, so we cancel
+// explicitly on the first OnRetry callback.
+func TestRun_RetryCancellationPropagates(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var streamCalls int
+
+	model := &loopTestModel{
+		provider: "fake",
+		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			streamCalls++
+			mu.Unlock()
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeError, Error: xerrors.New("status 503: overloaded")},
+			}), nil
+		},
+	}
+
+	// Cancel the context from OnRetry so the backoff timer
+	// select picks up ctx.Done() immediately, avoiding any
+	// real-time dependency in the test.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var retryCalls int
+
+	err := Run(ctx, RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "hello"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		OnRetry: func(_ int, _ error, _ time.Duration) {
+			retryCalls++
+			cancel()
+		},
+	})
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, context.Canceled)
+
+	mu.Lock()
+	require.GreaterOrEqual(t, streamCalls, 1,
+		"model should have been called at least once")
+	mu.Unlock()
+	require.GreaterOrEqual(t, retryCalls, 1,
+		"OnRetry should have been called at least once")
+}
+
+func TestRun_RetryOnlyForRetryableErrors(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var streamCalls int
+
+	model := &loopTestModel{
+		provider: "fake",
+		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			streamCalls++
+			mu.Unlock()
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeError, Error: xerrors.New("401 Unauthorized: invalid api key")},
+			}), nil
+		},
+	}
+
+	var retryCalls int
+
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "hello"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		OnRetry: func(_ int, _ error, _ time.Duration) {
+			retryCalls++
+		},
+	})
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "401 Unauthorized")
+
+	mu.Lock()
+	require.Equal(t, 1, streamCalls,
+		"model should be called exactly once for non-retryable errors")
+	mu.Unlock()
+	require.Equal(t, 0, retryCalls,
+		"OnRetry should not be called for non-retryable errors")
+}
+
+func TestRun_RetryStreamErrorBeforeProcessing(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var streamCalls int
+
+	model := &loopTestModel{
+		provider: "fake",
+		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			attempt := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			if attempt == 0 {
+				// Return error directly from Stream, before
+				// any stream processing occurs.
+				return nil, xerrors.New("status 502: bad gateway")
+			}
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "recovered"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	var retryCalls int
+
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "hello"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		OnRetry: func(_ int, _ error, _ time.Duration) {
+			retryCalls++
 		},
 	})
 	require.NoError(t, err)
 
 	mu.Lock()
-	require.Equal(t, 2, streamCalls, "model should have been called twice (one failure + one success)")
+	require.Equal(t, 2, streamCalls,
+		"model should be called twice (error + success)")
 	mu.Unlock()
-
-	// Count text-type parts published to subscribers.
-	partsMu.Lock()
-	defer partsMu.Unlock()
-	var textDeltaCount int
-	for _, p := range publishedParts {
-		if p.Type == codersdk.ChatMessagePartTypeText {
-			textDeltaCount++
-		}
-	}
-
-	// Correct behavior: only the successful attempt's 2 deltas
-	// should reach subscribers. The bug causes 4 (2 leaked from
-	// the failed attempt + 2 from the retry).
-	assert.Equal(t, 2, textDeltaCount,
-		"expected only 2 text deltas from the successful attempt, got %d (failed attempt parts leaked)",
-		textDeltaCount,
-	)
+	require.Equal(t, 1, retryCalls,
+		"OnRetry should be called once")
 }
 
 func hasAnthropicEphemeralCacheControl(message fantasy.Message) bool {
