@@ -108,7 +108,7 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 					Type: codersdk.ServerSentEventTypeData,
 					Data: payload,
 				}); err != nil {
-					api.Logger.Error(ctx, "failed to send chat event", slog.Error(err))
+					api.Logger.Debug(ctx, "failed to send chat event", slog.Error(err))
 				}
 			},
 		))
