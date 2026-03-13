@@ -43,6 +43,10 @@ replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20260306035934-af5c
 // 2. update to the latest gVisor
 replace github.com/tailscale/wireguard-go => github.com/coder/wireguard-go v0.0.0-20260113101225-9b7a56210e49
 
+// We use a fork to fix an integer overflow issue that causes occasional crashes in workspace agents.
+// See https://github.com/coder/coder/issues/20885
+replace gvisor.dev => github.com/coder/gvisor v0.0.0-20260313164934-7a658db7b714
+
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
 //
