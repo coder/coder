@@ -2369,6 +2369,24 @@ export interface DatabaseReport extends BaseReport {
 	readonly threshold_ms: number;
 }
 
+// From codersdk/debug.go
+/**
+ * DebugProfileOptions are options for collecting debug profiles from the
+ * server via the consolidated /debug/profile endpoint.
+ */
+export interface DebugProfileOptions {
+	/**
+	 * Duration controls how long time-based profiles (cpu, trace) run.
+	 * Zero uses the server default (10s).
+	 */
+	readonly Duration: number;
+	/**
+	 * Profiles is the list of profile types to collect. Nil or empty uses
+	 * the server default (cpu, heap, allocs, block, mutex, goroutine).
+	 */
+	readonly Profiles: readonly string[];
+}
+
 // From codersdk/externalauth.go
 export interface DeleteExternalAuthByIDResponse {
 	/**
