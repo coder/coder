@@ -184,32 +184,24 @@ export function watchInboxNotifications(
 	});
 }
 
-type SerializableSearchParams = Record<
-	string,
-	string | number | boolean | undefined
->;
+type SerializableSearchParamValue = string | number | boolean | undefined;
 
-type KnownSearchParamOptions =
-	| SerializableSearchParams
-	| SearchParamOptions
-	| TypesGen.AuditLogsRequest
-	| TypesGen.ConnectionLogsRequest
-	| TypesGen.Pagination
-	| TypesGen.UsersRequest
-	| TypesGen.WorkspaceBuildsRequest
-	| TypesGen.WorkspaceFilter
-	| TypesGen.WorkspacesRequest;
+type SerializableSearchParams<T extends object = object> = {
+	[K in keyof T]: T[K] extends SerializableSearchParamValue ? T[K] : never;
+};
 
-export const getURLWithSearchParams = (
+export const getURLWithSearchParams = <T extends object>(
 	basePath: string,
-	options?: KnownSearchParamOptions,
+	options?: SerializableSearchParams<T>,
 ): string => {
 	if (!options) {
 		return basePath;
 	}
 
 	const searchParams = new URLSearchParams();
-	for (const [key, value] of Object.entries(options)) {
+	for (const [key, value] of Object.entries(options) as Array<
+		[string, SerializableSearchParamValue]
+	>) {
 		if (value !== undefined && value !== "") {
 			searchParams.append(key, value.toString());
 		}
