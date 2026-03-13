@@ -2320,90 +2320,104 @@ func (p *Server) runChat(
 			assistantBlocks = append(assistantBlocks, block)
 		}
 
-		var insertedMessages []database.ChatMessage
-		err := p.db.InTx(func(tx database.Store) error {
-			// Verify this worker still owns the chat before
-			// inserting messages. This closes the race where
-			// EditMessage truncates history and clears worker_id
-			// while persistInterruptedStep (which uses an
-			// uncancelable context) is still running.
-			lockedChat, lockErr := tx.GetChatByIDForUpdate(persistCtx, chat.ID)
-			if lockErr != nil {
-				return xerrors.Errorf("lock chat for persist: %w", lockErr)
-			}
-			if !lockedChat.WorkerID.Valid || lockedChat.WorkerID.UUID != p.workerID {
-				return chatloop.ErrInterrupted
-			}
-
+			// Pre-marshal all content outside the transaction so
+			// the FOR UPDATE lock is held only for the INSERT
+			// statements. Marshaling is pure CPU work with no
+			// database dependency; hoisting it here reduces lock
+			// hold time by the full marshaling cost (up to ~120μs
+			// at 20 tool calls — see BenchmarkPersistStepContention).
+			var assistantContent pqtype.NullRawMessage
 			if len(assistantBlocks) > 0 {
-				assistantContent, marshalErr := chatprompt.MarshalContent(assistantBlocks, nil)
+				var marshalErr error
+				assistantContent, marshalErr = chatprompt.MarshalContent(assistantBlocks, nil)
 				if marshalErr != nil {
-					return marshalErr
+					return xerrors.Errorf("marshal assistant content: %w", marshalErr)
 				}
-
-				hasUsage := step.Usage != (fantasy.Usage{})
-				assistantMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-					ChatID:        chat.ID,
-					CreatedBy:     uuid.NullUUID{},
-					ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-					Role:          string(fantasy.MessageRoleAssistant),
-					Content:       assistantContent,
-					Visibility:    database.ChatMessageVisibilityBoth,
-					InputTokens:   usageNullInt64(step.Usage.InputTokens, hasUsage),
-					OutputTokens:  usageNullInt64(step.Usage.OutputTokens, hasUsage),
-					TotalTokens:   usageNullInt64(step.Usage.TotalTokens, hasUsage),
-					ReasoningTokens: usageNullInt64(
-						step.Usage.ReasoningTokens,
-						hasUsage,
-					),
-					CacheCreationTokens: usageNullInt64(
-						step.Usage.CacheCreationTokens,
-						hasUsage,
-					),
-					CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
-					ContextLimit:    step.ContextLimit,
-					Compressed:      sql.NullBool{},
-				})
-				if insertErr != nil {
-					return xerrors.Errorf("insert assistant message: %w", insertErr)
-				}
-				insertedMessages = append(insertedMessages, assistantMessage)
 			}
 
-			for _, tr := range toolResults {
-				resultContent, marshalErr := chatprompt.MarshalToolResultContent(tr)
+			toolResultContents := make([]pqtype.NullRawMessage, len(toolResults))
+			for i, tr := range toolResults {
+				var marshalErr error
+				toolResultContents[i], marshalErr = chatprompt.MarshalToolResultContent(tr)
 				if marshalErr != nil {
-					return marshalErr
+					return xerrors.Errorf("marshal tool result %d: %w", i, marshalErr)
 				}
-
-				toolMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-					ChatID:              chat.ID,
-					CreatedBy:           uuid.NullUUID{},
-					ModelConfigID:       uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-					Role:                string(fantasy.MessageRoleTool),
-					Content:             resultContent,
-					Visibility:          database.ChatMessageVisibilityBoth,
-					InputTokens:         sql.NullInt64{},
-					OutputTokens:        sql.NullInt64{},
-					TotalTokens:         sql.NullInt64{},
-					ReasoningTokens:     sql.NullInt64{},
-					CacheCreationTokens: sql.NullInt64{},
-					CacheReadTokens:     sql.NullInt64{},
-					ContextLimit:        sql.NullInt64{},
-					Compressed:          sql.NullBool{},
-				})
-				if insertErr != nil {
-					return xerrors.Errorf("insert tool result: %w", insertErr)
-				}
-				insertedMessages = append(insertedMessages, toolMessage)
 			}
 
-			return nil
-		}, nil)
-		if err != nil {
-			return xerrors.Errorf("persist step transaction: %w", err)
-		}
+			hasUsage := step.Usage != (fantasy.Usage{})
 
+			var insertedMessages []database.ChatMessage
+			err := p.db.InTx(func(tx database.Store) error {
+				// Verify this worker still owns the chat before
+				// inserting messages. This closes the race where
+				// EditMessage truncates history and clears worker_id
+				// while persistInterruptedStep (which uses an
+				// uncancelable context) is still running.
+				lockedChat, lockErr := tx.GetChatByIDForUpdate(persistCtx, chat.ID)
+				if lockErr != nil {
+					return xerrors.Errorf("lock chat for persist: %w", lockErr)
+				}
+				if !lockedChat.WorkerID.Valid || lockedChat.WorkerID.UUID != p.workerID {
+					return chatloop.ErrInterrupted
+				}
+
+				if assistantContent.Valid {
+					assistantMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
+						ChatID:        chat.ID,
+						CreatedBy:     uuid.NullUUID{},
+						ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+						Role:          string(fantasy.MessageRoleAssistant),
+						Content:       assistantContent,
+						Visibility:    database.ChatMessageVisibilityBoth,
+						InputTokens:   usageNullInt64(step.Usage.InputTokens, hasUsage),
+						OutputTokens:  usageNullInt64(step.Usage.OutputTokens, hasUsage),
+						TotalTokens:   usageNullInt64(step.Usage.TotalTokens, hasUsage),
+						ReasoningTokens: usageNullInt64(
+							step.Usage.ReasoningTokens,
+							hasUsage,
+						),
+						CacheCreationTokens: usageNullInt64(
+							step.Usage.CacheCreationTokens,
+							hasUsage,
+						),
+						CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
+						ContextLimit:    step.ContextLimit,
+						Compressed:      sql.NullBool{},
+					})
+					if insertErr != nil {
+						return xerrors.Errorf("insert assistant message: %w", insertErr)
+					}
+					insertedMessages = append(insertedMessages, assistantMessage)
+				}
+
+				for i, resultContent := range toolResultContents {
+					toolMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
+						ChatID:              chat.ID,
+						CreatedBy:           uuid.NullUUID{},
+						ModelConfigID:       uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+						Role:                string(fantasy.MessageRoleTool),
+						Content:             resultContent,
+						Visibility:          database.ChatMessageVisibilityBoth,
+						InputTokens:         sql.NullInt64{},
+						OutputTokens:        sql.NullInt64{},
+						TotalTokens:         sql.NullInt64{},
+						ReasoningTokens:     sql.NullInt64{},
+						CacheCreationTokens: sql.NullInt64{},
+						CacheReadTokens:     sql.NullInt64{},
+						ContextLimit:        sql.NullInt64{},
+						Compressed:          sql.NullBool{},
+					})
+					if insertErr != nil {
+						return xerrors.Errorf("insert tool result %d: %w", i, insertErr)
+					}
+					insertedMessages = append(insertedMessages, toolMessage)
+				}
+
+				return nil
+			}, nil)
+			if err != nil {
+				return xerrors.Errorf("persist step transaction: %w", err)
+			}
 		for _, msg := range insertedMessages {
 			p.publishMessage(chat.ID, msg)
 		}
