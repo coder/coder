@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
 import {
 	mergeTools,
 	normalizeBlockType,
 	parseMessageContent,
 	parseToolResultIsError,
-} from "./messageParsing";
+} from "modules/chat-shared";
+import { describe, expect, it } from "vitest";
 
 describe("normalizeBlockType", () => {
 	it("lowercases and replaces underscores with hyphens", () => {

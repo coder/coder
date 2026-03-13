@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
+import type { StreamState } from "modules/chat-shared";
 import {
 	applyMessagePartToStreamState,
 	buildStreamTools,
 	createEmptyStreamState,
-} from "./streamState";
-import type { StreamState } from "./types";
+} from "modules/chat-shared";
+import { describe, expect, it } from "vitest";
 
 describe("createEmptyStreamState", () => {
 	it("returns fresh state with empty blocks and tool maps", () => {

@@ -31,10 +31,6 @@ const readInfiniteChats = (
 };
 
 import type * as TypesGen from "api/typesGenerated";
-import type { FC, PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
-import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
-import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	selectChatStatus,
 	selectOrderedMessageIDs,
@@ -43,9 +39,12 @@ import {
 	selectStreamError,
 	selectStreamState,
 	selectSubagentStatusOverrides,
-	useChatSelector,
-	useChatStore,
-} from "./ChatContext";
+} from "modules/chat-shared";
+import type { FC, PropsWithChildren } from "react";
+import { QueryClient, QueryClientProvider } from "react-query";
+import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { useChatSelector, useChatStore } from "./ChatContext";
 
 vi.mock("api/api", () => ({
 	watchChat: vi.fn(),

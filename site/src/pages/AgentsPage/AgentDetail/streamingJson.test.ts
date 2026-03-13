@@ -1,5 +1,5 @@
+import { mergeStreamPayload, parseStreamingJSON } from "modules/chat-shared";
 import { describe, expect, it } from "vitest";
-import { mergeStreamPayload, parseStreamingJSON } from "./streamingJson";
 
 describe("parseStreamingJSON", () => {
 	it("parses complete JSON objects", () => {

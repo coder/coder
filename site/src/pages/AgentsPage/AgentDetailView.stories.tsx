@@ -4,9 +4,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ChatDiffStatusResponse } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { createChatStore } from "modules/chat-shared";
 import { fn } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { createChatStore } from "./AgentDetail/ChatContext";
 import {
 	AgentDetailLoadingView,
 	AgentDetailNotFoundView,

@@ -1,6 +1,9 @@
+import {
+	appendTextBlock,
+	asNonEmptyString,
+	type RenderBlock,
+} from "modules/chat-shared";
 import { describe, expect, it } from "vitest";
-import { appendTextBlock, asNonEmptyString } from "./blockUtils";
-import type { RenderBlock } from "./types";
 
 // ---------------------------------------------------------------------------
 // asNonEmptyString

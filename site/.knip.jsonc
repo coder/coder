@@ -4,6 +4,9 @@
 	"project": ["./src/**/*.ts", "./src/**/*.tsx", "./e2e/**/*.ts"],
 	"ignore": ["**/*Generated.ts", "src/api/chatModelOptions.ts"],
 	"ignoreBinaries": ["protoc"],
+	"ignoreIssues": {
+		"src/modules/chat-shared/react/**": ["exports", "types"]
+	},
 	"ignoreDependencies": [
 		"@types/react-virtualized-auto-sizer",
 		"jest_workaround",

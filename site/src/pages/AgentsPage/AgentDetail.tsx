@@ -21,9 +21,17 @@ import {
 	getVSCodeHref,
 	openAppInNewWindow,
 } from "modules/apps/apps";
+import {
+	buildParsedMessageSections,
+	buildStreamTools,
+	buildSubagentTitles,
+	ChatRuntimeProvider,
+	parseMessagesWithMergedTools,
+} from "modules/chat-shared";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	type FC,
+	type ReactNode,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -41,6 +49,8 @@ import {
 	type ChatMessageInputRef,
 	type UploadState,
 } from "./AgentChatInput";
+import { createBrowserChatPreferenceStore } from "./AgentDetail/browserChatPreferenceStore";
+import { createBrowserChatRuntime } from "./AgentDetail/browserChatRuntime";
 import {
 	selectChatStatus,
 	selectHasStreamState,
@@ -60,12 +70,6 @@ import {
 	getParentChatID,
 	getWorkspaceAgent,
 } from "./AgentDetail/chatHelpers";
-import {
-	buildParsedMessageSections,
-	buildSubagentTitles,
-	parseMessagesWithMergedTools,
-} from "./AgentDetail/messageParsing";
-import { buildStreamTools } from "./AgentDetail/streamState";
 import { useMessageWindow } from "./AgentDetail/useMessageWindow";
 import { useWorkspaceCreationWatcher } from "./AgentDetail/useWorkspaceCreationWatcher";
 import {
@@ -87,11 +91,22 @@ import { useGitWatcher } from "./useGitWatcher";
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 
 const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
+const browserChatRuntime = createBrowserChatRuntime();
+const browserChatPreferenceStore = createBrowserChatPreferenceStore();
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
+
+const wrapWithChatRuntimeProvider = (children: ReactNode) => (
+	<ChatRuntimeProvider
+		runtime={browserChatRuntime}
+		preferenceStore={browserChatPreferenceStore}
+	>
+		{children}
+	</ChatRuntimeProvider>
+);
 
 const isChatMessage = (
 	message: TypesGen.ChatMessage | undefined,
@@ -1075,7 +1090,7 @@ const AgentDetail: FC = () => {
 	};
 
 	if (chatQuery.isLoading) {
-		return (
+		return wrapWithChatRuntimeProvider(
 			<AgentDetailLoadingView
 				titleElement={titleElement}
 				isInputDisabled={isInputDisabled}
@@ -1089,20 +1104,20 @@ const AgentDetail: FC = () => {
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				showRightPanel={showSidebarPanel}
-			/>
+			/>,
 		);
 	}
 
 	if (!chatQuery.data || !agentId) {
-		return (
+		return wrapWithChatRuntimeProvider(
 			<AgentDetailNotFoundView
 				titleElement={titleElement}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-			/>
+			/>,
 		);
 	}
-	return (
+	return wrapWithChatRuntimeProvider(
 		<AgentDetailView
 			agentId={agentId}
 			chatTitle={chatTitle}
@@ -1150,7 +1165,7 @@ const AgentDetail: FC = () => {
 			}
 			urlTransform={urlTransform}
 			scrollContainerRef={scrollContainerRef}
-		/>
+		/>,
 	);
 };
 

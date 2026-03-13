@@ -2,7 +2,7 @@ import { chatKey } from "api/queries/chats";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "react-query";
 import { useChatSelector } from "./ChatContext";
-import type { StreamState } from "./types";
+import type { StreamState } from "./streamState";
 
 type ChatStoreHandle = Parameters<typeof useChatSelector>[0];
 

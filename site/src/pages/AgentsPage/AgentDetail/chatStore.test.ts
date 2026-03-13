@@ -1,6 +1,10 @@
 import type * as TypesGen from "api/typesGenerated";
+import {
+	createChatStore,
+	createInitialState,
+	VALID_CHAT_STATUSES,
+} from "modules/chat-shared";
 import { describe, expect, it } from "vitest";
-import { createChatStore } from "./ChatContext";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -33,6 +37,34 @@ const makeQueuedMessage = (
 		created_at: "2025-01-01T00:00:00Z",
 		content: [{ type: "text", text }],
 	}) as TypesGen.ChatQueuedMessage;
+
+describe("createInitialState", () => {
+	it("returns the expected default state", () => {
+		expect(createInitialState()).toEqual({
+			messagesByID: new Map(),
+			orderedMessageIDs: [],
+			streamState: null,
+			chatStatus: null,
+			streamError: null,
+			retryState: null,
+			queuedMessages: [],
+			subagentStatusOverrides: new Map(),
+		});
+	});
+});
+
+describe("VALID_CHAT_STATUSES", () => {
+	it("includes the expected durable chat lifecycle statuses", () => {
+		expect(Array.from(VALID_CHAT_STATUSES)).toEqual([
+			"pending",
+			"running",
+			"completed",
+			"error",
+			"paused",
+			"waiting",
+		]);
+	});
+});
 
 // ---------------------------------------------------------------------------
 // replaceMessages
