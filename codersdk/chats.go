@@ -52,7 +52,7 @@ type ChatMessage struct {
 	CreatedBy     *uuid.UUID        `json:"created_by,omitempty" format:"uuid"`
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
-	Role          string            `json:"role"`
+	Role          ChatMessageRole   `json:"role"`
 	Content       []ChatMessagePart `json:"content,omitempty"`
 	Usage         *ChatMessageUsage `json:"usage,omitempty"`
 }
@@ -67,6 +67,17 @@ type ChatMessageUsage struct {
 	CacheReadTokens     *int64 `json:"cache_read_tokens,omitempty"`
 	ContextLimit        *int64 `json:"context_limit,omitempty"`
 }
+
+// ChatMessageRole represents the role of a chat message sender.
+type ChatMessageRole string
+
+// ChatMessageRole enums.
+const (
+	ChatMessageRoleSystem    ChatMessageRole = "system"
+	ChatMessageRoleUser      ChatMessageRole = "user"
+	ChatMessageRoleAssistant ChatMessageRole = "assistant"
+	ChatMessageRoleTool      ChatMessageRole = "tool"
+)
 
 // ChatMessagePartType represents a structured message part type.
 type ChatMessagePartType string
@@ -656,7 +667,7 @@ type ChatQueuedMessage struct {
 
 // ChatStreamMessagePart is a streamed message part update.
 type ChatStreamMessagePart struct {
-	Role string          `json:"role,omitempty"`
+	Role ChatMessageRole `json:"role,omitempty"`
 	Part ChatMessagePart `json:"part"`
 }
 

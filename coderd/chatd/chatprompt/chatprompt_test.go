@@ -714,13 +714,13 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		role  string
+		role  codersdk.ChatMessageRole
 		raw   pqtype.NullRawMessage
 		check func(t *testing.T, parts []codersdk.ChatMessagePart)
 	}{
 		{
 			name: "system/plain_string",
-			role: "system",
+			role: codersdk.ChatMessageRoleSystem,
 			raw:  nullRaw(mustJSON(t, "You are helpful.")),
 			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
 				require.Len(t, parts, 1)
@@ -730,7 +730,7 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		},
 		{
 			name: "user/fantasy_text",
-			role: "user",
+			role: codersdk.ChatMessageRoleUser,
 			raw: nullRaw(mustJSON(t, []json.RawMessage{
 				mustJSON(t, map[string]any{
 					"type": "text",
@@ -745,7 +745,7 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		},
 		{
 			name: "assistant/fantasy_text",
-			role: "assistant",
+			role: codersdk.ChatMessageRoleAssistant,
 			raw: nullRaw(mustJSON(t, []json.RawMessage{
 				mustJSON(t, map[string]any{
 					"type": "text",
@@ -760,7 +760,7 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		},
 		{
 			name: "user/plain_string",
-			role: "user",
+			role: codersdk.ChatMessageRoleUser,
 			raw:  nullRaw(mustJSON(t, "just a plain string")),
 			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
 				require.Len(t, parts, 1)
@@ -770,7 +770,7 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		},
 		{
 			name: "user/fantasy_file_with_file_id",
-			role: "user",
+			role: codersdk.ChatMessageRoleUser,
 			raw: nullRaw(mustJSON(t, []json.RawMessage{
 				mustJSON(t, map[string]any{
 					"type": "file",
@@ -791,7 +791,7 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		},
 		{
 			name: "assistant/fantasy_reasoning_with_metadata",
-			role: "assistant",
+			role: codersdk.ChatMessageRoleAssistant,
 			raw:  legacyAssistantReasoning,
 			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
 				require.Len(t, parts, 1)
@@ -803,7 +803,7 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		},
 		{
 			name: "assistant/fantasy_source",
-			role: "assistant",
+			role: codersdk.ChatMessageRoleAssistant,
 			raw:  legacyAssistantSource,
 			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
 				require.Len(t, parts, 1)
@@ -815,7 +815,7 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		},
 		{
 			name: "assistant/fantasy_tool_call",
-			role: "assistant",
+			role: codersdk.ChatMessageRoleAssistant,
 			raw:  legacyAssistantToolCall,
 			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
 				require.Len(t, parts, 1)
@@ -827,7 +827,7 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		},
 		{
 			name: "tool/legacy_result_row",
-			role: "tool",
+			role: codersdk.ChatMessageRoleTool,
 			raw: nullRaw(mustJSON(t, []map[string]any{{
 				"tool_call_id": "call_123",
 				"tool_name":    "read_file",
@@ -843,7 +843,7 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		},
 		{
 			name: "user/sdk_text",
-			role: "user",
+			role: codersdk.ChatMessageRoleUser,
 			raw: nullRaw(mustJSON(t, []codersdk.ChatMessagePart{
 				{Type: codersdk.ChatMessagePartTypeText, Text: "hello sdk"},
 			})),
@@ -855,7 +855,7 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		},
 		{
 			name: "user/sdk_file_reference",
-			role: "user",
+			role: codersdk.ChatMessageRoleUser,
 			raw: nullRaw(mustJSON(t, []codersdk.ChatMessagePart{
 				{Type: codersdk.ChatMessagePartTypeFileReference, FileName: "main.go", StartLine: 1, EndLine: 10, Content: "func main() {}"},
 			})),
@@ -870,7 +870,7 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		},
 		{
 			name: "user/sdk_file",
-			role: "user",
+			role: codersdk.ChatMessageRoleUser,
 			raw: nullRaw(mustJSON(t, []codersdk.ChatMessagePart{
 				{Type: codersdk.ChatMessagePartTypeFile, FileID: uuid.NullUUID{UUID: fileID, Valid: true}, MediaType: "image/png"},
 			})),
@@ -884,7 +884,7 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		},
 		{
 			name: "assistant/sdk_text_with_metadata",
-			role: "assistant",
+			role: codersdk.ChatMessageRoleAssistant,
 			raw:  newAssistantWithMeta,
 			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
 				require.Len(t, parts, 1)
@@ -895,7 +895,7 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		},
 		{
 			name: "assistant/sdk_tool_call",
-			role: "assistant",
+			role: codersdk.ChatMessageRoleAssistant,
 			raw:  newAssistantToolCall,
 			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
 				require.Len(t, parts, 1)
@@ -907,7 +907,7 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 		},
 		{
 			name: "tool/sdk_tool_result",
-			role: "tool",
+			role: codersdk.ChatMessageRoleTool,
 			raw:  newToolResult,
 			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
 				require.Len(t, parts, 1)
@@ -948,7 +948,7 @@ func TestProviderMetadataRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	// Step 1: ParseContent preserves metadata on the SDK part.
-	parts, err := chatprompt.ParseContent("assistant", legacyContent)
+	parts, err := chatprompt.ParseContent(codersdk.ChatMessageRoleAssistant, legacyContent)
 	require.NoError(t, err)
 	require.Len(t, parts, 1)
 	require.NotNil(t, parts[0].ProviderMetadata,
@@ -994,7 +994,7 @@ func TestFileReferencePreservation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Storage round-trip: all fields intact.
-	parts, err := chatprompt.ParseContent("user", raw)
+	parts, err := chatprompt.ParseContent(codersdk.ChatMessageRoleUser, raw)
 	require.NoError(t, err)
 	require.Len(t, parts, 1)
 	assert.Equal(t, codersdk.ChatMessagePartTypeFileReference, parts[0].Type)
@@ -1052,7 +1052,7 @@ func TestAssistantWriteRoundTrip(t *testing.T) {
 
 	// Read back via ParseContent (takes the new SDK path, not
 	// the legacy fallback, because the stored format is flat).
-	parts, err := chatprompt.ParseContent("assistant", raw)
+	parts, err := chatprompt.ParseContent(codersdk.ChatMessageRoleAssistant, raw)
 	require.NoError(t, err)
 	require.Len(t, parts, 1)
 	assert.Equal(t, "response with cache hints", parts[0].Text)
@@ -1258,7 +1258,7 @@ func TestQueuedMessageRoundTrip(t *testing.T) {
 
 	// Step 2: PromoteQueued copies the raw bytes into
 	// chat_messages. ParseContent must handle them identically.
-	promoted, err := chatprompt.ParseContent("user", pqtype.NullRawMessage{
+	promoted, err := chatprompt.ParseContent(codersdk.ChatMessageRoleUser, pqtype.NullRawMessage{
 		RawMessage: raw.RawMessage,
 		Valid:      true,
 	})
@@ -1296,6 +1296,59 @@ func TestQueuedMessageRoundTrip(t *testing.T) {
 	require.True(t, ok)
 	assert.Contains(t, refPart.Text, "[file-reference]")
 	assert.Contains(t, refPart.Text, "api.go")
+}
+
+func TestParseContent_ErrorPaths(t *testing.T) {
+	t.Parallel()
+
+	t.Run("null_content_returns_nil", func(t *testing.T) {
+		t.Parallel()
+		parts, err := chatprompt.ParseContent(codersdk.ChatMessageRoleUser, pqtype.NullRawMessage{})
+		require.NoError(t, err)
+		assert.Nil(t, parts)
+	})
+
+	t.Run("empty_content_returns_nil", func(t *testing.T) {
+		t.Parallel()
+		parts, err := chatprompt.ParseContent(codersdk.ChatMessageRoleAssistant, pqtype.NullRawMessage{
+			RawMessage: []byte{},
+			Valid:      true,
+		})
+		require.NoError(t, err)
+		assert.Nil(t, parts)
+	})
+
+	t.Run("unknown_role", func(t *testing.T) {
+		t.Parallel()
+		_, err := chatprompt.ParseContent(codersdk.ChatMessageRole("banana"), nullRaw(json.RawMessage(`"hello"`)))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported chat message role")
+	})
+
+	t.Run("system/malformed_json", func(t *testing.T) {
+		t.Parallel()
+		_, err := chatprompt.ParseContent(codersdk.ChatMessageRoleSystem, nullRaw(json.RawMessage(`not json`)))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "parse system content")
+	})
+
+	t.Run("user/malformed_json", func(t *testing.T) {
+		t.Parallel()
+		_, err := chatprompt.ParseContent(codersdk.ChatMessageRoleUser, nullRaw(json.RawMessage(`{not json`)))
+		require.Error(t, err)
+	})
+
+	t.Run("assistant/malformed_json", func(t *testing.T) {
+		t.Parallel()
+		_, err := chatprompt.ParseContent(codersdk.ChatMessageRoleAssistant, nullRaw(json.RawMessage(`{not json`)))
+		require.Error(t, err)
+	})
+
+	t.Run("tool/malformed_json", func(t *testing.T) {
+		t.Parallel()
+		_, err := chatprompt.ParseContent(codersdk.ChatMessageRoleTool, nullRaw(json.RawMessage(`{not json`)))
+		require.Error(t, err)
+	})
 }
 
 func mustJSON(t *testing.T, v any) json.RawMessage {

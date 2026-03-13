@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/sqlc-dev/pqtype"
@@ -1069,10 +1068,10 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		CreatedBy:     createdBy,
 		ModelConfigID: modelConfigID,
 		CreatedAt:     m.CreatedAt,
-		Role:          m.Role,
+		Role:          codersdk.ChatMessageRole(m.Role),
 	}
 	if m.Content.Valid {
-		parts, err := chatMessageParts(m.Role, m.Content)
+		parts, err := chatMessageParts(codersdk.ChatMessageRole(m.Role), m.Content)
 		if err == nil {
 			msg.Content = parts
 		}
@@ -1114,7 +1113,7 @@ func chatMessageUsage(m database.ChatMessage) *codersdk.ChatMessageUsage {
 
 // ChatQueuedMessage converts a queued message to its SDK representation.
 func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMessage {
-	parts, err := chatMessageParts(string(fantasy.MessageRoleUser), pqtype.NullRawMessage{
+	parts, err := chatMessageParts(codersdk.ChatMessageRoleUser, pqtype.NullRawMessage{
 		RawMessage: message.Content,
 		Valid:      len(message.Content) > 0,
 	})
@@ -1140,7 +1139,7 @@ func ChatQueuedMessages(messages []database.ChatQueuedMessage) []codersdk.ChatQu
 	return out
 }
 
-func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
+func chatMessageParts(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
 	parts, err := chatprompt.ParseContent(role, raw)
 	if err != nil {
 		return nil, err

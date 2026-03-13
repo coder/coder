@@ -467,7 +467,7 @@ func TestChatMessage_PreservesProviderExecutedOnToolResults(t *testing.T) {
 	dbMsg := database.ChatMessage{
 		ID:     1,
 		ChatID: uuid.New(),
-		Role:   string(fantasy.MessageRoleAssistant),
+		Role:   string(codersdk.ChatMessageRoleAssistant),
 		Content: pqtype.NullRawMessage{
 			RawMessage: rawContent,
 			Valid:      true,

@@ -1155,7 +1155,7 @@ export interface ChatMessage {
 	readonly created_by?: string;
 	readonly model_config_id?: string;
 	readonly created_at: string;
-	readonly role: string;
+	readonly role: ChatMessageRole;
 	readonly content?: readonly ChatMessagePart[];
 	readonly usage?: ChatMessageUsage;
 }
@@ -1224,6 +1224,16 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"text",
 	"tool-call",
 	"tool-result",
+];
+
+// From codersdk/chats.go
+export type ChatMessageRole = "assistant" | "system" | "tool" | "user";
+
+export const ChatMessageRoles: ChatMessageRole[] = [
+	"assistant",
+	"system",
+	"tool",
+	"user",
 ];
 
 // From codersdk/chats.go
@@ -1598,7 +1608,7 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
  * ChatStreamMessagePart is a streamed message part update.
  */
 export interface ChatStreamMessagePart {
-	readonly role?: string;
+	readonly role?: ChatMessageRole;
 	readonly part: ChatMessagePart;
 }
 

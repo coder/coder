@@ -279,7 +279,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 					UUID:  opts.ModelConfigID,
 					Valid: true,
 				},
-				Role: "system",
+				Role: string(codersdk.ChatMessageRoleSystem),
 				Content: pqtype.NullRawMessage{
 					RawMessage: systemContent,
 					Valid:      len(systemContent) > 0,
@@ -309,7 +309,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 				UUID:  opts.ModelConfigID,
 				Valid: true,
 			},
-			Role:                "user",
+			Role:                string(codersdk.ChatMessageRoleUser),
 			Content:             userContent,
 			CreatedBy:           uuid.NullUUID{UUID: opts.OwnerID, Valid: opts.OwnerID != uuid.Nil},
 			Visibility:          database.ChatMessageVisibilityBoth,
@@ -897,7 +897,7 @@ func insertUserMessageAndSetPending(
 	message, err := insertChatMessageWithStore(ctx, store, database.InsertChatMessageParams{
 		ChatID:              lockedChat.ID,
 		ModelConfigID:       uuid.NullUUID{UUID: modelConfigID, Valid: true},
-		Role:                "user",
+		Role:                string(codersdk.ChatMessageRoleUser),
 		Content:             content,
 		CreatedBy:           uuid.NullUUID{UUID: createdBy, Valid: createdBy != uuid.Nil},
 		Visibility:          database.ChatMessageVisibilityBoth,
@@ -1735,7 +1735,7 @@ func (p *Server) publishEditedMessage(chatID uuid.UUID, message database.ChatMes
 	})
 }
 
-func (p *Server) publishMessagePart(chatID uuid.UUID, role string, part codersdk.ChatMessagePart) {
+func (p *Server) publishMessagePart(chatID uuid.UUID, role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 	if part.Type == "" {
 		return
 	}
@@ -1952,7 +1952,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 					msg, insertErr := tx.InsertChatMessage(cleanupCtx, database.InsertChatMessageParams{
 						ChatID:        chat.ID,
 						ModelConfigID: uuid.NullUUID{UUID: latestChat.LastModelConfigID, Valid: true},
-						Role:          "user",
+						Role:          string(codersdk.ChatMessageRoleUser),
 						Content: pqtype.NullRawMessage{
 							RawMessage: nextQueued.Content,
 							Valid:      len(nextQueued.Content) > 0,
@@ -2348,7 +2348,7 @@ func (p *Server) runChat(
 					ChatID:        chat.ID,
 					CreatedBy:     uuid.NullUUID{},
 					ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-					Role:          string(fantasy.MessageRoleAssistant),
+					Role:          string(codersdk.ChatMessageRoleAssistant),
 					Content:       assistantContent,
 					Visibility:    database.ChatMessageVisibilityBoth,
 					InputTokens:   usageNullInt64(step.Usage.InputTokens, hasUsage),
@@ -2383,7 +2383,7 @@ func (p *Server) runChat(
 					ChatID:              chat.ID,
 					CreatedBy:           uuid.NullUUID{},
 					ModelConfigID:       uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-					Role:                string(fantasy.MessageRoleTool),
+					Role:                string(codersdk.ChatMessageRoleTool),
 					Content:             resultContent,
 					Visibility:          database.ChatMessageVisibilityBoth,
 					InputTokens:         sql.NullInt64{},
@@ -2464,8 +2464,8 @@ func (p *Server) runChat(
 		},
 		ToolCallID: compactionToolCallID,
 		ToolName:   "chat_summarized",
-		PublishMessagePart: func(role fantasy.MessageRole, part codersdk.ChatMessagePart) {
-			p.publishMessagePart(chat.ID, string(role), part)
+		PublishMessagePart: func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+			p.publishMessagePart(chat.ID, role, part)
 		},
 		OnError: func(err error) {
 			logger.Warn(ctx, "failed to compact chat context", slog.Error(err))
@@ -2553,10 +2553,10 @@ func (p *Server) runChat(
 
 		PersistStep: persistStep,
 		PublishMessagePart: func(
-			role fantasy.MessageRole,
+			role codersdk.ChatMessageRole,
 			part codersdk.ChatMessagePart,
 		) {
-			p.publishMessagePart(chat.ID, string(role), part)
+			p.publishMessagePart(chat.ID, role, part)
 		},
 		Compaction: compactionOptions,
 		ReloadMessages: func(reloadCtx context.Context) ([]fantasy.Message, error) {
@@ -2721,7 +2721,7 @@ func (p *Server) persistChatContextSummary(
 			ChatID:        chatID,
 			CreatedBy:     uuid.NullUUID{},
 			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
-			Role:          string(fantasy.MessageRoleUser),
+			Role:          string(codersdk.ChatMessageRoleUser),
 			Content: pqtype.NullRawMessage{
 				RawMessage: systemContent,
 				Valid:      len(systemContent) > 0,
@@ -2744,7 +2744,7 @@ func (p *Server) persistChatContextSummary(
 			ChatID:        chatID,
 			CreatedBy:     uuid.NullUUID{},
 			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
-			Role:          string(fantasy.MessageRoleAssistant),
+			Role:          string(codersdk.ChatMessageRoleAssistant),
 			Content:       assistantContent,
 			Visibility:    database.ChatMessageVisibilityUser,
 			Compressed: sql.NullBool{
@@ -2768,7 +2768,7 @@ func (p *Server) persistChatContextSummary(
 			ChatID:        chatID,
 			CreatedBy:     uuid.NullUUID{},
 			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
-			Role:          string(fantasy.MessageRoleTool),
+			Role:          string(codersdk.ChatMessageRoleTool),
 			Content:       toolResult,
 			Visibility:    database.ChatMessageVisibilityBoth,
 			Compressed: sql.NullBool{
@@ -3134,10 +3134,10 @@ func (p *Server) maybeSendPushNotification(
 
 			msg, err := p.db.GetLastChatMessageByRole(pushCtx, database.GetLastChatMessageByRoleParams{
 				ChatID: chat.ID,
-				Role:   "assistant",
+				Role:   string(codersdk.ChatMessageRoleAssistant),
 			})
 			if err == nil {
-				content, parseErr := chatprompt.ParseContent(msg.Role, msg.Content)
+				content, parseErr := chatprompt.ParseContent(codersdk.ChatMessageRoleAssistant, msg.Content)
 				if parseErr == nil {
 					assistantText := strings.TrimSpace(contentBlocksToText(content))
 					if assistantText != "" {

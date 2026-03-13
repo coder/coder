@@ -951,7 +951,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 
 	partialMessages := filterMessageEvents(partialSnapshot)
 	require.Len(t, partialMessages, 1, "afterMessageID=msg2.ID should return only messages after msg2")
-	require.Equal(t, "user", partialMessages[0].Message.Role)
+	require.Equal(t, codersdk.ChatMessageRoleUser, partialMessages[0].Message.Role)
 }
 
 // filterMessageEvents returns only the Message-type events from a
@@ -1080,7 +1080,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 
 	var foundCreateWorkspaceResult bool
 	for _, message := range chatWithMessages.Messages {
-		if message.Role != "tool" {
+		if message.Role != codersdk.ChatMessageRoleTool {
 			continue
 		}
 		for _, part := range message.Content {
@@ -1249,7 +1249,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	// Verify start_workspace tool result exists in the chat messages.
 	var foundStartWorkspaceResult bool
 	for _, message := range chatWithMessages.Messages {
-		if message.Role != "tool" {
+		if message.Role != codersdk.ChatMessageRoleTool {
 			continue
 		}
 		for _, part := range message.Content {

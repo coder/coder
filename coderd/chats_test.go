@@ -91,7 +91,7 @@ func TestPostChats(t *testing.T) {
 
 		foundUserMessage := false
 		for _, message := range chatWithMessages.Messages {
-			if message.Role != "user" {
+			if message.Role != codersdk.ChatMessageRoleUser {
 				continue
 			}
 			for _, part := range message.Content {
@@ -126,7 +126,7 @@ func TestPostChats(t *testing.T) {
 		chatWithMessages, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		for _, message := range chatWithMessages.Messages {
-			require.NotEqual(t, "system", message.Role)
+			require.NotEqual(t, codersdk.ChatMessageRoleSystem, message.Role)
 		}
 	})
 
@@ -1336,9 +1336,9 @@ func TestGetChat(t *testing.T) {
 		foundUserMessage := false
 		for _, message := range chatWithMessages.Messages {
 			require.Equal(t, createdChat.ID, message.ChatID)
-			require.NotEqual(t, "system", message.Role)
+			require.NotEqual(t, codersdk.ChatMessageRoleSystem, message.Role)
 			for _, part := range message.Content {
-				if message.Role == "user" &&
+				if message.Role == codersdk.ChatMessageRoleUser &&
 					part.Type == codersdk.ChatMessagePartTypeText &&
 					part.Text == "get chat route payload" {
 					foundUserMessage = true
@@ -1659,7 +1659,7 @@ func TestPostChatMessages(t *testing.T) {
 					}
 				}
 				for _, message := range chatWithMessages.Messages {
-					if message.Role == "user" && hasTextPart(message.Content, messageText) {
+					if message.Role == codersdk.ChatMessageRoleUser && hasTextPart(message.Content, messageText) {
 						return true
 					}
 				}
@@ -1669,7 +1669,7 @@ func TestPostChatMessages(t *testing.T) {
 			require.Nil(t, created.QueuedMessage)
 			require.NotNil(t, created.Message)
 			require.Equal(t, chat.ID, created.Message.ChatID)
-			require.Equal(t, "user", created.Message.Role)
+			require.Equal(t, codersdk.ChatMessageRoleUser, created.Message.Role)
 			require.NotZero(t, created.Message.ID)
 			require.True(t, hasTextPart(created.Message.Content, messageText))
 
@@ -1680,7 +1680,7 @@ func TestPostChatMessages(t *testing.T) {
 				}
 				for _, message := range chatWithMessages.Messages {
 					if message.ID == created.Message.ID &&
-						message.Role == "user" &&
+						message.Role == codersdk.ChatMessageRoleUser &&
 						hasTextPart(message.Content, messageText) {
 						return true
 					}
@@ -1794,7 +1794,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 				return false
 			}
 			for _, message := range chatWithMessages.Messages {
-				if message.Role != "user" {
+				if message.Role != codersdk.ChatMessageRoleUser {
 					continue
 				}
 				for _, part := range message.Content {
@@ -2077,7 +2077,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 			}
 
 			for _, msg := range chatWithMessages.Messages {
-				if msg.Role == "user" && checkParts(msg.Content) {
+				if msg.Role == codersdk.ChatMessageRoleUser && checkParts(msg.Content) {
 					return true
 				}
 			}
@@ -2184,7 +2184,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 			require.NotNil(t, resp.QueuedMessage)
 		} else {
 			require.NotNil(t, resp.Message)
-			require.Equal(t, "user", resp.Message.Role)
+			require.Equal(t, codersdk.ChatMessageRoleUser, resp.Message.Role)
 		}
 	})
 
@@ -2231,7 +2231,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 			require.NotNil(t, resp.QueuedMessage)
 		} else {
 			require.NotNil(t, resp.Message)
-			require.Equal(t, "user", resp.Message.Role)
+			require.Equal(t, codersdk.ChatMessageRoleUser, resp.Message.Role)
 		}
 
 		// Verify file parts omit inline data in the API response.
@@ -2336,7 +2336,7 @@ func TestPatchChatMessage(t *testing.T) {
 
 		var userMessageID int64
 		for _, message := range chatWithMessages.Messages {
-			if message.Role == "user" {
+			if message.Role == codersdk.ChatMessageRoleUser {
 				userMessageID = message.ID
 				break
 			}
@@ -2353,7 +2353,7 @@ func TestPatchChatMessage(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, userMessageID, edited.ID)
-		require.Equal(t, "user", edited.Role)
+		require.Equal(t, codersdk.ChatMessageRoleUser, edited.Role)
 
 		foundEditedText := false
 		for _, part := range edited.Content {
@@ -2368,7 +2368,7 @@ func TestPatchChatMessage(t *testing.T) {
 		foundEditedInChat := false
 		foundOriginalInChat := false
 		for _, message := range updatedChat.Messages {
-			if message.Role != "user" {
+			if message.Role != codersdk.ChatMessageRoleUser {
 				continue
 			}
 			for _, part := range message.Content {
@@ -2421,7 +2421,7 @@ func TestPatchChatMessage(t *testing.T) {
 
 		var userMessageID int64
 		for _, message := range chatWithMessages.Messages {
-			if message.Role == "user" {
+			if message.Role == codersdk.ChatMessageRoleUser {
 				userMessageID = message.ID
 				break
 			}
@@ -2464,7 +2464,7 @@ func TestPatchChatMessage(t *testing.T) {
 
 		var foundTextInChat, foundFileInChat bool
 		for _, message := range updatedChat.Messages {
-			if message.Role != "user" {
+			if message.Role != codersdk.ChatMessageRoleUser {
 				continue
 			}
 			for _, part := range message.Content {
@@ -2598,7 +2598,7 @@ func TestStreamChat(t *testing.T) {
 
 				if event.Type == codersdk.ChatStreamEventTypeMessage &&
 					event.Message != nil &&
-					event.Message.Role == "user" &&
+					event.Message.Role == codersdk.ChatMessageRoleUser &&
 					hasTextPart(event.Message.Content, initialMessage) {
 					foundInitialUserMessage = true
 				}
@@ -3158,7 +3158,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		require.NoError(t, err)
 		require.NotZero(t, promoted.ID)
 		require.Equal(t, chat.ID, promoted.ChatID)
-		require.Equal(t, "user", promoted.Role)
+		require.Equal(t, codersdk.ChatMessageRoleUser, promoted.Role)
 
 		foundPromotedText := false
 		for _, part := range promoted.Content {

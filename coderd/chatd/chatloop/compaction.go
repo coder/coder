@@ -55,7 +55,7 @@ type CompactionOptions struct {
 	// PublishMessagePart publishes streaming parts to connected
 	// clients so they see "Summarizing..." / "Summarized" UI
 	// transitions during compaction.
-	PublishMessagePart func(fantasy.MessageRole, codersdk.ChatMessagePart)
+	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 
 	OnError func(error)
 }
@@ -110,7 +110,7 @@ func tryCompact(
 	// connected clients see activity during summary generation.
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		config.PublishMessagePart(
-			fantasy.MessageRoleAssistant,
+			codersdk.ChatMessageRoleAssistant,
 			codersdk.ChatMessageToolCall(config.ToolCallID, config.ToolName, nil),
 		)
 	}
@@ -159,7 +159,7 @@ func tryCompact(
 			"context_limit_tokens": contextLimit,
 		})
 		config.PublishMessagePart(
-			fantasy.MessageRoleTool,
+			codersdk.ChatMessageRoleTool,
 			codersdk.ChatMessageToolResult(config.ToolCallID, config.ToolName, resultJSON, false),
 		)
 	}
@@ -177,7 +177,7 @@ func publishCompactionError(config CompactionOptions, msg string) {
 		"error": msg,
 	})
 	config.PublishMessagePart(
-		fantasy.MessageRoleTool,
+		codersdk.ChatMessageRoleTool,
 		codersdk.ChatMessageToolResult(config.ToolCallID, config.ToolName, errJSON, true),
 	)
 }
