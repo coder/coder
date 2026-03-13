@@ -557,13 +557,7 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary Get chat usage limit config
-// @ID get-chat-usage-limit-config
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chat
-// @Success 200 {object} codersdk.ChatUsageLimitConfigResponse
-// @Router /chats/usage-limits [get]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request) {
@@ -631,15 +625,7 @@ func (api *API) getChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request)
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
-// @Summary Update chat usage limit config
-// @ID update-chat-usage-limit-config
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Chat
-// @Param request body codersdk.ChatUsageLimitConfig true "Config"
-// @Success 200 {object} codersdk.ChatUsageLimitConfig
-// @Router /chats/usage-limits [put]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) updateChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -709,13 +695,7 @@ func (api *API) updateChatUsageLimitConfig(rw http.ResponseWriter, r *http.Reque
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
-// @Summary Get my chat usage limit status
-// @ID get-my-chat-usage-limit-status
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chat
-// @Success 200 {object} codersdk.ChatUsageLimitStatus
-// @Router /chats/usage-limits/status [get]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getMyChatUsageLimitStatus(rw http.ResponseWriter, r *http.Request) {
@@ -735,16 +715,7 @@ func (api *API) getMyChatUsageLimitStatus(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, status)
 }
 
-// @Summary Upsert chat usage limit override
-// @ID upsert-chat-usage-limit-override
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Chat
-// @Param user path string true "User ID" format(uuid)
-// @Param request body codersdk.UpsertChatUsageLimitOverrideRequest true "Override"
-// @Success 200 {object} codersdk.ChatUsageLimitOverride
-// @Router /chats/usage-limits/overrides/{user} [put]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -804,13 +775,7 @@ func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 	})
 }
 
-// @Summary Delete chat usage limit override
-// @ID delete-chat-usage-limit-override
-// @Security CoderSessionToken
-// @Tags Chat
-// @Param user path string true "User ID" format(uuid)
-// @Success 204
-// @Router /chats/usage-limits/overrides/{user} [delete]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) deleteChatUsageLimitOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
@@ -1205,17 +1170,6 @@ func (api *API) unarchiveChat(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary Send a chat message
-// @ID post-chat-messages
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Chat
-// @Param chat path string true "Chat ID" format(uuid)
-// @Param request body codersdk.CreateChatMessageRequest true "Message"
-// @Success 200 {object} codersdk.ChatMessage
-// @Failure 409 {object} codersdk.Response "Usage limit exceeded"
-// @Router /chats/{chat}/messages [post]
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
