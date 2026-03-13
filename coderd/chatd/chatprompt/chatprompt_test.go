@@ -51,7 +51,6 @@ func TestConvertMessages_NormalizesAssistantToolCallInput(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -669,6 +668,15 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 
+	legacyAssistantSource, err := chatprompt.MarshalContent([]fantasy.Content{
+		fantasy.SourceContent{
+			ID:    "src_001",
+			URL:   "https://example.com/doc",
+			Title: "Example Doc",
+		},
+	}, nil)
+	require.NoError(t, err)
+
 	legacyAssistantToolCall, err := chatprompt.MarshalContent([]fantasy.Content{
 		fantasy.ToolCallContent{
 			ToolCallID: "call_123",
@@ -751,6 +759,16 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 			},
 		},
 		{
+			name: "user/plain_string",
+			role: "user",
+			raw:  nullRaw(mustJSON(t, "just a plain string")),
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeText, parts[0].Type)
+				assert.Equal(t, "just a plain string", parts[0].Text)
+			},
+		},
+		{
 			name: "user/fantasy_file_with_file_id",
 			role: "user",
 			raw: nullRaw(mustJSON(t, []json.RawMessage{
@@ -781,6 +799,18 @@ func TestParseContent_BackwardCompat(t *testing.T) {
 				assert.Equal(t, "let me think...", parts[0].Text)
 				require.NotNil(t, parts[0].ProviderMetadata, "ProviderMetadata must be preserved")
 				assert.Contains(t, string(parts[0].ProviderMetadata), "anthropic")
+			},
+		},
+		{
+			name: "assistant/fantasy_source",
+			role: "assistant",
+			raw:  legacyAssistantSource,
+			check: func(t *testing.T, parts []codersdk.ChatMessagePart) {
+				require.Len(t, parts, 1)
+				assert.Equal(t, codersdk.ChatMessagePartTypeSource, parts[0].Type)
+				assert.Equal(t, "src_001", parts[0].SourceID)
+				assert.Equal(t, "https://example.com/doc", parts[0].URL)
+				assert.Equal(t, "Example Doc", parts[0].Title)
 			},
 		},
 		{

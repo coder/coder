@@ -124,6 +124,10 @@ type ChatMessagePart struct {
 
 // StripInternal removes internal-only fields that must not be
 // sent to API clients. Call before publishing via REST or SSE.
+//
+// Note: ArgsDelta and ResultDelta are intentionally preserved.
+// They are streaming-only fields consumed by the frontend via
+// SSE message_part events (see processStepStream in chatloop).
 func (p *ChatMessagePart) StripInternal() {
 	p.ProviderMetadata = nil
 	if p.FileID.Valid {
