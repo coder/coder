@@ -422,6 +422,11 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteChatModelConfigByID(gomock.Any(), id).Return(nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
+	s.Run("DeleteChatMCPServerByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().DeleteChatMCPServerByID(gomock.Any(), id).Return(nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
 	s.Run("DeleteChatProviderByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
 		dbm.EXPECT().DeleteChatProviderByID(gomock.Any(), id).Return(nil).AnyTimes()
@@ -504,6 +509,17 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chat.ID).Return(msgs, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(msgs)
 	}))
+	s.Run("GetChatMCPServerByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		server := testutil.Fake(s.T(), faker, database.ChatMCPServer{})
+		dbm.EXPECT().GetChatMCPServerByID(gomock.Any(), server.ID).Return(server, nil).AnyTimes()
+		check.Args(server.ID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(server)
+	}))
+	s.Run("GetChatMCPServers", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		serverA := testutil.Fake(s.T(), faker, database.ChatMCPServer{})
+		serverB := testutil.Fake(s.T(), faker, database.ChatMCPServer{})
+		dbm.EXPECT().GetChatMCPServers(gomock.Any()).Return([]database.ChatMCPServer{serverA, serverB}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.ChatMCPServer{serverA, serverB})
+	}))
 	s.Run("GetChatModelConfigByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
 		dbm.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
@@ -570,6 +586,12 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return([]database.ChatModelConfig{configA, configB}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.ChatModelConfig{configA, configB})
 	}))
+	s.Run("GetEnabledChatMCPServers", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		serverA := testutil.Fake(s.T(), faker, database.ChatMCPServer{})
+		serverB := testutil.Fake(s.T(), faker, database.ChatMCPServer{})
+		dbm.EXPECT().GetEnabledChatMCPServers(gomock.Any()).Return([]database.ChatMCPServer{serverA, serverB}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.ChatMCPServer{serverA, serverB})
+	}))
 	s.Run("GetEnabledChatProviders", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		providerA := testutil.Fake(s.T(), faker, database.ChatProvider{})
 		providerB := testutil.Fake(s.T(), faker, database.ChatProvider{})
@@ -607,6 +629,17 @@ func (s *MethodTestSuite) TestChats() {
 		file := testutil.Fake(s.T(), faker, database.InsertChatFileRow{OwnerID: arg.OwnerID, OrganizationID: arg.OrganizationID})
 		dbm.EXPECT().InsertChatFile(gomock.Any(), arg).Return(file, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), policy.ActionCreate).Returns(file)
+	}))
+	s.Run("InsertChatMCPServer", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.InsertChatMCPServerParams{
+			Slug:        "test-mcp-server",
+			Url:         "https://example.com/mcp",
+			DisplayName: "Test MCP Server",
+			Enabled:     true,
+		}
+		server := testutil.Fake(s.T(), faker, database.ChatMCPServer{Slug: arg.Slug, Url: arg.Url, DisplayName: arg.DisplayName, Enabled: arg.Enabled})
+		dbm.EXPECT().InsertChatMCPServer(gomock.Any(), arg).Return(server, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(server)
 	}))
 	s.Run("InsertChatMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
@@ -672,6 +705,18 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatHeartbeat(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
+	}))
+	s.Run("UpdateChatMCPServer", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		server := testutil.Fake(s.T(), faker, database.ChatMCPServer{})
+		arg := database.UpdateChatMCPServerParams{
+			ID:          server.ID,
+			Slug:        "updated-slug",
+			Url:         "https://example.com/updated",
+			DisplayName: "Updated MCP Server",
+			Enabled:     true,
+		}
+		dbm.EXPECT().UpdateChatMCPServer(gomock.Any(), arg).Return(server, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(server)
 	}))
 	s.Run("UpdateChatMessageByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

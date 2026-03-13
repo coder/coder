@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -13,9 +14,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
-
-	"charm.land/fantasy"
-
 	"github.com/coder/coder/v2/coderd/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -177,16 +175,22 @@ func TestDiscoverMCPServerTools(t *testing.T) {
 
 		ts := newTestMCPServer(t,
 			mcpserver.ServerTool{
-				Tool:    mcp.NewTool("read_file", mcp.WithDescription("Read a file")),
-				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) { return mcp.NewToolResultText("ok"), nil },
+				Tool: mcp.NewTool("read_file", mcp.WithDescription("Read a file")),
+				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					return mcp.NewToolResultText("ok"), nil
+				},
 			},
 			mcpserver.ServerTool{
-				Tool:    mcp.NewTool("write_file", mcp.WithDescription("Write a file")),
-				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) { return mcp.NewToolResultText("ok"), nil },
+				Tool: mcp.NewTool("write_file", mcp.WithDescription("Write a file")),
+				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					return mcp.NewToolResultText("ok"), nil
+				},
 			},
 			mcpserver.ServerTool{
-				Tool:    mcp.NewTool("delete_file", mcp.WithDescription("Delete a file")),
-				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) { return mcp.NewToolResultText("ok"), nil },
+				Tool: mcp.NewTool("delete_file", mcp.WithDescription("Delete a file")),
+				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					return mcp.NewToolResultText("ok"), nil
+				},
 			},
 		)
 		defer ts.Close()
@@ -214,12 +218,16 @@ func TestDiscoverMCPServerTools(t *testing.T) {
 
 		ts := newTestMCPServer(t,
 			mcpserver.ServerTool{
-				Tool:    mcp.NewTool("safe_tool", mcp.WithDescription("Safe")),
-				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) { return mcp.NewToolResultText("ok"), nil },
+				Tool: mcp.NewTool("safe_tool", mcp.WithDescription("Safe")),
+				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					return mcp.NewToolResultText("ok"), nil
+				},
 			},
 			mcpserver.ServerTool{
-				Tool:    mcp.NewTool("dangerous_tool", mcp.WithDescription("Dangerous")),
-				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) { return mcp.NewToolResultText("ok"), nil },
+				Tool: mcp.NewTool("dangerous_tool", mcp.WithDescription("Dangerous")),
+				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					return mcp.NewToolResultText("ok"), nil
+				},
 			},
 		)
 		defer ts.Close()
@@ -247,20 +255,28 @@ func TestDiscoverMCPServerTools(t *testing.T) {
 
 		ts := newTestMCPServer(t,
 			mcpserver.ServerTool{
-				Tool:    mcp.NewTool("file_read", mcp.WithDescription("Read")),
-				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) { return mcp.NewToolResultText("ok"), nil },
+				Tool: mcp.NewTool("file_read", mcp.WithDescription("Read")),
+				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					return mcp.NewToolResultText("ok"), nil
+				},
 			},
 			mcpserver.ServerTool{
-				Tool:    mcp.NewTool("file_write", mcp.WithDescription("Write")),
-				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) { return mcp.NewToolResultText("ok"), nil },
+				Tool: mcp.NewTool("file_write", mcp.WithDescription("Write")),
+				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					return mcp.NewToolResultText("ok"), nil
+				},
 			},
 			mcpserver.ServerTool{
-				Tool:    mcp.NewTool("file_delete", mcp.WithDescription("Delete")),
-				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) { return mcp.NewToolResultText("ok"), nil },
+				Tool: mcp.NewTool("file_delete", mcp.WithDescription("Delete")),
+				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					return mcp.NewToolResultText("ok"), nil
+				},
 			},
 			mcpserver.ServerTool{
-				Tool:    mcp.NewTool("network_read", mcp.WithDescription("Network read")),
-				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) { return mcp.NewToolResultText("ok"), nil },
+				Tool: mcp.NewTool("network_read", mcp.WithDescription("Network read")),
+				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					return mcp.NewToolResultText("ok"), nil
+				},
 			},
 		)
 		defer ts.Close()
@@ -346,8 +362,10 @@ func TestDiscoverMCPServerTools(t *testing.T) {
 
 		ts := newTestMCPServer(t,
 			mcpserver.ServerTool{
-				Tool:    mcp.NewTool("test", mcp.WithDescription("Test")),
-				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) { return mcp.NewToolResultText("ok"), nil },
+				Tool: mcp.NewTool("test", mcp.WithDescription("Test")),
+				Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+					return mcp.NewToolResultText("ok"), nil
+				},
 			},
 		)
 		defer ts.Close()

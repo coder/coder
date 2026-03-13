@@ -2546,7 +2546,7 @@ func (p *Server) runChat(
 	for _, server := range mcpServers {
 		serverTools, cleanup, err := chattool.DiscoverMCPServerTools(ctx, server, logger)
 		if err != nil {
-			logger.Warn(ctx, "failed to discover MCP server tools",
+			logger.Warn(ctx, "failed to discover mcp server tools",
 				slog.F("mcp_server", server.Slug),
 				slog.Error(err),
 			)
@@ -2555,7 +2555,7 @@ func (p *Server) runChat(
 		if cleanup != nil {
 			mcpCleanups = append(mcpCleanups, cleanup)
 		}
-		logger.Info(ctx, "discovered MCP server tools",
+		logger.Info(ctx, "discovered mcp server tools",
 			slog.F("mcp_server", server.Slug),
 			slog.F("num_tools", len(serverTools)),
 		)

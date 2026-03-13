@@ -15,7 +15,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -27,12 +26,11 @@ const mcpToolNameSeparator = "__"
 // MCPServerClient wraps an mcp-go client and adapts its tools
 // to fantasy.AgentTool instances.
 type MCPServerClient struct {
-	client      *mcpclient.Client
-	server      database.ChatMCPServer
-	logger      slog.Logger
-	mcpTools    []mcp.Tool
-	allowRegex  *regexp.Regexp
-	denyRegex   *regexp.Regexp
+	client     *mcpclient.Client
+	server     database.ChatMCPServer
+	logger     slog.Logger
+	allowRegex *regexp.Regexp
+	denyRegex  *regexp.Regexp
 }
 
 // DiscoverMCPServerTools connects to a remote MCP server,
@@ -200,7 +198,7 @@ func (sc *MCPServerClient) adaptTool(tool mcp.Tool) fantasy.AgentTool {
 
 			result, err := client.CallTool(ctx, callReq)
 			if err != nil {
-				logger.Warn(ctx, "MCP tool call failed",
+				logger.Warn(ctx, "mcp tool call failed",
 					slog.F("server", serverSlug),
 					slog.F("tool", mcpToolName),
 					slog.Error(err),
