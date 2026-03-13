@@ -146,11 +146,26 @@ type SubscribeFnParams struct {
 	Logger              slog.Logger
 }
 
+// chatStreamSubscription wraps a subscriber's event channel with
+// an overflow signal. When publishToStream cannot deliver an event
+// because the channel buffer is full, it signals overflow so the
+// consumer (the merge goroutine in Subscribe) can terminate and
+// let the client reconnect with a buffer replay.
+type chatStreamSubscription struct {
+	events       chan codersdk.ChatStreamEvent
+	overflow     chan struct{}
+	overflowOnce sync.Once
+}
+
+func (s *chatStreamSubscription) signalOverflow() {
+	s.overflowOnce.Do(func() { close(s.overflow) })
+}
+
 type chatStreamState struct {
 	mu          sync.Mutex
 	buffer      []codersdk.ChatStreamEvent
 	buffering   bool
-	subscribers map[uuid.UUID]chan codersdk.ChatStreamEvent
+	subscribers map[uuid.UUID]*chatStreamSubscription
 }
 
 // MaxQueueSize is the maximum number of queued user messages per chat.
@@ -1117,18 +1132,19 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 		}
 		state.buffer = append(state.buffer, event)
 	}
-	subscribers := make([]chan codersdk.ChatStreamEvent, 0, len(state.subscribers))
-	for _, ch := range state.subscribers {
-		subscribers = append(subscribers, ch)
+	subscribers := make([]*chatStreamSubscription, 0, len(state.subscribers))
+	for _, sub := range state.subscribers {
+		subscribers = append(subscribers, sub)
 	}
 	state.mu.Unlock()
 
-	for _, ch := range subscribers {
+	for _, sub := range subscribers {
 		select {
-		case ch <- event:
+		case sub.events <- event:
 		default:
-			p.logger.Warn(context.Background(), "dropping chat stream event",
+			p.logger.Warn(context.Background(), "dropping chat stream event, signaling overflow",
 				slog.F("chat_id", chatID), slog.F("type", event.Type))
+			sub.signalOverflow()
 		}
 	}
 
@@ -1143,29 +1159,33 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 func (p *Server) subscribeToStream(chatID uuid.UUID) (
 	[]codersdk.ChatStreamEvent,
 	<-chan codersdk.ChatStreamEvent,
+	<-chan struct{},
 	func(),
 ) {
 	state := p.getOrCreateStreamState(chatID)
 	state.mu.Lock()
 	snapshot := append([]codersdk.ChatStreamEvent(nil), state.buffer...)
 	id := uuid.New()
-	ch := make(chan codersdk.ChatStreamEvent, 128)
-	state.subscribers[id] = ch
+	sub := &chatStreamSubscription{
+		events:   make(chan codersdk.ChatStreamEvent, 128),
+		overflow: make(chan struct{}),
+	}
+	state.subscribers[id] = sub
 	state.mu.Unlock()
 
 	cancel := func() {
 		state.mu.Lock()
-		// Remove the subscriber but do not close the channel.
-		// publishToStream copies subscriber references under
-		// the per-chat lock then sends outside; closing here
-		// races with that send and can panic. The channel
+		// Remove the subscriber but do not close the events
+		// channel. publishToStream copies subscriber references
+		// under the per-chat lock then sends outside; closing
+		// here races with that send and can panic. The channel
 		// becomes unreachable once removed and will be GC'd.
 		delete(state.subscribers, id)
 		p.cleanupStreamIfIdle(chatID, state)
 		state.mu.Unlock()
 	}
 
-	return snapshot, ch, cancel
+	return snapshot, sub.events, sub.overflow, cancel
 }
 
 // getOrCreateStreamState returns the per-chat stream state,
@@ -1178,7 +1198,7 @@ func (p *Server) getOrCreateStreamState(chatID uuid.UUID) *chatStreamState {
 		return state
 	}
 	val, _ := p.chatStreams.LoadOrStore(chatID, &chatStreamState{
-		subscribers: make(map[uuid.UUID]chan codersdk.ChatStreamEvent),
+		subscribers: make(map[uuid.UUID]*chatStreamSubscription),
 	})
 	state, _ := val.(*chatStreamState)
 	return state
@@ -1212,7 +1232,7 @@ func (p *Server) Subscribe(
 	}
 
 	// Subscribe to local stream for message_parts (ephemeral).
-	localSnapshot, localParts, localCancel := p.subscribeToStream(chatID)
+	localSnapshot, localParts, localOverflow, localCancel := p.subscribeToStream(chatID)
 
 	// Merge all event sources.
 	mergedCtx, mergedCancel := context.WithCancel(ctx)
@@ -1406,6 +1426,11 @@ func (p *Server) Subscribe(
 		for {
 			select {
 			case <-mergedCtx.Done():
+				return
+			case <-localOverflow:
+				p.logger.Warn(mergedCtx, "local subscriber overflow, closing stream for reconnect",
+					slog.F("chat_id", chatID),
+				)
 				return
 			case psErr := <-errCh:
 				p.logger.Error(mergedCtx, "chat stream pubsub error",
