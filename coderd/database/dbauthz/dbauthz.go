@@ -6555,9 +6555,9 @@ func (q *querier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg datab
 	return q.db.UpdateWorkspacesTTLByTemplateID(ctx, arg)
 }
 
-func (q *querier) UpsertAISeatState(ctx context.Context, arg database.UpsertAISeatStateParams) error {
+func (q *querier) UpsertAISeatState(ctx context.Context, arg database.UpsertAISeatStateParams) (bool, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return err
+		return false, err
 	}
 	return q.db.UpsertAISeatState(ctx, arg)
 }

@@ -497,7 +497,8 @@ CREATE TYPE resource_type AS ENUM (
     'workspace_agent',
     'workspace_app',
     'prebuilds_settings',
-    'task'
+    'task',
+    'ai_seat'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
