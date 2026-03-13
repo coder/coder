@@ -1,9 +1,9 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceResource,
 } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
 import { UnhealthyWorkspaceAlert } from "./UnhealthyWorkspaceAlert";
 

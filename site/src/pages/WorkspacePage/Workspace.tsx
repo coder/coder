@@ -11,13 +11,13 @@ import type { WorkspacePermissions } from "../../modules/workspaces/permissions"
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
+import { UnhealthyWorkspaceAlert } from "./UnhealthyWorkspaceAlert";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import {
 	getActiveTransitionStats,
 	WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
-import { UnhealthyWorkspaceAlert } from "./UnhealthyWorkspaceAlert";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { findTroubleshootingURL } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
