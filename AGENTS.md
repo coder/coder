@@ -214,9 +214,10 @@ seems like it should use `time.Sleep`, read through https://github.com/coder/qua
 - Prefer existing shared UI components and utilities over custom
   implementations. Reuse common primitives such as loading, table, and error
   handling components when they fit the use case.
-- Use Storybook for component UI testing when adding or changing frontend
-  component behavior. Do not introduce one-off component tests in a
-  different framework without a clear reason.
+- Use Storybook stories for component UI testing, not standalone vitest/RTL
+  test files. Stories double as living documentation and visual regression
+  coverage. Only fall back to a plain test file when the scenario genuinely
+  cannot be expressed as a story.
 
 ### Writing Comments
 
