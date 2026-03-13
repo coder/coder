@@ -45,21 +45,25 @@ sudo apt install -y neovim fish cargo
 
 ## Setup script support
 
-User can setup their dotfiles by creating one of the following script files in
-their dotfiles repo:
+Coder can run an install script from your dotfiles repo to set up your
+environment. The scripts it looks for depend on the operating system.
+
+### Linux and macOS
+
+On Linux and macOS, Coder looks for the following script files (in order):
 
 - `install.sh`
 - `install`
 - `bootstrap.sh`
 - `bootstrap`
-- `script/bootstrap`
 - `setup.sh`
 - `setup`
+- `script/install.sh`
+- `script/install`
+- `script/bootstrap.sh`
+- `script/bootstrap`
+- `script/setup.sh`
 - `script/setup`
-
-If any of the above files are found (in the specified order), Coder will try to
-execute the first match. After the first match is found, other files will be
-ignored.
 
 The setup script must be executable, otherwise the dotfiles setup will fail. If
 you encounter this issue, you can fix it by making the script executable using
@@ -71,3 +75,31 @@ chmod +x <script_name>
 git commit -m "Make <script_name> executable" <script_name>
 git push
 ```
+
+### Windows
+
+On Windows, Coder looks for PowerShell script files (in order):
+
+- `install.ps1`
+- `bootstrap.ps1`
+- `setup.ps1`
+- `script/install.ps1`
+- `script/bootstrap.ps1`
+- `script/setup.ps1`
+
+Coder runs these scripts with `powershell -NoLogo`. File permission checks are
+skipped on Windows.
+
+### Cross-platform dotfiles
+
+You can support both Unix and Windows from the same dotfiles repository by
+including both shell and PowerShell scripts. For example, include both
+`install.sh` (for Linux/macOS) and `install.ps1` (for Windows). Coder
+automatically selects the correct script based on the workspace operating
+system.
+
+### General behavior
+
+If any of the above files are found (in the specified order), Coder will try to
+execute the first match. After the first match is found, other files will be
+ignored.
