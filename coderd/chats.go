@@ -366,6 +366,8 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
