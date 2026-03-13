@@ -257,9 +257,7 @@ export const ClearSelection: Story = {
 		onChangeSpy.mockClear();
 
 		const clearButton = canvas.getByLabelText("Clear selection");
-		expect(clearButton).toHaveAttribute("role", "button");
-		expect(clearButton).toHaveAttribute("tabindex", "0");
-		expect(clearButton.tagName).toBe("SPAN");
+		expect(clearButton.tagName).toBe("BUTTON");
 
 		await userEvent.click(clearButton);
 		await waitFor(() => expect(onChangeSpy).toHaveBeenCalledWith(null));
