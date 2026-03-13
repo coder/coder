@@ -101,6 +101,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	useSyncFormParameters({
 		parameters,
 		formValues: form.values.rich_parameter_values ?? [],
+		touched: form.touched,
 		setFieldValue: form.setFieldValue,
 	});
 
