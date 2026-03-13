@@ -71,7 +71,7 @@ resource "coder_agent" "main" {
 
 module "mux" {
   source   = "registry.coder.com/coder/mux/coder"
-  version  = "1.4.3"
+  version  = "~> 1.0" # See the module page for the latest version.
   agent_id = coder_agent.main.id
 }
 ```
