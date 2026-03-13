@@ -17,7 +17,6 @@ import { formatCostMicros, formatTokenCount } from "utils/analytics";
 interface ChatCostSummaryViewProps {
 	summary: TypesGen.ChatCostSummary | undefined;
 	isLoading: boolean;
-	isError: boolean;
 	error: unknown;
 	onRetry: () => void;
 	loadingLabel: string;
@@ -27,7 +26,6 @@ interface ChatCostSummaryViewProps {
 export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 	summary,
 	isLoading,
-	isError,
 	error,
 	onRetry,
 	loadingLabel,
@@ -45,7 +43,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 		);
 	}
 
-	if (isError) {
+	if (error != null) {
 		return (
 			<div className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
 				<p className="m-0 text-sm text-content-secondary">

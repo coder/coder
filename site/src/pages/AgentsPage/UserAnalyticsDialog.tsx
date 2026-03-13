@@ -82,7 +82,6 @@ export const UserAnalyticsDialog: FC<UserAnalyticsDialogProps> = ({
 					<ChatCostSummaryView
 						summary={summaryQuery.data}
 						isLoading={summaryQuery.isLoading}
-						isError={summaryQuery.isError}
 						error={summaryQuery.error}
 						onRetry={() => void summaryQuery.refetch()}
 						loadingLabel="Loading analytics"
