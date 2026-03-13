@@ -3802,6 +3802,41 @@ func decRef(value string) *decimal.Decimal {
 	return &d
 }
 
+func TestWatchChatDesktop(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "desktop no workspace test",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Try to connect to the desktop endpoint — should fail because
+		// chat has no workspace.
+		res, err := client.Request(
+			ctx,
+			http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/%s/desktop", createdChat.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+}
+
 func createChatModelConfig(t *testing.T, client *codersdk.Client) codersdk.ChatModelConfig {
 	t.Helper()
 

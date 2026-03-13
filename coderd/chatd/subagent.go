@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -26,7 +27,26 @@ const (
 	defaultSubagentWaitTimeout = 5 * time.Minute
 )
 
+// computerUseSubagentSystemPrompt is the system prompt prepended to
+// every computer use subagent chat. It instructs the model on how to
+// interact with the desktop environment via the computer tool.
+const computerUseSubagentSystemPrompt = `You are a computer use agent with access to a desktop environment. You can see the screen, move the mouse, click, type, scroll, and drag.
+
+Your primary tool is the "computer" tool which lets you interact with the desktop. After every action you take, you will receive a screenshot showing the current state of the screen. Use these screenshots to verify your actions and plan next steps.
+
+Guidelines:
+- Always start by taking a screenshot to see the current state of the desktop.
+- Be precise with coordinates when clicking or typing.
+- Wait for UI elements to load before interacting with them.
+- If an action doesn't produce the expected result, try alternative approaches.
+- Report what you accomplished when done.`
+
 type spawnAgentArgs struct {
+	Prompt string `json:"prompt"`
+	Title  string `json:"title,omitempty"`
+}
+
+type spawnComputerUseAgentArgs struct {
 	Prompt string `json:"prompt"`
 	Title  string `json:"title,omitempty"`
 }
@@ -46,8 +66,26 @@ type closeAgentArgs struct {
 	ChatID string `json:"chat_id"`
 }
 
-func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.AgentTool {
-	return []fantasy.AgentTool{
+// isAnthropicConfigured reports whether an Anthropic API key is
+// available, either from static provider keys or from the database.
+func (p *Server) isAnthropicConfigured(ctx context.Context) bool {
+	if p.providerAPIKeys.APIKey("anthropic") != "" {
+		return true
+	}
+	dbProviders, err := p.db.GetEnabledChatProviders(ctx)
+	if err != nil {
+		return false
+	}
+	for _, prov := range dbProviders {
+		if chatprovider.NormalizeProvider(prov.Provider) == "anthropic" && strings.TrimSpace(prov.APIKey) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *Server) subagentTools(ctx context.Context, currentChat func() database.Chat) []fantasy.AgentTool {
+	tools := []fantasy.AgentTool{
 		fantasy.NewAgentTool(
 			"spawn_agent",
 			"Spawn a delegated child agent to work on a clearly scoped, "+
@@ -213,6 +251,89 @@ func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.Agent
 			},
 		),
 	}
+
+	// Only include the computer use tool when an Anthropic
+	// provider is configured, since it requires an Anthropic
+	// model.
+	if p.isAnthropicConfigured(ctx) {
+		tools = append(tools, fantasy.NewAgentTool(
+			"spawn_computer_use_agent",
+			"Spawn a dedicated computer use agent that can see the desktop "+
+				"(take screenshots) and interact with it (mouse, keyboard, "+
+				"scroll). The agent runs on a model optimized for computer "+
+				"use and has the same workspace tools as a standard subagent "+
+				"plus the native Anthropic computer tool. Use this for tasks "+
+				"that require visual interaction with a desktop GUI (e.g. "+
+				"browser automation, GUI testing, visual inspection). After "+
+				"spawning, use wait_agent to collect the result.",
+			func(ctx context.Context, args spawnComputerUseAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				if currentChat == nil {
+					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
+				}
+
+				parent := currentChat()
+				if parent.ParentChatID.Valid {
+					return fantasy.NewTextErrorResponse("delegated chats cannot create child subagents"), nil
+				}
+
+				parent, err := p.db.GetChatByID(ctx, parent.ID)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+
+				prompt := strings.TrimSpace(args.Prompt)
+				if prompt == "" {
+					return fantasy.NewTextErrorResponse("prompt is required"), nil
+				}
+
+				title := strings.TrimSpace(args.Title)
+				if title == "" {
+					title = subagentFallbackChatTitle(prompt)
+				}
+
+				rootChatID := parent.ID
+				if parent.RootChatID.Valid {
+					rootChatID = parent.RootChatID.UUID
+				}
+				if parent.LastModelConfigID == uuid.Nil {
+					return fantasy.NewTextErrorResponse("parent chat model config id is required"), nil
+				}
+
+				// Create the child chat with Mode set to
+				// computer_use. This signals runChat to use the
+				// predefined computer use model and include the
+				// computer tool.
+				childChat, err := p.CreateChat(ctx, CreateOptions{
+					OwnerID:     parent.OwnerID,
+					WorkspaceID: parent.WorkspaceID,
+					ParentChatID: uuid.NullUUID{
+						UUID:  parent.ID,
+						Valid: true,
+					},
+					RootChatID: uuid.NullUUID{
+						UUID:  rootChatID,
+						Valid: true,
+					},
+					ModelConfigID:      parent.LastModelConfigID,
+					Title:              title,
+					ChatMode:           database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
+					SystemPrompt:       computerUseSubagentSystemPrompt + "\n\n" + prompt,
+					InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)},
+				})
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+
+				return toolJSONResponse(map[string]any{
+					"chat_id": childChat.ID.String(),
+					"title":   childChat.Title,
+					"status":  string(childChat.Status),
+				}), nil
+			},
+		))
+	}
+
+	return tools
 }
 
 func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
