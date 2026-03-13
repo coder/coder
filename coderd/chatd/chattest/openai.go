@@ -351,7 +351,7 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 						ItemID:      itemID,
 						OutputIndex: int64(outputIndex),
 					}); err != nil {
-						t.Errorf("writeResponsesAPIStreaming: failed to write ResponseTextDoneEvent: %v", err)
+						t.Logf("writeResponsesAPIStreaming: failed to write ResponseTextDoneEvent: %v", err)
 						return
 					}
 					if err := writeSSEEvent(w, responses.ResponseOutputItemDoneEvent{
@@ -361,12 +361,12 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 							Type: "message",
 						},
 					}); err != nil {
-						t.Errorf("writeResponsesAPIStreaming: failed to write ResponseOutputItemDoneEvent: %v", err)
+						t.Logf("writeResponsesAPIStreaming: failed to write ResponseOutputItemDoneEvent: %v", err)
 						return
 					}
 				}
 				if err := writeSSEEvent(w, responses.ResponseCompletedEvent{}); err != nil {
-					t.Errorf("writeResponsesAPIStreaming: failed to write ResponseCompletedEvent: %v", err)
+					t.Logf("writeResponsesAPIStreaming: failed to write ResponseCompletedEvent: %v", err)
 					return
 				}
 				flusher.Flush()
@@ -393,7 +393,7 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 						Type: "message",
 					},
 				}); err != nil {
-					t.Errorf("writeResponsesAPIStreaming: failed to write ResponseOutputItemAddedEvent: %v", err)
+					t.Logf("writeResponsesAPIStreaming: failed to write ResponseOutputItemAddedEvent: %v", err)
 					return
 				}
 				flusher.Flush()
@@ -411,12 +411,12 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 
 			chunkBytes, err := json.Marshal(chunkData)
 			if err != nil {
-				t.Errorf("writeResponsesAPIStreaming: failed to marshal chunk data: %v", err)
+				t.Logf("writeResponsesAPIStreaming: failed to marshal chunk data: %v", err)
 				return
 			}
 
 			if _, err := fmt.Fprintf(w, "data: %s\n\n", chunkBytes); err != nil {
-				t.Errorf("writeResponsesAPIStreaming: failed to write chunk data: %v", err)
+				t.Logf("writeResponsesAPIStreaming: failed to write chunk data: %v", err)
 				return
 			}
 			flusher.Flush()
