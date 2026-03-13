@@ -34,58 +34,47 @@ export const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 		}
 	}
 
-	const agentLabel = failingAgentCount > 1 ? "agents" : "agent";
+	const plural = failingAgentCount > 1;
 
 	let title: string;
-	let subtitle: string;
 	let message: string;
 
 	if (statusSet.has("disconnected")) {
-		title = `Workspace ${agentLabel} disconnected`;
-		subtitle =
-			failingAgentCount > 1
-				? `${failingAgentCount} ${agentLabel} have lost connection.`
-				: `the ${agentLabel} has lost connection.`;
+		title = plural
+			? `${failingAgentCount} workspace agents have disconnected`
+			: "Workspace agent has disconnected";
 		message =
-			"Continue to wait and check the log output of your workspace for any errors. If the agent does not reconnect, restarting the workspace can be used to try again.";
+			"Check the log output for errors. If the agent does not reconnect, try restarting the workspace.";
 	} else if (statusSet.has("timeout")) {
-		title = "Your workspace is starting, but the agent has not yet connected";
-		subtitle =
-			failingAgentCount > 1
-				? `${failingAgentCount} ${agentLabel} have not connected yet.`
-				: `the ${agentLabel} has not connected yet.`;
+		title = plural
+			? `${failingAgentCount} agents are taking longer than expected to connect`
+			: "Agent is taking longer than expected to connect";
 		message =
-			"The agent is taking longer than expected to connect. Continue to wait and check the log output of your workspace for any errors. If the agent does not connect, restarting the workspace can be used to try again.";
+			"Continue to wait and check the log output for errors. If the agent does not connect, try restarting the workspace.";
 	} else if (hasShuttingDown) {
-		title = `Workspace ${agentLabel} shutting down`;
-		subtitle =
-			failingAgentCount > 1
-				? `${failingAgentCount} ${agentLabel} are shutting down.`
-				: `the ${agentLabel} is shutting down.`;
-		message = "The workspace agent is in the process of shutting down.";
+		title = plural
+			? `${failingAgentCount} workspace agents are shutting down`
+			: "Workspace agent is shutting down";
+		message =
+			"The workspace is not available while the agent shuts down.";
 	} else if (hasStartError) {
-		title = "Startup script failed";
-		subtitle =
-			failingAgentCount > 1
-				? `${failingAgentCount} ${agentLabel} have startup script errors.`
-				: "a startup script exited with an error.";
+		title = plural
+			? `Startup scripts failed on ${failingAgentCount} agents`
+			: "Startup script failed";
 		message =
-			"Your workspace is running but a startup script exited with an error. Check the agent logs for more details. You can edit the startup script in your template to fix the issue.";
+			"The workspace is running but a startup script exited with an error. Check the agent logs for details.";
 	} else {
-		title = `Workspace ${agentLabel} not connected`;
-		subtitle =
-			failingAgentCount > 1
-				? `${failingAgentCount} ${agentLabel} have not connected yet.`
-				: `the ${agentLabel} has not connected yet.`;
+		title = plural
+			? `${failingAgentCount} workspace agents are not connected`
+			: "Workspace agent is not connected";
 		message =
-			"Your workspace cannot be used until an agent connects. Continue to wait and check the log output of your workspace for any errors.";
+			"The workspace is not usable until an agent connects. Check the log output for errors.";
 	}
 
 	return (
 		<Alert severity="warning" prominent>
 			<AlertTitle>{title}</AlertTitle>
 			<AlertDescription>
-				<p>Your workspace is running but {subtitle}</p>
 				<p>{message}</p>
 				<p>
 					{troubleshootingURL && (
