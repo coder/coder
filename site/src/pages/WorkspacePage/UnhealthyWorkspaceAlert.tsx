@@ -55,8 +55,7 @@ export const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 		title = plural
 			? `${failingAgentCount} workspace agents are shutting down`
 			: "Workspace agent is shutting down";
-		message =
-			"The workspace is not available while the agent shuts down.";
+		message = "The workspace is not available while the agent shuts down.";
 	} else if (hasStartError) {
 		title = plural
 			? `Startup scripts failed on ${failingAgentCount} agents`
