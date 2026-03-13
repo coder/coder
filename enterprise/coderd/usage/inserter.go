@@ -66,3 +66,27 @@ func (i *dbInserter) InsertDiscreteUsageEvent(ctx context.Context, tx database.S
 		CreatedAt: dbtime.Time(i.clock.Now()),
 	})
 }
+
+// InsertHeartbeatUsageEvent implements agplusage.Inserter.
+func (i *dbInserter) InsertHeartbeatUsageEvent(ctx context.Context, tx database.Store, id string, event usagetypes.HeartbeatEvent) error {
+	if !event.EventType().IsHeartbeat() {
+		return xerrors.Errorf("event type %q is not a heartbeat event", event.EventType())
+	}
+	if err := event.Valid(); err != nil {
+		return xerrors.Errorf("invalid %q event: %w", event.EventType(), err)
+	}
+
+	jsonData, err := json.Marshal(event.Fields())
+	if err != nil {
+		return xerrors.Errorf("marshal event as JSON: %w", err)
+	}
+
+	// Duplicate events are ignored by the query, so we don't need to check the
+	// error.
+	return tx.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		ID:        id,
+		EventType: string(event.EventType()),
+		EventData: jsonData,
+		CreatedAt: dbtime.Time(i.clock.Now()),
+	})
+}

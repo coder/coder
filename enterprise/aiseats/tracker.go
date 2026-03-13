@@ -107,8 +107,8 @@ func (t *SeatTracker) RecordUsage(ctx context.Context, userID uuid.UUID, reason 
 				UserID:               userID,
 				FirstUsedAt:          now,
 				LastUsedAt:           now,
-				LastEventType:        eventType,
-				LastEventDescription: description,
+				LastEventType:        reason.EventType,
+				LastEventDescription: reason.Description,
 				UpdatedAt:            now,
 			},
 		})
