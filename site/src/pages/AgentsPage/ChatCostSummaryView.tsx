@@ -47,10 +47,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 		return (
 			<div className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
 				<p className="m-0 text-sm text-content-secondary">
-					{getErrorMessage(
-						error instanceof Error ? error : undefined,
-						"Failed to load usage details.",
-					)}
+					{getErrorMessage(error, "Failed to load usage details.")}
 				</p>
 				<Button variant="outline" size="sm" type="button" onClick={onRetry}>
 					Retry
@@ -120,7 +117,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 			) : (
 				<>
 					<div className="overflow-x-auto rounded-lg border border-border-default">
-						<Table className="text-sm">
+						<Table className="text-sm" aria-label="Cost breakdown by model">
 							<TableHeader>
 								<TableRow className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
 									<TableHead className="px-4 py-3">Model</TableHead>
@@ -164,7 +161,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</div>
 
 					<div className="overflow-x-auto rounded-lg border border-border-default">
-						<Table className="text-sm">
+						<Table className="text-sm" aria-label="Cost breakdown by chat">
 							<TableHeader>
 								<TableRow className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
 									<TableHead className="px-4 py-3">Chat</TableHead>
@@ -183,7 +180,11 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 										className="border-t border-border-default"
 									>
 										<TableCell className="px-4 py-3">
-											{chat.chat_title}
+											{chat.chat_title || (
+												<span className="italic text-content-secondary">
+													Untitled chat
+												</span>
+											)}
 										</TableCell>
 										<TableCell className="px-4 py-3 text-right">
 											{formatCostMicros(chat.total_cost_micros)}

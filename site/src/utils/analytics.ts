@@ -4,11 +4,17 @@
  */
 export function formatCostMicros(micros: number | string): string {
 	const microsValue = typeof micros === "string" ? Number(micros) : micros;
-	const dollars = microsValue / 1_000_000;
-	if (dollars > 0 && dollars < 0.01) {
-		return `$${dollars.toFixed(4)}`;
+	if (Number.isNaN(microsValue) || !Number.isFinite(microsValue)) {
+		return "$0.00";
 	}
-	return `$${dollars.toFixed(2)}`;
+
+	const sign = microsValue < 0 ? "-" : "";
+	const dollars = Math.abs(microsValue) / 1_000_000;
+	const rounded = Number(dollars.toFixed(4));
+	if (rounded > 0 && rounded < 0.01) {
+		return `${sign}$${dollars.toFixed(4)}`;
+	}
+	return `${sign}$${dollars.toFixed(2)}`;
 }
 
 /**
@@ -21,7 +27,7 @@ export function formatTokenCount(tokens: number): string {
 		return `${millions % 1 === 0 ? millions.toFixed(0) : millions.toFixed(1)}M`;
 	}
 	if (tokens >= 1_000) {
-		return tokens.toLocaleString();
+		return tokens.toLocaleString("en-US");
 	}
 	return tokens.toString();
 }

@@ -13,7 +13,20 @@ describe("formatCostMicros", () => {
 
 	it("formats sub-cent values with four decimal places", () => {
 		expect(formatCostMicros(500)).toBe("$0.0005");
-		expect(formatCostMicros(9_999)).toBe("$0.0100");
+	});
+
+	it("falls back to zero for invalid numeric values", () => {
+		expect(formatCostMicros("abc")).toBe("$0.00");
+		expect(formatCostMicros(Number.POSITIVE_INFINITY)).toBe("$0.00");
+	});
+
+	it("formats negative values with the minus sign before the dollar sign", () => {
+		expect(formatCostMicros(-1_500_000)).toBe("-$1.50");
+		expect(formatCostMicros(-500)).toBe("-$0.0005");
+	});
+
+	it("avoids confusing four-decimal output when sub-cent values round to one cent", () => {
+		expect(formatCostMicros(9_999)).toBe("$0.01");
 	});
 
 	it("formats threshold values correctly", () => {
