@@ -4,6 +4,7 @@ import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import type { ComponentPropsWithRef, FC } from "react";
 import { memo } from "react";
 import { cn } from "utils/cn";
+import { getThemePaletteMode } from "../themeMode";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
 import { EditFilesTool } from "./EditFilesTool";
@@ -376,7 +377,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	isError,
 }) => {
 	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
+	const isDark = getThemePaletteMode(theme) === "dark";
 	const resultOutput = formatResultOutput(result);
 	const fileContent = getFileContentForViewer(name, args, result);
 	const writeFileDiff = getWriteFileDiff(name, args);

@@ -7,6 +7,7 @@ import type { ComponentPropsWithRef, ReactNode } from "react";
 import { useMemo } from "react";
 import { type Components, Streamdown, type UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
+import { getThemePaletteMode } from "./themeMode";
 
 interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	children: string;
@@ -220,8 +221,7 @@ export const Response = ({
 	...props
 }: ResponseProps) => {
 	const theme = useTheme();
-	const fileViewerThemeType: FileViewerThemeType =
-		theme.palette.mode === "dark" ? "dark" : "light";
+	const fileViewerThemeType: FileViewerThemeType = getThemePaletteMode(theme);
 	const viewerTheme = fileViewerTheme[fileViewerThemeType];
 	const components = useMemo(
 		() => createComponents(fileViewerThemeType, viewerTheme),

@@ -10,6 +10,7 @@ import {
 import { CircleAlertIcon, LoaderIcon } from "lucide-react";
 import type React from "react";
 import { cn } from "utils/cn";
+import { getThemePaletteMode } from "../themeMode";
 import { ToolCollapsible } from "./ToolCollapsible";
 import {
 	DIFFS_FONT_STYLE,
@@ -29,7 +30,7 @@ export const WriteFileTool: React.FC<{
 	errorMessage?: string;
 }> = ({ path, diff, status, isError, errorMessage }) => {
 	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
+	const isDark = getThemePaletteMode(theme) === "dark";
 	const hasDiff = diff !== null;
 	const isRunning = status === "running";
 
