@@ -7,14 +7,6 @@ import type {
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { Checkbox } from "components/Checkbox/Checkbox";
-import {
-	Combobox,
-	ComboboxButton,
-	ComboboxContent,
-	ComboboxItem,
-	ComboboxList,
-	ComboboxTrigger,
-} from "components/Combobox/Combobox";
 import { DecorativeImage } from "components/ExternalImage";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
