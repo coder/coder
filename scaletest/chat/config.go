@@ -18,6 +18,13 @@ type Config struct {
 	// When nil the server uses its deployment default.
 	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty"`
 
+	// Turns is the total number of user→assistant exchanges per chat.
+	// Must be at least 1.
+	Turns int `json:"turns"`
+
+	// FollowUpPrompt is the text content for turns 2..N.
+	FollowUpPrompt string `json:"follow_up_prompt"`
+
 	// ReadyWaitGroup is used to coordinate thundering-herd fanout from the CLI
 	// layer. Each runner calls Done() once it is ready to start.
 	ReadyWaitGroup *sync.WaitGroup `json:"-"`
@@ -37,6 +44,14 @@ func (c *Config) Validate() error {
 
 	if c.Prompt == "" {
 		return xerrors.Errorf("validate prompt: must not be empty")
+	}
+
+	if c.Turns < 1 {
+		return xerrors.Errorf("validate turns: must be at least 1")
+	}
+
+	if c.Turns > 1 && c.FollowUpPrompt == "" {
+		return xerrors.Errorf("validate follow_up_prompt: must not be empty when turns > 1")
 	}
 
 	if c.ReadyWaitGroup == nil {
