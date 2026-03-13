@@ -61,7 +61,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 	}
 
 	return (
-		<>
+		<div className="space-y-6">
 			<div className="grid grid-cols-2 gap-4 md:grid-cols-3">
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
 					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
@@ -245,6 +245,6 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</div>
 				</>
 			)}
-		</>
+		</div>
 	);
 };
