@@ -535,6 +535,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ChatCostUsersResponse"
                         }
                     }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -581,6 +584,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ChatCostSummary"
                         }
                     }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },

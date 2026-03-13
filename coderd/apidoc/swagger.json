@@ -460,6 +460,9 @@
 							"$ref": "#/definitions/codersdk.ChatCostUsersResponse"
 						}
 					}
+				},
+				"x-apidocgen": {
+					"skip": true
 				}
 			}
 		},
@@ -502,6 +505,9 @@
 							"$ref": "#/definitions/codersdk.ChatCostSummary"
 						}
 					}
+				},
+				"x-apidocgen": {
+					"skip": true
 				}
 			}
 		},

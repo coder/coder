@@ -368,6 +368,7 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 // @Param end_date query string false "End date (RFC3339)"
 // @Success 200 {object} codersdk.ChatCostSummary
 // @Router /chats/cost/{user}/summary [get]
+// @x-apidocgen {"skip": true}
 func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -460,6 +461,7 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.ChatCostUsersResponse
 // @Router /chats/cost/users [get]
+// @x-apidocgen {"skip": true}
 func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceChat) {
