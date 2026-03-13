@@ -378,15 +378,17 @@ module "personalize" {
 }
 
 module "mux" {
-  count           = data.coder_workspace.me.start_count
-  source          = "registry.coder.com/coder/mux/coder"
-  version         = "1.4.0"
-  agent_id        = coder_agent.dev.id
-  subdomain       = true
-  display_name    = "Mux"
-  add_project     = local.repo_dir
-  install_version = "next"
-  package_manager = "bun"
+  count                = data.coder_workspace.me.start_count
+  source               = "registry.coder.com/coder/mux/coder"
+  version              = "1.4.3"
+  agent_id             = coder_agent.dev.id
+  subdomain            = true
+  display_name         = "Mux"
+  add_project          = local.repo_dir
+  install_version      = "next"
+  package_manager      = "bun"
+  restart_on_kill      = true
+  max_restart_attempts = 10
 }
 
 module "code-server" {
