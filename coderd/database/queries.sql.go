@@ -3290,7 +3290,13 @@ WITH chat_costs AS (
     SELECT
         COALESCE(c.root_chat_id, c.id) AS root_chat_id,
         COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-        COUNT(*)::bigint AS message_count,
+        COUNT(*) FILTER (
+            WHERE cm.input_tokens IS NOT NULL
+                OR cm.output_tokens IS NOT NULL
+                OR cm.reasoning_tokens IS NOT NULL
+                OR cm.cache_creation_tokens IS NOT NULL
+                OR cm.cache_read_tokens IS NOT NULL
+        )::bigint AS message_count,
         COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
         (
             COALESCE(SUM(cm.output_tokens), 0)
@@ -3371,7 +3377,13 @@ SELECT
     cmc.provider,
     cmc.model,
     COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-    COUNT(*)::bigint AS message_count,
+    COUNT(*) FILTER (
+        WHERE cm.input_tokens IS NOT NULL
+            OR cm.output_tokens IS NOT NULL
+            OR cm.reasoning_tokens IS NOT NULL
+            OR cm.cache_creation_tokens IS NOT NULL
+            OR cm.cache_read_tokens IS NOT NULL
+    )::bigint AS message_count,
     COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
     (
         COALESCE(SUM(cm.output_tokens), 0)
@@ -3453,7 +3465,13 @@ WITH chat_cost_users AS (
         u.name,
         u.avatar_url,
         COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-        COUNT(*)::bigint AS message_count,
+        COUNT(*) FILTER (
+            WHERE cm.input_tokens IS NOT NULL
+                OR cm.output_tokens IS NOT NULL
+                OR cm.reasoning_tokens IS NOT NULL
+                OR cm.cache_creation_tokens IS NOT NULL
+                OR cm.cache_read_tokens IS NOT NULL
+        )::bigint AS message_count,
         COUNT(DISTINCT COALESCE(c.root_chat_id, c.id))::bigint AS chat_count,
         COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
         (

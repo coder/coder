@@ -644,7 +644,6 @@ export const router = createBrowserRouter(
 						</Suspense>
 					}
 				>
-					<Route path="analytics" element={<Navigate to="/agents" replace />} />
 					<Route
 						path=":agentId"
 						element={
