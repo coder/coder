@@ -358,7 +358,7 @@ func summarizeBundle(inv *serpent.Invocation, bun *support.Bundle) {
 	if bun.Deployment.Config != nil {
 		docsURL = bun.Deployment.Config.Values.DocsURL.String()
 	} else {
-		cliui.Warn(inv.Stdout, "No deployment configuration available (insufficient permissions).")
+		cliui.Warn(inv.Stdout, "No deployment configuration available. This may require the Owner role.")
 	}
 
 	if bun.Deployment.HealthReport != nil {

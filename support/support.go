@@ -164,7 +164,8 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 		dc, err := client.DeploymentConfig(ctx)
 		if err != nil {
 			if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized) {
-				log.Warn(ctx, "unable to fetch deployment config (insufficient permissions)")
+				log.Warn(ctx, "unable to fetch deployment config",
+					slog.F("status", cerr.StatusCode()))
 				return nil
 			}
 			return xerrors.Errorf("fetch deployment config: %w", err)
@@ -177,7 +178,8 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 		hr, err := healthsdk.New(client).DebugHealth(ctx)
 		if err != nil {
 			if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized) {
-				log.Warn(ctx, "unable to fetch health report (insufficient permissions)")
+				log.Warn(ctx, "unable to fetch health report",
+					slog.F("status", cerr.StatusCode()))
 				return nil
 			}
 			return xerrors.Errorf("fetch health report: %w", err)
@@ -374,7 +376,9 @@ func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) 
 		}
 		defer coordResp.Body.Close()
 		if coordResp.StatusCode == http.StatusForbidden || coordResp.StatusCode == http.StatusUnauthorized {
-			log.Warn(ctx, "unable to fetch coordinator debug page (insufficient permissions)")
+			_, _ = io.Copy(io.Discard, coordResp.Body)
+			log.Warn(ctx, "unable to fetch coordinator debug page",
+				slog.F("status", coordResp.StatusCode))
 			return nil
 		}
 		bs, err := io.ReadAll(coordResp.Body)
@@ -392,7 +396,9 @@ func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) 
 		}
 		defer tailResp.Body.Close()
 		if tailResp.StatusCode == http.StatusForbidden || tailResp.StatusCode == http.StatusUnauthorized {
-			log.Warn(ctx, "unable to fetch tailnet debug page (insufficient permissions)")
+			_, _ = io.Copy(io.Discard, tailResp.Body)
+			log.Warn(ctx, "unable to fetch tailnet debug page",
+				slog.F("status", tailResp.StatusCode))
 			return nil
 		}
 		bs, err := io.ReadAll(tailResp.Body)
