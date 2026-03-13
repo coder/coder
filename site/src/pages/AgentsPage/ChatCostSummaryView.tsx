@@ -38,7 +38,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 				aria-label={loadingLabel}
 				className="flex min-h-[240px] items-center justify-center"
 			>
-				<Spinner size="lg" />
+				<Spinner size="lg" loading />
 			</div>
 		);
 	}
