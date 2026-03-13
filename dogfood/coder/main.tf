@@ -37,6 +37,11 @@ locals {
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
   repo_dir       = replace(try(module.git-clone[0].repo_dir, ""), "/^~\\//", "/home/coder/")
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+
+  // Derive a stable per-workspace hour and minute from the workspace ID
+  // so that cache cleanup crons don't all hit the filesystem at once.
+  cache_cleanup_hour   = parseint(substr(data.coder_workspace.me.id, 0, 2), 16) % 24
+  cache_cleanup_minute = parseint(substr(data.coder_workspace.me.id, 2, 2), 16) % 60
 }
 
 data "coder_workspace_preset" "pittsburgh" {
@@ -616,6 +621,17 @@ resource "coder_agent" "dev" {
     #   - all build cache
     docker system prune -a -f
 
+    # Remove dangling named volumes that are older than KEEP_DAYS. Using
+    # 30 here as a conservative default (vacation, holidays, etc.).
+    KEEP_DAYS=30
+    docker volume ls -qf dangling=true \
+      | xargs -r docker volume inspect \
+      | jq -r --argjson days "$KEEP_DAYS" '.[] | select(.CreatedAt != null) | ((now - (.CreatedAt | fromdateiso8601)) / 86400 | floor) as $a | select($a >= $days) | "\($a)\t\(.Name)"' \
+      | while IFS=$'\t' read -r age name; do
+      echo "Removing volume $name ($age d)"
+      docker volume rm "$name" >/dev/null
+    done
+
     # Stop the Docker service to prevent errors during workspace destroy.
     sudo service docker stop
   EOT
@@ -638,6 +654,26 @@ resource "coder_script" "install-deps" {
     # We want to use the playwright version from site/package.json
     cd "${local.repo_dir}" && make clean
     cd "${local.repo_dir}/site" && pnpm install
+  EOT
+}
+
+resource "coder_script" "go-cache-cleanup-cron" {
+  agent_id     = coder_agent.dev.id
+  display_name = "Go Build Cache Cleanup Cron"
+  icon         = "${data.coder_workspace.me.access_url}/emojis/1f9f9.png" // 🧹
+  cron         = "0 ${local.cache_cleanup_minute} ${local.cache_cleanup_hour} * * *"
+  script       = <<-EOT
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    cache_dir=$(go env GOCACHE)
+    echo "Cleaning Go build cache entries not used in the last 2 days..."
+    before=$(du -s "$cache_dir" 2>/dev/null | awk '{print $1}')
+    find "$cache_dir" -type f -mtime +2 -delete
+    find "$cache_dir" -type d -empty -delete
+    after=$(du -s "$cache_dir" 2>/dev/null | awk '{print $1}')
+    freed=$(( (before - after) / 1024 ))
+    echo "Freed $${freed}MB from Go build cache."
   EOT
 }
 
