@@ -65,7 +65,6 @@ type ExecuteResult struct {
 type ExecuteOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
 	DefaultTimeout   time.Duration
-	ChatID           string
 }
 
 // ProcessToolOptions configures a process management tool
@@ -97,7 +96,7 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return executeTool(ctx, conn, args, options.DefaultTimeout, options.ChatID), nil
+			return executeTool(ctx, conn, args, options.DefaultTimeout), nil
 		},
 	)
 }
@@ -107,7 +106,6 @@ func executeTool(
 	conn workspacesdk.AgentConn,
 	args ExecuteArgs,
 	optTimeout time.Duration,
-	chatID string,
 ) fantasy.ToolResponse {
 	if args.Command == "" {
 		return fantasy.NewTextErrorResponse("command is required")
@@ -116,9 +114,6 @@ func executeTool(
 	// Build the environment map for the process request.
 	env := make(map[string]string, len(nonInteractiveEnvVars)+1)
 	env["CODER_CHAT_AGENT"] = "true"
-	if chatID != "" {
-		env["CODER_CHAT_ID"] = chatID
-	}
 	for k, v := range nonInteractiveEnvVars {
 		env[k] = v
 	}

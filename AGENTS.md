@@ -100,6 +100,31 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemRestrict
 app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 ```
 
+### API Design
+
+- Add swagger annotations when introducing new HTTP endpoints. Do this in
+  the same change as the handler so the docs do not get missed before
+  release.
+- For user-scoped or resource-scoped routes, prefer path parameters over
+  query parameters when that matches existing route patterns.
+- For experimental or unstable API paths, skip public doc generation with
+  `// @x-apidocgen {"skip": true}` after the `@Router` annotation. This
+  keeps them out of the published API reference until they stabilize.
+
+### Database Query Naming
+
+- Use `ByX` when `X` is the lookup or filter column.
+- Use `PerX` or `GroupedByX` when `X` is the aggregation or grouping
+  dimension.
+- Avoid `ByX` names for grouped queries.
+
+### Database-to-SDK Conversions
+
+- Extract explicit db-to-SDK conversion helpers instead of inlining large
+  conversion blocks inside handlers.
+- Keep nullable-field handling, type coercion, and response shaping in the
+  converter so handlers stay focused on request flow and authorization.
+
 ## Quick Reference
 
 ### Full workflows available in imported WORKFLOWS.md

@@ -287,9 +287,18 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 		memberRows = append(memberRows, row)
 	}
 
+	if len(paginatedMemberRows) == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.PaginatedMembersResponse{
+			Members: []codersdk.OrganizationMemberWithUserData{},
+			Count:   0,
+		})
+		return
+	}
+
 	members, err := convertOrganizationMembersWithUserData(ctx, api.Database, memberRows)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
+		return
 	}
 
 	resp := codersdk.PaginatedMembersResponse{

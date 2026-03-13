@@ -2,7 +2,6 @@ package chattool
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -241,14 +240,13 @@ func checkExistingWorkspace(
 		return nil, false, nil
 	}
 
-	// Check if workspace still exists.
 	ws, err := db.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			// Workspace was deleted — allow creation.
-			return nil, false, nil
-		}
 		return nil, false, xerrors.Errorf("load workspace: %w", err)
+	}
+	// Workspace was soft-deleted — allow creation.
+	if ws.Deleted {
+		return nil, false, nil
 	}
 
 	// Check the latest build status.

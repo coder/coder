@@ -2,6 +2,7 @@ import { API, watchWorkspace } from "api/api";
 import {
 	chat,
 	chatDiffStatus,
+	chatMessages,
 	chatModelConfigs,
 	chatModels,
 	chats,
@@ -82,6 +83,9 @@ import {
 } from "./modelOptions";
 import { useFileAttachments } from "./useFileAttachments";
 import { useGitWatcher } from "./useGitWatcher";
+
+/** localStorage key controlling whether the right panel is visible. */
+export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 
 const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 
@@ -576,12 +580,36 @@ const AgentDetail: FC = () => {
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef("");
 
+	// Right panel open/closed state is owned here so the loading
+	// skeleton and the loaded view share the same layout, preventing
+	// a horizontal shift when data arrives.
+	const [showSidebarPanel, setShowSidebarPanel] = useState(() => {
+		if (typeof window === "undefined") return false;
+		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
+	});
+	const handleSetShowSidebarPanel = useCallback(
+		(next: boolean | ((prev: boolean) => boolean)) => {
+			setShowSidebarPanel((prev) => {
+				const value = typeof next === "function" ? next(prev) : next;
+				if (typeof window !== "undefined") {
+					localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(value));
+				}
+				return value;
+			});
+		},
+		[],
+	);
+
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
 	});
+	const chatMessagesQuery = useQuery({
+		...chatMessages(agentId ?? ""),
+		enabled: Boolean(agentId),
+	});
 	const chatsQuery = useQuery(chats());
-	const workspaceId = chatQuery.data?.chat?.workspace_id;
+	const workspaceId = chatQuery.data?.workspace_id;
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
@@ -646,11 +674,11 @@ const AgentDetail: FC = () => {
 		[proxy.preferredWildcardHostname, workspaceAgent, workspace],
 	);
 
-	const chatData = chatQuery.data;
-	const chatRecord = chatData?.chat;
+	const chatRecord = chatQuery.data;
+	const chatMessagesData = chatMessagesQuery.data;
 	const isArchived = chatRecord?.archived ?? false;
-	const chatMessages = chatData?.messages;
-	const chatQueuedMessages = chatData?.queued_messages;
+	const chatMessagesList = chatMessagesData?.messages;
+	const chatQueuedMessages = chatMessagesData?.queued_messages;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
 	const modelOptions = useMemo(
@@ -706,9 +734,9 @@ const AgentDetail: FC = () => {
 
 	const { store, clearStreamError } = useChatStore({
 		chatID: agentId,
-		chatMessages,
+		chatMessages: chatMessagesList,
 		chatRecord,
-		chatData,
+		chatMessagesData,
 		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
@@ -957,7 +985,7 @@ const AgentDetail: FC = () => {
 		inputValueRef,
 	});
 
-	const chatTitle = chatQuery.data?.chat?.title;
+	const chatTitle = chatQuery.data?.title;
 
 	const titleElement = (
 		<title>
@@ -965,7 +993,7 @@ const AgentDetail: FC = () => {
 		</title>
 	);
 
-	const parentChatID = getParentChatID(chatQuery.data?.chat);
+	const parentChatID = getParentChatID(chatQuery.data);
 	const parentChat = parentChatID
 		? chatsQuery.data?.find((chat) => chat.id === parentChatID)
 		: undefined;
@@ -1051,7 +1079,7 @@ const AgentDetail: FC = () => {
 		requestUnarchiveAgent(agentId);
 	};
 
-	if (chatQuery.isLoading) {
+	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (
 			<AgentDetailLoadingView
 				titleElement={titleElement}
@@ -1065,11 +1093,12 @@ const AgentDetail: FC = () => {
 				modelCatalogStatusMessage={modelCatalogStatusMessage}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				showRightPanel={showSidebarPanel}
 			/>
 		);
 	}
 
-	if (!chatQuery.data || !agentId) {
+	if (!chatQuery.data || !chatMessagesQuery.data || !agentId) {
 		return (
 			<AgentDetailNotFoundView
 				titleElement={titleElement}
@@ -1103,6 +1132,8 @@ const AgentDetail: FC = () => {
 			isInterruptPending={interruptMutation.isPending}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+			showSidebarPanel={showSidebarPanel}
+			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}
 			diffStatusData={diffStatusQuery.data}
 			gitWatcher={gitWatcher}

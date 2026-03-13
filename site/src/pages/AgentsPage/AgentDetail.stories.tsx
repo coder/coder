@@ -15,6 +15,7 @@ import {
 	chatDiffContentsKey,
 	chatDiffStatusKey,
 	chatKey,
+	chatMessagesKey,
 	chatModelsKey,
 	chatsKey,
 } from "api/queries/chats";
@@ -27,8 +28,7 @@ import {
 	reactRouterOutlet,
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
-import AgentDetail from "./AgentDetail";
-import { RIGHT_PANEL_OPEN_KEY } from "./AgentDetailView";
+import AgentDetail, { RIGHT_PANEL_OPEN_KEY } from "./AgentDetail";
 import type { AgentsOutletContext } from "./AgentsPage";
 
 // ---------------------------------------------------------------------------
@@ -132,13 +132,15 @@ index abc1234..def5678 100644
  }
 `;
 
-/** Build `parameters.queries` entries for a given chat data object. */
+/** Build `parameters.queries` entries for a given chat and messages. */
 const buildQueries = (
-	chatData: TypesGen.ChatWithMessages,
+	chat: TypesGen.Chat,
+	messagesData: TypesGen.ChatMessagesResponse,
 	opts?: { diffUrl?: string },
 ) => [
-	{ key: chatKey(CHAT_ID), data: chatData },
-	{ key: chatsKey, data: [chatData.chat] },
+	{ key: chatKey(CHAT_ID), data: chat },
+	{ key: chatMessagesKey(CHAT_ID), data: messagesData },
+	{ key: chatsKey, data: [chat] },
 	{
 		key: chatDiffStatusKey(CHAT_ID),
 		data: {
@@ -218,12 +220,12 @@ export const WithMessageHistory: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Markdown rendering showcase",
-					status: "completed",
-				},
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Markdown rendering showcase",
+				status: "completed",
+			},
+			{
 				messages: [
 					// -- Turn 1: user asks for a summary --
 					{
@@ -534,8 +536,8 @@ export const WithMessageHistory: Story = {
 	},
 };
 
-/** Skeleton placeholder when no query data is available yet. */
-export const Loading: Story = {};
+/** Skeleton placeholder when no query data is available yet. */ export const Loading: Story =
+	{};
 
 /** Full layout with actions menu and diff panel portaled to the right slot. */
 export const CompletedWithDiffPanel: Story = {
@@ -546,15 +548,12 @@ export const CompletedWithDiffPanel: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Build a feature",
-					status: "completed",
-				},
-				messages: [],
-				queued_messages: [],
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Build a feature",
+				status: "completed",
 			},
+			{ messages: [], queued_messages: [] },
 			{ diffUrl: "https://github.com/coder/coder/pull/123" },
 		),
 	},
@@ -584,15 +583,12 @@ export const NoDiffUrl: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "No diff yet",
-					status: "completed",
-				},
-				messages: [],
-				queued_messages: [],
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "No diff yet",
+				status: "completed",
 			},
+			{ messages: [], queued_messages: [] },
 			{ diffUrl: undefined },
 		),
 	},
@@ -603,12 +599,12 @@ export const WithSubagentCards: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Parent agent",
-					status: "running",
-				},
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Parent agent",
+				status: "running",
+			},
+			{
 				messages: [
 					{
 						id: 1,
@@ -655,12 +651,12 @@ export const WithReasoningCollapsed: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Reasoning title",
-					status: "completed",
-				},
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Reasoning title",
+				status: "completed",
+			},
+			{
 				messages: [
 					{
 						id: 1,
@@ -707,15 +703,12 @@ export const StreamedSubagentTitle: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Streaming title",
-					status: "running",
-				},
-				messages: [],
-				queued_messages: [],
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Streaming title",
+				status: "running",
 			},
+			{ messages: [], queued_messages: [] },
 			{ diffUrl: undefined },
 		),
 		webSocket: {
@@ -762,15 +755,12 @@ export const SidebarWithPRAndRepos: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Full sidebar demo",
-					status: "completed",
-				},
-				messages: [],
-				queued_messages: [],
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Full sidebar demo",
+				status: "completed",
 			},
+			{ messages: [], queued_messages: [] },
 			{ diffUrl: "https://github.com/coder/coder/pull/456" },
 		),
 		webSocket: {
@@ -946,15 +936,12 @@ export const SidebarWithSingleRepo: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Single repo sidebar",
-					status: "completed",
-				},
-				messages: [],
-				queued_messages: [],
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Single repo sidebar",
+				status: "completed",
 			},
+			{ messages: [], queued_messages: [] },
 			{ diffUrl: undefined },
 		),
 		webSocket: {
@@ -1011,15 +998,12 @@ export const StreamedReasoningCollapsed: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Streaming reasoning title",
-					status: "running",
-				},
-				messages: [],
-				queued_messages: [],
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Streaming reasoning title",
+				status: "running",
 			},
+			{ messages: [], queued_messages: [] },
 			{ diffUrl: undefined },
 		),
 		webSocket: {

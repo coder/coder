@@ -2948,9 +2948,17 @@ class ApiMethods {
 		);
 		return response.data;
 	};
-	getChat = async (chatId: string): Promise<TypesGen.ChatWithMessages> => {
-		const response = await this.axios.get<TypesGen.ChatWithMessages>(
+	getChat = async (chatId: string): Promise<TypesGen.Chat> => {
+		const response = await this.axios.get<TypesGen.Chat>(
 			`/api/experimental/chats/${chatId}`,
+		);
+		return response.data;
+	};
+	getChatMessages = async (
+		chatId: string,
+	): Promise<TypesGen.ChatMessagesResponse> => {
+		const response = await this.axios.get<TypesGen.ChatMessagesResponse>(
+			`/api/experimental/chats/${chatId}/messages`,
 		);
 		return response.data;
 	};

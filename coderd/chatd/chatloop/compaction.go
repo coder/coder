@@ -17,13 +17,26 @@ const (
 	minCompactionThresholdPercent     = int32(0)
 	maxCompactionThresholdPercent     = int32(100)
 
-	defaultCompactionSummaryPrompt = "Summarize the current chat so a " +
-		"new assistant can continue seamlessly. Include the user's goals, " +
-		"decisions made, concrete technical details (files, commands, APIs), " +
-		"errors encountered and fixes, and open questions. Be dense and factual. " +
-		"Omit pleasantries and next-step suggestions."
-	defaultCompactionSystemSummaryPrefix = "Summary of earlier chat context:"
-	defaultCompactionTimeout             = 90 * time.Second
+	defaultCompactionSummaryPrompt = "You are performing a context compaction. " +
+		"Summarize the conversation so a new assistant can seamlessly " +
+		"continue the work in progress.\n\n" +
+		"Include:\n" +
+		"- The user's overall goal and current task\n" +
+		"- Key decisions made and their rationale\n" +
+		"- Concrete technical details: file paths, function names, " +
+		"commands, APIs, and configurations\n" +
+		"- Errors encountered and how they were resolved\n" +
+		"- Current state of the work: what is DONE, what is IN PROGRESS, " +
+		"and what REMAINS to be done\n" +
+		"- The specific action the assistant was performing or about to " +
+		"perform when this summary was triggered\n\n" +
+		"Be dense and factual. Every sentence should convey essential " +
+		"context for continuation. Do not include pleasantries or " +
+		"conversational filler."
+	defaultCompactionSystemSummaryPrefix = "The following is a summary of " +
+		"the earlier conversation. The assistant was actively working when " +
+		"the context was compacted. Continue the work described below:"
+	defaultCompactionTimeout = 90 * time.Second
 )
 
 type CompactionOptions struct {
@@ -42,7 +55,7 @@ type CompactionOptions struct {
 	// PublishMessagePart publishes streaming parts to connected
 	// clients so they see "Summarizing..." / "Summarized" UI
 	// transitions during compaction.
-	PublishMessagePart func(fantasy.MessageRole, codersdk.ChatMessagePart)
+	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 
 	OnError func(error)
 }
@@ -97,12 +110,8 @@ func tryCompact(
 	// connected clients see activity during summary generation.
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		config.PublishMessagePart(
-			fantasy.MessageRoleAssistant,
-			codersdk.ChatMessagePart{
-				Type:       codersdk.ChatMessagePartTypeToolCall,
-				ToolCallID: config.ToolCallID,
-				ToolName:   config.ToolName,
-			},
+			codersdk.ChatMessageRoleAssistant,
+			codersdk.ChatMessageToolCall(config.ToolCallID, config.ToolName, nil),
 		)
 	}
 
@@ -150,13 +159,8 @@ func tryCompact(
 			"context_limit_tokens": contextLimit,
 		})
 		config.PublishMessagePart(
-			fantasy.MessageRoleTool,
-			codersdk.ChatMessagePart{
-				Type:       codersdk.ChatMessagePartTypeToolResult,
-				ToolCallID: config.ToolCallID,
-				ToolName:   config.ToolName,
-				Result:     resultJSON,
-			},
+			codersdk.ChatMessageRoleTool,
+			codersdk.ChatMessageToolResult(config.ToolCallID, config.ToolName, resultJSON, false),
 		)
 	}
 
@@ -173,14 +177,8 @@ func publishCompactionError(config CompactionOptions, msg string) {
 		"error": msg,
 	})
 	config.PublishMessagePart(
-		fantasy.MessageRoleTool,
-		codersdk.ChatMessagePart{
-			Type:       codersdk.ChatMessagePartTypeToolResult,
-			ToolCallID: config.ToolCallID,
-			ToolName:   config.ToolName,
-			Result:     errJSON,
-			IsError:    true,
-		},
+		codersdk.ChatMessageRoleTool,
+		codersdk.ChatMessageToolResult(config.ToolCallID, config.ToolName, errJSON, true),
 	)
 }
 
