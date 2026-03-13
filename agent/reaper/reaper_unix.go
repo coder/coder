@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/hashicorp/go-reap"
@@ -19,20 +20,7 @@ func IsInitProcess() bool {
 	return os.Getpid() == 1
 }
 
-func catchSignals(logger slog.Logger, pid int, sigs []os.Signal) {
-	if len(sigs) == 0 {
-		return
-	}
-
-	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, sigs...)
-	defer signal.Stop(sc)
-
-	logger.Info(context.Background(), "reaper catching signals",
-		slog.F("signals", sigs),
-		slog.F("child_pid", pid),
-	)
-
+func catchSignals(logger slog.Logger, pid int, sc <-chan os.Signal) {
 	for {
 		s := <-sc
 		sig, ok := s.(syscall.Signal)
@@ -64,10 +52,17 @@ func ForkReap(opt ...Option) (int, error) {
 		o(opts)
 	}
 
-	go reap.ReapChildren(opts.PIDs, nil, opts.Done, nil)
+	// Use the reapLock to prevent the reaper's Wait4(-1) from
+	// stealing the direct child's exit status. The reaper takes
+	// a write lock; we hold a read lock during our own Wait4.
+	var reapLock sync.RWMutex
+	reapLock.RLock()
+
+	go reap.ReapChildren(opts.PIDs, nil, opts.Done, &reapLock)
 
 	pwd, err := os.Getwd()
 	if err != nil {
+		reapLock.RUnlock()
 		return 1, xerrors.Errorf("get wd: %w", err)
 	}
 
@@ -87,16 +82,26 @@ func ForkReap(opt ...Option) (int, error) {
 	//#nosec G204
 	pid, err := syscall.ForkExec(opts.ExecArgs[0], opts.ExecArgs, pattrs)
 	if err != nil {
+		reapLock.RUnlock()
 		return 1, xerrors.Errorf("fork exec: %w", err)
 	}
 
-	go catchSignals(opts.Logger, pid, opts.CatchSignals)
+	// Register the signal handler before spawning the goroutine
+	// so it is active by the time the child process starts. This
+	// avoids a race where a signal arrives before the goroutine
+	// has called signal.Notify.
+	if len(opts.CatchSignals) > 0 {
+		sc := make(chan os.Signal, 1)
+		signal.Notify(sc, opts.CatchSignals...)
+		go catchSignals(opts.Logger, pid, sc)
+	}
 
 	var wstatus syscall.WaitStatus
 	_, err = syscall.Wait4(pid, &wstatus, 0, nil)
 	for xerrors.Is(err, syscall.EINTR) {
 		_, err = syscall.Wait4(pid, &wstatus, 0, nil)
 	}
+	reapLock.RUnlock()
 
 	// Convert wait status to exit code using standard Unix conventions:
 	// - Normal exit: use the exit code

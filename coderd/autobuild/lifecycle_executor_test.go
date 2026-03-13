@@ -599,8 +599,11 @@ func TestExecutorAutostopAIAgentActivity(t *testing.T) {
 	require.NoError(t, err)
 
 	// When: the autobuild executor ticks after the bumped deadline.
+	// Use time.Now() to account for elapsed time since the test's
+	// "now" variable, because the activity bump uses the database
+	// NOW() which advances with wall clock time.
 	go func() {
-		tickTime := now.Add(time.Hour).Add(time.Minute)
+		tickTime := time.Now().Add(time.Hour).Add(time.Minute)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		close(tickCh)

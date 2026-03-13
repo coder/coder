@@ -74,7 +74,13 @@ export async function login(page: Page, options: LoginOptions = users.owner) {
 	// biome-ignore lint/suspicious/noExplicitAny: reset the current user
 	(ctx as any)[Symbol.for("currentUser")] = undefined;
 	await ctx.clearCookies();
-	await page.goto("/login");
+	await page.goto("/login", { waitUntil: "domcontentloaded" });
+
+	// Dynamic imports can fail with ERR_NETWORK_CHANGED during
+	// parallel test execution. Reload the page if the error
+	// boundary appears instead of the login form.
+	await reloadPageIfDynamicImportFailed(page, "form");
+
 	await page.getByLabel("Email").fill(options.email);
 	await page.getByLabel("Password").fill(options.password);
 	await page.getByRole("button", { name: "Sign In" }).click();
@@ -125,6 +131,11 @@ export const createWorkspace = async (
 		waitUntil: "domcontentloaded",
 	});
 	await expectUrl(page).toHavePathName(`/templates/${templatePath}/workspace`);
+
+	// Dynamic imports can fail with ERR_NETWORK_CHANGED during
+	// parallel test execution. Reload the page if the error
+	// boundary appears instead of the form.
+	await reloadPageIfDynamicImportFailed(page, "form");
 
 	const name = randomName();
 	await page.getByLabel("name").fill(name);
@@ -211,8 +222,18 @@ export const verifyParameters = async (
 					case "bool":
 						{
 							const parameterField = parameterLabel.locator("input");
-							const value = await parameterField.isChecked();
-							expect(value.toString()).toEqual(buildParameter.value);
+							// Dynamic parameters can hydrate after initial render
+							// and reset checkbox state. Use auto-retrying assertions
+							// instead of a one-shot isChecked() snapshot.
+							if (buildParameter.value === "true") {
+								await expect(parameterField).toBeChecked({
+									timeout: 15_000,
+								});
+							} else {
+								await expect(parameterField).not.toBeChecked({
+									timeout: 15_000,
+								});
+							}
 						}
 						break;
 					case "string":
@@ -816,6 +837,37 @@ export const randomName = (annotation?: string) => {
 };
 
 /**
+ * Reload the page if a dynamic import failed (e.g. due to
+ * ERR_NETWORK_CHANGED). When React Router catches a failed chunk
+ * load it renders the GlobalErrorBoundary with the heading
+ * "Something went wrong". Detecting that and reloading is enough
+ * to recover.
+ */
+async function reloadPageIfDynamicImportFailed(
+	page: Page,
+	expectedSelector: string,
+) {
+	const errorHeading = page.getByRole("heading", {
+		name: "Something went wrong",
+	});
+	// Race the expected content against the error boundary. Suppress
+	// the timeout rejection from whichever side loses.
+	const result = await Promise.race([
+		page
+			.waitForSelector(expectedSelector, { timeout: 10_000 })
+			.then(() => "ok" as const)
+			.catch(() => "timeout" as const),
+		errorHeading
+			.waitFor({ state: "visible", timeout: 10_000 })
+			.then(() => "error" as const)
+			.catch(() => "timeout" as const),
+	]);
+	if (result === "error") {
+		await page.reload({ waitUntil: "domcontentloaded" });
+	}
+}
+
+/**
  * Awaiter is a helper that allows you to wait for a callback to be called. It
  * is useful for waiting for events to occur.
  */
@@ -1051,8 +1103,30 @@ const fillParameters = async (
 		switch (richParameter.type) {
 			case "bool":
 				{
+					const wantChecked = buildParameter.value === "true";
 					const parameterField = parameterLabel.locator("button");
-					await parameterField.click();
+					// Dynamic parameters can hydrate after initial render
+					// and reset the switch state. Check the current value
+					// and retry the click if needed.
+					for (let attempt = 0; attempt < 3; attempt++) {
+						const isChecked =
+							(await parameterField.getAttribute("aria-checked")) === "true";
+						if (isChecked !== wantChecked) {
+							await parameterField.click();
+						}
+						try {
+							await expect(parameterField).toHaveAttribute(
+								"aria-checked",
+								String(wantChecked),
+								{ timeout: 1000 },
+							);
+							break;
+						} catch (error) {
+							if (attempt === 2) {
+								throw error;
+							}
+						}
+					}
 				}
 				break;
 			case "string":
