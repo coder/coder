@@ -5,6 +5,36 @@ to evaluate while the product is under active development.
 Participation comes with important expectations and limitations described
 below.
 
+## Enable Coder Agents
+
+Coder Agents is gated behind the `agents` experiment flag. To enable it,
+pass the flag when starting the Coder server using an environment variable
+or CLI flag:
+
+```sh
+CODER_EXPERIMENTS="agents" coder server
+# or
+coder server --experiments=agents
+```
+
+If you are already using other experiments, add `agents` to the
+comma-separated list:
+
+```sh
+CODER_EXPERIMENTS="agents,oauth2,mcp-server-http" coder server
+```
+
+> [!NOTE]
+> The `agents` experiment is not included in the wildcard (`*`) opt-in.
+> You must enable it explicitly.
+
+Once the server restarts with the experiment enabled:
+
+1. Navigate to the **Agents** page in the Coder dashboard.
+1. Open **Admin** settings and configure at least one LLM provider and model.
+   See [Models](./models.md) for detailed setup instructions.
+1. Developers can then start a new chat from the Agents page.
+
 ## What Early Access includes
 
 Early Access is a collaborative evaluation period between Coder and
@@ -54,3 +84,6 @@ Participants will receive reasonable advance notice before:
 Participants are encouraged to share workflow feedback, feature requests,
 performance observations, and operational challenges. Feedback channels are
 coordinated directly with the Coder product team.
+
+You can also file issues on the
+[coder/coder](https://github.com/coder/coder/issues) repository.
