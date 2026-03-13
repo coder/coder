@@ -2109,6 +2109,8 @@ func (p *Server) runChat(
 		messages     []database.ChatMessage
 	)
 
+	var mcpServers []database.ChatMCPServer
+
 	var g errgroup.Group
 	g.Go(func() error {
 		var err error
@@ -2128,6 +2130,14 @@ func (p *Server) runChat(
 		messages, err = p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("get chat messages: %w", err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		var err error
+		mcpServers, err = p.db.GetEnabledChatMCPServers(ctx)
+		if err != nil {
+			return xerrors.Errorf("get enabled MCP servers: %w", err)
 		}
 		return nil
 	})
@@ -2529,6 +2539,33 @@ func (p *Server) runChat(
 			return chat
 		})...)
 	}
+
+	// Discover and register tools from enabled MCP servers.
+	// Failures are logged but do not block the chat.
+	var mcpCleanups []func()
+	for _, server := range mcpServers {
+		serverTools, cleanup, err := chattool.DiscoverMCPServerTools(ctx, server, logger)
+		if err != nil {
+			logger.Warn(ctx, "failed to discover MCP server tools",
+				slog.F("mcp_server", server.Slug),
+				slog.Error(err),
+			)
+			continue
+		}
+		if cleanup != nil {
+			mcpCleanups = append(mcpCleanups, cleanup)
+		}
+		logger.Info(ctx, "discovered MCP server tools",
+			slog.F("mcp_server", server.Slug),
+			slog.F("num_tools", len(serverTools)),
+		)
+		tools = append(tools, serverTools...)
+	}
+	defer func() {
+		for _, cleanup := range mcpCleanups {
+			cleanup()
+		}
+	}()
 
 	// Build provider-native tools (e.g., web search) based on
 	// the model configuration.
