@@ -1,31 +1,19 @@
 /**
- * @file 2024-02-19 - MES - Sadly, even though this hook aims to make elements
- * more accessible, it's doing the opposite right now. Per axe audits, the
- * current implementation will create a bunch of critical-level accessibility
- * violations:
- *
- * 1. Nesting interactive elements (e.g., workspace table rows having checkboxes
- *    inside them)
- * 2. Overriding the native element's role (in this case, turning a native table
- *    row into a button, which means that screen readers lose the ability to
- *    announce the row's data as part of a larger table)
- *
- * It might not make sense to test this hook until the underlying design
- * problems are fixed.
+ * Exposes click handlers that make table rows feel clickable without changing
+ * native table semantics. Primary navigation must still be rendered as an
+ * explicit in-cell link or button.
  */
 import type { TableRowProps } from "@mui/material/TableRow";
 import type { MouseEventHandler } from "react";
 import { cn } from "utils/cn";
-import {
-	type ClickableAriaRole,
-	type UseClickableResult,
-	useClickable,
-} from "./useClickable";
+import { useEffectEvent } from "./hookPolyfills";
+import type { UseClickableResult } from "./useClickable";
 
-type UseClickableTableRowResult<
-	TRole extends ClickableAriaRole = ClickableAriaRole,
-> = UseClickableResult<HTMLTableRowElement, TRole> &
-	TableRowProps & {
+type UseClickableTableRowResult = TableRowProps &
+	Omit<
+		UseClickableResult<HTMLTableRowElement>,
+		"role" | "tabIndex" | "onKeyDown" | "onKeyUp" | "ref"
+	> & {
 		className: string;
 		hover: true;
 		onAuxClick: MouseEventHandler<HTMLTableRowElement>;
@@ -34,29 +22,25 @@ type UseClickableTableRowResult<
 // Awkward type definition (the hover preview in VS Code isn't great, either),
 // but this basically extracts all click props from TableRowProps, but makes
 // onClick required, and adds additional optional props (notably onMiddleClick)
-type UseClickableTableRowConfig<TRole extends ClickableAriaRole> = {
+type UseClickableTableRowConfig = {
 	[Key in keyof TableRowProps as Key extends `on${string}Click`
 		? Key
-		: never]: UseClickableTableRowResult<TRole>[Key];
+		: never]: UseClickableTableRowResult[Key];
 } & {
-	role?: TRole;
 	onClick: MouseEventHandler<HTMLTableRowElement>;
 	onMiddleClick?: MouseEventHandler<HTMLTableRowElement>;
 };
 
-export const useClickableTableRow = <
-	TRole extends ClickableAriaRole = ClickableAriaRole,
->({
-	role,
+export const useClickableTableRow = ({
 	onClick,
 	onDoubleClick,
 	onMiddleClick,
 	onAuxClick: externalOnAuxClick,
-}: UseClickableTableRowConfig<TRole>): UseClickableTableRowResult<TRole> => {
-	const clickableProps = useClickable(onClick, (role ?? "button") as TRole);
+}: UseClickableTableRowConfig): UseClickableTableRowResult => {
+	const stableOnClick = useEffectEvent(onClick);
 
 	return {
-		...clickableProps,
+		onClick: stableOnClick,
 		className: cn([
 			"cursor-pointer hover:outline focus:outline outline-1 -outline-offset-1 outline-border-hover",
 			"first:rounded-t-md last:rounded-b-md",

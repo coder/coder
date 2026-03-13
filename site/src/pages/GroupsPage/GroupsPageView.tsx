@@ -109,8 +109,9 @@ interface GroupRowProps {
 
 const GroupRow: FC<GroupRowProps> = ({ group }) => {
 	const navigate = useNavigate();
+	const groupPageLink = group.name;
 	const rowProps = useClickableTableRow({
-		onClick: () => navigate(group.name),
+		onClick: () => navigate(groupPageLink),
 	});
 	const memberAvatars = group.members.slice(0, 5);
 	const remainingAvatars = group.members.length - memberAvatars.length;
@@ -127,7 +128,17 @@ const GroupRow: FC<GroupRowProps> = ({ group }) => {
 							src={group.avatar_url}
 						/>
 					}
-					title={group.display_name || group.name}
+					title={
+						<RouterLink
+							to={groupPageLink}
+							onClick={(event) => {
+								event.stopPropagation();
+							}}
+							className="pointer-events-auto text-content-primary no-underline hover:underline"
+						>
+							{group.display_name || group.name}
+						</RouterLink>
+					}
 					subtitle={`${group.members.length} members`}
 				/>
 			</TableCell>

@@ -9,7 +9,7 @@ import { TableCell } from "components/Table/Table";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { FC } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 interface VersionRowProps {
 	version: TemplateVersion;
@@ -27,9 +27,10 @@ export const VersionRow: FC<VersionRowProps> = ({
 	onArchiveClick,
 }) => {
 	const navigate = useNavigate();
+	const versionPageLink = version.name;
 
 	const clickableProps = useClickableTableRow({
-		onClick: () => navigate(version.name),
+		onClick: () => navigate(versionPageLink),
 	});
 
 	const jobStatus = version.job.status;
@@ -60,7 +61,18 @@ export const VersionRow: FC<VersionRowProps> = ({
 						>
 							<span>
 								<strong>{version.created_by.username}</strong> created the
-								version <strong>{version.name}</strong>
+								version{" "}
+								<strong>
+									<Link
+										to={versionPageLink}
+										onClick={(event) => {
+											event.stopPropagation();
+										}}
+										className="pointer-events-auto text-content-primary no-underline hover:underline"
+									>
+										{version.name}
+									</Link>
+								</strong>
 							</span>
 
 							{version.message && (
