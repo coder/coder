@@ -107,6 +107,9 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
   release.
 - For user-scoped or resource-scoped routes, prefer path parameters over
   query parameters when that matches existing route patterns.
+- For experimental or unstable API paths, skip public doc generation with
+  `// @x-apidocgen {"skip": true}` after the `@Router` annotation. This
+  keeps them out of the published API reference until they stabilize.
 
 ### Database Query Naming
 
