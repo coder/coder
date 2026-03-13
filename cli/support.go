@@ -354,19 +354,20 @@ func summarizeBundle(inv *serpent.Invocation, bun *support.Bundle) {
 		return
 	}
 
-	if bun.Deployment.Config == nil {
-		cliui.Error(inv.Stdout, "No deployment configuration available!")
-		return
+	var docsURL string
+	if bun.Deployment.Config != nil {
+		docsURL = bun.Deployment.Config.Values.DocsURL.String()
+	} else {
+		cliui.Warn(inv.Stdout, "No deployment configuration available (insufficient permissions).")
 	}
 
-	docsURL := bun.Deployment.Config.Values.DocsURL.String()
-	if bun.Deployment.HealthReport == nil {
-		cliui.Error(inv.Stdout, "No deployment health report available!")
-		return
-	}
-	deployHealthSummary := bun.Deployment.HealthReport.Summarize(docsURL)
-	if len(deployHealthSummary) > 0 {
-		cliui.Warn(inv.Stdout, "Deployment health issues detected:", deployHealthSummary...)
+	if bun.Deployment.HealthReport != nil {
+		deployHealthSummary := bun.Deployment.HealthReport.Summarize(docsURL)
+		if len(deployHealthSummary) > 0 {
+			cliui.Warn(inv.Stdout, "Deployment health issues detected:", deployHealthSummary...)
+		}
+	} else {
+		cliui.Warn(inv.Stdout, "No deployment health report available.")
 	}
 
 	if bun.Network.Netcheck == nil {

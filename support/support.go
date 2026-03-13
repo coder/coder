@@ -160,6 +160,10 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 	eg.Go(func() error {
 		dc, err := client.DeploymentConfig(ctx)
 		if err != nil {
+			if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized) {
+				log.Warn(ctx, "unable to fetch deployment config (insufficient permissions)")
+				return nil
+			}
 			return xerrors.Errorf("fetch deployment config: %w", err)
 		}
 		d.Config = dc
@@ -169,6 +173,10 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 	eg.Go(func() error {
 		hr, err := healthsdk.New(client).DebugHealth(ctx)
 		if err != nil {
+			if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized) {
+				log.Warn(ctx, "unable to fetch health report (insufficient permissions)")
+				return nil
+			}
 			return xerrors.Errorf("fetch health report: %w", err)
 		}
 		d.HealthReport = &hr
@@ -362,6 +370,10 @@ func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) 
 			return xerrors.Errorf("fetch coordinator debug page: %w", err)
 		}
 		defer coordResp.Body.Close()
+		if coordResp.StatusCode == http.StatusForbidden || coordResp.StatusCode == http.StatusUnauthorized {
+			log.Warn(ctx, "unable to fetch coordinator debug page (insufficient permissions)")
+			return nil
+		}
 		bs, err := io.ReadAll(coordResp.Body)
 		if err != nil {
 			return xerrors.Errorf("read coordinator debug page: %w", err)
@@ -376,6 +388,10 @@ func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) 
 			return xerrors.Errorf("fetch tailnet debug page: %w", err)
 		}
 		defer tailResp.Body.Close()
+		if tailResp.StatusCode == http.StatusForbidden || tailResp.StatusCode == http.StatusUnauthorized {
+			log.Warn(ctx, "unable to fetch tailnet debug page (insufficient permissions)")
+			return nil
+		}
 		bs, err := io.ReadAll(tailResp.Body)
 		if err != nil {
 			return xerrors.Errorf("read tailnet debug page: %w", err)
@@ -912,11 +928,16 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 
 	authResp, err := d.Client.AuthCheck(ctx, codersdk.AuthorizationRequest{Checks: authChecks})
 	if err != nil {
+		// If the auth check itself fails (e.g., 401 Unauthorized
+		// because there is no valid session), this is a hard error.
 		return &b, xerrors.Errorf("check authorization: %w", err)
 	}
 	for k, v := range authResp {
 		if !v {
-			return &b, xerrors.Errorf("failed authorization check: cannot %s", k)
+			// Authenticated but lacking specific permissions is not
+			// fatal — we degrade gracefully and collect what we can.
+			d.Log.Warn(ctx, "missing permission, some items may be unavailable",
+				slog.F("check", k))
 		}
 	}
 
