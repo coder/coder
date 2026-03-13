@@ -5,11 +5,6 @@ to evaluate while the product is under active development.
 Participation comes with important expectations and limitations described
 below.
 
-> [!CAUTION]
-> Coder Agents is experimental and must not be deployed to production
-> environments. Use it only in development or staging deployments for
-> evaluation purposes.
-
 ## What Early Access includes
 
 Early Access is a collaborative evaluation period between Coder and
@@ -47,7 +42,8 @@ redesign.
 
 ## Enable Coder Agents
 
-Coder Agents is gated behind the `agents` experiment flag. To enable it,
+Coder Agents is experimental and must not be deployed to production
+environments. It is gated behind the `agents` experiment flag. To enable it,
 pass the flag when starting the Coder server using an environment variable
 or CLI flag:
 
