@@ -845,7 +845,10 @@ func (c *Client) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.U
 	return nil
 }
 
-// GetChatCostSummary returns an aggregate cost summary for the specified user.
+// GetChatCostSummary returns an aggregate cost summary for the specified
+// user. Zero-valued StartDate or EndDate fields are omitted from the
+// request, letting the server apply its own defaults (typically the last
+// 30 days).
 func (c *Client) GetChatCostSummary(ctx context.Context, user string, opts ChatCostSummaryOptions) (ChatCostSummary, error) {
 	qp := url.Values{}
 	if !opts.StartDate.IsZero() {
@@ -870,7 +873,10 @@ func (c *Client) GetChatCostSummary(ctx context.Context, user string, opts ChatC
 	return summary, json.NewDecoder(res.Body).Decode(&summary)
 }
 
-// GetChatCostUsers returns a per-user cost rollup for the deployment (admin only).
+// GetChatCostUsers returns a per-user cost rollup for the deployment
+// (admin only). Zero-valued StartDate or EndDate fields are omitted from
+// the request, letting the server apply its own defaults (typically the
+// last 30 days).
 func (c *Client) GetChatCostUsers(ctx context.Context, opts ChatCostUsersOptions) (ChatCostUsersResponse, error) {
 	qp := url.Values{}
 	if !opts.StartDate.IsZero() {
