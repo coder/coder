@@ -3,6 +3,7 @@ package costcalc
 import (
 	"github.com/shopspring/decimal"
 
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -62,22 +63,8 @@ func CalculateTotalCostMicros(
 	return &rounded
 }
 
+// calcCost returns the cost in fractional microdollars (millionths of a USD)
+// for the given token count at the specified per-million-token price.
 func calcCost(tokens *int64, pricePerMillion *decimal.Decimal) decimal.Decimal {
-	return decimal.NewFromInt(int64OrZero(tokens)).Mul(decimalOrZero(pricePerMillion))
-}
-
-func int64OrZero(v *int64) int64 {
-	if v == nil {
-		return 0
-	}
-
-	return *v
-}
-
-func decimalOrZero(v *decimal.Decimal) decimal.Decimal {
-	if v == nil {
-		return decimal.Zero
-	}
-
-	return *v
+	return decimal.NewFromInt(ptr.NilToEmpty(tokens)).Mul(ptr.NilToEmpty(pricePerMillion))
 }
