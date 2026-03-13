@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"strings"
@@ -33,6 +34,8 @@ type Server struct {
 	address             string
 	artificialLatency   time.Duration
 	responsePayloadSize int
+	minStreamDuration   time.Duration
+	maxStreamDuration   time.Duration
 
 	tracerProvider trace.TracerProvider
 	closeTracing   func(context.Context) error
@@ -43,6 +46,8 @@ type Config struct {
 	Logger              slog.Logger
 	ArtificialLatency   time.Duration
 	ResponsePayloadSize int
+	MinStreamDuration   time.Duration
+	MaxStreamDuration   time.Duration
 
 	PprofEnable  bool
 	PprofAddress string
@@ -120,6 +125,8 @@ func (s *Server) Start(ctx context.Context, cfg Config) error {
 	s.logger = cfg.Logger
 	s.artificialLatency = cfg.ArtificialLatency
 	s.responsePayloadSize = cfg.ResponsePayloadSize
+	s.minStreamDuration = cfg.MinStreamDuration
+	s.maxStreamDuration = cfg.MaxStreamDuration
 
 	if cfg.TraceEnable {
 		otel.SetTextMapPropagator(
@@ -167,6 +174,77 @@ func (s *Server) Stop() error {
 
 func (s *Server) APIAddress() string {
 	return fmt.Sprintf("http://%s", s.httpListener.Addr().String())
+}
+
+func (s *Server) randomStreamDuration() time.Duration {
+	if s.minStreamDuration == 0 && s.maxStreamDuration == 0 {
+		return 0
+	}
+
+	delta := s.maxStreamDuration - s.minStreamDuration
+	if delta == 0 {
+		return s.minStreamDuration
+	}
+
+	//nolint:gosec // This is a scaletest mock, not security-sensitive.
+	return s.minStreamDuration + time.Duration(rand.Int64N(int64(delta+1)))
+}
+
+func streamWait(ctx context.Context, d time.Duration) bool {
+	if d <= 0 {
+		return true
+	}
+
+	t := time.NewTimer(d)
+	defer t.Stop()
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
+	}
+}
+
+func streamContentChunks(content string, useFixedWindow bool) []string {
+	if useFixedWindow {
+		return chunkString(content, 10)
+	}
+
+	fields := strings.Fields(content)
+	if len(fields) == 0 {
+		return chunkString(content, 10)
+	}
+
+	chunks := make([]string, 0, len(fields))
+	for i, field := range fields {
+		if i > 0 {
+			field = " " + field
+		}
+		chunks = append(chunks, field)
+	}
+
+	return chunks
+}
+
+func chunkString(content string, size int) []string {
+	if content == "" {
+		return []string{""}
+	}
+	if size <= 0 {
+		return []string{content}
+	}
+
+	chunks := make([]string, 0, (len(content)+size-1)/size)
+	for start := 0; start < len(content); start += size {
+		end := start + size
+		if end > len(content) {
+			end = len(content)
+		}
+		chunks = append(chunks, content[start:end])
+	}
+
+	return chunks
 }
 
 func (s *Server) startAPIServer(ctx context.Context) error {
@@ -462,29 +540,66 @@ func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, re
 		return true
 	}
 
-	// Send initial chunk
-	chunk := map[string]interface{}{
-		"id":      resp.ID,
-		"object":  "chat.completion.chunk",
-		"created": resp.Created,
-		"model":   resp.Model,
-		"choices": []map[string]interface{}{
-			{
-				"index": 0,
-				"delta": map[string]interface{}{
-					"role":    "assistant",
-					"content": resp.Choices[0].Message.Content,
+	totalDuration := s.randomStreamDuration()
+	if totalDuration == 0 {
+		chunk := map[string]interface{}{
+			"id":      resp.ID,
+			"object":  "chat.completion.chunk",
+			"created": resp.Created,
+			"model":   resp.Model,
+			"choices": []map[string]interface{}{
+				{
+					"index": 0,
+					"delta": map[string]interface{}{
+						"role":    "assistant",
+						"content": resp.Choices[0].Message.Content,
+					},
+					"finish_reason": nil,
 				},
-				"finish_reason": nil,
 			},
-		},
-	}
-	chunkBytes, _ := json.Marshal(chunk)
-	if !writeChunk(fmt.Sprintf("data: %s\n\n", chunkBytes)) {
-		return
+		}
+		chunkBytes, _ := json.Marshal(chunk)
+		if !writeChunk(fmt.Sprintf(`data: %s
+
+`, chunkBytes)) {
+			return
+		}
+	} else {
+		chunks := streamContentChunks(resp.Choices[0].Message.Content, s.responsePayloadSize > 0)
+		delay := totalDuration / time.Duration(len(chunks))
+		for i, content := range chunks {
+			delta := map[string]interface{}{
+				"content": content,
+			}
+			if i == 0 {
+				delta["role"] = "assistant"
+			}
+
+			chunk := map[string]interface{}{
+				"id":      resp.ID,
+				"object":  "chat.completion.chunk",
+				"created": resp.Created,
+				"model":   resp.Model,
+				"choices": []map[string]interface{}{
+					{
+						"index":         0,
+						"delta":         delta,
+						"finish_reason": nil,
+					},
+				},
+			}
+			chunkBytes, _ := json.Marshal(chunk)
+			if !writeChunk(fmt.Sprintf(`data: %s
+
+`, chunkBytes)) {
+				return
+			}
+			if i < len(chunks)-1 && !streamWait(ctx, delay) {
+				return
+			}
+		}
 	}
 
-	// Send final chunk
 	finalChunk := map[string]interface{}{
 		"id":      resp.ID,
 		"object":  "chat.completion.chunk",
@@ -499,10 +614,14 @@ func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, re
 		},
 	}
 	finalChunkBytes, _ := json.Marshal(finalChunk)
-	if !writeChunk(fmt.Sprintf("data: %s\n\n", finalChunkBytes)) {
+	if !writeChunk(fmt.Sprintf(`data: %s
+
+`, finalChunkBytes)) {
 		return
 	}
-	writeChunk("data: [DONE]\n\n")
+	writeChunk(`data: [DONE]
+
+`)
 }
 
 func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter, resp responsesResponse) {
@@ -533,18 +652,46 @@ func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter,
 		return true
 	}
 
-	deltaChunk := map[string]interface{}{
-		"id":            resp.ID,
-		"object":        "response.output_text.delta",
-		"created":       resp.Created,
-		"model":         resp.Model,
-		"output_index":  0,
-		"content_index": 0,
-		"delta":         resp.Output[0].Content[0].Text,
-	}
-	deltaBytes, _ := json.Marshal(deltaChunk)
-	if !writeChunk(fmt.Sprintf("data: %s\n\n", deltaBytes)) {
-		return
+	totalDuration := s.randomStreamDuration()
+	if totalDuration == 0 {
+		deltaChunk := map[string]interface{}{
+			"id":            resp.ID,
+			"object":        "response.output_text.delta",
+			"created":       resp.Created,
+			"model":         resp.Model,
+			"output_index":  0,
+			"content_index": 0,
+			"delta":         resp.Output[0].Content[0].Text,
+		}
+		deltaBytes, _ := json.Marshal(deltaChunk)
+		if !writeChunk(fmt.Sprintf(`data: %s
+
+`, deltaBytes)) {
+			return
+		}
+	} else {
+		chunks := streamContentChunks(resp.Output[0].Content[0].Text, s.responsePayloadSize > 0)
+		delay := totalDuration / time.Duration(len(chunks))
+		for i, content := range chunks {
+			deltaChunk := map[string]interface{}{
+				"id":            resp.ID,
+				"object":        "response.output_text.delta",
+				"created":       resp.Created,
+				"model":         resp.Model,
+				"output_index":  0,
+				"content_index": 0,
+				"delta":         content,
+			}
+			deltaBytes, _ := json.Marshal(deltaChunk)
+			if !writeChunk(fmt.Sprintf(`data: %s
+
+`, deltaBytes)) {
+				return
+			}
+			if i < len(chunks)-1 && !streamWait(ctx, delay) {
+				return
+			}
+		}
 	}
 
 	finalChunk := map[string]interface{}{
@@ -562,10 +709,14 @@ func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter,
 		},
 	}
 	finalBytes, _ := json.Marshal(finalChunk)
-	if !writeChunk(fmt.Sprintf("data: %s\n\n", finalBytes)) {
+	if !writeChunk(fmt.Sprintf(`data: %s
+
+`, finalBytes)) {
 		return
 	}
-	writeChunk("data: [DONE]\n\n")
+	writeChunk(`data: [DONE]
+
+`)
 }
 
 func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter, resp anthropicResponse) {
@@ -597,6 +748,8 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		return true
 	}
 
+	totalDuration := s.randomStreamDuration()
+
 	startEventType := "message_start"
 	startEvent := map[string]interface{}{
 		"type": startEventType,
@@ -614,12 +767,16 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 
 	// Send content_block_start event
 	contentStartEventType := "content_block_start"
+	contentStartText := resp.Content[0].Text
+	if totalDuration > 0 {
+		contentStartText = ""
+	}
 	contentStartEvent := map[string]interface{}{
 		"type":  contentStartEventType,
 		"index": 0,
 		"content_block": map[string]interface{}{
 			"type": "text",
-			"text": resp.Content[0].Text,
+			"text": contentStartText,
 		},
 	}
 	contentStartBytes, _ := json.Marshal(contentStartEvent)
@@ -627,19 +784,41 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 		return
 	}
 
-	// Send content_block_delta event
+	// Send content_block_delta event(s)
 	deltaEventType := "content_block_delta"
-	deltaEvent := map[string]interface{}{
-		"type":  deltaEventType,
-		"index": 0,
-		"delta": map[string]interface{}{
-			"type": "text_delta",
-			"text": resp.Content[0].Text,
-		},
-	}
-	deltaBytes, _ := json.Marshal(deltaEvent)
-	if !writeChunk(deltaEventType, deltaBytes) {
-		return
+	if totalDuration == 0 {
+		deltaEvent := map[string]interface{}{
+			"type":  deltaEventType,
+			"index": 0,
+			"delta": map[string]interface{}{
+				"type": "text_delta",
+				"text": resp.Content[0].Text,
+			},
+		}
+		deltaBytes, _ := json.Marshal(deltaEvent)
+		if !writeChunk(deltaEventType, deltaBytes) {
+			return
+		}
+	} else {
+		chunks := streamContentChunks(resp.Content[0].Text, s.responsePayloadSize > 0)
+		delay := totalDuration / time.Duration(len(chunks))
+		for i, content := range chunks {
+			deltaEvent := map[string]interface{}{
+				"type":  deltaEventType,
+				"index": 0,
+				"delta": map[string]interface{}{
+					"type": "text_delta",
+					"text": content,
+				},
+			}
+			deltaBytes, _ := json.Marshal(deltaEvent)
+			if !writeChunk(deltaEventType, deltaBytes) {
+				return
+			}
+			if i < len(chunks)-1 && !streamWait(ctx, delay) {
+				return
+			}
+		}
 	}
 
 	// Send content_block_stop event
