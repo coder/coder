@@ -60,10 +60,6 @@ comma-separated list:
 CODER_EXPERIMENTS="agents,oauth2,mcp-server-http" coder server
 ```
 
-> [!NOTE]
-> The `agents` experiment is not included in the wildcard (`*`) opt-in.
-> You must enable it explicitly.
-
 Once the server restarts with the experiment enabled:
 
 1. Navigate to the **Agents** page in the Coder dashboard.
