@@ -6,6 +6,9 @@ import {
 	chatProviderConfigsKey,
 } from "api/queries/chats";
 import type {
+	ChatCostSummary,
+	ChatCostUserRollup,
+	ChatCostUsersResponse,
 	ChatModelConfig,
 	ChatModelsResponse,
 	ChatProviderConfig,
@@ -74,6 +77,73 @@ const chatQueries = [
 	{ key: chatModelConfigsKey, data: mockModelConfigs },
 	{ key: chatModelsKey, data: mockChatModels },
 ];
+
+const buildUsageUser = (
+	overrides: Partial<ChatCostUserRollup> = {},
+): ChatCostUserRollup => ({
+	user_id: "user-1",
+	username: "alice",
+	name: "Alice Example",
+	avatar_url: "https://example.com/alice.png",
+	total_cost_micros: 1_200_000,
+	message_count: 12,
+	chat_count: 3,
+	total_input_tokens: 120_000,
+	total_output_tokens: 45_000,
+	...overrides,
+});
+
+const mockUsageUsers: ChatCostUsersResponse = {
+	start_date: "2026-02-10T00:00:00Z",
+	end_date: "2026-03-12T00:00:00Z",
+	count: 2,
+	users: [
+		buildUsageUser(),
+		buildUsageUser({
+			user_id: "user-2",
+			username: "bob",
+			name: "Bob Example",
+			avatar_url: "https://example.com/bob.png",
+			total_cost_micros: 900_000,
+			message_count: 8,
+			chat_count: 2,
+			total_input_tokens: 80_000,
+			total_output_tokens: 30_000,
+		}),
+	],
+};
+
+const mockUsageSummary: ChatCostSummary = {
+	start_date: "2026-02-10T00:00:00Z",
+	end_date: "2026-03-12T00:00:00Z",
+	total_cost_micros: 1_200_000,
+	priced_message_count: 12,
+	unpriced_message_count: 0,
+	total_input_tokens: 120_000,
+	total_output_tokens: 45_000,
+	by_model: [
+		{
+			model_config_id: "model-cfg-1",
+			display_name: "GPT-4o",
+			provider: "OpenAI",
+			model: "gpt-4o",
+			total_cost_micros: 1_200_000,
+			message_count: 12,
+			total_input_tokens: 120_000,
+			total_output_tokens: 45_000,
+		},
+	],
+	by_chat: [
+		{
+			root_chat_id: "chat-1",
+			chat_title: "Quarterly review",
+			total_cost_micros: 1_200_000,
+			message_count: 12,
+			total_input_tokens: 120_000,
+			total_output_tokens: 45_000,
+		},
+	],
+};
 
 const meta: Meta<typeof ConfigureAgentsDialog> = {
 	title: "pages/AgentsPage/ConfigureAgentsDialog",
@@ -157,5 +227,17 @@ export const SavesBehaviorPromptAndRestores: Story = {
 				system_prompt: "You are a focused coding assistant.",
 			});
 		});
+	},
+};
+
+/** Admin can open the Usage tab and review user chat spend. */
+export const UsageTab: Story = {
+	args: {
+		initialSection: "usage",
+		canManageChatModelConfigs: true,
+	},
+	beforeEach: () => {
+		spyOn(API, "getChatCostUsers").mockResolvedValue(mockUsageUsers);
+		spyOn(API, "getChatCostSummary").mockResolvedValue(mockUsageSummary);
 	},
 };

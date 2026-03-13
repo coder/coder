@@ -1,9 +1,14 @@
+import { getErrorMessage } from "api/errors";
 import {
+	chatCostSummary,
+	chatCostUsers,
 	chatSystemPrompt,
 	chatUserCustomPrompt,
 	updateChatSystemPrompt,
 	updateUserChatCustomPrompt,
 } from "api/queries/chats";
+import type * as TypesGen from "api/typesGenerated";
+import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
 import {
 	Dialog,
@@ -13,35 +18,55 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "components/Dialog/Dialog";
+import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
+import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
+import { SearchField } from "components/SearchField/SearchField";
+import { Spinner } from "components/Spinner/Spinner";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import dayjs from "dayjs";
+import { useDebouncedValue } from "hooks/debounce";
+import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { LucideIcon } from "lucide-react";
 import {
+	BarChart3Icon,
 	BoxesIcon,
 	KeyRoundIcon,
 	ShieldIcon,
 	UserIcon,
 	XIcon,
 } from "lucide-react";
+import { type FC, type FormEvent, useCallback, useMemo, useState } from "react";
 import {
-	type FC,
-	type FormEvent,
-	useCallback,
-	useEffect,
-	useMemo,
-	useState,
-} from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+	keepPreviousData,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import TextareaAutosize from "react-textarea-autosize";
+import { formatCostMicros, formatTokenCount } from "utils/analytics";
 import { cn } from "utils/cn";
+import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { SectionHeader } from "./SectionHeader";
 
-type ConfigureAgentsSection = "providers" | "models" | "behavior";
+export type ConfigureAgentsSection =
+	| "providers"
+	| "models"
+	| "behavior"
+	| "usage";
 
 type ConfigureAgentsSectionOption = {
 	id: ConfigureAgentsSection;
@@ -66,6 +91,248 @@ const AdminBadge: FC = () => (
 	</TooltipProvider>
 );
 
+const pageSize = 10;
+
+const UserRow: FC<{
+	user: TypesGen.ChatCostUserRollup;
+	onSelect: (user: TypesGen.ChatCostUserRollup) => void;
+}> = ({ user, onSelect }) => {
+	const clickableRowProps = useClickableTableRow({
+		onClick: () => onSelect(user),
+	});
+
+	return (
+		<TableRow
+			{...clickableRowProps}
+			aria-label={`View details for ${user.name || user.username}`}
+		>
+			<TableCell className="min-w-[220px] px-4 py-3">
+				<AvatarData
+					title={user.name || user.username}
+					subtitle={`@${user.username}`}
+					src={user.avatar_url}
+					imgFallbackText={user.username}
+				/>
+			</TableCell>
+			<TableCell className="px-4 py-3 text-right">
+				{formatCostMicros(user.total_cost_micros)}
+			</TableCell>
+			<TableCell className="px-4 py-3 text-right">
+				{user.message_count.toLocaleString()}
+			</TableCell>
+			<TableCell className="px-4 py-3 text-right">
+				{user.chat_count.toLocaleString()}
+			</TableCell>
+			<TableCell className="px-4 py-3 text-right">
+				{formatTokenCount(user.total_input_tokens)}
+			</TableCell>
+			<TableCell className="px-4 py-3 text-right">
+				{formatTokenCount(user.total_output_tokens)}
+			</TableCell>
+		</TableRow>
+	);
+};
+
+const UsageContent: FC = () => {
+	const [selectedUser, setSelectedUser] =
+		useState<TypesGen.ChatCostUserRollup | null>(null);
+	const [usernameFilter, setUsernameFilter] = useState("");
+	const debouncedUsername = useDebouncedValue(usernameFilter, 300);
+	const [page, setPage] = useState(1);
+	const dateRange = useMemo(() => {
+		const end = dayjs();
+		const start = end.subtract(30, "day");
+		return {
+			startDate: start.toISOString(),
+			endDate: end.toISOString(),
+			rangeLabel: `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`,
+		};
+	}, []);
+	const offset = (page - 1) * pageSize;
+
+	const usersQuery = useQuery({
+		...chatCostUsers({
+			start_date: dateRange.startDate,
+			end_date: dateRange.endDate,
+			username: debouncedUsername || undefined,
+			limit: pageSize,
+			offset,
+		}),
+		placeholderData: keepPreviousData,
+	});
+	const summaryQuery = useQuery({
+		...chatCostSummary(selectedUser?.user_id ?? "me", {
+			start_date: dateRange.startDate,
+			end_date: dateRange.endDate,
+		}),
+		enabled: selectedUser !== null,
+	});
+
+	const totalCount = usersQuery.data?.count ?? 0;
+	const hasPreviousPage = page > 1;
+	const hasNextPage = offset + pageSize < totalCount;
+
+	const header = (
+		<SectionHeader
+			label="Usage"
+			description={
+				selectedUser
+					? "Review deployment chat usage for a specific user."
+					: "Review deployment chat usage and drill into individual users."
+			}
+			badge={<AdminBadge />}
+			action={
+				selectedUser ? (
+					<Button
+						variant="outline"
+						size="sm"
+						type="button"
+						onClick={() => setSelectedUser(null)}
+					>
+						← Back to all users
+					</Button>
+				) : (
+					<span className="text-xs text-content-secondary">
+						{dateRange.rangeLabel}
+					</span>
+				)
+			}
+		/>
+	);
+
+	if (selectedUser) {
+		return (
+			<div className="space-y-6">
+				{header}
+				<div className="flex flex-wrap items-center gap-3 rounded-lg border border-border-default bg-surface-secondary px-4 py-3">
+					<AvatarData
+						title={selectedUser.name || selectedUser.username}
+						subtitle={`@${selectedUser.username}`}
+						src={selectedUser.avatar_url}
+						imgFallbackText={selectedUser.username}
+					/>
+					<div className="min-w-0 text-xs text-content-secondary">
+						<div>User ID: {selectedUser.user_id}</div>
+						<div>{dateRange.rangeLabel}</div>
+					</div>
+				</div>
+
+				<ChatCostSummaryView
+					summary={summaryQuery.data}
+					isLoading={summaryQuery.isLoading}
+					error={summaryQuery.error}
+					onRetry={() => void summaryQuery.refetch()}
+					loadingLabel="Loading usage details"
+					emptyMessage="No usage data for this user in the selected period."
+				/>
+			</div>
+		);
+	}
+
+	return (
+		<div className="space-y-6">
+			{header}
+			<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+				<div className="w-full md:max-w-sm">
+					<SearchField
+						value={usernameFilter}
+						onChange={(value) => {
+							setUsernameFilter(value);
+							setPage(1);
+						}}
+						placeholder="Filter by username"
+						aria-label="Filter usage by username"
+					/>
+				</div>
+				{usersQuery.data && (
+					<PaginationAmount
+						limit={pageSize}
+						totalRecords={usersQuery.data.count}
+						currentOffsetStart={usersQuery.data.count === 0 ? 0 : offset + 1}
+						paginationUnitLabel="users"
+					/>
+				)}
+			</div>
+			{usersQuery.isLoading && (
+				<div
+					role="status"
+					aria-label="Loading usage"
+					className="flex min-h-[240px] items-center justify-center"
+				>
+					<Spinner size="lg" loading className="text-content-secondary" />
+				</div>
+			)}
+
+			{usersQuery.error != null && (
+				<div className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
+					<p className="m-0 text-sm text-content-secondary">
+						{getErrorMessage(usersQuery.error, "Failed to load usage data.")}
+					</p>
+					<Button
+						variant="outline"
+						size="sm"
+						type="button"
+						onClick={() => void usersQuery.refetch()}
+					>
+						Retry
+					</Button>
+				</div>
+			)}
+
+			{usersQuery.data &&
+				(usersQuery.data.users.length === 0 ? (
+					<p className="py-12 text-center text-content-secondary">
+						No usage data for this period.
+					</p>
+				) : (
+					<>
+						<div className="overflow-hidden rounded-lg border border-border-default">
+							<Table>
+								<TableHeader>
+									<TableRow className="text-left text-xs uppercase tracking-wide text-content-secondary">
+										<TableHead className="px-4 py-3">User</TableHead>
+										<TableHead className="px-4 py-3 text-right">
+											Total Cost
+										</TableHead>
+										<TableHead className="px-4 py-3 text-right">
+											Messages
+										</TableHead>
+										<TableHead className="px-4 py-3 text-right">
+											Chats
+										</TableHead>
+										<TableHead className="px-4 py-3 text-right">
+											Input Tokens
+										</TableHead>
+										<TableHead className="px-4 py-3 text-right">
+											Output Tokens
+										</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{usersQuery.data.users.map((user) => (
+										<UserRow
+											key={user.user_id}
+											user={user}
+											onSelect={setSelectedUser}
+										/>
+									))}
+								</TableBody>
+							</Table>
+						</div>
+						<PaginationWidgetBase
+							totalRecords={usersQuery.data.count}
+							currentPage={page}
+							pageSize={pageSize}
+							onPageChange={setPage}
+							hasPreviousPage={hasPreviousPage}
+							hasNextPage={hasNextPage}
+						/>
+					</>
+				))}
+		</div>
+	);
+};
+
 const textareaClassName =
 	"max-h-[240px] w-full resize-none overflow-y-auto rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin]";
 
@@ -74,6 +341,7 @@ interface ConfigureAgentsDialogProps {
 	onOpenChange: (open: boolean) => void;
 	canManageChatModelConfigs: boolean;
 	canSetSystemPrompt: boolean;
+	initialSection?: ConfigureAgentsSection;
 }
 
 export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
@@ -81,6 +349,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 	onOpenChange,
 	canManageChatModelConfigs,
 	canSetSystemPrompt,
+	initialSection = "behavior",
 }) => {
 	const queryClient = useQueryClient();
 
@@ -156,24 +425,24 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 				icon: BoxesIcon,
 				adminOnly: true,
 			});
+			options.push({
+				id: "usage",
+				label: "Usage",
+				icon: BarChart3Icon,
+				adminOnly: true,
+			});
 		}
 		return options;
 	}, [canManageChatModelConfigs]);
 
 	const [userActiveSection, setUserActiveSection] =
-		useState<ConfigureAgentsSection>("behavior");
+		useState<ConfigureAgentsSection>(initialSection);
 
 	const activeSection = configureSectionOptions.some(
 		(s) => s.id === userActiveSection,
 	)
 		? userActiveSection
 		: (configureSectionOptions[0]?.id ?? "behavior");
-
-	useEffect(() => {
-		if (open) {
-			setUserActiveSection("behavior");
-		}
-	}, [open]);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -352,6 +621,9 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 							sectionDescription="Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
 							sectionBadge={<AdminBadge />}
 						/>
+					)}
+					{activeSection === "usage" && canManageChatModelConfigs && (
+						<UsageContent />
 					)}
 				</div>
 			</DialogContent>

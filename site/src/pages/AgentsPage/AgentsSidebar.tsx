@@ -19,11 +19,17 @@ import { CoderIcon } from "components/Icons/CoderIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { Spinner } from "components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
 	ArchiveIcon,
 	ArchiveRestoreIcon,
+	BarChart3Icon,
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -80,6 +86,7 @@ interface AgentsSidebarProps {
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange?: (filter: "active" | "archived") => void;
 	onCollapse?: () => void;
+	onOpenAnalytics?: () => void;
 	onOpenSettings?: () => void;
 }
 
@@ -572,6 +579,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		archivedFilter,
 		onArchivedFilterChange,
 		onCollapse,
+		onOpenAnalytics,
 		onOpenSettings,
 	} = props;
 	const { agentId, chatId } = useParams<{
@@ -858,6 +866,22 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							/>
 						</DropdownMenuContent>
 					</DropdownMenu>
+					{onOpenAnalytics && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant="subtle"
+									size="icon"
+									onClick={onOpenAnalytics}
+									aria-label="Analytics"
+									className="mr-1"
+								>
+									<BarChart3Icon className="h-4 w-4" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Analytics</TooltipContent>
+						</Tooltip>
+					)}
 					{onOpenSettings && (
 						<button
 							type="button"
