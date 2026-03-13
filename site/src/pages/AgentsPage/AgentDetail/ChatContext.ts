@@ -452,7 +452,6 @@ export const useChatStore = (
 
 	const queryClient = useQueryClient();
 	const storeRef = useRef<ChatStore>(createChatStore());
-	const streamResetFrameRef = useRef<number | null>(null);
 	const queuedMessagesHydratedChatIDRef = useRef<string | null>(null);
 	// Tracks whether the WebSocket has delivered a queue_update for the
 	// current chat. When true, the stream is the authoritative source
@@ -496,22 +495,6 @@ export const useChatStore = (
 		},
 		[chatID, queryClient],
 	);
-
-	const cancelScheduledStreamReset = useCallback(() => {
-		if (streamResetFrameRef.current === null) {
-			return;
-		}
-		window.cancelAnimationFrame(streamResetFrameRef.current);
-		streamResetFrameRef.current = null;
-	}, []);
-
-	const scheduleStreamReset = useCallback(() => {
-		cancelScheduledStreamReset();
-		streamResetFrameRef.current = window.requestAnimationFrame(() => {
-			store.clearStreamState();
-			streamResetFrameRef.current = null;
-		});
-	}, [cancelScheduledStreamReset, store]);
 
 	const updateChatQueuedMessages = useCallback(
 		(queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined) => {
@@ -587,7 +570,6 @@ export const useChatStore = (
 	}, [chatMessagesData, chatID, chatQueuedMessages, store]);
 
 	useEffect(() => {
-		cancelScheduledStreamReset();
 		store.resetTransientState();
 		activeChatIDRef.current = chatID ?? null;
 
@@ -622,7 +604,7 @@ export const useChatStore = (
 
 			const shouldApplyMessagePart = (): boolean => {
 				const currentStatus = store.getSnapshot().chatStatus;
-				return currentStatus !== "pending" && currentStatus !== "waiting";
+				return currentStatus !== "waiting";
 			};
 
 			const pendingMessageParts: Record<string, unknown>[] = [];
@@ -630,7 +612,6 @@ export const useChatStore = (
 				if (pendingMessageParts.length === 0) {
 					return;
 				}
-				cancelScheduledStreamReset();
 				const parts = pendingMessageParts.splice(0, pendingMessageParts.length);
 				const currentChatID = chatID;
 				startTransition(() => {
@@ -658,7 +639,6 @@ export const useChatStore = (
 					}
 					const part = asRecord(streamEvent.message_part?.part);
 					if (part) {
-						cancelScheduledStreamReset();
 						pendingMessageParts.push(part);
 					}
 					continue;
@@ -688,7 +668,7 @@ export const useChatStore = (
 							lastMessageIdRef.current = message.id;
 						}
 						if (changed) {
-							scheduleStreamReset();
+							store.clearStreamState();
 						}
 						// Do not update updated_at here. The global
 						// chat-list WebSocket delivers the authoritative
@@ -814,14 +794,11 @@ export const useChatStore = (
 		return () => {
 			disposed = true;
 			disposeSocket();
-			cancelScheduledStreamReset();
 			activeChatIDRef.current = null;
 		};
 	}, [
-		cancelScheduledStreamReset,
 		chatID,
 		clearChatErrorReason,
-		scheduleStreamReset,
 		setChatErrorReason,
 		store,
 		updateChatQueuedMessages,

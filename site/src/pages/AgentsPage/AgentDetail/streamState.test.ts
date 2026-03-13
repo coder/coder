@@ -303,21 +303,23 @@ describe("buildStreamTools", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Bug F: Stale tool calls persist when stream reset is canceled
+// Bug F: Stream state isolation between steps
 //
-// In production, when a durable "message" event arrives,
-// scheduleStreamReset() (ChatContext.ts line 508-514) queues
-// clearStreamState() via requestAnimationFrame. If new message_part
-// events arrive before the RAF fires, cancelScheduledStreamReset()
-// (line 500-506) prevents the clear. Tool calls from the previous
-// step persist alongside new ones.
+// When a durable "message" event arrives, the orchestration layer
+// (ChatContext.ts) calls clearStreamState() synchronously. This
+// ensures tool calls from the previous step do not persist into
+// the next one. The reducer itself (applyMessagePartToStreamState)
+// is a pure accumulator and has no clearing logic.
 // ---------------------------------------------------------------------------
 
-describe("Bug F: stale tool calls persist across step transitions", () => {
-	it("should only show current step tool calls when stream state is not cleared between steps", () => {
+describe("Bug F: stream state isolation between steps", () => {
+	it("accumulates tool calls from consecutive steps without clearing", () => {
+		// applyMessagePartToStreamState is a pure reducer. It
+		// accumulates all tool calls it receives. Isolation between
+		// steps is the responsibility of the orchestration layer
+		// (calling clearStreamState between steps).
 		let state: StreamState | null = null;
 
-		// Step N: a tool call "execute" arrives.
 		state = applyMessagePartToStreamState(state, {
 			type: "tool-call",
 			tool_name: "execute",
@@ -325,13 +327,6 @@ describe("Bug F: stale tool calls persist across step transitions", () => {
 			args: { command: "ls" },
 		});
 
-		// A durable message event arrives. scheduleStreamReset()
-		// queues clearStreamState() via RAF. But new message_part
-		// events arrive before the RAF callback fires, so
-		// cancelScheduledStreamReset() prevents the clear.
-		// Stream state is NOT reset between steps.
-
-		// Step N+1: a different tool call "readFile" arrives.
 		state = applyMessagePartToStreamState(state, {
 			type: "tool-call",
 			tool_name: "readFile",
@@ -340,21 +335,42 @@ describe("Bug F: stale tool calls persist across step transitions", () => {
 		});
 
 		const tools = buildStreamTools(state);
+		expect(tools).toHaveLength(2);
+		expect(tools).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: "tc-1", name: "execute" }),
+				expect.objectContaining({ id: "tc-2", name: "readFile" }),
+			]),
+		);
+	});
 
-		// CORRECT BEHAVIOR: Only step N+1's tool call should be
-		// visible. The durable message marks the boundary between
-		// steps, so step N's tool calls should be gone.
-		//
-		// FAILS: Both tc-1 (execute) and tc-2 (readFile) are
-		// present because the stream state was never cleared.
-		// applyMessagePartToStreamState accumulates into
-		// toolCalls without ever removing old entries.
+	it("clearing between steps isolates tool calls", () => {
+		let state: StreamState | null = null;
+
+		// Step N: tool call arrives.
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "execute",
+			tool_call_id: "tc-1",
+			args: { command: "ls" },
+		});
+		expect(buildStreamTools(state)).toHaveLength(1);
+
+		// Orchestration layer clears state between steps.
+		state = null;
+
+		// Step N+1: different tool call on fresh state.
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "readFile",
+			tool_call_id: "tc-2",
+			args: { path: "/tmp/file.txt" },
+		});
+
+		const tools = buildStreamTools(state);
 		expect(tools).toHaveLength(1);
 		expect(tools[0]).toEqual(
-			expect.objectContaining({
-				id: "tc-2",
-				name: "readFile",
-			}),
+			expect.objectContaining({ id: "tc-2", name: "readFile" }),
 		);
 	});
 });

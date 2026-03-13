@@ -532,26 +532,20 @@ describe("Bug A: parts arriving during pending status are lost", () => {
 		]);
 	});
 
-	it("parts skipped by the hook during pending are gone forever", () => {
-		// Models the production sequence where shouldApplyMessagePart()
-		// drops message_part events during "pending" status.
+	it("parts arriving during pending are applied after fix", () => {
+		// After removing the "pending" guard from shouldApplyMessagePart,
+		// the hook now forwards parts during "pending" to the store.
 		const store = createChatStore();
 		store.setChatStatus("pending");
 
-		// In production, these parts arrive as message_part stream
-		// events. The hook checks shouldApplyMessagePart(), which
-		// returns false because chatStatus is "pending". The parts
-		// are skipped with `continue` and never forwarded to the
-		// store. We model this by not calling applyMessagePart.
-		const _droppedByHook = [
-			{ type: "text", text: "Hello " },
-			{
-				type: "tool-call",
-				tool_name: "execute",
-				tool_call_id: "tc-1",
-				args: { command: "ls" },
-			},
-		];
+		// Parts arriving while status is "pending" are now applied.
+		store.applyMessagePart({ type: "text", text: "Hello " });
+		store.applyMessagePart({
+			type: "tool-call",
+			tool_name: "execute",
+			tool_call_id: "tc-1",
+			args: { command: "ls" },
+		});
 
 		// Status transitions to "running".
 		store.setChatStatus("running");
@@ -561,17 +555,33 @@ describe("Bug A: parts arriving during pending status are lost", () => {
 
 		const state = store.getSnapshot();
 
-		// CORRECT BEHAVIOR: All parts should be present, including
-		// those from the pending phase. The text should be
-		// "Hello world" and the tool call tc-1 should exist.
-		//
-		// FAILS: The text is just "world" because the hook dropped
-		// "Hello " during pending. The store has no queue or
-		// replay mechanism to recover these parts.
-		expect(state.streamState?.blocks).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ type: "response", text: "Hello world" }),
-			]),
-		);
+		// All parts are present, including those from the pending phase.
+		expect(state.streamState?.blocks).toEqual([
+			{ type: "response", text: "Hello " },
+			{ type: "tool", id: "tc-1" },
+			{ type: "response", text: "world" },
+		]);
+	});
+
+	it("parts are still blocked during waiting status", () => {
+		// The "waiting" guard in shouldApplyMessagePart() is preserved.
+		// "waiting" means the chat is paused for user input, so parts
+		// should not be applied. We model the hook behavior by not
+		// calling applyMessagePart during "waiting".
+		const store = createChatStore();
+		store.setChatStatus("waiting");
+
+		// Hook skips parts during "waiting" (not calling applyMessagePart).
+
+		// Status transitions to "running".
+		store.setChatStatus("running");
+
+		// Parts arriving after the transition are applied normally.
+		store.applyMessagePart({ type: "text", text: "after waiting" });
+
+		const state = store.getSnapshot();
+		expect(state.streamState?.blocks).toEqual([
+			{ type: "response", text: "after waiting" },
+		]);
 	});
 });
