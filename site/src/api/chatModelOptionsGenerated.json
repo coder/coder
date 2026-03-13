@@ -272,6 +272,15 @@
 					"hidden": true
 				},
 				{
+					"json_name": "api_mode",
+					"go_name": "APIMode",
+					"type": "string",
+					"description": "Force the OpenAI API for this model. Leave unset to use the backend heuristic.",
+					"required": false,
+					"enum": ["responses", "chat_completions"],
+					"input_type": "select"
+				},
+				{
 					"json_name": "reasoning_effort",
 					"go_name": "ReasoningEffort",
 					"type": "string",

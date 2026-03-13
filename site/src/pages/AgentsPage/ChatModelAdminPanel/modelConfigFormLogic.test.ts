@@ -237,6 +237,7 @@ describe("extractModelConfigFormState", () => {
 			model_config: {
 				provider_options: {
 					openai: {
+						api_mode: "responses",
 						reasoning_effort: "high",
 						parallel_tool_calls: true,
 						text_verbosity: "medium",
@@ -249,6 +250,7 @@ describe("extractModelConfigFormState", () => {
 		};
 		const result = extractModelConfigFormState(model);
 		const openai = result.openai as Record<string, unknown>;
+		expect(openai.apiMode).toBe("responses");
 		expect(openai.reasoningEffort).toBe("high");
 		expect(openai.parallelToolCalls).toBe("true");
 		expect(openai.textVerbosity).toBe("medium");
@@ -584,6 +586,17 @@ describe("buildModelConfigFromForm", () => {
 			});
 		});
 
+		it("builds OpenAI provider options with api mode", () => {
+			const result = buildModelConfigFromForm(
+				"openai",
+				formWith({ openai: { apiMode: "responses" } }),
+			);
+			expect(result.fieldErrors).toEqual({});
+			expect(result.modelConfig?.provider_options?.openai).toEqual({
+				api_mode: "responses",
+			});
+		});
+
 		it("builds Azure provider options (same as OpenAI)", () => {
 			const result = buildModelConfigFromForm(
 				"azure",
@@ -595,11 +608,23 @@ describe("buildModelConfigFromForm", () => {
 			});
 		});
 
+		it("builds Azure api mode under the OpenAI provider options key", () => {
+			const result = buildModelConfigFromForm(
+				"azure",
+				formWith({ openai: { apiMode: "chat_completions" } }),
+			);
+			expect(result.fieldErrors).toEqual({});
+			expect(result.modelConfig?.provider_options?.openai).toEqual({
+				api_mode: "chat_completions",
+			});
+		});
+
 		it("builds OpenAI options with all fields set", () => {
 			const result = buildModelConfigFromForm(
 				"openai",
 				formWith({
 					openai: {
+						apiMode: "responses",
 						reasoningEffort: "medium",
 						parallelToolCalls: "false",
 						textVerbosity: "low",
@@ -614,6 +639,7 @@ describe("buildModelConfigFromForm", () => {
 				string,
 				unknown
 			>;
+			expect(openai.api_mode).toBe("responses");
 			expect(openai.reasoning_effort).toBe("medium");
 			expect(openai.parallel_tool_calls).toBe(false);
 			expect(openai.text_verbosity).toBe("low");
@@ -630,6 +656,14 @@ describe("buildModelConfigFromForm", () => {
 			expect(result.fieldErrors["openai.reasoningEffort"]).toContain(
 				"invalid value",
 			);
+		});
+
+		it("reports error for invalid api mode option", () => {
+			const result = buildModelConfigFromForm(
+				"openai",
+				formWith({ openai: { apiMode: "bogus" } }),
+			);
+			expect(result.fieldErrors["openai.apiMode"]).toContain("invalid value");
 		});
 
 		it("reports error for invalid parallel tool calls boolean", () => {
@@ -652,6 +686,15 @@ describe("buildModelConfigFromForm", () => {
 			);
 		});
 
+		it("omits provider_options when api mode is blank", () => {
+			const result = buildModelConfigFromForm(
+				"openai",
+				formWith({ openai: { apiMode: "" } }),
+			);
+			expect(result.fieldErrors).toEqual({});
+			expect(result.modelConfig).toBeUndefined();
+		});
+
 		it("does not set provider_options when all OpenAI fields are empty", () => {
 			const result = buildModelConfigFromForm(
 				"openai",
@@ -661,7 +704,6 @@ describe("buildModelConfigFromForm", () => {
 			expect(result.modelConfig?.provider_options).toBeUndefined();
 		});
 	});
-
 	describe("Anthropic / Bedrock provider", () => {
 		it("builds Anthropic provider options with effort", () => {
 			const result = buildModelConfigFromForm(
