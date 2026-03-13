@@ -1,5 +1,8 @@
 # MCP
 
+> [!WARNING]
+> Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/docs/getting-started/intro) is a mechanism for connecting AI applications to external systems.
 
 AI Bridge can connect to MCP servers and inject tools automatically, enabling you to centrally manage the list of tools you wish to grant your users.
