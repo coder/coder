@@ -233,4 +233,106 @@ describe("useSpeechRecognition", () => {
 		expect(first?.abort).toHaveBeenCalled();
 		expect(lastInstance).not.toBe(first);
 	});
+
+	it("start() ignores onend from a previously aborted instance", () => {
+		installMock();
+		const { result } = renderHook(() => useSpeechRecognition());
+
+		// Start recording — creates the first instance.
+		act(() => {
+			result.current.start();
+		});
+		const first = lastInstance!;
+
+		// Override abort so it does NOT fire onend synchronously,
+		// simulating the async browser behaviour.
+		first.abort = vi.fn();
+
+		// Start recording again — creates a second instance and aborts
+		// the first.
+		act(() => {
+			result.current.start();
+		});
+		const second = lastInstance!;
+
+		expect(first.abort).toHaveBeenCalled();
+		expect(result.current.isRecording).toBe(true);
+
+		// Simulate the OLD instance's async onend firing late.
+		act(() => {
+			first.onend?.();
+		});
+
+		// The old onend must be ignored — recording is still active.
+		expect(result.current.isRecording).toBe(true);
+		expect(lastInstance).toBe(second);
+	});
+
+	it("exposes error from onerror event", () => {
+		installMock();
+		const { result } = renderHook(() => useSpeechRecognition());
+
+		expect(result.current.error).toBeNull();
+
+		act(() => {
+			result.current.start();
+		});
+
+		act(() => {
+			lastInstance?.onerror?.({
+				error: "not-allowed",
+				message: "Permission denied",
+			});
+		});
+
+		expect(result.current.error).toBe("not-allowed");
+		expect(result.current.isRecording).toBe(false);
+	});
+
+	it("start() clears previous error", () => {
+		installMock();
+		const { result } = renderHook(() => useSpeechRecognition());
+
+		act(() => {
+			result.current.start();
+		});
+
+		act(() => {
+			lastInstance?.onerror?.({
+				error: "not-allowed",
+				message: "Permission denied",
+			});
+		});
+		expect(result.current.error).toBe("not-allowed");
+
+		act(() => {
+			result.current.start();
+		});
+
+		expect(result.current.error).toBeNull();
+		expect(result.current.isRecording).toBe(true);
+	});
+
+	it("cancel() clears error", () => {
+		installMock();
+		const { result } = renderHook(() => useSpeechRecognition());
+
+		act(() => {
+			result.current.start();
+		});
+
+		act(() => {
+			lastInstance?.onerror?.({
+				error: "not-allowed",
+				message: "Permission denied",
+			});
+		});
+		expect(result.current.error).toBe("not-allowed");
+
+		act(() => {
+			result.current.cancel();
+		});
+
+		expect(result.current.error).toBeNull();
+	});
 });
