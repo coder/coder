@@ -182,7 +182,8 @@ INSERT INTO chat_messages (
     cache_read_tokens,
     context_limit,
     compressed,
-    total_cost_micros
+    total_cost_micros,
+    owner_id
 ) VALUES (
     @chat_id::uuid,
     sqlc.narg('created_by')::uuid,
@@ -199,7 +200,8 @@ INSERT INTO chat_messages (
     sqlc.narg('cache_read_tokens')::bigint,
     sqlc.narg('context_limit')::bigint,
     COALESCE(sqlc.narg('compressed')::boolean, FALSE),
-    sqlc.narg('total_cost_micros')::bigint
+    sqlc.narg('total_cost_micros')::bigint,
+    sqlc.narg('owner_id')::uuid
 )
 RETURNING
     *;
@@ -679,3 +681,50 @@ LIMIT
     sqlc.arg('page_limit')::int
 OFFSET
     sqlc.arg('page_offset')::int;
+
+-- name: GetChatUsageLimitConfig :one
+SELECT * FROM chat_usage_limit_config LIMIT 1;
+
+-- name: UpsertChatUsageLimitConfig :one
+INSERT INTO chat_usage_limit_config (singleton, enabled, default_limit_micros, period, updated_at)
+VALUES (TRUE, @enabled::boolean, @default_limit_micros::bigint, @period::text, NOW())
+ON CONFLICT (singleton) DO UPDATE SET
+    enabled = EXCLUDED.enabled,
+    default_limit_micros = EXCLUDED.default_limit_micros,
+    period = EXCLUDED.period,
+    updated_at = NOW()
+RETURNING *;
+
+-- name: ListChatUsageLimitOverrides :many
+SELECT o.*, u.username
+FROM chat_usage_limit_overrides o
+JOIN users u ON u.id = o.user_id
+ORDER BY u.username ASC;
+
+-- name: UpsertChatUsageLimitOverride :one
+INSERT INTO chat_usage_limit_overrides (user_id, limit_micros, updated_at)
+VALUES (@user_id::uuid, @limit_micros::bigint, NOW())
+ON CONFLICT (user_id) DO UPDATE SET
+    limit_micros = EXCLUDED.limit_micros,
+    updated_at = NOW()
+RETURNING *;
+
+-- name: DeleteChatUsageLimitOverride :exec
+DELETE FROM chat_usage_limit_overrides WHERE user_id = @user_id::uuid;
+
+-- name: GetChatUsageLimitOverrideByUserID :one
+SELECT * FROM chat_usage_limit_overrides WHERE user_id = @user_id::uuid;
+
+-- name: GetUserChatSpendInPeriod :one
+SELECT COALESCE(SUM(total_cost_micros), 0)::bigint AS total_spend_micros
+FROM chat_messages
+WHERE owner_id = @user_id::uuid
+  AND created_at >= @start_time::timestamptz
+  AND total_cost_micros IS NOT NULL;
+
+-- name: CountEnabledModelsWithoutPricing :one
+SELECT COUNT(*)::bigint AS count
+FROM chat_model_configs
+WHERE enabled = TRUE
+  AND (input_token_price_micros IS NULL OR input_token_price_micros = 0)
+  AND (output_token_price_micros IS NULL OR output_token_price_micros = 0);

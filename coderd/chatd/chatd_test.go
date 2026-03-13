@@ -588,6 +588,7 @@ func TestEditMessageRejectsNonUserMessage(t *testing.T) {
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
+		OwnerID:             uuid.NullUUID{},
 	})
 	require.NoError(t, err)
 
@@ -936,6 +937,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
+		OwnerID:             uuid.NullUUID{},
 	})
 	require.NoError(t, err)
 
@@ -959,6 +961,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
+		OwnerID:             uuid.NullUUID{},
 	})
 	require.NoError(t, err)
 

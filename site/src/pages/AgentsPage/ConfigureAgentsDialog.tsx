@@ -3,9 +3,13 @@ import {
 	chatCostSummary,
 	chatCostUsers,
 	chatSystemPrompt,
+	chatUsageLimitConfig,
 	chatUserCustomPrompt,
+	deleteChatUsageLimitOverride,
 	updateChatSystemPrompt,
+	updateChatUsageLimitConfig,
 	updateUserChatCustomPrompt,
+	upsertChatUsageLimitOverride,
 } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 import { AvatarData } from "components/Avatar/AvatarData";
@@ -22,6 +26,7 @@ import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
 import { SearchField } from "components/SearchField/SearchField";
 import { Spinner } from "components/Spinner/Spinner";
+import { Switch } from "components/Switch/Switch";
 import {
 	Table,
 	TableBody,
@@ -44,11 +49,21 @@ import {
 	BarChart3Icon,
 	BoxesIcon,
 	KeyRoundIcon,
+	ShieldAlertIcon,
 	ShieldIcon,
+	TriangleAlertIcon,
 	UserIcon,
 	XIcon,
 } from "lucide-react";
-import { type FC, type FormEvent, useCallback, useMemo, useState } from "react";
+import {
+	type FC,
+	type FormEvent,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import {
 	keepPreviousData,
 	useMutation,
@@ -65,6 +80,7 @@ import { SectionHeader } from "./SectionHeader";
 export type ConfigureAgentsSection =
 	| "providers"
 	| "models"
+	| "limits"
 	| "behavior"
 	| "usage";
 
@@ -90,6 +106,15 @@ const AdminBadge: FC = () => (
 		</Tooltip>
 	</TooltipProvider>
 );
+
+const microsToDollars = (micros: number): number =>
+	Math.round(micros / 10_000) / 100;
+
+const dollarsToMicros = (dollars: string): number =>
+	Math.round(Number(dollars) * 1_000_000);
+
+const inputClassName =
+	"w-full rounded-lg border border-border bg-surface-primary px-3 py-2 text-[13px] text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30";
 
 const pageSize = 10;
 
@@ -136,6 +161,338 @@ const UserRow: FC<{
 				{formatTokenCount(user.total_cache_creation_tokens)}
 			</TableCell>
 		</TableRow>
+	);
+};
+
+const LimitsContent: FC = () => {
+	const queryClient = useQueryClient();
+	const configQuery = useQuery(chatUsageLimitConfig());
+	const updateConfigMutation = useMutation(
+		updateChatUsageLimitConfig(queryClient),
+	);
+	const upsertOverrideMutation = useMutation(
+		upsertChatUsageLimitOverride(queryClient),
+	);
+	const deleteOverrideMutation = useMutation(
+		deleteChatUsageLimitOverride(queryClient),
+	);
+
+	const [enabled, setEnabled] = useState(false);
+	const [period, setPeriod] = useState<TypesGen.ChatUsageLimitPeriod>("month");
+	const [amountDollars, setAmountDollars] = useState("");
+	const [overrideUserId, setOverrideUserId] = useState("");
+	const [overrideAmount, setOverrideAmount] = useState("");
+	const lastSyncedRef = useRef<string | null>(null);
+
+	useEffect(() => {
+		if (!configQuery.data) {
+			return;
+		}
+
+		const snapshot = JSON.stringify({
+			spend_limit_micros: configQuery.data.spend_limit_micros,
+			period: configQuery.data.period,
+		});
+		if (lastSyncedRef.current === snapshot) {
+			return;
+		}
+		lastSyncedRef.current = snapshot;
+
+		const spendLimitMicros = configQuery.data.spend_limit_micros;
+		const hasLimit = spendLimitMicros !== null;
+		setEnabled(hasLimit);
+		setPeriod(configQuery.data.period ?? "month");
+		setAmountDollars(
+			hasLimit ? microsToDollars(spendLimitMicros).toString() : "",
+		);
+	}, [configQuery.data]);
+
+	const isAmountValid =
+		!enabled ||
+		(amountDollars.trim() !== "" &&
+			!Number.isNaN(Number(amountDollars)) &&
+			Number(amountDollars) >= 0);
+
+	const handleSaveDefault = async () => {
+		const spendLimitMicros = enabled ? dollarsToMicros(amountDollars) : null;
+		await updateConfigMutation.mutateAsync({
+			spend_limit_micros: spendLimitMicros,
+			period,
+			updated_at: new Date().toISOString(),
+		});
+		lastSyncedRef.current = JSON.stringify({
+			spend_limit_micros: spendLimitMicros,
+			period,
+		});
+	};
+
+	const handleAddOverride = async () => {
+		await upsertOverrideMutation.mutateAsync({
+			userID: overrideUserId.trim(),
+			req: { spend_limit_micros: dollarsToMicros(overrideAmount) },
+		});
+		setOverrideUserId("");
+		setOverrideAmount("");
+	};
+
+	if (configQuery.isLoading) {
+		return (
+			<div className="flex items-center justify-center py-8">
+				<Spinner loading className="h-6 w-6" />
+			</div>
+		);
+	}
+
+	if (configQuery.isError) {
+		return (
+			<div className="space-y-4 py-4 text-center">
+				<p className="text-sm text-content-secondary">
+					{getErrorMessage(
+						configQuery.error,
+						"Failed to load spend limit settings.",
+					)}
+				</p>
+				<Button
+					variant="outline"
+					size="sm"
+					type="button"
+					onClick={() => void configQuery.refetch()}
+				>
+					Retry
+				</Button>
+			</div>
+		);
+	}
+
+	const overrides = configQuery.data?.overrides ?? [];
+	const unpricedModelCount = configQuery.data?.unpriced_model_count ?? 0;
+
+	return (
+		<div className="space-y-6">
+			<SectionHeader
+				label="Default Spend Limit"
+				description="Set a deployment-wide spend cap that applies to all users by default."
+				badge={<AdminBadge />}
+			/>
+
+			<div className="space-y-4 rounded-lg border border-border p-4">
+				<div className="flex items-center justify-between gap-4">
+					<div>
+						<p className="m-0 text-sm font-medium text-content-primary">
+							Enable spend limit
+						</p>
+						<p className="m-0 text-xs text-content-secondary">
+							When disabled, users have unlimited spending.
+						</p>
+					</div>
+					<Switch checked={enabled} onCheckedChange={setEnabled} />
+				</div>
+
+				{enabled && (
+					<div className="flex flex-col gap-3 md:flex-row md:items-end">
+						<div className="flex-1">
+							<label
+								className="mb-1 block text-xs font-medium text-content-secondary"
+								htmlFor="chat-limit-period"
+							>
+								Period
+							</label>
+							<select
+								id="chat-limit-period"
+								className={inputClassName}
+								value={period}
+								onChange={(event) =>
+									setPeriod(event.target.value as TypesGen.ChatUsageLimitPeriod)
+								}
+							>
+								<option value="day">Day</option>
+								<option value="week">Week</option>
+								<option value="month">Month</option>
+							</select>
+						</div>
+						<div className="flex-1">
+							<label
+								className="mb-1 block text-xs font-medium text-content-secondary"
+								htmlFor="chat-limit-amount"
+							>
+								Amount ($)
+							</label>
+							<input
+								id="chat-limit-amount"
+								type="number"
+								step="0.01"
+								min="0"
+								className={inputClassName}
+								value={amountDollars}
+								onChange={(event) => setAmountDollars(event.target.value)}
+								placeholder="0.00"
+							/>
+						</div>
+					</div>
+				)}
+
+				<div className="flex items-center gap-3">
+					<Button
+						size="sm"
+						type="button"
+						onClick={() => void handleSaveDefault()}
+						disabled={updateConfigMutation.isPending || !isAmountValid}
+					>
+						{updateConfigMutation.isPending ? (
+							<Spinner loading className="h-4 w-4" />
+						) : null}
+						Save
+					</Button>
+					{updateConfigMutation.isError && (
+						<p className="text-xs text-content-destructive">
+							{getErrorMessage(
+								updateConfigMutation.error,
+								"Failed to save the default spend limit.",
+							)}
+						</p>
+					)}
+					{updateConfigMutation.isSuccess && (
+						<p className="text-xs text-content-success">Saved!</p>
+					)}
+				</div>
+			</div>
+
+			{enabled && unpricedModelCount > 0 && (
+				<div className="flex items-start gap-3 rounded-lg border border-border-warning bg-surface-warning p-4 text-sm text-content-primary">
+					<TriangleAlertIcon className="h-5 w-5 shrink-0 text-content-warning" />
+					<div>
+						{unpricedModelCount === 1
+							? "1 enabled model does not have pricing configured."
+							: `${unpricedModelCount} enabled models do not have pricing configured.`}{" "}
+						Usage of unpriced models cannot be tracked against the spend limit.
+					</div>
+				</div>
+			)}
+
+			<SectionHeader
+				label="Per-User Overrides"
+				description="Override the deployment default spend limit for specific users."
+			/>
+
+			{overrides.length > 0 ? (
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead>User</TableHead>
+							<TableHead>Spend Limit</TableHead>
+							<TableHead className="w-[80px]">Actions</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{overrides.map((override) => (
+							<TableRow key={override.user_id}>
+								<TableCell>
+									<AvatarData
+										title={override.name || override.username}
+										subtitle={`@${override.username}`}
+										src={override.avatar_url}
+										imgFallbackText={override.username}
+									/>
+								</TableCell>
+								<TableCell>
+									{override.spend_limit_micros !== null
+										? formatCostMicros(override.spend_limit_micros)
+										: "Unlimited"}
+								</TableCell>
+								<TableCell>
+									<Button
+										variant="outline"
+										size="sm"
+										type="button"
+										onClick={() =>
+											void deleteOverrideMutation.mutateAsync(override.user_id)
+										}
+										disabled={deleteOverrideMutation.isPending}
+									>
+										Delete
+									</Button>
+								</TableCell>
+							</TableRow>
+						))}
+					</TableBody>
+				</Table>
+			) : (
+				<div className="rounded-lg border border-border bg-surface-secondary px-4 py-6 text-center text-sm text-content-secondary">
+					No overrides configured.
+				</div>
+			)}
+
+			{deleteOverrideMutation.isError && (
+				<p className="text-xs text-content-destructive">
+					{getErrorMessage(
+						deleteOverrideMutation.error,
+						"Failed to delete override.",
+					)}
+				</p>
+			)}
+
+			<div className="flex flex-col gap-3 md:flex-row md:items-end">
+				<div className="flex-1">
+					<label
+						className="mb-1 block text-xs font-medium text-content-secondary"
+						htmlFor="override-user-id"
+					>
+						User ID
+					</label>
+					<input
+						id="override-user-id"
+						type="text"
+						className={inputClassName}
+						value={overrideUserId}
+						onChange={(event) => setOverrideUserId(event.target.value)}
+						placeholder="Enter user ID"
+					/>
+				</div>
+				<div className="flex-1">
+					<label
+						className="mb-1 block text-xs font-medium text-content-secondary"
+						htmlFor="override-amount"
+					>
+						Spend Limit ($)
+					</label>
+					<input
+						id="override-amount"
+						type="number"
+						step="0.01"
+						min="0"
+						className={inputClassName}
+						value={overrideAmount}
+						onChange={(event) => setOverrideAmount(event.target.value)}
+						placeholder="0.00"
+					/>
+				</div>
+				<Button
+					size="sm"
+					type="button"
+					onClick={() => void handleAddOverride()}
+					disabled={
+						upsertOverrideMutation.isPending ||
+						overrideUserId.trim() === "" ||
+						overrideAmount.trim() === "" ||
+						Number.isNaN(Number(overrideAmount)) ||
+						Number(overrideAmount) < 0
+					}
+				>
+					{upsertOverrideMutation.isPending ? (
+						<Spinner loading className="h-4 w-4" />
+					) : null}
+					Add
+				</Button>
+			</div>
+			{upsertOverrideMutation.isError && (
+				<p className="text-xs text-content-destructive">
+					{getErrorMessage(
+						upsertOverrideMutation.error,
+						"Failed to save the override.",
+					)}
+				</p>
+			)}
+		</div>
 	);
 };
 
@@ -438,6 +795,12 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 				adminOnly: true,
 			});
 			options.push({
+				id: "limits",
+				label: "Limits",
+				icon: ShieldAlertIcon,
+				adminOnly: true,
+			});
+			options.push({
 				id: "usage",
 				label: "Usage",
 				icon: BarChart3Icon,
@@ -633,6 +996,9 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 							sectionDescription="Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
 							sectionBadge={<AdminBadge />}
 						/>
+					)}
+					{activeSection === "limits" && canManageChatModelConfigs && (
+						<LimitsContent />
 					)}
 					{activeSection === "usage" && canManageChatModelConfigs && (
 						<UsageContent />

@@ -431,7 +431,12 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		chatBreakdowns = append(chatBreakdowns, convertChatCostChatBreakdown(chat))
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCostSummary{
+	usageStatus, err := chatd.ResolveUsageLimitStatus(ctx, api.Database, targetUser.ID, time.Now())
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to resolve usage limit status", slog.Error(err))
+	}
+
+	response := codersdk.ChatCostSummary{
 		StartDate:                startDate,
 		EndDate:                  endDate,
 		TotalCostMicros:          summary.TotalCostMicros,
@@ -443,7 +448,12 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		TotalCacheCreationTokens: summary.TotalCacheCreationTokens,
 		ByModel:                  modelBreakdowns,
 		ByChat:                   chatBreakdowns,
-	})
+	}
+	if usageStatus != nil {
+		response.UsageLimit = usageStatus
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
@@ -545,6 +555,302 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 		Count:     count,
 		Users:     rollups,
 	})
+}
+
+// @Summary Get chat usage limit config
+// @ID get-chat-usage-limit-config
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chat
+// @Success 200 {object} codersdk.ChatUsageLimitConfigResponse
+// @Router /chats/usage-limits [get]
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) getChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	//nolint:gocritic // Deployment config and override hydration require
+	// system-restricted access.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	config, configErr := api.Database.GetChatUsageLimitConfig(systemCtx)
+	if configErr != nil && !errors.Is(configErr, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat usage limit config.",
+			Detail:  configErr.Error(),
+		})
+		return
+	}
+
+	overrideRows, err := api.Database.ListChatUsageLimitOverrides(systemCtx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list chat usage limit overrides.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	unpricedModelCount, err := api.Database.CountEnabledModelsWithoutPricing(systemCtx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to count unpriced chat models.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	userMap := make(map[uuid.UUID]database.User, len(overrideRows))
+	if len(overrideRows) > 0 {
+		userIDs := make([]uuid.UUID, 0, len(overrideRows))
+		for _, row := range overrideRows {
+			userIDs = append(userIDs, row.UserID)
+		}
+
+		users, err := api.Database.GetUsersByIDs(systemCtx, userIDs)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to get users for chat usage limit overrides.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		for _, user := range users {
+			userMap[user.ID] = user
+		}
+	}
+
+	response := codersdk.ChatUsageLimitConfigResponse{
+		ChatUsageLimitConfig: codersdk.ChatUsageLimitConfig{},
+		UnpricedModelCount:   unpricedModelCount,
+		Overrides:            make([]codersdk.ChatUsageLimitOverride, 0, len(overrideRows)),
+	}
+	if configErr == nil {
+		response.Period = codersdk.ChatUsageLimitPeriod(config.Period)
+		response.UpdatedAt = config.UpdatedAt
+		if config.Enabled {
+			response.SpendLimitMicros = ptr.Ref(config.DefaultLimitMicros)
+		}
+	}
+
+	for _, row := range overrideRows {
+		user := userMap[row.UserID]
+		response.Overrides = append(response.Overrides, codersdk.ChatUsageLimitOverride{
+			UserID:           row.UserID,
+			Username:         row.Username,
+			Name:             user.Name,
+			AvatarURL:        user.AvatarURL,
+			SpendLimitMicros: ptr.Ref(row.LimitMicros),
+			CreatedAt:        row.CreatedAt,
+			UpdatedAt:        row.UpdatedAt,
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, response)
+}
+
+// @Summary Update chat usage limit config
+// @ID update-chat-usage-limit-config
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Chat
+// @Param request body codersdk.ChatUsageLimitConfig true "Config"
+// @Success 200 {object} codersdk.ChatUsageLimitConfig
+// @Router /chats/usage-limits [put]
+func (api *API) updateChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.ChatUsageLimitConfig
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	params := database.UpsertChatUsageLimitConfigParams{
+		Enabled:            false,
+		DefaultLimitMicros: 0,
+		Period:             "",
+	}
+	if req.SpendLimitMicros == nil {
+		params.Enabled = false
+		params.DefaultLimitMicros = 0
+		params.Period = string(req.Period)
+		if params.Period == "" {
+			params.Period = string(codersdk.ChatUsageLimitPeriodMonth)
+		}
+	} else {
+		if *req.SpendLimitMicros <= 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid chat usage limit spend limit.",
+				Detail:  "Spend limit must be greater than 0.",
+			})
+			return
+		}
+		switch req.Period {
+		case codersdk.ChatUsageLimitPeriodDay, codersdk.ChatUsageLimitPeriodWeek, codersdk.ChatUsageLimitPeriodMonth:
+		default:
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid chat usage limit period.",
+				Detail:  "Period must be one of: day, week, month.",
+			})
+			return
+		}
+
+		params.Enabled = true
+		params.DefaultLimitMicros = *req.SpendLimitMicros
+		params.Period = string(req.Period)
+	}
+
+	//nolint:gocritic // Deployment config writes require system-restricted access.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	config, err := api.Database.UpsertChatUsageLimitConfig(systemCtx, params)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update chat usage limit config.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	response := codersdk.ChatUsageLimitConfig{
+		Period:    codersdk.ChatUsageLimitPeriod(config.Period),
+		UpdatedAt: config.UpdatedAt,
+	}
+	if config.Enabled {
+		response.SpendLimitMicros = ptr.Ref(config.DefaultLimitMicros)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, response)
+}
+
+// @Summary Get my chat usage limit status
+// @ID get-my-chat-usage-limit-status
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chat
+// @Success 200 {object} codersdk.ChatUsageLimitStatus
+// @Router /chats/usage-limits/status [get]
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) getMyChatUsageLimitStatus(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	status, err := chatd.ResolveUsageLimitStatus(ctx, api.Database, httpmw.APIKey(r).UserID, time.Now())
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat usage limit status.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if status == nil {
+		status = &codersdk.ChatUsageLimitStatus{IsLimited: false}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, status)
+}
+
+// @Summary Upsert chat usage limit override
+// @ID upsert-chat-usage-limit-override
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Chat
+// @Param user path string true "User ID" format(uuid)
+// @Param request body codersdk.UpsertChatUsageLimitOverrideRequest true "Override"
+// @Success 200 {object} codersdk.ChatUsageLimitOverride
+// @Router /chats/usage-limits/overrides/{user} [put]
+func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	userID, ok := parseChatUsageLimitUserID(rw, r)
+	if !ok {
+		return
+	}
+
+	var req codersdk.UpsertChatUsageLimitOverrideRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if req.SpendLimitMicros == nil || *req.SpendLimitMicros <= 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid chat usage limit override.",
+			Detail:  "Spend limit must be greater than 0.",
+		})
+		return
+	}
+
+	//nolint:gocritic // Override writes and user hydration require
+	// system-restricted access.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	override, err := api.Database.UpsertChatUsageLimitOverride(systemCtx, database.UpsertChatUsageLimitOverrideParams{
+		UserID:      userID,
+		LimitMicros: *req.SpendLimitMicros,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to upsert chat usage limit override.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	user, err := api.Database.GetUserByID(systemCtx, userID)
+	if err != nil {
+		user = database.User{}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatUsageLimitOverride{
+		UserID:           override.UserID,
+		Username:         user.Username,
+		Name:             user.Name,
+		AvatarURL:        user.AvatarURL,
+		SpendLimitMicros: ptr.Ref(override.LimitMicros),
+		CreatedAt:        override.CreatedAt,
+		UpdatedAt:        override.UpdatedAt,
+	})
+}
+
+// @Summary Delete chat usage limit override
+// @ID delete-chat-usage-limit-override
+// @Security CoderSessionToken
+// @Tags Chat
+// @Param user path string true "User ID" format(uuid)
+// @Success 204
+// @Router /chats/usage-limits/overrides/{user} [delete]
+func (api *API) deleteChatUsageLimitOverride(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	userID, ok := parseChatUsageLimitUserID(rw, r)
+	if !ok {
+		return
+	}
+
+	//nolint:gocritic // Override deletion requires system-restricted access.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	if err := api.Database.DeleteChatUsageLimitOverride(systemCtx, userID); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to delete chat usage limit override.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -956,6 +1262,14 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if sendErr != nil {
+		var limitErr *chatd.ErrUsageLimitExceeded
+		if errors.As(sendErr, &limitErr) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Chat usage limit exceeded.",
+				Detail:  limitErr.Error(),
+			})
+			return
+		}
 		if xerrors.Is(sendErr, chatd.ErrMessageQueueFull) {
 			httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{
 				Message: "Message queue is full.",
@@ -3403,6 +3717,18 @@ func chatModelConfigToUpdateParams(
 		UpdatedBy:            uuid.NullUUID{},
 		ID:                   config.ID,
 	}
+}
+
+func parseChatUsageLimitUserID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	userID, err := uuid.Parse(chi.URLParam(r, "user"))
+	if err != nil {
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid chat usage limit user ID.",
+			Detail:  err.Error(),
+		})
+		return uuid.Nil, false
+	}
+	return userID, true
 }
 
 func parseChatProviderID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
