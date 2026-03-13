@@ -14,6 +14,10 @@ type Config struct {
 	// Prompt is the text content for the initial chat message.
 	Prompt string `json:"prompt"`
 
+	// ModelConfigID optionally selects a specific model config.
+	// When nil the server uses its deployment default.
+	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty"`
+
 	// ReadyWaitGroup is used to coordinate thundering-herd fanout from the CLI
 	// layer. Each runner calls Done() once it is ready to start.
 	ReadyWaitGroup *sync.WaitGroup `json:"-"`
