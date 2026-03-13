@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -32,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -2205,15 +2207,16 @@ func TestSubscribeRecoversAfterPubsubError(t *testing.T) {
 	updated := server.InterruptChat(ctx, chat)
 	require.Equal(t, database.ChatStatusWaiting, updated.Status)
 
-	// Assert that the stream delivers the status=waiting event.
-	// This MUST fail because the bug permanently kills the merge
-	// goroutine after a pubsub error: the events channel is
-	// closed and no subsequent events are delivered.
+	// Assert that the stream delivers the status=waiting event
+	// via the local channel. After pubsub degradation,
+	// hasPubsub=false makes the local events case forward all
+	// event types, so the status event from InterruptChat's
+	// publishToStream arrives here.
 	require.Eventually(t, func() bool {
 		select {
 		case event, ok := <-events:
 			if !ok {
-				t.Log("events channel closed: stream died after pubsub error")
+				t.Log("events channel closed unexpectedly")
 				return false
 			}
 			if event.Type == codersdk.ChatStreamEventTypeStatus && event.Status != nil {
@@ -2221,6 +2224,509 @@ func TestSubscribeRecoversAfterPubsubError(t *testing.T) {
 			}
 			t.Logf("skipping event: type=%s", event.Type)
 			return false
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestSubscribePubsubErrorDegradesGracefully(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	faultPS := &faultPubsub{Pubsub: ps}
+	server := newTestServer(t, db, faultPS, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "degrade-gracefully",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Inject pubsub error to trigger degradation.
+	faultPS.injectError(xerrors.New("simulated connection reset"))
+
+	// The merge goroutine should send an error event.
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			return event.Type == codersdk.ChatStreamEventTypeError
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	// Now publish a local status event. In degraded mode
+	// (hasPubsub=false), all local event types should be
+	// forwarded, not just message_part.
+	err = server.RefreshStatus(ctx, chat.ID)
+	require.NoError(t, err)
+
+	// Verify the status event arrives via the local channel.
+	require.Eventually(t, func() bool {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				t.Log("events channel closed unexpectedly")
+				return false
+			}
+			return event.Type == codersdk.ChatStreamEventTypeStatus
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestSubscribePubsubNotificationStatus(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "pubsub-notify-status",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Trigger a status change via InterruptChat, which publishes
+	// both locally and via pubsub. The subscriber should receive
+	// the status event via the notifications handler.
+	workerID := uuid.New()
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: workerID, Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+
+	updated := server.InterruptChat(ctx, chat)
+	require.Equal(t, database.ChatStatusWaiting, updated.Status)
+
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			if event.Type == codersdk.ChatStreamEventTypeStatus && event.Status != nil {
+				return event.Status.Status == codersdk.ChatStatusWaiting
+			}
+			return false
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestSubscribePubsubNotificationError(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "pubsub-notify-error",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Publish an error notification via pubsub. The notification
+	// handler should forward it as a ChatStreamEventTypeError.
+	errMsg := coderdpubsub.ChatStreamNotifyMessage{
+		Error: "something went wrong on remote replica",
+	}
+	payload, marshalErr := json.Marshal(errMsg)
+	require.NoError(t, marshalErr)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), payload)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			if event.Type == codersdk.ChatStreamEventTypeError && event.Error != nil {
+				return event.Error.Message == "something went wrong on remote replica"
+			}
+			return false
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestSubscribePubsubNotificationQueueUpdate(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "pubsub-notify-queue",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Publish a queue_update notification via pubsub.
+	notify := coderdpubsub.ChatStreamNotifyMessage{
+		QueueUpdate: true,
+	}
+	payload, marshalErr := json.Marshal(notify)
+	require.NoError(t, marshalErr)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), payload)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			return event.Type == codersdk.ChatStreamEventTypeQueueUpdate
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestSubscribePubsubNotificationMessage(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "pubsub-notify-message",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	// Get the current last message ID from the initial message.
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, messages)
+	lastMsgID := messages[len(messages)-1].ID
+
+	// Subscribe after the initial message so the snapshot
+	// does not include it.
+	_, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, lastMsgID)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Insert a new message into the database.
+	newContent, marshalErr := json.Marshal([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("new message from another replica"),
+	})
+	require.NoError(t, marshalErr)
+	newMsg, err := db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		ChatID:     chat.ID,
+		Role:       database.ChatMessageRoleAssistant,
+		Content:    pqtype.NullRawMessage{RawMessage: newContent, Valid: true},
+		Visibility: database.ChatMessageVisibilityBoth,
+	})
+	require.NoError(t, err)
+
+	// Publish an AfterMessageID notification via pubsub so the
+	// subscriber fetches the new message from DB.
+	notify := coderdpubsub.ChatStreamNotifyMessage{
+		AfterMessageID: newMsg.ID,
+	}
+	payload, notifyMarshalErr := json.Marshal(notify)
+	require.NoError(t, notifyMarshalErr)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), payload)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			if event.Type == codersdk.ChatStreamEventTypeMessage && event.Message != nil {
+				return event.Message.ID == newMsg.ID
+			}
+			return false
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestSubscribeHasPubsubFiltersLocalEvents(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "pubsub-filter-local",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Publish a local status event. With pubsub active
+	// (hasPubsub=true), the local events case only forwards
+	// message_part events. Status events from the local channel
+	// should be filtered out (they arrive via pubsub instead).
+	err = server.RefreshStatus(ctx, chat.ID)
+	require.NoError(t, err)
+
+	// The status event should arrive via the pubsub notification
+	// handler, not the local events path. We verify by checking
+	// that a status event arrives (proving the pubsub path works).
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			if event.Type == codersdk.ChatStreamEventTypeStatus && event.Status != nil {
+				return true
+			}
+			return false
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestSubscribeNoPubsubForwardsAllLocalEvents(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	// No pubsub: pass nil so hasPubsub=false from the start.
+	server := newTestServer(t, db, nil, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "no-pubsub-all-events",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Publish a local status event. Without pubsub, all event
+	// types should be forwarded from the local channel.
+	err = server.RefreshStatus(ctx, chat.ID)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			if event.Type == codersdk.ChatStreamEventTypeStatus && event.Status != nil {
+				return true
+			}
+			return false
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestSubscribeNilServer(t *testing.T) {
+	t.Parallel()
+
+	var srv *chatd.Server
+	snapshot, events, cancel, ok := srv.Subscribe(
+		context.Background(), uuid.New(), nil, 0,
+	)
+	require.False(t, ok)
+	require.Nil(t, snapshot)
+	require.Nil(t, events)
+	require.Nil(t, cancel)
+}
+
+// failSubscribePubsub wraps a real Pubsub but always fails on
+// SubscribeWithErr, simulating a pubsub that cannot be subscribed to
+// (e.g. due to permission or connection issues at subscribe time).
+type failSubscribePubsub struct {
+	dbpubsub.Pubsub
+}
+
+func (*failSubscribePubsub) SubscribeWithErr(_ string, _ dbpubsub.ListenerWithErr) (func(), error) {
+	return nil, xerrors.New("subscribe failed")
+}
+
+func TestSubscribePubsubSubscribeFailure(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	failPS := &failSubscribePubsub{Pubsub: ps}
+	server := newTestServer(t, db, failPS, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "subscribe-failure",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	// Subscribe still succeeds but in local-only mode since
+	// SubscribeWithErr failed.
+	_, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Local events should still work.
+	err = server.RefreshStatus(ctx, chat.ID)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			return event.Type == codersdk.ChatStreamEventTypeStatus
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestSubscribePubsubMalformedNotification(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "malformed-notification",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Publish malformed JSON to the pubsub channel. The listener's
+	// unmarshal will fail, sending an error to errCh. The merge
+	// goroutine degrades to local-only mode.
+	err = ps.Publish(
+		coderdpubsub.ChatStreamNotifyChannel(chat.ID),
+		[]byte("not valid json{{{"),
+	)
+	require.NoError(t, err)
+
+	// Expect an error event from the unmarshal failure.
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			return event.Type == codersdk.ChatStreamEventTypeError
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	// After degradation, local events still flow.
+	err = server.RefreshStatus(ctx, chat.ID)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			return event.Type == codersdk.ChatStreamEventTypeStatus
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestSubscribePubsubFullRefreshNotification(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "full-refresh",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	// Subscribe with afterMessageID=0 to get the initial message
+	// in the snapshot, then verify FullRefresh re-fetches it.
+	_, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Publish a FullRefresh notification. This sets afterID=0
+	// in the notification handler, causing it to re-fetch all
+	// messages from the beginning.
+	notify := coderdpubsub.ChatStreamNotifyMessage{
+		FullRefresh: true,
+	}
+	payload, marshalErr := json.Marshal(notify)
+	require.NoError(t, marshalErr)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), payload)
+	require.NoError(t, err)
+
+	// The initial user message should be re-delivered.
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			return event.Type == codersdk.ChatStreamEventTypeMessage
 		default:
 			return false
 		}

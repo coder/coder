@@ -1408,10 +1408,11 @@ func (p *Server) Subscribe(
 			case <-mergedCtx.Done():
 				return
 			case psErr := <-errCh:
-				p.logger.Error(mergedCtx, "chat stream pubsub error",
+				p.logger.Error(mergedCtx, "chat stream pubsub error, degrading to local-only",
 					slog.F("chat_id", chatID),
 					slog.Error(psErr),
 				)
+				// Notify the client about the error.
 				select {
 				case mergedEvents <- codersdk.ChatStreamEvent{
 					Type:   codersdk.ChatStreamEventTypeError,
@@ -1421,8 +1422,16 @@ func (p *Server) Subscribe(
 					},
 				}:
 				case <-mergedCtx.Done():
+					return
 				}
-				return
+				// Degrade to local-only mode: disable pubsub
+				// channels so the event loop continues with
+				// local events only. Setting channels to nil
+				// disables their select cases (nil channels
+				// block forever in select).
+				errCh = nil
+				notifications = nil
+				hasPubsub = false
 			case notify := <-notifications:
 				if notify.AfterMessageID > 0 || notify.FullRefresh {
 					afterID := lastMessageID
