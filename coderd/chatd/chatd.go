@@ -93,7 +93,7 @@ type Server struct {
 
 	// instructionCache caches home instruction file contents by
 	// workspace agent ID so we don't re-dial on every chat turn.
-	instructionCacheMu sync.Mutex
+	instructionCacheMu sync.RWMutex
 	instructionCache   map[uuid.UUID]cachedInstruction
 
 	// Configuration
@@ -3159,9 +3159,9 @@ func (p *Server) resolveInstructions(
 	}
 	agentID := agents[0].ID
 
-	p.instructionCacheMu.Lock()
+	p.instructionCacheMu.RLock()
 	cached, ok := p.instructionCache[agentID]
-	p.instructionCacheMu.Unlock()
+	p.instructionCacheMu.RUnlock()
 
 	if ok && time.Since(cached.fetchedAt) < instructionCacheTTL {
 		return cached.instruction
