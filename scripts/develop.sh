@@ -174,6 +174,10 @@ exit_cleanup() {
 	# Wait for all children to exit (this can be aborted by hammer).
 	wait_cmds
 
+	# Add a sleep to allow any final output to be flushed to keep the
+	# terminal clean.
+	sleep 0.5
+
 	exit 1
 }
 start_cmd() {
@@ -214,10 +218,7 @@ wait_cmds() {
 }
 fatal() {
 	echo "== FAIL: $*" >&2
-	kill -INT $ppid >/dev/null 2>&1
-	# Exit immediately so the calling context (ERR trap or
-	# background job) doesn't continue executing commands
-	# while cleanup is in progress.
+	exit_cleanup
 	exit 1
 }
 
