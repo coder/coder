@@ -3,13 +3,13 @@ import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
 import { type FC, useMemo } from "react";
 import { type DiffStyle, DiffViewer } from "./DiffViewer";
 
-interface RepoChangesPanelProps {
+interface LocalDiffPanelProps {
 	repo: WorkspaceAgentRepoChanges;
 	isExpanded?: boolean;
 	diffStyle: DiffStyle;
 }
 
-export const RepoChangesPanel: FC<RepoChangesPanelProps> = ({
+export const LocalDiffPanel: FC<LocalDiffPanelProps> = ({
 	repo,
 	isExpanded,
 	diffStyle,

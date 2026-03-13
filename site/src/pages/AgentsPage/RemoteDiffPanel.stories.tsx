@@ -3,7 +3,7 @@ import type { ChatDiffStatusResponse } from "api/api";
 import { API } from "api/api";
 import type { ChatDiffContents } from "api/typesGenerated";
 import { expect, screen, spyOn } from "storybook/test";
-import { FilesChangedPanel } from "./FilesChangedPanel";
+import { RemoteDiffPanel } from "./RemoteDiffPanel";
 
 // ---------------------------------------------------------------------------
 // Large-diff generator — produces a realistic unified diff with the
@@ -238,9 +238,9 @@ const defaultDiffContents: ChatDiffContents = {
 	chat_id: "test-chat",
 };
 
-const meta: Meta<typeof FilesChangedPanel> = {
-	title: "pages/AgentsPage/FilesChangedPanel",
-	component: FilesChangedPanel,
+const meta: Meta<typeof RemoteDiffPanel> = {
+	title: "pages/AgentsPage/RemoteDiffPanel",
+	component: RemoteDiffPanel,
 	args: {
 		chatId: "test-chat",
 	},
@@ -258,7 +258,7 @@ const meta: Meta<typeof FilesChangedPanel> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof FilesChangedPanel>;
+type Story = StoryObj<typeof RemoteDiffPanel>;
 
 export const EmptyDiff: Story = {
 	beforeEach: () => {

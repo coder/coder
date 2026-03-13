@@ -365,20 +365,21 @@ interface ChatGitChangeResponse extends TypesGen.ChatGitChange {
 	readonly diffs_link?: string;
 }
 
-export type ChatDiffStatusResponse = Readonly<
-	{
-		chat_id: string;
-		url?: string;
-		pull_request_state?: string;
-		changes_requested: boolean;
-		additions: number;
-		deletions: number;
-		changed_files: number;
-		refreshed_at?: string;
-		stale_at?: string;
-	} & Record<string, unknown>
->;
-
+	export type ChatDiffStatusResponse = Readonly<
+		{
+			chat_id: string;
+			url?: string;
+			pull_request_state?: string;
+			pull_request_title: string;
+			pull_request_draft: boolean;
+			changes_requested: boolean;
+			additions: number;
+			deletions: number;
+			changed_files: number;
+			refreshed_at?: string;
+			stale_at?: string;
+		} & Record<string, unknown>
+	>;
 function normalizeGetTemplatesOptions(
 	options: GetTemplatesOptions | GetTemplatesQuery = {},
 ): Record<string, string> {

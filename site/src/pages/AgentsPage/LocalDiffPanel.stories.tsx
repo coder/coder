@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
-import { RepoChangesPanel } from "./RepoChangesPanel";
+import { LocalDiffPanel } from "./LocalDiffPanel";
 
 const sampleDiff = `--- a/src/main.ts
 +++ b/src/main.ts
@@ -29,16 +29,16 @@ const baseRepo: WorkspaceAgentRepoChanges = {
 	unified_diff: sampleDiff,
 };
 
-const meta: Meta<typeof RepoChangesPanel> = {
-	title: "pages/AgentsPage/RepoChangesPanel",
-	component: RepoChangesPanel,
+const meta: Meta<typeof LocalDiffPanel> = {
+	title: "pages/AgentsPage/LocalDiffPanel",
+	component: LocalDiffPanel,
 	args: {
 		repo: baseRepo,
 		diffStyle: "unified",
 	},
 };
 export default meta;
-type Story = StoryObj<typeof RepoChangesPanel>;
+type Story = StoryObj<typeof LocalDiffPanel>;
 
 export const WithChanges: Story = {};
 

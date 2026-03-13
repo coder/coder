@@ -22,8 +22,8 @@ import { cn } from "utils/cn";
 import type { ChatMessageInputRef } from "./AgentChatInput";
 import { DiffStatBadge } from "./DiffStats";
 import { type DiffStyle, loadDiffStyle, saveDiffStyle } from "./DiffViewer";
-import { FilesChangedPanel } from "./FilesChangedPanel";
-import { RepoChangesPanel } from "./RepoChangesPanel";
+import { RemoteDiffPanel } from "./RemoteDiffPanel";
+import { LocalDiffPanel } from "./LocalDiffPanel";
 
 type GitView = "remote" | "local";
 
@@ -50,7 +50,7 @@ interface GitPanelProps {
 	remoteDiffStats?: DiffStats;
 	/** Diff stats for the local/working tree view. */
 	localDiffStats?: DiffStats;
-	/** Ref to the chat input, forwarded to FilesChangedPanel. */
+	/** Ref to the chat input, forwarded to RemoteDiffPanel. */
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 }
 
@@ -76,14 +76,25 @@ export const GitPanel: FC<GitPanelProps> = ({
 		!!localDiffStats &&
 		(localDiffStats.additions > 0 || localDiffStats.deletions > 0);
 
+	const showRemoteTab = !!prTab || hasRemoteStats;
+	const showLocalTab = hasLocalStats;
+	const remoteLabel = prTab ? "Pull Request" : "Branch";
+
 	// Default to "local" when there are only local changes and no
 	// remote stats, so the user sees content immediately.
 	const [view, setView] = useState<GitView>(
-		!hasRemoteStats && hasLocalStats ? "local" : "remote",
+		!showRemoteTab && showLocalTab ? "local" : "remote",
 	);
 
-	// Diff style is managed here for the local view only.
-	// FilesChangedPanel manages its own diff style internally.
+	// If the active tab gets hidden, switch to the other one.
+	useEffect(() => {
+		if (view === "remote" && !showRemoteTab && showLocalTab) {
+			setView("local");
+		} else if (view === "local" && !showLocalTab && showRemoteTab) {
+			setView("remote");
+		}
+	}, [view, showRemoteTab, showLocalTab]);
+
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 
 	const handleDiffStyleChange = useCallback((style: DiffStyle) => {
@@ -91,69 +102,67 @@ export const GitPanel: FC<GitPanelProps> = ({
 		setDiffStyle(style);
 	}, []);
 
+	const [spinning, setSpinning] = useState(false);
+	const spinTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+	useEffect(() => () => clearTimeout(spinTimerRef.current), []);
+	const handleRefresh = useCallback(() => {
+		onRefresh();
+		setSpinning(true);
+		clearTimeout(spinTimerRef.current);
+		spinTimerRef.current = setTimeout(() => setSpinning(false), 1000);
+	}, [onRefresh]);
+
 	return (
 		<div className="flex h-full flex-col">
 			{/* Toolbar */}
 			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
-				{/* Remote / Local segmented control */}
-				<div className="flex h-6 items-stretch overflow-hidden rounded-md text-xs">
-					<button
-						type="button"
-						onClick={() => setView("remote")}
-						className={cn(
-							"flex cursor-pointer items-center gap-3 border-none font-medium transition-colors outline-none focus-visible:outline-none",
-							view === "remote"
-								? "bg-surface-quaternary/25 text-content-primary"
-								: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
-							hasRemoteStats ? "pl-3 pr-0" : "px-3",
-						)}
-					>
-						Remote
-						{hasRemoteStats && (
-							<span
+				{/* Segmented control */}
+					<div className="flex h-6 items-stretch overflow-hidden rounded-md text-xs">
+						{showRemoteTab && (
+							<button
+								type="button"
+								onClick={() => setView("remote")}
 								className={cn(
-									"flex -my-px items-center self-stretch transition-opacity",
-									view !== "remote" && "opacity-50",
+									"flex cursor-pointer items-center gap-3 border-none font-medium transition-colors outline-none focus-visible:outline-none",
+									view === "remote"
+										? "bg-surface-quaternary/25 text-content-primary"
+										: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
+									"px-3",
 								)}
 							>
-								<DiffStatBadge
-									additions={remoteDiffStats.additions}
-									deletions={remoteDiffStats.deletions}
-								/>
-							</span>
-						)}
-					</button>
-					<button
-						type="button"
-						onClick={() => setView("local")}
-						className={cn(
-							"flex cursor-pointer items-center gap-3 border-0 border-l border-solid border-border-default font-medium transition-colors outline-none focus-visible:outline-none",
-							view === "local"
-								? "bg-surface-quaternary/25 text-content-primary"
-								: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
-							hasLocalStats ? "pl-3 pr-0" : "px-3",
-						)}
-					>
-						Local
-						{hasLocalStats && (
-							<span
+									{remoteLabel}
+								</button>						)}
+						{showLocalTab && (
+							<button
+								type="button"
+								onClick={() => setView("local")}
 								className={cn(
-									"flex -my-px items-center self-stretch transition-opacity",
-									view !== "local" && "opacity-50",
+									"flex cursor-pointer items-center gap-3 font-medium transition-colors outline-none focus-visible:outline-none",
+									showRemoteTab
+										? "border-0 border-l border-solid border-border-default"
+										: "border-none",
+									view === "local"
+										? "bg-surface-quaternary/25 text-content-primary"
+										: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
+									"pl-3 pr-0",
 								)}
 							>
-								<DiffStatBadge
-									additions={localDiffStats.additions}
-									deletions={localDiffStats.deletions}
-								/>
-							</span>
+								Working Changes
+								<span
+									className={cn(
+										"flex -my-px items-center self-stretch transition-opacity",
+										view !== "local" && "opacity-50",
+									)}
+								>
+									<DiffStatBadge
+										additions={localDiffStats!.additions}
+										deletions={localDiffStats!.deletions}
+									/>
+								</span>
+							</button>
 						)}
-					</button>
-				</div>
-				<div className="flex-1" />
-				{/* Split / Unified toggle — only shown for local view since
-				    FilesChangedPanel has its own toggle built in. */}
-				{view === "local" && (
+					</div>				<div className="flex-1" />
+					{/* Split / Unified toggle */}
 					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default text-xs">
 						<button
 							type="button"
@@ -182,9 +191,22 @@ export const GitPanel: FC<GitPanelProps> = ({
 							<ColumnsIcon className="size-3.5" />
 						</button>
 					</div>
-				)}
-			</div>
-
+					{/* Refresh */}
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={handleRefresh}
+						aria-label="Refresh"
+						className="h-6 w-6 text-content-secondary hover:text-content-primary"
+					>
+						<RefreshCwIcon
+							className={cn(
+								"size-3.5",
+								spinning && "motion-safe:animate-spin-once",
+							)}
+						/>
+					</Button>
+				</div>
 			{/* Content */}
 			<div className="min-h-0 flex-1">
 				{view === "remote" ? (
@@ -192,11 +214,11 @@ export const GitPanel: FC<GitPanelProps> = ({
 						prTab={prTab}
 						isExpanded={isExpanded}
 						chatInputRef={chatInputRef}
+						diffStyle={diffStyle}
 					/>
 				) : (
 					<LocalContent
 						repositories={repositories}
-						onRefresh={onRefresh}
 						onCommit={onCommit}
 						isExpanded={isExpanded}
 						diffStyle={diffStyle}
@@ -215,7 +237,8 @@ const RemoteContent: FC<{
 	prTab?: { prNumber: number; chatId: string };
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
-}> = ({ prTab, isExpanded, chatInputRef }) => {
+	diffStyle: DiffStyle;
+}> = ({ prTab, isExpanded, chatInputRef, diffStyle }) => {
 	if (!prTab) {
 		return (
 			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
@@ -233,10 +256,11 @@ const RemoteContent: FC<{
 	}
 
 	return (
-		<FilesChangedPanel
+		<RemoteDiffPanel
 			chatId={prTab.chatId}
 			isExpanded={isExpanded}
 			chatInputRef={chatInputRef}
+			diffStyle={diffStyle}
 		/>
 	);
 };
@@ -247,11 +271,10 @@ const RemoteContent: FC<{
 
 const LocalContent: FC<{
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
-	onRefresh: () => void;
 	onCommit: (repoRoot: string) => void;
 	isExpanded?: boolean;
 	diffStyle: DiffStyle;
-}> = ({ repositories, onRefresh, onCommit, isExpanded, diffStyle }) => {
+}> = ({ repositories, onCommit, isExpanded, diffStyle }) => {
 	const repoEntries = useMemo(
 		() =>
 			Array.from(repositories.entries()).sort(([a], [b]) => a.localeCompare(b)),
@@ -291,10 +314,9 @@ const LocalContent: FC<{
 						<RepoHeader
 							repoRoot={repoRoot}
 							repo={repo}
-							onRefresh={onRefresh}
 							onCommit={() => onCommit(repoRoot)}
 						/>
-						<RepoChangesPanel
+						<LocalDiffPanel
 							repo={repo}
 							isExpanded={isExpanded}
 							diffStyle={diffStyle}
@@ -313,21 +335,10 @@ const LocalContent: FC<{
 const RepoHeader: FC<{
 	repoRoot: string;
 	repo: WorkspaceAgentRepoChanges;
-	onRefresh: () => void;
 	onCommit: () => void;
-}> = ({ repoRoot, repo, onRefresh, onCommit }) => {
-	const [spinning, setSpinning] = useState(false);
-	const spinTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-	useEffect(() => () => clearTimeout(spinTimerRef.current), []);
-	const handleRefresh = useCallback(() => {
-		onRefresh();
-		setSpinning(true);
-		clearTimeout(spinTimerRef.current);
-		spinTimerRef.current = setTimeout(() => setSpinning(false), 1000);
-	}, [onRefresh]);
-
+}> = ({ repoRoot, repo, onCommit }) => {
 	return (
-		<div className="flex shrink-0 items-center gap-2 bg-surface-secondary px-3 py-2">
+		<div className="flex shrink-0 items-center gap-2 px-3 py-2">
 			{/* Repo identity */}
 			<div className="flex min-w-0 flex-1 items-center gap-2">
 				<GitBranchIcon className="size-3.5 shrink-0 text-content-secondary" />
@@ -342,31 +353,15 @@ const RepoHeader: FC<{
 			</div>
 
 			{/* Actions */}
-			<div className="flex shrink-0 items-center gap-1">
-				<Button
-					size="sm"
-					onClick={onCommit}
-					disabled={!repo.unified_diff}
-					className="h-7 gap-1.5 border border-transparent bg-surface-invert-primary px-2 text-xs text-content-invert hover:bg-surface-invert-secondary active:opacity-80"
-				>
-					<CheckIcon className="size-3" />
-					Commit
-				</Button>
-				<Button
-					variant="subtle"
-					size="icon"
-					onClick={handleRefresh}
-					aria-label="Refresh"
-					className="h-7 w-7 text-content-secondary hover:text-content-primary"
-				>
-					<RefreshCwIcon
-						className={cn(
-							"size-3.5",
-							spinning && "motion-safe:animate-spin-once",
-						)}
-					/>
-				</Button>
-			</div>
+			<Button
+				size="sm"
+				onClick={onCommit}
+				disabled={!repo.unified_diff}
+				className="h-7 gap-1.5 border border-transparent bg-surface-invert-primary px-2 text-xs text-content-invert hover:bg-surface-invert-secondary active:opacity-80"
+			>
+				<CheckIcon className="size-3" />
+				Commit
+			</Button>
 		</div>
 	);
 };
