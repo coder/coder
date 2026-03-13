@@ -2599,13 +2599,27 @@ func convertChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) co
 	result.Additions = status.Additions
 	result.Deletions = status.Deletions
 	result.ChangedFiles = status.ChangedFiles
-	result.AuthorLogin = status.AuthorLogin
-	result.AuthorAvatarURL = status.AuthorAvatarUrl
-	result.BaseBranch = status.BaseBranch
-	result.PRNumber = status.PrNumber
-	result.Commits = status.Commits
-	result.Approved = status.Approved
-	result.ReviewerCount = status.ReviewerCount
+	if status.AuthorLogin.Valid {
+		result.AuthorLogin = &status.AuthorLogin.String
+	}
+	if status.AuthorAvatarUrl.Valid {
+		result.AuthorAvatarURL = &status.AuthorAvatarUrl.String
+	}
+	if status.BaseBranch.Valid {
+		result.BaseBranch = &status.BaseBranch.String
+	}
+	if status.PrNumber.Valid {
+		result.PRNumber = &status.PrNumber.Int32
+	}
+	if status.Commits.Valid {
+		result.Commits = &status.Commits.Int32
+	}
+	if status.Approved.Valid {
+		result.Approved = &status.Approved.Bool
+	}
+	if status.ReviewerCount.Valid {
+		result.ReviewerCount = &status.ReviewerCount.Int32
+	}
 	if status.RefreshedAt.Valid {
 		refreshedAt := status.RefreshedAt.Time
 		result.RefreshedAt = &refreshedAt

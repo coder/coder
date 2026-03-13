@@ -1190,13 +1190,13 @@ export interface ChatDiffStatus {
 	readonly additions: number;
 	readonly deletions: number;
 	readonly changed_files: number;
-	readonly author_login: string;
-	readonly author_avatar_url: string;
-	readonly base_branch: string;
-	readonly pr_number: number;
-	readonly commits: number;
-	readonly approved: boolean;
-	readonly reviewer_count: number;
+	readonly author_login?: string;
+	readonly author_avatar_url?: string;
+	readonly base_branch?: string;
+	readonly pr_number?: number;
+	readonly commits?: number;
+	readonly approved?: boolean;
+	readonly reviewer_count?: number;
 	readonly refreshed_at?: string;
 	readonly stale_at?: string;
 }

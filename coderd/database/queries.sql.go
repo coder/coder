@@ -3057,13 +3057,13 @@ type AcquireStaleChatDiffStatusesRow struct {
 	GitRemoteOrigin  string         `db:"git_remote_origin" json:"git_remote_origin"`
 	PullRequestTitle string         `db:"pull_request_title" json:"pull_request_title"`
 	PullRequestDraft bool           `db:"pull_request_draft" json:"pull_request_draft"`
-	AuthorLogin      string         `db:"author_login" json:"author_login"`
-	AuthorAvatarUrl  string         `db:"author_avatar_url" json:"author_avatar_url"`
-	BaseBranch       string         `db:"base_branch" json:"base_branch"`
-	PrNumber         int32          `db:"pr_number" json:"pr_number"`
-	Commits          int32          `db:"commits" json:"commits"`
-	Approved         bool           `db:"approved" json:"approved"`
-	ReviewerCount    int32          `db:"reviewer_count" json:"reviewer_count"`
+	AuthorLogin      sql.NullString `db:"author_login" json:"author_login"`
+	AuthorAvatarUrl  sql.NullString `db:"author_avatar_url" json:"author_avatar_url"`
+	BaseBranch       sql.NullString `db:"base_branch" json:"base_branch"`
+	PrNumber         sql.NullInt32  `db:"pr_number" json:"pr_number"`
+	Commits          sql.NullInt32  `db:"commits" json:"commits"`
+	Approved         sql.NullBool   `db:"approved" json:"approved"`
+	ReviewerCount    sql.NullInt32  `db:"reviewer_count" json:"reviewer_count"`
 	OwnerID          uuid.UUID      `db:"owner_id" json:"owner_id"`
 }
 
@@ -4618,13 +4618,13 @@ type UpsertChatDiffStatusParams struct {
 	Additions        int32          `db:"additions" json:"additions"`
 	Deletions        int32          `db:"deletions" json:"deletions"`
 	ChangedFiles     int32          `db:"changed_files" json:"changed_files"`
-	AuthorLogin      string         `db:"author_login" json:"author_login"`
-	AuthorAvatarUrl  string         `db:"author_avatar_url" json:"author_avatar_url"`
-	BaseBranch       string         `db:"base_branch" json:"base_branch"`
-	PrNumber         int32          `db:"pr_number" json:"pr_number"`
-	Commits          int32          `db:"commits" json:"commits"`
-	Approved         bool           `db:"approved" json:"approved"`
-	ReviewerCount    int32          `db:"reviewer_count" json:"reviewer_count"`
+	AuthorLogin      sql.NullString `db:"author_login" json:"author_login"`
+	AuthorAvatarUrl  sql.NullString `db:"author_avatar_url" json:"author_avatar_url"`
+	BaseBranch       sql.NullString `db:"base_branch" json:"base_branch"`
+	PrNumber         sql.NullInt32  `db:"pr_number" json:"pr_number"`
+	Commits          sql.NullInt32  `db:"commits" json:"commits"`
+	Approved         sql.NullBool   `db:"approved" json:"approved"`
+	ReviewerCount    sql.NullInt32  `db:"reviewer_count" json:"reviewer_count"`
 	RefreshedAt      time.Time      `db:"refreshed_at" json:"refreshed_at"`
 	StaleAt          time.Time      `db:"stale_at" json:"stale_at"`
 }
