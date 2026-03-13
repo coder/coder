@@ -316,7 +316,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 				ContextLimit:        sql.NullInt64{},
 				Compressed:          sql.NullBool{},
 				TotalCostMicros:     sql.NullInt64{},
-				OwnerID:             uuid.NullUUID{UUID: opts.OwnerID, Valid: opts.OwnerID != uuid.Nil},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert system message: %w", err)
@@ -347,7 +346,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			ContextLimit:        sql.NullInt64{},
 			TotalCostMicros:     sql.NullInt64{},
 			Compressed:          sql.NullBool{},
-			OwnerID:             uuid.NullUUID{UUID: opts.OwnerID, Valid: opts.OwnerID != uuid.Nil},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert initial user message: %w", err)
@@ -967,7 +965,6 @@ func insertUserMessageAndSetPending(
 		ContextLimit:        sql.NullInt64{},
 		TotalCostMicros:     sql.NullInt64{},
 		Compressed:          sql.NullBool{},
-		OwnerID:             uuid.NullUUID{UUID: lockedChat.OwnerID, Valid: lockedChat.OwnerID != uuid.Nil},
 	})
 	if err != nil {
 		return database.ChatMessage{}, database.Chat{}, err
@@ -2028,7 +2025,6 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 						ContextLimit:        sql.NullInt64{},
 						TotalCostMicros:     sql.NullInt64{},
 						Compressed:          sql.NullBool{},
-						OwnerID:             uuid.NullUUID{UUID: chat.OwnerID, Valid: chat.OwnerID != uuid.Nil},
 					})
 					if insertErr != nil {
 						logger.Error(cleanupCtx, "failed to promote queued message",
@@ -2463,7 +2459,6 @@ func (p *Server) runChat(
 					// breakdown available), while 0 means "priced at
 					// zero cost" (e.g., a free model).
 					TotalCostMicros: usageNullInt64Ptr(totalCostMicros),
-					OwnerID:         uuid.NullUUID{UUID: chat.OwnerID, Valid: chat.OwnerID != uuid.Nil},
 				})
 				if insertErr != nil {
 					return xerrors.Errorf("insert assistant message: %w", insertErr)
@@ -2495,7 +2490,6 @@ func (p *Server) runChat(
 					ContextLimit:        sql.NullInt64{},
 					TotalCostMicros:     sql.NullInt64{},
 					Compressed:          sql.NullBool{},
-					OwnerID:             uuid.NullUUID{UUID: chat.OwnerID, Valid: chat.OwnerID != uuid.Nil},
 				})
 				if insertErr != nil {
 					return xerrors.Errorf("insert tool result: %w", insertErr)
@@ -2549,7 +2543,6 @@ func (p *Server) runChat(
 			if err := p.persistChatContextSummary(
 				persistCtx,
 				chat.ID,
-				chat.OwnerID,
 				modelConfig.ID,
 				compactionToolCallID,
 				result,
@@ -2802,7 +2795,6 @@ func buildProviderTools(_ string, options *codersdk.ChatModelProviderOptions) []
 func (p *Server) persistChatContextSummary(
 	ctx context.Context,
 	chatID uuid.UUID,
-	ownerID uuid.UUID,
 	modelConfigID uuid.UUID,
 	toolCallID string,
 	result chatloop.CompactionResult,
@@ -2872,7 +2864,6 @@ func (p *Server) persistChatContextSummary(
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
 			TotalCostMicros:     sql.NullInt64{},
-			OwnerID:             uuid.NullUUID{UUID: ownerID, Valid: ownerID != uuid.Nil},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert hidden summary message: %w", txErr)
@@ -2898,7 +2889,6 @@ func (p *Server) persistChatContextSummary(
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
 			TotalCostMicros:     sql.NullInt64{},
-			OwnerID:             uuid.NullUUID{UUID: ownerID, Valid: ownerID != uuid.Nil},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert summary tool call message: %w", txErr)
@@ -2925,7 +2915,6 @@ func (p *Server) persistChatContextSummary(
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
 			TotalCostMicros:     sql.NullInt64{},
-			OwnerID:             uuid.NullUUID{UUID: ownerID, Valid: ownerID != uuid.Nil},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert summary tool result message: %w", txErr)

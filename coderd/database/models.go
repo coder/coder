@@ -4084,7 +4084,6 @@ type ChatMessage struct {
 	CreatedBy           uuid.NullUUID         `db:"created_by" json:"created_by"`
 	ContentVersion      int16                 `db:"content_version" json:"content_version"`
 	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
-	OwnerID             uuid.NullUUID         `db:"owner_id" json:"owner_id"`
 }
 
 type ChatModelConfig struct {

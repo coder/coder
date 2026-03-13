@@ -1238,8 +1238,7 @@ CREATE TABLE chat_messages (
     compressed boolean DEFAULT false NOT NULL,
     created_by uuid,
     content_version smallint NOT NULL,
-    total_cost_micros bigint,
-    owner_id uuid
+    total_cost_micros bigint
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -3604,8 +3603,6 @@ CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USIN
 
 CREATE INDEX idx_chat_messages_created_at ON chat_messages USING btree (created_at);
 
-CREATE INDEX idx_chat_messages_owner_spend ON chat_messages USING btree (owner_id, created_at) WHERE (total_cost_micros IS NOT NULL);
-
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
 
 CREATE INDEX idx_chat_model_configs_provider ON chat_model_configs USING btree (provider);
@@ -3892,9 +3889,6 @@ ALTER TABLE ONLY chat_messages
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id);
-
-ALTER TABLE ONLY chat_messages
-    ADD CONSTRAINT chat_messages_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
 
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);

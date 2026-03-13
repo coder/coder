@@ -182,8 +182,7 @@ INSERT INTO chat_messages (
     cache_read_tokens,
     context_limit,
     compressed,
-    total_cost_micros,
-    owner_id
+    total_cost_micros
 ) VALUES (
     @chat_id::uuid,
     sqlc.narg('created_by')::uuid,
@@ -200,8 +199,7 @@ INSERT INTO chat_messages (
     sqlc.narg('cache_read_tokens')::bigint,
     sqlc.narg('context_limit')::bigint,
     COALESCE(sqlc.narg('compressed')::boolean, FALSE),
-    sqlc.narg('total_cost_micros')::bigint,
-    sqlc.narg('owner_id')::uuid
+    sqlc.narg('total_cost_micros')::bigint
 )
 RETURNING
     *;
@@ -716,11 +714,12 @@ DELETE FROM chat_usage_limit_overrides WHERE user_id = @user_id::uuid;
 SELECT * FROM chat_usage_limit_overrides WHERE user_id = @user_id::uuid;
 
 -- name: GetUserChatSpendInPeriod :one
-SELECT COALESCE(SUM(total_cost_micros), 0)::bigint AS total_spend_micros
-FROM chat_messages
-WHERE owner_id = @user_id::uuid
-  AND created_at >= @start_time::timestamptz
-  AND total_cost_micros IS NOT NULL;
+SELECT COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_spend_micros
+FROM chat_messages cm
+JOIN chats c ON c.id = cm.chat_id
+WHERE c.owner_id = @user_id::uuid
+  AND cm.created_at >= @start_time::timestamptz
+  AND cm.total_cost_micros IS NOT NULL;
 
 -- name: CountEnabledModelsWithoutPricing :one
 -- Counts enabled, non-deleted model configs that lack both input and

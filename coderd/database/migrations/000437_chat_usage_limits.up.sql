@@ -27,16 +27,3 @@ CREATE TABLE chat_usage_limit_overrides (
     UNIQUE (user_id)
 );
 
--- 3. Denormalize owner onto chat_messages for fast spend aggregation.
-ALTER TABLE chat_messages ADD COLUMN owner_id UUID REFERENCES users(id);
-
--- Backfill from parent chats table.
-UPDATE chat_messages m
-SET    owner_id = c.owner_id
-FROM   chats c
-WHERE  m.chat_id = c.id;
-
--- 4. Covering index for spend queries.
-CREATE INDEX idx_chat_messages_owner_spend
-    ON chat_messages (owner_id, created_at)
-    WHERE total_cost_micros IS NOT NULL;
