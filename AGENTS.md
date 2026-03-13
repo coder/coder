@@ -221,7 +221,8 @@ seems like it should use `time.Sleep`, read through https://github.com/coder/qua
   documentation, visual regression coverage, and interaction test suites
   via `play` functions. Reserve plain vitest files for pure logic only:
   utility functions, data transformations, hooks tested via
-  `renderHook()`, and query/cache operations with no rendered output.
+  `renderHook()` that do not require DOM assertions, and query/cache
+  operations with no rendered output.
 
 ### Writing Comments
 

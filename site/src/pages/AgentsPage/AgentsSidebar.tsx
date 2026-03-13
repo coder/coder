@@ -19,6 +19,11 @@ import { CoderIcon } from "components/Icons/CoderIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { Spinner } from "components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
@@ -862,14 +867,20 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						</DropdownMenuContent>
 					</DropdownMenu>
 					{onOpenAnalytics && (
-						<button
-							type="button"
-							onClick={onOpenAnalytics}
-							className="flex shrink-0 items-center justify-center bg-transparent border-0 cursor-pointer p-2 mr-1 rounded-md text-content-secondary hover:text-content-primary hover:bg-surface-tertiary/50 transition-colors"
-							aria-label="Analytics"
-						>
-							<BarChart3Icon className="h-4 w-4" />
-						</button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant="subtle"
+									size="icon"
+									onClick={onOpenAnalytics}
+									aria-label="Analytics"
+									className="mr-1"
+								>
+									<BarChart3Icon className="h-4 w-4" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Analytics</TooltipContent>
+						</Tooltip>
 					)}
 					{onOpenSettings && (
 						<button
