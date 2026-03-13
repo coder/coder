@@ -695,23 +695,32 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								</>
 							)}
 							{speech.isSupported && !isStreaming && (
-								<Button
-									type="button"
-									variant="subtle"
-									size="icon"
-									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
-									onClick={
-										speech.isRecording
-											? handleCancelRecording
-											: handleStartRecording
-									}
-									disabled={isDisabled}
-									aria-label={
-										speech.isRecording ? "Cancel voice input" : "Voice input"
-									}
-								>
-									{speech.isRecording ? <XIcon /> : <MicIcon />}
-								</Button>
+								<>
+									<Button
+										type="button"
+										variant="subtle"
+										size="icon"
+										className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+										onClick={
+											speech.isRecording
+												? handleCancelRecording
+												: handleStartRecording
+										}
+										disabled={isDisabled}
+										aria-label={
+											speech.isRecording ? "Cancel voice input" : "Voice input"
+										}
+									>
+										{speech.isRecording ? <XIcon /> : <MicIcon />}
+									</Button>
+									{speech.error && !speech.isRecording && (
+										<span className="text-2xs text-content-destructive" role="alert">
+											{speech.error === "not-allowed"
+												? "Mic access denied"
+												: "Voice input failed"}
+										</span>
+									)}
+								</>
 							)}
 							{contextUsage !== undefined && (
 								<ContextUsageIndicator usage={contextUsage} />
