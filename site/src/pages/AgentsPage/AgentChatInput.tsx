@@ -714,7 +714,10 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 										{speech.isRecording ? <XIcon /> : <MicIcon />}
 									</Button>
 									{speech.error && !speech.isRecording && (
-										<span className="text-2xs text-content-destructive" role="alert">
+										<span
+											className="text-2xs text-content-destructive"
+											role="alert"
+										>
 											{speech.error === "not-allowed"
 												? "Mic access denied"
 												: "Voice input failed"}
