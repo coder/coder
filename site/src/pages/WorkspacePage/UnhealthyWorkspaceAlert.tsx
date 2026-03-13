@@ -4,7 +4,7 @@ import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { Link } from "components/Link/Link";
 import type { FC } from "react";
 
-export interface UnhealthyWorkspaceAlertProps {
+interface UnhealthyWorkspaceAlertProps {
 	workspace: TypesGen.Workspace;
 	troubleshootingURL: string | undefined;
 }
