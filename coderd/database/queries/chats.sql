@@ -170,6 +170,7 @@ INSERT INTO chat_messages (
     model_config_id,
     role,
     content,
+    content_version,
     visibility,
     input_tokens,
     output_tokens,
@@ -183,8 +184,9 @@ INSERT INTO chat_messages (
     @chat_id::uuid,
     sqlc.narg('created_by')::uuid,
     sqlc.narg('model_config_id')::uuid,
-    @role::text,
+    @role::chat_message_role,
     sqlc.narg('content')::jsonb,
+    @content_version::smallint,
     @visibility::chat_message_visibility,
     sqlc.narg('input_tokens')::bigint,
     sqlc.narg('output_tokens')::bigint,
@@ -422,7 +424,7 @@ FROM
     chat_messages
 WHERE
     chat_id = @chat_id::uuid
-    AND role = @role::text
+    AND role = @role::chat_message_role
 ORDER BY
     created_at DESC, id DESC
 LIMIT

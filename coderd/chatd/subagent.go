@@ -482,12 +482,12 @@ func latestSubagentAssistantMessage(
 
 	for i := len(messages) - 1; i >= 0; i-- {
 		message := messages[i]
-		if message.Role != string(codersdk.ChatMessageRoleAssistant) ||
+		if message.Role != database.ChatMessageRoleAssistant ||
 			message.Visibility == database.ChatMessageVisibilityModel {
 			continue
 		}
 
-		content, parseErr := chatprompt.ParseContent(codersdk.ChatMessageRole(message.Role), message.Content)
+		content, parseErr := chatprompt.ParseContent(message)
 		if parseErr != nil {
 			continue
 		}

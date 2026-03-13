@@ -13,12 +13,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/chatd"
+	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -463,9 +463,13 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("queued"),
+	})
+	require.NoError(t, err)
 	_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
 		ChatID:  chat.ID,
-		Content: json.RawMessage(`"queued"`),
+		Content: queuedContent,
 	})
 	require.NoError(t, err)
 
@@ -556,14 +560,17 @@ func TestEditMessageRejectsNonUserMessage(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("assistant"),
+	})
+	require.NoError(t, err)
+
 	assistantMessage, err := db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:        chat.ID,
-		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:          "assistant",
-		Content: pqtype.NullRawMessage{
-			RawMessage: json.RawMessage(`"assistant"`),
-			Valid:      true,
-		},
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:                database.ChatMessageRoleAssistant,
+		ContentVersion:      chatprompt.CurrentContentVersion,
+		Content:             assistantContent,
 		Visibility:          database.ChatMessageVisibilityBoth,
 		InputTokens:         sql.NullInt64{},
 		OutputTokens:        sql.NullInt64{},
@@ -901,11 +908,17 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 
 	// Insert two more messages so we have three total visible
 	// messages (the initial user message plus these two).
+	secondContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("second"),
+	})
+	require.NoError(t, err)
+
 	msg2, err := db.InsertChatMessage(ctx, database.InsertChatMessageParams{
 		ChatID:              chat.ID,
 		ModelConfigID:       uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:                "assistant",
-		Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`"second"`), Valid: true},
+		Role:                database.ChatMessageRoleAssistant,
+		ContentVersion:      chatprompt.CurrentContentVersion,
+		Content:             secondContent,
 		Visibility:          database.ChatMessageVisibilityBoth,
 		InputTokens:         sql.NullInt64{},
 		OutputTokens:        sql.NullInt64{},
@@ -918,11 +931,17 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	thirdContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("third"),
+	})
+	require.NoError(t, err)
+
 	_, err = db.InsertChatMessage(ctx, database.InsertChatMessageParams{
 		ChatID:              chat.ID,
 		ModelConfigID:       uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:                "user",
-		Content:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`"third"`), Valid: true},
+		Role:                database.ChatMessageRoleUser,
+		ContentVersion:      chatprompt.CurrentContentVersion,
+		Content:             thirdContent,
 		Visibility:          database.ChatMessageVisibilityBoth,
 		InputTokens:         sql.NullInt64{},
 		OutputTokens:        sql.NullInt64{},
