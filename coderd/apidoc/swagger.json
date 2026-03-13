@@ -410,6 +410,107 @@
 				}
 			}
 		},
+		"/chats/cost/users": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Chat"],
+				"summary": "Get per-user chat cost rollup",
+				"operationId": "get-chat-cost-users",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Start date (RFC3339)",
+						"name": "start_date",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "End date (RFC3339)",
+						"name": "end_date",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "Filter by username",
+						"name": "username",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "Page size",
+						"name": "limit",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "Page offset",
+						"name": "offset",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ChatCostUsersResponse"
+						}
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/chats/cost/{user}/summary": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Chat"],
+				"summary": "Get chat cost summary for a user",
+				"operationId": "get-chat-cost-summary",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "User ID, name, or me",
+						"name": "user",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "Start date (RFC3339)",
+						"name": "start_date",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "End date (RFC3339)",
+						"name": "end_date",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ChatCostSummary"
+						}
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/connectionlog": {
 			"get": {
 				"security": [
@@ -12318,6 +12419,155 @@
 				},
 				"password": {
 					"type": "string"
+				}
+			}
+		},
+		"codersdk.ChatCostChatBreakdown": {
+			"type": "object",
+			"properties": {
+				"chat_title": {
+					"type": "string"
+				},
+				"message_count": {
+					"type": "integer"
+				},
+				"root_chat_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"total_cost_micros": {
+					"type": "integer"
+				},
+				"total_input_tokens": {
+					"type": "integer"
+				},
+				"total_output_tokens": {
+					"type": "integer"
+				}
+			}
+		},
+		"codersdk.ChatCostModelBreakdown": {
+			"type": "object",
+			"properties": {
+				"display_name": {
+					"type": "string"
+				},
+				"message_count": {
+					"type": "integer"
+				},
+				"model": {
+					"type": "string"
+				},
+				"model_config_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"provider": {
+					"type": "string"
+				},
+				"total_cost_micros": {
+					"type": "integer"
+				},
+				"total_input_tokens": {
+					"type": "integer"
+				},
+				"total_output_tokens": {
+					"type": "integer"
+				}
+			}
+		},
+		"codersdk.ChatCostSummary": {
+			"type": "object",
+			"properties": {
+				"by_chat": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ChatCostChatBreakdown"
+					}
+				},
+				"by_model": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ChatCostModelBreakdown"
+					}
+				},
+				"end_date": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"priced_message_count": {
+					"type": "integer"
+				},
+				"start_date": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"total_cost_micros": {
+					"type": "integer"
+				},
+				"total_input_tokens": {
+					"type": "integer"
+				},
+				"total_output_tokens": {
+					"type": "integer"
+				},
+				"unpriced_message_count": {
+					"type": "integer"
+				}
+			}
+		},
+		"codersdk.ChatCostUserRollup": {
+			"type": "object",
+			"properties": {
+				"avatar_url": {
+					"type": "string"
+				},
+				"chat_count": {
+					"type": "integer"
+				},
+				"message_count": {
+					"type": "integer"
+				},
+				"name": {
+					"type": "string"
+				},
+				"total_cost_micros": {
+					"type": "integer"
+				},
+				"total_input_tokens": {
+					"type": "integer"
+				},
+				"total_output_tokens": {
+					"type": "integer"
+				},
+				"user_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"username": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.ChatCostUsersResponse": {
+			"type": "object",
+			"properties": {
+				"count": {
+					"type": "integer"
+				},
+				"end_date": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"start_date": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"users": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ChatCostUserRollup"
+					}
 				}
 			}
 		},

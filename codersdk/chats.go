@@ -201,11 +201,11 @@ func ChatMessageFileReference(fileName string, startLine, endLine int, content s
 }
 
 // ChatMessageSource builds a source chat message part.
-func ChatMessageSource(sourceID, url, title string) ChatMessagePart {
+func ChatMessageSource(sourceID, sourceURL, title string) ChatMessagePart {
 	return ChatMessagePart{
 		Type:     ChatMessagePartTypeSource,
 		SourceID: sourceID,
-		URL:      url,
+		URL:      sourceURL,
 		Title:    title,
 	}
 }
