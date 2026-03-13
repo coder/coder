@@ -1200,7 +1200,14 @@ CREATE TABLE chat_diff_statuses (
     git_branch text DEFAULT ''::text NOT NULL,
     git_remote_origin text DEFAULT ''::text NOT NULL,
     pull_request_title text DEFAULT ''::text NOT NULL,
-    pull_request_draft boolean DEFAULT false NOT NULL
+    pull_request_draft boolean DEFAULT false NOT NULL,
+    author_login text DEFAULT ''::text NOT NULL,
+    author_avatar_url text DEFAULT ''::text NOT NULL,
+    base_branch text DEFAULT ''::text NOT NULL,
+    pr_number integer DEFAULT 0 NOT NULL,
+    commits integer DEFAULT 0 NOT NULL,
+    approved boolean DEFAULT false NOT NULL,
+    reviewer_count integer DEFAULT 0 NOT NULL
 );
 
 CREATE TABLE chat_files (

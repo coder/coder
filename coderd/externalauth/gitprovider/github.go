@@ -265,9 +265,18 @@ func (g *githubProvider) FetchPullRequestStatus(
 		Additions    int32  `json:"additions"`
 		Deletions    int32  `json:"deletions"`
 		ChangedFiles int32  `json:"changed_files"`
+		Number       int    `json:"number"`
+		Commits      int32  `json:"commits"`
 		Head         struct {
 			SHA string `json:"sha"`
 		} `json:"head"`
+		User struct {
+			Login     string `json:"login"`
+			AvatarURL string `json:"avatar_url"`
+		} `json:"user"`
+		Base struct {
+			Ref string `json:"ref"`
+		} `json:"base"`
 	}
 	if err := g.decodeJSON(ctx, pullEndpoint, token, &pull); err != nil {
 		return nil, err
@@ -298,6 +307,8 @@ func (g *githubProvider) FetchPullRequestStatus(
 		state = PRStateMerged
 	}
 
+	reviewInfo := summarizeReviews(reviews)
+
 	return &PRStatus{
 		Title:   pull.Title,
 		State:   state,
@@ -308,7 +319,14 @@ func (g *githubProvider) FetchPullRequestStatus(
 			Deletions:    pull.Deletions,
 			ChangedFiles: pull.ChangedFiles,
 		},
-		ChangesRequested: hasOutstandingChangesRequested(reviews),
+		ChangesRequested: reviewInfo.changesRequested,
+		Approved:         reviewInfo.approved,
+		ReviewerCount:    reviewInfo.reviewerCount,
+		AuthorLogin:      pull.User.Login,
+		AuthorAvatarURL:  pull.User.AvatarURL,
+		BaseBranch:       pull.Base.Ref,
+		PRNumber:         pull.Number,
+		Commits:          pull.Commits,
 		FetchedAt:        g.clock.Now().UTC(),
 	}, nil
 }
@@ -495,7 +513,18 @@ func ParseRetryAfter(h http.Header, clk quartz.Clock) time.Duration {
 	return 0
 }
 
-func hasOutstandingChangesRequested(
+// reviewStats holds aggregated review statistics for a PR.
+type reviewStats struct {
+	changesRequested bool
+	approved         bool
+	reviewerCount    int32
+}
+
+// summarizeReviews extracts review statistics from a list of
+// reviews. For each reviewer, only the latest decisive review
+// (by ID) is considered. "Decisive" means APPROVED,
+// CHANGES_REQUESTED, or DISMISSED.
+func summarizeReviews(
 	reviews []struct {
 		ID    int64  `json:"id"`
 		State string `json:"state"`
@@ -503,7 +532,7 @@ func hasOutstandingChangesRequested(
 			Login string `json:"login"`
 		} `json:"user"`
 	},
-) bool {
+) reviewStats {
 	type reviewerState struct {
 		reviewID int64
 		state    string
@@ -533,10 +562,21 @@ func hasOutstandingChangesRequested(
 		}
 	}
 
+	var result reviewStats
+	result.reviewerCount = int32(len(statesByReviewer))
+
+	hasApproval := false
 	for _, state := range statesByReviewer {
 		if state.state == "CHANGES_REQUESTED" {
-			return true
+			result.changesRequested = true
+		}
+		if state.state == "APPROVED" {
+			hasApproval = true
 		}
 	}
-	return false
+	// Approved is true only when at least one reviewer approved
+	// and no reviewer has outstanding changes requested.
+	result.approved = hasApproval && !result.changesRequested
+
+	return result
 }

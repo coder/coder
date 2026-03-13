@@ -3030,10 +3030,10 @@ WITH acquired AS (
             LIMIT
                 $1::int
         )
-    RETURNING chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft
+    RETURNING chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count
 )
 SELECT
-    acquired.chat_id, acquired.url, acquired.pull_request_state, acquired.changes_requested, acquired.additions, acquired.deletions, acquired.changed_files, acquired.refreshed_at, acquired.stale_at, acquired.created_at, acquired.updated_at, acquired.git_branch, acquired.git_remote_origin, acquired.pull_request_title, acquired.pull_request_draft,
+    acquired.chat_id, acquired.url, acquired.pull_request_state, acquired.changes_requested, acquired.additions, acquired.deletions, acquired.changed_files, acquired.refreshed_at, acquired.stale_at, acquired.created_at, acquired.updated_at, acquired.git_branch, acquired.git_remote_origin, acquired.pull_request_title, acquired.pull_request_draft, acquired.author_login, acquired.author_avatar_url, acquired.base_branch, acquired.pr_number, acquired.commits, acquired.approved, acquired.reviewer_count,
     c.owner_id
 FROM
     acquired
@@ -3057,6 +3057,13 @@ type AcquireStaleChatDiffStatusesRow struct {
 	GitRemoteOrigin  string         `db:"git_remote_origin" json:"git_remote_origin"`
 	PullRequestTitle string         `db:"pull_request_title" json:"pull_request_title"`
 	PullRequestDraft bool           `db:"pull_request_draft" json:"pull_request_draft"`
+	AuthorLogin      string         `db:"author_login" json:"author_login"`
+	AuthorAvatarUrl  string         `db:"author_avatar_url" json:"author_avatar_url"`
+	BaseBranch       string         `db:"base_branch" json:"base_branch"`
+	PrNumber         int32          `db:"pr_number" json:"pr_number"`
+	Commits          int32          `db:"commits" json:"commits"`
+	Approved         bool           `db:"approved" json:"approved"`
+	ReviewerCount    int32          `db:"reviewer_count" json:"reviewer_count"`
 	OwnerID          uuid.UUID      `db:"owner_id" json:"owner_id"`
 }
 
@@ -3085,6 +3092,13 @@ func (q *sqlQuerier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal 
 			&i.GitRemoteOrigin,
 			&i.PullRequestTitle,
 			&i.PullRequestDraft,
+			&i.AuthorLogin,
+			&i.AuthorAvatarUrl,
+			&i.BaseBranch,
+			&i.PrNumber,
+			&i.Commits,
+			&i.Approved,
+			&i.ReviewerCount,
 			&i.OwnerID,
 		); err != nil {
 			return nil, err
@@ -3581,7 +3595,7 @@ func (q *sqlQuerier) GetChatCostSummary(ctx context.Context, arg GetChatCostSumm
 
 const getChatDiffStatusByChatID = `-- name: GetChatDiffStatusByChatID :one
 SELECT
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count
 FROM
     chat_diff_statuses
 WHERE
@@ -3607,13 +3621,20 @@ func (q *sqlQuerier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.
 		&i.GitRemoteOrigin,
 		&i.PullRequestTitle,
 		&i.PullRequestDraft,
+		&i.AuthorLogin,
+		&i.AuthorAvatarUrl,
+		&i.BaseBranch,
+		&i.PrNumber,
+		&i.Commits,
+		&i.Approved,
+		&i.ReviewerCount,
 	)
 	return i, err
 }
 
 const getChatDiffStatusesByChatIDs = `-- name: GetChatDiffStatusesByChatIDs :many
 SELECT
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count
 FROM
     chat_diff_statuses
 WHERE
@@ -3645,6 +3666,13 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds [
 			&i.GitRemoteOrigin,
 			&i.PullRequestTitle,
 			&i.PullRequestDraft,
+			&i.AuthorLogin,
+			&i.AuthorAvatarUrl,
+			&i.BaseBranch,
+			&i.PrNumber,
+			&i.Commits,
+			&i.Approved,
+			&i.ReviewerCount,
 		); err != nil {
 			return nil, err
 		}
@@ -4527,6 +4555,13 @@ INSERT INTO chat_diff_statuses (
     additions,
     deletions,
     changed_files,
+    author_login,
+    author_avatar_url,
+    base_branch,
+    pr_number,
+    commits,
+    approved,
+    reviewer_count,
     refreshed_at,
     stale_at
 ) VALUES (
@@ -4539,8 +4574,15 @@ INSERT INTO chat_diff_statuses (
     $7::integer,
     $8::integer,
     $9::integer,
-    $10::timestamptz,
-    $11::timestamptz
+    $10::text,
+    $11::text,
+    $12::text,
+    $13::integer,
+    $14::integer,
+    $15::boolean,
+    $16::integer,
+    $17::timestamptz,
+    $18::timestamptz
 )
 ON CONFLICT (chat_id) DO UPDATE
 SET
@@ -4552,11 +4594,18 @@ SET
     additions = EXCLUDED.additions,
     deletions = EXCLUDED.deletions,
     changed_files = EXCLUDED.changed_files,
+    author_login = EXCLUDED.author_login,
+    author_avatar_url = EXCLUDED.author_avatar_url,
+    base_branch = EXCLUDED.base_branch,
+    pr_number = EXCLUDED.pr_number,
+    commits = EXCLUDED.commits,
+    approved = EXCLUDED.approved,
+    reviewer_count = EXCLUDED.reviewer_count,
     refreshed_at = EXCLUDED.refreshed_at,
     stale_at = EXCLUDED.stale_at,
     updated_at = NOW()
 RETURNING
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count
 `
 
 type UpsertChatDiffStatusParams struct {
@@ -4569,6 +4618,13 @@ type UpsertChatDiffStatusParams struct {
 	Additions        int32          `db:"additions" json:"additions"`
 	Deletions        int32          `db:"deletions" json:"deletions"`
 	ChangedFiles     int32          `db:"changed_files" json:"changed_files"`
+	AuthorLogin      string         `db:"author_login" json:"author_login"`
+	AuthorAvatarUrl  string         `db:"author_avatar_url" json:"author_avatar_url"`
+	BaseBranch       string         `db:"base_branch" json:"base_branch"`
+	PrNumber         int32          `db:"pr_number" json:"pr_number"`
+	Commits          int32          `db:"commits" json:"commits"`
+	Approved         bool           `db:"approved" json:"approved"`
+	ReviewerCount    int32          `db:"reviewer_count" json:"reviewer_count"`
 	RefreshedAt      time.Time      `db:"refreshed_at" json:"refreshed_at"`
 	StaleAt          time.Time      `db:"stale_at" json:"stale_at"`
 }
@@ -4584,6 +4640,13 @@ func (q *sqlQuerier) UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDif
 		arg.Additions,
 		arg.Deletions,
 		arg.ChangedFiles,
+		arg.AuthorLogin,
+		arg.AuthorAvatarUrl,
+		arg.BaseBranch,
+		arg.PrNumber,
+		arg.Commits,
+		arg.Approved,
+		arg.ReviewerCount,
 		arg.RefreshedAt,
 		arg.StaleAt,
 	)
@@ -4604,6 +4667,13 @@ func (q *sqlQuerier) UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDif
 		&i.GitRemoteOrigin,
 		&i.PullRequestTitle,
 		&i.PullRequestDraft,
+		&i.AuthorLogin,
+		&i.AuthorAvatarUrl,
+		&i.BaseBranch,
+		&i.PrNumber,
+		&i.Commits,
+		&i.Approved,
+		&i.ReviewerCount,
 	)
 	return i, err
 }
@@ -4639,7 +4709,7 @@ SET
     stale_at = EXCLUDED.stale_at,
     updated_at = NOW()
 RETURNING
-    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft
+    chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count
 `
 
 type UpsertChatDiffStatusReferenceParams struct {
@@ -4675,6 +4745,13 @@ func (q *sqlQuerier) UpsertChatDiffStatusReference(ctx context.Context, arg Upse
 		&i.GitRemoteOrigin,
 		&i.PullRequestTitle,
 		&i.PullRequestDraft,
+		&i.AuthorLogin,
+		&i.AuthorAvatarUrl,
+		&i.BaseBranch,
+		&i.PrNumber,
+		&i.Commits,
+		&i.Approved,
+		&i.ReviewerCount,
 	)
 	return i, err
 }

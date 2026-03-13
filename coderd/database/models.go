@@ -4046,6 +4046,13 @@ type ChatDiffStatus struct {
 	GitRemoteOrigin  string         `db:"git_remote_origin" json:"git_remote_origin"`
 	PullRequestTitle string         `db:"pull_request_title" json:"pull_request_title"`
 	PullRequestDraft bool           `db:"pull_request_draft" json:"pull_request_draft"`
+	AuthorLogin      string         `db:"author_login" json:"author_login"`
+	AuthorAvatarUrl  string         `db:"author_avatar_url" json:"author_avatar_url"`
+	BaseBranch       string         `db:"base_branch" json:"base_branch"`
+	PrNumber         int32          `db:"pr_number" json:"pr_number"`
+	Commits          int32          `db:"commits" json:"commits"`
+	Approved         bool           `db:"approved" json:"approved"`
+	ReviewerCount    int32          `db:"reviewer_count" json:"reviewer_count"`
 }
 
 type ChatFile struct {

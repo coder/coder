@@ -316,6 +316,13 @@ func (r *Refresher) refreshOne(
 		Additions:        status.DiffStats.Additions,
 		Deletions:        status.DiffStats.Deletions,
 		ChangedFiles:     status.DiffStats.ChangedFiles,
+		AuthorLogin:      status.AuthorLogin,
+		AuthorAvatarUrl:  status.AuthorAvatarURL,
+		BaseBranch:       status.BaseBranch,
+		PrNumber:         int32(status.PRNumber),
+		Commits:          status.Commits,
+		Approved:         status.Approved,
+		ReviewerCount:    status.ReviewerCount,
 		RefreshedAt:      now,
 		StaleAt:          now.Add(DiffStatusTTL),
 	}

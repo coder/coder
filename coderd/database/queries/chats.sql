@@ -364,6 +364,13 @@ INSERT INTO chat_diff_statuses (
     additions,
     deletions,
     changed_files,
+    author_login,
+    author_avatar_url,
+    base_branch,
+    pr_number,
+    commits,
+    approved,
+    reviewer_count,
     refreshed_at,
     stale_at
 ) VALUES (
@@ -376,6 +383,13 @@ INSERT INTO chat_diff_statuses (
     @additions::integer,
     @deletions::integer,
     @changed_files::integer,
+    @author_login::text,
+    @author_avatar_url::text,
+    @base_branch::text,
+    @pr_number::integer,
+    @commits::integer,
+    @approved::boolean,
+    @reviewer_count::integer,
     @refreshed_at::timestamptz,
     @stale_at::timestamptz
 )
@@ -389,6 +403,13 @@ SET
     additions = EXCLUDED.additions,
     deletions = EXCLUDED.deletions,
     changed_files = EXCLUDED.changed_files,
+    author_login = EXCLUDED.author_login,
+    author_avatar_url = EXCLUDED.author_avatar_url,
+    base_branch = EXCLUDED.base_branch,
+    pr_number = EXCLUDED.pr_number,
+    commits = EXCLUDED.commits,
+    approved = EXCLUDED.approved,
+    reviewer_count = EXCLUDED.reviewer_count,
     refreshed_at = EXCLUDED.refreshed_at,
     stale_at = EXCLUDED.stale_at,
     updated_at = NOW()
