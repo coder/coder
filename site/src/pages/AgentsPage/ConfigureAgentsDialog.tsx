@@ -37,6 +37,7 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import dayjs from "dayjs";
+import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -48,7 +49,12 @@ import {
 	XIcon,
 } from "lucide-react";
 import { type FC, type FormEvent, useCallback, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	keepPreviousData,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatCostMicros, formatTokenCount } from "utils/analytics";
 import { cn } from "utils/cn";
@@ -91,12 +97,15 @@ const UserRow: FC<{
 	user: TypesGen.ChatCostUserRollup;
 	onSelect: (user: TypesGen.ChatCostUserRollup) => void;
 }> = ({ user, onSelect }) => {
-	const { role: _role, ...clickableRowProps } = useClickableTableRow({
+	const clickableRowProps = useClickableTableRow({
 		onClick: () => onSelect(user),
 	});
 
 	return (
-		<TableRow {...clickableRowProps}>
+		<TableRow
+			{...clickableRowProps}
+			aria-label={`View details for ${user.name || user.username}`}
+		>
 			<TableCell className="min-w-[220px] px-4 py-3">
 				<AvatarData
 					title={user.name || user.username}
@@ -128,6 +137,7 @@ const UsageContent: FC = () => {
 	const [selectedUser, setSelectedUser] =
 		useState<TypesGen.ChatCostUserRollup | null>(null);
 	const [usernameFilter, setUsernameFilter] = useState("");
+	const debouncedUsername = useDebouncedValue(usernameFilter, 300);
 	const [page, setPage] = useState(1);
 	const dateRange = useMemo(() => {
 		const end = dayjs();
@@ -140,15 +150,16 @@ const UsageContent: FC = () => {
 	}, []);
 	const offset = (page - 1) * pageSize;
 
-	const usersQuery = useQuery(
-		chatCostUsers({
+	const usersQuery = useQuery({
+		...chatCostUsers({
 			start_date: dateRange.startDate,
 			end_date: dateRange.endDate,
-			username: usernameFilter || undefined,
+			username: debouncedUsername || undefined,
 			limit: pageSize,
 			offset,
 		}),
-	);
+		placeholderData: keepPreviousData,
+	});
 	const summaryQuery = useQuery({
 		...chatCostSummary(selectedUser?.user_id ?? "me", {
 			start_date: dateRange.startDate,
