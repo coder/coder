@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
@@ -263,7 +264,7 @@ func (p *Server) createChildSubagentChat(
 		},
 		ModelConfigID:      parent.LastModelConfigID,
 		Title:              title,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: prompt}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)},
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
@@ -301,7 +302,7 @@ func (p *Server) sendSubagentMessage(
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,
 		CreatedBy:    targetChat.OwnerID,
-		Content:      []fantasy.Content{fantasy.TextContent{Text: message}},
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
 		BusyBehavior: busyBehavior,
 	})
 	if err != nil {
@@ -481,12 +482,12 @@ func latestSubagentAssistantMessage(
 
 	for i := len(messages) - 1; i >= 0; i-- {
 		message := messages[i]
-		if message.Role != string(fantasy.MessageRoleAssistant) ||
+		if message.Role != database.ChatMessageRoleAssistant ||
 			message.Visibility == database.ChatMessageVisibilityModel {
 			continue
 		}
 
-		content, parseErr := chatprompt.ParseContent(message.Role, message.Content)
+		content, parseErr := chatprompt.ParseContent(message)
 		if parseErr != nil {
 			continue
 		}

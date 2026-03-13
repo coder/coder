@@ -869,6 +869,28 @@ const docTemplate = `{
                 }
             }
         },
+        "/debug/profile": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Collect debug profiles",
+                "operationId": "collect-debug-profiles",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/debug/tailnet": {
             "get": {
                 "security": [
@@ -12426,6 +12448,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "inject_coder_mcp_tools": {
+                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
                     "type": "boolean"
                 },
                 "max_concurrency": {
@@ -15314,12 +15337,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "mcp_tool_allow_regex": {
+                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
                     "type": "string"
                 },
                 "mcp_tool_deny_regex": {
+                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
                     "type": "string"
                 },
                 "mcp_url": {
+                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
                     "type": "string"
                 },
                 "no_refresh": {

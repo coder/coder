@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // Inline type declarations for the Web Speech API, which is not covered
 // by TypeScript's built-in lib types in all environments.
@@ -75,12 +75,14 @@ export function useSpeechRecognition(): {
 	isSupported: boolean;
 	isRecording: boolean;
 	transcript: string;
+	error: string | null;
 	start: () => void;
 	stop: () => void;
 	cancel: () => void;
 } {
 	const [isRecording, setIsRecording] = useState(false);
 	const [transcript, setTranscript] = useState("");
+	const [error, setError] = useState<string | null>(null);
 	const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
 	// Cache the constructor lookup once per hook instance so we don't hit
@@ -102,6 +104,8 @@ export function useSpeechRecognition(): {
 			recognitionRef.current.abort();
 			recognitionRef.current = null;
 		}
+
+		setError(null);
 
 		const recognition = new Ctor();
 		recognition.lang = navigator.language;
@@ -126,12 +130,15 @@ export function useSpeechRecognition(): {
 			setTranscript(finalizedText + interim);
 		};
 
-		recognition.onerror = () => {
+		recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+			if (recognitionRef.current !== recognition) return;
+			setError(event.error);
 			setIsRecording(false);
 			recognitionRef.current = null;
 		};
 
 		recognition.onend = () => {
+			if (recognitionRef.current !== recognition) return;
 			setIsRecording(false);
 			recognitionRef.current = null;
 		};
@@ -160,7 +167,17 @@ export function useSpeechRecognition(): {
 		}
 		setIsRecording(false);
 		setTranscript("");
+		setError(null);
 	}, []);
 
-	return { isSupported, isRecording, transcript, start, stop, cancel };
+	useEffect(() => {
+		return () => {
+			if (recognitionRef.current) {
+				recognitionRef.current.abort();
+				recognitionRef.current = null;
+			}
+		};
+	}, []);
+
+	return { isSupported, isRecording, transcript, error, start, stop, cancel };
 }

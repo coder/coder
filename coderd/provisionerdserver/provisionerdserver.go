@@ -1528,13 +1528,18 @@ func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvi
 
 	// A graceful error message will help debugging.
 	fail := func(err error) error {
-		_ = stream.Send(&sdkproto.FileUpload{
+		if sendErr := stream.Send(&sdkproto.FileUpload{
 			Type: &sdkproto.FileUpload_Error{
 				Error: &sdkproto.FailedFile{
 					Error: err.Error(),
 				},
 			},
-		})
+		}); sendErr != nil {
+			s.Logger.Warn(ctx, "failed to send error response on download stream",
+				slog.Error(sendErr),
+				slog.F("original_error", err.Error()),
+			)
+		}
 		return err
 	}
 	if request.FileId == "" || request.FileId == uuid.Nil.String() {

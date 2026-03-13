@@ -4,6 +4,8 @@ import type { QueryClient, UseInfiniteQueryOptions } from "react-query";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
+export const chatMessagesKey = (chatId: string) =>
+	["chats", chatId, "messages"] as const;
 
 /**
  * Updates a single chat inside every page of the infinite chats query
@@ -96,12 +98,17 @@ export const chat = (chatId: string) => ({
 	queryFn: () => API.getChat(chatId),
 });
 
+export const chatMessages = (chatId: string) => ({
+	queryKey: chatMessagesKey(chatId),
+	queryFn: () => API.getChatMessages(chatId),
+});
+
 export const archiveChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) => API.archiveChat(chatId),
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({ queryKey: chatsKey });
 		await queryClient.cancelQueries({ queryKey: chatKey(chatId) });
-		const previousChat = queryClient.getQueryData<TypesGen.ChatWithMessages>(
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatKey(chatId),
 		);
 		updateInfiniteChatsCache(queryClient, (chats) =>
@@ -110,9 +117,9 @@ export const archiveChat = (queryClient: QueryClient) => ({
 			),
 		);
 		if (previousChat) {
-			queryClient.setQueryData<TypesGen.ChatWithMessages>(chatKey(chatId), {
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
 				...previousChat,
-				chat: { ...previousChat.chat, archived: true },
+				archived: true,
 			});
 		}
 		return { previousChat };
@@ -122,14 +129,14 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		chatId: string,
 		context:
 			| {
-					previousChat?: TypesGen.ChatWithMessages;
+					previousChat?: TypesGen.Chat;
 			  }
 			| undefined,
 	) => {
 		// Rollback: invalidate to re-fetch the correct state.
 		void queryClient.invalidateQueries({ queryKey: chatsKey });
 		if (context?.previousChat) {
-			queryClient.setQueryData<TypesGen.ChatWithMessages>(
+			queryClient.setQueryData<TypesGen.Chat>(
 				chatKey(chatId),
 				context.previousChat,
 			);
@@ -146,7 +153,7 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({ queryKey: chatsKey });
 		await queryClient.cancelQueries({ queryKey: chatKey(chatId) });
-		const previousChat = queryClient.getQueryData<TypesGen.ChatWithMessages>(
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatKey(chatId),
 		);
 		updateInfiniteChatsCache(queryClient, (chats) =>
@@ -155,9 +162,9 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 			),
 		);
 		if (previousChat) {
-			queryClient.setQueryData<TypesGen.ChatWithMessages>(chatKey(chatId), {
+			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
 				...previousChat,
-				chat: { ...previousChat.chat, archived: false },
+				archived: false,
 			});
 		}
 		return { previousChat };
@@ -167,14 +174,14 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 		chatId: string,
 		context:
 			| {
-					previousChat?: TypesGen.ChatWithMessages;
+					previousChat?: TypesGen.Chat;
 			  }
 			| undefined,
 	) => {
 		// Rollback: invalidate to re-fetch the correct state.
 		void queryClient.invalidateQueries({ queryKey: chatsKey });
 		if (context?.previousChat) {
-			queryClient.setQueryData<TypesGen.ChatWithMessages>(
+			queryClient.setQueryData<TypesGen.Chat>(
 				chatKey(chatId),
 				context.previousChat,
 			);
@@ -215,6 +222,7 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	onSuccess: () => {
 		void queryClient.invalidateQueries({ queryKey: chatsKey });
 		void queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
+		void queryClient.invalidateQueries({ queryKey: chatMessagesKey(chatId) });
 	},
 });
 
@@ -233,6 +241,7 @@ export const deleteChatQueuedMessage = (
 		API.deleteChatQueuedMessage(chatId, queuedMessageId),
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
+		await queryClient.invalidateQueries({ queryKey: chatMessagesKey(chatId) });
 	},
 });
 
@@ -245,6 +254,7 @@ export const promoteChatQueuedMessage = (
 	onSuccess: () => {
 		void queryClient.invalidateQueries({ queryKey: chatsKey });
 		void queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
+		void queryClient.invalidateQueries({ queryKey: chatMessagesKey(chatId) });
 	},
 });
 

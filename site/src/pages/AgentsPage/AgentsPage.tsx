@@ -426,7 +426,7 @@ const AgentsPage: FC = () => {
 						}
 						return chats;
 					});
-					queryClient.setQueryData<TypesGen.ChatWithMessages | undefined>(
+					queryClient.setQueryData<TypesGen.Chat | undefined>(
 						chatKey(updatedChat.id),
 						(previousChat) => {
 							if (!previousChat) {
@@ -434,15 +434,12 @@ const AgentsPage: FC = () => {
 							}
 							return {
 								...previousChat,
-								chat: {
-									...previousChat.chat,
-									...(isStatusEvent && { status: updatedChat.status }),
-									...(isTitleEvent && { title: updatedChat.title }),
-									updated_at:
-										previousChat.chat.updated_at > updatedChat.updated_at
-											? previousChat.chat.updated_at
-											: updatedChat.updated_at,
-								},
+								...(isStatusEvent && { status: updatedChat.status }),
+								...(isTitleEvent && { title: updatedChat.title }),
+								updated_at:
+									previousChat.updated_at > updatedChat.updated_at
+										? previousChat.updated_at
+										: updatedChat.updated_at,
 							};
 						},
 					);
