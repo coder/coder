@@ -1,6 +1,16 @@
+import { getErrorMessage } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { Loader2Icon, TriangleAlertIcon } from "lucide-react";
+import { Spinner } from "components/Spinner/Spinner";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
+import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import { formatCostMicros, formatTokenCount } from "utils/analytics";
 
@@ -30,7 +40,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 				aria-label={loadingLabel}
 				className="flex min-h-[240px] items-center justify-center"
 			>
-				<Loader2Icon className="h-8 w-8 animate-spin text-content-secondary" />
+				<Spinner size="lg" />
 			</div>
 		);
 	}
@@ -39,9 +49,10 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 		return (
 			<div className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
 				<p className="m-0 text-sm text-content-secondary">
-					{error instanceof Error
-						? error.message
-						: "Failed to load usage details."}
+					{getErrorMessage(
+						error instanceof Error ? error : undefined,
+						"Failed to load usage details.",
+					)}
 				</p>
 				<Button variant="outline" size="sm" type="button" onClick={onRetry}>
 					Retry
@@ -111,81 +122,87 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 			) : (
 				<>
 					<div className="overflow-x-auto rounded-lg border border-border-default">
-						<table className="w-full text-sm">
-							<thead>
-								<tr className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
-									<th className="px-4 py-3">Model</th>
-									<th className="px-4 py-3">Provider</th>
-									<th className="px-4 py-3 text-right">Cost</th>
-									<th className="px-4 py-3 text-right">Messages</th>
-									<th className="px-4 py-3 text-right">Input</th>
-									<th className="px-4 py-3 text-right">Output</th>
-								</tr>
-							</thead>
-							<tbody>
+						<Table className="text-sm">
+							<TableHeader>
+								<TableRow className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
+									<TableHead className="px-4 py-3">Model</TableHead>
+									<TableHead className="px-4 py-3">Provider</TableHead>
+									<TableHead className="px-4 py-3 text-right">Cost</TableHead>
+									<TableHead className="px-4 py-3 text-right">
+										Messages
+									</TableHead>
+									<TableHead className="px-4 py-3 text-right">Input</TableHead>
+									<TableHead className="px-4 py-3 text-right">Output</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
 								{summary.by_model.map((model) => (
-									<tr
+									<TableRow
 										key={model.model_config_id}
 										className="border-t border-border-default"
 									>
-										<td className="px-4 py-3">
+										<TableCell className="px-4 py-3">
 											{model.display_name || model.model}
-										</td>
-										<td className="px-4 py-3 text-content-secondary">
+										</TableCell>
+										<TableCell className="px-4 py-3 text-content-secondary">
 											{model.provider}
-										</td>
-										<td className="px-4 py-3 text-right">
+										</TableCell>
+										<TableCell className="px-4 py-3 text-right">
 											{formatCostMicros(model.total_cost_micros)}
-										</td>
-										<td className="px-4 py-3 text-right">
+										</TableCell>
+										<TableCell className="px-4 py-3 text-right">
 											{model.message_count.toLocaleString()}
-										</td>
-										<td className="px-4 py-3 text-right">
+										</TableCell>
+										<TableCell className="px-4 py-3 text-right">
 											{formatTokenCount(model.total_input_tokens)}
-										</td>
-										<td className="px-4 py-3 text-right">
+										</TableCell>
+										<TableCell className="px-4 py-3 text-right">
 											{formatTokenCount(model.total_output_tokens)}
-										</td>
-									</tr>
+										</TableCell>
+									</TableRow>
 								))}
-							</tbody>
-						</table>
+							</TableBody>
+						</Table>
 					</div>
 
 					<div className="overflow-x-auto rounded-lg border border-border-default">
-						<table className="w-full text-sm">
-							<thead>
-								<tr className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
-									<th className="px-4 py-3">Chat</th>
-									<th className="px-4 py-3 text-right">Cost</th>
-									<th className="px-4 py-3 text-right">Messages</th>
-									<th className="px-4 py-3 text-right">Input</th>
-									<th className="px-4 py-3 text-right">Output</th>
-								</tr>
-							</thead>
-							<tbody>
+						<Table className="text-sm">
+							<TableHeader>
+								<TableRow className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
+									<TableHead className="px-4 py-3">Chat</TableHead>
+									<TableHead className="px-4 py-3 text-right">Cost</TableHead>
+									<TableHead className="px-4 py-3 text-right">
+										Messages
+									</TableHead>
+									<TableHead className="px-4 py-3 text-right">Input</TableHead>
+									<TableHead className="px-4 py-3 text-right">Output</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
 								{summary.by_chat.map((chat) => (
-									<tr
+									<TableRow
 										key={chat.root_chat_id}
 										className="border-t border-border-default"
 									>
-										<td className="px-4 py-3">{chat.chat_title}</td>
-										<td className="px-4 py-3 text-right">
+										<TableCell className="px-4 py-3">
+											{chat.chat_title}
+										</TableCell>
+										<TableCell className="px-4 py-3 text-right">
 											{formatCostMicros(chat.total_cost_micros)}
-										</td>
-										<td className="px-4 py-3 text-right">
+										</TableCell>
+										<TableCell className="px-4 py-3 text-right">
 											{chat.message_count.toLocaleString()}
-										</td>
-										<td className="px-4 py-3 text-right">
+										</TableCell>
+										<TableCell className="px-4 py-3 text-right">
 											{formatTokenCount(chat.total_input_tokens)}
-										</td>
-										<td className="px-4 py-3 text-right">
+										</TableCell>
+										<TableCell className="px-4 py-3 text-right">
 											{formatTokenCount(chat.total_output_tokens)}
-										</td>
-									</tr>
+										</TableCell>
+									</TableRow>
 								))}
-							</tbody>
-						</table>
+							</TableBody>
+						</Table>
 					</div>
 				</>
 			)}
