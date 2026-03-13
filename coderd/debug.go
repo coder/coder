@@ -341,14 +341,12 @@ func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger sl
 // data from the Go runtime. Production code uses defaultProfileCollector;
 // tests can substitute a stub to avoid process-global side-effects.
 type ProfileCollector interface {
-	// StartCPUProfile begins CPU profiling, writing to w.
-	StartCPUProfile(w io.Writer) error
-	// StopCPUProfile stops CPU profiling.
-	StopCPUProfile()
-	// StartTrace begins execution tracing, writing to w.
-	StartTrace(w io.Writer) error
-	// StopTrace stops execution tracing.
-	StopTrace()
+	// StartCPUProfile begins CPU profiling, writing to w. It returns
+	// a stop function that must be called to finish profiling.
+	StartCPUProfile(w io.Writer) (stop func(), err error)
+	// StartTrace begins execution tracing, writing to w. It returns
+	// a stop function that must be called to finish tracing.
+	StartTrace(w io.Writer) (stop func(), err error)
 	// LookupProfile writes the named snapshot profile to w.
 	LookupProfile(name string, w io.Writer) error
 	// SetBlockProfileRate enables/disables block profiling.
@@ -362,10 +360,19 @@ type ProfileCollector interface {
 // runtime/trace packages.
 type defaultProfileCollector struct{}
 
-func (defaultProfileCollector) StartCPUProfile(w io.Writer) error { return pprof.StartCPUProfile(w) }
-func (defaultProfileCollector) StopCPUProfile()                   { pprof.StopCPUProfile() }
-func (defaultProfileCollector) StartTrace(w io.Writer) error      { return trace.Start(w) }
-func (defaultProfileCollector) StopTrace()                        { trace.Stop() }
+func (defaultProfileCollector) StartCPUProfile(w io.Writer) (func(), error) {
+	if err := pprof.StartCPUProfile(w); err != nil {
+		return nil, err
+	}
+	return pprof.StopCPUProfile, nil
+}
+
+func (defaultProfileCollector) StartTrace(w io.Writer) (func(), error) {
+	if err := trace.Start(w); err != nil {
+		return nil, err
+	}
+	return trace.Stop, nil
+}
 
 func (defaultProfileCollector) LookupProfile(name string, w io.Writer) error {
 	p := pprof.Lookup(name)
@@ -488,10 +495,14 @@ func (api *API) debugCollectProfile(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Collect timed profiles (cpu and/or trace) for the requested
-	// duration.
+	// duration. StartCPUProfile and StartTrace each return a stop
+	// function that must be called to finish collection.
 	var cpuBuf, traceBuf bytes.Buffer
+	var stopCPU, stopTrace func()
 	if wantCPU {
-		if err := pc.StartCPUProfile(&cpuBuf); err != nil {
+		var err error
+		stopCPU, err = pc.StartCPUProfile(&cpuBuf)
+		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to start CPU profile.",
 				Detail:  err.Error(),
@@ -500,9 +511,11 @@ func (api *API) debugCollectProfile(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if wantTrace {
-		if err := pc.StartTrace(&traceBuf); err != nil {
-			if wantCPU {
-				pc.StopCPUProfile()
+		var err error
+		stopTrace, err = pc.StartTrace(&traceBuf)
+		if err != nil {
+			if stopCPU != nil {
+				stopCPU()
 			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to start trace.",
@@ -513,25 +526,25 @@ func (api *API) debugCollectProfile(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if wantCPU || wantTrace {
-		timer := time.NewTimer(duration)
+		timer := api.Clock.NewTimer(duration, "debugCollectProfile")
 		defer timer.Stop()
 		select {
 		case <-ctx.Done():
-			if wantCPU {
-				pc.StopCPUProfile()
+			if stopCPU != nil {
+				stopCPU()
 			}
-			if wantTrace {
-				pc.StopTrace()
+			if stopTrace != nil {
+				stopTrace()
 			}
 			// Client disconnected; nothing to write.
 			return
 		case <-timer.C:
 		}
-		if wantCPU {
-			pc.StopCPUProfile()
+		if stopCPU != nil {
+			stopCPU()
 		}
-		if wantTrace {
-			pc.StopTrace()
+		if stopTrace != nil {
+			stopTrace()
 		}
 	}
 

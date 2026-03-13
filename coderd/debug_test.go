@@ -381,13 +381,11 @@ func TestDebugWebsocket(t *testing.T) {
 // (CPU profiler, tracer) so that tests can run in parallel safely.
 type noopProfileCollector struct{}
 
-func (noopProfileCollector) StartCPUProfile(io.Writer) error       { return nil }
-func (noopProfileCollector) StopCPUProfile()                       {}
-func (noopProfileCollector) StartTrace(io.Writer) error            { return nil }
-func (noopProfileCollector) StopTrace()                            {}
-func (noopProfileCollector) LookupProfile(string, io.Writer) error { return nil }
-func (noopProfileCollector) SetBlockProfileRate(int)               {}
-func (noopProfileCollector) SetMutexProfileFraction(int) int       { return 0 }
+func (noopProfileCollector) StartCPUProfile(io.Writer) (func(), error) { return func() {}, nil }
+func (noopProfileCollector) StartTrace(io.Writer) (func(), error)      { return func() {}, nil }
+func (noopProfileCollector) LookupProfile(string, io.Writer) error     { return nil }
+func (noopProfileCollector) SetBlockProfileRate(int)                   {}
+func (noopProfileCollector) SetMutexProfileFraction(int) int           { return 0 }
 
 // Compile-time check.
 var _ coderd.ProfileCollector = noopProfileCollector{}
@@ -400,10 +398,10 @@ type blockingProfileCollector struct {
 	block   chan struct{} // StartCPUProfile blocks until this is closed
 }
 
-func (b *blockingProfileCollector) StartCPUProfile(io.Writer) error {
+func (b *blockingProfileCollector) StartCPUProfile(io.Writer) (func(), error) {
 	close(b.started)
 	<-b.block
-	return nil
+	return func() {}, nil
 }
 
 func newTestAPI(t *testing.T) (*codersdk.Client, io.Closer, *coderd.API) {
