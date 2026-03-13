@@ -167,13 +167,6 @@ type UploadChatFileResponse struct {
 	ID uuid.UUID `json:"id" format:"uuid"`
 }
 
-// ChatWithMessages is a chat along with its messages.
-type ChatWithMessages struct {
-	Chat           Chat                `json:"chat"`
-	Messages       []ChatMessage       `json:"messages"`
-	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
-}
-
 // ChatMessagesResponse contains the messages and queued messages for a chat.
 type ChatMessagesResponse struct {
 	Messages       []ChatMessage       `json:"messages"`

@@ -1640,16 +1640,6 @@ export interface ChatSystemPromptResponse {
 	readonly system_prompt: string;
 }
 
-// From codersdk/chats.go
-/**
- * ChatWithMessages is a chat along with its messages.
- */
-export interface ChatWithMessages {
-	readonly chat: Chat;
-	readonly messages: readonly ChatMessage[];
-	readonly queued_messages: readonly ChatQueuedMessage[];
-}
-
 // From codersdk/client.go
 /**
  * CoderDesktopTelemetryHeader contains a JSON-encoded representation of Desktop telemetry

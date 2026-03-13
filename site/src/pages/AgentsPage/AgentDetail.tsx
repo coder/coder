@@ -1098,7 +1098,7 @@ const AgentDetail: FC = () => {
 		);
 	}
 
-	if (!chatQuery.data || !agentId) {
+	if (!chatQuery.data || !chatMessagesQuery.data || !agentId) {
 		return (
 			<AgentDetailNotFoundView
 				titleElement={titleElement}

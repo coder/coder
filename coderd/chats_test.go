@@ -125,8 +125,6 @@ func TestPostChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
 		require.NoError(t, err)
 		for _, message := range messagesResult.Messages {
@@ -2207,8 +2205,6 @@ func TestChatMessageWithFiles(t *testing.T) {
 		}
 
 		// Verify file parts omit inline data in the API response.
-		_, err = client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
 		require.NoError(t, err)
 		for _, msg := range messagesResult.Messages {
@@ -2305,8 +2301,6 @@ func TestPatchChatMessage(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
 		require.NoError(t, err)
 
@@ -2339,13 +2333,11 @@ func TestPatchChatMessage(t *testing.T) {
 		}
 		require.True(t, foundEditedText)
 
-		_, err = client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		updatedMessages, err := client.GetChatMessages(ctx, chat.ID)
+		messagesResult, err = client.GetChatMessages(ctx, chat.ID)
 		require.NoError(t, err)
 		foundEditedInChat := false
 		foundOriginalInChat := false
-		for _, message := range updatedMessages.Messages {
+		for _, message := range messagesResult.Messages {
 			if message.Role != "user" {
 				continue
 			}
@@ -2394,8 +2386,6 @@ func TestPatchChatMessage(t *testing.T) {
 		require.NoError(t, err)
 
 		// Find the user message ID.
-		_, err = client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
 		require.NoError(t, err)
 
@@ -2438,14 +2428,12 @@ func TestPatchChatMessage(t *testing.T) {
 		require.True(t, foundText, "edited message should contain updated text")
 		require.True(t, foundFile, "edited message should preserve file_id")
 
-		// GET the chat and verify the file_id persists.
-		_, err = client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		updatedMessages, err := client.GetChatMessages(ctx, chat.ID)
+		// GET the chat messages and verify the file_id persists.
+		messagesResult, err = client.GetChatMessages(ctx, chat.ID)
 		require.NoError(t, err)
 
 		var foundTextInChat, foundFileInChat bool
-		for _, message := range updatedMessages.Messages {
+		for _, message := range messagesResult.Messages {
 			if message.Role != "user" {
 				continue
 			}
@@ -3053,8 +3041,6 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 		res.Body.Close()
 		require.Equal(t, http.StatusNoContent, res.StatusCode)
 
-		_, err = client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
 		require.NoError(t, err)
 		for _, queued := range messagesResult.QueuedMessages {
@@ -3154,8 +3140,6 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		}
 		require.True(t, foundPromotedText)
 
-		_, err = client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
 		require.NoError(t, err)
 		for _, queued := range messagesResult.QueuedMessages {
