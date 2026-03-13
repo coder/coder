@@ -15,6 +15,7 @@ import {
 	chatDiffContentsKey,
 	chatDiffStatusKey,
 	chatKey,
+	chatMessagesKey,
 	chatModelsKey,
 	chatsKey,
 } from "api/queries/chats";
@@ -131,13 +132,15 @@ index abc1234..def5678 100644
  }
 `;
 
-/** Build `parameters.queries` entries for a given chat data object. */
+/** Build `parameters.queries` entries for a given chat and messages. */
 const buildQueries = (
-	chatData: TypesGen.ChatWithMessages,
+	chat: TypesGen.Chat,
+	messagesData: TypesGen.ChatMessagesResponse,
 	opts?: { diffUrl?: string },
 ) => [
-	{ key: chatKey(CHAT_ID), data: chatData },
-	{ key: chatsKey, data: [chatData.chat] },
+	{ key: chatKey(CHAT_ID), data: chat },
+	{ key: chatMessagesKey(CHAT_ID), data: messagesData },
+	{ key: chatsKey, data: [chat] },
 	{
 		key: chatDiffStatusKey(CHAT_ID),
 		data: {
@@ -216,15 +219,14 @@ type Story = StoryObj<typeof AgentDetailLayout>;
 export const WithMessageHistory: Story = {
 	parameters: {
 		queries: buildQueries(
-			{
-				chat: {
+				{
 					id: CHAT_ID,
 					...baseChatFields,
 					title: "Markdown rendering showcase",
 					status: "completed",
 				},
-				messages: [
-					// -- Turn 1: user asks for a summary --
+				{
+					messages: [					// -- Turn 1: user asks for a summary --
 					{
 						id: 1,
 						chat_id: CHAT_ID,
@@ -526,15 +528,14 @@ export const WithMessageHistory: Story = {
 						],
 					},
 				],
-				queued_messages: [],
-			},
-			{ diffUrl: undefined },
-		),
-	},
-};
+					queued_messages: [],
+				},
+				{ diffUrl: undefined },
+			),
+		},
+	};
 
-/** Skeleton placeholder when no query data is available yet. */
-export const Loading: Story = {};
+	/** Skeleton placeholder when no query data is available yet. */export const Loading: Story = {};
 
 /** Full layout with actions menu and diff panel portaled to the right slot. */
 export const CompletedWithDiffPanel: Story = {
@@ -543,20 +544,16 @@ export const CompletedWithDiffPanel: Story = {
 		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 	},
 	parameters: {
-		queries: buildQueries(
-			{
-				chat: {
+			queries: buildQueries(
+				{
 					id: CHAT_ID,
 					...baseChatFields,
 					title: "Build a feature",
 					status: "completed",
 				},
-				messages: [],
-				queued_messages: [],
-			},
-			{ diffUrl: "https://github.com/coder/coder/pull/123" },
-		),
-	},
+				{ messages: [], queued_messages: [] },
+				{ diffUrl: "https://github.com/coder/coder/pull/123" },
+			),	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
@@ -582,63 +579,58 @@ export const CompletedWithDiffPanel: Story = {
 export const NoDiffUrl: Story = {
 	parameters: {
 		queries: buildQueries(
-			{
-				chat: {
+				{
 					id: CHAT_ID,
 					...baseChatFields,
 					title: "No diff yet",
 					status: "completed",
 				},
-				messages: [],
-				queued_messages: [],
-			},
-			{ diffUrl: undefined },
-		),
-	},
+				{ messages: [], queued_messages: [] },
+				{ diffUrl: undefined },
+			),	},
 };
 
 /** Subagent tool-call/result messages render subagent cards. */
 export const WithSubagentCards: Story = {
 	parameters: {
-		queries: buildQueries(
-			{
-				chat: {
+			queries: buildQueries(
+				{
 					id: CHAT_ID,
 					...baseChatFields,
 					title: "Parent agent",
 					status: "running",
 				},
-				messages: [
-					{
-						id: 1,
-						chat_id: CHAT_ID,
-						created_at: "2026-02-18T00:00:01.000Z",
-						role: "assistant",
-						content: [
-							{
-								type: "tool-call",
-								tool_call_id: "tool-subagent-1",
-								tool_name: "spawn_agent",
-								args: { title: "Child agent" },
-							},
-							{
-								type: "tool-result",
-								tool_call_id: "tool-subagent-1",
-								tool_name: "spawn_agent",
-								result: {
-									chat_id: "child-chat-1",
-									title: "Child agent",
-									status: "pending",
+				{
+					messages: [
+						{
+							id: 1,
+							chat_id: CHAT_ID,
+							created_at: "2026-02-18T00:00:01.000Z",
+							role: "assistant",
+							content: [
+								{
+									type: "tool-call",
+									tool_call_id: "tool-subagent-1",
+									tool_name: "spawn_agent",
+									args: { title: "Child agent" },
 								},
-							},
-						],
-					},
-				],
-				queued_messages: [],
-			},
-			{ diffUrl: undefined },
-		),
-	},
+								{
+									type: "tool-result",
+									tool_call_id: "tool-subagent-1",
+									tool_name: "spawn_agent",
+									result: {
+										chat_id: "child-chat-1",
+										title: "Child agent",
+										status: "pending",
+									},
+								},
+							],
+						},
+					],
+					queued_messages: [],
+				},
+				{ diffUrl: undefined },
+			),	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
@@ -653,15 +645,14 @@ export const WithSubagentCards: Story = {
 export const WithReasoningCollapsed: Story = {
 	parameters: {
 		queries: buildQueries(
-			{
-				chat: {
+				{
 					id: CHAT_ID,
 					...baseChatFields,
 					title: "Reasoning title",
 					status: "completed",
 				},
-				messages: [
-					{
+				{
+					messages: [					{
 						id: 1,
 						chat_id: CHAT_ID,
 						created_at: "2026-02-18T00:00:01.000Z",
@@ -705,19 +696,15 @@ export const WithReasoningCollapsed: Story = {
 export const StreamedSubagentTitle: Story = {
 	parameters: {
 		queries: buildQueries(
-			{
-				chat: {
+				{
 					id: CHAT_ID,
 					...baseChatFields,
 					title: "Streaming title",
 					status: "running",
 				},
-				messages: [],
-				queued_messages: [],
-			},
-			{ diffUrl: undefined },
-		),
-		webSocket: {
+				{ messages: [], queued_messages: [] },
+				{ diffUrl: undefined },
+			),		webSocket: {
 			"/chats/": [
 				{
 					event: "message",
@@ -760,19 +747,15 @@ export const SidebarWithPRAndRepos: Story = {
 	},
 	parameters: {
 		queries: buildQueries(
-			{
-				chat: {
+				{
 					id: CHAT_ID,
 					...baseChatFields,
 					title: "Full sidebar demo",
 					status: "completed",
 				},
-				messages: [],
-				queued_messages: [],
-			},
-			{ diffUrl: "https://github.com/coder/coder/pull/456" },
-		),
-		webSocket: {
+				{ messages: [], queued_messages: [] },
+				{ diffUrl: "https://github.com/coder/coder/pull/456" },
+			),		webSocket: {
 			"/git/watch": [
 				{
 					event: "message",
@@ -944,19 +927,15 @@ export const SidebarWithSingleRepo: Story = {
 	},
 	parameters: {
 		queries: buildQueries(
-			{
-				chat: {
+				{
 					id: CHAT_ID,
 					...baseChatFields,
 					title: "Single repo sidebar",
 					status: "completed",
 				},
-				messages: [],
-				queued_messages: [],
-			},
-			{ diffUrl: undefined },
-		),
-		webSocket: {
+				{ messages: [], queued_messages: [] },
+				{ diffUrl: undefined },
+			),		webSocket: {
 			"/git/watch": [
 				{
 					event: "message",
@@ -1009,19 +988,15 @@ export const SidebarWithSingleRepo: Story = {
 export const StreamedReasoningCollapsed: Story = {
 	parameters: {
 		queries: buildQueries(
-			{
-				chat: {
+				{
 					id: CHAT_ID,
 					...baseChatFields,
 					title: "Streaming reasoning title",
 					status: "running",
 				},
-				messages: [],
-				queued_messages: [],
-			},
-			{ diffUrl: undefined },
-		),
-		webSocket: {
+				{ messages: [], queued_messages: [] },
+				{ diffUrl: undefined },
+			),		webSocket: {
 			"/chats/": [
 				{
 					event: "message",

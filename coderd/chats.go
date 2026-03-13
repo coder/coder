@@ -362,6 +362,13 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
+	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, nil))
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
 	messages, err := api.Database.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
@@ -385,8 +392,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatWithMessages{
-		Chat:           convertChat(chat, nil),
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMessagesResponse{
 		Messages:       convertChatMessages(messages),
 		QueuedMessages: convertChatQueuedMessages(queuedMessages),
 	})

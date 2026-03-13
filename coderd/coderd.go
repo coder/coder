@@ -1173,6 +1173,7 @@ func New(options *Options) *API {
 				r.Get("/git/watch", api.watchChatGit)
 				r.Post("/archive", api.archiveChat)
 				r.Post("/unarchive", api.unarchiveChat)
+				r.Get("/messages", api.getChatMessages)
 				r.Post("/messages", api.postChatMessages)
 				r.Patch("/messages/{message}", api.patchChatMessage)
 				r.Get("/stream", api.streamChat)
@@ -1186,7 +1187,7 @@ func New(options *Options) *API {
 			})
 		})
 
-		r.Route("/mcp", func(r chi.Router) {
+			r.Route("/mcp", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),

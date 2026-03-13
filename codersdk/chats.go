@@ -174,6 +174,12 @@ type ChatWithMessages struct {
 	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
 }
 
+// ChatMessagesResponse contains the messages and queued messages for a chat.
+type ChatMessagesResponse struct {
+	Messages       []ChatMessage       `json:"messages"`
+	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
+}
+
 // ChatModelProviderUnavailableReason explains why a provider cannot be used.
 type ChatModelProviderUnavailableReason string
 
@@ -980,18 +986,32 @@ func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamC
 	}), nil
 }
 
-// GetChat returns a chat by ID, including its messages.
-func (c *Client) GetChat(ctx context.Context, chatID uuid.UUID) (ChatWithMessages, error) {
+// GetChat returns a chat by ID.
+func (c *Client) GetChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s", chatID), nil)
 	if err != nil {
-		return ChatWithMessages{}, err
+		return Chat{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ChatWithMessages{}, ReadBodyAsError(res)
+		return Chat{}, ReadBodyAsError(res)
 	}
-	var chat ChatWithMessages
+	var chat Chat
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
+// GetChatMessages returns the messages and queued messages for a chat.
+func (c *Client) GetChatMessages(ctx context.Context, chatID uuid.UUID) (ChatMessagesResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/messages", chatID), nil)
+	if err != nil {
+		return ChatMessagesResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatMessagesResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatMessagesResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 func (c *Client) ArchiveChat(ctx context.Context, chatID uuid.UUID) error {
