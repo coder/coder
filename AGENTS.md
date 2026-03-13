@@ -214,10 +214,14 @@ seems like it should use `time.Sleep`, read through https://github.com/coder/qua
 - Prefer existing shared UI components and utilities over custom
   implementations. Reuse common primitives such as loading, table, and error
   handling components when they fit the use case.
-- Use Storybook stories for component UI testing, not standalone vitest/RTL
-  test files. Stories double as living documentation and visual regression
-  coverage. Only fall back to a plain test file when the scenario genuinely
-  cannot be expressed as a story.
+- Use Storybook stories for all component and page testing, including
+  visual presentation, user interactions, keyboard navigation, focus
+  management, and accessibility behavior. Do not create standalone
+  vitest/RTL test files for components or pages. Stories double as living
+  documentation, visual regression coverage, and interaction test suites
+  via `play` functions. Reserve plain vitest files for pure logic only:
+  utility functions, data transformations, hooks tested via
+  `renderHook()`, and query/cache operations with no rendered output.
 
 ### Writing Comments
 
