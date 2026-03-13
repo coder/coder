@@ -33,6 +33,8 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 		count           int64
 		workspaceID     string
 		prompt          string
+		turns           int64
+		followUpPrompt  string
 		llmMockURL      string
 		tracingFlags    = &scaletestTracingFlags{}
 		prometheusFlags = &scaletestPrometheusFlags{}
@@ -44,7 +46,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "chat",
 		Short: "Run a chat scale test against the Coder API",
-		Long:  "Creates N concurrent chats against a single pre-existing workspace and streams each to completion.",
+		Long:  "Creates N concurrent chats against a single pre-existing workspace and streams each conversation to completion.",
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 
@@ -187,6 +189,8 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 					WorkspaceID:       wsID,
 					Prompt:            prompt,
 					ModelConfigID:     modelConfigID,
+					Turns:             int(turns),
+					FollowUpPrompt:    followUpPrompt,
 					ReadyWaitGroup:    readyWG,
 					StartChan:         startChan,
 					Metrics:           metrics,
@@ -275,9 +279,21 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 		},
 		{
 			Flag:        "prompt",
-			Description: "Text prompt to send in each chat.",
+			Description: "Text prompt to send for the first turn in each chat.",
 			Default:     "Reply with one short sentence.",
 			Value:       serpent.StringOf(&prompt),
+		},
+		{
+			Flag:        "turns",
+			Description: "Number of user→assistant exchanges per chat conversation.",
+			Default:     "10",
+			Value:       serpent.Int64Of(&turns),
+		},
+		{
+			Flag:        "follow-up-prompt",
+			Description: "Text prompt to send for follow-up turns (turns 2 through N).",
+			Default:     "Continue.",
+			Value:       serpent.StringOf(&followUpPrompt),
 		},
 		{
 			Flag:        "llm-mock-url",

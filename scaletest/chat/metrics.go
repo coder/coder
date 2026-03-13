@@ -10,6 +10,7 @@ type Metrics struct {
 	ChatCreateErrorsTotal           prometheus.CounterVec
 	ChatStreamErrorsTotal           prometheus.CounterVec
 	ChatTerminalStatusTotal         prometheus.CounterVec
+	ChatTurnsCompletedTotal         prometheus.CounterVec
 	ChatRetryEventsTotal            prometheus.CounterVec
 	ActiveChatStreams               prometheus.GaugeVec
 }
@@ -28,7 +29,7 @@ func NewMetrics(reg prometheus.Registerer, labelNames ...string) *Metrics {
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "chat_time_to_running_seconds",
-			Help:      "Time in seconds from chat creation start until the chat enters running status.",
+			Help:      "Time in seconds from the start of a chat turn until the chat enters running status.",
 		}, labelNames),
 		ChatTimeToFirstOutputSeconds: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
@@ -40,7 +41,7 @@ func NewMetrics(reg prometheus.Registerer, labelNames ...string) *Metrics {
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "chat_time_to_terminal_status_seconds",
-			Help:      "Time in seconds from chat creation start until a terminal status is received.",
+			Help:      "Time in seconds from the start of a chat turn until a terminal status is received.",
 		}, labelNames),
 		ChatCreateErrorsTotal: *prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coderd",
@@ -60,6 +61,12 @@ func NewMetrics(reg prometheus.Registerer, labelNames ...string) *Metrics {
 			Name:      "chat_terminal_status_total",
 			Help:      "Total number of terminal chat statuses observed.",
 		}, terminalStatusLabelNames),
+		ChatTurnsCompletedTotal: *prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "coderd",
+			Subsystem: "scaletest",
+			Name:      "chat_turns_completed_total",
+			Help:      "Total number of chat turns (user→assistant exchanges) completed successfully.",
+		}, labelNames),
 		ChatRetryEventsTotal: *prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
@@ -81,6 +88,7 @@ func NewMetrics(reg prometheus.Registerer, labelNames ...string) *Metrics {
 	reg.MustRegister(m.ChatCreateErrorsTotal)
 	reg.MustRegister(m.ChatStreamErrorsTotal)
 	reg.MustRegister(m.ChatTerminalStatusTotal)
+	reg.MustRegister(m.ChatTurnsCompletedTotal)
 	reg.MustRegister(m.ChatRetryEventsTotal)
 	reg.MustRegister(m.ActiveChatStreams)
 
