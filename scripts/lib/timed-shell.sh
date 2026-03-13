@@ -45,6 +45,8 @@ if ((rc == 0)); then
 	printf '%s✓%s %s (%ds)\n' "$green" "$reset" "$target" "$elapsed"
 else
 	if [[ -n ${MAKE_LOGDIR:-} ]]; then
+		printf '%s○%s %s\n' "$dim" "$reset" "$target"
+		tail -n20 "$logfile" | sed 's/^/    /'
 		printf '%s✗%s %s (%ds) → %s\n' "$red" "$reset" "$target" "$elapsed" "$logfile"
 	else
 		printf '%s✗%s %s (%ds)\n' "$red" "$reset" "$target" "$elapsed"
