@@ -128,6 +128,14 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 			want: int64Ptr(0),
 		},
 		{
+			name:  "usage only in unpriced categories returns nil",
+			usage: codersdk.ChatMessageUsage{InputTokens: int64Ptr(1000)},
+			cost: &codersdk.ModelCostConfig{
+				OutputPricePerMillionTokens: decPtr("15"),
+			},
+			want: nil,
+		},
+		{
 			name:  "non nil usage with empty cost config returns nil",
 			usage: codersdk.ChatMessageUsage{InputTokens: int64Ptr(42)},
 			cost:  &codersdk.ModelCostConfig{},

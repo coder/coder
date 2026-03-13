@@ -47,6 +47,12 @@ WITH message_costs AS (
             OR pricing.cache_read_price IS NOT NULL
             OR pricing.cache_write_price IS NOT NULL
         )
+        AND (
+            (msg.input_tokens IS NOT NULL AND pricing.input_price IS NOT NULL)
+            OR ((msg.output_tokens IS NOT NULL OR msg.reasoning_tokens IS NOT NULL) AND pricing.output_price IS NOT NULL)
+            OR (msg.cache_read_tokens IS NOT NULL AND pricing.cache_read_price IS NOT NULL)
+            OR (msg.cache_creation_tokens IS NOT NULL AND pricing.cache_write_price IS NOT NULL)
+        )
 )
 UPDATE
     chat_messages AS msg
