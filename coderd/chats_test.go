@@ -3531,6 +3531,73 @@ func TestChatCostSummary(t *testing.T) {
 	})
 }
 
+func TestChatCostSummary_AfterModelDeletion(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	modelConfig := createChatModelConfig(t, client)
+
+	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+		OwnerID:           firstUser.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "test chat",
+	})
+	require.NoError(t, err)
+
+	for i := 0; i < 2; i++ {
+		_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+			ChatID:          chat.ID,
+			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:            "assistant",
+			Visibility:      database.ChatMessageVisibilityBoth,
+			InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
+			OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
+			TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
+		})
+		require.NoError(t, err)
+	}
+
+	summary, err := client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{})
+	require.NoError(t, err)
+
+	require.Equal(t, int64(1000), summary.TotalCostMicros)
+	require.Equal(t, int64(2), summary.PricedMessageCount)
+	require.Equal(t, int64(0), summary.UnpricedMessageCount)
+	require.Equal(t, int64(200), summary.TotalInputTokens)
+	require.Equal(t, int64(100), summary.TotalOutputTokens)
+
+	require.Len(t, summary.ByModel, 1)
+	require.Equal(t, modelConfig.ID, summary.ByModel[0].ModelConfigID)
+	require.Equal(t, int64(1000), summary.ByModel[0].TotalCostMicros)
+	require.Equal(t, int64(2), summary.ByModel[0].MessageCount)
+
+	require.Len(t, summary.ByChat, 1)
+	require.Equal(t, chat.ID, summary.ByChat[0].RootChatID)
+	require.Equal(t, int64(1000), summary.ByChat[0].TotalCostMicros)
+	require.Equal(t, int64(2), summary.ByChat[0].MessageCount)
+
+	err = client.DeleteChatModelConfig(ctx, modelConfig.ID)
+	require.NoError(t, err)
+
+	summary, err = client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{})
+	require.NoError(t, err)
+
+	require.Equal(t, int64(1000), summary.TotalCostMicros)
+	require.Equal(t, int64(2), summary.PricedMessageCount)
+
+	require.Len(t, summary.ByModel, 1)
+	require.Equal(t, modelConfig.ID, summary.ByModel[0].ModelConfigID)
+	require.Equal(t, int64(1000), summary.ByModel[0].TotalCostMicros)
+	require.Equal(t, int64(2), summary.ByModel[0].MessageCount)
+
+	require.Len(t, summary.ByChat, 1)
+	require.Equal(t, chat.ID, summary.ByChat[0].RootChatID)
+	require.Equal(t, int64(1000), summary.ByChat[0].TotalCostMicros)
+	require.Equal(t, int64(2), summary.ByChat[0].MessageCount)
+}
+
 func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 	t.Parallel()
 
