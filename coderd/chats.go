@@ -3296,7 +3296,7 @@ func parseChatMCPServerID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, b
 	return mcpServerID, true
 }
 
-func convertChatMCPServerConfig(server database.ChatMcpServer) codersdk.ChatMCPServerConfig {
+func convertChatMCPServerConfig(server database.ChatMCPServer) codersdk.ChatMCPServerConfig {
 	return codersdk.ChatMCPServerConfig{
 		ID:             server.ID,
 		Slug:           server.Slug,
@@ -3327,7 +3327,7 @@ func (api *API) listChatMCPServers(rw http.ResponseWriter, r *http.Request) {
 	// servers, which is sufficient for using the chat feature.
 	isAdmin := api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig)
 
-	var servers []database.ChatMcpServer
+	var servers []database.ChatMCPServer
 	var err error
 	if isAdmin {
 		servers, err = api.Database.GetChatMCPServers(ctx)

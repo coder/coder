@@ -2510,14 +2510,14 @@ func (q *querier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]dat
 	return files, nil
 }
 
-func (q *querier) GetChatMCPServerByID(ctx context.Context, id uuid.UUID) (database.ChatMcpServer, error) {
+func (q *querier) GetChatMCPServerByID(ctx context.Context, id uuid.UUID) (database.ChatMCPServer, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.ChatMcpServer{}, err
+		return database.ChatMCPServer{}, err
 	}
 	return q.db.GetChatMCPServerByID(ctx, id)
 }
 
-func (q *querier) GetChatMCPServers(ctx context.Context) ([]database.ChatMcpServer, error) {
+func (q *querier) GetChatMCPServers(ctx context.Context) ([]database.ChatMCPServer, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}
@@ -2727,7 +2727,7 @@ func (q *querier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.C
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetEligibleProvisionerDaemonsByProvisionerJobIDs)(ctx, provisionerJobIDs)
 }
 
-func (q *querier) GetEnabledChatMCPServers(ctx context.Context) ([]database.ChatMcpServer, error) {
+func (q *querier) GetEnabledChatMCPServers(ctx context.Context) ([]database.ChatMCPServer, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}
@@ -4602,9 +4602,9 @@ func (q *querier) InsertChatFile(ctx context.Context, arg database.InsertChatFil
 	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertChatFile)(ctx, arg)
 }
 
-func (q *querier) InsertChatMCPServer(ctx context.Context, arg database.InsertChatMCPServerParams) (database.ChatMcpServer, error) {
+func (q *querier) InsertChatMCPServer(ctx context.Context, arg database.InsertChatMCPServerParams) (database.ChatMCPServer, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.ChatMcpServer{}, err
+		return database.ChatMCPServer{}, err
 	}
 	return q.db.InsertChatMCPServer(ctx, arg)
 }
@@ -5483,9 +5483,9 @@ func (q *querier) UpdateChatHeartbeat(ctx context.Context, arg database.UpdateCh
 	return q.db.UpdateChatHeartbeat(ctx, arg)
 }
 
-func (q *querier) UpdateChatMCPServer(ctx context.Context, arg database.UpdateChatMCPServerParams) (database.ChatMcpServer, error) {
+func (q *querier) UpdateChatMCPServer(ctx context.Context, arg database.UpdateChatMCPServerParams) (database.ChatMCPServer, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.ChatMcpServer{}, err
+		return database.ChatMCPServer{}, err
 	}
 	return q.db.UpdateChatMCPServer(ctx, arg)
 }

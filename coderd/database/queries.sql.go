@@ -2324,9 +2324,9 @@ const getChatMCPServerByID = `-- name: GetChatMCPServerByID :one
 SELECT id, slug, url, display_name, auth_type, auth_headers, auth_headers_key_id, oauth_client_id, oauth_auth_server, tool_allow_regex, tool_deny_regex, enabled, created_by, created_at, updated_at FROM chat_mcp_servers WHERE id = $1::uuid
 `
 
-func (q *sqlQuerier) GetChatMCPServerByID(ctx context.Context, id uuid.UUID) (ChatMcpServer, error) {
+func (q *sqlQuerier) GetChatMCPServerByID(ctx context.Context, id uuid.UUID) (ChatMCPServer, error) {
 	row := q.db.QueryRowContext(ctx, getChatMCPServerByID, id)
-	var i ChatMcpServer
+	var i ChatMCPServer
 	err := row.Scan(
 		&i.ID,
 		&i.Slug,
@@ -2351,15 +2351,15 @@ const getChatMCPServers = `-- name: GetChatMCPServers :many
 SELECT id, slug, url, display_name, auth_type, auth_headers, auth_headers_key_id, oauth_client_id, oauth_auth_server, tool_allow_regex, tool_deny_regex, enabled, created_by, created_at, updated_at FROM chat_mcp_servers ORDER BY slug ASC
 `
 
-func (q *sqlQuerier) GetChatMCPServers(ctx context.Context) ([]ChatMcpServer, error) {
+func (q *sqlQuerier) GetChatMCPServers(ctx context.Context) ([]ChatMCPServer, error) {
 	rows, err := q.db.QueryContext(ctx, getChatMCPServers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ChatMcpServer
+	var items []ChatMCPServer
 	for rows.Next() {
-		var i ChatMcpServer
+		var i ChatMCPServer
 		if err := rows.Scan(
 			&i.ID,
 			&i.Slug,
@@ -2394,15 +2394,15 @@ const getEnabledChatMCPServers = `-- name: GetEnabledChatMCPServers :many
 SELECT id, slug, url, display_name, auth_type, auth_headers, auth_headers_key_id, oauth_client_id, oauth_auth_server, tool_allow_regex, tool_deny_regex, enabled, created_by, created_at, updated_at FROM chat_mcp_servers WHERE enabled = TRUE ORDER BY slug ASC
 `
 
-func (q *sqlQuerier) GetEnabledChatMCPServers(ctx context.Context) ([]ChatMcpServer, error) {
+func (q *sqlQuerier) GetEnabledChatMCPServers(ctx context.Context) ([]ChatMCPServer, error) {
 	rows, err := q.db.QueryContext(ctx, getEnabledChatMCPServers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ChatMcpServer
+	var items []ChatMCPServer
 	for rows.Next() {
-		var i ChatMcpServer
+		var i ChatMCPServer
 		if err := rows.Scan(
 			&i.ID,
 			&i.Slug,
@@ -2462,7 +2462,7 @@ type InsertChatMCPServerParams struct {
 	CreatedBy        uuid.NullUUID  `db:"created_by" json:"created_by"`
 }
 
-func (q *sqlQuerier) InsertChatMCPServer(ctx context.Context, arg InsertChatMCPServerParams) (ChatMcpServer, error) {
+func (q *sqlQuerier) InsertChatMCPServer(ctx context.Context, arg InsertChatMCPServerParams) (ChatMCPServer, error) {
 	row := q.db.QueryRowContext(ctx, insertChatMCPServer,
 		arg.Slug,
 		arg.Url,
@@ -2477,7 +2477,7 @@ func (q *sqlQuerier) InsertChatMCPServer(ctx context.Context, arg InsertChatMCPS
 		arg.Enabled,
 		arg.CreatedBy,
 	)
-	var i ChatMcpServer
+	var i ChatMCPServer
 	err := row.Scan(
 		&i.ID,
 		&i.Slug,
@@ -2531,7 +2531,7 @@ type UpdateChatMCPServerParams struct {
 	ID               uuid.UUID      `db:"id" json:"id"`
 }
 
-func (q *sqlQuerier) UpdateChatMCPServer(ctx context.Context, arg UpdateChatMCPServerParams) (ChatMcpServer, error) {
+func (q *sqlQuerier) UpdateChatMCPServer(ctx context.Context, arg UpdateChatMCPServerParams) (ChatMCPServer, error) {
 	row := q.db.QueryRowContext(ctx, updateChatMCPServer,
 		arg.Slug,
 		arg.Url,
@@ -2546,7 +2546,7 @@ func (q *sqlQuerier) UpdateChatMCPServer(ctx context.Context, arg UpdateChatMCPS
 		arg.Enabled,
 		arg.ID,
 	)
-	var i ChatMcpServer
+	var i ChatMCPServer
 	err := row.Scan(
 		&i.ID,
 		&i.Slug,

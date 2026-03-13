@@ -3671,6 +3671,41 @@ func TestCreateChatMCPServer(t *testing.T) {
 		require.True(t, server.HasAuthHeaders)
 	})
 
+	t.Run("AuthHeadersNotLeaked", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateChatMCPServerConfig(ctx, codersdk.CreateChatMCPServerRequest{
+			Slug:     "secret-server",
+			URL:      "https://mcp.example.com/sse",
+			AuthType: codersdk.ChatMCPServerAuthTypeHeader,
+			AuthHeaders: map[string]string{
+				"Authorization": "Bearer super-secret-key",
+			},
+		})
+		require.NoError(t, err)
+		require.True(t, created.HasAuthHeaders)
+
+		// List should show has_auth_headers but not expose the actual headers.
+		servers, err := client.ListChatMCPServerConfigs(ctx)
+		require.NoError(t, err)
+		var found *codersdk.ChatMCPServerConfig
+		for i := range servers {
+			if servers[i].ID == created.ID {
+				found = &servers[i]
+				break
+			}
+		}
+		require.NotNil(t, found)
+		require.True(t, found.HasAuthHeaders)
+		// The SDK type ChatMCPServerConfig intentionally does not have
+		// an AuthHeaders field — this is the primary protection against
+		// leaking secrets via the API.
+	})
+
 	t.Run("WithToolFilters", func(t *testing.T) {
 		t.Parallel()
 

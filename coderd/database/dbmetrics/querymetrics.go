@@ -1047,7 +1047,7 @@ func (m queryMetricsStore) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUI
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatMCPServerByID(ctx context.Context, id uuid.UUID) (database.ChatMcpServer, error) {
+func (m queryMetricsStore) GetChatMCPServerByID(ctx context.Context, id uuid.UUID) (database.ChatMCPServer, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatMCPServerByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetChatMCPServerByID").Observe(time.Since(start).Seconds())
@@ -1055,7 +1055,7 @@ func (m queryMetricsStore) GetChatMCPServerByID(ctx context.Context, id uuid.UUI
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatMCPServers(ctx context.Context) ([]database.ChatMcpServer, error) {
+func (m queryMetricsStore) GetChatMCPServers(ctx context.Context) ([]database.ChatMCPServer, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatMCPServers(ctx)
 	m.queryLatencies.WithLabelValues("GetChatMCPServers").Observe(time.Since(start).Seconds())
@@ -1287,7 +1287,7 @@ func (m queryMetricsStore) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx 
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetEnabledChatMCPServers(ctx context.Context) ([]database.ChatMcpServer, error) {
+func (m queryMetricsStore) GetEnabledChatMCPServers(ctx context.Context) ([]database.ChatMCPServer, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetEnabledChatMCPServers(ctx)
 	m.queryLatencies.WithLabelValues("GetEnabledChatMCPServers").Observe(time.Since(start).Seconds())
@@ -3039,7 +3039,7 @@ func (m queryMetricsStore) InsertChatFile(ctx context.Context, arg database.Inse
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertChatMCPServer(ctx context.Context, arg database.InsertChatMCPServerParams) (database.ChatMcpServer, error) {
+func (m queryMetricsStore) InsertChatMCPServer(ctx context.Context, arg database.InsertChatMCPServerParams) (database.ChatMCPServer, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertChatMCPServer(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertChatMCPServer").Observe(time.Since(start).Seconds())
@@ -3839,7 +3839,7 @@ func (m queryMetricsStore) UpdateChatHeartbeat(ctx context.Context, arg database
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateChatMCPServer(ctx context.Context, arg database.UpdateChatMCPServerParams) (database.ChatMcpServer, error) {
+func (m queryMetricsStore) UpdateChatMCPServer(ctx context.Context, arg database.UpdateChatMCPServerParams) (database.ChatMCPServer, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatMCPServer(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatMCPServer").Observe(time.Since(start).Seconds())

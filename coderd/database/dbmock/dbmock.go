@@ -1911,10 +1911,10 @@ func (mr *MockStoreMockRecorder) GetChatFilesByIDs(ctx, ids any) *gomock.Call {
 }
 
 // GetChatMCPServerByID mocks base method.
-func (m *MockStore) GetChatMCPServerByID(ctx context.Context, id uuid.UUID) (database.ChatMcpServer, error) {
+func (m *MockStore) GetChatMCPServerByID(ctx context.Context, id uuid.UUID) (database.ChatMCPServer, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetChatMCPServerByID", ctx, id)
-	ret0, _ := ret[0].(database.ChatMcpServer)
+	ret0, _ := ret[0].(database.ChatMCPServer)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1926,10 +1926,10 @@ func (mr *MockStoreMockRecorder) GetChatMCPServerByID(ctx, id any) *gomock.Call 
 }
 
 // GetChatMCPServers mocks base method.
-func (m *MockStore) GetChatMCPServers(ctx context.Context) ([]database.ChatMcpServer, error) {
+func (m *MockStore) GetChatMCPServers(ctx context.Context) ([]database.ChatMCPServer, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetChatMCPServers", ctx)
-	ret0, _ := ret[0].([]database.ChatMcpServer)
+	ret0, _ := ret[0].([]database.ChatMCPServer)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -2361,10 +2361,10 @@ func (mr *MockStoreMockRecorder) GetEligibleProvisionerDaemonsByProvisionerJobID
 }
 
 // GetEnabledChatMCPServers mocks base method.
-func (m *MockStore) GetEnabledChatMCPServers(ctx context.Context) ([]database.ChatMcpServer, error) {
+func (m *MockStore) GetEnabledChatMCPServers(ctx context.Context) ([]database.ChatMCPServer, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetEnabledChatMCPServers", ctx)
-	ret0, _ := ret[0].([]database.ChatMcpServer)
+	ret0, _ := ret[0].([]database.ChatMCPServer)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -5690,10 +5690,10 @@ func (mr *MockStoreMockRecorder) InsertChatFile(ctx, arg any) *gomock.Call {
 }
 
 // InsertChatMCPServer mocks base method.
-func (m *MockStore) InsertChatMCPServer(ctx context.Context, arg database.InsertChatMCPServerParams) (database.ChatMcpServer, error) {
+func (m *MockStore) InsertChatMCPServer(ctx context.Context, arg database.InsertChatMCPServerParams) (database.ChatMCPServer, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertChatMCPServer", ctx, arg)
-	ret0, _ := ret[0].(database.ChatMcpServer)
+	ret0, _ := ret[0].(database.ChatMCPServer)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -7225,10 +7225,10 @@ func (mr *MockStoreMockRecorder) UpdateChatHeartbeat(ctx, arg any) *gomock.Call 
 }
 
 // UpdateChatMCPServer mocks base method.
-func (m *MockStore) UpdateChatMCPServer(ctx context.Context, arg database.UpdateChatMCPServerParams) (database.ChatMcpServer, error) {
+func (m *MockStore) UpdateChatMCPServer(ctx context.Context, arg database.UpdateChatMCPServerParams) (database.ChatMCPServer, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateChatMCPServer", ctx, arg)
-	ret0, _ := ret[0].(database.ChatMcpServer)
+	ret0, _ := ret[0].(database.ChatMCPServer)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

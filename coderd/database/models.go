@@ -3938,7 +3938,7 @@ type ChatFile struct {
 	Data           []byte    `db:"data" json:"data"`
 }
 
-type ChatMcpServer struct {
+type ChatMCPServer struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	Slug        string    `db:"slug" json:"slug"`
 	Url         string    `db:"url" json:"url"`
