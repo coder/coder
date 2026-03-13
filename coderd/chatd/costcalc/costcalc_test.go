@@ -60,9 +60,9 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 			want: int64Ptr(7500),
 		},
 		{
-			name: "reasoning tokens billed at output rate",
+			name: "reasoning tokens included in output total",
 			usage: codersdk.ChatMessageUsage{
-				OutputTokens:    int64Ptr(300),
+				OutputTokens:    int64Ptr(500),
 				ReasoningTokens: int64Ptr(200),
 			},
 			cost: &codersdk.ModelCostConfig{
@@ -103,7 +103,7 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 				CacheReadPricePerMillionTokens:  decPtr("0.7"),
 				CacheWritePricePerMillionTokens: decPtr("7.89"),
 			},
-			want: int64Ptr(2242),
+			want: int64Ptr(2005),
 		},
 		{
 			name: "partial pricing only input contributes",

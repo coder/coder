@@ -34,12 +34,15 @@ func CalculateTotalCostMicros(
 		return nil
 	}
 
-	outputTokens := int64OrZero(usage.OutputTokens) + int64OrZero(usage.ReasoningTokens)
+	// OutputTokens already includes reasoning tokens per provider
+	// semantics (e.g. OpenAI's completion_tokens encompasses
+	// reasoning_tokens). Adding ReasoningTokens here would
+	// double-count.
 
 	// Preserve nil when usage exists only in categories without configured
 	// pricing, so callers can distinguish "unpriced" from "priced at zero".
 	hasMatchingPrice := (usage.InputTokens != nil && cost.InputPricePerMillionTokens != nil) ||
-		((usage.OutputTokens != nil || usage.ReasoningTokens != nil) && cost.OutputPricePerMillionTokens != nil) ||
+		(usage.OutputTokens != nil && cost.OutputPricePerMillionTokens != nil) ||
 		(usage.CacheReadTokens != nil && cost.CacheReadPricePerMillionTokens != nil) ||
 		(usage.CacheCreationTokens != nil && cost.CacheWritePricePerMillionTokens != nil)
 	if !hasMatchingPrice {
@@ -47,7 +50,7 @@ func CalculateTotalCostMicros(
 	}
 
 	inputMicros := calcCost(usage.InputTokens, cost.InputPricePerMillionTokens)
-	outputMicros := calcCost(&outputTokens, cost.OutputPricePerMillionTokens)
+	outputMicros := calcCost(usage.OutputTokens, cost.OutputPricePerMillionTokens)
 	cacheReadMicros := calcCost(usage.CacheReadTokens, cost.CacheReadPricePerMillionTokens)
 	cacheWriteMicros := calcCost(usage.CacheCreationTokens, cost.CacheWritePricePerMillionTokens)
 

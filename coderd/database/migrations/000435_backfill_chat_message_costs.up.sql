@@ -3,7 +3,7 @@ WITH message_costs AS (
         msg.id,
         ROUND(
             COALESCE(msg.input_tokens, 0)::numeric * COALESCE(pricing.input_price, 0)
-            + (COALESCE(msg.output_tokens, 0) + COALESCE(msg.reasoning_tokens, 0))::numeric * COALESCE(pricing.output_price, 0)
+            + COALESCE(msg.output_tokens, 0)::numeric * COALESCE(pricing.output_price, 0)
             + COALESCE(msg.cache_read_tokens, 0)::numeric * COALESCE(pricing.cache_read_price, 0)
             + COALESCE(msg.cache_creation_tokens, 0)::numeric * COALESCE(pricing.cache_write_price, 0)
         )::bigint AS total_cost_micros
@@ -49,7 +49,7 @@ WITH message_costs AS (
         )
         AND (
             (msg.input_tokens IS NOT NULL AND pricing.input_price IS NOT NULL)
-            OR ((msg.output_tokens IS NOT NULL OR msg.reasoning_tokens IS NOT NULL) AND pricing.output_price IS NOT NULL)
+            OR (msg.output_tokens IS NOT NULL AND pricing.output_price IS NOT NULL)
             OR (msg.cache_read_tokens IS NOT NULL AND pricing.cache_read_price IS NOT NULL)
             OR (msg.cache_creation_tokens IS NOT NULL AND pricing.cache_write_price IS NOT NULL)
         )
