@@ -17,7 +17,6 @@ GOOS="$(go env GOOS)"
 GOARCH="$(go env GOARCH)"
 CODER_AGENT_URL="${CODER_AGENT_URL:-}"
 DEVELOP_IN_CODER="${DEVELOP_IN_CODER:-0}"
-DEBUG_DELVE="${DEBUG_DELVE:-0}"
 BINARY_TYPE=coder-slim
 if [[ ${1:-} == server ]]; then
 	BINARY_TYPE=coder
@@ -39,7 +38,6 @@ pushd "$PROJECT_ROOT"
 mkdir -p ./.coderv2
 CODER_DEV_BIN="$(realpath "$RELATIVE_BINARY_PATH")"
 CODER_DEV_DIR="$(realpath ./.coderv2)"
-CODER_DELVE_DEBUG_BIN=$(realpath "./build/coder_debug_${GOOS}_${GOARCH}")
 popd
 
 if [ -n "${CODER_AGENT_URL}" ]; then
@@ -74,27 +72,4 @@ coder)
 	;;
 esac
 
-runcmd=("${CODER_DEV_BIN}")
-if [[ "${DEBUG_DELVE}" == 1 ]]; then
-	set -x
-	build_flags=(
-		--os "$GOOS"
-		--arch "$GOARCH"
-		--output "$CODER_DELVE_DEBUG_BIN"
-		--debug
-	)
-	if [[ "$BINARY_TYPE" == "coder-slim" ]]; then
-		build_flags+=(--slim)
-	fi
-	# All the prerequisites should be built above when we refreshed the regular
-	# binary, so we can just build the debug binary here without having to worry
-	# about/use the makefile.
-	./scripts/build_go.sh "${build_flags[@]}"
-	# Use go run to ensure Delve is built with current Go version.
-	# Go 1.25+ uses DWARFv5 which requires Delve built with Go 1.25+.
-	# GOTOOLCHAIN is set to force building Delve with the current Go version.
-	current_toolchain="go$(go env GOVERSION | sed 's/^go//')"
-	runcmd=(env "GOTOOLCHAIN=${current_toolchain}" go run github.com/go-delve/delve/cmd/dlv@latest exec --headless --continue --listen 127.0.0.1:12345 --accept-multiclient "$CODER_DELVE_DEBUG_BIN" --)
-fi
-
-exec "${runcmd[@]}" --global-config "${CODER_DEV_DIR}" "$@"
+exec "${CODER_DEV_BIN}" --global-config "${CODER_DEV_DIR}" "$@"
