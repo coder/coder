@@ -356,17 +356,6 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
-// @Summary Get chat cost summary for a user
-// @ID get-chat-cost-summary
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chat
-// @Param user path string true "User ID, name, or me"
-// @Param start_date query string false "Start date (RFC3339)"
-// @Param end_date query string false "End date (RFC3339)"
-// @Success 200 {object} codersdk.ChatCostSummary
-// @Router /chats/cost/{user}/summary [get]
-// @x-apidocgen {"skip": true}
 func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -447,19 +436,6 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary Get per-user chat cost rollup
-// @ID get-chat-cost-users
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chat
-// @Param start_date query string false "Start date (RFC3339)"
-// @Param end_date query string false "End date (RFC3339)"
-// @Param username query string false "Filter by username"
-// @Param limit query int false "Page size"
-// @Param offset query int false "Page offset"
-// @Success 200 {object} codersdk.ChatCostUsersResponse
-// @Router /chats/cost/users [get]
-// @x-apidocgen {"skip": true}
 func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceChat) {
