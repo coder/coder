@@ -1,5 +1,9 @@
 import { MockUserOwner } from "testHelpers/entities";
-import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+	withProxyProvider,
+} from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { updateCheck } from "api/queries/updateCheck";
 import { expect, userEvent, waitFor, within } from "storybook/test";
@@ -29,7 +33,7 @@ const getMainContent = (): HTMLElement => {
 const meta = {
 	title: "modules/dashboard/DashboardLayout",
 	component: DashboardLayout,
-	decorators: [withAuthProvider, withDashboardProvider],
+	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
