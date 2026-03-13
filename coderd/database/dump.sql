@@ -1238,7 +1238,8 @@ CREATE TABLE chat_messages (
     compressed boolean DEFAULT false NOT NULL,
     created_by uuid,
     content_version smallint NOT NULL,
-    total_cost_micros bigint
+    total_cost_micros bigint,
+    owner_id uuid
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -1301,6 +1302,44 @@ CREATE SEQUENCE chat_queued_messages_id_seq
     CACHE 1;
 
 ALTER SEQUENCE chat_queued_messages_id_seq OWNED BY chat_queued_messages.id;
+
+CREATE TABLE chat_usage_limit_config (
+    id bigint NOT NULL,
+    singleton boolean DEFAULT true NOT NULL,
+    enabled boolean DEFAULT false NOT NULL,
+    default_limit_micros bigint DEFAULT 0 NOT NULL,
+    period text DEFAULT 'month'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_usage_limit_config_period_check CHECK ((period = ANY (ARRAY['day'::text, 'week'::text, 'month'::text]))),
+    CONSTRAINT chat_usage_limit_config_singleton_check CHECK (singleton)
+);
+
+CREATE SEQUENCE chat_usage_limit_config_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE chat_usage_limit_config_id_seq OWNED BY chat_usage_limit_config.id;
+
+CREATE TABLE chat_usage_limit_overrides (
+    id bigint NOT NULL,
+    user_id uuid NOT NULL,
+    limit_micros bigint DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE SEQUENCE chat_usage_limit_overrides_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE chat_usage_limit_overrides_id_seq OWNED BY chat_usage_limit_overrides.id;
 
 CREATE TABLE chats (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3140,6 +3179,10 @@ ALTER TABLE ONLY chat_messages ALTER COLUMN id SET DEFAULT nextval('chat_message
 
 ALTER TABLE ONLY chat_queued_messages ALTER COLUMN id SET DEFAULT nextval('chat_queued_messages_id_seq'::regclass);
 
+ALTER TABLE ONLY chat_usage_limit_config ALTER COLUMN id SET DEFAULT nextval('chat_usage_limit_config_id_seq'::regclass);
+
+ALTER TABLE ONLY chat_usage_limit_overrides ALTER COLUMN id SET DEFAULT nextval('chat_usage_limit_overrides_id_seq'::regclass);
+
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
@@ -3196,6 +3239,18 @@ ALTER TABLE ONLY chat_providers
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_usage_limit_config
+    ADD CONSTRAINT chat_usage_limit_config_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_usage_limit_config
+    ADD CONSTRAINT chat_usage_limit_config_singleton_key UNIQUE (singleton);
+
+ALTER TABLE ONLY chat_usage_limit_overrides
+    ADD CONSTRAINT chat_usage_limit_overrides_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_usage_limit_overrides
+    ADD CONSTRAINT chat_usage_limit_overrides_user_id_key UNIQUE (user_id);
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
@@ -3549,6 +3604,8 @@ CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USIN
 
 CREATE INDEX idx_chat_messages_created_at ON chat_messages USING btree (created_at);
 
+CREATE INDEX idx_chat_messages_owner_spend ON chat_messages USING btree (owner_id, created_at) WHERE (total_cost_micros IS NOT NULL);
+
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
 
 CREATE INDEX idx_chat_model_configs_provider ON chat_model_configs USING btree (provider);
@@ -3836,6 +3893,9 @@ ALTER TABLE ONLY chat_messages
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id);
 
+ALTER TABLE ONLY chat_messages
+    ADD CONSTRAINT chat_messages_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
+
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
@@ -3853,6 +3913,9 @@ ALTER TABLE ONLY chat_providers
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_usage_limit_overrides
+    ADD CONSTRAINT chat_usage_limit_overrides_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_last_model_config_id_fkey FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id);

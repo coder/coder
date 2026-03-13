@@ -481,6 +481,167 @@ const docTemplate = `{
                 }
             }
         },
+        "/chats/usage-limits": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "Get chat usage limit config",
+                "operationId": "get-chat-usage-limit-config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatUsageLimitConfigResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "Update chat usage limit config",
+                "operationId": "update-chat-usage-limit-config",
+                "parameters": [
+                    {
+                        "description": "Config",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatUsageLimitConfig"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatUsageLimitConfig"
+                        }
+                    }
+                }
+            }
+        },
+        "/chats/usage-limits/overrides/{user}": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "Upsert chat usage limit override",
+                "operationId": "upsert-chat-usage-limit-override",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User ID",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Override",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpsertChatUsageLimitOverrideRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatUsageLimitOverride"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "Delete chat usage limit override",
+                "operationId": "delete-chat-usage-limit-override",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User ID",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/chats/usage-limits/status": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chat"
+                ],
+                "summary": "Get my chat usage limit status",
+                "operationId": "get-my-chat-usage-limit-status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatUsageLimitStatus"
+                        }
+                    }
+                }
+            }
+        },
         "/chats/{chat}/archive": {
             "post": {
                 "tags": [
@@ -13814,6 +13975,115 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatUsageLimitConfig": {
+            "type": "object",
+            "properties": {
+                "period": {
+                    "$ref": "#/definitions/codersdk.ChatUsageLimitPeriod"
+                },
+                "spend_limit_micros": {
+                    "description": "nil = unlimited",
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatUsageLimitConfigResponse": {
+            "type": "object",
+            "properties": {
+                "overrides": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatUsageLimitOverride"
+                    }
+                },
+                "period": {
+                    "$ref": "#/definitions/codersdk.ChatUsageLimitPeriod"
+                },
+                "spend_limit_micros": {
+                    "description": "nil = unlimited",
+                    "type": "integer"
+                },
+                "unpriced_model_count": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatUsageLimitOverride": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "spend_limit_micros": {
+                    "description": "nil = unlimited",
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatUsageLimitPeriod": {
+            "type": "string",
+            "enum": [
+                "day",
+                "week",
+                "month"
+            ],
+            "x-enum-varnames": [
+                "ChatUsageLimitPeriodDay",
+                "ChatUsageLimitPeriodWeek",
+                "ChatUsageLimitPeriodMonth"
+            ]
+        },
+        "codersdk.ChatUsageLimitStatus": {
+            "type": "object",
+            "properties": {
+                "current_spend": {
+                    "type": "integer"
+                },
+                "is_limited": {
+                    "type": "boolean"
+                },
+                "period": {
+                    "$ref": "#/definitions/codersdk.ChatUsageLimitPeriod"
+                },
+                "period_end": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "spend_limit_micros": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.ConnectionLatency": {
             "type": "object",
             "properties": {
@@ -20388,6 +20658,15 @@ const docTemplate = `{
                 "hash": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UpsertChatUsageLimitOverrideRequest": {
+            "type": "object",
+            "properties": {
+                "spend_limit_micros": {
+                    "description": "nil = unlimited",
+                    "type": "integer"
                 }
             }
         },

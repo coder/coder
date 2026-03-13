@@ -1553,6 +1553,120 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `one_time_passcode` | string | true     |              |             |
 | `password`          | string | true     |              |             |
 
+## codersdk.ChatUsageLimitConfig
+
+```json
+{
+  "period": "day",
+  "spend_limit_micros": 0,
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                 | Type                                                           | Required | Restrictions | Description     |
+|----------------------|----------------------------------------------------------------|----------|--------------|-----------------|
+| `period`             | [codersdk.ChatUsageLimitPeriod](#codersdkchatusagelimitperiod) | false    |              |                 |
+| `spend_limit_micros` | integer                                                        | false    |              | nil = unlimited |
+| `updated_at`         | string                                                         | false    |              |                 |
+
+## codersdk.ChatUsageLimitConfigResponse
+
+```json
+{
+  "overrides": [
+    {
+      "avatar_url": "string",
+      "created_at": "2019-08-24T14:15:22Z",
+      "name": "string",
+      "spend_limit_micros": 0,
+      "updated_at": "2019-08-24T14:15:22Z",
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ],
+  "period": "day",
+  "spend_limit_micros": 0,
+  "unpriced_model_count": 0,
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                   | Type                                                                        | Required | Restrictions | Description     |
+|------------------------|-----------------------------------------------------------------------------|----------|--------------|-----------------|
+| `overrides`            | array of [codersdk.ChatUsageLimitOverride](#codersdkchatusagelimitoverride) | false    |              |                 |
+| `period`               | [codersdk.ChatUsageLimitPeriod](#codersdkchatusagelimitperiod)              | false    |              |                 |
+| `spend_limit_micros`   | integer                                                                     | false    |              | nil = unlimited |
+| `unpriced_model_count` | integer                                                                     | false    |              |                 |
+| `updated_at`           | string                                                                      | false    |              |                 |
+
+## codersdk.ChatUsageLimitOverride
+
+```json
+{
+  "avatar_url": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "name": "string",
+  "spend_limit_micros": 0,
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description     |
+|----------------------|---------|----------|--------------|-----------------|
+| `avatar_url`         | string  | false    |              |                 |
+| `created_at`         | string  | false    |              |                 |
+| `name`               | string  | false    |              |                 |
+| `spend_limit_micros` | integer | false    |              | nil = unlimited |
+| `updated_at`         | string  | false    |              |                 |
+| `user_id`            | string  | false    |              |                 |
+| `username`           | string  | false    |              |                 |
+
+## codersdk.ChatUsageLimitPeriod
+
+```json
+"day"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)               |
+|------------------------|
+| `day`, `month`, `week` |
+
+## codersdk.ChatUsageLimitStatus
+
+```json
+{
+  "current_spend": 0,
+  "is_limited": true,
+  "period": "day",
+  "period_end": "2019-08-24T14:15:22Z",
+  "period_start": "2019-08-24T14:15:22Z",
+  "spend_limit_micros": 0
+}
+```
+
+### Properties
+
+| Name                 | Type                                                           | Required | Restrictions | Description |
+|----------------------|----------------------------------------------------------------|----------|--------------|-------------|
+| `current_spend`      | integer                                                        | false    |              |             |
+| `is_limited`         | boolean                                                        | false    |              |             |
+| `period`             | [codersdk.ChatUsageLimitPeriod](#codersdkchatusagelimitperiod) | false    |              |             |
+| `period_end`         | string                                                         | false    |              |             |
+| `period_start`       | string                                                         | false    |              |             |
+| `spend_limit_micros` | integer                                                        | false    |              |             |
+
 ## codersdk.ConnectionLatency
 
 ```json
@@ -9866,6 +9980,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name   | Type   | Required | Restrictions | Description |
 |--------|--------|----------|--------------|-------------|
 | `hash` | string | false    |              |             |
+
+## codersdk.UpsertChatUsageLimitOverrideRequest
+
+```json
+{
+  "spend_limit_micros": 0
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description     |
+|----------------------|---------|----------|--------------|-----------------|
+| `spend_limit_micros` | integer | false    |              | nil = unlimited |
 
 ## codersdk.UpsertWorkspaceAgentPortShareRequest
 

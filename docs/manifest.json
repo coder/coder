@@ -1411,6 +1411,10 @@
 							"path": "./reference/api/builds.md"
 						},
 						{
+							"title": "Chat",
+							"path": "./reference/api/chat.md"
+						},
+						{
 							"title": "Chats",
 							"path": "./reference/api/chats.md"
 						},
