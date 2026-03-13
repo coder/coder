@@ -104,28 +104,34 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 					api.Logger.Error(ctx, "chat event subscription error", slog.Error(err))
 					return
 				}
-				_ = sendEvent(codersdk.ServerSentEvent{
+				if err := sendEvent(codersdk.ServerSentEvent{
 					Type: codersdk.ServerSentEventTypeData,
 					Data: payload,
-				})
+				}); err != nil {
+					api.Logger.Debug(ctx, "failed to send chat event", slog.Error(err))
+				}
 			},
 		))
 	if err != nil {
-		_ = sendEvent(codersdk.ServerSentEvent{
+		if err := sendEvent(codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeError,
 			Data: codersdk.Response{
 				Message: "Internal error subscribing to chat events.",
 				Detail:  err.Error(),
 			},
-		})
+		}); err != nil {
+			api.Logger.Debug(ctx, "failed to send chat subscribe error event", slog.Error(err))
+		}
 		return
 	}
 	defer cancelSubscribe()
 
 	// Send initial ping to signal the connection is ready.
-	_ = sendEvent(codersdk.ServerSentEvent{
+	if err := sendEvent(codersdk.ServerSentEvent{
 		Type: codersdk.ServerSentEventTypePing,
-	})
+	}); err != nil {
+		api.Logger.Debug(ctx, "failed to send chat ping event", slog.Error(err))
+	}
 
 	for {
 		select {
@@ -1040,13 +1046,15 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	}
 	snapshot, events, cancel, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header, afterMessageID)
 	if !ok {
-		_ = sendEvent(codersdk.ServerSentEvent{
+		if err := sendEvent(codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeError,
 			Data: codersdk.Response{
 				Message: "Chat streaming is not available.",
 				Detail:  "Chat stream state is not configured.",
 			},
-		})
+		}); err != nil {
+			api.Logger.Debug(ctx, "failed to send chat stream unavailable event", slog.Error(err))
+		}
 		// Ensure the WebSocket is closed so senderClosed
 		// completes and the handler can return.
 		<-senderClosed
@@ -2160,7 +2168,9 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 	rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
 	rw.Header().Set("Content-Length", strconv.Itoa(len(chatFile.Data)))
 	rw.WriteHeader(http.StatusOK)
-	_, _ = rw.Write(chatFile.Data)
+	if _, err := rw.Write(chatFile.Data); err != nil {
+		api.Logger.Debug(ctx, "failed to write chat file response", slog.Error(err))
+	}
 }
 
 func createChatInputFromRequest(ctx context.Context, db database.Store, req codersdk.CreateChatRequest) (

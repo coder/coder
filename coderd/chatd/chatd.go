@@ -2557,6 +2557,7 @@ func (p *Server) runChat(
 				CreateFn:    p.createWorkspaceFn,
 				AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
 				WorkspaceMu: &workspaceMu,
+				Logger:      p.logger,
 			}),
 			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 				DB:          p.db,

@@ -245,14 +245,18 @@ func pollProcess(
 				context.Background(),
 				5*time.Second,
 			)
-			outputResp, _ := conn.ProcessOutput(bgCtx, processID)
+			outputResp, outputErr := conn.ProcessOutput(bgCtx, processID)
 			bgCancel()
 			output := truncateOutput(outputResp.Output)
+			timeoutMsg := fmt.Sprintf("command timed out after %s", timeout)
+			if outputErr != nil {
+				timeoutMsg += fmt.Sprintf(" (failed to get output: %v)", outputErr)
+			}
 			return ExecuteResult{
 				Success:   false,
 				Output:    output,
 				ExitCode:  -1,
-				Error:     fmt.Sprintf("command timed out after %s", timeout),
+				Error:     timeoutMsg,
 				Truncated: outputResp.Truncated,
 			}
 		case <-ticker.C:
