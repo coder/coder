@@ -1535,7 +1535,7 @@ func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvi
 				},
 			},
 		}); sendErr != nil {
-			s.Logger.Error(ctx, "failed to send error response on download stream",
+			s.Logger.Warn(ctx, "failed to send error response on download stream",
 				slog.Error(sendErr),
 				slog.F("original_error", err.Error()),
 			)

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"charm.land/fantasy"
-
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
