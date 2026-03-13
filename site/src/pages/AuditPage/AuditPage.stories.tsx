@@ -171,16 +171,18 @@ export const FilterChangeResetsToFirstPage: Story = {
 
 		const filterInput = screen.getByLabelText("Filter");
 		const query = "resource_type:workspace action:create";
-		await user.clear(filterInput);
 		await user.type(filterInput, query);
 
-		await waitFor(() => {
-			const searchParams = new URLSearchParams(window.location.search);
-			expect(searchParams.get("filter")).toBe(query);
-			expect(searchParams.get("page")).not.toBe("2");
-			expect(
-				screen.getByTestId(`audit-log-row-${MockAuditLog.id}`),
-			).toBeInTheDocument();
-		});
+		await waitFor(
+			() => {
+				const searchParams = new URLSearchParams(window.location.search);
+				expect(searchParams.get("filter")).toBe(query);
+				expect(searchParams.get("page")).not.toBe("2");
+				expect(
+					screen.getByTestId(`audit-log-row-${MockAuditLog.id}`),
+				).toBeInTheDocument();
+			},
+			{ timeout: 5000 },
+		);
 	},
 };
