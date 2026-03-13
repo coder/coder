@@ -240,6 +240,9 @@ const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 									onClick={(event) => {
 										event.stopPropagation();
 									}}
+									onAuxClick={(event) => {
+										event.stopPropagation();
+									}}
 									className="pointer-events-auto block max-w-[520px] truncate text-content-primary no-underline hover:underline"
 								>
 									{task.display_name}

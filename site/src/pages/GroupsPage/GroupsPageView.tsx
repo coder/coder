@@ -134,6 +134,9 @@ const GroupRow: FC<GroupRowProps> = ({ group }) => {
 							onClick={(event) => {
 								event.stopPropagation();
 							}}
+							onAuxClick={(event) => {
+								event.stopPropagation();
+							}}
 							className="pointer-events-auto text-content-primary no-underline hover:underline"
 						>
 							{group.display_name || group.name}

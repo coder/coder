@@ -68,6 +68,9 @@ export const VersionRow: FC<VersionRowProps> = ({
 										onClick={(event) => {
 											event.stopPropagation();
 										}}
+										onAuxClick={(event) => {
+											event.stopPropagation();
+										}}
 										className="pointer-events-auto text-content-primary no-underline hover:underline"
 									>
 										{version.name}

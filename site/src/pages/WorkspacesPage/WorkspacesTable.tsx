@@ -205,6 +205,9 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													onClick={(event) => {
 														event.stopPropagation();
 													}}
+													onAuxClick={(event) => {
+														event.stopPropagation();
+													}}
 													className="pointer-events-auto whitespace-nowrap text-content-primary no-underline hover:underline"
 												>
 													{workspace.name}

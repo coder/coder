@@ -115,6 +115,9 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 							onClick={(event) => {
 								event.stopPropagation();
 							}}
+							onAuxClick={(event) => {
+								event.stopPropagation();
+							}}
 							className="pointer-events-auto text-content-primary no-underline hover:underline"
 						>
 							{app.name}
