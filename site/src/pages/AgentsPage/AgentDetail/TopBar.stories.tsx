@@ -1,24 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ChatDiffStatusResponse } from "api/api";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { AgentDetailTopBar } from "./TopBar";
-
-const mockDiffStatus: ChatDiffStatusResponse = {
-	chat_id: "chat-1",
-	changes_requested: false,
-	additions: 42,
-	deletions: 7,
-	changed_files: 5,
-};
 
 const defaultProps = {
 	chatTitle: "Build authentication feature",
 	onOpenParentChat: () => {},
-	diff: {
-		hasDiffStatus: false,
-		diffStatus: undefined,
-		showDiffPanel: false,
-		onToggleFilesChanged: () => {},
+	panel: {
+		showSidebarPanel: false,
+		onToggleSidebar: () => {},
 	},
 	workspace: {
 		canOpenEditors: true,
@@ -48,24 +37,11 @@ type Story = StoryObj<typeof AgentDetailTopBar>;
 
 export const Default: Story = {};
 
-export const WithDiffStats: Story = {
+export const WithPanelOpen: Story = {
 	args: {
-		diff: {
-			hasDiffStatus: true,
-			diffStatus: mockDiffStatus,
-			showDiffPanel: false,
-			onToggleFilesChanged: () => {},
-		},
-	},
-};
-
-export const WithDiffPanelOpen: Story = {
-	args: {
-		diff: {
-			hasDiffStatus: true,
-			diffStatus: mockDiffStatus,
-			showDiffPanel: true,
-			onToggleFilesChanged: () => {},
+		panel: {
+			showSidebarPanel: true,
+			onToggleSidebar: () => {},
 		},
 	},
 };

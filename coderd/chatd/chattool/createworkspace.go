@@ -2,7 +2,6 @@ package chattool
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -241,14 +240,13 @@ func checkExistingWorkspace(
 		return nil, false, nil
 	}
 
-	// Check if workspace still exists.
 	ws, err := db.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			// Workspace was deleted — allow creation.
-			return nil, false, nil
-		}
 		return nil, false, xerrors.Errorf("load workspace: %w", err)
+	}
+	// Workspace was soft-deleted — allow creation.
+	if ws.Deleted {
+		return nil, false, nil
 	}
 
 	// Check the latest build status.
@@ -288,6 +286,17 @@ func checkExistingWorkspace(
 		return result, true, nil
 
 	case database.ProvisionerJobStatusSucceeded:
+		// If the workspace was stopped, tell the model to use
+		// start_workspace instead of creating a new one.
+		if build.Transition == database.WorkspaceTransitionStop {
+			return map[string]any{
+				"created":        false,
+				"workspace_name": ws.Name,
+				"status":         "stopped",
+				"message":        "workspace is stopped; use start_workspace to start it",
+			}, true, nil
+		}
+
 		// Build succeeded — check if agent is reachable.
 		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 		if agentsErr == nil && len(agents) > 0 && agentConnFn != nil {

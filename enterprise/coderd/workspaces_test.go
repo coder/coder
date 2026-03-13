@@ -4023,7 +4023,7 @@ func TestWorkspaceLock(t *testing.T) {
 		require.NotNil(t, workspace.DeletingAt)
 		require.NotNil(t, workspace.DormantAt)
 		require.Equal(t, workspace.DormantAt.Add(dormantTTL), *workspace.DeletingAt)
-		require.WithinRange(t, *workspace.DormantAt, time.Now().Add(-time.Second), time.Now())
+		require.WithinRange(t, *workspace.DormantAt, dbtime.Now().Add(-time.Second), dbtime.Now())
 		// Locking a workspace shouldn't update the last_used_at.
 		require.Equal(t, lastUsedAt, workspace.LastUsedAt)
 
@@ -4577,6 +4577,7 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		// Update a shared with user to have a name and avatar
 		_, err := db.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
 			ID:        sharedWithUser.ID,
+			Email:     sharedWithUser.Email,
 			Username:  sharedWithUser.Username,
 			Name:      "Shared User Name",
 			AvatarURL: "/emojis/1fae1.png",
@@ -4664,6 +4665,7 @@ func TestWorkspacesSharedWith(t *testing.T) {
 		// Update a shared with user to have a name and avatar
 		_, err := db.UpdateUserProfile(dbauthz.AsSystemRestricted(ctx), database.UpdateUserProfileParams{
 			ID:        sharedWithUser.ID,
+			Email:     sharedWithUser.Email,
 			Username:  sharedWithUser.Username,
 			Name:      "Shared User Name",
 			AvatarURL: "/emojis/1fae1.png",

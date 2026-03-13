@@ -7,6 +7,81 @@ agent_boundary_log_proxy_batches_forwarded_total 0
 # HELP agent_boundary_log_proxy_logs_dropped_total Total number of individual boundary log entries dropped before reaching coderd. Reason: buffer_full = the agent's internal buffer is full; forward_failed = the agent failed to send the batch to coderd; boundary_channel_full = boundary's internal send channel overflowed, meaning boundary is generating logs faster than it can batch and send them; boundary_batch_full = boundary's outgoing batch buffer overflowed after a failed flush, meaning boundary could not write to the agent's socket.
 # TYPE agent_boundary_log_proxy_logs_dropped_total counter
 agent_boundary_log_proxy_logs_dropped_total{reason=""} 0
+# HELP coder_derp_server_accepts_total Total DERP connections accepted.
+# TYPE coder_derp_server_accepts_total counter
+coder_derp_server_accepts_total 0
+# HELP coder_derp_server_average_queue_duration_ms Average queue duration in milliseconds.
+# TYPE coder_derp_server_average_queue_duration_ms gauge
+coder_derp_server_average_queue_duration_ms 0
+# HELP coder_derp_server_bytes_received_total Total bytes received.
+# TYPE coder_derp_server_bytes_received_total counter
+coder_derp_server_bytes_received_total 0
+# HELP coder_derp_server_bytes_sent_total Total bytes sent.
+# TYPE coder_derp_server_bytes_sent_total counter
+coder_derp_server_bytes_sent_total 0
+# HELP coder_derp_server_clients Total clients (local + remote).
+# TYPE coder_derp_server_clients gauge
+coder_derp_server_clients 0
+# HELP coder_derp_server_clients_local Local clients.
+# TYPE coder_derp_server_clients_local gauge
+coder_derp_server_clients_local 0
+# HELP coder_derp_server_clients_remote Remote (mesh) clients.
+# TYPE coder_derp_server_clients_remote gauge
+coder_derp_server_clients_remote 0
+# HELP coder_derp_server_connections Current DERP connections.
+# TYPE coder_derp_server_connections gauge
+coder_derp_server_connections 0
+# HELP coder_derp_server_got_ping_total Total pings received.
+# TYPE coder_derp_server_got_ping_total counter
+coder_derp_server_got_ping_total 0
+# HELP coder_derp_server_home_connections Current home DERP connections.
+# TYPE coder_derp_server_home_connections gauge
+coder_derp_server_home_connections 0
+# HELP coder_derp_server_home_moves_in_total Total home moves in.
+# TYPE coder_derp_server_home_moves_in_total counter
+coder_derp_server_home_moves_in_total 0
+# HELP coder_derp_server_home_moves_out_total Total home moves out.
+# TYPE coder_derp_server_home_moves_out_total counter
+coder_derp_server_home_moves_out_total 0
+# HELP coder_derp_server_packets_dropped_reason_total Packets dropped by reason.
+# TYPE coder_derp_server_packets_dropped_reason_total counter
+coder_derp_server_packets_dropped_reason_total{reason=""} 0
+# HELP coder_derp_server_packets_dropped_total Total packets dropped.
+# TYPE coder_derp_server_packets_dropped_total counter
+coder_derp_server_packets_dropped_total 0
+# HELP coder_derp_server_packets_dropped_type_total Packets dropped by type.
+# TYPE coder_derp_server_packets_dropped_type_total counter
+coder_derp_server_packets_dropped_type_total{type=""} 0
+# HELP coder_derp_server_packets_forwarded_in_total Total packets forwarded in from mesh peers.
+# TYPE coder_derp_server_packets_forwarded_in_total counter
+coder_derp_server_packets_forwarded_in_total 0
+# HELP coder_derp_server_packets_forwarded_out_total Total packets forwarded out to mesh peers.
+# TYPE coder_derp_server_packets_forwarded_out_total counter
+coder_derp_server_packets_forwarded_out_total 0
+# HELP coder_derp_server_packets_received_kind_total Packets received by kind.
+# TYPE coder_derp_server_packets_received_kind_total counter
+coder_derp_server_packets_received_kind_total{kind=""} 0
+# HELP coder_derp_server_packets_received_total Total packets received.
+# TYPE coder_derp_server_packets_received_total counter
+coder_derp_server_packets_received_total 0
+# HELP coder_derp_server_packets_sent_total Total packets sent.
+# TYPE coder_derp_server_packets_sent_total counter
+coder_derp_server_packets_sent_total 0
+# HELP coder_derp_server_peer_gone_disconnected_total Total peer gone (disconnected) frames sent.
+# TYPE coder_derp_server_peer_gone_disconnected_total counter
+coder_derp_server_peer_gone_disconnected_total 0
+# HELP coder_derp_server_peer_gone_not_here_total Total peer gone (not here) frames sent.
+# TYPE coder_derp_server_peer_gone_not_here_total counter
+coder_derp_server_peer_gone_not_here_total 0
+# HELP coder_derp_server_sent_pong_total Total pongs sent.
+# TYPE coder_derp_server_sent_pong_total counter
+coder_derp_server_sent_pong_total 0
+# HELP coder_derp_server_unknown_frames_total Total unknown frames received.
+# TYPE coder_derp_server_unknown_frames_total counter
+coder_derp_server_unknown_frames_total 0
+# HELP coder_derp_server_watchers Current watchers.
+# TYPE coder_derp_server_watchers gauge
+coder_derp_server_watchers 0
 # HELP coder_pubsub_connected Whether we are connected (1) or not connected (0) to postgres
 # TYPE coder_pubsub_connected gauge
 coder_pubsub_connected 0

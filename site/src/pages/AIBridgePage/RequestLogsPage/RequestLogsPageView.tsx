@@ -1,5 +1,5 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
-import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { Link } from "components/Link/Link";
 import {
 	PaginationContainer,
@@ -47,14 +47,14 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 				<AlertTitle>
 					AI Bridge is included in your license, but not set up yet.
 				</AlertTitle>
-				<AlertDetail>
+				<AlertDescription>
 					You have access to AI Governance, but it still needs to be setup.
 					Check out the{" "}
 					<Link href={docs("/ai-coder/ai-bridge")} target="_blank">
 						AI Bridge
 					</Link>{" "}
 					documentation to get started.
-				</AlertDetail>
+				</AlertDescription>
 			</Alert>
 		);
 	}

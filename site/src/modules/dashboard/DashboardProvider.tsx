@@ -40,7 +40,7 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 	const experimentsQuery = useQuery(experiments(metadata.experiments));
 	const appearanceQuery = useQuery(appearance(metadata.appearance));
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const organizationsQuery = useQuery(organizations());
+	const organizationsQuery = useQuery(organizations(metadata.organizations));
 
 	const error =
 		entitlementsQuery.error ||

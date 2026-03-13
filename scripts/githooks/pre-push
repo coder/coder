@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+#
+# Pre-push hook that runs tests and builds the site locally.
+# The pre-commit hook handles gen, fmt, lint, typos, and build.
+#
+# Opt in/out without modifying this file:
+#
+#   git config coder.pre-push true    # opt in
+#   git config coder.pre-push false   # opt out (overrides allowlist)
+#   git config --unset coder.pre-push # default (allowlist decides)
+#
+# Installation (worktree-compatible):
+#
+#   git config core.hooksPath scripts/githooks
+#
+# Bypass: git push --no-verify
+
+set -euo pipefail
+
+# Allowlist of developers who opt in to pre-push checks by default.
+# Matched against CODER_WORKSPACE_OWNER_NAME.
+ALLOWLIST=(
+	mafredri
+	johnstcn
+)
+
+cd "$(git rev-parse --show-toplevel)"
+unset GIT_DIR
+
+# In linked worktrees, set worktree-scoped hooksPath to override shared config.
+if [[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]]; then
+	git config --worktree core.hooksPath scripts/githooks
+fi
+
+# Explicit opt-in/opt-out via git config (overrides allowlist).
+run=false
+opt_in=$(git config --type=bool coder.pre-push 2>/dev/null || true)
+if [[ $opt_in == true ]]; then
+	run=true
+elif [[ $opt_in == false ]]; then
+	# Explicit opt-out, skip everything including hint.
+	exit 0
+fi
+
+# Check allowlist.
+if ! $run; then
+	owner=${CODER_WORKSPACE_OWNER_NAME:-}
+	for allowed in "${ALLOWLIST[@]}"; do
+		if [[ $owner == "$allowed" ]]; then
+			run=true
+			break
+		fi
+	done
+fi
+
+rc=0
+if $run; then
+	make pre-push || rc=$?
+fi
+
+# Hint is printed unconditionally so that AI agents that are not
+# opted in to pre-push checks are still reminded to monitor CI.
+echo "Hint: If you're an AI agent creating a PR, monitor CI and iterate on failures until all checks pass."
+
+exit "$rc"

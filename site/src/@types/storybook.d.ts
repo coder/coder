@@ -20,7 +20,7 @@ declare module "@storybook/react-vite" {
 		showOrganizations?: boolean;
 		organizations?: Organization[];
 		queries?: { key: QueryKey; data: unknown; isError?: boolean }[];
-		webSocket?: WebSocketEvent[];
+		webSocket?: WebSocketEvent[] | Record<string, WebSocketEvent[]>;
 		user?: User;
 		permissions?: Partial<Permissions>;
 		deploymentValues?: DeploymentValues;

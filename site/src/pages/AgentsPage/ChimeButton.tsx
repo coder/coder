@@ -24,6 +24,9 @@ export const ChimeButton: FC = () => {
 					variant="subtle"
 					size="icon"
 					onClick={handleClick}
+					aria-label={
+						enabled ? "Mute completion chime" : "Enable completion chime"
+					}
 					className="h-7 w-7 text-content-secondary hover:text-content-primary"
 				>
 					{enabled ? (

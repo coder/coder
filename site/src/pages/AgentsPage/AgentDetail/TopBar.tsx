@@ -1,4 +1,3 @@
-import type { ChatDiffStatusResponse } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
@@ -27,34 +26,9 @@ import type { FC } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 
-const DiffStatsInline: FC<{
-	status: ChatDiffStatusResponse;
-	onClick: () => void;
-}> = ({ status, onClick }) => {
-	const additions = status.additions ?? 0;
-	const deletions = status.deletions ?? 0;
-
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className="inline-flex shrink-0 cursor-pointer items-center overflow-hidden rounded-md border-0 bg-transparent p-0 font-mono text-[13px] leading-none tabular-nums transition-opacity hover:opacity-80"
-		>
-			<span className="bg-content-success/10 px-1.5 py-1 text-content-success">
-				+{additions}
-			</span>
-			<span className="bg-content-destructive/10 px-1.5 py-1 text-content-destructive">
-				−{deletions}
-			</span>
-		</button>
-	);
-};
-
-interface DiffPanelState {
-	hasDiffStatus: boolean;
-	diffStatus: ChatDiffStatusResponse | undefined;
-	showDiffPanel: boolean;
-	onToggleFilesChanged: () => void;
+interface SidebarPanelState {
+	showSidebarPanel: boolean;
+	onToggleSidebar: () => void;
 }
 
 interface WorkspaceActions {
@@ -70,7 +44,7 @@ type AgentDetailTopBarProps = {
 	chatTitle?: string;
 	parentChat?: TypesGen.Chat;
 	onOpenParentChat: (chatId: string) => void;
-	diff: DiffPanelState;
+	panel: SidebarPanelState;
 	workspace: WorkspaceActions;
 	onArchiveAgent: () => void;
 	onUnarchiveAgent: () => void;
@@ -85,7 +59,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	chatTitle,
 	parentChat,
 	onOpenParentChat,
-	diff,
+	panel,
 	workspace,
 	onArchiveAgent,
 	onUnarchiveAgent,
@@ -98,7 +72,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	const navigate = useNavigate();
 
 	return (
-		<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
+		<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
 			{/* Mobile back button */}
 			<Button
 				variant="subtle"
@@ -130,30 +104,17 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 								<Button
 									size="sm"
 									variant="subtle"
-									className="h-auto max-w-[16rem] rounded-sm px-1 py-0.5 text-xs text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
+									className="h-auto max-w-[16rem] rounded-sm px-1 py-0.5 text-sm text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
 									onClick={() => onOpenParentChat(parentChat.id)}
 								>
 									<span className="truncate">{parentChat.title}</span>
 								</Button>
-								<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary/70" />
+								<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
 							</>
 						)}
 						<span className="truncate text-sm text-content-primary">
 							{chatTitle}
 						</span>
-						{diff.hasDiffStatus && diff.diffStatus && (
-							<span className="ml-3">
-								<DiffStatsInline
-									status={diff.diffStatus}
-									onClick={diff.onToggleFilesChanged}
-								/>
-							</span>
-						)}
-						{isArchived && (
-							<span className="shrink-0 rounded bg-surface-tertiary px-1.5 py-0.5 text-xs text-content-secondary">
-								Archived
-							</span>
-						)}
 					</div>
 				)}
 			</div>
@@ -248,21 +209,19 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 						)}
 					</DropdownMenuContent>
 				</DropdownMenu>
-				{diff.hasDiffStatus && diff.diffStatus && (
-					<Button
-						variant="subtle"
-						size="icon"
-						onClick={diff.onToggleFilesChanged}
-						className="h-7 w-7 text-content-secondary hover:text-content-primary"
-						aria-label="Toggle files changed"
-					>
-						{diff.showDiffPanel ? (
-							<PanelRightCloseIcon className="h-4 w-4" />
-						) : (
-							<PanelRightOpenIcon className="h-4 w-4" />
-						)}
-					</Button>
-				)}{" "}
+				<Button
+					variant="subtle"
+					size="icon"
+					onClick={panel.onToggleSidebar}
+					className="h-7 w-7 text-content-secondary hover:text-content-primary"
+					aria-label="Toggle panel"
+				>
+					{panel.showSidebarPanel ? (
+						<PanelRightCloseIcon className="h-4 w-4" />
+					) : (
+						<PanelRightOpenIcon className="h-4 w-4" />
+					)}
+				</Button>
 			</div>
 		</div>
 	);

@@ -103,10 +103,8 @@ export const TasksSidebar: FC = () => {
 							<Button
 								variant={isCollapsed ? "subtle" : "default"}
 								size={isCollapsed ? "icon" : "sm"}
-								asChild={true}
-								className={cn({
-									"[&_svg]:p-0": isCollapsed,
-								})}
+								asChild
+								className={cn({ "[&_svg]:p-0": isCollapsed })}
 							>
 								<RouterLink to="/tasks">
 									<span className={isCollapsed ? "hidden" : ""}>New Task</span>{" "}

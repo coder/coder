@@ -70,11 +70,7 @@ runs:
         set -euo pipefail
 
         if [[ ${RACE_DETECTION} == true ]]; then
-          gotestsum --junitfile="gotests.xml" --packages="${TEST_PACKAGES}" -- \
-            -tags=testsmallbatch \
-            -race \
-            -parallel "${TEST_NUM_PARALLEL_TESTS}" \
-            -p "${TEST_NUM_PARALLEL_PACKAGES}"
+          make test-race
         else
           make test
         fi

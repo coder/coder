@@ -1046,7 +1046,8 @@ CREATE TABLE aibridge_interceptions (
     api_key_id text,
     client character varying(64) DEFAULT 'Unknown'::character varying,
     thread_parent_id uuid,
-    thread_root_id uuid
+    thread_root_id uuid,
+    client_session_id character varying(256)
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1056,6 +1057,8 @@ COMMENT ON COLUMN aibridge_interceptions.initiator_id IS 'Relates to a users rec
 COMMENT ON COLUMN aibridge_interceptions.thread_parent_id IS 'The interception which directly caused this interception to occur, usually through an agentic loop or threaded conversation.';
 
 COMMENT ON COLUMN aibridge_interceptions.thread_root_id IS 'The root interception of the thread that this interception belongs to.';
+
+COMMENT ON COLUMN aibridge_interceptions.client_session_id IS 'The session ID supplied by the client (optional and not universally supported).';
 
 CREATE TABLE aibridge_token_usages (
     id uuid NOT NULL,
@@ -1184,7 +1187,19 @@ CREATE TABLE chat_diff_statuses (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     git_branch text DEFAULT ''::text NOT NULL,
-    git_remote_origin text DEFAULT ''::text NOT NULL
+    git_remote_origin text DEFAULT ''::text NOT NULL,
+    pull_request_title text DEFAULT ''::text NOT NULL,
+    pull_request_draft boolean DEFAULT false NOT NULL
+);
+
+CREATE TABLE chat_files (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    name text DEFAULT ''::text NOT NULL,
+    mimetype text NOT NULL,
+    data bytea NOT NULL
 );
 
 CREATE TABLE chat_messages (
@@ -1202,7 +1217,8 @@ CREATE TABLE chat_messages (
     cache_creation_tokens bigint,
     cache_read_tokens bigint,
     context_limit bigint,
-    compressed boolean DEFAULT false NOT NULL
+    compressed boolean DEFAULT false NOT NULL,
+    created_by uuid
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -1455,7 +1471,10 @@ CREATE TABLE users (
     hashed_one_time_passcode bytea,
     one_time_passcode_expires_at timestamp with time zone,
     is_system boolean DEFAULT false NOT NULL,
+    is_service_account boolean DEFAULT false NOT NULL,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL)))),
+    CONSTRAINT users_email_not_empty CHECK (((is_service_account = true) = (email = ''::text))),
+    CONSTRAINT users_service_account_login_type CHECK (((is_service_account = false) OR (login_type = 'none'::login_type))),
     CONSTRAINT users_username_min_length CHECK ((length(username) >= 1))
 );
 
@@ -1470,6 +1489,8 @@ COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-pass
 COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
 
 COMMENT ON COLUMN users.is_system IS 'Determines if a user is a system user, and therefore cannot login or perform normal actions';
+
+COMMENT ON COLUMN users.is_service_account IS 'Determines if a user is an admin-managed account that cannot login';
 
 CREATE VIEW group_members_expanded AS
  WITH all_members AS (
@@ -2094,6 +2115,31 @@ CREATE TABLE workspace_builds (
     CONSTRAINT workspace_builds_deadline_below_max_deadline CHECK ((((deadline <> '0001-01-01 00:00:00+00'::timestamp with time zone) AND (deadline <= max_deadline)) OR (max_deadline = '0001-01-01 00:00:00+00'::timestamp with time zone)))
 );
 
+CREATE TABLE workspaces (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    name character varying(64) NOT NULL,
+    autostart_schedule text,
+    ttl bigint,
+    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    dormant_at timestamp with time zone,
+    deleting_at timestamp with time zone,
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
+    favorite boolean DEFAULT false NOT NULL,
+    next_start_at timestamp with time zone,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
+);
+
+COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
+
 CREATE VIEW tasks_with_status AS
  SELECT tasks.id,
     tasks.organization_id,
@@ -2106,6 +2152,8 @@ CREATE VIEW tasks_with_status AS
     tasks.created_at,
     tasks.deleted_at,
     tasks.display_name,
+    COALESCE(workspaces.group_acl, '{}'::jsonb) AS workspace_group_acl,
+    COALESCE(workspaces.user_acl, '{}'::jsonb) AS workspace_user_acl,
         CASE
             WHEN (tasks.workspace_id IS NULL) THEN 'pending'::task_status
             WHEN (build_status.status <> 'active'::task_status) THEN build_status.status
@@ -2121,7 +2169,8 @@ CREATE VIEW tasks_with_status AS
     task_owner.owner_username,
     task_owner.owner_name,
     task_owner.owner_avatar_url
-   FROM ((((((((tasks
+   FROM (((((((((tasks
+     LEFT JOIN workspaces ON ((workspaces.id = tasks.workspace_id)))
      CROSS JOIN LATERAL ( SELECT vu.username AS owner_username,
             vu.name AS owner_name,
             vu.avatar_url AS owner_avatar_url
@@ -2864,31 +2913,6 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
-CREATE TABLE workspaces (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    owner_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    template_id uuid NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    name character varying(64) NOT NULL,
-    autostart_schedule text,
-    ttl bigint,
-    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    dormant_at timestamp with time zone,
-    deleting_at timestamp with time zone,
-    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
-    favorite boolean DEFAULT false NOT NULL,
-    next_start_at timestamp with time zone,
-    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
-    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
-    CONSTRAINT group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
-    CONSTRAINT user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
-);
-
-COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
-
 CREATE VIEW workspace_latest_builds AS
  SELECT latest_build.id,
     latest_build.workspace_id,
@@ -3133,6 +3157,9 @@ ALTER TABLE ONLY boundary_usage_stats
 
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_pkey PRIMARY KEY (chat_id);
+
+ALTER TABLE ONLY chat_files
+    ADD CONSTRAINT chat_files_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
@@ -3447,6 +3474,8 @@ CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_
 
 CREATE INDEX idx_aibridge_interceptions_client ON aibridge_interceptions USING btree (client);
 
+CREATE INDEX idx_aibridge_interceptions_client_session_id ON aibridge_interceptions USING btree (client_session_id) WHERE (client_session_id IS NOT NULL);
+
 CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions USING btree (initiator_id);
 
 CREATE INDEX idx_aibridge_interceptions_model ON aibridge_interceptions USING btree (model);
@@ -3487,6 +3516,10 @@ CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 
+CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
+
+CREATE INDEX idx_chat_files_owner ON chat_files USING btree (owner_id);
+
 CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
@@ -3508,6 +3541,8 @@ CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btre
 CREATE INDEX idx_chats_last_model_config_id ON chats USING btree (last_model_config_id);
 
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
+
+CREATE INDEX idx_chats_owner_updated_id ON chats USING btree (owner_id, updated_at DESC, id DESC);
 
 CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
 
@@ -3571,7 +3606,7 @@ CREATE INDEX idx_user_deleted_deleted_at ON user_deleted USING btree (deleted_at
 
 CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes USING btree (changed_at);
 
-CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
+CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE ((deleted = false) AND (email <> ''::text));
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
 
@@ -3621,7 +3656,7 @@ CREATE UNIQUE INDEX user_secrets_user_file_path_idx ON user_secrets USING btree 
 
 CREATE UNIQUE INDEX user_secrets_user_name_idx ON user_secrets USING btree (user_id, name);
 
-CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE (deleted = false);
+CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE ((deleted = false) AND (email <> ''::text));
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
 
@@ -3765,6 +3800,12 @@ ALTER TABLE ONLY api_keys
 
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_files
+    ADD CONSTRAINT chat_files_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_files
+    ADD CONSTRAINT chat_files_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;

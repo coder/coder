@@ -1854,6 +1854,84 @@ func TestUpdateSystemUser(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestInsertUserServiceAccountConstraints(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	// Happy path: should succeed.
+	t.Run("ServiceAccountWithEmptyEmailAndLoginNone", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, err := db.InsertUser(ctx, database.InsertUserParams{
+			Email:            "",
+			LoginType:        database.LoginTypeNone,
+			ID:               uuid.New(),
+			Username:         "sa-ok",
+			RBACRoles:        []string{},
+			IsServiceAccount: true,
+		})
+		require.NoError(t, err)
+		require.True(t, user.IsServiceAccount)
+		require.Empty(t, user.Email)
+	})
+
+	// Service account with a non-empty email should be rejected
+	// by the users_email_not_empty constraint.
+	t.Run("ServiceAccountWithNonEmptyEmail", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := db.InsertUser(ctx, database.InsertUserParams{
+			Email:            "sa@coder.com",
+			LoginType:        database.LoginTypeNone,
+			ID:               uuid.New(),
+			Username:         "sa-with-email",
+			RBACRoles:        []string{},
+			IsServiceAccount: true,
+		})
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckUsersEmailNotEmpty))
+	})
+
+	// A non-service-account with empty email should be rejected
+	// by the users_email_not_empty constraint.
+	t.Run("RegularUserWithEmptyEmail", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := db.InsertUser(ctx, database.InsertUserParams{
+			Email:            "",
+			LoginType:        database.LoginTypePassword,
+			ID:               uuid.New(),
+			Username:         "regular-no-email",
+			RBACRoles:        []string{},
+			IsServiceAccount: false,
+		})
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckUsersEmailNotEmpty))
+	})
+
+	// Service account with login_type!=none should be rejected
+	// by the users_service_account_login_type constraint.
+	t.Run("ServiceAccountWithPasswordLoginType", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := db.InsertUser(ctx, database.InsertUserParams{
+			Email:            "",
+			LoginType:        database.LoginTypePassword,
+			ID:               uuid.New(),
+			Username:         "sa-with-password",
+			RBACRoles:        []string{},
+			IsServiceAccount: true,
+		})
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckUsersServiceAccountLoginType))
+	})
+}
+
 func TestUserChangeLoginType(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -3867,6 +3945,37 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			queueSizes:     nil, // TODO(yevhenii): should it be empty array instead?
 			queuePositions: nil,
 		},
+		// Many daemons with identical tags should produce same results as one.
+		{
+			name: "duplicate-daemons-same-tags",
+			jobTags: []database.StringMap{
+				{"a": "1"},
+				{"a": "1", "b": "2"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1", "b": "2"},
+				{"a": "1", "b": "2"},
+			},
+			queueSizes:     []int64{2, 2},
+			queuePositions: []int64{1, 2},
+		},
+		// Jobs that don't match any queried job's daemon should still
+		// have correct queue positions.
+		{
+			name: "irrelevant-daemons-filtered",
+			jobTags: []database.StringMap{
+				{"a": "1"},
+				{"x": "9"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1"},
+				{"x": "9"},
+			},
+			queueSizes:     []int64{1},
+			queuePositions: []int64{1},
+			skipJobIDs:     map[int]struct{}{1: {}},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -4190,6 +4299,51 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) 
 		queuePositions = append(queuePositions, job.QueuePosition)
 	}
 	assert.EqualValues(t, []int64{1, 2, 3, 4, 5, 6}, queuePositions, "expected queue positions to be set correctly")
+}
+
+func TestGetProvisionerJobsByIDsWithQueuePosition_DuplicateDaemons(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	now := dbtime.Now()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Create 3 pending jobs with the same tags.
+	jobs := make([]database.ProvisionerJob, 3)
+	for i := range jobs {
+		jobs[i] = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt: now.Add(-time.Duration(3-i) * time.Minute),
+			Tags:      database.StringMap{"scope": "organization", "owner": ""},
+		})
+	}
+
+	// Create 50 daemons with identical tags (simulates scale).
+	for i := range 50 {
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:         fmt.Sprintf("daemon_%d", i),
+			Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags:         database.StringMap{"scope": "organization", "owner": ""},
+		})
+	}
+
+	jobIDs := make([]uuid.UUID, len(jobs))
+	for i, j := range jobs {
+		jobIDs[i] = j.ID
+	}
+
+	results, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx,
+		database.GetProvisionerJobsByIDsWithQueuePositionParams{
+			IDs:             jobIDs,
+			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+		})
+	require.NoError(t, err)
+	require.Len(t, results, 3)
+
+	// All daemons have identical tags, so queue should be same as
+	// if there were just one daemon.
+	for i, r := range results {
+		assert.Equal(t, int64(3), r.QueueSize, "job %d queue size", i)
+		assert.Equal(t, int64(i+1), r.QueuePosition, "job %d queue position", i)
+	}
 }
 
 func TestGroupRemovalTrigger(t *testing.T) {
@@ -8413,7 +8567,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent should still authenticate during stop build execution.
-		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent.AuthToken)
+		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
 		require.NoError(t, err, "agent should authenticate during stop build execution")
 		require.Equal(t, agent.ID, row.WorkspaceAgent.ID)
 		require.Equal(t, startBuild.ID, row.WorkspaceBuild.ID, "should return start build, not stop build")
@@ -8471,7 +8625,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent should NOT authenticate after stop job completes.
-		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent.AuthToken)
+		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent should not authenticate after stop job completes")
 	})
 
@@ -8525,7 +8679,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent should NOT authenticate (start build failed).
-		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent.AuthToken)
+		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent from failed start build should not authenticate")
 	})
 
@@ -8580,7 +8734,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent should authenticate during pending stop build.
-		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent.AuthToken)
+		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
 		require.NoError(t, err, "agent should authenticate during pending stop build")
 		require.Equal(t, agent.ID, row.WorkspaceAgent.ID)
 		require.Equal(t, startBuild.ID, row.WorkspaceBuild.ID, "should return start build")
@@ -8677,13 +8831,13 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent from build 3 should authenticate.
-		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent2.AuthToken)
+		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent2.AuthToken)
 		require.NoError(t, err, "agent from most recent start should authenticate during stop")
 		require.Equal(t, agent2.ID, row.WorkspaceAgent.ID)
 		require.Equal(t, startBuild2.ID, row.WorkspaceBuild.ID)
 
 		// Agent from build 1 should NOT authenticate.
-		_, err = db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent1.AuthToken)
+		_, err = db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent1.AuthToken)
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent from old cycle should not authenticate")
 	})
 
@@ -8737,7 +8891,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent from build 1 should NOT authenticate (latest is not STOP).
-		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent1.AuthToken)
+		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent1.AuthToken)
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent should not authenticate when latest build is not STOP")
 	})
 }
@@ -8840,4 +8994,323 @@ func TestInsertWorkspaceAgentDevcontainers(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetChatMessagesForPromptByChatID(t *testing.T) {
+	t.Parallel()
+
+	// This test exercises a complex CTE query for prompt
+	// reconstruction after compaction. It requires Postgres.
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+
+	// Helper: create a chat model config (required FK for chats).
+	user := dbgen.User(t, db, database.User{})
+
+	// A chat_providers row is required as a FK for model configs.
+	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+		APIKey:      "test-key",
+		Enabled:     true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "test-model",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	newChat := func(t *testing.T) database.Chat {
+		t.Helper()
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           user.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-chat-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	insertMsg := func(
+		t *testing.T,
+		chatID uuid.UUID,
+		role string,
+		vis database.ChatMessageVisibility,
+		compressed bool,
+		content string,
+	) database.ChatMessage {
+		t.Helper()
+		msg, err := db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+			ChatID:     chatID,
+			Role:       role,
+			Visibility: vis,
+			Compressed: sql.NullBool{Bool: compressed, Valid: true},
+			Content: pqtype.NullRawMessage{
+				RawMessage: json.RawMessage(`"` + content + `"`),
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+		return msg
+	}
+
+	msgIDs := func(msgs []database.ChatMessage) []int64 {
+		ids := make([]int64, len(msgs))
+		for i, m := range msgs {
+			ids[i] = m.ID
+		}
+		return ids
+	}
+
+	t.Run("NoCompaction", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		sys := insertMsg(t, chat.ID, "system", database.ChatMessageVisibilityModel, false, "system prompt")
+		usr := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "hello")
+		ast := insertMsg(t, chat.ID, "assistant", database.ChatMessageVisibilityBoth, false, "hi there")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, []int64{sys.ID, usr.ID, ast.ID}, msgIDs(got))
+	})
+
+	t.Run("UserOnlyVisibilityExcluded", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		// Messages with visibility=user should NOT appear in the
+		// prompt (they are only for the UI).
+		insertMsg(t, chat.ID, "system", database.ChatMessageVisibilityModel, false, "system prompt")
+		insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityUser, false, "user-only msg")
+		usr := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "hello")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		for _, m := range got {
+			require.NotEqual(t, database.ChatMessageVisibilityUser, m.Visibility,
+				"visibility=user messages should not appear in the prompt")
+		}
+		require.Contains(t, msgIDs(got), usr.ID)
+	})
+
+	t.Run("AfterCompaction", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		// Pre-compaction conversation.
+		sys := insertMsg(t, chat.ID, "system", database.ChatMessageVisibilityModel, false, "system prompt")
+		preUser := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "old question")
+		preAsst := insertMsg(t, chat.ID, "assistant", database.ChatMessageVisibilityBoth, false, "old answer")
+
+		// Compaction messages:
+		// 1. Summary (role=user, visibility=model, compressed=true).
+		summary := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityModel, true, "compaction summary")
+		// 2. Compressed assistant tool-call (visibility=user).
+		insertMsg(t, chat.ID, "assistant", database.ChatMessageVisibilityUser, true, "tool call")
+		// 3. Compressed tool result (visibility=both).
+		insertMsg(t, chat.ID, "tool", database.ChatMessageVisibilityBoth, true, "tool result")
+
+		// Post-compaction messages.
+		postUser := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "new question")
+		postAsst := insertMsg(t, chat.ID, "assistant", database.ChatMessageVisibilityBoth, false, "new answer")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		gotIDs := msgIDs(got)
+
+		// Must include: system prompt, summary, post-compaction.
+		require.Contains(t, gotIDs, sys.ID, "system prompt must be included")
+		require.Contains(t, gotIDs, summary.ID, "compaction summary must be included")
+		require.Contains(t, gotIDs, postUser.ID, "post-compaction user msg must be included")
+		require.Contains(t, gotIDs, postAsst.ID, "post-compaction assistant msg must be included")
+
+		// Must exclude: pre-compaction non-system messages.
+		require.NotContains(t, gotIDs, preUser.ID, "pre-compaction user msg must be excluded")
+		require.NotContains(t, gotIDs, preAsst.ID, "pre-compaction assistant msg must be excluded")
+
+		// Verify ordering.
+		require.Equal(t, []int64{sys.ID, summary.ID, postUser.ID, postAsst.ID}, gotIDs)
+	})
+
+	t.Run("AfterCompactionSummaryIsUserRole", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		// After compaction the summary must appear as role=user so
+		// that LLM APIs (e.g. Anthropic) see at least one
+		// non-system message in the prompt.
+		insertMsg(t, chat.ID, "system", database.ChatMessageVisibilityModel, false, "system prompt")
+		summary := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityModel, true, "summary text")
+		newUsr := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "new question")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		hasNonSystem := false
+		for _, m := range got {
+			if m.Role != "system" {
+				hasNonSystem = true
+				break
+			}
+		}
+		require.True(t, hasNonSystem,
+			"prompt must contain at least one non-system message after compaction")
+		require.Contains(t, msgIDs(got), summary.ID)
+		require.Contains(t, msgIDs(got), newUsr.ID)
+	})
+
+	t.Run("CompressedToolResultNotPickedAsSummary", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		// The CTE uses visibility='model' (exact match). If it
+		// used IN ('model','both'), the compressed tool result
+		// (visibility=both) would be picked as the "summary"
+		// instead of the actual summary.
+		insertMsg(t, chat.ID, "system", database.ChatMessageVisibilityModel, false, "system prompt")
+		summary := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityModel, true, "real summary")
+		compressedTool := insertMsg(t, chat.ID, "tool", database.ChatMessageVisibilityBoth, true, "tool result")
+		postUser := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "follow-up")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		gotIDs := msgIDs(got)
+		require.Contains(t, gotIDs, summary.ID, "real summary must be included")
+		require.NotContains(t, gotIDs, compressedTool.ID,
+			"compressed tool result must not be included")
+		require.Contains(t, gotIDs, postUser.ID)
+	})
+}
+
+func TestGetWorkspaceBuildMetricsByResourceID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+
+		org := dbgen.Organization(t, db, database.Organization{})
+		user := dbgen.User(t, db, database.User{})
+		tmpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			TemplateID:     uuid.NullUUID{UUID: tmpl.ID, Valid: true},
+			CreatedBy:      user.ID,
+		})
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID:   org.ID,
+			TemplateID:       tmpl.ID,
+			OwnerID:          user.ID,
+			AutomaticUpdates: database.AutomaticUpdatesNever,
+		})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: tv.ID,
+			JobID:             job.ID,
+			InitiatorID:       user.ID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+
+		parentReadyAt := dbtime.Now()
+		parentStartedAt := parentReadyAt.Add(-time.Second)
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID:     resource.ID,
+			StartedAt:      sql.NullTime{Time: parentStartedAt, Valid: true},
+			ReadyAt:        sql.NullTime{Time: parentReadyAt, Valid: true},
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		})
+
+		row, err := db.GetWorkspaceBuildMetricsByResourceID(ctx, resource.ID)
+		require.NoError(t, err)
+		require.True(t, row.AllAgentsReady)
+		require.True(t, parentReadyAt.Equal(row.LastAgentReadyAt))
+		require.Equal(t, "success", row.WorstStatus)
+	})
+
+	t.Run("SubAgentExcluded", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+
+		org := dbgen.Organization(t, db, database.Organization{})
+		user := dbgen.User(t, db, database.User{})
+		tmpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			TemplateID:     uuid.NullUUID{UUID: tmpl.ID, Valid: true},
+			CreatedBy:      user.ID,
+		})
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID:   org.ID,
+			TemplateID:       tmpl.ID,
+			OwnerID:          user.ID,
+			AutomaticUpdates: database.AutomaticUpdatesNever,
+		})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: tv.ID,
+			JobID:             job.ID,
+			InitiatorID:       user.ID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+
+		parentReadyAt := dbtime.Now()
+		parentStartedAt := parentReadyAt.Add(-time.Second)
+		parentAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID:     resource.ID,
+			StartedAt:      sql.NullTime{Time: parentStartedAt, Valid: true},
+			ReadyAt:        sql.NullTime{Time: parentReadyAt, Valid: true},
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		})
+
+		// Sub-agent with ready_at 1 hour later should be excluded.
+		subAgentReadyAt := parentReadyAt.Add(time.Hour)
+		subAgentStartedAt := subAgentReadyAt.Add(-time.Second)
+		_ = dbgen.WorkspaceSubAgent(t, db, parentAgent, database.WorkspaceAgent{
+			StartedAt:      sql.NullTime{Time: subAgentStartedAt, Valid: true},
+			ReadyAt:        sql.NullTime{Time: subAgentReadyAt, Valid: true},
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		})
+
+		row, err := db.GetWorkspaceBuildMetricsByResourceID(ctx, resource.ID)
+		require.NoError(t, err)
+		require.True(t, row.AllAgentsReady)
+		// LastAgentReadyAt should be the parent's, not the sub-agent's.
+		require.True(t, parentReadyAt.Equal(row.LastAgentReadyAt))
+		require.Equal(t, "success", row.WorstStatus)
+	})
 }

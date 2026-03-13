@@ -23,9 +23,7 @@ describe("AccountForm", () => {
 					email={MockUserMember.email}
 					initialValues={mockInitialValues}
 					isLoading={false}
-					onSubmit={() => {
-						return;
-					}}
+					onSubmit={vi.fn()}
 				/>,
 			);
 
@@ -39,6 +37,28 @@ describe("AccountForm", () => {
 		});
 	});
 
+	it("sets name autocomplete to name", async () => {
+		// Given
+		const mockInitialValues: UpdateUserProfileRequest = {
+			username: MockUserMember.username,
+			name: MockUserMember.name ?? MockUserMember.username,
+		};
+
+		// When
+		render(
+			<AccountForm
+				editable
+				email={MockUserMember.email}
+				initialValues={mockInitialValues}
+				isLoading={false}
+				onSubmit={vi.fn()}
+			/>,
+		);
+
+		// Then
+		const nameInput = await screen.findByLabelText("Name");
+		expect(nameInput).toHaveAttribute("autocomplete", "name");
+	});
 	describe("when editable is set to false", () => {
 		it("does not allow updating username", async () => {
 			// Given
@@ -54,9 +74,7 @@ describe("AccountForm", () => {
 					email={MockUserMember.email}
 					initialValues={mockInitialValues}
 					isLoading={false}
-					onSubmit={() => {
-						return;
-					}}
+					onSubmit={vi.fn()}
 				/>,
 			);
 

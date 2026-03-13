@@ -61,6 +61,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
+	"github.com/coder/coder/v2/coderd/gitsync"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -99,6 +100,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/derpmetrics"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
@@ -661,6 +663,7 @@ func New(options *Options) *API {
 	api.SiteHandler, err = site.New(&site.Options{
 		CacheDir:          siteCacheDir,
 		Database:          options.Database,
+		Authorizer:        options.Authorizer,
 		SiteFS:            site.FS(),
 		OAuth2Configs:     oauthConfigs,
 		DocsURL:           options.DeploymentValues.DocsURL.String(),
@@ -767,9 +770,25 @@ func New(options *Options) *API {
 		ProviderAPIKeys:   chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
 		AgentConn:         api.agentProvider.AgentConn,
 		CreateWorkspace:   api.chatCreateWorkspace,
+		StartWorkspace:    api.chatStartWorkspace,
 		Pubsub:            options.Pubsub,
 		WebpushDispatcher: options.WebPushDispatcher,
 	})
+	gitSyncLogger := options.Logger.Named("gitsync")
+	refresher := gitsync.NewRefresher(
+		api.resolveGitProvider,
+		api.resolveChatGitAccessToken,
+		gitSyncLogger.Named("refresher"),
+		quartz.NewReal(),
+	)
+	api.gitSyncWorker = gitsync.NewWorker(options.Database,
+		refresher,
+		api.chatDaemon.PublishDiffStatusChange,
+		quartz.NewReal(),
+		gitSyncLogger,
+	)
+	// nolint:gocritic // chat diff worker needs to be able to CRUD chats.
+	go api.gitSyncWorker.Start(dbauthz.AsChatd(api.ctx))
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
 		api.lifecycleMetrics = agentapi.NewLifecycleMetrics(options.PrometheusRegistry)
@@ -898,17 +917,18 @@ func New(options *Options) *API {
 	apiRateLimiter := httpmw.RateLimit(options.APIRateLimit, time.Minute)
 
 	// Register DERP on expvar HTTP handler, which we serve below in the router, c.f. expvar.Handler()
-	// These are the metrics the DERP server exposes.
-	// TODO: export via prometheus
 	expDERPOnce.Do(func() {
 		// We need to do this via a global Once because expvar registry is global and panics if we
 		// register multiple times.  In production there is only one Coderd and one DERP server per
 		// process, but in testing, we create multiple of both, so the Once protects us from
 		// panicking.
-		if options.DERPServer != nil {
+		if options.DERPServer != nil && expvar.Get("derp") == nil {
 			expvar.Publish("derp", api.DERPServer.ExpVar())
 		}
 	})
+	if options.PrometheusRegistry != nil && options.DERPServer != nil {
+		options.PrometheusRegistry.MustRegister(derpmetrics.NewDERPExpvarCollector(options.DERPServer))
+	}
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
 	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
 
@@ -923,6 +943,16 @@ func New(options *Options) *API {
 		loggermw.Logger(api.Logger),
 		singleSlashMW,
 		rolestore.CustomRoleMW,
+		// Validate API key on every request (if present) and store
+		// the result in context. The rate limiter reads this to key
+		// by user ID, and downstream ExtractAPIKeyMW reuses it to
+		// avoid redundant DB lookups. Never rejects requests.
+		httpmw.PrecheckAPIKey(httpmw.ValidateAPIKeyConfig{
+			DB:                          options.Database,
+			OAuth2Configs:               oauthConfigs,
+			DisableSessionExpiryRefresh: options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
+			Logger:                      options.Logger,
+		}),
 		httpmw.HTTPRoute, // NB: prometheusMW depends on this middleware.
 		prometheusMW,
 		// Build-Version is helpful for debugging.
@@ -1071,8 +1101,6 @@ func New(options *Options) *API {
 
 		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
-			// Specific routes can specify different limits, but every rate
-			// limit must be configurable by the admin.
 			apiRateLimiter,
 			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
 		)
@@ -1110,6 +1138,18 @@ func New(options *Options) *API {
 			r.Post("/", api.postChats)
 			r.Get("/models", api.listChatModels)
 			r.Get("/watch", api.watchChats)
+			r.Route("/files", func(r chi.Router) {
+				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
+				r.Post("/", api.postChatFile)
+				r.Get("/{file}", api.chatFileByID)
+			})
+			r.Route("/config", func(r chi.Router) {
+				r.Get("/system-prompt", api.getChatSystemPrompt)
+				r.Put("/system-prompt", api.putChatSystemPrompt)
+				r.Get("/user-prompt", api.getUserChatCustomPrompt)
+				r.Put("/user-prompt", api.putUserChatCustomPrompt)
+			})
+			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/providers", func(r chi.Router) {
 				r.Get("/", api.listChatProviders)
 				r.Post("/", api.createChatProvider)
@@ -1118,6 +1158,7 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatProvider)
 				})
 			})
+			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/model-configs", func(r chi.Router) {
 				r.Get("/", api.listChatModelConfigs)
 				r.Post("/", api.createChatModelConfig)
@@ -1129,6 +1170,7 @@ func New(options *Options) *API {
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Use(httpmw.ExtractChatParam(options.Database))
 				r.Get("/", api.getChat)
+				r.Get("/git/watch", api.watchChatGit)
 				r.Post("/archive", api.archiveChat)
 				r.Post("/unarchive", api.unarchiveChat)
 				r.Post("/messages", api.postChatMessages)
@@ -1159,8 +1201,6 @@ func New(options *Options) *API {
 
 		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
 		r.Use(
-			// Specific routes can specify different limits, but every rate
-			// limit must be configurable by the admin.
 			apiRateLimiter,
 			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
 		)
@@ -1441,6 +1481,7 @@ func New(options *Options) *API {
 						r.Put("/appearance", api.putUserAppearanceSettings)
 						r.Get("/preferences", api.userPreferenceSettings)
 						r.Put("/preferences", api.putUserPreferenceSettings)
+
 						r.Route("/password", func(r chi.Router) {
 							r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 							r.Put("/", api.putUserPassword)
@@ -1838,6 +1879,14 @@ func New(options *Options) *API {
 			"parsing additional CSP headers", slog.Error(cspParseErrors))
 	}
 
+	// Add blob: to img-src for chat file attachment previews when
+	// the agents experiment is enabled.
+	if api.Experiments.Enabled(codersdk.ExperimentAgents) {
+		additionalCSPHeaders[httpmw.CSPDirectiveImgSrc] = append(
+			additionalCSPHeaders[httpmw.CSPDirectiveImgSrc], "blob:",
+		)
+	}
+
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
 	cspMW := httpmw.CSPHeaders(
@@ -1966,6 +2015,9 @@ type API struct {
 	dbRolluper *dbrollup.Rolluper
 	// chatDaemon handles background processing of pending chats.
 	chatDaemon *chatd.Server
+	// gitSyncWorker refreshes stale chat diff statuses in the
+	// background.
+	gitSyncWorker *gitsync.Worker
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -1995,6 +2047,13 @@ func (api *API) Close() error {
 		api.Logger.Warn(api.ctx, "websocket shutdown timed out after 10 seconds")
 	}
 	api.dbRolluper.Close()
+	// chatDiffWorker is unconditionally initialized in New().
+	select {
+	case <-api.gitSyncWorker.Done():
+	case <-time.After(10 * time.Second):
+		api.Logger.Warn(context.Background(),
+			"chat diff refresh worker did not exit in time")
+	}
 	if err := api.chatDaemon.Close(); err != nil {
 		api.Logger.Warn(api.ctx, "close chat processor", slog.Error(err))
 	}

@@ -1059,9 +1059,14 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 	if !m.ModelConfigID.Valid {
 		modelConfigID = nil
 	}
+	createdBy := &m.CreatedBy.UUID
+	if !m.CreatedBy.Valid {
+		createdBy = nil
+	}
 	msg := codersdk.ChatMessage{
 		ID:            m.ID,
 		ChatID:        m.ChatID,
+		CreatedBy:     createdBy,
 		ModelConfigID: modelConfigID,
 		CreatedAt:     m.CreatedAt,
 		Role:          m.Role,
@@ -1156,9 +1161,7 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 		}
 
 		var rawBlocks []json.RawMessage
-		if role == string(fantasy.MessageRoleAssistant) {
-			_ = json.Unmarshal(raw.RawMessage, &rawBlocks)
-		}
+		_ = json.Unmarshal(raw.RawMessage, &rawBlocks)
 
 		parts := make([]codersdk.ChatMessagePart, 0, len(content))
 		for i, block := range content {
@@ -1166,10 +1169,17 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 			if part.Type == "" {
 				continue
 			}
-			if part.Type == codersdk.ChatMessagePartTypeReasoning {
-				part.Title = ""
-				if i < len(rawBlocks) {
-					part.Title = reasoningStoredTitle(rawBlocks[i])
+			if i < len(rawBlocks) {
+				if part.Type == codersdk.ChatMessagePartTypeFile {
+					if fid, err := chatprompt.ExtractFileID(rawBlocks[i]); err == nil {
+						part.FileID = uuid.NullUUID{UUID: fid, Valid: true}
+					}
+					// When a file_id is present, omit inline data
+					// from the response. Clients fetch content via
+					// the GET /chats/files/{id} endpoint instead.
+					if part.FileID.Valid {
+						part.Data = nil
+					}
 				}
 			}
 			parts = append(parts, part)
@@ -1183,11 +1193,12 @@ func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMe
 		parts := make([]codersdk.ChatMessagePart, 0, len(results))
 		for _, result := range results {
 			parts = append(parts, codersdk.ChatMessagePart{
-				Type:       codersdk.ChatMessagePartTypeToolResult,
-				ToolCallID: result.ToolCallID,
-				ToolName:   result.ToolName,
-				Result:     result.Result,
-				IsError:    result.IsError,
+				Type:             codersdk.ChatMessagePartTypeToolResult,
+				ToolCallID:       result.ToolCallID,
+				ToolName:         result.ToolName,
+				Result:           result.Result,
+				IsError:          result.IsError,
+				ProviderExecuted: result.ProviderExecuted,
 			})
 		}
 		return parts, nil
@@ -1241,10 +1252,11 @@ func parseContentBlocks(role string, raw pqtype.NullRawMessage) ([]fantasy.Conte
 // toolResultRow is used only for extracting top-level fields from
 // persisted tool result JSON. The result payload is kept as raw JSON.
 type toolResultRow struct {
-	ToolCallID string          `json:"tool_call_id"`
-	ToolName   string          `json:"tool_name"`
-	Result     json.RawMessage `json:"result"`
-	IsError    bool            `json:"is_error,omitempty"`
+	ToolCallID       string          `json:"tool_call_id"`
+	ToolName         string          `json:"tool_name"`
+	Result           json.RawMessage `json:"result"`
+	IsError          bool            `json:"is_error,omitempty"`
+	ProviderExecuted bool            `json:"provider_executed,omitempty"`
 }
 
 func parseToolResults(raw pqtype.NullRawMessage) ([]toolResultRow, error) {
@@ -1257,22 +1269,6 @@ func parseToolResults(raw pqtype.NullRawMessage) ([]toolResultRow, error) {
 		return nil, xerrors.Errorf("parse tool results: %w", err)
 	}
 	return results, nil
-}
-
-func reasoningStoredTitle(raw json.RawMessage) string {
-	var envelope struct {
-		Type string `json:"type"`
-		Data struct {
-			Title string `json:"title"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return ""
-	}
-	if !strings.EqualFold(envelope.Type, string(fantasy.ContentTypeReasoning)) {
-		return ""
-	}
-	return strings.TrimSpace(envelope.Data.Title)
 }
 
 func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
@@ -1299,17 +1295,19 @@ func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
 		}
 	case fantasy.ToolCallContent:
 		return codersdk.ChatMessagePart{
-			Type:       codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID: value.ToolCallID,
-			ToolName:   value.ToolName,
-			Args:       []byte(value.Input),
+			Type:             codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID:       value.ToolCallID,
+			ToolName:         value.ToolName,
+			Args:             []byte(value.Input),
+			ProviderExecuted: value.ProviderExecuted,
 		}
 	case *fantasy.ToolCallContent:
 		return codersdk.ChatMessagePart{
-			Type:       codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID: value.ToolCallID,
-			ToolName:   value.ToolName,
-			Args:       []byte(value.Input),
+			Type:             codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID:       value.ToolCallID,
+			ToolName:         value.ToolName,
+			Args:             []byte(value.Input),
+			ProviderExecuted: value.ProviderExecuted,
 		}
 	case fantasy.SourceContent:
 		return codersdk.ChatMessagePart{
@@ -1338,19 +1336,23 @@ func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
 			Data:      value.Data,
 		}
 	case fantasy.ToolResultContent:
-		return chatprompt.ToolResultToPart(
+		part := chatprompt.ToolResultToPart(
 			value.ToolCallID,
 			value.ToolName,
 			toolResultOutputToRawJSON(value.Result),
 			toolResultOutputIsError(value.Result),
 		)
+		part.ProviderExecuted = value.ProviderExecuted
+		return part
 	case *fantasy.ToolResultContent:
-		return chatprompt.ToolResultToPart(
+		part := chatprompt.ToolResultToPart(
 			value.ToolCallID,
 			value.ToolName,
 			toolResultOutputToRawJSON(value.Result),
 			toolResultOutputIsError(value.Result),
 		)
+		part.ProviderExecuted = value.ProviderExecuted
+		return part
 	default:
 		return codersdk.ChatMessagePart{}
 	}

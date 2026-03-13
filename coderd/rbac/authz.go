@@ -297,6 +297,15 @@ func NewStrictCachingAuthorizer(registry prometheus.Registerer) Authorizer {
 	return Cacher(auth)
 }
 
+// NewStrictAuthorizer is for testing only. It skips the caching layer,
+// which is useful when every authorize call is unique (0% cache hit
+// rate) and the cache overhead dominates.
+func NewStrictAuthorizer(registry prometheus.Registerer) Authorizer {
+	auth := NewAuthorizer(registry)
+	auth.strict = true
+	return auth
+}
+
 func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 	queryOnce.Do(func() {
 		var err error

@@ -70,6 +70,14 @@ Use the following `make` commands and scripts in development:
 - `make build` compiles binaries and release packages
 - `make install` installs binaries to `$GOPATH/bin`
 - `make test`
+- `make pre-commit` runs gen, fmt, lint, typos, and builds a slim binary
+- `make pre-push` runs heavier CI checks including tests (allowlisted)
+
+Install the git hooks to run these automatically:
+
+```sh
+git config core.hooksPath scripts/githooks
+```
 
 ### Running Coder on development mode
 

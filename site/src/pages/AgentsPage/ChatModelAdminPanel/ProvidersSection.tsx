@@ -1,6 +1,6 @@
 import type * as TypesGen from "api/typesGenerated";
 import { CheckCircleIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { cn } from "utils/cn";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
@@ -9,8 +9,10 @@ import { ProviderIcon } from "./ProviderIcon";
 
 type ProviderView = { mode: "list" } | { mode: "detail"; provider: string };
 
-type ProvidersSectionProps = {
+interface ProvidersSectionProps {
 	sectionLabel?: string;
+	sectionDescription?: string;
+	sectionBadge?: ReactNode;
 	providerStates: readonly ProviderState[];
 	providerConfigsUnavailable: boolean;
 	isProviderMutationPending: boolean;
@@ -23,10 +25,12 @@ type ProvidersSectionProps = {
 	) => Promise<unknown>;
 	onDeleteProvider: (providerConfigId: string) => Promise<void>;
 	onSelectedProviderChange: (provider: string) => void;
-};
+}
 
 export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	sectionLabel,
+	sectionDescription,
+	sectionBadge,
 	providerStates,
 	providerConfigsUnavailable,
 	isProviderMutationPending,
@@ -80,7 +84,10 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 			{sectionLabel && (
 				<SectionHeader
 					label={sectionLabel}
-					description="Configure AI providers to use with Agents."
+					description={
+						sectionDescription ?? "Configure AI providers to use with Agents."
+					}
+					badge={sectionBadge}
 				/>
 			)}
 			<div>

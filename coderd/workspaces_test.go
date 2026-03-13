@@ -4379,7 +4379,7 @@ func TestWorkspaceDormant(t *testing.T) {
 		// The template doesn't have a time_til_dormant_autodelete set so this should be nil.
 		require.Nil(t, workspace.DeletingAt)
 		require.NotNil(t, workspace.DormantAt)
-		require.WithinRange(t, *workspace.DormantAt, time.Now().Add(-time.Second*10), time.Now())
+		require.WithinRange(t, *workspace.DormantAt, dbtime.Now().Add(-time.Second*10), dbtime.Now())
 		require.Equal(t, lastUsedAt, workspace.LastUsedAt)
 
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
@@ -4433,7 +4433,7 @@ func TestWorkspaceDormant(t *testing.T) {
 		workspace, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err, "fetch dormant workspace")
 		if assert.NotNil(t, workspace.DormantAt, "workspace must be dormant") {
-			require.WithinDuration(t, *workspace.DormantAt, time.Now(), 10*time.Second)
+			require.WithinDuration(t, *workspace.DormantAt, dbtime.Now(), 10*time.Second)
 		}
 		// Starting a dormant workspace should 'wake' it.
 		wb, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{

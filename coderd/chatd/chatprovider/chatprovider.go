@@ -553,7 +553,8 @@ func normalizedEnumValue(value string, allowed ...string) *string {
 	return nil
 }
 
-// MergeMissingCallConfig fills unset call config values from defaults.
+// MergeMissingCallConfig fills unset call config values from a provider or
+// profile default config.
 func MergeMissingCallConfig(
 	dst *codersdk.ChatModelCallConfig,
 	defaults codersdk.ChatModelCallConfig,
@@ -576,7 +577,37 @@ func MergeMissingCallConfig(
 	if dst.FrequencyPenalty == nil {
 		dst.FrequencyPenalty = defaults.FrequencyPenalty
 	}
+	MergeMissingModelCostConfig(&dst.Cost, defaults.Cost)
 	MergeMissingProviderOptions(&dst.ProviderOptions, defaults.ProviderOptions)
+}
+
+// MergeMissingModelCostConfig fills unset pricing metadata from defaults.
+func MergeMissingModelCostConfig(
+	dst **codersdk.ModelCostConfig,
+	defaults *codersdk.ModelCostConfig,
+) {
+	if defaults == nil {
+		return
+	}
+	if *dst == nil {
+		copied := *defaults
+		*dst = &copied
+		return
+	}
+
+	current := *dst
+	if current.InputPricePerMillionTokens == nil {
+		current.InputPricePerMillionTokens = defaults.InputPricePerMillionTokens
+	}
+	if current.OutputPricePerMillionTokens == nil {
+		current.OutputPricePerMillionTokens = defaults.OutputPricePerMillionTokens
+	}
+	if current.CacheReadPricePerMillionTokens == nil {
+		current.CacheReadPricePerMillionTokens = defaults.CacheReadPricePerMillionTokens
+	}
+	if current.CacheWritePricePerMillionTokens == nil {
+		current.CacheWritePricePerMillionTokens = defaults.CacheWritePricePerMillionTokens
+	}
 }
 
 // MergeMissingProviderOptions fills unset provider option fields from defaults.

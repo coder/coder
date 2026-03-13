@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -30,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -57,6 +59,175 @@ import (
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
+
+// TestTokenIsRefreshedEarly creates a fake OIDC IDP that sets expiration times
+// of the token to values that are "near expiration". Expiration being 10minutes
+// earlier than it needs to be. The `ObtainOIDCAccessToken` should refresh these
+// tokens early.
+func TestTokenIsRefreshedEarly(t *testing.T) {
+	t.Parallel()
+
+	t.Run("WithCoderd", func(t *testing.T) {
+		t.Parallel()
+		tokenRefreshCount := 0
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithServing(),
+			oidctest.WithDefaultExpire(time.Minute*8),
+			oidctest.WithRefresh(func(email string) error {
+				tokenRefreshCount++
+				return nil
+			}),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+		db, ps := dbtestutil.NewDB(t)
+		owner := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig:               cfg,
+			IncludeProvisionerDaemon: true,
+			Database:                 db,
+			Pubsub:                   ps,
+		})
+		first := coderdtest.CreateFirstUser(t, owner)
+		version := coderdtest.CreateTemplateVersion(t, owner, first.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, owner, version.ID)
+		template := coderdtest.CreateTemplate(t, owner, first.OrganizationID, version.ID)
+
+		// Setup an OIDC user.
+		client, _ := fake.Login(t, owner, jwt.MapClaims{
+			"email":          "user@unauthorized.com",
+			"email_verified": true,
+			"sub":            uuid.NewString(),
+		})
+
+		// Creating a workspace should refresh the oidc early.
+		tokenRefreshCount = 0
+		wrk := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, wrk.LatestBuild.ID)
+		require.Equal(t, 1, tokenRefreshCount)
+	})
+}
+
+//nolint:tparallel,paralleltest // Sub tests need to run sequentially.
+func TestTokenIsRefreshedEarlyWithoutCoderd(t *testing.T) {
+	t.Parallel()
+	tokenRefreshCount := 0
+	fake := oidctest.NewFakeIDP(t,
+		oidctest.WithServing(),
+		oidctest.WithDefaultExpire(time.Minute*8),
+		oidctest.WithRefresh(func(email string) error {
+			tokenRefreshCount++
+			return nil
+		}),
+	)
+	cfg := fake.OIDCConfig(t, nil)
+
+	// Fetch a valid token from the fake OIDC provider
+	token, err := fake.GenerateAuthenticatedToken(jwt.MapClaims{
+		"email":          "user@unauthorized.com",
+		"email_verified": true,
+		"sub":            uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	dbgen.UserLink(t, db, database.UserLink{
+		UserID:            user.ID,
+		LoginType:         database.LoginTypeOIDC,
+		LinkedID:          "foo",
+		OAuthAccessToken:  token.AccessToken,
+		OAuthRefreshToken: token.RefreshToken,
+		// The oauth expiry does not really matter, since each test will manually control
+		// this value.
+		OAuthExpiry: dbtime.Now().Add(time.Hour),
+	})
+
+	setLinkExpiration := func(t *testing.T, exp time.Time) database.UserLink {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		links, err := db.GetUserLinksByUserID(ctx, user.ID)
+		require.NoError(t, err)
+		require.Len(t, links, 1)
+		link := links[0]
+
+		newLink, err := db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+			OAuthAccessToken:       link.OAuthAccessToken,
+			OAuthAccessTokenKeyID:  link.OAuthAccessTokenKeyID,
+			OAuthRefreshToken:      link.OAuthRefreshToken,
+			OAuthRefreshTokenKeyID: link.OAuthRefreshTokenKeyID,
+			OAuthExpiry:            exp,
+			Claims:                 link.Claims,
+			UserID:                 link.UserID,
+			LoginType:              link.LoginType,
+		})
+		require.NoError(t, err)
+		return newLink
+	}
+
+	for _, c := range []struct {
+		name string
+		// expires is a function to return a more up to date "now".
+		// Because the oauth library is calling `time.Now()`, we cannot use
+		// mocked clocks.
+		expires         func() time.Time
+		refreshExpected bool
+	}{
+		{
+			name:            "ZeroExpiry",
+			expires:         func() time.Time { return time.Time{} },
+			refreshExpected: false,
+		},
+		{
+			name:            "LongExpired",
+			expires:         func() time.Time { return dbtime.Now().Add(-time.Hour) },
+			refreshExpected: true,
+		},
+		{
+			name:            "EdgeExpired",
+			expires:         func() time.Time { return dbtime.Now().Add(-time.Minute * 10) },
+			refreshExpected: true,
+		},
+		{
+			name:            "RecentExpired",
+			expires:         func() time.Time { return dbtime.Now().Add(-time.Second * -1) },
+			refreshExpected: true,
+		},
+
+		{
+			name:            "Future",
+			expires:         func() time.Time { return dbtime.Now().Add(time.Hour) },
+			refreshExpected: false,
+		},
+		{
+			name:            "FutureWithinRefreshWindow",
+			expires:         func() time.Time { return dbtime.Now().Add(time.Minute * 8) },
+			refreshExpected: true,
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			oldLink := setLinkExpiration(t, c.expires())
+			tokenRefreshCount = 0
+			_, err := provisionerdserver.ObtainOIDCAccessToken(ctx, testutil.Logger(t), db, cfg, user.ID)
+			require.NoError(t, err)
+			links, err := db.GetUserLinksByUserID(ctx, user.ID)
+			require.NoError(t, err)
+			require.Len(t, links, 1)
+			newLink := links[0]
+
+			if c.refreshExpected {
+				require.Equal(t, 1, tokenRefreshCount)
+
+				require.NotEqual(t, oldLink.OAuthAccessToken, newLink.OAuthAccessToken)
+				require.NotEqual(t, oldLink.OAuthRefreshToken, newLink.OAuthRefreshToken)
+			} else {
+				require.Equal(t, 0, tokenRefreshCount)
+				require.Equal(t, oldLink.OAuthAccessToken, newLink.OAuthAccessToken)
+				require.Equal(t, oldLink.OAuthRefreshToken, newLink.OAuthRefreshToken)
+			}
+		})
+	}
+}
 
 func testTemplateScheduleStore() *atomic.Pointer[schedule.TemplateScheduleStore] {
 	poitr := &atomic.Pointer[schedule.TemplateScheduleStore]{}
@@ -434,7 +605,7 @@ func TestAcquireJob(t *testing.T) {
 				key, err := db.GetAPIKeyByID(ctx, toks[0])
 				require.NoError(t, err)
 				require.Equal(t, int64(dv.Sessions.MaximumTokenDuration.Value().Seconds()), key.LifetimeSeconds)
-				require.WithinDuration(t, time.Now().Add(dv.Sessions.MaximumTokenDuration.Value()), key.ExpiresAt, time.Minute)
+				require.WithinDuration(t, dbtime.Now().Add(dv.Sessions.MaximumTokenDuration.Value()), key.ExpiresAt, time.Minute)
 
 				wantedMetadata := &sdkproto.Metadata{
 					CoderUrl:                      (&url.URL{}).String(),

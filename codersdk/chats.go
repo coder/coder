@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -49,6 +49,7 @@ type Chat struct {
 type ChatMessage struct {
 	ID            int64             `json:"id"`
 	ChatID        uuid.UUID         `json:"chat_id" format:"uuid"`
+	CreatedBy     *uuid.UUID        `json:"created_by,omitempty" format:"uuid"`
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
 	Role          string            `json:"role"`
@@ -71,44 +72,64 @@ type ChatMessageUsage struct {
 type ChatMessagePartType string
 
 const (
-	ChatMessagePartTypeText       ChatMessagePartType = "text"
-	ChatMessagePartTypeReasoning  ChatMessagePartType = "reasoning"
-	ChatMessagePartTypeToolCall   ChatMessagePartType = "tool-call"
-	ChatMessagePartTypeToolResult ChatMessagePartType = "tool-result"
-	ChatMessagePartTypeSource     ChatMessagePartType = "source"
-	ChatMessagePartTypeFile       ChatMessagePartType = "file"
+	ChatMessagePartTypeText          ChatMessagePartType = "text"
+	ChatMessagePartTypeReasoning     ChatMessagePartType = "reasoning"
+	ChatMessagePartTypeToolCall      ChatMessagePartType = "tool-call"
+	ChatMessagePartTypeToolResult    ChatMessagePartType = "tool-result"
+	ChatMessagePartTypeSource        ChatMessagePartType = "source"
+	ChatMessagePartTypeFile          ChatMessagePartType = "file"
+	ChatMessagePartTypeFileReference ChatMessagePartType = "file-reference"
 )
 
 // ChatMessagePart is a structured chunk of a chat message.
 type ChatMessagePart struct {
-	Type        ChatMessagePartType `json:"type"`
-	Text        string              `json:"text,omitempty"`
-	Signature   string              `json:"signature,omitempty"`
-	ToolCallID  string              `json:"tool_call_id,omitempty"`
-	ToolName    string              `json:"tool_name,omitempty"`
-	Args        json.RawMessage     `json:"args,omitempty"`
-	ArgsDelta   string              `json:"args_delta,omitempty"`
-	Result      json.RawMessage     `json:"result,omitempty"`
-	ResultDelta string              `json:"result_delta,omitempty"`
-	IsError     bool                `json:"is_error,omitempty"`
-	SourceID    string              `json:"source_id,omitempty"`
-	URL         string              `json:"url,omitempty"`
-	Title       string              `json:"title,omitempty"`
-	MediaType   string              `json:"media_type,omitempty"`
-	Data        []byte              `json:"data,omitempty"`
+	Type             ChatMessagePartType `json:"type"`
+	Text             string              `json:"text,omitempty"`
+	Signature        string              `json:"signature,omitempty"`
+	ToolCallID       string              `json:"tool_call_id,omitempty"`
+	ToolName         string              `json:"tool_name,omitempty"`
+	Args             json.RawMessage     `json:"args,omitempty"`
+	ArgsDelta        string              `json:"args_delta,omitempty"`
+	Result           json.RawMessage     `json:"result,omitempty"`
+	ResultDelta      string              `json:"result_delta,omitempty"`
+	IsError          bool                `json:"is_error,omitempty"`
+	ProviderExecuted bool                `json:"provider_executed,omitempty"`
+	SourceID         string              `json:"source_id,omitempty"`
+	URL              string              `json:"url,omitempty"`
+	Title            string              `json:"title,omitempty"`
+	MediaType        string              `json:"media_type,omitempty"`
+	Data             []byte              `json:"data,omitempty"`
+	FileID           uuid.NullUUID       `json:"file_id,omitempty" format:"uuid"`
+	// The following fields are only set when Type is
+	// ChatInputPartTypeFileReference.
+	FileName  string `json:"file_name,omitempty"`
+	StartLine int    `json:"start_line,omitempty"`
+	EndLine   int    `json:"end_line,omitempty"`
+	// The code content from the diff that was commented on.
+	Content string `json:"content,omitempty"`
 }
 
 // ChatInputPartType represents an input part type for user chat input.
 type ChatInputPartType string
 
 const (
-	ChatInputPartTypeText ChatInputPartType = "text"
+	ChatInputPartTypeText          ChatInputPartType = "text"
+	ChatInputPartTypeFile          ChatInputPartType = "file"
+	ChatInputPartTypeFileReference ChatInputPartType = "file-reference"
 )
 
 // ChatInputPart is a single user input part for creating a chat.
 type ChatInputPart struct {
-	Type ChatInputPartType `json:"type"`
-	Text string            `json:"text,omitempty"`
+	Type   ChatInputPartType `json:"type"`
+	Text   string            `json:"text,omitempty"`
+	FileID uuid.UUID         `json:"file_id,omitempty" format:"uuid"`
+	// The following fields are only set when Type is
+	// ChatInputPartTypeFileReference.
+	FileName  string `json:"file_name,omitempty"`
+	StartLine int    `json:"start_line,omitempty"`
+	EndLine   int    `json:"end_line,omitempty"`
+	// The code content from the diff that was commented on.
+	Content string `json:"content,omitempty"`
 }
 
 // CreateChatRequest is the request to create a new chat.
@@ -139,6 +160,11 @@ type CreateChatMessageResponse struct {
 	Message       *ChatMessage       `json:"message,omitempty"`
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
+}
+
+// UploadChatFileResponse is the response from uploading a chat file.
+type UploadChatFileResponse struct {
+	ID uuid.UUID `json:"id" format:"uuid"`
 }
 
 // ChatWithMessages is a chat along with its messages.
@@ -175,6 +201,28 @@ type ChatModelProvider struct {
 // ChatModelsResponse is the catalog returned from chat model discovery.
 type ChatModelsResponse struct {
 	Providers []ChatModelProvider `json:"providers"`
+}
+
+// ChatSystemPromptResponse is the response for getting the chat system prompt.
+type ChatSystemPromptResponse struct {
+	SystemPrompt string `json:"system_prompt"`
+}
+
+// UpdateChatSystemPromptRequest is the request to update the chat system prompt.
+type UpdateChatSystemPromptRequest struct {
+	SystemPrompt string `json:"system_prompt"`
+}
+
+// UserChatCustomPromptResponse is the response for getting a user's
+// custom chat prompt.
+type UserChatCustomPromptResponse struct {
+	CustomPrompt string `json:"custom_prompt"`
+}
+
+// UpdateUserChatCustomPromptRequest is the request to update a user's
+// custom chat prompt.
+type UpdateUserChatCustomPromptRequest struct {
+	CustomPrompt string `json:"custom_prompt"`
 }
 
 // ChatProviderConfigSource describes how a provider entry is sourced.
@@ -266,6 +314,9 @@ type ChatModelOpenAIProviderOptions struct {
 	ServiceTier         *string          `json:"service_tier,omitempty" description:"Latency tier to use for processing the request"`
 	StructuredOutputs   *bool            `json:"structured_outputs,omitempty" description:"Whether to enable structured JSON output mode" hidden:"true"`
 	StrictJSONSchema    *bool            `json:"strict_json_schema,omitempty" description:"Whether to enforce strict adherence to the JSON schema" hidden:"true"`
+	WebSearchEnabled    *bool            `json:"web_search_enabled,omitempty" description:"Enable OpenAI web search tool for grounding responses with real-time information"`
+	SearchContextSize   *string          `json:"search_context_size,omitempty" description:"Amount of search context to use" enum:"low,medium,high"`
+	AllowedDomains      []string         `json:"allowed_domains,omitempty" description:"Restrict web search to these domains"`
 }
 
 // ChatModelAnthropicThinkingOptions configures Anthropic thinking budget.
@@ -279,6 +330,9 @@ type ChatModelAnthropicProviderOptions struct {
 	Thinking               *ChatModelAnthropicThinkingOptions `json:"thinking,omitempty" description:"Configuration for extended thinking"`
 	Effort                 *string                            `json:"effort,omitempty" description:"Controls the level of reasoning effort" enum:"low,medium,high,max"`
 	DisableParallelToolUse *bool                              `json:"disable_parallel_tool_use,omitempty" description:"Whether to disable parallel tool execution"`
+	WebSearchEnabled       *bool                              `json:"web_search_enabled,omitempty" description:"Enable Anthropic web search tool for grounding responses with real-time information"`
+	AllowedDomains         []string                           `json:"allowed_domains,omitempty" description:"Restrict web search to these domains (cannot be used with blocked_domains)"`
+	BlockedDomains         []string                           `json:"blocked_domains,omitempty" description:"Block web search on these domains (cannot be used with allowed_domains)"`
 }
 
 // ChatModelGoogleThinkingConfig configures Google thinking behavior.
@@ -295,10 +349,11 @@ type ChatModelGoogleSafetySetting struct {
 
 // ChatModelGoogleProviderOptions configures Google provider behavior.
 type ChatModelGoogleProviderOptions struct {
-	ThinkingConfig *ChatModelGoogleThinkingConfig `json:"thinking_config,omitempty" description:"Configuration for extended thinking"`
-	CachedContent  string                         `json:"cached_content,omitempty" description:"Resource name of a cached content object" hidden:"true"`
-	SafetySettings []ChatModelGoogleSafetySetting `json:"safety_settings,omitempty" description:"Safety filtering settings for harmful content categories" hidden:"true"`
-	Threshold      string                         `json:"threshold,omitempty" hidden:"true"`
+	ThinkingConfig   *ChatModelGoogleThinkingConfig `json:"thinking_config,omitempty" description:"Configuration for extended thinking"`
+	CachedContent    string                         `json:"cached_content,omitempty" description:"Resource name of a cached content object" hidden:"true"`
+	SafetySettings   []ChatModelGoogleSafetySetting `json:"safety_settings,omitempty" description:"Safety filtering settings for harmful content categories" hidden:"true"`
+	Threshold        string                         `json:"threshold,omitempty" hidden:"true"`
+	WebSearchEnabled *bool                          `json:"web_search_enabled,omitempty" description:"Enable Google Search grounding for real-time information"`
 }
 
 // ChatModelOpenAICompatProviderOptions configures OpenAI-compatible behavior.
@@ -365,6 +420,17 @@ type ChatModelVercelProviderOptions struct {
 	ExtraBody         map[string]any                         `json:"extra_body,omitempty" description:"Additional fields to include in the request body" hidden:"true"`
 }
 
+// ModelCostConfig stores pricing metadata for a chat model.
+type ModelCostConfig struct {
+	// Pricing is stored as configuration metadata and currently only needs to
+	// round-trip cleanly through the API and admin UI. If we later use these
+	// values for billing-grade arithmetic, switch to a fixed-point type.
+	InputPricePerMillionTokens      *float64 `json:"input_price_per_million_tokens,omitempty" description:"Input token price in USD per 1M tokens"`
+	OutputPricePerMillionTokens     *float64 `json:"output_price_per_million_tokens,omitempty" description:"Output token price in USD per 1M tokens"`
+	CacheReadPricePerMillionTokens  *float64 `json:"cache_read_price_per_million_tokens,omitempty" description:"Cache read token price in USD per 1M tokens"`
+	CacheWritePricePerMillionTokens *float64 `json:"cache_write_price_per_million_tokens,omitempty" description:"Cache write or cache creation token price in USD per 1M tokens"`
+}
+
 // ChatModelCallConfig configures per-call model behavior defaults.
 type ChatModelCallConfig struct {
 	MaxOutputTokens  *int64                    `json:"max_output_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
@@ -373,7 +439,50 @@ type ChatModelCallConfig struct {
 	TopK             *int64                    `json:"top_k,omitempty" description:"Number of highest-probability tokens to keep for sampling"`
 	PresencePenalty  *float64                  `json:"presence_penalty,omitempty" description:"Penalty for tokens that have already appeared in the output"`
 	FrequencyPenalty *float64                  `json:"frequency_penalty,omitempty" description:"Penalty for tokens based on their frequency in the output"`
+	Cost             *ModelCostConfig          `json:"cost,omitempty" description:"Optional pricing metadata for this model"`
 	ProviderOptions  *ChatModelProviderOptions `json:"provider_options,omitempty" description:"Provider-specific option overrides"`
+}
+
+// UnmarshalJSON accepts both the current nested cost object and the previous
+// top-level pricing keys so legacy stored model_config JSON continues to load.
+func (c *ChatModelCallConfig) UnmarshalJSON(data []byte) error {
+	type chatModelCallConfigAlias ChatModelCallConfig
+	aux := struct {
+		*chatModelCallConfigAlias
+		InputPricePerMillionTokens      *float64 `json:"input_price_per_million_tokens,omitempty"`
+		OutputPricePerMillionTokens     *float64 `json:"output_price_per_million_tokens,omitempty"`
+		CacheReadPricePerMillionTokens  *float64 `json:"cache_read_price_per_million_tokens,omitempty"`
+		CacheWritePricePerMillionTokens *float64 `json:"cache_write_price_per_million_tokens,omitempty"`
+	}{
+		chatModelCallConfigAlias: (*chatModelCallConfigAlias)(c),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	if aux.InputPricePerMillionTokens == nil &&
+		aux.OutputPricePerMillionTokens == nil &&
+		aux.CacheReadPricePerMillionTokens == nil &&
+		aux.CacheWritePricePerMillionTokens == nil {
+		return nil
+	}
+
+	if c.Cost == nil {
+		c.Cost = &ModelCostConfig{}
+	}
+	if c.Cost.InputPricePerMillionTokens == nil {
+		c.Cost.InputPricePerMillionTokens = aux.InputPricePerMillionTokens
+	}
+	if c.Cost.OutputPricePerMillionTokens == nil {
+		c.Cost.OutputPricePerMillionTokens = aux.OutputPricePerMillionTokens
+	}
+	if c.Cost.CacheReadPricePerMillionTokens == nil {
+		c.Cost.CacheReadPricePerMillionTokens = aux.CacheReadPricePerMillionTokens
+	}
+	if c.Cost.CacheWritePricePerMillionTokens == nil {
+		c.Cost.CacheWritePricePerMillionTokens = aux.CacheWritePricePerMillionTokens
+	}
+	return nil
 }
 
 // CreateChatModelConfigRequest creates a chat model config.
@@ -418,6 +527,8 @@ type ChatDiffStatus struct {
 	ChatID           uuid.UUID  `json:"chat_id" format:"uuid"`
 	URL              *string    `json:"url,omitempty"`
 	PullRequestState *string    `json:"pull_request_state,omitempty"`
+	PullRequestTitle string     `json:"pull_request_title"`
+	PullRequestDraft bool       `json:"pull_request_draft"`
 	ChangesRequested bool       `json:"changes_requested"`
 	Additions        int32      `json:"additions"`
 	Deletions        int32      `json:"deletions"`
@@ -504,16 +615,24 @@ type chatStreamEnvelope struct {
 
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
-	Archived *bool
+	Query string
+	Pagination
 }
 
 // ListChats returns all chats for the authenticated user.
 func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat, error) {
-	qp := url.Values{}
-	if opts != nil && opts.Archived != nil {
-		qp.Set("archived", fmt.Sprintf("%t", *opts.Archived))
+	var reqOpts []RequestOption
+	if opts != nil {
+		reqOpts = append(reqOpts, opts.Pagination.asRequestOption())
+		if opts.Query != "" {
+			reqOpts = append(reqOpts, func(r *http.Request) {
+				q := r.URL.Query()
+				q.Set("q", opts.Query)
+				r.URL.RawQuery = q.Encode()
+			})
+		}
 	}
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats?%s", qp.Encode()), nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats", nil, reqOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -654,6 +773,61 @@ func (c *Client) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.U
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// GetChatSystemPrompt returns the deployment-wide chat system prompt.
+func (c *Client) GetChatSystemPrompt(ctx context.Context) (ChatSystemPromptResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/system-prompt", nil)
+	if err != nil {
+		return ChatSystemPromptResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatSystemPromptResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatSystemPromptResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatSystemPrompt updates the deployment-wide chat system prompt.
+func (c *Client) UpdateChatSystemPrompt(ctx context.Context, req UpdateChatSystemPromptRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/system-prompt", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetUserChatCustomPrompt fetches the user's custom chat prompt.
+func (c *Client) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPromptResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-prompt", nil)
+	if err != nil {
+		return UserChatCustomPromptResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatCustomPromptResponse{}, ReadBodyAsError(res)
+	}
+	var resp UserChatCustomPromptResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserChatCustomPrompt updates the user's custom chat prompt.
+func (c *Client) UpdateUserChatCustomPrompt(ctx context.Context, req UpdateUserChatCustomPromptRequest) (UserChatCustomPromptResponse, error) {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/user-prompt", req)
+	if err != nil {
+		return UserChatCustomPromptResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatCustomPromptResponse{}, ReadBodyAsError(res)
+	}
+	var resp UserChatCustomPromptResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // CreateChat creates a new chat.
@@ -802,7 +976,7 @@ func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamC
 
 	return events, closeFunc(func() error {
 		streamCancel()
-		return conn.Close(websocket.StatusNormalClosure, "")
+		return nil
 	}), nil
 }
 
@@ -936,6 +1110,42 @@ func (c *Client) GetChatDiffContents(ctx context.Context, chatID uuid.UUID) (Cha
 	}
 	var diff ChatDiffContents
 	return diff, json.NewDecoder(res.Body).Decode(&diff)
+}
+
+// UploadChatFile uploads a file for use in chat messages.
+func (c *Client) UploadChatFile(ctx context.Context, organizationID uuid.UUID, contentType string, filename string, rd io.Reader) (UploadChatFileResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/files?organization=%s", organizationID), rd, func(r *http.Request) {
+		r.Header.Set("Content-Type", contentType)
+		if filename != "" {
+			r.Header.Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
+		}
+	})
+	if err != nil {
+		return UploadChatFileResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return UploadChatFileResponse{}, ReadBodyAsError(res)
+	}
+	var resp UploadChatFileResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetChatFile retrieves a previously uploaded chat file by ID.
+func (c *Client) GetChatFile(ctx context.Context, fileID uuid.UUID) ([]byte, string, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/files/%s", fileID), nil)
+	if err != nil {
+		return nil, "", err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, "", ReadBodyAsError(res)
+	}
+	data, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, "", err
+	}
+	return data, res.Header.Get("Content-Type"), nil
 }
 
 func formatChatStreamResponseError(response Response) string {

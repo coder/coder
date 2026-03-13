@@ -3793,6 +3793,8 @@ type AIBridgeInterception struct {
 	ThreadParentID uuid.NullUUID `db:"thread_parent_id" json:"thread_parent_id"`
 	// The root interception of the thread that this interception belongs to.
 	ThreadRootID uuid.NullUUID `db:"thread_root_id" json:"thread_root_id"`
+	// The session ID supplied by the client (optional and not universally supported).
+	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
 }
 
 // Audit log of tokens used by intercepted requests in AI Bridge
@@ -3922,6 +3924,18 @@ type ChatDiffStatus struct {
 	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at"`
 	GitBranch        string         `db:"git_branch" json:"git_branch"`
 	GitRemoteOrigin  string         `db:"git_remote_origin" json:"git_remote_origin"`
+	PullRequestTitle string         `db:"pull_request_title" json:"pull_request_title"`
+	PullRequestDraft bool           `db:"pull_request_draft" json:"pull_request_draft"`
+}
+
+type ChatFile struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	Name           string    `db:"name" json:"name"`
+	Mimetype       string    `db:"mimetype" json:"mimetype"`
+	Data           []byte    `db:"data" json:"data"`
 }
 
 type ChatMessage struct {
@@ -3940,6 +3954,7 @@ type ChatMessage struct {
 	CacheReadTokens     sql.NullInt64         `db:"cache_read_tokens" json:"cache_read_tokens"`
 	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
 	Compressed          bool                  `db:"compressed" json:"compressed"`
+	CreatedBy           uuid.NullUUID         `db:"created_by" json:"created_by"`
 }
 
 type ChatModelConfig struct {
@@ -4494,6 +4509,8 @@ type Task struct {
 	CreatedAt                    time.Time                        `db:"created_at" json:"created_at"`
 	DeletedAt                    sql.NullTime                     `db:"deleted_at" json:"deleted_at"`
 	DisplayName                  string                           `db:"display_name" json:"display_name"`
+	WorkspaceGroupACL            WorkspaceACL                     `db:"workspace_group_acl" json:"workspace_group_acl"`
+	WorkspaceUserACL             WorkspaceACL                     `db:"workspace_user_acl" json:"workspace_user_acl"`
 	Status                       TaskStatus                       `db:"status" json:"status"`
 	StatusDebug                  json.RawMessage                  `db:"status_debug" json:"status_debug"`
 	WorkspaceBuildNumber         sql.NullInt32                    `db:"workspace_build_number" json:"workspace_build_number"`
@@ -4860,6 +4877,8 @@ type User struct {
 	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
 	// Determines if a user is a system user, and therefore cannot login or perform normal actions
 	IsSystem bool `db:"is_system" json:"is_system"`
+	// Determines if a user is an admin-managed account that cannot login
+	IsServiceAccount bool `db:"is_service_account" json:"is_service_account"`
 }
 
 type UserConfig struct {

@@ -357,6 +357,25 @@ func (r *RootCmd) login() *serpent.Command {
 			}
 
 			sessionToken, _ := inv.ParsedFlags().GetString(varToken)
+			tokenFlagProvided := inv.ParsedFlags().Changed(varToken)
+
+			// If CODER_SESSION_TOKEN is set in the environment, abort
+			// interactive login unless --use-token-as-session or --token
+			// is specified. The env var takes precedence over a token
+			// stored on disk, so even if we complete login and write a
+			// new token to the session file, subsequent CLI commands
+			// would still use the environment variable value. When
+			// --token is provided on the command line, the user
+			// explicitly wants to authenticate with that token (common
+			// in CI), so we skip this check.
+			if !tokenFlagProvided && inv.Environ.Get(envSessionToken) != "" && !useTokenForSession {
+				return xerrors.Errorf(
+					"%s is set. This environment variable takes precedence over any session token stored on disk.\n\n"+
+						"To log in, unset the environment variable and re-run this command:\n\n"+
+						"\tunset %s",
+					envSessionToken, envSessionToken,
+				)
+			}
 			if sessionToken == "" {
 				authURL := *serverURL
 				// Don't use filepath.Join, we don't want to use the os separator
@@ -475,7 +494,26 @@ func (r *RootCmd) loginToken() *serpent.Command {
 		Long:       "Print the session token for use in scripts and automation.",
 		Middleware: serpent.RequireNArgs(0),
 		Handler: func(inv *serpent.Invocation) error {
-			tok, err := r.ensureTokenBackend().Read(r.clientURL)
+			if err := r.ensureClientURL(); err != nil {
+				return err
+			}
+			// When using the file storage, a session token is stored for a single
+			// deployment URL that the user is logged in to. They keyring can store
+			// multiple deployment session tokens. Error if the requested URL doesn't
+			// match the stored config URL when using file storage to avoid returning
+			// a token for the wrong deployment.
+			backend := r.ensureTokenBackend()
+			if _, ok := backend.(*sessionstore.File); ok {
+				conf := r.createConfig()
+				storedURL, err := conf.URL().Read()
+				if err == nil {
+					storedURL = strings.TrimSpace(storedURL)
+					if storedURL != r.clientURL.String() {
+						return xerrors.Errorf("file session token storage only supports one server at a time: requested %s but logged into %s", r.clientURL.String(), storedURL)
+					}
+				}
+			}
+			tok, err := backend.Read(r.clientURL)
 			if err != nil {
 				if xerrors.Is(err, os.ErrNotExist) {
 					return xerrors.New("no session token found - run 'coder login' first")

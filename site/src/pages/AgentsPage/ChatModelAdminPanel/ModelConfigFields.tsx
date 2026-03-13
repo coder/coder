@@ -24,6 +24,10 @@ import type {
 	ModelConfigFormBuildResult,
 	ModelFormValues,
 } from "./modelConfigFormLogic";
+import {
+	getPricingPlaceholderForField,
+	pricingFieldNames,
+} from "./pricingFields";
 
 /** Sentinel value for Select components to represent "no selection". */
 const unsetSelectValue = "__unset__";
@@ -49,6 +53,11 @@ function snakeToPrettyLabel(jsonName: string): string {
  * Derive a sensible placeholder from the field schema type.
  */
 function placeholderForField(field: FieldSchema): string {
+	const pricingPlaceholder = getPricingPlaceholderForField(field.json_name);
+	if (pricingPlaceholder !== undefined) {
+		return pricingPlaceholder;
+	}
+
 	switch (field.type) {
 		case "integer":
 		case "number":
@@ -111,7 +120,7 @@ const InputField: FC<
 				placeholder={placeholder}
 				{...fieldProps}
 				disabled={disabled}
-				aria-invalid={!!fieldError}
+				aria-invalid={Boolean(fieldError)}
 				aria-describedby={fieldError ? errorId : undefined}
 			/>
 			{fieldError && (
@@ -171,7 +180,7 @@ const SelectField: FC<
 						"h-9 min-w-0 text-[13px]",
 						fieldError && "border-content-destructive",
 					)}
-					aria-invalid={!!fieldError}
+					aria-invalid={Boolean(fieldError)}
 					aria-describedby={fieldError ? errorId : undefined}
 				>
 					<SelectValue placeholder="Unset" />
@@ -235,7 +244,7 @@ const JSONField: FC<
 				placeholder={placeholder}
 				{...fieldProps}
 				disabled={disabled}
-				aria-invalid={!!fieldError}
+				aria-invalid={Boolean(fieldError)}
 				aria-describedby={fieldError ? errorId : undefined}
 			/>
 			{fieldError && (
@@ -249,23 +258,31 @@ const JSONField: FC<
 
 // ── Schema-driven field renderer ───────────────────────────────
 
+interface SchemaFieldProps extends FieldRenderContext {
+	field: FieldSchema;
+	fieldKey: string;
+	errorKey: string;
+}
+
 /**
  * Render a single field from the schema using the appropriate
  * generic renderer based on its `input_type`.
  */
-function renderSchemaField(
-	field: FieldSchema,
-	fieldKey: string,
-	errorKey: string,
-	ctx: FieldRenderContext,
-): React.ReactNode {
+const SchemaField: FC<SchemaFieldProps> = ({
+	field,
+	fieldKey,
+	errorKey,
+	form,
+	fieldErrors,
+	disabled,
+}) => {
 	const label = snakeToPrettyLabel(field.json_name);
+	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
 
 	switch (field.input_type) {
 		case "input":
 			return (
 				<InputField
-					key={fieldKey}
 					{...ctx}
 					fieldKey={fieldKey}
 					errorKey={errorKey}
@@ -279,7 +296,6 @@ function renderSchemaField(
 				field.enum ?? (field.type === "boolean" ? ["true", "false"] : []);
 			return (
 				<SelectField
-					key={fieldKey}
 					{...ctx}
 					fieldKey={fieldKey}
 					errorKey={errorKey}
@@ -292,7 +308,6 @@ function renderSchemaField(
 		case "json":
 			return (
 				<JSONField
-					key={fieldKey}
 					{...ctx}
 					fieldKey={fieldKey}
 					errorKey={errorKey}
@@ -304,16 +319,16 @@ function renderSchemaField(
 		default:
 			return null;
 	}
-}
+};
 
 // ── Main component ─────────────────────────────────────────────
 
-type ModelConfigFieldsProps = {
+interface ModelConfigFieldsProps {
 	provider: string;
 	form: FormikContextType<ModelFormValues>;
 	fieldErrors: ModelConfigFormBuildResult["fieldErrors"];
 	disabled: boolean;
-};
+}
 
 /**
  * Provider-specific fields (reasoning, tool calls, etc.) that
@@ -343,34 +358,40 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 			{fields.map((field) => {
 				const fieldKey = `config.${toFormFieldKey(resolved, field.json_name)}`;
 				const errorKey = toFormFieldKey(resolved, field.json_name);
-				return renderSchemaField(field, fieldKey, errorKey, ctx);
+				return (
+					<SchemaField
+						key={fieldKey}
+						field={field}
+						fieldKey={fieldKey}
+						errorKey={errorKey}
+						{...ctx}
+					/>
+				);
 			})}
 		</div>
 	);
 };
 
 /**
- * General model config fields (max output tokens, temperature,
- * top P, etc.) intended to be shown under an "Advanced" section.
- *
- * Fields are driven by the auto-generated schema in
- * `api/chatModelOptions`.
+ * Shared renderer for general model config fields backed by the
+ * top-level ChatModelCallConfig schema.
  */
-export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
-	form,
-	fieldErrors,
-	disabled,
-}) => {
+const GeneralFieldsGroup: FC<
+	ModelConfigFieldsProps & {
+		fields: FieldSchema[];
+	}
+> = ({ form, fieldErrors, disabled, fields }) => {
 	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
-	const fields = getVisibleGeneralFields();
 
 	return (
 		<>
 			{fields.map((field) => {
-				// General field keys use camelCase of the json_name directly
-				// under "config.", matching the existing form state shape:
-				// config.maxOutputTokens, config.temperature, etc.
-				const camelName = snakeToCamel(field.json_name);
+				// General field keys support nested json_name values, such as
+				// cost.input_price_per_million_tokens.
+				const camelName = field.json_name
+					.split(".")
+					.map(snakeToCamel)
+					.join(".");
 				const fieldKey = `config.${camelName}`;
 				const label = snakeToPrettyLabel(field.json_name);
 
@@ -387,5 +408,54 @@ export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 				);
 			})}
 		</>
+	);
+};
+
+/**
+ * General pricing fields shown in the main form body so admins can
+ * define optional pricing metadata without opening the advanced section.
+ */
+export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
+	provider,
+	form,
+	fieldErrors,
+	disabled,
+}) => {
+	return (
+		<GeneralFieldsGroup
+			provider={provider}
+			form={form}
+			fieldErrors={fieldErrors}
+			disabled={disabled}
+			fields={getVisibleGeneralFields().filter(({ json_name }) =>
+				pricingFieldNames.has(json_name),
+			)}
+		/>
+	);
+};
+
+/**
+ * General model config fields (max output tokens, temperature,
+ * top P, etc.) intended to be shown under an "Advanced" section.
+ *
+ * Fields are driven by the auto-generated schema in
+ * `api/chatModelOptions`.
+ */
+export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
+	provider,
+	form,
+	fieldErrors,
+	disabled,
+}) => {
+	return (
+		<GeneralFieldsGroup
+			provider={provider}
+			form={form}
+			fieldErrors={fieldErrors}
+			disabled={disabled}
+			fields={getVisibleGeneralFields().filter(
+				({ json_name }) => !pricingFieldNames.has(json_name),
+			)}
+		/>
 	);
 };

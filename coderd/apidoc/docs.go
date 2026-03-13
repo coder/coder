@@ -481,34 +481,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/chats/{chat}/archive": {
-            "post": {
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Archive a chat",
-                "operationId": "archive-chat",
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
-            }
-        },
-        "/chats/{chat}/unarchive": {
-            "post": {
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Unarchive a chat",
-                "operationId": "unarchive-chat",
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
-            }
-        },
         "/connectionlog": {
             "get": {
                 "security": [
@@ -14340,7 +14312,6 @@ const docTemplate = `{
         "codersdk.CreateUserRequestWithOrgs": {
             "type": "object",
             "required": [
-                "email",
                 "username"
             ],
             "properties": {
@@ -14369,6 +14340,10 @@ const docTemplate = `{
                 },
                 "password": {
                     "type": "string"
+                },
+                "service_account": {
+                    "description": "Service accounts are admin-managed accounts that cannot login.",
+                    "type": "boolean"
                 },
                 "user_status": {
                     "description": "UserStatus defaults to UserStatusDormant.",
@@ -15297,6 +15272,10 @@ const docTemplate = `{
         "codersdk.ExternalAuthConfig": {
             "type": "object",
             "properties": {
+                "api_base_url": {
+                    "description": "APIBaseURL is the base URL for provider REST API calls\n(e.g., \"https://api.github.com\" for GitHub). Derived from\ndefaults when not explicitly configured.",
+                    "type": "string"
+                },
                 "app_install_url": {
                     "type": "string"
                 },

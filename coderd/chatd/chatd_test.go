@@ -73,10 +73,11 @@ func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 	require.Eventually(t, func() bool {
 		select {
 		case event := <-events:
-			if event.Type != codersdk.ChatStreamEventTypeStatus || event.Status == nil {
-				return false
+			if event.Type == codersdk.ChatStreamEventTypeStatus && event.Status != nil {
+				return event.Status.Status == codersdk.ChatStatusWaiting
 			}
-			return event.Status.Status == codersdk.ChatStatusWaiting
+			t.Logf("skipping unexpected event: type=%s", event.Type)
+			return false
 		default:
 			return false
 		}
@@ -366,7 +367,7 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 	require.Len(t, messages, 1)
 }
 
-func TestSendMessageInterruptBehaviorSendsImmediatelyWhenBusy(t *testing.T) {
+func TestSendMessageInterruptBehaviorQueuesAndInterruptsWhenBusy(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -398,26 +399,31 @@ func TestSendMessageInterruptBehaviorSendsImmediatelyWhenBusy(t *testing.T) {
 		BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
 	})
 	require.NoError(t, err)
-	require.False(t, result.Queued)
-	require.Equal(t, database.ChatStatusPending, result.Chat.Status)
-	require.False(t, result.Chat.WorkerID.Valid)
+
+	// The message should be queued, not inserted directly.
+	require.True(t, result.Queued)
+	require.NotNil(t, result.QueuedMessage)
+
+	// The chat should transition to waiting (interrupt signal),
+	// not pending.
+	require.Equal(t, database.ChatStatusWaiting, result.Chat.Status)
 
 	fromDB, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusPending, fromDB.Status)
-	require.False(t, fromDB.WorkerID.Valid)
+	require.Equal(t, database.ChatStatusWaiting, fromDB.Status)
 
+	// The message should be in the queue, not in chat_messages.
 	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Len(t, queued, 0)
+	require.Len(t, queued, 1)
 
+	// Only the initial user message should be in chat_messages.
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
 		AfterID: 0,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 2)
-	require.Equal(t, messages[len(messages)-1].ID, result.Message.ID)
+	require.Len(t, messages, 1)
 }
 
 func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
@@ -865,15 +871,15 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 	// events — the snapshot already contained everything. Before
 	// the fix, localSnapshot was replayed into the channel,
 	// causing duplicates.
-	select {
-	case event, ok := <-events:
-		if ok {
-			t.Fatalf("unexpected event from channel (would be a duplicate): type=%s", event.Type)
+	require.Never(t, func() bool {
+		select {
+		case <-events:
+			return true
+		default:
+			return false
 		}
-		// Channel closed without events is fine.
-	case <-time.After(200 * time.Millisecond):
-		// No events — correct behavior.
-	}
+	}, 200*time.Millisecond, testutil.IntervalFast,
+		"expected no duplicate events after snapshot")
 }
 
 func TestSubscribeAfterMessageID(t *testing.T) {
@@ -1133,6 +1139,162 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include create_workspace tool output")
 }
 
+func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues:         deploymentValues,
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	// Create a workspace, then stop it so start_workspace has
+	// something to start. We intentionally skip starting a test
+	// agent — the echo provisioner creates new agent rows for each
+	// build, so an agent started for build 1 cannot serve build 3.
+	// The tool handles the no-agent case gracefully.
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	workspace = coderdtest.MustTransitionWorkspace(
+		t, client, workspace.ID,
+		codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop,
+	)
+
+	var streamedCallCount atomic.Int32
+	var streamedCallsMu sync.Mutex
+	streamedCalls := make([][]chattest.OpenAIMessage, 0, 2)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("Start workspace test")
+		}
+
+		streamedCallsMu.Lock()
+		streamedCalls = append(streamedCalls, append([]chattest.OpenAIMessage(nil), req.Messages...))
+		streamedCallsMu.Unlock()
+
+		if streamedCallCount.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("start_workspace", "{}"),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Workspace started and ready.")...,
+		)
+	})
+
+	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		Provider: "openai-compat",
+		APIKey:   "test-api-key",
+		BaseURL:  openAIURL,
+	})
+	require.NoError(t, err)
+
+	contextLimit := int64(4096)
+	isDefault := true
+	_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		Provider:     "openai-compat",
+		Model:        "gpt-4o-mini",
+		ContextLimit: &contextLimit,
+		IsDefault:    &isDefault,
+	})
+	require.NoError(t, err)
+
+	// Create a chat with the stopped workspace pre-associated.
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		Content: []codersdk.ChatInputPart{
+			{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "Start the workspace.",
+			},
+		},
+		WorkspaceID: &workspace.ID,
+	})
+	require.NoError(t, err)
+
+	var chatWithMessages codersdk.ChatWithMessages
+	require.Eventually(t, func() bool {
+		got, getErr := client.GetChat(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatWithMessages = got
+		return got.Chat.Status == codersdk.ChatStatusWaiting || got.Chat.Status == codersdk.ChatStatusError
+	}, testutil.WaitSuperLong, testutil.IntervalFast)
+
+	if chatWithMessages.Chat.Status == codersdk.ChatStatusError {
+		lastError := ""
+		if chatWithMessages.Chat.LastError != nil {
+			lastError = *chatWithMessages.Chat.LastError
+		}
+		require.FailNowf(t, "chat run failed", "last_error=%q", lastError)
+	}
+
+	// Verify the workspace was started.
+	require.NotNil(t, chatWithMessages.Chat.WorkspaceID)
+	updatedWorkspace, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.WorkspaceTransitionStart, updatedWorkspace.LatestBuild.Transition)
+
+	// Verify start_workspace tool result exists in the chat messages.
+	var foundStartWorkspaceResult bool
+	for _, message := range chatWithMessages.Messages {
+		if message.Role != "tool" {
+			continue
+		}
+		for _, part := range message.Content {
+			if part.Type != codersdk.ChatMessagePartTypeToolResult || part.ToolName != "start_workspace" {
+				continue
+			}
+			var result map[string]any
+			require.NoError(t, json.Unmarshal(part.Result, &result))
+			started, ok := result["started"].(bool)
+			require.True(t, ok)
+			require.True(t, started)
+			foundStartWorkspaceResult = true
+		}
+	}
+	require.True(t, foundStartWorkspaceResult, "expected start_workspace tool result message")
+
+	// Verify the LLM received the tool result in its second call.
+	require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
+	streamedCallsMu.Lock()
+	recordedStreamCalls := append([][]chattest.OpenAIMessage(nil), streamedCalls...)
+	streamedCallsMu.Unlock()
+	require.GreaterOrEqual(t, len(recordedStreamCalls), 2)
+
+	var foundToolResultInSecondCall bool
+	for _, message := range recordedStreamCalls[1] {
+		if message.Role != "tool" {
+			continue
+		}
+		if !json.Valid([]byte(message.Content)) {
+			continue
+		}
+		var result map[string]any
+		if err := json.Unmarshal([]byte(message.Content), &result); err != nil {
+			continue
+		}
+		started, ok := result["started"].(bool)
+		if ok && started {
+			foundToolResultInSecondCall = true
+			break
+		}
+	}
+	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include start_workspace tool output")
+}
+
 func newTestServer(
 	t *testing.T,
 	db database.Store,
@@ -1306,11 +1468,24 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 // mockWebpushDispatcher implements webpush.Dispatcher and records Dispatch calls.
 type mockWebpushDispatcher struct {
 	dispatchCount atomic.Int32
+	mu            sync.Mutex
+	lastMessage   codersdk.WebpushMessage
+	lastUserID    uuid.UUID
 }
 
-func (m *mockWebpushDispatcher) Dispatch(_ context.Context, _ uuid.UUID, _ codersdk.WebpushMessage) error {
+func (m *mockWebpushDispatcher) Dispatch(_ context.Context, userID uuid.UUID, msg codersdk.WebpushMessage) error {
 	m.dispatchCount.Add(1)
+	m.mu.Lock()
+	m.lastMessage = msg
+	m.lastUserID = userID
+	m.mu.Unlock()
 	return nil
+}
+
+func (m *mockWebpushDispatcher) getLastMessage() codersdk.WebpushMessage {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.lastMessage
 }
 
 func (*mockWebpushDispatcher) Test(_ context.Context, _ codersdk.WebpushSubscription) error {
@@ -1319,6 +1494,78 @@ func (*mockWebpushDispatcher) Test(_ context.Context, _ codersdk.WebpushSubscrip
 
 func (*mockWebpushDispatcher) PublicKey() string {
 	return "test-vapid-public-key"
+}
+
+func TestSuccessfulChatSendsWebPushWithNavigationData(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Set up a mock OpenAI that returns a simple successful response.
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("done")...,
+		)
+	})
+
+	// Mock webpush dispatcher that captures the dispatched message.
+	mockPush := &mockWebpushDispatcher{}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		WebpushDispatcher:          mockPush,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "push-nav-test",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+	})
+	require.NoError(t, err)
+
+	// Wait for the chat to complete and return to waiting status.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusWaiting && !fromDB.WorkerID.Valid && mockPush.dispatchCount.Load() == 1
+	}, testutil.IntervalFast)
+
+	// Verify a web push notification was dispatched exactly once.
+	require.Equal(t, int32(1), mockPush.dispatchCount.Load(),
+		"expected exactly one web push dispatch for a completed chat")
+
+	// Verify the notification was sent to the correct user.
+	mockPush.mu.Lock()
+	capturedMsg := mockPush.lastMessage
+	capturedUserID := mockPush.lastUserID
+	mockPush.mu.Unlock()
+
+	require.Equal(t, user.ID, capturedUserID,
+		"web push should be dispatched to the chat owner")
+
+	// Verify the Data field contains the correct navigation URL.
+	expectedURL := fmt.Sprintf("/agents/%s", chat.ID)
+	require.Equal(t, expectedURL, capturedMsg.Data["url"],
+		"web push Data should contain the chat navigation URL")
 }
 
 func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T) {
@@ -1330,6 +1577,12 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 	var requestCount atomic.Int32
 	streamStarted := make(chan struct{})
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		// Ignore non-streaming requests (e.g. title generation) so
+		// they don't interfere with the request counter used to
+		// coordinate the streaming chat flow.
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("shutdown-retry")
+		}
 		if requestCount.Add(1) == 1 {
 			chunks := make(chan chattest.OpenAIChunk, 1)
 			go func() {
@@ -1426,4 +1679,67 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 			!fromDB.WorkerID.Valid &&
 			!fromDB.LastError.Valid
 	}, testutil.WaitMedium, testutil.IntervalFast)
+}
+
+func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const assistantText = "I have completed the task successfully and all tests are passing now."
+	const summaryText = "Completed task and verified all tests pass."
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			// Non-streaming calls are used for title
+			// generation and push summary generation.
+			// Return the summary text for both — the title
+			// result is irrelevant to this test.
+			return chattest.OpenAINonStreamingResponse(summaryText)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks(assistantText)...,
+		)
+	})
+
+	mockPush := &mockWebpushDispatcher{}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		WebpushDispatcher:          mockPush,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	_, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "summary-push-test",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "do the thing"}},
+	})
+	require.NoError(t, err)
+
+	// The push notification is dispatched asynchronously after the
+	// chat finishes, so we poll for it rather than checking
+	// immediately after the status transitions to waiting.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return mockPush.dispatchCount.Load() >= 1
+	}, testutil.IntervalFast)
+
+	msg := mockPush.getLastMessage()
+	require.Equal(t, summaryText, msg.Body,
+		"push body should be the LLM-generated summary")
+	require.NotEqual(t, "Agent has finished running.", msg.Body,
+		"push body should not use the default fallback text")
 }
