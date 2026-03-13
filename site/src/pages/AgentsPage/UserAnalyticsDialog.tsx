@@ -11,7 +11,7 @@ import {
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import dayjs from "dayjs";
 import { BarChart3Icon, XIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useMemo } from "react";
 import { useQuery } from "react-query";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { SectionHeader } from "./SectionHeader";
@@ -36,7 +36,7 @@ export const UserAnalyticsDialog: FC<UserAnalyticsDialogProps> = ({
 	onOpenChange,
 }) => {
 	const { user } = useAuthContext();
-	const [dateRange] = useState(createDateRange);
+	const dateRange = useMemo(createDateRange, []);
 
 	const summaryQuery = useQuery({
 		...chatCostSummary(user?.id ?? "me", {
