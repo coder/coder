@@ -19,6 +19,8 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 	var (
 		address             string
 		artificialLatency   time.Duration
+		minStreamDuration   time.Duration
+		maxStreamDuration   time.Duration
 		responsePayloadSize int64
 
 		pprofEnable  bool
@@ -36,6 +38,13 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 
 			logger := slog.Make(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelInfo)
 
+			if (minStreamDuration == 0) != (maxStreamDuration == 0) {
+				return xerrors.New("--min-stream-duration and --max-stream-duration must both be set or both be 0")
+			}
+			if minStreamDuration > maxStreamDuration {
+				return xerrors.Errorf("--min-stream-duration (%s) must be <= --max-stream-duration (%s)", minStreamDuration, maxStreamDuration)
+			}
+
 			if pprofEnable {
 				closePprof := ServeHandler(ctx, logger, nil, pprofAddress, "pprof")
 				defer closePprof()
@@ -46,6 +55,8 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 				Address:             address,
 				Logger:              logger,
 				ArtificialLatency:   artificialLatency,
+				MinStreamDuration:   minStreamDuration,
+				MaxStreamDuration:   maxStreamDuration,
 				ResponsePayloadSize: int(responsePayloadSize),
 				PprofEnable:         pprofEnable,
 				PprofAddress:        pprofAddress,
@@ -86,6 +97,20 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 			Default:     "0s",
 			Description: "Artificial latency to add to each response (e.g., 100ms, 1s). Simulates slow upstream processing.",
 			Value:       serpent.DurationOf(&artificialLatency),
+		},
+		{
+			Flag:        "min-stream-duration",
+			Env:         "CODER_SCALETEST_LLM_MOCK_MIN_STREAM_DURATION",
+			Default:     "5s",
+			Description: "Minimum duration to stream a response over (e.g., 5s, 10s). Simulates realistic token-by-token output.",
+			Value:       serpent.DurationOf(&minStreamDuration),
+		},
+		{
+			Flag:        "max-stream-duration",
+			Env:         "CODER_SCALETEST_LLM_MOCK_MAX_STREAM_DURATION",
+			Default:     "10s",
+			Description: "Maximum duration to stream a response over (e.g., 10s, 30s). Simulates realistic token-by-token output.",
+			Value:       serpent.DurationOf(&maxStreamDuration),
 		},
 		{
 			Flag:        "response-payload-size",
