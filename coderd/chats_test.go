@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -22,7 +23,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/websocket"
@@ -939,10 +939,10 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.Equal(t, storedConfig.ID, configs[0].ID)
 		requireChatModelPricing(t, configs[0].ModelConfig, &codersdk.ChatModelCallConfig{
 			Cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens:      ptr.Ref(0.15),
-				OutputPricePerMillionTokens:     ptr.Ref(0.6),
-				CacheReadPricePerMillionTokens:  ptr.Ref(0.03),
-				CacheWritePricePerMillionTokens: ptr.Ref(0.3),
+				InputPricePerMillionTokens:      decRef("0.15"),
+				OutputPricePerMillionTokens:     decRef("0.6"),
+				CacheReadPricePerMillionTokens:  decRef("0.03"),
+				CacheWritePricePerMillionTokens: decRef("0.3"),
 			},
 		})
 	})
@@ -993,10 +993,10 @@ func TestCreateChatModelConfig(t *testing.T) {
 		isDefault := true
 		pricing := &codersdk.ChatModelCallConfig{
 			Cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens:      ptr.Ref(0.15),
-				OutputPricePerMillionTokens:     ptr.Ref(0.6),
-				CacheReadPricePerMillionTokens:  ptr.Ref(0.03),
-				CacheWritePricePerMillionTokens: ptr.Ref(0.3),
+				InputPricePerMillionTokens:      decRef("0.15"),
+				OutputPricePerMillionTokens:     decRef("0.6"),
+				CacheReadPricePerMillionTokens:  decRef("0.03"),
+				CacheWritePricePerMillionTokens: decRef("0.3"),
 			},
 		}
 		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
@@ -1040,7 +1040,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 			ContextLimit: &contextLimit,
 			ModelConfig: &codersdk.ChatModelCallConfig{
 				Cost: &codersdk.ModelCostConfig{
-					InputPricePerMillionTokens: ptr.Ref(-0.01),
+					InputPricePerMillionTokens: decRef("-0.01"),
 				},
 			},
 		})
@@ -1123,10 +1123,10 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		contextLimit := int64(8192)
 		pricing := &codersdk.ChatModelCallConfig{
 			Cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens:      ptr.Ref(0.2),
-				OutputPricePerMillionTokens:     ptr.Ref(0.8),
-				CacheReadPricePerMillionTokens:  ptr.Ref(0.04),
-				CacheWritePricePerMillionTokens: ptr.Ref(0.4),
+				InputPricePerMillionTokens:      decRef("0.2"),
+				OutputPricePerMillionTokens:     decRef("0.8"),
+				CacheReadPricePerMillionTokens:  decRef("0.04"),
+				CacheWritePricePerMillionTokens: decRef("0.4"),
 			},
 		}
 		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
@@ -1157,7 +1157,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
 			ModelConfig: &codersdk.ChatModelCallConfig{
 				Cost: &codersdk.ModelCostConfig{
-					OutputPricePerMillionTokens: ptr.Ref(-1.0),
+					OutputPricePerMillionTokens: decRef("-1.0"),
 				},
 			},
 		})
@@ -3479,6 +3479,302 @@ func TestGetChatFile(t *testing.T) {
 	})
 }
 
+func TestChatCostSummary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("BasicSummary", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "test chat",
+		})
+		require.NoError(t, err)
+
+		for i := 0; i < 2; i++ {
+			_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+				ChatID:          chat.ID,
+				ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+				Role:            "assistant",
+				Visibility:      database.ChatMessageVisibilityBoth,
+				InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
+				OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
+				TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
+			})
+			require.NoError(t, err)
+		}
+
+		summary, err := client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{})
+		require.NoError(t, err)
+
+		require.Equal(t, int64(1000), summary.TotalCostMicros)
+		require.Equal(t, int64(2), summary.PricedMessageCount)
+		require.Equal(t, int64(0), summary.UnpricedMessageCount)
+		require.Equal(t, int64(200), summary.TotalInputTokens)
+		require.Equal(t, int64(100), summary.TotalOutputTokens)
+
+		require.Len(t, summary.ByModel, 1)
+		require.Equal(t, modelConfig.ID, summary.ByModel[0].ModelConfigID)
+		require.Equal(t, int64(1000), summary.ByModel[0].TotalCostMicros)
+		require.Equal(t, int64(2), summary.ByModel[0].MessageCount)
+
+		require.Len(t, summary.ByChat, 1)
+		require.Equal(t, chat.ID, summary.ByChat[0].RootChatID)
+		require.Equal(t, int64(1000), summary.ByChat[0].TotalCostMicros)
+		require.Equal(t, int64(2), summary.ByChat[0].MessageCount)
+	})
+}
+
+func TestChatCostSummary_AdminDrilldown(t *testing.T) {
+	t.Parallel()
+
+	seedCtx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	modelConfig := createChatModelConfig(t, client)
+
+	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatParams{
+		OwnerID:           member.ID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "member chat",
+	})
+	require.NoError(t, err)
+
+	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessageParams{
+		ChatID:          chat.ID,
+		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+		Role:            "assistant",
+		Visibility:      database.ChatMessageVisibilityBoth,
+		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
+		OutputTokens:    sql.NullInt64{Int64: 100, Valid: true},
+		TotalCostMicros: sql.NullInt64{Int64: 750, Valid: true},
+	})
+	require.NoError(t, err)
+
+	t.Run("AdminCanDrilldown", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		summary, err := client.GetChatCostSummary(ctx, member.ID.String(), codersdk.ChatCostSummaryOptions{})
+		require.NoError(t, err)
+		require.Equal(t, int64(750), summary.TotalCostMicros)
+		require.Equal(t, int64(1), summary.PricedMessageCount)
+	})
+
+	t.Run("MemberCannotDrilldownOtherUser", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := memberClient.GetChatCostSummary(ctx, firstUser.UserID.String(), codersdk.ChatCostSummaryOptions{})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+}
+
+func TestChatCostUsers(t *testing.T) {
+	t.Parallel()
+
+	seedCtx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	firstUserRecord, err := db.GetUserByID(dbauthz.AsSystemRestricted(seedCtx), firstUser.UserID)
+	require.NoError(t, err)
+	modelConfig := createChatModelConfig(t, client)
+
+	adminChat, err := db.InsertChat(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatParams{
+		OwnerID:           firstUser.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "admin chat",
+	})
+	require.NoError(t, err)
+	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessageParams{
+		ChatID:          adminChat.ID,
+		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+		Role:            "assistant",
+		Visibility:      database.ChatMessageVisibilityBoth,
+		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
+		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
+		TotalCostMicros: sql.NullInt64{Int64: 300, Valid: true},
+	})
+	require.NoError(t, err)
+
+	memberChat, err := db.InsertChat(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatParams{
+		OwnerID:           member.ID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "member chat",
+	})
+	require.NoError(t, err)
+	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessageParams{
+		ChatID:          memberChat.ID,
+		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+		Role:            "assistant",
+		Visibility:      database.ChatMessageVisibilityBoth,
+		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
+		OutputTokens:    sql.NullInt64{Int64: 100, Valid: true},
+		TotalCostMicros: sql.NullInt64{Int64: 800, Valid: true},
+	})
+	require.NoError(t, err)
+
+	t.Run("AdminCanListUsers", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		resp, err := client.GetChatCostUsers(ctx, codersdk.ChatCostUsersOptions{})
+		require.NoError(t, err)
+		require.Equal(t, int64(2), resp.Count)
+		require.Len(t, resp.Users, 2)
+		require.Equal(t, member.ID, resp.Users[0].UserID)
+		require.Equal(t, member.Username, resp.Users[0].Username)
+		require.Equal(t, int64(800), resp.Users[0].TotalCostMicros)
+		require.Equal(t, int64(1), resp.Users[0].MessageCount)
+		require.Equal(t, int64(1), resp.Users[0].ChatCount)
+		require.Equal(t, firstUser.UserID, resp.Users[1].UserID)
+		require.Equal(t, firstUserRecord.Username, resp.Users[1].Username)
+		require.Equal(t, int64(300), resp.Users[1].TotalCostMicros)
+	})
+
+	t.Run("AdminCanFilterAndPaginateUsers", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		resp, err := client.GetChatCostUsers(ctx, codersdk.ChatCostUsersOptions{
+			Username: member.Username,
+			Pagination: codersdk.Pagination{
+				Limit:  1,
+				Offset: 0,
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(1), resp.Count)
+		require.Len(t, resp.Users, 1)
+		require.Equal(t, member.ID, resp.Users[0].UserID)
+		require.Equal(t, member.Username, resp.Users[0].Username)
+	})
+
+	t.Run("MemberCannotListUsers", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := memberClient.GetChatCostUsers(ctx, codersdk.ChatCostUsersOptions{})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
+}
+
+func TestChatCostSummary_DateRange(t *testing.T) {
+	t.Parallel()
+
+	seedCtx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	modelConfig := createChatModelConfig(t, client)
+
+	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatParams{
+		OwnerID:           firstUser.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "date range test",
+	})
+	require.NoError(t, err)
+
+	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessageParams{
+		ChatID:          chat.ID,
+		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+		Role:            "assistant",
+		Visibility:      database.ChatMessageVisibilityBoth,
+		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
+		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
+		TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
+	})
+	require.NoError(t, err)
+
+	now := time.Now()
+
+	t.Run("MessageInRange", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		summary, err := client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{
+			StartDate: now.Add(-time.Hour),
+			EndDate:   now.Add(time.Hour),
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(500), summary.TotalCostMicros)
+		require.Equal(t, int64(1), summary.PricedMessageCount)
+	})
+
+	t.Run("MessageOutOfRange", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		summary, err := client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{
+			StartDate: now.Add(time.Hour),
+			EndDate:   now.Add(2 * time.Hour),
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(0), summary.TotalCostMicros)
+		require.Equal(t, int64(0), summary.PricedMessageCount)
+	})
+}
+
+func TestChatCostSummary_UnpricedMessages(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	modelConfig := createChatModelConfig(t, client)
+
+	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+		OwnerID:           firstUser.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "unpriced test",
+	})
+	require.NoError(t, err)
+
+	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+		ChatID:          chat.ID,
+		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+		Role:            "assistant",
+		Visibility:      database.ChatMessageVisibilityBoth,
+		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
+		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
+		TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+		ChatID:          chat.ID,
+		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+		Role:            "assistant",
+		Visibility:      database.ChatMessageVisibilityBoth,
+		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
+		OutputTokens:    sql.NullInt64{Int64: 75, Valid: true},
+		TotalCostMicros: sql.NullInt64{},
+	})
+	require.NoError(t, err)
+
+	summary, err := client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{})
+	require.NoError(t, err)
+
+	require.Equal(t, int64(500), summary.TotalCostMicros)
+	require.Equal(t, int64(1), summary.PricedMessageCount)
+	require.Equal(t, int64(1), summary.UnpricedMessageCount)
+	require.Equal(t, int64(300), summary.TotalInputTokens)
+	require.Equal(t, int64(125), summary.TotalOutputTokens)
+}
+
 func requireChatModelPricing(
 	t *testing.T,
 	actual *codersdk.ChatModelCallConfig,
@@ -3495,10 +3791,15 @@ func requireChatModelPricing(
 	require.NotNil(t, actual.Cost.CacheReadPricePerMillionTokens)
 	require.NotNil(t, actual.Cost.CacheWritePricePerMillionTokens)
 
-	require.Equal(t, *expected.Cost.InputPricePerMillionTokens, *actual.Cost.InputPricePerMillionTokens)
-	require.Equal(t, *expected.Cost.OutputPricePerMillionTokens, *actual.Cost.OutputPricePerMillionTokens)
-	require.Equal(t, *expected.Cost.CacheReadPricePerMillionTokens, *actual.Cost.CacheReadPricePerMillionTokens)
-	require.Equal(t, *expected.Cost.CacheWritePricePerMillionTokens, *actual.Cost.CacheWritePricePerMillionTokens)
+	require.True(t, expected.Cost.InputPricePerMillionTokens.Equal(*actual.Cost.InputPricePerMillionTokens))
+	require.True(t, expected.Cost.OutputPricePerMillionTokens.Equal(*actual.Cost.OutputPricePerMillionTokens))
+	require.True(t, expected.Cost.CacheReadPricePerMillionTokens.Equal(*actual.Cost.CacheReadPricePerMillionTokens))
+	require.True(t, expected.Cost.CacheWritePricePerMillionTokens.Equal(*actual.Cost.CacheWritePricePerMillionTokens))
+}
+
+func decRef(value string) *decimal.Decimal {
+	d := decimal.RequireFromString(value)
+	return &d
 }
 
 func createChatModelConfig(t *testing.T, client *codersdk.Client) codersdk.ChatModelConfig {
