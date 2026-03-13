@@ -4,7 +4,8 @@ import type { QueryClient, UseInfiniteQueryOptions } from "react-query";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
-export const chatMessagesKey = (chatId: string) => ["chats", chatId, "messages"] as const;
+export const chatMessagesKey = (chatId: string) =>
+	["chats", chatId, "messages"] as const;
 
 /**
  * Updates a single chat inside every page of the infinite chats query

@@ -774,10 +774,11 @@ describe("useChatStore", () => {
 
 		rerender({
 			...initialOptions,
-				chatMessagesData: {
-					messages: [existingMessage],
-					queued_messages: [queuedMessage],
-				},			chatQueuedMessages: [queuedMessage],
+			chatMessagesData: {
+				messages: [existingMessage],
+				queued_messages: [queuedMessage],
+			},
+			chatQueuedMessages: [queuedMessage],
 		});
 
 		await waitFor(() => {
@@ -840,10 +841,11 @@ describe("useChatStore", () => {
 		// data with an empty queue (no queue_update from WS yet).
 		rerender({
 			...staleOptions,
-				chatMessagesData: {
-					messages: [existingMessage],
-					queued_messages: [],
-				},			chatQueuedMessages: [],
+			chatMessagesData: {
+				messages: [existingMessage],
+				queued_messages: [],
+			},
+			chatQueuedMessages: [],
 		});
 
 		// The store should accept the fresh REST data because the

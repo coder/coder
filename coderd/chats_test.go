@@ -125,13 +125,14 @@ func TestPostChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-			_, err = client.GetChat(ctx, chat.ID)
-			require.NoError(t, err)
-			messagesResult, err := client.GetChatMessages(ctx, chat.ID)
-			require.NoError(t, err)
-			for _, message := range messagesResult.Messages {
-				require.NotEqual(t, "system", message.Role)
-			}	})
+		_, err = client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
+		require.NoError(t, err)
+		for _, message := range messagesResult.Messages {
+			require.NotEqual(t, "system", message.Role)
+		}
+	})
 
 	t.Run("WorkspaceNotAccessible", func(t *testing.T) {
 		t.Parallel()
@@ -2205,12 +2206,13 @@ func TestChatMessageWithFiles(t *testing.T) {
 			require.Equal(t, "user", resp.Message.Role)
 		}
 
-			// Verify file parts omit inline data in the API response.
-			_, err = client.GetChat(ctx, chat.ID)
-			require.NoError(t, err)
-			messagesResult, err := client.GetChatMessages(ctx, chat.ID)
-			require.NoError(t, err)
-			for _, msg := range messagesResult.Messages {			for _, part := range msg.Content {
+		// Verify file parts omit inline data in the API response.
+		_, err = client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
+		require.NoError(t, err)
+		for _, msg := range messagesResult.Messages {
+			for _, part := range msg.Content {
 				if part.Type == codersdk.ChatMessagePartTypeFile {
 					require.True(t, part.FileID.Valid, "file part should have a valid file_id")
 					require.Equal(t, uploadResp.ID, part.FileID.UUID)
@@ -2391,14 +2393,15 @@ func TestPatchChatMessage(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-			// Find the user message ID.
-			_, err = client.GetChat(ctx, chat.ID)
-			require.NoError(t, err)
-			messagesResult, err := client.GetChatMessages(ctx, chat.ID)
-			require.NoError(t, err)
+		// Find the user message ID.
+		_, err = client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
+		require.NoError(t, err)
 
-			var userMessageID int64
-			for _, message := range messagesResult.Messages {			if message.Role == "user" {
+		var userMessageID int64
+		for _, message := range messagesResult.Messages {
+			if message.Role == "user" {
 				userMessageID = message.ID
 				break
 			}
@@ -2435,14 +2438,15 @@ func TestPatchChatMessage(t *testing.T) {
 		require.True(t, foundText, "edited message should contain updated text")
 		require.True(t, foundFile, "edited message should preserve file_id")
 
-			// GET the chat and verify the file_id persists.
-			_, err = client.GetChat(ctx, chat.ID)
-			require.NoError(t, err)
-			updatedMessages, err := client.GetChatMessages(ctx, chat.ID)
-			require.NoError(t, err)
+		// GET the chat and verify the file_id persists.
+		_, err = client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		updatedMessages, err := client.GetChatMessages(ctx, chat.ID)
+		require.NoError(t, err)
 
-			var foundTextInChat, foundFileInChat bool
-			for _, message := range updatedMessages.Messages {			if message.Role != "user" {
+		var foundTextInChat, foundFileInChat bool
+		for _, message := range updatedMessages.Messages {
+			if message.Role != "user" {
 				continue
 			}
 			for _, part := range message.Content {

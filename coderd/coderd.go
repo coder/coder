@@ -1187,7 +1187,7 @@ func New(options *Options) *API {
 			})
 		})
 
-			r.Route("/mcp", func(r chi.Router) {
+		r.Route("/mcp", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),

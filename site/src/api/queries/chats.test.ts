@@ -97,9 +97,7 @@ describe("archiveChat optimistic update", () => {
 		const mutation = archiveChat(queryClient);
 		await mutation.onMutate(chatId);
 
-		const cachedChat = queryClient.getQueryData<TypesGen.Chat>(
-			chatKey(chatId),
-		);
+		const cachedChat = queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId));
 		expect(cachedChat?.archived).toBe(true);
 	});
 
@@ -141,9 +139,7 @@ describe("archiveChat optimistic update", () => {
 
 		mutation.onError(new Error("server error"), chatId, context);
 
-		const rolledBack = queryClient.getQueryData<TypesGen.Chat>(
-			chatKey(chatId),
-		);
+		const rolledBack = queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId));
 		expect(rolledBack?.archived).toBe(false);
 	});
 

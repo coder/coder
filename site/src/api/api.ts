@@ -2954,7 +2954,9 @@ class ApiMethods {
 		);
 		return response.data;
 	};
-	getChatMessages = async (chatId: string): Promise<TypesGen.ChatMessagesResponse> => {
+	getChatMessages = async (
+		chatId: string,
+	): Promise<TypesGen.ChatMessagesResponse> => {
 		const response = await this.axios.get<TypesGen.ChatMessagesResponse>(
 			`/api/experimental/chats/${chatId}/messages`,
 		);
