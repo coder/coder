@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const activeToolName = "read_file"
@@ -573,6 +575,101 @@ func TestToResponseMessages_ProviderExecutedToolResultInAssistantMessage(t *test
 	require.True(t, ok, "tool part should be ToolResultPart")
 	assert.Equal(t, "local-tc-1", localTR.ToolCallID)
 	assert.False(t, localTR.ProviderExecuted)
+}
+
+// TestRun_RetryDoesNotDuplicatePartsToSubscribers verifies that when
+// a retryable error occurs mid-stream, only the successful attempt's
+// parts are published to subscribers. The current code re-invokes
+// processStepStream with the same publishMessagePart callback on
+// retry, so parts from the failed attempt leak to subscribers.
+func TestRun_RetryDoesNotDuplicatePartsToSubscribers(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	var streamCalls int
+
+	model := &loopTestModel{
+		provider: "fake",
+		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			attempt := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			switch attempt {
+			case 0:
+				// First attempt: stream two text deltas then
+				// fail with a retryable 503 error.
+				return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+					parts := []fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+						{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "hello "},
+						{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "world"},
+						{Type: fantasy.StreamPartTypeError, Error: xerrors.New("status 503: service unavailable")},
+					}
+					for _, p := range parts {
+						if !yield(p) {
+							return
+						}
+					}
+				}), nil
+			default:
+				// Second attempt: succeed with the full response.
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "hello "},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "world"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			}
+		},
+	}
+
+	// Collect every published part so we can count text deltas.
+	var (
+		partsMu        sync.Mutex
+		publishedParts []codersdk.ChatMessagePart
+	)
+
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "hello"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		PublishMessagePart: func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+			partsMu.Lock()
+			defer partsMu.Unlock()
+			publishedParts = append(publishedParts, part)
+		},
+	})
+	require.NoError(t, err)
+
+	mu.Lock()
+	require.Equal(t, 2, streamCalls, "model should have been called twice (one failure + one success)")
+	mu.Unlock()
+
+	// Count text-type parts published to subscribers.
+	partsMu.Lock()
+	defer partsMu.Unlock()
+	var textDeltaCount int
+	for _, p := range publishedParts {
+		if p.Type == codersdk.ChatMessagePartTypeText {
+			textDeltaCount++
+		}
+	}
+
+	// Correct behavior: only the successful attempt's 2 deltas
+	// should reach subscribers. The bug causes 4 (2 leaked from
+	// the failed attempt + 2 from the retry).
+	assert.Equal(t, 2, textDeltaCount,
+		"expected only 2 text deltas from the successful attempt, got %d (failed attempt parts leaked)",
+		textDeltaCount,
+	)
 }
 
 func hasAnthropicEphemeralCacheControl(message fantasy.Message) bool {
