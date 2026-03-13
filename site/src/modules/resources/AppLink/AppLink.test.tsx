@@ -1,11 +1,11 @@
-import { screen } from "@testing-library/react";
-import { ProxyProvider } from "contexts/ProxyContext";
 import {
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
+import { screen } from "@testing-library/react";
+import { ProxyProvider } from "contexts/ProxyContext";
 import { AppLink } from "./AppLink";
 
 const renderAppLink = (app: typeof MockWorkspaceApp) => {
