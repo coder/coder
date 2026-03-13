@@ -2121,3 +2121,108 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	require.Equal(t, database.ChatModeComputerUse,
 		children[0].Mode.ChatMode)
 }
+
+// faultPubsub wraps a real Pubsub and captures SubscribeWithErr
+// listener callbacks so tests can inject errors that simulate
+// pubsub transport failures (e.g. dropped connections).
+type faultPubsub struct {
+	dbpubsub.Pubsub
+
+	mu        sync.Mutex
+	listeners []dbpubsub.ListenerWithErr
+}
+
+func (f *faultPubsub) SubscribeWithErr(event string, listener dbpubsub.ListenerWithErr) (func(), error) {
+	f.mu.Lock()
+	f.listeners = append(f.listeners, listener)
+	f.mu.Unlock()
+	return f.Pubsub.SubscribeWithErr(event, listener)
+}
+
+// injectError calls all captured SubscribeWithErr listeners with
+// the given error, simulating a pubsub transport failure.
+func (f *faultPubsub) injectError(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, l := range f.listeners {
+		l(context.Background(), nil, err)
+	}
+}
+
+func TestSubscribeRecoversAfterPubsubError(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	// Wrap the real pubsub so we can inject errors into the
+	// SubscribeWithErr listener callback.
+	faultPS := &faultPubsub{Pubsub: ps}
+	server := newTestServer(t, db, faultPS, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "pubsub-error-recovery",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	// Set the chat to "running" so InterruptChat can transition
+	// it to "waiting".
+	runningWorker := uuid.New()
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: runningWorker, Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	t.Cleanup(cancel)
+
+	// Inject a pubsub error. The merge goroutine should handle
+	// this gracefully and continue delivering subsequent events.
+	faultPS.injectError(xerrors.New("simulated pubsub disconnect"))
+
+	// Drain the error event that the merge goroutine sends in
+	// response to the pubsub error.
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-events:
+			return event.Type == codersdk.ChatStreamEventTypeError
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	// Trigger a real status change. InterruptChat updates the DB
+	// and publishes a notification via pubsub.
+	updated := server.InterruptChat(ctx, chat)
+	require.Equal(t, database.ChatStatusWaiting, updated.Status)
+
+	// Assert that the stream delivers the status=waiting event.
+	// This MUST fail because the bug permanently kills the merge
+	// goroutine after a pubsub error: the events channel is
+	// closed and no subsequent events are delivered.
+	require.Eventually(t, func() bool {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				t.Log("events channel closed: stream died after pubsub error")
+				return false
+			}
+			if event.Type == codersdk.ChatStreamEventTypeStatus && event.Status != nil {
+				return event.Status.Status == codersdk.ChatStatusWaiting
+			}
+			t.Logf("skipping event: type=%s", event.Type)
+			return false
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
