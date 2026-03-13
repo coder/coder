@@ -52,7 +52,7 @@ type ChatMessage struct {
 	CreatedBy     *uuid.UUID        `json:"created_by,omitempty" format:"uuid"`
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
 	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
-	Role          string            `json:"role"`
+	Role          ChatMessageRole   `json:"role"`
 	Content       []ChatMessagePart `json:"content,omitempty"`
 	Usage         *ChatMessageUsage `json:"usage,omitempty"`
 }
@@ -68,6 +68,17 @@ type ChatMessageUsage struct {
 	ContextLimit        *int64 `json:"context_limit,omitempty"`
 }
 
+// ChatMessageRole represents the role of a chat message sender.
+type ChatMessageRole string
+
+// ChatMessageRole enums.
+const (
+	ChatMessageRoleSystem    ChatMessageRole = "system"
+	ChatMessageRoleUser      ChatMessageRole = "user"
+	ChatMessageRoleAssistant ChatMessageRole = "assistant"
+	ChatMessageRoleTool      ChatMessageRole = "tool"
+)
+
 // ChatMessagePartType represents a structured message part type.
 type ChatMessagePartType string
 
@@ -82,24 +93,30 @@ const (
 )
 
 // ChatMessagePart is a structured chunk of a chat message.
+//
+// WARNING: This type is both an API wire type and a database
+// persistence format. Its JSON layout is stored in the
+// chat_messages.content column. Field additions, renames, type
+// changes, and omitempty behavior all affect backward-compatible
+// deserialization of stored rows. Treat changes to this struct
+// with the same care as a database migration.
 type ChatMessagePart struct {
-	Type             ChatMessagePartType `json:"type"`
-	Text             string              `json:"text,omitempty"`
-	Signature        string              `json:"signature,omitempty"`
-	ToolCallID       string              `json:"tool_call_id,omitempty"`
-	ToolName         string              `json:"tool_name,omitempty"`
-	Args             json.RawMessage     `json:"args,omitempty"`
-	ArgsDelta        string              `json:"args_delta,omitempty"`
-	Result           json.RawMessage     `json:"result,omitempty"`
-	ResultDelta      string              `json:"result_delta,omitempty"`
-	IsError          bool                `json:"is_error,omitempty"`
-	ProviderExecuted bool                `json:"provider_executed,omitempty"`
-	SourceID         string              `json:"source_id,omitempty"`
-	URL              string              `json:"url,omitempty"`
-	Title            string              `json:"title,omitempty"`
-	MediaType        string              `json:"media_type,omitempty"`
-	Data             []byte              `json:"data,omitempty"`
-	FileID           uuid.NullUUID       `json:"file_id,omitempty" format:"uuid"`
+	Type        ChatMessagePartType `json:"type"`
+	Text        string              `json:"text,omitempty"`
+	Signature   string              `json:"signature,omitempty"`
+	ToolCallID  string              `json:"tool_call_id,omitempty"`
+	ToolName    string              `json:"tool_name,omitempty"`
+	Args        json.RawMessage     `json:"args,omitempty"`
+	ArgsDelta   string              `json:"args_delta,omitempty"`
+	Result      json.RawMessage     `json:"result,omitempty"`
+	ResultDelta string              `json:"result_delta,omitempty"`
+	IsError     bool                `json:"is_error,omitempty"`
+	SourceID    string              `json:"source_id,omitempty"`
+	URL         string              `json:"url,omitempty"`
+	Title       string              `json:"title,omitempty"`
+	MediaType   string              `json:"media_type,omitempty"`
+	Data        []byte              `json:"data,omitempty"`
+	FileID      uuid.NullUUID       `json:"file_id,omitempty" format:"uuid"`
 	// The following fields are only set when Type is
 	// ChatInputPartTypeFileReference.
 	FileName  string `json:"file_name,omitempty"`
@@ -107,6 +124,87 @@ type ChatMessagePart struct {
 	EndLine   int    `json:"end_line,omitempty"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content,omitempty"`
+	// ProviderMetadata holds provider-specific response metadata
+	// (e.g. Anthropic cache control hints) as raw JSON. Internal
+	// only: stripped by db2sdk before API responses.
+	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-"`
+	// ProviderExecuted indicates the tool call was executed by
+	// the provider (e.g. Anthropic computer use).
+	ProviderExecuted bool `json:"provider_executed,omitempty"`
+}
+
+// StripInternal removes internal-only fields that must not be
+// sent to API clients. Call before publishing via REST or SSE.
+//
+// Note: ArgsDelta and ResultDelta are intentionally preserved.
+// They are streaming-only fields consumed by the frontend via
+// SSE message_part events (see processStepStream in chatloop).
+func (p *ChatMessagePart) StripInternal() {
+	p.ProviderMetadata = nil
+	if p.FileID.Valid {
+		p.Data = nil
+	}
+}
+
+// ChatMessageText builds a text chat message part.
+func ChatMessageText(text string) ChatMessagePart {
+	return ChatMessagePart{Type: ChatMessagePartTypeText, Text: text}
+}
+
+// ChatMessageReasoning builds a reasoning chat message part.
+func ChatMessageReasoning(text string) ChatMessagePart {
+	return ChatMessagePart{Type: ChatMessagePartTypeReasoning, Text: text}
+}
+
+// ChatMessageToolCall builds a tool-call chat message part.
+func ChatMessageToolCall(toolCallID, toolName string, args json.RawMessage) ChatMessagePart {
+	return ChatMessagePart{
+		Type:       ChatMessagePartTypeToolCall,
+		ToolCallID: toolCallID,
+		ToolName:   toolName,
+		Args:       args,
+	}
+}
+
+// ChatMessageToolResult builds a tool-result chat message part.
+func ChatMessageToolResult(toolCallID, toolName string, result json.RawMessage, isError bool) ChatMessagePart {
+	return ChatMessagePart{
+		Type:       ChatMessagePartTypeToolResult,
+		ToolCallID: toolCallID,
+		ToolName:   toolName,
+		Result:     result,
+		IsError:    isError,
+	}
+}
+
+// ChatMessageFile builds a file chat message part.
+func ChatMessageFile(fileID uuid.UUID, mediaType string) ChatMessagePart {
+	return ChatMessagePart{
+		Type:      ChatMessagePartTypeFile,
+		FileID:    uuid.NullUUID{UUID: fileID, Valid: true},
+		MediaType: mediaType,
+	}
+}
+
+// ChatMessageFileReference builds a file-reference chat message part.
+func ChatMessageFileReference(fileName string, startLine, endLine int, content string) ChatMessagePart {
+	return ChatMessagePart{
+		Type:      ChatMessagePartTypeFileReference,
+		FileName:  fileName,
+		StartLine: startLine,
+		EndLine:   endLine,
+		Content:   content,
+	}
+}
+
+// ChatMessageSource builds a source chat message part.
+func ChatMessageSource(sourceID, url, title string) ChatMessagePart {
+	return ChatMessagePart{
+		Type:     ChatMessagePartTypeSource,
+		SourceID: sourceID,
+		URL:      url,
+		Title:    title,
+	}
 }
 
 // ChatInputPartType represents an input part type for user chat input.
@@ -568,7 +666,7 @@ type ChatQueuedMessage struct {
 
 // ChatStreamMessagePart is a streamed message part update.
 type ChatStreamMessagePart struct {
-	Role string          `json:"role,omitempty"`
+	Role ChatMessageRole `json:"role,omitempty"`
 	Part ChatMessagePart `json:"part"`
 }
 

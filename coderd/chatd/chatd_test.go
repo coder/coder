@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -48,7 +47,7 @@ func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "interrupt-me",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -251,7 +250,7 @@ func TestInterruptChatClearsWorkerInDatabase(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "db-transition",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -287,7 +286,7 @@ func TestUpdateChatHeartbeatRequiresOwnership(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "heartbeat-ownership",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -329,7 +328,7 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "queue-when-busy",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -345,7 +344,7 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 
 	result, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:       chat.ID,
-		Content:      []fantasy.Content{fantasy.TextContent{Text: "queued"}},
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
 		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
@@ -380,7 +379,7 @@ func TestSendMessageInterruptBehaviorQueuesAndInterruptsWhenBusy(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "interrupt-when-busy",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -395,7 +394,7 @@ func TestSendMessageInterruptBehaviorQueuesAndInterruptsWhenBusy(t *testing.T) {
 
 	result, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:       chat.ID,
-		Content:      []fantasy.Content{fantasy.TextContent{Text: "interrupt"}},
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("interrupt")},
 		BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
 	})
 	require.NoError(t, err)
@@ -439,7 +438,7 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "edit-message",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "original"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("original")},
 	})
 	require.NoError(t, err)
 
@@ -453,13 +452,13 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 
 	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:       chat.ID,
-		Content:      []fantasy.Content{fantasy.TextContent{Text: "follow-up"}},
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("follow-up")},
 		BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
 	})
 	require.NoError(t, err)
 	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:       chat.ID,
-		Content:      []fantasy.Content{fantasy.TextContent{Text: "another"}},
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("another")},
 		BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
 	})
 	require.NoError(t, err)
@@ -482,7 +481,7 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	editResult, err := replica.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		EditedMessageID: editedMessageID,
-		Content:         []fantasy.Content{fantasy.TextContent{Text: "edited"}},
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
 	})
 	require.NoError(t, err)
 	require.Equal(t, editedMessageID, editResult.Message.ID)
@@ -527,14 +526,14 @@ func TestEditMessageRejectsMissingMessage(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "missing-edited-message",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
 	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		EditedMessageID: 999999,
-		Content:         []fantasy.Content{fantasy.TextContent{Text: "edited"}},
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
 	})
 	require.Error(t, err)
 	require.True(t, errors.Is(err, chatd.ErrEditedMessageNotFound))
@@ -553,7 +552,7 @@ func TestEditMessageRejectsNonUserMessage(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "non-user-edited-message",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -580,7 +579,7 @@ func TestEditMessageRejectsNonUserMessage(t *testing.T) {
 	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		EditedMessageID: assistantMessage.ID,
-		Content:         []fantasy.Content{fantasy.TextContent{Text: "edited"}},
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
 	})
 	require.Error(t, err)
 	require.True(t, errors.Is(err, chatd.ErrEditedMessageNotUser))
@@ -827,7 +826,7 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "status-snapshot",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -856,7 +855,7 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "no-dup-parts",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -896,7 +895,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "after-id-test",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "first"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("first")},
 	})
 	require.NoError(t, err)
 
@@ -952,7 +951,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 
 	partialMessages := filterMessageEvents(partialSnapshot)
 	require.Len(t, partialMessages, 1, "afterMessageID=msg2.ID should return only messages after msg2")
-	require.Equal(t, "user", partialMessages[0].Message.Role)
+	require.Equal(t, codersdk.ChatMessageRoleUser, partialMessages[0].Message.Role)
 }
 
 // filterMessageEvents returns only the Message-type events from a
@@ -1084,7 +1083,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 
 	var foundCreateWorkspaceResult bool
 	for _, message := range chatMsgs.Messages {
-		if message.Role != "tool" {
+		if message.Role != codersdk.ChatMessageRoleTool {
 			continue
 		}
 		for _, part := range message.Content {
@@ -1256,7 +1255,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	// Verify start_workspace tool result exists in the chat messages.
 	var foundStartWorkspaceResult bool
 	for _, message := range chatMsgs.Messages {
-		if message.Role != "tool" {
+		if message.Role != codersdk.ChatMessageRoleTool {
 			continue
 		}
 		for _, part := range message.Content {
@@ -1431,7 +1430,7 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "interrupt-no-push",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -1542,7 +1541,7 @@ func TestSuccessfulChatSendsWebPushWithNavigationData(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "push-nav-test",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -1626,7 +1625,7 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 		OwnerID:            user.ID,
 		Title:              "shutdown-retry",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -1732,7 +1731,7 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "summary-push-test",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "do the thing"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("do the thing")},
 	})
 	require.NoError(t, err)
 

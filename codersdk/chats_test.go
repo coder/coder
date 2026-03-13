@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -50,4 +52,60 @@ func TestChatModelProviderOptions_UnmarshalJSON_ParsesPlainProviderPayloads(t *t
 		"high",
 		*decoded.Anthropic.Effort,
 	)
+}
+
+func TestChatMessagePart_StripInternal(t *testing.T) {
+	t.Parallel()
+
+	t.Run("StripsProviderMetadata", func(t *testing.T) {
+		t.Parallel()
+		part := codersdk.ChatMessagePart{
+			Type:             codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID:       "call-1",
+			ToolName:         "some_tool",
+			Args:             json.RawMessage(`{"key":"value"}`),
+			ProviderMetadata: json.RawMessage(`{"type":"ephemeral"}`),
+		}
+		part.StripInternal()
+		assert.Nil(t, part.ProviderMetadata)
+		// Public fields preserved.
+		assert.Equal(t, codersdk.ChatMessagePartTypeToolCall, part.Type)
+		assert.Equal(t, "call-1", part.ToolCallID)
+		assert.Equal(t, "some_tool", part.ToolName)
+		assert.JSONEq(t, `{"key":"value"}`, string(part.Args))
+	})
+
+	t.Run("StripsFileDataWhenFileIDSet", func(t *testing.T) {
+		t.Parallel()
+		id := uuid.New()
+		part := codersdk.ChatMessagePart{
+			Type:      codersdk.ChatMessagePartTypeFile,
+			FileID:    uuid.NullUUID{UUID: id, Valid: true},
+			MediaType: "image/png",
+			Data:      []byte("binary-payload"),
+		}
+		part.StripInternal()
+		assert.Nil(t, part.Data)
+		assert.Equal(t, id, part.FileID.UUID)
+		assert.Equal(t, "image/png", part.MediaType)
+	})
+
+	t.Run("PreservesDataWhenNoFileID", func(t *testing.T) {
+		t.Parallel()
+		part := codersdk.ChatMessagePart{
+			Type:      codersdk.ChatMessagePartTypeFile,
+			MediaType: "image/png",
+			Data:      []byte("inline-data"),
+		}
+		part.StripInternal()
+		assert.Equal(t, []byte("inline-data"), part.Data)
+	})
+
+	t.Run("NoopOnCleanPart", func(t *testing.T) {
+		t.Parallel()
+		part := codersdk.ChatMessageText("hello")
+		part.StripInternal()
+		assert.Equal(t, "hello", part.Text)
+		assert.Equal(t, codersdk.ChatMessagePartTypeText, part.Type)
+	})
 }

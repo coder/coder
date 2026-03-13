@@ -153,14 +153,14 @@ func TestChatStreamRelay(t *testing.T) {
 		firstChunkText := "relay-part-one"
 		streamingChunks <- chattest.OpenAITextChunks(firstChunkText)[0]
 		firstEvent := waitForStreamTextPart(ctx, t, firstEvents, firstChunkText)
-		require.Equal(t, "assistant", firstEvent.MessagePart.Role)
+		require.Equal(t, codersdk.ChatMessageRoleAssistant, firstEvent.MessagePart.Role)
 
 		secondEvents, secondStream, err := relayClient.StreamChat(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		defer secondStream.Close()
 
 		secondSnapshotEvent := waitForStreamTextPart(ctx, t, secondEvents, firstChunkText)
-		require.Equal(t, "assistant", secondSnapshotEvent.MessagePart.Role)
+		require.Equal(t, codersdk.ChatMessageRoleAssistant, secondSnapshotEvent.MessagePart.Role)
 
 		secondChunkText := "relay-part-two"
 		streamingChunks <- chattest.OpenAITextChunks(secondChunkText)[0]
@@ -344,7 +344,7 @@ func TestChatStreamRelay(t *testing.T) {
 		firstChunkText := "tls-relay-part-one"
 		streamingChunks <- chattest.OpenAITextChunks(firstChunkText)[0]
 		firstEvent := waitForStreamTextPart(ctx, t, firstEvents, firstChunkText)
-		require.Equal(t, "assistant", firstEvent.MessagePart.Role)
+		require.Equal(t, codersdk.ChatMessageRoleAssistant, firstEvent.MessagePart.Role)
 
 		// Subscribe from the non-worker replica. This triggers the
 		// relay dial to the worker over TLS. With the bug, this
@@ -357,7 +357,7 @@ func TestChatStreamRelay(t *testing.T) {
 		// The relay should deliver the already-sent chunk as a
 		// snapshot event.
 		secondSnapshotEvent := waitForStreamTextPart(ctx, t, secondEvents, firstChunkText)
-		require.Equal(t, "assistant", secondSnapshotEvent.MessagePart.Role)
+		require.Equal(t, codersdk.ChatMessageRoleAssistant, secondSnapshotEvent.MessagePart.Role)
 
 		// Send another chunk and verify it flows through the relay.
 		secondChunkText := "tls-relay-part-two"
@@ -512,7 +512,7 @@ func TestChatStreamRelay(t *testing.T) {
 		firstChunkText := "cookie-relay-part-one"
 		streamingChunks <- chattest.OpenAITextChunks(firstChunkText)[0]
 		firstEvent := waitForStreamTextPart(ctx, t, firstEvents, firstChunkText)
-		require.Equal(t, "assistant", firstEvent.MessagePart.Role)
+		require.Equal(t, codersdk.ChatMessageRoleAssistant, firstEvent.MessagePart.Role)
 
 		// Subscribe from the non-worker replica with cookie-only
 		// auth. This triggers the relay dial. If the relay doesn't
@@ -522,7 +522,7 @@ func TestChatStreamRelay(t *testing.T) {
 		defer secondStream.Close()
 
 		secondSnapshotEvent := waitForStreamTextPart(ctx, t, secondEvents, firstChunkText)
-		require.Equal(t, "assistant", secondSnapshotEvent.MessagePart.Role)
+		require.Equal(t, codersdk.ChatMessageRoleAssistant, secondSnapshotEvent.MessagePart.Role)
 
 		secondChunkText := "cookie-relay-part-two"
 		streamingChunks <- chattest.OpenAITextChunks(secondChunkText)[0]
@@ -684,7 +684,7 @@ func TestChatStreamRelay(t *testing.T) {
 		firstChunkText := "hostprefix-relay-part-one"
 		streamingChunks <- chattest.OpenAITextChunks(firstChunkText)[0]
 		firstEvent := waitForStreamTextPart(ctx, t, firstEvents, firstChunkText)
-		require.Equal(t, "assistant", firstEvent.MessagePart.Role)
+		require.Equal(t, codersdk.ChatMessageRoleAssistant, firstEvent.MessagePart.Role)
 
 		// This subscribe triggers the relay. With the bug, the
 		// worker replica's HTTPCookies.Middleware strips the bare
@@ -695,7 +695,7 @@ func TestChatStreamRelay(t *testing.T) {
 		defer secondStream.Close()
 
 		secondSnapshotEvent := waitForStreamTextPart(ctx, t, secondEvents, firstChunkText)
-		require.Equal(t, "assistant", secondSnapshotEvent.MessagePart.Role)
+		require.Equal(t, codersdk.ChatMessageRoleAssistant, secondSnapshotEvent.MessagePart.Role)
 
 		secondChunkText := "hostprefix-relay-part-two"
 		streamingChunks <- chattest.OpenAITextChunks(secondChunkText)[0]
@@ -854,7 +854,7 @@ func TestChatStreamRelay(t *testing.T) {
 		// Verify every buffered part arrives on the relay subscriber.
 		for _, text := range bufferedTexts {
 			event := waitForStreamTextPart(ctx, t, relayEvents, text)
-			require.Equal(t, "assistant", event.MessagePart.Role)
+			require.Equal(t, codersdk.ChatMessageRoleAssistant, event.MessagePart.Role)
 		}
 
 		// Send one more chunk after the relay subscriber is connected
