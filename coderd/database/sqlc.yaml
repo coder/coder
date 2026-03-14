@@ -235,6 +235,9 @@ sql:
           aibridge_tool_usage: AIBridgeToolUsage
           aibridge_token_usage: AIBridgeTokenUsage
           aibridge_user_prompt: AIBridgeUserPrompt
+          chats_with_status: ChatWithStatus
+          chat_runs_with_status: ChatRunWithStatus
+          chat_run_steps_with_status: ChatRunStepWithStatus
 rules:
   - name: do-not-use-public-schema-in-queries
     message: "do not use public schema in queries"

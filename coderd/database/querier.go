@@ -12,9 +12,10 @@ import (
 )
 
 type sqlcQuerier interface {
-	// Acquires up to @num_chats pending chats for processing. Uses SKIP LOCKED
-	// to prevent multiple replicas from acquiring the same chat.
-	AcquireChats(ctx context.Context, arg AcquireChatsParams) ([]Chat, error)
+	// Finds the oldest unclaimed active step and claims it for a worker
+	// by setting worker_id on the parent chat_run. Uses SKIP LOCKED to
+	// prevent multiple replicas from acquiring the same step.
+	AcquireChatRunStep(ctx context.Context, workerID uuid.UUID) (ChatRun, error)
 	// Blocks until the lock is acquired.
 	//
 	// This must be called from within a transaction. The lock will be automatically
@@ -74,6 +75,11 @@ type sqlcQuerier interface {
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
+	// Clears worker_id on a run so it can be re-acquired by another
+	// replica. Used during graceful shutdown.
+	ClearChatRunWorker(ctx context.Context, id uuid.UUID) error
+	// Marks a step as completed with usage stats and tool call counts.
+	CompleteChatRunStep(ctx context.Context, arg CompleteChatRunStepParams) (ChatRunStep, error)
 	CountAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	CountConnectionLogs(ctx context.Context, arg CountConnectionLogsParams) (int64, error)
@@ -96,6 +102,7 @@ type sqlcQuerier interface {
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteChatMessagesAfterID(ctx context.Context, arg DeleteChatMessagesAfterIDParams) error
+	DeleteChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) error
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProviderByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
@@ -154,6 +161,13 @@ type sqlcQuerier interface {
 	// of the test-only in-memory database. Do not use this in new code.
 	DisableForeignKeysAndTriggers(ctx context.Context) error
 	EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error
+	// Sets an error on a step. Errors are terminal, so completed_at is
+	// also set.
+	ErrorChatRunStep(ctx context.Context, arg ErrorChatRunStepParams) (ChatRunStep, error)
+	// Finds active steps for a chat with stale heartbeats and marks them
+	// as errored. Used by reconcileChatRun to clean up before creating
+	// a new run.
+	ErrorStalledChatRunSteps(ctx context.Context, arg ErrorStalledChatRunStepsParams) error
 	// Firstly, collect api_keys owned by the prebuilds user that correlate
 	// to workspaces no longer owned by the prebuilds user.
 	// Next, collect api_keys that belong to the prebuilds user but have no token name.
@@ -187,6 +201,9 @@ type sqlcQuerier interface {
 	GetAPIKeysByLoginType(ctx context.Context, arg GetAPIKeysByLoginTypeParams) ([]APIKey, error)
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
+	// Gets the active step for a chat, if any. There can be at most one
+	// thanks to the partial unique index.
+	GetActiveChatRunStep(ctx context.Context, chatID uuid.UUID) (ChatRunStep, error)
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
 	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
@@ -241,8 +258,11 @@ type sqlcQuerier interface {
 	GetChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error)
 	GetChatProviders(ctx context.Context) ([]ChatProvider, error)
 	GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
+	GetChatRunByID(ctx context.Context, id uuid.UUID) (ChatRun, error)
 	GetChatSystemPrompt(ctx context.Context) (string, error)
+	GetChatWithStatusByID(ctx context.Context, id uuid.UUID) (ChatWithStatus, error)
 	GetChatsByOwnerID(ctx context.Context, arg GetChatsByOwnerIDParams) ([]Chat, error)
+	GetChatsWithStatusByOwnerID(ctx context.Context, arg GetChatsWithStatusByOwnerIDParams) ([]ChatWithStatus, error)
 	GetConnectionLogsOffset(ctx context.Context, arg GetConnectionLogsOffsetParams) ([]GetConnectionLogsOffsetRow, error)
 	GetCryptoKeyByFeatureAndSequence(ctx context.Context, arg GetCryptoKeyByFeatureAndSequenceParams) (CryptoKey, error)
 	GetCryptoKeys(ctx context.Context) ([]CryptoKey, error)
@@ -394,9 +414,9 @@ type sqlcQuerier interface {
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)
 	GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRunningPrebuiltWorkspacesRow, error)
 	GetRuntimeConfig(ctx context.Context, key string) (string, error)
-	// Find chats that appear stuck (running but heartbeat has expired).
-	// Used for recovery after coderd crashes or long hangs.
-	GetStaleChats(ctx context.Context, staleThreshold time.Time) ([]Chat, error)
+	// Finds all active steps across all chats with stale heartbeats.
+	// Used by recoverStaleChatRunSteps to detect and recover stuck work.
+	GetStaleChatRunSteps(ctx context.Context, staleThreshold time.Time) ([]GetStaleChatRunStepsRow, error)
 	GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]TailnetPeer, error)
 	GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerBindingsRow, error)
 	GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerIDsRow, error)
@@ -613,6 +633,12 @@ type sqlcQuerier interface {
 	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
 	InsertChatProvider(ctx context.Context, arg InsertChatProviderParams) (ChatProvider, error)
 	InsertChatQueuedMessage(ctx context.Context, arg InsertChatQueuedMessageParams) (ChatQueuedMessage, error)
+	// Creates a new chat run. The trigger auto-assigns the run number
+	// by incrementing chats.last_run_number.
+	InsertChatRun(ctx context.Context, chatID uuid.UUID) (ChatRun, error)
+	// Creates a new chat run step. The trigger auto-assigns the step
+	// number by incrementing chat_runs.last_step_number.
+	InsertChatRunStep(ctx context.Context, arg InsertChatRunStepParams) (ChatRunStep, error)
 	InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error)
 	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)
 	InsertDBCryptKey(ctx context.Context, arg InsertDBCryptKeyParams) error
@@ -686,6 +712,11 @@ type sqlcQuerier interface {
 	InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
 	InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) ([]WorkspaceResourceMetadatum, error)
+	// Interrupts whatever active step exists for a chat. Used when the
+	// user sends a new message with interrupt behavior.
+	InterruptActiveChatRunStep(ctx context.Context, chatID uuid.UUID) error
+	// Marks a step as interrupted by the user.
+	InterruptChatRunStep(ctx context.Context, id uuid.UUID) (ChatRunStep, error)
 	ListAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams) ([]ListAIBridgeInterceptionsRow, error)
 	// Finds all unique AI Bridge interception telemetry summaries combinations
 	// (provider, model, client) in the given timeframe for telemetry reporting.
@@ -694,6 +725,8 @@ type sqlcQuerier interface {
 	ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeTokenUsage, error)
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)
+	ListChatsByRootID(ctx context.Context, rootChatID uuid.UUID) ([]Chat, error)
+	ListChildChatsByParentID(ctx context.Context, parentChatID uuid.UUID) ([]Chat, error)
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
@@ -733,13 +766,13 @@ type sqlcQuerier interface {
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
-	// Bumps the heartbeat timestamp for a running chat so that other
-	// replicas know the worker is still alive.
-	UpdateChatHeartbeat(ctx context.Context, arg UpdateChatHeartbeatParams) (int64, error)
 	UpdateChatMessageByID(ctx context.Context, arg UpdateChatMessageByIDParams) (ChatMessage, error)
 	UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error)
 	UpdateChatProvider(ctx context.Context, arg UpdateChatProviderParams) (ChatProvider, error)
-	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
+	// Bumps the heartbeat timestamp for an active step so that other
+	// replicas know the worker is still alive. Verifies the step belongs
+	// to a run owned by the given worker.
+	UpdateChatRunStepHeartbeat(ctx context.Context, arg UpdateChatRunStepHeartbeatParams) (int64, error)
 	UpdateChatWorkspace(ctx context.Context, arg UpdateChatWorkspaceParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
 	UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error)

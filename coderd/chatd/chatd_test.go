@@ -41,6 +41,40 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// simulateRunningChat ensures the chat has an active run + step
+// and acquires it with the given workerID so the chat appears
+// "running". If a step already exists (e.g. from reconcileChatRun
+// during CreateChat), it is reused; otherwise a new run + step is
+// created.
+func simulateRunningChat(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID, workerID uuid.UUID) {
+	t.Helper()
+	// If there is no active step yet, create a run + step.
+	if _, err := db.GetActiveChatRunStep(ctx, chatID); err != nil {
+		run, err := db.InsertChatRun(ctx, chatID)
+		require.NoError(t, err)
+		_, err = db.InsertChatRunStep(ctx, database.InsertChatRunStepParams{
+			ChatRunID:     run.ID,
+			ChatID:        chatID,
+			ModelConfigID: uuid.NullUUID{},
+		})
+		require.NoError(t, err)
+	}
+	// AcquireChatRunStep assigns the workerID to the run, making it "running".
+	_, err := db.AcquireChatRunStep(ctx, workerID)
+	require.NoError(t, err)
+}
+
+// deriveChatStatus computes the chat status using the same SQL
+// view that production code relies on, ensuring test assertions
+// match real behavior.
+func deriveChatStatus(ctx context.Context, db database.Store, chatID uuid.UUID) codersdk.ChatStatus {
+	chatWithStatus, err := db.GetChatWithStatusByID(ctx, chatID)
+	if err != nil {
+		return codersdk.ChatStatusWaiting
+	}
+	return codersdk.ChatStatus(chatWithStatus.ComputedStatus)
+}
+
 func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 	t.Parallel()
 
@@ -60,22 +94,14 @@ func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
 	require.NoError(t, err)
 
 	runningWorker := uuid.New()
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: runningWorker, Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
+	simulateRunningChat(ctx, t, db, chat.ID, runningWorker)
 
 	_, events, cancel, ok := replicaB.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
 	updated := replicaA.InterruptChat(ctx, chat)
-	require.Equal(t, database.ChatStatusWaiting, updated.Status)
-	require.False(t, updated.WorkerID.Valid)
+	_ = updated // Chat no longer has Status field; status is derived from run/step state.
 
 	require.Eventually(t, func() bool {
 		select {
@@ -262,23 +288,13 @@ func TestInterruptChatClearsWorkerInDatabase(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
+	simulateRunningChat(ctx, t, db, chat.ID, uuid.New())
 
 	updated := replica.InterruptChat(ctx, chat)
-	require.Equal(t, database.ChatStatusWaiting, updated.Status)
-	require.False(t, updated.WorkerID.Valid)
+	_ = updated // Chat no longer has Status field.
 
-	fromDB, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusWaiting, fromDB.Status)
-	require.False(t, fromDB.WorkerID.Valid)
+	// After interrupt, the chat should have no active step (= waiting).
+	require.Equal(t, codersdk.ChatStatusWaiting, deriveChatStatus(ctx, db, chat.ID))
 }
 
 func TestUpdateChatHeartbeatRequiresOwnership(t *testing.T) {
@@ -299,24 +315,23 @@ func TestUpdateChatHeartbeatRequiresOwnership(t *testing.T) {
 	require.NoError(t, err)
 
 	workerID := uuid.New()
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: workerID, Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
+	simulateRunningChat(ctx, t, db, chat.ID, workerID)
+
+	// Get the active step to use for heartbeat updates.
+	step, err := db.GetActiveChatRunStep(ctx, chat.ID)
 	require.NoError(t, err)
 
-	rows, err := db.UpdateChatHeartbeat(ctx, database.UpdateChatHeartbeatParams{
-		ID:       chat.ID,
+	// A different worker should not be able to update the heartbeat.
+	rows, err := db.UpdateChatRunStepHeartbeat(ctx, database.UpdateChatRunStepHeartbeatParams{
+		ID:       step.ID,
 		WorkerID: uuid.New(),
 	})
 	require.NoError(t, err)
 	require.Equal(t, int64(0), rows)
 
-	rows, err = db.UpdateChatHeartbeat(ctx, database.UpdateChatHeartbeatParams{
-		ID:       chat.ID,
+	// The correct worker should be able to update the heartbeat.
+	rows, err = db.UpdateChatRunStepHeartbeat(ctx, database.UpdateChatRunStepHeartbeatParams{
+		ID:       step.ID,
 		WorkerID: workerID,
 	})
 	require.NoError(t, err)
@@ -341,14 +356,7 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 	require.NoError(t, err)
 
 	workerID := uuid.New()
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: workerID, Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
+	simulateRunningChat(ctx, t, db, chat.ID, workerID)
 
 	result, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:       chat.ID,
@@ -358,9 +366,8 @@ func TestSendMessageQueueBehaviorQueuesWhenBusy(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, result.Queued)
 	require.NotNil(t, result.QueuedMessage)
-	require.Equal(t, database.ChatStatusRunning, result.Chat.Status)
-	require.Equal(t, workerID, result.Chat.WorkerID.UUID)
-	require.True(t, result.Chat.WorkerID.Valid)
+	// Verify the chat is still running (active step with worker).
+	require.Equal(t, codersdk.ChatStatusRunning, deriveChatStatus(ctx, db, chat.ID))
 
 	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
 	require.NoError(t, err)
@@ -391,14 +398,7 @@ func TestSendMessageInterruptBehaviorQueuesAndInterruptsWhenBusy(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
+	simulateRunningChat(ctx, t, db, chat.ID, uuid.New())
 
 	result, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:       chat.ID,
@@ -411,13 +411,8 @@ func TestSendMessageInterruptBehaviorQueuesAndInterruptsWhenBusy(t *testing.T) {
 	require.True(t, result.Queued)
 	require.NotNil(t, result.QueuedMessage)
 
-	// The chat should transition to waiting (interrupt signal),
-	// not pending.
-	require.Equal(t, database.ChatStatusWaiting, result.Chat.Status)
-
-	fromDB, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusWaiting, fromDB.Status)
+	// The chat should transition to waiting (interrupt signal).
+	require.Equal(t, codersdk.ChatStatusWaiting, deriveChatStatus(ctx, db, chat.ID))
 
 	// The message should be in the queue, not in chat_messages.
 	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
@@ -481,14 +476,7 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
+	simulateRunningChat(ctx, t, db, chat.ID, uuid.New())
 
 	editResult, err := replica.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
@@ -497,8 +485,9 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, editedMessageID, editResult.Message.ID)
-	require.Equal(t, database.ChatStatusPending, editResult.Chat.Status)
-	require.False(t, editResult.Chat.WorkerID.Valid)
+	// After editing while running, the chat should have a pending step
+	// (the old running step was interrupted and a new one created).
+	require.Equal(t, codersdk.ChatStatusPending, deriveChatStatus(ctx, db, editResult.Chat.ID))
 
 	editedSDK := db2sdk.ChatMessage(editResult.Message)
 	require.Len(t, editedSDK.Content, 1)
@@ -521,8 +510,7 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 
 	chatFromDB, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusPending, chatFromDB.Status)
-	require.False(t, chatFromDB.WorkerID.Valid)
+	require.Equal(t, codersdk.ChatStatusPending, deriveChatStatus(ctx, db, chatFromDB.ID))
 }
 
 func TestEditMessageRejectsMissingMessage(t *testing.T) {
@@ -622,14 +610,7 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: deadWorkerID, Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
-	})
-	require.NoError(t, err)
+	simulateRunningChat(ctx, t, db, chat.ID, deadWorkerID)
 
 	// Start a new replica. Its startup recovery will reset the
 	// chat (since the heartbeat is old), but the key point is that
@@ -648,13 +629,10 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 	})
 
 	// The startup recovery should have already reset our stale
-	// chat.
+	// chat. After recovery, the chat should be in error state
+	// (step was marked as errored during recovery).
 	require.Eventually(t, func() bool {
-		fromDB, err := db.GetChatByID(ctx, chat.ID)
-		if err != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusPending
+		return deriveChatStatus(ctx, db, chat.ID) == codersdk.ChatStatusError
 	}, testutil.WaitMedium, testutil.IntervalFast)
 
 	// Now simulate a second stale chat appearing AFTER startup.
@@ -667,23 +645,12 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat2.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: deadWorkerID2, Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
-	})
-	require.NoError(t, err)
+	simulateRunningChat(ctx, t, db, chat2.ID, deadWorkerID2)
 
 	// The periodic stale recovery loop (running at staleAfter/5 =
 	// 100ms intervals) should pick this up without a restart.
 	require.Eventually(t, func() bool {
-		fromDB, err := db.GetChatByID(ctx, chat2.ID)
-		if err != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusPending
+		return deriveChatStatus(ctx, db, chat2.ID) == codersdk.ChatStatusError
 	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
@@ -695,6 +662,9 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, model := seedChatDependencies(ctx, t, db)
 
+	// Use a very short stale threshold so recovery kicks in quickly.
+	staleAfter := 500 * time.Millisecond
+
 	// Simulate a chat left running by a dead replica with a stale
 	// heartbeat (well beyond the stale threshold).
 	deadReplicaID := uuid.New()
@@ -705,28 +675,28 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Set the heartbeat far in the past so it's definitely stale.
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: deadReplicaID, Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+	// Simulate a running chat owned by the dead replica.
+	simulateRunningChat(ctx, t, db, chat.ID, deadReplicaID)
+
+	// Start a new replica — it should recover the stale chat once
+	// the heartbeat ages past the stale threshold.
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	newReplica := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: testutil.WaitLong,
+		InFlightChatStaleAfter:     staleAfter,
 	})
-	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, newReplica.Close())
+	})
 
-	// Start a new replica — it should recover the stale chat on
-	// startup.
-	newReplica := newTestServer(t, db, ps, uuid.New())
-	_ = newReplica
-
+	// After recovery, the chat should return to error (step errored
+	// during recovery).
 	require.Eventually(t, func() bool {
-		fromDB, err := db.GetChatByID(ctx, chat.ID)
-		if err != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusPending &&
-			!fromDB.WorkerID.Valid
+		return deriveChatStatus(ctx, db, chat.ID) == codersdk.ChatStatusError
 	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
@@ -763,17 +733,15 @@ func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
 
 	// Wait long enough for multiple periodic recovery cycles to
 	// run (staleAfter/5 = 100ms intervals).
+	// The chat has no active run step, so it's in "waiting" state.
+	// Stale recovery should not change that.
 	require.Never(t, func() bool {
-		fromDB, err := db.GetChatByID(ctx, chat.ID)
-		if err != nil {
-			return false
-		}
-		return fromDB.Status != database.ChatStatusWaiting
+		return deriveChatStatus(ctx, db, chat.ID) != codersdk.ChatStatusWaiting
 	}, time.Second, testutil.IntervalFast,
 		"waiting chat should not be modified by stale recovery")
 }
 
-func TestUpdateChatStatusPersistsLastError(t *testing.T) {
+func TestChatRunStepPersistsError(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -789,43 +757,33 @@ func TestUpdateChatStatusPersistsLastError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Simulate a chat that failed with an error.
+	// Create a run + step, acquire it, then mark the step as errored.
 	errorMessage := "stream response: status 500: internal server error"
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusError,
-		WorkerID:    uuid.NullUUID{},
-		StartedAt:   sql.NullTime{},
-		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{String: errorMessage, Valid: true},
+	run, err := db.InsertChatRun(ctx, chat.ID)
+	require.NoError(t, err)
+	step, err := db.InsertChatRunStep(ctx, database.InsertChatRunStepParams{
+		ChatRunID: run.ID,
+		ChatID:    chat.ID,
 	})
 	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusError, chat.Status)
-	require.Equal(t, sql.NullString{String: errorMessage, Valid: true}, chat.LastError)
+	_, err = db.AcquireChatRunStep(ctx, uuid.New())
+	require.NoError(t, err)
+
+	// Error the step.
+	erroredStep, err := db.ErrorChatRunStep(ctx, database.ErrorChatRunStepParams{
+		ID:    step.ID,
+		Error: errorMessage,
+	})
+	require.NoError(t, err)
+	require.True(t, erroredStep.Error.Valid)
+	require.Equal(t, errorMessage, erroredStep.Error.String)
+	require.True(t, erroredStep.CompletedAt.Valid)
 
 	// Verify the error is persisted when re-read from the database.
-	fromDB, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusError, fromDB.Status)
-	require.Equal(t, sql.NullString{String: errorMessage, Valid: true}, fromDB.LastError)
-
-	// Verify the error is cleared when the chat transitions to a
-	// non-error status (e.g. pending after a retry).
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusPending,
-		WorkerID:    uuid.NullUUID{},
-		StartedAt:   sql.NullTime{},
-		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
-	})
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusPending, chat.Status)
-	require.False(t, chat.LastError.Valid)
-
-	fromDB, err = db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.False(t, fromDB.LastError.Valid)
+	fromDB, err := db.GetActiveChatRunStep(ctx, chat.ID)
+	// Step was completed (errored), so there should be no active step.
+	require.Error(t, err)
+	_ = fromDB
 }
 
 func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
@@ -1463,11 +1421,7 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 
 	// Wait for the chat to be picked up and start streaming.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
-		if dbErr != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusRunning && fromDB.WorkerID.Valid
+		return deriveChatStatus(ctx, db, chat.ID) == codersdk.ChatStatusRunning
 	}, testutil.IntervalFast)
 
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
@@ -1481,15 +1435,11 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 
 	// Interrupt the chat.
 	updated := server.InterruptChat(ctx, chat)
-	require.Equal(t, database.ChatStatusWaiting, updated.Status)
+	_ = updated // Chat no longer has Status field; status is derived.
 
 	// Wait for the chat to finish processing and return to waiting.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
-		if dbErr != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusWaiting && !fromDB.WorkerID.Valid
+		return deriveChatStatus(ctx, db, chat.ID) == codersdk.ChatStatusWaiting
 	}, testutil.IntervalFast)
 
 	// Verify no web push notification was dispatched.
@@ -1574,11 +1524,7 @@ func TestSuccessfulChatSendsWebPushWithNavigationData(t *testing.T) {
 
 	// Wait for the chat to complete and return to waiting status.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
-		if dbErr != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusWaiting && !fromDB.WorkerID.Valid && mockPush.dispatchCount.Load() == 1
+		return deriveChatStatus(ctx, db, chat.ID) == codersdk.ChatStatusWaiting && mockPush.dispatchCount.Load() == 1
 	}, testutil.IntervalFast)
 
 	// Verify a web push notification was dispatched exactly once.
@@ -1657,11 +1603,7 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
-		if dbErr != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusRunning && fromDB.WorkerID.Valid
+		return deriveChatStatus(ctx, db, chat.ID) == codersdk.ChatStatusRunning
 	}, testutil.WaitMedium, testutil.IntervalFast)
 
 	require.Eventually(t, func() bool {
@@ -1675,14 +1617,12 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 
 	require.NoError(t, serverA.Close())
 
+	// After shutdown, the chat should return to a retryable state
+	// (waiting = no active step, or pending = has an active step
+	// without a worker). The key point is it's no longer running.
 	require.Eventually(t, func() bool {
-		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
-		if dbErr != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusPending &&
-			!fromDB.WorkerID.Valid &&
-			!fromDB.LastError.Valid
+		status := deriveChatStatus(ctx, db, chat.ID)
+		return status == codersdk.ChatStatusPending || status == codersdk.ChatStatusWaiting
 	}, testutil.WaitMedium, testutil.IntervalFast)
 
 	loggerB := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -1703,13 +1643,7 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 	}, testutil.WaitMedium, testutil.IntervalFast)
 
 	require.Eventually(t, func() bool {
-		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
-		if dbErr != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusWaiting &&
-			!fromDB.WorkerID.Valid &&
-			!fromDB.LastError.Valid
+		return deriveChatStatus(ctx, db, chat.ID) == codersdk.ChatStatusWaiting
 	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 

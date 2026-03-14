@@ -2648,31 +2648,34 @@ func TestInterruptChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		runningWorkerID := uuid.New()
-		chat, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
-			ID:          chat.ID,
-			Status:      database.ChatStatusRunning,
-			WorkerID:    uuid.NullUUID{UUID: runningWorkerID, Valid: true},
-			StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-			HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+		// Create a run and step to simulate a running chat.
+		chatRun, err := db.InsertChatRun(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		step, err := db.InsertChatRunStep(dbauthz.AsSystemRestricted(ctx), database.InsertChatRunStepParams{
+			ChatRunID:     chatRun.ID,
+			ChatID:        chat.ID,
+			ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		})
 		require.NoError(t, err)
-		require.Equal(t, database.ChatStatusRunning, chat.Status)
-		require.True(t, chat.WorkerID.Valid)
-		require.True(t, chat.StartedAt.Valid)
-		require.True(t, chat.HeartbeatAt.Valid)
+
+		// Acquire the step to mark it as running.
+		runningWorkerID := uuid.New()
+		_, err = db.AcquireChatRunStep(dbauthz.AsSystemRestricted(ctx), runningWorkerID)
+		require.NoError(t, err)
+
+		// Verify the active step exists before interrupt.
+		activeStep, err := db.GetActiveChatRunStep(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, step.ID, activeStep.ID)
 
 		interrupted, err := client.InterruptChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, chat.ID, interrupted.ID)
 		require.Equal(t, codersdk.ChatStatusWaiting, interrupted.Status)
 
-		persisted, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, database.ChatStatusWaiting, persisted.Status)
-		require.False(t, persisted.WorkerID.Valid)
-		require.False(t, persisted.StartedAt.Valid)
-		require.False(t, persisted.HeartbeatAt.Valid)
+		// After interrupt, there should be no active step.
+		_, err = db.GetActiveChatRunStep(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.Error(t, err)
 	})
 
 	t.Run("ChatNotFound", func(t *testing.T) {

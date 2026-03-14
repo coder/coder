@@ -13,7 +13,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	osschatd "github.com/coder/coder/v2/coderd/chatd"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
@@ -124,11 +123,11 @@ func NewMultiReplicaSubscribeFn(
 		// relay synchronously so the caller gets in-flight
 		// message_part events right away.
 		var initialRelaySnapshot []codersdk.ChatStreamEvent
-		if params.Chat.Status == database.ChatStatusRunning &&
-			params.Chat.WorkerID.Valid &&
-			params.Chat.WorkerID.UUID != params.WorkerID &&
+		if params.InitialStatus == codersdk.ChatStatusRunning &&
+			params.InitialWorkerID != uuid.Nil &&
+			params.InitialWorkerID != params.WorkerID &&
 			cfg.dial() != nil {
-			snapshot, parts, cancel, err := cfg.dial()(ctx, chatID, params.Chat.WorkerID.UUID, requestHeader)
+			snapshot, parts, cancel, err := cfg.dial()(ctx, chatID, params.InitialWorkerID, requestHeader)
 			if err == nil {
 				relayCancel = cancel
 				relayParts = parts
@@ -350,28 +349,30 @@ func NewMultiReplicaSubscribeFn(
 					// Re-check whether the chat is still
 					// running on a remote worker before
 					// reconnecting.
-					currentChat, chatErr := params.DB.GetChatByID(ctx, chatID)
-					if chatErr != nil {
-						logger.Warn(ctx, "failed to get chat for relay reconnect",
+					activeStep, stepErr := params.DB.GetActiveChatRunStep(ctx, chatID)
+					if stepErr != nil {
+						// No active step means chat is idle;
+						// no relay needed.
+						continue
+					}
+					activeRun, runErr := params.DB.GetChatRunByID(ctx, activeStep.ChatRunID)
+					if runErr != nil {
+						logger.Warn(ctx, "failed to get chat run for relay reconnect",
 							slog.F("chat_id", chatID),
-							slog.Error(chatErr),
+							slog.Error(runErr),
 						)
-						// Retry on transient DB errors to
-						// avoid permanently stalling the
-						// stream.
 						scheduleRelayReconnect()
 						continue
 					}
-					if currentChat.Status == database.ChatStatusRunning &&
-						currentChat.WorkerID.Valid && currentChat.WorkerID.UUID != params.WorkerID {
-						openRelayAsync(currentChat.WorkerID.UUID)
+					if activeRun.WorkerID.Valid && activeRun.WorkerID.UUID != params.WorkerID {
+						openRelayAsync(activeRun.WorkerID.UUID)
 					}
 				case sn, ok := <-statusNotifications:
 					if !ok {
 						statusNotifications = nil
 						continue
 					}
-					if sn.Status == database.ChatStatusRunning && sn.WorkerID != uuid.Nil && sn.WorkerID != params.WorkerID {
+					if sn.Status == codersdk.ChatStatusRunning && sn.WorkerID != uuid.Nil && sn.WorkerID != params.WorkerID {
 						openRelayAsync(sn.WorkerID)
 					} else {
 						closeRelay()
