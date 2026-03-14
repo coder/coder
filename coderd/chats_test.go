@@ -3525,6 +3525,58 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 	})
 }
 
+func TestChatUsageLimitOverrideRoutes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("UpsertUserOverrideRequiresPositiveSpendLimit", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodPut,
+			fmt.Sprintf("/api/experimental/chats/usage-limits/overrides/%s", member.ID),
+			map[string]any{},
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		err = codersdk.ReadBodyAsError(res)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid chat usage limit override.", sdkErr.Message)
+		require.Equal(t, "Spend limit must be greater than 0.", sdkErr.Detail)
+	})
+
+	t.Run("DeleteUserOverrideMissingUser", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		err := client.DeleteChatUsageLimitOverride(ctx, uuid.New())
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "User not found.", sdkErr.Message)
+	})
+
+	t.Run("DeleteUserOverrideMissingOverride", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		err := client.DeleteChatUsageLimitOverride(ctx, member.ID)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Chat usage limit override not found.", sdkErr.Message)
+	})
+}
+
 func TestPostChatFile(t *testing.T) {
 	t.Parallel()
 
