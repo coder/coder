@@ -82,6 +82,30 @@ type chatDiffReference struct {
 	RepositoryRef  *chatRepositoryRef
 }
 
+// chatUsageLimitExceededResponse is the 409 response body returned
+// when a chat operation exceeds the caller's usage limit. The
+// structured fields let frontends render user-friendly spend,
+// limit, and reset information without parsing debug text.
+type chatUsageLimitExceededResponse struct {
+	Message     string    `json:"message"`
+	SpentMicros int64     `json:"spent_micros"`
+	LimitMicros int64     `json:"limit_micros"`
+	ResetsAt    time.Time `json:"resets_at" format:"date-time"`
+}
+
+func writeChatUsageLimitExceeded(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	limitErr *chatd.UsageLimitExceededError,
+) {
+	httpapi.Write(ctx, rw, http.StatusConflict, chatUsageLimitExceededResponse{
+		Message:     "Chat usage limit exceeded.",
+		SpentMicros: limitErr.ConsumedMicros,
+		LimitMicros: limitErr.LimitMicros,
+		ResetsAt:    limitErr.PeriodEnd,
+	})
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -270,10 +294,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var limitErr *chatd.UsageLimitExceededError
 		if errors.As(err, &limitErr) {
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat usage limit exceeded.",
-				Detail:  limitErr.Error(),
-			})
+			writeChatUsageLimitExceeded(ctx, rw, limitErr)
 			return
 		}
 		if database.IsForeignKeyViolation(
@@ -1469,10 +1490,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	if sendErr != nil {
 		var limitErr *chatd.UsageLimitExceededError
 		if errors.As(sendErr, &limitErr) {
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat usage limit exceeded.",
-				Detail:  limitErr.Error(),
-			})
+			writeChatUsageLimitExceeded(ctx, rw, limitErr)
 			return
 		}
 		if xerrors.Is(sendErr, chatd.ErrMessageQueueFull) {
@@ -1549,10 +1567,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	if editErr != nil {
 		var limitErr *chatd.UsageLimitExceededError
 		if errors.As(editErr, &limitErr) {
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat usage limit exceeded.",
-				Detail:  limitErr.Error(),
-			})
+			writeChatUsageLimitExceeded(ctx, rw, limitErr)
 			return
 		}
 
@@ -1648,10 +1663,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	if txErr != nil {
 		var limitErr *chatd.UsageLimitExceededError
 		if errors.As(txErr, &limitErr) {
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat usage limit exceeded.",
-				Detail:  limitErr.Error(),
-			})
+			writeChatUsageLimitExceeded(ctx, rw, limitErr)
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
