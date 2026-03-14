@@ -265,14 +265,14 @@ export const GitPanel: FC<GitPanelProps> = ({
 						diffStyle={diffStyle}
 					/>
 				) : (
-					<LocalRepoContent
-						repoRoot={view.repoRoot}
-						repo={repositories.get(view.repoRoot)}
-						onCommit={onCommit}
-						isExpanded={isExpanded}
-						diffStyle={diffStyle}
-					/>
-				)}
+						<LocalRepoContent
+							repoRoot={view.repoRoot}
+							repo={repositories.get(view.repoRoot)}
+							diffStats={repoStats.get(view.repoRoot) ?? { additions: 0, deletions: 0 }}
+							onCommit={onCommit}
+							isExpanded={isExpanded}
+							diffStyle={diffStyle}
+						/>				)}
 			</div>
 		</div>
 	);
@@ -318,25 +318,26 @@ const RemoteContent: FC<{
 // Local view (single repo)
 // ---------------------------------------------------------------
 
-const LocalRepoContent: FC<{
+	const LocalRepoContent: FC<{
 	repoRoot: string;
 	repo: WorkspaceAgentRepoChanges | undefined;
+	diffStats: DiffStats;
 	onCommit: (repoRoot: string) => void;
 	isExpanded?: boolean;
 	diffStyle: DiffStyle;
-}> = ({ repoRoot, repo, onCommit, isExpanded, diffStyle }) => {
+}> = ({ repoRoot, repo, diffStats, onCommit, isExpanded, diffStyle }) => {
 	if (!repo) {
 		return null;
 	}
 
 	return (
 		<div className="flex h-full flex-col">
-			<RepoHeader
-				repoRoot={repoRoot}
-				repo={repo}
-				onCommit={() => onCommit(repoRoot)}
-			/>
-			<LocalDiffPanel
+				<RepoHeader
+					repoRoot={repoRoot}
+					repo={repo}
+					diffStats={diffStats}
+					onCommit={() => onCommit(repoRoot)}
+				/>			<LocalDiffPanel
 				repo={repo}
 				isExpanded={isExpanded}
 				diffStyle={diffStyle}
@@ -352,8 +353,9 @@ const LocalRepoContent: FC<{
 const RepoHeader: FC<{
 	repoRoot: string;
 	repo: WorkspaceAgentRepoChanges;
+	diffStats: DiffStats;
 	onCommit: () => void;
-}> = ({ repoRoot, repo, onCommit }) => {
+}> = ({ repoRoot, repo, diffStats, onCommit }) => {
 	return (
 		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
 			<div className="flex min-w-0 items-center gap-1.5 text-xs text-content-secondary">
@@ -362,15 +364,21 @@ const RepoHeader: FC<{
 					{repo.branch?.trim() || repoTabLabel(repoRoot)}
 				</span>
 			</div>
-			<Button
-				size="sm"
-				onClick={onCommit}
-				disabled={!repo.unified_diff}
-				className="ml-auto h-6 gap-1 border border-transparent bg-surface-invert-primary px-2 text-xs text-content-invert hover:bg-surface-invert-secondary active:opacity-80"
-			>
-				<CheckIcon className="size-3" />
-				Commit
-			</Button>
+			<div className="ml-auto flex shrink-0 items-center gap-1.5">
+				<DiffStatBadge
+					additions={diffStats.additions}
+					deletions={diffStats.deletions}
+				/>
+				<Button
+					size="sm"
+					onClick={onCommit}
+					disabled={!repo.unified_diff}
+					className="h-6 gap-1 border border-transparent bg-surface-invert-primary px-2 text-xs text-content-invert hover:bg-surface-invert-secondary active:opacity-80"
+				>
+					<CheckIcon className="size-3" />
+					Commit
+				</Button>
+			</div>
 		</div>
 	);
 };
