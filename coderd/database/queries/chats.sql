@@ -719,6 +719,7 @@ FROM chat_messages cm
 JOIN chats c ON c.id = cm.chat_id
 WHERE c.owner_id = @user_id::uuid
   AND cm.created_at >= @start_time::timestamptz
+  AND cm.created_at < @end_time::timestamptz
   AND cm.total_cost_micros IS NOT NULL;
 
 -- name: CountEnabledModelsWithoutPricing :one

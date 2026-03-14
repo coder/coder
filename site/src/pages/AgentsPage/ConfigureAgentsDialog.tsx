@@ -247,40 +247,67 @@ const LimitsContent: FC = () => {
 
 	const handleSaveDefault = async () => {
 		const spendLimitMicros = enabled ? dollarsToMicros(amountDollars) : null;
-		await updateConfigMutation.mutateAsync({
-			spend_limit_micros: spendLimitMicros,
-			period,
-			updated_at: new Date().toISOString(),
-		});
-		lastSyncedRef.current = JSON.stringify({
-			spend_limit_micros: spendLimitMicros,
-			period,
-		});
+		try {
+			await updateConfigMutation.mutateAsync({
+				spend_limit_micros: spendLimitMicros,
+				period,
+				updated_at: new Date().toISOString(),
+			});
+			lastSyncedRef.current = JSON.stringify({
+				spend_limit_micros: spendLimitMicros,
+				period,
+			});
+		} catch {
+			// Keep the current form state so the inline mutation error is visible.
+		}
 	};
 
 	const handleAddOverride = async () => {
 		if (!selectedUser) {
 			return;
 		}
-		await upsertOverrideMutation.mutateAsync({
-			userID: selectedUser.id,
-			req: { spend_limit_micros: dollarsToMicros(userOverrideAmount) },
-		});
-		setSelectedUser(null);
-		setUserOverrideAmount("");
-		setShowUserForm(false);
+		try {
+			await upsertOverrideMutation.mutateAsync({
+				userID: selectedUser.id,
+				req: { spend_limit_micros: dollarsToMicros(userOverrideAmount) },
+			});
+			setSelectedUser(null);
+			setUserOverrideAmount("");
+			setShowUserForm(false);
+		} catch {
+			// Keep the current form state so the inline mutation error is visible.
+		}
 	};
 
 	const handleAddGroupOverride = async () => {
-		await upsertGroupOverrideMutation.mutateAsync({
-			groupID: selectedGroupId,
-			req: { spend_limit_micros: dollarsToMicros(groupAmount) },
-		});
-		setSelectedGroupId("");
-		setGroupAmount("");
-		setShowGroupForm(false);
+		try {
+			await upsertGroupOverrideMutation.mutateAsync({
+				groupID: selectedGroupId,
+				req: { spend_limit_micros: dollarsToMicros(groupAmount) },
+			});
+			setSelectedGroupId("");
+			setGroupAmount("");
+			setShowGroupForm(false);
+		} catch {
+			// Keep the current form state so the inline mutation error is visible.
+		}
 	};
 
+	const handleDeleteGroupOverride = async (groupID: string) => {
+		try {
+			await deleteGroupOverrideMutation.mutateAsync(groupID);
+		} catch {
+			// Keep the current UI state so the inline mutation error is visible.
+		}
+	};
+
+	const handleDeleteOverride = async (userID: string) => {
+		try {
+			await deleteOverrideMutation.mutateAsync(userID);
+		} catch {
+			// Keep the current UI state so the inline mutation error is visible.
+		}
+	};
 	if (configQuery.isLoading) {
 		return (
 			<div className="flex items-center justify-center py-8">
@@ -454,9 +481,7 @@ const LimitsContent: FC = () => {
 										size="sm"
 										type="button"
 										onClick={() =>
-											void deleteGroupOverrideMutation.mutateAsync(
-												override.group_id,
-											)
+											void handleDeleteGroupOverride(override.group_id)
 										}
 										disabled={deleteGroupOverrideMutation.isPending}
 									>
@@ -615,9 +640,7 @@ const LimitsContent: FC = () => {
 										variant="outline"
 										size="sm"
 										type="button"
-										onClick={() =>
-											void deleteOverrideMutation.mutateAsync(override.user_id)
-										}
+										onClick={() => void handleDeleteOverride(override.user_id)}
 										disabled={deleteOverrideMutation.isPending}
 									>
 										Delete

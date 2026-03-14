@@ -4235,16 +4235,18 @@ FROM chat_messages cm
 JOIN chats c ON c.id = cm.chat_id
 WHERE c.owner_id = $1::uuid
   AND cm.created_at >= $2::timestamptz
+  AND cm.created_at < $3::timestamptz
   AND cm.total_cost_micros IS NOT NULL
 `
 
 type GetUserChatSpendInPeriodParams struct {
 	UserID    uuid.UUID `db:"user_id" json:"user_id"`
 	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
 }
 
 func (q *sqlQuerier) GetUserChatSpendInPeriod(ctx context.Context, arg GetUserChatSpendInPeriodParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getUserChatSpendInPeriod, arg.UserID, arg.StartTime)
+	row := q.db.QueryRowContext(ctx, getUserChatSpendInPeriod, arg.UserID, arg.StartTime, arg.EndTime)
 	var total_spend_micros int64
 	err := row.Scan(&total_spend_micros)
 	return total_spend_micros, err

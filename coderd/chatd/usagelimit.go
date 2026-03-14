@@ -41,6 +41,13 @@ func ComputePeriodBounds(now time.Time, period codersdk.ChatUsageLimitPeriod) (s
 }
 
 // ResolveUsageLimitStatus resolves the current usage-limit status for userID.
+//
+// Note: There is a potential race condition where two concurrent messages
+// from the same user can both pass the limit check if processed in
+// parallel, allowing brief overage. This is acceptable because:
+//   - Cost is only known after the LLM API returns.
+//   - Overage is bounded by message cost × concurrency.
+//   - Fail-open is the deliberate design choice for this feature.
 func ResolveUsageLimitStatus(ctx context.Context, db database.Store, userID uuid.UUID, now time.Time) (*codersdk.ChatUsageLimitStatus, error) {
 	//nolint:gocritic // Shared HTTP and daemon usage-limit checks need
 	// deployment-config access plus cross-user spend reads.
@@ -79,6 +86,7 @@ func ResolveUsageLimitStatus(ctx context.Context, db database.Store, userID uuid
 	spendTotal, err := db.GetUserChatSpendInPeriod(authCtx, database.GetUserChatSpendInPeriodParams{
 		UserID:    userID,
 		StartTime: start,
+		EndTime:   end,
 	})
 	if err != nil {
 		return nil, err

@@ -529,6 +529,8 @@ func (p *Server) checkUsageLimit(ctx context.Context, ownerID uuid.UUID) error {
 	if status == nil {
 		return nil
 	}
+	// Block when current spend reaches or exceeds limit (>= ensures
+	// the user cannot start new conversations once the limit is hit).
 	if status.SpendLimitMicros != nil && status.CurrentSpend >= *status.SpendLimitMicros {
 		return &ErrUsageLimitExceeded{
 			LimitMicros:    *status.SpendLimitMicros,
