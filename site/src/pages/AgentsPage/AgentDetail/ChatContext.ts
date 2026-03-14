@@ -12,6 +12,7 @@ import {
 import { useQueryClient } from "react-query";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
+import type { ChatDetailError } from "../usageLimitMessage";
 import { applyMessagePartToStreamState } from "./streamState";
 import type { StreamState } from "./types";
 
@@ -419,7 +420,7 @@ interface UseChatStoreOptions {
 	chatRecord: TypesGen.Chat | undefined;
 	chatMessagesData: TypesGen.ChatMessagesResponse | undefined;
 	chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
-	setChatErrorReason: (chatID: string, reason: string) => void;
+	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatID: string) => void;
 }
 
@@ -749,7 +750,10 @@ export const useChatStore = (
 						store.setChatStatus("error");
 						store.setStreamError(reason);
 						store.clearRetryState();
-						setChatErrorReason(chatID, reason);
+						setChatErrorReason(chatID, {
+							kind: "generic",
+							message: reason,
+						});
 						updateSidebarChat((chat) => ({
 							...chat,
 							status: "error",

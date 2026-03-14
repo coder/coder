@@ -21,6 +21,7 @@ import {
 import { GitPanel } from "./GitPanel";
 import { RightPanel } from "./RightPanel";
 import { SidebarTabView } from "./SidebarTabView";
+import type { ChatDetailError } from "./usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -57,7 +58,7 @@ interface AgentDetailViewProps {
 	agentId: string;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
-	chatErrorReasons: Record<string, string>;
+	chatErrorReasons: Record<string, ChatDetailError>;
 	chatRecord: TypesGen.Chat | undefined;
 	isArchived: boolean;
 	hasWorkspace: boolean;
@@ -277,9 +278,9 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							store={store}
 							chatID={agentId}
 							persistedErrorReason={
-								chatErrorReasons[agentId] ||
-								(chatStatus === "error"
-									? chatRecord?.last_error || undefined
+								chatErrorReasons[agentId] ??
+								(chatStatus === "error" && chatRecord?.last_error
+									? { kind: "generic" as const, message: chatRecord.last_error }
 									: undefined)
 							}
 							onOpenAnalytics={onOpenAnalytics}

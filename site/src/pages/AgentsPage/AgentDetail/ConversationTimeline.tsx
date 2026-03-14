@@ -26,6 +26,7 @@ import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { ImageThumbnail } from "../AgentChatInput";
 import { ImageLightbox } from "../ImageLightbox";
+import type { ChatDetailError } from "../usageLimitMessage";
 import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
@@ -34,15 +35,6 @@ import type {
 	RenderBlock,
 	StreamState,
 } from "./types";
-
-const isUsageLimitErrorMessage = (message: string): boolean => {
-	const normalizedMessage = message.trim();
-	return (
-		normalizedMessage === "Chat usage limit exceeded." ||
-		normalizedMessage === "Your usage limit has been reached." ||
-		/^You've used .+ of your .+ (?:spend )?limit\./i.test(normalizedMessage)
-	);
-};
 
 const ReasoningDisclosure: FC<{
 	id: string;
@@ -877,7 +869,7 @@ interface ConversationTimelineProps {
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	retryState?: { attempt: number; error: string } | null;
 	isAwaitingFirstStreamChunk: boolean;
-	detailErrorMessage?: string | null;
+	detailError?: ChatDetailError | null;
 	onOpenAnalytics?: () => void;
 	onEditUserMessage?: (
 		messageId: number,
@@ -901,7 +893,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	subagentStatusOverrides,
 	retryState,
 	isAwaitingFirstStreamChunk,
-	detailErrorMessage,
+	detailError,
 	onOpenAnalytics,
 	onEditUserMessage,
 	editingMessageId,
@@ -910,11 +902,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 }) => {
 	const shouldRenderStreamInLastSection =
 		hasStreamOutput && parsedSections.length > 0;
-	const usageErrorMessage = detailErrorMessage?.trim();
-	const isUsageLimitError =
-		typeof usageErrorMessage === "string" &&
-		usageErrorMessage.length > 0 &&
-		isUsageLimitErrorMessage(usageErrorMessage);
+	const isUsageLimitError = detailError?.kind === "usage-limit";
 	const showUsageAction = onOpenAnalytics !== undefined && isUsageLimitError;
 
 	return (
@@ -991,7 +979,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 					)}
 				</div>
 			)}
-			{detailErrorMessage && (
+			{detailError && (
 				<Alert
 					severity={isUsageLimitError ? "info" : "error"}
 					className="py-2"
@@ -1003,7 +991,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 						)
 					}
 				>
-					{detailErrorMessage}
+					{detailError.message}
 				</Alert>
 			)}
 		</div>

@@ -16,13 +16,14 @@ import {
 	type ConfigureAgentsSection,
 } from "./ConfigureAgentsDialog";
 import { UserAnalyticsDialog } from "./UserAnalyticsDialog";
+import type { ChatDetailError } from "./usageLimitMessage";
 import { WebPushButton } from "./WebPushButton";
 
 type ChatModelOption = ModelSelectorOption;
 
 export interface AgentsOutletContext {
-	chatErrorReasons: Record<string, string>;
-	setChatErrorReason: (chatId: string, reason: string) => void;
+	chatErrorReasons: Record<string, ChatDetailError>;
+	setChatErrorReason: (chatId: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatId: string) => void;
 	requestArchiveAgent: (chatId: string) => void;
 	requestUnarchiveAgent: (chatId: string) => void;
@@ -114,6 +115,16 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		setAnalyticsDialogKey((key) => key + 1);
 		setUserAnalyticsDialogOpen(true);
 	}, []);
+	const sidebarChatErrorReasons = useMemo(
+		() =>
+			Object.fromEntries(
+				Object.entries(chatErrorReasons).map(([chatId, error]) => [
+					chatId,
+					error.message,
+				]),
+			),
+		[chatErrorReasons],
+	);
 	const outletContextValue = useMemo(
 		() => ({ ...outletContext, onOpenAnalytics: handleOpenAnalytics }),
 		[outletContext, handleOpenAnalytics],
@@ -132,7 +143,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 			>
 				<AgentsSidebar
 					chats={chatList}
-					chatErrorReasons={chatErrorReasons}
+					chatErrorReasons={sidebarChatErrorReasons}
 					modelOptions={catalogModelOptions}
 					modelConfigs={modelConfigs}
 					logoUrl={logoUrl}
