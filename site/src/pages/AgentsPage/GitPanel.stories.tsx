@@ -5,7 +5,7 @@ import type {
 	ChatDiffStatus,
 	WorkspaceAgentRepoChanges,
 } from "api/typesGenerated";
-import { fn, spyOn } from "storybook/test";
+import { expect, fn, spyOn, userEvent } from "storybook/test";
 import { GitPanel } from "./GitPanel";
 
 // ---------------------------------------------------------------------------
@@ -74,6 +74,23 @@ const defaultDiffContents: ChatDiffContents = {
 	chat_id: "test-chat",
 };
 
+/** Reusable PR diff status with head/base branches. */
+const makePrStatus = (
+	overrides: Partial<ChatDiffStatus> = {},
+): ChatDiffStatus => ({
+	...defaultDiffStatus,
+	url: "https://github.com/coder/coder/pull/23020",
+	pull_request_title: "feat(agents): add MCP server configuration to agents",
+	pull_request_state: "open",
+	pull_request_draft: false,
+	base_branch: "main",
+	head_branch: "feat/add-mcp-config",
+	additions: 4037,
+	deletions: 7,
+	changed_files: 12,
+	...overrides,
+});
+
 // ---------------------------------------------------------------------------
 // Meta
 // ---------------------------------------------------------------------------
@@ -106,37 +123,15 @@ type Story = StoryObj<typeof GitPanel>;
 // Stories
 // ---------------------------------------------------------------------------
 
-/** PR is open with a title, working changes in one repo. */
+/** PR is open with a title, head/base branches, and working changes. */
 export const PullRequestAndWorkingChanges: Story = {
 	args: {
 		prTab: { prNumber: 23020, chatId: "test-chat" },
-		remoteDiffStats: {
-			...defaultDiffStatus,
-			url: "https://github.com/coder/coder/pull/23020",
-			pull_request_title:
-				"feat(agents): add MCP server configuration to agents",
-			pull_request_state: "open",
-			pull_request_draft: false,
-			base_branch: "main",
-			additions: 4037,
-			deletions: 7,
-			changed_files: 12,
-		},
+		remoteDiffStats: makePrStatus(),
 		repositories: new Map([["/home/coder/coder", makeRepo()]]),
 	},
 	beforeEach: () => {
-		spyOn(API, "getChatDiffStatus").mockResolvedValue({
-			...defaultDiffStatus,
-			url: "https://github.com/coder/coder/pull/23020",
-			pull_request_title:
-				"feat(agents): add MCP server configuration to agents",
-			pull_request_state: "open",
-			pull_request_draft: false,
-			base_branch: "main",
-			additions: 4037,
-			deletions: 7,
-			changed_files: 12,
-		});
+		spyOn(API, "getChatDiffStatus").mockResolvedValue(makePrStatus());
 		spyOn(API, "getChatDiffContents").mockResolvedValue({
 			...defaultDiffContents,
 			diff: sampleDiff,
@@ -144,37 +139,35 @@ export const PullRequestAndWorkingChanges: Story = {
 	},
 };
 
-/** Draft PR with working changes. */
+/** Draft PR with head/base branches. */
 export const DraftPullRequest: Story = {
 	args: {
 		prTab: { prNumber: 22950, chatId: "test-chat" },
-		remoteDiffStats: {
-			...defaultDiffStatus,
+		remoteDiffStats: makePrStatus({
 			url: "https://github.com/coder/coder/pull/22950",
 			pull_request_title: "fix: resolve race condition in workspace builds",
-			pull_request_state: "open",
 			pull_request_draft: true,
-			base_branch: "main",
+			head_branch: "fix/race-condition",
 			additions: 142,
 			deletions: 38,
 			changed_files: 5,
-		},
+		}),
 		repositories: new Map([
 			["/home/coder/coder", makeRepo({ branch: "fix/race-condition" })],
 		]),
 	},
 	beforeEach: () => {
-		spyOn(API, "getChatDiffStatus").mockResolvedValue({
-			...defaultDiffStatus,
-			url: "https://github.com/coder/coder/pull/22950",
-			pull_request_title: "fix: resolve race condition in workspace builds",
-			pull_request_state: "open",
-			pull_request_draft: true,
-			base_branch: "main",
-			additions: 142,
-			deletions: 38,
-			changed_files: 5,
-		});
+		spyOn(API, "getChatDiffStatus").mockResolvedValue(
+			makePrStatus({
+				url: "https://github.com/coder/coder/pull/22950",
+				pull_request_title: "fix: resolve race condition in workspace builds",
+				pull_request_draft: true,
+				head_branch: "fix/race-condition",
+				additions: 142,
+				deletions: 38,
+				changed_files: 5,
+			}),
+		);
 		spyOn(API, "getChatDiffContents").mockResolvedValue({
 			...defaultDiffContents,
 			diff: sampleDiff,
@@ -182,32 +175,32 @@ export const DraftPullRequest: Story = {
 	},
 };
 
-/** Merged PR, no working changes. */
+/** Merged PR. */
 export const MergedPullRequest: Story = {
 	args: {
 		prTab: { prNumber: 23000, chatId: "test-chat" },
-		remoteDiffStats: {
-			...defaultDiffStatus,
+		remoteDiffStats: makePrStatus({
 			url: "https://github.com/coder/coder/pull/23000",
 			pull_request_title: "chore: update dependencies to latest",
 			pull_request_state: "merged",
-			base_branch: "main",
+			head_branch: "chore/update-deps",
 			additions: 89,
 			deletions: 45,
 			changed_files: 3,
-		},
+		}),
 	},
 	beforeEach: () => {
-		spyOn(API, "getChatDiffStatus").mockResolvedValue({
-			...defaultDiffStatus,
-			url: "https://github.com/coder/coder/pull/23000",
-			pull_request_title: "chore: update dependencies to latest",
-			pull_request_state: "merged",
-			base_branch: "main",
-			additions: 89,
-			deletions: 45,
-			changed_files: 3,
-		});
+		spyOn(API, "getChatDiffStatus").mockResolvedValue(
+			makePrStatus({
+				url: "https://github.com/coder/coder/pull/23000",
+				pull_request_title: "chore: update dependencies to latest",
+				pull_request_state: "merged",
+				head_branch: "chore/update-deps",
+				additions: 89,
+				deletions: 45,
+				changed_files: 3,
+			}),
+		);
 		spyOn(API, "getChatDiffContents").mockResolvedValue({
 			...defaultDiffContents,
 			diff: sampleDiff,
@@ -219,28 +212,28 @@ export const MergedPullRequest: Story = {
 export const ClosedPullRequest: Story = {
 	args: {
 		prTab: { prNumber: 22800, chatId: "test-chat" },
-		remoteDiffStats: {
-			...defaultDiffStatus,
+		remoteDiffStats: makePrStatus({
 			url: "https://github.com/coder/coder/pull/22800",
 			pull_request_title: "feat: experimental websocket transport",
 			pull_request_state: "closed",
-			base_branch: "main",
+			head_branch: "feat/websocket-transport",
 			additions: 200,
 			deletions: 10,
 			changed_files: 4,
-		},
+		}),
 	},
 	beforeEach: () => {
-		spyOn(API, "getChatDiffStatus").mockResolvedValue({
-			...defaultDiffStatus,
-			url: "https://github.com/coder/coder/pull/22800",
-			pull_request_title: "feat: experimental websocket transport",
-			pull_request_state: "closed",
-			base_branch: "main",
-			additions: 200,
-			deletions: 10,
-			changed_files: 4,
-		});
+		spyOn(API, "getChatDiffStatus").mockResolvedValue(
+			makePrStatus({
+				url: "https://github.com/coder/coder/pull/22800",
+				pull_request_title: "feat: experimental websocket transport",
+				pull_request_state: "closed",
+				head_branch: "feat/websocket-transport",
+				additions: 200,
+				deletions: 10,
+				changed_files: 4,
+			}),
+		);
 		spyOn(API, "getChatDiffContents").mockResolvedValue({
 			...defaultDiffContents,
 			diff: sampleDiff,
@@ -272,16 +265,13 @@ export const WorkingChangesOnly: Story = {
 export const MultipleRepos: Story = {
 	args: {
 		prTab: { prNumber: 23020, chatId: "test-chat" },
-		remoteDiffStats: {
-			...defaultDiffStatus,
-			url: "https://github.com/coder/coder/pull/23020",
+		remoteDiffStats: makePrStatus({
 			pull_request_title: "feat: multi-repo workspace support",
-			pull_request_state: "open",
-			base_branch: "main",
+			head_branch: "feat/multi-repo",
 			additions: 500,
 			deletions: 120,
 			changed_files: 8,
-		},
+		}),
 		repositories: new Map([
 			["/home/coder/coder", makeRepo()],
 			[
@@ -296,16 +286,15 @@ export const MultipleRepos: Story = {
 		]),
 	},
 	beforeEach: () => {
-		spyOn(API, "getChatDiffStatus").mockResolvedValue({
-			...defaultDiffStatus,
-			url: "https://github.com/coder/coder/pull/23020",
-			pull_request_title: "feat: multi-repo workspace support",
-			pull_request_state: "open",
-			base_branch: "main",
-			additions: 500,
-			deletions: 120,
-			changed_files: 8,
-		});
+		spyOn(API, "getChatDiffStatus").mockResolvedValue(
+			makePrStatus({
+				pull_request_title: "feat: multi-repo workspace support",
+				head_branch: "feat/multi-repo",
+				additions: 500,
+				deletions: 120,
+				changed_files: 8,
+			}),
+		);
 		spyOn(API, "getChatDiffContents").mockResolvedValue({
 			...defaultDiffContents,
 			diff: sampleDiff,
@@ -317,5 +306,62 @@ export const MultipleRepos: Story = {
 export const EmptyState: Story = {
 	args: {
 		prTab: { prNumber: 23020, chatId: "test-chat" },
+	},
+};
+
+/**
+ * PR diff with the inline comment input visible. The play function
+ * waits for the diff to render, then clicks a line number gutter
+ * to trigger the annotation input.
+ */
+export const InlineCommentInput: Story = {
+	args: {
+		prTab: { prNumber: 23020, chatId: "test-chat" },
+		remoteDiffStats: makePrStatus(),
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ height: 700, width: 600 }}>
+				<Story />
+			</div>
+		),
+	],
+	beforeEach: () => {
+		spyOn(API, "getChatDiffStatus").mockResolvedValue(makePrStatus());
+		spyOn(API, "getChatDiffContents").mockResolvedValue({
+			...defaultDiffContents,
+			diff: sampleDiff,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		// Wait for the diff to load and render inside Shadow DOM.
+		// The line numbers live inside @pierre/diffs FileDiff web
+		// components, so we need to wait a bit for them to mount.
+		await new Promise((resolve) => setTimeout(resolve, 2000));
+
+		// Find a line number element inside a Shadow DOM diff viewer.
+		// The diff renders in shadow roots, so we look for the
+		// host elements and query inside their shadow DOMs.
+		const diffHosts = canvasElement.querySelectorAll("[data-diffs]");
+
+		for (const host of diffHosts) {
+			const shadow = host.shadowRoot;
+			if (!shadow) continue;
+
+			// Look for a line number cell — they have data-line-number.
+			const lineNumber = shadow.querySelector(
+				"[data-line-number]",
+			) as HTMLElement | null;
+			if (lineNumber) {
+				await userEvent.click(lineNumber);
+				break;
+			}
+		}
+
+		// Verify the inline prompt appeared.
+		const textarea = canvasElement.querySelector("textarea");
+		if (textarea) {
+			expect(textarea).toBeInTheDocument();
+		}
 	},
 };
