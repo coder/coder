@@ -194,7 +194,7 @@ const makeChat = (chatID: string): TypesGen.Chat => ({
 const makeMessage = (
 	chatID: string,
 	id: number,
-	role: string,
+	role: TypesGen.ChatMessageRole,
 	text: string,
 ): TypesGen.ChatMessage => ({
 	id,

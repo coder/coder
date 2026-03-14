@@ -121,6 +121,9 @@ interface AgentDetailViewProps {
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
 
 	urlTransform?: UrlTransform;
+
+	// Desktop chat ID (optional).
+	desktopChatId?: string;
 }
 
 export const AgentDetailView: FC<AgentDetailViewProps> = ({
@@ -168,6 +171,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	handleArchiveAndDeleteWorkspaceAction,
 	scrollContainerRef,
 	urlTransform,
+	desktopChatId,
 }) => {
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
@@ -343,6 +347,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 					chatTitle={chatTitle}
+					desktopChatId={desktopChatId}
 				/>
 			</RightPanel>{" "}
 		</div>

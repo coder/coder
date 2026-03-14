@@ -11,7 +11,11 @@ import { pageTitle } from "utils/page";
 import { AgentCreateForm, type CreateChatOptions } from "./AgentCreateForm";
 import { AgentsSidebar } from "./AgentsSidebar";
 import { ChimeButton } from "./ChimeButton";
-import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
+import {
+	ConfigureAgentsDialog,
+	type ConfigureAgentsSection,
+} from "./ConfigureAgentsDialog";
+import { UserAnalyticsDialog } from "./UserAnalyticsDialog";
 import { WebPushButton } from "./WebPushButton";
 
 type ChatModelOption = ModelSelectorOption;
@@ -99,6 +103,12 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	} = outletContext;
 	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
+	const [configDialogKey, setConfigDialogKey] = useState(0);
+	const [configureAgentsInitialSection, setConfigureAgentsInitialSection] =
+		useState<ConfigureAgentsSection>("behavior");
+	const [isUserAnalyticsDialogOpen, setUserAnalyticsDialogOpen] =
+		useState(false);
+	const [analyticsDialogKey, setAnalyticsDialogKey] = useState(0);
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
 			<title>{pageTitle("Agents")}</title>
@@ -133,7 +143,15 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					archivedFilter={archivedFilter}
 					onArchivedFilterChange={onArchivedFilterChange}
 					onCollapse={onCollapseSidebar}
-					onOpenSettings={() => setConfigureAgentsDialogOpen(true)}
+					onOpenAnalytics={() => {
+						setAnalyticsDialogKey((key) => key + 1);
+						setUserAnalyticsDialogOpen(true);
+					}}
+					onOpenSettings={() => {
+						setConfigureAgentsInitialSection("behavior");
+						setConfigDialogKey((key) => key + 1);
+						setConfigureAgentsDialogOpen(true);
+					}}
 				/>
 			</div>
 
@@ -191,10 +209,17 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 			</div>
 
 			<ConfigureAgentsDialog
+				key={configDialogKey}
 				open={isConfigureAgentsDialogOpen}
 				onOpenChange={setConfigureAgentsDialogOpen}
 				canManageChatModelConfigs={isAgentsAdmin}
 				canSetSystemPrompt={isAgentsAdmin}
+				initialSection={configureAgentsInitialSection}
+			/>
+			<UserAnalyticsDialog
+				key={analyticsDialogKey}
+				open={isUserAnalyticsDialogOpen}
+				onOpenChange={setUserAnalyticsDialogOpen}
 			/>
 		</div>
 	);

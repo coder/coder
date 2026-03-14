@@ -16,7 +16,14 @@
 		"skipLibCheck": true,
 		"strict": true,
 		"target": "es2020",
-		"types": ["node", "react", "react-dom", "vite/client", "vitest/globals"],
+		"types": [
+			"node",
+			"react",
+			"react-dom",
+			"vite/client",
+			"vitest/globals",
+			"novnc__novnc"
+		],
 		"baseUrl": "src/"
 	},
 	"include": ["**/*.ts", "**/*.tsx"],

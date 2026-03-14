@@ -43,6 +43,10 @@ replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20260306035934-af5c
 // 2. update to the latest gVisor
 replace github.com/tailscale/wireguard-go => github.com/coder/wireguard-go v0.0.0-20260113101225-9b7a56210e49
 
+// We use a fork to fix an integer overflow issue that causes occasional crashes in workspace agents.
+// See https://github.com/coder/coder/issues/20885
+replace gvisor.dev => github.com/coder/gvisor v0.0.0-20260313164934-7a658db7b714
+
 // Switch to our fork that imports fixes from http://github.com/tailscale/ssh.
 // See: https://github.com/coder/coder/issues/3371
 //
@@ -76,7 +80,7 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 1) Adds thinking effort to Anthropic provider
 // 2) Downgraded to Go 1.25 due to issue with Windows CI
 // https://github.com/kylecarbs/fantasy/compare/main...kylecarbs:fantasy:cj/go1.25
-replace charm.land/fantasy => github.com/kylecarbs/fantasy v0.0.0-20260312195846-2681eb9ddd20
+replace charm.land/fantasy => github.com/kylecarbs/fantasy v0.0.0-20260313123746-578317bb0e5b
 
 replace github.com/charmbracelet/anthropic-sdk-go => github.com/kylecarbs/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab
 
@@ -492,6 +496,7 @@ require (
 	github.com/go-git/go-git/v5 v5.17.0
 	github.com/mark3labs/mcp-go v0.38.0
 	github.com/openai/openai-go/v3 v3.15.0
+	github.com/shopspring/decimal v1.4.0
 	gonum.org/v1/gonum v0.17.0
 )
 
