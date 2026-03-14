@@ -4594,6 +4594,41 @@ func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID)
 	return i, err
 }
 
+const resolveUserChatSpendLimit = `-- name: ResolveUserChatSpendLimit :one
+SELECT CASE
+    -- If limits are disabled, return -1.
+    WHEN NOT cfg.enabled THEN -1
+    -- Individual override takes priority.
+    WHEN uo.limit_micros IS NOT NULL THEN uo.limit_micros
+    -- Group limit (minimum across all user's groups) is next.
+    WHEN gl.limit_micros IS NOT NULL THEN gl.limit_micros
+    -- Fall back to global default.
+    ELSE cfg.default_limit_micros
+END::bigint AS effective_limit_micros
+FROM chat_usage_limit_config cfg
+LEFT JOIN chat_usage_limit_overrides uo
+    ON uo.user_id = $1::uuid
+LEFT JOIN LATERAL (
+    SELECT MIN(glo.limit_micros) AS limit_micros
+    FROM chat_usage_limit_group_overrides glo
+    JOIN group_members_expanded gme ON gme.group_id = glo.group_id
+    WHERE gme.user_id = $1::uuid
+) gl ON TRUE
+LIMIT 1
+`
+
+// Resolves the effective spend limit for a user using the hierarchy:
+// 1. Individual user override (highest priority)
+// 2. Minimum group limit across all user's groups
+// 3. Global default from config
+// Returns -1 if limits are not enabled.
+func (q *sqlQuerier) ResolveUserChatSpendLimit(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, resolveUserChatSpendLimit, userID)
+	var effective_limit_micros int64
+	err := row.Scan(&effective_limit_micros)
+	return effective_limit_micros, err
+}
+
 const unarchiveChatByID = `-- name: UnarchiveChatByID :exec
 UPDATE chats SET archived = false, updated_at = NOW() WHERE id = $1::uuid
 `

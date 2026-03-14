@@ -769,3 +769,30 @@ SELECT COALESCE(MIN(glo.limit_micros), -1)::bigint AS limit_micros
 FROM chat_usage_limit_group_overrides glo
 JOIN group_members_expanded gme ON gme.group_id = glo.group_id
 WHERE gme.user_id = @user_id::uuid;
+
+-- name: ResolveUserChatSpendLimit :one
+-- Resolves the effective spend limit for a user using the hierarchy:
+-- 1. Individual user override (highest priority)
+-- 2. Minimum group limit across all user's groups
+-- 3. Global default from config
+-- Returns -1 if limits are not enabled.
+SELECT CASE
+    -- If limits are disabled, return -1.
+    WHEN NOT cfg.enabled THEN -1
+    -- Individual override takes priority.
+    WHEN uo.limit_micros IS NOT NULL THEN uo.limit_micros
+    -- Group limit (minimum across all user's groups) is next.
+    WHEN gl.limit_micros IS NOT NULL THEN gl.limit_micros
+    -- Fall back to global default.
+    ELSE cfg.default_limit_micros
+END::bigint AS effective_limit_micros
+FROM chat_usage_limit_config cfg
+LEFT JOIN chat_usage_limit_overrides uo
+    ON uo.user_id = @user_id::uuid
+LEFT JOIN LATERAL (
+    SELECT MIN(glo.limit_micros) AS limit_micros
+    FROM chat_usage_limit_group_overrides glo
+    JOIN group_members_expanded gme ON gme.group_id = glo.group_id
+    WHERE gme.user_id = @user_id::uuid
+) gl ON TRUE
+LIMIT 1;

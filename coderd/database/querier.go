@@ -728,6 +728,12 @@ type sqlcQuerier interface {
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
+	// Resolves the effective spend limit for a user using the hierarchy:
+	// 1. Individual user override (highest priority)
+	// 2. Minimum group limit across all user's groups
+	// 3. Global default from config
+	// Returns -1 if limits are not enabled.
+	ResolveUserChatSpendLimit(ctx context.Context, userID uuid.UUID) (int64, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
