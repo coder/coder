@@ -31,6 +31,35 @@ export const updateInfiniteChatsCache = (
 };
 
 /**
+ * Prepends a new chat to the first page of every infinite chats query
+ * in the cache, but only if the chat doesn't already exist in any
+ * page. This avoids the per-page duplication that would occur if
+ * a prepend updater were passed to updateInfiniteChatsCache, which
+ * runs independently on each page.
+ */
+export const prependToInfiniteChatsCache = (
+	queryClient: QueryClient,
+	chat: TypesGen.Chat,
+) => {
+	queryClient.setQueriesData<{
+		pages: TypesGen.Chat[][];
+		pageParams: unknown[];
+	}>({ queryKey: chatsKey }, (prev) => {
+		if (!prev?.pages) return prev;
+		// Check across ALL pages to avoid duplicates.
+		const exists = prev.pages.some((page) =>
+			page.some((c) => c.id === chat.id),
+		);
+		if (exists) return prev;
+		// Only prepend to the first page.
+		const nextPages = prev.pages.map((page, i) =>
+			i === 0 ? [chat, ...page] : page,
+		);
+		return { ...prev, pages: nextPages };
+	});
+};
+
+/**
  * Reads the flat list of chats from the first matching infinite query
  * in the cache. Returns undefined when no data is cached yet.
  */

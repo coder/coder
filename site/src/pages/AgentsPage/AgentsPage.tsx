@@ -10,6 +10,7 @@ import {
 	chatsKey,
 	createChat,
 	infiniteChats,
+	prependToInfiniteChatsCache,
 	readInfiniteChatsCache,
 	unarchiveChat,
 	updateInfiniteChatsCache,
@@ -405,9 +406,15 @@ const AgentsPage: FC = () => {
 					const isTitleEvent = chatEvent.kind === "title_change";
 					const isStatusEvent = chatEvent.kind === "status_change";
 
-					updateInfiniteChatsCache(queryClient, (chats) => {
-						const exists = chats.some((c) => c.id === updatedChat.id);
-						if (exists) {
+					// For "created" events, use a cross-page existence
+					// check and prepend only to the first page.
+					// updateInfiniteChatsCache runs the updater per
+					// page, so a naive prepend would duplicate the
+					// chat into every loaded page.
+					if (chatEvent.kind === "created") {
+						prependToInfiniteChatsCache(queryClient, updatedChat);
+					} else {
+						updateInfiniteChatsCache(queryClient, (chats) => {
 							return chats.map((c) => {
 								if (c.id !== updatedChat.id) return c;
 								return {
@@ -420,12 +427,8 @@ const AgentsPage: FC = () => {
 											: updatedChat.updated_at,
 								};
 							});
-						}
-						if (chatEvent.kind === "created") {
-							return [updatedChat, ...chats];
-						}
-						return chats;
-					});
+						});
+					}
 					queryClient.setQueryData<TypesGen.Chat | undefined>(
 						chatKey(updatedChat.id),
 						(previousChat) => {
