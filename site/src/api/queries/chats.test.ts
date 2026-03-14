@@ -10,6 +10,7 @@ import {
 	chatCostUsersKey,
 	chatKey,
 	chatsKey,
+	infiniteChats,
 	unarchiveChat,
 } from "./chats";
 
@@ -17,6 +18,7 @@ vi.mock("api/api", () => ({
 	API: {
 		archiveChat: vi.fn(),
 		unarchiveChat: vi.fn(),
+		getChats: vi.fn(),
 		getChatCostSummary: vi.fn(),
 		getChatCostUsers: vi.fn(),
 	},
@@ -326,5 +328,74 @@ describe("chat cost query factories", () => {
 		expect(query.queryKey).not.toEqual(chatCostSummaryKey("me", params));
 		await query.queryFn();
 		expect(API.getChatCostUsers).toHaveBeenCalledWith(params);
+	});
+});
+
+describe("infiniteChats", () => {
+	const PAGE_LIMIT = 50;
+
+	describe("getNextPageParam", () => {
+		it("returns undefined when lastPage has fewer items than the limit", () => {
+			const { getNextPageParam } = infiniteChats();
+			const lastPage = Array.from({ length: PAGE_LIMIT - 1 }, (_, i) =>
+				makeChat(`chat-${i}`),
+			);
+			expect(getNextPageParam(lastPage, [lastPage])).toBeUndefined();
+		});
+
+		it("returns pages.length + 1 when lastPage has exactly the limit", () => {
+			const { getNextPageParam } = infiniteChats();
+			const lastPage = Array.from({ length: PAGE_LIMIT }, (_, i) =>
+				makeChat(`chat-${i}`),
+			);
+			const pages = [lastPage];
+			expect(getNextPageParam(lastPage, pages)).toBe(pages.length + 1);
+		});
+	});
+
+	describe("queryFn", () => {
+		it("computes offset 0 for pageParam 0", async () => {
+			vi.mocked(API.getChats).mockResolvedValue([]);
+			const { queryFn } = infiniteChats();
+			await queryFn({ pageParam: 0 });
+			expect(API.getChats).toHaveBeenCalledWith({
+				limit: PAGE_LIMIT,
+				offset: 0,
+			});
+		});
+
+		it("computes offset 0 for pageParam <= 0", async () => {
+			vi.mocked(API.getChats).mockResolvedValue([]);
+			const { queryFn } = infiniteChats();
+			await queryFn({ pageParam: -1 });
+			expect(API.getChats).toHaveBeenCalledWith({
+				limit: PAGE_LIMIT,
+				offset: 0,
+			});
+		});
+
+		it("computes correct offset for subsequent pages", async () => {
+			vi.mocked(API.getChats).mockResolvedValue([]);
+			const { queryFn } = infiniteChats();
+
+			await queryFn({ pageParam: 2 });
+			expect(API.getChats).toHaveBeenCalledWith({
+				limit: PAGE_LIMIT,
+				offset: PAGE_LIMIT,
+			});
+
+			await queryFn({ pageParam: 3 });
+			expect(API.getChats).toHaveBeenCalledWith({
+				limit: PAGE_LIMIT,
+				offset: PAGE_LIMIT * 2,
+			});
+		});
+
+		it("throws when pageParam is not a number", () => {
+			const { queryFn } = infiniteChats();
+			expect(() => queryFn({ pageParam: "bad" })).toThrow(
+				"pageParam must be a number",
+			);
+		});
 	});
 });
