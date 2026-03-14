@@ -979,6 +979,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 			{detailErrorMessage && (
 				<Alert
 					severity="info"
+					className="py-2"
 					actions={
 						onOpenAnalytics && (
 							<Button variant="subtle" size="sm" onClick={onOpenAnalytics}>

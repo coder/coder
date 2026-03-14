@@ -209,6 +209,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 							isModelCatalogLoading={isModelCatalogLoading}
 							isModelConfigsLoading={isModelConfigsLoading}
 							modelCatalogError={modelCatalogError}
+							onOpenAnalytics={handleOpenAnalytics}
 						/>
 					</>
 				)}
