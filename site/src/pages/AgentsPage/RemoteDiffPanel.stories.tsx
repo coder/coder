@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ChatDiffStatusResponse } from "api/api";
+import type { ChatDiffStatus } from "api/typesGenerated";
 import { API } from "api/api";
 import type { ChatDiffContents } from "api/typesGenerated";
 import { expect, screen, spyOn } from "storybook/test";
@@ -224,7 +224,7 @@ index 1234567..abcdef0 100644
 +} as React.CSSProperties;
 `;
 
-const defaultDiffStatus: ChatDiffStatusResponse = {
+const defaultDiffStatus: ChatDiffStatus = {
 	chat_id: "test-chat",
 	pull_request_title: "",
 	pull_request_draft: false,

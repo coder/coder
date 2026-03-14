@@ -365,28 +365,6 @@ interface ChatGitChangeResponse extends TypesGen.ChatGitChange {
 	readonly diffs_link?: string;
 }
 
-	export type ChatDiffStatusResponse = Readonly<
-		{
-			chat_id: string;
-			url?: string;
-			pull_request_state?: string;
-			pull_request_title: string;
-			pull_request_draft: boolean;
-			changes_requested: boolean;
-			additions: number;
-			deletions: number;
-			changed_files: number;
-			author_login?: string;
-			author_avatar_url?: string;
-			base_branch?: string;
-			pr_number?: number;
-			commits?: number;
-			approved?: boolean;
-			reviewer_count?: number;
-			refreshed_at?: string;
-			stale_at?: string;
-		} & Record<string, unknown>
-	>;
 function normalizeGetTemplatesOptions(
 	options: GetTemplatesOptions | GetTemplatesQuery = {},
 ): Record<string, string> {
@@ -3067,8 +3045,8 @@ class ApiMethods {
 
 	getChatDiffStatus = async (
 		chatId: string,
-	): Promise<ChatDiffStatusResponse> => {
-		const response = await this.axios.get<ChatDiffStatusResponse>(
+	): Promise<TypesGen.ChatDiffStatus> => {
+		const response = await this.axios.get<TypesGen.ChatDiffStatus>(
 			`/api/experimental/chats/${chatId}/diff-status`,
 		);
 		return response.data;

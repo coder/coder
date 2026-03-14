@@ -1,4 +1,4 @@
-import type { ChatDiffStatusResponse } from "api/api";
+import type { ChatDiffStatus } from "api/typesGenerated";
 import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
@@ -57,7 +57,7 @@ interface GitPanelProps {
 	/** Whether the panel is in expanded/fullscreen mode. */
 	isExpanded?: boolean;
 	/** Diff status for the remote/branch view (includes PR metadata). */
-	remoteDiffStats?: ChatDiffStatusResponse;
+	remoteDiffStats?: ChatDiffStatus;
 	/** Ref to the chat input, forwarded to RemoteDiffPanel. */
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 }

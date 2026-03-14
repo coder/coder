@@ -1,4 +1,4 @@
-import type { ChatDiffStatusResponse } from "api/api";
+import type { ChatDiffStatus } from "api/typesGenerated";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { ArchiveIcon } from "lucide-react";
@@ -89,7 +89,7 @@ interface AgentDetailViewProps {
 
 	// Sidebar content data.
 	prNumber: number | undefined;
-	diffStatusData: ChatDiffStatusResponse | undefined;
+	diffStatusData: ChatDiffStatus | undefined;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 		refresh: () => void;

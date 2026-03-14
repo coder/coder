@@ -1,4 +1,4 @@
-import { API, type ChatDiffStatusResponse } from "api/api";
+import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { QueryClient, UseInfiniteQueryOptions } from "react-query";
 
@@ -357,7 +357,7 @@ export const chatDiffStatusKey = (chatId: string) =>
 
 export const chatDiffStatus = (chatId: string) => ({
 	queryKey: chatDiffStatusKey(chatId),
-	queryFn: (): Promise<ChatDiffStatusResponse> => API.getChatDiffStatus(chatId),
+	queryFn: (): Promise<TypesGen.ChatDiffStatus> => API.getChatDiffStatus(chatId),
 });
 
 export const chatDiffContentsKey = (chatId: string) =>

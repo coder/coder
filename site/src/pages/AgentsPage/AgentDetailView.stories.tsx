@@ -1,7 +1,7 @@
 import { MockUserOwner } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ChatDiffStatusResponse } from "api/api";
+import type { ChatDiffStatus } from "api/typesGenerated";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { fn } from "storybook/test";
@@ -205,7 +205,7 @@ export const WithSidebarPanel: Story = {
 			additions: 42,
 			deletions: 7,
 			changed_files: 5,
-		} satisfies ChatDiffStatusResponse,
+		} satisfies ChatDiffStatus,
 	},
 };
 
