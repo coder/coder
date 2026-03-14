@@ -172,16 +172,15 @@ var (
 	errChatTakenByOtherWorker = xerrors.New("chat acquired by another worker")
 )
 
-// ErrUsageLimitExceeded indicates the user has exceeded their chat spend limit.
-//
-//nolint:errname // Matches existing Err... names used by SendMessage callers.
-type ErrUsageLimitExceeded struct {
+// UsageLimitExceededError indicates the user has exceeded their chat spend
+// limit.
+type UsageLimitExceededError struct {
 	LimitMicros    int64
 	ConsumedMicros int64
 	PeriodEnd      time.Time
 }
 
-func (e *ErrUsageLimitExceeded) Error() string {
+func (e *UsageLimitExceededError) Error() string {
 	return fmt.Sprintf(
 		"usage limit exceeded: spent %d of %d micros, resets at %s",
 		e.ConsumedMicros,
@@ -532,7 +531,7 @@ func (p *Server) checkUsageLimit(ctx context.Context, ownerID uuid.UUID) error {
 	// Block when current spend reaches or exceeds limit (>= ensures
 	// the user cannot start new conversations once the limit is hit).
 	if status.SpendLimitMicros != nil && status.CurrentSpend >= *status.SpendLimitMicros {
-		return &ErrUsageLimitExceeded{
+		return &UsageLimitExceededError{
 			LimitMicros:    *status.SpendLimitMicros,
 			ConsumedMicros: status.CurrentSpend,
 			PeriodEnd:      status.PeriodEnd,

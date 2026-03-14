@@ -57,9 +57,9 @@ func ComputePeriodBounds(now time.Time, period codersdk.ChatUsageLimitPeriod) (s
 //   - Overage is bounded by message cost × concurrency.
 //   - Fail-open is the deliberate design choice for this feature.
 func ResolveUsageLimitStatus(ctx context.Context, db database.Store, userID uuid.UUID, now time.Time) (*codersdk.ChatUsageLimitStatus, error) {
-	//nolint:gocritic // Shared HTTP and daemon usage-limit checks need
-	// deployment-config access plus cross-user spend reads.
-	authCtx := dbauthz.AsSystemRestricted(ctx)
+	//nolint:gocritic // AsChatd provides narrowly-scoped daemon access for
+	// deployment config reads and cross-user chat spend aggregation.
+	authCtx := dbauthz.AsChatd(ctx)
 
 	config, err := db.GetChatUsageLimitConfig(authCtx)
 	if err != nil {

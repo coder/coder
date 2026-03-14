@@ -1331,7 +1331,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if sendErr != nil {
-		var limitErr *chatd.ErrUsageLimitExceeded
+		var limitErr *chatd.UsageLimitExceededError
 		if errors.As(sendErr, &limitErr) {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Chat usage limit exceeded.",
