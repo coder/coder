@@ -2,7 +2,7 @@ import type * as TypesGen from "api/typesGenerated";
 import type { ChatDiffStatus } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { ArchiveIcon } from "lucide-react";
-import { type FC, type RefObject, useState } from "react";
+import { type FC, type RefObject, useEffect, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
@@ -120,6 +120,11 @@ interface AgentDetailViewProps {
 	// Scroll container ref.
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
 
+	// Pagination for loading older messages.
+	hasMoreMessages: boolean;
+	isFetchingMoreMessages: boolean;
+	onFetchMoreMessages: () => void;
+
 	urlTransform?: UrlTransform;
 
 	// Desktop chat ID (optional).
@@ -170,6 +175,9 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	handleUnarchiveAgentAction,
 	handleArchiveAndDeleteWorkspaceAction,
 	scrollContainerRef,
+	hasMoreMessages,
+	isFetchingMoreMessages,
+	onFetchMoreMessages,
 	urlTransform,
 	desktopChatId,
 }) => {
@@ -263,6 +271,13 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							urlTransform={urlTransform}
 						/>
 					</div>
+					{hasMoreMessages && (
+						<MessagesPaginationSentinel
+							containerRef={scrollContainerRef}
+							isFetching={isFetchingMoreMessages}
+							onLoadMore={onFetchMoreMessages}
+						/>
+					)}
 				</div>
 				<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<AgentDetailInput
@@ -476,4 +491,40 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
 			</div>
 		</div>
 	);
+};
+
+/**
+ * Invisible sentinel that triggers loading older messages when it
+ * scrolls into view. Placed at the visual top of the flex-col-reverse
+ * container (which is the DOM bottom).
+ */
+const MessagesPaginationSentinel: FC<{
+	containerRef: RefObject<HTMLDivElement | null>;
+	isFetching: boolean;
+	onLoadMore: () => void;
+}> = ({ containerRef, isFetching, onLoadMore }) => {
+	const sentinelRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		const sentinel = sentinelRef.current;
+		const container = containerRef.current;
+		if (!sentinel || !container) return;
+
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				if (entry.isIntersecting && !isFetching) {
+					onLoadMore();
+				}
+			},
+			{
+				root: container,
+				rootMargin: "200px 0px 0px 0px",
+				threshold: 0.01,
+			},
+		);
+		observer.observe(sentinel);
+		return () => observer.disconnect();
+	}, [containerRef, isFetching, onLoadMore]);
+
+	return <div ref={sentinelRef} className="h-px shrink-0" />;
 };

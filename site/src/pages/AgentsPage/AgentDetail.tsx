@@ -1,7 +1,7 @@
 import { API, watchWorkspace } from "api/api";
 import {
 	chat,
-	chatMessages,
+	chatMessagesInfinite,
 	chatModelConfigs,
 	chatModels,
 	chats,
@@ -30,7 +30,12 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
@@ -603,8 +608,8 @@ const AgentDetail: FC = () => {
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
 	});
-	const chatMessagesQuery = useQuery({
-		...chatMessages(agentId ?? ""),
+	const chatMessagesQuery = useInfiniteQuery({
+		...chatMessagesInfinite(agentId ?? ""),
 		enabled: Boolean(agentId),
 	});
 	const chatsQuery = useQuery(chats());
@@ -670,10 +675,39 @@ const AgentDetail: FC = () => {
 	);
 
 	const chatRecord = chatQuery.data;
-	const chatMessagesData = chatMessagesQuery.data;
+	// Flatten paginated messages into chronological order.
+	// Pages arrive newest-first per page, and pages[0] is the
+	// most recent page.
+	const chatMessagesList = useMemo(() => {
+		const pages = chatMessagesQuery.data?.pages;
+		if (!pages || pages.length === 0) return undefined;
+		// Collect all messages, then sort chronologically by ID.
+		const all: TypesGen.ChatMessage[] = [];
+		for (const page of pages) {
+			all.push(...page.messages);
+		}
+		// Sort ascending by ID for chronological order.
+		all.sort((a, b) => a.id - b.id);
+		return all;
+	}, [chatMessagesQuery.data]);
+
+	// Queued messages are only in the first page (most recent).
+	const chatQueuedMessages = chatMessagesQuery.data?.pages[0]?.queued_messages;
+
+	// Build a synthetic ChatMessagesResponse from the flattened
+	// data for backward compat with useChatStore.
+	const chatMessagesData: TypesGen.ChatMessagesResponse | undefined =
+		useMemo(() => {
+			if (!chatMessagesList) return undefined;
+			return {
+				messages: chatMessagesList,
+				queued_messages: chatQueuedMessages ?? [],
+				has_more:
+					chatMessagesQuery.data?.pages[chatMessagesQuery.data.pages.length - 1]
+						?.has_more ?? false,
+			};
+		}, [chatMessagesList, chatQueuedMessages, chatMessagesQuery.data]);
 	const isArchived = chatRecord?.archived ?? false;
-	const chatMessagesList = chatMessagesData?.messages;
-	const chatQueuedMessages = chatMessagesData?.queued_messages;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
 	const modelOptions = useMemo(
@@ -1093,7 +1127,7 @@ const AgentDetail: FC = () => {
 		);
 	}
 
-	if (!chatQuery.data || !chatMessagesQuery.data || !agentId) {
+	if (!chatQuery.data || !chatMessagesQuery.data?.pages?.length || !agentId) {
 		return (
 			<AgentDetailNotFoundView
 				titleElement={titleElement}
@@ -1150,6 +1184,9 @@ const AgentDetail: FC = () => {
 			}
 			urlTransform={urlTransform}
 			scrollContainerRef={scrollContainerRef}
+			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
+			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
+			onFetchMoreMessages={() => chatMessagesQuery.fetchNextPage()}
 			desktopChatId={agentId}
 		/>
 	);

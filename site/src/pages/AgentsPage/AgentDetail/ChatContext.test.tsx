@@ -253,6 +253,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -333,6 +334,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -407,6 +409,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -500,6 +503,7 @@ describe("useChatStore", () => {
 				chatMessagesData: {
 					messages: [existingMessage],
 					queued_messages: [],
+					has_more: false,
 				},
 				chatQueuedMessages: [],
 				setChatErrorReason,
@@ -573,6 +577,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -647,6 +652,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -734,6 +740,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [existingMessage],
 				queued_messages: [queuedMessage],
+				has_more: false,
 			},
 			chatQueuedMessages: [queuedMessage],
 			setChatErrorReason,
@@ -777,6 +784,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [existingMessage],
 				queued_messages: [queuedMessage],
+				has_more: false,
 			},
 			chatQueuedMessages: [queuedMessage],
 		});
@@ -810,6 +818,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [existingMessage],
 				queued_messages: [queuedMessage],
+				has_more: false,
 			},
 			chatQueuedMessages: [queuedMessage],
 			setChatErrorReason,
@@ -844,6 +853,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [existingMessage],
 				queued_messages: [],
+				has_more: false,
 			},
 			chatQueuedMessages: [],
 		});
@@ -875,6 +885,7 @@ describe("useChatStore", () => {
 		const initialChatMessagesData: TypesGen.ChatMessagesResponse = {
 			messages: [existingMessage],
 			queued_messages: [queuedMessage],
+			has_more: false,
 		};
 		queryClient.setQueryData(chatMessagesKey(chatID), initialChatMessagesData);
 
@@ -956,6 +967,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [msg1],
 				queued_messages: [] as TypesGen.ChatQueuedMessage[],
+				has_more: false,
 			},
 			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
 			setChatErrorReason,
@@ -1004,6 +1016,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [msg2],
 				queued_messages: [],
+				has_more: false,
 			},
 		});
 
@@ -1041,6 +1054,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [queuedMessage],
+						has_more: false,
 					},
 					chatQueuedMessages: [queuedMessage],
 					setChatErrorReason,
@@ -1096,6 +1110,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -1197,6 +1212,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -1292,6 +1308,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [msg1],
 				queued_messages: [] as TypesGen.ChatQueuedMessage[],
+				has_more: false,
 			},
 			chatQueuedMessages: [] as TypesGen.ChatQueuedMessage[],
 			setChatErrorReason,
@@ -1340,6 +1357,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [msg2],
 				queued_messages: [],
+				has_more: false,
 			},
 		});
 
@@ -1381,6 +1399,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [msg1],
 				queued_messages: [queuedMsg],
+				has_more: false,
 			},
 			chatQueuedMessages: [queuedMsg],
 			setChatErrorReason,
@@ -1416,6 +1435,7 @@ describe("useChatStore", () => {
 			chatMessagesData: {
 				messages: [],
 				queued_messages: [],
+				has_more: false,
 			},
 			chatQueuedMessages: [],
 		});
@@ -1451,6 +1471,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -1520,6 +1541,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -1580,6 +1602,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -1632,6 +1655,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -1692,6 +1716,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -1766,6 +1791,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -1827,6 +1853,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -1898,6 +1925,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -1963,6 +1991,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
@@ -2015,6 +2044,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [msg],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason: vi.fn(),
@@ -2079,6 +2109,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -2202,6 +2233,7 @@ describe("useChatStore", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -2270,6 +2302,7 @@ describe("updateSidebarChat via stream events", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -2333,6 +2366,7 @@ describe("updateSidebarChat via stream events", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -2405,6 +2439,7 @@ describe("updateSidebarChat via stream events", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -2470,6 +2505,7 @@ describe("updateSidebarChat via stream events", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -2542,6 +2578,7 @@ describe("updateSidebarChat via stream events", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -2612,6 +2649,7 @@ describe("updateSidebarChat via stream events", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -2677,6 +2715,7 @@ describe("updateSidebarChat via stream events", () => {
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
+						has_more: false,
 					},
 					chatQueuedMessages: [],
 					setChatErrorReason,

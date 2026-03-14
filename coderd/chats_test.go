@@ -88,7 +88,7 @@ func TestPostChats(t *testing.T) {
 
 		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
-		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		require.Equal(t, chat.ID, chatResult.ID)
 
@@ -126,7 +126,7 @@ func TestPostChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		for _, message := range messagesResult.Messages {
 			require.NotEqual(t, codersdk.ChatMessageRoleSystem, message.Role)
@@ -1362,7 +1362,7 @@ func TestGetChat(t *testing.T) {
 
 		chatResult, err := client.GetChat(ctx, createdChat.ID)
 		require.NoError(t, err)
-		messagesResult, err := client.GetChatMessages(ctx, createdChat.ID)
+		messagesResult, err := client.GetChatMessages(ctx, createdChat.ID, nil)
 		require.NoError(t, err)
 		require.Equal(t, createdChat.ID, chatResult.ID)
 		require.Equal(t, firstUser.UserID, chatResult.OwnerID)
@@ -1686,7 +1686,7 @@ func TestPostChatMessages(t *testing.T) {
 			require.True(t, hasTextPart(created.QueuedMessage.Content, messageText))
 
 			require.Eventually(t, func() bool {
-				messagesResult, getErr := client.GetChatMessages(ctx, chat.ID)
+				messagesResult, getErr := client.GetChatMessages(ctx, chat.ID, nil)
 				if getErr != nil {
 					return false
 				}
@@ -1714,7 +1714,7 @@ func TestPostChatMessages(t *testing.T) {
 			require.True(t, hasTextPart(created.Message.Content, messageText))
 
 			require.Eventually(t, func() bool {
-				messagesResult, getErr := client.GetChatMessages(ctx, chat.ID)
+				messagesResult, getErr := client.GetChatMessages(ctx, chat.ID, nil)
 				if getErr != nil {
 					return false
 				}
@@ -1829,7 +1829,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 
 		var found bool
 		require.Eventually(t, func() bool {
-			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID)
+			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID, nil)
 			if getErr != nil {
 				return false
 			}
@@ -1889,7 +1889,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 		}
 
 		require.Eventually(t, func() bool {
-			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID)
+			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID, nil)
 			if getErr != nil {
 				return false
 			}
@@ -1942,7 +1942,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 		}
 
 		require.Eventually(t, func() bool {
-			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID)
+			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID, nil)
 			if getErr != nil {
 				return false
 			}
@@ -1995,7 +1995,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 		}
 
 		require.Eventually(t, func() bool {
-			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID)
+			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID, nil)
 			if getErr != nil {
 				return false
 			}
@@ -2085,7 +2085,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 		}
 
 		require.Eventually(t, func() bool {
-			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID)
+			messagesResult, getErr := client.GetChatMessages(ctx, chat.ID, nil)
 			if getErr != nil {
 				return false
 			}
@@ -2275,7 +2275,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 		}
 
 		// Verify file parts omit inline data in the API response.
-		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		for _, msg := range messagesResult.Messages {
 			for _, part := range msg.Content {
@@ -2371,7 +2371,7 @@ func TestPatchChatMessage(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 
 		var userMessageID int64
@@ -2403,7 +2403,7 @@ func TestPatchChatMessage(t *testing.T) {
 		}
 		require.True(t, foundEditedText)
 
-		messagesResult, err = client.GetChatMessages(ctx, chat.ID)
+		messagesResult, err = client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		foundEditedInChat := false
 		foundOriginalInChat := false
@@ -2456,7 +2456,7 @@ func TestPatchChatMessage(t *testing.T) {
 		require.NoError(t, err)
 
 		// Find the user message ID.
-		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 
 		var userMessageID int64
@@ -2499,7 +2499,7 @@ func TestPatchChatMessage(t *testing.T) {
 		require.True(t, foundFile, "edited message should preserve file_id")
 
 		// GET the chat messages and verify the file_id persists.
-		messagesResult, err = client.GetChatMessages(ctx, chat.ID)
+		messagesResult, err = client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 
 		var foundTextInChat, foundFileInChat bool
@@ -3114,7 +3114,7 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 		res.Body.Close()
 		require.Equal(t, http.StatusNoContent, res.StatusCode)
 
-		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		for _, queued := range messagesResult.QueuedMessages {
 			require.NotEqual(t, queuedMessage.ID, queued.ID)
@@ -3217,7 +3217,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		}
 		require.True(t, foundPromotedText)
 
-		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		for _, queued := range messagesResult.QueuedMessages {
 			require.NotEqual(t, queuedMessage.ID, queued.ID)
