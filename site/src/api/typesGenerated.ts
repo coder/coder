@@ -1119,6 +1119,7 @@ export interface ChatCostSummary {
 	readonly total_cache_creation_tokens: number;
 	readonly by_model: readonly ChatCostModelBreakdown[];
 	readonly by_chat: readonly ChatCostChatBreakdown[];
+	readonly usage_limit?: ChatUsageLimitStatus;
 }
 
 // From codersdk/chats.go
@@ -1767,6 +1768,79 @@ export interface ChatStreamStatus {
  */
 export interface ChatSystemPromptResponse {
 	readonly system_prompt: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatUsageLimitConfig is the deployment-wide default usage limit config.
+ */
+export interface ChatUsageLimitConfig {
+	readonly spend_limit_micros: number | null; // nil = unlimited
+	readonly period: ChatUsageLimitPeriod;
+	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatUsageLimitConfigResponse is returned from the admin config endpoint
+ * and includes the config plus a count of models without pricing.
+ */
+export interface ChatUsageLimitConfigResponse extends ChatUsageLimitConfig {
+	readonly unpriced_model_count: number;
+	readonly overrides: readonly ChatUsageLimitOverride[];
+	readonly group_overrides: readonly ChatUsageLimitGroupOverride[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatUsageLimitGroupOverride represents a group-scoped spend limit override.
+ */
+export interface ChatUsageLimitGroupOverride {
+	readonly group_id: string;
+	readonly group_name: string;
+	readonly group_display_name: string;
+	readonly group_avatar_url: string;
+	readonly member_count: number;
+	readonly spend_limit_micros: number | null; // nil = unlimited
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatUsageLimitOverride is a per-user override of the deployment default.
+ */
+export interface ChatUsageLimitOverride {
+	readonly user_id: string;
+	readonly username: string;
+	readonly name: string;
+	readonly avatar_url: string;
+	readonly spend_limit_micros: number | null; // nil = unlimited
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+export type ChatUsageLimitPeriod = "day" | "month" | "week";
+
+export const ChatUsageLimitPeriods: ChatUsageLimitPeriod[] = [
+	"day",
+	"month",
+	"week",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatUsageLimitStatus represents the current spend status for a user
+ * within their active limit period.
+ */
+export interface ChatUsageLimitStatus {
+	readonly is_limited: boolean;
+	readonly period: ChatUsageLimitPeriod;
+	readonly spend_limit_micros?: number;
+	readonly current_spend: number;
+	readonly period_start: string;
+	readonly period_end: string;
 }
 
 // From codersdk/client.go
@@ -6815,6 +6889,24 @@ export interface UploadChatFileResponse {
  */
 export interface UploadResponse {
 	readonly hash: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpsertChatUsageLimitGroupOverrideRequest is the request to create or update
+ * a group-level spend limit override.
+ */
+export interface UpsertChatUsageLimitGroupOverrideRequest {
+	readonly spend_limit_micros: number | null; // nil = unlimited
+}
+
+// From codersdk/chats.go
+/**
+ * UpsertChatUsageLimitOverrideRequest is the body for creating/updating a
+ * per-user usage limit override.
+ */
+export interface UpsertChatUsageLimitOverrideRequest {
+	readonly spend_limit_micros: number | null; // nil = unlimited
 }
 
 // From codersdk/workspaceagentportshare.go
