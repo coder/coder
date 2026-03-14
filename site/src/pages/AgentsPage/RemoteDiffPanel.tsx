@@ -450,9 +450,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 									<ArrowLeftIcon className="size-3 shrink-0 opacity-50" />
 								)}
 								{headBranch && (
-									<span className={cn("truncate", baseBranch && "opacity-50")}>
-										{headBranch}
-									</span>
+									<span className="truncate"> {headBranch}</span>
 								)}{" "}
 							</>
 						) : parsedPr ? (
