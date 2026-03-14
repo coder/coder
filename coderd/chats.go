@@ -779,27 +779,7 @@ func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	// Today, a nil spend limit removes the user-specific override and falls back
-	// to the group or global limit. Supporting an explicit unlimited override is a
-	// future API enhancement.
-	if req.SpendLimitMicros == nil {
-		//nolint:gocritic // Override deletion requires system-restricted access.
-		systemCtx := dbauthz.AsSystemRestricted(ctx)
-		if err := api.Database.DeleteChatUsageLimitOverride(systemCtx, userID); err != nil {
-			if database.IsForeignKeyViolation(err) {
-				writeChatUsageLimitUserNotFound(ctx, rw)
-				return
-			}
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to delete chat usage limit override.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		rw.WriteHeader(http.StatusNoContent)
-		return
-	}
-	if *req.SpendLimitMicros <= 0 {
+	if req.SpendLimitMicros <= 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid chat usage limit override.",
 			Detail:  "Spend limit must be greater than 0.",
@@ -812,7 +792,7 @@ func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	override, err := api.Database.UpsertChatUsageLimitOverride(systemCtx, database.UpsertChatUsageLimitOverrideParams{
 		UserID:      userID,
-		LimitMicros: *req.SpendLimitMicros,
+		LimitMicros: req.SpendLimitMicros,
 	})
 	if err != nil {
 		if database.IsForeignKeyViolation(err) {
@@ -861,11 +841,29 @@ func (api *API) deleteChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 
 	//nolint:gocritic // Override deletion requires system-restricted access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	if err := api.Database.DeleteChatUsageLimitOverride(systemCtx, userID); err != nil {
-		if database.IsForeignKeyViolation(err) {
+	if _, err := api.Database.GetUserByID(systemCtx, userID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
 			writeChatUsageLimitUserNotFound(ctx, rw)
 			return
 		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to look up chat usage limit user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if _, err := api.Database.GetChatUsageLimitOverrideByUserID(systemCtx, userID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeChatUsageLimitOverrideNotFound(ctx, rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to look up chat usage limit override.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if err := api.Database.DeleteChatUsageLimitOverride(systemCtx, userID); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete chat usage limit override.",
 			Detail:  err.Error(),
@@ -899,7 +897,7 @@ func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	if req.SpendLimitMicros == nil || *req.SpendLimitMicros <= 0 {
+	if req.SpendLimitMicros <= 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Spend limit must be a positive value.",
 		})
@@ -912,7 +910,7 @@ func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 
 	override, err := api.Database.UpsertChatUsageLimitGroupOverride(systemCtx, database.UpsertChatUsageLimitGroupOverrideParams{
 		GroupID:     groupID,
-		LimitMicros: *req.SpendLimitMicros,
+		LimitMicros: req.SpendLimitMicros,
 	})
 	if err != nil {
 		if database.IsForeignKeyViolation(err) {
@@ -3868,6 +3866,12 @@ func chatModelConfigToUpdateParams(
 func writeChatUsageLimitUserNotFound(ctx context.Context, rw http.ResponseWriter) {
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 		Message: "User not found.",
+	})
+}
+
+func writeChatUsageLimitOverrideNotFound(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Chat usage limit override not found.",
 	})
 }
 

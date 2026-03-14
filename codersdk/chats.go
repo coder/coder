@@ -838,13 +838,13 @@ type ChatUsageLimitGroupOverride struct {
 // UpsertChatUsageLimitOverrideRequest is the body for creating/updating a
 // per-user usage limit override.
 type UpsertChatUsageLimitOverrideRequest struct {
-	SpendLimitMicros *int64 `json:"spend_limit_micros"` // nil = unlimited
+	SpendLimitMicros int64 `json:"spend_limit_micros"` // Must be greater than 0.
 }
 
 // UpsertChatUsageLimitGroupOverrideRequest is the request to create or update
 // a group-level spend limit override.
 type UpsertChatUsageLimitGroupOverrideRequest struct {
-	SpendLimitMicros *int64 `json:"spend_limit_micros"` // nil = unlimited
+	SpendLimitMicros int64 `json:"spend_limit_micros"` // Must be greater than 0.
 }
 
 // ChatUsageLimitStatus represents the current spend status for a user
