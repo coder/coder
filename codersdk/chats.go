@@ -798,6 +798,17 @@ type ChatCostUsersResponse struct {
 	Users     []ChatCostUserRollup `json:"users"`
 }
 
+// ChatUsageLimitExceededResponse is the 409 response body returned when a
+// chat operation exceeds the caller's usage limit. The structured fields let
+// frontends render user-friendly spend, limit, and reset information without
+// parsing debug text.
+type ChatUsageLimitExceededResponse struct {
+	Message     string    `json:"message"`
+	SpentMicros int64     `json:"spent_micros"`
+	LimitMicros int64     `json:"limit_micros"`
+	ResetsAt    time.Time `json:"resets_at" format:"date-time"`
+}
+
 // ChatUsageLimitPeriod represents the time window for usage limits.
 type ChatUsageLimitPeriod string
 

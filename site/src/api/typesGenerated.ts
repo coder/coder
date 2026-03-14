@@ -1806,6 +1806,20 @@ export interface ChatUsageLimitConfigResponse extends ChatUsageLimitConfig {
 
 // From codersdk/chats.go
 /**
+ * ChatUsageLimitExceededResponse is the 409 response body returned when a
+ * chat operation exceeds the caller's usage limit. The structured fields let
+ * frontends render user-friendly spend, limit, and reset information without
+ * parsing debug text.
+ */
+export interface ChatUsageLimitExceededResponse {
+	readonly message: string;
+	readonly spent_micros: number;
+	readonly limit_micros: number;
+	readonly resets_at: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatUsageLimitGroupOverride represents a group-scoped spend limit override.
  */
 export interface ChatUsageLimitGroupOverride {

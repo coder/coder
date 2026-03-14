@@ -14,9 +14,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// ComputePeriodBounds returns the UTC-aligned start and end bounds for the
+// ComputeUsagePeriodBounds returns the UTC-aligned start and end bounds for the
 // active usage-limit period containing now.
-func ComputePeriodBounds(now time.Time, period codersdk.ChatUsageLimitPeriod) (start, end time.Time) {
+func ComputeUsagePeriodBounds(now time.Time, period codersdk.ChatUsageLimitPeriod) (start, end time.Time) {
 	utcNow := now.UTC()
 
 	switch period {
@@ -89,7 +89,7 @@ func ResolveUsageLimitStatus(ctx context.Context, db database.Store, userID uuid
 		return nil, nil //nolint:nilnil // Nil status cleanly signals disabled limits.
 	}
 
-	start, end := ComputePeriodBounds(now, period)
+	start, end := ComputeUsagePeriodBounds(now, period)
 
 	spendTotal, err := db.GetUserChatSpendInPeriod(authCtx, database.GetUserChatSpendInPeriodParams{
 		UserID:    userID,

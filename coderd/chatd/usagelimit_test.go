@@ -7,7 +7,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestComputePeriodBounds(t *testing.T) {
+func TestComputeUsagePeriodBounds(t *testing.T) {
 	t.Parallel()
 
 	newYork, err := time.LoadLocation("America/New_York")
@@ -120,7 +120,7 @@ func TestComputePeriodBounds(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			start, end := ComputePeriodBounds(tc.now, tc.period)
+			start, end := ComputeUsagePeriodBounds(tc.now, tc.period)
 			if !start.Equal(tc.wantStart) {
 				t.Errorf("start: got %v, want %v", start, tc.wantStart)
 			}
