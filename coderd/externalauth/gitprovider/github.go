@@ -267,7 +267,7 @@ func (g *githubProvider) FetchPullRequestStatus(
 		ChangedFiles int32  `json:"changed_files"`
 		Number       int    `json:"number"`
 		Commits      int32  `json:"commits"`
-		Head struct {
+		Head         struct {
 			SHA string `json:"sha"`
 			Ref string `json:"ref"`
 		} `json:"head"`
@@ -311,9 +311,9 @@ func (g *githubProvider) FetchPullRequestStatus(
 	reviewInfo := summarizeReviews(reviews)
 
 	return &PRStatus{
-		Title:   pull.Title,
-		State:   state,
-		Draft:   pull.Draft,
+		Title:      pull.Title,
+		State:      state,
+		Draft:      pull.Draft,
 		HeadSHA:    pull.Head.SHA,
 		HeadBranch: pull.Head.Ref,
 		DiffStats: DiffStats{
