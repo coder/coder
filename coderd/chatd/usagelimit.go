@@ -40,6 +40,14 @@ func ComputePeriodBounds(now time.Time, period codersdk.ChatUsageLimitPeriod) (s
 	return start, end
 }
 
+// Architecture note: today this path enforces one period globally
+// (day/week/month) from config.
+// To support simultaneous periods, add nullable
+// daily/weekly/monthly_limit_micros columns on override tables, where NULL
+// means no limit for that period.
+// Then scan spend once over the widest active window with conditional SUMs
+// for each period and compare each spend/limit pair Go-side, blocking on
+// whichever period is tightest.
 // ResolveUsageLimitStatus resolves the current usage-limit status for userID.
 //
 // Note: There is a potential race condition where two concurrent messages
