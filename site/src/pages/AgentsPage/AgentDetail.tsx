@@ -161,8 +161,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 		() => buildParsedMessageSections(parsedMessages),
 		[parsedMessages],
 	);
-	const detailErrorMessage =
-		(chatStatus === "error" ? persistedErrorReason : undefined) || streamError;
+	const detailErrorMessage = persistedErrorReason || streamError;
 	const latestMessage = messages[messages.length - 1];
 	const latestMessageNeedsAssistantResponse =
 		!latestMessage || latestMessage.role !== "assistant";
