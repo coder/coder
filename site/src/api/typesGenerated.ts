@@ -6912,7 +6912,7 @@ export interface UploadResponse {
  * a group-level spend limit override.
  */
 export interface UpsertChatUsageLimitGroupOverrideRequest {
-	readonly spend_limit_micros: number;
+	readonly spend_limit_micros: number; // Must be greater than 0.
 }
 
 // From codersdk/chats.go
@@ -6921,7 +6921,7 @@ export interface UpsertChatUsageLimitGroupOverrideRequest {
  * per-user usage limit override.
  */
 export interface UpsertChatUsageLimitOverrideRequest {
-	readonly spend_limit_micros: number;
+	readonly spend_limit_micros: number; // Must be greater than 0.
 }
 
 // From codersdk/workspaceagentportshare.go
