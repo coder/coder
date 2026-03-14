@@ -268,6 +268,14 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		InitialUserContent: contentBlocks,
 	})
 	if err != nil {
+		var limitErr *chatd.UsageLimitExceededError
+		if errors.As(err, &limitErr) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Chat usage limit exceeded.",
+				Detail:  limitErr.Error(),
+			})
+			return
+		}
 		if database.IsForeignKeyViolation(
 			err,
 			database.ForeignKeyChatsLastModelConfigID,
@@ -1562,6 +1570,14 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	})
 
 	if txErr != nil {
+		var limitErr *chatd.UsageLimitExceededError
+		if errors.As(txErr, &limitErr) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Chat usage limit exceeded.",
+				Detail:  limitErr.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to promote queued message.",
 			Detail:  txErr.Error(),

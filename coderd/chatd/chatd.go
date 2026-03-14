@@ -421,19 +421,22 @@ func (p *Server) SendMessage(
 			modelConfigID = *opts.ModelConfigID
 		}
 
+		existingQueued, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("get queued messages: %w", err)
+		}
+
 		// Both queue and interrupt behaviors queue messages
-		// when the chat is busy. Interrupt additionally
-		// signals the running loop to stop so the queued
-		// message is promoted sooner. Crucially, this
-		// guarantees the interrupted assistant response is
-		// persisted (with a lower id/created_at) before the
-		// user message is promoted into chat_messages,
-		// preserving correct conversation order.
-		if shouldQueueUserMessage(lockedChat.Status) {
-			existingQueued, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)
-			if err != nil {
-				return xerrors.Errorf("get queued messages: %w", err)
-			}
+		// when the chat is busy. We also keep queueing while a
+		// backlog exists so waiting chats blocked by spend limits
+		// preserve FIFO user-message order. Interrupt additionally
+		// signals the running loop to stop so the queued message
+		// is promoted sooner. Crucially, this guarantees the
+		// interrupted assistant response is persisted (with a
+		// lower id/created_at) before the user message is
+		// promoted into chat_messages, preserving correct
+		// conversation order.
+		if shouldQueueUserMessage(lockedChat.Status) || len(existingQueued) > 0 {
 			if len(existingQueued) >= MaxQueueSize {
 				return ErrMessageQueueFull
 			}
