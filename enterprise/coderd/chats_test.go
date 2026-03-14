@@ -22,6 +22,34 @@ import (
 	"github.com/coder/websocket"
 )
 
+// getRunningChatWorkerID polls the database for a chat that has an active
+// run step with a worker assigned. Returns the workerID once found.
+func getRunningChatWorkerID(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	chatID uuid.UUID,
+) uuid.UUID {
+	t.Helper()
+	var workerID uuid.UUID
+	require.Eventually(t, func() bool {
+		step, err := db.GetActiveChatRunStep(ctx, chatID)
+		if err != nil {
+			return false
+		}
+		run, err := db.GetChatRunByID(ctx, step.ChatRunID)
+		if err != nil {
+			return false
+		}
+		if !run.WorkerID.Valid {
+			return false
+		}
+		workerID = run.WorkerID.UUID
+		return true
+	}, testutil.WaitLong, testutil.IntervalFast)
+	return workerID
+}
+
 func TestChatStreamRelay(t *testing.T) {
 	t.Parallel()
 
@@ -102,22 +130,11 @@ func TestChatStreamRelay(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 
-		var runningChat database.Chat
-		require.Eventually(t, func() bool {
-			current, getErr := db.GetChatByID(ctx, chat.ID)
-			if getErr != nil {
-				return false
-			}
-			if current.Status != database.ChatStatusRunning || !current.WorkerID.Valid {
-				return false
-			}
-			runningChat = current
-			return true
-		}, testutil.WaitLong, testutil.IntervalFast)
+		runningWorkerID := getRunningChatWorkerID(ctx, t, db, chat.ID)
 
 		var localClient *codersdk.Client
 		var relayClient *codersdk.Client
-		switch runningChat.WorkerID.UUID {
+		switch runningWorkerID {
 		case firstReplicaID:
 			localClient = firstClient
 			relayClient = secondClient
@@ -129,7 +146,7 @@ func TestChatStreamRelay(t *testing.T) {
 				t,
 				"worker replica was not recognized",
 				"worker %s was not one of %s or %s",
-				runningChat.WorkerID.UUID,
+				runningWorkerID,
 				firstReplicaID,
 				secondReplicaID,
 			)
@@ -291,22 +308,11 @@ func TestChatStreamRelay(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 
-		var runningChat database.Chat
-		require.Eventually(t, func() bool {
-			current, getErr := db.GetChatByID(ctx, chat.ID)
-			if getErr != nil {
-				return false
-			}
-			if current.Status != database.ChatStatusRunning || !current.WorkerID.Valid {
-				return false
-			}
-			runningChat = current
-			return true
-		}, testutil.WaitLong, testutil.IntervalFast)
+		runningWorkerID := getRunningChatWorkerID(ctx, t, db, chat.ID)
 
 		var localClient *codersdk.Client
 		var relayClient *codersdk.Client
-		switch runningChat.WorkerID.UUID {
+		switch runningWorkerID {
 		case firstReplicaID:
 			localClient = firstClient
 			relayClient = secondClient
@@ -318,12 +324,11 @@ func TestChatStreamRelay(t *testing.T) {
 				t,
 				"worker replica was not recognized",
 				"worker %s was not one of %s or %s",
-				runningChat.WorkerID.UUID,
+				runningWorkerID,
 				firstReplicaID,
 				secondReplicaID,
 			)
 		}
-
 		// Subscribe on the worker replica to start the stream.
 		firstEvents, firstStream, err := localClient.StreamChat(ctx, chat.ID, nil)
 		require.NoError(t, err)
@@ -461,22 +466,11 @@ func TestChatStreamRelay(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 
-		var runningChat database.Chat
-		require.Eventually(t, func() bool {
-			current, getErr := db.GetChatByID(ctx, chat.ID)
-			if getErr != nil {
-				return false
-			}
-			if current.Status != database.ChatStatusRunning || !current.WorkerID.Valid {
-				return false
-			}
-			runningChat = current
-			return true
-		}, testutil.WaitLong, testutil.IntervalFast)
+		runningWorkerID := getRunningChatWorkerID(ctx, t, db, chat.ID)
 
 		var localClient *codersdk.Client
 		var relayClient *codersdk.Client
-		switch runningChat.WorkerID.UUID {
+		switch runningWorkerID {
 		case firstReplicaID:
 			localClient = firstClient
 			relayClient = secondClient
@@ -488,7 +482,7 @@ func TestChatStreamRelay(t *testing.T) {
 				t,
 				"worker replica was not recognized",
 				"worker %s was not one of %s or %s",
-				runningChat.WorkerID.UUID,
+				runningWorkerID,
 				firstReplicaID,
 				secondReplicaID,
 			)
@@ -633,22 +627,11 @@ func TestChatStreamRelay(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 
-		var runningChat database.Chat
-		require.Eventually(t, func() bool {
-			current, getErr := db.GetChatByID(ctx, chat.ID)
-			if getErr != nil {
-				return false
-			}
-			if current.Status != database.ChatStatusRunning || !current.WorkerID.Valid {
-				return false
-			}
-			runningChat = current
-			return true
-		}, testutil.WaitLong, testutil.IntervalFast)
+		runningWorkerID := getRunningChatWorkerID(ctx, t, db, chat.ID)
 
 		var localClient *codersdk.Client
 		var relayClient *codersdk.Client
-		switch runningChat.WorkerID.UUID {
+		switch runningWorkerID {
 		case firstReplicaID:
 			localClient = firstClient
 			relayClient = secondClient
@@ -660,7 +643,7 @@ func TestChatStreamRelay(t *testing.T) {
 				t,
 				"worker replica was not recognized",
 				"worker %s was not one of %s or %s",
-				runningChat.WorkerID.UUID,
+				runningWorkerID,
 				firstReplicaID,
 				secondReplicaID,
 			)
@@ -781,22 +764,11 @@ func TestChatStreamRelay(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatStatusPending, chat.Status)
 
-		var runningChat database.Chat
-		require.Eventually(t, func() bool {
-			current, getErr := db.GetChatByID(ctx, chat.ID)
-			if getErr != nil {
-				return false
-			}
-			if current.Status != database.ChatStatusRunning || !current.WorkerID.Valid {
-				return false
-			}
-			runningChat = current
-			return true
-		}, testutil.WaitLong, testutil.IntervalFast)
+		runningWorkerID := getRunningChatWorkerID(ctx, t, db, chat.ID)
 
 		var localClient *codersdk.Client
 		var relayClient *codersdk.Client
-		switch runningChat.WorkerID.UUID {
+		switch runningWorkerID {
 		case firstReplicaID:
 			localClient = firstClient
 			relayClient = secondClient
@@ -808,7 +780,7 @@ func TestChatStreamRelay(t *testing.T) {
 				t,
 				"worker replica was not recognized",
 				"worker %s was not one of %s or %s",
-				runningChat.WorkerID.UUID,
+				runningWorkerID,
 				firstReplicaID,
 				secondReplicaID,
 			)

@@ -5,6 +5,12 @@ WHERE id = @id OR root_chat_id = @id;
 -- name: UnarchiveChatByID :exec
 UPDATE chats SET archived = false, updated_at = NOW() WHERE id = @id::uuid;
 
+-- name: DeleteChatMessagesByChatID :exec
+DELETE FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid;
+
 -- name: DeleteChatMessagesAfterID :exec
 DELETE FROM
     chat_messages
@@ -17,6 +23,14 @@ SELECT
     *
 FROM
     chats
+WHERE
+    id = @id::uuid;
+
+-- name: GetChatWithStatusByID :one
+SELECT
+    *
+FROM
+    chats_with_status
 WHERE
     id = @id::uuid;
 
@@ -135,6 +149,55 @@ LIMIT
     -- Default to 50 to prevent accidental excessively large queries.
     COALESCE(NULLIF(@limit_opt :: int, 0), 50);
 
+-- name: GetChatsWithStatusByOwnerID :many
+SELECT
+    *
+FROM
+    chats_with_status
+WHERE
+    owner_id = @owner_id::uuid
+    AND CASE
+        WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
+        ELSE chats_with_status.archived = sqlc.narg('archived') :: boolean
+    END
+    AND CASE
+        WHEN @after_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+            (updated_at, id) < (
+                SELECT
+                    updated_at, id
+                FROM
+                    chats
+                WHERE
+                    id = @after_id
+            )
+        )
+        ELSE true
+    END
+ORDER BY
+    (updated_at, id) DESC OFFSET @offset_opt
+LIMIT
+    COALESCE(NULLIF(@limit_opt :: int, 0), 50);
+
+-- name: ListChildChatsByParentID :many
+SELECT
+    *
+FROM
+    chats
+WHERE
+    parent_chat_id = @parent_chat_id::uuid
+ORDER BY
+    created_at ASC;
+
+-- name: ListChatsByRootID :many
+SELECT
+    *
+FROM
+    chats
+WHERE
+    root_chat_id = @root_chat_id::uuid
+ORDER BY
+    created_at ASC;
+
 -- name: InsertChat :one
 INSERT INTO chats (
     owner_id,
@@ -170,6 +233,8 @@ INSERT INTO chat_messages (
     chat_id,
     created_by,
     model_config_id,
+    chat_run_id,
+    chat_run_step_id,
     role,
     content,
     content_version,
@@ -187,6 +252,8 @@ INSERT INTO chat_messages (
     @chat_id::uuid,
     sqlc.narg('created_by')::uuid,
     sqlc.narg('model_config_id')::uuid,
+    sqlc.narg('chat_run_id')::uuid,
+    sqlc.narg('chat_run_step_id')::uuid,
     @role::chat_message_role,
     sqlc.narg('content')::jsonb,
     @content_version::smallint,
@@ -236,73 +303,6 @@ WHERE
     id = @id::uuid
 RETURNING
     *;
-
--- name: AcquireChats :many
--- Acquires up to @num_chats pending chats for processing. Uses SKIP LOCKED
--- to prevent multiple replicas from acquiring the same chat.
-UPDATE
-    chats
-SET
-    status = 'running'::chat_status,
-    started_at = @started_at::timestamptz,
-    heartbeat_at = @started_at::timestamptz,
-    updated_at = @started_at::timestamptz,
-    worker_id = @worker_id::uuid
-WHERE
-    id = ANY(
-        SELECT
-            id
-        FROM
-            chats
-        WHERE
-            status = 'pending'::chat_status
-        ORDER BY
-            updated_at ASC
-        FOR UPDATE
-            SKIP LOCKED
-        LIMIT
-            @num_chats::int
-    )
-RETURNING
-    *;
-
--- name: UpdateChatStatus :one
-UPDATE
-    chats
-SET
-    status = @status::chat_status,
-    worker_id = sqlc.narg('worker_id')::uuid,
-    started_at = sqlc.narg('started_at')::timestamptz,
-    heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
-    last_error = sqlc.narg('last_error')::text,
-    updated_at = NOW()
-WHERE
-    id = @id::uuid
-RETURNING
-    *;
-
--- name: GetStaleChats :many
--- Find chats that appear stuck (running but heartbeat has expired).
--- Used for recovery after coderd crashes or long hangs.
-SELECT
-    *
-FROM
-    chats
-WHERE
-    status = 'running'::chat_status
-    AND heartbeat_at < @stale_threshold::timestamptz;
-
--- name: UpdateChatHeartbeat :execrows
--- Bumps the heartbeat timestamp for a running chat so that other
--- replicas know the worker is still alive.
-UPDATE
-    chats
-SET
-    heartbeat_at = NOW()
-WHERE
-    id = @id::uuid
-    AND worker_id = @worker_id::uuid
-    AND status = 'running'::chat_status;
 
 -- name: GetChatDiffStatusByChatID :one
 SELECT

@@ -903,22 +903,39 @@ const LoadMoreSentinel: FC<{
 	isFetchingNextPage?: boolean;
 }> = ({ onLoadMore, isFetchingNextPage }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
+	const onLoadMoreRef = useRef(onLoadMore);
+	const isFetchingNextPageRef = useRef(isFetchingNextPage);
+
+	// Keep refs in sync with the latest prop values so the
+	// observer callback always reads current state without
+	// needing to tear down and re-create the observer.
+	useEffect(() => {
+		onLoadMoreRef.current = onLoadMore;
+	}, [onLoadMore]);
+
+	useEffect(() => {
+		isFetchingNextPageRef.current = isFetchingNextPage;
+	}, [isFetchingNextPage]);
 
 	useEffect(() => {
 		const el = sentinelRef.current;
-		if (!el || !onLoadMore) return;
+		if (!el) return;
 
 		const observer = new IntersectionObserver(
 			(entries) => {
-				if (entries[0]?.isIntersecting) {
-					onLoadMore();
+				if (
+					entries[0]?.isIntersecting &&
+					!isFetchingNextPageRef.current &&
+					onLoadMoreRef.current
+				) {
+					onLoadMoreRef.current();
 				}
 			},
 			{ threshold: 0 },
 		);
 		observer.observe(el);
 		return () => observer.disconnect();
-	}, [onLoadMore]);
+	}, []);
 
 	return (
 		<div ref={sentinelRef} className="flex items-center justify-center py-2">
