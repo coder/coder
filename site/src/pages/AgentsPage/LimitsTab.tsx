@@ -12,6 +12,15 @@ import type { ChatUsageLimitPeriod, Group, User } from "api/typesGenerated";
 import { Autocomplete } from "components/Autocomplete/Autocomplete";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "components/Select/Select";
 import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import {
@@ -42,8 +51,6 @@ const microsToDollars = (micros: number): number =>
 const dollarsToMicros = (dollars: string): number =>
 	Math.round(Number(dollars) * 1_000_000);
 
-const inputClassName =
-	"w-full rounded-lg border border-border bg-surface-primary px-3 py-2 text-[13px] text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30";
 const sectionPanelClassName = "space-y-4 rounded-lg border border-border p-4";
 
 const AdminBadge: FC = () => (
@@ -275,39 +282,35 @@ export const LimitsTab: FC = () => {
 
 						{enabled && (
 							<div className="flex flex-col gap-3 md:flex-row md:items-end">
-								<div className="flex-1">
-									<label
-										className="mb-1 block text-xs font-medium text-content-secondary"
-										htmlFor="chat-limit-period"
-									>
-										Period
-									</label>
-									<select
-										id="chat-limit-period"
-										className={inputClassName}
+								<div className="flex-1 space-y-1">
+									<Label htmlFor="chat-limit-period">Period</Label>
+									<Select
 										value={period}
-										onChange={(event) =>
-											setPeriod(event.target.value as ChatUsageLimitPeriod)
+										onValueChange={(value) =>
+											setPeriod(value as ChatUsageLimitPeriod)
 										}
 									>
-										<option value="day">Day</option>
-										<option value="week">Week</option>
-										<option value="month">Month</option>
-									</select>
+										<SelectTrigger
+											id="chat-limit-period"
+											className="h-9 min-w-0 text-[13px]"
+										>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="day">Day</SelectItem>
+											<SelectItem value="week">Week</SelectItem>
+											<SelectItem value="month">Month</SelectItem>
+										</SelectContent>
+									</Select>
 								</div>
-								<div className="flex-1">
-									<label
-										className="mb-1 block text-xs font-medium text-content-secondary"
-										htmlFor="chat-limit-amount"
-									>
-										Amount ($)
-									</label>
-									<input
+								<div className="flex-1 space-y-1">
+									<Label htmlFor="chat-limit-amount">Amount ($)</Label>
+									<Input
 										id="chat-limit-amount"
 										type="number"
 										step="0.01"
 										min="0"
-										className={inputClassName}
+										className="h-9 min-w-0 text-[13px]"
 										value={amountDollars}
 										onChange={(event) => setAmountDollars(event.target.value)}
 										placeholder="0.00"
@@ -414,12 +417,7 @@ export const LimitsTab: FC = () => {
 								<div className="space-y-3 rounded-lg border border-border bg-surface-secondary/40 p-4">
 									<div className="flex flex-col gap-3 md:flex-row md:items-end">
 										<div className="flex-1 space-y-1">
-											<label
-												className="block text-xs font-medium text-content-secondary"
-												htmlFor="group-override-autocomplete"
-											>
-												Group
-											</label>
+											<Label htmlFor="group-override-autocomplete">Group</Label>
 											<Autocomplete
 												id="group-override-autocomplete"
 												value={selectedGroup}
@@ -452,19 +450,16 @@ export const LimitsTab: FC = () => {
 												className="w-full"
 											/>
 										</div>
-										<div className="flex-1">
-											<label
-												className="mb-1 block text-xs font-medium text-content-secondary"
-												htmlFor="group-override-amount"
-											>
+										<div className="flex-1 space-y-1">
+											<Label htmlFor="group-override-amount">
 												Spend Limit ($)
-											</label>
-											<input
+											</Label>
+											<Input
 												id="group-override-amount"
 												type="number"
 												step="0.01"
 												min="0"
-												className={inputClassName}
+												className="h-9 min-w-0 text-[13px]"
 												value={groupAmount}
 												onChange={(event) => setGroupAmount(event.target.value)}
 												placeholder="0.00"
@@ -603,19 +598,16 @@ export const LimitsTab: FC = () => {
 												label="User"
 											/>
 										</div>
-										<div className="flex-1">
-											<label
-												className="mb-1 block text-xs font-medium text-content-secondary"
-												htmlFor="user-override-amount"
-											>
+										<div className="flex-1 space-y-1">
+											<Label htmlFor="user-override-amount">
 												Spend Limit ($)
-											</label>
-											<input
+											</Label>
+											<Input
 												id="user-override-amount"
 												type="number"
 												step="0.01"
 												min="0"
-												className={inputClassName}
+												className="h-9 min-w-0 text-[13px]"
 												value={userOverrideAmount}
 												onChange={(event) =>
 													setUserOverrideAmount(event.target.value)
