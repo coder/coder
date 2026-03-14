@@ -778,6 +778,10 @@ func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 		//nolint:gocritic // Override deletion requires system-restricted access.
 		systemCtx := dbauthz.AsSystemRestricted(ctx)
 		if err := api.Database.DeleteChatUsageLimitOverride(systemCtx, userID); err != nil {
+			if database.IsForeignKeyViolation(err) {
+				writeChatUsageLimitUserNotFound(ctx, rw)
+				return
+			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to delete chat usage limit override.",
 				Detail:  err.Error(),
@@ -803,6 +807,10 @@ func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 		LimitMicros: *req.SpendLimitMicros,
 	})
 	if err != nil {
+		if database.IsForeignKeyViolation(err) {
+			writeChatUsageLimitUserNotFound(ctx, rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to upsert chat usage limit override.",
 			Detail:  err.Error(),
@@ -846,6 +854,10 @@ func (api *API) deleteChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 	//nolint:gocritic // Override deletion requires system-restricted access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	if err := api.Database.DeleteChatUsageLimitOverride(systemCtx, userID); err != nil {
+		if database.IsForeignKeyViolation(err) {
+			writeChatUsageLimitUserNotFound(ctx, rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete chat usage limit override.",
 			Detail:  err.Error(),
@@ -895,6 +907,10 @@ func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 		LimitMicros: *req.SpendLimitMicros,
 	})
 	if err != nil {
+		if database.IsForeignKeyViolation(err) {
+			writeChatUsageLimitGroupNotFound(ctx, rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to upsert group usage limit override.",
 			Detail:  err.Error(),
@@ -945,6 +961,10 @@ func (api *API) deleteChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	err = api.Database.DeleteChatUsageLimitGroupOverride(systemCtx, groupID)
 	if err != nil {
+		if database.IsForeignKeyViolation(err) {
+			writeChatUsageLimitGroupNotFound(ctx, rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete group usage limit override.",
 			Detail:  err.Error(),
@@ -3777,6 +3797,18 @@ func chatModelConfigToUpdateParams(
 		UpdatedBy:            uuid.NullUUID{},
 		ID:                   config.ID,
 	}
+}
+
+func writeChatUsageLimitUserNotFound(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "User not found.",
+	})
+}
+
+func writeChatUsageLimitGroupNotFound(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Group not found.",
+	})
 }
 
 func parseChatUsageLimitUserID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
