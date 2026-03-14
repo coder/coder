@@ -839,7 +839,10 @@ type ChatUsageLimitConfig struct {
 
 // ChatUsageLimitOverride is a per-user override of the deployment default.
 type ChatUsageLimitOverride struct {
-	MinimalUser
+	UserID    uuid.UUID `json:"user_id" format:"uuid"`
+	Username  string    `json:"username"`
+	Name      string    `json:"name"`
+	AvatarURL string    `json:"avatar_url"`
 	// Nil in the API means no user override is set. Persisted override rows
 	// store positive values.
 	SpendLimitMicros *int64    `json:"spend_limit_micros"`
@@ -861,17 +864,23 @@ type ChatUsageLimitGroupOverride struct {
 	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
 }
 
-// UpdateChatUsageLimitOverrideRequest is the body for creating/updating a
+// UpsertChatUsageLimitOverrideRequest is the body for creating/updating a
 // per-user usage limit override.
-type UpdateChatUsageLimitOverrideRequest struct {
+type UpsertChatUsageLimitOverrideRequest struct {
 	SpendLimitMicros int64 `json:"spend_limit_micros"` // Must be greater than 0.
 }
 
-// UpdateChatUsageLimitGroupOverrideRequest is the request to create or update
+// UpdateChatUsageLimitOverrideRequest is kept as a compatibility alias.
+type UpdateChatUsageLimitOverrideRequest = UpsertChatUsageLimitOverrideRequest
+
+// UpsertChatUsageLimitGroupOverrideRequest is the request to create or update
 // a group-level spend limit override.
-type UpdateChatUsageLimitGroupOverrideRequest struct {
+type UpsertChatUsageLimitGroupOverrideRequest struct {
 	SpendLimitMicros int64 `json:"spend_limit_micros"` // Must be greater than 0.
 }
+
+// UpdateChatUsageLimitGroupOverrideRequest is kept as a compatibility alias.
+type UpdateChatUsageLimitGroupOverrideRequest = UpsertChatUsageLimitGroupOverrideRequest
 
 // ChatUsageLimitStatus represents the current spend status for a user
 // within their active limit period.
@@ -1542,9 +1551,9 @@ func (c *Client) UpdateChatUsageLimitConfig(ctx context.Context, req ChatUsageLi
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// UpdateChatUserUsageLimitOverride creates or updates a per-user usage limit override.
-func (c *Client) UpdateChatUserUsageLimitOverride(ctx context.Context, userID uuid.UUID, req UpdateChatUsageLimitOverrideRequest) (ChatUsageLimitOverride, error) {
-	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/usage-limits/user-overrides/%s", userID), req)
+// UpsertChatUsageLimitOverride creates or updates a per-user usage limit override.
+func (c *Client) UpsertChatUsageLimitOverride(ctx context.Context, userID uuid.UUID, req UpsertChatUsageLimitOverrideRequest) (ChatUsageLimitOverride, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/usage-limits/overrides/%s", userID), req)
 	if err != nil {
 		return ChatUsageLimitOverride{}, err
 	}
@@ -1556,9 +1565,14 @@ func (c *Client) UpdateChatUserUsageLimitOverride(ctx context.Context, userID uu
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// DeleteChatUserUsageLimitOverride removes a per-user usage limit override.
-func (c *Client) DeleteChatUserUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/usage-limits/user-overrides/%s", userID), nil)
+// UpdateChatUserUsageLimitOverride creates or updates a per-user usage limit override.
+func (c *Client) UpdateChatUserUsageLimitOverride(ctx context.Context, userID uuid.UUID, req UpdateChatUsageLimitOverrideRequest) (ChatUsageLimitOverride, error) {
+	return c.UpsertChatUsageLimitOverride(ctx, userID, req)
+}
+
+// DeleteChatUsageLimitOverride removes a per-user usage limit override.
+func (c *Client) DeleteChatUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/usage-limits/overrides/%s", userID), nil)
 	if err != nil {
 		return err
 	}
@@ -1569,9 +1583,14 @@ func (c *Client) DeleteChatUserUsageLimitOverride(ctx context.Context, userID uu
 	return nil
 }
 
+// DeleteChatUserUsageLimitOverride removes a per-user usage limit override.
+func (c *Client) DeleteChatUserUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
+	return c.DeleteChatUsageLimitOverride(ctx, userID)
+}
+
 // UpsertChatUsageLimitGroupOverride creates or updates a group-level
 // spend limit override. EXPERIMENTAL: This API is subject to change.
-func (c *Client) UpsertChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID, req UpdateChatUsageLimitGroupOverrideRequest) (ChatUsageLimitGroupOverride, error) {
+func (c *Client) UpsertChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID, req UpsertChatUsageLimitGroupOverrideRequest) (ChatUsageLimitGroupOverride, error) {
 	res, err := c.Request(ctx, http.MethodPut,
 		fmt.Sprintf("/api/experimental/chats/usage-limits/group-overrides/%s", groupID),
 		req,
