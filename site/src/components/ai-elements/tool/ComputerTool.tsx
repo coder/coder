@@ -1,6 +1,12 @@
-import { LoaderIcon, MonitorIcon } from "lucide-react";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { CircleAlertIcon, LoaderIcon } from "lucide-react";
 import type React from "react";
 import { cn } from "utils/cn";
+import { ToolCollapsible } from "./ToolCollapsible";
 import type { ToolStatus } from "./utils";
 
 /**
@@ -15,33 +21,46 @@ export const ComputerTool: React.FC<{
 	text: string;
 	status: ToolStatus;
 	isError: boolean;
-}> = ({ imageData, mimeType, text, status, isError }) => {
+	errorMessage?: string;
+}> = ({ imageData, mimeType, text, status, isError, errorMessage }) => {
 	const isRunning = status === "running";
 	const hasImage = imageData.length > 0;
+	const hasText = text.length > 0;
+	const hasContent = hasImage || hasText;
 
 	return (
-		<div className="w-full">
-			<div className="flex items-center gap-2">
-				<MonitorIcon
-					className={cn(
-						"h-4 w-4 shrink-0",
-						isError ? "text-content-destructive" : "text-content-secondary",
+		<ToolCollapsible
+			className="w-full"
+			hasContent={hasContent}
+			defaultExpanded={hasImage}
+			header={
+				<>
+					<span
+						className={cn(
+							"text-sm",
+							isError ? "text-content-destructive" : "text-content-secondary",
+						)}
+					>
+						{isRunning ? "Taking screenshot…" : "Screenshot"}
+					</span>
+					{isError && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+							</TooltipTrigger>
+							<TooltipContent>
+								{errorMessage || "Failed to take screenshot"}
+							</TooltipContent>
+						</Tooltip>
 					)}
-				/>
-				<span
-					className={cn(
-						"text-sm",
-						isError ? "text-content-destructive" : "text-content-secondary",
+					{isRunning && (
+						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
 					)}
-				>
-					{isRunning ? "Taking screenshot…" : "Screenshot"}
-				</span>
-				{isRunning && (
-					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
-				)}
-			</div>
+				</>
+			}
+		>
 			{hasImage ? (
-				<div className="mt-1.5 ml-6 overflow-hidden rounded-md border border-solid border-border-default">
+				<div className="mt-1.5 overflow-hidden rounded-md border border-solid border-border-default">
 					<a
 						href={`data:${mimeType};base64,${imageData}`}
 						target="_blank"
@@ -54,13 +73,13 @@ export const ComputerTool: React.FC<{
 						/>
 					</a>
 				</div>
-			) : text ? (
-				<div className="mt-1.5 ml-6 rounded-md border border-solid border-border-default px-3 py-2">
+			) : hasText ? (
+				<div className="mt-1.5 rounded-md border border-solid border-border-default px-3 py-2">
 					<pre className="whitespace-pre-wrap text-xs text-content-secondary">
 						{text}
 					</pre>
 				</div>
 			) : null}
-		</div>
+		</ToolCollapsible>
 	);
 };

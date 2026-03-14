@@ -698,8 +698,12 @@ export const ComputerTextFallback: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("Screenshot")).toBeInTheDocument();
+		// Text-only results are collapsed by default (no image).
+		const toggle = canvas.getByRole("button", { name: /Screenshot/ });
+		expect(toggle).toBeInTheDocument();
 		expect(canvas.queryByRole("img")).toBeNull();
+
+		await userEvent.click(toggle);
 		expect(
 			canvas.getByText(/Screen resolution: 1920x1080/),
 		).toBeInTheDocument();
