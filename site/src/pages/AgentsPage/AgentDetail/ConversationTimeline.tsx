@@ -911,11 +911,11 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	const shouldRenderStreamInLastSection =
 		hasStreamOutput && parsedSections.length > 0;
 	const usageErrorMessage = detailErrorMessage?.trim();
-	const showUsageAction =
-		onOpenAnalytics !== undefined &&
+	const isUsageLimitError =
 		typeof usageErrorMessage === "string" &&
 		usageErrorMessage.length > 0 &&
 		isUsageLimitErrorMessage(usageErrorMessage);
+	const showUsageAction = onOpenAnalytics !== undefined && isUsageLimitError;
 
 	return (
 		<div className="mx-auto w-full max-w-3xl py-6">
@@ -993,7 +993,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 			)}
 			{detailErrorMessage && (
 				<Alert
-					severity="info"
+					severity={isUsageLimitError ? "info" : "error"}
 					className="py-2"
 					actions={
 						showUsageAction && (
