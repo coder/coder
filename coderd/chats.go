@@ -926,8 +926,28 @@ func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 
 	group, err := api.Database.GetGroupByID(systemCtx, groupID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeChatUsageLimitGroupNotFound(ctx, rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to fetch group details.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	memberCount, err := api.Database.GetGroupMembersCountByGroupID(systemCtx, database.GetGroupMembersCountByGroupIDParams{
+		GroupID:       groupID,
+		IncludeSystem: false,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeChatUsageLimitGroupNotFound(ctx, rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to fetch group member count.",
 			Detail:  err.Error(),
 		})
 		return
@@ -939,6 +959,7 @@ func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 		GroupName:        group.Name,
 		GroupDisplayName: group.DisplayName,
 		GroupAvatarURL:   group.AvatarURL,
+		MemberCount:      memberCount,
 		SpendLimitMicros: &limitMicros,
 		CreatedAt:        override.CreatedAt,
 		UpdatedAt:        override.UpdatedAt,
@@ -965,12 +986,29 @@ func (api *API) deleteChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 
 	//nolint:gocritic // Group override deletion requires system-restricted access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	err = api.Database.DeleteChatUsageLimitGroupOverride(systemCtx, groupID)
-	if err != nil {
-		if database.IsForeignKeyViolation(err) {
+	if _, err := api.Database.GetGroupByID(systemCtx, groupID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
 			writeChatUsageLimitGroupNotFound(ctx, rw)
 			return
 		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to look up group details.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if _, err := api.Database.GetChatUsageLimitGroupOverrideByGroupID(systemCtx, groupID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeChatUsageLimitGroupOverrideNotFound(ctx, rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to look up group usage limit override.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if err := api.Database.DeleteChatUsageLimitGroupOverride(systemCtx, groupID); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete group usage limit override.",
 			Detail:  err.Error(),
@@ -3822,6 +3860,12 @@ func writeChatUsageLimitUserNotFound(ctx context.Context, rw http.ResponseWriter
 func writeChatUsageLimitOverrideNotFound(ctx context.Context, rw http.ResponseWriter) {
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 		Message: "Chat usage limit override not found.",
+	})
+}
+
+func writeChatUsageLimitGroupOverrideNotFound(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Chat usage limit group override not found.",
 	})
 }
 
