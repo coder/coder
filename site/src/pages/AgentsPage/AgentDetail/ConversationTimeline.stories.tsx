@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type * as TypesGen from "api/typesGenerated";
 import { createRef } from "react";
-import { expect, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { ConversationTimeline } from "./ConversationTimeline";
 import {
 	buildParsedMessageSections,
@@ -245,78 +245,24 @@ export const UserMessageWithImagesAndFileRefs: Story = {
 	},
 };
 
-/** File references render inline with text, matching the chat input style. */
-export const UserMessageWithInlineFileRef: Story = {
+/** Usage-limit errors render as an info alert with analytics access. */
+export const UsageLimitExceeded: Story = {
 	args: {
 		...defaultArgs,
-		parsedSections: buildSections([
-			{
-				...baseMessage,
-				id: 1,
-				role: "user",
-				content: [
-					{ type: "text", text: "Can you refactor " },
-					{
-						type: "file-reference",
-						file_name: "site/src/components/Button.tsx",
-						start_line: 42,
-						end_line: 42,
-						content: "export const Button = ...",
-					},
-					{ type: "text", text: " to use the new API?" },
-				],
-			},
-			{
-				...baseMessage,
-				id: 2,
-				role: "assistant",
-				content: [{ type: "text", text: "Sure, I'll update that component." }],
-			},
-		]),
+		loadMoreSentinelRef: { current: null },
+		parsedSections: [],
+		detailErrorMessage:
+			"You've used $50.00 of your $50.00 spend limit. Your limit resets on July 1, 2025.",
+		onOpenAnalytics: fn(),
+		subagentTitles: new Map(),
+		subagentStatusOverrides: new Map(),
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
-		// File ref chip is inline, rendered as a button
-		expect(canvas.getByText(/Button\.tsx/)).toBeInTheDocument();
-		// Surrounding text is present
-		expect(canvas.getByText(/Can you refactor/)).toBeInTheDocument();
-		expect(canvas.getByText(/to use the new API/)).toBeInTheDocument();
-	},
-};
-
-/** Multiple file references render inline, no separate section. */
-export const UserMessageWithMultipleInlineFileRefs: Story = {
-	args: {
-		...defaultArgs,
-		parsedSections: buildSections([
-			{
-				...baseMessage,
-				id: 1,
-				role: "user",
-				content: [
-					{ type: "text", text: "Compare " },
-					{
-						type: "file-reference",
-						file_name: "api/handler.go",
-						start_line: 1,
-						end_line: 50,
-						content: "...",
-					},
-					{ type: "text", text: " with " },
-					{
-						type: "file-reference",
-						file_name: "api/handler_test.go",
-						start_line: 10,
-						end_line: 30,
-						content: "...",
-					},
-				],
-			},
-		]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/handler\.go/)).toBeInTheDocument();
-		expect(canvas.getByText(/handler_test\.go/)).toBeInTheDocument();
+		expect(canvas.getByText(/spend limit/i)).toBeVisible();
+		const btn = canvas.getByRole("button", { name: /view usage/i });
+		expect(btn).toBeVisible();
+		await userEvent.click(btn);
+		expect(args.onOpenAnalytics).toHaveBeenCalled();
 	},
 };

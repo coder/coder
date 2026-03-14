@@ -1,4 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import {
 	ConversationItem,
 	Message,
@@ -8,12 +9,12 @@ import {
 	Tool,
 } from "components/ai-elements";
 import { WebSearchSources } from "components/ai-elements/tool";
-import { FileReferenceChip } from "components/ChatMessageInput/FileReferenceNode";
+import { Button } from "components/Button/Button";
+import { FileIcon } from "components/FileIcon/FileIcon";
 import { Spinner } from "components/Spinner/Spinner";
 import { ChevronDownIcon } from "lucide-react";
 import {
 	type FC,
-	Fragment,
 	memo,
 	type ReactNode,
 	type RefObject,
@@ -338,20 +339,6 @@ const ChatMessageItem = memo<{
 			parsed.blocks.length > 0 ||
 			parsed.tools.length > 0 ||
 			parsed.sources.length > 0;
-
-		// Pre-compute the inline content for user messages so we
-		// avoid a filter + map inside the JSX return path.
-		const userInlineContent = isUser
-			? parsed.blocks.filter(
-					(
-						b,
-					): b is
-						| Extract<RenderBlock, { type: "response" }>
-						| Extract<RenderBlock, { type: "file-reference" }> =>
-						b.type === "response" || b.type === "file-reference",
-				)
-			: [];
-
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
 		};
@@ -407,20 +394,7 @@ const ChatMessageItem = memo<{
 								<div className="flex flex-col gap-1.5">
 									<div className="flex items-start gap-2">
 										<span className="min-w-0 flex-1">
-											{userInlineContent.length > 0
-												? userInlineContent.map((block, i) =>
-														block.type === "response" ? (
-															<Fragment key={i}>{block.text}</Fragment>
-														) : (
-															<FileReferenceChip
-																key={i}
-																fileName={block.fileName}
-																startLine={block.startLine}
-																endLine={block.endLine}
-															/>
-														),
-													)
-												: parsed.markdown || ""}
+											{parsed.markdown || ""}
 										</span>
 										{isSavingMessage && (
 											<Spinner
@@ -463,7 +437,45 @@ const ChatMessageItem = memo<{
 											</div>
 										);
 									})()}
-									{fadeFromBottom && (
+									{(() => {
+										const fileRefBlocks = parsed.blocks.filter(
+											(
+												b,
+											): b is Extract<
+												RenderBlock,
+												{ type: "file-reference" }
+											> => b.type === "file-reference",
+										);
+										if (fileRefBlocks.length === 0) return null;
+										return (
+											<div className="flex flex-col gap-1 border-t border-border-default pt-1.5">
+												{fileRefBlocks.map((dc, i) => (
+													<div
+														key={i}
+														className="flex items-start gap-2 rounded border border-content-link/20 bg-content-link/5 px-2 py-1"
+													>
+														<FileIcon
+															fileName={
+																dc.fileName.split("/").pop() || dc.fileName
+															}
+															className="shrink-0"
+														/>
+														<span className="shrink-0 text-2xs font-mono font-medium text-content-link">
+															{dc.fileName.split("/").pop()}:
+															{dc.startLine === dc.endLine
+																? dc.startLine
+																: `${dc.startLine}\u2013${dc.endLine}`}
+														</span>
+														{dc.text && (
+															<span className="text-2xs text-content-primary">
+																{dc.text}
+															</span>
+														)}
+													</div>
+												))}
+											</div>
+										);
+									})()} {fadeFromBottom && (
 										<div
 											className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
 											style={{
@@ -652,10 +664,7 @@ const StickyUserMessage: FC<{
 		const scroller = sentinel.closest(".overflow-y-auto") as HTMLElement | null;
 		if (!scroller) return;
 
-		// Halve the minimum visible height on mobile so the
-		// sticky message takes up less vertical space.
-		const isMobile = window.matchMedia("(max-width: 639px)").matches;
-		const MIN_HEIGHT = isMobile ? 52 : 72;
+		const MIN_HEIGHT = 72;
 		let scrollerTop = scroller.getBoundingClientRect().top;
 		let scrollerHeight = scroller.clientHeight;
 
@@ -769,7 +778,7 @@ const StickyUserMessage: FC<{
 			<div
 				ref={containerRef}
 				className={cn(
-					"relative px-3 -mx-3 pt-0.5 pb-0.5 sm:pt-2 sm:pb-2",
+					"relative px-3 -mx-3 pt-2 pb-2",
 					!isTooTall && "sticky top-0 z-10",
 					!isReady && "invisible",
 					isStuck && !isTooTall && "pointer-events-none",
@@ -808,29 +817,26 @@ const StickyUserMessage: FC<{
 						}}
 					>
 						{/* Blur layer: extends 48px beyond the
-							    clipped content so the frosted effect
-							    is visible around the bubble. A mask
-							    gradient fades the backdrop-blur out
-							    gradually instead of a hard cutoff.
-							    Promoted to its own GPU layer via
-							    will-change. */}
+						    clipped content so the frosted effect
+						    is visible around the bubble. Promoted
+						    to its own GPU layer via will-change. */}
 						<div
 							className="absolute inset-0 backdrop-blur-[1px] bg-surface-primary/15"
 							style={{
 								maxHeight: "calc(var(--clip-h, 100%) + 48px)",
 								willChange: "max-height, mask-image",
 								maskImage:
-									"linear-gradient(to bottom, black calc(var(--clip-h, 100%) - 24px), transparent calc(var(--clip-h, 100%) + 48px))",
+									"linear-gradient(to bottom, black calc(var(--clip-h, 100%) + 24px), transparent calc(var(--clip-h, 100%) + 48px))",
 								WebkitMaskImage:
-									"linear-gradient(to bottom, black calc(var(--clip-h, 100%) - 24px), transparent calc(var(--clip-h, 100%) + 48px))",
+									"linear-gradient(to bottom, black calc(var(--clip-h, 100%) + 24px), transparent calc(var(--clip-h, 100%) + 48px))",
 							}}
 						/>
-						{/* Content layer: px-3 pt-1 sm:pt-2 matches
-							    the sticky container's padding so the
-							    overlay aligns with the flow element.
-							    will-change promotes to GPU layer. */}
+						{/* Content layer: px-3 pt-2 matches the
+						    sticky container's padding so the
+						    overlay aligns with the flow element.
+						    will-change promotes to GPU layer. */}
 						<div
-							className="relative px-3 pt-0.5 sm:pt-2 pointer-events-auto"
+							className="relative px-3 pt-2 pointer-events-auto"
 							style={{ willChange: "max-height" }}
 						>
 							<ChatMessageItem
@@ -862,6 +868,7 @@ interface ConversationTimelineProps {
 	retryState?: { attempt: number; error: string } | null;
 	isAwaitingFirstStreamChunk: boolean;
 	detailErrorMessage?: string | null;
+	onOpenAnalytics?: () => void;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -885,6 +892,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	retryState,
 	isAwaitingFirstStreamChunk,
 	detailErrorMessage,
+	onOpenAnalytics,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
@@ -894,7 +902,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 		hasStreamOutput && parsedSections.length > 0;
 
 	return (
-		<div className="mx-auto w-full max-w-3xl py-3 sm:py-6">
+		<div className="mx-auto w-full max-w-3xl py-6">
 			{isEmpty && !hasStreamOutput ? (
 				<div className="py-12 text-center text-content-secondary">
 					<p className="text-sm">Start a conversation with your agent.</p>
@@ -968,9 +976,18 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 				</div>
 			)}
 			{detailErrorMessage && (
-				<div className="mt-4 rounded-md border border-border-destructive bg-surface-red px-3 py-2 text-xs text-content-destructive">
+				<Alert
+					severity="info"
+					actions={
+						onOpenAnalytics && (
+							<Button variant="subtle" size="sm" onClick={onOpenAnalytics}>
+								View Usage
+							</Button>
+						)
+					}
+				>
 					{detailErrorMessage}
-				</div>
+				</Alert>
 			)}
 		</div>
 	);

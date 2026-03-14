@@ -111,6 +111,7 @@ interface AgentDetailTimelineProps {
 	store: ChatStoreHandle;
 	chatID: string;
 	persistedErrorReason: string | undefined;
+	onOpenAnalytics?: () => void;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -125,6 +126,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	store,
 	chatID,
 	persistedErrorReason,
+	onOpenAnalytics,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
@@ -193,6 +195,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 			retryState={retryState}
 			isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
 			detailErrorMessage={detailErrorMessage}
+			onOpenAnalytics={onOpenAnalytics}
 			onEditUserMessage={onEditUserMessage}
 			editingMessageId={editingMessageId}
 			savingMessageId={savingMessageId}
@@ -581,6 +584,7 @@ const AgentDetail: FC = () => {
 		requestArchiveAgent,
 		requestArchiveAndDeleteWorkspace,
 		requestUnarchiveAgent,
+		onOpenAnalytics,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 	} = outletContext;
@@ -1168,6 +1172,7 @@ const AgentDetail: FC = () => {
 			isInterruptPending={interruptMutation.isPending}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+			onOpenAnalytics={onOpenAnalytics}
 			showSidebarPanel={showSidebarPanel}
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}

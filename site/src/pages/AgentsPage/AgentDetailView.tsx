@@ -85,6 +85,7 @@ interface AgentDetailViewProps {
 	// Sidebar / panel state.
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
+	onOpenAnalytics?: () => void;
 
 	// Right panel state (owned by the parent so loading and
 	// loaded views share the same layout).
@@ -159,6 +160,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	isInterruptPending,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
+	onOpenAnalytics,
 	showSidebarPanel,
 	onSetShowSidebarPanel,
 	prNumber,
@@ -273,6 +275,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 									? chatRecord?.last_error || undefined
 									: undefined)
 							}
+							onOpenAnalytics={onOpenAnalytics}
 							onEditUserMessage={editing.handleEditUserMessage}
 							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
