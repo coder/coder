@@ -267,8 +267,9 @@ func (g *githubProvider) FetchPullRequestStatus(
 		ChangedFiles int32  `json:"changed_files"`
 		Number       int    `json:"number"`
 		Commits      int32  `json:"commits"`
-		Head         struct {
+		Head struct {
 			SHA string `json:"sha"`
+			Ref string `json:"ref"`
 		} `json:"head"`
 		User struct {
 			Login     string `json:"login"`
@@ -313,7 +314,8 @@ func (g *githubProvider) FetchPullRequestStatus(
 		Title:   pull.Title,
 		State:   state,
 		Draft:   pull.Draft,
-		HeadSHA: pull.Head.SHA,
+		HeadSHA:    pull.Head.SHA,
+		HeadBranch: pull.Head.Ref,
 		DiffStats: DiffStats{
 			Additions:    pull.Additions,
 			Deletions:    pull.Deletions,

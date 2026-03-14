@@ -1201,6 +1201,7 @@ export interface ChatDiffStatus {
 	readonly author_login?: string;
 	readonly author_avatar_url?: string;
 	readonly base_branch?: string;
+	readonly head_branch?: string;
 	readonly pr_number?: number;
 	readonly commits?: number;
 	readonly approved?: boolean;

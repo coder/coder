@@ -319,6 +319,7 @@ func (r *Refresher) refreshOne(
 		AuthorLogin:      sql.NullString{String: status.AuthorLogin, Valid: status.AuthorLogin != ""},
 		AuthorAvatarUrl:  sql.NullString{String: status.AuthorAvatarURL, Valid: status.AuthorAvatarURL != ""},
 		BaseBranch:       sql.NullString{String: status.BaseBranch, Valid: status.BaseBranch != ""},
+		HeadBranch:       sql.NullString{String: status.HeadBranch, Valid: status.HeadBranch != ""},
 		PrNumber:         sql.NullInt32{Int32: int32(status.PRNumber), Valid: true},
 		Commits:          sql.NullInt32{Int32: status.Commits, Valid: true},
 		Approved:         sql.NullBool{Bool: status.Approved, Valid: true},

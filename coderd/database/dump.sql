@@ -1207,7 +1207,8 @@ CREATE TABLE chat_diff_statuses (
     pr_number integer,
     commits integer,
     approved boolean,
-    reviewer_count integer
+    reviewer_count integer,
+    head_branch text
 );
 
 CREATE TABLE chat_files (

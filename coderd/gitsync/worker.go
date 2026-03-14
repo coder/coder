@@ -143,6 +143,7 @@ func chatDiffStatusFromRow(row database.AcquireStaleChatDiffStatusesRow) databas
 		AuthorLogin:      row.AuthorLogin,
 		AuthorAvatarUrl:  row.AuthorAvatarUrl,
 		BaseBranch:       row.BaseBranch,
+		HeadBranch:       row.HeadBranch,
 		PrNumber:         row.PrNumber,
 		Commits:          row.Commits,
 		Approved:         row.Approved,

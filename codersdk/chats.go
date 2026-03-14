@@ -633,6 +633,7 @@ type ChatDiffStatus struct {
 	AuthorLogin      *string    `json:"author_login,omitempty"`
 	AuthorAvatarURL  *string    `json:"author_avatar_url,omitempty"`
 	BaseBranch       *string    `json:"base_branch,omitempty"`
+	HeadBranch       *string    `json:"head_branch,omitempty"`
 	PRNumber         *int32     `json:"pr_number,omitempty"`
 	Commits          *int32     `json:"commits,omitempty"`
 	Approved         *bool      `json:"approved,omitempty"`
