@@ -1,4 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import {
 	ConversationItem,
 	Message,
@@ -8,6 +9,7 @@ import {
 	Tool,
 } from "components/ai-elements";
 import { WebSearchSources } from "components/ai-elements/tool";
+import { Button } from "components/Button/Button";
 import { FileIcon } from "components/FileIcon/FileIcon";
 import { Spinner } from "components/Spinner/Spinner";
 import { ChevronDownIcon } from "lucide-react";
@@ -867,6 +869,7 @@ interface ConversationTimelineProps {
 	retryState?: { attempt: number; error: string } | null;
 	isAwaitingFirstStreamChunk: boolean;
 	detailErrorMessage?: string | null;
+	onOpenAnalytics?: () => void;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -890,6 +893,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	retryState,
 	isAwaitingFirstStreamChunk,
 	detailErrorMessage,
+	onOpenAnalytics,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
@@ -973,9 +977,18 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 				</div>
 			)}
 			{detailErrorMessage && (
-				<div className="mt-4 rounded-md border border-border-destructive bg-surface-red px-3 py-2 text-xs text-content-destructive">
+				<Alert
+					severity="info"
+					actions={
+						onOpenAnalytics && (
+							<Button variant="subtle" size="sm" onClick={onOpenAnalytics}>
+								View Usage
+							</Button>
+						)
+					}
+				>
 					{detailErrorMessage}
-				</div>
+				</Alert>
 			)}
 		</div>
 	);
