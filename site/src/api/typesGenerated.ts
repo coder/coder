@@ -1836,11 +1836,11 @@ export const ChatUsageLimitPeriods: ChatUsageLimitPeriod[] = [
  */
 export interface ChatUsageLimitStatus {
 	readonly is_limited: boolean;
-	readonly period: ChatUsageLimitPeriod;
+	readonly period?: ChatUsageLimitPeriod;
 	readonly spend_limit_micros?: number;
 	readonly current_spend: number;
-	readonly period_start: string;
-	readonly period_end: string;
+	readonly period_start?: string;
+	readonly period_end?: string;
 }
 
 // From codersdk/client.go
