@@ -1,7 +1,7 @@
 import type { ChatDiffStatus } from "api/typesGenerated";
 import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { ScrollArea, ScrollBar } from "components/ScrollArea/ScrollArea";
+import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	CheckIcon,
 	CircleDotIcon,
@@ -156,7 +156,11 @@ export const GitPanel: FC<GitPanelProps> = ({
 			{/* Toolbar */}
 			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3">
 				{/* Tabs — scrollable when they overflow */}
-				<ScrollArea className="min-w-0 flex-1">
+				<ScrollArea
+					className="min-w-0 flex-1"
+					orientation="horizontal"
+					scrollBarClassName="h-1.5"
+				>
 					<div className="flex items-center gap-0.5 py-1.5 text-xs">
 						{showRemoteTab && (
 							<Button
@@ -217,7 +221,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 							);
 						})}
 					</div>
-					<ScrollBar orientation="horizontal" className="h-1.5" />
 				</ScrollArea>
 				{/* Controls */}
 				<div className="flex shrink-0 items-center gap-1 py-1.5">

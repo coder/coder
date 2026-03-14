@@ -9,12 +9,15 @@ interface ScrollAreaProps
 	extends React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.Root> {
 	scrollBarClassName?: string;
 	viewportClassName?: string;
+	/** Which scrollbar(s) to show. Defaults to "vertical". */
+	orientation?: "vertical" | "horizontal" | "both";
 }
 
 export const ScrollArea: React.FC<ScrollAreaProps> = ({
 	className,
 	scrollBarClassName,
 	viewportClassName,
+	orientation = "vertical",
 	children,
 	...props
 }) => {
@@ -28,7 +31,18 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 			>
 				{children}
 			</ScrollAreaPrimitive.Viewport>
-			<ScrollBar className={cn("z-10", scrollBarClassName)} />
+			{(orientation === "vertical" || orientation === "both") && (
+				<ScrollBar
+					orientation="vertical"
+					className={cn("z-10", scrollBarClassName)}
+				/>
+			)}
+			{(orientation === "horizontal" || orientation === "both") && (
+				<ScrollBar
+					orientation="horizontal"
+					className={cn("z-10", scrollBarClassName)}
+				/>
+			)}
 			<ScrollAreaPrimitive.Corner />
 		</ScrollAreaPrimitive.Root>
 	);
