@@ -1443,6 +1443,15 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		Content:         contentBlocks,
 	})
 	if editErr != nil {
+		var limitErr *chatd.UsageLimitExceededError
+		if errors.As(editErr, &limitErr) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Chat usage limit exceeded.",
+				Detail:  limitErr.Error(),
+			})
+			return
+		}
+
 		switch {
 		case xerrors.Is(editErr, chatd.ErrEditedMessageNotFound):
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
