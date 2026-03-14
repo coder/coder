@@ -43,6 +43,8 @@ import (
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/websocket"
 )
 
 var (
@@ -2171,6 +2173,78 @@ func (api *API) watchWorkspace(
 			return
 		case <-senderClosed:
 			return
+		}
+	}
+}
+
+// @Summary Watch all workspace builds
+// @ID watch-all-workspace-builds
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Success 101
+// @Router /experimental/watch-all-workspacebuilds [get]
+// @x-apidocgen {"skip": true}
+func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Buffer enough updates to avoid blocking the pubsub callback while we're
+	// accepting the WebSocket connection. Accepting the connection signals to
+	// the client that the server is subscribed and ready to forward events.
+	updates := make(chan codersdk.WorkspaceBuildUpdate, 256)
+
+	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(wspubsub.AllWorkspaceEventChannel,
+		wspubsub.HandleWorkspaceBuildUpdate(
+			func(_ context.Context, update codersdk.WorkspaceBuildUpdate, err error) {
+				if err != nil {
+					api.Logger.Warn(ctx, "workspace build update subscription error", slog.Error(err))
+					return
+				}
+				select {
+				case updates <- update:
+				default:
+					api.Logger.Warn(ctx, "workspace build update dropped, client too slow")
+				}
+			}))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error subscribing to workspace build events.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer cancelSubscribe()
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to accept WebSocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "done")
+
+	// CloseRead starts a goroutine to read and discard messages from the client,
+	// including Pong messages sent in response to our Ping heartbeats.
+	_ = conn.CloseRead(context.Background())
+
+	ctx, cancel := context.WithCancel(ctx)
+	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
+	defer cancel()
+
+	enc := wsjson.NewEncoder[codersdk.WorkspaceBuildUpdate](conn, websocket.MessageText)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case update, ok := <-updates:
+			if !ok {
+				return
+			}
+			if err := enc.Encode(update); err != nil {
+				return
+			}
 		}
 	}
 }
