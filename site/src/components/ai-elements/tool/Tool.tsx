@@ -369,7 +369,6 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 
 const ComputerRenderer: FC<ToolRendererProps> = ({
 	status,
-	args,
 	result,
 	isError,
 }) => {
@@ -387,7 +386,10 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 					imageData = asString(blockRec.data);
 					mimeType = asString(blockRec.mime_type) || "image/png";
 				}
-				if (blockRec.type === "text" || (!imageData && asString(blockRec.text))) {
+				if (
+					blockRec.type === "text" ||
+					(!imageData && asString(blockRec.text))
+				) {
 					text = asString(blockRec.text);
 				}
 			}

@@ -25,17 +25,13 @@ export const ComputerTool: React.FC<{
 				<MonitorIcon
 					className={cn(
 						"h-4 w-4 shrink-0",
-						isError
-							? "text-content-destructive"
-							: "text-content-secondary",
+						isError ? "text-content-destructive" : "text-content-secondary",
 					)}
 				/>
 				<span
 					className={cn(
 						"text-sm",
-						isError
-							? "text-content-destructive"
-							: "text-content-secondary",
+						isError ? "text-content-destructive" : "text-content-secondary",
 					)}
 				>
 					{isRunning ? "Taking screenshot…" : "Screenshot"}
