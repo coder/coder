@@ -1438,15 +1438,60 @@ jobs:
             ^v
           prune-untagged: true
 
-      - name: Upload build artifacts
+      - name: Upload build artifact (coder-linux-amd64.tar.gz)
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: coder
-          path: |
-            ./build/*.zip
-            ./build/*.tar.gz
-            ./build/*.deb
+          name: coder-linux-amd64.tar.gz
+          path: ./build/*_linux_amd64.tar.gz
+          retention-days: 7
+
+      - name: Upload build artifact (coder-linux-amd64.deb)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: coder-linux-amd64.deb
+          path: ./build/*_linux_amd64.deb
+          retention-days: 7
+
+      - name: Upload build artifact (coder-linux-arm64.tar.gz)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: coder-linux-arm64.tar.gz
+          path: ./build/*_linux_arm64.tar.gz
+          retention-days: 7
+
+      - name: Upload build artifact (coder-linux-arm64.deb)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: coder-linux-arm64.deb
+          path: ./build/*_linux_arm64.deb
+          retention-days: 7
+
+      - name: Upload build artifact (coder-linux-armv7.tar.gz)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: coder-linux-armv7.tar.gz
+          path: ./build/*_linux_armv7.tar.gz
+          retention-days: 7
+
+      - name: Upload build artifact (coder-linux-armv7.deb)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: coder-linux-armv7.deb
+          path: ./build/*_linux_armv7.deb
+          retention-days: 7
+
+      - name: Upload build artifact (coder-windows-amd64.zip)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: coder-windows-amd64.zip
+          path: ./build/*_windows_amd64.zip
           retention-days: 7
 
   # Deploy is handled in deploy.yaml so we can apply concurrency limits.
