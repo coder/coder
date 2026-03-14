@@ -425,3 +425,92 @@ export const chatCostUsers = (params?: ChatCostUsersParams) => ({
 	queryFn: () => API.getChatCostUsers(params),
 	staleTime: 60_000,
 });
+
+/** @public */
+export const chatUsageLimitConfigKey = ["chatUsageLimitConfig"] as const;
+
+/** @public */
+export const chatUsageLimitConfig = () => ({
+	queryKey: chatUsageLimitConfigKey,
+	queryFn: () => API.getChatUsageLimitConfig(),
+});
+
+/** @public */
+export const chatUsageLimitStatusKey = ["chatUsageLimitStatus"] as const;
+
+/** @public */
+export const chatUsageLimitStatus = () => ({
+	queryKey: chatUsageLimitStatusKey,
+	queryFn: () => API.getChatUsageLimitStatus(),
+});
+
+/** @public */
+export const updateChatUsageLimitConfig = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.ChatUsageLimitConfig) =>
+		API.updateChatUsageLimitConfig(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});
+
+type UpsertChatUsageLimitOverrideMutationArgs = {
+	userID: string;
+	req: TypesGen.UpsertChatUsageLimitOverrideRequest;
+};
+
+/** @public */
+export const upsertChatUsageLimitOverride = (queryClient: QueryClient) => ({
+	mutationFn: ({ userID, req }: UpsertChatUsageLimitOverrideMutationArgs) =>
+		API.upsertChatUsageLimitOverride(userID, req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});
+
+/** @public */
+export const deleteChatUsageLimitOverride = (queryClient: QueryClient) => ({
+	mutationFn: (userID: string) => API.deleteChatUsageLimitOverride(userID),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});
+
+type UpsertChatUsageLimitGroupOverrideMutationArgs = {
+	groupID: string;
+	req: TypesGen.UpsertChatUsageLimitGroupOverrideRequest;
+};
+
+/** @public */
+export const upsertChatUsageLimitGroupOverride = (
+	queryClient: QueryClient,
+) => ({
+	mutationFn: ({
+		groupID,
+		req,
+	}: UpsertChatUsageLimitGroupOverrideMutationArgs) =>
+		API.upsertChatUsageLimitGroupOverride(groupID, req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});
+
+/** @public */
+export const deleteChatUsageLimitGroupOverride = (
+	queryClient: QueryClient,
+) => ({
+	mutationFn: (groupID: string) =>
+		API.deleteChatUsageLimitGroupOverride(groupID),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});

@@ -1,4 +1,5 @@
 import { API, watchWorkspace } from "api/api";
+import { getErrorMessage, isApiError } from "api/errors";
 import {
 	chat,
 	chatDiffStatus,
@@ -160,8 +161,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 		() => buildParsedMessageSections(parsedMessages),
 		[parsedMessages],
 	);
-	const detailErrorMessage =
-		(chatStatus === "error" ? persistedErrorReason : undefined) || streamError;
+	const detailErrorMessage = persistedErrorReason || streamError;
 	const latestMessage = messages[messages.length - 1];
 	const latestMessageNeedsAssistantResponse =
 		!latestMessage || latestMessage.role !== "assistant";
@@ -913,22 +913,32 @@ const AgentDetail: FC = () => {
 		// timeline when the server confirms via the POST response or
 		// via the SSE stream.
 		store.clearStreamState();
-		const response = await sendMutation.mutateAsync(request);
-		// When the server accepts the message immediately (not
-		// queued), insert it into the store so it appears in the
-		// timeline without waiting for the SSE stream.
-		if (!response.queued && response.message) {
-			store.upsertDurableMessage(response.message);
-		}
-		if (typeof window !== "undefined") {
-			if (selectedModelConfigID) {
-				localStorage.setItem(
-					lastModelConfigIDStorageKey,
-					selectedModelConfigID,
-				);
-			} else {
-				localStorage.removeItem(lastModelConfigIDStorageKey);
+		try {
+			const response = await sendMutation.mutateAsync(request);
+			// When the server accepts the message immediately (not
+			// queued), insert it into the store so it appears in the
+			// timeline without waiting for the SSE stream.
+			if (!response.queued && response.message) {
+				store.upsertDurableMessage(response.message);
 			}
+			if (typeof window !== "undefined") {
+				if (selectedModelConfigID) {
+					localStorage.setItem(
+						lastModelConfigIDStorageKey,
+						selectedModelConfigID,
+					);
+				} else {
+					localStorage.removeItem(lastModelConfigIDStorageKey);
+				}
+			}
+		} catch (error) {
+			if (isApiError(error) && error.response?.status === 409) {
+				setChatErrorReason(
+					agentId,
+					getErrorMessage(error, "Your usage limit has been reached."),
+				);
+			}
+			throw error;
 		}
 	};
 
