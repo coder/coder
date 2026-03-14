@@ -643,3 +643,112 @@ export const EditFilesError: Story = {
 		result: { error: "File not found" },
 	},
 };
+
+// ---------------------------------------------------------------------------
+// Computer tool stories
+// ---------------------------------------------------------------------------
+
+// Small 4x4 blue PNG used as test fixture for screenshot stories.
+const TEST_PNG_BASE64 =
+	"iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAEklEQVR4nGMwnvn/PzJmIF0AANd/LKFNZE1EAAAAAElFTkSuQmCC";
+
+export const ComputerScreenshot: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		result: {
+			data: TEST_PNG_BASE64,
+			text: "",
+			mime_type: "image/png",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Screenshot")).toBeInTheDocument();
+		const img = canvas.getByRole("img", {
+			name: "Screenshot from computer tool",
+		});
+		expect(img).toBeInTheDocument();
+		expect(img).toHaveAttribute(
+			"src",
+			`data:image/png;base64,${TEST_PNG_BASE64}`,
+		);
+		// Image should be wrapped in a link that opens in a new tab.
+		const link = img.closest("a");
+		expect(link).toHaveAttribute("target", "_blank");
+	},
+};
+
+export const ComputerRunning: Story = {
+	args: {
+		name: "computer",
+		status: "running",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Taking screenshot…")).toBeInTheDocument();
+		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
+	},
+};
+
+export const ComputerTextFallback: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		result: {
+			data: "",
+			text: "Screen resolution: 1920x1080\nActive window: Terminal",
+			mime_type: "image/png",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Screenshot")).toBeInTheDocument();
+		expect(canvas.queryByRole("img")).toBeNull();
+		expect(
+			canvas.getByText(/Screen resolution: 1920x1080/),
+		).toBeInTheDocument();
+	},
+};
+
+export const ComputerError: Story = {
+	args: {
+		name: "computer",
+		status: "error",
+		isError: true,
+		result: {
+			data: "",
+			text: "",
+			mime_type: "image/png",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Screenshot")).toBeInTheDocument();
+		// Icon and label should have the destructive color class.
+		const label = canvas.getByText("Screenshot");
+		expect(label.className).toContain("text-content-destructive");
+	},
+};
+
+export const ComputerArrayResult: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		result: [
+			{ type: "image", data: TEST_PNG_BASE64, mime_type: "image/png" },
+			{ type: "text", text: "Clicked on button" },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const img = canvas.getByRole("img", {
+			name: "Screenshot from computer tool",
+		});
+		expect(img).toBeInTheDocument();
+		expect(img).toHaveAttribute(
+			"src",
+			`data:image/png;base64,${TEST_PNG_BASE64}`,
+		);
+	},
+};
