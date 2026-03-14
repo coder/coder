@@ -3249,6 +3249,24 @@ class ApiMethods {
 			)
 			.then((res) => res.data);
 
+	upsertChatUsageLimitGroupOverride = async (
+		groupID: string,
+		req: TypesGen.UpsertChatUsageLimitGroupOverrideRequest,
+	): Promise<TypesGen.ChatUsageLimitGroupOverride> =>
+		this.axios
+			.put<TypesGen.ChatUsageLimitGroupOverride>(
+				`/api/experimental/chats/usage-limits/group-overrides/${encodeURIComponent(groupID)}`,
+				req,
+			)
+			.then((res) => res.data);
+
+	deleteChatUsageLimitGroupOverride = async (groupID: string): Promise<void> =>
+		this.axios
+			.delete(
+				`/api/experimental/chats/usage-limits/group-overrides/${encodeURIComponent(groupID)}`,
+			)
+			.then((res) => res.data);
+
 	getChatUsageLimitStatus = async (): Promise<TypesGen.ChatUsageLimitStatus> =>
 		this.axios
 			.get<TypesGen.ChatUsageLimitStatus>(
