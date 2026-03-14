@@ -274,6 +274,10 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 
 	var chat database.Chat
 	txErr := p.db.InTx(func(tx database.Store) error {
+		if limitErr := p.checkUsageLimit(ctx, tx, opts.OwnerID); limitErr != nil {
+			return limitErr
+		}
+
 		insertedChat, err := tx.InsertChat(ctx, database.InsertChatParams{
 			OwnerID:           opts.OwnerID,
 			WorkspaceID:       opts.WorkspaceID,
@@ -408,7 +412,7 @@ func (p *Server) SendMessage(
 		}
 
 		// Enforce usage limits before queueing or inserting.
-		if limitErr := p.checkUsageLimit(ctx, lockedChat.OwnerID); limitErr != nil {
+		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID); limitErr != nil {
 			return limitErr
 		}
 
@@ -515,8 +519,8 @@ func (p *Server) SendMessage(
 	return result, nil
 }
 
-func (p *Server) checkUsageLimit(ctx context.Context, ownerID uuid.UUID) error {
-	status, err := ResolveUsageLimitStatus(ctx, p.db, ownerID, time.Now())
+func (p *Server) checkUsageLimit(ctx context.Context, store database.Store, ownerID uuid.UUID) error {
+	status, err := ResolveUsageLimitStatus(ctx, store, ownerID, time.Now())
 	if err != nil {
 		// Fail open: never block chat due to a limit-resolution failure.
 		p.logger.Warn(ctx, "usage limit check failed, allowing message",
@@ -568,7 +572,7 @@ func (p *Server) EditMessage(
 			return xerrors.Errorf("lock chat: %w", err)
 		}
 
-		if limitErr := p.checkUsageLimit(ctx, lockedChat.OwnerID); limitErr != nil {
+		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID); limitErr != nil {
 			return limitErr
 		}
 
@@ -786,6 +790,9 @@ func (p *Server) PromoteQueued(
 		}
 		if !found {
 			return xerrors.New("queued message not found")
+		}
+		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID); limitErr != nil {
+			return limitErr
 		}
 
 		err = tx.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
@@ -2008,40 +2015,52 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				status = database.ChatStatusPending
 			} else if status == database.ChatStatusWaiting {
 				// Try to auto-promote the next queued message.
-				nextQueued, popErr := tx.PopNextQueuedMessage(cleanupCtx, chat.ID)
-				if popErr == nil {
-					msg, insertErr := tx.InsertChatMessage(cleanupCtx, database.InsertChatMessageParams{
-						ChatID:         chat.ID,
-						ModelConfigID:  uuid.NullUUID{UUID: latestChat.LastModelConfigID, Valid: true},
-						Role:           database.ChatMessageRoleUser,
-						ContentVersion: chatprompt.CurrentContentVersion,
-						Content: pqtype.NullRawMessage{
-							RawMessage: nextQueued.Content,
-							Valid:      len(nextQueued.Content) > 0,
-						},
-						CreatedBy:           uuid.NullUUID{UUID: chat.OwnerID, Valid: chat.OwnerID != uuid.Nil},
-						Visibility:          database.ChatMessageVisibilityBoth,
-						InputTokens:         sql.NullInt64{},
-						OutputTokens:        sql.NullInt64{},
-						TotalTokens:         sql.NullInt64{},
-						ReasoningTokens:     sql.NullInt64{},
-						CacheCreationTokens: sql.NullInt64{},
-						CacheReadTokens:     sql.NullInt64{},
-						ContextLimit:        sql.NullInt64{},
-						TotalCostMicros:     sql.NullInt64{},
-						Compressed:          sql.NullBool{},
-					})
-					if insertErr != nil {
-						logger.Error(cleanupCtx, "failed to promote queued message",
-							slog.F("queued_message_id", nextQueued.ID), slog.Error(insertErr))
-					} else {
-						status = database.ChatStatusPending
-						promotedMessage = &msg
+				queuedMessages, queueErr := tx.GetChatQueuedMessages(cleanupCtx, chat.ID)
+				if queueErr == nil && len(queuedMessages) > 0 {
+					nextQueued := queuedMessages[0]
+					if limitErr := p.checkUsageLimit(cleanupCtx, tx, latestChat.OwnerID); limitErr == nil {
+						deleteErr := tx.DeleteChatQueuedMessage(cleanupCtx, database.DeleteChatQueuedMessageParams{
+							ID:     nextQueued.ID,
+							ChatID: chat.ID,
+						})
+						if deleteErr != nil {
+							logger.Error(cleanupCtx, "failed to delete queued message during auto-promotion",
+								slog.F("queued_message_id", nextQueued.ID), slog.Error(deleteErr))
+						} else {
+							msg, insertErr := tx.InsertChatMessage(cleanupCtx, database.InsertChatMessageParams{
+								ChatID:         chat.ID,
+								ModelConfigID:  uuid.NullUUID{UUID: latestChat.LastModelConfigID, Valid: true},
+								Role:           database.ChatMessageRoleUser,
+								ContentVersion: chatprompt.CurrentContentVersion,
+								Content: pqtype.NullRawMessage{
+									RawMessage: nextQueued.Content,
+									Valid:      len(nextQueued.Content) > 0,
+								},
+								CreatedBy:           uuid.NullUUID{UUID: chat.OwnerID, Valid: chat.OwnerID != uuid.Nil},
+								Visibility:          database.ChatMessageVisibilityBoth,
+								InputTokens:         sql.NullInt64{},
+								OutputTokens:        sql.NullInt64{},
+								TotalTokens:         sql.NullInt64{},
+								ReasoningTokens:     sql.NullInt64{},
+								CacheCreationTokens: sql.NullInt64{},
+								CacheReadTokens:     sql.NullInt64{},
+								ContextLimit:        sql.NullInt64{},
+								TotalCostMicros:     sql.NullInt64{},
+								Compressed:          sql.NullBool{},
+							})
+							if insertErr != nil {
+								logger.Error(cleanupCtx, "failed to promote queued message",
+									slog.F("queued_message_id", nextQueued.ID), slog.Error(insertErr))
+							} else {
+								status = database.ChatStatusPending
+								promotedMessage = &msg
 
-						remaining, qErr := tx.GetChatQueuedMessages(cleanupCtx, chat.ID)
-						if qErr == nil {
-							remainingQueuedMessages = remaining
-							shouldPublishQueueUpdate = true
+								remaining, qErr := tx.GetChatQueuedMessages(cleanupCtx, chat.ID)
+								if qErr == nil {
+									remainingQueuedMessages = remaining
+									shouldPublishQueueUpdate = true
+								}
+							}
 						}
 					}
 				}
