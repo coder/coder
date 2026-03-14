@@ -3,6 +3,7 @@
  * @see {@link https://ui.shadcn.com/docs/components/scroll-area}
  */
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
+import { useCallback, useRef } from "react";
 import { cn } from "utils/cn";
 
 interface ScrollAreaProps
@@ -21,12 +22,32 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 	children,
 	...props
 }) => {
+	const viewportRef = useRef<HTMLDivElement>(null);
+
+	// Translate vertical wheel events into horizontal scroll when the
+	// scroll area only scrolls horizontally. Without this, the mouse
+	// wheel does nothing on a horizontal-only container.
+	const handleWheel = useCallback(
+		(e: React.WheelEvent<HTMLDivElement>) => {
+			if (orientation !== "horizontal") return;
+			const el = viewportRef.current;
+			if (!el) return;
+			// Only redirect when the user is scrolling vertically.
+			if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+			e.preventDefault();
+			el.scrollLeft += e.deltaY;
+		},
+		[orientation],
+	);
+
 	return (
 		<ScrollAreaPrimitive.Root
 			className={cn("relative overflow-hidden", className)}
 			{...props}
 		>
 			<ScrollAreaPrimitive.Viewport
+				ref={viewportRef}
+				onWheel={handleWheel}
 				className={cn("h-full w-full rounded-[inherit]", viewportClassName)}
 			>
 				{children}
