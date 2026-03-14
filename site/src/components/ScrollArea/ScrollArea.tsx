@@ -35,7 +35,7 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 			// Only redirect when the user is scrolling vertically.
 			if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
 			e.preventDefault();
-			el.scrollLeft += e.deltaY;
+			el.scrollBy({ left: e.deltaY, behavior: "smooth" });
 		},
 		[orientation],
 	);
