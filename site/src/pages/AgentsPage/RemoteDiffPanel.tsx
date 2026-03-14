@@ -106,40 +106,8 @@ function extractDiffContent(
  * Returns null if parsing fails.
  */
 // -------------------------------------------------------------------
-// PR state icon & badge
+// PR state badge
 // -------------------------------------------------------------------
-
-const PullRequestStateIcon: FC<{
-	state?: string;
-	draft?: boolean;
-	className?: string;
-}> = ({ state, draft, className }) => {
-	if (state === "merged") {
-		return (
-			<GitMergeIcon className={cn("text-purple-400", className)} />
-		);
-	}
-	if (state === "closed") {
-		return (
-			<GitPullRequestClosedIcon
-				className={cn("text-red-400", className)}
-			/>
-		);
-	}
-	if (draft) {
-		return (
-			<GitPullRequestDraftIcon
-				className={cn("text-content-secondary", className)}
-			/>
-		);
-	}
-	// Default: open.
-	return (
-		<GitPullRequestIcon
-			className={cn("text-green-400", className)}
-		/>
-	);
-};
 
 const PullRequestStateBadge: FC<{
 	state?: string;
@@ -459,7 +427,6 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	const parsedPr = pullRequestUrl
 		? parsePullRequestUrl(pullRequestUrl)
 		: null;
-	const prTitle = diffStatusQuery.data?.pull_request_title;
 	const prState = diffStatusQuery.data?.pull_request_state;
 	const prDraft = diffStatusQuery.data?.pull_request_draft;
 
@@ -468,59 +435,37 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	// ---------------------------------------------------------------
 	return (
 		<div className="flex h-full flex-col">
-			{/* PR header */}
-			{pullRequestUrl && parsedPr && (
-				<div className="flex shrink-0 items-start gap-2 border-0 border-b border-solid border-border-default px-3 py-2.5">
-					<PullRequestStateIcon
-						state={prState}
-						draft={prDraft}
-						className="mt-0.5 size-4 shrink-0"
-					/>
-					<div className="flex min-w-0 flex-1 flex-col gap-0.5">
-						<a
-							href={pullRequestUrl}
-							target="_blank"
-							rel="noreferrer"
-							className="group flex items-center gap-1.5 text-[13px] font-medium text-content-primary no-underline hover:underline"
-						>
-							<span className="truncate">
-								{prTitle || `Pull request #${parsedPr.number}`}
-							</span>
-							<ExternalLinkIcon className="size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-50" />
-						</a>
-						<span className="text-[13px] text-content-secondary">
-							{parsedPr.owner}/{parsedPr.repo}#{parsedPr.number}
+			{/* Compact PR sub-header */}
+				{pullRequestUrl && (
+					<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
+						<span className="truncate text-xs text-content-secondary">
+							{parsedPr
+								? `${parsedPr.owner}/${parsedPr.repo}#${parsedPr.number}`
+								: pullRequestUrl}
 						</span>
-					</div>
-					<div className="flex shrink-0 items-center gap-2">
-						<PullRequestStateBadge
-							state={prState}
-							draft={prDraft}
-						/>
-						{(diffStatusQuery.data?.additions || diffStatusQuery.data?.deletions) ? (
-							<DiffStatBadge
-								additions={diffStatusQuery.data.additions}
-								deletions={diffStatusQuery.data.deletions}
+						<div className="ml-auto flex shrink-0 items-center gap-1.5">
+							<PullRequestStateBadge
+								state={prState}
+								draft={prDraft}
 							/>
-						) : null}
+							{(diffStatusQuery.data?.additions || diffStatusQuery.data?.deletions) ? (
+								<DiffStatBadge
+									additions={diffStatusQuery.data.additions}
+									deletions={diffStatusQuery.data.deletions}
+								/>
+							) : null}
+							<a
+								href={pullRequestUrl}
+								target="_blank"
+								rel="noreferrer"
+								className="inline-flex items-center gap-1 rounded-sm border border-solid border-border-default px-2 text-xs font-medium leading-5 text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary"
+							>
+								View PR
+								<ExternalLinkIcon className="size-3" />
+							</a>
+						</div>
 					</div>
-				</div>
-			)}
-			{/* Fallback: raw URL when we can't parse */}
-			{pullRequestUrl && !parsedPr && (
-				<div className="flex shrink-0 items-center gap-1.5 border-0 border-b border-solid border-border-default px-3 py-2.5">
-					<GitPullRequestIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
-					<a
-						href={pullRequestUrl}
-						target="_blank"
-						rel="noreferrer"
-						className="truncate text-[13px] text-content-secondary no-underline hover:text-content-primary"
-					>
-						{pullRequestUrl}
-					</a>
-				</div>
-			)}
-			<DiffViewer
+				)}			<DiffViewer
 				parsedFiles={parsedFiles}
 				isExpanded={isExpanded}
 				diffStyle={diffStyle}

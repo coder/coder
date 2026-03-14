@@ -1,11 +1,15 @@
+import type { ChatDiffStatusResponse } from "api/api";
 import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	CheckIcon,
 	ColumnsIcon,
-	FileDiffIcon,
 	GitBranchIcon,
 	GitCompareArrowsIcon,
+	GitMergeIcon,
+	GitPullRequestClosedIcon,
+	GitPullRequestDraftIcon,
+	GitPullRequestIcon,
 	RefreshCwIcon,
 	RowsIcon,
 } from "lucide-react";
@@ -25,7 +29,13 @@ import { type DiffStyle, loadDiffStyle, saveDiffStyle } from "./DiffViewer";
 import { RemoteDiffPanel } from "./RemoteDiffPanel";
 import { LocalDiffPanel } from "./LocalDiffPanel";
 
-type GitView = "remote" | "local";
+type GitView = { type: "remote" } | { type: "local"; repoRoot: string };
+
+function viewsEqual(a: GitView, b: GitView): boolean {
+	if (a.type !== b.type) return false;
+	if (a.type === "local" && b.type === "local") return a.repoRoot === b.repoRoot;
+	return true;
+}
 
 interface DiffStats {
 	additions: number;
@@ -46,10 +56,8 @@ interface GitPanelProps {
 	onCommit: (repoRoot: string) => void;
 	/** Whether the panel is in expanded/fullscreen mode. */
 	isExpanded?: boolean;
-	/** Diff stats for the remote/branch view. */
-	remoteDiffStats?: DiffStats;
-	/** Diff stats for the local/working tree view. */
-	localDiffStats?: DiffStats;
+	/** Diff status for the remote/branch view (includes PR metadata). */
+	remoteDiffStats?: ChatDiffStatusResponse;
 	/** Ref to the chat input, forwarded to RemoteDiffPanel. */
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 }
@@ -66,34 +74,69 @@ export const GitPanel: FC<GitPanelProps> = ({
 	onCommit,
 	isExpanded,
 	remoteDiffStats,
-	localDiffStats,
 	chatInputRef,
 }) => {
 	const hasRemoteStats =
 		!!remoteDiffStats &&
 		(remoteDiffStats.additions > 0 || remoteDiffStats.deletions > 0);
-	const hasLocalStats =
-		!!localDiffStats &&
-		(localDiffStats.additions > 0 || localDiffStats.deletions > 0);
 
 	const showRemoteTab = !!prTab || hasRemoteStats;
-	const showLocalTab = hasLocalStats;
-	const remoteLabel = prTab ? "Pull Request" : "Branch";
 
-	// Default to "local" when there are only local changes and no
-	// remote stats, so the user sees content immediately.
-	const [view, setView] = useState<GitView>(
-		!showRemoteTab && showLocalTab ? "local" : "remote",
+	const prTitle = remoteDiffStats?.pull_request_title;
+	const prState = remoteDiffStats?.pull_request_state;
+	const prDraft = remoteDiffStats?.pull_request_draft;
+
+	// Compute per-repo diff stats from unified diffs.
+	const repoStats = useMemo(() => {
+		const stats = new Map<string, DiffStats>();
+		for (const [root, repo] of repositories.entries()) {
+			if (!repo.unified_diff) continue;
+			let additions = 0;
+			let deletions = 0;
+			for (const line of repo.unified_diff.split("\n")) {
+				if (line.startsWith("+") && !line.startsWith("+++")) {
+					additions++;
+				} else if (line.startsWith("-") && !line.startsWith("---")) {
+					deletions++;
+				}
+			}
+			if (additions > 0 || deletions > 0) {
+				stats.set(root, { additions, deletions });
+			}
+		}
+		return stats;
+	}, [repositories]);
+
+	const localRepos = useMemo(
+		() => Array.from(repoStats.keys()).sort((a, b) => a.localeCompare(b)),
+		[repoStats],
 	);
 
-	// If the active tab gets hidden, switch to the other one.
-	useEffect(() => {
-		if (view === "remote" && !showRemoteTab && showLocalTab) {
-			setView("local");
-		} else if (view === "local" && !showLocalTab && showRemoteTab) {
-			setView("remote");
+	// Default to the first local repo when there are only local
+	// changes and no remote stats.
+	const [view, setView] = useState<GitView>(() => {
+		if (!showRemoteTab && localRepos.length > 0) {
+			return { type: "local", repoRoot: localRepos[0] };
 		}
-	}, [view, showRemoteTab, showLocalTab]);
+		return { type: "remote" };
+	});
+
+	// If the active tab gets hidden, switch to the first available.
+	useEffect(() => {
+		if (view.type === "remote" && !showRemoteTab) {
+			if (localRepos.length > 0) {
+				setView({ type: "local", repoRoot: localRepos[0] });
+			}
+		} else if (view.type === "local") {
+			if (!repoStats.has(view.repoRoot)) {
+				if (showRemoteTab) {
+					setView({ type: "remote" });
+				} else if (localRepos.length > 0) {
+					setView({ type: "local", repoRoot: localRepos[0] });
+				}
+			}
+		}
+	}, [view, showRemoteTab, localRepos, repoStats]);
 
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 
@@ -114,102 +157,107 @@ export const GitPanel: FC<GitPanelProps> = ({
 
 	return (
 		<div className="flex h-full flex-col">
-			{/* Toolbar */}
-			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
-				{/* Segmented control */}
-					<div className="flex h-6 items-stretch overflow-hidden rounded-md text-xs">
+				{/* Toolbar */}
+				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
+					{/* Tabs — scrollable when they overflow */}
+					<div
+						className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto text-xs"
+						style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(var(--border-default)) transparent" }}
+					>
 						{showRemoteTab && (
 							<button
 								type="button"
-								onClick={() => setView("remote")}
-								className={cn(
-									"flex cursor-pointer items-center gap-3 border-none font-medium transition-colors outline-none focus-visible:outline-none",
-									view === "remote"
-										? "bg-surface-quaternary/25 text-content-primary"
-										: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
-									"px-3",
+							onClick={() => setView({ type: "remote" })}
+							className={cn(
+								"flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border-none px-2 py-1 font-medium transition-colors outline-none focus-visible:outline-none",
+								view.type === "remote"										? "bg-surface-quaternary/25 text-content-primary"
+										: "text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
 								)}
 							>
-									{remoteLabel}
-								</button>						)}
-						{showLocalTab && (
-							<button
-								type="button"
-								onClick={() => setView("local")}
-								className={cn(
-									"flex cursor-pointer items-center gap-3 font-medium transition-colors outline-none focus-visible:outline-none",
-									showRemoteTab
-										? "border-0 border-l border-solid border-border-default"
-										: "border-none",
-									view === "local"
-										? "bg-surface-quaternary/25 text-content-primary"
-										: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
-									"pl-3 pr-0",
+								{prTab ? (
+									<>
+										<PrStateIcon state={prState} draft={prDraft} className="size-3.5 shrink-0" />
+										<span className="truncate">
+											{prTitle || `PR #${prTab.prNumber}`}
+										</span>
+									</>
+								) : (
+									"Branch"
 								)}
-							>
-								Working Changes
-								<span
-									className={cn(
-										"flex -my-px items-center self-stretch transition-opacity",
-										view !== "local" && "opacity-50",
-									)}
-								>
-									<DiffStatBadge
-										additions={localDiffStats!.additions}
-										deletions={localDiffStats!.deletions}
-									/>
-								</span>
 							</button>
 						)}
-					</div>				<div className="flex-1" />
-					{/* Split / Unified toggle */}
-					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default text-xs">
-						<button
-							type="button"
-							onClick={() => handleDiffStyleChange("unified")}
-							aria-label="Unified diff"
-							className={cn(
-								"flex cursor-pointer items-center border-none px-1.5 transition-colors",
-								diffStyle === "unified"
-									? "bg-surface-quaternary/25 text-content-primary"
-									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
-							)}
-						>
-							<RowsIcon className="size-3.5" />
-						</button>
-						<button
-							type="button"
-							onClick={() => handleDiffStyleChange("split")}
-							aria-label="Split diff"
-							className={cn(
-								"flex cursor-pointer items-center border-0 border-l border-solid border-border-default px-1.5 transition-colors",
-								diffStyle === "split"
-									? "bg-surface-quaternary/25 text-content-primary"
-									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
-							)}
-						>
-							<ColumnsIcon className="size-3.5" />
-						</button>
+						{localRepos.map((repoRoot) => {
+							const stats = repoStats.get(repoRoot)!;
+							const isActive = view.type === "local" && view.repoRoot === repoRoot;
+							return (
+								<button
+									key={repoRoot}
+									type="button"
+									onClick={() => setView({ type: "local", repoRoot })}
+									className={cn(
+										"flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border-none px-2 py-1 font-medium transition-colors outline-none focus-visible:outline-none",
+										isActive
+											? "bg-surface-quaternary/25 text-content-primary"
+											: "text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
+									)}
+								>
+									{repoTabLabel(repoRoot)}
+									<DiffStatBadge
+										additions={stats.additions}
+										deletions={stats.deletions}
+									/>
+								</button>
+							);
+						})}
 					</div>
-					{/* Refresh */}
-					<Button
-						variant="subtle"
-						size="icon"
-						onClick={handleRefresh}
-						aria-label="Refresh"
-						className="h-6 w-6 text-content-secondary hover:text-content-primary"
-					>
-						<RefreshCwIcon
-							className={cn(
-								"size-3.5",
-								spinning && "motion-safe:animate-spin-once",
-							)}
-						/>
-					</Button>
-				</div>
-			{/* Content */}
+					{/* Controls */}
+					<div className="flex shrink-0 items-center gap-1">
+						<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default">
+							<button
+								type="button"
+								onClick={() => handleDiffStyleChange("unified")}
+								aria-label="Unified diff"
+								className={cn(
+									"flex cursor-pointer items-center border-none px-1.5 transition-colors",
+									diffStyle === "unified"
+										? "bg-surface-quaternary/25 text-content-primary"
+										: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
+								)}
+							>
+								<RowsIcon className="size-3.5" />
+							</button>
+							<button
+								type="button"
+								onClick={() => handleDiffStyleChange("split")}
+								aria-label="Split diff"
+								className={cn(
+									"flex cursor-pointer items-center border-0 border-l border-solid border-border-default px-1.5 transition-colors",
+									diffStyle === "split"
+										? "bg-surface-quaternary/25 text-content-primary"
+										: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
+								)}
+							>
+								<ColumnsIcon className="size-3.5" />
+							</button>
+						</div>
+						<Button
+							variant="subtle"
+							size="icon"
+							onClick={handleRefresh}
+							aria-label="Refresh"
+							className="h-6 w-6 text-content-secondary hover:text-content-primary"
+						>
+							<RefreshCwIcon
+								className={cn(
+									"size-3.5",
+									spinning && "motion-safe:animate-spin-once",
+								)}
+							/>
+						</Button>
+					</div>
+				</div>			{/* Content */}
 			<div className="min-h-0 flex-1">
-				{view === "remote" ? (
+				{view.type === "remote" ? (
 					<RemoteContent
 						prTab={prTab}
 						isExpanded={isExpanded}
@@ -217,8 +265,9 @@ export const GitPanel: FC<GitPanelProps> = ({
 						diffStyle={diffStyle}
 					/>
 				) : (
-					<LocalContent
-						repositories={repositories}
+					<LocalRepoContent
+						repoRoot={view.repoRoot}
+						repo={repositories.get(view.repoRoot)}
 						onCommit={onCommit}
 						isExpanded={isExpanded}
 						diffStyle={diffStyle}
@@ -266,64 +315,32 @@ const RemoteContent: FC<{
 };
 
 // ---------------------------------------------------------------
-// Local view (working tree changes)
+// Local view (single repo)
 // ---------------------------------------------------------------
 
-const LocalContent: FC<{
-	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
+const LocalRepoContent: FC<{
+	repoRoot: string;
+	repo: WorkspaceAgentRepoChanges | undefined;
 	onCommit: (repoRoot: string) => void;
 	isExpanded?: boolean;
 	diffStyle: DiffStyle;
-}> = ({ repositories, onCommit, isExpanded, diffStyle }) => {
-	const repoEntries = useMemo(
-		() =>
-			Array.from(repositories.entries()).sort(([a], [b]) => a.localeCompare(b)),
-		[repositories],
-	);
-
-	if (repoEntries.length === 0) {
-		return (
-			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
-				<div className="mb-4 flex size-10 items-center justify-center rounded-lg border border-solid border-border-default bg-surface-secondary">
-					<FileDiffIcon className="size-5 text-content-secondary" />
-				</div>
-				<p className="text-sm font-medium text-content-primary">
-					No uncommitted changes
-				</p>
-				<p className="mt-1 max-w-52 text-xs text-content-secondary">
-					Local file modifications will appear here as you edit.
-				</p>
-			</div>
-		);
+}> = ({ repoRoot, repo, onCommit, isExpanded, diffStyle }) => {
+	if (!repo) {
+		return null;
 	}
 
 	return (
 		<div className="flex h-full flex-col">
-			{repoEntries.map(([repoRoot, repo], index) => {
-				const showSeparator = index > 0;
-
-				return (
-					<section
-						key={repoRoot}
-						className={cn(
-							"flex min-h-0 flex-1 flex-col",
-							showSeparator &&
-								"border-0 border-t border-solid border-border-default",
-						)}
-					>
-						<RepoHeader
-							repoRoot={repoRoot}
-							repo={repo}
-							onCommit={() => onCommit(repoRoot)}
-						/>
-						<LocalDiffPanel
-							repo={repo}
-							isExpanded={isExpanded}
-							diffStyle={diffStyle}
-						/>
-					</section>
-				);
-			})}
+			<RepoHeader
+				repoRoot={repoRoot}
+				repo={repo}
+				onCommit={() => onCommit(repoRoot)}
+			/>
+			<LocalDiffPanel
+				repo={repo}
+				isExpanded={isExpanded}
+				diffStyle={diffStyle}
+			/>
 		</div>
 	);
 };
@@ -338,30 +355,43 @@ const RepoHeader: FC<{
 	onCommit: () => void;
 }> = ({ repoRoot, repo, onCommit }) => {
 	return (
-		<div className="flex shrink-0 items-center gap-2 px-3 py-2">
-			{/* Repo identity */}
-			<div className="flex min-w-0 flex-1 items-center gap-2">
-				<GitBranchIcon className="size-3.5 shrink-0 text-content-secondary" />
-				<span className="truncate text-sm font-medium text-content-primary">
+		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
+			<div className="flex min-w-0 items-center gap-1.5 text-xs text-content-secondary">
+				<GitBranchIcon className="size-3.5 shrink-0" />
+				<span className="truncate">
 					{repo.branch?.trim() || repoTabLabel(repoRoot)}
 				</span>
-				{repo.branch?.trim() && (
-					<span className="truncate text-xs text-content-secondary">
-						{repoTabLabel(repoRoot)}
-					</span>
-				)}
 			</div>
-
-			{/* Actions */}
 			<Button
 				size="sm"
 				onClick={onCommit}
 				disabled={!repo.unified_diff}
-				className="h-7 gap-1.5 border border-transparent bg-surface-invert-primary px-2 text-xs text-content-invert hover:bg-surface-invert-secondary active:opacity-80"
+				className="ml-auto h-6 gap-1 border border-transparent bg-surface-invert-primary px-2 text-xs text-content-invert hover:bg-surface-invert-secondary active:opacity-80"
 			>
 				<CheckIcon className="size-3" />
 				Commit
 			</Button>
 		</div>
 	);
+};
+
+// ---------------------------------------------------------------
+// PR state icon (compact, for the tab bar)
+// ---------------------------------------------------------------
+
+const PrStateIcon: FC<{
+	state?: string;
+	draft?: boolean;
+	className?: string;
+}> = ({ state, draft, className }) => {
+	if (state === "merged") {
+		return <GitMergeIcon className={cn("text-purple-400", className)} />;
+	}
+	if (state === "closed") {
+		return <GitPullRequestClosedIcon className={cn("text-red-400", className)} />;
+	}
+	if (draft) {
+		return <GitPullRequestDraftIcon className={cn("text-content-secondary", className)} />;
+	}
+	return <GitPullRequestIcon className={cn("text-green-400", className)} />;
 };

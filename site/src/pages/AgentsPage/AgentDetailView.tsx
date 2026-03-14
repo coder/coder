@@ -2,7 +2,7 @@ import type { ChatDiffStatusResponse } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { ArchiveIcon } from "lucide-react";
-import { type FC, type RefObject, useMemo, useState } from "react";
+import { type FC, type RefObject, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
@@ -180,21 +180,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
 
 	// Compute local diff stats from git watcher unified diffs.
-	const localDiffStats = useMemo(() => {
-		let additions = 0;
-		let deletions = 0;
-		for (const repo of gitWatcher.repositories.values()) {
-			if (!repo.unified_diff) continue;
-			for (const line of repo.unified_diff.split("\n")) {
-				if (line.startsWith("+") && !line.startsWith("+++")) {
-					additions++;
-				} else if (line.startsWith("-") && !line.startsWith("---")) {
-					deletions++;
-				}
-			}
-		}
-		return { additions, deletions, changed_files: 0 };
-	}, [gitWatcher.repositories]);
 
 	const titleElement = (
 		<title>
@@ -335,7 +320,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 									onCommit={handleCommit}
 									isExpanded={visualExpanded}
 									remoteDiffStats={diffStatusData}
-									localDiffStats={localDiffStats}
 									chatInputRef={editing.chatInputRef}
 								/>
 							),
