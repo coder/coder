@@ -53,6 +53,19 @@ const dollarsToMicros = (dollars: string): number =>
 
 const sectionPanelClassName = "space-y-4 rounded-lg border border-border p-4";
 
+const normalizeChatUsageLimitPeriod = (
+	period: string | null | undefined,
+): ChatUsageLimitPeriod => {
+	switch (period) {
+		case "day":
+		case "week":
+		case "month":
+			return period;
+		default:
+			return "month";
+	}
+};
+
 const AdminBadge: FC = () => (
 	<TooltipProvider delayDuration={0}>
 		<Tooltip>
@@ -105,9 +118,12 @@ export const LimitsTab: FC = () => {
 			return;
 		}
 
+		const normalizedPeriod = normalizeChatUsageLimitPeriod(
+			configQuery.data.period,
+		);
 		const snapshot = JSON.stringify({
 			spend_limit_micros: configQuery.data.spend_limit_micros,
-			period: configQuery.data.period,
+			period: normalizedPeriod,
 		});
 		if (lastSyncedRef.current === snapshot) {
 			return;
@@ -117,7 +133,7 @@ export const LimitsTab: FC = () => {
 		const spendLimitMicros = configQuery.data.spend_limit_micros;
 		const hasLimit = spendLimitMicros !== null;
 		setEnabled(hasLimit);
-		setPeriod(configQuery.data.period ?? "month");
+		setPeriod(normalizedPeriod);
 		setAmountDollars(
 			hasLimit ? microsToDollars(spendLimitMicros).toString() : "",
 		);
