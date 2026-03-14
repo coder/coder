@@ -588,6 +588,15 @@ func (api *API) getChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	groupOverrides, err := api.Database.ListChatUsageLimitGroupOverrides(systemCtx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list group usage limit overrides.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	unpricedModelCount, err := api.Database.CountEnabledModelsWithoutPricing(systemCtx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -601,6 +610,7 @@ func (api *API) getChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request)
 		ChatUsageLimitConfig: codersdk.ChatUsageLimitConfig{},
 		UnpricedModelCount:   unpricedModelCount,
 		Overrides:            make([]codersdk.ChatUsageLimitOverride, 0, len(overrideRows)),
+		GroupOverrides:       make([]codersdk.ChatUsageLimitGroupOverride, 0, len(groupOverrides)),
 	}
 	if configErr == nil {
 		response.Period = codersdk.ChatUsageLimitPeriod(config.Period)
@@ -622,6 +632,19 @@ func (api *API) getChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request)
 		})
 	}
 
+	for _, glo := range groupOverrides {
+		limitMicros := glo.LimitMicros
+		response.GroupOverrides = append(response.GroupOverrides, codersdk.ChatUsageLimitGroupOverride{
+			GroupID:          glo.GroupID,
+			GroupName:        glo.GroupName,
+			GroupDisplayName: glo.GroupDisplayName,
+			GroupAvatarURL:   glo.GroupAvatarUrl,
+			MemberCount:      glo.MemberCount,
+			SpendLimitMicros: &limitMicros,
+			CreatedAt:        glo.CreatedAt,
+			UpdatedAt:        glo.UpdatedAt,
+		})
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
@@ -798,6 +821,104 @@ func (api *API) deleteChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	groupIDStr := chi.URLParam(r, "group")
+	groupID, err := uuid.Parse(groupIDStr)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid group ID.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var req codersdk.UpsertChatUsageLimitGroupOverrideRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if req.SpendLimitMicros == nil || *req.SpendLimitMicros <= 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Spend limit must be a positive value.",
+		})
+		return
+	}
+
+	//nolint:gocritic // Group override writes and group hydration require
+	// system-restricted access.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+
+	override, err := api.Database.UpsertChatUsageLimitGroupOverride(systemCtx, database.UpsertChatUsageLimitGroupOverrideParams{
+		GroupID:     groupID,
+		LimitMicros: *req.SpendLimitMicros,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to upsert group usage limit override.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	group, err := api.Database.GetGroupByID(systemCtx, groupID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to fetch group details.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	limitMicros := override.LimitMicros
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatUsageLimitGroupOverride{
+		GroupID:          override.GroupID,
+		GroupName:        group.Name,
+		GroupDisplayName: group.DisplayName,
+		GroupAvatarURL:   group.AvatarURL,
+		SpendLimitMicros: &limitMicros,
+		CreatedAt:        override.CreatedAt,
+		UpdatedAt:        override.UpdatedAt,
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) deleteChatUsageLimitGroupOverride(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	groupIDStr := chi.URLParam(r, "group")
+	groupID, err := uuid.Parse(groupIDStr)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid group ID.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	//nolint:gocritic // Group override deletion requires system-restricted access.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	err = api.Database.DeleteChatUsageLimitGroupOverride(systemCtx, groupID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to delete group usage limit override.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	rw.WriteHeader(http.StatusNoContent)
 }
 

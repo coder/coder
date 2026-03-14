@@ -62,9 +62,11 @@ func ResolveUsageLimitStatus(ctx context.Context, db database.Store, userID uuid
 		return nil, xerrors.Errorf("invalid chat usage limit period %q", config.Period)
 	}
 
-	start, end := ComputePeriodBounds(now, period)
+	var (
+		effectiveLimit int64
+		hasOverride    bool
+	)
 
-	effectiveLimit := config.DefaultLimitMicros
 	override, err := db.GetChatUsageLimitOverrideByUserID(authCtx, userID)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -72,7 +74,25 @@ func ResolveUsageLimitStatus(ctx context.Context, db database.Store, userID uuid
 		}
 	} else {
 		effectiveLimit = override.LimitMicros
+		hasOverride = true
 	}
+
+	if !hasOverride {
+		groupLimit, err := db.GetUserGroupSpendLimit(authCtx, userID)
+		if err != nil {
+			return nil, err
+		}
+		if groupLimit >= 0 {
+			effectiveLimit = groupLimit
+			hasOverride = true
+		}
+	}
+
+	if !hasOverride {
+		effectiveLimit = config.DefaultLimitMicros
+	}
+
+	start, end := ComputePeriodBounds(now, period)
 
 	spendTotal, err := db.GetUserChatSpendInPeriod(authCtx, database.GetUserChatSpendInPeriodParams{
 		UserID:    userID,

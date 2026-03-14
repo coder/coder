@@ -764,8 +764,8 @@ SELECT * FROM chat_usage_limit_group_overrides WHERE group_id = @group_id::uuid;
 
 -- name: GetUserGroupSpendLimit :one
 -- Returns the minimum (most restrictive) group limit for a user.
--- Returns NULL limit_micros if the user has no group limits.
-SELECT MIN(glo.limit_micros) AS limit_micros
+-- Returns -1 if the user has no group limits applied.
+SELECT COALESCE(MIN(glo.limit_micros), -1)::bigint AS limit_micros
 FROM chat_usage_limit_group_overrides glo
 JOIN group_members_expanded gme ON gme.group_id = glo.group_id
 WHERE gme.user_id = @user_id::uuid;

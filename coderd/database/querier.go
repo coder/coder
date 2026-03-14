@@ -505,8 +505,8 @@ type sqlcQuerier interface {
 	GetUserChatSpendInPeriod(ctx context.Context, arg GetUserChatSpendInPeriodParams) (int64, error)
 	GetUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	// Returns the minimum (most restrictive) group limit for a user.
-	// Returns NULL limit_micros if the user has no group limits.
-	GetUserGroupSpendLimit(ctx context.Context, userID uuid.UUID) (interface{}, error)
+	// Returns -1 if the user has no group limits applied.
+	GetUserGroupSpendLimit(ctx context.Context, userID uuid.UUID) (int64, error)
 	// GetUserLatencyInsights returns the median and 95th percentile connection
 	// latency that users have experienced. The result can be filtered on
 	// template_ids, meaning only user data from workspaces based on those templates

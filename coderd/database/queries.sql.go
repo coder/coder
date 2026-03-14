@@ -4251,17 +4251,17 @@ func (q *sqlQuerier) GetUserChatSpendInPeriod(ctx context.Context, arg GetUserCh
 }
 
 const getUserGroupSpendLimit = `-- name: GetUserGroupSpendLimit :one
-SELECT MIN(glo.limit_micros) AS limit_micros
+SELECT COALESCE(MIN(glo.limit_micros), -1)::bigint AS limit_micros
 FROM chat_usage_limit_group_overrides glo
 JOIN group_members_expanded gme ON gme.group_id = glo.group_id
 WHERE gme.user_id = $1::uuid
 `
 
 // Returns the minimum (most restrictive) group limit for a user.
-// Returns NULL limit_micros if the user has no group limits.
-func (q *sqlQuerier) GetUserGroupSpendLimit(ctx context.Context, userID uuid.UUID) (interface{}, error) {
+// Returns -1 if the user has no group limits applied.
+func (q *sqlQuerier) GetUserGroupSpendLimit(ctx context.Context, userID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getUserGroupSpendLimit, userID)
-	var limit_micros interface{}
+	var limit_micros int64
 	err := row.Scan(&limit_micros)
 	return limit_micros, err
 }
