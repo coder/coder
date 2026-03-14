@@ -1,7 +1,6 @@
 import { API, watchWorkspace } from "api/api";
 import {
 	chat,
-	chatDiffStatus,
 	chatMessages,
 	chatModelConfigs,
 	chatModels,
@@ -635,10 +634,6 @@ const AgentDetail: FC = () => {
 		});
 		return () => socket.close();
 	}, [workspaceId, queryClient]);
-	const diffStatusQuery = useQuery({
-		...chatDiffStatus(agentId ?? ""),
-		enabled: Boolean(agentId),
-	});
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
@@ -769,7 +764,7 @@ const AgentDetail: FC = () => {
 	}, []);
 
 	// Extract PR number from diff status URL.
-	const prMatch = diffStatusQuery.data?.url?.match(/\/pull\/(\d+)/)?.[1];
+	const prMatch = chatQuery.data?.diff_status?.url?.match(/\/pull\/(\d+)/)?.[1];
 	const prNumber = prMatch ? Number(prMatch) : undefined;
 	// Compute an effective selected model by validating the user's
 	// explicit choice against the current model options, falling
@@ -1135,7 +1130,7 @@ const AgentDetail: FC = () => {
 			showSidebarPanel={showSidebarPanel}
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}
-			diffStatusData={diffStatusQuery.data}
+			diffStatusData={chatQuery.data?.diff_status}
 			gitWatcher={gitWatcher}
 			canOpenEditors={canOpenEditors}
 			canOpenWorkspace={canOpenWorkspace}

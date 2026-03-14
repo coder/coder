@@ -3043,15 +3043,6 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getChatDiffStatus = async (
-		chatId: string,
-	): Promise<TypesGen.ChatDiffStatus> => {
-		const response = await this.axios.get<TypesGen.ChatDiffStatus>(
-			`/api/experimental/chats/${chatId}/diff-status`,
-		);
-		return response.data;
-	};
-
 	getChatDiffContents = async (
 		chatId: string,
 	): Promise<TypesGen.ChatDiffContents> => {

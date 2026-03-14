@@ -9,7 +9,6 @@ import {
 	chatCostUsers,
 	chatCostUsersKey,
 	chatDiffContentsKey,
-	chatDiffStatusKey,
 	chatKey,
 	chatMessagesKey,
 	chatsKey,
@@ -107,12 +106,10 @@ describe("invalidateChatListQueries", () => {
 			pages: [[makeChat(chatId)]],
 			pageParams: [0],
 		});
-		// Per-chat queries that should NOT be touched.
-		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
-		queryClient.setQueryData(chatMessagesKey(chatId), []);
-		queryClient.setQueryData(chatDiffStatusKey(chatId), {});
-		queryClient.setQueryData(chatDiffContentsKey(chatId), {});
-		queryClient.setQueryData(
+			// Per-chat queries that should NOT be touched.
+			queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
+			queryClient.setQueryData(chatMessagesKey(chatId), []);
+			queryClient.setQueryData(chatDiffContentsKey(chatId), {});		queryClient.setQueryData(
 			chatCostSummaryKey("me", undefined),
 			{} as TypesGen.ChatCostSummary,
 		);
@@ -135,16 +132,11 @@ describe("invalidateChatListQueries", () => {
 			queryClient.getQueryState(chatKey(chatId))?.isInvalidated,
 			"chatKey should NOT be invalidated",
 		).not.toBe(true);
-		expect(
-			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
-			"chatMessagesKey should NOT be invalidated",
-		).not.toBe(true);
-		expect(
-			queryClient.getQueryState(chatDiffStatusKey(chatId))?.isInvalidated,
-			"chatDiffStatusKey should NOT be invalidated",
-		).not.toBe(true);
-		expect(
-			queryClient.getQueryState(chatDiffContentsKey(chatId))?.isInvalidated,
+			expect(
+				queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
+				"chatMessagesKey should NOT be invalidated",
+			).not.toBe(true);
+			expect(			queryClient.getQueryState(chatDiffContentsKey(chatId))?.isInvalidated,
 			"chatDiffContentsKey should NOT be invalidated",
 		).not.toBe(true);
 		expect(
@@ -480,12 +472,9 @@ describe("mutation invalidation scope", () => {
 		queryClient.setQueryData(chatsKey, [makeChat(chatId)]);
 		// Individual chat: ["chats", chatId]
 		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
-		// Messages: ["chats", chatId, "messages"]
-		queryClient.setQueryData(chatMessagesKey(chatId), []);
-		// Diff status: ["chats", chatId, "diff-status"]
-		queryClient.setQueryData(chatDiffStatusKey(chatId), { diffs: [] });
-		// Diff contents: ["chats", chatId, "diff-contents"]
-		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
+			// Messages: ["chats", chatId, "messages"]
+			queryClient.setQueryData(chatMessagesKey(chatId), []);
+			// Diff contents: ["chats", chatId, "diff-contents"]		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
 		// Cost summary: ["chats", "costSummary", "me", undefined]
 		queryClient.setQueryData(
 			chatCostSummaryKey("me", undefined),
@@ -496,7 +485,6 @@ describe("mutation invalidation scope", () => {
 	/** Keys that should NEVER be invalidated by chat message mutations
 	 *  because they are completely unrelated to the message flow. */
 	const unrelatedKeys = (chatId: string) => [
-		{ label: "diff-status", key: chatDiffStatusKey(chatId) },
 		{ label: "diff-contents", key: chatDiffContentsKey(chatId) },
 		{ label: "cost-summary", key: chatCostSummaryKey("me", undefined) },
 	];

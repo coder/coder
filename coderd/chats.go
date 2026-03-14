@@ -553,7 +553,16 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
-	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, nil))
+
+	diffStatus, err := api.resolveChatDiffStatus(ctx, chat)
+	if err != nil {
+		// Log but don't fail - diff status is supplementary.
+		api.Logger.Warn(ctx, "failed to resolve chat diff status",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, diffStatus))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -1302,22 +1311,6 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
-func (api *API) getChatDiffStatus(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	chat := httpmw.ChatParam(r)
-	chatID := chat.ID
-
-	status, err := api.resolveChatDiffStatus(ctx, chat)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat diff status.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, convertChatDiffStatus(chatID, status))
-}
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
