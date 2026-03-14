@@ -340,7 +340,7 @@ const FileTreeNodeView: FC<{
  * FileDiff that the user has already scrolled past, which avoids
  * layout shifts and repeated highlighting work.
  */
-export const LazyFileDiff: FC<{
+const LazyFileDiff: FC<{
 	fileDiff: FileDiffMetadata;
 	options: ComponentProps<typeof FileDiff>["options"];
 	lineAnnotations?: DiffLineAnnotation<string>[];
