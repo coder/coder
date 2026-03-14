@@ -255,8 +255,11 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	subagentStatusOverrides,
 }) => {
 	const parsedArgs = parseArgs(args);
-	const rawResult = Array.isArray(result) ? result[0] : result;
-	const rec = asRecord(rawResult);
+	// spawn_agent returns an array of candidates (best-of-N or single).
+	// wait_agent / message_agent / close_agent return a single object.
+	const items = Array.isArray(result) ? result : [result];
+	const candidateCount = items.length;
+	const rec = asRecord(items[0]);
 	// wait_agent and message_agent have chat_id in args, so
 	// check both result and args.
 	const chatId =
@@ -274,11 +277,13 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	const report = rec ? asString(rec.report) : "";
 	const prompt = parsedArgs ? asString(parsedArgs.prompt) : "";
 	const subagentMessage = parsedArgs ? asString(parsedArgs.message) : "";
-	const title =
+	const baseTitle =
 		(rec ? asString(rec.title) : "") ||
 		(parsedArgs ? asString(parsedArgs.title) : "") ||
 		(chatId && subagentTitles?.get(chatId)) ||
 		"Sub-agent";
+	const title =
+		candidateCount > 1 ? `${baseTitle} (best of ${candidateCount})` : baseTitle;
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const subagentToolStatus = mapSubagentStatusToToolStatus(
 		subagentStatus,

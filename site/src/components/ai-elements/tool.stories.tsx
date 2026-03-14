@@ -170,6 +170,76 @@ export const SubagentRunning: Story = {
 	},
 };
 
+export const SubagentBestOfNRunning: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "running",
+		args: {
+			title: "Refactor auth module",
+			prompt: "Refactor the auth module to use the new token format.",
+			n: 3,
+		},
+		result: [
+			{
+				chat_id: "child-chat-1",
+				title: "Refactor auth module (1/3)",
+				status: "pending",
+			},
+			{
+				chat_id: "child-chat-2",
+				title: "Refactor auth module (2/3)",
+				status: "pending",
+			},
+			{
+				chat_id: "child-chat-3",
+				title: "Refactor auth module (3/3)",
+				status: "pending",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/best of 3/)).toBeInTheDocument();
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/child-chat-1",
+		);
+	},
+};
+
+export const SubagentBestOfNCompleted: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Refactor auth module",
+			prompt: "Refactor the auth module to use the new token format.",
+			n: 3,
+		},
+		result: [
+			{
+				chat_id: "child-chat-1",
+				title: "Refactor auth module (1/3)",
+				status: "completed",
+			},
+			{
+				chat_id: "child-chat-2",
+				title: "Refactor auth module (2/3)",
+				status: "completed",
+			},
+			{
+				chat_id: "child-chat-3",
+				title: "Refactor auth module (3/3)",
+				status: "completed",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/best of 3/)).toBeInTheDocument();
+	},
+};
+
 export const SubagentAwaitLinkCard: Story = {
 	args: {
 		name: "wait_agent",
