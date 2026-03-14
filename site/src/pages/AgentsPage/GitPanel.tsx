@@ -1,5 +1,7 @@
-import type { ChatDiffStatus } from "api/typesGenerated";
-import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
+import type {
+	ChatDiffStatus,
+	WorkspaceAgentRepoChanges,
+} from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {

@@ -1,5 +1,5 @@
-import type { ChatDiffStatus } from "api/typesGenerated";
 import type * as TypesGen from "api/typesGenerated";
+import type { ChatDiffStatus } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { ArchiveIcon } from "lucide-react";
 import { type FC, type RefObject, useState } from "react";
