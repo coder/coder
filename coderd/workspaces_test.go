@@ -3686,6 +3686,15 @@ func TestWatchAllWorkspaceBuilds(t *testing.T) {
 	})
 	defer closer.Close()
 	user := coderdtest.CreateFirstUser(t, client)
+	memberClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	_, err := memberClient.WatchAllWorkspaceBuilds(ctx)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 
 	// Create a simple template version.
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -3704,9 +3713,6 @@ func TestWatchAllWorkspaceBuilds(t *testing.T) {
 	})
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
 
 	// Subscribe to all workspace build updates via SSE BEFORE creating workspaces
 	// so we can use it to wait for the initial builds.
