@@ -7,9 +7,9 @@ import {
 	chatKey,
 	chatModelConfigs,
 	chatModels,
-	chatsKey,
 	createChat,
 	infiniteChats,
+	invalidateChatListQueries,
 	prependToInfiniteChatsCache,
 	readInfiniteChatsCache,
 	unarchiveChat,
@@ -154,8 +154,11 @@ const AgentsPage: FC = () => {
 		},
 		onSuccess: async ({ chatId }) => {
 			clearChatErrorReason(chatId);
-			await queryClient.invalidateQueries({ queryKey: chatsKey });
-			await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
+			await invalidateChatListQueries(queryClient);
+			await queryClient.invalidateQueries({
+				queryKey: chatKey(chatId),
+				exact: true,
+			});
 		},
 		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
@@ -386,9 +389,6 @@ const AgentsPage: FC = () => {
 					if (chatEvent.kind === "diff_status_change") {
 						void Promise.all([
 							queryClient.invalidateQueries({
-								queryKey: chatsKey,
-							}),
-							queryClient.invalidateQueries({
 								queryKey: chatDiffStatusKey(updatedChat.id),
 							}),
 							queryClient.invalidateQueries({
@@ -451,10 +451,7 @@ const AgentsPage: FC = () => {
 				return ws;
 			},
 			onOpen() {
-				void queryClient.invalidateQueries({ queryKey: chatsKey });
-			},
-			onDisconnect() {
-				void queryClient.invalidateQueries({ queryKey: chatsKey });
+				void invalidateChatListQueries(queryClient);
 			},
 		});
 	}, [queryClient]);
