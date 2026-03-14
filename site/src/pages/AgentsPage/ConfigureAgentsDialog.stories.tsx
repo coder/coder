@@ -90,6 +90,8 @@ const buildUsageUser = (
 	chat_count: 3,
 	total_input_tokens: 120_000,
 	total_output_tokens: 45_000,
+	total_cache_read_tokens: 6_789,
+	total_cache_creation_tokens: 2_468,
 	...overrides,
 });
 
@@ -109,6 +111,8 @@ const mockUsageUsers: ChatCostUsersResponse = {
 			chat_count: 2,
 			total_input_tokens: 80_000,
 			total_output_tokens: 30_000,
+			total_cache_read_tokens: 4_321,
+			total_cache_creation_tokens: 1_234,
 		}),
 	],
 };
@@ -121,6 +125,8 @@ const mockUsageSummary: ChatCostSummary = {
 	unpriced_message_count: 0,
 	total_input_tokens: 120_000,
 	total_output_tokens: 45_000,
+	total_cache_read_tokens: 6_789,
+	total_cache_creation_tokens: 2_468,
 	by_model: [
 		{
 			model_config_id: "model-cfg-1",
@@ -131,6 +137,8 @@ const mockUsageSummary: ChatCostSummary = {
 			message_count: 12,
 			total_input_tokens: 120_000,
 			total_output_tokens: 45_000,
+			total_cache_read_tokens: 6_789,
+			total_cache_creation_tokens: 2_468,
 		},
 	],
 	by_chat: [
@@ -141,6 +149,8 @@ const mockUsageSummary: ChatCostSummary = {
 			message_count: 12,
 			total_input_tokens: 120_000,
 			total_output_tokens: 45_000,
+			total_cache_read_tokens: 6_789,
+			total_cache_creation_tokens: 2_468,
 		},
 	],
 };

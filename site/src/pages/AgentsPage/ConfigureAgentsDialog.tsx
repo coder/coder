@@ -129,6 +129,12 @@ const UserRow: FC<{
 			<TableCell className="px-4 py-3 text-right">
 				{formatTokenCount(user.total_output_tokens)}
 			</TableCell>
+			<TableCell className="px-4 py-3 text-right">
+				{formatTokenCount(user.total_cache_read_tokens)}
+			</TableCell>
+			<TableCell className="px-4 py-3 text-right">
+				{formatTokenCount(user.total_cache_creation_tokens)}
+			</TableCell>
 		</TableRow>
 	);
 };
@@ -305,6 +311,12 @@ const UsageContent: FC = () => {
 										</TableHead>
 										<TableHead className="px-4 py-3 text-right">
 											Output Tokens
+										</TableHead>
+										<TableHead className="px-4 py-3 text-right">
+											Cache Read
+										</TableHead>
+										<TableHead className="px-4 py-3 text-right">
+											Cache Write
 										</TableHead>
 									</TableRow>
 								</TableHeader>
