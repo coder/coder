@@ -153,11 +153,13 @@ export const SubagentRunning: Story = {
 			title: "Workspace diagnostics",
 			prompt: "Collect logs and summarize why startup failed.",
 		},
-		result: {
-			chat_id: "child-chat-id",
-			title: "Workspace diagnostics",
-			status: "pending",
-		},
+		result: [
+			{
+				chat_id: "child-chat-id",
+				title: "Workspace diagnostics",
+				status: "pending",
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -202,7 +204,7 @@ export const SubagentCompletedDelegatedPending: Story = {
 	args: {
 		name: "spawn_agent",
 		args: undefined,
-		result: { chat_id: "child-chat-id", status: "pending" },
+		result: [{ chat_id: "child-chat-id", status: "pending" }],
 		status: "completed",
 	},
 	play: async ({ canvasElement }) => {
@@ -222,7 +224,7 @@ export const SubagentStreamOverrideStatus: Story = {
 	args: {
 		name: "spawn_agent",
 		args: undefined,
-		result: { chat_id: "child-chat-id", status: "pending" },
+		result: [{ chat_id: "child-chat-id", status: "pending" }],
 		status: "completed",
 		subagentStatusOverrides: new Map([["child-chat-id", "completed"]]),
 	},
@@ -239,11 +241,13 @@ export const SubagentNoErrorWhenCompleted: Story = {
 	args: {
 		name: "spawn_agent",
 		args: undefined,
-		result: {
-			chat_id: "child-chat-id",
-			status: "completed",
-			error: "provider metadata noise",
-		},
+		result: [
+			{
+				chat_id: "child-chat-id",
+				status: "completed",
+				error: "provider metadata noise",
+			},
+		],
 		status: "error",
 		isError: true,
 	},
@@ -282,12 +286,14 @@ export const SubagentRequestMetadata: Story = {
 	args: {
 		name: "spawn_agent",
 		args: undefined,
-		result: {
-			chat_id: "child-chat-id",
-			status: "completed",
-			request_id: "request-123",
-			duration_ms: 1530,
-		},
+		result: [
+			{
+				chat_id: "child-chat-id",
+				status: "completed",
+				request_id: "request-123",
+				duration_ms: 1530,
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

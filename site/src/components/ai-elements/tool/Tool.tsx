@@ -255,7 +255,8 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	subagentStatusOverrides,
 }) => {
 	const parsedArgs = parseArgs(args);
-	const rec = asRecord(result);
+	const rawResult = Array.isArray(result) ? result[0] : result;
+	const rec = asRecord(rawResult);
 	// wait_agent and message_agent have chat_id in args, so
 	// check both result and args.
 	const chatId =

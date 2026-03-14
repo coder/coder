@@ -113,8 +113,9 @@ export const ToolLabel: React.FC<{
 			);
 		}
 		case "spawn_agent": {
+			const firstResult = asRecord(Array.isArray(result) ? result[0] : result);
 			const spawnTitle =
-				(parsedResult ? asString(parsedResult.title) : "") ||
+				(firstResult ? asString(firstResult.title) : "") ||
 				(parsed ? asString(parsed.title) : "");
 			return (
 				<span className="truncate text-sm text-content-secondary">
