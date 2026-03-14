@@ -1229,76 +1229,6 @@ func AllChatModeValues() []ChatMode {
 	}
 }
 
-type ChatStatus string
-
-const (
-	ChatStatusWaiting   ChatStatus = "waiting"
-	ChatStatusPending   ChatStatus = "pending"
-	ChatStatusRunning   ChatStatus = "running"
-	ChatStatusPaused    ChatStatus = "paused"
-	ChatStatusCompleted ChatStatus = "completed"
-	ChatStatusError     ChatStatus = "error"
-)
-
-func (e *ChatStatus) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = ChatStatus(s)
-	case string:
-		*e = ChatStatus(s)
-	default:
-		return fmt.Errorf("unsupported scan type for ChatStatus: %T", src)
-	}
-	return nil
-}
-
-type NullChatStatus struct {
-	ChatStatus ChatStatus `json:"chat_status"`
-	Valid      bool       `json:"valid"` // Valid is true if ChatStatus is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullChatStatus) Scan(value interface{}) error {
-	if value == nil {
-		ns.ChatStatus, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.ChatStatus.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullChatStatus) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.ChatStatus), nil
-}
-
-func (e ChatStatus) Valid() bool {
-	switch e {
-	case ChatStatusWaiting,
-		ChatStatusPending,
-		ChatStatusRunning,
-		ChatStatusPaused,
-		ChatStatusCompleted,
-		ChatStatusError:
-		return true
-	}
-	return false
-}
-
-func AllChatStatusValues() []ChatStatus {
-	return []ChatStatus{
-		ChatStatusWaiting,
-		ChatStatusPending,
-		ChatStatusRunning,
-		ChatStatusPaused,
-		ChatStatusCompleted,
-		ChatStatusError,
-	}
-}
-
 type ConnectionStatus string
 
 const (
@@ -4012,22 +3942,18 @@ type BoundaryUsageStat struct {
 }
 
 type Chat struct {
-	ID                uuid.UUID      `db:"id" json:"id"`
-	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
-	WorkspaceID       uuid.NullUUID  `db:"workspace_id" json:"workspace_id"`
-	Title             string         `db:"title" json:"title"`
-	Status            ChatStatus     `db:"status" json:"status"`
-	WorkerID          uuid.NullUUID  `db:"worker_id" json:"worker_id"`
-	StartedAt         sql.NullTime   `db:"started_at" json:"started_at"`
-	HeartbeatAt       sql.NullTime   `db:"heartbeat_at" json:"heartbeat_at"`
-	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
-	ParentChatID      uuid.NullUUID  `db:"parent_chat_id" json:"parent_chat_id"`
-	RootChatID        uuid.NullUUID  `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID uuid.UUID      `db:"last_model_config_id" json:"last_model_config_id"`
-	Archived          bool           `db:"archived" json:"archived"`
-	LastError         sql.NullString `db:"last_error" json:"last_error"`
-	Mode              NullChatMode   `db:"mode" json:"mode"`
+	ID                uuid.UUID     `db:"id" json:"id"`
+	OwnerID           uuid.UUID     `db:"owner_id" json:"owner_id"`
+	WorkspaceID       uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	Title             string        `db:"title" json:"title"`
+	CreatedAt         time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time     `db:"updated_at" json:"updated_at"`
+	ParentChatID      uuid.NullUUID `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID        uuid.NullUUID `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID uuid.UUID     `db:"last_model_config_id" json:"last_model_config_id"`
+	Archived          bool          `db:"archived" json:"archived"`
+	Mode              NullChatMode  `db:"mode" json:"mode"`
+	LastRunNumber     int32         `db:"last_run_number" json:"last_run_number"`
 }
 
 type ChatDiffStatus struct {
@@ -4066,24 +3992,18 @@ type ChatFile struct {
 }
 
 type ChatMessage struct {
-	ID                  int64                 `db:"id" json:"id"`
-	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
-	ModelConfigID       uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
-	CreatedAt           time.Time             `db:"created_at" json:"created_at"`
-	Role                ChatMessageRole       `db:"role" json:"role"`
-	Content             pqtype.NullRawMessage `db:"content" json:"content"`
-	Visibility          ChatMessageVisibility `db:"visibility" json:"visibility"`
-	InputTokens         sql.NullInt64         `db:"input_tokens" json:"input_tokens"`
-	OutputTokens        sql.NullInt64         `db:"output_tokens" json:"output_tokens"`
-	TotalTokens         sql.NullInt64         `db:"total_tokens" json:"total_tokens"`
-	ReasoningTokens     sql.NullInt64         `db:"reasoning_tokens" json:"reasoning_tokens"`
-	CacheCreationTokens sql.NullInt64         `db:"cache_creation_tokens" json:"cache_creation_tokens"`
-	CacheReadTokens     sql.NullInt64         `db:"cache_read_tokens" json:"cache_read_tokens"`
-	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
-	Compressed          bool                  `db:"compressed" json:"compressed"`
-	CreatedBy           uuid.NullUUID         `db:"created_by" json:"created_by"`
-	ContentVersion      int16                 `db:"content_version" json:"content_version"`
-	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
+	ID             int64                 `db:"id" json:"id"`
+	ChatID         uuid.UUID             `db:"chat_id" json:"chat_id"`
+	ModelConfigID  uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
+	CreatedAt      time.Time             `db:"created_at" json:"created_at"`
+	Role           ChatMessageRole       `db:"role" json:"role"`
+	Content        pqtype.NullRawMessage `db:"content" json:"content"`
+	Visibility     ChatMessageVisibility `db:"visibility" json:"visibility"`
+	Compressed     bool                  `db:"compressed" json:"compressed"`
+	CreatedBy      uuid.NullUUID         `db:"created_by" json:"created_by"`
+	ContentVersion int16                 `db:"content_version" json:"content_version"`
+	ChatRunID      uuid.NullUUID         `db:"chat_run_id" json:"chat_run_id"`
+	ChatRunStepID  uuid.NullUUID         `db:"chat_run_step_id" json:"chat_run_step_id"`
 }
 
 type ChatModelConfig struct {
@@ -4123,6 +4043,102 @@ type ChatQueuedMessage struct {
 	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
 	Content   json.RawMessage `db:"content" json:"content"`
 	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+}
+
+type ChatRun struct {
+	ID             uuid.UUID     `db:"id" json:"id"`
+	ChatID         uuid.UUID     `db:"chat_id" json:"chat_id"`
+	Number         int32         `db:"number" json:"number"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	WorkerID       uuid.NullUUID `db:"worker_id" json:"worker_id"`
+	LastStepNumber int32         `db:"last_step_number" json:"last_step_number"`
+}
+
+type ChatRunStep struct {
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	ChatRunID           uuid.UUID      `db:"chat_run_id" json:"chat_run_id"`
+	ChatID              uuid.UUID      `db:"chat_id" json:"chat_id"`
+	Number              int32          `db:"number" json:"number"`
+	ModelConfigID       uuid.NullUUID  `db:"model_config_id" json:"model_config_id"`
+	StartedAt           time.Time      `db:"started_at" json:"started_at"`
+	HeartbeatAt         time.Time      `db:"heartbeat_at" json:"heartbeat_at"`
+	CompletedAt         sql.NullTime   `db:"completed_at" json:"completed_at"`
+	InterruptedAt       sql.NullTime   `db:"interrupted_at" json:"interrupted_at"`
+	Error               sql.NullString `db:"error" json:"error"`
+	ContinuationReason  sql.NullString `db:"continuation_reason" json:"continuation_reason"`
+	ResponseMessageID   sql.NullInt64  `db:"response_message_id" json:"response_message_id"`
+	FirstMessageID      sql.NullInt64  `db:"first_message_id" json:"first_message_id"`
+	LastMessageID       sql.NullInt64  `db:"last_message_id" json:"last_message_id"`
+	InputTokens         sql.NullInt32  `db:"input_tokens" json:"input_tokens"`
+	OutputTokens        sql.NullInt32  `db:"output_tokens" json:"output_tokens"`
+	TotalTokens         sql.NullInt32  `db:"total_tokens" json:"total_tokens"`
+	ReasoningTokens     sql.NullInt32  `db:"reasoning_tokens" json:"reasoning_tokens"`
+	CacheCreationTokens sql.NullInt32  `db:"cache_creation_tokens" json:"cache_creation_tokens"`
+	CacheReadTokens     sql.NullInt32  `db:"cache_read_tokens" json:"cache_read_tokens"`
+	ContextLimit        sql.NullInt32  `db:"context_limit" json:"context_limit"`
+	TotalCostMicros     sql.NullInt64  `db:"total_cost_micros" json:"total_cost_micros"`
+	ToolCallsTotal      int32          `db:"tool_calls_total" json:"tool_calls_total"`
+	ToolCallsCompleted  int32          `db:"tool_calls_completed" json:"tool_calls_completed"`
+	ToolCallsErrored    int32          `db:"tool_calls_errored" json:"tool_calls_errored"`
+}
+
+type ChatRunStepWithStatus struct {
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	ChatRunID           uuid.UUID      `db:"chat_run_id" json:"chat_run_id"`
+	ChatID              uuid.UUID      `db:"chat_id" json:"chat_id"`
+	Number              int32          `db:"number" json:"number"`
+	ModelConfigID       uuid.NullUUID  `db:"model_config_id" json:"model_config_id"`
+	StartedAt           time.Time      `db:"started_at" json:"started_at"`
+	HeartbeatAt         time.Time      `db:"heartbeat_at" json:"heartbeat_at"`
+	CompletedAt         sql.NullTime   `db:"completed_at" json:"completed_at"`
+	InterruptedAt       sql.NullTime   `db:"interrupted_at" json:"interrupted_at"`
+	Error               sql.NullString `db:"error" json:"error"`
+	ContinuationReason  sql.NullString `db:"continuation_reason" json:"continuation_reason"`
+	ResponseMessageID   sql.NullInt64  `db:"response_message_id" json:"response_message_id"`
+	FirstMessageID      sql.NullInt64  `db:"first_message_id" json:"first_message_id"`
+	LastMessageID       sql.NullInt64  `db:"last_message_id" json:"last_message_id"`
+	InputTokens         sql.NullInt32  `db:"input_tokens" json:"input_tokens"`
+	OutputTokens        sql.NullInt32  `db:"output_tokens" json:"output_tokens"`
+	TotalTokens         sql.NullInt32  `db:"total_tokens" json:"total_tokens"`
+	ReasoningTokens     sql.NullInt32  `db:"reasoning_tokens" json:"reasoning_tokens"`
+	CacheCreationTokens sql.NullInt32  `db:"cache_creation_tokens" json:"cache_creation_tokens"`
+	CacheReadTokens     sql.NullInt32  `db:"cache_read_tokens" json:"cache_read_tokens"`
+	ContextLimit        sql.NullInt32  `db:"context_limit" json:"context_limit"`
+	TotalCostMicros     sql.NullInt64  `db:"total_cost_micros" json:"total_cost_micros"`
+	ToolCallsTotal      int32          `db:"tool_calls_total" json:"tool_calls_total"`
+	ToolCallsCompleted  int32          `db:"tool_calls_completed" json:"tool_calls_completed"`
+	ToolCallsErrored    int32          `db:"tool_calls_errored" json:"tool_calls_errored"`
+	Status              string         `db:"status" json:"status"`
+}
+
+type ChatRunWithStatus struct {
+	ID             uuid.UUID      `db:"id" json:"id"`
+	ChatID         uuid.UUID      `db:"chat_id" json:"chat_id"`
+	Number         int32          `db:"number" json:"number"`
+	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
+	WorkerID       uuid.NullUUID  `db:"worker_id" json:"worker_id"`
+	LastStepNumber int32          `db:"last_step_number" json:"last_step_number"`
+	StepStatus     sql.NullString `db:"step_status" json:"step_status"`
+	StepError      sql.NullString `db:"step_error" json:"step_error"`
+	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
+}
+
+type ChatWithStatus struct {
+	ID                uuid.UUID      `db:"id" json:"id"`
+	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
+	WorkspaceID       uuid.NullUUID  `db:"workspace_id" json:"workspace_id"`
+	Title             string         `db:"title" json:"title"`
+	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+	ParentChatID      uuid.NullUUID  `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID        uuid.NullUUID  `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID uuid.UUID      `db:"last_model_config_id" json:"last_model_config_id"`
+	Archived          bool           `db:"archived" json:"archived"`
+	Mode              NullChatMode   `db:"mode" json:"mode"`
+	LastRunNumber     int32          `db:"last_run_number" json:"last_run_number"`
+	ComputedStatus    string         `db:"computed_status" json:"computed_status"`
+	LastRunError      sql.NullString `db:"last_run_error" json:"last_run_error"`
+	LastRunID         uuid.NullUUID  `db:"last_run_id" json:"last_run_id"`
 }
 
 type ConnectionLog struct {

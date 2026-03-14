@@ -39,9 +39,10 @@ var ErrInterrupted = xerrors.New("chat interrupted")
 // persistence layer is responsible for splitting these into
 // separate database messages by role.
 type PersistedStep struct {
-	Content      []fantasy.Content
-	Usage        fantasy.Usage
-	ContextLimit sql.NullInt64
+	Content        []fantasy.Content
+	Usage          fantasy.Usage
+	ContextLimit   sql.NullInt64
+	ShouldContinue bool
 }
 
 // RunOptions configures a single streaming chat loop run.
@@ -361,12 +362,12 @@ func Run(ctx context.Context, opts RunOptions) error {
 			// the chat was interrupted between the previous
 			// check and here, fall back to the interrupt-safe
 			// path so partial content is not lost.
-			if err := opts.PersistStep(ctx, PersistedStep{
-				Content:      result.content,
-				Usage:        result.usage,
-				ContextLimit: contextLimit,
-			}); err != nil {
-				if errors.Is(err, ErrInterrupted) {
+				if err := opts.PersistStep(ctx, PersistedStep{
+					Content:        result.content,
+					Usage:          result.usage,
+					ContextLimit:   contextLimit,
+					ShouldContinue: result.shouldContinue,
+				}); err != nil {				if errors.Is(err, ErrInterrupted) {
 					persistInterruptedStep(ctx, opts, &result)
 					return ErrInterrupted
 				}
@@ -871,7 +872,8 @@ func persistInterruptedStep(
 
 	persistCtx := context.WithoutCancel(ctx)
 	if err := opts.PersistStep(persistCtx, PersistedStep{
-		Content: content,
+		Content:        content,
+		ShouldContinue: false,
 	}); err != nil {
 		if opts.OnInterruptedPersistError != nil {
 			opts.OnInterruptedPersistError(err)

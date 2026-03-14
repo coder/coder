@@ -5,6 +5,12 @@ WHERE id = @id OR root_chat_id = @id;
 -- name: UnarchiveChatByID :exec
 UPDATE chats SET archived = false, updated_at = NOW() WHERE id = @id::uuid;
 
+-- name: DeleteChatMessagesByChatID :exec
+DELETE FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid;
+
 -- name: DeleteChatMessagesAfterID :exec
 DELETE FROM
     chat_messages
@@ -17,6 +23,14 @@ SELECT
     *
 FROM
     chats
+WHERE
+    id = @id::uuid;
+
+-- name: GetChatWithStatusByID :one
+SELECT
+    *
+FROM
+    chats_with_status
 WHERE
     id = @id::uuid;
 
@@ -135,6 +149,55 @@ LIMIT
     -- Default to 50 to prevent accidental excessively large queries.
     COALESCE(NULLIF(@limit_opt :: int, 0), 50);
 
+-- name: GetChatsWithStatusByOwnerID :many
+SELECT
+    *
+FROM
+    chats_with_status
+WHERE
+    owner_id = @owner_id::uuid
+    AND CASE
+        WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
+        ELSE chats_with_status.archived = sqlc.narg('archived') :: boolean
+    END
+    AND CASE
+        WHEN @after_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+            (updated_at, id) < (
+                SELECT
+                    updated_at, id
+                FROM
+                    chats
+                WHERE
+                    id = @after_id
+            )
+        )
+        ELSE true
+    END
+ORDER BY
+    (updated_at, id) DESC OFFSET @offset_opt
+LIMIT
+    COALESCE(NULLIF(@limit_opt :: int, 0), 50);
+
+-- name: ListChildChatsByParentID :many
+SELECT
+    *
+FROM
+    chats
+WHERE
+    parent_chat_id = @parent_chat_id::uuid
+ORDER BY
+    created_at ASC;
+
+-- name: ListChatsByRootID :many
+SELECT
+    *
+FROM
+    chats
+WHERE
+    root_chat_id = @root_chat_id::uuid
+ORDER BY
+    created_at ASC;
+
 -- name: InsertChat :one
 INSERT INTO chats (
     owner_id,
@@ -170,36 +233,24 @@ INSERT INTO chat_messages (
     chat_id,
     created_by,
     model_config_id,
+    chat_run_id,
+    chat_run_step_id,
     role,
     content,
     content_version,
     visibility,
-    input_tokens,
-    output_tokens,
-    total_tokens,
-    reasoning_tokens,
-    cache_creation_tokens,
-    cache_read_tokens,
-    context_limit,
-    compressed,
-    total_cost_micros
+    compressed
 ) VALUES (
     @chat_id::uuid,
     sqlc.narg('created_by')::uuid,
     sqlc.narg('model_config_id')::uuid,
+    sqlc.narg('chat_run_id')::uuid,
+    sqlc.narg('chat_run_step_id')::uuid,
     @role::chat_message_role,
     sqlc.narg('content')::jsonb,
     @content_version::smallint,
     @visibility::chat_message_visibility,
-    sqlc.narg('input_tokens')::bigint,
-    sqlc.narg('output_tokens')::bigint,
-    sqlc.narg('total_tokens')::bigint,
-    sqlc.narg('reasoning_tokens')::bigint,
-    sqlc.narg('cache_creation_tokens')::bigint,
-    sqlc.narg('cache_read_tokens')::bigint,
-    sqlc.narg('context_limit')::bigint,
-    COALESCE(sqlc.narg('compressed')::boolean, FALSE),
-    sqlc.narg('total_cost_micros')::bigint
+    COALESCE(sqlc.narg('compressed')::boolean, FALSE)
 )
 RETURNING
     *;
@@ -236,73 +287,6 @@ WHERE
     id = @id::uuid
 RETURNING
     *;
-
--- name: AcquireChats :many
--- Acquires up to @num_chats pending chats for processing. Uses SKIP LOCKED
--- to prevent multiple replicas from acquiring the same chat.
-UPDATE
-    chats
-SET
-    status = 'running'::chat_status,
-    started_at = @started_at::timestamptz,
-    heartbeat_at = @started_at::timestamptz,
-    updated_at = @started_at::timestamptz,
-    worker_id = @worker_id::uuid
-WHERE
-    id = ANY(
-        SELECT
-            id
-        FROM
-            chats
-        WHERE
-            status = 'pending'::chat_status
-        ORDER BY
-            updated_at ASC
-        FOR UPDATE
-            SKIP LOCKED
-        LIMIT
-            @num_chats::int
-    )
-RETURNING
-    *;
-
--- name: UpdateChatStatus :one
-UPDATE
-    chats
-SET
-    status = @status::chat_status,
-    worker_id = sqlc.narg('worker_id')::uuid,
-    started_at = sqlc.narg('started_at')::timestamptz,
-    heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
-    last_error = sqlc.narg('last_error')::text,
-    updated_at = NOW()
-WHERE
-    id = @id::uuid
-RETURNING
-    *;
-
--- name: GetStaleChats :many
--- Find chats that appear stuck (running but heartbeat has expired).
--- Used for recovery after coderd crashes or long hangs.
-SELECT
-    *
-FROM
-    chats
-WHERE
-    status = 'running'::chat_status
-    AND heartbeat_at < @stale_threshold::timestamptz;
-
--- name: UpdateChatHeartbeat :execrows
--- Bumps the heartbeat timestamp for a running chat so that other
--- replicas know the worker is still alive.
-UPDATE
-    chats
-SET
-    heartbeat_at = NOW()
-WHERE
-    id = @id::uuid
-    AND worker_id = @worker_id::uuid
-    AND status = 'running'::chat_status;
 
 -- name: GetChatDiffStatusByChatID :one
 SELECT
@@ -509,67 +493,65 @@ WHERE
 
 -- name: GetChatCostSummary :one
 -- Aggregate cost summary for a single user within a date range.
--- Only counts assistant-role messages.
+-- Reads from chat_run_steps (the immutable token/cost audit trail).
 SELECT
-    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+    COALESCE(SUM(s.total_cost_micros), 0)::bigint AS total_cost_micros,
     COUNT(*) FILTER (
-        WHERE cm.total_cost_micros IS NOT NULL
-    )::bigint AS priced_message_count,
+        WHERE s.total_cost_micros IS NOT NULL
+    )::bigint AS priced_step_count,
     COUNT(*) FILTER (
-        WHERE cm.total_cost_micros IS NULL
+        WHERE s.total_cost_micros IS NULL
             AND (
-                cm.input_tokens IS NOT NULL
-                OR cm.output_tokens IS NOT NULL
-                OR cm.reasoning_tokens IS NOT NULL
-                OR cm.cache_creation_tokens IS NOT NULL
-                OR cm.cache_read_tokens IS NOT NULL
+                s.input_tokens IS NOT NULL
+                OR s.output_tokens IS NOT NULL
+                OR s.reasoning_tokens IS NOT NULL
+                OR s.cache_creation_tokens IS NOT NULL
+                OR s.cache_read_tokens IS NOT NULL
             )
-    )::bigint AS unpriced_message_count,
-    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
-    COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+    )::bigint AS unpriced_step_count,
+    COALESCE(SUM(s.input_tokens), 0)::bigint AS total_input_tokens,
+    COALESCE(SUM(s.output_tokens), 0)::bigint AS total_output_tokens,
+    COALESCE(SUM(s.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+    COALESCE(SUM(s.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
 FROM
-    chat_messages cm
+    chat_run_steps s
 JOIN
-    chats c ON c.id = cm.chat_id
+    chat_runs r ON r.id = s.chat_run_id
+JOIN
+    chats c ON c.id = r.chat_id
 WHERE
     c.owner_id = @owner_id::uuid
-    AND cm.role = 'assistant'
-    AND cm.created_at >= @start_date::timestamptz
-    AND cm.created_at < @end_date::timestamptz;
+    AND s.completed_at IS NOT NULL
+    AND s.started_at >= @start_date::timestamptz
+    AND s.started_at < @end_date::timestamptz;
 
 -- name: GetChatCostPerModel :many
 -- Per-model cost breakdown for a single user within a date range.
--- Only counts assistant-role messages that have a model_config_id.
+-- Reads from chat_run_steps grouped by model config.
 SELECT
     cmc.id AS model_config_id,
     cmc.display_name,
     cmc.provider,
     cmc.model,
-    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-    COUNT(*) FILTER (
-        WHERE cm.input_tokens IS NOT NULL
-            OR cm.output_tokens IS NOT NULL
-            OR cm.reasoning_tokens IS NOT NULL
-            OR cm.cache_creation_tokens IS NOT NULL
-            OR cm.cache_read_tokens IS NOT NULL
-    )::bigint AS message_count,
-    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
-    COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+    COALESCE(SUM(s.total_cost_micros), 0)::bigint AS total_cost_micros,
+    COUNT(*)::bigint AS step_count,
+    COALESCE(SUM(s.input_tokens), 0)::bigint AS total_input_tokens,
+    COALESCE(SUM(s.output_tokens), 0)::bigint AS total_output_tokens,
+    COALESCE(SUM(s.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+    COALESCE(SUM(s.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
 FROM
-    chat_messages cm
+    chat_run_steps s
 JOIN
-    chats c ON c.id = cm.chat_id
+    chat_runs r ON r.id = s.chat_run_id
 JOIN
-    chat_model_configs cmc ON cmc.id = cm.model_config_id
+    chats c ON c.id = r.chat_id
+JOIN
+    chat_model_configs cmc ON cmc.id = s.model_config_id
 WHERE
     c.owner_id = @owner_id::uuid
-    AND cm.role = 'assistant'
-    AND cm.created_at >= @start_date::timestamptz
-    AND cm.created_at < @end_date::timestamptz
+    AND s.completed_at IS NOT NULL
+    AND s.started_at >= @start_date::timestamptz
+    AND s.started_at < @end_date::timestamptz
 GROUP BY
     cmc.id, cmc.display_name, cmc.provider, cmc.model
 ORDER BY
@@ -578,35 +560,29 @@ ORDER BY
 -- name: GetChatCostPerChat :many
 -- Per-root-chat cost breakdown for a single user within a date range.
 -- Groups by root_chat_id so forked chats roll up under their root.
--- Only counts assistant-role messages.
 WITH chat_costs AS (
     SELECT
         COALESCE(c.root_chat_id, c.id) AS root_chat_id,
-        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-        COUNT(*) FILTER (
-            WHERE cm.input_tokens IS NOT NULL
-                OR cm.output_tokens IS NOT NULL
-                OR cm.reasoning_tokens IS NOT NULL
-                OR cm.cache_creation_tokens IS NOT NULL
-                OR cm.cache_read_tokens IS NOT NULL
-        )::bigint AS message_count,
-        COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
-        COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
-    FROM chat_messages cm
-    JOIN chats c ON c.id = cm.chat_id
+        COALESCE(SUM(s.total_cost_micros), 0)::bigint AS total_cost_micros,
+        COUNT(*)::bigint AS step_count,
+        COALESCE(SUM(s.input_tokens), 0)::bigint AS total_input_tokens,
+        COALESCE(SUM(s.output_tokens), 0)::bigint AS total_output_tokens,
+        COALESCE(SUM(s.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+        COALESCE(SUM(s.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+    FROM chat_run_steps s
+    JOIN chat_runs r ON r.id = s.chat_run_id
+    JOIN chats c ON c.id = r.chat_id
     WHERE c.owner_id = @owner_id::uuid
-      AND cm.role = 'assistant'
-      AND cm.created_at >= @start_date::timestamptz
-      AND cm.created_at < @end_date::timestamptz
+      AND s.completed_at IS NOT NULL
+      AND s.started_at >= @start_date::timestamptz
+      AND s.started_at < @end_date::timestamptz
     GROUP BY COALESCE(c.root_chat_id, c.id)
 )
 SELECT
     cc.root_chat_id,
     COALESCE(rc.title, '') AS chat_title,
     cc.total_cost_micros,
-    cc.message_count,
+    cc.step_count,
     cc.total_input_tokens,
     cc.total_output_tokens,
     cc.total_cache_read_tokens,
@@ -617,36 +593,31 @@ ORDER BY cc.total_cost_micros DESC;
 
 -- name: GetChatCostPerUser :many
 -- Deployment-wide per-user cost rollup within a date range.
--- Only counts assistant-role messages.
 WITH chat_cost_users AS (
     SELECT
         c.owner_id AS user_id,
         u.username,
         u.name,
         u.avatar_url,
-        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-        COUNT(*) FILTER (
-            WHERE cm.input_tokens IS NOT NULL
-                OR cm.output_tokens IS NOT NULL
-                OR cm.reasoning_tokens IS NOT NULL
-                OR cm.cache_creation_tokens IS NOT NULL
-                OR cm.cache_read_tokens IS NOT NULL
-        )::bigint AS message_count,
+        COALESCE(SUM(s.total_cost_micros), 0)::bigint AS total_cost_micros,
+        COUNT(*)::bigint AS step_count,
         COUNT(DISTINCT COALESCE(c.root_chat_id, c.id))::bigint AS chat_count,
-        COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
-        COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
+        COALESCE(SUM(s.input_tokens), 0)::bigint AS total_input_tokens,
+        COALESCE(SUM(s.output_tokens), 0)::bigint AS total_output_tokens,
+        COALESCE(SUM(s.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+        COALESCE(SUM(s.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
     FROM
-        chat_messages cm
+        chat_run_steps s
     JOIN
-        chats c ON c.id = cm.chat_id
+        chat_runs r ON r.id = s.chat_run_id
+    JOIN
+        chats c ON c.id = r.chat_id
     JOIN
         users u ON u.id = c.owner_id
     WHERE
-        cm.role = 'assistant'
-        AND cm.created_at >= @start_date::timestamptz
-        AND cm.created_at < @end_date::timestamptz
+        s.completed_at IS NOT NULL
+        AND s.started_at >= @start_date::timestamptz
+        AND s.started_at < @end_date::timestamptz
         AND (
             @username::text = ''
             OR u.username ILIKE '%' || @username::text || '%'
@@ -663,7 +634,7 @@ SELECT
     name,
     avatar_url,
     total_cost_micros,
-    message_count,
+    step_count,
     chat_count,
     total_input_tokens,
     total_output_tokens,

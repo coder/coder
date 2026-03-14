@@ -2,7 +2,6 @@
 package db2sdk
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -1076,40 +1075,9 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 			msg.Content = parts
 		}
 	}
-	usage := chatMessageUsage(m)
-	if usage != nil {
-		msg.Usage = usage
-	}
 	return msg
 }
 
-// chatMessageUsage builds a ChatMessageUsage from the database row,
-// returning nil when no token fields are populated.
-func chatMessageUsage(m database.ChatMessage) *codersdk.ChatMessageUsage {
-	inputTokens := nullInt64Ptr(m.InputTokens)
-	outputTokens := nullInt64Ptr(m.OutputTokens)
-	totalTokens := nullInt64Ptr(m.TotalTokens)
-	reasoningTokens := nullInt64Ptr(m.ReasoningTokens)
-	cacheCreationTokens := nullInt64Ptr(m.CacheCreationTokens)
-	cacheReadTokens := nullInt64Ptr(m.CacheReadTokens)
-	contextLimit := nullInt64Ptr(m.ContextLimit)
-
-	if inputTokens == nil && outputTokens == nil && totalTokens == nil &&
-		reasoningTokens == nil && cacheCreationTokens == nil &&
-		cacheReadTokens == nil && contextLimit == nil {
-		return nil
-	}
-
-	return &codersdk.ChatMessageUsage{
-		InputTokens:         inputTokens,
-		OutputTokens:        outputTokens,
-		TotalTokens:         totalTokens,
-		ReasoningTokens:     reasoningTokens,
-		CacheCreationTokens: cacheCreationTokens,
-		CacheReadTokens:     cacheReadTokens,
-		ContextLimit:        contextLimit,
-	}
-}
 
 // ChatQueuedMessage converts a queued message to its SDK representation.
 func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMessage {
@@ -1155,12 +1123,4 @@ func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error
 		parts[i].StripInternal()
 	}
 	return parts, nil
-}
-
-func nullInt64Ptr(v sql.NullInt64) *int64 {
-	if !v.Valid {
-		return nil
-	}
-	value := v.Int64
-	return &value
 }

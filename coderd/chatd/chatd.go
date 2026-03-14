@@ -19,7 +19,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/chatd/chatcost"
 	"github.com/coder/coder/v2/coderd/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
@@ -57,11 +56,12 @@ const (
 	// of 5 means recovery runs at 1/5 of the stale-after duration.
 	staleRecoveryIntervalDivisor = 5
 
-	// maxChatsPerAcquire is the maximum number of chats to
-	// acquire in a single processOnce call. Batching avoids
-	// waiting a full polling interval between acquisitions
-	// when many chats are pending.
-	maxChatsPerAcquire int32 = 10
+	// maxAcquirePerCycle is the maximum number of pending
+	// steps a single processOnce tick will acquire before
+	// yielding back to the polling loop. This prevents a
+	// single replica from blocking on acquisition when many
+	// steps are queued and lets the timer tick catch up.
+	maxAcquirePerCycle = 10
 
 	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
 )
@@ -130,7 +130,7 @@ type SubscribeFn func(
 // StatusNotification informs the enterprise relay manager of chat
 // status changes so it can open or close relay connections.
 type StatusNotification struct {
-	Status   database.ChatStatus
+	Status   codersdk.ChatStatus
 	WorkerID uuid.UUID
 }
 
@@ -139,6 +139,8 @@ type StatusNotification struct {
 type SubscribeFnParams struct {
 	ChatID              uuid.UUID
 	Chat                database.Chat
+	InitialStatus       codersdk.ChatStatus
+	InitialWorkerID     uuid.UUID
 	WorkerID            uuid.UUID
 	StatusNotifications <-chan StatusNotification
 	RequestHeader       http.Header
@@ -164,12 +166,6 @@ var (
 	ErrEditedMessageNotFound = xerrors.New("edited message not found")
 	// ErrEditedMessageNotUser indicates a non-user message edit attempt.
 	ErrEditedMessageNotUser = xerrors.New("only user messages can be edited")
-
-	// errChatTakenByOtherWorker is a sentinel used inside the
-	// processChat cleanup transaction to signal that another
-	// worker acquired the chat, so all post-TX side effects
-	// (status publish, pubsub, web push) must be skipped.
-	errChatTakenByOtherWorker = xerrors.New("chat acquired by another worker")
 )
 
 // CreateOptions controls chat creation in the shared chat mutation path.
@@ -285,19 +281,13 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 					UUID:  opts.ModelConfigID,
 					Valid: true,
 				},
+				ChatRunID:           uuid.NullUUID{},
+				ChatRunStepID:       uuid.NullUUID{},
 				Role:                database.ChatMessageRoleSystem,
 				ContentVersion:      chatprompt.CurrentContentVersion,
 				Content:             systemContent,
 				Visibility:          database.ChatMessageVisibilityModel,
-				InputTokens:         sql.NullInt64{},
-				OutputTokens:        sql.NullInt64{},
-				TotalTokens:         sql.NullInt64{},
-				ReasoningTokens:     sql.NullInt64{},
-				CacheCreationTokens: sql.NullInt64{},
-				CacheReadTokens:     sql.NullInt64{},
-				ContextLimit:        sql.NullInt64{},
 				Compressed:          sql.NullBool{},
-				TotalCostMicros:     sql.NullInt64{},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert system message: %w", err)
@@ -314,32 +304,32 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 				UUID:  opts.ModelConfigID,
 				Valid: true,
 			},
+			ChatRunID:           uuid.NullUUID{},
+			ChatRunStepID:       uuid.NullUUID{},
 			Role:                database.ChatMessageRoleUser,
 			ContentVersion:      chatprompt.CurrentContentVersion,
 			Content:             userContent,
 			CreatedBy:           uuid.NullUUID{UUID: opts.OwnerID, Valid: opts.OwnerID != uuid.Nil},
 			Visibility:          database.ChatMessageVisibilityBoth,
-			InputTokens:         sql.NullInt64{},
-			OutputTokens:        sql.NullInt64{},
-			TotalTokens:         sql.NullInt64{},
-			ReasoningTokens:     sql.NullInt64{},
-			CacheCreationTokens: sql.NullInt64{},
-			CacheReadTokens:     sql.NullInt64{},
-			ContextLimit:        sql.NullInt64{},
-			TotalCostMicros:     sql.NullInt64{},
 			Compressed:          sql.NullBool{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert initial user message: %w", err)
 		}
 
-		chat, err = setChatPendingWithStore(ctx, tx, insertedChat.ID)
+		chat, err = tx.GetChatByID(ctx, insertedChat.ID)
 		if err != nil {
-			return xerrors.Errorf("set chat pending: %w", err)
+			return xerrors.Errorf("reload chat: %w", err)
 		}
 
 		if !chat.RootChatID.Valid && !chat.ParentChatID.Valid {
 			chat.RootChatID = uuid.NullUUID{UUID: chat.ID, Valid: true}
+		}
+
+		// Create run+step inside the TX so the chat enters
+		// pending status atomically with creation.
+		if err := createRunAndStep(ctx, tx, insertedChat.ID); err != nil {
+			return xerrors.Errorf("create run and step: %w", err)
 		}
 		return nil
 	}, nil)
@@ -402,7 +392,11 @@ func (p *Server) SendMessage(
 		// persisted (with a lower id/created_at) before the
 		// user message is promoted into chat_messages,
 		// preserving correct conversation order.
-		if shouldQueueUserMessage(lockedChat.Status) {
+		busy, busyErr := p.isChatBusy(ctx, opts.ChatID)
+		if busyErr != nil {
+			return xerrors.Errorf("check chat busy: %w", busyErr)
+		}
+		if busy {
 			existingQueued, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)
 			if err != nil {
 				return xerrors.Errorf("get queued messages: %w", err)
@@ -431,20 +425,28 @@ func (p *Server) SendMessage(
 			return nil
 		}
 
-		message, updatedChat, err := insertUserMessageAndSetPending(
-			ctx,
-			tx,
-			lockedChat,
-			modelConfigID,
-			content,
-			opts.CreatedBy,
-		)
+		message, err := insertChatMessageWithStore(ctx, tx, database.InsertChatMessageParams{
+			ChatID:              lockedChat.ID,
+			ModelConfigID:       uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			CreatedBy:           uuid.NullUUID{UUID: opts.CreatedBy, Valid: opts.CreatedBy != uuid.Nil},
+			ChatRunID:           uuid.NullUUID{},
+			ChatRunStepID:       uuid.NullUUID{},
+			Role:                "user",
+			Content:             content,
+			Visibility:          database.ChatMessageVisibilityBoth,
+			Compressed:          sql.NullBool{},
+		})
 		if err != nil {
-			return err
+			return xerrors.Errorf("insert user message: %w", err)
 		}
 		result.Message = message
-		result.Chat = updatedChat
+		result.Chat = lockedChat
 
+		// Create run+step inside the TX so the chat becomes
+		// pending atomically with the message insert.
+		if err := createRunAndStep(ctx, tx, lockedChat.ID); err != nil {
+			return xerrors.Errorf("create run and step: %w", err)
+		}
 		return nil
 	}, nil)
 	if txErr != nil {
@@ -462,14 +464,13 @@ func (p *Server) SendMessage(
 		})
 
 		// For interrupt behavior, signal the running loop to
-		// stop. setChatWaiting publishes a status notification
-		// that the worker's control subscriber detects, causing
-		// it to cancel with ErrInterrupted. The deferred cleanup
+		// stop by interrupting the active step. The worker's
+		// control subscriber detects the status change and
+		// cancels with ErrInterrupted. The deferred cleanup
 		// in processChat then auto-promotes the queued message
 		// after persisting the partial assistant response.
 		if busyBehavior == SendMessageBusyBehaviorInterrupt {
-			updatedChat, err := p.setChatWaiting(ctx, opts.ChatID)
-			if err != nil {
+			if err := p.interruptActiveStep(ctx, opts.ChatID); err != nil {
 				// The message is already queued so the chat is
 				// not in a broken state — the user can still
 				// wait for the current run to finish. Log the
@@ -478,8 +479,6 @@ func (p *Server) SendMessage(
 					slog.F("chat_id", opts.ChatID),
 					slog.Error(err),
 				)
-			} else {
-				result.Chat = updatedChat
 			}
 		}
 
@@ -487,7 +486,7 @@ func (p *Server) SendMessage(
 	}
 
 	p.publishMessage(opts.ChatID, result.Message)
-	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
+	p.publishStatus(opts.ChatID, codersdk.ChatStatusPending)
 	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange)
 	return result, nil
 }
@@ -556,20 +555,27 @@ func (p *Server) EditMessage(
 			return xerrors.Errorf("delete queued messages: %w", err)
 		}
 
-		updatedChat, err := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-			ID:          opts.ChatID,
-			Status:      database.ChatStatusPending,
-			WorkerID:    uuid.NullUUID{},
-			StartedAt:   sql.NullTime{},
-			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
-		})
-		if err != nil {
-			return xerrors.Errorf("set chat pending: %w", err)
+		// Interrupt any active step so the edit triggers a
+		// fresh run. The createRunAndStep call below creates
+		// a new run+step within this transaction.
+		if interruptErr := tx.InterruptActiveChatRunStep(ctx, opts.ChatID); interruptErr != nil {
+			p.logger.Warn(ctx, "interrupt active step during edit",
+				slog.F("chat_id", opts.ChatID),
+				slog.Error(interruptErr),
+			)
 		}
 
 		result.Message = updatedMessage
-		result.Chat = updatedChat
+		result.Chat, err = tx.GetChatByID(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("get chat after edit: %w", err)
+		}
+
+		// Create run+step inside the TX so the edited message
+		// triggers a fresh run atomically.
+		if err := createRunAndStep(ctx, tx, opts.ChatID); err != nil {
+			return xerrors.Errorf("create run and step: %w", err)
+		}
 		return nil
 	}, nil)
 	if txErr != nil {
@@ -584,7 +590,7 @@ func (p *Server) EditMessage(
 	p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
 		QueueUpdate: true,
 	})
-	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
+	p.publishStatus(opts.ChatID, codersdk.ChatStatusPending)
 	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange)
 
 	return result, nil
@@ -702,7 +708,6 @@ func (p *Server) PromoteQueued(
 	var (
 		result         PromoteQueuedResult
 		promoted       database.ChatMessage
-		updatedChat    database.Chat
 		remainingQueue []database.ChatQueuedMessage
 	)
 
@@ -744,27 +749,34 @@ func (p *Server) PromoteQueued(
 			return xerrors.Errorf("delete queued message: %w", err)
 		}
 
-		promoted, updatedChat, err = insertUserMessageAndSetPending(
-			ctx,
-			tx,
-			lockedChat,
-			modelConfigID,
-			pqtype.NullRawMessage{
+		promoted, err = insertChatMessageWithStore(ctx, tx, database.InsertChatMessageParams{
+			ChatID:        lockedChat.ID,
+			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			ChatRunID:     uuid.NullUUID{},
+			ChatRunStepID: uuid.NullUUID{},
+			Role:          "user",
+			Content: pqtype.NullRawMessage{
 				RawMessage: targetContent,
 				Valid:      len(targetContent) > 0,
 			},
-			opts.CreatedBy,
-		)
+			CreatedBy:           uuid.NullUUID{UUID: opts.CreatedBy, Valid: opts.CreatedBy != uuid.Nil},
+			Visibility:          database.ChatMessageVisibilityBoth,
+			Compressed:          sql.NullBool{},
+		})
 		if err != nil {
-			return err
+			return xerrors.Errorf("insert promoted message: %w", err)
 		}
-
 		remainingQueue, err = tx.GetChatQueuedMessages(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("get remaining queue: %w", err)
 		}
 		result.PromotedMessage = promoted
 
+		// Create run+step inside the TX so the promoted
+		// message gets processed atomically.
+		if err := createRunAndStep(ctx, tx, lockedChat.ID); err != nil {
+			return xerrors.Errorf("create run and step: %w", err)
+		}
 		return nil
 	}, nil)
 	if txErr != nil {
@@ -779,13 +791,18 @@ func (p *Server) PromoteQueued(
 		QueueUpdate: true,
 	})
 	p.publishMessage(opts.ChatID, promoted)
-	p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
-	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange)
+	p.publishStatus(opts.ChatID, codersdk.ChatStatusPending)
+
+	// Re-read the chat from the database for the pubsub event.
+	if freshChat, readErr := p.db.GetChatByID(ctx, opts.ChatID); readErr == nil {
+		p.publishChatPubsubEvent(freshChat, coderdpubsub.ChatEventKindStatusChange)
+	}
 
 	return result, nil
 }
 
-// InterruptChat interrupts execution, sets waiting status, and broadcasts status updates.
+// InterruptChat interrupts the active run step and broadcasts
+// status updates. Returns the refreshed chat row.
 func (p *Server) InterruptChat(
 	ctx context.Context,
 	chat database.Chat,
@@ -794,9 +811,17 @@ func (p *Server) InterruptChat(
 		return chat
 	}
 
-	updatedChat, err := p.setChatWaiting(ctx, chat.ID)
+	if err := p.interruptActiveStep(ctx, chat.ID); err != nil {
+		p.logger.Error(ctx, "failed to interrupt active step",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return chat
+	}
+
+	updatedChat, err := p.db.GetChatByID(ctx, chat.ID)
 	if err != nil {
-		p.logger.Error(ctx, "failed to mark chat as waiting",
+		p.logger.Error(ctx, "failed to reload chat after interrupt",
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
 		)
@@ -805,80 +830,88 @@ func (p *Server) InterruptChat(
 	return updatedChat
 }
 
-// RefreshStatus loads the latest chat status and publishes it to stream subscribers.
+// RefreshStatus derives the current chat status from the
+// run/step views and publishes it to stream subscribers.
 func (p *Server) RefreshStatus(ctx context.Context, chatID uuid.UUID) error {
 	if chatID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
 
-	chat, err := p.db.GetChatByID(ctx, chatID)
+	status, err := p.deriveChatStatus(ctx, chatID)
 	if err != nil {
-		return xerrors.Errorf("get chat: %w", err)
+		return xerrors.Errorf("derive chat status: %w", err)
 	}
 
-	p.publishStatus(chat.ID, chat.Status, chat.WorkerID)
+	p.publishStatus(chatID, status)
 	return nil
 }
 
-func setChatPendingWithStore(
-	ctx context.Context,
-	store database.Store,
-	chatID uuid.UUID,
-) (database.Chat, error) {
-	chat, err := store.GetChatByID(ctx, chatID)
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("get chat: %w", err)
+// interruptActiveStep marks the active step for a chat as
+// interrupted and publishes a waiting status.
+func (p *Server) interruptActiveStep(ctx context.Context, chatID uuid.UUID) error {
+	if err := p.db.InterruptActiveChatRunStep(ctx, chatID); err != nil {
+		return xerrors.Errorf("interrupt active step: %w", err)
 	}
-	if chat.Status == database.ChatStatusPending {
-		return chat, nil
+	p.publishStatus(chatID, codersdk.ChatStatusWaiting)
+	if chat, err := p.db.GetChatByID(ctx, chatID); err == nil {
+		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange)
 	}
-
-	updatedChat, err := store.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusPending,
-		WorkerID:    uuid.NullUUID{},
-		StartedAt:   sql.NullTime{},
-		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
-	})
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("set chat pending: %w", err)
-	}
-	return updatedChat, nil
+	return nil
 }
 
-func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
-	var updatedChat database.Chat
-	err := p.db.InTx(func(tx database.Store) error {
-		locked, lockErr := tx.GetChatByIDForUpdate(ctx, chatID)
-		if lockErr != nil {
-			return xerrors.Errorf("lock chat for waiting: %w", lockErr)
-		}
-		// If the chat has already transitioned to pending (e.g.
-		// SendMessage with interrupt behavior), don't overwrite
-		// it — the pending status takes priority so the new
-		// message gets processed.
-		if locked.Status == database.ChatStatusPending {
-			updatedChat = locked
-			return nil
-		}
-		var updateErr error
-		updatedChat, updateErr = tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-			ID:          chatID,
-			Status:      database.ChatStatusWaiting,
-			WorkerID:    uuid.NullUUID{},
-			StartedAt:   sql.NullTime{},
-			HeartbeatAt: sql.NullTime{},
-			LastError:   sql.NullString{},
-		})
-		return updateErr
-	}, nil)
+// deriveChatStatus computes the current chat status by checking
+// whether an active run step exists and its worker state.
+func (p *Server) deriveChatStatus(ctx context.Context, chatID uuid.UUID) (codersdk.ChatStatus, error) {
+	chatWithStatus, err := p.db.GetChatWithStatusByID(ctx, chatID)
 	if err != nil {
-		return database.Chat{}, err
+		return "", xerrors.Errorf("get chat with status: %w", err)
 	}
-	p.publishStatus(chatID, updatedChat.Status, updatedChat.WorkerID)
-	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange)
-	return updatedChat, nil
+	return codersdk.ChatStatus(chatWithStatus.ComputedStatus), nil
+}
+
+// createRunAndStep inserts a new chat run and its first step
+// using the provided store (which may be a transaction handle).
+// If the partial unique index on active steps fires, the error
+// is returned so the caller can decide how to handle it.
+func createRunAndStep(ctx context.Context, store database.Store, chatID uuid.UUID) error {
+	run, err := store.InsertChatRun(ctx, chatID)
+	if err != nil {
+		return xerrors.Errorf("insert chat run: %w", err)
+	}
+	_, err = store.InsertChatRunStep(ctx, database.InsertChatRunStepParams{
+		ChatRunID:     run.ID,
+		ChatID:        chatID,
+		ModelConfigID: uuid.NullUUID{},
+	})
+	if err != nil {
+		return xerrors.Errorf("insert chat run step: %w", err)
+	}
+	return nil
+}
+
+// reconcileChatRun cleans up stalled steps and then atomically
+// creates a new chat run and its first step. If an active step
+// already exists (unique constraint violation), the operation is
+// silently skipped. This is used by processChat's auto-promote
+// path which runs outside of a user-facing transaction.
+func (p *Server) reconcileChatRun(ctx context.Context, chatID uuid.UUID) error {
+	// Phase 1: clean up stalled steps.
+	if err := p.db.ErrorStalledChatRunSteps(ctx, database.ErrorStalledChatRunStepsParams{
+		ChatID:         chatID,
+		StaleThreshold: time.Now().Add(-p.inFlightChatStaleAfter),
+	}); err != nil {
+		return xerrors.Errorf("error stalled steps: %w", err)
+	}
+
+	// Phase 2: atomically create run + first step.
+	err := p.db.InTx(func(tx database.Store) error {
+		return createRunAndStep(ctx, tx, chatID)
+	}, nil)
+	// If the unique constraint fires, there's already an active step.
+	if database.IsUniqueViolation(err) {
+		return nil
+	}
+	return err
 }
 
 func insertChatMessageWithStore(
@@ -893,63 +926,15 @@ func insertChatMessageWithStore(
 	return message, nil
 }
 
-func insertUserMessageAndSetPending(
-	ctx context.Context,
-	store database.Store,
-	lockedChat database.Chat,
-	modelConfigID uuid.UUID,
-	content pqtype.NullRawMessage,
-	createdBy uuid.UUID,
-) (database.ChatMessage, database.Chat, error) {
-	message, err := insertChatMessageWithStore(ctx, store, database.InsertChatMessageParams{
-		ChatID:              lockedChat.ID,
-		ModelConfigID:       uuid.NullUUID{UUID: modelConfigID, Valid: true},
-		Role:                database.ChatMessageRoleUser,
-		ContentVersion:      chatprompt.CurrentContentVersion,
-		Content:             content,
-		CreatedBy:           uuid.NullUUID{UUID: createdBy, Valid: createdBy != uuid.Nil},
-		Visibility:          database.ChatMessageVisibilityBoth,
-		InputTokens:         sql.NullInt64{},
-		OutputTokens:        sql.NullInt64{},
-		TotalTokens:         sql.NullInt64{},
-		ReasoningTokens:     sql.NullInt64{},
-		CacheCreationTokens: sql.NullInt64{},
-		CacheReadTokens:     sql.NullInt64{},
-		ContextLimit:        sql.NullInt64{},
-		TotalCostMicros:     sql.NullInt64{},
-		Compressed:          sql.NullBool{},
-	})
-	if err != nil {
-		return database.ChatMessage{}, database.Chat{}, err
+// isChatBusy reports whether the chat has an active (uncompleted,
+// non-errored, non-interrupted) run step, meaning a new user message
+// should be queued rather than triggering a new run.
+func (p *Server) isChatBusy(ctx context.Context, chatID uuid.UUID) (bool, error) {
+	_, err := p.db.GetActiveChatRunStep(ctx, chatID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
 	}
-
-	if lockedChat.Status == database.ChatStatusPending {
-		return message, lockedChat, nil
-	}
-
-	updatedChat, err := store.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          lockedChat.ID,
-		Status:      database.ChatStatusPending,
-		WorkerID:    uuid.NullUUID{},
-		StartedAt:   sql.NullTime{},
-		HeartbeatAt: sql.NullTime{},
-		LastError:   sql.NullString{},
-	})
-	if err != nil {
-		return database.ChatMessage{}, database.Chat{}, xerrors.Errorf("set chat pending: %w", err)
-	}
-	return message, updatedChat, nil
-}
-
-// shouldQueueUserMessage reports whether a user message should be
-// queued while a chat is active.
-func shouldQueueUserMessage(status database.ChatStatus) bool {
-	switch status {
-	case database.ChatStatusRunning, database.ChatStatusPending:
-		return true
-	default:
-		return false
-	}
+	return err == nil, err
 }
 
 // Config configures a chat processor.
@@ -1017,9 +1002,9 @@ func New(cfg Config) *Server {
 func (p *Server) start(ctx context.Context) {
 	defer close(p.closed)
 
-	// Recover stale chats on startup and periodically thereafter
-	// to handle chats orphaned by crashed or redeployed workers.
-	p.recoverStaleChats(ctx)
+	// Recover stale run steps on startup and periodically thereafter
+	// to handle steps orphaned by crashed or redeployed workers.
+	p.recoverStaleChatRunSteps(ctx)
 
 	acquireTicker := time.NewTicker(p.pendingChatAcquireInterval)
 	defer acquireTicker.Stop()
@@ -1035,70 +1020,95 @@ func (p *Server) start(ctx context.Context) {
 		case <-acquireTicker.C:
 			p.processOnce(ctx)
 		case <-staleTicker.C:
-			p.recoverStaleChats(ctx)
+			p.recoverStaleChatRunSteps(ctx)
 		}
 	}
 }
 
 func (p *Server) processOnce(ctx context.Context) {
+	for range maxAcquirePerCycle {
+		if !p.acquireAndProcess(ctx) {
+			return
+		}
+	}
+}
+
+// acquireAndProcess attempts to claim a single pending step and
+// spawn a goroutine to process it. It returns true when work was
+// found (the caller should try again), or false when no more work
+// is available or the server is shutting down.
+func (p *Server) acquireAndProcess(ctx context.Context) bool {
+	// Bail out early if the server is shutting down. The main
+	// loop's select can randomly pick the ticker over ctx.Done(),
+	// so we must guard against acquiring a step we cannot process.
 	if ctx.Err() != nil {
-		return
+		return false
 	}
 
-	// We detach from the server lifetime to prevent a
-	// phantom-acquire race: when the server context is
-	// canceled, the pq driver's watchCancel goroutine
-	// races with the actual query on the wire. Using a
-	// context that cannot be canceled ensures the driver
-	// sees the query result if Postgres executed it.
+	// Try to acquire an unclaimed active step. We detach from the
+	// server lifetime to prevent a phantom-acquire race: when the
+	// server context is canceled, the pq driver's watchCancel
+	// goroutine races with the actual query on the wire. Using a
+	// context that cannot be canceled ensures the driver sees the
+	// query result if Postgres executed it.
 	acquireCtx, acquireCancel := context.WithTimeout(
 		context.WithoutCancel(ctx), 10*time.Second,
 	)
-	chats, err := p.db.AcquireChats(acquireCtx, database.AcquireChatsParams{
-		StartedAt: time.Now(),
-		WorkerID:  p.workerID,
-		NumChats:  maxChatsPerAcquire,
-	})
-	acquireCancel()
+	defer acquireCancel()
+	run, err := p.db.AcquireChatRunStep(acquireCtx, p.workerID)
 	if err != nil {
-		p.logger.Error(ctx, "failed to acquire chats", slog.Error(err))
-		return
-	}
-	if len(chats) == 0 {
-		return
+		if !xerrors.Is(err, sql.ErrNoRows) {
+			p.logger.Error(ctx, "failed to acquire chat run step", slog.Error(err))
+		}
+		// No unclaimed steps or error.
+		return false
 	}
 
-	// If the server context was canceled while we were
-	// acquiring, release the chats back to pending.
+	// Fetch the chat and the active step.
+	chat, err := p.db.GetChatByID(acquireCtx, run.ChatID)
+	if err != nil {
+		p.logger.Error(ctx, "failed to get chat for acquired run",
+			slog.F("chat_id", run.ChatID), slog.Error(err))
+		// Release the run so another replica can pick it up.
+		if clearErr := p.db.ClearChatRunWorker(acquireCtx, run.ID); clearErr != nil {
+			p.logger.Error(ctx, "failed to clear run worker",
+				slog.F("run_id", run.ID), slog.Error(clearErr))
+		}
+		return false
+	}
+	step, err := p.db.GetActiveChatRunStep(acquireCtx, run.ChatID)
+	if err != nil {
+		p.logger.Error(ctx, "failed to get active step for acquired run",
+			slog.F("chat_id", run.ChatID), slog.Error(err))
+		if clearErr := p.db.ClearChatRunWorker(acquireCtx, run.ID); clearErr != nil {
+			p.logger.Error(ctx, "failed to clear run worker",
+				slog.F("run_id", run.ID), slog.Error(clearErr))
+		}
+		return false
+	}
+
+	// If the server context was canceled while we were acquiring,
+	// release the run back so another replica can pick it up.
 	if ctx.Err() != nil {
 		releaseCtx, releaseCancel := context.WithTimeout(
 			context.WithoutCancel(ctx), 10*time.Second,
 		)
-		for _, chat := range chats {
-			_, updateErr := p.db.UpdateChatStatus(releaseCtx, database.UpdateChatStatusParams{
-				ID:          chat.ID,
-				Status:      database.ChatStatusPending,
-				WorkerID:    uuid.NullUUID{},
-				StartedAt:   sql.NullTime{},
-				HeartbeatAt: sql.NullTime{},
-				LastError:   sql.NullString{},
-			})
-			if updateErr != nil {
-				p.logger.Error(ctx, "failed to release chat acquired during shutdown",
-					slog.F("chat_id", chat.ID), slog.Error(updateErr))
-			}
+		defer releaseCancel()
+		if clearErr := p.db.ClearChatRunWorker(releaseCtx, run.ID); clearErr != nil {
+			p.logger.Error(ctx, "failed to release run acquired during shutdown",
+				slog.F("run_id", run.ID), slog.Error(clearErr))
 		}
 		releaseCancel()
-		return
+		return false
 	}
 
-	for _, chat := range chats {
-		p.inflight.Add(1)
-		go func() {
-			defer p.inflight.Done()
-			p.processChat(ctx, chat)
-		}()
-	}
+	// Process the chat (don't block the main loop).
+	p.inflight.Add(1)
+	go func() {
+		defer p.inflight.Done()
+		p.processChat(ctx, chat, run, step)
+	}()
+	return true
 }
 
 func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
@@ -1338,6 +1348,10 @@ func (p *Server) Subscribe(
 	// frontend can gate message_part processing correctly from
 	// the very first batch, without waiting for a separate REST
 	// query.
+	// Derive status and active worker for the enterprise relay
+	// and the initial status event.
+	var initialStatus codersdk.ChatStatus
+	var initialWorkerID uuid.UUID
 	if chatErr != nil {
 		p.logger.Error(ctx, "failed to load initial chat state",
 			slog.Error(chatErr),
@@ -1349,18 +1363,32 @@ func (p *Server) Subscribe(
 			Error:  &codersdk.ChatStreamError{Message: "failed to load initial snapshot"},
 		})
 	} else {
+		// Derive status from run/step state.
+		status, statusErr := p.deriveChatStatus(ctx, chatID)
+		if statusErr != nil {
+			status = codersdk.ChatStatusWaiting
+		}
+		initialStatus = status
+		// If the chat is running, find the worker from
+		// the active step's run.
+		if status == codersdk.ChatStatusRunning {
+			if step, stepErr := p.db.GetActiveChatRunStep(ctx, chatID); stepErr == nil {
+				if run, runErr := p.db.GetChatRunByID(ctx, step.ChatRunID); runErr == nil && run.WorkerID.Valid {
+					initialWorkerID = run.WorkerID.UUID
+				}
+			}
+		}
 		statusEvent := codersdk.ChatStreamEvent{
 			Type:   codersdk.ChatStreamEventTypeStatus,
 			ChatID: chatID,
 			Status: &codersdk.ChatStreamStatus{
-				Status: codersdk.ChatStatus(chat.Status),
+				Status: status,
 			},
 		}
 		// Prepend so the frontend sees the status before any
 		// message_part events.
 		initialSnapshot = append([]codersdk.ChatStreamEvent{statusEvent}, initialSnapshot...)
 	}
-
 	// Track the last message ID we've seen for DB queries.
 	// Initialize from afterMessageID so that when the caller passes
 	// afterMessageID > 0 but no new messages exist yet, the first
@@ -1382,6 +1410,8 @@ func (p *Server) Subscribe(
 		relayEvents = p.subscribeFn(mergedCtx, SubscribeFnParams{
 			ChatID:              chatID,
 			Chat:                chat,
+			InitialStatus:       initialStatus,
+			InitialWorkerID:     initialWorkerID,
 			WorkerID:            p.workerID,
 			StatusNotifications: statusNotifications,
 			RequestHeader:       requestHeader,
@@ -1396,7 +1426,6 @@ func (p *Server) Subscribe(
 		// cancel func in that case).
 		hasPubsub = len(allCancels) > 1
 	}
-
 	//nolint:nestif
 	go func() {
 		defer close(mergedEvents)
@@ -1455,14 +1484,14 @@ func (p *Server) Subscribe(
 					}
 				}
 				if notify.Status != "" {
-					status := database.ChatStatus(notify.Status)
+					status := codersdk.ChatStatus(notify.Status)
 					select {
 					case <-mergedCtx.Done():
 						return
 					case mergedEvents <- codersdk.ChatStreamEvent{
 						Type:   codersdk.ChatStreamEventTypeStatus,
 						ChatID: chatID,
-						Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(status)},
+						Status: &codersdk.ChatStreamStatus{Status: status},
 					}:
 					}
 					// Notify enterprise relay manager if present.
@@ -1573,16 +1602,18 @@ func (p *Server) publishEvent(chatID uuid.UUID, event codersdk.ChatStreamEvent) 
 	p.publishToStream(chatID, event)
 }
 
-func (p *Server) publishStatus(chatID uuid.UUID, status database.ChatStatus, workerID uuid.NullUUID) {
+func (p *Server) publishStatus(chatID uuid.UUID, status codersdk.ChatStatus) {
 	p.publishEvent(chatID, codersdk.ChatStreamEvent{
 		Type:   codersdk.ChatStreamEventTypeStatus,
-		Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(status)},
+		Status: &codersdk.ChatStreamStatus{Status: status},
 	})
-	notify := coderdpubsub.ChatStreamNotifyMessage{
-		Status: string(status),
+	workerID := ""
+	if status == codersdk.ChatStatusRunning {
+		workerID = p.workerID.String()
 	}
-	if workerID.Valid {
-		notify.WorkerID = workerID.UUID.String()
+	notify := coderdpubsub.ChatStreamNotifyMessage{
+		Status:   string(status),
+		WorkerID: workerID,
 	}
 	p.publishChatStreamNotify(chatID, notify)
 }
@@ -1619,9 +1650,16 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 		ID:        chat.ID,
 		OwnerID:   chat.OwnerID,
 		Title:     chat.Title,
-		Status:    codersdk.ChatStatus(chat.Status),
 		CreatedAt: chat.CreatedAt,
 		UpdatedAt: chat.UpdatedAt,
+	}
+	// Status is derived from run/step state via deriveChatStatus.
+	// We use a best-effort approach here — if the derivation
+	// fails, we default to "waiting".
+	if status, err := p.deriveChatStatus(dbauthz.AsSystemRestricted(context.Background()), chat.ID); err == nil {
+		sdkChat.Status = status
+	} else {
+		sdkChat.Status = codersdk.ChatStatusWaiting
 	}
 	if chat.ParentChatID.Valid {
 		parentChatID := chat.ParentChatID.UUID
@@ -1764,11 +1802,11 @@ func shouldCancelChatFromControlNotification(
 	notify coderdpubsub.ChatStreamNotifyMessage,
 	workerID uuid.UUID,
 ) bool {
-	status := database.ChatStatus(strings.TrimSpace(notify.Status))
+	status := codersdk.ChatStatus(strings.TrimSpace(notify.Status))
 	switch status {
-	case database.ChatStatusWaiting, database.ChatStatusPending, database.ChatStatusError:
+	case codersdk.ChatStatusWaiting, codersdk.ChatStatusPending, codersdk.ChatStatusError:
 		return true
-	case database.ChatStatusRunning:
+	case codersdk.ChatStatusRunning:
 		worker := strings.TrimSpace(notify.WorkerID)
 		if worker == "" {
 			return false
@@ -1840,8 +1878,8 @@ func (p *Server) chatFileResolver() chatprompt.FileResolver {
 	}
 }
 
-func (p *Server) processChat(ctx context.Context, chat database.Chat) {
-	logger := p.logger.With(slog.F("chat_id", chat.ID))
+func (p *Server) processChat(ctx context.Context, chat database.Chat, run database.ChatRun, step database.ChatRunStep) {
+	logger := p.logger.With(slog.F("chat_id", chat.ID), slog.F("run_id", run.ID), slog.F("step_id", step.ID))
 	logger.Info(ctx, "processing chat request")
 
 	chatCtx, cancel := context.WithCancelCause(ctx)
@@ -1854,9 +1892,8 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 	}()
 
-	// Periodically update the heartbeat so other replicas know this
-	// worker is still alive. The goroutine stops when chatCtx is
-	// canceled (either by completion or interruption).
+	// Periodically update the heartbeat on the active step so other
+	// replicas know this worker is still alive.
 	go func() {
 		ticker := time.NewTicker(chatHeartbeatInterval)
 		defer ticker.Stop()
@@ -1865,12 +1902,12 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			case <-chatCtx.Done():
 				return
 			case <-ticker.C:
-				rows, err := p.db.UpdateChatHeartbeat(chatCtx, database.UpdateChatHeartbeatParams{
-					ID:       chat.ID,
+				rows, err := p.db.UpdateChatRunStepHeartbeat(chatCtx, database.UpdateChatRunStepHeartbeatParams{
+					ID:       step.ID,
 					WorkerID: p.workerID,
 				})
 				if err != nil {
-					logger.Warn(chatCtx, "failed to update chat heartbeat", slog.Error(err))
+					logger.Warn(chatCtx, "failed to update step heartbeat", slog.Error(err))
 					continue
 				}
 				if rows == 0 {
@@ -1900,13 +1937,10 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		streamState.mu.Unlock()
 	}()
 
-	p.publishStatus(chat.ID, database.ChatStatusRunning, uuid.NullUUID{
-		UUID:  p.workerID,
-		Valid: true,
-	})
+	p.publishStatus(chat.ID, codersdk.ChatStatusRunning)
 
 	// Determine the final status and last error to set when we're done.
-	status := database.ChatStatusWaiting
+	status := codersdk.ChatStatusWaiting
 	wasInterrupted := false
 	lastError := ""
 	remainingQueuedMessages := []database.ChatQueuedMessage{}
@@ -1915,8 +1949,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 
 	defer func() {
 		// Use a context that is not canceled by Close() so we can
-		// reliably update the chat status in the database during
-		// graceful shutdown.
+		// reliably update step state during graceful shutdown.
 		cleanupCtx := context.WithoutCancel(ctx)
 
 		// Handle panics gracefully.
@@ -1924,96 +1957,100 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			logger.Error(cleanupCtx, "panic during chat processing", slog.F("panic", r))
 			lastError = panicFailureReason(r)
 			p.publishError(chat.ID, lastError)
-			status = database.ChatStatusError
+			status = codersdk.ChatStatusError
 		}
 
-		// Check for queued messages and auto-promote the next one.
-		// This must be done atomically with the status update to avoid
-		// races with the promote endpoint (which also sets status to
-		// pending). We use a transaction with FOR UPDATE to ensure we
-		// don't overwrite a status change made by another caller.
-		err := p.db.InTx(func(tx database.Store) error {
-			// Re-read the chat status under lock — another caller
-			// (e.g. promote) may have already set it to pending.
-			latestChat, lockErr := tx.GetChatByIDForUpdate(cleanupCtx, chat.ID)
-			if lockErr != nil {
-				return xerrors.Errorf("lock chat for release: %w", lockErr)
+		switch status {
+		case codersdk.ChatStatusError:
+			// Mark the active step as errored.
+			// Terminal-state guard: the query is a no-op if the step
+			// was already completed/errored/interrupted.
+			if _, errStep := p.db.ErrorChatRunStep(cleanupCtx, database.ErrorChatRunStepParams{
+				ID:    step.ID,
+				Error: lastError,
+			}); errStep != nil && !errors.Is(errStep, sql.ErrNoRows) {
+				logger.Error(cleanupCtx, "failed to error chat run step",
+					slog.F("step_id", step.ID), slog.Error(errStep))
+			}
+			if errClear := p.db.ClearChatRunWorker(cleanupCtx, run.ID); errClear != nil {
+				logger.Error(cleanupCtx, "failed to clear run worker after error",
+					slog.F("run_id", run.ID), slog.Error(errClear))
 			}
 
-			// If another worker has already acquired this chat,
-			// bail out — we must not overwrite their running
-			// status or publish spurious events.
-			if latestChat.Status == database.ChatStatusRunning &&
-				latestChat.WorkerID.Valid &&
-				latestChat.WorkerID.UUID != p.workerID {
-				return errChatTakenByOtherWorker
+		case codersdk.ChatStatusPending:
+			// Shutdown case: clear the worker so another replica
+			// picks up the uncompleted step.
+			if errClear := p.db.ClearChatRunWorker(cleanupCtx, run.ID); errClear != nil {
+				logger.Error(cleanupCtx, "failed to clear run worker for pending",
+					slog.F("run_id", run.ID), slog.Error(errClear))
 			}
 
-			// If someone else already set the chat to pending (e.g.
-			// the promote endpoint), don't overwrite it — just clear
-			// the worker and let the processor pick it back up.
-			if latestChat.Status == database.ChatStatusPending {
-				status = database.ChatStatusPending
-			} else if status == database.ChatStatusWaiting {
-				// Try to auto-promote the next queued message.
+		case codersdk.ChatStatusWaiting:
+			// Completed normally or was interrupted.
+			if wasInterrupted {
+				// Terminal-state guard: no-op if already terminal.
+				if _, errInt := p.db.InterruptChatRunStep(cleanupCtx, step.ID); errInt != nil && !errors.Is(errInt, sql.ErrNoRows) {
+					logger.Error(cleanupCtx, "failed to interrupt chat run step",
+						slog.F("step_id", step.ID), slog.Error(errInt))
+				}
+			} else {
+				// Steps are completed inside PersistStep with real
+				// token data. Nothing to do here for normal completion.
+			}
+			if errClear := p.db.ClearChatRunWorker(cleanupCtx, run.ID); errClear != nil {
+				logger.Error(cleanupCtx, "failed to clear run worker",
+					slog.F("run_id", run.ID), slog.Error(errClear))
+			}
+
+			// Try to auto-promote the next queued message.
+			err := p.db.InTx(func(tx database.Store) error {
+				lockedChat, lockErr := tx.GetChatByIDForUpdate(cleanupCtx, chat.ID)
+				if lockErr != nil {
+					return xerrors.Errorf("lock chat for promote: %w", lockErr)
+				}
 				nextQueued, popErr := tx.PopNextQueuedMessage(cleanupCtx, chat.ID)
-				if popErr == nil {
-					msg, insertErr := tx.InsertChatMessage(cleanupCtx, database.InsertChatMessageParams{
-						ChatID:         chat.ID,
-						ModelConfigID:  uuid.NullUUID{UUID: latestChat.LastModelConfigID, Valid: true},
-						Role:           database.ChatMessageRoleUser,
-						ContentVersion: chatprompt.CurrentContentVersion,
-						Content: pqtype.NullRawMessage{
-							RawMessage: nextQueued.Content,
-							Valid:      len(nextQueued.Content) > 0,
-						},
-						CreatedBy:           uuid.NullUUID{UUID: chat.OwnerID, Valid: chat.OwnerID != uuid.Nil},
-						Visibility:          database.ChatMessageVisibilityBoth,
-						InputTokens:         sql.NullInt64{},
-						OutputTokens:        sql.NullInt64{},
-						TotalTokens:         sql.NullInt64{},
-						ReasoningTokens:     sql.NullInt64{},
-						CacheCreationTokens: sql.NullInt64{},
-						CacheReadTokens:     sql.NullInt64{},
-						ContextLimit:        sql.NullInt64{},
-						TotalCostMicros:     sql.NullInt64{},
-						Compressed:          sql.NullBool{},
+				if popErr != nil {
+					// No queued messages, nothing to do.
+					return nil
+				}
+				msg, insertErr := tx.InsertChatMessage(cleanupCtx, database.InsertChatMessageParams{
+					ChatID:        chat.ID,
+					ModelConfigID: uuid.NullUUID{UUID: lockedChat.LastModelConfigID, Valid: true},
+					CreatedBy:     uuid.NullUUID{UUID: chat.OwnerID, Valid: chat.OwnerID != uuid.Nil},
+					ChatRunID:     uuid.NullUUID{},
+					ChatRunStepID: uuid.NullUUID{},
+					Role:          "user",
+					Content: pqtype.NullRawMessage{
+						RawMessage: nextQueued.Content,
+						Valid:      len(nextQueued.Content) > 0,
+					},
+					Visibility:          database.ChatMessageVisibilityBoth,
+					Compressed:          sql.NullBool{},
 					})
 					if insertErr != nil {
-						logger.Error(cleanupCtx, "failed to promote queued message",
-							slog.F("queued_message_id", nextQueued.ID), slog.Error(insertErr))
-					} else {
-						status = database.ChatStatusPending
-						promotedMessage = &msg
-
-						remaining, qErr := tx.GetChatQueuedMessages(cleanupCtx, chat.ID)
-						if qErr == nil {
-							remainingQueuedMessages = remaining
-							shouldPublishQueueUpdate = true
-						}
-					}
+						logger.Error(cleanupCtx, "failed to promote queued message",						slog.F("queued_message_id", nextQueued.ID), slog.Error(insertErr))
+					return nil
 				}
+				promotedMessage = &msg
+				status = codersdk.ChatStatusPending
+
+				remaining, qErr := tx.GetChatQueuedMessages(cleanupCtx, chat.ID)
+				if qErr == nil {
+					remainingQueuedMessages = remaining
+					shouldPublishQueueUpdate = true
+				}
+				return nil
+			}, nil)
+			if err != nil {
+				logger.Error(cleanupCtx, "failed to auto-promote queued message", slog.Error(err))
 			}
 
-			_, updateErr := tx.UpdateChatStatus(cleanupCtx, database.UpdateChatStatusParams{
-				ID:          chat.ID,
-				Status:      status,
-				WorkerID:    uuid.NullUUID{},
-				StartedAt:   sql.NullTime{},
-				HeartbeatAt: sql.NullTime{},
-				LastError:   sql.NullString{String: lastError, Valid: lastError != ""},
-			})
-			return updateErr
-		}, nil)
-		if errors.Is(err, errChatTakenByOtherWorker) {
-			// Another worker owns this chat now — skip all
-			// post-TX side effects (status publish, pubsub,
-			// web push) to avoid overwriting their state.
-			return
-		}
-		if err != nil {
-			logger.Error(cleanupCtx, "failed to release chat", slog.Error(err))
-			return
+			// If we promoted a message, create a new run+step for it.
+			if promotedMessage != nil {
+				if reconcileErr := p.reconcileChatRun(cleanupCtx, chat.ID); reconcileErr != nil {
+					logger.Error(cleanupCtx, "failed to reconcile chat run after promote", slog.Error(reconcileErr))
+				}
+			}
 		}
 
 		if promotedMessage != nil {
@@ -2029,18 +2066,15 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			})
 		}
 
-		p.publishStatus(chat.ID, status, uuid.NullUUID{})
+		p.publishStatus(chat.ID, status)
 		// Re-read the chat from the database to pick up any title
-		// changes made during processing (e.g. AI-generated titles
-		// from maybeGenerateChatTitle). The local `chat` variable
-		// is a value copy and won't reflect updates made in runChat.
+		// changes made during processing.
 		if freshChat, readErr := p.db.GetChatByID(cleanupCtx, chat.ID); readErr == nil {
 			chat = freshChat
 		} else {
 			logger.Warn(cleanupCtx, "failed to re-read chat for status event",
 				slog.F("chat_id", chat.ID), slog.Error(readErr))
 		}
-		chat.Status = status
 		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange)
 
 		if !wasInterrupted {
@@ -2048,16 +2082,16 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 	}()
 
-	if err := p.runChat(chatCtx, chat, logger); err != nil {
+	if err := p.runChat(chatCtx, chat, run, step, logger); err != nil {
 		if errors.Is(err, chatloop.ErrInterrupted) || errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted) {
 			logger.Info(ctx, "chat interrupted")
-			status = database.ChatStatusWaiting
+			status = codersdk.ChatStatusWaiting
 			wasInterrupted = true
 			return
 		}
 		if isShutdownCancellation(ctx, chatCtx, err) {
 			logger.Info(ctx, "chat canceled during shutdown; returning to pending")
-			status = database.ChatStatusPending
+			status = codersdk.ChatStatusPending
 			lastError = ""
 			return
 		}
@@ -2066,21 +2100,15 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			lastError = reason
 			p.publishError(chat.ID, lastError)
 		}
-		status = database.ChatStatusError
+		status = codersdk.ChatStatusError
 		return
 	}
 
 	// If runChat completed successfully but the server context was
-	// canceled (e.g. during Close()), the chat should be returned
-	// to pending so another replica can pick it up. There is a
-	// race where the LLM stream finishes just as the server is
-	// shutting down — the HTTP response completes before context
-	// cancellation propagates, so runChat returns nil instead of
-	// a context.Canceled error. Without this check the chat would
-	// be marked "waiting" and never retried.
+	// canceled, return to pending so another replica can pick it up.
 	if ctx.Err() != nil {
 		logger.Info(ctx, "chat completed during shutdown; returning to pending")
-		status = database.ChatStatusPending
+		status = codersdk.ChatStatusPending
 		lastError = ""
 		return
 	}
@@ -2108,8 +2136,15 @@ func isShutdownCancellation(
 func (p *Server) runChat(
 	ctx context.Context,
 	chat database.Chat,
+	run database.ChatRun,
+	initialStep database.ChatRunStep,
 	logger slog.Logger,
 ) error {
+	var (
+		currentStepMu sync.Mutex
+		currentStep   = initialStep
+	)
+
 	var (
 		model        fantasy.LanguageModel
 		modelConfig  database.ChatModelConfig
@@ -2335,21 +2370,31 @@ func (p *Server) runChat(
 			assistantBlocks = append(assistantBlocks, block)
 		}
 
+		// Snapshot the current step under the lock so the
+		// transaction uses a consistent value.
+		currentStepMu.Lock()
+		stepSnapshot := currentStep
+		currentStepMu.Unlock()
+
 		var insertedMessages []database.ChatMessage
 		err := p.db.InTx(func(tx database.Store) error {
-			// Verify this worker still owns the chat before
+			// Verify this worker still owns the chat's run before
 			// inserting messages. This closes the race where
-			// EditMessage truncates history and clears worker_id
-			// while persistInterruptedStep (which uses an
-			// uncancelable context) is still running.
-			lockedChat, lockErr := tx.GetChatByIDForUpdate(persistCtx, chat.ID)
+			// EditMessage interrupts the active step while
+			// persistInterruptedStep (which uses an uncancelable
+			// context) is still running.
+			_, lockErr := tx.GetChatByIDForUpdate(persistCtx, chat.ID)
 			if lockErr != nil {
 				return xerrors.Errorf("lock chat for persist: %w", lockErr)
 			}
-			if !lockedChat.WorkerID.Valid || lockedChat.WorkerID.UUID != p.workerID {
+			// Check that the active step for this chat is still
+			// the one we are processing. If the step was
+			// interrupted/errored or a new step was created, we
+			// should not persist new messages.
+			activeStep, stepErr := tx.GetActiveChatRunStep(persistCtx, chat.ID)
+			if stepErr != nil || activeStep.ID != stepSnapshot.ID {
 				return chatloop.ErrInterrupted
 			}
-
 			if len(assistantBlocks) > 0 {
 				sdkParts := make([]codersdk.ChatMessagePart, 0, len(assistantBlocks))
 				for _, block := range assistantBlocks {
@@ -2360,58 +2405,17 @@ func (p *Server) runChat(
 					return marshalErr
 				}
 
-				hasUsage := step.Usage != (fantasy.Usage{})
-				var usageForCost codersdk.ChatMessageUsage
-				if hasUsage {
-					// Only populate fields that the provider explicitly
-					// reported. Nil fields tell the calculator "no data"
-					// vs zero meaning "reported as zero tokens."
-					if step.Usage.InputTokens != 0 {
-						usageForCost.InputTokens = int64Ptr(step.Usage.InputTokens)
-					}
-					if step.Usage.OutputTokens != 0 {
-						usageForCost.OutputTokens = int64Ptr(step.Usage.OutputTokens)
-					}
-					if step.Usage.ReasoningTokens != 0 {
-						usageForCost.ReasoningTokens = int64Ptr(step.Usage.ReasoningTokens)
-					}
-					if step.Usage.CacheCreationTokens != 0 {
-						usageForCost.CacheCreationTokens = int64Ptr(step.Usage.CacheCreationTokens)
-					}
-					if step.Usage.CacheReadTokens != 0 {
-						usageForCost.CacheReadTokens = int64Ptr(step.Usage.CacheReadTokens)
-					}
-				}
-
-				totalCostMicros := chatcost.CalculateTotalCostMicros(usageForCost, callConfig.Cost)
-
 				assistantMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
 					ChatID:         chat.ID,
 					CreatedBy:      uuid.NullUUID{},
 					ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+					ChatRunID:      uuid.NullUUID{UUID: run.ID, Valid: true},
+					ChatRunStepID:  uuid.NullUUID{UUID: stepSnapshot.ID, Valid: true},
 					Role:           database.ChatMessageRoleAssistant,
 					ContentVersion: chatprompt.CurrentContentVersion,
 					Content:        assistantContent,
 					Visibility:     database.ChatMessageVisibilityBoth,
-					InputTokens:    usageNullInt64(step.Usage.InputTokens, hasUsage),
-					OutputTokens:   usageNullInt64(step.Usage.OutputTokens, hasUsage),
-					TotalTokens:    usageNullInt64(step.Usage.TotalTokens, hasUsage),
-					ReasoningTokens: usageNullInt64(
-						step.Usage.ReasoningTokens,
-						hasUsage,
-					),
-					CacheCreationTokens: usageNullInt64(
-						step.Usage.CacheCreationTokens,
-						hasUsage,
-					),
-					CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
-					ContextLimit:    step.ContextLimit,
-					Compressed:      sql.NullBool{},
-					// TotalCostMicros is nullable: NULL means "unpriced"
-					// (pricing config was missing or no priced token
-					// breakdown available), while 0 means "priced at
-					// zero cost" (e.g., a free model).
-					TotalCostMicros: usageNullInt64Ptr(totalCostMicros),
+					Compressed:     sql.NullBool{},
 				})
 				if insertErr != nil {
 					return xerrors.Errorf("insert assistant message: %w", insertErr)
@@ -2427,27 +2431,102 @@ func (p *Server) runChat(
 				}
 
 				toolMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-					ChatID:              chat.ID,
-					CreatedBy:           uuid.NullUUID{},
-					ModelConfigID:       uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-					Role:                database.ChatMessageRoleTool,
-					ContentVersion:      chatprompt.CurrentContentVersion,
-					Content:             resultContent,
-					Visibility:          database.ChatMessageVisibilityBoth,
-					InputTokens:         sql.NullInt64{},
-					OutputTokens:        sql.NullInt64{},
-					TotalTokens:         sql.NullInt64{},
-					ReasoningTokens:     sql.NullInt64{},
-					CacheCreationTokens: sql.NullInt64{},
-					CacheReadTokens:     sql.NullInt64{},
-					ContextLimit:        sql.NullInt64{},
-					TotalCostMicros:     sql.NullInt64{},
-					Compressed:          sql.NullBool{},
+					ChatID:         chat.ID,
+					CreatedBy:      uuid.NullUUID{},
+					ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+					ChatRunID:      uuid.NullUUID{UUID: run.ID, Valid: true},
+					ChatRunStepID:  uuid.NullUUID{UUID: stepSnapshot.ID, Valid: true},
+					Role:           database.ChatMessageRoleTool,
+					ContentVersion: chatprompt.CurrentContentVersion,
+					Content:        resultContent,
+					Visibility:     database.ChatMessageVisibilityBoth,
+					Compressed:     sql.NullBool{},
 				})
 				if insertErr != nil {
 					return xerrors.Errorf("insert tool result: %w", insertErr)
 				}
 				insertedMessages = append(insertedMessages, toolMessage)
+			}
+
+			// Determine message IDs for the step.
+			var firstMsgID, lastMsgID, responseMsgID sql.NullInt64
+			if len(insertedMessages) > 0 {
+				firstMsgID = sql.NullInt64{Int64: insertedMessages[0].ID, Valid: true}
+				lastMsgID = sql.NullInt64{Int64: insertedMessages[len(insertedMessages)-1].ID, Valid: true}
+			}
+			// The response message is the first assistant message.
+			for _, msg := range insertedMessages {
+				if msg.Role == database.ChatMessageRoleAssistant {
+					responseMsgID = sql.NullInt64{Int64: msg.ID, Valid: true}
+					break
+				}
+			}
+
+			// Count tool calls and tool results from the step
+			// content blocks.
+			var toolTotal, toolCompleted, toolErrored int32
+			for _, block := range step.Content {
+				if _, ok := fantasy.AsContentType[fantasy.ToolCallContent](block); ok {
+					toolTotal++
+				}
+				if tr, ok := fantasy.AsContentType[fantasy.ToolResultContent](block); ok {
+					if _, isErr := tr.Result.(fantasy.ToolResultOutputContentError); isErr {
+						toolErrored++
+					} else {
+						toolCompleted++
+					}
+				}
+				if trPtr, ok := fantasy.AsContentType[*fantasy.ToolResultContent](block); ok && trPtr != nil {
+					if _, isErr := trPtr.Result.(fantasy.ToolResultOutputContentError); isErr {
+						toolErrored++
+					} else {
+						toolCompleted++
+					}
+				}
+			}
+
+			continuationReason := sql.NullString{}
+			if step.ShouldContinue {
+				continuationReason = sql.NullString{String: "tool_call", Valid: true}
+			}
+
+			_, completeErr := tx.CompleteChatRunStep(persistCtx, database.CompleteChatRunStepParams{
+				ID:                  stepSnapshot.ID,
+				CompletedAt:         time.Now(),
+				ContinuationReason:  continuationReason,
+				ResponseMessageID:   responseMsgID,
+				FirstMessageID:      firstMsgID,
+				LastMessageID:       lastMsgID,
+				InputTokens:         sql.NullInt32{Int32: int32(step.Usage.InputTokens), Valid: step.Usage.InputTokens > 0},
+				OutputTokens:        sql.NullInt32{Int32: int32(step.Usage.OutputTokens), Valid: step.Usage.OutputTokens > 0},
+				TotalTokens:         sql.NullInt32{Int32: int32(step.Usage.TotalTokens), Valid: step.Usage.TotalTokens > 0},
+				ReasoningTokens:     sql.NullInt32{Int32: int32(step.Usage.ReasoningTokens), Valid: step.Usage.ReasoningTokens > 0},
+				CacheCreationTokens: sql.NullInt32{Int32: int32(step.Usage.CacheCreationTokens), Valid: step.Usage.CacheCreationTokens > 0},
+				CacheReadTokens:     sql.NullInt32{Int32: int32(step.Usage.CacheReadTokens), Valid: step.Usage.CacheReadTokens > 0},
+				ContextLimit:        sql.NullInt32{Int32: int32(step.ContextLimit.Int64), Valid: step.ContextLimit.Valid},
+				TotalCostMicros:     sql.NullInt64{},
+				ToolCallsTotal:      toolTotal,
+				ToolCallsCompleted:  toolCompleted,
+				ToolCallsErrored:    toolErrored,
+			})
+			if completeErr != nil {
+				return xerrors.Errorf("complete chat run step: %w", completeErr)
+			}
+
+			// If the loop is continuing, create a new step for the
+			// next iteration.
+			if step.ShouldContinue {
+				newStep, newStepErr := tx.InsertChatRunStep(persistCtx, database.InsertChatRunStepParams{
+					ChatRunID:     run.ID,
+					ChatID:        chat.ID,
+					ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+				})
+				if newStepErr != nil {
+					return xerrors.Errorf("insert next chat run step: %w", newStepErr)
+				}
+				currentStepMu.Lock()
+				currentStep = newStep
+				currentStepMu.Unlock()
 			}
 
 			return nil
@@ -2804,19 +2883,13 @@ func (p *Server) persistChatContextSummary(
 			ChatID:              chatID,
 			CreatedBy:           uuid.NullUUID{},
 			ModelConfigID:       uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			ChatRunID:           uuid.NullUUID{},
+			ChatRunStepID:       uuid.NullUUID{},
 			Role:                database.ChatMessageRoleUser,
 			ContentVersion:      chatprompt.CurrentContentVersion,
 			Content:             systemContent,
 			Visibility:          database.ChatMessageVisibilityModel,
 			Compressed:          sql.NullBool{Bool: true, Valid: true},
-			InputTokens:         sql.NullInt64{},
-			OutputTokens:        sql.NullInt64{},
-			TotalTokens:         sql.NullInt64{},
-			ReasoningTokens:     sql.NullInt64{},
-			CacheCreationTokens: sql.NullInt64{},
-			CacheReadTokens:     sql.NullInt64{},
-			ContextLimit:        sql.NullInt64{},
-			TotalCostMicros:     sql.NullInt64{},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert hidden summary message: %w", txErr)
@@ -2826,6 +2899,8 @@ func (p *Server) persistChatContextSummary(
 			ChatID:         chatID,
 			CreatedBy:      uuid.NullUUID{},
 			ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			ChatRunID:      uuid.NullUUID{},
+			ChatRunStepID:  uuid.NullUUID{},
 			Role:           database.ChatMessageRoleAssistant,
 			ContentVersion: chatprompt.CurrentContentVersion,
 			Content:        assistantContent,
@@ -2834,14 +2909,6 @@ func (p *Server) persistChatContextSummary(
 				Bool:  true,
 				Valid: true,
 			},
-			InputTokens:         sql.NullInt64{},
-			OutputTokens:        sql.NullInt64{},
-			TotalTokens:         sql.NullInt64{},
-			ReasoningTokens:     sql.NullInt64{},
-			CacheCreationTokens: sql.NullInt64{},
-			CacheReadTokens:     sql.NullInt64{},
-			ContextLimit:        sql.NullInt64{},
-			TotalCostMicros:     sql.NullInt64{},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert summary tool call message: %w", txErr)
@@ -2852,6 +2919,8 @@ func (p *Server) persistChatContextSummary(
 			ChatID:         chatID,
 			CreatedBy:      uuid.NullUUID{},
 			ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			ChatRunID:      uuid.NullUUID{},
+			ChatRunStepID:  uuid.NullUUID{},
 			Role:           database.ChatMessageRoleTool,
 			ContentVersion: chatprompt.CurrentContentVersion,
 			Content:        toolResult,
@@ -2860,14 +2929,6 @@ func (p *Server) persistChatContextSummary(
 				Bool:  true,
 				Valid: true,
 			},
-			InputTokens:         sql.NullInt64{},
-			OutputTokens:        sql.NullInt64{},
-			TotalTokens:         sql.NullInt64{},
-			ReasoningTokens:     sql.NullInt64{},
-			CacheCreationTokens: sql.NullInt64{},
-			CacheReadTokens:     sql.NullInt64{},
-			ContextLimit:        sql.NullInt64{},
-			TotalCostMicros:     sql.NullInt64{},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert summary tool result message: %w", txErr)
@@ -3123,71 +3184,43 @@ func (p *Server) resolveUserPrompt(ctx context.Context, userID uuid.UUID) string
 	return "<user-instructions>\n" + trimmed + "\n</user-instructions>"
 }
 
-func (p *Server) recoverStaleChats(ctx context.Context) {
+func (p *Server) recoverStaleChatRunSteps(ctx context.Context) {
 	staleAfter := time.Now().Add(-p.inFlightChatStaleAfter)
-	staleChats, err := p.db.GetStaleChats(ctx, staleAfter)
+	staleSteps, err := p.db.GetStaleChatRunSteps(ctx, staleAfter)
 	if err != nil {
-		p.logger.Error(ctx, "failed to get stale chats", slog.Error(err))
+		p.logger.Error(ctx, "failed to get stale chat run steps", slog.Error(err))
 		return
 	}
 
 	recovered := 0
-	for _, chat := range staleChats {
-		p.logger.Info(ctx, "recovering stale chat", slog.F("chat_id", chat.ID))
+	for _, staleStep := range staleSteps {
+		p.logger.Info(ctx, "recovering stale chat run step",
+			slog.F("step_id", staleStep.ID),
+			slog.F("chat_id", staleStep.ChatID),
+			slog.F("run_id", staleStep.ChatRunID),
+		)
 
-		// Use a transaction with FOR UPDATE to avoid a TOCTOU race:
-		// between GetStaleChats (a bare SELECT) and here, the chat's
-		// heartbeat may have been refreshed. We re-check freshness
-		// under the row lock before resetting.
-		err := p.db.InTx(func(tx database.Store) error {
-			locked, lockErr := tx.GetChatByIDForUpdate(ctx, chat.ID)
-			if lockErr != nil {
-				return xerrors.Errorf("lock chat for recovery: %w", lockErr)
+		if err := p.db.InTx(func(tx database.Store) error {
+			if _, errStep := tx.ErrorChatRunStep(ctx, database.ErrorChatRunStepParams{
+				ID:    staleStep.ID,
+				Error: "worker heartbeat expired (stale step recovery)",
+			}); errStep != nil {
+				if errors.Is(errStep, sql.ErrNoRows) {
+					return nil // Already terminal, skip.
+				}
+				return errStep
 			}
-
-			// Only recover chats that are still running.
-			// Between GetStaleChats and this lock, the chat
-			// may have completed normally.
-			if locked.Status != database.ChatStatusRunning {
-				p.logger.Debug(ctx, "chat status changed since snapshot, skipping recovery",
-					slog.F("chat_id", chat.ID),
-					slog.F("status", locked.Status))
-				return nil
-			}
-
-			// Re-check: only recover if the chat is still stale.
-			// A valid heartbeat that is at or after the stale
-			// threshold means the chat was refreshed after our
-			// initial snapshot — skip it.
-			if locked.HeartbeatAt.Valid && !locked.HeartbeatAt.Time.Before(staleAfter) {
-				p.logger.Debug(ctx, "chat heartbeat refreshed since snapshot, skipping recovery",
-					slog.F("chat_id", chat.ID))
-				return nil
-			}
-
-			// Reset to pending so any replica can pick it up.
-			_, updateErr := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-				ID:          chat.ID,
-				Status:      database.ChatStatusPending,
-				WorkerID:    uuid.NullUUID{},
-				StartedAt:   sql.NullTime{},
-				HeartbeatAt: sql.NullTime{},
-				LastError:   sql.NullString{},
-			})
-			if updateErr != nil {
-				return updateErr
-			}
-			recovered++
-			return nil
-		}, nil)
-		if err != nil {
-			p.logger.Error(ctx, "failed to recover stale chat",
-				slog.F("chat_id", chat.ID), slog.Error(err))
+			return tx.ClearChatRunWorker(ctx, staleStep.ChatRunID)
+		}, nil); err != nil {
+			p.logger.Error(ctx, "failed to recover stale step",
+				slog.F("step_id", staleStep.ID), slog.Error(err))
+			continue
 		}
+		recovered++
 	}
 
 	if recovered > 0 {
-		p.logger.Info(ctx, "recovered stale chats", slog.F("count", recovered))
+		p.logger.Info(ctx, "recovered stale chat run steps", slog.F("count", recovered))
 	}
 }
 
@@ -3199,7 +3232,7 @@ func (p *Server) recoverStaleChats(ctx context.Context) {
 func (p *Server) maybeSendPushNotification(
 	ctx context.Context,
 	chat database.Chat,
-	status database.ChatStatus,
+	status codersdk.ChatStatus,
 	lastError string,
 	logger slog.Logger,
 ) {
@@ -3211,14 +3244,14 @@ func (p *Server) maybeSendPushNotification(
 	}
 
 	switch status {
-	case database.ChatStatusError:
+	case codersdk.ChatStatusError:
 		pushBody := "Agent encountered an error."
 		if lastError != "" {
 			pushBody = lastError
 		}
 		p.dispatchPush(ctx, chat, pushBody, status, logger)
 
-	case database.ChatStatusWaiting:
+	case codersdk.ChatStatusWaiting:
 		// Generate a push notification summary asynchronously
 		// using a cheap LLM model. This avoids blocking the
 		// deferred cleanup path while still providing a
@@ -3257,7 +3290,7 @@ func (p *Server) dispatchPush(
 	ctx context.Context,
 	chat database.Chat,
 	body string,
-	status database.ChatStatus,
+	status codersdk.ChatStatus,
 	logger slog.Logger,
 ) {
 	pushMsg := codersdk.WebpushMessage{

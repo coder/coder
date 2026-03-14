@@ -282,15 +282,6 @@ CREATE TYPE chat_mode AS ENUM (
     'computer_use'
 );
 
-CREATE TYPE chat_status AS ENUM (
-    'waiting',
-    'pending',
-    'running',
-    'paused',
-    'completed',
-    'error'
-);
-
 CREATE TYPE connection_status AS ENUM (
     'connected',
     'disconnected'
@@ -1046,6 +1037,43 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION tg_assign_chat_run_number() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    UPDATE chats SET last_run_number = last_run_number + 1
+        WHERE id = NEW.chat_id
+        RETURNING last_run_number INTO NEW.number;
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION tg_assign_chat_run_step_number() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    UPDATE chat_runs SET last_step_number = last_step_number + 1
+        WHERE id = NEW.chat_run_id
+        RETURNING last_step_number INTO NEW.number;
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION tg_enforce_chat_run_step_chat_id() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    run_chat_id UUID;
+BEGIN
+    SELECT chat_id INTO run_chat_id FROM chat_runs WHERE id = NEW.chat_run_id;
+    IF run_chat_id IS DISTINCT FROM NEW.chat_id THEN
+        RAISE EXCEPTION 'chat_run_steps.chat_id (%) does not match chat_runs.chat_id (%)',
+            NEW.chat_id, run_chat_id;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
 CREATE TABLE aibridge_interceptions (
     id uuid NOT NULL,
     initiator_id uuid NOT NULL,
@@ -1228,17 +1256,11 @@ CREATE TABLE chat_messages (
     role chat_message_role NOT NULL,
     content jsonb,
     visibility chat_message_visibility DEFAULT 'both'::chat_message_visibility NOT NULL,
-    input_tokens bigint,
-    output_tokens bigint,
-    total_tokens bigint,
-    reasoning_tokens bigint,
-    cache_creation_tokens bigint,
-    cache_read_tokens bigint,
-    context_limit bigint,
     compressed boolean DEFAULT false NOT NULL,
     created_by uuid,
     content_version smallint NOT NULL,
-    total_cost_micros bigint
+    chat_run_id uuid,
+    chat_run_step_id uuid
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -1302,24 +1324,133 @@ CREATE SEQUENCE chat_queued_messages_id_seq
 
 ALTER SEQUENCE chat_queued_messages_id_seq OWNED BY chat_queued_messages.id;
 
+CREATE TABLE chat_run_steps (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    chat_run_id uuid NOT NULL,
+    chat_id uuid NOT NULL,
+    number integer NOT NULL,
+    model_config_id uuid,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    heartbeat_at timestamp with time zone DEFAULT now() NOT NULL,
+    completed_at timestamp with time zone,
+    interrupted_at timestamp with time zone,
+    error text,
+    continuation_reason text,
+    response_message_id bigint,
+    first_message_id bigint,
+    last_message_id bigint,
+    input_tokens integer,
+    output_tokens integer,
+    total_tokens integer,
+    reasoning_tokens integer,
+    cache_creation_tokens integer,
+    cache_read_tokens integer,
+    context_limit integer,
+    total_cost_micros bigint,
+    tool_calls_total integer DEFAULT 0 NOT NULL,
+    tool_calls_completed integer DEFAULT 0 NOT NULL,
+    tool_calls_errored integer DEFAULT 0 NOT NULL
+);
+
+CREATE VIEW chat_run_steps_with_status AS
+ SELECT chat_run_steps.id,
+    chat_run_steps.chat_run_id,
+    chat_run_steps.chat_id,
+    chat_run_steps.number,
+    chat_run_steps.model_config_id,
+    chat_run_steps.started_at,
+    chat_run_steps.heartbeat_at,
+    chat_run_steps.completed_at,
+    chat_run_steps.interrupted_at,
+    chat_run_steps.error,
+    chat_run_steps.continuation_reason,
+    chat_run_steps.response_message_id,
+    chat_run_steps.first_message_id,
+    chat_run_steps.last_message_id,
+    chat_run_steps.input_tokens,
+    chat_run_steps.output_tokens,
+    chat_run_steps.total_tokens,
+    chat_run_steps.reasoning_tokens,
+    chat_run_steps.cache_creation_tokens,
+    chat_run_steps.cache_read_tokens,
+    chat_run_steps.context_limit,
+    chat_run_steps.total_cost_micros,
+    chat_run_steps.tool_calls_total,
+    chat_run_steps.tool_calls_completed,
+    chat_run_steps.tool_calls_errored,
+        CASE
+            WHEN (chat_run_steps.error IS NOT NULL) THEN 'error'::text
+            WHEN (chat_run_steps.interrupted_at IS NOT NULL) THEN 'interrupted'::text
+            WHEN (chat_run_steps.completed_at IS NOT NULL) THEN 'completed'::text
+            WHEN (chat_run_steps.continuation_reason IS NOT NULL) THEN 'streaming'::text
+            WHEN (chat_run_steps.heartbeat_at < (now() - '00:05:00'::interval)) THEN 'stalled'::text
+            ELSE 'streaming'::text
+        END AS status
+   FROM chat_run_steps;
+
+CREATE TABLE chat_runs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    chat_id uuid NOT NULL,
+    number integer NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    worker_id uuid,
+    last_step_number integer DEFAULT 0 NOT NULL
+);
+
+CREATE VIEW chat_runs_with_status AS
+ SELECT r.id,
+    r.chat_id,
+    r.number,
+    r.created_at,
+    r.worker_id,
+    r.last_step_number,
+    s.status AS step_status,
+    s.error AS step_error,
+    COALESCE(s.completed_at, s.interrupted_at, s.heartbeat_at, s.started_at) AS updated_at
+   FROM (chat_runs r
+     LEFT JOIN chat_run_steps_with_status s ON (((s.chat_run_id = r.id) AND (s.number = r.last_step_number))));
+
 CREATE TABLE chats (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     owner_id uuid NOT NULL,
     workspace_id uuid,
     title text DEFAULT 'New Chat'::text NOT NULL,
-    status chat_status DEFAULT 'waiting'::chat_status NOT NULL,
-    worker_id uuid,
-    started_at timestamp with time zone,
-    heartbeat_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     parent_chat_id uuid,
     root_chat_id uuid,
     last_model_config_id uuid NOT NULL,
     archived boolean DEFAULT false NOT NULL,
-    last_error text,
-    mode chat_mode
+    mode chat_mode,
+    last_run_number integer DEFAULT 0 NOT NULL
 );
+
+CREATE VIEW chats_with_status AS
+ SELECT c.id,
+    c.owner_id,
+    c.workspace_id,
+    c.title,
+    c.created_at,
+    c.updated_at,
+    c.parent_chat_id,
+    c.root_chat_id,
+    c.last_model_config_id,
+    c.archived,
+    c.mode,
+    c.last_run_number,
+        CASE
+            WHEN (r.step_status IS NULL) THEN 'waiting'::text
+            WHEN (r.step_status = ANY (ARRAY['error'::text, 'stalled'::text])) THEN 'error'::text
+            WHEN (r.step_status = 'interrupted'::text) THEN 'waiting'::text
+            WHEN (r.step_status = 'completed'::text) THEN 'waiting'::text
+            WHEN ((r.step_status = 'streaming'::text) AND (r.worker_id IS NULL)) THEN 'pending'::text
+            WHEN (r.step_status = 'streaming'::text) THEN 'running'::text
+            ELSE 'waiting'::text
+        END AS computed_status,
+    r.step_error AS last_run_error,
+    r.id AS last_run_id
+   FROM (chats c
+     LEFT JOIN chat_runs_with_status r ON (((r.chat_id = c.id) AND (r.number = c.last_run_number))));
 
 CREATE TABLE connection_logs (
     id uuid NOT NULL,
@@ -3197,6 +3328,18 @@ ALTER TABLE ONLY chat_providers
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_run_steps
+    ADD CONSTRAINT chat_run_steps_chat_run_id_number_key UNIQUE (chat_run_id, number);
+
+ALTER TABLE ONLY chat_run_steps
+    ADD CONSTRAINT chat_run_steps_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_runs
+    ADD CONSTRAINT chat_runs_chat_id_number_key UNIQUE (chat_id, number);
+
+ALTER TABLE ONLY chat_runs
+    ADD CONSTRAINT chat_runs_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
 
@@ -3489,6 +3632,8 @@ CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
 
+CREATE UNIQUE INDEX chat_run_steps_single_active ON chat_run_steps USING btree (chat_id) WHERE ((completed_at IS NULL) AND (error IS NULL) AND (interrupted_at IS NULL));
+
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
@@ -3561,6 +3706,8 @@ CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
+CREATE INDEX idx_chat_run_steps_chat_id ON chat_run_steps USING btree (chat_id);
+
 CREATE INDEX idx_chats_last_model_config_id ON chats USING btree (last_model_config_id);
 
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
@@ -3568,8 +3715,6 @@ CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
 CREATE INDEX idx_chats_owner_updated_id ON chats USING btree (owner_id, updated_at DESC, id DESC);
 
 CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
-
-CREATE INDEX idx_chats_pending ON chats USING btree (status) WHERE (status = 'pending'::chat_status);
 
 CREATE INDEX idx_chats_root_chat_id ON chats USING btree (root_chat_id);
 
@@ -3789,6 +3934,12 @@ CREATE TRIGGER tailnet_notify_peer_change AFTER INSERT OR DELETE OR UPDATE ON ta
 
 CREATE TRIGGER tailnet_notify_tunnel_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_tunnels FOR EACH ROW EXECUTE FUNCTION tailnet_notify_tunnel_change();
 
+CREATE TRIGGER tg_chat_run_number BEFORE INSERT ON chat_runs FOR EACH ROW EXECUTE FUNCTION tg_assign_chat_run_number();
+
+CREATE TRIGGER tg_chat_run_step_chat_id BEFORE INSERT ON chat_run_steps FOR EACH ROW EXECUTE FUNCTION tg_enforce_chat_run_step_chat_id();
+
+CREATE TRIGGER tg_chat_run_step_number BEFORE INSERT ON chat_run_steps FOR EACH ROW EXECUTE FUNCTION tg_assign_chat_run_step_number();
+
 CREATE TRIGGER trigger_aggregate_usage_event AFTER INSERT ON usage_events FOR EACH ROW EXECUTE FUNCTION aggregate_usage_event();
 
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
@@ -3834,6 +3985,12 @@ ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
+    ADD CONSTRAINT chat_messages_chat_run_id_fkey FOREIGN KEY (chat_run_id) REFERENCES chat_runs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_messages
+    ADD CONSTRAINT chat_messages_chat_run_step_id_fkey FOREIGN KEY (chat_run_step_id) REFERENCES chat_run_steps(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id);
 
 ALTER TABLE ONLY chat_model_configs
@@ -3853,6 +4010,18 @@ ALTER TABLE ONLY chat_providers
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_run_steps
+    ADD CONSTRAINT chat_run_steps_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_run_steps
+    ADD CONSTRAINT chat_run_steps_chat_run_id_fkey FOREIGN KEY (chat_run_id) REFERENCES chat_runs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_run_steps
+    ADD CONSTRAINT chat_run_steps_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id);
+
+ALTER TABLE ONLY chat_runs
+    ADD CONSTRAINT chat_runs_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_last_model_config_id_fkey FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id);
