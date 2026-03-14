@@ -744,7 +744,10 @@ SELECT
     g.name AS group_name,
     g.display_name AS group_display_name,
     g.avatar_url AS group_avatar_url,
-    (SELECT COUNT(*) FROM group_members_expanded gme WHERE gme.group_id = glo.group_id) AS member_count
+    (SELECT COUNT(*)
+        FROM group_members_expanded gme
+        WHERE gme.group_id = glo.group_id
+          AND gme.user_is_system = FALSE) AS member_count
 FROM chat_usage_limit_group_overrides glo
 JOIN groups g ON g.id = glo.group_id
 ORDER BY g.name ASC;

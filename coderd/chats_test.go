@@ -3549,6 +3549,7 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 		_, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 		group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
 		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: member.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: database.PrebuildsSystemUserID})
 
 		override, err := client.UpsertChatUsageLimitGroupOverride(ctx, group.ID, codersdk.UpsertChatUsageLimitGroupOverrideRequest{
 			SpendLimitMicros: 7_000_000,
@@ -3558,6 +3559,19 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 		require.EqualValues(t, 1, override.MemberCount)
 		require.NotNil(t, override.SpendLimitMicros)
 		require.EqualValues(t, 7_000_000, *override.SpendLimitMicros)
+
+		config, err := client.GetChatUsageLimitConfig(ctx)
+		require.NoError(t, err)
+
+		var listed *codersdk.ChatUsageLimitGroupOverride
+		for i := range config.GroupOverrides {
+			if config.GroupOverrides[i].GroupID == group.ID {
+				listed = &config.GroupOverrides[i]
+				break
+			}
+		}
+		require.NotNil(t, listed)
+		require.EqualValues(t, 1, listed.MemberCount)
 	})
 
 	t.Run("DeleteGroupOverrideMissingOverride", func(t *testing.T) {

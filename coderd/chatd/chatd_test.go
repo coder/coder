@@ -771,6 +771,174 @@ func TestPromoteQueuedRejectsWhenUsageLimitReached(t *testing.T) {
 	require.Len(t, messages, 2)
 }
 
+func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	_, err := db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
+		Enabled:            true,
+		DefaultLimitMicros: 100,
+		Period:             string(codersdk.ChatUsageLimitPeriodDay),
+	})
+	require.NoError(t, err)
+
+	streamStarted := make(chan struct{})
+	interrupted := make(chan struct{})
+	allowFinish := make(chan struct{})
+	var requestCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if requestCount.Add(1) == 1 {
+			chunks := make(chan chattest.OpenAIChunk, 1)
+			go func() {
+				defer close(chunks)
+				chunks <- chattest.OpenAITextChunks("partial")[0]
+				select {
+				case <-streamStarted:
+				default:
+					close(streamStarted)
+				}
+				<-req.Context().Done()
+				select {
+				case <-interrupted:
+				default:
+					close(interrupted)
+				}
+				<-allowFinish
+			}()
+			return chattest.OpenAIResponse{StreamingChunks: chunks}
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("done")...,
+		)
+	})
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "interrupt-autopromote-limit",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusRunning && fromDB.WorkerID.Valid
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	require.Eventually(t, func() bool {
+		select {
+		case <-streamStarted:
+			return true
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	queuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       chat.ID,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
+		BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
+	})
+	require.NoError(t, err)
+	require.True(t, queuedResult.Queued)
+	require.NotNil(t, queuedResult.QueuedMessage)
+
+	require.Eventually(t, func() bool {
+		select {
+		case <-interrupted:
+			return true
+		default:
+			return false
+		}
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	spendChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OwnerID:           user.ID,
+		WorkspaceID:       uuid.NullUUID{},
+		ParentChatID:      uuid.NullUUID{},
+		RootChatID:        uuid.NullUUID{},
+		LastModelConfigID: model.ID,
+		Title:             "other-spend",
+		Mode:              database.NullChatMode{},
+	})
+	require.NoError(t, err)
+
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("spent elsewhere"),
+	})
+	require.NoError(t, err)
+
+	_, err = db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		ChatID:              spendChat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:                database.ChatMessageRoleAssistant,
+		ContentVersion:      chatprompt.CurrentContentVersion,
+		Content:             assistantContent,
+		Visibility:          database.ChatMessageVisibilityBoth,
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		Compressed:          sql.NullBool{},
+		TotalCostMicros:     sql.NullInt64{Int64: 100, Valid: true},
+	})
+	require.NoError(t, err)
+
+	close(allowFinish)
+
+	require.Eventually(t, func() bool {
+		queued, dbErr := db.GetChatQueuedMessages(ctx, chat.ID)
+		if dbErr != nil || len(queued) != 0 {
+			return false
+		}
+
+		messages, dbErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		if dbErr != nil {
+			return false
+		}
+		for _, message := range messages {
+			if message.Role != database.ChatMessageRoleUser {
+				continue
+			}
+			sdkMessage := db2sdk.ChatMessage(message)
+			if len(sdkMessage.Content) == 1 && sdkMessage.Content[0].Text == "queued" {
+				return true
+			}
+		}
+		return false
+	}, testutil.WaitLong, testutil.IntervalFast)
+}
+
 func TestEditMessageRejectsWhenUsageLimitReached(t *testing.T) {
 	t.Parallel()
 
