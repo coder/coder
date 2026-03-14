@@ -357,7 +357,8 @@ export const chatDiffStatusKey = (chatId: string) =>
 
 export const chatDiffStatus = (chatId: string) => ({
 	queryKey: chatDiffStatusKey(chatId),
-	queryFn: (): Promise<TypesGen.ChatDiffStatus> => API.getChatDiffStatus(chatId),
+	queryFn: (): Promise<TypesGen.ChatDiffStatus> =>
+		API.getChatDiffStatus(chatId),
 });
 
 export const chatDiffContentsKey = (chatId: string) =>

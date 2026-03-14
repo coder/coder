@@ -67,15 +67,11 @@ interface DiffViewerProps {
 	 * Returns line annotations for the given file. Used to render
 	 * inline widgets such as comment inputs.
 	 */
-	getLineAnnotations?: (
-		fileName: string,
-	) => DiffLineAnnotation<string>[];
+	getLineAnnotations?: (fileName: string) => DiffLineAnnotation<string>[];
 	/**
 	 * Renderer for line annotations returned by `getLineAnnotations`.
 	 */
-	renderAnnotation?: (
-		annotation: DiffLineAnnotation<string>,
-	) => ReactNode;
+	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
 	/**
 	 * When set to a file name, DiffViewer scrolls to that file and
 	 * highlights it in the tree. The parent should reset this to
@@ -349,7 +345,12 @@ export const LazyFileDiff: FC<{
 	options: ComponentProps<typeof FileDiff>["options"];
 	lineAnnotations?: DiffLineAnnotation<string>[];
 	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
-}> = ({ fileDiff, options, lineAnnotations, renderAnnotation: renderAnnotationProp }) => {
+}> = ({
+	fileDiff,
+	options,
+	lineAnnotations,
+	renderAnnotation: renderAnnotationProp,
+}) => {
 	const placeholderRef = useRef<HTMLDivElement>(null);
 	const [visible, setVisible] = useState(false);
 
@@ -678,7 +679,8 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			ref={containerRef}
 			className="flex h-full min-w-0 flex-col overflow-hidden"
 		>
-			{/* Diff contents */}			{sortedFiles.length === 0 ? (
+			{/* Diff contents */}{" "}
+			{sortedFiles.length === 0 ? (
 				<div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-content-secondary">
 					{emptyMessage}
 				</div>

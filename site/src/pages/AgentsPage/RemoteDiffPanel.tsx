@@ -117,20 +117,21 @@ const PullRequestStateBadge: FC<{
 }> = ({ state, draft }) => {
 	let Icon = GitPullRequestIcon;
 	let label = "Open";
-	let colorClasses = "border-green-500/30 bg-green-500/10 text-green-400";
+	let colorClasses = "border-border-default bg-green-500/10 text-green-400";
 
 	if (state === "merged") {
 		Icon = GitMergeIcon;
 		label = "Merged";
-		colorClasses = "border-purple-500/30 bg-purple-500/10 text-purple-400";
+		colorClasses = "border-border-default bg-purple-500/10 text-purple-400";
 	} else if (state === "closed") {
 		Icon = GitPullRequestClosedIcon;
 		label = "Closed";
-		colorClasses = "border-red-500/30 bg-red-500/10 text-red-400";
+		colorClasses = "border-border-default bg-red-500/10 text-red-400";
 	} else if (draft) {
 		Icon = GitPullRequestDraftIcon;
 		label = "Draft";
-		colorClasses = "border-border-default bg-surface-secondary text-content-secondary";
+		colorClasses =
+			"border-border-default bg-surface-secondary text-content-secondary";
 	}
 
 	return (
@@ -426,9 +427,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	// Header content
 	// ---------------------------------------------------------------
 	const pullRequestUrl = diffStatusQuery.data?.url;
-	const parsedPr = pullRequestUrl
-		? parsePullRequestUrl(pullRequestUrl)
-		: null;
+	const parsedPr = pullRequestUrl ? parsePullRequestUrl(pullRequestUrl) : null;
 	const prState = diffStatusQuery.data?.pull_request_state;
 	const prDraft = diffStatusQuery.data?.pull_request_draft;
 	const baseBranch = diffStatusQuery.data?.base_branch;
@@ -438,46 +437,46 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	// ---------------------------------------------------------------
 	return (
 		<div className="flex h-full flex-col">
-				{/* Compact PR sub-header */}
-				{pullRequestUrl && (
-					<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
-						<div className="flex min-w-0 items-center gap-1.5 text-xs text-content-secondary">
-							{baseBranch ? (
-								<>
-									<GitBranchIcon className="size-3.5 shrink-0" />
-									<span className="truncate">{baseBranch}</span>
-									<ArrowLeftIcon className="size-3 shrink-0 opacity-50" />
-								</>
-							) : parsedPr ? (
-								<span className="truncate">
-									{parsedPr.owner}/{parsedPr.repo}#{parsedPr.number}
-								</span>
-							) : (
-								<span className="truncate">{pullRequestUrl}</span>
-							)}
-						</div>						<div className="ml-auto flex shrink-0 items-center gap-1.5">
-							<PullRequestStateBadge
-								state={prState}
-								draft={prDraft}
+			{/* Compact PR sub-header */}
+			{pullRequestUrl && (
+				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
+					<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
+						{baseBranch ? (
+							<>
+								<GitBranchIcon className="size-3.5 shrink-0" />
+								<span className="truncate">{baseBranch}</span>
+								<ArrowLeftIcon className="size-3 shrink-0 opacity-50" />
+							</>
+						) : parsedPr ? (
+							<span className="truncate">
+								{parsedPr.owner}/{parsedPr.repo}#{parsedPr.number}
+							</span>
+						) : (
+							<span className="truncate">{pullRequestUrl}</span>
+						)}
+					</div>{" "}
+					<div className="ml-auto flex shrink-0 items-center gap-1.5">
+						<PullRequestStateBadge state={prState} draft={prDraft} />
+						{diffStatusQuery.data?.additions ||
+						diffStatusQuery.data?.deletions ? (
+							<DiffStatBadge
+								additions={diffStatusQuery.data.additions}
+								deletions={diffStatusQuery.data.deletions}
 							/>
-							{(diffStatusQuery.data?.additions || diffStatusQuery.data?.deletions) ? (
-								<DiffStatBadge
-									additions={diffStatusQuery.data.additions}
-									deletions={diffStatusQuery.data.deletions}
-								/>
-							) : null}
-							<a
-								href={pullRequestUrl}
-								target="_blank"
-								rel="noreferrer"
-								className="inline-flex items-center gap-1 rounded-sm border border-solid border-border-default px-2 text-xs font-medium leading-5 text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary"
-							>
-								View PR
-								<ExternalLinkIcon className="size-3" />
-							</a>
-						</div>
+						) : null}
+						<a
+							href={pullRequestUrl}
+							target="_blank"
+							rel="noreferrer"
+							className="inline-flex items-center gap-1 rounded-sm border border-solid border-border-default px-2 text-[13px] font-medium leading-5 text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary"
+						>
+							View PR
+							<ExternalLinkIcon className="size-3" />
+						</a>
 					</div>
-				)}			<DiffViewer
+				</div>
+			)}{" "}
+			<DiffViewer
 				parsedFiles={parsedFiles}
 				isExpanded={isExpanded}
 				diffStyle={diffStyle}

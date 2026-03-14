@@ -1,8 +1,10 @@
 import type { ChatDiffStatus } from "api/typesGenerated";
 import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import { ScrollArea, ScrollBar } from "components/ScrollArea/ScrollArea";
 import {
 	CheckIcon,
+	CircleDotIcon,
 	ColumnsIcon,
 	GitBranchIcon,
 	GitCompareArrowsIcon,
@@ -26,16 +28,10 @@ import { cn } from "utils/cn";
 import type { ChatMessageInputRef } from "./AgentChatInput";
 import { DiffStatBadge } from "./DiffStats";
 import { type DiffStyle, loadDiffStyle, saveDiffStyle } from "./DiffViewer";
-import { RemoteDiffPanel } from "./RemoteDiffPanel";
 import { LocalDiffPanel } from "./LocalDiffPanel";
+import { RemoteDiffPanel } from "./RemoteDiffPanel";
 
 type GitView = { type: "remote" } | { type: "local"; repoRoot: string };
-
-function viewsEqual(a: GitView, b: GitView): boolean {
-	if (a.type !== b.type) return false;
-	if (a.type === "local" && b.type === "local") return a.repoRoot === b.repoRoot;
-	return true;
-}
 
 interface DiffStats {
 	additions: number;
@@ -157,105 +153,119 @@ export const GitPanel: FC<GitPanelProps> = ({
 
 	return (
 		<div className="flex h-full flex-col">
-				{/* Toolbar */}
-				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
-					{/* Tabs — scrollable when they overflow */}
-					<div
-						className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto text-xs"
-						style={{ scrollbarWidth: "thin", scrollbarColor: "hsl(var(--border-default)) transparent" }}
-					>
+			{/* Toolbar */}
+			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3">
+				{/* Tabs — scrollable when they overflow */}
+				<ScrollArea className="min-w-0 flex-1">
+					<div className="flex items-center gap-0.5 py-1.5 text-xs">
 						{showRemoteTab && (
-							<button
-								type="button"
-							onClick={() => setView({ type: "remote" })}
-							className={cn(
-								"flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border-none px-2 py-1 font-medium transition-colors outline-none focus-visible:outline-none",
-								view.type === "remote"										? "bg-surface-quaternary/25 text-content-primary"
-										: "text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
+							<Button
+								variant="outline"
+								size="lg"
+								onClick={() => setView({ type: "remote" })}
+								className={cn(
+									"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
+									view.type === "remote" &&
+										"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
 								)}
 							>
 								{prTab ? (
 									<>
-										<PrStateIcon state={prState} draft={prDraft} className="size-3.5 shrink-0" />
+										<PrStateIcon
+											state={prState}
+											draft={prDraft}
+											className="!size-4 shrink-0"
+										/>
 										<span className="truncate">
 											{prTitle || `PR #${prTab.prNumber}`}
 										</span>
 									</>
 								) : (
-									"Branch"
+									<>
+										<GitBranchIcon className="!size-3.5 shrink-0" />
+										<span className="truncate">Branch</span>
+									</>
 								)}
-							</button>
+							</Button>
 						)}
 						{localRepos.map((repoRoot) => {
-							const stats = repoStats.get(repoRoot)!;
-							const isActive = view.type === "local" && view.repoRoot === repoRoot;
+							const isActive =
+								view.type === "local" && view.repoRoot === repoRoot;
 							return (
-								<button
+								<Button
 									key={repoRoot}
-									type="button"
+									variant="outline"
+									size="lg"
 									onClick={() => setView({ type: "local", repoRoot })}
 									className={cn(
-										"flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border-none px-2 py-1 font-medium transition-colors outline-none focus-visible:outline-none",
-										isActive
-											? "bg-surface-quaternary/25 text-content-primary"
-											: "text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
+										"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
+										isActive &&
+											"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
 									)}
 								>
-									{repoTabLabel(repoRoot)}
-									<DiffStatBadge
-										additions={stats.additions}
-										deletions={stats.deletions}
+									<CircleDotIcon
+										className={cn(
+											"!size-3.5 shrink-0",
+											isActive ? "text-amber-400" : "text-amber-400/60",
+										)}
 									/>
-								</button>
+									<span className="truncate">
+										Working{" "}
+										<span className="opacity-50">{repoTabLabel(repoRoot)}</span>
+									</span>
+								</Button>
 							);
 						})}
 					</div>
-					{/* Controls */}
-					<div className="flex shrink-0 items-center gap-1">
-						<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default">
-							<button
-								type="button"
-								onClick={() => handleDiffStyleChange("unified")}
-								aria-label="Unified diff"
-								className={cn(
-									"flex cursor-pointer items-center border-none px-1.5 transition-colors",
-									diffStyle === "unified"
-										? "bg-surface-quaternary/25 text-content-primary"
-										: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
-								)}
-							>
-								<RowsIcon className="size-3.5" />
-							</button>
-							<button
-								type="button"
-								onClick={() => handleDiffStyleChange("split")}
-								aria-label="Split diff"
-								className={cn(
-									"flex cursor-pointer items-center border-0 border-l border-solid border-border-default px-1.5 transition-colors",
-									diffStyle === "split"
-										? "bg-surface-quaternary/25 text-content-primary"
-										: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
-								)}
-							>
-								<ColumnsIcon className="size-3.5" />
-							</button>
-						</div>
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={handleRefresh}
-							aria-label="Refresh"
-							className="h-6 w-6 text-content-secondary hover:text-content-primary"
+					<ScrollBar orientation="horizontal" className="h-1.5" />
+				</ScrollArea>
+				{/* Controls */}
+				<div className="flex shrink-0 items-center gap-1 py-1.5">
+					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default">
+						<button
+							type="button"
+							onClick={() => handleDiffStyleChange("unified")}
+							aria-label="Unified diff"
+							className={cn(
+								"flex cursor-pointer items-center border-none px-1.5 transition-colors",
+								diffStyle === "unified"
+									? "bg-surface-quaternary/25 text-content-primary"
+									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
+							)}
 						>
-							<RefreshCwIcon
-								className={cn(
-									"size-3.5",
-									spinning && "motion-safe:animate-spin-once",
-								)}
-							/>
-						</Button>
+							<RowsIcon className="size-3.5" />
+						</button>
+						<button
+							type="button"
+							onClick={() => handleDiffStyleChange("split")}
+							aria-label="Split diff"
+							className={cn(
+								"flex cursor-pointer items-center border-0 border-l border-solid border-border-default px-1.5 transition-colors",
+								diffStyle === "split"
+									? "bg-surface-quaternary/25 text-content-primary"
+									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
+							)}
+						>
+							<ColumnsIcon className="size-3.5" />
+						</button>
 					</div>
-				</div>			{/* Content */}
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={handleRefresh}
+						aria-label="Refresh"
+						className="h-6 w-6 text-content-secondary hover:text-content-primary"
+					>
+						<RefreshCwIcon
+							className={cn(
+								"size-3.5",
+								spinning && "motion-safe:animate-spin-once",
+							)}
+						/>
+					</Button>
+				</div>
+			</div>
+			{/* Content */}
 			<div className="min-h-0 flex-1">
 				{view.type === "remote" ? (
 					<RemoteContent
@@ -265,14 +275,17 @@ export const GitPanel: FC<GitPanelProps> = ({
 						diffStyle={diffStyle}
 					/>
 				) : (
-						<LocalRepoContent
-							repoRoot={view.repoRoot}
-							repo={repositories.get(view.repoRoot)}
-							diffStats={repoStats.get(view.repoRoot) ?? { additions: 0, deletions: 0 }}
-							onCommit={onCommit}
-							isExpanded={isExpanded}
-							diffStyle={diffStyle}
-						/>				)}
+					<LocalRepoContent
+						repoRoot={view.repoRoot}
+						repo={repositories.get(view.repoRoot)}
+						diffStats={
+							repoStats.get(view.repoRoot) ?? { additions: 0, deletions: 0 }
+						}
+						onCommit={onCommit}
+						isExpanded={isExpanded}
+						diffStyle={diffStyle}
+					/>
+				)}
 			</div>
 		</div>
 	);
@@ -318,7 +331,7 @@ const RemoteContent: FC<{
 // Local view (single repo)
 // ---------------------------------------------------------------
 
-	const LocalRepoContent: FC<{
+const LocalRepoContent: FC<{
 	repoRoot: string;
 	repo: WorkspaceAgentRepoChanges | undefined;
 	diffStats: DiffStats;
@@ -332,12 +345,13 @@ const RemoteContent: FC<{
 
 	return (
 		<div className="flex h-full flex-col">
-				<RepoHeader
-					repoRoot={repoRoot}
-					repo={repo}
-					diffStats={diffStats}
-					onCommit={() => onCommit(repoRoot)}
-				/>			<LocalDiffPanel
+			<RepoHeader
+				repoRoot={repoRoot}
+				repo={repo}
+				diffStats={diffStats}
+				onCommit={() => onCommit(repoRoot)}
+			/>
+			<LocalDiffPanel
 				repo={repo}
 				isExpanded={isExpanded}
 				diffStyle={diffStyle}
@@ -358,26 +372,27 @@ const RepoHeader: FC<{
 }> = ({ repoRoot, repo, diffStats, onCommit }) => {
 	return (
 		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
-			<div className="flex min-w-0 items-center gap-1.5 text-xs text-content-secondary">
+			<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
 				<GitBranchIcon className="size-3.5 shrink-0" />
 				<span className="truncate">
 					{repo.branch?.trim() || repoTabLabel(repoRoot)}
 				</span>
+				<span className="truncate opacity-50">{repoRoot}</span>
 			</div>
 			<div className="ml-auto flex shrink-0 items-center gap-1.5">
 				<DiffStatBadge
 					additions={diffStats.additions}
 					deletions={diffStats.deletions}
 				/>
-				<Button
-					size="sm"
+				<button
+					type="button"
 					onClick={onCommit}
 					disabled={!repo.unified_diff}
-					className="h-6 gap-1 border border-transparent bg-surface-invert-primary px-2 text-xs text-content-invert hover:bg-surface-invert-secondary active:opacity-80"
+					className="inline-flex cursor-pointer items-center gap-1 rounded-sm border border-solid border-border-default bg-transparent px-2 text-[13px] font-medium leading-5 text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary disabled:pointer-events-none disabled:opacity-50"
 				>
 					<CheckIcon className="size-3" />
 					Commit
-				</Button>
+				</button>
 			</div>
 		</div>
 	);
@@ -396,10 +411,16 @@ const PrStateIcon: FC<{
 		return <GitMergeIcon className={cn("text-purple-400", className)} />;
 	}
 	if (state === "closed") {
-		return <GitPullRequestClosedIcon className={cn("text-red-400", className)} />;
+		return (
+			<GitPullRequestClosedIcon className={cn("text-red-400", className)} />
+		);
 	}
 	if (draft) {
-		return <GitPullRequestDraftIcon className={cn("text-content-secondary", className)} />;
+		return (
+			<GitPullRequestDraftIcon
+				className={cn("text-content-secondary", className)}
+			/>
+		);
 	}
 	return <GitPullRequestIcon className={cn("text-green-400", className)} />;
 };
