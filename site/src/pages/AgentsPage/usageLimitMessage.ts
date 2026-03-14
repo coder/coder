@@ -9,6 +9,16 @@ export interface UsageLimitData {
 }
 
 /**
+ * Typed classification for errors surfaced in the agent detail view.
+ * - "usage-limit": the user hit a spending cap (409 + valid usage data).
+ * - "generic": any other error (stream failures, last_error, etc.).
+ */
+export type ChatDetailError = {
+	message: string;
+	kind: "generic" | "usage-limit";
+};
+
+/**
  * Convert micros (1/1,000,000 USD) to a formatted USD string.
  * Examples: 900000 → "$0.90", 50000 → "$0.05", 1500000 → "$1.50"
  */
@@ -36,6 +46,23 @@ function formatResetDate(isoString: string): string {
 		hour: "numeric",
 		minute: "2-digit",
 	});
+}
+
+/**
+ * Runtime guard that validates whether an unknown value has the shape
+ * of structured usage-limit fields from a 409 response.
+ * All three fields must be present with correct types.
+ */
+export function isUsageLimitData(value: unknown): value is UsageLimitData {
+	if (value == null || typeof value !== "object") {
+		return false;
+	}
+	const obj = value as Record<string, unknown>;
+	return (
+		typeof obj.spent_micros === "number" &&
+		typeof obj.limit_micros === "number" &&
+		typeof obj.resets_at === "string"
+	);
 }
 
 /**

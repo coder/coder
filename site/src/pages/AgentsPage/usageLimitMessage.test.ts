@@ -1,4 +1,8 @@
-import { formatUsageLimitMessage } from "./usageLimitMessage";
+import {
+	type ChatDetailError,
+	formatUsageLimitMessage,
+	isUsageLimitData,
+} from "./usageLimitMessage";
 
 describe("formatUsageLimitMessage", () => {
 	it("formats a full structured message", () => {
@@ -46,5 +50,80 @@ describe("formatUsageLimitMessage", () => {
 		expect(result).toContain("$0.90");
 		expect(result).toContain("$0.50");
 		expect(result).not.toContain("Resets");
+	});
+});
+
+describe("isUsageLimitData", () => {
+	it("accepts a fully populated valid payload", () => {
+		const error: ChatDetailError = {
+			message: "Your usage limit has been reached.",
+			kind: "usage-limit",
+		};
+
+		expect(error.kind).toBe("usage-limit");
+		expect(
+			isUsageLimitData({
+				spent_micros: 900_000,
+				limit_micros: 500_000,
+				resets_at: "2026-03-16T00:00:00Z",
+			}),
+		).toBe(true);
+	});
+
+	it("rejects null", () => {
+		expect(isUsageLimitData(null)).toBe(false);
+	});
+
+	it("rejects undefined", () => {
+		expect(isUsageLimitData(undefined)).toBe(false);
+	});
+
+	it("rejects an empty object (missing all fields)", () => {
+		expect(isUsageLimitData({})).toBe(false);
+	});
+
+	it("rejects when spent_micros is missing", () => {
+		expect(
+			isUsageLimitData({
+				limit_micros: 500_000,
+				resets_at: "2026-03-16T00:00:00Z",
+			}),
+		).toBe(false);
+	});
+
+	it("rejects when limit_micros is missing", () => {
+		expect(
+			isUsageLimitData({
+				spent_micros: 900_000,
+				resets_at: "2026-03-16T00:00:00Z",
+			}),
+		).toBe(false);
+	});
+
+	it("rejects when resets_at is missing", () => {
+		expect(
+			isUsageLimitData({ spent_micros: 900_000, limit_micros: 500_000 }),
+		).toBe(false);
+	});
+
+	it("rejects wrong field types (string for spent_micros)", () => {
+		expect(
+			isUsageLimitData({
+				spent_micros: "900000",
+				limit_micros: 500_000,
+				resets_at: "2026-03-16T00:00:00Z",
+			}),
+		).toBe(false);
+	});
+
+	it("accepts payload with extra fields", () => {
+		expect(
+			isUsageLimitData({
+				spent_micros: 900_000,
+				limit_micros: 500_000,
+				resets_at: "2026-03-16T00:00:00Z",
+				extra_field: "ignored",
+			}),
+		).toBe(true);
 	});
 });
