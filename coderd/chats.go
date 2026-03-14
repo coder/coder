@@ -2629,6 +2629,9 @@ func convertChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) co
 	if status.BaseBranch.Valid {
 		result.BaseBranch = &status.BaseBranch.String
 	}
+	if status.HeadBranch.Valid {
+		result.HeadBranch = &status.HeadBranch.String
+	}
 	if status.PrNumber.Valid {
 		result.PRNumber = &status.PrNumber.Int32
 	}

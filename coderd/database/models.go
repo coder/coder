@@ -4053,6 +4053,7 @@ type ChatDiffStatus struct {
 	Commits          sql.NullInt32  `db:"commits" json:"commits"`
 	Approved         sql.NullBool   `db:"approved" json:"approved"`
 	ReviewerCount    sql.NullInt32  `db:"reviewer_count" json:"reviewer_count"`
+	HeadBranch       sql.NullString `db:"head_branch" json:"head_branch"`
 }
 
 type ChatFile struct {

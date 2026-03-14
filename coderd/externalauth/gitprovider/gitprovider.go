@@ -74,6 +74,8 @@ type PRStatus struct {
 	Draft bool
 	// HeadSHA is the SHA of the head commit.
 	HeadSHA string
+	// HeadBranch is the name of the branch containing the PR changes.
+	HeadBranch string
 	// DiffStats summarizes additions/deletions/files changed.
 	DiffStats DiffStats
 	// ChangesRequested is a convenience boolean: true if any
