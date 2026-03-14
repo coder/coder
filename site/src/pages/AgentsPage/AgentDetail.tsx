@@ -833,6 +833,19 @@ const AgentDetail: FC = () => {
 		interruptMutation.isPending;
 	const isInputDisabled = !hasModelOptions || isArchived;
 
+	const handleUsageLimitError = useCallback(
+		(error: unknown): void => {
+			if (!agentId) {
+				return;
+			}
+			if (isApiError(error) && error.response?.status === 409) {
+				const data = error.response.data as UsageLimitData;
+				setChatErrorReason(agentId, formatUsageLimitMessage(data));
+			}
+		},
+		[agentId, setChatErrorReason],
+	);
+
 	const handleSend = async (
 		message: string,
 		fileIds?: string[],
@@ -898,6 +911,9 @@ const AgentDetail: FC = () => {
 					messageId: editedMessageID,
 					req: request,
 				});
+			} catch (error) {
+				handleUsageLimitError(error);
+				throw error;
 			} finally {
 				setPendingEditMessageId(null);
 			}
@@ -940,10 +956,7 @@ const AgentDetail: FC = () => {
 				}
 			}
 		} catch (error) {
-			if (isApiError(error) && error.response?.status === 409) {
-				const data = error.response.data as UsageLimitData;
-				setChatErrorReason(agentId, formatUsageLimitMessage(data));
-			}
+			handleUsageLimitError(error);
 			throw error;
 		}
 	};
@@ -980,6 +993,9 @@ const AgentDetail: FC = () => {
 				previousQueuedMessages.filter((message) => message.id !== id),
 			);
 			store.clearStreamState();
+			if (agentId) {
+				clearChatErrorReason(agentId);
+			}
 			store.clearStreamError();
 			store.setChatStatus("pending");
 			try {
@@ -987,10 +1003,17 @@ const AgentDetail: FC = () => {
 			} catch (error) {
 				store.setQueuedMessages(previousQueuedMessages);
 				store.setChatStatus(previousChatStatus);
+				handleUsageLimitError(error);
 				throw error;
 			}
 		},
-		[promoteQueuedMutation, store],
+		[
+			agentId,
+			clearChatErrorReason,
+			handleUsageLimitError,
+			promoteQueuedMutation,
+			store,
+		],
 	);
 
 	const editing = useConversationEditingState({
