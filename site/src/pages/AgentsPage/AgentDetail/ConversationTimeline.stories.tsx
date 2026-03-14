@@ -251,8 +251,11 @@ export const UsageLimitExceeded: Story = {
 		...defaultArgs,
 		loadMoreSentinelRef: { current: null },
 		parsedSections: [],
-		detailErrorMessage:
-			"You've used $50.00 of your $50.00 spend limit. Your limit resets on July 1, 2025.",
+		detailError: {
+			kind: "usage-limit",
+			message:
+				"You've used $50.00 of your $50.00 spend limit. Your limit resets on July 1, 2025.",
+		},
 		onOpenAnalytics: fn(),
 		subagentTitles: new Map(),
 		subagentStatusOverrides: new Map(),
@@ -273,7 +276,7 @@ export const GenericErrorDoesNotShowUsageAction: Story = {
 		...defaultArgs,
 		loadMoreSentinelRef: { current: null },
 		parsedSections: [],
-		detailErrorMessage: "Provider request failed.",
+		detailError: { kind: "generic", message: "Provider request failed." },
 		onOpenAnalytics: fn(),
 		subagentTitles: new Map(),
 		subagentStatusOverrides: new Map(),

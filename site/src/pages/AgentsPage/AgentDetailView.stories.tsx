@@ -174,7 +174,9 @@ export const WithParentChat: Story = {
 /** Persisted error reason shown in the timeline area. */
 export const WithError: Story = {
 	args: {
-		chatErrorReasons: { [AGENT_ID]: "Model rate limited" },
+		chatErrorReasons: {
+			[AGENT_ID]: { kind: "generic", message: "Model rate limited" },
+		},
 	},
 };
 

@@ -87,8 +87,9 @@ import {
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
 import {
+	type ChatDetailError,
 	formatUsageLimitMessage,
-	type UsageLimitData,
+	isUsageLimitData,
 } from "./usageLimitMessage";
 import { useFileAttachments } from "./useFileAttachments";
 import { useGitWatcher } from "./useGitWatcher";
@@ -110,7 +111,7 @@ const isChatMessage = (
 interface AgentDetailTimelineProps {
 	store: ChatStoreHandle;
 	chatID: string;
-	persistedErrorReason: string | undefined;
+	persistedErrorReason: ChatDetailError | undefined;
 	onOpenAnalytics?: () => void;
 	onEditUserMessage?: (
 		messageId: number,
@@ -171,7 +172,11 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 		() => buildParsedMessageSections(parsedMessages),
 		[parsedMessages],
 	);
-	const detailErrorMessage = persistedErrorReason || streamError;
+	const detailError: ChatDetailError | undefined =
+		persistedErrorReason ??
+		(streamError
+			? { kind: "generic" as const, message: streamError }
+			: undefined);
 	const latestMessage = messages[messages.length - 1];
 	const latestMessageNeedsAssistantResponse =
 		!latestMessage || latestMessage.role !== "assistant";
@@ -194,7 +199,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 			subagentStatusOverrides={subagentStatusOverrides}
 			retryState={retryState}
 			isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-			detailErrorMessage={detailErrorMessage}
+			detailError={detailError}
 			onOpenAnalytics={onOpenAnalytics}
 			onEditUserMessage={onEditUserMessage}
 			editingMessageId={editingMessageId}
@@ -862,9 +867,15 @@ const AgentDetail: FC = () => {
 			if (!agentId) {
 				return;
 			}
-			if (isApiError(error) && error.response?.status === 409) {
-				const data = error.response.data as UsageLimitData;
-				setChatErrorReason(agentId, formatUsageLimitMessage(data));
+			if (
+				isApiError(error) &&
+				error.response?.status === 409 &&
+				isUsageLimitData(error.response.data)
+			) {
+				setChatErrorReason(agentId, {
+					kind: "usage-limit",
+					message: formatUsageLimitMessage(error.response.data),
+				});
 			}
 		},
 		[agentId, setChatErrorReason],

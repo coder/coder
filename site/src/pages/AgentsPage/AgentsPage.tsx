@@ -42,6 +42,7 @@ import { maybePlayChime } from "./AgentDetail/useAgentChime";
 import type { AgentsOutletContext } from "./AgentsPageView";
 import { AgentsPageView } from "./AgentsPageView";
 import { getModelOptionsFromCatalog } from "./modelOptions";
+import type { ChatDetailError } from "./usageLimitMessage";
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 import { useAgentsPWA } from "./useAgentsPWA";
 
@@ -173,7 +174,7 @@ const AgentsPage: FC = () => {
 	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
-		Record<string, string>
+		Record<string, ChatDetailError>
 	>({});
 	const catalogModelOptions = useMemo(
 		() =>
@@ -202,21 +203,29 @@ const AgentsPage: FC = () => {
 		}
 		return byModelID;
 	}, [chatModelConfigsQuery.data]);
-	const setChatErrorReason = useCallback((chatId: string, reason: string) => {
-		const trimmedReason = reason.trim();
-		if (!chatId || !trimmedReason) {
-			return;
-		}
-		setChatErrorReasons((current) => {
-			if (current[chatId] === trimmedReason) {
-				return current;
+	const setChatErrorReason = useCallback(
+		(chatId: string, reason: ChatDetailError) => {
+			const trimmedMessage = reason.message.trim();
+			if (!chatId || !trimmedMessage) {
+				return;
 			}
-			return {
-				...current,
-				[chatId]: trimmedReason,
-			};
-		});
-	}, []);
+			setChatErrorReasons((current) => {
+				const existing = current[chatId];
+				if (
+					existing &&
+					existing.kind === reason.kind &&
+					existing.message === trimmedMessage
+				) {
+					return current;
+				}
+				return {
+					...current,
+					[chatId]: { kind: reason.kind, message: trimmedMessage },
+				};
+			});
+		},
+		[],
+	);
 	const clearChatErrorReason = useCallback((chatId: string) => {
 		if (!chatId) {
 			return;
