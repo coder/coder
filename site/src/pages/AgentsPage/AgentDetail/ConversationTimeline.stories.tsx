@@ -266,3 +266,23 @@ export const UsageLimitExceeded: Story = {
 		expect(args.onOpenAnalytics).toHaveBeenCalled();
 	},
 };
+
+/** Non-usage errors must not show the usage CTA. */
+export const GenericErrorDoesNotShowUsageAction: Story = {
+	args: {
+		...defaultArgs,
+		loadMoreSentinelRef: { current: null },
+		parsedSections: [],
+		detailErrorMessage: "Provider request failed.",
+		onOpenAnalytics: fn(),
+		subagentTitles: new Map(),
+		subagentStatusOverrides: new Map(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/provider request failed/i)).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: /view usage/i }),
+		).not.toBeInTheDocument();
+	},
+};
