@@ -25,8 +25,12 @@ interface ChatCostSummaryViewProps {
 }
 
 const getUsageLimitPeriodLabel = (
-	period: TypesGen.ChatUsageLimitPeriod,
+	period: TypesGen.ChatUsageLimitPeriod | undefined,
 ): string => {
+	if (!period) {
+		return "";
+	}
+
 	switch (period) {
 		case "day":
 			return "Daily";
