@@ -1861,6 +1861,10 @@ func (q *querier) DeleteChatQueuedMessage(ctx context.Context, arg database.Dele
 	return q.db.DeleteChatQueuedMessage(ctx, arg)
 }
 
+func (*querier) DeleteChatUsageLimitGroupOverride(_ context.Context, _ uuid.UUID) error {
+	panic("not implemented")
+}
+
 func (q *querier) DeleteChatUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
@@ -2615,6 +2619,10 @@ func (q *querier) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsa
 		return database.ChatUsageLimitConfig{}, err
 	}
 	return q.db.GetChatUsageLimitConfig(ctx)
+}
+
+func (*querier) GetChatUsageLimitGroupOverrideByGroupID(_ context.Context, _ uuid.UUID) (database.ChatUsageLimitGroupOverride, error) {
+	panic("not implemented")
 }
 
 func (q *querier) GetChatUsageLimitOverrideByUserID(ctx context.Context, userID uuid.UUID) (database.ChatUsageLimitOverride, error) {
@@ -3790,6 +3798,10 @@ func (q *querier) GetUserCount(ctx context.Context, includeSystem bool) (int64, 
 		return 0, err
 	}
 	return q.db.GetUserCount(ctx, includeSystem)
+}
+
+func (*querier) GetUserGroupSpendLimit(_ context.Context, _ uuid.UUID) (interface{}, error) {
+	panic("not implemented")
 }
 
 func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
@@ -5148,6 +5160,10 @@ func (q *querier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, 
 	}
 
 	return q.db.ListAIBridgeUserPromptsByInterceptionIDs(ctx, interceptionIDs)
+}
+
+func (*querier) ListChatUsageLimitGroupOverrides(_ context.Context) ([]database.ListChatUsageLimitGroupOverridesRow, error) {
+	panic("not implemented")
 }
 
 func (q *querier) ListChatUsageLimitOverrides(ctx context.Context) ([]database.ListChatUsageLimitOverridesRow, error) {
@@ -6516,6 +6532,10 @@ func (q *querier) UpsertChatUsageLimitConfig(ctx context.Context, arg database.U
 		return database.ChatUsageLimitConfig{}, err
 	}
 	return q.db.UpsertChatUsageLimitConfig(ctx, arg)
+}
+
+func (*querier) UpsertChatUsageLimitGroupOverride(_ context.Context, _ database.UpsertChatUsageLimitGroupOverrideParams) (database.ChatUsageLimitGroupOverride, error) {
+	panic("not implemented")
 }
 
 func (q *querier) UpsertChatUsageLimitOverride(ctx context.Context, arg database.UpsertChatUsageLimitOverrideParams) (database.ChatUsageLimitOverride, error) {

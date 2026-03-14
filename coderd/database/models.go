@@ -4135,6 +4135,14 @@ type ChatUsageLimitConfig struct {
 	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
 }
 
+type ChatUsageLimitGroupOverride struct {
+	ID          int64     `db:"id" json:"id"`
+	GroupID     uuid.UUID `db:"group_id" json:"group_id"`
+	LimitMicros int64     `db:"limit_micros" json:"limit_micros"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+}
+
 type ChatUsageLimitOverride struct {
 	ID          int64     `db:"id" json:"id"`
 	UserID      uuid.UUID `db:"user_id" json:"user_id"`

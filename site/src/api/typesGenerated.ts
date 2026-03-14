@@ -1788,6 +1788,22 @@ export interface ChatUsageLimitConfig {
 export interface ChatUsageLimitConfigResponse extends ChatUsageLimitConfig {
 	readonly unpriced_model_count: number;
 	readonly overrides: readonly ChatUsageLimitOverride[];
+	readonly group_overrides: readonly ChatUsageLimitGroupOverride[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatUsageLimitGroupOverride represents a group-scoped spend limit override.
+ */
+export interface ChatUsageLimitGroupOverride {
+	readonly group_id: string;
+	readonly group_name: string;
+	readonly group_display_name: string;
+	readonly group_avatar_url: string;
+	readonly member_count: number;
+	readonly spend_limit_micros: number | null; // nil = unlimited
+	readonly created_at: string;
+	readonly updated_at: string;
 }
 
 // From codersdk/chats.go
@@ -6873,6 +6889,15 @@ export interface UploadChatFileResponse {
  */
 export interface UploadResponse {
 	readonly hash: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpsertChatUsageLimitGroupOverrideRequest is the request to create or update
+ * a group-level spend limit override.
+ */
+export interface UpsertChatUsageLimitGroupOverrideRequest {
+	readonly spend_limit_micros: number | null; // nil = unlimited
 }
 
 // From codersdk/chats.go

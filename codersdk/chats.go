@@ -823,9 +823,27 @@ type ChatUsageLimitOverride struct {
 	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
 }
 
+// ChatUsageLimitGroupOverride represents a group-scoped spend limit override.
+type ChatUsageLimitGroupOverride struct {
+	GroupID          uuid.UUID `json:"group_id" format:"uuid"`
+	GroupName        string    `json:"group_name"`
+	GroupDisplayName string    `json:"group_display_name"`
+	GroupAvatarURL   string    `json:"group_avatar_url"`
+	MemberCount      int64     `json:"member_count"`
+	SpendLimitMicros *int64    `json:"spend_limit_micros"` // nil = unlimited
+	CreatedAt        time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
+}
+
 // UpsertChatUsageLimitOverrideRequest is the body for creating/updating a
 // per-user usage limit override.
 type UpsertChatUsageLimitOverrideRequest struct {
+	SpendLimitMicros *int64 `json:"spend_limit_micros"` // nil = unlimited
+}
+
+// UpsertChatUsageLimitGroupOverrideRequest is the request to create or update
+// a group-level spend limit override.
+type UpsertChatUsageLimitGroupOverrideRequest struct {
 	SpendLimitMicros *int64 `json:"spend_limit_micros"` // nil = unlimited
 }
 
@@ -844,8 +862,9 @@ type ChatUsageLimitStatus struct {
 // and includes the config plus a count of models without pricing.
 type ChatUsageLimitConfigResponse struct {
 	ChatUsageLimitConfig
-	UnpricedModelCount int64                    `json:"unpriced_model_count"`
-	Overrides          []ChatUsageLimitOverride `json:"overrides"`
+	UnpricedModelCount int64                         `json:"unpriced_model_count"`
+	Overrides          []ChatUsageLimitOverride      `json:"overrides"`
+	GroupOverrides     []ChatUsageLimitGroupOverride `json:"group_overrides"`
 }
 
 // ListChatsOptions are optional parameters for ListChats.
@@ -1507,6 +1526,41 @@ func (c *Client) UpsertChatUsageLimitOverride(ctx context.Context, userID uuid.U
 // DeleteChatUsageLimitOverride removes a per-user usage limit override.
 func (c *Client) DeleteChatUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/usage-limits/overrides/%s", userID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// UpsertChatUsageLimitGroupOverride creates or updates a group-level
+// spend limit override. EXPERIMENTAL: This API is subject to change.
+func (c *Client) UpsertChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID, req UpsertChatUsageLimitGroupOverrideRequest) (ChatUsageLimitGroupOverride, error) {
+	res, err := c.Request(ctx, http.MethodPut,
+		fmt.Sprintf("/api/experimental/chats/usage-limits/group-overrides/%s", groupID),
+		req,
+	)
+	if err != nil {
+		return ChatUsageLimitGroupOverride{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatUsageLimitGroupOverride{}, ReadBodyAsError(res)
+	}
+	var override ChatUsageLimitGroupOverride
+	return override, json.NewDecoder(res.Body).Decode(&override)
+}
+
+// DeleteChatUsageLimitGroupOverride removes a group-level spend limit
+// override. EXPERIMENTAL: This API is subject to change.
+func (c *Client) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete,
+		fmt.Sprintf("/api/experimental/chats/usage-limits/group-overrides/%s", groupID),
+		nil,
+	)
 	if err != nil {
 		return err
 	}

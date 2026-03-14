@@ -416,6 +416,14 @@ func (m queryMetricsStore) DeleteChatQueuedMessage(ctx context.Context, arg data
 	return r0
 }
 
+func (m queryMetricsStore) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatUsageLimitGroupOverride(ctx, groupID)
+	m.queryLatencies.WithLabelValues("DeleteChatUsageLimitGroupOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatUsageLimitGroupOverride").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteChatUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatUsageLimitOverride(ctx, userID)
@@ -1148,6 +1156,14 @@ func (m queryMetricsStore) GetChatUsageLimitConfig(ctx context.Context) (databas
 	r0, r1 := m.s.GetChatUsageLimitConfig(ctx)
 	m.queryLatencies.WithLabelValues("GetChatUsageLimitConfig").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatUsageLimitConfig").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatUsageLimitGroupOverrideByGroupID(ctx context.Context, groupID uuid.UUID) (database.ChatUsageLimitGroupOverride, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatUsageLimitGroupOverrideByGroupID(ctx, groupID)
+	m.queryLatencies.WithLabelValues("GetChatUsageLimitGroupOverrideByGroupID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatUsageLimitGroupOverrideByGroupID").Inc()
 	return r0, r1
 }
 
@@ -2300,6 +2316,14 @@ func (m queryMetricsStore) GetUserCount(ctx context.Context, includeSystem bool)
 	r0, r1 := m.s.GetUserCount(ctx, includeSystem)
 	m.queryLatencies.WithLabelValues("GetUserCount").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserCount").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetUserGroupSpendLimit(ctx context.Context, userID uuid.UUID) (interface{}, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserGroupSpendLimit(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserGroupSpendLimit").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserGroupSpendLimit").Inc()
 	return r0, r1
 }
 
@@ -3535,6 +3559,14 @@ func (m queryMetricsStore) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListChatUsageLimitGroupOverrides(ctx context.Context) ([]database.ListChatUsageLimitGroupOverridesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListChatUsageLimitGroupOverrides(ctx)
+	m.queryLatencies.WithLabelValues("ListChatUsageLimitGroupOverrides").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListChatUsageLimitGroupOverrides").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListChatUsageLimitOverrides(ctx context.Context) ([]database.ListChatUsageLimitOverridesRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListChatUsageLimitOverrides(ctx)
@@ -4507,6 +4539,14 @@ func (m queryMetricsStore) UpsertChatUsageLimitConfig(ctx context.Context, arg d
 	r0, r1 := m.s.UpsertChatUsageLimitConfig(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertChatUsageLimitConfig").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatUsageLimitConfig").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertChatUsageLimitGroupOverride(ctx context.Context, arg database.UpsertChatUsageLimitGroupOverrideParams) (database.ChatUsageLimitGroupOverride, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertChatUsageLimitGroupOverride(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertChatUsageLimitGroupOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatUsageLimitGroupOverride").Inc()
 	return r0, r1
 }
 
