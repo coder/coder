@@ -5,12 +5,15 @@ import {
 	chatSystemPrompt,
 	chatUsageLimitConfig,
 	chatUserCustomPrompt,
+	deleteChatUsageLimitGroupOverride,
 	deleteChatUsageLimitOverride,
 	updateChatSystemPrompt,
 	updateChatUsageLimitConfig,
 	updateUserChatCustomPrompt,
+	upsertChatUsageLimitGroupOverride,
 	upsertChatUsageLimitOverride,
 } from "api/queries/chats";
+import { groups } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
@@ -41,6 +44,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
@@ -176,12 +180,23 @@ const LimitsContent: FC = () => {
 	const deleteOverrideMutation = useMutation(
 		deleteChatUsageLimitOverride(queryClient),
 	);
+	const groupsQuery = useQuery(groups());
+	const upsertGroupOverrideMutation = useMutation(
+		upsertChatUsageLimitGroupOverride(queryClient),
+	);
+	const deleteGroupOverrideMutation = useMutation(
+		deleteChatUsageLimitGroupOverride(queryClient),
+	);
 
 	const [enabled, setEnabled] = useState(false);
 	const [period, setPeriod] = useState<TypesGen.ChatUsageLimitPeriod>("month");
 	const [amountDollars, setAmountDollars] = useState("");
-	const [overrideUserId, setOverrideUserId] = useState("");
-	const [overrideAmount, setOverrideAmount] = useState("");
+	const [showGroupForm, setShowGroupForm] = useState(false);
+	const [selectedGroupId, setSelectedGroupId] = useState("");
+	const [groupAmount, setGroupAmount] = useState("");
+	const [showUserForm, setShowUserForm] = useState(false);
+	const [selectedUser, setSelectedUser] = useState<TypesGen.User | null>(null);
+	const [userOverrideAmount, setUserOverrideAmount] = useState("");
 	const lastSyncedRef = useRef<string | null>(null);
 
 	useEffect(() => {
@@ -207,6 +222,23 @@ const LimitsContent: FC = () => {
 		);
 	}, [configQuery.data]);
 
+	const existingGroupIds = useMemo(
+		() =>
+			new Set((configQuery.data?.group_overrides ?? []).map((g) => g.group_id)),
+		[configQuery.data?.group_overrides],
+	);
+	const existingUserIds = useMemo(
+		() => new Set((configQuery.data?.overrides ?? []).map((o) => o.user_id)),
+		[configQuery.data?.overrides],
+	);
+	const availableGroups = useMemo(
+		() => (groupsQuery.data ?? []).filter((g) => !existingGroupIds.has(g.id)),
+		[groupsQuery.data, existingGroupIds],
+	);
+	const selectedUserAlreadyOverridden = selectedUser
+		? existingUserIds.has(selectedUser.id)
+		: false;
+
 	const isAmountValid =
 		!enabled ||
 		(amountDollars.trim() !== "" &&
@@ -227,12 +259,26 @@ const LimitsContent: FC = () => {
 	};
 
 	const handleAddOverride = async () => {
+		if (!selectedUser) {
+			return;
+		}
 		await upsertOverrideMutation.mutateAsync({
-			userID: overrideUserId.trim(),
-			req: { spend_limit_micros: dollarsToMicros(overrideAmount) },
+			userID: selectedUser.id,
+			req: { spend_limit_micros: dollarsToMicros(userOverrideAmount) },
 		});
-		setOverrideUserId("");
-		setOverrideAmount("");
+		setSelectedUser(null);
+		setUserOverrideAmount("");
+		setShowUserForm(false);
+	};
+
+	const handleAddGroupOverride = async () => {
+		await upsertGroupOverrideMutation.mutateAsync({
+			groupID: selectedGroupId,
+			req: { spend_limit_micros: dollarsToMicros(groupAmount) },
+		});
+		setSelectedGroupId("");
+		setGroupAmount("");
+		setShowGroupForm(false);
 	};
 
 	if (configQuery.isLoading) {
@@ -264,6 +310,7 @@ const LimitsContent: FC = () => {
 		);
 	}
 
+	const groupOverrides = configQuery.data?.group_overrides ?? [];
 	const overrides = configQuery.data?.overrides ?? [];
 	const unpricedModelCount = configQuery.data?.unpriced_model_count ?? 0;
 
@@ -370,6 +417,170 @@ const LimitsContent: FC = () => {
 			)}
 
 			<SectionHeader
+				label="Group Limits"
+				description="Override the default limit for specific groups."
+			/>
+
+			{groupOverrides.length > 0 ? (
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead>Group</TableHead>
+							<TableHead>Members</TableHead>
+							<TableHead>Spend Limit</TableHead>
+							<TableHead className="w-[80px]">Actions</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{groupOverrides.map((override) => (
+							<TableRow key={override.group_id}>
+								<TableCell>
+									<AvatarData
+										title={override.group_display_name || override.group_name}
+										subtitle={override.group_name}
+										src={override.group_avatar_url}
+										imgFallbackText={override.group_name}
+									/>
+								</TableCell>
+								<TableCell>{override.member_count}</TableCell>
+								<TableCell>
+									{override.spend_limit_micros !== null
+										? formatCostMicros(override.spend_limit_micros)
+										: "Unlimited"}
+								</TableCell>
+								<TableCell>
+									<Button
+										variant="outline"
+										size="sm"
+										type="button"
+										onClick={() =>
+											void deleteGroupOverrideMutation.mutateAsync(
+												override.group_id,
+											)
+										}
+										disabled={deleteGroupOverrideMutation.isPending}
+									>
+										Delete
+									</Button>
+								</TableCell>
+							</TableRow>
+						))}
+					</TableBody>
+				</Table>
+			) : (
+				<div className="rounded-lg border border-border bg-surface-secondary px-4 py-6 text-center text-sm text-content-secondary">
+					No group overrides configured.
+				</div>
+			)}
+
+			{deleteGroupOverrideMutation.isError && (
+				<p className="text-xs text-content-destructive">
+					{getErrorMessage(
+						deleteGroupOverrideMutation.error,
+						"Failed to delete group override.",
+					)}
+				</p>
+			)}
+
+			{!showGroupForm ? (
+				<Button
+					variant="outline"
+					size="sm"
+					type="button"
+					onClick={() => setShowGroupForm(true)}
+					disabled={groupsQuery.isLoading || availableGroups.length === 0}
+				>
+					Add Group
+				</Button>
+			) : (
+				<div className="flex flex-col gap-3 md:flex-row md:items-end">
+					<div className="flex-1">
+						<label
+							className="mb-1 block text-xs font-medium text-content-secondary"
+							htmlFor="group-override-select"
+						>
+							Group
+						</label>
+						<select
+							id="group-override-select"
+							className={inputClassName}
+							value={selectedGroupId}
+							onChange={(event) => setSelectedGroupId(event.target.value)}
+						>
+							<option value="">Select a group…</option>
+							{availableGroups.map((group) => (
+								<option key={group.id} value={group.id}>
+									{group.display_name || group.name}
+								</option>
+							))}
+						</select>
+					</div>
+					<div className="flex-1">
+						<label
+							className="mb-1 block text-xs font-medium text-content-secondary"
+							htmlFor="group-override-amount"
+						>
+							Spend Limit ($)
+						</label>
+						<input
+							id="group-override-amount"
+							type="number"
+							step="0.01"
+							min="0"
+							className={inputClassName}
+							value={groupAmount}
+							onChange={(event) => setGroupAmount(event.target.value)}
+							placeholder="0.00"
+						/>
+					</div>
+					<div className="flex gap-2">
+						<Button
+							size="sm"
+							type="button"
+							onClick={() => void handleAddGroupOverride()}
+							disabled={
+								upsertGroupOverrideMutation.isPending ||
+								selectedGroupId === "" ||
+								groupAmount.trim() === "" ||
+								Number.isNaN(Number(groupAmount)) ||
+								Number(groupAmount) < 0
+							}
+						>
+							{upsertGroupOverrideMutation.isPending ? (
+								<Spinner loading className="h-4 w-4" />
+							) : null}
+							Add
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							type="button"
+							onClick={() => {
+								setShowGroupForm(false);
+								setSelectedGroupId("");
+								setGroupAmount("");
+							}}
+						>
+							Cancel
+						</Button>
+					</div>
+				</div>
+			)}
+			{upsertGroupOverrideMutation.isError && (
+				<p className="text-xs text-content-destructive">
+					{getErrorMessage(
+						upsertGroupOverrideMutation.error,
+						"Failed to save group override.",
+					)}
+				</p>
+			)}
+			{groupsQuery.isError && (
+				<p className="text-xs text-content-destructive">
+					{getErrorMessage(groupsQuery.error, "Failed to load groups.")}
+				</p>
+			)}
+
+			<SectionHeader
 				label="Per-User Overrides"
 				description="Override the deployment default spend limit for specific users."
 			/>
@@ -431,59 +642,81 @@ const LimitsContent: FC = () => {
 				</p>
 			)}
 
-			<div className="flex flex-col gap-3 md:flex-row md:items-end">
-				<div className="flex-1">
-					<label
-						className="mb-1 block text-xs font-medium text-content-secondary"
-						htmlFor="override-user-id"
-					>
-						User ID
-					</label>
-					<input
-						id="override-user-id"
-						type="text"
-						className={inputClassName}
-						value={overrideUserId}
-						onChange={(event) => setOverrideUserId(event.target.value)}
-						placeholder="Enter user ID"
-					/>
-				</div>
-				<div className="flex-1">
-					<label
-						className="mb-1 block text-xs font-medium text-content-secondary"
-						htmlFor="override-amount"
-					>
-						Spend Limit ($)
-					</label>
-					<input
-						id="override-amount"
-						type="number"
-						step="0.01"
-						min="0"
-						className={inputClassName}
-						value={overrideAmount}
-						onChange={(event) => setOverrideAmount(event.target.value)}
-						placeholder="0.00"
-					/>
-				</div>
+			{!showUserForm ? (
 				<Button
+					variant="outline"
 					size="sm"
 					type="button"
-					onClick={() => void handleAddOverride()}
-					disabled={
-						upsertOverrideMutation.isPending ||
-						overrideUserId.trim() === "" ||
-						overrideAmount.trim() === "" ||
-						Number.isNaN(Number(overrideAmount)) ||
-						Number(overrideAmount) < 0
-					}
+					onClick={() => setShowUserForm(true)}
 				>
-					{upsertOverrideMutation.isPending ? (
-						<Spinner loading className="h-4 w-4" />
-					) : null}
-					Add
+					Add User
 				</Button>
-			</div>
+			) : (
+				<div className="flex flex-col gap-3 md:flex-row md:items-end">
+					<div className="flex-1">
+						<UserAutocomplete
+							value={selectedUser}
+							onChange={setSelectedUser}
+							label="User"
+						/>
+					</div>
+					<div className="flex-1">
+						<label
+							className="mb-1 block text-xs font-medium text-content-secondary"
+							htmlFor="user-override-amount"
+						>
+							Spend Limit ($)
+						</label>
+						<input
+							id="user-override-amount"
+							type="number"
+							step="0.01"
+							min="0"
+							className={inputClassName}
+							value={userOverrideAmount}
+							onChange={(event) => setUserOverrideAmount(event.target.value)}
+							placeholder="0.00"
+						/>
+					</div>
+					<div className="flex gap-2">
+						<Button
+							size="sm"
+							type="button"
+							onClick={() => void handleAddOverride()}
+							disabled={
+								upsertOverrideMutation.isPending ||
+								!selectedUser ||
+								selectedUserAlreadyOverridden ||
+								userOverrideAmount.trim() === "" ||
+								Number.isNaN(Number(userOverrideAmount)) ||
+								Number(userOverrideAmount) < 0
+							}
+						>
+							{upsertOverrideMutation.isPending ? (
+								<Spinner loading className="h-4 w-4" />
+							) : null}
+							Add
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							type="button"
+							onClick={() => {
+								setShowUserForm(false);
+								setSelectedUser(null);
+								setUserOverrideAmount("");
+							}}
+						>
+							Cancel
+						</Button>
+					</div>
+				</div>
+			)}
+			{selectedUserAlreadyOverridden && (
+				<p className="text-xs text-content-warning">
+					This user already has an override.
+				</p>
+			)}
 			{upsertOverrideMutation.isError && (
 				<p className="text-xs text-content-destructive">
 					{getErrorMessage(
