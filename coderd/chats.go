@@ -648,6 +648,15 @@ func (api *API) getChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request)
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
+func isValidChatUsageLimitPeriod(period codersdk.ChatUsageLimitPeriod) bool {
+	switch period {
+	case codersdk.ChatUsageLimitPeriodDay, codersdk.ChatUsageLimitPeriodWeek, codersdk.ChatUsageLimitPeriodMonth:
+		return true
+	default:
+		return false
+	}
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) updateChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -667,6 +676,14 @@ func (api *API) updateChatUsageLimitConfig(rw http.ResponseWriter, r *http.Reque
 		Period:             "",
 	}
 	if req.SpendLimitMicros == nil {
+		if req.Period != "" && !isValidChatUsageLimitPeriod(req.Period) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid chat usage limit period.",
+				Detail:  "Period must be one of: day, week, month.",
+			})
+			return
+		}
+
 		params.Enabled = false
 		params.DefaultLimitMicros = 0
 		params.Period = string(req.Period)
@@ -681,9 +698,7 @@ func (api *API) updateChatUsageLimitConfig(rw http.ResponseWriter, r *http.Reque
 			})
 			return
 		}
-		switch req.Period {
-		case codersdk.ChatUsageLimitPeriodDay, codersdk.ChatUsageLimitPeriodWeek, codersdk.ChatUsageLimitPeriodMonth:
-		default:
+		if !isValidChatUsageLimitPeriod(req.Period) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid chat usage limit period.",
 				Detail:  "Period must be one of: day, week, month.",
@@ -732,7 +747,8 @@ func (api *API) getMyChatUsageLimitStatus(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 	if status == nil {
-		status = &codersdk.ChatUsageLimitStatus{IsLimited: false}
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatUsageLimitStatus{IsLimited: false})
+		return
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, status)
@@ -755,7 +771,23 @@ func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	if req.SpendLimitMicros == nil || *req.SpendLimitMicros <= 0 {
+	// Today, a nil spend limit removes the user-specific override and falls back
+	// to the group or global limit. Supporting an explicit unlimited override is a
+	// future API enhancement.
+	if req.SpendLimitMicros == nil {
+		//nolint:gocritic // Override deletion requires system-restricted access.
+		systemCtx := dbauthz.AsSystemRestricted(ctx)
+		if err := api.Database.DeleteChatUsageLimitOverride(systemCtx, userID); err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to delete chat usage limit override.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		rw.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if *req.SpendLimitMicros <= 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid chat usage limit override.",
 			Detail:  "Spend limit must be greater than 0.",

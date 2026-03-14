@@ -563,9 +563,13 @@ func (p *Server) EditMessage(
 
 	var result EditMessageResult
 	txErr := p.db.InTx(func(tx database.Store) error {
-		_, err := tx.GetChatByIDForUpdate(ctx, opts.ChatID)
+		lockedChat, err := tx.GetChatByIDForUpdate(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("lock chat: %w", err)
+		}
+
+		if limitErr := p.checkUsageLimit(ctx, lockedChat.OwnerID); limitErr != nil {
+			return limitErr
 		}
 
 		existing, err := tx.GetChatMessageByID(ctx, opts.EditedMessageID)

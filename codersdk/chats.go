@@ -853,11 +853,11 @@ type UpsertChatUsageLimitGroupOverrideRequest struct {
 // within their active limit period.
 type ChatUsageLimitStatus struct {
 	IsLimited        bool                 `json:"is_limited"`
-	Period           ChatUsageLimitPeriod `json:"period"`
+	Period           ChatUsageLimitPeriod `json:"period,omitempty"`
 	SpendLimitMicros *int64               `json:"spend_limit_micros,omitempty"`
 	CurrentSpend     int64                `json:"current_spend"`
-	PeriodStart      time.Time            `json:"period_start" format:"date-time"`
-	PeriodEnd        time.Time            `json:"period_end" format:"date-time"`
+	PeriodStart      time.Time            `json:"period_start,omitempty" format:"date-time"`
+	PeriodEnd        time.Time            `json:"period_end,omitempty" format:"date-time"`
 }
 
 // ChatUsageLimitConfigResponse is returned from the admin config endpoint
@@ -1525,6 +1525,9 @@ func (c *Client) UpsertChatUsageLimitOverride(ctx context.Context, userID uuid.U
 		return ChatUsageLimitOverride{}, err
 	}
 	defer res.Body.Close()
+	if res.StatusCode == http.StatusNoContent {
+		return ChatUsageLimitOverride{}, nil
+	}
 	if res.StatusCode != http.StatusOK {
 		return ChatUsageLimitOverride{}, ReadBodyAsError(res)
 	}
