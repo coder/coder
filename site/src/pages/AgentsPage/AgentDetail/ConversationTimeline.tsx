@@ -35,6 +35,15 @@ import type {
 	StreamState,
 } from "./types";
 
+const isUsageLimitErrorMessage = (message: string): boolean => {
+	const normalizedMessage = message.trim();
+	return (
+		normalizedMessage === "Chat usage limit exceeded." ||
+		normalizedMessage === "Your usage limit has been reached." ||
+		/^You've used .+ of your .+ (?:spend )?limit\./i.test(normalizedMessage)
+	);
+};
+
 const ReasoningDisclosure: FC<{
 	id: string;
 	title?: string;
@@ -900,6 +909,12 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 }) => {
 	const shouldRenderStreamInLastSection =
 		hasStreamOutput && parsedSections.length > 0;
+	const usageErrorMessage = detailErrorMessage?.trim();
+	const showUsageAction =
+		onOpenAnalytics !== undefined &&
+		typeof usageErrorMessage === "string" &&
+		usageErrorMessage.length > 0 &&
+		isUsageLimitErrorMessage(usageErrorMessage);
 
 	return (
 		<div className="mx-auto w-full max-w-3xl py-6">
@@ -980,7 +995,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 					severity="info"
 					className="py-2"
 					actions={
-						onOpenAnalytics && (
+						showUsageAction && (
 							<Button variant="subtle" size="sm" onClick={onOpenAnalytics}>
 								View Usage
 							</Button>
