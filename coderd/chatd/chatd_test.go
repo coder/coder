@@ -525,6 +525,186 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	require.False(t, chatFromDB.WorkerID.Valid)
 }
 
+func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	_, err := db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
+		Enabled:            true,
+		DefaultLimitMicros: 100,
+		Period:             string(codersdk.ChatUsageLimitPeriodDay),
+	})
+	require.NoError(t, err)
+
+	existingChat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OwnerID:           user.ID,
+		Title:             "existing-limit-chat",
+		LastModelConfigID: model.ID,
+	})
+	require.NoError(t, err)
+
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("assistant"),
+	})
+	require.NoError(t, err)
+
+	_, err = db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		ChatID:              existingChat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:                database.ChatMessageRoleAssistant,
+		ContentVersion:      chatprompt.CurrentContentVersion,
+		Content:             assistantContent,
+		Visibility:          database.ChatMessageVisibilityBoth,
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		Compressed:          sql.NullBool{},
+		TotalCostMicros:     sql.NullInt64{Int64: 100, Valid: true},
+	})
+	require.NoError(t, err)
+
+	beforeChats, err := db.GetChatsByOwnerID(ctx, database.GetChatsByOwnerIDParams{
+		OwnerID:   user.ID,
+		AfterID:   uuid.Nil,
+		OffsetOpt: 0,
+		LimitOpt:  100,
+	})
+	require.NoError(t, err)
+	require.Len(t, beforeChats, 1)
+
+	_, err = replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "over-limit",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.Error(t, err)
+
+	var limitErr *chatd.UsageLimitExceededError
+	require.ErrorAs(t, err, &limitErr)
+	require.Equal(t, int64(100), limitErr.LimitMicros)
+	require.Equal(t, int64(100), limitErr.ConsumedMicros)
+
+	afterChats, err := db.GetChatsByOwnerID(ctx, database.GetChatsByOwnerIDParams{
+		OwnerID:   user.ID,
+		AfterID:   uuid.Nil,
+		OffsetOpt: 0,
+		LimitOpt:  100,
+	})
+	require.NoError(t, err)
+	require.Len(t, afterChats, len(beforeChats))
+}
+
+func TestPromoteQueuedRejectsWhenUsageLimitReached(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+
+	_, err := db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
+		Enabled:            true,
+		DefaultLimitMicros: 100,
+		Period:             string(codersdk.ChatUsageLimitPeriodDay),
+	})
+	require.NoError(t, err)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "queued-limit-reached",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+
+	queuedResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:       chat.ID,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
+		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+	})
+	require.NoError(t, err)
+	require.True(t, queuedResult.Queued)
+	require.NotNil(t, queuedResult.QueuedMessage)
+
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("assistant"),
+	})
+	require.NoError(t, err)
+
+	_, err = db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		ChatID:              chat.ID,
+		ModelConfigID:       uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:                database.ChatMessageRoleAssistant,
+		ContentVersion:      chatprompt.CurrentContentVersion,
+		Content:             assistantContent,
+		Visibility:          database.ChatMessageVisibilityBoth,
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		Compressed:          sql.NullBool{},
+		TotalCostMicros:     sql.NullInt64{Int64: 100, Valid: true},
+	})
+	require.NoError(t, err)
+
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusWaiting,
+		WorkerID:    uuid.NullUUID{},
+		StartedAt:   sql.NullTime{},
+		HeartbeatAt: sql.NullTime{},
+		LastError:   sql.NullString{},
+	})
+	require.NoError(t, err)
+
+	_, err = replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+		ChatID:          chat.ID,
+		QueuedMessageID: queuedResult.QueuedMessage.ID,
+		CreatedBy:       user.ID,
+	})
+	require.Error(t, err)
+
+	var limitErr *chatd.UsageLimitExceededError
+	require.ErrorAs(t, err, &limitErr)
+	require.Equal(t, int64(100), limitErr.LimitMicros)
+	require.Equal(t, int64(100), limitErr.ConsumedMicros)
+
+	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, queued, 1)
+	require.Equal(t, queuedResult.QueuedMessage.ID, queued[0].ID)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+}
+
 func TestEditMessageRejectsWhenUsageLimitReached(t *testing.T) {
 	t.Parallel()
 
