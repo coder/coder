@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -3423,10 +3424,11 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
+		client, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client)
 		_, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
-		group := coderdtest.CreateGroup(t, client, firstUser.OrganizationID, "usage-limit-group", member)
+		group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: member.ID})
 
 		override, err := client.UpsertChatUsageLimitGroupOverride(ctx, group.ID, codersdk.UpsertChatUsageLimitGroupOverrideRequest{
 			SpendLimitMicros: 7_000_000,
@@ -3442,9 +3444,9 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
+		client, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client)
-		group := coderdtest.CreateGroup(t, client, firstUser.OrganizationID, "usage-limit-group")
+		group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
 
 		err := client.DeleteChatUsageLimitGroupOverride(ctx, group.ID)
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
