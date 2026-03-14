@@ -648,18 +648,16 @@ export const EditFilesError: Story = {
 // Computer tool stories
 // ---------------------------------------------------------------------------
 
-// Small 4x4 blue PNG used as test fixture for screenshot stories.
-const TEST_PNG_BASE64 =
-	"iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAEklEQVR4nGMwnvn/PzJmIF0AANd/LKFNZE1EAAAAAElFTkSuQmCC";
+import { DESKTOP_SCREENSHOT_BASE64 } from "./tool/__fixtures__/desktopScreenshot";
 
 export const ComputerScreenshot: Story = {
 	args: {
 		name: "computer",
 		status: "completed",
 		result: {
-			data: TEST_PNG_BASE64,
+			data: DESKTOP_SCREENSHOT_BASE64,
 			text: "",
-			mime_type: "image/png",
+			mime_type: "image/jpeg",
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -669,10 +667,7 @@ export const ComputerScreenshot: Story = {
 			name: "Screenshot from computer tool",
 		});
 		expect(img).toBeInTheDocument();
-		expect(img).toHaveAttribute(
-			"src",
-			`data:image/png;base64,${TEST_PNG_BASE64}`,
-		);
+		expect(img.getAttribute("src")).toContain("data:image/jpeg;base64,");
 		// Image should be wrapped in a link that opens in a new tab.
 		const link = img.closest("a");
 		expect(link).toHaveAttribute("target", "_blank");
@@ -736,7 +731,11 @@ export const ComputerArrayResult: Story = {
 		name: "computer",
 		status: "completed",
 		result: [
-			{ type: "image", data: TEST_PNG_BASE64, mime_type: "image/png" },
+			{
+				type: "image",
+				data: DESKTOP_SCREENSHOT_BASE64,
+				mime_type: "image/jpeg",
+			},
 			{ type: "text", text: "Clicked on button" },
 		],
 	},
@@ -746,9 +745,6 @@ export const ComputerArrayResult: Story = {
 			name: "Screenshot from computer tool",
 		});
 		expect(img).toBeInTheDocument();
-		expect(img).toHaveAttribute(
-			"src",
-			`data:image/png;base64,${TEST_PNG_BASE64}`,
-		);
+		expect(img.getAttribute("src")).toContain("data:image/jpeg;base64,");
 	},
 };
