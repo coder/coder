@@ -8,7 +8,11 @@ import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetail";
-import type { useChatStore } from "./AgentDetail/ChatContext";
+import {
+	selectChatStatus,
+	useChatSelector,
+	type useChatStore,
+} from "./AgentDetail/ChatContext";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
 import {
 	ChatConversationSkeleton,
@@ -186,6 +190,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 		null,
 	);
 	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
+	const chatStatus = useChatSelector(store, selectChatStatus);
 
 	// Compute local diff stats from git watcher unified diffs.
 
@@ -263,7 +268,10 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							store={store}
 							chatID={agentId}
 							persistedErrorReason={
-								chatErrorReasons[agentId] || chatRecord?.last_error || undefined
+								chatErrorReasons[agentId] ||
+								(chatStatus === "error"
+									? chatRecord?.last_error || undefined
+									: undefined)
 							}
 							onEditUserMessage={editing.handleEditUserMessage}
 							editingMessageId={editing.editingMessageId}

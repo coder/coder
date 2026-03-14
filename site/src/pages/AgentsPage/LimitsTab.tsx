@@ -149,7 +149,7 @@ export const LimitsTab: FC = () => {
 		!enabled ||
 		(amountDollars.trim() !== "" &&
 			!Number.isNaN(Number(amountDollars)) &&
-			Number(amountDollars) >= 0);
+			Number(amountDollars) > 0);
 
 	const handleSaveDefault = async () => {
 		const spendLimitMicros = enabled ? dollarsToMicros(amountDollars) : null;
@@ -475,7 +475,7 @@ export const LimitsTab: FC = () => {
 													selectedGroup === null ||
 													groupAmount.trim() === "" ||
 													Number.isNaN(Number(groupAmount)) ||
-													Number(groupAmount) < 0
+													Number(groupAmount) <= 0
 												}
 											>
 												{upsertGroupOverrideMutation.isPending ? (
@@ -626,7 +626,7 @@ export const LimitsTab: FC = () => {
 													selectedUserAlreadyOverridden ||
 													userOverrideAmount.trim() === "" ||
 													Number.isNaN(Number(userOverrideAmount)) ||
-													Number(userOverrideAmount) < 0
+													Number(userOverrideAmount) <= 0
 												}
 											>
 												{upsertOverrideMutation.isPending ? (
