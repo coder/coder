@@ -172,6 +172,23 @@ var (
 	errChatTakenByOtherWorker = xerrors.New("chat acquired by another worker")
 )
 
+// UsageLimitExceededError indicates the user has exceeded their chat spend
+// limit.
+type UsageLimitExceededError struct {
+	LimitMicros    int64
+	ConsumedMicros int64
+	PeriodEnd      time.Time
+}
+
+func (e *UsageLimitExceededError) Error() string {
+	return fmt.Sprintf(
+		"usage limit exceeded: spent %d of %d micros, resets at %s",
+		e.ConsumedMicros,
+		e.LimitMicros,
+		e.PeriodEnd.Format(time.RFC3339),
+	)
+}
+
 // CreateOptions controls chat creation in the shared chat mutation path.
 type CreateOptions struct {
 	OwnerID            uuid.UUID
@@ -389,6 +406,12 @@ func (p *Server) SendMessage(
 		if err != nil {
 			return xerrors.Errorf("lock chat: %w", err)
 		}
+
+		// Enforce usage limits before queueing or inserting.
+		if limitErr := p.checkUsageLimit(ctx, lockedChat.OwnerID); limitErr != nil {
+			return limitErr
+		}
+
 		modelConfigID := lockedChat.LastModelConfigID
 		if opts.ModelConfigID != nil {
 			modelConfigID = *opts.ModelConfigID
@@ -490,6 +513,31 @@ func (p *Server) SendMessage(
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
 	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
 	return result, nil
+}
+
+func (p *Server) checkUsageLimit(ctx context.Context, ownerID uuid.UUID) error {
+	status, err := ResolveUsageLimitStatus(ctx, p.db, ownerID, time.Now())
+	if err != nil {
+		// Fail open: never block chat due to a limit-resolution failure.
+		p.logger.Warn(ctx, "usage limit check failed, allowing message",
+			slog.F("owner_id", ownerID),
+			slog.Error(err),
+		)
+		return nil
+	}
+	if status == nil {
+		return nil
+	}
+	// Block when current spend reaches or exceeds limit (>= ensures
+	// the user cannot start new conversations once the limit is hit).
+	if status.SpendLimitMicros != nil && status.CurrentSpend >= *status.SpendLimitMicros {
+		return &UsageLimitExceededError{
+			LimitMicros:    *status.SpendLimitMicros,
+			ConsumedMicros: status.CurrentSpend,
+			PeriodEnd:      status.PeriodEnd,
+		}
+	}
+	return nil
 }
 
 // EditMessage updates a user message in-place, truncates all following messages,

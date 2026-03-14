@@ -4196,6 +4196,32 @@ type ChatQueuedMessage struct {
 	CreatedAt time.Time       `db:"created_at" json:"created_at"`
 }
 
+type ChatUsageLimitConfig struct {
+	ID                 int64     `db:"id" json:"id"`
+	Singleton          bool      `db:"singleton" json:"singleton"`
+	Enabled            bool      `db:"enabled" json:"enabled"`
+	DefaultLimitMicros int64     `db:"default_limit_micros" json:"default_limit_micros"`
+	Period             string    `db:"period" json:"period"`
+	CreatedAt          time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type ChatUsageLimitGroupOverride struct {
+	ID          int64     `db:"id" json:"id"`
+	GroupID     uuid.UUID `db:"group_id" json:"group_id"`
+	LimitMicros int64     `db:"limit_micros" json:"limit_micros"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type ChatUsageLimitOverride struct {
+	ID          int64     `db:"id" json:"id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	LimitMicros int64     `db:"limit_micros" json:"limit_micros"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+}
+
 type ConnectionLog struct {
 	ID               uuid.UUID      `db:"id" json:"id"`
 	ConnectTime      time.Time      `db:"connect_time" json:"connect_time"`

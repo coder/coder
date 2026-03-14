@@ -1318,6 +1318,61 @@ CREATE SEQUENCE chat_queued_messages_id_seq
 
 ALTER SEQUENCE chat_queued_messages_id_seq OWNED BY chat_queued_messages.id;
 
+CREATE TABLE chat_usage_limit_config (
+    id bigint NOT NULL,
+    singleton boolean DEFAULT true NOT NULL,
+    enabled boolean DEFAULT false NOT NULL,
+    default_limit_micros bigint DEFAULT 0 NOT NULL,
+    period text DEFAULT 'month'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_usage_limit_config_period_check CHECK ((period = ANY (ARRAY['day'::text, 'week'::text, 'month'::text]))),
+    CONSTRAINT chat_usage_limit_config_singleton_check CHECK (singleton)
+);
+
+CREATE SEQUENCE chat_usage_limit_config_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE chat_usage_limit_config_id_seq OWNED BY chat_usage_limit_config.id;
+
+CREATE TABLE chat_usage_limit_group_overrides (
+    id bigint NOT NULL,
+    group_id uuid NOT NULL,
+    limit_micros bigint DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE SEQUENCE chat_usage_limit_group_overrides_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE chat_usage_limit_group_overrides_id_seq OWNED BY chat_usage_limit_group_overrides.id;
+
+CREATE TABLE chat_usage_limit_overrides (
+    id bigint NOT NULL,
+    user_id uuid NOT NULL,
+    limit_micros bigint DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE SEQUENCE chat_usage_limit_overrides_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE chat_usage_limit_overrides_id_seq OWNED BY chat_usage_limit_overrides.id;
+
 CREATE TABLE chats (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     owner_id uuid NOT NULL,
@@ -3156,6 +3211,12 @@ ALTER TABLE ONLY chat_messages ALTER COLUMN id SET DEFAULT nextval('chat_message
 
 ALTER TABLE ONLY chat_queued_messages ALTER COLUMN id SET DEFAULT nextval('chat_queued_messages_id_seq'::regclass);
 
+ALTER TABLE ONLY chat_usage_limit_config ALTER COLUMN id SET DEFAULT nextval('chat_usage_limit_config_id_seq'::regclass);
+
+ALTER TABLE ONLY chat_usage_limit_group_overrides ALTER COLUMN id SET DEFAULT nextval('chat_usage_limit_group_overrides_id_seq'::regclass);
+
+ALTER TABLE ONLY chat_usage_limit_overrides ALTER COLUMN id SET DEFAULT nextval('chat_usage_limit_overrides_id_seq'::regclass);
+
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
@@ -3215,6 +3276,24 @@ ALTER TABLE ONLY chat_providers
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_usage_limit_config
+    ADD CONSTRAINT chat_usage_limit_config_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_usage_limit_config
+    ADD CONSTRAINT chat_usage_limit_config_singleton_key UNIQUE (singleton);
+
+ALTER TABLE ONLY chat_usage_limit_group_overrides
+    ADD CONSTRAINT chat_usage_limit_group_overrides_group_id_key UNIQUE (group_id);
+
+ALTER TABLE ONLY chat_usage_limit_group_overrides
+    ADD CONSTRAINT chat_usage_limit_group_overrides_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_usage_limit_overrides
+    ADD CONSTRAINT chat_usage_limit_overrides_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_usage_limit_overrides
+    ADD CONSTRAINT chat_usage_limit_overrides_user_id_key UNIQUE (user_id);
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
@@ -3875,6 +3954,12 @@ ALTER TABLE ONLY chat_providers
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_usage_limit_group_overrides
+    ADD CONSTRAINT chat_usage_limit_group_overrides_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_usage_limit_overrides
+    ADD CONSTRAINT chat_usage_limit_overrides_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_last_model_config_id_fkey FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id);
