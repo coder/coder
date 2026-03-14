@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -44,6 +45,7 @@ Guidelines:
 type spawnAgentArgs struct {
 	Prompt string `json:"prompt"`
 	Title  string `json:"title,omitempty"`
+	N      *int   `json:"n,omitempty"`
 }
 
 type spawnComputerUseAgentArgs struct {
@@ -104,7 +106,13 @@ func (p *Server) subagentTools(ctx context.Context, currentChat func() database.
 				"parallel subagent tasks are independent. "+
 				"The child agent receives the same workspace tools but "+
 				"cannot spawn its own subagents. After spawning, use "+
-				"wait_agent to collect the result.",
+				"wait_agent to collect the result. "+
+				"When n is set (2-10), spawns N competing subagents with "+
+				"the same prompt (best-of-N). Each runs independently. "+
+				"Call wait_agent on each returned chat_id to collect "+
+				"results, then pick the best. Only use n > 1 for "+
+				"side-effect-free tasks where parallel attempts are safe. "+
+				"Leave n unset for normal delegation.",
 			func(ctx context.Context, args spawnAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -119,21 +127,51 @@ func (p *Server) subagentTools(ctx context.Context, currentChat func() database.
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
-				childChat, err := p.createChildSubagentChat(
-					ctx,
-					parent,
-					args.Prompt,
-					args.Title,
-				)
-				if err != nil {
-					return fantasy.NewTextErrorResponse(err.Error()), nil
+
+				n := 1
+				if args.N != nil && *args.N > 1 {
+					n = *args.N
+				}
+				if n > 10 {
+					return fantasy.NewTextErrorResponse("n must be between 1 and 10"), nil
 				}
 
-				return toolJSONResponse(map[string]any{
-					"chat_id": childChat.ID.String(),
-					"title":   childChat.Title,
-					"status":  string(childChat.Status),
-				}), nil
+				type candidate struct {
+					ChatID string `json:"chat_id"`
+					Title  string `json:"title"`
+					Status string `json:"status"`
+				}
+				candidates := make([]candidate, 0, n)
+
+				for i := range n {
+					title := args.Title
+					if title == "" {
+						title = subagentFallbackChatTitle(args.Prompt)
+					}
+					if n > 1 {
+						title = fmt.Sprintf("%s (%d/%d)", title, i+1, n)
+					}
+
+					childChat, createErr := p.createChildSubagentChat(ctx, parent, args.Prompt, title)
+					if createErr != nil {
+						break
+					}
+					candidates = append(candidates, candidate{
+						ChatID: childChat.ID.String(),
+						Title:  title,
+						Status: string(childChat.Status),
+					})
+				}
+
+				if len(candidates) == 0 {
+					return fantasy.NewTextErrorResponse("failed to spawn any subagents"), nil
+				}
+
+				data, marshalErr := json.Marshal(candidates)
+				if marshalErr != nil {
+					return fantasy.NewTextResponse("[]"), nil
+				}
+				return fantasy.NewTextResponse(string(data)), nil
 			},
 		),
 		fantasy.NewAgentTool(

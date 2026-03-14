@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"charm.land/fantasy"
@@ -297,4 +298,155 @@ func TestSpawnComputerUseAgent_UsesComputerUseModelNotParent(t *testing.T) {
 		"computer use model provider must differ from parent model provider")
 	assert.Equal(t, "anthropic", chattool.ComputerUseModelProvider)
 	assert.NotEmpty(t, chattool.ComputerUseModelName)
+}
+
+func TestSpawnAgent_SingleReturnsArray(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedInternalChatDeps(ctx, t, db)
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "parent-single",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	// Re-fetch so LastModelConfigID is populated from the DB.
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tool := findToolByName(tools, "spawn_agent")
+	require.NotNil(t, tool, "spawn_agent tool must be present")
+
+	resp, err := tool.Run(ctx, fantasy.ToolCall{
+		ID:    "call-single-1",
+		Name:  "spawn_agent",
+		Input: `{"prompt":"fix the bug"}`,
+	})
+	require.NoError(t, err)
+	require.False(t, resp.IsError, "expected success but got: %s", resp.Content)
+
+	// Response must always be a JSON array, even for n=1.
+	var results []map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &results))
+	require.Len(t, results, 1, "single spawn must return exactly one element")
+
+	elem := results[0]
+
+	chatID, ok := elem["chat_id"].(string)
+	require.True(t, ok, "element must contain chat_id")
+	_, err = uuid.Parse(chatID)
+	require.NoError(t, err, "chat_id must be a valid UUID")
+
+	title, ok := elem["title"].(string)
+	require.True(t, ok, "element must contain title")
+	assert.NotEmpty(t, title)
+	// Single spawn (n=1) should NOT have a (1/1) suffix.
+	assert.NotContains(t, title, "(1/1)")
+
+	status, ok := elem["status"].(string)
+	require.True(t, ok, "element must contain status")
+	assert.NotEmpty(t, status)
+}
+
+func TestSpawnAgent_BestOfN(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedInternalChatDeps(ctx, t, db)
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "parent-best-of-n",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	// Re-fetch so LastModelConfigID is populated from the DB.
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tool := findToolByName(tools, "spawn_agent")
+	require.NotNil(t, tool, "spawn_agent tool must be present")
+
+	resp, err := tool.Run(ctx, fantasy.ToolCall{
+		ID:    "call-best-of-3",
+		Name:  "spawn_agent",
+		Input: `{"prompt":"fix the bug","n":3}`,
+	})
+	require.NoError(t, err)
+	require.False(t, resp.IsError, "expected success but got: %s", resp.Content)
+
+	var results []map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &results))
+	require.Len(t, results, 3, "best-of-3 must return exactly three elements")
+
+	seenIDs := make(map[string]struct{}, 3)
+	for i, elem := range results {
+		chatID, ok := elem["chat_id"].(string)
+		require.True(t, ok, "element %d must contain chat_id", i)
+		_, err := uuid.Parse(chatID)
+		require.NoError(t, err, "element %d chat_id must be a valid UUID", i)
+
+		_, duplicate := seenIDs[chatID]
+		assert.False(t, duplicate, "element %d has duplicate chat_id %s", i, chatID)
+		seenIDs[chatID] = struct{}{}
+
+		title, ok := elem["title"].(string)
+		require.True(t, ok, "element %d must contain title", i)
+		expectedSuffix := fmt.Sprintf("(%d/3)", i+1)
+		assert.Contains(t, title, expectedSuffix,
+			"element %d title must contain %s", i, expectedSuffix)
+
+		status, ok := elem["status"].(string)
+		require.True(t, ok, "element %d must contain status", i)
+		assert.NotEmpty(t, status)
+	}
+}
+
+func TestSpawnAgent_NExceedsLimit(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedInternalChatDeps(ctx, t, db)
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "parent-n-exceeds",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	// Re-fetch so LastModelConfigID is populated from the DB.
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tool := findToolByName(tools, "spawn_agent")
+	require.NotNil(t, tool, "spawn_agent tool must be present")
+
+	resp, err := tool.Run(ctx, fantasy.ToolCall{
+		ID:    "call-n-exceeds",
+		Name:  "spawn_agent",
+		Input: `{"prompt":"fix the bug","n":11}`,
+	})
+	require.NoError(t, err)
+	assert.True(t, resp.IsError, "expected an error response")
+	assert.Contains(t, resp.Content, "n must be between 1 and 10")
 }
