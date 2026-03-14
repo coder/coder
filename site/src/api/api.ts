@@ -3223,9 +3223,9 @@ class ApiMethods {
 				.then((res) => res.data);
 	updateChatUsageLimitConfig = async (
 		req: TypesGen.ChatUsageLimitConfig,
-	): Promise<TypesGen.ChatUsageLimitConfigResponse> =>
+	): Promise<TypesGen.ChatUsageLimitConfig> =>
 		this.axios
-			.put<TypesGen.ChatUsageLimitConfigResponse>(
+			.put<TypesGen.ChatUsageLimitConfig>(
 				"/api/experimental/chats/usage-limits",
 				req,
 			)

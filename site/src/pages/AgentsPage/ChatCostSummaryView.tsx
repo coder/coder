@@ -98,7 +98,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 				? "bg-surface-orange"
 				: "bg-surface-green";
 	const usageLimitExceeded =
-		showUsageLimitCard && usageLimitCurrentSpend > usageLimitSpendMicros;
+		showUsageLimitCard && usageLimitCurrentSpend >= usageLimitSpendMicros;
 	const usageLimitStatusText = usageLimitExceeded
 		? "Limit exceeded"
 		: `${formatCostMicros(
