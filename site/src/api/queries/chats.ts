@@ -531,25 +531,13 @@ export const chatCostUsers = (params?: ChatCostUsersParams) => ({
 	staleTime: 60_000,
 });
 
-/** @public */
 export const chatUsageLimitConfigKey = ["chatUsageLimitConfig"] as const;
 
-/** @public */
 export const chatUsageLimitConfig = () => ({
 	queryKey: chatUsageLimitConfigKey,
 	queryFn: () => API.getChatUsageLimitConfig(),
 });
 
-/** @public */
-export const chatUsageLimitStatusKey = ["chatUsageLimitStatus"] as const;
-
-/** @public */
-export const chatUsageLimitStatus = () => ({
-	queryKey: chatUsageLimitStatusKey,
-	queryFn: () => API.getChatUsageLimitStatus(),
-});
-
-/** @public */
 export const updateChatUsageLimitConfig = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.ChatUsageLimitConfig) =>
 		API.updateChatUsageLimitConfig(req),
@@ -565,7 +553,6 @@ type UpsertChatUsageLimitOverrideMutationArgs = {
 	req: TypesGen.UpsertChatUsageLimitOverrideRequest;
 };
 
-/** @public */
 export const upsertChatUsageLimitOverride = (queryClient: QueryClient) => ({
 	mutationFn: ({ userID, req }: UpsertChatUsageLimitOverrideMutationArgs) =>
 		API.upsertChatUsageLimitOverride(userID, req),
@@ -576,7 +563,6 @@ export const upsertChatUsageLimitOverride = (queryClient: QueryClient) => ({
 	},
 });
 
-/** @public */
 export const deleteChatUsageLimitOverride = (queryClient: QueryClient) => ({
 	mutationFn: (userID: string) => API.deleteChatUsageLimitOverride(userID),
 	onSuccess: async () => {
@@ -591,7 +577,6 @@ type UpsertChatUsageLimitGroupOverrideMutationArgs = {
 	req: TypesGen.UpsertChatUsageLimitGroupOverrideRequest;
 };
 
-/** @public */
 export const upsertChatUsageLimitGroupOverride = (
 	queryClient: QueryClient,
 ) => ({
@@ -607,7 +592,6 @@ export const upsertChatUsageLimitGroupOverride = (
 	},
 });
 
-/** @public */
 export const deleteChatUsageLimitGroupOverride = (
 	queryClient: QueryClient,
 ) => ({
