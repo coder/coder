@@ -376,6 +376,13 @@ interface ChatGitChangeResponse extends TypesGen.ChatGitChange {
 			additions: number;
 			deletions: number;
 			changed_files: number;
+			author_login?: string;
+			author_avatar_url?: string;
+			base_branch?: string;
+			pr_number?: number;
+			commits?: number;
+			approved?: boolean;
+			reviewer_count?: number;
 			refreshed_at?: string;
 			stale_at?: string;
 		} & Record<string, unknown>

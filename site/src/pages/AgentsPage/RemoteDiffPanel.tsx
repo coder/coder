@@ -3,8 +3,10 @@ import { parsePatchFiles } from "@pierre/diffs";
 import { chatDiffContents, chatDiffStatus } from "api/queries/chats";
 import { Button } from "components/Button/Button";
 import {
+	ArrowLeftIcon,
 	CornerDownLeftIcon,
 	ExternalLinkIcon,
+	GitBranchIcon,
 	GitMergeIcon,
 	GitPullRequestClosedIcon,
 	GitPullRequestDraftIcon,
@@ -429,21 +431,31 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 		: null;
 	const prState = diffStatusQuery.data?.pull_request_state;
 	const prDraft = diffStatusQuery.data?.pull_request_draft;
+	const baseBranch = diffStatusQuery.data?.base_branch;
 
 	// ---------------------------------------------------------------
 	// Render
 	// ---------------------------------------------------------------
 	return (
 		<div className="flex h-full flex-col">
-			{/* Compact PR sub-header */}
+				{/* Compact PR sub-header */}
 				{pullRequestUrl && (
 					<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
-						<span className="truncate text-xs text-content-secondary">
-							{parsedPr
-								? `${parsedPr.owner}/${parsedPr.repo}#${parsedPr.number}`
-								: pullRequestUrl}
-						</span>
-						<div className="ml-auto flex shrink-0 items-center gap-1.5">
+						<div className="flex min-w-0 items-center gap-1.5 text-xs text-content-secondary">
+							{baseBranch ? (
+								<>
+									<GitBranchIcon className="size-3.5 shrink-0" />
+									<span className="truncate">{baseBranch}</span>
+									<ArrowLeftIcon className="size-3 shrink-0 opacity-50" />
+								</>
+							) : parsedPr ? (
+								<span className="truncate">
+									{parsedPr.owner}/{parsedPr.repo}#{parsedPr.number}
+								</span>
+							) : (
+								<span className="truncate">{pullRequestUrl}</span>
+							)}
+						</div>						<div className="ml-auto flex shrink-0 items-center gap-1.5">
 							<PullRequestStateBadge
 								state={prState}
 								draft={prDraft}
