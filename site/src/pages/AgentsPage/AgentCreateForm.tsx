@@ -5,6 +5,7 @@ import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { Button } from "components/Button/Button";
 import {
 	Combobox,
 	ComboboxContent,
@@ -116,6 +117,7 @@ interface AgentCreateFormProps {
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
 	modelCatalogError: unknown;
+	onOpenAnalytics?: () => void;
 }
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
@@ -128,6 +130,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isModelCatalogLoading,
 	isModelConfigsLoading,
 	modelCatalogError,
+	onOpenAnalytics,
 }) => {
 	const { organizations } = useDashboard();
 	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
@@ -334,7 +337,17 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
 				{createError ? (
 					isApiError(createError) && createError.response?.status === 409 ? (
-						<Alert severity="error">
+						<Alert
+							severity="info"
+							className="py-2"
+							actions={
+								onOpenAnalytics && (
+									<Button variant="subtle" size="sm" onClick={onOpenAnalytics}>
+										View Usage
+									</Button>
+								)
+							}
+						>
 							{formatUsageLimitMessage(
 								createError.response.data as UsageLimitData,
 							)}
