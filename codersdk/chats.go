@@ -272,6 +272,7 @@ type UploadChatFileResponse struct {
 type ChatMessagesResponse struct {
 	Messages       []ChatMessage       `json:"messages"`
 	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
+	HasMore        bool                `json:"has_more"`
 }
 
 // ChatModelProviderUnavailableReason explains why a provider cannot be used.
@@ -1243,8 +1244,29 @@ func (c *Client) GetChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 }
 
 // GetChatMessages returns the messages and queued messages for a chat.
-func (c *Client) GetChatMessages(ctx context.Context, chatID uuid.UUID) (ChatMessagesResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/messages", chatID), nil)
+// ChatMessagesPaginationOptions are optional pagination params for
+// GetChatMessages.
+type ChatMessagesPaginationOptions struct {
+	BeforeID int64
+	Limit    int
+}
+
+// GetChatMessages returns the messages and queued messages for a chat.
+func (c *Client) GetChatMessages(ctx context.Context, chatID uuid.UUID, opts *ChatMessagesPaginationOptions) (ChatMessagesResponse, error) {
+	reqOpts := []RequestOption{}
+	if opts != nil {
+		reqOpts = append(reqOpts, func(r *http.Request) {
+			q := r.URL.Query()
+			if opts.BeforeID > 0 {
+				q.Set("before_id", strconv.FormatInt(opts.BeforeID, 10))
+			}
+			if opts.Limit > 0 {
+				q.Set("limit", strconv.Itoa(opts.Limit))
+			}
+			r.URL.RawQuery = q.Encode()
+		})
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/messages", chatID), nil, reqOpts...)
 	if err != nil {
 		return ChatMessagesResponse{}, err
 	}
