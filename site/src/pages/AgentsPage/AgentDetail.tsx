@@ -1,5 +1,5 @@
 import { API, watchWorkspace } from "api/api";
-import { getErrorMessage, isApiError } from "api/errors";
+import { isApiError } from "api/errors";
 import {
 	chat,
 	chatMessagesForInfiniteScroll,
@@ -86,6 +86,10 @@ import {
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
+import {
+	formatUsageLimitMessage,
+	type UsageLimitData,
+} from "./usageLimitMessage";
 import { useFileAttachments } from "./useFileAttachments";
 import { useGitWatcher } from "./useGitWatcher";
 
@@ -957,10 +961,8 @@ const AgentDetail: FC = () => {
 			}
 		} catch (error) {
 			if (isApiError(error) && error.response?.status === 409) {
-				setChatErrorReason(
-					agentId,
-					getErrorMessage(error, "Your usage limit has been reached."),
-				);
+				const data = error.response.data as UsageLimitData;
+				setChatErrorReason(agentId, formatUsageLimitMessage(data));
 			}
 			throw error;
 		}
