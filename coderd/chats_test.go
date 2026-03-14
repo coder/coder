@@ -58,13 +58,6 @@ func newChatClientWithDatabase(t testing.TB) (*codersdk.Client, database.Store) 
 	})
 }
 
-type chatUsageLimitExceededResponse struct {
-	Message     string    `json:"message"`
-	SpentMicros int64     `json:"spent_micros"`
-	LimitMicros int64     `json:"limit_micros"`
-	ResetsAt    time.Time `json:"resets_at"`
-}
-
 func requireChatUsageLimitExceededResponse(
 	t *testing.T,
 	res *http.Response,
@@ -85,7 +78,7 @@ func requireChatUsageLimitExceededResponse(
 	require.NoError(t, err)
 	require.NotContains(t, raw, "detail")
 
-	var got chatUsageLimitExceededResponse
+	var got codersdk.ChatUsageLimitExceededResponse
 	err = json.Unmarshal(body, &got)
 	require.NoError(t, err)
 	require.Equal(t, "Chat usage limit exceeded.", got.Message)
@@ -118,7 +111,7 @@ func enableDailyChatUsageLimit(
 	)
 	require.NoError(t, err)
 
-	_, periodEnd := chatd.ComputePeriodBounds(time.Now(), codersdk.ChatUsageLimitPeriodDay)
+	_, periodEnd := chatd.ComputeUsagePeriodBounds(time.Now(), codersdk.ChatUsageLimitPeriodDay)
 	return periodEnd
 }
 
