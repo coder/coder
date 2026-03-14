@@ -3198,6 +3198,66 @@ class ApiMethods {
 		const response = await this.axios.get<TypesGen.ChatCostUsersResponse>(url);
 		return response.data;
 	};
+
+	getChatUsageLimitConfig =
+		async (): Promise<TypesGen.ChatUsageLimitConfigResponse> =>
+			this.axios
+				.get<TypesGen.ChatUsageLimitConfigResponse>(
+					"/api/experimental/chats/usage-limits",
+				)
+				.then((res) => res.data);
+	updateChatUsageLimitConfig = async (
+		req: TypesGen.ChatUsageLimitConfig,
+	): Promise<TypesGen.ChatUsageLimitConfigResponse> =>
+		this.axios
+			.put<TypesGen.ChatUsageLimitConfigResponse>(
+				"/api/experimental/chats/usage-limits",
+				req,
+			)
+			.then((res) => res.data);
+
+	upsertChatUsageLimitOverride = async (
+		userID: string,
+		req: TypesGen.UpsertChatUsageLimitOverrideRequest,
+	): Promise<TypesGen.ChatUsageLimitOverride> =>
+		this.axios
+			.put<TypesGen.ChatUsageLimitOverride>(
+				`/api/experimental/chats/usage-limits/overrides/${encodeURIComponent(userID)}`,
+				req,
+			)
+			.then((res) => res.data);
+
+	deleteChatUsageLimitOverride = async (userID: string): Promise<void> =>
+		this.axios
+			.delete(
+				`/api/experimental/chats/usage-limits/overrides/${encodeURIComponent(userID)}`,
+			)
+			.then((res) => res.data);
+
+	upsertChatUsageLimitGroupOverride = async (
+		groupID: string,
+		req: TypesGen.UpsertChatUsageLimitGroupOverrideRequest,
+	): Promise<TypesGen.ChatUsageLimitGroupOverride> =>
+		this.axios
+			.put<TypesGen.ChatUsageLimitGroupOverride>(
+				`/api/experimental/chats/usage-limits/group-overrides/${encodeURIComponent(groupID)}`,
+				req,
+			)
+			.then((res) => res.data);
+
+	deleteChatUsageLimitGroupOverride = async (groupID: string): Promise<void> =>
+		this.axios
+			.delete(
+				`/api/experimental/chats/usage-limits/group-overrides/${encodeURIComponent(groupID)}`,
+			)
+			.then((res) => res.data);
+
+	getChatUsageLimitStatus = async (): Promise<TypesGen.ChatUsageLimitStatus> =>
+		this.axios
+			.get<TypesGen.ChatUsageLimitStatus>(
+				"/api/experimental/chats/usage-limits/status",
+			)
+			.then((res) => res.data);
 }
 
 export type TaskFeedbackRating = "good" | "okay" | "bad";
