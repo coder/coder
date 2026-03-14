@@ -431,6 +431,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	const prState = diffStatusQuery.data?.pull_request_state;
 	const prDraft = diffStatusQuery.data?.pull_request_draft;
 	const baseBranch = diffStatusQuery.data?.base_branch;
+	const headBranch = diffStatusQuery.data?.head_branch;
 
 	// ---------------------------------------------------------------
 	// Render
@@ -441,11 +442,18 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 			{pullRequestUrl && (
 				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
 					<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
-						{baseBranch ? (
+						{baseBranch || headBranch ? (
 							<>
 								<GitBranchIcon className="size-3.5 shrink-0" />
-								<span className="truncate">{baseBranch}</span>
-								<ArrowLeftIcon className="size-3 shrink-0 opacity-50" />
+								{headBranch && <span className="truncate">{headBranch}</span>}
+								{headBranch && baseBranch && (
+									<ArrowLeftIcon className="size-3 shrink-0 opacity-50" />
+								)}
+								{baseBranch && (
+									<span className={cn("truncate", headBranch && "opacity-50")}>
+										{baseBranch}
+									</span>
+								)}
 							</>
 						) : parsedPr ? (
 							<span className="truncate">
