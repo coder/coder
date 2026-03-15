@@ -103,7 +103,7 @@ type Options struct {
 	UpdateAgentMetricsFn func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 }
 
-func New(opts Options, workspace database.Workspace) *API {
+func New(opts Options, workspace database.Workspace, agent database.WorkspaceAgent) *API {
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
@@ -119,7 +119,7 @@ func New(opts Options, workspace database.Workspace) *API {
 		ExternalAuthConfigs:      opts.ExternalAuthConfigs,
 		DisableDirectConnections: opts.DisableDirectConnections,
 		DerpForceWebSockets:      opts.DerpForceWebSockets,
-		AgentFn:                  api.agent,
+		Agent:                    agent,
 		Database:                 opts.Database,
 		DerpMapFn:                opts.DerpMapFn,
 		WorkspaceID:              opts.WorkspaceID,
@@ -156,7 +156,7 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.StatsAPI = &StatsAPI{
-		AgentFn:                   api.agent,
+		Agent:                     agent,
 		Workspace:                 api.cachedWorkspaceFields,
 		Database:                  opts.Database,
 		Log:                       opts.Log,
@@ -175,16 +175,18 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.AppsAPI = &AppsAPI{
+		Agent:                    agent,
 		AgentFn:                  api.agent,
 		Database:                 opts.Database,
 		Log:                      opts.Log,
+		Workspace:                api.cachedWorkspaceFields,
 		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
 		Clock:                    opts.Clock,
 		NotificationsEnqueuer:    opts.NotificationsEnqueuer,
 	}
 
 	api.MetadataAPI = &MetadataAPI{
-		AgentFn:   api.agent,
+		AgentID:   agent.ID,
 		Workspace: api.cachedWorkspaceFields,
 		Database:  opts.Database,
 		Log:       opts.Log,
@@ -204,7 +206,8 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.ConnLogAPI = &ConnLogAPI{
-		AgentFn:          api.agent,
+		AgentID:          agent.ID,
+		AgentName:        agent.Name,
 		ConnectionLogger: opts.ConnectionLogger,
 		Database:         opts.Database,
 		Workspace:        api.cachedWorkspaceFields,
@@ -222,8 +225,7 @@ func New(opts Options, workspace database.Workspace) *API {
 	api.SubAgentAPI = &SubAgentAPI{
 		OwnerID:        opts.OwnerID,
 		OrganizationID: opts.OrganizationID,
-		AgentID:        opts.AgentID,
-		AgentFn:        api.agent,
+		Agent:          agent,
 		Log:            opts.Log,
 		Clock:          opts.Clock,
 		Database:       opts.Database,
@@ -341,11 +343,11 @@ func (a *API) startCacheRefreshLoop(ctx context.Context) {
 	a.cachedWorkspaceFields.Clear()
 }
 
-func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+func (a *API) publishWorkspaceUpdate(ctx context.Context, agentID uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 	a.opts.PublishWorkspaceUpdateFn(ctx, a.opts.OwnerID, wspubsub.WorkspaceEvent{
 		Kind:        kind,
 		WorkspaceID: a.opts.WorkspaceID,
-		AgentID:     &agent.ID,
+		AgentID:     &agentID,
 	})
 	return nil
 }

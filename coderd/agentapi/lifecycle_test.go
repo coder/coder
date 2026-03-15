@@ -85,7 +85,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			WorkspaceID: workspaceID,
 			Database:    dbM,
 			Log:         testutil.Logger(t),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, _ uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
 			},
@@ -206,7 +206,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			Database:    dbM,
 			Log:         testutil.Logger(t),
 			Metrics:     metrics,
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, _ uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
 			},
@@ -323,7 +323,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			Database:    dbM,
 			Log:         testutil.Logger(t),
 			Metrics:     metrics,
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, _ uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 				atomic.AddInt64(&publishCalled, 1)
 				return nil
 			},
@@ -410,7 +410,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			WorkspaceID: workspaceID,
 			Database:    dbM,
 			Log:         testutil.Logger(t),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+			PublishWorkspaceUpdateFn: func(ctx context.Context, _ uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
 			},
