@@ -60,9 +60,43 @@ import (
 // @Success 200 {object} codersdk.WorkspaceAgent
 // @Router /workspaceagents/{workspaceagent} [get]
 func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
+	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
+	api.writeWorkspaceAgentResponse(rw, r, waws)
+}
+
+// @Summary Get authenticated workspace agent
+// @ID get-authenticated-workspace-agent
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Success 200 {object} codersdk.WorkspaceAgent
+// @Router /workspaceagents/me [get]
+func (api *API) workspaceAgentMe(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	agent := httpmw.WorkspaceAgent(r)
+
+	// The /me middleware only provides the agent and build, but the
+	// response also needs the workspace and owner username. Fetch them
+	// using the authenticated agent's ID.
+	//nolint:gocritic // The agent RBAC scope may not cover this cross-table query.
+	waws, err := api.Database.GetWorkspaceAgentAndWorkspaceByID(dbauthz.AsSystemRestricted(ctx), agent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	api.writeWorkspaceAgentResponse(rw, r, waws)
+}
+
+// writeWorkspaceAgentResponse fetches apps, scripts, log sources, and
+// statuses for the given agent and writes a codersdk.WorkspaceAgent
+// JSON response.
+func (api *API) writeWorkspaceAgentResponse(rw http.ResponseWriter, r *http.Request, waws database.GetWorkspaceAgentAndWorkspaceByIDRow) {
 	var (
 		ctx        = r.Context()
-		waws       = httpmw.WorkspaceAgentAndWorkspaceParam(r)
 		dbApps     []database.WorkspaceApp
 		scripts    []database.WorkspaceAgentScript
 		logSources []database.WorkspaceAgentLogSource
@@ -84,95 +118,6 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	err := eg.Wait()
-	if httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace agent.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	appIDs := []uuid.UUID{}
-	for _, app := range dbApps {
-		appIDs = append(appIDs, app.ID)
-	}
-	// nolint:gocritic // This is a system restricted operation.
-	statuses, err := api.Database.GetWorkspaceAppStatusesByAppIDs(dbauthz.AsSystemRestricted(ctx), appIDs)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace app statuses.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	apiAgent, err := db2sdk.WorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), waws.WorkspaceAgent, db2sdk.Apps(dbApps, statuses, waws.WorkspaceAgent, waws.OwnerUsername, waws.WorkspaceTable), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
-		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
-	)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error reading workspace agent.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, apiAgent)
-}
-
-// @Summary Get authenticated workspace agent
-// @ID get-authenticated-workspace-agent
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Agents
-// @Success 200 {object} codersdk.WorkspaceAgent
-// @Router /workspaceagents/me [get]
-func (api *API) workspaceAgentMe(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx   = r.Context()
-		agent = httpmw.WorkspaceAgent(r)
-	)
-
-	// The /me middleware only provides the agent and build, but the
-	// response also needs the workspace and owner username. Fetch them
-	// using the authenticated agent's ID.
-	//nolint:gocritic // The agent RBAC scope may not cover this cross-table query.
-	waws, err := api.Database.GetWorkspaceAgentAndWorkspaceByID(dbauthz.AsSystemRestricted(ctx), agent.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace agent.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	var (
-		dbApps     []database.WorkspaceApp
-		scripts    []database.WorkspaceAgentScript
-		logSources []database.WorkspaceAgentLogSource
-	)
-
-	var eg errgroup.Group
-	eg.Go(func() (err error) {
-		dbApps, err = api.Database.GetWorkspaceAppsByAgentID(ctx, agent.ID)
-		return err
-	})
-	eg.Go(func() (err error) {
-		//nolint:gocritic // TODO: can we make this not require system restricted?
-		scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{agent.ID})
-		return err
-	})
-	eg.Go(func() (err error) {
-		//nolint:gocritic // TODO: can we make this not require system restricted?
-		logSources, err = api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{agent.ID})
-		return err
-	})
-	err = eg.Wait()
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
