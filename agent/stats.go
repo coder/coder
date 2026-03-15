@@ -106,7 +106,11 @@ func (s *statsReporter) reportLoop(ctx context.Context, dest statsDest) error {
 		}
 		s.unreported = false
 		if err = s.reportLocked(ctx, dest, s.networkStats); err != nil {
-			return xerrors.Errorf("report stats: %w", err)
+			// RPC errors during stats reporting are non-fatal.
+			// Stats will be re-sent on the next callback.
+			// Returning here would tear down the entire API
+			// connection errgroup. See #22864.
+			s.logger.Warn(ctx, "failed to report stats", slog.Error(err))
 		}
 	}
 }
