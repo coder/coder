@@ -204,6 +204,31 @@ LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
 OFFSET @offset_
 ;
 
+-- name: ListAIBridgeClients :many
+SELECT
+	COALESCE(client, 'Unknown') AS client
+FROM
+	aibridge_interceptions
+WHERE
+	-- Remove inflight interceptions (ones which lack an ended_at value).
+	aibridge_interceptions.ended_at IS NOT NULL
+	-- Filter client
+	AND CASE
+		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') LIKE @client::text || '%'
+		ELSE true
+	END
+	-- We use an `@authorize_filter` as we are attempting to list clients that are relevant
+	-- to the user and what they are allowed to see.
+	-- Authorize Filter clause will be injected below in ListAIBridgeClientsAuthorized
+	-- @authorize_filter
+GROUP BY
+	COALESCE(client, 'Unknown')
+ORDER BY
+	client ASC
+LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
+OFFSET @offset_
+;
+
 -- name: ListAIBridgeTokenUsagesByInterceptionIDs :many
 SELECT
 	*
@@ -414,3 +439,4 @@ ORDER BY
 LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
 OFFSET @offset_
 ;
+
