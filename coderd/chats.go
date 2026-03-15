@@ -3879,13 +3879,13 @@ func writeChatUsageLimitUserNotFound(ctx context.Context, rw http.ResponseWriter
 }
 
 func writeChatUsageLimitOverrideNotFound(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 		Message: "Chat usage limit override not found.",
 	})
 }
 
 func writeChatUsageLimitGroupOverrideNotFound(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 		Message: "Chat usage limit group override not found.",
 	})
 }
