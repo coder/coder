@@ -575,6 +575,8 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Get chat usage limit config
+// @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -675,6 +677,8 @@ func isValidChatUsageLimitPeriod(period codersdk.ChatUsageLimitPeriod) bool {
 	}
 }
 
+// @Summary Update chat usage limit config
+// @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) updateChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -751,7 +755,14 @@ func (api *API) updateChatUsageLimitConfig(rw http.ResponseWriter, r *http.Reque
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
+// @Summary Get my chat usage limit status
+// @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// getMyChatUsageLimitStatus returns the current usage-limit status for the
+// authenticated user. No additional RBAC check is required because the
+// endpoint always operates on the requesting user's own data via
+// httpmw.APIKey(r).UserID.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getMyChatUsageLimitStatus(rw http.ResponseWriter, r *http.Request) {
@@ -772,6 +783,8 @@ func (api *API) getMyChatUsageLimitStatus(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, status)
 }
 
+// @Summary Upsert chat usage limit override
+// @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -836,6 +849,8 @@ func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 	})
 }
 
+// @Summary Delete chat usage limit override
+// @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) deleteChatUsageLimitOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -884,6 +899,8 @@ func (api *API) deleteChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Upsert chat usage limit group override
+// @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -909,7 +926,8 @@ func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 
 	if req.SpendLimitMicros <= 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Spend limit must be a positive value.",
+			Message: "Invalid chat usage limit group override.",
+			Detail:  "Spend limit must be greater than 0.",
 		})
 		return
 	}
@@ -976,6 +994,8 @@ func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 	})
 }
 
+// @Summary Delete chat usage limit group override
+// @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) deleteChatUsageLimitGroupOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3859,13 +3879,13 @@ func writeChatUsageLimitUserNotFound(ctx context.Context, rw http.ResponseWriter
 }
 
 func writeChatUsageLimitOverrideNotFound(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+	httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 		Message: "Chat usage limit override not found.",
 	})
 }
 
 func writeChatUsageLimitGroupOverrideNotFound(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+	httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 		Message: "Chat usage limit group override not found.",
 	})
 }

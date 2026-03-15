@@ -2024,6 +2024,9 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			} else if status == database.ChatStatusWaiting {
 				// Try to auto-promote the next queued message.
 				queuedMessages, queueErr := tx.GetChatQueuedMessages(cleanupCtx, chat.ID)
+				if queueErr != nil {
+					logger.Error(cleanupCtx, "failed to fetch queued messages for auto-promotion", slog.Error(queueErr))
+				}
 				if queueErr == nil && len(queuedMessages) > 0 {
 					nextQueued := queuedMessages[0]
 					// Queued messages were already admitted through SendMessage,

@@ -702,7 +702,7 @@ OFFSET
     sqlc.arg('page_offset')::int;
 
 -- name: GetChatUsageLimitConfig :one
-SELECT * FROM chat_usage_limit_config LIMIT 1;
+SELECT * FROM chat_usage_limit_config WHERE singleton = TRUE LIMIT 1;
 
 -- name: UpsertChatUsageLimitConfig :one
 INSERT INTO chat_usage_limit_config (singleton, enabled, default_limit_micros, period, updated_at)

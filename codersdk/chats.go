@@ -820,18 +820,22 @@ const (
 
 // ChatUsageLimitConfig is the deployment-wide default usage limit config.
 type ChatUsageLimitConfig struct {
-	SpendLimitMicros *int64               `json:"spend_limit_micros"` // nil = unlimited
+	// Nil in the API means no default limit is set. The DB stores 0 when
+	// limiting is disabled.
+	SpendLimitMicros *int64               `json:"spend_limit_micros"`
 	Period           ChatUsageLimitPeriod `json:"period"`
 	UpdatedAt        time.Time            `json:"updated_at" format:"date-time"`
 }
 
 // ChatUsageLimitOverride is a per-user override of the deployment default.
 type ChatUsageLimitOverride struct {
-	UserID           uuid.UUID `json:"user_id" format:"uuid"`
-	Username         string    `json:"username"`
-	Name             string    `json:"name"`
-	AvatarURL        string    `json:"avatar_url"`
-	SpendLimitMicros *int64    `json:"spend_limit_micros"` // nil = unlimited
+	UserID    uuid.UUID `json:"user_id" format:"uuid"`
+	Username  string    `json:"username"`
+	Name      string    `json:"name"`
+	AvatarURL string    `json:"avatar_url"`
+	// Nil in the API means no user override is set. Persisted override rows
+	// store positive values.
+	SpendLimitMicros *int64    `json:"spend_limit_micros"`
 	CreatedAt        time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
 }
@@ -843,7 +847,9 @@ type ChatUsageLimitGroupOverride struct {
 	GroupDisplayName string    `json:"group_display_name"`
 	GroupAvatarURL   string    `json:"group_avatar_url"`
 	MemberCount      int64     `json:"member_count"`
-	SpendLimitMicros *int64    `json:"spend_limit_micros"` // nil = unlimited
+	// Nil in the API means no group override is set. Persisted override rows
+	// store positive values.
+	SpendLimitMicros *int64    `json:"spend_limit_micros"`
 	CreatedAt        time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
 }
@@ -1536,9 +1542,6 @@ func (c *Client) UpsertChatUsageLimitOverride(ctx context.Context, userID uuid.U
 		return ChatUsageLimitOverride{}, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode == http.StatusNoContent {
-		return ChatUsageLimitOverride{}, nil
-	}
 	if res.StatusCode != http.StatusOK {
 		return ChatUsageLimitOverride{}, ReadBodyAsError(res)
 	}

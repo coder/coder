@@ -1788,7 +1788,11 @@ export interface ChatSystemPromptResponse {
  * ChatUsageLimitConfig is the deployment-wide default usage limit config.
  */
 export interface ChatUsageLimitConfig {
-	readonly spend_limit_micros: number | null; // nil = unlimited
+	/**
+	 * Nil in the API means no default limit is set. The DB stores 0 when
+	 * limiting is disabled.
+	 */
+	readonly spend_limit_micros: number | null;
 	readonly period: ChatUsageLimitPeriod;
 	readonly updated_at: string;
 }
@@ -1828,7 +1832,11 @@ export interface ChatUsageLimitGroupOverride {
 	readonly group_display_name: string;
 	readonly group_avatar_url: string;
 	readonly member_count: number;
-	readonly spend_limit_micros: number | null; // nil = unlimited
+	/**
+	 * Nil in the API means no group override is set. Persisted override rows
+	 * store positive values.
+	 */
+	readonly spend_limit_micros: number | null;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
@@ -1842,7 +1850,11 @@ export interface ChatUsageLimitOverride {
 	readonly username: string;
 	readonly name: string;
 	readonly avatar_url: string;
-	readonly spend_limit_micros: number | null; // nil = unlimited
+	/**
+	 * Nil in the API means no user override is set. Persisted override rows
+	 * store positive values.
+	 */
+	readonly spend_limit_micros: number | null;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
