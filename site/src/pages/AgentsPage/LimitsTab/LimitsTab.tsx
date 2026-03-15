@@ -24,6 +24,7 @@ import { DefaultLimitSection } from "./DefaultLimitSection";
 import { GroupLimitsSection } from "./GroupLimitsSection";
 import {
 	dollarsToMicros,
+	isPositiveFiniteDollarAmount,
 	microsToDollars,
 	normalizeChatUsageLimitPeriod,
 } from "./limitsFormLogic";
@@ -126,13 +127,12 @@ export const LimitsTab: FC = () => {
 			? "All groups already have overrides"
 			: "No groups available";
 
-	const isAmountValid =
-		!enabled ||
-		(amountDollars.trim() !== "" &&
-			!Number.isNaN(Number(amountDollars)) &&
-			Number(amountDollars) > 0);
+	const isAmountValid = !enabled || isPositiveFiniteDollarAmount(amountDollars);
 
 	const handleSaveDefault = async () => {
+		if (enabled && !isPositiveFiniteDollarAmount(amountDollars)) {
+			return;
+		}
 		const spendLimitMicros = enabled ? dollarsToMicros(amountDollars) : null;
 		try {
 			await updateConfigMutation.mutateAsync({

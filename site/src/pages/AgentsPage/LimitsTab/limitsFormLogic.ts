@@ -6,6 +6,11 @@ export const microsToDollars = (micros: number): number =>
 export const dollarsToMicros = (dollars: string): number =>
 	Math.round(Number(dollars) * 1_000_000);
 
+export const isPositiveFiniteDollarAmount = (dollars: string): boolean => {
+	const parsed = Number(dollars);
+	return dollars.trim() !== "" && Number.isFinite(parsed) && parsed > 0;
+};
+
 export const normalizeChatUsageLimitPeriod = (
 	period: string | null | undefined,
 ): ChatUsageLimitPeriod => {
