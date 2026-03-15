@@ -2,7 +2,7 @@
  * Shape of structured usage-limit fields added to 409 responses
  * from chat endpoints.
  */
-export interface UsageLimitData {
+interface UsageLimitData {
 	spent_micros?: number;
 	limit_micros?: number;
 	resets_at?: string; // RFC3339

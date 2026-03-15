@@ -16,6 +16,12 @@ describe("limitsFormLogic", () => {
 		it("converts dollars to micros", () => {
 			expect(dollarsToMicros("12.34")).toBe(12_340_000);
 		});
+
+		it("returns zero for non-finite or empty inputs", () => {
+			expect(dollarsToMicros("NaN")).toBe(0);
+			expect(dollarsToMicros("Infinity")).toBe(0);
+			expect(dollarsToMicros("")).toBe(0);
+		});
 	});
 
 	describe("isPositiveFiniteDollarAmount", () => {
@@ -24,11 +30,12 @@ describe("limitsFormLogic", () => {
 			expect(isPositiveFiniteDollarAmount("1e2")).toBe(true);
 		});
 
-		it("rejects blank, non-positive, NaN, and non-finite amounts", () => {
+		it("rejects blank, non-positive, NaN, non-finite, and sub-microcent amounts", () => {
 			expect(isPositiveFiniteDollarAmount("")).toBe(false);
 			expect(isPositiveFiniteDollarAmount("0")).toBe(false);
 			expect(isPositiveFiniteDollarAmount("-1")).toBe(false);
 			expect(isPositiveFiniteDollarAmount("abc")).toBe(false);
+			expect(isPositiveFiniteDollarAmount("1e-10")).toBe(false);
 			expect(isPositiveFiniteDollarAmount("1e309")).toBe(false);
 		});
 	});

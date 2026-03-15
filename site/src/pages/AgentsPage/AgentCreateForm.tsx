@@ -33,11 +33,7 @@ import {
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
-import {
-	formatUsageLimitMessage,
-	isUsageLimitData,
-	type UsageLimitData,
-} from "./usageLimitMessage";
+import { formatUsageLimitMessage, isUsageLimitData } from "./usageLimitMessage";
 import { useFileAttachments } from "./useFileAttachments";
 
 /** @internal Exported for testing. */
@@ -333,18 +329,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		[attachments, handleSend, resetAttachments, uploadStates],
 	);
 
-	const usageLimitErrorData: UsageLimitData =
-		isApiError(createError) && createError.response?.status === 409
-			? isUsageLimitData(createError.response.data)
-				? createError.response.data
-				: {}
-			: {};
-
 	return (
 		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
 				{createError ? (
-					isApiError(createError) && createError.response?.status === 409 ? (
+					isApiError(createError) &&
+					createError.response?.status === 409 &&
+					isUsageLimitData(createError.response.data) ? (
 						<Alert
 							severity="info"
 							className="py-2"
@@ -356,7 +347,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 								)
 							}
 						>
-							{formatUsageLimitMessage(usageLimitErrorData)}
+							{formatUsageLimitMessage(createError.response.data)}
 						</Alert>
 					) : (
 						<ErrorAlert error={createError} />
