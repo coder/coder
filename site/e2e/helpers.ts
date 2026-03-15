@@ -126,6 +126,11 @@ export const createWorkspace = async (
 	});
 	await expectUrl(page).toHavePathName(`/templates/${templatePath}/workspace`);
 
+	// Dynamic imports can fail with ERR_NETWORK_CHANGED during
+	// parallel test execution. Reload the page if the error
+	// boundary appears instead of the form.
+	await reloadPageIfDynamicImportFailed(page, "form");
+
 	const name = randomName();
 	await page.getByLabel("name").fill(name);
 
@@ -814,6 +819,37 @@ export const randomName = (annotation?: string) => {
 	const base = randomUUID().slice(0, 8);
 	return annotation ? `${annotation}-${base}` : base;
 };
+
+/**
+ * Reload the page if a dynamic import failed (e.g. due to
+ * ERR_NETWORK_CHANGED). When React Router catches a failed chunk
+ * load it renders the GlobalErrorBoundary with the heading
+ * "Something went wrong". Detecting that and reloading is enough
+ * to recover.
+ */
+async function reloadPageIfDynamicImportFailed(
+	page: Page,
+	expectedSelector: string,
+) {
+	const errorHeading = page.getByRole("heading", {
+		name: "Something went wrong",
+	});
+	// Race the expected content against the error boundary. Suppress
+	// the timeout rejection from whichever side loses.
+	const result = await Promise.race([
+		page
+			.waitForSelector(expectedSelector, { timeout: 10_000 })
+			.then(() => "ok" as const)
+			.catch(() => "timeout" as const),
+		errorHeading
+			.waitFor({ state: "visible", timeout: 10_000 })
+			.then(() => "error" as const)
+			.catch(() => "timeout" as const),
+	]);
+	if (result === "error") {
+		await page.reload({ waitUntil: "domcontentloaded" });
+	}
+}
 
 /**
  * Awaiter is a helper that allows you to wait for a callback to be called. It
