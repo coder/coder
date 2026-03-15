@@ -3557,14 +3557,14 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		}
 	})
 
-	t.Run("UsageLimitExceeded", func(t *testing.T) {
+	t.Run("PromotesAlreadyQueuedMessageAfterLimitReached", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		user := coderdtest.CreateFirstUser(t, client)
 		modelConfig := createChatModelConfig(t, client)
-		wantResetsAt := enableDailyChatUsageLimit(ctx, t, db, 100)
+		enableDailyChatUsageLimit(ctx, t, db, 100)
 
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OwnerID:           user.UserID,
@@ -3573,8 +3573,9 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		const queuedText = "queued message for promote route"
 		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("queued message for promote route"),
+			codersdk.ChatMessageText(queuedText),
 		})
 		require.NoError(t, err)
 		queuedMessage, err := db.InsertChatQueuedMessage(
@@ -3605,7 +3606,30 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			nil,
 		)
 		require.NoError(t, err)
-		requireChatUsageLimitExceededResponse(t, promoteRes, 100, 100, wantResetsAt)
+		defer promoteRes.Body.Close()
+		require.Equal(t, http.StatusOK, promoteRes.StatusCode)
+
+		var promoted codersdk.ChatMessage
+		err = json.NewDecoder(promoteRes.Body).Decode(&promoted)
+		require.NoError(t, err)
+		require.NotZero(t, promoted.ID)
+		require.Equal(t, chat.ID, promoted.ChatID)
+		require.Equal(t, codersdk.ChatMessageRoleUser, promoted.Role)
+
+		foundPromotedText := false
+		for _, part := range promoted.Content {
+			if part.Type == codersdk.ChatMessagePartTypeText && part.Text == queuedText {
+				foundPromotedText = true
+				break
+			}
+		}
+		require.True(t, foundPromotedText)
+
+		queuedMessages, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		for _, queued := range queuedMessages {
+			require.NotEqual(t, queuedMessage.ID, queued.ID)
+		}
 	})
 
 	t.Run("InvalidQueuedMessageID", func(t *testing.T) {
