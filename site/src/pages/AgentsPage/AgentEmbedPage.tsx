@@ -1,16 +1,22 @@
 import { getErrorMessage } from "api/errors";
-import { bootstrapChatEmbedSession } from "api/queries/users";
 import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { ProxyProvider } from "contexts/ProxyContext";
 import { DashboardProvider } from "modules/dashboard/DashboardProvider";
 import { permissionChecks } from "modules/permissions";
-import { type FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Outlet, useParams } from "react-router";
 import type { AgentsOutletContext } from "./AgentsPage";
-import { EmbedProvider } from "./EmbedContext";
+import { bootstrapChatEmbedSession, EmbedProvider } from "./EmbedContext";
 
 type BootstrapMessage = {
 	type: "coder:vscode-auth-bootstrap";
@@ -92,29 +98,12 @@ const AgentEmbedPage: FC = () => {
 		});
 	}, []);
 
-	const requestArchiveAgent = useCallback((chatId: string) => {
-		if (!chatId) {
-			throw new Error("requestArchiveAgent requires a chatId.");
-		}
-	}, []);
+	const requestArchiveAgent = useCallback((_chatId: string) => {}, []);
 
-	const requestUnarchiveAgent = useCallback((chatId: string) => {
-		if (!chatId) {
-			throw new Error("requestUnarchiveAgent requires a chatId.");
-		}
-	}, []);
+	const requestUnarchiveAgent = useCallback((_chatId: string) => {}, []);
 
 	const requestArchiveAndDeleteWorkspace = useCallback(
-		(chatId: string, workspaceId: string) => {
-			if (!chatId) {
-				throw new Error("requestArchiveAndDeleteWorkspace requires a chatId.");
-			}
-			if (!workspaceId) {
-				throw new Error(
-					"requestArchiveAndDeleteWorkspace requires a workspaceId.",
-				);
-			}
-		},
+		(_chatId: string, _workspaceId: string) => {},
 		[],
 	);
 
@@ -243,9 +232,7 @@ const AgentEmbedPage: FC = () => {
 		<div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface-primary px-6 text-center">
 			<Loader label="Waiting for VS Code authentication" />
 			<p className="max-w-md text-sm text-content-secondary">
-				{auth.isLoading
-					? "Loading…"
-					: "Waiting for VS Code authentication…"}
+				{auth.isLoading ? "Loading…" : "Waiting for VS Code authentication…"}
 			</p>
 		</div>
 	);
