@@ -17,9 +17,8 @@ import {
 import { Check } from "lucide-react";
 import { getGroupSubtitle } from "modules/groups";
 import { type FC, useId } from "react";
-import { formatCostMicros } from "utils/analytics";
+import { formatCostMicros, isPositiveFiniteDollarAmount } from "utils/currency";
 import { SectionHeader } from "../SectionHeader";
-import { isPositiveFiniteDollarAmount } from "./limitsFormLogic";
 
 interface GroupLimitsSectionProps {
 	groupOverrides: ReadonlyArray<{

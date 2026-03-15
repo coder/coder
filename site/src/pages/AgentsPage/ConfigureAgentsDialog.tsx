@@ -57,8 +57,9 @@ import {
 	useQueryClient,
 } from "react-query";
 import TextareaAutosize from "react-textarea-autosize";
-import { formatCostMicros, formatTokenCount } from "utils/analytics";
+import { formatTokenCount } from "utils/analytics";
 import { cn } from "utils/cn";
+import { formatCostMicros } from "utils/currency";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { LimitsTab } from "./LimitsTab";

@@ -41,6 +41,26 @@ describe("formatUsageLimitMessage", () => {
 		expect(result).toContain("$0.00");
 	});
 
+	it("formats high-value amounts with locale grouping", () => {
+		const result = formatUsageLimitMessage({
+			spent_micros: 1_234_560_000,
+			limit_micros: 5_000_000_000,
+			resets_at: "2026-03-16T00:00:00Z",
+		});
+		expect(result).toContain("$1,234.56");
+		expect(result).toContain("$5,000.00");
+	});
+
+	it("formats sub-cent values with four decimal places", () => {
+		const result = formatUsageLimitMessage({
+			spent_micros: 500,
+			limit_micros: 1_000,
+			resets_at: "2026-03-16T00:00:00Z",
+		});
+		expect(result).toContain("$0.0005");
+		expect(result).toContain("$0.0010");
+	});
+
 	it("handles invalid resets_at gracefully", () => {
 		const result = formatUsageLimitMessage({
 			spent_micros: 900_000,

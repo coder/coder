@@ -13,7 +13,8 @@ import {
 import dayjs from "dayjs";
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
-import { formatCostMicros, formatTokenCount } from "utils/analytics";
+import { formatTokenCount } from "utils/analytics";
+import { formatCostMicros } from "utils/currency";
 
 interface ChatCostSummaryViewProps {
 	summary: TypesGen.ChatCostSummary | undefined;

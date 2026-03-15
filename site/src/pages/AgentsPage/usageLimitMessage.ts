@@ -1,3 +1,5 @@
+import { formatCostMicros } from "utils/currency";
+
 /**
  * Shape of structured usage-limit fields added to 409 responses
  * from chat endpoints.
@@ -17,18 +19,6 @@ export type ChatDetailError = {
 	message: string;
 	kind: "generic" | "usage-limit";
 };
-
-/**
- * Convert micros (1/1,000,000 USD) to a formatted USD string.
- * Examples: 900000 → "$0.90", 50000 → "$0.05", 1500000 → "$1.50"
- */
-function formatUSD(micros: number): string {
-	const dollars = micros / 1_000_000;
-	return dollars.toLocaleString("en-US", {
-		style: "currency",
-		currency: "USD",
-	});
-}
 
 /**
  * Format a resets_at RFC3339 timestamp into a user-friendly string.
@@ -87,8 +77,8 @@ export function formatUsageLimitMessage(
 		return fallback;
 	}
 
-	const spent = formatUSD(spent_micros);
-	const limit = formatUSD(limit_micros);
+	const spent = formatCostMicros(spent_micros);
+	const limit = formatCostMicros(limit_micros);
 	const resetDate = formatResetDate(resets_at);
 
 	if (!resetDate) {

@@ -20,14 +20,14 @@ import {
 import { ShieldIcon } from "lucide-react";
 import { type FC, type ReactNode, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { DefaultLimitSection } from "./DefaultLimitSection";
-import { GroupLimitsSection } from "./GroupLimitsSection";
 import {
 	dollarsToMicros,
 	isPositiveFiniteDollarAmount,
 	microsToDollars,
-	normalizeChatUsageLimitPeriod,
-} from "./limitsFormLogic";
+} from "utils/currency";
+import { DefaultLimitSection } from "./DefaultLimitSection";
+import { GroupLimitsSection } from "./GroupLimitsSection";
+import { normalizeChatUsageLimitPeriod } from "./limitsFormLogic";
 import { UserOverridesSection } from "./UserOverridesSection";
 
 const sectionPanelClassName = "space-y-4 rounded-lg border border-border p-4";

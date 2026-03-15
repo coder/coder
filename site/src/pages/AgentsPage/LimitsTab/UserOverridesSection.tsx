@@ -15,9 +15,8 @@ import {
 } from "components/Table/Table";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FC, useId } from "react";
-import { formatCostMicros } from "utils/analytics";
+import { formatCostMicros, isPositiveFiniteDollarAmount } from "utils/currency";
 import { SectionHeader } from "../SectionHeader";
-import { isPositiveFiniteDollarAmount } from "./limitsFormLogic";
 
 interface UserOverridesSectionProps {
 	overrides: ReadonlyArray<{
