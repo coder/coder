@@ -465,8 +465,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 					</div>{" "}
 					<div className="ml-auto flex shrink-0 items-center gap-1.5">
 						<PullRequestStateBadge state={prState} draft={prDraft} />
-						{diffStatus?.additions ||
-						diffStatus?.deletions ? (
+						{diffStatus?.additions || diffStatus?.deletions ? (
 							<DiffStatBadge
 								additions={diffStatus.additions}
 								deletions={diffStatus.deletions}

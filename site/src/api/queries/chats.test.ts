@@ -106,10 +106,11 @@ describe("invalidateChatListQueries", () => {
 			pages: [[makeChat(chatId)]],
 			pageParams: [0],
 		});
-			// Per-chat queries that should NOT be touched.
-			queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
-			queryClient.setQueryData(chatMessagesKey(chatId), []);
-			queryClient.setQueryData(chatDiffContentsKey(chatId), {});		queryClient.setQueryData(
+		// Per-chat queries that should NOT be touched.
+		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
+		queryClient.setQueryData(chatMessagesKey(chatId), []);
+		queryClient.setQueryData(chatDiffContentsKey(chatId), {});
+		queryClient.setQueryData(
 			chatCostSummaryKey("me", undefined),
 			{} as TypesGen.ChatCostSummary,
 		);
@@ -132,11 +133,12 @@ describe("invalidateChatListQueries", () => {
 			queryClient.getQueryState(chatKey(chatId))?.isInvalidated,
 			"chatKey should NOT be invalidated",
 		).not.toBe(true);
-			expect(
-				queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
-				"chatMessagesKey should NOT be invalidated",
-			).not.toBe(true);
-			expect(			queryClient.getQueryState(chatDiffContentsKey(chatId))?.isInvalidated,
+		expect(
+			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
+			"chatMessagesKey should NOT be invalidated",
+		).not.toBe(true);
+		expect(
+			queryClient.getQueryState(chatDiffContentsKey(chatId))?.isInvalidated,
 			"chatDiffContentsKey should NOT be invalidated",
 		).not.toBe(true);
 		expect(
@@ -472,9 +474,9 @@ describe("mutation invalidation scope", () => {
 		queryClient.setQueryData(chatsKey, [makeChat(chatId)]);
 		// Individual chat: ["chats", chatId]
 		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
-			// Messages: ["chats", chatId, "messages"]
-			queryClient.setQueryData(chatMessagesKey(chatId), []);
-			// Diff contents: ["chats", chatId, "diff-contents"]		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
+		// Messages: ["chats", chatId, "messages"]
+		queryClient.setQueryData(chatMessagesKey(chatId), []);
+		// Diff contents: ["chats", chatId, "diff-contents"]		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
 		// Cost summary: ["chats", "costSummary", "me", undefined]
 		queryClient.setQueryData(
 			chatCostSummaryKey("me", undefined),
