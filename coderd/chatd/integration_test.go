@@ -92,7 +92,7 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 	// Verify the chat completed and messages were persisted.
 	chatData, err := client.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	chatMsgs, err := client.GetChatMessages(ctx, chat.ID)
+	chatMsgs, err := client.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	t.Logf("Chat status after step 1: %s, messages: %d",
 		chatData.Status, len(chatMsgs.Messages))
@@ -154,7 +154,7 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 	// Verify the follow-up completed and produced content.
 	chatData2, err := client.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	chatMsgs2, err := client.GetChatMessages(ctx, chat.ID)
+	chatMsgs2, err := client.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	t.Logf("Chat status after step 2: %s, messages: %d",
 		chatData2.Status, len(chatMsgs2.Messages))

@@ -40,6 +40,23 @@ WHERE
 ORDER BY
     created_at ASC;
 
+-- name: GetChatMessagesByChatIDPaginated :many
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND CASE
+        WHEN @before_id::bigint > 0 THEN id < @before_id::bigint
+        ELSE true
+    END
+    AND visibility IN ('user', 'both')
+ORDER BY
+    id DESC
+LIMIT
+    COALESCE(NULLIF(@limit_val::int, 0), 50);
+
 -- name: GetChatMessagesForPromptByChatID :many
 WITH latest_compressed_summary AS (
     SELECT

@@ -2532,6 +2532,10 @@ func (q *querier) GetChatMessagesByChatID(ctx context.Context, arg database.GetC
 	return q.db.GetChatMessagesByChatID(ctx, arg)
 }
 
+func (q *querier) GetChatMessagesByChatIDPaginated(ctx context.Context, arg database.GetChatMessagesByChatIDPaginatedParams) ([]database.ChatMessage, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
 	// Authorize read on the parent chat.
 	_, err := q.GetChatByID(ctx, chatID)
