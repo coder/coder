@@ -623,7 +623,7 @@ describe("useChatStore", () => {
 		});
 	});
 
-	it("ignores message_part updates while chat is pending", async () => {
+	it("applies message_part updates while chat is pending", async () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-1";
@@ -683,6 +683,7 @@ describe("useChatStore", () => {
 			]);
 		});
 
+		// Transitioning to "pending" clears stream state.
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
@@ -695,6 +696,9 @@ describe("useChatStore", () => {
 			expect(result.current.streamState).toBeNull();
 		});
 
+		// Parts arriving during "pending" are now applied
+		// (Bug A fix: removed "pending" guard from
+		// shouldApplyMessagePart).
 		act(() => {
 			mockSocket.emitData({
 				type: "message_part",
@@ -710,10 +714,11 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			expect(result.current.streamState).toBeNull();
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "late" },
+			]);
 		});
 	});
-
 	it("does not restore stale queued messages after a stream queue_update", async () => {
 		const chatID = "chat-1";
 		const existingMessage = makeMessage(chatID, 1, "user", "hello");

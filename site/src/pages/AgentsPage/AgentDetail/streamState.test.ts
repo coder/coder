@@ -301,3 +301,76 @@ describe("buildStreamTools", () => {
 		expect(tools[0].status).toBe("completed");
 	});
 });
+
+// ---------------------------------------------------------------------------
+// Bug F: Stream state isolation between steps
+//
+// When a durable "message" event arrives, the orchestration layer
+// (ChatContext.ts) calls clearStreamState() synchronously. This
+// ensures tool calls from the previous step do not persist into
+// the next one. The reducer itself (applyMessagePartToStreamState)
+// is a pure accumulator and has no clearing logic.
+// ---------------------------------------------------------------------------
+
+describe("Bug F: stream state isolation between steps", () => {
+	it("accumulates tool calls from consecutive steps without clearing", () => {
+		// applyMessagePartToStreamState is a pure reducer. It
+		// accumulates all tool calls it receives. Isolation between
+		// steps is the responsibility of the orchestration layer
+		// (calling clearStreamState between steps).
+		let state: StreamState | null = null;
+
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "execute",
+			tool_call_id: "tc-1",
+			args: { command: "ls" },
+		});
+
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "readFile",
+			tool_call_id: "tc-2",
+			args: { path: "/tmp/file.txt" },
+		});
+
+		const tools = buildStreamTools(state);
+		expect(tools).toHaveLength(2);
+		expect(tools).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ id: "tc-1", name: "execute" }),
+				expect.objectContaining({ id: "tc-2", name: "readFile" }),
+			]),
+		);
+	});
+
+	it("clearing between steps isolates tool calls", () => {
+		let state: StreamState | null = null;
+
+		// Step N: tool call arrives.
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "execute",
+			tool_call_id: "tc-1",
+			args: { command: "ls" },
+		});
+		expect(buildStreamTools(state)).toHaveLength(1);
+
+		// Orchestration layer clears state between steps.
+		state = null;
+
+		// Step N+1: different tool call on fresh state.
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "readFile",
+			tool_call_id: "tc-2",
+			args: { path: "/tmp/file.txt" },
+		});
+
+		const tools = buildStreamTools(state);
+		expect(tools).toHaveLength(1);
+		expect(tools[0]).toEqual(
+			expect.objectContaining({ id: "tc-2", name: "readFile" }),
+		);
+	});
+});
