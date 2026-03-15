@@ -422,8 +422,10 @@ const AgentsPage: FC = () => {
 						prependToInfiniteChatsCache(queryClient, updatedChat);
 					} else {
 						updateInfiniteChatsCache(queryClient, (chats) => {
-							return chats.map((c) => {
+							let didUpdate = false;
+							const nextChats = chats.map((c) => {
 								if (c.id !== updatedChat.id) return c;
+								didUpdate = true;
 								return {
 									...c,
 									...(isStatusEvent && { status: updatedChat.status }),
@@ -437,6 +439,7 @@ const AgentsPage: FC = () => {
 											: updatedChat.updated_at,
 								};
 							});
+							return didUpdate ? nextChats : chats;
 						});
 					}
 					queryClient.setQueryData<TypesGen.Chat | undefined>(
