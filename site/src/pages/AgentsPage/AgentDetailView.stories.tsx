@@ -1,10 +1,11 @@
 import { MockUserOwner } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { ChatDiffStatus } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { fn } from "storybook/test";
+import { fn, spyOn } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { createChatStore } from "./AgentDetail/ChatContext";
 import {
@@ -206,6 +207,21 @@ export const WithSidebarPanel: Story = {
 			deletions: 7,
 			changed_files: 5,
 		} satisfies ChatDiffStatus,
+	},
+	beforeEach: () => {
+		spyOn(API, "getChatDiffContents").mockResolvedValue({
+			chat_id: AGENT_ID,
+			diff: `diff --git a/src/main.ts b/src/main.ts
+index abc1234..def5678 100644
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -1,3 +1,5 @@
+ import { start } from "./server";
++import { logger } from "./logger";
+ const port = 3000;
++logger.info("Starting server...");
+ start(port);`,
+		});
 	},
 };
 
