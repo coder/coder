@@ -219,12 +219,7 @@ export const verifyParameters = async (
 					case "number":
 						{
 							const parameterField = parameterLabel.locator("input").first();
-							// Dynamic parameters can hydrate after initial render with
-							// stale or empty values. Retry with a longer timeout to
-							// allow the page to settle.
-							await expect(parameterField).toHaveValue(buildParameter.value, {
-								timeout: 15_000,
-							});
+							await expect(parameterField).toHaveValue(buildParameter.value);
 						}
 						break;
 					default:
@@ -1059,22 +1054,7 @@ const fillParameters = async (
 			case "number":
 				{
 					const parameterField = parameterLabel.locator("input");
-					// Dynamic parameters can hydrate after initial render and
-					// overwrite an early fill. Re-apply until the desired value
-					// is stable.
-					for (let attempt = 0; attempt < 3; attempt++) {
-						await parameterField.fill(buildParameter.value);
-						try {
-							await expect(parameterField).toHaveValue(buildParameter.value, {
-								timeout: 1000,
-							});
-							break;
-						} catch (error) {
-							if (attempt === 2) {
-								throw error;
-							}
-						}
-					}
+					await parameterField.fill(buildParameter.value);
 				}
 				break;
 			default:

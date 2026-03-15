@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 type UseSyncFormParametersProps = {
 	parameters: readonly PreviewParameter[];
 	formValues: readonly TypesGen.WorkspaceBuildParameter[];
+	touched: Record<string, unknown>;
 	setFieldValue: (
 		field: string,
 		value: TypesGen.WorkspaceBuildParameter[],
@@ -14,19 +15,26 @@ type UseSyncFormParametersProps = {
 export function useSyncFormParameters({
 	parameters,
 	formValues,
+	touched,
 	setFieldValue,
 }: UseSyncFormParametersProps) {
 	// Form values only needs to be updated when parameters change
 	// Keep track of form values in a ref to avoid unnecessary updates to rich_parameter_values
 	const formValuesRef = useRef(formValues);
+	const touchedRef = useRef(touched);
 
 	useEffect(() => {
 		formValuesRef.current = formValues;
 	}, [formValues]);
 
 	useEffect(() => {
+		touchedRef.current = touched;
+	}, [touched]);
+
+	useEffect(() => {
 		if (!parameters) return;
 		const currentFormValues = formValuesRef.current;
+		const currentTouched = touchedRef.current;
 		const currentFormValuesMap = new Map(
 			currentFormValues.map((value) => [value.name, value.value]),
 		);
@@ -45,9 +53,24 @@ export function useSyncFormParameters({
 				}
 			}
 
+			const serverValue = param.value.value;
+			const existingValue = currentFormValuesMap.get(param.name);
+
+			// If the user has edited this field and the server hasn't
+			// echoed back the user's value yet, preserve the local
+			// value. This prevents stale WS responses from clobbering
+			// user input that hasn't round-tripped yet.
+			if (
+				currentTouched[param.name] &&
+				existingValue !== undefined &&
+				existingValue !== serverValue
+			) {
+				return { name: param.name, value: existingValue };
+			}
+
 			return {
 				name: param.name,
-				value: param.value.valid ? param.value.value : "",
+				value: serverValue,
 			};
 		});
 
