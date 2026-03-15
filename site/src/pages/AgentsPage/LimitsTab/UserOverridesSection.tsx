@@ -14,7 +14,7 @@ import {
 	TableRow,
 } from "components/Table/Table";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import type { FC } from "react";
+import { type FC, useId } from "react";
 import { formatCostMicros } from "utils/analytics";
 import { SectionHeader } from "../SectionHeader";
 import { isPositiveFiniteDollarAmount } from "./limitsFormLogic";
@@ -59,141 +59,147 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 	upsertError,
 	deletePending,
 	deleteError,
-}) => (
-	<section className="space-y-4">
-		<SectionHeader
-			label="Per-User Overrides"
-			description="Override the deployment default spend limit for specific users."
-		/>
+}) => {
+	const userOverrideAmountId = useId();
 
-		<div className={panelClassName}>
-			{overrides.length > 0 ? (
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>User</TableHead>
-							<TableHead>Spend Limit</TableHead>
-							<TableHead className="w-[80px]">Actions</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{overrides.map((override) => (
-							<TableRow key={override.user_id}>
-								<TableCell>
-									<AvatarData
-										title={override.name || override.username}
-										subtitle={`@${override.username}`}
-										src={override.avatar_url}
-										imgFallbackText={override.username}
-									/>
-								</TableCell>
-								<TableCell>
-									{override.spend_limit_micros !== null
-										? formatCostMicros(override.spend_limit_micros)
-										: "Unlimited"}
-								</TableCell>
-								<TableCell>
-									<Button
-										variant="outline"
-										size="sm"
-										type="button"
-										onClick={() => void onDeleteOverride(override.user_id)}
-										disabled={deletePending}
-									>
-										Delete
-									</Button>
-								</TableCell>
+	return (
+		<section className="space-y-4">
+			<SectionHeader
+				label="Per-User Overrides"
+				description="Override the deployment default spend limit for specific users."
+			/>
+
+			<div className={panelClassName}>
+				{overrides.length > 0 ? (
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead>User</TableHead>
+								<TableHead>Spend Limit</TableHead>
+								<TableHead className="w-[80px]">Actions</TableHead>
 							</TableRow>
-						))}
-					</TableBody>
-				</Table>
-			) : (
-				<div className="rounded-lg border border-border bg-surface-secondary px-4 py-6 text-center text-sm text-content-secondary">
-					No overrides configured.
-				</div>
-			)}
+						</TableHeader>
+						<TableBody>
+							{overrides.map((override) => (
+								<TableRow key={override.user_id}>
+									<TableCell>
+										<AvatarData
+											title={override.name || override.username}
+											subtitle={`@${override.username}`}
+											src={override.avatar_url}
+											imgFallbackText={override.username}
+										/>
+									</TableCell>
+									<TableCell>
+										{override.spend_limit_micros !== null
+											? formatCostMicros(override.spend_limit_micros)
+											: "Unlimited"}
+									</TableCell>
+									<TableCell>
+										<Button
+											variant="outline"
+											size="sm"
+											type="button"
+											onClick={() => void onDeleteOverride(override.user_id)}
+											disabled={deletePending}
+										>
+											Delete
+										</Button>
+									</TableCell>
+								</TableRow>
+							))}
+						</TableBody>
+					</Table>
+				) : (
+					<div className="rounded-lg border border-border bg-surface-secondary px-4 py-6 text-center text-sm text-content-secondary">
+						No overrides configured.
+					</div>
+				)}
 
-			{deleteError && (
-				<p className="text-xs text-content-destructive">
-					{getErrorMessage(deleteError, "Failed to delete override.")}
-				</p>
-			)}
+				{deleteError && (
+					<p className="text-xs text-content-destructive">
+						{getErrorMessage(deleteError, "Failed to delete override.")}
+					</p>
+				)}
 
-			{!showUserForm ? (
-				<Button
-					variant="outline"
-					size="sm"
-					type="button"
-					onClick={() => onShowUserFormChange(true)}
-				>
-					Add User
-				</Button>
-			) : (
-				<div className="space-y-3 rounded-lg border border-border bg-surface-secondary/40 p-4">
-					<div className="flex flex-col gap-3 md:flex-row md:items-end">
-						<div className="flex-1">
-							<UserAutocomplete
-								value={selectedUser}
-								onChange={onSelectedUserChange}
-								label="User"
-							/>
-						</div>
-						<div className="flex-1 space-y-1">
-							<Label htmlFor="user-override-amount">Spend Limit ($)</Label>
-							<Input
-								id="user-override-amount"
-								type="number"
-								step="0.01"
-								min="0"
-								className="h-9 min-w-0 text-[13px]"
-								value={userOverrideAmount}
-								onChange={(event) =>
-									onUserOverrideAmountChange(event.target.value)
-								}
-								placeholder="0.00"
-							/>
-						</div>
-						<div className="flex gap-2 md:pb-0.5">
-							<Button
-								size="sm"
-								type="button"
-								onClick={() => void onAddOverride()}
-								disabled={
-									upsertPending ||
-									!selectedUser ||
-									selectedUserAlreadyOverridden ||
-									!isPositiveFiniteDollarAmount(userOverrideAmount)
-								}
-							>
-								{upsertPending ? <Spinner loading className="h-4 w-4" /> : null}
-								Add
-							</Button>
-							<Button
-								variant="outline"
-								size="sm"
-								type="button"
-								onClick={() => {
-									onShowUserFormChange(false);
-									onSelectedUserChange(null);
-									onUserOverrideAmountChange("");
-								}}
-							>
-								Cancel
-							</Button>
+				{!showUserForm ? (
+					<Button
+						variant="outline"
+						size="sm"
+						type="button"
+						onClick={() => onShowUserFormChange(true)}
+					>
+						Add User
+					</Button>
+				) : (
+					<div className="space-y-3 rounded-lg border border-border bg-surface-secondary/40 p-4">
+						<div className="flex flex-col gap-3 md:flex-row md:items-end">
+							<div className="flex-1">
+								<UserAutocomplete
+									value={selectedUser}
+									onChange={onSelectedUserChange}
+									label="User"
+								/>
+							</div>
+							<div className="flex-1 space-y-1">
+								<Label htmlFor={userOverrideAmountId}>Spend Limit ($)</Label>
+								<Input
+									id={userOverrideAmountId}
+									type="number"
+									step="0.01"
+									min="0"
+									className="h-9 min-w-0 text-[13px]"
+									value={userOverrideAmount}
+									onChange={(event) =>
+										onUserOverrideAmountChange(event.target.value)
+									}
+									placeholder="0.00"
+								/>
+							</div>
+							<div className="flex gap-2 md:pb-0.5">
+								<Button
+									size="sm"
+									type="button"
+									onClick={() => void onAddOverride()}
+									disabled={
+										upsertPending ||
+										!selectedUser ||
+										selectedUserAlreadyOverridden ||
+										!isPositiveFiniteDollarAmount(userOverrideAmount)
+									}
+								>
+									{upsertPending ? (
+										<Spinner loading className="h-4 w-4" />
+									) : null}
+									Add
+								</Button>
+								<Button
+									variant="outline"
+									size="sm"
+									type="button"
+									onClick={() => {
+										onShowUserFormChange(false);
+										onSelectedUserChange(null);
+										onUserOverrideAmountChange("");
+									}}
+								>
+									Cancel
+								</Button>
+							</div>
 						</div>
 					</div>
-				</div>
-			)}
-			{selectedUserAlreadyOverridden && (
-				<p className="text-xs text-content-warning">
-					This user already has an override.
-				</p>
-			)}
-			{upsertError && (
-				<p className="text-xs text-content-destructive">
-					{getErrorMessage(upsertError, "Failed to save the override.")}
-				</p>
-			)}
-		</div>
-	</section>
-);
+				)}
+				{selectedUserAlreadyOverridden && (
+					<p className="text-xs text-content-warning">
+						This user already has an override.
+					</p>
+				)}
+				{upsertError && (
+					<p className="text-xs text-content-destructive">
+						{getErrorMessage(upsertError, "Failed to save the override.")}
+					</p>
+				)}
+			</div>
+		</section>
+	);
+};
