@@ -1346,7 +1346,7 @@ CREATE TABLE chat_usage_limit_group_overrides (
     limit_micros bigint DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chat_usage_limit_group_overrides_limit_micros_check CHECK ((limit_micros >= 0))
+    CONSTRAINT chat_usage_limit_group_overrides_limit_micros_check CHECK ((limit_micros > 0))
 );
 
 CREATE SEQUENCE chat_usage_limit_group_overrides_id_seq
@@ -1364,7 +1364,7 @@ CREATE TABLE chat_usage_limit_overrides (
     limit_micros bigint DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chat_usage_limit_overrides_limit_micros_check CHECK ((limit_micros >= 0))
+    CONSTRAINT chat_usage_limit_overrides_limit_micros_check CHECK ((limit_micros > 0))
 );
 
 CREATE SEQUENCE chat_usage_limit_overrides_id_seq
@@ -3649,6 +3649,8 @@ CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_i
 CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, created_at DESC, id DESC) WHERE ((compressed = true) AND (role = 'system'::chat_message_role) AND (visibility = ANY (ARRAY['model'::chat_message_visibility, 'both'::chat_message_visibility])));
 
 CREATE INDEX idx_chat_messages_created_at ON chat_messages USING btree (created_at);
+
+CREATE INDEX idx_chat_messages_owner_spend ON chat_messages USING btree (chat_id, created_at) WHERE (total_cost_micros IS NOT NULL);
 
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
 

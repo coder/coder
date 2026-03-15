@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,6 +36,8 @@ func ComputeUsagePeriodBounds(now time.Time, period codersdk.ChatUsageLimitPerio
 	case codersdk.ChatUsageLimitPeriodMonth:
 		start = time.Date(utcNow.Year(), utcNow.Month(), 1, 0, 0, 0, 0, time.UTC)
 		end = start.AddDate(0, 1, 0)
+	default:
+		panic(fmt.Sprintf("unknown chat usage limit period: %q", period))
 	}
 
 	return start, end
