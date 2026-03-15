@@ -402,6 +402,7 @@ const AgentsPage: FC = () => {
 							queryClient.invalidateQueries({
 								queryKey: chatDiffContentsKey(updatedChat.id),
 							}),
+							invalidateChatListQueries(queryClient),
 						]);
 					}
 					// Scope field updates by event kind so that
