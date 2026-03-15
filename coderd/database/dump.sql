@@ -1326,6 +1326,7 @@ CREATE TABLE chat_usage_limit_config (
     period text DEFAULT 'month'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_usage_limit_config_default_limit_micros_check CHECK ((default_limit_micros >= 0)),
     CONSTRAINT chat_usage_limit_config_period_check CHECK ((period = ANY (ARRAY['day'::text, 'week'::text, 'month'::text]))),
     CONSTRAINT chat_usage_limit_config_singleton_check CHECK (singleton)
 );
@@ -1344,7 +1345,8 @@ CREATE TABLE chat_usage_limit_group_overrides (
     group_id uuid NOT NULL,
     limit_micros bigint DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_usage_limit_group_overrides_limit_micros_check CHECK ((limit_micros >= 0))
 );
 
 CREATE SEQUENCE chat_usage_limit_group_overrides_id_seq
@@ -1361,7 +1363,8 @@ CREATE TABLE chat_usage_limit_overrides (
     user_id uuid NOT NULL,
     limit_micros bigint DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_usage_limit_overrides_limit_micros_check CHECK ((limit_micros >= 0))
 );
 
 CREATE SEQUENCE chat_usage_limit_overrides_id_seq

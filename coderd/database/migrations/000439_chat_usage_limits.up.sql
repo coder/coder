@@ -6,7 +6,8 @@ CREATE TABLE chat_usage_limit_config (
     UNIQUE (singleton),
     enabled         BOOLEAN     NOT NULL DEFAULT FALSE,
     -- Limit per user per period, in micro-dollars (1 USD = 1,000,000).
-    default_limit_micros BIGINT NOT NULL DEFAULT 0,
+    default_limit_micros BIGINT NOT NULL DEFAULT 0
+                         CHECK (default_limit_micros >= 0),
     -- Period length: 'day', 'week', or 'month'.
     period          TEXT        NOT NULL DEFAULT 'month'
                     CHECK (period IN ('day', 'week', 'month')),
@@ -21,7 +22,8 @@ INSERT INTO chat_usage_limit_config (singleton) VALUES (TRUE);
 CREATE TABLE chat_usage_limit_overrides (
     id              BIGSERIAL   PRIMARY KEY,
     user_id         UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    limit_micros    BIGINT      NOT NULL DEFAULT 0,
+    limit_micros    BIGINT      NOT NULL DEFAULT 0
+                    CHECK (limit_micros >= 0),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (user_id)
@@ -31,7 +33,8 @@ CREATE TABLE chat_usage_limit_overrides (
 CREATE TABLE chat_usage_limit_group_overrides (
     id              BIGSERIAL   PRIMARY KEY,
     group_id        UUID        NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-    limit_micros    BIGINT      NOT NULL DEFAULT 0,
+    limit_micros    BIGINT      NOT NULL DEFAULT 0
+                    CHECK (limit_micros >= 0),
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (group_id)
