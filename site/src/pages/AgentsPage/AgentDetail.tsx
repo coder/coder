@@ -878,6 +878,11 @@ const AgentDetail: FC = () => {
 					kind: "usage-limit",
 					message: formatUsageLimitMessage(error.response.data),
 				});
+			} else if (isApiError(error)) {
+				setChatErrorReason(agentId, {
+					kind: "generic",
+					message: error.message || "An unexpected error occurred.",
+				});
 			}
 		},
 		[agentId, setChatErrorReason],

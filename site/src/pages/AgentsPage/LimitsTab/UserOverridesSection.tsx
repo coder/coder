@@ -66,7 +66,7 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 		<section className="space-y-4">
 			<SectionHeader
 				label="Per-User Overrides"
-				description="Override the deployment default spend limit for specific users."
+				description="Override the deployment default spend limit for specific users. User overrides take highest priority, followed by group limits, then the deployment default."
 			/>
 
 			<div className={panelClassName}>

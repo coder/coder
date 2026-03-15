@@ -173,6 +173,12 @@ export const LimitsTab: FC = () => {
 			? "All groups already have overrides"
 			: "No groups available";
 
+	const resetUpdateConfigMutation = () => {
+		if (!updateConfigMutation.isPending) {
+			updateConfigMutation.reset();
+		}
+	};
+
 	const handleSaveDefault = async ({
 		enabled,
 		period,
@@ -302,11 +308,20 @@ export const LimitsTab: FC = () => {
 								<DefaultLimitSection
 									adminBadge={<AdminBadge />}
 									enabled={enabled}
-									onEnabledChange={onEnabledChange}
+									onEnabledChange={(nextEnabled) => {
+										resetUpdateConfigMutation();
+										onEnabledChange(nextEnabled);
+									}}
 									period={period}
-									onPeriodChange={onPeriodChange}
+									onPeriodChange={(nextPeriod) => {
+										resetUpdateConfigMutation();
+										onPeriodChange(nextPeriod);
+									}}
 									amountDollars={amountDollars}
-									onAmountDollarsChange={onAmountDollarsChange}
+									onAmountDollarsChange={(nextAmountDollars) => {
+										resetUpdateConfigMutation();
+										onAmountDollarsChange(nextAmountDollars);
+									}}
 									unpricedModelCount={unpricedModelCount}
 									panelClassName={sectionPanelClassName}
 								/>

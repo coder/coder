@@ -531,7 +531,10 @@ export const chatCostUsers = (params?: ChatCostUsersParams) => ({
 	staleTime: 60_000,
 });
 
-export const chatUsageLimitConfigKey = ["chatUsageLimitConfig"] as const;
+export const chatUsageLimitConfigKey = [
+	...chatsKey,
+	"usageLimitConfig",
+] as const;
 
 export const chatUsageLimitConfig = () => ({
 	queryKey: chatUsageLimitConfigKey,

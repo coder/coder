@@ -57,7 +57,11 @@ export const DefaultLimitSection: FC<DefaultLimitSectionProps> = ({
 							When disabled, users have unlimited spending.
 						</p>
 					</div>
-					<Switch checked={enabled} onCheckedChange={onEnabledChange} />
+					<Switch
+						checked={enabled}
+						onCheckedChange={onEnabledChange}
+						aria-label="Enable spend limit"
+					/>
 				</div>
 
 				{enabled && (

@@ -76,7 +76,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 		<section className="space-y-4">
 			<SectionHeader
 				label="Group Limits"
-				description="Override the default limit for specific groups."
+				description="Override the default limit for specific groups. When a user belongs to multiple groups, the lowest group limit applies."
 			/>
 
 			<div className={panelClassName}>
