@@ -670,7 +670,7 @@ func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
 	require.Len(t, afterChats, len(beforeChats))
 }
 
-func TestPromoteQueuedRejectsWhenUsageLimitReached(t *testing.T) {
+func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -746,29 +746,29 @@ func TestPromoteQueuedRejectsWhenUsageLimitReached(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+	result, err := replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chat.ID,
 		QueuedMessageID: queuedResult.QueuedMessage.ID,
 		CreatedBy:       user.ID,
 	})
-	require.Error(t, err)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatMessageRoleUser, result.PromotedMessage.Role)
 
-	var limitErr *chatd.UsageLimitExceededError
-	require.ErrorAs(t, err, &limitErr)
-	require.Equal(t, int64(100), limitErr.LimitMicros)
-	require.Equal(t, int64(100), limitErr.ConsumedMicros)
+	chat, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusPending, chat.Status)
 
 	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Len(t, queued, 1)
-	require.Equal(t, queuedResult.QueuedMessage.ID, queued[0].ID)
+	require.Empty(t, queued)
 
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
 		AfterID: 0,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 2)
+	require.Len(t, messages, 3)
+	require.Equal(t, database.ChatMessageRoleUser, messages[2].Role)
 }
 
 func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {

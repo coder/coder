@@ -794,10 +794,6 @@ func (p *Server) PromoteQueued(
 		if !found {
 			return xerrors.New("queued message not found")
 		}
-		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID); limitErr != nil {
-			return limitErr
-		}
-
 		err = tx.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
 			ID:     opts.QueuedMessageID,
 			ChatID: opts.ChatID,
