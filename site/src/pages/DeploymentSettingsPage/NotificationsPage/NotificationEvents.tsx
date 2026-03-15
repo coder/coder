@@ -36,6 +36,7 @@ type NotificationEventsProps = {
 	availableMethods: NotificationMethod[];
 	templatesByGroup: ReturnType<typeof selectTemplatesByGroup>;
 	deploymentConfig: DeploymentValues;
+	canEdit?: boolean;
 };
 
 export const NotificationEvents: FC<NotificationEventsProps> = ({
@@ -43,6 +44,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 	availableMethods,
 	templatesByGroup,
 	deploymentConfig,
+	canEdit = true,
 }) => {
 	// Webhook
 	const hasWebhookNotifications = Object.values(templatesByGroup)
@@ -132,6 +134,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 											templateId={tpl.id}
 											options={availableMethods}
 											value={value}
+											canEdit={canEdit}
 										/>
 									</ListItem>
 									{!isLastItem && <Divider />}
@@ -156,12 +159,14 @@ type MethodToggleGroupProps = {
 	templateId: string;
 	options: NotificationMethod[];
 	value: NotificationMethod;
+	canEdit: boolean;
 };
 
 const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
 	value,
 	options,
 	templateId,
+	canEdit,
 }) => {
 	const queryClient = useQueryClient();
 	const updateMethodMutation = useMutation(
@@ -173,9 +178,13 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
 			exclusive
 			value={value}
 			size="small"
+			disabled={!canEdit}
 			aria-label="Notification method"
 			css={styles.toggleGroup}
 			onChange={async (_, method) => {
+				if (!method) {
+					return;
+				}
 				try {
 					await updateMethodMutation.mutateAsync({
 						method,
@@ -200,6 +209,7 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
 							<ToggleButton
 								value={method}
 								css={styles.toggleButton}
+								disabled={!canEdit}
 								onClick={(e) => {
 									// Retain the value if the user clicks the same button, ensuring
 									// at least one value remains selected.
