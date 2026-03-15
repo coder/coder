@@ -1,4 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import {
 	ConversationItem,
 	Message,
@@ -8,6 +9,7 @@ import {
 	Tool,
 } from "components/ai-elements";
 import { WebSearchSources } from "components/ai-elements/tool";
+import { Button } from "components/Button/Button";
 import { FileIcon } from "components/FileIcon/FileIcon";
 import { Spinner } from "components/Spinner/Spinner";
 import { ChevronDownIcon } from "lucide-react";
@@ -24,6 +26,7 @@ import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { ImageThumbnail } from "../AgentChatInput";
 import { ImageLightbox } from "../ImageLightbox";
+import type { ChatDetailError } from "../usageLimitMessage";
 import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
@@ -866,7 +869,8 @@ interface ConversationTimelineProps {
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	retryState?: { attempt: number; error: string } | null;
 	isAwaitingFirstStreamChunk: boolean;
-	detailErrorMessage?: string | null;
+	detailError?: ChatDetailError | null;
+	onOpenAnalytics?: () => void;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -889,7 +893,8 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	subagentStatusOverrides,
 	retryState,
 	isAwaitingFirstStreamChunk,
-	detailErrorMessage,
+	detailError,
+	onOpenAnalytics,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
@@ -897,6 +902,8 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 }) => {
 	const shouldRenderStreamInLastSection =
 		hasStreamOutput && parsedSections.length > 0;
+	const isUsageLimitError = detailError?.kind === "usage-limit";
+	const showUsageAction = onOpenAnalytics !== undefined && isUsageLimitError;
 
 	return (
 		<div className="mx-auto w-full max-w-3xl py-6">
@@ -972,10 +979,20 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 					)}
 				</div>
 			)}
-			{detailErrorMessage && (
-				<div className="mt-4 rounded-md border border-border-destructive bg-surface-red px-3 py-2 text-xs text-content-destructive">
-					{detailErrorMessage}
-				</div>
+			{detailError && (
+				<Alert
+					severity={isUsageLimitError ? "info" : "error"}
+					className="py-2"
+					actions={
+						showUsageAction && (
+							<Button variant="subtle" size="sm" onClick={onOpenAnalytics}>
+								View Usage
+							</Button>
+						)
+					}
+				>
+					{detailError.message}
+				</Alert>
 			)}
 		</div>
 	);

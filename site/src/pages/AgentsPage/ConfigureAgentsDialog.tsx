@@ -44,6 +44,7 @@ import {
 	BarChart3Icon,
 	BoxesIcon,
 	KeyRoundIcon,
+	ShieldAlertIcon,
 	ShieldIcon,
 	UserIcon,
 	XIcon,
@@ -60,11 +61,13 @@ import { formatCostMicros, formatTokenCount } from "utils/analytics";
 import { cn } from "utils/cn";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
+import { LimitsTab } from "./LimitsTab";
 import { SectionHeader } from "./SectionHeader";
 
 export type ConfigureAgentsSection =
 	| "providers"
 	| "models"
+	| "limits"
 	| "behavior"
 	| "usage";
 
@@ -438,6 +441,12 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 				adminOnly: true,
 			});
 			options.push({
+				id: "limits",
+				label: "Limits",
+				icon: ShieldAlertIcon,
+				adminOnly: true,
+			});
+			options.push({
 				id: "usage",
 				label: "Usage",
 				icon: BarChart3Icon,
@@ -513,9 +522,9 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 					})}
 				</nav>
 
-				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+				<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 					{activeSection === "behavior" && (
-						<>
+						<div className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 							<SectionHeader
 								label="Behavior"
 								description="Custom instructions that shape how the agent responds in your chats."
@@ -616,26 +625,35 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 									</form>
 								</>
 							)}
-						</>
+						</div>
 					)}
 					{activeSection === "providers" && canManageChatModelConfigs && (
-						<ChatModelAdminPanel
-							section="providers"
-							sectionLabel="Providers"
-							sectionDescription="Connect third-party LLM services like OpenAI, Anthropic, or Google. Each provider supplies models that users can select for their chats."
-							sectionBadge={<AdminBadge />}
-						/>
+						<div className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+							<ChatModelAdminPanel
+								section="providers"
+								sectionLabel="Providers"
+								sectionDescription="Connect third-party LLM services like OpenAI, Anthropic, or Google. Each provider supplies models that users can select for their chats."
+								sectionBadge={<AdminBadge />}
+							/>
+						</div>
 					)}
 					{activeSection === "models" && canManageChatModelConfigs && (
-						<ChatModelAdminPanel
-							section="models"
-							sectionLabel="Models"
-							sectionDescription="Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
-							sectionBadge={<AdminBadge />}
-						/>
+						<div className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+							<ChatModelAdminPanel
+								section="models"
+								sectionLabel="Models"
+								sectionDescription="Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
+								sectionBadge={<AdminBadge />}
+							/>
+						</div>
+					)}
+					{activeSection === "limits" && canManageChatModelConfigs && (
+						<LimitsTab />
 					)}
 					{activeSection === "usage" && canManageChatModelConfigs && (
-						<UsageContent />
+						<div className="flex-1 overflow-y-auto px-6 py-5 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+							<UsageContent />
+						</div>
 					)}
 				</div>
 			</DialogContent>

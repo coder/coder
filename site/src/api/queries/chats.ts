@@ -425,3 +425,76 @@ export const chatCostUsers = (params?: ChatCostUsersParams) => ({
 	queryFn: () => API.getChatCostUsers(params),
 	staleTime: 60_000,
 });
+
+export const chatUsageLimitConfigKey = ["chatUsageLimitConfig"] as const;
+
+export const chatUsageLimitConfig = () => ({
+	queryKey: chatUsageLimitConfigKey,
+	queryFn: () => API.getChatUsageLimitConfig(),
+});
+
+export const updateChatUsageLimitConfig = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.ChatUsageLimitConfig) =>
+		API.updateChatUsageLimitConfig(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});
+
+type UpsertChatUsageLimitOverrideMutationArgs = {
+	userID: string;
+	req: TypesGen.UpsertChatUsageLimitOverrideRequest;
+};
+
+export const upsertChatUsageLimitOverride = (queryClient: QueryClient) => ({
+	mutationFn: ({ userID, req }: UpsertChatUsageLimitOverrideMutationArgs) =>
+		API.upsertChatUsageLimitOverride(userID, req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});
+
+export const deleteChatUsageLimitOverride = (queryClient: QueryClient) => ({
+	mutationFn: (userID: string) => API.deleteChatUsageLimitOverride(userID),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});
+
+type UpsertChatUsageLimitGroupOverrideMutationArgs = {
+	groupID: string;
+	req: TypesGen.UpsertChatUsageLimitGroupOverrideRequest;
+};
+
+export const upsertChatUsageLimitGroupOverride = (
+	queryClient: QueryClient,
+) => ({
+	mutationFn: ({
+		groupID,
+		req,
+	}: UpsertChatUsageLimitGroupOverrideMutationArgs) =>
+		API.upsertChatUsageLimitGroupOverride(groupID, req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});
+
+export const deleteChatUsageLimitGroupOverride = (
+	queryClient: QueryClient,
+) => ({
+	mutationFn: (groupID: string) =>
+		API.deleteChatUsageLimitGroupOverride(groupID),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});

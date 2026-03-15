@@ -1,4 +1,5 @@
 import { API, watchWorkspace } from "api/api";
+import { isApiError } from "api/errors";
 import {
 	chat,
 	chatDiffStatus,
@@ -81,6 +82,11 @@ import {
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
+import {
+	type ChatDetailError,
+	formatUsageLimitMessage,
+	isUsageLimitData,
+} from "./usageLimitMessage";
 import { useFileAttachments } from "./useFileAttachments";
 import { useGitWatcher } from "./useGitWatcher";
 
@@ -101,7 +107,8 @@ const isChatMessage = (
 interface AgentDetailTimelineProps {
 	store: ChatStoreHandle;
 	chatID: string;
-	persistedErrorReason: string | undefined;
+	persistedErrorReason: ChatDetailError | undefined;
+	onOpenAnalytics?: () => void;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -116,6 +123,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	store,
 	chatID,
 	persistedErrorReason,
+	onOpenAnalytics,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
@@ -160,8 +168,13 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 		() => buildParsedMessageSections(parsedMessages),
 		[parsedMessages],
 	);
-	const detailErrorMessage =
-		(chatStatus === "error" ? persistedErrorReason : undefined) || streamError;
+	const detailError: ChatDetailError | undefined =
+		(persistedErrorReason?.kind === "usage-limit" || chatStatus === "error"
+			? persistedErrorReason
+			: undefined) ??
+		(streamError
+			? { kind: "generic" as const, message: streamError }
+			: undefined);
 	const latestMessage = messages[messages.length - 1];
 	const latestMessageNeedsAssistantResponse =
 		!latestMessage || latestMessage.role !== "assistant";
@@ -184,7 +197,8 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 			subagentStatusOverrides={subagentStatusOverrides}
 			retryState={retryState}
 			isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-			detailErrorMessage={detailErrorMessage}
+			detailError={detailError}
+			onOpenAnalytics={onOpenAnalytics}
 			onEditUserMessage={onEditUserMessage}
 			editingMessageId={editingMessageId}
 			savingMessageId={savingMessageId}
@@ -573,6 +587,7 @@ const AgentDetail: FC = () => {
 		requestArchiveAgent,
 		requestArchiveAndDeleteWorkspace,
 		requestUnarchiveAgent,
+		onOpenAnalytics,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 	} = outletContext;
@@ -825,6 +840,25 @@ const AgentDetail: FC = () => {
 		interruptMutation.isPending;
 	const isInputDisabled = !hasModelOptions || isArchived;
 
+	const handleUsageLimitError = useCallback(
+		(error: unknown): void => {
+			if (!agentId) {
+				return;
+			}
+			if (
+				isApiError(error) &&
+				error.response?.status === 409 &&
+				isUsageLimitData(error.response.data)
+			) {
+				setChatErrorReason(agentId, {
+					kind: "usage-limit",
+					message: formatUsageLimitMessage(error.response.data),
+				});
+			}
+		},
+		[agentId, setChatErrorReason],
+	);
+
 	const handleSend = async (
 		message: string,
 		fileIds?: string[],
@@ -890,6 +924,9 @@ const AgentDetail: FC = () => {
 					messageId: editedMessageID,
 					req: request,
 				});
+			} catch (error) {
+				handleUsageLimitError(error);
+				throw error;
 			} finally {
 				setPendingEditMessageId(null);
 			}
@@ -913,22 +950,27 @@ const AgentDetail: FC = () => {
 		// timeline when the server confirms via the POST response or
 		// via the SSE stream.
 		store.clearStreamState();
-		const response = await sendMutation.mutateAsync(request);
-		// When the server accepts the message immediately (not
-		// queued), insert it into the store so it appears in the
-		// timeline without waiting for the SSE stream.
-		if (!response.queued && response.message) {
-			store.upsertDurableMessage(response.message);
-		}
-		if (typeof window !== "undefined") {
-			if (selectedModelConfigID) {
-				localStorage.setItem(
-					lastModelConfigIDStorageKey,
-					selectedModelConfigID,
-				);
-			} else {
-				localStorage.removeItem(lastModelConfigIDStorageKey);
+		try {
+			const response = await sendMutation.mutateAsync(request);
+			// When the server accepts the message immediately (not
+			// queued), insert it into the store so it appears in the
+			// timeline without waiting for the SSE stream.
+			if (!response.queued && response.message) {
+				store.upsertDurableMessage(response.message);
 			}
+			if (typeof window !== "undefined") {
+				if (selectedModelConfigID) {
+					localStorage.setItem(
+						lastModelConfigIDStorageKey,
+						selectedModelConfigID,
+					);
+				} else {
+					localStorage.removeItem(lastModelConfigIDStorageKey);
+				}
+			}
+		} catch (error) {
+			handleUsageLimitError(error);
+			throw error;
 		}
 	};
 
@@ -964,6 +1006,9 @@ const AgentDetail: FC = () => {
 				previousQueuedMessages.filter((message) => message.id !== id),
 			);
 			store.clearStreamState();
+			if (agentId) {
+				clearChatErrorReason(agentId);
+			}
 			store.clearStreamError();
 			store.setChatStatus("pending");
 			try {
@@ -971,10 +1016,17 @@ const AgentDetail: FC = () => {
 			} catch (error) {
 				store.setQueuedMessages(previousQueuedMessages);
 				store.setChatStatus(previousChatStatus);
+				handleUsageLimitError(error);
 				throw error;
 			}
 		},
-		[promoteQueuedMutation, store],
+		[
+			agentId,
+			clearChatErrorReason,
+			handleUsageLimitError,
+			promoteQueuedMutation,
+			store,
+		],
 	);
 
 	const editing = useConversationEditingState({
@@ -1132,6 +1184,7 @@ const AgentDetail: FC = () => {
 			isInterruptPending={interruptMutation.isPending}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+			onOpenAnalytics={onOpenAnalytics}
 			showSidebarPanel={showSidebarPanel}
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}

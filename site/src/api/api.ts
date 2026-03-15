@@ -3213,6 +3213,71 @@ class ApiMethods {
 		const response = await this.axios.get<TypesGen.ChatCostUsersResponse>(url);
 		return response.data;
 	};
+
+	getChatUsageLimitConfig =
+		async (): Promise<TypesGen.ChatUsageLimitConfigResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatUsageLimitConfigResponse>(
+					"/api/experimental/chats/usage-limits",
+				);
+			return response.data;
+		};
+
+	updateChatUsageLimitConfig = async (
+		req: TypesGen.ChatUsageLimitConfig,
+	): Promise<TypesGen.ChatUsageLimitConfig> => {
+		const response = await this.axios.put<TypesGen.ChatUsageLimitConfig>(
+			"/api/experimental/chats/usage-limits",
+			req,
+		);
+		return response.data;
+	};
+
+	upsertChatUsageLimitOverride = async (
+		userID: string,
+		req: TypesGen.UpsertChatUsageLimitOverrideRequest,
+	): Promise<TypesGen.ChatUsageLimitOverride> => {
+		const response = await this.axios.put<TypesGen.ChatUsageLimitOverride>(
+			`/api/experimental/chats/usage-limits/overrides/${encodeURIComponent(userID)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatUsageLimitOverride = async (userID: string): Promise<void> => {
+		const response = await this.axios.delete(
+			`/api/experimental/chats/usage-limits/overrides/${encodeURIComponent(userID)}`,
+		);
+		return response.data;
+	};
+
+	upsertChatUsageLimitGroupOverride = async (
+		groupID: string,
+		req: TypesGen.UpsertChatUsageLimitGroupOverrideRequest,
+	): Promise<TypesGen.ChatUsageLimitGroupOverride> => {
+		const response = await this.axios.put<TypesGen.ChatUsageLimitGroupOverride>(
+			`/api/experimental/chats/usage-limits/group-overrides/${encodeURIComponent(groupID)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatUsageLimitGroupOverride = async (
+		groupID: string,
+	): Promise<void> => {
+		const response = await this.axios.delete(
+			`/api/experimental/chats/usage-limits/group-overrides/${encodeURIComponent(groupID)}`,
+		);
+		return response.data;
+	};
+
+	getChatUsageLimitStatus =
+		async (): Promise<TypesGen.ChatUsageLimitStatus> => {
+			const response = await this.axios.get<TypesGen.ChatUsageLimitStatus>(
+				"/api/experimental/chats/usage-limits/status",
+			);
+			return response.data;
+		};
 }
 
 export type TaskFeedbackRating = "good" | "okay" | "bad";
