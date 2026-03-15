@@ -169,7 +169,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 		[parsedMessages],
 	);
 	const detailError: ChatDetailError | undefined =
-		persistedErrorReason ??
+		(chatStatus === "error" ? persistedErrorReason : undefined) ??
 		(streamError
 			? { kind: "generic" as const, message: streamError }
 			: undefined);
