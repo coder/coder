@@ -150,11 +150,6 @@ export const chat = (chatId: string) => ({
 	queryFn: () => API.getChat(chatId),
 });
 
-export const chatMessages = (chatId: string) => ({
-	queryKey: chatMessagesKey(chatId),
-	queryFn: () => API.getChatMessages(chatId),
-});
-
 const MESSAGES_PAGE_SIZE = 50;
 
 export const chatMessagesInfinite = (chatId: string) => ({

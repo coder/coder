@@ -2533,7 +2533,11 @@ func (q *querier) GetChatMessagesByChatID(ctx context.Context, arg database.GetC
 }
 
 func (q *querier) GetChatMessagesByChatIDPaginated(ctx context.Context, arg database.GetChatMessagesByChatIDPaginatedParams) ([]database.ChatMessage, error) {
-	panic("not implemented")
+	_, err := q.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatMessagesByChatIDPaginated(ctx, arg)
 }
 
 func (q *querier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {

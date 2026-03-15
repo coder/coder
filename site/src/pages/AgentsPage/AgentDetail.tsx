@@ -1186,7 +1186,7 @@ const AgentDetail: FC = () => {
 			scrollContainerRef={scrollContainerRef}
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
-			onFetchMoreMessages={() => chatMessagesQuery.fetchNextPage()}
+			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
 			desktopChatId={agentId}
 		/>
 	);
