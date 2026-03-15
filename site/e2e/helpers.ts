@@ -42,6 +42,50 @@ import {
 } from "./provisionerGenerated";
 
 /**
+ * safeGoto wraps page.goto() with recovery for transient chunk load
+ * failures caused by Chromium's ERR_NETWORK_CHANGED on Linux CI.
+ *
+ * When a network interface changes (Docker bridge, IPv6 SLAAC, etc.),
+ * Chromium aborts in-flight requests. If this hits a lazy route's chunk
+ * import, React Router renders GlobalErrorBoundary ("Something went
+ * wrong") instead of the target page. A single reload recovers.
+ *
+ * Detection races two waitFor checks on the error heading: "visible"
+ * vs "hidden". When the heading is absent from the DOM (the common
+ * case), the "hidden" check wins immediately, so the fast path adds
+ * near-zero latency. When the error boundary rendered, the "visible"
+ * check wins immediately and we reload once.
+ */
+async function safeGoto(
+	page: Page,
+	url: string,
+	options?: Parameters<Page["goto"]>[1],
+) {
+	const response = await page.goto(url, options);
+
+	const errorHeading = page.getByRole("heading", {
+		name: "Something went wrong",
+	});
+
+	const hitBoundary = await Promise.race([
+		errorHeading.waitFor({ state: "visible", timeout: 5000 }).then(
+			() => true,
+			() => false,
+		),
+		errorHeading.waitFor({ state: "hidden", timeout: 5000 }).then(
+			() => false,
+			() => false,
+		),
+	]);
+
+	if (hitBoundary) {
+		await page.reload({ waitUntil: "domcontentloaded" });
+	}
+
+	return response;
+}
+
+/**
  * requiresLicense will skip the test if we're not running with a license added
  */
 export function requiresLicense() {
@@ -74,10 +118,37 @@ export async function login(page: Page, options: LoginOptions = users.owner) {
 	// biome-ignore lint/suspicious/noExplicitAny: reset the current user
 	(ctx as any)[Symbol.for("currentUser")] = undefined;
 	await ctx.clearCookies();
-	await page.goto("/login");
+	await safeGoto(page, "/login");
 	await page.getByLabel("Email").fill(options.email);
 	await page.getByLabel("Password").fill(options.password);
 	await page.getByRole("button", { name: "Sign In" }).click();
+
+	// The sign-in POST itself can be aborted by ERR_NETWORK_CHANGED.
+	// Race between a successful redirect and an error alert on the
+	// login page. In the happy path the redirect wins immediately.
+	const signInOk = await Promise.race([
+		page
+			.waitForURL((url) => url.pathname === "/workspaces", { timeout: 15000 })
+			.then(
+				() => true,
+				() => false,
+			),
+		page
+			.getByRole("alert")
+			.waitFor({ state: "visible", timeout: 15000 })
+			.then(
+				() => false,
+				() => false,
+			),
+	]);
+
+	if (!signInOk) {
+		// Network error aborted the POST. Re-fill and retry once.
+		await page.getByLabel("Email").fill(options.email);
+		await page.getByLabel("Password").fill(options.password);
+		await page.getByRole("button", { name: "Sign In" }).click();
+	}
+
 	await expectUrl(page).toHavePathName("/workspaces");
 	// biome-ignore lint/suspicious/noExplicitAny: update once logged in
 	(ctx as any)[Symbol.for("currentUser")] = options;
@@ -121,7 +192,7 @@ export const createWorkspace = async (
 			? template
 			: `${template.organization}/${template.name}`;
 
-	await page.goto(`/templates/${templatePath}/workspace`, {
+	await safeGoto(page, `/templates/${templatePath}/workspace`, {
 		waitUntil: "domcontentloaded",
 	});
 	await expectUrl(page).toHavePathName(`/templates/${templatePath}/workspace`);
@@ -174,9 +245,13 @@ export const verifyParameters = async (
 	// Use networkidle to ensure all API responses (workspace data, build
 	// parameters) are settled before verifying values. Using domcontentloaded
 	// can cause the form to render with stale React Query cache data.
-	await page.goto(`/@${user.username}/${workspaceName}/settings/parameters`, {
-		waitUntil: "networkidle",
-	});
+	await safeGoto(
+		page,
+		`/@${user.username}/${workspaceName}/settings/parameters`,
+		{
+			waitUntil: "networkidle",
+		},
+	);
 
 	await Promise.all(
 		expectedBuildParameters.map(
@@ -270,7 +345,7 @@ export const createTemplate = async (
 		path += "?provisioner_type=echo";
 	}
 
-	await page.goto(path, { waitUntil: "domcontentloaded" });
+	await safeGoto(page, path, { waitUntil: "domcontentloaded" });
 	await expectUrl(page).toHavePathName("/templates/new");
 
 	if (!isStarterTemplate(responses)) {
@@ -325,7 +400,7 @@ export const createGroup = async (
 	const prefix = organization
 		? `/organizations/${organization}`
 		: "/deployment";
-	await page.goto(`${prefix}/groups/create`, {
+	await safeGoto(page, `${prefix}/groups/create`, {
 		waitUntil: "domcontentloaded",
 	});
 	await expectUrl(page).toHavePathName(`${prefix}/groups/create`);
@@ -383,7 +458,7 @@ export const sshIntoWorkspace = async (
 
 export const stopWorkspace = async (page: Page, workspaceName: string) => {
 	const user = currentUser(page);
-	await page.goto(`/@${user.username}/${workspaceName}`, {
+	await safeGoto(page, `/@${user.username}/${workspaceName}`, {
 		waitUntil: "domcontentloaded",
 	});
 
@@ -401,7 +476,7 @@ export const startWorkspaceWithEphemeralParameters = async (
 	buildParameters: WorkspaceBuildParameter[] = [],
 ) => {
 	const user = currentUser(page);
-	await page.goto(`/@${user.username}/${workspaceName}`, {
+	await safeGoto(page, `/@${user.username}/${workspaceName}`, {
 		waitUntil: "domcontentloaded",
 	});
 
@@ -1141,7 +1216,7 @@ export const updateTemplateSettings = async (
 		"name" | "display_name" | "description" | "deprecation_message"
 	>,
 ) => {
-	await page.goto(`/templates/${templateName}/settings`, {
+	await safeGoto(page, `/templates/${templateName}/settings`, {
 		waitUntil: "domcontentloaded",
 	});
 
@@ -1167,7 +1242,7 @@ export const updateWorkspace = async (
 	buildParameters: WorkspaceBuildParameter[] = [],
 ) => {
 	const user = currentUser(page);
-	await page.goto(`/@${user.username}/${workspaceName}`, {
+	await safeGoto(page, `/@${user.username}/${workspaceName}`, {
 		waitUntil: "domcontentloaded",
 	});
 
@@ -1190,9 +1265,13 @@ export const updateWorkspaceParameters = async (
 	buildParameters: WorkspaceBuildParameter[] = [],
 ) => {
 	const user = currentUser(page);
-	await page.goto(`/@${user.username}/${workspaceName}/settings/parameters`, {
-		waitUntil: "domcontentloaded",
-	});
+	await safeGoto(
+		page,
+		`/@${user.username}/${workspaceName}/settings/parameters`,
+		{
+			waitUntil: "domcontentloaded",
+		},
+	);
 
 	await fillParameters(page, richParameters, buildParameters);
 	await page.getByRole("button", { name: /update and restart/i }).click();
@@ -1223,7 +1302,8 @@ export async function openTerminalWindow(
 	await expectUrl(terminal).toHavePathName(
 		`/@${user.username}/${workspaceName}.${agentName}/terminal`,
 	);
-	await terminal.goto(
+	await safeGoto(
+		terminal,
 		`/@${user.username}/${workspaceName}.${agentName}/terminal${commandQuery}`,
 	);
 
@@ -1245,7 +1325,7 @@ export async function createUser(
 ): Promise<UserValues> {
 	const returnTo = page.url();
 
-	await page.goto("/deployment/users", { waitUntil: "domcontentloaded" });
+	await safeGoto(page, "/deployment/users", { waitUntil: "domcontentloaded" });
 	await expect(page).toHaveTitle("Users - Coder");
 
 	await page.getByRole("link", { name: "Create user" }).click();
@@ -1296,7 +1376,7 @@ export async function createUser(
 	}
 	await page.mouse.click(10, 10); // close the popover by clicking outside of it
 
-	await page.goto(returnTo, { waitUntil: "domcontentloaded" });
+	await safeGoto(page, returnTo, { waitUntil: "domcontentloaded" });
 	return { name, username, email, password, roles };
 }
 
@@ -1306,7 +1386,7 @@ export async function createOrganization(page: Page): Promise<{
 	description: string;
 }> {
 	// Create a new organization to test
-	await page.goto("/organizations/new", { waitUntil: "domcontentloaded" });
+	await safeGoto(page, "/organizations/new", { waitUntil: "domcontentloaded" });
 	const name = randomName();
 	await page.getByLabel("Slug").fill(name);
 	const displayName = `Org ${name}`;
@@ -1332,7 +1412,7 @@ export async function addUserToOrganization(
 	user: string,
 	roles: string[] = [],
 ): Promise<void> {
-	await page.goto(`/organizations/${organization}`, {
+	await safeGoto(page, `/organizations/${organization}`, {
 		waitUntil: "domcontentloaded",
 	});
 
