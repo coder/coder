@@ -2187,6 +2187,10 @@ func (api *API) watchWorkspace(
 // @x-apidocgen {"skip": true}
 func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	// Buffer enough updates to avoid blocking the pubsub callback while we're
 	// accepting the WebSocket connection. Accepting the connection signals to
