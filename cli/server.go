@@ -323,8 +323,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	}
 
 	var (
-		vals = new(codersdk.DeploymentValues)
-		opts = vals.Options()
+		vals                          = new(codersdk.DeploymentValues)
+		opts                          = vals.Options()
+		allowBuiltinPostgresReconnect bool
 	)
 	serverCmd := &serpent.Command{
 		Use:     "server",
@@ -465,7 +466,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				if vals.EphemeralDeployment.Value() {
 					customPostgresCacheDir = cacheDir
 				}
-				pgURL, closeFunc, err := startBuiltinPostgres(ctx, config, logger, customPostgresCacheDir)
+				pgURL, closeFunc, err := startBuiltinPostgres(ctx, config, logger, customPostgresCacheDir, allowBuiltinPostgresReconnect)
 				if err != nil {
 					return err
 				}
@@ -1321,7 +1322,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			ctx, cancel := inv.SignalNotifyContext(ctx, InterruptSignals...)
 			defer cancel()
 
-			url, closePg, err := startBuiltinPostgres(ctx, cfg, logger, "")
+			url, closePg, err := startBuiltinPostgres(ctx, cfg, logger, "", false)
 			if err != nil {
 				return err
 			}
@@ -1350,6 +1351,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	createAdminUserCmd.Options.Add(rawURLOpt)
 	postgresBuiltinURLCmd.Options.Add(rawURLOpt)
 	postgresBuiltinServeCmd.Options.Add(rawURLOpt)
+
+	serverCmd.Options.Add(serpent.Option{
+		Flag:        "dev-builtin-postgres-reconnect",
+		Env:         "CODER_DEV_BUILTIN_POSTGRES_RECONNECT",
+		Hidden:      true,
+		Value:       serpent.BoolOf(&allowBuiltinPostgresReconnect),
+		Description: "Allow the server to reconnect to an already-running built-in PostgreSQL instance instead of starting a new one. Intended for local development workflows only.",
+	})
 
 	serverCmd.Children = append(
 		serverCmd.Children,
@@ -2229,7 +2238,83 @@ func embeddedPostgresURL(cfg config.Root) (string, error) {
 	return fmt.Sprintf("postgres://coder@localhost:%s/coder?sslmode=disable&password=%s", pgPort, pgPassword), nil
 }
 
-func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logger, customCacheDir string) (string, func() error, error) {
+var errBuiltinPostgresNonMatchingProcess = xerrors.New("persisted built-in PostgreSQL port is already in use by a non-matching process")
+
+func isBuiltinPostgresPortConflict(err error, port uint64) bool {
+	if err == nil {
+		return false
+	}
+
+	return strings.Contains(err.Error(), fmt.Sprintf("process already listening on port %d", port))
+}
+
+func canonicalBuiltinPostgresPath(path string) (string, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", xerrors.Errorf("abs path %q: %w", path, err)
+	}
+
+	resolvedPath, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return filepath.Clean(absPath), nil
+		}
+		return "", xerrors.Errorf("resolve symlinks for %q: %w", path, err)
+	}
+
+	return filepath.Clean(resolvedPath), nil
+}
+
+func verifyBuiltinPostgresInstance(ctx context.Context, cfg config.Root, connectionURL string) error {
+	// nolint:gocritic // Keep persisted-port verification quick on conflicts.
+	verifyCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	sqlDB, err := sql.Open("postgres", connectionURL)
+	if err != nil {
+		return xerrors.Errorf("open persisted postgres connection: %w", err)
+	}
+	defer sqlDB.Close()
+
+	if err := pingPostgres(verifyCtx, sqlDB); err != nil {
+		return xerrors.Errorf("ping persisted postgres connection: %w", err)
+	}
+
+	var currentDatabase string
+	var currentUser string
+	err = sqlDB.QueryRowContext(verifyCtx, "SELECT current_database(), current_user;").Scan(&currentDatabase, &currentUser)
+	if err != nil {
+		return xerrors.Errorf("query persisted postgres identity: %w", err)
+	}
+	if currentDatabase != "coder" {
+		return xerrors.Errorf("unexpected database %q", currentDatabase)
+	}
+	if currentUser != "coder" {
+		return xerrors.Errorf("unexpected user %q", currentUser)
+	}
+
+	var dataDirectory string
+	err = sqlDB.QueryRowContext(verifyCtx, "SHOW data_directory;").Scan(&dataDirectory)
+	if err != nil {
+		return xerrors.Errorf("query persisted postgres data directory: %w", err)
+	}
+	resolvedDataDirectory, err := canonicalBuiltinPostgresPath(dataDirectory)
+	if err != nil {
+		return xerrors.Errorf("canonicalize persisted postgres data directory: %w", err)
+	}
+	resolvedExpectedDataDirectory, err := canonicalBuiltinPostgresPath(filepath.Join(cfg.PostgresPath(), "data"))
+	if err != nil {
+		return xerrors.Errorf("canonicalize expected postgres data directory: %w", err)
+	}
+	if resolvedDataDirectory != resolvedExpectedDataDirectory {
+		return xerrors.Errorf("unexpected data directory %q", dataDirectory)
+	}
+
+	return nil
+}
+
+//nolint:revive // Ignore flag-parameter: allowReconnect explicitly scopes reconnect behavior to opt-in callers.
+func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logger, customCacheDir string, allowReconnect bool) (string, func() error, error) {
 	usr, err := user.Current()
 	if err != nil {
 		return "", nil, err
@@ -2244,19 +2329,28 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	}
 	stdlibLogger := slog.Stdlib(ctx, logger.Named("postgres"), slog.LevelDebug)
 
+	persistedPortExisted := false
+	_, err = cfg.PostgresPort().Read()
+	switch {
+	case err == nil:
+		persistedPortExisted = true
+	case errors.Is(err, os.ErrNotExist):
+	default:
+		return "", nil, xerrors.Errorf("read postgres port: %w", err)
+	}
+
 	// If the port is not defined, an available port will be found dynamically. This has
-	// implications in CI because here is no way to tell Postgres to use an ephemeral
+	// implications in CI because there is no way to tell Postgres to use an ephemeral
 	// port, so to avoid flaky tests in CI we need to retry EmbeddedPostgres.Start in
 	// case of a race condition where the port we quickly listen on and close in
 	// embeddedPostgresURL() is not free by the time the embedded postgres starts up.
 	// The maximum retry attempts _should_ cover most cases where port conflicts occur
 	// in CI and cause flaky tests.
 	maxAttempts := 1
-	_, err = cfg.PostgresPort().Read()
 	// Important: if retryPortDiscovery is changed to not include testing.Testing(),
 	// the retry logic below also needs to be updated to ensure we don't delete an
-	// existing database
-	retryPortDiscovery := errors.Is(err, os.ErrNotExist) && testing.Testing()
+	// existing database.
+	retryPortDiscovery := !persistedPortExisted && testing.Testing()
 	if retryPortDiscovery {
 		maxAttempts = 10
 	}
@@ -2317,6 +2411,17 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 			slog.F("port", pgPort),
 			slog.Error(startErr),
 		)
+
+		if allowReconnect && persistedPortExisted && isBuiltinPostgresPortConflict(startErr, pgPort) {
+			verifyErr := verifyBuiltinPostgresInstance(ctx, cfg, connectionURL)
+			if verifyErr == nil {
+				logger.Info(ctx, "reusing running built-in postgres on persisted port", slog.F("port", pgPort))
+				// Return a no-op closer: the reconnecting caller does
+				// not own this process and should not stop it on exit.
+				return connectionURL, func() error { return nil }, nil
+			}
+			return "", nil, xerrors.Errorf("%w (port %d): start failed: %v; verification failed: %v", errBuiltinPostgresNonMatchingProcess, pgPort, startErr, verifyErr)
+		}
 	}
 
 	return "", nil, xerrors.Errorf("failed to start built-in PostgreSQL after %d attempts. "+

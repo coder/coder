@@ -233,7 +233,8 @@ fatal() {
 	trap 'fatal "Script encountered an error"' ERR
 
 	cdroot
-	DEBUG_DELVE="${debug}" DEVELOP_IN_CODER="${DEVELOP_IN_CODER}" start_cmd API "" "${CODER_DEV_SHIM}" server --http-address "0.0.0.0:${api_port}" --swagger-enable --access-url "${CODER_DEV_ACCESS_URL}" --dangerous-allow-cors-requests=true --enable-terraform-debug-mode "$@"
+	# Allow reconnecting to a running built-in PostgreSQL from a prior develop.sh run.
+	DEBUG_DELVE="${debug}" DEVELOP_IN_CODER="${DEVELOP_IN_CODER}" start_cmd API "" "${CODER_DEV_SHIM}" server --http-address "0.0.0.0:${api_port}" --swagger-enable --access-url "${CODER_DEV_ACCESS_URL}" --dangerous-allow-cors-requests=true --enable-terraform-debug-mode --dev-builtin-postgres-reconnect "$@"
 
 	echo '== Waiting for Coder to become ready'
 	# Start the timeout in the background so interrupting this script
