@@ -20,7 +20,7 @@ import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { Checkbox } from "components/Checkbox/Checkbox";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
 import { Spinner } from "components/Spinner/Spinner";
@@ -80,7 +80,7 @@ import {
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { cn } from "utils/cn";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { WorkspaceSharingIndicator } from "./WorkspaceSharingIndicator";
@@ -166,9 +166,12 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 						(o) => o.id === workspace.organization_id,
 					);
 
+					const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
+
 					return (
 						<WorkspacesRow
 							workspace={workspace}
+							workspacePageLink={workspacePageLink}
 							key={workspace.id}
 							checked={checked}
 						>
@@ -197,9 +200,18 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 									<AvatarData
 										title={
 											<Stack direction="row" spacing={0.5} alignItems="center">
-												<span className="whitespace-nowrap">
+												<Link
+													to={workspacePageLink}
+													onClick={(event) => {
+														event.stopPropagation();
+													}}
+													onAuxClick={(event) => {
+														event.stopPropagation();
+													}}
+													className="pointer-events-auto whitespace-nowrap text-content-primary no-underline hover:underline"
+												>
 													{workspace.name}
-												</span>
+												</Link>
 												{workspace.favorite && (
 													<StarIcon className="size-icon-xs" />
 												)}
@@ -284,20 +296,21 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 
 interface WorkspacesRowProps {
 	workspace: Workspace;
+	workspacePageLink: string;
 	children?: ReactNode;
 	checked: boolean;
 }
 
 const WorkspacesRow: FC<WorkspacesRowProps> = ({
 	workspace,
+	workspacePageLink,
 	children,
 	checked,
 }) => {
 	const navigate = useNavigate();
 
-	const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
 	const openLinkInNewTab = () => window.open(workspacePageLink, "_blank");
-	const { role, hover, ...clickableProps } = useClickableTableRow({
+	const clickableProps = useClickableTableRow({
 		onMiddleClick: openLinkInNewTab,
 		onClick: (event) => {
 			// Order of booleans actually matters here for Windows-Mac compatibility;
@@ -780,7 +793,7 @@ const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 			href={link.href}
 			onClick={link.onClick}
 		>
-			<ExternalImage src={app.icon ?? "/icon/widgets.svg"} />
+			<DecorativeImage src={app.icon ?? "/icon/widgets.svg"} />
 		</BaseIconLink>
 	);
 };

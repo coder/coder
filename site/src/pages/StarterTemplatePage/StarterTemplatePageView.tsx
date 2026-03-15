@@ -2,7 +2,7 @@ import { useTheme } from "@emotion/react";
 import type { TemplateExample } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
@@ -73,7 +73,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 							},
 						}}
 					>
-						<ExternalImage src={starterTemplate.icon} />
+						<DecorativeImage src={starterTemplate.icon} />
 					</div>
 					<div>
 						<PageHeaderTitle>{starterTemplate.name}</PageHeaderTitle>

@@ -37,7 +37,7 @@ import {
 } from "modules/tasks/taskActions";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { relativeTime } from "utils/time";
 
@@ -207,8 +207,7 @@ const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 	});
 
 	const taskPageLink = `/tasks/${task.owner_name}/${task.id}`;
-	// Discard role, breaks Chromatic.
-	const { role, ...clickableRowProps } = useClickableTableRow({
+	const clickableRowProps = useClickableTableRow({
 		onClick: () => {
 			navigate(taskPageLink);
 		},
@@ -236,9 +235,18 @@ const TaskRow: FC<TaskRowProps> = ({ task, checked, onCheckChange }) => {
 						/>
 						<AvatarData
 							title={
-								<span className="block max-w-[520px] truncate">
+								<Link
+									to={taskPageLink}
+									onClick={(event) => {
+										event.stopPropagation();
+									}}
+									onAuxClick={(event) => {
+										event.stopPropagation();
+									}}
+									className="pointer-events-auto block max-w-[520px] truncate text-content-primary no-underline hover:underline"
+								>
 									{task.display_name}
-								</span>
+								</Link>
 							}
 							subtitle={templateDisplayName}
 							avatar={

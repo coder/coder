@@ -149,6 +149,8 @@ const TemplateRow: FC<TemplateRowProps> = ({
 		onClick: () => navigate(templatePageLink),
 	});
 
+	const templateTitle = template.display_name || template.name;
+
 	return (
 		<TableRow
 			key={template.id}
@@ -158,7 +160,20 @@ const TemplateRow: FC<TemplateRowProps> = ({
 		>
 			<TableCell>
 				<AvatarData
-					title={template.display_name || template.name}
+					title={
+						<RouterLink
+							to={templatePageLink}
+							onClick={(event) => {
+								event.stopPropagation();
+							}}
+							onAuxClick={(event) => {
+								event.stopPropagation();
+							}}
+							className="pointer-events-auto text-content-primary no-underline hover:underline"
+						>
+							{templateTitle}
+						</RouterLink>
+					}
 					subtitle={template.description}
 					avatar={
 						<Avatar

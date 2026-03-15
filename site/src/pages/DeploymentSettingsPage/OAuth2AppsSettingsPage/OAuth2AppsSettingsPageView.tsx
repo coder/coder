@@ -99,8 +99,9 @@ type OAuth2AppRowProps = {
 const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 	const _theme = useTheme();
 	const navigate = useNavigate();
+	const appPageLink = `/deployment/oauth2-provider/apps/${app.id}`;
 	const clickableProps = useClickableTableRow({
-		onClick: () => navigate(`/deployment/oauth2-provider/apps/${app.id}`),
+		onClick: () => navigate(appPageLink),
 	});
 
 	return (
@@ -108,7 +109,20 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 			<TableCell>
 				<AvatarData
 					avatar={<Avatar variant="icon" src={app.icon} fallback={app.name} />}
-					title={app.name}
+					title={
+						<Link
+							to={appPageLink}
+							onClick={(event) => {
+								event.stopPropagation();
+							}}
+							onAuxClick={(event) => {
+								event.stopPropagation();
+							}}
+							className="pointer-events-auto text-content-primary no-underline hover:underline"
+						>
+							{app.name}
+						</Link>
+					}
 				/>
 			</TableCell>
 

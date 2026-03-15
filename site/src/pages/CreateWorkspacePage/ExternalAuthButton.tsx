@@ -1,7 +1,7 @@
 import type { TemplateVersionExternalAuth } from "api/typesGenerated";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -30,11 +30,7 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
 		<div className="flex items-center gap-2 border border-border border-solid rounded-md p-3 justify-between">
 			<span className="flex flex-row items-center gap-2">
 				{auth.display_icon && (
-					<ExternalImage
-						className="w-5 h-5"
-						src={auth.display_icon}
-						alt={`${auth.display_name} Icon`}
-					/>
+					<DecorativeImage className="w-5 h-5" src={auth.display_icon} />
 				)}
 				<p className="font-semibold text-sm m-0">{auth.display_name}</p>
 				{!auth.authenticated && !auth.optional && (

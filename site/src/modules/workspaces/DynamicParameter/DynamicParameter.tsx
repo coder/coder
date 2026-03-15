@@ -7,7 +7,7 @@ import type {
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { Checkbox } from "components/Checkbox/Checkbox";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
@@ -118,9 +118,8 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 	return (
 		<div className="flex items-start gap-2">
 			{parameter.icon && (
-				<ExternalImage
+				<DecorativeImage
 					className="w-5 h-5 mt-0.5 object-contain"
-					alt="Parameter icon"
 					src={parameter.icon}
 				/>
 			)}
@@ -626,11 +625,7 @@ const OptionDisplay: FC<OptionDisplayProps> = ({ option }) => {
 	return (
 		<div className="flex items-center gap-2">
 			{option.icon && (
-				<ExternalImage
-					className="w-4 h-4 object-contain"
-					src={option.icon}
-					alt=""
-				/>
+				<DecorativeImage className="w-4 h-4 object-contain" src={option.icon} />
 			)}
 			<span>{option.name}</span>
 			{option.description && (

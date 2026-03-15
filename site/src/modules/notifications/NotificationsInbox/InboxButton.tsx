@@ -9,10 +9,17 @@ type InboxButtonProps = ButtonProps & {
 
 export const InboxButton: React.FC<InboxButtonProps> = ({
 	unreadCount,
+	"aria-label": ariaLabel = "Notifications",
 	...props
 }) => {
 	return (
-		<Button size="icon-lg" variant="outline" className="relative" {...props}>
+		<Button
+			size="icon-lg"
+			variant="outline"
+			className="relative"
+			aria-label={ariaLabel}
+			{...props}
+		>
 			<BellIcon />
 			{unreadCount > 0 && (
 				<UnreadBadge

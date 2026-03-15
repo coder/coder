@@ -131,7 +131,7 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			const icon = screen.getByRole("img");
+			const icon = screen.getByRole("img", { hidden: true });
 			expect(icon).toHaveAttribute("src", "/test-icon.png");
 		});
 	});

@@ -10,7 +10,7 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { Kbd, KbdGroup } from "components/Kbd/Kbd";
 import { Link } from "components/Link/Link";
 import {
@@ -460,7 +460,7 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 					}}
 				>
 					<Spinner loading={isPollingExternalAuth}>
-						<ExternalImage src={auth.display_icon} />
+						<DecorativeImage src={auth.display_icon} />
 					</Spinner>
 					Connect to {auth.display_name}
 				</Button>

@@ -11,7 +11,7 @@ import type {
 import { Button } from "components/Button/Button";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { Stack } from "components/Stack/Stack";
 import { CircleCheck as CircleCheckIcon, KeyIcon } from "lucide-react";
 import { type FC, useState } from "react";
@@ -152,7 +152,7 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 									disabled={isUpdating}
 									onClick={() => openConfirmation("github")}
 								>
-									<ExternalImage src="/icon/github.svg" />
+									<DecorativeImage src="/icon/github.svg" />
 									GitHub
 								</Button>
 							)}
@@ -185,7 +185,7 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 							</span>
 							<div className="leading-none ml-auto">
 								{userLoginType.login_type === "github" ? (
-									<ExternalImage src="/icon/github.svg" className="size-4" />
+									<DecorativeImage src="/icon/github.svg" className="size-4" />
 								) : (
 									<OIDCIcon oidcAuth={authMethods.oidc} />
 								)}

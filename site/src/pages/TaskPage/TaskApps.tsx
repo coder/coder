@@ -6,7 +6,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Link } from "components/Link/Link";
 import { ScrollArea, ScrollBar } from "components/ScrollArea/ScrollArea";
@@ -171,7 +171,7 @@ const ExternalAppMenuItem: FC<{
 	return (
 		<DropdownMenuItem asChild>
 			<RouterLink to={link.href}>
-				{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
+				{app.icon ? <DecorativeImage src={app.icon} /> : <LayoutGridIcon />}
 				{link.label}
 			</RouterLink>
 		</DropdownMenuItem>
@@ -198,7 +198,7 @@ const TaskAppTab: FC<TaskAppTabProps> = ({
 
 	return (
 		<TaskTab active={active} to={link.href} onClick={onClick}>
-			{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
+			{app.icon ? <DecorativeImage src={app.icon} /> : <LayoutGridIcon />}
 			{link.label}
 			{app.health === "unhealthy" && (
 				<InfoTooltip

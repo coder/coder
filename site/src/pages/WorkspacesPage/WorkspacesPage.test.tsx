@@ -297,6 +297,53 @@ describe("WorkspacesPage", () => {
 		);
 	});
 
+	it("uses explicit workspace links without row button semantics", async () => {
+		const workspace = {
+			...MockWorkspace,
+			id: "workspace-link-row",
+			name: "workspace-link-row",
+		};
+		vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: [workspace],
+			count: 1,
+		});
+		const user = userEvent.setup();
+		const { router } = renderWithAuth(<WorkspacesPage />, {
+			path: "/workspaces",
+			route: "/workspaces",
+			extraRoutes: [
+				{
+					path: "/@:owner/:workspace",
+					element: <div>Workspace details page</div>,
+				},
+			],
+		});
+		await waitForLoaderToBeRemoved();
+
+		const row = screen.getByTestId(`workspace-${workspace.id}`);
+		expect(row).not.toHaveAttribute("role");
+		expect(row).not.toHaveAttribute("tabindex");
+
+		const workspaceLink = within(row).getByRole("link", {
+			name: workspace.name,
+		});
+		expect(workspaceLink).toHaveAttribute(
+			"href",
+			`/@${workspace.owner_name}/${workspace.name}`,
+		);
+
+		await user.click(getWorkspaceCheckbox(workspace));
+		expect(getWorkspaceCheckbox(workspace)).toBeChecked();
+		expect(router.state.location.pathname).toBe("/workspaces");
+
+		await user.click(workspaceLink);
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe(
+				`/@${workspace.owner_name}/${workspace.name}`,
+			);
+		});
+	});
+
 	it("correctly handles pagination by including pagination parameters in query key", async () => {
 		const totalWorkspaces = 50;
 		const workspacesPage1 = Array.from({ length: 25 }, (_, i) => ({

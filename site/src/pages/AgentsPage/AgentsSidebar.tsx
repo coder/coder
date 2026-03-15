@@ -14,7 +14,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { ExternalImage } from "components/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
@@ -678,7 +678,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				<div className="mb-2.5 flex items-center justify-between">
 					<NavLink to="/workspaces" className="inline-flex">
 						{logoUrl ? (
-							<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
+							<ExternalImage className="h-6" src={logoUrl} alt="Custom logo" />
 						) : (
 							<CoderIcon className="h-6 w-6 fill-content-primary" />
 						)}

@@ -1,5 +1,5 @@
 import type { SvgIconProps } from "@mui/material/SvgIcon";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { DecorativeImage } from "components/ExternalImage";
 import { BookOpenTextIcon, BugIcon, MessageSquareIcon } from "lucide-react";
 import type { FC } from "react";
 
@@ -19,7 +19,7 @@ export const SupportIcon: FC<SupportIconProps> = ({ icon, className }) => {
 		case "star":
 			return <GithubStar className={className} />;
 		default:
-			return <ExternalImage src={icon} className={className} />;
+			return <DecorativeImage src={icon} className={className} />;
 	}
 };
 
