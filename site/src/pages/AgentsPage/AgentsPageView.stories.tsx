@@ -165,6 +165,8 @@ const meta: Meta<typeof AgentsPageView> = {
 		isAgentsAdmin: false,
 		archivedFilter: "active" as const,
 		onArchivedFilterChange: fn(),
+		hasNextPage: false,
+		onLoadMore: fn(),
 		isFetchingNextPage: false,
 		onCreateChat: fn(),
 		createError: undefined,
@@ -172,6 +174,13 @@ const meta: Meta<typeof AgentsPageView> = {
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
 		modelCatalogError: undefined,
+		deleteDialog: {
+			isOpen: false,
+			onConfirm: fn(),
+			onCancel: fn(),
+			workspaceName: "",
+			isLoading: false,
+		},
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaces").mockResolvedValue({
