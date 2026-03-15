@@ -97,6 +97,14 @@ func TestCommandHelp(t *testing.T) {
 			Name: "coder exp sync status --help",
 			Cmd:  []string{"exp", "sync", "status", "--help"},
 		},
+		clitest.CommandHelpCase{
+			Name: "coder exp open --help",
+			Cmd:  []string{"exp", "open", "--help"},
+		},
+		clitest.CommandHelpCase{
+			Name: "coder exp open port --help",
+			Cmd:  []string{"exp", "open", "port", "--help"},
+		},
 	))
 }
 

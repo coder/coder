@@ -1,0 +1,14 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder exp open port [flags] <workspace> <port>
+
+  Open a port on a workspace in the browser.
+
+OPTIONS:
+      --region string, $CODER_OPEN_APP_REGION (default: primary)
+          Region to use when opening the port. By default, the primary Coder
+          deployment is used.
+
+———
+Run `coder --help` for a list of global options.

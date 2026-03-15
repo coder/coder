@@ -152,6 +152,7 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.promptExample(),
 		r.rptyCommand(),
 		r.syncCommand(),
+		r.expOpen(),
 	}
 }
 
