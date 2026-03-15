@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_provisioner_job_timings_job_id_started_at;
