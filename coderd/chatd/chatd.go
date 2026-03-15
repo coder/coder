@@ -780,6 +780,10 @@ func (p *Server) PromoteQueued(
 			modelConfigID = *opts.ModelConfigID
 		}
 
+		if limitErr := p.checkUsageLimit(ctx, tx, lockedChat.OwnerID); limitErr != nil {
+			return limitErr
+		}
+
 		queuedMessages, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("get queued messages: %w", err)
