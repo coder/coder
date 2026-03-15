@@ -247,8 +247,6 @@ Coder Agents is a new approach that differs from
 
 ## Product status
 
-Coder Agents is currently in internal preview. We are actively developing the
-feature and demoing it with customers for feedback.
-
-Our next step is to offer an early access program for interested customers. If
-you would like to participate, [contact us](https://coder.com/contact).
+Coder Agents is in Early Access. The feature is under active development and
+available for evaluation. See [Early Access](./early-access.md) for
+enablement instructions and program details.
