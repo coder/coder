@@ -80,10 +80,6 @@ export const getTerminalHref = ({
 };
 
 export const openAppInNewWindow = (href: string) => {
-	// window.open() returns null when "noopener" is in the features string
-	// (per WHATWG spec), making it indistinguishable from a blocked popup.
-	// We intentionally omit "noopener" here to preserve popup-block detection.
-	// The opened content is Coder-controlled, so the opener reference is safe.
 	const popup = window.open(href, "_blank", "width=900,height=600");
 	if (!popup) {
 		toast.error("Failed to open app in new window.", {
