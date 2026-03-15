@@ -10,6 +10,8 @@ const (
 	CheckChatModelConfigsCompressionThresholdCheck CheckConstraint = "chat_model_configs_compression_threshold_check" // chat_model_configs
 	CheckChatModelConfigsContextLimitCheck         CheckConstraint = "chat_model_configs_context_limit_check"         // chat_model_configs
 	CheckChatProvidersProviderCheck                CheckConstraint = "chat_providers_provider_check"                  // chat_providers
+	CheckChatUsageLimitConfigPeriodCheck           CheckConstraint = "chat_usage_limit_config_period_check"           // chat_usage_limit_config
+	CheckChatUsageLimitConfigSingletonCheck        CheckConstraint = "chat_usage_limit_config_singleton_check"        // chat_usage_limit_config
 	CheckOrganizationIDNotZero                     CheckConstraint = "organization_id_not_zero"                       // custom_roles
 	CheckOneTimePasscodeSet                        CheckConstraint = "one_time_passcode_set"                          // users
 	CheckUsersEmailNotEmpty                        CheckConstraint = "users_email_not_empty"                          // users

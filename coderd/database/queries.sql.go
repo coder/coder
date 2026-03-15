@@ -3146,6 +3146,30 @@ func (q *sqlQuerier) BackoffChatDiffStatus(ctx context.Context, arg BackoffChatD
 	return err
 }
 
+const countEnabledModelsWithoutPricing = `-- name: CountEnabledModelsWithoutPricing :one
+SELECT COUNT(*)::bigint AS count
+FROM chat_model_configs
+WHERE enabled = TRUE
+  AND deleted = FALSE
+  AND (
+    options->'cost' IS NULL
+    OR options->'cost' = 'null'::jsonb
+    OR (
+      (options->'cost'->>'input_price_per_million_tokens' IS NULL)
+      AND (options->'cost'->>'output_price_per_million_tokens' IS NULL)
+    )
+  )
+`
+
+// Counts enabled, non-deleted model configs that lack both input and
+// output pricing in their JSONB options.cost configuration.
+func (q *sqlQuerier) CountEnabledModelsWithoutPricing(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countEnabledModelsWithoutPricing)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteAllChatQueuedMessages = `-- name: DeleteAllChatQueuedMessages :exec
 DELETE FROM chat_queued_messages WHERE chat_id = $1
 `
@@ -3184,6 +3208,24 @@ type DeleteChatQueuedMessageParams struct {
 
 func (q *sqlQuerier) DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error {
 	_, err := q.db.ExecContext(ctx, deleteChatQueuedMessage, arg.ID, arg.ChatID)
+	return err
+}
+
+const deleteChatUsageLimitGroupOverride = `-- name: DeleteChatUsageLimitGroupOverride :exec
+DELETE FROM chat_usage_limit_group_overrides WHERE group_id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatUsageLimitGroupOverride, groupID)
+	return err
+}
+
+const deleteChatUsageLimitOverride = `-- name: DeleteChatUsageLimitOverride :exec
+DELETE FROM chat_usage_limit_overrides WHERE user_id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteChatUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatUsageLimitOverride, userID)
 	return err
 }
 
@@ -3947,6 +3989,59 @@ func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID
 	return items, nil
 }
 
+const getChatUsageLimitConfig = `-- name: GetChatUsageLimitConfig :one
+SELECT id, singleton, enabled, default_limit_micros, period, created_at, updated_at FROM chat_usage_limit_config LIMIT 1
+`
+
+func (q *sqlQuerier) GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitConfig, error) {
+	row := q.db.QueryRowContext(ctx, getChatUsageLimitConfig)
+	var i ChatUsageLimitConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Singleton,
+		&i.Enabled,
+		&i.DefaultLimitMicros,
+		&i.Period,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getChatUsageLimitGroupOverrideByGroupID = `-- name: GetChatUsageLimitGroupOverrideByGroupID :one
+SELECT id, group_id, limit_micros, created_at, updated_at FROM chat_usage_limit_group_overrides WHERE group_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatUsageLimitGroupOverrideByGroupID(ctx context.Context, groupID uuid.UUID) (ChatUsageLimitGroupOverride, error) {
+	row := q.db.QueryRowContext(ctx, getChatUsageLimitGroupOverrideByGroupID, groupID)
+	var i ChatUsageLimitGroupOverride
+	err := row.Scan(
+		&i.ID,
+		&i.GroupID,
+		&i.LimitMicros,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getChatUsageLimitOverrideByUserID = `-- name: GetChatUsageLimitOverrideByUserID :one
+SELECT id, user_id, limit_micros, created_at, updated_at FROM chat_usage_limit_overrides WHERE user_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatUsageLimitOverrideByUserID(ctx context.Context, userID uuid.UUID) (ChatUsageLimitOverride, error) {
+	row := q.db.QueryRowContext(ctx, getChatUsageLimitOverrideByUserID, userID)
+	var i ChatUsageLimitOverride
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.LimitMicros,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getChatsByOwnerID = `-- name: GetChatsByOwnerID :many
 SELECT
     id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
@@ -4136,6 +4231,45 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 		return nil, err
 	}
 	return items, nil
+}
+
+const getUserChatSpendInPeriod = `-- name: GetUserChatSpendInPeriod :one
+SELECT COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_spend_micros
+FROM chat_messages cm
+JOIN chats c ON c.id = cm.chat_id
+WHERE c.owner_id = $1::uuid
+  AND cm.created_at >= $2::timestamptz
+  AND cm.created_at < $3::timestamptz
+  AND cm.total_cost_micros IS NOT NULL
+`
+
+type GetUserChatSpendInPeriodParams struct {
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+func (q *sqlQuerier) GetUserChatSpendInPeriod(ctx context.Context, arg GetUserChatSpendInPeriodParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getUserChatSpendInPeriod, arg.UserID, arg.StartTime, arg.EndTime)
+	var total_spend_micros int64
+	err := row.Scan(&total_spend_micros)
+	return total_spend_micros, err
+}
+
+const getUserGroupSpendLimit = `-- name: GetUserGroupSpendLimit :one
+SELECT COALESCE(MIN(glo.limit_micros), -1)::bigint AS limit_micros
+FROM chat_usage_limit_group_overrides glo
+JOIN group_members_expanded gme ON gme.group_id = glo.group_id
+WHERE gme.user_id = $1::uuid
+`
+
+// Returns the minimum (most restrictive) group limit for a user.
+// Returns -1 if the user has no group limits applied.
+func (q *sqlQuerier) GetUserGroupSpendLimit(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getUserGroupSpendLimit, userID)
+	var limit_micros int64
+	err := row.Scan(&limit_micros)
+	return limit_micros, err
 }
 
 const insertChat = `-- name: InsertChat :one
@@ -4336,6 +4470,116 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 	return i, err
 }
 
+const listChatUsageLimitGroupOverrides = `-- name: ListChatUsageLimitGroupOverrides :many
+SELECT
+    glo.id, glo.group_id, glo.limit_micros, glo.created_at, glo.updated_at,
+    g.name AS group_name,
+    g.display_name AS group_display_name,
+    g.avatar_url AS group_avatar_url,
+    (SELECT COUNT(*)
+        FROM group_members_expanded gme
+        WHERE gme.group_id = glo.group_id
+          AND gme.user_is_system = FALSE) AS member_count
+FROM chat_usage_limit_group_overrides glo
+JOIN groups g ON g.id = glo.group_id
+ORDER BY g.name ASC
+`
+
+type ListChatUsageLimitGroupOverridesRow struct {
+	ID               int64     `db:"id" json:"id"`
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
+	LimitMicros      int64     `db:"limit_micros" json:"limit_micros"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+	GroupName        string    `db:"group_name" json:"group_name"`
+	GroupDisplayName string    `db:"group_display_name" json:"group_display_name"`
+	GroupAvatarUrl   string    `db:"group_avatar_url" json:"group_avatar_url"`
+	MemberCount      int64     `db:"member_count" json:"member_count"`
+}
+
+func (q *sqlQuerier) ListChatUsageLimitGroupOverrides(ctx context.Context) ([]ListChatUsageLimitGroupOverridesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listChatUsageLimitGroupOverrides)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListChatUsageLimitGroupOverridesRow
+	for rows.Next() {
+		var i ListChatUsageLimitGroupOverridesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.GroupID,
+			&i.LimitMicros,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.GroupName,
+			&i.GroupDisplayName,
+			&i.GroupAvatarUrl,
+			&i.MemberCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listChatUsageLimitOverrides = `-- name: ListChatUsageLimitOverrides :many
+SELECT o.id, o.user_id, o.limit_micros, o.created_at, o.updated_at, u.username, u.name, u.avatar_url
+FROM chat_usage_limit_overrides o
+JOIN users u ON u.id = o.user_id
+ORDER BY u.username ASC
+`
+
+type ListChatUsageLimitOverridesRow struct {
+	ID          int64     `db:"id" json:"id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	LimitMicros int64     `db:"limit_micros" json:"limit_micros"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	Username    string    `db:"username" json:"username"`
+	Name        string    `db:"name" json:"name"`
+	AvatarURL   string    `db:"avatar_url" json:"avatar_url"`
+}
+
+func (q *sqlQuerier) ListChatUsageLimitOverrides(ctx context.Context) ([]ListChatUsageLimitOverridesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listChatUsageLimitOverrides)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListChatUsageLimitOverridesRow
+	for rows.Next() {
+		var i ListChatUsageLimitOverridesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.LimitMicros,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Username,
+			&i.Name,
+			&i.AvatarURL,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const popNextQueuedMessage = `-- name: PopNextQueuedMessage :one
 DELETE FROM chat_queued_messages
 WHERE id = (
@@ -4357,6 +4601,41 @@ func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID)
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const resolveUserChatSpendLimit = `-- name: ResolveUserChatSpendLimit :one
+SELECT CASE
+    -- If limits are disabled, return -1.
+    WHEN NOT cfg.enabled THEN -1
+    -- Individual override takes priority.
+    WHEN uo.limit_micros IS NOT NULL THEN uo.limit_micros
+    -- Group limit (minimum across all user's groups) is next.
+    WHEN gl.limit_micros IS NOT NULL THEN gl.limit_micros
+    -- Fall back to global default.
+    ELSE cfg.default_limit_micros
+END::bigint AS effective_limit_micros
+FROM chat_usage_limit_config cfg
+LEFT JOIN chat_usage_limit_overrides uo
+    ON uo.user_id = $1::uuid
+LEFT JOIN LATERAL (
+    SELECT MIN(glo.limit_micros) AS limit_micros
+    FROM chat_usage_limit_group_overrides glo
+    JOIN group_members_expanded gme ON gme.group_id = glo.group_id
+    WHERE gme.user_id = $1::uuid
+) gl ON TRUE
+LIMIT 1
+`
+
+// Resolves the effective spend limit for a user using the hierarchy:
+// 1. Individual user override (highest priority)
+// 2. Minimum group limit across all user's groups
+// 3. Global default from config
+// Returns -1 if limits are not enabled.
+func (q *sqlQuerier) ResolveUserChatSpendLimit(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, resolveUserChatSpendLimit, userID)
+	var effective_limit_micros int64
+	err := row.Scan(&effective_limit_micros)
+	return effective_limit_micros, err
 }
 
 const unarchiveChatByID = `-- name: UnarchiveChatByID :exec
@@ -4791,6 +5070,92 @@ func (q *sqlQuerier) UpsertChatDiffStatusReference(ctx context.Context, arg Upse
 		&i.Approved,
 		&i.ReviewerCount,
 		&i.HeadBranch,
+	)
+	return i, err
+}
+
+const upsertChatUsageLimitConfig = `-- name: UpsertChatUsageLimitConfig :one
+INSERT INTO chat_usage_limit_config (singleton, enabled, default_limit_micros, period, updated_at)
+VALUES (TRUE, $1::boolean, $2::bigint, $3::text, NOW())
+ON CONFLICT (singleton) DO UPDATE SET
+    enabled = EXCLUDED.enabled,
+    default_limit_micros = EXCLUDED.default_limit_micros,
+    period = EXCLUDED.period,
+    updated_at = NOW()
+RETURNING id, singleton, enabled, default_limit_micros, period, created_at, updated_at
+`
+
+type UpsertChatUsageLimitConfigParams struct {
+	Enabled            bool   `db:"enabled" json:"enabled"`
+	DefaultLimitMicros int64  `db:"default_limit_micros" json:"default_limit_micros"`
+	Period             string `db:"period" json:"period"`
+}
+
+func (q *sqlQuerier) UpsertChatUsageLimitConfig(ctx context.Context, arg UpsertChatUsageLimitConfigParams) (ChatUsageLimitConfig, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatUsageLimitConfig, arg.Enabled, arg.DefaultLimitMicros, arg.Period)
+	var i ChatUsageLimitConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Singleton,
+		&i.Enabled,
+		&i.DefaultLimitMicros,
+		&i.Period,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertChatUsageLimitGroupOverride = `-- name: UpsertChatUsageLimitGroupOverride :one
+INSERT INTO chat_usage_limit_group_overrides (group_id, limit_micros, updated_at)
+VALUES ($1::uuid, $2::bigint, NOW())
+ON CONFLICT (group_id) DO UPDATE SET
+    limit_micros = EXCLUDED.limit_micros,
+    updated_at = NOW()
+RETURNING id, group_id, limit_micros, created_at, updated_at
+`
+
+type UpsertChatUsageLimitGroupOverrideParams struct {
+	GroupID     uuid.UUID `db:"group_id" json:"group_id"`
+	LimitMicros int64     `db:"limit_micros" json:"limit_micros"`
+}
+
+func (q *sqlQuerier) UpsertChatUsageLimitGroupOverride(ctx context.Context, arg UpsertChatUsageLimitGroupOverrideParams) (ChatUsageLimitGroupOverride, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatUsageLimitGroupOverride, arg.GroupID, arg.LimitMicros)
+	var i ChatUsageLimitGroupOverride
+	err := row.Scan(
+		&i.ID,
+		&i.GroupID,
+		&i.LimitMicros,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertChatUsageLimitOverride = `-- name: UpsertChatUsageLimitOverride :one
+INSERT INTO chat_usage_limit_overrides (user_id, limit_micros, updated_at)
+VALUES ($1::uuid, $2::bigint, NOW())
+ON CONFLICT (user_id) DO UPDATE SET
+    limit_micros = EXCLUDED.limit_micros,
+    updated_at = NOW()
+RETURNING id, user_id, limit_micros, created_at, updated_at
+`
+
+type UpsertChatUsageLimitOverrideParams struct {
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	LimitMicros int64     `db:"limit_micros" json:"limit_micros"`
+}
+
+func (q *sqlQuerier) UpsertChatUsageLimitOverride(ctx context.Context, arg UpsertChatUsageLimitOverrideParams) (ChatUsageLimitOverride, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatUsageLimitOverride, arg.UserID, arg.LimitMicros)
+	var i ChatUsageLimitOverride
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.LimitMicros,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

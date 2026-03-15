@@ -745,6 +745,7 @@ type ChatCostSummary struct {
 	TotalCacheCreationTokens int64                    `json:"total_cache_creation_tokens"`
 	ByModel                  []ChatCostModelBreakdown `json:"by_model"`
 	ByChat                   []ChatCostChatBreakdown  `json:"by_chat"`
+	UsageLimit               *ChatUsageLimitStatus    `json:"usage_limit,omitempty"`
 }
 
 // ChatCostModelBreakdown contains per-model cost aggregation.
@@ -794,6 +795,88 @@ type ChatCostUsersResponse struct {
 	EndDate   time.Time            `json:"end_date" format:"date-time"`
 	Count     int64                `json:"count"`
 	Users     []ChatCostUserRollup `json:"users"`
+}
+
+// ChatUsageLimitExceededResponse is the 409 response body returned when a
+// chat operation exceeds the caller's usage limit. The structured fields let
+// frontends render user-friendly spend, limit, and reset information without
+// parsing debug text.
+type ChatUsageLimitExceededResponse struct {
+	Message     string    `json:"message"`
+	SpentMicros int64     `json:"spent_micros"`
+	LimitMicros int64     `json:"limit_micros"`
+	ResetsAt    time.Time `json:"resets_at" format:"date-time"`
+}
+
+// ChatUsageLimitPeriod represents the time window for usage limits.
+type ChatUsageLimitPeriod string
+
+const (
+	ChatUsageLimitPeriodDay   ChatUsageLimitPeriod = "day"
+	ChatUsageLimitPeriodWeek  ChatUsageLimitPeriod = "week"
+	ChatUsageLimitPeriodMonth ChatUsageLimitPeriod = "month"
+)
+
+// ChatUsageLimitConfig is the deployment-wide default usage limit config.
+type ChatUsageLimitConfig struct {
+	SpendLimitMicros *int64               `json:"spend_limit_micros"` // nil = unlimited
+	Period           ChatUsageLimitPeriod `json:"period"`
+	UpdatedAt        time.Time            `json:"updated_at" format:"date-time"`
+}
+
+// ChatUsageLimitOverride is a per-user override of the deployment default.
+type ChatUsageLimitOverride struct {
+	UserID           uuid.UUID `json:"user_id" format:"uuid"`
+	Username         string    `json:"username"`
+	Name             string    `json:"name"`
+	AvatarURL        string    `json:"avatar_url"`
+	SpendLimitMicros *int64    `json:"spend_limit_micros"` // nil = unlimited
+	CreatedAt        time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
+}
+
+// ChatUsageLimitGroupOverride represents a group-scoped spend limit override.
+type ChatUsageLimitGroupOverride struct {
+	GroupID          uuid.UUID `json:"group_id" format:"uuid"`
+	GroupName        string    `json:"group_name"`
+	GroupDisplayName string    `json:"group_display_name"`
+	GroupAvatarURL   string    `json:"group_avatar_url"`
+	MemberCount      int64     `json:"member_count"`
+	SpendLimitMicros *int64    `json:"spend_limit_micros"` // nil = unlimited
+	CreatedAt        time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
+}
+
+// UpsertChatUsageLimitOverrideRequest is the body for creating/updating a
+// per-user usage limit override.
+type UpsertChatUsageLimitOverrideRequest struct {
+	SpendLimitMicros int64 `json:"spend_limit_micros"` // Must be greater than 0.
+}
+
+// UpsertChatUsageLimitGroupOverrideRequest is the request to create or update
+// a group-level spend limit override.
+type UpsertChatUsageLimitGroupOverrideRequest struct {
+	SpendLimitMicros int64 `json:"spend_limit_micros"` // Must be greater than 0.
+}
+
+// ChatUsageLimitStatus represents the current spend status for a user
+// within their active limit period.
+type ChatUsageLimitStatus struct {
+	IsLimited        bool                 `json:"is_limited"`
+	Period           ChatUsageLimitPeriod `json:"period,omitempty"`
+	SpendLimitMicros *int64               `json:"spend_limit_micros,omitempty"`
+	CurrentSpend     int64                `json:"current_spend"`
+	PeriodStart      time.Time            `json:"period_start,omitempty" format:"date-time"`
+	PeriodEnd        time.Time            `json:"period_end,omitempty" format:"date-time"`
+}
+
+// ChatUsageLimitConfigResponse is returned from the admin config endpoint
+// and includes the config plus a count of models without pricing.
+type ChatUsageLimitConfigResponse struct {
+	ChatUsageLimitConfig
+	UnpricedModelCount int64                         `json:"unpriced_model_count"`
+	Overrides          []ChatUsageLimitOverride      `json:"overrides"`
+	GroupOverrides     []ChatUsageLimitGroupOverride `json:"group_overrides"`
 }
 
 // ListChatsOptions are optional parameters for ListChats.
@@ -1408,6 +1491,113 @@ func (c *Client) GetChatFile(ctx context.Context, fileID uuid.UUID) ([]byte, str
 		return nil, "", err
 	}
 	return data, res.Header.Get("Content-Type"), nil
+}
+
+// GetChatUsageLimitConfig returns the deployment-wide chat usage limit config.
+func (c *Client) GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitConfigResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/usage-limits", nil)
+	if err != nil {
+		return ChatUsageLimitConfigResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatUsageLimitConfigResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatUsageLimitConfigResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatUsageLimitConfig updates the deployment-wide usage limit config.
+func (c *Client) UpdateChatUsageLimitConfig(ctx context.Context, req ChatUsageLimitConfig) (ChatUsageLimitConfig, error) {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/usage-limits", req)
+	if err != nil {
+		return ChatUsageLimitConfig{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatUsageLimitConfig{}, ReadBodyAsError(res)
+	}
+	var resp ChatUsageLimitConfig
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpsertChatUsageLimitOverride creates or updates a per-user usage limit override.
+func (c *Client) UpsertChatUsageLimitOverride(ctx context.Context, userID uuid.UUID, req UpsertChatUsageLimitOverrideRequest) (ChatUsageLimitOverride, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/usage-limits/overrides/%s", userID), req)
+	if err != nil {
+		return ChatUsageLimitOverride{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusNoContent {
+		return ChatUsageLimitOverride{}, nil
+	}
+	if res.StatusCode != http.StatusOK {
+		return ChatUsageLimitOverride{}, ReadBodyAsError(res)
+	}
+	var resp ChatUsageLimitOverride
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// DeleteChatUsageLimitOverride removes a per-user usage limit override.
+func (c *Client) DeleteChatUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/usage-limits/overrides/%s", userID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// UpsertChatUsageLimitGroupOverride creates or updates a group-level
+// spend limit override. EXPERIMENTAL: This API is subject to change.
+func (c *Client) UpsertChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID, req UpsertChatUsageLimitGroupOverrideRequest) (ChatUsageLimitGroupOverride, error) {
+	res, err := c.Request(ctx, http.MethodPut,
+		fmt.Sprintf("/api/experimental/chats/usage-limits/group-overrides/%s", groupID),
+		req,
+	)
+	if err != nil {
+		return ChatUsageLimitGroupOverride{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatUsageLimitGroupOverride{}, ReadBodyAsError(res)
+	}
+	var override ChatUsageLimitGroupOverride
+	return override, json.NewDecoder(res.Body).Decode(&override)
+}
+
+// DeleteChatUsageLimitGroupOverride removes a group-level spend limit
+// override. EXPERIMENTAL: This API is subject to change.
+func (c *Client) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete,
+		fmt.Sprintf("/api/experimental/chats/usage-limits/group-overrides/%s", groupID),
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetMyChatUsageLimitStatus returns the current user's chat usage limit status.
+func (c *Client) GetMyChatUsageLimitStatus(ctx context.Context) (ChatUsageLimitStatus, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/usage-limits/status", nil)
+	if err != nil {
+		return ChatUsageLimitStatus{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatUsageLimitStatus{}, ReadBodyAsError(res)
+	}
+	var resp ChatUsageLimitStatus
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 func formatChatStreamResponseError(response Response) string {
