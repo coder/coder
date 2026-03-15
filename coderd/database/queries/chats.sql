@@ -182,7 +182,8 @@ INSERT INTO chat_messages (
     cache_read_tokens,
     context_limit,
     compressed,
-    total_cost_micros
+    total_cost_micros,
+    cost_valid
 ) VALUES (
     @chat_id::uuid,
     sqlc.narg('created_by')::uuid,
@@ -199,7 +200,8 @@ INSERT INTO chat_messages (
     sqlc.narg('cache_read_tokens')::bigint,
     sqlc.narg('context_limit')::bigint,
     COALESCE(sqlc.narg('compressed')::boolean, FALSE),
-    sqlc.narg('total_cost_micros')::bigint
+    @total_cost_micros::bigint,
+    @cost_valid::boolean
 )
 RETURNING
     *;
@@ -516,10 +518,10 @@ WHERE
 SELECT
     COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
     COUNT(*) FILTER (
-        WHERE cm.total_cost_micros IS NOT NULL
+        WHERE cm.cost_valid
     )::bigint AS priced_message_count,
     COUNT(*) FILTER (
-        WHERE cm.total_cost_micros IS NULL
+        WHERE NOT cm.cost_valid
             AND (
                 cm.input_tokens IS NOT NULL
                 OR cm.output_tokens IS NOT NULL

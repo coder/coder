@@ -4084,7 +4084,8 @@ type ChatMessage struct {
 	Compressed          bool                  `db:"compressed" json:"compressed"`
 	CreatedBy           uuid.NullUUID         `db:"created_by" json:"created_by"`
 	ContentVersion      int16                 `db:"content_version" json:"content_version"`
-	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
+	TotalCostMicros     int64                 `db:"total_cost_micros" json:"total_cost_micros"`
+	CostValid           bool                  `db:"cost_valid" json:"cost_valid"`
 }
 
 type ChatModelConfig struct {

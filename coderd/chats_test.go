@@ -3509,7 +3509,8 @@ func seedChatCostFixture(t *testing.T) chatCostTestFixture {
 			Visibility:      database.ChatMessageVisibilityBoth,
 			InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
 			OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-			TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
+			TotalCostMicros: 500,
+			CostValid:       true,
 		})
 		require.NoError(t, err)
 	}
@@ -3601,7 +3602,8 @@ func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 		Visibility:      database.ChatMessageVisibilityBoth,
 		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
 		OutputTokens:    sql.NullInt64{Int64: 100, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 750, Valid: true},
+		TotalCostMicros: 750,
+		CostValid:       true,
 	})
 	require.NoError(t, err)
 
@@ -3651,7 +3653,8 @@ func TestChatCostUsers(t *testing.T) {
 		Visibility:      database.ChatMessageVisibilityBoth,
 		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
 		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 300, Valid: true},
+		TotalCostMicros: 300,
+		CostValid:       true,
 	})
 	require.NoError(t, err)
 
@@ -3668,7 +3671,8 @@ func TestChatCostUsers(t *testing.T) {
 		Visibility:      database.ChatMessageVisibilityBoth,
 		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
 		OutputTokens:    sql.NullInt64{Int64: 100, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 800, Valid: true},
+		TotalCostMicros: 800,
+		CostValid:       true,
 	})
 	require.NoError(t, err)
 
@@ -3742,7 +3746,8 @@ func TestChatCostSummary_DateRange(t *testing.T) {
 		Visibility:      database.ChatMessageVisibilityBoth,
 		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
 		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
+		TotalCostMicros: 500,
+		CostValid:       true,
 	})
 	require.NoError(t, err)
 
@@ -3797,7 +3802,8 @@ func TestChatCostSummary_UnpricedMessages(t *testing.T) {
 		Visibility:      database.ChatMessageVisibilityBoth,
 		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
 		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
+		TotalCostMicros: 500,
+		CostValid:       true,
 	})
 	require.NoError(t, err)
 
@@ -3808,7 +3814,8 @@ func TestChatCostSummary_UnpricedMessages(t *testing.T) {
 		Visibility:      database.ChatMessageVisibilityBoth,
 		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
 		OutputTokens:    sql.NullInt64{Int64: 75, Valid: true},
-		TotalCostMicros: sql.NullInt64{},
+		TotalCostMicros: 0,
+		CostValid:       false,
 	})
 	require.NoError(t, err)
 

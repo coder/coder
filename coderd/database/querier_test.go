@@ -9052,11 +9052,13 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 	) database.ChatMessage {
 		t.Helper()
 		msg, err := db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID:         chatID,
-			Role:           role,
-			ContentVersion: chatprompt.CurrentContentVersion,
-			Visibility:     vis,
-			Compressed:     sql.NullBool{Bool: compressed, Valid: true},
+			ChatID:          chatID,
+			Role:            role,
+			ContentVersion:  chatprompt.CurrentContentVersion,
+			Visibility:      vis,
+			Compressed:      sql.NullBool{Bool: compressed, Valid: true},
+			TotalCostMicros: 0,
+			CostValid:       false,
 			Content: pqtype.NullRawMessage{
 				RawMessage: json.RawMessage(`"` + content + `"`),
 				Valid:      true,

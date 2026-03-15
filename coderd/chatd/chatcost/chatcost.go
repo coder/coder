@@ -9,23 +9,24 @@ import (
 
 // Returns cost in micros -- millionths of a dollar, rounded up to the next
 // whole microdollar.
-// Returns nil when pricing is not configured or when all priced usage fields
-// are nil, allowing callers to distinguish "zero cost" from "unpriced".
+// Returns valid=false when pricing is not configured or when all priced usage
+// fields are nil, allowing callers to distinguish "zero cost" from
+// "unpriced".
 func CalculateTotalCostMicros(
 	usage codersdk.ChatMessageUsage,
 	cost *codersdk.ModelCostConfig,
-) *int64 {
+) (micros int64, valid bool) {
 	if cost == nil {
-		return nil
+		return 0, false
 	}
 
 	// A cost config with no prices set means pricing is effectively
-	// unconfigured — return nil (unpriced) rather than zero.
+	// unconfigured — return valid=false (unpriced) rather than zero.
 	if cost.InputPricePerMillionTokens == nil &&
 		cost.OutputPricePerMillionTokens == nil &&
 		cost.CacheReadPricePerMillionTokens == nil &&
 		cost.CacheWritePricePerMillionTokens == nil {
-		return nil
+		return 0, false
 	}
 
 	if usage.InputTokens == nil &&
@@ -33,7 +34,7 @@ func CalculateTotalCostMicros(
 		usage.ReasoningTokens == nil &&
 		usage.CacheCreationTokens == nil &&
 		usage.CacheReadTokens == nil {
-		return nil
+		return 0, false
 	}
 
 	// OutputTokens already includes reasoning tokens per provider
@@ -41,14 +42,15 @@ func CalculateTotalCostMicros(
 	// reasoning_tokens). Adding ReasoningTokens here would
 	// double-count.
 
-	// Preserve nil when usage exists only in categories without configured
-	// pricing, so callers can distinguish "unpriced" from "priced at zero".
+	// Preserve valid=false when usage exists only in categories without
+	// configured pricing, so callers can distinguish "unpriced" from
+	// "priced at zero".
 	hasMatchingPrice := (usage.InputTokens != nil && cost.InputPricePerMillionTokens != nil) ||
 		(usage.OutputTokens != nil && cost.OutputPricePerMillionTokens != nil) ||
 		(usage.CacheReadTokens != nil && cost.CacheReadPricePerMillionTokens != nil) ||
 		(usage.CacheCreationTokens != nil && cost.CacheWritePricePerMillionTokens != nil)
 	if !hasMatchingPrice {
-		return nil
+		return 0, false
 	}
 
 	inputMicros := calcCost(usage.InputTokens, cost.InputPricePerMillionTokens)
@@ -60,8 +62,8 @@ func CalculateTotalCostMicros(
 		Add(outputMicros).
 		Add(cacheReadMicros).
 		Add(cacheWriteMicros)
-	rounded := total.Ceil().IntPart()
-	return &rounded
+
+	return total.Ceil().IntPart(), true
 }
 
 // calcCost returns the cost in fractional microdollars (millionths of a USD)

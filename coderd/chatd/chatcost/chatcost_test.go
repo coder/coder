@@ -15,19 +15,21 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		usage codersdk.ChatMessageUsage
-		cost  *codersdk.ModelCostConfig
-		want  *int64
+		name       string
+		usage      codersdk.ChatMessageUsage
+		cost       *codersdk.ModelCostConfig
+		wantMicros int64
+		wantValid  bool
 	}{
 		{
-			name:  "nil cost returns nil",
-			usage: codersdk.ChatMessageUsage{InputTokens: ptr.Ref[int64](1000)},
-			cost:  nil,
-			want:  nil,
+			name:       "nil cost returns unpriced",
+			usage:      codersdk.ChatMessageUsage{InputTokens: ptr.Ref[int64](1000)},
+			cost:       nil,
+			wantMicros: 0,
+			wantValid:  false,
 		},
 		{
-			name: "all priced usage fields nil returns nil",
+			name: "all priced usage fields nil returns unpriced",
 			usage: codersdk.ChatMessageUsage{
 				TotalTokens:  ptr.Ref[int64](1234),
 				ContextLimit: ptr.Ref[int64](8192),
@@ -35,31 +37,29 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 			cost: &codersdk.ModelCostConfig{
 				InputPricePerMillionTokens: ptr.Ref(decimal.RequireFromString("3")),
 			},
-			want: nil,
+			wantMicros: 0,
+			wantValid:  false,
 		},
 		{
-			name:  "sub-micro total rounds up to 1",
-			usage: codersdk.ChatMessageUsage{InputTokens: ptr.Ref[int64](1)},
-			cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens: ptr.Ref(decimal.RequireFromString("0.01")),
-			},
-			want: ptr.Ref[int64](1),
+			name:       "sub-micro total rounds up to 1",
+			usage:      codersdk.ChatMessageUsage{InputTokens: ptr.Ref[int64](1)},
+			cost:       &codersdk.ModelCostConfig{InputPricePerMillionTokens: ptr.Ref(decimal.RequireFromString("0.01"))},
+			wantMicros: 1,
+			wantValid:  true,
 		},
 		{
-			name:  "simple input only",
-			usage: codersdk.ChatMessageUsage{InputTokens: ptr.Ref[int64](1000)},
-			cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens: ptr.Ref(decimal.RequireFromString("3")),
-			},
-			want: ptr.Ref[int64](3000),
+			name:       "simple input only",
+			usage:      codersdk.ChatMessageUsage{InputTokens: ptr.Ref[int64](1000)},
+			cost:       &codersdk.ModelCostConfig{InputPricePerMillionTokens: ptr.Ref(decimal.RequireFromString("3"))},
+			wantMicros: 3000,
+			wantValid:  true,
 		},
 		{
-			name:  "simple output only",
-			usage: codersdk.ChatMessageUsage{OutputTokens: ptr.Ref[int64](500)},
-			cost: &codersdk.ModelCostConfig{
-				OutputPricePerMillionTokens: ptr.Ref(decimal.RequireFromString("15")),
-			},
-			want: ptr.Ref[int64](7500),
+			name:       "simple output only",
+			usage:      codersdk.ChatMessageUsage{OutputTokens: ptr.Ref[int64](500)},
+			cost:       &codersdk.ModelCostConfig{OutputPricePerMillionTokens: ptr.Ref(decimal.RequireFromString("15"))},
+			wantMicros: 7500,
+			wantValid:  true,
 		},
 		{
 			name: "reasoning tokens included in output total",
@@ -67,26 +67,23 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 				OutputTokens:    ptr.Ref[int64](500),
 				ReasoningTokens: ptr.Ref[int64](200),
 			},
-			cost: &codersdk.ModelCostConfig{
-				OutputPricePerMillionTokens: ptr.Ref(decimal.RequireFromString("15")),
-			},
-			want: ptr.Ref[int64](7500),
+			cost:       &codersdk.ModelCostConfig{OutputPricePerMillionTokens: ptr.Ref(decimal.RequireFromString("15"))},
+			wantMicros: 7500,
+			wantValid:  true,
 		},
 		{
-			name:  "cache read tokens",
-			usage: codersdk.ChatMessageUsage{CacheReadTokens: ptr.Ref[int64](10000)},
-			cost: &codersdk.ModelCostConfig{
-				CacheReadPricePerMillionTokens: ptr.Ref(decimal.RequireFromString("0.3")),
-			},
-			want: ptr.Ref[int64](3000),
+			name:       "cache read tokens",
+			usage:      codersdk.ChatMessageUsage{CacheReadTokens: ptr.Ref[int64](10000)},
+			cost:       &codersdk.ModelCostConfig{CacheReadPricePerMillionTokens: ptr.Ref(decimal.RequireFromString("0.3"))},
+			wantMicros: 3000,
+			wantValid:  true,
 		},
 		{
-			name:  "cache creation tokens",
-			usage: codersdk.ChatMessageUsage{CacheCreationTokens: ptr.Ref[int64](5000)},
-			cost: &codersdk.ModelCostConfig{
-				CacheWritePricePerMillionTokens: ptr.Ref(decimal.RequireFromString("3.75")),
-			},
-			want: ptr.Ref[int64](18750),
+			name:       "cache creation tokens",
+			usage:      codersdk.ChatMessageUsage{CacheCreationTokens: ptr.Ref[int64](5000)},
+			cost:       &codersdk.ModelCostConfig{CacheWritePricePerMillionTokens: ptr.Ref(decimal.RequireFromString("3.75"))},
+			wantMicros: 18750,
+			wantValid:  true,
 		},
 		{
 			name: "full mixed usage totals all components exactly",
@@ -105,7 +102,8 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 				CacheReadPricePerMillionTokens:  ptr.Ref(decimal.RequireFromString("0.7")),
 				CacheWritePricePerMillionTokens: ptr.Ref(decimal.RequireFromString("7.89")),
 			},
-			want: ptr.Ref[int64](2005),
+			wantMicros: 2005,
+			wantValid:  true,
 		},
 		{
 			name: "partial pricing only input contributes",
@@ -116,32 +114,30 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 				CacheReadTokens:     ptr.Ref[int64](500),
 				CacheCreationTokens: ptr.Ref[int64](250),
 			},
-			cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens: ptr.Ref(decimal.RequireFromString("2.5")),
-			},
-			want: ptr.Ref[int64](3085),
+			cost:       &codersdk.ModelCostConfig{InputPricePerMillionTokens: ptr.Ref(decimal.RequireFromString("2.5"))},
+			wantMicros: 3085,
+			wantValid:  true,
 		},
 		{
-			name:  "zero tokens with pricing returns zero pointer",
-			usage: codersdk.ChatMessageUsage{InputTokens: ptr.Ref[int64](0)},
-			cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens: ptr.Ref(decimal.RequireFromString("3")),
-			},
-			want: ptr.Ref[int64](0),
+			name:       "zero tokens with pricing returns zero cost",
+			usage:      codersdk.ChatMessageUsage{InputTokens: ptr.Ref[int64](0)},
+			cost:       &codersdk.ModelCostConfig{InputPricePerMillionTokens: ptr.Ref(decimal.RequireFromString("3"))},
+			wantMicros: 0,
+			wantValid:  true,
 		},
 		{
-			name:  "usage only in unpriced categories returns nil",
-			usage: codersdk.ChatMessageUsage{InputTokens: ptr.Ref[int64](1000)},
-			cost: &codersdk.ModelCostConfig{
-				OutputPricePerMillionTokens: ptr.Ref(decimal.RequireFromString("15")),
-			},
-			want: nil,
+			name:       "usage only in unpriced categories returns unpriced",
+			usage:      codersdk.ChatMessageUsage{InputTokens: ptr.Ref[int64](1000)},
+			cost:       &codersdk.ModelCostConfig{OutputPricePerMillionTokens: ptr.Ref(decimal.RequireFromString("15"))},
+			wantMicros: 0,
+			wantValid:  false,
 		},
 		{
-			name:  "non nil usage with empty cost config returns nil",
-			usage: codersdk.ChatMessageUsage{InputTokens: ptr.Ref[int64](42)},
-			cost:  &codersdk.ModelCostConfig{},
-			want:  nil,
+			name:       "non nil usage with empty cost config returns unpriced",
+			usage:      codersdk.ChatMessageUsage{InputTokens: ptr.Ref[int64](42)},
+			cost:       &codersdk.ModelCostConfig{},
+			wantMicros: 0,
+			wantValid:  false,
 		},
 	}
 
@@ -150,14 +146,10 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := chatcost.CalculateTotalCostMicros(tt.usage, tt.cost)
+			micros, valid := chatcost.CalculateTotalCostMicros(tt.usage, tt.cost)
 
-			if tt.want == nil {
-				require.Nil(t, got)
-			} else {
-				require.NotNil(t, got)
-				require.Equal(t, *tt.want, *got)
-			}
+			require.Equal(t, tt.wantValid, valid)
+			require.Equal(t, tt.wantMicros, micros)
 		})
 	}
 }
