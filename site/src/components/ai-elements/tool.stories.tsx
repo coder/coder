@@ -153,11 +153,13 @@ export const SubagentRunning: Story = {
 			title: "Workspace diagnostics",
 			prompt: "Collect logs and summarize why startup failed.",
 		},
-		result: {
-			chat_id: "child-chat-id",
-			title: "Workspace diagnostics",
-			status: "pending",
-		},
+		result: [
+			{
+				chat_id: "child-chat-id",
+				title: "Workspace diagnostics",
+				status: "pending",
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -165,6 +167,76 @@ export const SubagentRunning: Story = {
 			"href",
 			"/agents/child-chat-id",
 		);
+	},
+};
+
+export const SubagentBestOfNRunning: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "running",
+		args: {
+			title: "Refactor auth module",
+			prompt: "Refactor the auth module to use the new token format.",
+			n: 3,
+		},
+		result: [
+			{
+				chat_id: "child-chat-1",
+				title: "Refactor auth module (1/3)",
+				status: "pending",
+			},
+			{
+				chat_id: "child-chat-2",
+				title: "Refactor auth module (2/3)",
+				status: "pending",
+			},
+			{
+				chat_id: "child-chat-3",
+				title: "Refactor auth module (3/3)",
+				status: "pending",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/best of 3/)).toBeInTheDocument();
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			"/agents/child-chat-1",
+		);
+	},
+};
+
+export const SubagentBestOfNCompleted: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Refactor auth module",
+			prompt: "Refactor the auth module to use the new token format.",
+			n: 3,
+		},
+		result: [
+			{
+				chat_id: "child-chat-1",
+				title: "Refactor auth module (1/3)",
+				status: "completed",
+			},
+			{
+				chat_id: "child-chat-2",
+				title: "Refactor auth module (2/3)",
+				status: "completed",
+			},
+			{
+				chat_id: "child-chat-3",
+				title: "Refactor auth module (3/3)",
+				status: "completed",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/best of 3/)).toBeInTheDocument();
 	},
 };
 
@@ -202,7 +274,7 @@ export const SubagentCompletedDelegatedPending: Story = {
 	args: {
 		name: "spawn_agent",
 		args: undefined,
-		result: { chat_id: "child-chat-id", status: "pending" },
+		result: [{ chat_id: "child-chat-id", status: "pending" }],
 		status: "completed",
 	},
 	play: async ({ canvasElement }) => {
@@ -222,7 +294,7 @@ export const SubagentStreamOverrideStatus: Story = {
 	args: {
 		name: "spawn_agent",
 		args: undefined,
-		result: { chat_id: "child-chat-id", status: "pending" },
+		result: [{ chat_id: "child-chat-id", status: "pending" }],
 		status: "completed",
 		subagentStatusOverrides: new Map([["child-chat-id", "completed"]]),
 	},
@@ -239,11 +311,13 @@ export const SubagentNoErrorWhenCompleted: Story = {
 	args: {
 		name: "spawn_agent",
 		args: undefined,
-		result: {
-			chat_id: "child-chat-id",
-			status: "completed",
-			error: "provider metadata noise",
-		},
+		result: [
+			{
+				chat_id: "child-chat-id",
+				status: "completed",
+				error: "provider metadata noise",
+			},
+		],
 		status: "error",
 		isError: true,
 	},
@@ -282,12 +356,14 @@ export const SubagentRequestMetadata: Story = {
 	args: {
 		name: "spawn_agent",
 		args: undefined,
-		result: {
-			chat_id: "child-chat-id",
-			status: "completed",
-			request_id: "request-123",
-			duration_ms: 1530,
-		},
+		result: [
+			{
+				chat_id: "child-chat-id",
+				status: "completed",
+				request_id: "request-123",
+				duration_ms: 1530,
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

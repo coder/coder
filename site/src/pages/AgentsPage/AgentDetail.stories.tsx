@@ -622,11 +622,16 @@ export const WithSubagentCards: Story = {
 								type: "tool-result",
 								tool_call_id: "tool-subagent-1",
 								tool_name: "spawn_agent",
-								result: {
-									chat_id: "child-chat-1",
-									title: "Child agent",
-									status: "pending",
-								},
+								// spawn_agent returns an array, but ChatMessagePart.result
+								// is typed as Record<string, string> due to the type
+								// generator mapping json.RawMessage too narrowly.
+								result: [
+									{
+										chat_id: "child-chat-1",
+										title: "Child agent",
+										status: "pending",
+									},
+								] as unknown as Record<string, string>,
 							},
 						],
 					},

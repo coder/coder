@@ -35,7 +35,8 @@ const isCompletedSubagentResult = (
 	if (!isSubagentToolName(toolName)) {
 		return false;
 	}
-	const typedResult = asRecord(result);
+	const raw = Array.isArray(result) ? result[0] : result;
+	const typedResult = asRecord(raw);
 	if (!typedResult) {
 		return false;
 	}
@@ -376,14 +377,15 @@ export const buildSubagentTitles = (
 			if (tool.name !== "spawn_agent") {
 				continue;
 			}
-			const rec = asRecord(tool.result);
-			if (!rec) {
-				continue;
-			}
-			const chatId = asString(rec.chat_id);
-			const title = asString(rec.title);
-			if (chatId && title) {
-				map.set(chatId, title);
+			const items = Array.isArray(tool.result) ? tool.result : [tool.result];
+			for (const item of items) {
+				const rec = asRecord(item);
+				if (!rec) continue;
+				const chatId = asString(rec.chat_id);
+				const title = asString(rec.title);
+				if (chatId && title) {
+					map.set(chatId, title);
+				}
 			}
 		}
 	}
