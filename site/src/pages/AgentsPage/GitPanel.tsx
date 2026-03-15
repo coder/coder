@@ -270,32 +270,32 @@ export const GitPanel: FC<GitPanelProps> = ({
 					</Button>
 				</div>
 			</div>
-			{/* Content */}
-			<div className="min-h-0 flex-1">
-				{view.type === "remote" ? (
-					<RemoteContent
-						prTab={prTab}
-						isExpanded={isExpanded}
-						chatInputRef={chatInputRef}
-						diffStyle={diffStyle}
-					/>
-				) : (
-					<LocalRepoContent
-						repoRoot={view.repoRoot}
-						repo={repositories.get(view.repoRoot)}
-						diffStats={
-							repoStats.get(view.repoRoot) ?? { additions: 0, deletions: 0 }
-						}
-						onCommit={onCommit}
-						isExpanded={isExpanded}
-						diffStyle={diffStyle}
-					/>
-				)}
-			</div>
-		</div>
-	);
-};
-
+				{/* Content */}
+				<div className="min-h-0 flex-1">
+					{view.type === "remote" ? (
+						<RemoteContent
+							prTab={prTab}
+							isExpanded={isExpanded}
+							chatInputRef={chatInputRef}
+							diffStyle={diffStyle}
+							diffStatus={remoteDiffStats}
+						/>
+					) : (
+						<LocalRepoContent
+							repoRoot={view.repoRoot}
+							repo={repositories.get(view.repoRoot)}
+							diffStats={
+								repoStats.get(view.repoRoot) ?? { additions: 0, deletions: 0 }
+							}
+							onCommit={onCommit}
+							isExpanded={isExpanded}
+							diffStyle={diffStyle}
+						/>
+					)}
+					</div>
+				</div>
+		);
+	};
 // ---------------------------------------------------------------
 // Remote view (branch/PR diff)
 // ---------------------------------------------------------------
@@ -305,7 +305,8 @@ const RemoteContent: FC<{
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
-}> = ({ prTab, isExpanded, chatInputRef, diffStyle }) => {
+	diffStatus?: ChatDiffStatus;
+}> = ({ prTab, isExpanded, chatInputRef, diffStyle, diffStatus }) => {
 	if (!prTab) {
 		return (
 			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
@@ -328,6 +329,7 @@ const RemoteContent: FC<{
 			isExpanded={isExpanded}
 			chatInputRef={chatInputRef}
 			diffStyle={diffStyle}
+			diffStatus={diffStatus}
 		/>
 	);
 };

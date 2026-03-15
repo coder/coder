@@ -2716,17 +2716,10 @@ func TestGetChatDiffStatus(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		noCachedStatus, err := client.GetChatDiffStatus(ctx, noCachedStatusChat.ID)
+		noCachedChat, err := client.GetChat(ctx, noCachedStatusChat.ID)
 		require.NoError(t, err)
-		require.Equal(t, noCachedStatusChat.ID, noCachedStatus.ChatID)
-		require.Nil(t, noCachedStatus.URL)
-		require.Nil(t, noCachedStatus.PullRequestState)
-		require.False(t, noCachedStatus.ChangesRequested)
-		require.Zero(t, noCachedStatus.Additions)
-		require.Zero(t, noCachedStatus.Deletions)
-		require.Zero(t, noCachedStatus.ChangedFiles)
-		require.Nil(t, noCachedStatus.RefreshedAt)
-		require.Nil(t, noCachedStatus.StaleAt)
+		require.Equal(t, noCachedStatusChat.ID, noCachedChat.ID)
+		require.Nil(t, noCachedChat.DiffStatus)
 
 		cachedStatusChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OwnerID:           user.UserID,
@@ -2768,8 +2761,11 @@ func TestGetChatDiffStatus(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		cachedStatus, err := client.GetChatDiffStatus(ctx, cachedStatusChat.ID)
+		cachedChat, err := client.GetChat(ctx, cachedStatusChat.ID)
 		require.NoError(t, err)
+		require.Equal(t, cachedStatusChat.ID, cachedChat.ID)
+		require.NotNil(t, cachedChat.DiffStatus)
+		cachedStatus := cachedChat.DiffStatus
 		require.Equal(t, cachedStatusChat.ID, cachedStatus.ChatID)
 		require.NotNil(t, cachedStatus.URL)
 		require.Equal(t, "https://github.com/coder/coder/tree/feature/diff-status", *cachedStatus.URL)
@@ -2804,11 +2800,11 @@ func TestGetChatDiffStatus(t *testing.T) {
 		require.NoError(t, err)
 
 		otherClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
-		_, err = otherClient.GetChatDiffStatus(ctx, createdChat.ID)
+		_, err = otherClient.GetChat(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
-	// Integration test: exercises the full HTTP handler refresh
+	// Integration test: exercises the full GetChat handler refresh
 	// path with a real DB, dbauthz, a mock GitHub API, and an
 	// external-auth-linked user. Verifies that a stale chat diff
 	// status is refreshed end-to-end via the gitsync worker's
@@ -2907,8 +2903,9 @@ func TestGetChatDiffStatus(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		// Call the HTTP endpoint. This exercises the full code
-		// path: resolveChatDiffStatus -> RefreshChat (with
+		// Call GetChat which now resolves diff status inline.
+		// This exercises the full code path:
+		// resolveChatDiffStatus -> RefreshChat (with
 		// AsSystemRestricted) -> Refresher.Refresh ->
 		// resolveChatGitAccessToken (GetExternalAuthLink with
 		// AsSystemRestricted) -> FetchPullRequestStatus (mock).
@@ -2917,8 +2914,10 @@ func TestGetChatDiffStatus(t *testing.T) {
 		// would fail under the chatd RBAC context (missing
 		// ActionReadPersonal), causing ErrNoTokenAvailable and a
 		// refresh failure that silently returns stale data.
-		status, err := client.GetChatDiffStatus(ctx, chat.ID)
+		result, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
+		require.NotNil(t, result.DiffStatus)
+		status := result.DiffStatus
 
 		// The mock GitHub API returned PR #42 with 25 additions,
 		// 7 deletions, 4 changed files, state "open".

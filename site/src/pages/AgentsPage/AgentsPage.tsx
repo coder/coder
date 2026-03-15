@@ -3,7 +3,6 @@ import { getErrorMessage } from "api/errors";
 import {
 	archiveChat,
 	chatDiffContentsKey,
-	chatDiffStatusKey,
 	chatKey,
 	chatModelConfigs,
 	chatModels,
@@ -386,18 +385,17 @@ const AgentsPage: FC = () => {
 						return;
 					}
 
-					if (chatEvent.kind === "diff_status_change") {
-						void Promise.all([
-							queryClient.invalidateQueries({
-								queryKey: chatDiffStatusKey(updatedChat.id),
-							}),
-							queryClient.invalidateQueries({
-								queryKey: chatDiffContentsKey(updatedChat.id),
-							}),
-						]);
-						return;
-					}
-
+						if (chatEvent.kind === "diff_status_change") {
+							void Promise.all([
+								queryClient.invalidateQueries({
+									queryKey: chatKey(updatedChat.id),
+								}),
+								queryClient.invalidateQueries({
+									queryKey: chatDiffContentsKey(updatedChat.id),
+								}),
+							]);
+							return;
+						}
 					// Scope field updates by event kind so that
 					// status_change events (which may carry a stale title
 					// snapshot from before async title generation
