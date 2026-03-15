@@ -1524,6 +1524,12 @@ const docTemplate = `{
                         "name": "group",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Member search query",
+                        "name": "q",
+                        "in": "query"
                     }
                 ],
                 "responses": {

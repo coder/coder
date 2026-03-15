@@ -4,6 +4,8 @@ import type { Group } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { useFilter } from "components/Filter/Filter";
+import type { UsersFilter } from "components/Filter/UsersFilter";
 import { Loader } from "components/Loader/Loader";
 import {
 	SettingsHeader,
@@ -12,10 +14,17 @@ import {
 } from "components/SettingsHeader/SettingsHeader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { TrashIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type ComponentProps, type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Outlet, useLocation, useNavigate, useParams } from "react-router";
+import {
+	Outlet,
+	useLocation,
+	useNavigate,
+	useParams,
+	useSearchParams,
+} from "react-router";
 import { toast } from "sonner";
+import { prepareQuery } from "utils/filters";
 import { pageTitle } from "utils/page";
 
 export type GroupPageOutletContext = {
@@ -23,6 +32,7 @@ export type GroupPageOutletContext = {
 	permissions: { canUpdateGroup: boolean };
 	organization: string;
 	groupQuery: ReturnType<typeof useQuery>;
+	filterProps: ComponentProps<typeof UsersFilter>;
 };
 
 const GroupPage: FC = () => {
@@ -33,7 +43,17 @@ const GroupPage: FC = () => {
 	const location = useLocation();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
-	const groupQuery = useQuery(group(organization, groupName));
+	const [searchParams, setSearchParams] = useSearchParams();
+	const groupQuery = useQuery(
+		group(organization, groupName, {
+			q: prepareQuery(searchParams.get("filter") ?? ""),
+		}),
+	);
+	const useFilterResult = useFilter({
+		searchParams,
+		onSearchParamsChange: setSearchParams,
+	});
+
 	const groupData = groupQuery.data;
 	const { data: permissions } = useQuery({
 		...groupPermissions(groupData?.id ?? ""),
@@ -118,6 +138,10 @@ const GroupPage: FC = () => {
 							permissions: { canUpdateGroup },
 							organization,
 							groupQuery,
+							filterProps: {
+								filter: useFilterResult,
+								error: groupQuery.error,
+							},
 						} satisfies GroupPageOutletContext
 					}
 				/>

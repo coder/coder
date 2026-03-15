@@ -3,6 +3,7 @@ import type {
 	CreateGroupRequest,
 	Group,
 	PatchGroupRequest,
+	UsersRequest,
 } from "api/typesGenerated";
 import type { QueryClient, UseQueryOptions } from "react-query";
 
@@ -30,17 +31,24 @@ export const groupsByOrganization = (organization: string) => {
 	} satisfies UseQueryOptions<Group[]>;
 };
 
-export const getGroupQueryKey = (organization: string, groupName: string) => [
-	"organization",
-	organization,
-	"group",
-	groupName,
-];
+export const getGroupQueryKey = (
+	organization: string,
+	groupName: string,
+	req?: UsersRequest,
+) => {
+	const base = ["organization", organization, "group", groupName];
+	return req ? [...base, req] : base;
+};
 
-export const group = (organization: string, groupName: string) => {
+export const group = (
+	organization: string,
+	groupName: string,
+	req?: UsersRequest,
+): UseQueryOptions<Group> => {
 	return {
-		queryKey: getGroupQueryKey(organization, groupName),
-		queryFn: () => API.getGroup(organization, groupName),
+		queryKey: getGroupQueryKey(organization, groupName, req),
+		queryFn: ({ signal }) => API.getGroup(organization, groupName, req, signal),
+		gcTime: 5 * 1000 * 60,
 	};
 };
 

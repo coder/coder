@@ -57,8 +57,8 @@ const PRESET_FILTERS = [
 interface UsersFilterProps {
 	filter: ReturnType<typeof useFilter>;
 	error?: unknown;
-	menus: {
-		status: StatusFilterMenu;
+	menus?: {
+		status?: StatusFilterMenu;
 	};
 }
 
@@ -69,11 +69,11 @@ export const UsersFilter: FC<UsersFilterProps> = ({ filter, error, menus }) => {
 			learnMoreLink={docs("/admin/users#user-filtering")}
 			learnMoreLabel2="User status"
 			learnMoreLink2={docs("/admin/users#user-status")}
-			isLoading={menus.status.isInitializing}
+			isLoading={menus?.status?.isInitializing ?? false}
 			filter={filter}
 			error={error}
-			options={<StatusMenu {...menus.status} />}
-			optionsSkeleton={<MenuSkeleton />}
+			options={menus?.status && <StatusMenu {...menus.status} />}
+			optionsSkeleton={menus?.status && <MenuSkeleton />}
 		/>
 	);
 };

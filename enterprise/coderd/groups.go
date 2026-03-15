@@ -9,11 +9,13 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	agpl "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -393,6 +395,7 @@ func (api *API) groupByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Param group path string true "Group id"
+// @Param q query string false "Member search query"
 // @Success 200 {object} codersdk.Group
 // @Router /groups/{group} [get]
 func (api *API) group(rw http.ResponseWriter, r *http.Request) {
@@ -401,27 +404,62 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		group = httpmw.GroupParam(r)
 	)
 
+	filterQuery := r.URL.Query().Get("q")
+	userFilterParams, filterErrs := searchquery.Users(filterQuery)
+	if len(filterErrs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid member search query.",
+			Validations: filterErrs,
+		})
+		return
+	}
+
+	paginationParams, ok := agpl.ParsePagination(rw, r)
+	if !ok {
+		return
+	}
+
 	org, err := api.Database.GetOrganizationByID(ctx, group.OrganizationID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 	}
 
 	users, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
-		GroupID:       group.ID,
-		IncludeSystem: false,
+		AfterID:         paginationParams.AfterID,
+		GroupID:         group.ID,
+		IncludeSystem:   false,
+		Search:          userFilterParams.Search,
+		Name:            userFilterParams.Name,
+		Status:          userFilterParams.Status,
+		RbacRole:        userFilterParams.RbacRole,
+		LastSeenBefore:  userFilterParams.LastSeenBefore,
+		LastSeenAfter:   userFilterParams.LastSeenAfter,
+		CreatedAfter:    userFilterParams.CreatedAfter,
+		CreatedBefore:   userFilterParams.CreatedBefore,
+		GithubComUserID: userFilterParams.GithubComUserID,
+		LoginType:       userFilterParams.LoginType,
+		// #nosec G115 - Pagination offsets are small and fit in int32
+		OffsetOpt: int32(paginationParams.Offset),
+		// #nosec G115 - Pagination limits are small and fit in int32
+		LimitOpt: int32(paginationParams.Limit),
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 
-	memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, database.GetGroupMembersCountByGroupIDParams{
-		GroupID:       group.ID,
-		IncludeSystem: false,
-	})
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
+	// If there are no users, it could be because the offset is higher than the
+	// count.  In this case we return zero for the total.
+	var memberCount int64
+	if len(users) > 0 {
+		memberCount, err = api.Database.GetGroupMembersCountByGroupID(ctx, database.GetGroupMembersCountByGroupIDParams{
+			GroupID:       group.ID,
+			IncludeSystem: false,
+		})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(database.GetGroupsRow{

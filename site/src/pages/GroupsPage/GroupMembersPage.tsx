@@ -16,6 +16,7 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "components/EmptyState/EmptyState";
+import { UsersFilter } from "components/Filter/UsersFilter";
 import { LastSeen } from "components/LastSeen/LastSeen";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
@@ -46,6 +47,7 @@ const GroupMembersPage: FC = () => {
 		organization,
 		permissions,
 		groupQuery,
+		filterProps,
 	} = useOutletContext<GroupPageOutletContext>();
 	const queryClient = useQueryClient();
 	const addMemberMutation = useMutation(addMember(queryClient, organization));
@@ -77,13 +79,9 @@ const GroupMembersPage: FC = () => {
 					}}
 				/>
 			)}
+
 			<TableToolbar>
-				<PaginationStatus
-					isLoading={false}
-					showing={groupData?.members.length ?? 0}
-					total={groupData?.members.length ?? 0}
-					label="members"
-				/>
+				<UsersFilter {...filterProps} />
 			</TableToolbar>
 
 			<Table>
@@ -138,6 +136,15 @@ const GroupMembersPage: FC = () => {
 					)}
 				</TableBody>
 			</Table>
+
+			<TableToolbar className="justify-end">
+				<PaginationStatus
+					isLoading={false}
+					showing={groupData?.members.length ?? 0}
+					total={groupData?.members.length ?? 0}
+					label="members"
+				/>
+			</TableToolbar>
 		</div>
 	);
 };

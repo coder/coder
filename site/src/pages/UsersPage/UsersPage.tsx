@@ -15,6 +15,7 @@ import type { User } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { useFilter } from "components/Filter/Filter";
+import { useStatusFilterMenu } from "components/Filter/UsersFilter";
 import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { useAuthenticated } from "hooks";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
@@ -26,7 +27,6 @@ import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { generateRandomString } from "utils/random";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
-import { useStatusFilterMenu } from "./UsersFilter";
 import { UsersPageView } from "./UsersPageView";
 
 type UserPageProps = {
