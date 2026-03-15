@@ -104,6 +104,12 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 		: `${formatCostMicros(
 				Math.max(usageLimitSpendMicros - usageLimitCurrentSpend, 0),
 			)} remaining`;
+	const usageLimitCurrentPeriod =
+		showUsageLimitCard && usageLimit?.period_start && usageLimit?.period_end
+			? `Current period: ${dayjs(usageLimit.period_start).format("MMM D")} – ${dayjs(
+					usageLimit.period_end,
+				).format("MMM D")}`
+			: "";
 	const usageLimitResetAt =
 		showUsageLimitCard && usageLimit?.period_end
 			? dayjs(usageLimit.period_end).format("MMM D, YYYY h:mm A")
@@ -172,6 +178,11 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 								<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
 									{usageLimitPeriodLabel} Spend Limit
 								</p>
+								{usageLimitCurrentPeriod && (
+									<p className="mt-1 text-sm text-content-secondary">
+										{usageLimitCurrentPeriod}
+									</p>
+								)}
 								<p className="mt-1 text-2xl font-semibold text-content-primary">
 									{formatCostMicros(usageLimitCurrentSpend)} /{" "}
 									{formatCostMicros(usageLimitSpendMicros)}
