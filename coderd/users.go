@@ -72,6 +72,58 @@ func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, link.Claims)
 }
 
+// Returns the merged OIDC claims for the authenticated user.
+//
+// @Summary Get OIDC claims for the authenticated user
+// @ID get-oidc-claims-for-authenticated-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Success 200 {object} codersdk.OIDCClaimsResponse
+// @Router /users/me/oidc-claims [get]
+func (api *API) userOIDCClaims(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	//nolint:gocritic // The caller can only access their own claims,
+	// so we use system context for the DB lookups.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+
+	user, err := api.Database.GetUserByID(sysCtx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if user.LoginType != database.LoginTypeOIDC {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "User is not an OIDC user.",
+		})
+		return
+	}
+
+	link, err := api.Database.GetUserLinkByUserIDLoginType(sysCtx, database.GetUserLinkByUserIDLoginTypeParams{
+		UserID:    user.ID,
+		LoginType: database.LoginTypeOIDC,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get user link.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OIDCClaimsResponse{
+		Claims: link.Claims.MergedClaims,
+	})
+}
+
 // Returns whether the initial user has been created or not.
 //
 // @Summary Check initial user created
