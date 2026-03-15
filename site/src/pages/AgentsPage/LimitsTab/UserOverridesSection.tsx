@@ -17,6 +17,7 @@ import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import type { FC } from "react";
 import { formatCostMicros } from "utils/analytics";
 import { SectionHeader } from "../SectionHeader";
+import { isPositiveFiniteDollarAmount } from "./limitsFormLogic";
 
 interface UserOverridesSectionProps {
 	overrides: ReadonlyArray<{
@@ -161,9 +162,7 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 									upsertPending ||
 									!selectedUser ||
 									selectedUserAlreadyOverridden ||
-									userOverrideAmount.trim() === "" ||
-									Number.isNaN(Number(userOverrideAmount)) ||
-									Number(userOverrideAmount) <= 0
+									!isPositiveFiniteDollarAmount(userOverrideAmount)
 								}
 							>
 								{upsertPending ? <Spinner loading className="h-4 w-4" /> : null}

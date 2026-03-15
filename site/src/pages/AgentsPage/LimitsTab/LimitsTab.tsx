@@ -150,7 +150,7 @@ export const LimitsTab: FC = () => {
 	};
 
 	const handleAddOverride = async () => {
-		if (!selectedUser) {
+		if (!selectedUser || !isPositiveFiniteDollarAmount(userOverrideAmount)) {
 			return;
 		}
 		try {
@@ -167,7 +167,7 @@ export const LimitsTab: FC = () => {
 	};
 
 	const handleAddGroupOverride = async () => {
-		if (!selectedGroup) {
+		if (!selectedGroup || !isPositiveFiniteDollarAmount(groupAmount)) {
 			return;
 		}
 		try {

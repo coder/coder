@@ -19,6 +19,7 @@ import { getGroupSubtitle } from "modules/groups";
 import type { FC } from "react";
 import { formatCostMicros } from "utils/analytics";
 import { SectionHeader } from "../SectionHeader";
+import { isPositiveFiniteDollarAmount } from "./limitsFormLogic";
 
 interface GroupLimitsSectionProps {
 	groupOverrides: ReadonlyArray<{
@@ -195,9 +196,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 								disabled={
 									upsertPending ||
 									selectedGroup === null ||
-									groupAmount.trim() === "" ||
-									Number.isNaN(Number(groupAmount)) ||
-									Number(groupAmount) <= 0
+									!isPositiveFiniteDollarAmount(groupAmount)
 								}
 							>
 								{upsertPending ? <Spinner loading className="h-4 w-4" /> : null}
