@@ -5011,6 +5011,17 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(params).Asserts(intc, policy.ActionCreate)
 	}))
 
+	s.Run("InsertAIBridgeModelThought", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		intID := uuid.UUID{2}
+		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID})
+		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intID).Return(intc, nil).AnyTimes() // Validation.
+
+		params := database.InsertAIBridgeModelThoughtParams{InterceptionID: intc.ID}
+		expected := testutil.Fake(s.T(), faker, database.AIBridgeModelThought{InterceptionID: intc.ID})
+		db.EXPECT().InsertAIBridgeModelThought(gomock.Any(), params).Return(expected, nil).AnyTimes()
+		check.Args(params).Asserts(intc, policy.ActionUpdate)
+	}))
+
 	s.Run("InsertAIBridgeTokenUsage", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		intID := uuid.UUID{2}
 		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID})
