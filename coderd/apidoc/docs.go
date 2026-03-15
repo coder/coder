@@ -481,40 +481,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/chats/embed-session": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Bootstrap embed session",
-                "operationId": "post-chat-embed-session",
-                "parameters": [
-                    {
-                        "description": "Embed session request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.EmbedSessionTokenRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/chats/{chat}/archive": {
             "post": {
                 "tags": [
@@ -15198,14 +15164,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.PreviewParameter"
                     }
-                }
-            }
-        },
-        "codersdk.EmbedSessionTokenRequest": {
-            "type": "object",
-            "properties": {
-                "token": {
-                    "type": "string"
                 }
             }
         },

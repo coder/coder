@@ -240,23 +240,19 @@ const bootstrapChatEmbedSessionFn = async ({
 	authorization: AuthorizationRequest;
 	queryClient: QueryClient;
 }) => {
-	await API.postChatEmbedSession(token);
-	await Promise.all([
-		queryClient.invalidateQueries({ queryKey: meKey }),
-		queryClient.invalidateQueries({
-			queryKey: getAuthorizationKey(authorization),
-		}),
-	]);
+	API.setSessionToken(token);
+	// Fetch user and permissions first, then set them in the cache
+	// atomically. This avoids a race where invalidating the "me"
+	// query causes isSignedIn to flip before permissions are ready.
 	const [user, permissions] = await Promise.all([
-		queryClient.fetchQuery({
-			queryKey: meKey,
-			queryFn: API.getAuthenticatedUser,
-		}),
-		queryClient.fetchQuery({
-			queryKey: getAuthorizationKey(authorization),
-			queryFn: () => API.checkAuthorization(authorization),
-		}),
+		API.getAuthenticatedUser(),
+		API.checkAuthorization(authorization),
 	]);
+	queryClient.setQueryData(meKey, user);
+	queryClient.setQueryData(
+		getAuthorizationKey(authorization),
+		permissions,
+	);
 	return {
 		user,
 		permissions,

@@ -2692,15 +2692,6 @@ export interface EditChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
 }
 
-// From codersdk/embedauth.go
-/**
- * EmbedSessionTokenRequest contains an existing session token to bootstrap a
- * browser cookie for embedded chat access.
- */
-export interface EmbedSessionTokenRequest {
-	readonly token: string;
-}
-
 // From codersdk/externalauth.go
 export type EnhancedExternalAuthProvider =
 	| "azure-devops"

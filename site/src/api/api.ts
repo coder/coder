@@ -543,24 +543,6 @@ class ApiMethods {
 		return this.axios.post("/api/v2/users/logout");
 	};
 
-	postChatEmbedSession = async (token: string): Promise<void> => {
-		const trimmedToken = token.trim();
-		if (!trimmedToken) {
-			throw new Error("postChatEmbedSession requires a token.");
-		}
-		const response = await this.axios.post<void>(
-			"/api/experimental/chats/embed-session",
-			{ token: trimmedToken },
-			{ validateStatus: (status) => status === 204 },
-		);
-
-		if (response.status !== 204) {
-			throw new Error(
-				"Expected a 204 response when bootstrapping an embed session.",
-			);
-		}
-	};
-
 	getAuthenticatedUser = async () => {
 		const response = await this.axios.get<TypesGen.User>("/api/v2/users/me");
 		return response.data;
