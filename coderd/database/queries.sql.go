@@ -18951,8 +18951,12 @@ SELECT
 				array_agg(org_roles || ':' || organization_members.organization_id::text)
 			FROM
 				organization_members,
-				-- All org members get an implied role for their orgs, except
-				-- service accounts which get an implied service role.
+				-- All org members get an implied role for their orgs. Most members
+				-- get organization-member, but service accounts will get
+				-- organization-service-account instead. They're largely the same,
+				-- but having them be distinct means we can allow configuring
+				-- service-accounts to have slightly broader permissions–such as
+				-- for workspace sharing.
 				unnest(
 					array_append(
 						roles,
