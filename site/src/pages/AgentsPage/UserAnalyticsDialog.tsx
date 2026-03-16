@@ -16,8 +16,8 @@ import { useQuery } from "react-query";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { SectionHeader } from "./SectionHeader";
 
-const createDateRange = () => {
-	const end = dayjs();
+const createDateRange = (now?: dayjs.Dayjs) => {
+	const end = now ?? dayjs();
 	const start = end.subtract(30, "day");
 	return {
 		startDate: start.toISOString(),
@@ -29,14 +29,17 @@ const createDateRange = () => {
 interface UserAnalyticsDialogProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	/** Override the current time for date range calculation. Used for deterministic Storybook snapshots. */
+	now?: dayjs.Dayjs;
 }
 
 export const UserAnalyticsDialog: FC<UserAnalyticsDialogProps> = ({
 	open,
 	onOpenChange,
+	now,
 }) => {
 	const { user } = useAuthContext();
-	const dateRange = useMemo(createDateRange, []);
+	const dateRange = useMemo(() => createDateRange(now), [now]);
 
 	const summaryQuery = useQuery({
 		...chatCostSummary(user?.id ?? "me", {

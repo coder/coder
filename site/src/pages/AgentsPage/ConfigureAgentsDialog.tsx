@@ -139,21 +139,25 @@ const UserRow: FC<{
 	);
 };
 
-const UsageContent: FC = () => {
+interface UsageContentProps {
+	now?: dayjs.Dayjs;
+}
+
+const UsageContent: FC<UsageContentProps> = ({ now }) => {
 	const [selectedUser, setSelectedUser] =
 		useState<TypesGen.ChatCostUserRollup | null>(null);
 	const [usernameFilter, setUsernameFilter] = useState("");
 	const debouncedUsername = useDebouncedValue(usernameFilter, 300);
 	const [page, setPage] = useState(1);
 	const dateRange = useMemo(() => {
-		const end = dayjs();
+		const end = now ?? dayjs();
 		const start = end.subtract(30, "day");
 		return {
 			startDate: start.toISOString(),
 			endDate: end.toISOString(),
 			rangeLabel: `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`,
 		};
-	}, []);
+	}, [now]);
 	const offset = (page - 1) * pageSize;
 
 	const usersQuery = useQuery({
@@ -354,6 +358,8 @@ interface ConfigureAgentsDialogProps {
 	canManageChatModelConfigs: boolean;
 	canSetSystemPrompt: boolean;
 	initialSection?: ConfigureAgentsSection;
+	/** Override the current time for date range calculation. Used for deterministic Storybook snapshots. */
+	now?: dayjs.Dayjs;
 }
 
 export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
@@ -362,6 +368,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 	canManageChatModelConfigs,
 	canSetSystemPrompt,
 	initialSection = "behavior",
+	now,
 }) => {
 	const queryClient = useQueryClient();
 
@@ -635,7 +642,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 						/>
 					)}
 					{activeSection === "usage" && canManageChatModelConfigs && (
-						<UsageContent />
+						<UsageContent now={now} />
 					)}
 				</div>
 			</DialogContent>
