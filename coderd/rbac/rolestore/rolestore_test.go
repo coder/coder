@@ -48,7 +48,7 @@ func TestReconcileSystemRole(t *testing.T) {
 	tests := []struct {
 		name      string
 		roleName  string
-		permsFunc func(rbac.OrgSettings) ([]rbac.Permission, []rbac.Permission)
+		permsFunc func(rbac.OrgSettings) rbac.OrgRolePermissions
 	}{
 		{"OrgMember", rbac.RoleOrgMember(), rbac.OrgMemberPermissions},
 		{"ServiceAccount", rbac.RoleOrgServiceAccount(), rbac.OrgServiceAccountPermissions},
@@ -107,13 +107,13 @@ func TestReconcileSystemRole(t *testing.T) {
 			}))
 			require.NoError(t, err)
 
-			wantOrg, wantMember := tt.permsFunc(rbac.OrgSettings{
+			want := tt.permsFunc(rbac.OrgSettings{
 				ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwners(org.ShareableWorkspaceOwners),
 			})
-			require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(dbstored.OrgPermissions), wantOrg))
-			require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(dbstored.MemberPermissions), wantMember))
-			require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(reconciled.OrgPermissions), wantOrg))
-			require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(reconciled.MemberPermissions), wantMember))
+			require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(dbstored.OrgPermissions), want.Org))
+			require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(dbstored.MemberPermissions), want.Member))
+			require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(reconciled.OrgPermissions), want.Org))
+			require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(reconciled.MemberPermissions), want.Member))
 
 			_, didUpdate, err = rolestore.ReconcileSystemRole(ctx, db, reconciled, org)
 			require.NoError(t, err)
@@ -179,9 +179,9 @@ func TestReconcileSystemRoles(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, got.IsSystem)
 
-		wantOrg, wantMember := rbac.OrgMemberPermissions(rbac.OrgSettings{ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwners(org.ShareableWorkspaceOwners)})
-		require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(got.OrgPermissions), wantOrg))
-		require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(got.MemberPermissions), wantMember))
+		want := rbac.OrgMemberPermissions(rbac.OrgSettings{ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwners(org.ShareableWorkspaceOwners)})
+		require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(got.OrgPermissions), want.Org))
+		require.True(t, rbac.PermissionsEqual(rolestore.ConvertDBPermissions(got.MemberPermissions), want.Member))
 	}
 
 	assertOrgMemberRole(t, org1.ID)

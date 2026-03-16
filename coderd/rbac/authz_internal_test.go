@@ -1405,7 +1405,7 @@ func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTes
 // sharing enabled.
 func orgMemberRole(orgID uuid.UUID) Role {
 	settings := OrgSettings{ShareableWorkspaceOwners: ShareableWorkspaceOwnersEveryone}
-	orgPerms, memberPerms := OrgMemberPermissions(settings)
+	perms := OrgMemberPermissions(settings)
 	return Role{
 		Identifier:  ScopedRoleOrgMember(orgID),
 		DisplayName: "",
@@ -1413,8 +1413,8 @@ func orgMemberRole(orgID uuid.UUID) Role {
 		User:        []Permission{},
 		ByOrgID: map[string]OrgPermissions{
 			orgID.String(): {
-				Org:    orgPerms,
-				Member: memberPerms,
+				Org:    perms.Org,
+				Member: perms.Member,
 			},
 		},
 	}

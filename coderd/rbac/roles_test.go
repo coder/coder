@@ -67,7 +67,7 @@ func TestOrgSharingPermissions(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		permsFunc      func(rbac.OrgSettings) ([]rbac.Permission, []rbac.Permission)
+		permsFunc      func(rbac.OrgSettings) rbac.OrgRolePermissions
 		mode           rbac.ShareableWorkspaceOwners
 		orgReadMembers bool
 		orgReadGroups  bool
@@ -92,27 +92,27 @@ func TestOrgSharingPermissions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			orgPerms, memberPerms := tt.permsFunc(rbac.OrgSettings{
+			perms := tt.permsFunc(rbac.OrgSettings{
 				ShareableWorkspaceOwners: tt.mode,
 			})
 
-			assert.Equal(t, tt.orgReadMembers, permissionGranted(orgPerms, rbac.Permission{
+			assert.Equal(t, tt.orgReadMembers, permissionGranted(perms.Org, rbac.Permission{
 				ResourceType: rbac.ResourceOrganizationMember.Type,
 				Action:       policy.ActionRead,
 			}), "org read members")
 
-			assert.Equal(t, tt.orgReadGroups, permissionGranted(orgPerms, rbac.Permission{
+			assert.Equal(t, tt.orgReadGroups, permissionGranted(perms.Org, rbac.Permission{
 				ResourceType: rbac.ResourceGroup.Type,
 				Action:       policy.ActionRead,
 			}), "org read groups")
 
-			assert.Equal(t, tt.orgNegateShare, permissionGranted(orgPerms, rbac.Permission{
+			assert.Equal(t, tt.orgNegateShare, permissionGranted(perms.Org, rbac.Permission{
 				Negate:       true,
 				ResourceType: rbac.ResourceWorkspace.Type,
 				Action:       policy.ActionShare,
 			}), "org negate share")
 
-			assert.Equal(t, tt.memberShare, permissionGranted(memberPerms, rbac.Permission{
+			assert.Equal(t, tt.memberShare, permissionGranted(perms.Member, rbac.Permission{
 				ResourceType: rbac.ResourceWorkspace.Type,
 				Action:       policy.ActionShare,
 			}), "member share")

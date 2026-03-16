@@ -943,12 +943,17 @@ const (
 	ShareableWorkspaceOwnersServiceAccounts ShareableWorkspaceOwners = "service_accounts"
 )
 
+// OrgRolePermissions holds the two permission sets that make up a
+// system role: org-wide permissions and member-scoped permissions.
+type OrgRolePermissions struct {
+	Org    []Permission
+	Member []Permission
+}
+
 // OrgMemberPermissions returns the permissions for the organization-member
 // system role, which can vary based on the organization's workspace sharing
 // settings.
-func OrgMemberPermissions(org OrgSettings) (
-	orgPerms, memberPerms []Permission,
-) {
+func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 	// Organization-level permissions that all org members get.
 	orgPermMap := map[string][]policy.Action{
 		// All users can see provisioner daemons for workspace creation.
@@ -973,7 +978,7 @@ func OrgMemberPermissions(org OrgSettings) (
 		orgPermMap[ResourceGroup.Type] = []policy.Action{policy.ActionRead}
 	}
 
-	orgPerms = Permissions(orgPermMap)
+	orgPerms := Permissions(orgPermMap)
 
 	// Not using owners=service_accounts here because it would block
 	// org admins from sharing an SA-owned workspace.
@@ -995,7 +1000,7 @@ func OrgMemberPermissions(org OrgSettings) (
 			memberWorkspaceActions, policy.ActionShare)
 	}
 	// Uses allPermsExcept to automatically include permissions for new resources.
-	memberPerms = append(
+	memberPerms := append(
 		allPermsExcept(
 			ResourceWorkspaceDormant,
 			ResourcePrebuiltWorkspace,
@@ -1026,15 +1031,13 @@ func OrgMemberPermissions(org OrgSettings) (
 		})...,
 	)
 
-	return orgPerms, memberPerms
+	return OrgRolePermissions{Org: orgPerms, Member: memberPerms}
 }
 
 // OrgServiceAccountPermissions returns the permissions for the
 // organization-service-account system role, which can vary based on
 // the organization's workspace sharing settings.
-func OrgServiceAccountPermissions(org OrgSettings) (
-	orgPerms, memberPerms []Permission,
-) {
+func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 	// Organization-level permissions that all org service accounts get.
 	orgPermMap := map[string][]policy.Action{
 		// All users can see provisioner daemons for workspace creation.
@@ -1052,7 +1055,7 @@ func OrgServiceAccountPermissions(org OrgSettings) (
 		orgPermMap[ResourceGroup.Type] = []policy.Action{policy.ActionRead}
 	}
 
-	orgPerms = Permissions(orgPermMap)
+	orgPerms := Permissions(orgPermMap)
 
 	if org.ShareableWorkspaceOwners == ShareableWorkspaceOwnersNone {
 		// Org-level negation blocks sharing on ANY workspace in the
@@ -1068,7 +1071,7 @@ func OrgServiceAccountPermissions(org OrgSettings) (
 	// SA-scoped permissions (resources owned by the service account).
 	// Uses allPermsExcept to automatically include permissions for
 	// new resources.
-	memberPerms = append(
+	memberPerms := append(
 		allPermsExcept(
 			ResourceWorkspaceDormant,
 			ResourcePrebuiltWorkspace,
@@ -1095,5 +1098,5 @@ func OrgServiceAccountPermissions(org OrgSettings) (
 		})...,
 	)
 
-	return orgPerms, memberPerms
+	return OrgRolePermissions{Org: orgPerms, Member: memberPerms}
 }

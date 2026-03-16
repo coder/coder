@@ -170,9 +170,9 @@ var systemRoles = map[string]permissionsFunc{
 	rbac.RoleOrgServiceAccount(): rbac.OrgServiceAccountPermissions,
 }
 
-// permissionsFunc produces the desired org-level and member-scoped
-// permissions for a system role given organization settings.
-type permissionsFunc func(rbac.OrgSettings) ([]rbac.Permission, []rbac.Permission)
+// permissionsFunc produces the desired permissions for a system role
+// given organization settings.
+type permissionsFunc func(rbac.OrgSettings) rbac.OrgRolePermissions
 
 func IsSystemRoleName(name string) bool {
 	_, ok := systemRoles[name]
@@ -286,14 +286,14 @@ func ReconcileSystemRole(
 	inOrgPerms := ConvertDBPermissions(in.OrgPermissions)
 	inMemberPerms := ConvertDBPermissions(in.MemberPermissions)
 
-	outOrgPerms, outMemberPerms := permsFunc(orgSettings(org))
+	want := permsFunc(orgSettings(org))
 
-	match := rbac.PermissionsEqual(inOrgPerms, outOrgPerms) &&
-		rbac.PermissionsEqual(inMemberPerms, outMemberPerms)
+	match := rbac.PermissionsEqual(inOrgPerms, want.Org) &&
+		rbac.PermissionsEqual(inMemberPerms, want.Member)
 
 	if !match {
-		out.OrgPermissions = ConvertPermissionsToDB(outOrgPerms)
-		out.MemberPermissions = ConvertPermissionsToDB(outMemberPerms)
+		out.OrgPermissions = ConvertPermissionsToDB(want.Org)
+		out.MemberPermissions = ConvertPermissionsToDB(want.Member)
 
 		_, err := tx.UpdateCustomRole(ctx, database.UpdateCustomRoleParams{
 			Name:              out.Name,
@@ -335,16 +335,16 @@ func CreateSystemRole(
 	if !ok {
 		panic("dev error: no permissions function exists for role " + roleName)
 	}
-	orgPerms, memberPerms := permsFunc(orgSettings(org))
+	perms := permsFunc(orgSettings(org))
 
 	_, err := tx.InsertCustomRole(ctx, database.InsertCustomRoleParams{
 		Name:              roleName,
 		DisplayName:       "",
 		OrganizationID:    uuid.NullUUID{UUID: org.ID, Valid: true},
 		SitePermissions:   database.CustomRolePermissions{},
-		OrgPermissions:    ConvertPermissionsToDB(orgPerms),
+		OrgPermissions:    ConvertPermissionsToDB(perms.Org),
 		UserPermissions:   database.CustomRolePermissions{},
-		MemberPermissions: ConvertPermissionsToDB(memberPerms),
+		MemberPermissions: ConvertPermissionsToDB(perms.Member),
 		IsSystem:          true,
 	})
 	if err != nil {
