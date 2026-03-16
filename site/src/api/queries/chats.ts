@@ -150,9 +150,25 @@ export const chat = (chatId: string) => ({
 	queryFn: () => API.getChat(chatId),
 });
 
-export const chatMessages = (chatId: string) => ({
+const MESSAGES_PAGE_SIZE = 50;
+
+export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	queryKey: chatMessagesKey(chatId),
-	queryFn: () => API.getChatMessages(chatId),
+	initialPageParam: undefined as number | undefined,
+	queryFn: ({ pageParam }: { pageParam: number | undefined }) =>
+		API.getChatMessages(chatId, {
+			before_id: pageParam,
+			limit: MESSAGES_PAGE_SIZE,
+		}),
+	getNextPageParam: (lastPage: TypesGen.ChatMessagesResponse) => {
+		if (!lastPage.has_more || lastPage.messages.length === 0) {
+			return undefined;
+		}
+		// The API returns messages in DESC order (newest first).
+		// The last item in the array is the oldest in this page.
+		// Use its ID as the cursor for the next (older) page.
+		return lastPage.messages[lastPage.messages.length - 1].id;
+	},
 });
 
 export const archiveChat = (queryClient: QueryClient) => ({
@@ -350,15 +366,6 @@ export const promoteChatQueuedMessage = (
 	// No onSuccess invalidation needed: the per-chat WebSocket
 	// delivers the promoted message, queue update, and status
 	// change in real-time.
-});
-
-export const chatDiffStatusKey = (chatId: string) =>
-	["chats", chatId, "diff-status"] as const;
-
-export const chatDiffStatus = (chatId: string) => ({
-	queryKey: chatDiffStatusKey(chatId),
-	queryFn: (): Promise<TypesGen.ChatDiffStatus> =>
-		API.getChatDiffStatus(chatId),
 });
 
 export const chatDiffContentsKey = (chatId: string) =>

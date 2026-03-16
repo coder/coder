@@ -278,6 +278,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						isExpanded={isExpanded}
 						chatInputRef={chatInputRef}
 						diffStyle={diffStyle}
+						diffStatus={remoteDiffStats}
 					/>
 				) : (
 					<LocalRepoContent
@@ -295,7 +296,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 		</div>
 	);
 };
-
 // ---------------------------------------------------------------
 // Remote view (branch/PR diff)
 // ---------------------------------------------------------------
@@ -305,7 +305,8 @@ const RemoteContent: FC<{
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
-}> = ({ prTab, isExpanded, chatInputRef, diffStyle }) => {
+	diffStatus?: ChatDiffStatus;
+}> = ({ prTab, isExpanded, chatInputRef, diffStyle, diffStatus }) => {
 	if (!prTab) {
 		return (
 			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
@@ -328,6 +329,7 @@ const RemoteContent: FC<{
 			isExpanded={isExpanded}
 			chatInputRef={chatInputRef}
 			diffStyle={diffStyle}
+			diffStatus={diffStatus}
 		/>
 	);
 };

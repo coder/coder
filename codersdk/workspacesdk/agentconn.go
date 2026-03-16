@@ -899,8 +899,9 @@ func DefaultReadFileLinesLimits() ReadFileLinesLimits {
 }
 
 type FileEdit struct {
-	Search  string `json:"search"`
-	Replace string `json:"replace"`
+	Search     string `json:"search"`
+	Replace    string `json:"replace"`
+	ReplaceAll bool   `json:"replace_all,omitempty"`
 }
 
 type FileEdits struct {

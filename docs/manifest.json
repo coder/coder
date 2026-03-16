@@ -1212,6 +1212,12 @@
 							"state": ["early access"]
 						},
 						{
+							"title": "Chats API",
+							"description": "Programmatic access to Coder Agents via the experimental Chats API",
+							"path": "./ai-coder/agents/chats-api.md",
+							"state": ["early access"]
+						},
+						{
 							"title": "Early Access",
 							"description": "About the Coder Agents Early Access program",
 							"path": "./ai-coder/agents/early-access.md",
@@ -1409,10 +1415,6 @@
 						{
 							"title": "Builds",
 							"path": "./reference/api/builds.md"
-						},
-						{
-							"title": "Chats",
-							"path": "./reference/api/chats.md"
 						},
 						{
 							"title": "Debug",

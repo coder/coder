@@ -1361,11 +1361,23 @@ export interface ChatMessageUsage {
 
 // From codersdk/chats.go
 /**
+ * GetChatMessages returns the messages and queued messages for a chat.
+ * ChatMessagesPaginationOptions are optional pagination params for
+ * GetChatMessages.
+ */
+export interface ChatMessagesPaginationOptions {
+	readonly BeforeID: number;
+	readonly Limit: number;
+}
+
+// From codersdk/chats.go
+/**
  * ChatMessagesResponse contains the messages and queued messages for a chat.
  */
 export interface ChatMessagesResponse {
 	readonly messages: readonly ChatMessage[];
 	readonly queued_messages: readonly ChatQueuedMessage[];
+	readonly has_more: boolean;
 }
 
 // From codersdk/chats.go

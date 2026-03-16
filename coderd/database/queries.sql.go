@@ -1198,6 +1198,64 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 	return i, err
 }
 
+const getActiveAISeatCount = `-- name: GetActiveAISeatCount :one
+SELECT
+	COUNT(*)
+FROM
+	ai_seat_state ais
+JOIN
+	users u
+ON
+	ais.user_id = u.id
+WHERE
+	u.status = 'active'::user_status
+	AND u.deleted = false
+	AND u.is_system = false
+`
+
+func (q *sqlQuerier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getActiveAISeatCount)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const upsertAISeatState = `-- name: UpsertAISeatState :exec
+INSERT INTO ai_seat_state (
+	user_id,
+	first_used_at,
+	last_used_at,
+	last_event_type,
+	last_event_description,
+	updated_at
+)
+VALUES
+	($1, $2, $2, $3, $4, $2)
+ON CONFLICT (user_id) DO UPDATE
+SET
+	last_used_at = EXCLUDED.last_used_at,
+	last_event_type = EXCLUDED.last_event_type,
+	last_event_description = EXCLUDED.last_event_description,
+	updated_at = EXCLUDED.updated_at
+`
+
+type UpsertAISeatStateParams struct {
+	UserID               uuid.UUID         `db:"user_id" json:"user_id"`
+	FirstUsedAt          time.Time         `db:"first_used_at" json:"first_used_at"`
+	LastEventType        AiSeatUsageReason `db:"last_event_type" json:"last_event_type"`
+	LastEventDescription string            `db:"last_event_description" json:"last_event_description"`
+}
+
+func (q *sqlQuerier) UpsertAISeatState(ctx context.Context, arg UpsertAISeatStateParams) error {
+	_, err := q.db.ExecContext(ctx, upsertAISeatState,
+		arg.UserID,
+		arg.FirstUsedAt,
+		arg.LastEventType,
+		arg.LastEventDescription,
+	)
+	return err
+}
+
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
 DELETE FROM
 	api_keys
@@ -3814,6 +3872,72 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 	return items, nil
 }
 
+const getChatMessagesByChatIDDescPaginated = `-- name: GetChatMessagesByChatIDDescPaginated :many
+SELECT
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros
+FROM
+    chat_messages
+WHERE
+    chat_id = $1::uuid
+    AND CASE
+        WHEN $2::bigint > 0 THEN id < $2::bigint
+        ELSE true
+    END
+    AND visibility IN ('user', 'both')
+ORDER BY
+    id DESC
+LIMIT
+    COALESCE(NULLIF($3::int, 0), 50)
+`
+
+type GetChatMessagesByChatIDDescPaginatedParams struct {
+	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
+	BeforeID int64     `db:"before_id" json:"before_id"`
+	LimitVal int32     `db:"limit_val" json:"limit_val"`
+}
+
+func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg GetChatMessagesByChatIDDescPaginatedParams) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMessagesByChatIDDescPaginated, arg.ChatID, arg.BeforeID, arg.LimitVal)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.ModelConfigID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+			&i.Visibility,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ReasoningTokens,
+			&i.CacheCreationTokens,
+			&i.CacheReadTokens,
+			&i.ContextLimit,
+			&i.Compressed,
+			&i.CreatedBy,
+			&i.ContentVersion,
+			&i.TotalCostMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatMessagesForPromptByChatID = `-- name: GetChatMessagesForPromptByChatID :many
 WITH latest_compressed_summary AS (
     SELECT
@@ -4211,6 +4335,7 @@ WITH updated_chat AS (
     WHERE
         id = $1::uuid
         AND $3::uuid IS NOT NULL
+        AND chats.last_model_config_id IS DISTINCT FROM $3::uuid
 )
 INSERT INTO chat_messages (
     chat_id,
