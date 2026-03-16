@@ -104,7 +104,7 @@ const mockModelCatalog: TypesGen.ChatModelsResponse = {
 };
 
 const baseChatFields = {
-	owner_id: "owner-id",
+	owner_id: MockUserOwner.id,
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: "model-config-1",
 	created_at: "2026-02-18T00:00:00.000Z",
@@ -112,6 +112,15 @@ const baseChatFields = {
 	archived: false,
 	last_error: null,
 } as const;
+
+const OTHER_USER_ID = "other-user-id";
+
+const mockOtherUser: TypesGen.MinimalUser = {
+	id: OTHER_USER_ID,
+	username: "alice",
+	avatar_url: "",
+	name: "Alice Smith",
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1039,5 +1048,95 @@ export const StreamedReasoningCollapsed: Story = {
 		await expect(
 			canvas.findByText("Streaming reasoning body"),
 		).resolves.toBeInTheDocument();
+	},
+};
+
+/** Viewing another user's chat — read-only banner is shown. */
+export const ViewingOtherUsersChat: Story = {
+	parameters: {
+		queries: [
+			...buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					owner_id: OTHER_USER_ID,
+					title: "Someone else's agent",
+					status: "completed",
+				},
+				{
+					messages: [
+						{
+							id: 1,
+							chat_id: CHAT_ID,
+							created_at: "2026-02-18T00:01:00.000Z",
+							role: "user",
+							content: [
+								{
+									type: "text",
+									text: "Can you help me with this task?",
+								},
+							],
+						},
+						{
+							id: 2,
+							chat_id: CHAT_ID,
+							created_at: "2026-02-18T00:01:30.000Z",
+							role: "assistant",
+							content: [
+								{
+									type: "text",
+									text: "Sure, I'll start working on that right away.",
+								},
+							],
+						},
+					],
+					queued_messages: [],
+				},
+				{ diffUrl: undefined },
+			),
+			{
+				key: ["users", OTHER_USER_ID],
+				data: { users: [mockOtherUser], count: 1 },
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText(/viewing someone else/i)).toBeInTheDocument();
+		});
+	},
+};
+
+/** Viewing another user's archived chat — archived banner takes priority. */
+export const ViewingOtherUsersChatArchived: Story = {
+	parameters: {
+		queries: [
+			...buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					owner_id: OTHER_USER_ID,
+					title: "Archived foreign agent",
+					status: "completed",
+					archived: true,
+				},
+				{ messages: [], queued_messages: [] },
+				{ diffUrl: undefined },
+			),
+			{
+				key: ["users", OTHER_USER_ID],
+				data: { users: [mockOtherUser], count: 1 },
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(
+				canvas.getByText(/archived and is read-only/i),
+			).toBeInTheDocument();
+		});
+		expect(canvas.queryByText(/viewing someone else/i)).not.toBeInTheDocument();
 	},
 };

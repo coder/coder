@@ -17,6 +17,7 @@ import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { useProxy } from "contexts/ProxyContext";
+import { useAuthenticated } from "hooks";
 import {
 	getTerminalHref,
 	getVSCodeHref,
@@ -675,6 +676,10 @@ const AgentDetail: FC = () => {
 	);
 
 	const chatRecord = chatQuery.data;
+	const { user: currentUser } = useAuthenticated();
+	const isViewingOtherChat = Boolean(
+		chatRecord && chatRecord.owner_id !== currentUser.id,
+	);
 	const chatMessagesData = chatMessagesQuery.data;
 	const isArchived = chatRecord?.archived ?? false;
 	const chatMessagesList = chatMessagesData?.messages;
@@ -823,7 +828,7 @@ const AgentDetail: FC = () => {
 		sendMutation.isPending ||
 		editMutation.isPending ||
 		interruptMutation.isPending;
-	const isInputDisabled = !hasModelOptions || isArchived;
+	const isInputDisabled = !hasModelOptions || isArchived || isViewingOtherChat;
 
 	const handleSend = async (
 		message: string,
@@ -1115,6 +1120,8 @@ const AgentDetail: FC = () => {
 			chatErrorReasons={chatErrorReasons}
 			chatRecord={chatRecord}
 			isArchived={isArchived}
+			isViewingOtherChat={isViewingOtherChat}
+			chatOwner={undefined}
 			hasWorkspace={Boolean(workspaceId)}
 			store={store}
 			editing={editing}
