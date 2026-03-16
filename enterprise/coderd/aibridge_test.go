@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"database/sql"
+	"encoding/json"
 	"io"
 	"net/http"
 	"testing"
@@ -1292,4 +1293,389 @@ func TestAIBridgeConcurrencyLimiting(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("timed out waiting for first request to complete")
 	}
+}
+
+func TestAIBridgeGetSessionThreads(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		ownerClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := memberClient.AIBridgeGetSessionThreads(ctx, "nonexistent-session-id", uuid.Nil, uuid.Nil, 0)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("LookupByClientSessionID", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           "claude-4",
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "my-session", Valid: true},
+		}, &endedAt)
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "my-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, "my-session", res.ID)
+		require.Len(t, res.Threads, 1)
+		require.Equal(t, "claude-4", res.Threads[0].Model)
+		require.Equal(t, "anthropic", res.Threads[0].Provider)
+	})
+
+	t.Run("LookupByUUIDClientSessionID", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Use a UUID as the client_session_id. The handler must
+		// not confuse this with an interception ID.
+		uuidSessionID := uuid.New().String()
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           "claude-4",
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: uuidSessionID, Valid: true},
+		}, &endedAt)
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, uuidSessionID, uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, uuidSessionID, res.ID)
+		require.Len(t, res.Threads, 1)
+	})
+
+	t.Run("LookupByInterceptionUUID", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			Provider:    "openai",
+			Model:       "gpt-4",
+			StartedAt:   now,
+		}, &endedAt)
+
+		// Look up by UUID.
+		res, err := client.AIBridgeGetSessionThreads(ctx, i1.ID.String(), uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, i1.ID.String(), res.ID)
+		require.Len(t, res.Threads, 1)
+	})
+
+	t.Run("ThreadsWithAgenticActions", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+
+		// Create a session with one thread. Root interception + child
+		// interception sharing thread_root_id.
+		rootEndedAt := now.Add(time.Minute)
+		root := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           "claude-4",
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "thread-session", Valid: true},
+		}, &rootEndedAt)
+
+		childEndedAt := now.Add(2 * time.Minute)
+		child := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:                firstUser.UserID,
+			Provider:                   "anthropic",
+			Model:                      "claude-4",
+			StartedAt:                  now.Add(time.Minute),
+			ClientSessionID:            sql.NullString{String: "thread-session", Valid: true},
+			ThreadRootInterceptionID:   uuid.NullUUID{UUID: root.ID, Valid: true},
+			ThreadParentInterceptionID: uuid.NullUUID{UUID: root.ID, Valid: true},
+		}, &childEndedAt)
+
+		// Add a user prompt on the root.
+		dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
+			InterceptionID: root.ID,
+			Prompt:         "implement login feature",
+			CreatedAt:      now,
+		})
+
+		// Add token usage on root with metadata.
+		providerRespID := "resp-1"
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID:     root.ID,
+			ProviderResponseID: providerRespID,
+			InputTokens:        100,
+			OutputTokens:       50,
+			Metadata:           json.RawMessage(`{"cache_read_input": 20, "cache_creation_input": 10}`),
+			CreatedAt:          now,
+		})
+
+		// Add a tool usage on root.
+		dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
+			InterceptionID:     root.ID,
+			ProviderResponseID: providerRespID,
+			Tool:               "read_file",
+			Input:              `{"path": "/main.go"}`,
+			CreatedAt:          now.Add(time.Second),
+		})
+
+		// Add model thought for the root interception.
+		dbgen.AIBridgeModelThought(t, db, database.InsertAIBridgeModelThoughtParams{
+			InterceptionID: root.ID,
+			Content:        "Let me read the main file first.",
+			CreatedAt:      now.Add(time.Second),
+		})
+
+		// Add token usage on child.
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID:     child.ID,
+			ProviderResponseID: "resp-2",
+			InputTokens:        200,
+			OutputTokens:       100,
+			Metadata:           json.RawMessage(`{"cache_read_input": 30}`),
+			CreatedAt:          now.Add(time.Minute),
+		})
+
+		// Add another tool usage on child.
+		dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
+			InterceptionID:     child.ID,
+			ProviderResponseID: "resp-2",
+			Tool:               "write_file",
+			Input:              `{"path": "/login.go"}`,
+			CreatedAt:          now.Add(time.Minute + time.Second),
+		})
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "thread-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, "thread-session", res.ID)
+		require.Len(t, res.Threads, 1)
+
+		thread := res.Threads[0]
+		require.Equal(t, root.ID, thread.ID)
+		require.NotNil(t, thread.Prompt)
+		require.Equal(t, "implement login feature", *thread.Prompt)
+		require.Equal(t, "claude-4", thread.Model)
+		require.Equal(t, "anthropic", thread.Provider)
+
+		// Thread-level token aggregation.
+		require.EqualValues(t, 300, thread.TokenUsage.InputTokens)
+		require.EqualValues(t, 150, thread.TokenUsage.OutputTokens)
+		require.NotEmpty(t, thread.TokenUsage.Metadata)
+		require.EqualValues(t, int64(50), thread.TokenUsage.Metadata["cache_read_input"])
+		require.EqualValues(t, int64(10), thread.TokenUsage.Metadata["cache_creation_input"])
+
+		// Two agentic actions (one per interception with tool calls).
+		require.Len(t, thread.AgenticActions, 2)
+
+		action1 := thread.AgenticActions[0]
+		require.Len(t, action1.ToolCalls, 1)
+		require.Equal(t, "read_file", action1.ToolCalls[0].Tool)
+		require.Len(t, action1.Thinking, 1)
+		require.Equal(t, "Let me read the main file first.", action1.Thinking[0].Text)
+		// Token usage for root interception.
+		require.EqualValues(t, 100, action1.TokenUsage.InputTokens)
+		require.EqualValues(t, 50, action1.TokenUsage.OutputTokens)
+
+		action2 := thread.AgenticActions[1]
+		require.Len(t, action2.ToolCalls, 1)
+		require.Equal(t, "write_file", action2.ToolCalls[0].Tool)
+		require.Empty(t, action2.Thinking)
+
+		// Session-level token aggregation.
+		require.EqualValues(t, 300, res.TokenUsageSummary.InputTokens)
+		require.EqualValues(t, 150, res.TokenUsageSummary.OutputTokens)
+	})
+
+	t.Run("MultiThreadPagination", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+
+		// Create a session with 3 threads. Each thread is a standalone
+		// interception sharing client_session_id.
+		threadIDs := make([]uuid.UUID, 3)
+		for i := range 3 {
+			endedAt := now.Add(time.Duration(i)*time.Hour + time.Minute)
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:     firstUser.UserID,
+				Provider:        "anthropic",
+				Model:           "claude-4",
+				StartedAt:       now.Add(time.Duration(i) * time.Hour),
+				ClientSessionID: sql.NullString{String: "multi-thread-session", Valid: true},
+			}, &endedAt)
+			threadIDs[i] = intc.ID
+		}
+
+		// Get all threads (no pagination).
+		res, err := client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Len(t, res.Threads, 3)
+
+		// Threads are ordered by started_at DESC.
+		require.Equal(t, threadIDs[2], res.Threads[0].ID)
+		require.Equal(t, threadIDs[1], res.Threads[1].ID)
+		require.Equal(t, threadIDs[0], res.Threads[2].ID)
+
+		// Page with limit 1: should get only the newest thread.
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, uuid.Nil, 1)
+		require.NoError(t, err)
+		require.Len(t, res.Threads, 1)
+		require.Equal(t, threadIDs[2], res.Threads[0].ID)
+
+		// Page forward using after_id: get next thread.
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", threadIDs[2], uuid.Nil, 1)
+		require.NoError(t, err)
+		require.Len(t, res.Threads, 1)
+		require.Equal(t, threadIDs[1], res.Threads[0].ID)
+
+		// Page forward again.
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", threadIDs[1], uuid.Nil, 1)
+		require.NoError(t, err)
+		require.Len(t, res.Threads, 1)
+		require.Equal(t, threadIDs[0], res.Threads[0].ID)
+
+		// No more threads.
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", threadIDs[0], uuid.Nil, 1)
+		require.NoError(t, err)
+		require.Empty(t, res.Threads)
+	})
+
+	t.Run("Authorization", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		ownerClient, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+
+		// Create a session owned by the owner.
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           "claude-4",
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "owner-session", Valid: true},
+		}, &endedAt)
+
+		// Owner can see their own session.
+		res, err := ownerClient.AIBridgeGetSessionThreads(ctx, "owner-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, "owner-session", res.ID)
+
+		// Member cannot see the owner's session.
+		_, err = memberClient.AIBridgeGetSessionThreads(ctx, "owner-session", uuid.Nil, uuid.Nil, 0)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
+		// Create a session owned by the member.
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     member.ID,
+			Provider:        "anthropic",
+			Model:           "claude-4",
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "member-session", Valid: true},
+		}, &endedAt)
+
+		// Member can see their own session.
+		res, err = memberClient.AIBridgeGetSessionThreads(ctx, "member-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, "member-session", res.ID)
+	})
 }

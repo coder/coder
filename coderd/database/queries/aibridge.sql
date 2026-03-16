@@ -574,6 +574,165 @@ LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
 OFFSET @offset_
 ;
 
+-- name: GetAIBridgeSessionByID :one
+-- Returns session-level metadata for a single session identified by its
+-- session_id string (which is COALESCE(client_session_id, thread_root_id::text, id::text)).
+WITH filtered_interceptions AS (
+	SELECT
+		aibridge_interceptions.*,
+		COALESCE(
+			aibridge_interceptions.client_session_id,
+			aibridge_interceptions.thread_root_id::text,
+			aibridge_interceptions.id::text
+		) AS session_id
+	FROM
+		aibridge_interceptions
+	WHERE
+		aibridge_interceptions.ended_at IS NOT NULL
+		-- Authorize Filter clause will be injected below in GetAuthorizedAIBridgeSessionByID
+		-- @authorize_filter
+),
+session_base AS (
+	SELECT
+		fi.session_id,
+		(ARRAY_AGG(fi.initiator_id ORDER BY fi.started_at ASC, fi.id ASC))[1] AS initiator_id,
+		(ARRAY_AGG(fi.client ORDER BY fi.started_at ASC, fi.id ASC))[1] AS client,
+		(ARRAY_AGG(fi.metadata ORDER BY fi.started_at ASC, fi.id ASC))[1] AS metadata,
+		ARRAY(SELECT DISTINCT p FROM UNNEST(ARRAY_AGG(fi.provider)) AS p ORDER BY p) AS providers,
+		ARRAY(SELECT DISTINCT m FROM UNNEST(ARRAY_AGG(fi.model)) AS m ORDER BY m) AS models,
+		MIN(fi.started_at) AS started_at,
+		MAX(fi.ended_at) AS ended_at,
+		COUNT(DISTINCT COALESCE(fi.thread_root_id, fi.id)) AS threads
+	FROM
+		filtered_interceptions fi
+	WHERE
+		fi.session_id = @session_id::text
+	GROUP BY
+		fi.session_id
+),
+session_tokens AS (
+	SELECT
+		fi.session_id,
+		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
+		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens
+	FROM
+		filtered_interceptions fi
+	LEFT JOIN
+		aibridge_token_usages tu ON fi.id = tu.interception_id
+	WHERE
+		fi.session_id = @session_id::text
+	GROUP BY
+		fi.session_id
+)
+SELECT
+	sb.session_id,
+	visible_users.id AS user_id,
+	visible_users.username AS user_username,
+	visible_users.name AS user_name,
+	visible_users.avatar_url AS user_avatar_url,
+	sb.providers::text[] AS providers,
+	sb.models::text[] AS models,
+	COALESCE(sb.client, '')::varchar(64) AS client,
+	sb.metadata::jsonb AS metadata,
+	sb.started_at::timestamptz AS started_at,
+	sb.ended_at::timestamptz AS ended_at,
+	sb.threads,
+	COALESCE(st.input_tokens, 0)::bigint AS input_tokens,
+	COALESCE(st.output_tokens, 0)::bigint AS output_tokens
+FROM
+	session_base sb
+JOIN
+	visible_users ON visible_users.id = sb.initiator_id
+LEFT JOIN
+	session_tokens st ON st.session_id = sb.session_id
+;
+
+-- name: ListAIBridgeSessionThreadInterceptions :many
+-- Returns all interceptions belonging to paginated threads within a session.
+-- Threads are paginated by (started_at, thread_id) cursor.
+WITH session_interceptions AS (
+	SELECT
+		aibridge_interceptions.*,
+		COALESCE(
+			aibridge_interceptions.client_session_id,
+			aibridge_interceptions.thread_root_id::text,
+			aibridge_interceptions.id::text
+		) AS session_id,
+		COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id
+	FROM
+		aibridge_interceptions
+	WHERE
+		aibridge_interceptions.ended_at IS NOT NULL
+		-- Authorize Filter clause will be injected below
+		-- @authorize_filter
+),
+thread_roots AS (
+	SELECT
+		si.thread_id,
+		MIN(si.started_at) AS started_at
+	FROM
+		session_interceptions si
+	WHERE
+		si.session_id = @session_id::text
+	GROUP BY
+		si.thread_id
+),
+paginated_threads AS (
+	SELECT
+		tr.thread_id,
+		tr.started_at
+	FROM
+		thread_roots tr
+	WHERE
+		CASE
+			WHEN @after_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+				(tr.started_at, tr.thread_id) < (
+					(SELECT started_at FROM thread_roots WHERE thread_id = @after_id),
+					@after_id::uuid
+				)
+			)
+			ELSE true
+		END
+		AND CASE
+			WHEN @before_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+				(tr.started_at, tr.thread_id) > (
+					(SELECT started_at FROM thread_roots WHERE thread_id = @before_id),
+					@before_id::uuid
+				)
+			)
+			ELSE true
+		END
+	ORDER BY
+		tr.started_at DESC,
+		tr.thread_id DESC
+	LIMIT COALESCE(NULLIF(@limit_::integer, 0), 50)
+)
+SELECT
+	sqlc.embed(aibridge_interceptions),
+	sqlc.embed(visible_users)
+FROM
+	aibridge_interceptions
+JOIN
+	visible_users ON visible_users.id = aibridge_interceptions.initiator_id
+WHERE
+	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) IN (SELECT thread_id FROM paginated_threads)
+	AND aibridge_interceptions.ended_at IS NOT NULL
+ORDER BY
+	aibridge_interceptions.started_at ASC,
+	aibridge_interceptions.id ASC
+;
+
+-- name: ListAIBridgeModelThoughtsByInterceptionIDs :many
+SELECT
+	*
+FROM
+	aibridge_model_thoughts
+WHERE
+	interception_id = ANY(@interception_ids::uuid[])
+ORDER BY
+	created_at ASC,
+	id ASC;
+
 -- name: ListAIBridgeModels :many
 SELECT
 	model

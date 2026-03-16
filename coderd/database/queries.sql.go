@@ -555,6 +555,118 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 	return items, nil
 }
 
+const getAIBridgeSessionByID = `-- name: GetAIBridgeSessionByID :one
+WITH filtered_interceptions AS (
+	SELECT
+		aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id,
+		COALESCE(
+			aibridge_interceptions.client_session_id,
+			aibridge_interceptions.thread_root_id::text,
+			aibridge_interceptions.id::text
+		) AS session_id
+	FROM
+		aibridge_interceptions
+	WHERE
+		aibridge_interceptions.ended_at IS NOT NULL
+		-- Authorize Filter clause will be injected below in GetAuthorizedAIBridgeSessionByID
+		-- @authorize_filter
+),
+session_base AS (
+	SELECT
+		fi.session_id,
+		(ARRAY_AGG(fi.initiator_id ORDER BY fi.started_at ASC, fi.id ASC))[1] AS initiator_id,
+		(ARRAY_AGG(fi.client ORDER BY fi.started_at ASC, fi.id ASC))[1] AS client,
+		(ARRAY_AGG(fi.metadata ORDER BY fi.started_at ASC, fi.id ASC))[1] AS metadata,
+		ARRAY(SELECT DISTINCT p FROM UNNEST(ARRAY_AGG(fi.provider)) AS p ORDER BY p) AS providers,
+		ARRAY(SELECT DISTINCT m FROM UNNEST(ARRAY_AGG(fi.model)) AS m ORDER BY m) AS models,
+		MIN(fi.started_at) AS started_at,
+		MAX(fi.ended_at) AS ended_at,
+		COUNT(DISTINCT COALESCE(fi.thread_root_id, fi.id)) AS threads
+	FROM
+		filtered_interceptions fi
+	WHERE
+		fi.session_id = $1::text
+	GROUP BY
+		fi.session_id
+),
+session_tokens AS (
+	SELECT
+		fi.session_id,
+		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
+		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens
+	FROM
+		filtered_interceptions fi
+	LEFT JOIN
+		aibridge_token_usages tu ON fi.id = tu.interception_id
+	WHERE
+		fi.session_id = $1::text
+	GROUP BY
+		fi.session_id
+)
+SELECT
+	sb.session_id,
+	visible_users.id AS user_id,
+	visible_users.username AS user_username,
+	visible_users.name AS user_name,
+	visible_users.avatar_url AS user_avatar_url,
+	sb.providers::text[] AS providers,
+	sb.models::text[] AS models,
+	COALESCE(sb.client, '')::varchar(64) AS client,
+	sb.metadata::jsonb AS metadata,
+	sb.started_at::timestamptz AS started_at,
+	sb.ended_at::timestamptz AS ended_at,
+	sb.threads,
+	COALESCE(st.input_tokens, 0)::bigint AS input_tokens,
+	COALESCE(st.output_tokens, 0)::bigint AS output_tokens
+FROM
+	session_base sb
+JOIN
+	visible_users ON visible_users.id = sb.initiator_id
+LEFT JOIN
+	session_tokens st ON st.session_id = sb.session_id
+`
+
+type GetAIBridgeSessionByIDRow struct {
+	SessionID     sql.NullString  `db:"session_id" json:"session_id"`
+	UserID        uuid.UUID       `db:"user_id" json:"user_id"`
+	UserUsername  string          `db:"user_username" json:"user_username"`
+	UserName      string          `db:"user_name" json:"user_name"`
+	UserAvatarUrl string          `db:"user_avatar_url" json:"user_avatar_url"`
+	Providers     []string        `db:"providers" json:"providers"`
+	Models        []string        `db:"models" json:"models"`
+	Client        string          `db:"client" json:"client"`
+	Metadata      json.RawMessage `db:"metadata" json:"metadata"`
+	StartedAt     time.Time       `db:"started_at" json:"started_at"`
+	EndedAt       time.Time       `db:"ended_at" json:"ended_at"`
+	Threads       int64           `db:"threads" json:"threads"`
+	InputTokens   int64           `db:"input_tokens" json:"input_tokens"`
+	OutputTokens  int64           `db:"output_tokens" json:"output_tokens"`
+}
+
+// Returns session-level metadata for a single session identified by its
+// session_id string (which is COALESCE(client_session_id, thread_root_id::text, id::text)).
+func (q *sqlQuerier) GetAIBridgeSessionByID(ctx context.Context, sessionID string) (GetAIBridgeSessionByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getAIBridgeSessionByID, sessionID)
+	var i GetAIBridgeSessionByIDRow
+	err := row.Scan(
+		&i.SessionID,
+		&i.UserID,
+		&i.UserUsername,
+		&i.UserName,
+		&i.UserAvatarUrl,
+		pq.Array(&i.Providers),
+		pq.Array(&i.Models),
+		&i.Client,
+		&i.Metadata,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.Threads,
+		&i.InputTokens,
+		&i.OutputTokens,
+	)
+	return i, err
+}
+
 const getAIBridgeTokenUsagesByInterceptionID = `-- name: GetAIBridgeTokenUsagesByInterceptionID :many
 SELECT
 	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at
@@ -1092,6 +1204,47 @@ func (q *sqlQuerier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Con
 	return items, nil
 }
 
+const listAIBridgeModelThoughtsByInterceptionIDs = `-- name: ListAIBridgeModelThoughtsByInterceptionIDs :many
+SELECT
+	id, interception_id, content, metadata, created_at
+FROM
+	aibridge_model_thoughts
+WHERE
+	interception_id = ANY($1::uuid[])
+ORDER BY
+	created_at ASC,
+	id ASC
+`
+
+func (q *sqlQuerier) ListAIBridgeModelThoughtsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeModelThought, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeModelThoughtsByInterceptionIDs, pq.Array(interceptionIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIBridgeModelThought
+	for rows.Next() {
+		var i AIBridgeModelThought
+		if err := rows.Scan(
+			&i.ID,
+			&i.InterceptionID,
+			&i.Content,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAIBridgeModels = `-- name: ListAIBridgeModels :many
 SELECT
 	model
@@ -1136,6 +1289,138 @@ func (q *sqlQuerier) ListAIBridgeModels(ctx context.Context, arg ListAIBridgeMod
 			return nil, err
 		}
 		items = append(items, model)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAIBridgeSessionThreadInterceptions = `-- name: ListAIBridgeSessionThreadInterceptions :many
+WITH session_interceptions AS (
+	SELECT
+		aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id,
+		COALESCE(
+			aibridge_interceptions.client_session_id,
+			aibridge_interceptions.thread_root_id::text,
+			aibridge_interceptions.id::text
+		) AS session_id,
+		COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id
+	FROM
+		aibridge_interceptions
+	WHERE
+		aibridge_interceptions.ended_at IS NOT NULL
+		-- Authorize Filter clause will be injected below
+		-- @authorize_filter
+),
+thread_roots AS (
+	SELECT
+		si.thread_id,
+		MIN(si.started_at) AS started_at
+	FROM
+		session_interceptions si
+	WHERE
+		si.session_id = $1::text
+	GROUP BY
+		si.thread_id
+),
+paginated_threads AS (
+	SELECT
+		tr.thread_id,
+		tr.started_at
+	FROM
+		thread_roots tr
+	WHERE
+		CASE
+			WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+				(tr.started_at, tr.thread_id) < (
+					(SELECT started_at FROM thread_roots WHERE thread_id = $2),
+					$2::uuid
+				)
+			)
+			ELSE true
+		END
+		AND CASE
+			WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+				(tr.started_at, tr.thread_id) > (
+					(SELECT started_at FROM thread_roots WHERE thread_id = $3),
+					$3::uuid
+				)
+			)
+			ELSE true
+		END
+	ORDER BY
+		tr.started_at DESC,
+		tr.thread_id DESC
+	LIMIT COALESCE(NULLIF($4::integer, 0), 50)
+)
+SELECT
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id,
+	visible_users.id, visible_users.username, visible_users.name, visible_users.avatar_url
+FROM
+	aibridge_interceptions
+JOIN
+	visible_users ON visible_users.id = aibridge_interceptions.initiator_id
+WHERE
+	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) IN (SELECT thread_id FROM paginated_threads)
+	AND aibridge_interceptions.ended_at IS NOT NULL
+ORDER BY
+	aibridge_interceptions.started_at ASC,
+	aibridge_interceptions.id ASC
+`
+
+type ListAIBridgeSessionThreadInterceptionsParams struct {
+	SessionID string    `db:"session_id" json:"session_id"`
+	AfterID   uuid.UUID `db:"after_id" json:"after_id"`
+	BeforeID  uuid.UUID `db:"before_id" json:"before_id"`
+	Limit     int32     `db:"limit_" json:"limit_"`
+}
+
+type ListAIBridgeSessionThreadInterceptionsRow struct {
+	AIBridgeInterception AIBridgeInterception `db:"aibridge_interception" json:"aibridge_interception"`
+	VisibleUser          VisibleUser          `db:"visible_user" json:"visible_user"`
+}
+
+// Returns all interceptions belonging to paginated threads within a session.
+// Threads are paginated by (started_at, thread_id) cursor.
+func (q *sqlQuerier) ListAIBridgeSessionThreadInterceptions(ctx context.Context, arg ListAIBridgeSessionThreadInterceptionsParams) ([]ListAIBridgeSessionThreadInterceptionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeSessionThreadInterceptions,
+		arg.SessionID,
+		arg.AfterID,
+		arg.BeforeID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAIBridgeSessionThreadInterceptionsRow
+	for rows.Next() {
+		var i ListAIBridgeSessionThreadInterceptionsRow
+		if err := rows.Scan(
+			&i.AIBridgeInterception.ID,
+			&i.AIBridgeInterception.InitiatorID,
+			&i.AIBridgeInterception.Provider,
+			&i.AIBridgeInterception.Model,
+			&i.AIBridgeInterception.StartedAt,
+			&i.AIBridgeInterception.Metadata,
+			&i.AIBridgeInterception.EndedAt,
+			&i.AIBridgeInterception.APIKeyID,
+			&i.AIBridgeInterception.Client,
+			&i.AIBridgeInterception.ThreadParentID,
+			&i.AIBridgeInterception.ThreadRootID,
+			&i.AIBridgeInterception.ClientSessionID,
+			&i.VisibleUser.ID,
+			&i.VisibleUser.Username,
+			&i.VisibleUser.Name,
+			&i.VisibleUser.AvatarURL,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
