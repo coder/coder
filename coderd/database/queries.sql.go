@@ -3814,7 +3814,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 	return items, nil
 }
 
-const getChatMessagesByChatIDPaginated = `-- name: GetChatMessagesByChatIDPaginated :many
+const getChatMessagesByChatIDDescPaginated = `-- name: GetChatMessagesByChatIDDescPaginated :many
 SELECT
     id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros
 FROM
@@ -3832,14 +3832,14 @@ LIMIT
     COALESCE(NULLIF($3::int, 0), 50)
 `
 
-type GetChatMessagesByChatIDPaginatedParams struct {
+type GetChatMessagesByChatIDDescPaginatedParams struct {
 	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
 	BeforeID int64     `db:"before_id" json:"before_id"`
 	LimitVal int32     `db:"limit_val" json:"limit_val"`
 }
 
-func (q *sqlQuerier) GetChatMessagesByChatIDPaginated(ctx context.Context, arg GetChatMessagesByChatIDPaginatedParams) ([]ChatMessage, error) {
-	rows, err := q.db.QueryContext(ctx, getChatMessagesByChatIDPaginated, arg.ChatID, arg.BeforeID, arg.LimitVal)
+func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg GetChatMessagesByChatIDDescPaginatedParams) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMessagesByChatIDDescPaginated, arg.ChatID, arg.BeforeID, arg.LimitVal)
 	if err != nil {
 		return nil, err
 	}

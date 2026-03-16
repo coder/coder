@@ -1063,11 +1063,11 @@ func (m queryMetricsStore) GetChatMessagesByChatID(ctx context.Context, chatID d
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatMessagesByChatIDPaginated(ctx context.Context, arg database.GetChatMessagesByChatIDPaginatedParams) ([]database.ChatMessage, error) {
+func (m queryMetricsStore) GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg database.GetChatMessagesByChatIDDescPaginatedParams) ([]database.ChatMessage, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetChatMessagesByChatIDPaginated(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetChatMessagesByChatIDPaginated").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMessagesByChatIDPaginated").Inc()
+	r0, r1 := m.s.GetChatMessagesByChatIDDescPaginated(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatMessagesByChatIDDescPaginated").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMessagesByChatIDDescPaginated").Inc()
 	return r0, r1
 }
 

@@ -1928,19 +1928,19 @@ func (mr *MockStoreMockRecorder) GetChatMessagesByChatID(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesByChatID", reflect.TypeOf((*MockStore)(nil).GetChatMessagesByChatID), ctx, arg)
 }
 
-// GetChatMessagesByChatIDPaginated mocks base method.
-func (m *MockStore) GetChatMessagesByChatIDPaginated(ctx context.Context, arg database.GetChatMessagesByChatIDPaginatedParams) ([]database.ChatMessage, error) {
+// GetChatMessagesByChatIDDescPaginated mocks base method.
+func (m *MockStore) GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg database.GetChatMessagesByChatIDDescPaginatedParams) ([]database.ChatMessage, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatMessagesByChatIDPaginated", ctx, arg)
+	ret := m.ctrl.Call(m, "GetChatMessagesByChatIDDescPaginated", ctx, arg)
 	ret0, _ := ret[0].([]database.ChatMessage)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatMessagesByChatIDPaginated indicates an expected call of GetChatMessagesByChatIDPaginated.
-func (mr *MockStoreMockRecorder) GetChatMessagesByChatIDPaginated(ctx, arg any) *gomock.Call {
+// GetChatMessagesByChatIDDescPaginated indicates an expected call of GetChatMessagesByChatIDDescPaginated.
+func (mr *MockStoreMockRecorder) GetChatMessagesByChatIDDescPaginated(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesByChatIDPaginated", reflect.TypeOf((*MockStore)(nil).GetChatMessagesByChatIDPaginated), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatMessagesByChatIDDescPaginated", reflect.TypeOf((*MockStore)(nil).GetChatMessagesByChatIDDescPaginated), ctx, arg)
 }
 
 // GetChatMessagesForPromptByChatID mocks base method.

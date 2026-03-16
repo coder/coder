@@ -40,7 +40,7 @@ WHERE
 ORDER BY
     created_at ASC;
 
--- name: GetChatMessagesByChatIDPaginated :many
+-- name: GetChatMessagesByChatIDDescPaginated :many
 SELECT
     *
 FROM

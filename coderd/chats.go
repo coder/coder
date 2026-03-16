@@ -592,7 +592,7 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Fetch limit+1 rows to detect whether more pages exist.
-	messages, err := api.Database.GetChatMessagesByChatIDPaginated(ctx, database.GetChatMessagesByChatIDPaginatedParams{
+	messages, err := api.Database.GetChatMessagesByChatIDDescPaginated(ctx, database.GetChatMessagesByChatIDDescPaginatedParams{
 		ChatID:   chatID,
 		BeforeID: beforeID,
 		LimitVal: limit + 1,

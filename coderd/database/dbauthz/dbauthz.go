@@ -2532,12 +2532,12 @@ func (q *querier) GetChatMessagesByChatID(ctx context.Context, arg database.GetC
 	return q.db.GetChatMessagesByChatID(ctx, arg)
 }
 
-func (q *querier) GetChatMessagesByChatIDPaginated(ctx context.Context, arg database.GetChatMessagesByChatIDPaginatedParams) ([]database.ChatMessage, error) {
+func (q *querier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg database.GetChatMessagesByChatIDDescPaginatedParams) ([]database.ChatMessage, error) {
 	_, err := q.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return nil, err
 	}
-	return q.db.GetChatMessagesByChatIDPaginated(ctx, arg)
+	return q.db.GetChatMessagesByChatIDDescPaginated(ctx, arg)
 }
 
 func (q *querier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
