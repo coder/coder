@@ -175,7 +175,7 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 });
 
 export const archiveChat = (queryClient: QueryClient) => ({
-	mutationFn: (chatId: string) => API.archiveChat(chatId),
+	mutationFn: (chatId: string) => API.updateChat(chatId, { archived: true }),
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
@@ -234,7 +234,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 });
 
 export const unarchiveChat = (queryClient: QueryClient) => ({
-	mutationFn: (chatId: string) => API.unarchiveChat(chatId),
+	mutationFn: (chatId: string) => API.updateChat(chatId, { archived: false }),
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,

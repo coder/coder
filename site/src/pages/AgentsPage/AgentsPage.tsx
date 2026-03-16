@@ -148,7 +148,7 @@ const AgentsPage: FC = () => {
 			chatId: string;
 			workspaceId: string;
 		}) => {
-			await API.archiveChat(chatId);
+			await API.updateChat(chatId, { archived: true });
 			await API.deleteWorkspace(workspaceId);
 			return { chatId, workspaceId };
 		},

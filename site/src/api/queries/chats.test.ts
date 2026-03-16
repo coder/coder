@@ -25,10 +25,9 @@ import {
 
 vi.mock("api/api", () => ({
 	API: {
-		archiveChat: vi.fn(),
+		updateChat: vi.fn(),
 		createChat: vi.fn(),
 		deleteChatQueuedMessage: vi.fn(),
-		unarchiveChat: vi.fn(),
 		getChats: vi.fn(),
 		getChatCostSummary: vi.fn(),
 		getChatCostUsers: vi.fn(),
@@ -207,7 +206,7 @@ describe("archiveChat optimistic update", () => {
 		const initialChats = [makeChat(chatId), makeChat("chat-2")];
 		seedInfiniteChats(queryClient, initialChats);
 
-		vi.mocked(API.archiveChat).mockResolvedValue();
+		vi.mocked(API.updateChat).mockResolvedValue();
 
 		const mutation = archiveChat(queryClient);
 		await mutation.onMutate(chatId);
@@ -225,7 +224,7 @@ describe("archiveChat optimistic update", () => {
 		seedInfiniteChats(queryClient, [makeChat(chatId)]);
 		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
 
-		vi.mocked(API.archiveChat).mockResolvedValue();
+		vi.mocked(API.updateChat).mockResolvedValue();
 
 		const mutation = archiveChat(queryClient);
 		await mutation.onMutate(chatId);

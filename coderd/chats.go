@@ -1369,64 +1369,58 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	logger.Debug(ctx, "desktop Bicopy finished")
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) archiveChat(rw http.ResponseWriter, r *http.Request) {
+// patchChat updates a chat resource. Currently supports toggling the
+// archived state via the Archived field.
+func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
-	if chat.Archived {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Chat is already archived.",
-		})
+	var req codersdk.UpdateChatRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	var err error
-	// Use chatDaemon when available so it can notify
-	// active subscribers. Fall back to direct DB for the
-	// simple archive flag — no streaming state is involved.
-	if api.chatDaemon != nil {
-		err = api.chatDaemon.ArchiveChat(ctx, chat)
-	} else {
-		err = api.Database.ArchiveChatByID(ctx, chat.ID)
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to archive chat.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	if req.Archived != nil {
+		archived := *req.Archived
+		if archived == chat.Archived {
+			state := "archived"
+			if !archived {
+				state = "not archived"
+			}
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Chat is already %s.", state),
+			})
+			return
+		}
 
-	rw.WriteHeader(http.StatusNoContent)
-}
-
-func (api *API) unarchiveChat(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	chat := httpmw.ChatParam(r)
-
-	if !chat.Archived {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Chat is not archived.",
-		})
-		return
-	}
-
-	var err error
-	// Use chatDaemon when available so it can notify
-	// active subscribers. Fall back to direct DB for the
-	// simple unarchive flag — no streaming state is involved.
-	if api.chatDaemon != nil {
-		err = api.chatDaemon.UnarchiveChat(ctx, chat)
-	} else {
-		err = api.Database.UnarchiveChatByID(ctx, chat.ID)
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to unarchive chat.",
-			Detail:  err.Error(),
-		})
-		return
+		var err error
+		// Use chatDaemon when available so it can notify active
+		// subscribers. Fall back to direct DB for the simple
+		// archive flag — no streaming state is involved.
+		if archived {
+			if api.chatDaemon != nil {
+				err = api.chatDaemon.ArchiveChat(ctx, chat)
+			} else {
+				err = api.Database.ArchiveChatByID(ctx, chat.ID)
+			}
+		} else {
+			if api.chatDaemon != nil {
+				err = api.chatDaemon.UnarchiveChat(ctx, chat)
+			} else {
+				err = api.Database.UnarchiveChatByID(ctx, chat.ID)
+			}
+		}
+		if err != nil {
+			action := "archive"
+			if !archived {
+				action = "unarchive"
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: fmt.Sprintf("Failed to %s chat.", action),
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
@@ -2525,14 +2519,14 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatSystemPromptResponse{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatSystemPrompt{
 		SystemPrompt: prompt,
 	})
 }
 
 func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var req codersdk.UpdateChatSystemPromptRequest
+	var req codersdk.ChatSystemPrompt
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -2582,7 +2576,7 @@ func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		customPrompt = ""
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPromptResponse{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPrompt{
 		CustomPrompt: customPrompt,
 	})
 }
@@ -2594,7 +2588,7 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		apiKey = httpmw.APIKey(r)
 	)
 
-	var params codersdk.UpdateUserChatCustomPromptRequest
+	var params codersdk.UserChatCustomPrompt
 	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
@@ -2621,7 +2615,7 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPromptResponse{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPrompt{
 		CustomPrompt: updatedConfig.Value,
 	})
 }

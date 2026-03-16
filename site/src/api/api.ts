@@ -2985,12 +2985,11 @@ class ApiMethods {
 		return response.data;
 	};
 
-	archiveChat = async (chatId: string): Promise<void> => {
-		await this.axios.post(`/api/experimental/chats/${chatId}/archive`);
-	};
-
-	unarchiveChat = async (chatId: string): Promise<void> => {
-		await this.axios.post(`/api/experimental/chats/${chatId}/unarchive`);
+	updateChat = async (
+		chatId: string,
+		req: TypesGen.UpdateChatRequest,
+	): Promise<void> => {
+		await this.axios.patch(`/api/experimental/chats/${chatId}`, req);
 	};
 
 	createChatMessage = async (
