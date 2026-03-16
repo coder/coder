@@ -186,8 +186,8 @@ func (c *devConfig) resolveEnv() error {
 
 	// Prevent inherited credentials from leaking into child
 	// processes or being picked up by config reads.
-	os.Unsetenv("CODER_SESSION_TOKEN")
-	os.Unsetenv("CODER_URL")
+	_ = os.Unsetenv("CODER_SESSION_TOKEN")
+	_ = os.Unsetenv("CODER_URL")
 
 	var err error
 	c.projectRoot, err = os.Getwd()
@@ -371,7 +371,7 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	}
 
 	if cfg.useProxy {
-		if err := setupWorkspaceProxy(ctx, logger, cfg, client, group); err != nil {
+		if err := setupWorkspaceProxy(ctx, cfg, client, group); err != nil {
 			logger.Warn(ctx, "proxy setup failed, continuing",
 				slog.Error(err))
 		}
@@ -399,7 +399,7 @@ func preflight(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	// matching the original develop.sh. Prints helpful install
 	// instructions on failure and exits non-zero.
 	libSh := filepath.Join(cfg.projectRoot, "scripts", "lib.sh")
-	libCheck := exec.CommandContext(ctx, "bash", "-c",
+	libCheck := exec.CommandContext(ctx, "bash", "-c", //nolint:gosec // libSh is a project-relative path, not user input
 		"source "+libSh+" && dependencies curl git go jq make pnpm")
 	libCheck.Stdout = os.Stderr
 	libCheck.Stderr = os.Stderr
@@ -408,9 +408,9 @@ func preflight(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	}
 	apiAddr := fmt.Sprintf("http://127.0.0.1:%d", cfg.apiPort)
 	if isCoderRunning(ctx, apiAddr) {
-		logger.Info(ctx, "Coder already running, exiting",
+		logger.Info(ctx, "coder is already running on this port",
 			slog.F("port", cfg.apiPort))
-		os.Exit(0)
+		return nil
 	}
 	if isPortBusy(ctx, cfg.apiPort) {
 		return xerrors.Errorf("port %d is already in use", cfg.apiPort)
@@ -517,7 +517,7 @@ func startServerDebug(cfg *devConfig, serverArgs []string, group *procGroup) err
 	if err := group.Start("dlv", dlvCmd); err != nil {
 		return xerrors.Errorf("attaching dlv: %w", err)
 	}
-	logger.Info(ctx, "dlv listening", slog.F("addr", "127.0.0.1:12345"))
+	logger.Info(ctx, "delve debugger listening", slog.F("addr", "127.0.0.1:12345"))
 	return nil
 }
 
@@ -537,13 +537,13 @@ func waitForHealthy(ctx context.Context, logger slog.Logger, apiURL string) erro
 			if err != nil {
 				return struct{}{}, false, nil
 			}
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			return struct{}{}, resp.StatusCode == http.StatusOK, nil
 		})
 	if err != nil {
 		return xerrors.Errorf("server did not become ready in %s: %w", healthTimeout, err)
 	}
-	logger.Info(ctx, "server is ready")
+	logger.Info(ctx, "server is ready to accept connections")
 	return nil
 }
 
@@ -599,7 +599,7 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 			return nil, xerrors.Errorf("writing url: %w", err)
 		}
 	}
-	logger.Info(ctx, "logged in", slog.F("email", "admin@coder.com"))
+	logger.Info(ctx, "authenticated as admin user", slog.F("email", "admin@coder.com"))
 
 	// Look up the default org for member creation.
 	defaultOrg, err := client.OrganizationByName(ctx, codersdk.DefaultOrganization)
@@ -665,7 +665,7 @@ func setupMultiOrg(ctx context.Context, logger slog.Logger, cfg *devConfig, clie
 	return group.Start("ext-provisioner", cmd)
 }
 
-func setupWorkspaceProxy(ctx context.Context, logger slog.Logger, cfg *devConfig, client *codersdk.Client, group *procGroup) error {
+func setupWorkspaceProxy(ctx context.Context, cfg *devConfig, client *codersdk.Client, group *procGroup) error {
 	_ = client.DeleteWorkspaceProxyByName(ctx, "local-proxy")
 
 	resp, err := client.CreateWorkspaceProxy(ctx,
@@ -805,13 +805,13 @@ func printBanner(logger slog.Logger, cfg *devConfig) {
 	var b strings.Builder
 	w := 64
 	line := func(content string) {
-		fmt.Fprintf(&b, "║ %-*s ║\n", w, content)
+		_, _ = fmt.Fprintf(&b, "║ %-*s ║\n", w, content)
 	}
 	divider := "╔" + strings.Repeat("═", w+2) + "╗"
 	bottom := "╚" + strings.Repeat("═", w+2) + "╝"
 
-	fmt.Fprintln(&b)
-	fmt.Fprintln(&b, divider)
+	_, _ = fmt.Fprintln(&b)
+	_, _ = fmt.Fprintln(&b, divider)
 	line("")
 	line("           Coder is now running in development mode.")
 	line("")
@@ -826,7 +826,7 @@ func printBanner(logger slog.Logger, cfg *devConfig) {
 	line("Use ./scripts/coder-dev.sh to talk to this instance!")
 	line(fmt.Sprintf("  alias cdr=%s/scripts/coder-dev.sh", cfg.projectRoot))
 	line("")
-	fmt.Fprintln(&b, bottom)
+	_, _ = fmt.Fprintln(&b, bottom)
 	logger.Info(context.Background(), b.String())
 }
 
@@ -864,7 +864,7 @@ func isPortBusy(ctx context.Context, port int64) bool {
 	if err != nil {
 		return false
 	}
-	conn.Close()
+	_ = conn.Close()
 	return true
 }
 
@@ -888,7 +888,7 @@ func isCoderRunning(ctx context.Context, baseURL string) bool {
 }
 
 // shellBool returns "1" for true and "0" for false (shell convention).
-func shellBool(b bool) string {
+func shellBool(b bool) string { //nolint:revive // trivial bool-to-string helper
 	if b {
 		return "1"
 	}
