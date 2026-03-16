@@ -1815,8 +1815,7 @@ export interface ChatUsageLimitConfigResponse extends ChatUsageLimitConfig {
  * frontends render user-friendly spend, limit, and reset information without
  * parsing debug text.
  */
-export interface ChatUsageLimitExceededResponse {
-	readonly message: string;
+export interface ChatUsageLimitExceededResponse extends Response {
 	readonly spent_micros: number;
 	readonly limit_micros: number;
 	readonly resets_at: string;

@@ -88,7 +88,9 @@ func writeChatUsageLimitExceeded(
 	limitErr *chatd.UsageLimitExceededError,
 ) {
 	httpapi.Write(ctx, rw, http.StatusConflict, codersdk.ChatUsageLimitExceededResponse{
-		Message:     "Chat usage limit exceeded.",
+		Response: codersdk.Response{
+			Message: "Chat usage limit exceeded.",
+		},
 		SpentMicros: limitErr.ConsumedMicros,
 		LimitMicros: limitErr.LimitMicros,
 		ResetsAt:    limitErr.PeriodEnd,

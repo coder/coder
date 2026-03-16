@@ -1,8 +1,10 @@
 package codersdk
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -803,10 +806,127 @@ type ChatCostUsersResponse struct {
 // frontends render user-friendly spend, limit, and reset information without
 // parsing debug text.
 type ChatUsageLimitExceededResponse struct {
-	Message     string    `json:"message"`
+	Response
 	SpentMicros int64     `json:"spent_micros"`
 	LimitMicros int64     `json:"limit_micros"`
 	ResetsAt    time.Time `json:"resets_at" format:"date-time"`
+}
+
+type chatUsageLimitExceededError struct {
+	err      *Error
+	response ChatUsageLimitExceededResponse
+}
+
+func (e *chatUsageLimitExceededError) Error() string {
+	if e.err == nil {
+		return e.response.Message
+	}
+	return e.err.Error()
+}
+
+func (e *chatUsageLimitExceededError) Unwrap() error {
+	return e.err
+}
+
+func readBodyAsChatUsageLimitError(res *http.Response) error {
+	if res == nil || res.StatusCode != http.StatusConflict {
+		return ReadBodyAsError(res)
+	}
+	defer res.Body.Close()
+
+	rawBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return xerrors.Errorf("read body: %w", err)
+	}
+
+	if mimeErr := ExpectJSONMime(res); mimeErr != nil {
+		return readRawBodyAsError(res, rawBody)
+	}
+
+	var payload ChatUsageLimitExceededResponse
+	if err := json.NewDecoder(bytes.NewReader(rawBody)).Decode(&payload); err == nil && isChatUsageLimitExceededResponse(payload) {
+		return &chatUsageLimitExceededError{
+			err:      newResponseError(res, payload.Response),
+			response: payload,
+		}
+	}
+
+	return readRawBodyAsError(res, rawBody)
+}
+
+func isChatUsageLimitExceededResponse(resp ChatUsageLimitExceededResponse) bool {
+	return resp.Message != "" && !resp.ResetsAt.IsZero()
+}
+
+func readRawBodyAsError(res *http.Response, rawBody []byte) error {
+	if mimeErr := ExpectJSONMime(res); mimeErr != nil {
+		if len(rawBody) > 2048 {
+			rawBody = append(rawBody[:2048], []byte("...")...)
+		}
+		if len(rawBody) == 0 {
+			rawBody = []byte("no response body")
+		}
+		return newResponseError(res, Response{
+			Message: mimeErr.Error(),
+			Detail:  string(rawBody),
+		})
+	}
+
+	var response Response
+	if err := json.NewDecoder(bytes.NewReader(rawBody)).Decode(&response); err != nil {
+		if errors.Is(err, io.EOF) {
+			return newResponseError(res, Response{Message: "empty response body"})
+		}
+		return xerrors.Errorf("decode body: %w", err)
+	}
+	if response.Message == "" {
+		if len(rawBody) > 1024 {
+			rawBody = append(rawBody[:1024], []byte("...")...)
+		}
+		response.Message = fmt.Sprintf(
+			"unexpected status code %d, response has no message",
+			res.StatusCode,
+		)
+		response.Detail = string(rawBody)
+	}
+	return newResponseError(res, response)
+}
+
+func newResponseError(res *http.Response, response Response) *Error {
+	if res == nil {
+		return &Error{Response: response}
+	}
+
+	var requestMethod, requestURL string
+	if res.Request != nil {
+		requestMethod = res.Request.Method
+		if res.Request.URL != nil {
+			requestURL = res.Request.URL.String()
+		}
+	}
+
+	var helpMessage string
+	if res.StatusCode == http.StatusUnauthorized {
+		helpMessage = "Try logging in using 'coder login'."
+	}
+
+	return &Error{
+		Response:   response,
+		statusCode: res.StatusCode,
+		method:     requestMethod,
+		url:        requestURL,
+		Helper:     helpMessage,
+	}
+}
+
+// ChatUsageLimitExceededFrom extracts a structured chat usage limit response
+// from an SDK error returned by chat mutation methods.
+func ChatUsageLimitExceededFrom(err error) *ChatUsageLimitExceededResponse {
+	var limitErr *chatUsageLimitExceededError
+	if !errors.As(err, &limitErr) {
+		return nil
+	}
+	return &limitErr.response
 }
 
 // ChatUsageLimitPeriod represents the time window for usage limits.
@@ -1186,10 +1306,10 @@ func (c *Client) CreateChat(ctx context.Context, req CreateChatRequest) (Chat, e
 	if err != nil {
 		return Chat{}, err
 	}
-	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return Chat{}, ReadBodyAsError(res)
+		return Chat{}, readBodyAsChatUsageLimitError(res)
 	}
+	defer res.Body.Close()
 	var chat Chat
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
 }
@@ -1409,10 +1529,10 @@ func (c *Client) CreateChatMessage(ctx context.Context, chatID uuid.UUID, req Cr
 	if err != nil {
 		return CreateChatMessageResponse{}, err
 	}
-	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return CreateChatMessageResponse{}, ReadBodyAsError(res)
+		return CreateChatMessageResponse{}, readBodyAsChatUsageLimitError(res)
 	}
+	defer res.Body.Close()
 	var resp CreateChatMessageResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
@@ -1433,10 +1553,10 @@ func (c *Client) EditChatMessage(
 	if err != nil {
 		return ChatMessage{}, err
 	}
-	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ChatMessage{}, ReadBodyAsError(res)
+		return ChatMessage{}, readBodyAsChatUsageLimitError(res)
 	}
+	defer res.Body.Close()
 	var message ChatMessage
 	return message, json.NewDecoder(res.Body).Decode(&message)
 }

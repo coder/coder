@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -60,39 +59,34 @@ func newChatClientWithDatabase(t testing.TB) (*codersdk.Client, database.Store) 
 	})
 }
 
-func requireChatUsageLimitExceededResponse(
+func requireChatUsageLimitExceededError(
 	t *testing.T,
-	res *http.Response,
+	err error,
 	wantSpentMicros int64,
 	wantLimitMicros int64,
 	wantResetsAt time.Time,
-) {
+) *codersdk.ChatUsageLimitExceededResponse {
 	t.Helper()
-	defer res.Body.Close()
 
-	require.Equal(t, http.StatusConflict, res.StatusCode)
+	sdkErr, ok := codersdk.AsError(err)
+	require.True(t, ok)
+	require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+	require.Equal(t, "Chat usage limit exceeded.", sdkErr.Message)
 
-	body, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-
-	var raw map[string]json.RawMessage
-	err = json.Unmarshal(body, &raw)
-	require.NoError(t, err)
-	require.NotContains(t, raw, "detail")
-
-	var got codersdk.ChatUsageLimitExceededResponse
-	err = json.Unmarshal(body, &got)
-	require.NoError(t, err)
-	require.Equal(t, "Chat usage limit exceeded.", got.Message)
-	require.Equal(t, wantSpentMicros, got.SpentMicros)
-	require.Equal(t, wantLimitMicros, got.LimitMicros)
+	limitErr := codersdk.ChatUsageLimitExceededFrom(err)
+	require.NotNil(t, limitErr)
+	require.Equal(t, "Chat usage limit exceeded.", limitErr.Message)
+	require.Equal(t, wantSpentMicros, limitErr.SpentMicros)
+	require.Equal(t, wantLimitMicros, limitErr.LimitMicros)
 	require.True(
 		t,
-		got.ResetsAt.Equal(wantResetsAt),
+		limitErr.ResetsAt.Equal(wantResetsAt),
 		"expected resets_at %s, got %s",
 		wantResetsAt.UTC().Format(time.RFC3339),
-		got.ResetsAt.UTC().Format(time.RFC3339),
+		limitErr.ResetsAt.UTC().Format(time.RFC3339),
 	)
+
+	return limitErr
 }
 
 func enableDailyChatUsageLimit(
@@ -441,14 +435,13 @@ func TestPostChats(t *testing.T) {
 
 		insertAssistantCostMessage(ctx, t, db, existingChat.ID, modelConfig.ID, 100)
 
-		res, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats", codersdk.CreateChatRequest{
+		_, err = client.CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "over limit",
 			}},
 		})
-		require.NoError(t, err)
-		requireChatUsageLimitExceededResponse(t, res, 100, 100, wantResetsAt)
+		requireChatUsageLimitExceededError(t, err, 100, 100, wantResetsAt)
 	})
 }
 
@@ -2027,19 +2020,13 @@ func TestPostChatMessages(t *testing.T) {
 		wantResetsAt := enableDailyChatUsageLimit(ctx, t, db, 100)
 		insertAssistantCostMessage(ctx, t, db, chat.ID, modelConfig.ID, 100)
 
-		res, err := client.Request(
-			ctx,
-			http.MethodPost,
-			fmt.Sprintf("/api/experimental/chats/%s/messages", chat.ID),
-			codersdk.CreateChatMessageRequest{
-				Content: []codersdk.ChatInputPart{{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "over limit",
-				}},
-			},
-		)
-		require.NoError(t, err)
-		requireChatUsageLimitExceededResponse(t, res, 100, 100, wantResetsAt)
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "over limit",
+			}},
+		})
+		requireChatUsageLimitExceededError(t, err, 100, 100, wantResetsAt)
 	})
 
 	t.Run("ChatNotFound", func(t *testing.T) {
@@ -2833,19 +2820,13 @@ func TestPatchChatMessage(t *testing.T) {
 		wantResetsAt := enableDailyChatUsageLimit(ctx, t, db, 100)
 		insertAssistantCostMessage(ctx, t, db, chat.ID, modelConfig.ID, 100)
 
-		res, err := client.Request(
-			ctx,
-			http.MethodPatch,
-			fmt.Sprintf("/api/experimental/chats/%s/messages/%d", chat.ID, userMessageID),
-			codersdk.EditChatMessageRequest{
-				Content: []codersdk.ChatInputPart{{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "edited over limit",
-				}},
-			},
-		)
-		require.NoError(t, err)
-		requireChatUsageLimitExceededResponse(t, res, 100, 100, wantResetsAt)
+		_, err = client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "edited over limit",
+			}},
+		})
+		requireChatUsageLimitExceededError(t, err, 100, 100, wantResetsAt)
 	})
 
 	t.Run("MessageNotFound", func(t *testing.T) {
