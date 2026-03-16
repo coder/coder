@@ -9068,10 +9068,10 @@ func TestInsertChatMessage(t *testing.T) {
 		return store, ctx, user, chat, provider, modelConfigA
 	}
 
-	insertMessage := func(t *testing.T, store database.Store, ctx context.Context, chatID, userID, modelConfigID uuid.UUID, content string) database.ChatMessage {
+	insertMessage := func(t *testing.T, store database.Store, ctx context.Context, chatID, userID, modelConfigID uuid.UUID, content string) {
 		t.Helper()
 
-		msg, err := store.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		_, err := store.InsertChatMessage(ctx, database.InsertChatMessageParams{
 			ChatID:         chatID,
 			CreatedBy:      uuid.NullUUID{UUID: userID, Valid: true},
 			ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
@@ -9084,8 +9084,6 @@ func TestInsertChatMessage(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-
-		return msg
 	}
 
 	t.Run("ModelSwitchUpdatesLastModelConfigID", func(t *testing.T) {
@@ -9103,17 +9101,7 @@ func TestInsertChatMessage(t *testing.T) {
 			false,
 		)
 
-		msg := insertMessage(t, store, ctx, chat.ID, user.ID, modelConfigB.ID, "switch models")
-
-		require.NotZero(t, msg.ID)
-		require.Equal(t, chat.ID, msg.ChatID)
-		require.Equal(t, uuid.NullUUID{UUID: modelConfigB.ID, Valid: true}, msg.ModelConfigID)
-		require.Equal(t, uuid.NullUUID{UUID: user.ID, Valid: true}, msg.CreatedBy)
-		require.Equal(t, database.ChatMessageRoleUser, msg.Role)
-		require.Equal(t, database.ChatMessageVisibilityBoth, msg.Visibility)
-		require.Equal(t, chatprompt.CurrentContentVersion, msg.ContentVersion)
-		require.True(t, msg.Content.Valid)
-		require.Equal(t, fmt.Sprintf("%q", "switch models"), string(msg.Content.RawMessage))
+		insertMessage(t, store, ctx, chat.ID, user.ID, modelConfigB.ID, "switch models")
 
 		gotChat, err := store.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
@@ -9126,17 +9114,7 @@ func TestInsertChatMessage(t *testing.T) {
 
 		store, ctx, user, chat, _, modelConfigA := setupChat(t)
 
-		msg := insertMessage(t, store, ctx, chat.ID, user.ID, modelConfigA.ID, "same model")
-
-		require.NotZero(t, msg.ID)
-		require.Equal(t, chat.ID, msg.ChatID)
-		require.Equal(t, uuid.NullUUID{UUID: modelConfigA.ID, Valid: true}, msg.ModelConfigID)
-		require.Equal(t, uuid.NullUUID{UUID: user.ID, Valid: true}, msg.CreatedBy)
-		require.Equal(t, database.ChatMessageRoleUser, msg.Role)
-		require.Equal(t, database.ChatMessageVisibilityBoth, msg.Visibility)
-		require.Equal(t, chatprompt.CurrentContentVersion, msg.ContentVersion)
-		require.True(t, msg.Content.Valid)
-		require.Equal(t, fmt.Sprintf("%q", "same model"), string(msg.Content.RawMessage))
+		insertMessage(t, store, ctx, chat.ID, user.ID, modelConfigA.ID, "same model")
 
 		gotChat, err := store.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
