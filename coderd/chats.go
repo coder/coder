@@ -748,14 +748,6 @@ proxyLoop:
 	_ = clientStream.Close(websocket.StatusGoingAway)
 }
 
-// @Summary Watch chat desktop
-// @ID watch-chat-desktop
-// @Security CoderSessionToken
-// @Tags Chats
-// @Param chat path string true "Chat ID" format(uuid)
-// @Success 101
-// @Router /chats/{chat}/desktop [get]
-//
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -871,11 +863,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	logger.Debug(ctx, "desktop Bicopy finished")
 }
 
-// @Summary Archive a chat
-// @ID archive-chat
-// @Tags Chats
-// @Success 204
-// @Router /chats/{chat}/archive [post]
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) archiveChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
