@@ -3658,7 +3658,7 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 		res, err := client.Request(
 			ctx,
 			http.MethodPut,
-			fmt.Sprintf("/api/experimental/chats/usage-limits/user-overrides/%s", member.ID),
+			fmt.Sprintf("/api/experimental/chats/usage-limits/overrides/%s", member.ID),
 			map[string]any{},
 		)
 		require.NoError(t, err)
@@ -3666,8 +3666,8 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 
 		err = codersdk.ReadBodyAsError(res)
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Invalid chat user usage limit override.", sdkErr.Message)
-		require.Equal(t, "Spend limit (in microdollars) must be greater than 0.", sdkErr.Detail)
+		require.Equal(t, "Invalid chat usage limit override.", sdkErr.Message)
+		require.Equal(t, "Spend limit must be greater than 0.", sdkErr.Detail)
 	})
 
 	t.Run("DeleteUserOverrideMissingUser", func(t *testing.T) {
@@ -3677,7 +3677,7 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client)
 
-		err := client.DeleteChatUserUsageLimitOverride(ctx, uuid.New())
+		err := client.DeleteChatUsageLimitOverride(ctx, uuid.New())
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "User not found.", sdkErr.Message)
 	})
@@ -3690,7 +3690,7 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client)
 		_, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 
-		err := client.DeleteChatUserUsageLimitOverride(ctx, member.ID)
+		err := client.DeleteChatUsageLimitOverride(ctx, member.ID)
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Chat usage limit override not found.", sdkErr.Message)
 	})
@@ -3706,7 +3706,7 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: member.ID})
 		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: database.PrebuildsSystemUserID})
 
-		override, err := client.UpsertChatUsageLimitGroupOverride(ctx, group.ID, codersdk.UpdateChatUsageLimitGroupOverrideRequest{
+		override, err := client.UpsertChatUsageLimitGroupOverride(ctx, group.ID, codersdk.UpsertChatUsageLimitGroupOverrideRequest{
 			SpendLimitMicros: 7_000_000,
 		})
 		require.NoError(t, err)

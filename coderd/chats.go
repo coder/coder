@@ -644,12 +644,10 @@ func (api *API) getChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request)
 
 	for _, row := range overrideRows {
 		response.Overrides = append(response.Overrides, codersdk.ChatUsageLimitOverride{
-			MinimalUser: codersdk.MinimalUser{
-				ID:        row.UserID,
-				Username:  row.Username,
-				Name:      row.Name,
-				AvatarURL: row.AvatarURL,
-			},
+			UserID:           row.UserID,
+			Username:         row.Username,
+			Name:             row.Name,
+			AvatarURL:        row.AvatarURL,
 			SpendLimitMicros: nullInt64Ptr(row.SpendLimitMicros),
 		})
 	}
@@ -771,10 +769,10 @@ func (api *API) getMyChatUsageLimitStatus(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, status)
 }
 
-// @Summary Update chat user usage limit override
+// @Summary Upsert chat usage limit override
 // @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) updateChatUserUsageLimitOverride(rw http.ResponseWriter, r *http.Request) {
+func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
@@ -786,14 +784,14 @@ func (api *API) updateChatUserUsageLimitOverride(rw http.ResponseWriter, r *http
 		return
 	}
 
-	var req codersdk.UpdateChatUsageLimitOverrideRequest
+	var req codersdk.UpsertChatUsageLimitOverrideRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 	if req.SpendLimitMicros <= 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid chat user usage limit override.",
-			Detail:  "Spend limit (in microdollars) must be greater than 0.",
+			Message: "Invalid chat usage limit override.",
+			Detail:  "Spend limit must be greater than 0.",
 		})
 		return
 	}
@@ -815,20 +813,18 @@ func (api *API) updateChatUserUsageLimitOverride(rw http.ResponseWriter, r *http
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatUsageLimitOverride{
-		MinimalUser: codersdk.MinimalUser{
-			ID:        override.UserID,
-			Username:  override.Username,
-			Name:      override.Name,
-			AvatarURL: override.AvatarURL,
-		},
+		UserID:           override.UserID,
+		Username:         override.Username,
+		Name:             override.Name,
+		AvatarURL:        override.AvatarURL,
 		SpendLimitMicros: nullInt64Ptr(override.SpendLimitMicros),
 	})
 }
 
-// @Summary Delete chat user usage limit override
+// @Summary Delete chat usage limit override
 // @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) deleteChatUserUsageLimitOverride(rw http.ResponseWriter, r *http.Request) {
+func (api *API) deleteChatUsageLimitOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
