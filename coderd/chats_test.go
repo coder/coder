@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -613,6 +614,127 @@ func TestWatchChats(t *testing.T) {
 				payload.Chat.ID == createdChat.ID {
 				break
 			}
+		}
+	})
+
+	t.Run("DiffStatusChangeIncludesDiffStatus", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			DeploymentValues: chatDeploymentValues(t),
+		})
+		db := api.Database
+		user := coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Insert a chat and a diff status row.
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "diff status watch test",
+		})
+		require.NoError(t, err)
+
+		refreshedAt := time.Now().UTC().Truncate(time.Second)
+		staleAt := refreshedAt.Add(time.Hour)
+		_, err = db.UpsertChatDiffStatusReference(
+			dbauthz.AsSystemRestricted(ctx),
+			database.UpsertChatDiffStatusReferenceParams{
+				ChatID:          chat.ID,
+				Url:             sql.NullString{String: "https://github.com/coder/coder/pull/99", Valid: true},
+				GitBranch:       "feature/test",
+				GitRemoteOrigin: "git@github.com:coder/coder.git",
+				StaleAt:         staleAt,
+			},
+		)
+		require.NoError(t, err)
+		_, err = db.UpsertChatDiffStatus(
+			dbauthz.AsSystemRestricted(ctx),
+			database.UpsertChatDiffStatusParams{
+				ChatID:           chat.ID,
+				Url:              sql.NullString{String: "https://github.com/coder/coder/pull/99", Valid: true},
+				PullRequestState: sql.NullString{String: "open", Valid: true},
+				Additions:        42,
+				Deletions:        7,
+				ChangedFiles:     5,
+				RefreshedAt:      refreshedAt,
+				StaleAt:          staleAt,
+			},
+		)
+		require.NoError(t, err)
+
+		// Open the watch WebSocket.
+		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
+		require.NoError(t, err)
+		defer conn.Close(websocket.StatusNormalClosure, "done")
+
+		type watchEvent struct {
+			Type codersdk.ServerSentEventType `json:"type"`
+			Data json.RawMessage              `json:"data,omitempty"`
+		}
+
+		// Read the initial ping.
+		var ping watchEvent
+		err = wsjson.Read(ctx, conn, &ping)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ServerSentEventTypePing, ping.Type)
+
+		// Publish a diff_status_change event via pubsub,
+		// mimicking what PublishDiffStatusChange does after
+		// it reads the diff status from the DB.
+		dbStatus, err := db.GetChatDiffStatusByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		sdkDiffStatus := db2sdk.ChatDiffStatus(chat.ID, &dbStatus)
+		event := coderdpubsub.ChatEvent{
+			Kind: coderdpubsub.ChatEventKindDiffStatusChange,
+			Chat: codersdk.Chat{
+				ID:         chat.ID,
+				OwnerID:    chat.OwnerID,
+				Title:      chat.Title,
+				Status:     codersdk.ChatStatus(chat.Status),
+				CreatedAt:  chat.CreatedAt,
+				UpdatedAt:  chat.UpdatedAt,
+				DiffStatus: &sdkDiffStatus,
+			},
+		}
+		payload, err := json.Marshal(event)
+		require.NoError(t, err)
+		err = api.Pubsub.Publish(coderdpubsub.ChatEventChannel(user.UserID), payload)
+		require.NoError(t, err)
+
+		// Read events until we find the diff_status_change.
+		for {
+			var update watchEvent
+			err = wsjson.Read(ctx, conn, &update)
+			require.NoError(t, err)
+
+			if update.Type == codersdk.ServerSentEventTypePing {
+				continue
+			}
+			require.Equal(t, codersdk.ServerSentEventTypeData, update.Type)
+
+			var received coderdpubsub.ChatEvent
+			err = json.Unmarshal(update.Data, &received)
+			require.NoError(t, err)
+
+			if received.Kind != coderdpubsub.ChatEventKindDiffStatusChange ||
+				received.Chat.ID != chat.ID {
+				continue
+			}
+
+			// Verify the event carries the full DiffStatus.
+			require.NotNil(t, received.Chat.DiffStatus, "diff_status_change event must include DiffStatus")
+			ds := received.Chat.DiffStatus
+			require.Equal(t, chat.ID, ds.ChatID)
+			require.NotNil(t, ds.URL)
+			require.Equal(t, "https://github.com/coder/coder/pull/99", *ds.URL)
+			require.NotNil(t, ds.PullRequestState)
+			require.Equal(t, "open", *ds.PullRequestState)
+			require.EqualValues(t, 42, ds.Additions)
+			require.EqualValues(t, 7, ds.Deletions)
+			require.EqualValues(t, 5, ds.ChangedFiles)
+			break
 		}
 	})
 
