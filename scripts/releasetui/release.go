@@ -117,11 +117,17 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return xerrors.Errorf("listing merged tags: %w", err)
 	}
 
+	// Find the latest tag matching this branch's major.minor.
+	// Without this filter, tags from newer branches (e.g. v2.31.0)
+	// that are reachable via merge history would be picked up
+	// incorrectly on older release branches (e.g. release/2.30).
 	var prevVersion *version
 	for _, t := range mergedTags {
-		v := t
-		prevVersion = &v
-		break
+		if t.Major == branchMajor && t.Minor == branchMinor {
+			v := t
+			prevVersion = &v
+			break
+		}
 	}
 
 	var suggested version
