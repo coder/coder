@@ -158,7 +158,7 @@ func TestPostChats(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusNotFound)
 		require.Equal(
 			t,
-			"Workspace not found or you do not have access to this resource",
+			"Resource not found or you do not have access to this resource",
 			sdkErr.Message,
 		)
 	})
@@ -193,7 +193,7 @@ func TestPostChats(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusNotFound)
 		require.Equal(
 			t,
-			"Workspace not found or you do not have access to this resource",
+			"Resource not found or you do not have access to this resource",
 			sdkErr.Message,
 		)
 	})
@@ -218,7 +218,7 @@ func TestPostChats(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusNotFound)
 		require.Equal(
 			t,
-			"Workspace not found or you do not have access to this resource",
+			"Resource not found or you do not have access to this resource",
 			sdkErr.Message,
 		)
 	})
