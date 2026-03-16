@@ -786,6 +786,9 @@
     "retention": 0,
     "send_actor_headers": true,
     "structured_logging": true
+  },
+  "chat": {
+    "acquire_batch_size": 0
   }
 }
 ```
@@ -796,6 +799,7 @@
 |------------------|--------------------------------------------------------------|----------|--------------|-------------|
 | `aibridge_proxy` | [codersdk.AIBridgeProxyConfig](#codersdkaibridgeproxyconfig) | false    |              |             |
 | `bridge`         | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig)           | false    |              |             |
+| `chat`           | [codersdk.ChatConfig](#codersdkchatconfig)                   | false    |              |             |
 
 ## codersdk.APIAllowListTarget
 
@@ -1556,6 +1560,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `email`             | string | true     |              |             |
 | `one_time_passcode` | string | true     |              |             |
 | `password`          | string | true     |              |             |
+
+## codersdk.ChatConfig
+
+```json
+{
+  "acquire_batch_size": 0
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `acquire_batch_size` | integer | false    |              |             |
 
 ## codersdk.ConnectionLatency
 
@@ -2720,6 +2738,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "retention": 0,
         "send_actor_headers": true,
         "structured_logging": true
+      },
+      "chat": {
+        "acquire_batch_size": 0
       }
     },
     "allow_workspace_renames": true,
@@ -3292,6 +3313,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "retention": 0,
       "send_actor_headers": true,
       "structured_logging": true
+    },
+    "chat": {
+      "acquire_batch_size": 0
     }
   },
   "allow_workspace_renames": true,
