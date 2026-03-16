@@ -1,4 +1,4 @@
-import { API, type ChatDiffStatusResponse } from "api/api";
+import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { QueryClient, UseInfiniteQueryOptions } from "react-query";
 
@@ -31,6 +31,35 @@ export const updateInfiniteChatsCache = (
 };
 
 /**
+ * Prepends a new chat to the first page of every infinite chats query
+ * in the cache, but only if the chat doesn't already exist in any
+ * page. This avoids the per-page duplication that would occur if
+ * a prepend updater were passed to updateInfiniteChatsCache, which
+ * runs independently on each page.
+ */
+export const prependToInfiniteChatsCache = (
+	queryClient: QueryClient,
+	chat: TypesGen.Chat,
+) => {
+	queryClient.setQueriesData<{
+		pages: TypesGen.Chat[][];
+		pageParams: unknown[];
+	}>({ queryKey: chatsKey }, (prev) => {
+		if (!prev?.pages) return prev;
+		// Check across ALL pages to avoid duplicates.
+		const exists = prev.pages.some((page) =>
+			page.some((c) => c.id === chat.id),
+		);
+		if (exists) return prev;
+		// Only prepend to the first page.
+		const nextPages = prev.pages.map((page, i) =>
+			i === 0 ? [chat, ...page] : page,
+		);
+		return { ...prev, pages: nextPages };
+	});
+};
+
+/**
  * Reads the flat list of chats from the first matching infinite query
  * in the cache. Returns undefined when no data is cached yet.
  */
@@ -47,6 +76,29 @@ export const readInfiniteChatsCache = (
 		}
 	}
 	return undefined;
+};
+
+/**
+ * Invalidate only the sidebar chat-list queries (flat + infinite)
+ * without cascading to per-chat queries (detail, messages, diffs, cost).
+ *
+ * Sidebar keys look like ["chats"] or ["chats", <object|undefined>].
+ * Per-chat keys look like ["chats", <string-id>, ...]. The predicate
+ * distinguishes them by allowlisting known sidebar key shapes.
+ */
+export const invalidateChatListQueries = (queryClient: QueryClient) => {
+	return queryClient.invalidateQueries({
+		queryKey: chatsKey,
+		predicate: (query) => {
+			const key = query.queryKey;
+			// Match: ["chats"] (flat list).
+			if (key.length <= 1) return true;
+			// Match: ["chats", <object | undefined>] (infinite query
+			// with optional filter opts like {archived, q}).
+			const segment = key[1];
+			return segment === undefined || typeof segment === "object";
+		},
+	});
 };
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
@@ -106,8 +158,19 @@ export const chatMessages = (chatId: string) => ({
 export const archiveChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) => API.archiveChat(chatId),
 	onMutate: async (chatId: string) => {
-		await queryClient.cancelQueries({ queryKey: chatsKey });
-		await queryClient.cancelQueries({ queryKey: chatKey(chatId) });
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: (query) => {
+				const key = query.queryKey;
+				if (key.length <= 1) return true;
+				const segment = key[1];
+				return segment === undefined || typeof segment === "object";
+			},
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatKey(chatId),
 		);
@@ -134,7 +197,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 			| undefined,
 	) => {
 		// Rollback: invalidate to re-fetch the correct state.
-		void queryClient.invalidateQueries({ queryKey: chatsKey });
+		void invalidateChatListQueries(queryClient);
 		if (context?.previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(
 				chatKey(chatId),
@@ -143,16 +206,30 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		}
 	},
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
-		await queryClient.invalidateQueries({ queryKey: chatsKey });
-		await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
 	},
 });
 
 export const unarchiveChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) => API.unarchiveChat(chatId),
 	onMutate: async (chatId: string) => {
-		await queryClient.cancelQueries({ queryKey: chatsKey });
-		await queryClient.cancelQueries({ queryKey: chatKey(chatId) });
+		await queryClient.cancelQueries({
+			queryKey: chatsKey,
+			predicate: (query) => {
+				const key = query.queryKey;
+				if (key.length <= 1) return true;
+				const segment = key[1];
+				return segment === undefined || typeof segment === "object";
+			},
+		});
+		await queryClient.cancelQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatKey(chatId),
 		);
@@ -179,7 +256,7 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 			| undefined,
 	) => {
 		// Rollback: invalidate to re-fetch the correct state.
-		void queryClient.invalidateQueries({ queryKey: chatsKey });
+		void invalidateChatListQueries(queryClient);
 		if (context?.previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(
 				chatKey(chatId),
@@ -188,27 +265,30 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 		}
 	},
 	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
-		await queryClient.invalidateQueries({ queryKey: chatsKey });
-		await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
+		await invalidateChatListQueries(queryClient);
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
 	},
 });
 
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) => API.createChat(req),
 	onSuccess: () => {
-		void queryClient.invalidateQueries({ queryKey: chatsKey });
+		void invalidateChatListQueries(queryClient);
 	},
 });
 
 export const createChatMessage = (
-	queryClient: QueryClient,
+	_queryClient: QueryClient,
 	chatId: string,
 ) => ({
 	mutationFn: (req: TypesGen.CreateChatMessageRequest) =>
 		API.createChatMessage(chatId, req),
-	onSuccess: () => {
-		void queryClient.invalidateQueries({ queryKey: chatsKey });
-	},
+	// No onSuccess invalidation needed: the per-chat WebSocket delivers
+	// the response message via upsertDurableMessage, and the global
+	// watchChats() WebSocket updates the sidebar sort order.
 });
 
 type EditChatMessageMutationArgs = {
@@ -220,17 +300,27 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
 		API.editChatMessage(chatId, messageId, req),
 	onSuccess: () => {
-		void queryClient.invalidateQueries({ queryKey: chatsKey });
-		void queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
-		void queryClient.invalidateQueries({ queryKey: chatMessagesKey(chatId) });
+		// Editing truncates all messages after the edited one on the
+		// server. The WebSocket can insert/update messages but cannot
+		// remove stale ones, so a full messages refetch is required.
+		// Use exact matching to avoid cascading to unrelated queries
+		// (diff-status, diff-contents, cost summaries, etc.).
+		void queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		void queryClient.invalidateQueries({
+			queryKey: chatMessagesKey(chatId),
+			exact: true,
+		});
 	},
 });
 
-export const interruptChat = (queryClient: QueryClient, chatId: string) => ({
+export const interruptChat = (_queryClient: QueryClient, chatId: string) => ({
 	mutationFn: () => API.interruptChat(chatId),
-	onSuccess: () => {
-		void queryClient.invalidateQueries({ queryKey: chatsKey });
-	},
+	// No onSuccess invalidation needed: the per-chat WebSocket
+	// delivers the status change via setChatStatus, and the global
+	// watchChats() WebSocket updates the sidebar.
 });
 
 export const deleteChatQueuedMessage = (
@@ -240,22 +330,26 @@ export const deleteChatQueuedMessage = (
 	mutationFn: (queuedMessageId: number) =>
 		API.deleteChatQueuedMessage(chatId, queuedMessageId),
 	onSuccess: async () => {
-		await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
-		await queryClient.invalidateQueries({ queryKey: chatMessagesKey(chatId) });
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		await queryClient.invalidateQueries({
+			queryKey: chatMessagesKey(chatId),
+			exact: true,
+		});
 	},
 });
 
 export const promoteChatQueuedMessage = (
-	queryClient: QueryClient,
+	_queryClient: QueryClient,
 	chatId: string,
 ) => ({
 	mutationFn: (queuedMessageId: number) =>
 		API.promoteChatQueuedMessage(chatId, queuedMessageId),
-	onSuccess: () => {
-		void queryClient.invalidateQueries({ queryKey: chatsKey });
-		void queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
-		void queryClient.invalidateQueries({ queryKey: chatMessagesKey(chatId) });
-	},
+	// No onSuccess invalidation needed: the per-chat WebSocket
+	// delivers the promoted message, queue update, and status
+	// change in real-time.
 });
 
 export const chatDiffStatusKey = (chatId: string) =>
@@ -263,7 +357,8 @@ export const chatDiffStatusKey = (chatId: string) =>
 
 export const chatDiffStatus = (chatId: string) => ({
 	queryKey: chatDiffStatusKey(chatId),
-	queryFn: (): Promise<ChatDiffStatusResponse> => API.getChatDiffStatus(chatId),
+	queryFn: (): Promise<TypesGen.ChatDiffStatus> =>
+		API.getChatDiffStatus(chatId),
 });
 
 export const chatDiffContentsKey = (chatId: string) =>
@@ -395,4 +490,33 @@ export const deleteChatModelConfig = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await invalidateChatConfigurationQueries(queryClient);
 	},
+});
+
+type ChatCostDateParams = {
+	start_date?: string;
+	end_date?: string;
+};
+
+type ChatCostUsersParams = ChatCostDateParams & {
+	username?: string;
+	limit?: number;
+	offset?: number;
+};
+
+export const chatCostSummaryKey = (user = "me", params?: ChatCostDateParams) =>
+	[...chatsKey, "costSummary", user, params] as const;
+
+export const chatCostSummary = (user = "me", params?: ChatCostDateParams) => ({
+	queryKey: chatCostSummaryKey(user, params),
+	queryFn: () => API.getChatCostSummary(user, params),
+	staleTime: 60_000,
+});
+
+export const chatCostUsersKey = (params?: ChatCostUsersParams) =>
+	[...chatsKey, "costUsers", params] as const;
+
+export const chatCostUsers = (params?: ChatCostUsersParams) => ({
+	queryKey: chatCostUsersKey(params),
+	queryFn: () => API.getChatCostUsers(params),
+	staleTime: 60_000,
 });

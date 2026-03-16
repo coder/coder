@@ -278,6 +278,10 @@ CREATE TYPE chat_message_visibility AS ENUM (
     'both'
 );
 
+CREATE TYPE chat_mode AS ENUM (
+    'computer_use'
+);
+
 CREATE TYPE chat_status AS ENUM (
     'waiting',
     'pending',
@@ -1196,7 +1200,15 @@ CREATE TABLE chat_diff_statuses (
     git_branch text DEFAULT ''::text NOT NULL,
     git_remote_origin text DEFAULT ''::text NOT NULL,
     pull_request_title text DEFAULT ''::text NOT NULL,
-    pull_request_draft boolean DEFAULT false NOT NULL
+    pull_request_draft boolean DEFAULT false NOT NULL,
+    author_login text,
+    author_avatar_url text,
+    base_branch text,
+    pr_number integer,
+    commits integer,
+    approved boolean,
+    reviewer_count integer,
+    head_branch text
 );
 
 CREATE TABLE chat_files (
@@ -1306,7 +1318,8 @@ CREATE TABLE chats (
     root_chat_id uuid,
     last_model_config_id uuid NOT NULL,
     archived boolean DEFAULT false NOT NULL,
-    last_error text
+    last_error text,
+    mode chat_mode
 );
 
 CREATE TABLE connection_logs (

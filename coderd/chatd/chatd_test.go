@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -14,12 +17,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -28,6 +34,8 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/provisioner/echo"
 	proto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -1766,4 +1774,350 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 		"push body should be the LLM-generated summary")
 	require.NotEqual(t, "Agent has finished running.", msg.Body,
 		"push body should not use the default fallback text")
+}
+
+func TestComputerUseSubagentToolsAndModel(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Track tools and model from the Anthropic LLM calls (the
+	// computer use child chat). We use a raw HTTP handler because
+	// the chattest AnthropicRequest struct does not capture tools.
+	type anthropicCall struct {
+		Model string
+		Tools []string
+	}
+	var anthropicMu sync.Mutex
+	var anthropicCalls []anthropicCall
+
+	anthropicSrv := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			var req struct {
+				Model  string `json:"model"`
+				Stream bool   `json:"stream"`
+				Tools  []struct {
+					Name string `json:"name"`
+				} `json:"tools"`
+			}
+			if err := json.Unmarshal(body, &req); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			names := make([]string, len(req.Tools))
+			for i, tool := range req.Tools {
+				names[i] = tool.Name
+			}
+			anthropicMu.Lock()
+			anthropicCalls = append(anthropicCalls, anthropicCall{
+				Model: req.Model,
+				Tools: names,
+			})
+			anthropicMu.Unlock()
+
+			if !req.Stream {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"id":          "msg-test",
+					"type":        "message",
+					"role":        "assistant",
+					"model":       chattool.ComputerUseModelName,
+					"content":     []map[string]any{{"type": "text", "text": "Done."}},
+					"stop_reason": "end_turn",
+					"usage":       map[string]any{"input_tokens": 10, "output_tokens": 5},
+				})
+				return
+			}
+
+			// Stream a minimal Anthropic SSE response.
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			flusher, _ := w.(http.Flusher)
+
+			chunks := []map[string]any{
+				{
+					"type": "message_start",
+					"message": map[string]any{
+						"id":    "msg-test",
+						"type":  "message",
+						"role":  "assistant",
+						"model": chattool.ComputerUseModelName,
+					},
+				},
+				{
+					"type":  "content_block_start",
+					"index": 0,
+					"content_block": map[string]any{
+						"type": "text",
+						"text": "",
+					},
+				},
+				{
+					"type":  "content_block_delta",
+					"index": 0,
+					"delta": map[string]any{
+						"type": "text_delta",
+						"text": "Done.",
+					},
+				},
+				{"type": "content_block_stop", "index": 0},
+				{
+					"type":  "message_delta",
+					"delta": map[string]any{"stop_reason": "end_turn"},
+					"usage": map[string]any{"output_tokens": 5},
+				},
+				{"type": "message_stop"},
+			}
+
+			for _, chunk := range chunks {
+				chunkBytes, _ := json.Marshal(chunk)
+				eventType, _ := chunk["type"].(string)
+				_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n",
+					eventType, chunkBytes)
+				flusher.Flush()
+			}
+		},
+	))
+	t.Cleanup(anthropicSrv.Close)
+
+	// OpenAI mock for the root chat. The first streaming call
+	// triggers spawn_computer_use_agent; subsequent calls reply
+	// with text.
+	var openAICallCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if openAICallCount.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk(
+					"spawn_computer_use_agent",
+					`{"prompt":"do the desktop thing","title":"cu-sub"}`,
+				),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Done.")...,
+		)
+	})
+
+	// Seed the DB: user, openai-compat provider, model config.
+	user := dbgen.User(t, db, database.User{})
+	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:    "openai-compat",
+		DisplayName: "OpenAI Compat",
+		APIKey:      "test-key",
+		BaseUrl:     openAIURL,
+		CreatedBy:   uuid.NullUUID{},
+		Enabled:     true,
+	})
+	require.NoError(t, err)
+	model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai-compat",
+		Model:                "gpt-4o-mini",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{},
+		UpdatedBy:            uuid.NullUUID{},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 70,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	// Add an Anthropic provider pointing to our mock server.
+	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:    "anthropic",
+		DisplayName: "Anthropic",
+		APIKey:      "test-anthropic-key",
+		BaseUrl:     anthropicSrv.URL,
+		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:     true,
+	})
+	require.NoError(t, err)
+
+	// Build workspace + agent records so getWorkspaceConn can
+	// resolve the agent for the computer use child.
+	org := dbgen.Organization(t, db, database.Organization{})
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tpl := dbgen.Template(t, db, database.Template{
+		CreatedBy:       user.ID,
+		OrganizationID:  org.ID,
+		ActiveVersionID: tv.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+	})
+	pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		InitiatorID:    user.ID,
+		OrganizationID: org.ID,
+	})
+	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		TemplateVersionID: tv.ID,
+		WorkspaceID:       ws.ID,
+		JobID:             pj.ID,
+	})
+	res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		Transition: database.WorkspaceTransitionStart,
+		JobID:      pj.ID,
+	})
+	dbAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: res.ID,
+	})
+
+	// Mock agent connection that returns valid display dimensions
+	// for the initial screenshot check in the computer use path.
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	mockConn.EXPECT().
+		ExecuteDesktopAction(gomock.Any(), gomock.Any()).
+		Return(workspacesdk.DesktopActionResponse{
+			ScreenshotWidth:  1920,
+			ScreenshotHeight: 1080,
+			ScreenshotData:   "iVBOR",
+		}, nil).
+		AnyTimes()
+	mockConn.EXPECT().
+		SetExtraHeaders(gomock.Any()).
+		AnyTimes()
+	mockConn.EXPECT().
+		LS(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(workspacesdk.LSResponse{}, xerrors.New("not found")).
+		AnyTimes()
+
+	agentConnFn := func(
+		_ context.Context, agentID uuid.UUID,
+	) (workspacesdk.AgentConn, func(), error) {
+		require.Equal(t, dbAgent.ID, agentID)
+		return mockConn, func() {}, nil
+	}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		AgentConn:                  agentConnFn,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	// Create a root chat with a workspace so the child inherits it.
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:       user.ID,
+		Title:         "computer-use-detection",
+		ModelConfigID: model.ID,
+		WorkspaceID:   uuid.NullUUID{UUID: ws.ID, Valid: true},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Use the desktop to check the UI"),
+		},
+	})
+	require.NoError(t, err)
+
+	// Wait for the root chat AND the computer use child to finish.
+	// The root chat spawns the child, then the chatd server picks
+	// up and runs the child (which hits the Anthropic mock).
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		if got.Status != database.ChatStatusWaiting &&
+			got.Status != database.ChatStatusError {
+			return false
+		}
+		// Ensure the Anthropic mock received at least one call.
+		anthropicMu.Lock()
+		n := len(anthropicCalls)
+		anthropicMu.Unlock()
+		return n >= 1
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	anthropicMu.Lock()
+	calls := append([]anthropicCall(nil), anthropicCalls...)
+	anthropicMu.Unlock()
+
+	require.NotEmpty(t, calls,
+		"expected at least one Anthropic LLM call")
+
+	childModel := calls[0].Model
+	childTools := calls[0].Tools
+
+	// 1. Verify the model is the computer use model.
+	require.Equal(t, chattool.ComputerUseModelName, childModel,
+		"computer use subagent should use %s",
+		chattool.ComputerUseModelName)
+
+	// 2. Verify the computer tool is present.
+	require.Contains(t, childTools, "computer",
+		"computer use subagent should have the computer tool")
+
+	// 3. Verify standard workspace tools are present (the same
+	//    set a regular subagent gets).
+	standardTools := []string{
+		"read_file", "write_file", "edit_files", "execute",
+		"process_output", "process_list", "process_signal",
+	}
+	for _, tool := range standardTools {
+		require.Contains(t, childTools, tool,
+			"computer use subagent should have standard tool %q",
+			tool)
+	}
+
+	// 4. Verify workspace provisioning tools are NOT present.
+	workspaceProvisioningTools := []string{
+		"list_templates", "read_template",
+		"create_workspace", "start_workspace",
+	}
+	for _, tool := range workspaceProvisioningTools {
+		require.NotContains(t, childTools, tool,
+			"computer use subagent should NOT have workspace "+
+				"provisioning tool %q", tool)
+	}
+
+	// 5. Verify subagent tools are NOT present.
+	subagentTools := []string{
+		"spawn_agent", "spawn_computer_use_agent",
+		"wait_agent", "message_agent", "close_agent",
+	}
+	for _, tool := range subagentTools {
+		require.NotContains(t, childTools, tool,
+			"computer use subagent should NOT have subagent "+
+				"tool %q", tool)
+	}
+
+	// 6. Verify the child chat has Mode = computer_use in
+	//    the DB.
+	allChats, err := db.GetChatsByOwnerID(ctx, database.GetChatsByOwnerIDParams{
+		OwnerID: user.ID,
+	})
+	require.NoError(t, err)
+	var children []database.Chat
+	for _, c := range allChats {
+		if c.ParentChatID.Valid && c.ParentChatID.UUID == chat.ID {
+			children = append(children, c)
+		}
+	}
+	require.Len(t, children, 1)
+	require.True(t, children[0].Mode.Valid)
+	require.Equal(t, database.ChatModeComputerUse,
+		children[0].Mode.ChatMode)
 }

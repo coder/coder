@@ -1174,6 +1174,61 @@ func AllChatMessageVisibilityValues() []ChatMessageVisibility {
 	}
 }
 
+type ChatMode string
+
+const (
+	ChatModeComputerUse ChatMode = "computer_use"
+)
+
+func (e *ChatMode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatMode(s)
+	case string:
+		*e = ChatMode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatMode: %T", src)
+	}
+	return nil
+}
+
+type NullChatMode struct {
+	ChatMode ChatMode `json:"chat_mode"`
+	Valid    bool     `json:"valid"` // Valid is true if ChatMode is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatMode) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatMode, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatMode.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatMode) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatMode), nil
+}
+
+func (e ChatMode) Valid() bool {
+	switch e {
+	case ChatModeComputerUse:
+		return true
+	}
+	return false
+}
+
+func AllChatModeValues() []ChatMode {
+	return []ChatMode{
+		ChatModeComputerUse,
+	}
+}
+
 type ChatStatus string
 
 const (
@@ -3972,6 +4027,7 @@ type Chat struct {
 	LastModelConfigID uuid.UUID      `db:"last_model_config_id" json:"last_model_config_id"`
 	Archived          bool           `db:"archived" json:"archived"`
 	LastError         sql.NullString `db:"last_error" json:"last_error"`
+	Mode              NullChatMode   `db:"mode" json:"mode"`
 }
 
 type ChatDiffStatus struct {
@@ -3990,6 +4046,14 @@ type ChatDiffStatus struct {
 	GitRemoteOrigin  string         `db:"git_remote_origin" json:"git_remote_origin"`
 	PullRequestTitle string         `db:"pull_request_title" json:"pull_request_title"`
 	PullRequestDraft bool           `db:"pull_request_draft" json:"pull_request_draft"`
+	AuthorLogin      sql.NullString `db:"author_login" json:"author_login"`
+	AuthorAvatarUrl  sql.NullString `db:"author_avatar_url" json:"author_avatar_url"`
+	BaseBranch       sql.NullString `db:"base_branch" json:"base_branch"`
+	PrNumber         sql.NullInt32  `db:"pr_number" json:"pr_number"`
+	Commits          sql.NullInt32  `db:"commits" json:"commits"`
+	Approved         sql.NullBool   `db:"approved" json:"approved"`
+	ReviewerCount    sql.NullInt32  `db:"reviewer_count" json:"reviewer_count"`
+	HeadBranch       sql.NullString `db:"head_branch" json:"head_branch"`
 }
 
 type ChatFile struct {

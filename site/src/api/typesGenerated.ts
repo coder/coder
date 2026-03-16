@@ -1082,6 +1082,8 @@ export interface ChatCostChatBreakdown {
 	readonly message_count: number;
 	readonly total_input_tokens: number;
 	readonly total_output_tokens: number;
+	readonly total_cache_read_tokens: number;
+	readonly total_cache_creation_tokens: number;
 }
 
 // From codersdk/chats.go
@@ -1097,6 +1099,8 @@ export interface ChatCostModelBreakdown {
 	readonly message_count: number;
 	readonly total_input_tokens: number;
 	readonly total_output_tokens: number;
+	readonly total_cache_read_tokens: number;
+	readonly total_cache_creation_tokens: number;
 }
 
 // From codersdk/chats.go
@@ -1111,6 +1115,8 @@ export interface ChatCostSummary {
 	readonly unpriced_message_count: number;
 	readonly total_input_tokens: number;
 	readonly total_output_tokens: number;
+	readonly total_cache_read_tokens: number;
+	readonly total_cache_creation_tokens: number;
 	readonly by_model: readonly ChatCostModelBreakdown[];
 	readonly by_chat: readonly ChatCostChatBreakdown[];
 }
@@ -1138,6 +1144,8 @@ export interface ChatCostUserRollup {
 	readonly chat_count: number;
 	readonly total_input_tokens: number;
 	readonly total_output_tokens: number;
+	readonly total_cache_read_tokens: number;
+	readonly total_cache_creation_tokens: number;
 }
 
 // From codersdk/chats.go
@@ -1190,6 +1198,14 @@ export interface ChatDiffStatus {
 	readonly additions: number;
 	readonly deletions: number;
 	readonly changed_files: number;
+	readonly author_login?: string;
+	readonly author_avatar_url?: string;
+	readonly base_branch?: string;
+	readonly head_branch?: string;
+	readonly pr_number?: number;
+	readonly commits?: number;
+	readonly approved?: boolean;
+	readonly reviewer_count?: number;
 	readonly refreshed_at?: string;
 	readonly stale_at?: string;
 }
@@ -2745,6 +2761,7 @@ export type Experiment =
 	| "notifications"
 	| "oauth2"
 	| "web-push"
+	| "workspace-build-updates"
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
@@ -2755,6 +2772,7 @@ export const Experiments: Experiment[] = [
 	"notifications",
 	"oauth2",
 	"web-push",
+	"workspace-build-updates",
 	"workspace-usage",
 ];
 
@@ -7735,6 +7753,28 @@ export interface WorkspaceBuildTimings {
 	 */
 	readonly agent_script_timings: readonly AgentScriptTiming[];
 	readonly agent_connection_timings: readonly AgentConnectionTiming[];
+}
+
+// From codersdk/workspaces.go
+/**
+ * WorkspaceBuildUpdate contains information about a workspace build state change.
+ * This is published via the /watch-all-workspacebuilds SSE endpoint when the
+ * workspace-build-updates experiment is enabled.
+ */
+export interface WorkspaceBuildUpdate {
+	readonly workspace_id: string;
+	readonly workspace_name: string;
+	readonly build_id: string;
+	/**
+	 * Transition is the workspace transition type: "start", "stop", or "delete".
+	 */
+	readonly transition: string;
+	/**
+	 * JobStatus is the provisioner job status: "pending", "running",
+	 * "succeeded", "canceling", "canceled", or "failed".
+	 */
+	readonly job_status: string;
+	readonly build_number: number;
 }
 
 // From codersdk/workspaces.go

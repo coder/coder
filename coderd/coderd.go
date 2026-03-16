@@ -1179,6 +1179,7 @@ func New(options *Options) *API {
 				r.Use(httpmw.ExtractChatParam(options.Database))
 				r.Get("/", api.getChat)
 				r.Get("/git/watch", api.watchChatGit)
+				r.Get("/desktop", api.watchChatDesktop)
 				r.Post("/archive", api.archiveChat)
 				r.Post("/unarchive", api.unarchiveChat)
 				r.Get("/messages", api.getChatMessages)
@@ -1202,6 +1203,13 @@ func New(options *Options) *API {
 			)
 			// MCP HTTP transport endpoint with mandatory authentication
 			r.Mount("/http", api.mcpHTTPHandler())
+		})
+		r.Route("/watch-all-workspacebuilds", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentWorkspaceBuildUpdates),
+			)
+			r.Get("/", api.watchAllWorkspaceBuilds)
 		})
 	})
 

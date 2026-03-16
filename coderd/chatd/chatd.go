@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -179,6 +180,7 @@ type CreateOptions struct {
 	RootChatID         uuid.NullUUID
 	Title              string
 	ModelConfigID      uuid.UUID
+	ChatMode           database.NullChatMode
 	SystemPrompt       string
 	InitialUserContent []codersdk.ChatMessagePart
 }
@@ -262,6 +264,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			RootChatID:        opts.RootChatID,
 			LastModelConfigID: opts.ModelConfigID,
 			Title:             opts.Title,
+			Mode:              opts.ChatMode,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)
@@ -2143,10 +2146,13 @@ func (p *Server) runChat(
 	// Fire title generation asynchronously so it doesn't block the
 	// chat response. It uses a detached context so it can finish
 	// even after the chat processing context is canceled.
+	// Snapshot model so the goroutine doesn't race with the
+	// model = cuModel reassignment below.
+	titleModel := model
 	p.inflight.Add(1)
 	go func() {
 		defer p.inflight.Done()
-		p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, model, providerKeys, logger)
+		p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, titleModel, providerKeys, logger)
 	}()
 
 	prompt, err := chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver(), logger)
@@ -2156,6 +2162,9 @@ func (p *Server) runChat(
 	if chat.ParentChatID.Valid {
 		prompt = chatprompt.InsertSystem(prompt, defaultSubagentInstruction)
 	}
+
+	// Detect computer-use subagent via the mode column.
+	isComputerUse := chat.Mode.Valid && chat.Mode.ChatMode == database.ChatModeComputerUse
 
 	// NOTE: Buffering was already started in processChat before
 	// the running status was published, so message_part events
@@ -2512,6 +2521,20 @@ func (p *Server) runChat(
 		},
 	}
 
+	if isComputerUse {
+		// Override model for computer use subagent.
+		cuModel, cuErr := chatprovider.ModelFromConfig(
+			chattool.ComputerUseModelProvider,
+			chattool.ComputerUseModelName,
+			providerKeys,
+			chatprovider.UserAgent(),
+		)
+		if cuErr != nil {
+			return xerrors.Errorf("resolve computer use model: %w", cuErr)
+		}
+		model = cuModel
+	}
+
 	// Here are all the tools we have for the chat.
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{
@@ -2557,6 +2580,7 @@ func (p *Server) runChat(
 				CreateFn:    p.createWorkspaceFn,
 				AgentConnFn: chattool.AgentConnFunc(p.agentConnFn),
 				WorkspaceMu: &workspaceMu,
+				Logger:      p.logger,
 			}),
 			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 				DB:          p.db,
@@ -2567,23 +2591,34 @@ func (p *Server) runChat(
 				WorkspaceMu: &workspaceMu,
 			}),
 		)
-		tools = append(tools, p.subagentTools(func() database.Chat {
+		tools = append(tools, p.subagentTools(ctx, func() database.Chat {
 			return chat
 		})...)
 	}
 
 	// Build provider-native tools (e.g., web search) based on
 	// the model configuration.
-	var providerTools []fantasy.Tool
+	var providerTools []chatloop.ProviderTool
 	if callConfig.ProviderOptions != nil {
 		providerTools = buildProviderTools(model.Provider(), callConfig.ProviderOptions)
 	}
 
+	if isComputerUse {
+		providerTools = append(providerTools, chatloop.ProviderTool{
+			Definition: chattool.ComputerUseProviderTool(
+				workspacesdk.DesktopDisplayWidth,
+				workspacesdk.DesktopDisplayHeight),
+			Runner: chattool.NewComputerUseTool(
+				workspacesdk.DesktopDisplayWidth,
+				workspacesdk.DesktopDisplayHeight,
+				getWorkspaceConn, quartz.NewReal(),
+			),
+		})
+	}
 	err = chatloop.Run(ctx, chatloop.RunOptions{
 		Model:    model,
 		Messages: prompt,
-		Tools:    tools,
-		MaxSteps: maxChatSteps,
+		Tools:    tools, MaxSteps: maxChatSteps,
 
 		ModelConfig:     callConfig,
 		ProviderOptions: chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions),
@@ -2667,14 +2702,16 @@ func (p *Server) runChat(
 // buildProviderTools creates provider-native tool definitions
 // (like web search) based on the model configuration. These
 // tools are executed server-side by the LLM provider.
-func buildProviderTools(_ string, options *codersdk.ChatModelProviderOptions) []fantasy.Tool {
-	var tools []fantasy.Tool
+func buildProviderTools(_ string, options *codersdk.ChatModelProviderOptions) []chatloop.ProviderTool {
+	var tools []chatloop.ProviderTool
 
 	if options.Anthropic != nil && options.Anthropic.WebSearchEnabled != nil && *options.Anthropic.WebSearchEnabled {
-		tools = append(tools, anthropic.WebSearchTool(&anthropic.WebSearchToolOptions{
-			AllowedDomains: options.Anthropic.AllowedDomains,
-			BlockedDomains: options.Anthropic.BlockedDomains,
-		}))
+		tools = append(tools, chatloop.ProviderTool{
+			Definition: anthropic.WebSearchTool(&anthropic.WebSearchToolOptions{
+				AllowedDomains: options.Anthropic.AllowedDomains,
+				BlockedDomains: options.Anthropic.BlockedDomains,
+			}),
+		})
 	}
 
 	if options.OpenAI != nil && options.OpenAI.WebSearchEnabled != nil && *options.OpenAI.WebSearchEnabled {
@@ -2685,17 +2722,21 @@ func buildProviderTools(_ string, options *codersdk.ChatModelProviderOptions) []
 		if len(options.OpenAI.AllowedDomains) > 0 {
 			args["allowed_domains"] = options.OpenAI.AllowedDomains
 		}
-		tools = append(tools, fantasy.ProviderDefinedTool{
-			ID:   "web_search",
-			Name: "web_search",
-			Args: args,
+		tools = append(tools, chatloop.ProviderTool{
+			Definition: fantasy.ProviderDefinedTool{
+				ID:   "web_search",
+				Name: "web_search",
+				Args: args,
+			},
 		})
 	}
 
 	if options.Google != nil && options.Google.WebSearchEnabled != nil && *options.Google.WebSearchEnabled {
-		tools = append(tools, fantasy.ProviderDefinedTool{
-			ID:   "web_search",
-			Name: "web_search",
+		tools = append(tools, chatloop.ProviderTool{
+			Definition: fantasy.ProviderDefinedTool{
+				ID:   "web_search",
+				Name: "web_search",
+			},
 		})
 	}
 

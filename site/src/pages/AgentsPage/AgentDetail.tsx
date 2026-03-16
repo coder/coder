@@ -1155,6 +1155,7 @@ const AgentDetail: FC = () => {
 			}
 			urlTransform={urlTransform}
 			scrollContainerRef={scrollContainerRef}
+			desktopChatId={agentId}
 		/>
 	);
 };
