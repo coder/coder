@@ -48,8 +48,6 @@ const loginTypeOptions = {
 	},
 } as const;
 
-type LoginTypeKey = keyof typeof loginTypeOptions;
-
 const validationSchema = Yup.object({
 	username: nameValidator("Username"),
 	name: displayNameValidator("Full name"),
