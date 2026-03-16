@@ -864,6 +864,14 @@ func (m queryMetricsStore) GetAIBridgeInterceptions(ctx context.Context) ([]data
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIBridgeSessionByID(ctx context.Context, sessionID string) (database.GetAIBridgeSessionByIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIBridgeSessionByID(ctx, sessionID)
+	m.queryLatencies.WithLabelValues("GetAIBridgeSessionByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIBridgeSessionByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIBridgeTokenUsagesByInterceptionID(ctx, interceptionID)
@@ -3728,11 +3736,27 @@ func (m queryMetricsStore) ListAIBridgeInterceptionsTelemetrySummaries(ctx conte
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListAIBridgeModelThoughtsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]database.AIBridgeModelThought, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeModelThoughtsByInterceptionIDs(ctx, interceptionIds)
+	m.queryLatencies.WithLabelValues("ListAIBridgeModelThoughtsByInterceptionIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeModelThoughtsByInterceptionIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListAIBridgeModels(ctx context.Context, arg database.ListAIBridgeModelsParams) ([]string, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListAIBridgeModels(ctx, arg)
 	m.queryLatencies.WithLabelValues("ListAIBridgeModels").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeModels").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAIBridgeSessionThreadInterceptions(ctx context.Context, arg database.ListAIBridgeSessionThreadInterceptionsParams) ([]database.ListAIBridgeSessionThreadInterceptionsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeSessionThreadInterceptions(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeSessionThreadInterceptions").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeSessionThreadInterceptions").Inc()
 	return r0, r1
 }
 
@@ -5197,6 +5221,22 @@ func (m queryMetricsStore) CountAuthorizedAIBridgeSessions(ctx context.Context, 
 	r0, r1 := m.s.CountAuthorizedAIBridgeSessions(ctx, arg, prepared)
 	m.queryLatencies.WithLabelValues("CountAuthorizedAIBridgeSessions").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountAuthorizedAIBridgeSessions").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthorizedAIBridgeSessionByID(ctx context.Context, sessionID string, prepared rbac.PreparedAuthorized) (database.GetAIBridgeSessionByIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedAIBridgeSessionByID(ctx, sessionID, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedAIBridgeSessionByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedAIBridgeSessionByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAuthorizedAIBridgeSessionThreadInterceptions(ctx context.Context, arg database.ListAIBridgeSessionThreadInterceptionsParams, prepared rbac.PreparedAuthorized) ([]database.ListAIBridgeSessionThreadInterceptionsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAuthorizedAIBridgeSessionThreadInterceptions(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("ListAuthorizedAIBridgeSessionThreadInterceptions").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAuthorizedAIBridgeSessionThreadInterceptions").Inc()
 	return r0, r1
 }
 
