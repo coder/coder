@@ -2805,7 +2805,7 @@ func TestPatchChatMessage(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		messagesResult, err := client.GetChatMessages(ctx, chat.ID)
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 
 		var userMessageID int64
