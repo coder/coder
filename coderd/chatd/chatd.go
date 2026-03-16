@@ -2448,13 +2448,56 @@ func (p *Server) runChat(
 			assistantBlocks = append(assistantBlocks, block)
 		}
 
+		// Pre-marshal all content outside the transaction so the
+		// FOR UPDATE lock is held only for the INSERT statements.
+		// Marshaling is pure CPU work with no database dependency.
+		var assistantContent pqtype.NullRawMessage
+		if len(assistantBlocks) > 0 {
+			sdkParts := make([]codersdk.ChatMessagePart, 0, len(assistantBlocks))
+			for _, block := range assistantBlocks {
+				sdkParts = append(sdkParts, chatprompt.PartFromContent(block))
+			}
+			finalAssistantText = strings.TrimSpace(contentBlocksToText(sdkParts))
+			var marshalErr error
+			assistantContent, marshalErr = chatprompt.MarshalParts(sdkParts)
+			if marshalErr != nil {
+				return xerrors.Errorf("marshal assistant content: %w", marshalErr)
+			}
+		}
+
+		toolResultContents := make([]pqtype.NullRawMessage, len(toolResults))
+		for i, tr := range toolResults {
+			trPart := chatprompt.PartFromContent(tr)
+			var marshalErr error
+			toolResultContents[i], marshalErr = chatprompt.MarshalParts([]codersdk.ChatMessagePart{trPart})
+			if marshalErr != nil {
+				return xerrors.Errorf("marshal tool result %d: %w", i, marshalErr)
+			}
+		}
+
+		hasUsage := step.Usage != (fantasy.Usage{})
+		var usageForCost codersdk.ChatMessageUsage
+		if hasUsage {
+			if step.Usage.InputTokens != 0 {
+				usageForCost.InputTokens = int64Ptr(step.Usage.InputTokens)
+			}
+			if step.Usage.OutputTokens != 0 {
+				usageForCost.OutputTokens = int64Ptr(step.Usage.OutputTokens)
+			}
+			if step.Usage.ReasoningTokens != 0 {
+				usageForCost.ReasoningTokens = int64Ptr(step.Usage.ReasoningTokens)
+			}
+			if step.Usage.CacheCreationTokens != 0 {
+				usageForCost.CacheCreationTokens = int64Ptr(step.Usage.CacheCreationTokens)
+			}
+			if step.Usage.CacheReadTokens != 0 {
+				usageForCost.CacheReadTokens = int64Ptr(step.Usage.CacheReadTokens)
+			}
+		}
+		totalCostMicros := chatcost.CalculateTotalCostMicros(usageForCost, callConfig.Cost)
+
 		var insertedMessages []database.ChatMessage
 		err := p.db.InTx(func(tx database.Store) error {
-			// Verify this worker still owns the chat before
-			// inserting messages. This closes the race where
-			// EditMessage truncates history and clears worker_id
-			// while persistInterruptedStep (which uses an
-			// uncancelable context) is still running.
 			lockedChat, lockErr := tx.GetChatByIDForUpdate(persistCtx, chat.ID)
 			if lockErr != nil {
 				return xerrors.Errorf("lock chat for persist: %w", lockErr)
@@ -2463,42 +2506,7 @@ func (p *Server) runChat(
 				return chatloop.ErrInterrupted
 			}
 
-			if len(assistantBlocks) > 0 {
-				sdkParts := make([]codersdk.ChatMessagePart, 0, len(assistantBlocks))
-				for _, block := range assistantBlocks {
-					sdkParts = append(sdkParts, chatprompt.PartFromContent(block))
-				}
-				finalAssistantText = strings.TrimSpace(contentBlocksToText(sdkParts))
-				assistantContent, marshalErr := chatprompt.MarshalParts(sdkParts)
-				if marshalErr != nil {
-					return marshalErr
-				}
-
-				hasUsage := step.Usage != (fantasy.Usage{})
-				var usageForCost codersdk.ChatMessageUsage
-				if hasUsage {
-					// Only populate fields that the provider explicitly
-					// reported. Nil fields tell the calculator "no data"
-					// vs zero meaning "reported as zero tokens."
-					if step.Usage.InputTokens != 0 {
-						usageForCost.InputTokens = int64Ptr(step.Usage.InputTokens)
-					}
-					if step.Usage.OutputTokens != 0 {
-						usageForCost.OutputTokens = int64Ptr(step.Usage.OutputTokens)
-					}
-					if step.Usage.ReasoningTokens != 0 {
-						usageForCost.ReasoningTokens = int64Ptr(step.Usage.ReasoningTokens)
-					}
-					if step.Usage.CacheCreationTokens != 0 {
-						usageForCost.CacheCreationTokens = int64Ptr(step.Usage.CacheCreationTokens)
-					}
-					if step.Usage.CacheReadTokens != 0 {
-						usageForCost.CacheReadTokens = int64Ptr(step.Usage.CacheReadTokens)
-					}
-				}
-
-				totalCostMicros := chatcost.CalculateTotalCostMicros(usageForCost, callConfig.Cost)
-
+			if assistantContent.Valid {
 				assistantMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
 					ChatID:         chat.ID,
 					CreatedBy:      uuid.NullUUID{},
@@ -2521,10 +2529,6 @@ func (p *Server) runChat(
 					CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
 					ContextLimit:    step.ContextLimit,
 					Compressed:      sql.NullBool{},
-					// TotalCostMicros is nullable: NULL means "unpriced"
-					// (pricing config was missing or no priced token
-					// breakdown available), while 0 means "priced at
-					// zero cost" (e.g., a free model).
 					TotalCostMicros: usageNullInt64Ptr(totalCostMicros),
 				})
 				if insertErr != nil {
@@ -2533,13 +2537,7 @@ func (p *Server) runChat(
 				insertedMessages = append(insertedMessages, assistantMessage)
 			}
 
-			for _, tr := range toolResults {
-				trPart := chatprompt.PartFromContent(tr)
-				resultContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{trPart})
-				if marshalErr != nil {
-					return marshalErr
-				}
-
+			for i, resultContent := range toolResultContents {
 				toolMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
 					ChatID:              chat.ID,
 					CreatedBy:           uuid.NullUUID{},
@@ -2559,7 +2557,7 @@ func (p *Server) runChat(
 					Compressed:          sql.NullBool{},
 				})
 				if insertErr != nil {
-					return xerrors.Errorf("insert tool result: %w", insertErr)
+					return xerrors.Errorf("insert tool result %d: %w", i, insertErr)
 				}
 				insertedMessages = append(insertedMessages, toolMessage)
 			}
