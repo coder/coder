@@ -1,6 +1,6 @@
 // Command develop orchestrates the Coder development environment. It
-// builds the binary, starts the API server and frontend dev server, sets
-// up a first user, and handles graceful shutdown on signals.
+// builds the binary, starts the API server and frontend dev server,
+// sets up a first user, and handles graceful shutdown on signals.
 package main
 
 import (
@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,11 +16,13 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -33,24 +36,16 @@ import (
 )
 
 const (
-	defaultAPIPort  = 3000
-	webPort         = 8080
-	proxyPort       = 3010
-	defaultPassword = "SomeSecurePassword!"
-	healthTimeout   = 60 * time.Second
-	shutdownTimeout = 15 * time.Second
+	defaultAPIPort   = "3000"
+	defaultWebPort   = "8080"
+	defaultProxyPort = "3010"
+	defaultPassword  = "SomeSecurePassword!"
+	healthTimeout    = 60 * time.Second
+	shutdownTimeout  = 15 * time.Second
 )
 
 func main() {
-	var (
-		port      int64
-		agpl      bool
-		accessURL string
-		password  string
-		useProxy  bool
-		multiOrg  bool
-		debug     bool
-	)
+	var cfg devConfig
 
 	cmd := &serpent.Command{
 		Use:   "develop",
@@ -59,64 +54,70 @@ func main() {
 			{
 				Flag:        "port",
 				Env:         "CODER_DEV_PORT",
-				Default:     strconv.Itoa(defaultAPIPort),
+				Default:     defaultAPIPort,
 				Description: "API server port.",
-				Value:       serpent.Int64Of(&port),
+				Value:       serpent.Int64Of(&cfg.apiPort),
+			},
+			{
+				Flag:        "web-port",
+				Env:         "CODER_DEV_WEB_PORT",
+				Default:     defaultWebPort,
+				Description: "Frontend dev server port.",
+				Value:       serpent.Int64Of(&cfg.webPort),
+			},
+			{
+				Flag:        "proxy-port",
+				Env:         "CODER_DEV_PROXY_PORT",
+				Default:     defaultProxyPort,
+				Description: "Workspace proxy port.",
+				Value:       serpent.Int64Of(&cfg.proxyPort),
 			},
 			{
 				Flag:        "agpl",
 				Env:         "CODER_BUILD_AGPL",
 				Description: "Build AGPL-licensed code only.",
-				Value:       serpent.BoolOf(&agpl),
+				Value:       serpent.BoolOf(&cfg.agpl),
 			},
 			{
 				Flag:        "access-url",
 				Env:         "CODER_DEV_ACCESS_URL",
 				Description: "Override access URL.",
-				Value:       serpent.StringOf(&accessURL),
+				Value:       serpent.StringOf(&cfg.accessURL),
 			},
 			{
 				Flag:        "password",
 				Env:         "CODER_DEV_ADMIN_PASSWORD",
 				Default:     defaultPassword,
 				Description: "Admin user password.",
-				Value:       serpent.StringOf(&password),
+				Value:       serpent.StringOf(&cfg.password),
 			},
 			{
 				Flag:        "use-proxy",
 				Description: "Start a workspace proxy.",
-				Value:       serpent.BoolOf(&useProxy),
+				Value:       serpent.BoolOf(&cfg.useProxy),
 			},
 			{
 				Flag:        "multi-organization",
 				Description: "Create a second organization.",
-				Value:       serpent.BoolOf(&multiOrg),
+				Value:       serpent.BoolOf(&cfg.multiOrg),
 			},
 			{
 				Flag:        "debug",
 				Description: "Run under Delve debugger.",
-				Value:       serpent.BoolOf(&debug),
+				Value:       serpent.BoolOf(&cfg.debug),
 			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
+			cfg.serverExtraArgs = inv.Args
+
 			logger := slog.Make(sloghuman.Sink(inv.Stderr))
-			cfg := &devConfig{
-				apiPort:         int(port),
-				agpl:            agpl,
-				accessURL:       accessURL,
-				password:        password,
-				useProxy:        useProxy,
-				multiOrg:        multiOrg,
-				debug:           debug,
-				serverExtraArgs: inv.Args,
-			}
 			if err := cfg.validate(); err != nil {
 				return err
 			}
-			if err := cfg.resolvePaths(); err != nil {
+			if err := cfg.resolveEnv(); err != nil {
 				return err
 			}
-			return develop(inv.Context(), logger, cfg)
+			return develop(inv.Context(), logger, &cfg)
 		},
 	}
 
@@ -128,16 +129,19 @@ func main() {
 }
 
 type devConfig struct {
-	apiPort    int
-	agpl       bool
-	accessURL  string
-	password   string
-	useProxy   bool
-	multiOrg   bool
-	debug      bool
+	apiPort     int64
+	webPort     int64
+	proxyPort   int64
+	agpl        bool
+	accessURL   string
+	password    string
+	useProxy    bool
+	multiOrg    bool
+	debug       bool
 	projectRoot string
 	binaryPath  string
 	configDir   string
+	childEnv    []string
 	// Extra args after flags forwarded to "coder server".
 	serverExtraArgs []string
 }
@@ -149,24 +153,39 @@ func (c *devConfig) validate() error {
 	if c.agpl && c.multiOrg {
 		return xerrors.New("cannot use both --agpl and --multi-organization")
 	}
-	if c.apiPort < 1 || c.apiPort > 65535 {
-		return xerrors.New("--port must be between 1 and 65535")
+	for _, p := range []struct {
+		name string
+		val  int64
+	}{
+		{"--port", c.apiPort},
+		{"--web-port", c.webPort},
+		{"--proxy-port", c.proxyPort},
+	} {
+		if p.val < 1 || p.val > 65535 {
+			return xerrors.Errorf("%s must be between 1 and 65535", p.name)
+		}
 	}
-	if c.apiPort == webPort {
-		return xerrors.Errorf("--port %d conflicts with frontend dev server", webPort)
+	if c.apiPort == c.webPort {
+		return xerrors.Errorf("--port %d conflicts with frontend dev server", c.webPort)
 	}
-	if c.useProxy && c.apiPort == proxyPort {
-		return xerrors.Errorf("--port %d conflicts with workspace proxy", proxyPort)
+	if c.useProxy && c.apiPort == c.proxyPort {
+		return xerrors.Errorf("--port %d conflicts with workspace proxy", c.proxyPort)
+	}
+	if c.useProxy && c.webPort == c.proxyPort {
+		return xerrors.Errorf("--web-port %d conflicts with --proxy-port", c.webPort)
 	}
 	return nil
 }
 
-func (c *devConfig) resolvePaths() error {
+// resolveEnv sets defaults, unsets leaked credentials, resolves
+// filesystem paths, and computes the child process environment.
+func (c *devConfig) resolveEnv() error {
 	if c.accessURL == "" {
 		c.accessURL = fmt.Sprintf("http://127.0.0.1:%d", c.apiPort)
 	}
 
-	// Prevent inherited credentials from leaking into child processes.
+	// Prevent inherited credentials from leaking into child
+	// processes or being picked up by config reads.
 	os.Unsetenv("CODER_SESSION_TOKEN")
 	os.Unsetenv("CODER_URL")
 
@@ -178,41 +197,156 @@ func (c *devConfig) resolvePaths() error {
 	c.binaryPath = filepath.Join(c.projectRoot, "build",
 		fmt.Sprintf("coder_%s_%s", runtime.GOOS, runtime.GOARCH))
 	c.configDir = filepath.Join(c.projectRoot, ".coderv2")
+
+	// Compute once, reused by cmd().
+	c.childEnv = filterEnv(os.Environ(), "CODER_SESSION_TOKEN", "CODER_URL")
+
 	return nil
 }
 
+// cmd builds an exec.Cmd rooted in the project directory with a
+// clean child environment. The context controls process lifetime.
+func (c *devConfig) cmd(ctx context.Context, bin string, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd.Dir = c.projectRoot
+	cmd.Env = slices.Clone(c.childEnv)
+	return cmd
+}
+
+// filterEnv returns env with any variables whose key matches
+// exclude removed.
+func filterEnv(env []string, exclude ...string) []string {
+	out := make([]string, 0, len(env))
+	for _, e := range env {
+		k, _, _ := strings.Cut(e, "=")
+		if !slices.Contains(exclude, k) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// procGroup tracks child processes using an errgroup. When any
+// child exits, the errgroup cancels its derived context, aborting
+// all downstream operations. Graceful shutdown is handled by
+// cmd.Cancel/WaitDelay on each command.
+type procGroup struct {
+	eg     *errgroup.Group
+	ctx    context.Context
+	logger slog.Logger
+}
+
+func newProcGroup(ctx context.Context, logger slog.Logger) *procGroup {
+	eg, ctx := errgroup.WithContext(ctx)
+	return &procGroup{eg: eg, ctx: ctx, logger: logger}
+}
+
+// Start registers a long-running command with the group. It sets up
+// graceful shutdown (SIGINT on context cancel, SIGKILL after
+// timeout), wires stdout/stderr to structured logging, starts the
+// process, and registers a goroutine that waits for it to exit.
+func (g *procGroup) Start(name string, cmd *exec.Cmd) error {
+	// Guard against nil env: appending to nil creates a non-nil
+	// slice that exec.Cmd treats as an explicit (empty) env.
+	if cmd.Env == nil {
+		cmd.Env = os.Environ()
+	}
+	cmd.Env = append(cmd.Env, "FORCE_COLOR=1")
+
+	// Graceful shutdown: SIGINT on context cancel, escalate to
+	// SIGKILL after WaitDelay. Handled by the Go runtime.
+	cmd.Cancel = func() error {
+		return cmd.Process.Signal(os.Interrupt)
+	}
+	cmd.WaitDelay = shutdownTimeout
+
+	named := g.logger.Named(name)
+	w := &logWriter{logger: named}
+	cmd.Stdout = w
+	cmd.Stderr = w
+
+	named.Info(g.ctx, "starting", slog.F("cmd", strings.Join(cmd.Args, " ")))
+	if err := cmd.Start(); err != nil {
+		return xerrors.Errorf("starting %s: %w", name, err)
+	}
+
+	g.eg.Go(func() error {
+		err := cmd.Wait()
+		if err != nil {
+			return xerrors.Errorf("process %q exited: %w", name, err)
+		}
+		// Clean exit is still unexpected for a long-running dev
+		// process. Report it so the orchestrator shuts down.
+		return xerrors.Errorf("process %q exited unexpectedly", name)
+	})
+	return nil
+}
+
+// Wait blocks until all started processes have exited.
+func (g *procGroup) Wait() error { return g.eg.Wait() }
+
+// Ctx returns the errgroup's derived context. It cancels when the
+// parent context fires (signal) or any child process exits.
+func (g *procGroup) Ctx() context.Context { return g.ctx }
+
+// poll calls cond every interval until it returns a value and true,
+// or the context is canceled. If cond returns a non-nil error,
+// polling stops immediately.
+func poll[T any](ctx context.Context, interval time.Duration, cond func(ctx context.Context) (T, bool, error)) (T, error) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			var zero T
+			return zero, ctx.Err()
+		case <-ticker.C:
+			v, done, err := cond(ctx)
+			if err != nil {
+				return v, err
+			}
+			if done {
+				return v, nil
+			}
+		}
+	}
+}
+
 func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
-	if err := preflight(logger, cfg); err != nil {
+	sigCtx, stop := signal.NotifyContext(ctx, cli.StopSignals...)
+	defer stop()
+
+	if err := preflight(sigCtx, logger, cfg); err != nil {
 		return err
 	}
-	if err := buildBinary(ctx, logger, cfg); err != nil {
+	if err := buildBinary(sigCtx, logger, cfg); err != nil {
 		return xerrors.Errorf("build: %w", err)
 	}
 
-	ctx, stop := signal.NotifyContext(ctx, cli.StopSignals...)
-	defer stop()
+	// Wrap in a cancelable context so deferred cleanup can
+	// trigger graceful shutdown on early return.
+	cancelCtx, cancelAll := context.WithCancel(sigCtx)
 
-	var procs []*proc
+	group := newProcGroup(cancelCtx, logger)
 	defer func() {
-		shutdownProcs(logger, procs, shutdownTimeout)
+		cancelAll()
+		_ = group.Wait()
 	}()
 
-	apiProc, err := startServer(ctx, logger, cfg, &procs)
-	if err != nil {
+	ctx = group.Ctx()
+
+	if err := startServer(cfg, group); err != nil {
 		return err
 	}
-	procs = append(procs, apiProc)
 
-	// The vite dev server proxies to the API and handles the case where
-	// the API isn't ready yet, so start it in parallel.
-	feProc, err := startProc(ctx, logger, "site", pnpmCmd(cfg))
-	if err != nil {
+	// The vite dev server proxies to the API and handles the
+	// case where the API isn't ready yet, so start it in parallel.
+	if err := group.Start("site", pnpmCmd(ctx, cfg)); err != nil {
 		return xerrors.Errorf("starting frontend: %w", err)
 	}
-	procs = append(procs, feProc)
 
 	apiURL := fmt.Sprintf("http://127.0.0.1:%d", cfg.apiPort)
-	if err := waitForHealthy(ctx, logger, apiURL, apiProc); err != nil {
+	if err := waitForHealthy(ctx, logger, apiURL); err != nil {
 		return err
 	}
 
@@ -222,46 +356,72 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	}
 
 	if cfg.multiOrg {
-		setupMultiOrg(ctx, logger, cfg, client, &procs)
+		if err := setupMultiOrg(ctx, logger, cfg, client, group); err != nil {
+			logger.Warn(ctx, "multi-org setup failed, continuing",
+				slog.Error(err))
+		}
 	}
+
+	if err := setupDockerTemplate(ctx, logger, cfg, client); err != nil {
+		logger.Warn(ctx, "docker template setup failed, continuing", slog.Error(err))
+	}
+
 	if cfg.useProxy {
-		setupWorkspaceProxy(ctx, logger, cfg, client, &procs)
+		if err := setupWorkspaceProxy(ctx, logger, cfg, client, group); err != nil {
+			logger.Warn(ctx, "proxy setup failed, continuing",
+				slog.Error(err))
+		}
 	}
 
 	printBanner(logger, cfg)
 
-	// Block until a child exits or we get a signal.
-	exited := mergeExits(procs)
-	select {
-	case p := <-exited:
-		return xerrors.Errorf("process %q exited unexpectedly: %w", p.name, p.err)
-	case <-ctx.Done():
-		logger.Info(ctx, "signal received, shutting down")
+	// Block until a signal fires or a child process exits.
+	<-ctx.Done()
+
+	waitErr := group.Wait()
+
+	// If a signal triggered shutdown, process exit errors are
+	// expected (SIGINT deaths). Report clean shutdown.
+	if sigCtx.Err() != nil {
+		logger.Info(context.Background(), "signal received, shutting down")
 		return nil
 	}
+	return waitErr
 }
 
-func preflight(logger slog.Logger, cfg *devConfig) error {
-	for _, dep := range []string{"go", "make", "pnpm"} {
-		if _, err := exec.LookPath(dep); err != nil {
-			return xerrors.Errorf("required dependency %q not found in PATH", dep)
-		}
+func preflight(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
+	// Source lib.sh to run its dependency checks (bash 4+, GNU
+	// getopt, make 4+) and then check command dependencies,
+	// matching the original develop.sh. Prints helpful install
+	// instructions on failure and exits non-zero.
+	libSh := filepath.Join(cfg.projectRoot, "scripts", "lib.sh")
+	libCheck := exec.CommandContext(ctx, "bash", "-c",
+		"source "+libSh+" && dependencies curl git go jq make pnpm")
+	libCheck.Stdout = os.Stderr
+	libCheck.Stderr = os.Stderr
+	if err := libCheck.Run(); err != nil {
+		return xerrors.New("dependency check failed, see above")
 	}
 	apiAddr := fmt.Sprintf("http://127.0.0.1:%d", cfg.apiPort)
-	if isCoderRunning(apiAddr) {
-		logger.Info(context.Background(), "Coder already running, exiting",
+	if isCoderRunning(ctx, apiAddr) {
+		logger.Info(ctx, "Coder already running, exiting",
 			slog.F("port", cfg.apiPort))
 		os.Exit(0)
 	}
-	if isPortBusy(cfg.apiPort) {
+	if isPortBusy(ctx, cfg.apiPort) {
 		return xerrors.Errorf("port %d is already in use", cfg.apiPort)
 	}
-	if isPortBusy(webPort) {
-		return xerrors.Errorf("port %d is already in use (frontend)", webPort)
+	if isPortBusy(ctx, cfg.webPort) {
+		return xerrors.Errorf("port %d is already in use (frontend)", cfg.webPort)
+	}
+	if cfg.useProxy && isPortBusy(ctx, cfg.proxyPort) {
+		return xerrors.Errorf("port %d is already in use (proxy)", cfg.proxyPort)
 	}
 	return nil
 }
 
+// buildBinary uses os.Environ() directly (not cfg.cmd()) because
+// the build needs the full unfiltered parent environment.
 func buildBinary(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	target := fmt.Sprintf("build/coder_%s_%s", runtime.GOOS, runtime.GOARCH)
 	cmd := exec.CommandContext(ctx, "make", "-j", target)
@@ -269,14 +429,17 @@ func buildBinary(ctx context.Context, logger slog.Logger, cfg *devConfig) error 
 	w := &logWriter{logger: logger.Named("build")}
 	cmd.Stdout = w
 	cmd.Stderr = w
-	cmd.Env = appendEnv(os.Environ(), "DEVELOP_IN_CODER", boolStr(developInCoder()))
+	cmd.Env = append(os.Environ(),
+		"DEVELOP_IN_CODER="+shellBool(developInCoder()),
+		"MAKE_TIMED=1",
+	)
 	if cfg.agpl {
-		cmd.Env = appendEnv(cmd.Env, "CODER_BUILD_AGPL", "1")
+		cmd.Env = append(cmd.Env, "CODER_BUILD_AGPL=1")
 	}
 	return cmd.Run()
 }
 
-func startServer(ctx context.Context, logger slog.Logger, cfg *devConfig, procs *[]*proc) (*proc, error) {
+func startServer(cfg *devConfig, group *procGroup) error {
 	serverArgs := []string{
 		"--global-config", cfg.configDir,
 		"server",
@@ -289,15 +452,16 @@ func startServer(ctx context.Context, logger slog.Logger, cfg *devConfig, procs 
 	serverArgs = append(serverArgs, cfg.serverExtraArgs...)
 
 	if cfg.debug {
-		return startServerDebug(ctx, logger, cfg, serverArgs, procs)
+		return startServerDebug(cfg, serverArgs, group)
 	}
-	cmd := exec.CommandContext(ctx, cfg.binaryPath, serverArgs...)
-	cmd.Dir = cfg.projectRoot
-	cmd.Env = cleanChildEnv()
-	return startProc(ctx, logger, "api", cmd)
+	cmd := cfg.cmd(group.Ctx(), cfg.binaryPath, serverArgs...)
+	return group.Start("api", cmd)
 }
 
-func startServerDebug(ctx context.Context, logger slog.Logger, cfg *devConfig, serverArgs []string, procs *[]*proc) (*proc, error) {
+func startServerDebug(cfg *devConfig, serverArgs []string, group *procGroup) error {
+	ctx := group.Ctx()
+	logger := group.logger
+
 	debugBin := filepath.Join(cfg.projectRoot, "build",
 		fmt.Sprintf("coder_debug_%s_%s", runtime.GOOS, runtime.GOARCH))
 	dlvBinDir := filepath.Join(cfg.projectRoot, "build", ".bin")
@@ -313,78 +477,70 @@ func startServerDebug(ctx context.Context, logger slog.Logger, cfg *devConfig, s
 		if cfg.agpl {
 			buildArgs = append(buildArgs, "--agpl")
 		}
-		cmd := exec.CommandContext(egCtx,
-			filepath.Join(cfg.projectRoot, "scripts", "build_go.sh"), buildArgs...)
-		cmd.Dir = cfg.projectRoot
+		cmd := cfg.cmd(egCtx,
+			filepath.Join(cfg.projectRoot, "scripts", "build_go.sh"),
+			buildArgs...)
 		w := &logWriter{logger: logger.Named("build-debug")}
 		cmd.Stdout = w
 		cmd.Stderr = w
-		cmd.Env = cleanChildEnv()
 		return cmd.Run()
 	})
 	eg.Go(func() error {
 		goVer := strings.TrimPrefix(runtime.Version(), "go")
-		cmd := exec.CommandContext(egCtx, "go", "install",
+		cmd := cfg.cmd(egCtx, "go", "install",
 			"github.com/go-delve/delve/cmd/dlv@latest")
-		cmd.Dir = cfg.projectRoot
+		cmd.Env = append(cmd.Env,
+			"GOBIN="+dlvBinDir, "GOTOOLCHAIN=go"+goVer)
 		w := &logWriter{logger: logger.Named("dlv-install")}
 		cmd.Stdout = w
 		cmd.Stderr = w
-		cmd.Env = appendEnv(os.Environ(), "GOBIN", dlvBinDir, "GOTOOLCHAIN", "go"+goVer)
 		return cmd.Run()
 	})
 	if err := eg.Wait(); err != nil {
-		return nil, xerrors.Errorf("debug build: %w", err)
+		return xerrors.Errorf("debug build: %w", err)
 	}
 
-	// Start the debug binary, then attach dlv.
-	srvCmd := exec.CommandContext(ctx, debugBin, serverArgs...)
-	srvCmd.Dir = cfg.projectRoot
-	srvCmd.Env = cleanChildEnv()
-	apiProc, err := startProc(ctx, logger, "api", srvCmd)
-	if err != nil {
-		return nil, err
+	srvCmd := cfg.cmd(ctx, debugBin, serverArgs...)
+	if err := group.Start("api", srvCmd); err != nil {
+		return err
 	}
 
-	dlvCmd := exec.CommandContext(ctx, dlvBin, "attach", strconv.Itoa(srvCmd.Process.Pid),
-		"--headless", "--continue", "--listen", "127.0.0.1:12345",
+	dlvCmd := cfg.cmd(ctx, dlvBin, "attach",
+		strconv.Itoa(srvCmd.Process.Pid),
+		"--headless", "--continue",
+		"--listen", "127.0.0.1:12345",
 		"--accept-multiclient")
-	dlvCmd.Dir = cfg.projectRoot
-	dlvProc, err := startProc(ctx, logger, "dlv", dlvCmd)
-	if err != nil {
-		_ = srvCmd.Process.Kill()
-		return nil, xerrors.Errorf("attaching dlv: %w", err)
+	if err := group.Start("dlv", dlvCmd); err != nil {
+		return xerrors.Errorf("attaching dlv: %w", err)
 	}
-	*procs = append(*procs, dlvProc)
 	logger.Info(ctx, "dlv listening", slog.F("addr", "127.0.0.1:12345"))
-	return apiProc, nil
+	return nil
 }
 
-func waitForHealthy(ctx context.Context, logger slog.Logger, apiURL string, server *proc) error {
+func waitForHealthy(ctx context.Context, logger slog.Logger, apiURL string) error {
 	logger.Info(ctx, "waiting for server to become ready")
 	ctx, cancel := context.WithTimeout(ctx, healthTimeout)
 	defer cancel()
 
-	ticker := time.NewTicker(500 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-server.done:
-			return xerrors.Errorf("server exited before becoming healthy: %w", server.err)
-		case <-ctx.Done():
-			return xerrors.Errorf("server did not become ready in %s", healthTimeout)
-		case <-ticker.C:
-			req, _ := http.NewRequestWithContext(ctx, "GET", apiURL+"/healthz", nil)
-			if resp, err := http.DefaultClient.Do(req); err == nil {
-				resp.Body.Close()
-				if resp.StatusCode == http.StatusOK {
-					logger.Info(ctx, "server is ready")
-					return nil
-				}
+	_, err := poll(ctx, 500*time.Millisecond,
+		func(ctx context.Context) (struct{}, bool, error) {
+			req, err := http.NewRequestWithContext(
+				ctx, "GET", apiURL+"/healthz", nil)
+			if err != nil {
+				return struct{}{}, false, nil
 			}
-		}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				return struct{}{}, false, nil
+			}
+			resp.Body.Close()
+			return struct{}{}, resp.StatusCode == http.StatusOK, nil
+		})
+	if err != nil {
+		return xerrors.Errorf("server did not become ready in %s: %w", healthTimeout, err)
 	}
+	logger.Info(ctx, "server is ready")
+	return nil
 }
 
 func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, apiURL string) (*codersdk.Client, error) {
@@ -455,16 +611,16 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 	return client, nil
 }
 
-func setupMultiOrg(ctx context.Context, logger slog.Logger, cfg *devConfig, client *codersdk.Client, procs *[]*proc) {
+func setupMultiOrg(ctx context.Context, logger slog.Logger, cfg *devConfig, client *codersdk.Client, group *procGroup) error {
 	const orgName = "second-organization"
 
 	org, err := client.OrganizationByName(ctx, orgName)
 	if err != nil {
-		logger.Info(ctx, "creating organization", slog.F("name", orgName))
+		logger.Info(ctx, "creating organization",
+			slog.F("name", orgName))
 		org, err = client.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{Name: orgName})
 		if err != nil {
-			logger.Error(ctx, "failed to create org", slog.Error(err))
-			return
+			return xerrors.Errorf("creating org: %w", err)
 		}
 	}
 
@@ -484,58 +640,179 @@ func setupMultiOrg(ctx context.Context, logger slog.Logger, cfg *devConfig, clie
 		}
 	}
 
-	provCmd := exec.CommandContext(ctx, cfg.binaryPath,
+	cmd := cfg.cmd(ctx, cfg.binaryPath,
 		"--global-config", cfg.configDir,
 		"provisionerd", "start",
 		"--tag", "scope=organization",
 		"--name", "second-org-daemon",
 		"--org", orgName)
-	provCmd.Dir = cfg.projectRoot
-	provCmd.Env = cleanChildEnv()
-	p, err := startProc(ctx, logger, "ext-provisioner", provCmd)
-	if err != nil {
-		logger.Error(ctx, "failed to start provisioner", slog.Error(err))
-		return
-	}
-	*procs = append(*procs, p)
+	return group.Start("ext-provisioner", cmd)
 }
 
-func setupWorkspaceProxy(ctx context.Context, logger slog.Logger, cfg *devConfig, client *codersdk.Client, procs *[]*proc) {
+func setupWorkspaceProxy(ctx context.Context, logger slog.Logger, cfg *devConfig, client *codersdk.Client, group *procGroup) error {
 	_ = client.DeleteWorkspaceProxyByName(ctx, "local-proxy")
 
-	resp, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
-		Name:        "local-proxy",
-		DisplayName: "Local Proxy",
-		Icon:        "/emojis/1f4bb.png",
-	})
+	resp, err := client.CreateWorkspaceProxy(ctx,
+		codersdk.CreateWorkspaceProxyRequest{
+			Name:        "local-proxy",
+			DisplayName: "Local Proxy",
+			Icon:        "/emojis/1f4bb.png",
+		})
 	if err != nil {
-		logger.Error(ctx, "failed to create proxy", slog.Error(err))
-		return
+		return xerrors.Errorf("creating proxy: %w", err)
 	}
 
-	proxyCmd := exec.CommandContext(ctx, cfg.binaryPath,
+	cmd := cfg.cmd(ctx, cfg.binaryPath,
 		"--global-config", cfg.configDir,
 		"wsproxy", "server",
 		"--dangerous-allow-cors-requests=true",
-		"--http-address", fmt.Sprintf("localhost:%d", proxyPort),
+		"--http-address", fmt.Sprintf("localhost:%d", cfg.proxyPort),
 		"--proxy-session-token", resp.ProxyToken,
 		"--primary-access-url", fmt.Sprintf("http://localhost:%d", cfg.apiPort))
-	proxyCmd.Dir = cfg.projectRoot
-	proxyCmd.Env = cleanChildEnv()
-	p, err := startProc(ctx, logger, "proxy", proxyCmd)
-	if err != nil {
-		logger.Error(ctx, "failed to start proxy", slog.Error(err))
-		return
-	}
-	*procs = append(*procs, p)
+	return group.Start("proxy", cmd)
 }
 
-func pnpmCmd(cfg *devConfig) *exec.Cmd {
-	cmd := exec.Command("pnpm", "--dir", "./site", "dev", "--host")
-	cmd.Dir = cfg.projectRoot
-	cmd.Env = appendEnv(cleanChildEnv(),
-		"PORT", strconv.Itoa(webPort),
-		"CODER_HOST", fmt.Sprintf("http://127.0.0.1:%d", cfg.apiPort))
+// setupDockerTemplate creates a Docker template from the embedded
+// starter example when Docker is available and the template does
+// not already exist. Uses the SDK's ExampleID field so the server
+// resolves the template archive internally, no CLI shelling needed.
+func setupDockerTemplate(ctx context.Context, logger slog.Logger, cfg *devConfig, client *codersdk.Client) error {
+	// Check if Docker is available.
+	if err := exec.CommandContext(ctx, "docker", "info").Run(); err != nil {
+		logger.Debug(ctx, "docker not available, skipping template setup")
+		return nil
+	}
+
+	defaultOrg, err := client.OrganizationByName(ctx, codersdk.DefaultOrganization)
+	if err != nil {
+		return xerrors.Errorf("looking up default org: %w", err)
+	}
+
+	// Skip if the template already exists (idempotent).
+	if _, err := client.TemplateByName(ctx, defaultOrg.ID, "docker"); err == nil {
+		logger.Debug(ctx, "docker template already exists, skipping")
+		return nil
+	}
+
+	// Resolve Docker host for template variables.
+	dockerHost := ""
+	if out, err := exec.CommandContext(ctx, "docker", "context", "inspect",
+		"--format", "{{ .Endpoints.docker.Host }}").Output(); err == nil {
+		dockerHost = strings.TrimSpace(string(out))
+	}
+
+	// Create template version from the embedded "docker" example.
+	version, err := client.CreateTemplateVersion(ctx, defaultOrg.ID,
+		codersdk.CreateTemplateVersionRequest{
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			ExampleID:     "docker",
+			Provisioner:   codersdk.ProvisionerTypeTerraform,
+			UserVariableValues: []codersdk.VariableValue{
+				{Name: "docker_arch", Value: runtime.GOARCH},
+				{Name: "docker_host", Value: dockerHost},
+			},
+		})
+	if err != nil {
+		return xerrors.Errorf("creating template version: %w", err)
+	}
+	logger.Info(ctx, "docker template version created, waiting for build",
+		slog.F("version_id", version.ID))
+
+	// Poll until the provisioner job completes.
+	version, err = waitForVersion(ctx, client, version.ID)
+	if err != nil {
+		return xerrors.Errorf("docker template build: %w", err)
+	}
+
+	// Create the template pointing at the built version.
+	_, err = client.CreateTemplate(ctx, defaultOrg.ID,
+		codersdk.CreateTemplateRequest{
+			Name:      "docker",
+			VersionID: version.ID,
+		})
+	if err != nil {
+		return xerrors.Errorf("creating docker template: %w", err)
+	}
+	logger.Info(ctx, "docker template created")
+
+	// Push to the second org if multi-org is enabled.
+	if cfg.multiOrg {
+		if err := createTemplateInOrg(ctx, logger, client,
+			"second-organization", dockerHost); err != nil {
+			logger.Warn(ctx, "failed to create docker template in second org",
+				slog.Error(err))
+		}
+	}
+
+	return nil
+}
+
+// waitForVersion polls until a template version's provisioner job
+// reaches a terminal state.
+func waitForVersion(ctx context.Context, client *codersdk.Client, id uuid.UUID) (codersdk.TemplateVersion, error) {
+	return poll(ctx, 500*time.Millisecond,
+		func(ctx context.Context) (codersdk.TemplateVersion, bool, error) {
+			v, err := client.TemplateVersion(ctx, id)
+			if err != nil {
+				return v, false, err
+			}
+			switch v.Job.Status {
+			case codersdk.ProvisionerJobSucceeded:
+				return v, true, nil
+			case codersdk.ProvisionerJobFailed:
+				return v, false, xerrors.Errorf("job failed: %s", v.Job.Error)
+			case codersdk.ProvisionerJobCanceled:
+				return v, false, xerrors.New("job was canceled")
+			default:
+				return v, false, nil // Still pending/running.
+			}
+		})
+}
+
+// createTemplateInOrg creates the "docker" template in a
+// non-default org. Factored out to keep setupDockerTemplate
+// readable.
+func createTemplateInOrg(ctx context.Context, logger slog.Logger, client *codersdk.Client, orgName string, dockerHost string) error {
+	org, err := client.OrganizationByName(ctx, orgName)
+	if err != nil {
+		return xerrors.Errorf("looking up org %q: %w", orgName, err)
+	}
+	version, err := client.CreateTemplateVersion(ctx, org.ID,
+		codersdk.CreateTemplateVersionRequest{
+			StorageMethod: codersdk.ProvisionerStorageMethodFile,
+			ExampleID:     "docker",
+			Provisioner:   codersdk.ProvisionerTypeTerraform,
+			UserVariableValues: []codersdk.VariableValue{
+				{Name: "docker_arch", Value: runtime.GOARCH},
+				{Name: "docker_host", Value: dockerHost},
+			},
+		})
+	if err != nil {
+		return xerrors.Errorf("creating version: %w", err)
+	}
+	version, err = waitForVersion(ctx, client, version.ID)
+	if err != nil {
+		return err
+	}
+	_, err = client.CreateTemplate(ctx, org.ID,
+		codersdk.CreateTemplateRequest{
+			Name:      "docker",
+			VersionID: version.ID,
+		})
+	if err != nil {
+		return xerrors.Errorf("creating template: %w", err)
+	}
+	logger.Info(ctx, "docker template created in org",
+		slog.F("org", orgName))
+	return nil
+}
+
+func pnpmCmd(ctx context.Context, cfg *devConfig) *exec.Cmd {
+	cmd := cfg.cmd(ctx, "pnpm", "--dir", "./site", "dev", "--host")
+	cmd.Env = append(cmd.Env,
+		fmt.Sprintf("PORT=%d", cfg.webPort),
+		fmt.Sprintf("CODER_HOST=http://127.0.0.1:%d", cfg.apiPort),
+	)
 	return cmd
 }
 
@@ -552,9 +829,9 @@ func printBanner(logger slog.Logger, cfg *devConfig) {
 	fmt.Fprintln(&b, "==            Coder is now running in development mode.           ==")
 	for _, h := range ifaces {
 		fmt.Fprintf(&b, "==  API:    http://%s:%d\n", h, cfg.apiPort)
-		fmt.Fprintf(&b, "==  Web UI: http://%s:%d\n", h, webPort)
+		fmt.Fprintf(&b, "==  Web UI: http://%s:%d\n", h, cfg.webPort)
 		if cfg.useProxy {
-			fmt.Fprintf(&b, "==  Proxy:  http://%s:%d\n", h, proxyPort)
+			fmt.Fprintf(&b, "==  Proxy:  http://%s:%d\n", h, cfg.proxyPort)
 		}
 	}
 	fmt.Fprintln(&b, "==")
@@ -562,82 +839,6 @@ func printBanner(logger slog.Logger, cfg *devConfig) {
 	fmt.Fprintf(&b, "==  alias cdr=%s/scripts/coder-dev.sh\n", cfg.projectRoot)
 	fmt.Fprintln(&b, "====================================================================")
 	logger.Info(context.Background(), b.String())
-}
-
-// proc tracks a running child process.
-type proc struct {
-	name string
-	cmd  *exec.Cmd
-	done chan struct{}
-	err  error
-}
-
-func startProc(ctx context.Context, logger slog.Logger, name string, cmd *exec.Cmd) (*proc, error) {
-	named := logger.Named(name)
-	w := &logWriter{logger: named}
-	cmd.Stdout = w
-	cmd.Stderr = w
-	cmd.Env = appendEnv(cmd.Env, "FORCE_COLOR", "1")
-
-	named.Info(ctx, "starting", slog.F("cmd", strings.Join(cmd.Args, " ")))
-	if err := cmd.Start(); err != nil {
-		return nil, xerrors.Errorf("starting %s: %w", name, err)
-	}
-	p := &proc{name: name, cmd: cmd, done: make(chan struct{})}
-	go func() {
-		p.err = cmd.Wait()
-		close(p.done)
-	}()
-	return p, nil
-}
-
-// mergeExits returns a channel that receives the first proc to exit.
-func mergeExits(procs []*proc) <-chan *proc {
-	ch := make(chan *proc, 1)
-	for _, p := range procs {
-		go func() {
-			<-p.done
-			select {
-			case ch <- p:
-			default:
-			}
-		}()
-	}
-	return ch
-}
-
-// shutdownProcs sends SIGINT to each tracked process and waits up to
-// timeout for them to exit before escalating to SIGKILL. On
-// signal-triggered shutdown, children in the same process group will
-// have already received the signal from the kernel, so the explicit
-// SIGINT is redundant but harmless.
-func shutdownProcs(logger slog.Logger, procs []*proc, timeout time.Duration) {
-	if len(procs) == 0 {
-		return
-	}
-	for _, p := range procs {
-		if p.cmd.Process != nil {
-			_ = p.cmd.Process.Signal(os.Interrupt)
-		}
-	}
-	allDone := make(chan struct{})
-	go func() {
-		for _, p := range procs {
-			<-p.done
-		}
-		close(allDone)
-	}()
-	select {
-	case <-allDone:
-	case <-time.After(timeout):
-		logger.Warn(context.Background(), "shutdown timeout, sending SIGKILL")
-		for _, p := range procs {
-			if p.cmd.Process != nil {
-				_ = p.cmd.Process.Kill()
-			}
-		}
-		<-allDone
-	}
 }
 
 // logWriter adapts an slog.Logger into an io.Writer. Each complete
@@ -668,19 +869,24 @@ func (w *logWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func isPortBusy(port int) bool {
-	c := &http.Client{Timeout: 2 * time.Second}
-	resp, err := c.Get(fmt.Sprintf("http://127.0.0.1:%d", port))
+func isPortBusy(ctx context.Context, port int64) bool {
+	d := net.Dialer{Timeout: 2 * time.Second}
+	conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", port))
 	if err != nil {
 		return false
 	}
-	resp.Body.Close()
+	conn.Close()
 	return true
 }
 
-func isCoderRunning(baseURL string) bool {
-	c := &http.Client{Timeout: 2 * time.Second}
-	resp, err := c.Get(baseURL + "/api/v2/buildinfo")
+func isCoderRunning(ctx context.Context, baseURL string) bool {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", baseURL+"/api/v2/buildinfo", nil)
+	if err != nil {
+		return false
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return false
 	}
@@ -692,30 +898,8 @@ func isCoderRunning(baseURL string) bool {
 	return info.Version != ""
 }
 
-func cleanChildEnv() []string {
-	var out []string
-	for _, e := range os.Environ() {
-		if i := strings.IndexByte(e, '='); i >= 0 {
-			k := e[:i]
-			if k == "CODER_SESSION_TOKEN" || k == "CODER_URL" {
-				continue
-			}
-		}
-		out = append(out, e)
-	}
-	return out
-}
-
-// appendEnv appends key=value pairs to an environment slice. The
-// variadic args are consumed in pairs: key1, val1, key2, val2, etc.
-func appendEnv(env []string, kvs ...string) []string {
-	for i := 0; i+1 < len(kvs); i += 2 {
-		env = append(env, kvs[i]+"="+kvs[i+1])
-	}
-	return env
-}
-
-func boolStr(b bool) string {
+// shellBool returns "1" for true and "0" for false (shell convention).
+func shellBool(b bool) string {
 	if b {
 		return "1"
 	}

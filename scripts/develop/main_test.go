@@ -2,8 +2,10 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -88,17 +90,6 @@ func TestLogWriter(t *testing.T) {
 		assert.Contains(t, lines[0], "foo")
 	})
 
-	t.Run("ReturnsFullLength", func(t *testing.T) {
-		t.Parallel()
-		var buf bytes.Buffer
-		logger := slog.Make(sloghuman.Sink(&buf))
-		w := &logWriter{logger: logger}
-		input := []byte("a\nb\n")
-		n, err := w.Write(input)
-		require.NoError(t, err)
-		assert.Equal(t, len(input), n)
-	})
-
 	t.Run("ConcurrentWrites", func(t *testing.T) {
 		t.Parallel()
 		var buf bytes.Buffer
@@ -126,55 +117,30 @@ func TestLogWriter(t *testing.T) {
 	})
 }
 
-func TestAppendEnv(t *testing.T) {
+func TestFilterEnv(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Single", func(t *testing.T) {
-		t.Parallel()
-		env := appendEnv(nil, "K", "V")
-		assert.Equal(t, []string{"K=V"}, env)
-	})
-
-	t.Run("Multiple", func(t *testing.T) {
-		t.Parallel()
-		env := appendEnv([]string{"EXISTING=1"}, "A", "1", "B", "2")
-		assert.Equal(t, []string{"EXISTING=1", "A=1", "B=2"}, env)
-	})
-
-	t.Run("OddArgIgnored", func(t *testing.T) {
-		t.Parallel()
-		env := appendEnv(nil, "A", "1", "ORPHAN")
-		assert.Equal(t, []string{"A=1"}, env)
-	})
-}
-
-func TestCleanChildEnv(t *testing.T) {
-	t.Setenv("CODER_SESSION_TOKEN", "secret")
-	t.Setenv("CODER_URL", "https://example.com")
-	t.Setenv("CODER_DEV_TEST_KEEP", "yes")
-
-	result := cleanChildEnv()
+	env := []string{
+		"CODER_SESSION_TOKEN=secret",
+		"CODER_URL=https://example.com",
+		"KEEP_ME=yes",
+		"PATH=/usr/bin",
+	}
+	result := filterEnv(env, "CODER_SESSION_TOKEN", "CODER_URL")
 
 	for _, e := range result {
 		k, _, _ := strings.Cut(e, "=")
-		assert.NotEqual(t, "CODER_SESSION_TOKEN", k, "CODER_SESSION_TOKEN should be filtered")
-		assert.NotEqual(t, "CODER_URL", k, "CODER_URL should be filtered")
+		assert.NotEqual(t, "CODER_SESSION_TOKEN", k)
+		assert.NotEqual(t, "CODER_URL", k)
 	}
-
-	found := false
-	for _, e := range result {
-		if strings.HasPrefix(e, "CODER_DEV_TEST_KEEP=") {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "CODER_DEV_TEST_KEEP should be preserved")
+	assert.Contains(t, result, "KEEP_ME=yes")
+	assert.Contains(t, result, "PATH=/usr/bin")
 }
 
-func TestBoolStr(t *testing.T) {
+func TestShellBool(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, "1", boolStr(true))
-	assert.Equal(t, "0", boolStr(false))
+	assert.Equal(t, "1", shellBool(true))
+	assert.Equal(t, "0", shellBool(false))
 }
 
 func TestDevelopInCoder(t *testing.T) {
@@ -202,8 +168,10 @@ func TestDevConfigValidate(t *testing.T) {
 
 	base := func() *devConfig {
 		return &devConfig{
-			apiPort:  defaultAPIPort,
-			password: defaultPassword,
+			apiPort:   3000,
+			webPort:   8080,
+			proxyPort: 3010,
+			password:  defaultPassword,
 		}
 	}
 
@@ -253,7 +221,7 @@ func TestDevConfigValidate(t *testing.T) {
 	t.Run("PortConflictWithWeb", func(t *testing.T) {
 		t.Parallel()
 		cfg := base()
-		cfg.apiPort = webPort
+		cfg.apiPort = 8080
 		err := cfg.validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "conflicts with frontend dev server")
@@ -262,7 +230,7 @@ func TestDevConfigValidate(t *testing.T) {
 	t.Run("PortConflictWithProxy", func(t *testing.T) {
 		t.Parallel()
 		cfg := base()
-		cfg.apiPort = proxyPort
+		cfg.apiPort = 3010
 		cfg.useProxy = true
 		err := cfg.validate()
 		require.Error(t, err)
@@ -272,85 +240,207 @@ func TestDevConfigValidate(t *testing.T) {
 	t.Run("ProxyPortOKWithoutFlag", func(t *testing.T) {
 		t.Parallel()
 		cfg := base()
-		cfg.apiPort = proxyPort
+		cfg.apiPort = 3010
+		assert.NoError(t, cfg.validate())
+	})
+
+	t.Run("WebPortTooLow", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.webPort = 0
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--web-port must be between 1 and 65535")
+	})
+
+	t.Run("ProxyPortTooHigh", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.proxyPort = 70000
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--proxy-port must be between 1 and 65535")
+	})
+
+	t.Run("WebProxyPortConflict", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.webPort = 9000
+		cfg.proxyPort = 9000
+		cfg.useProxy = true
+		err := cfg.validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--web-port 9000 conflicts with --proxy-port")
+	})
+
+	t.Run("WebProxyPortConflictOKWithoutProxy", func(t *testing.T) {
+		t.Parallel()
+		cfg := base()
+		cfg.webPort = 9000
+		cfg.proxyPort = 9000
 		assert.NoError(t, cfg.validate())
 	})
 }
 
-func TestDevConfigResolvePaths(t *testing.T) {
+func TestDevConfigResolveEnv(t *testing.T) {
 	t.Setenv("CODER_SESSION_TOKEN", "leaked")
 	t.Setenv("CODER_URL", "https://leaked.example.com")
 
-	cfg := &devConfig{apiPort: defaultAPIPort}
-	require.NoError(t, cfg.resolvePaths())
+	cfg := &devConfig{apiPort: 3000}
+	require.NoError(t, cfg.resolveEnv())
 
 	wd, _ := os.Getwd()
 	assert.Equal(t, wd, cfg.projectRoot)
 	assert.Equal(t, filepath.Join(wd, "build",
 		fmt.Sprintf("coder_%s_%s", runtime.GOOS, runtime.GOARCH)), cfg.binaryPath)
 	assert.Equal(t, filepath.Join(wd, ".coderv2"), cfg.configDir)
+	assert.Equal(t, "http://127.0.0.1:3000", cfg.accessURL)
 
 	// Should have unset leaked env vars.
 	assert.Empty(t, os.Getenv("CODER_SESSION_TOKEN"))
 	assert.Empty(t, os.Getenv("CODER_URL"))
+
+	// childEnv should be populated and exclude leaked vars.
+	require.NotEmpty(t, cfg.childEnv)
+	for _, e := range cfg.childEnv {
+		k, _, _ := strings.Cut(e, "=")
+		assert.NotEqual(t, "CODER_SESSION_TOKEN", k)
+		assert.NotEqual(t, "CODER_URL", k)
+	}
 }
 
-func TestDevConfigResolvePathsDefaultAccessURL(t *testing.T) {
-	t.Setenv("CODER_SESSION_TOKEN", "")
-	t.Setenv("CODER_URL", "")
-
-	cfg := &devConfig{apiPort: 5000}
-	require.NoError(t, cfg.resolvePaths())
-	assert.Equal(t, "http://127.0.0.1:5000", cfg.accessURL)
-}
-
-func TestDevConfigResolvePathsExplicitAccessURL(t *testing.T) {
+func TestDevConfigResolveEnvExplicitAccessURL(t *testing.T) {
 	t.Setenv("CODER_SESSION_TOKEN", "")
 	t.Setenv("CODER_URL", "")
 
 	cfg := &devConfig{apiPort: 5000, accessURL: "http://myhost:5000"}
-	require.NoError(t, cfg.resolvePaths())
+	require.NoError(t, cfg.resolveEnv())
 	assert.Equal(t, "http://myhost:5000", cfg.accessURL)
 }
 
-func TestMergeExits(t *testing.T) {
+func TestDevConfigCmd(t *testing.T) {
 	t.Parallel()
 
-	t.Run("FirstProcToExit", func(t *testing.T) {
-		t.Parallel()
+	cfg := &devConfig{
+		projectRoot: "/fake/root",
+		childEnv:    []string{"A=1", "B=2"},
+	}
 
-		p1 := &proc{name: "slow", done: make(chan struct{})}
-		p2 := &proc{name: "fast", done: make(chan struct{})}
+	cmd := cfg.cmd(context.Background(), "echo", "hello")
+	assert.Equal(t, "/fake/root", cmd.Dir)
+	assert.Equal(t, []string{"A=1", "B=2"}, cmd.Env)
 
-		ch := mergeExits([]*proc{p1, p2})
-		close(p2.done)
-
-		select {
-		case got := <-ch:
-			assert.Equal(t, "fast", got.name)
-		case <-time.After(2 * time.Second):
-			t.Fatal("timed out waiting for exit")
-		}
-	})
-
-	t.Run("EmptySlice", func(t *testing.T) {
-		t.Parallel()
-		ch := mergeExits(nil)
-		select {
-		case <-ch:
-			t.Fatal("should not receive on empty slice")
-		case <-time.After(50 * time.Millisecond):
-			// expected
-		}
-	})
+	// Verify childEnv is cloned, not shared.
+	cmd.Env = append(cmd.Env, "C=3")
+	assert.Len(t, cfg.childEnv, 2, "original childEnv must not be mutated")
 }
 
-func TestShutdownProcs(t *testing.T) {
+func TestProcGroupProcessExit(t *testing.T) {
 	t.Parallel()
 
-	// Verify shutdownProcs returns immediately for an empty slice.
 	logger := slog.Make(sloghuman.Sink(&bytes.Buffer{}))
-	start := time.Now()
-	shutdownProcs(logger, nil, 5*time.Second)
-	assert.Less(t, time.Since(start), time.Second)
+	group := newProcGroup(t.Context(), logger)
+
+	cmd := exec.CommandContext(t.Context(), "false")
+	cmd.Env = os.Environ()
+	require.NoError(t, group.Start("dies-fast", cmd))
+
+	// Process exit should cancel the group context.
+	select {
+	case <-group.Ctx().Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for context cancellation")
+	}
+
+	// Wait should return an error naming the exited process.
+	err := group.Wait()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "dies-fast")
+}
+
+func TestProcGroupGracefulShutdown(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	logger := slog.Make(sloghuman.Sink(&bytes.Buffer{}))
+	group := newProcGroup(ctx, logger)
+
+	// Start a process that runs until signaled.
+	cmd := exec.CommandContext(ctx, "sleep", "60")
+	cmd.Env = os.Environ()
+	err := group.Start("sleeper", cmd)
+	require.NoError(t, err)
+
+	// Cancel the parent context. cmd.Cancel sends SIGINT, and
+	// cmd.WaitDelay escalates to SIGKILL if needed.
+	cancel()
+
+	done := make(chan error, 1)
+	go func() { done <- group.Wait() }()
+
+	select {
+	case err := <-done:
+		// The process was killed, so we expect an error.
+		require.Error(t, err)
+	case <-time.After(shutdownTimeout + 5*time.Second):
+		t.Fatal("timed out waiting for graceful shutdown")
+	}
+}
+
+func TestPoll(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ImmediateSuccess", func(t *testing.T) {
+		t.Parallel()
+		val, err := poll(t.Context(), 10*time.Millisecond,
+			func(_ context.Context) (string, bool, error) {
+				return "done", true, nil
+			})
+		require.NoError(t, err)
+		assert.Equal(t, "done", val)
+	})
+
+	t.Run("EventualSuccess", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		val, err := poll(t.Context(), 10*time.Millisecond,
+			func(_ context.Context) (int, bool, error) {
+				calls++
+				if calls >= 3 {
+					return calls, true, nil
+				}
+				return 0, false, nil
+			})
+		require.NoError(t, err)
+		assert.Equal(t, 3, val)
+	})
+
+	t.Run("ContextCanceled", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		_, err := poll(ctx, 10*time.Millisecond,
+			func(_ context.Context) (struct{}, bool, error) {
+				t.Fatal("cond should not be called")
+				return struct{}{}, false, nil
+			})
+		require.ErrorIs(t, err, context.Canceled)
+	})
+
+	t.Run("ErrorStopsPolling", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		_, err := poll(t.Context(), 10*time.Millisecond,
+			func(_ context.Context) (string, bool, error) {
+				calls++
+				if calls == 2 {
+					return "", false, fmt.Errorf("boom")
+				}
+				return "", false, nil
+			})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "boom")
+		assert.Equal(t, 2, calls)
+	})
 }
