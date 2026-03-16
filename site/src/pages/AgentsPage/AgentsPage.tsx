@@ -264,10 +264,13 @@ const AgentsPage: FC = () => {
 	);
 	const handleConfirmArchiveAndDelete = useCallback(() => {
 		if (pendingArchiveAndDelete && !isArchiving) {
-			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete);
-			setPendingArchiveAndDelete(null);
+			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete, {
+				onSettled: () => {
+					setPendingArchiveAndDelete(null);
+				},
+			});
 		}
-	}, [pendingArchiveAndDelete, isArchiving, archiveAndDeleteMutation]);
+	}, [pendingArchiveAndDelete, isArchiving, archiveAndDeleteMutation, setPendingArchiveAndDelete]);
 	const requestUnarchiveAgent = useCallback(
 		(chatId: string) => {
 			unarchiveAgentMutation.mutate(chatId);
