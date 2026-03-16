@@ -804,20 +804,30 @@ func printBanner(logger slog.Logger, cfg *devConfig) {
 		}
 	}
 	var b strings.Builder
+	w := 64
+	line := func(content string) {
+		fmt.Fprintf(&b, "║ %-*s ║\n", w, content)
+	}
+	divider := "╔" + strings.Repeat("═", w+2) + "╗"
+	bottom := "╚" + strings.Repeat("═", w+2) + "╝"
+
 	fmt.Fprintln(&b)
-	fmt.Fprintln(&b, "====================================================================")
-	fmt.Fprintln(&b, "==            Coder is now running in development mode.           ==")
+	fmt.Fprintln(&b, divider)
+	line("")
+	line("           Coder is now running in development mode.")
+	line("")
 	for _, h := range ifaces {
-		fmt.Fprintf(&b, "%-66s==\n", fmt.Sprintf("==  API:    http://%s:%d", h, cfg.apiPort))
-		fmt.Fprintf(&b, "%-66s==\n", fmt.Sprintf("==  Web UI: http://%s:%d", h, cfg.webPort))
+		line(fmt.Sprintf("API:    http://%s:%d", h, cfg.apiPort))
+		line(fmt.Sprintf("Web UI: http://%s:%d", h, cfg.webPort))
 		if cfg.useProxy {
-			fmt.Fprintf(&b, "%-66s==\n", fmt.Sprintf("==  Proxy:  http://%s:%d", h, cfg.proxyPort))
+			line(fmt.Sprintf("Proxy:  http://%s:%d", h, cfg.proxyPort))
 		}
 	}
-	fmt.Fprintln(&b, "==                                                                ==")
-	fmt.Fprintln(&b, "==  Use ./scripts/coder-dev.sh to talk to this instance!          ==")
-	fmt.Fprintf(&b, "%-66s==\n", fmt.Sprintf("==  alias cdr=%s/scripts/coder-dev.sh", cfg.projectRoot))
-	fmt.Fprintln(&b, "====================================================================")
+	line("")
+	line("Use ./scripts/coder-dev.sh to talk to this instance!")
+	line(fmt.Sprintf("  alias cdr=%s/scripts/coder-dev.sh", cfg.projectRoot))
+	line("")
+	fmt.Fprintln(&b, bottom)
 	logger.Info(context.Background(), b.String())
 }
 
