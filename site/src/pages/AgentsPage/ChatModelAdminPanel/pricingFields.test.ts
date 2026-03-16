@@ -10,7 +10,7 @@ import {
 describe("pricingFields", () => {
 	it("uses $0 defaults for every pricing field", () => {
 		for (const fieldName of pricingFieldNameList) {
-			expect(getDefaultPricingForField(fieldName)).toBe(0);
+			expect(getDefaultPricingForField(fieldName)).toBe("0");
 			expect(getPricingPlaceholderForField(fieldName)).toBe("0");
 		}
 	});
@@ -23,8 +23,8 @@ describe("pricingFields", () => {
 		expect(
 			hasCustomPricing({
 				cost: {
-					input_price_per_million_tokens: 0,
-					output_price_per_million_tokens: 0,
+					input_price_per_million_tokens: "0",
+					output_price_per_million_tokens: "0",
 				},
 			} satisfies TypesGen.ChatModelCallConfig),
 		).toBe(true);
@@ -34,7 +34,7 @@ describe("pricingFields", () => {
 		expect(
 			hasCustomPricing({
 				cost: {
-					cache_write_price_per_million_tokens: 0.25,
+					cache_write_price_per_million_tokens: "0.25",
 				},
 			} satisfies TypesGen.ChatModelCallConfig),
 		).toBe(true);

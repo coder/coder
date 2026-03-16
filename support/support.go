@@ -1,15 +1,18 @@
 package support
 
 import (
+	"archive/tar"
 	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"strings"
 	"time"
 
@@ -772,6 +775,93 @@ func compressData(data []byte) []byte {
 	return buf.Bytes()
 }
 
+// PprofInfoFromArchive uses the consolidated /api/v2/debug/profile endpoint
+// to collect pprof data in a single request. The server temporarily enables
+// block/mutex profiling, runs time-based profiles for the given duration,
+// takes snapshots, and returns a tar.gz archive.
+func PprofInfoFromArchive(ctx context.Context, client *codersdk.Client, log slog.Logger, duration time.Duration) (*PprofCollection, error) {
+	if client == nil {
+		return nil, xerrors.New("client is nil")
+	}
+
+	body, err := client.DebugCollectProfile(ctx, codersdk.DebugProfileOptions{
+		Duration: duration,
+		// Use the server defaults plus trace.
+		Profiles: []string{"cpu", "heap", "allocs", "block", "mutex", "goroutine", "threadcreate", "trace"},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("fetch consolidated profile: %w", err)
+	}
+	defer body.Close()
+
+	data, err := io.ReadAll(body)
+	if err != nil {
+		return nil, xerrors.Errorf("read profile archive: %w", err)
+	}
+
+	var p PprofCollection
+	if client.URL != nil {
+		if u, err := client.URL.Parse("/api/v2/debug/profile"); err == nil {
+			p.EndpointURL = u.String()
+		}
+	}
+	if p.EndpointURL == "" {
+		p.EndpointURL = "/api/v2/debug/profile"
+	}
+	p.CollectedAt = time.Now()
+
+	// Parse the tar.gz archive and populate the PprofCollection.
+	gr, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, xerrors.Errorf("open gzip reader: %w", err)
+	}
+	defer gr.Close()
+
+	tr := tar.NewReader(gr)
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, xerrors.Errorf("read tar entry %q: %w", hdr.Name, err)
+		}
+
+		content, err := io.ReadAll(tr)
+		if err != nil {
+			log.Warn(ctx, "failed to read tar entry", slog.F("name", hdr.Name), slog.Error(err))
+			continue
+		}
+
+		// Files in the archive are named like "cpu.prof", "heap.prof",
+		// "trace.out", etc. Compress binary profile data for storage in
+		// the bundle, matching what PprofInfo() does.
+		base := path.Base(hdr.Name)
+		switch base {
+		case "cpu.prof":
+			p.Profile = compressData(content)
+		case "heap.prof":
+			p.Heap = compressData(content)
+		case "allocs.prof":
+			p.Allocs = compressData(content)
+		case "block.prof":
+			p.Block = compressData(content)
+		case "mutex.prof":
+			p.Mutex = compressData(content)
+		case "goroutine.prof":
+			p.Goroutine = compressData(content)
+		case "threadcreate.prof":
+			p.Threadcreate = compressData(content)
+		case "trace.out":
+			p.Trace = compressData(content)
+		default:
+			log.Debug(ctx, "unknown profile in archive", slog.F("name", hdr.Name))
+		}
+	}
+
+	return &p, nil
+}
+
 func PprofInfoFromAgent(ctx context.Context, conn workspacesdk.AgentConn, log slog.Logger) *PprofCollection {
 	if conn == nil {
 		return nil
@@ -1049,7 +1139,16 @@ func collectPprof(ctx context.Context, d *Deps, b *Bundle) Pprof {
 		return pprof
 	}
 
-	serverPprof := PprofInfo(ctx, d.Client, d.Log)
+	// Try the consolidated /debug/profile endpoint first. It
+	// temporarily enables block/mutex profiling on the server and
+	// returns a single tar.gz archive.
+	serverPprof, err := PprofInfoFromArchive(ctx, d.Client, d.Log, 30*time.Second)
+	if err != nil {
+		d.Log.Warn(ctx, "consolidated profile endpoint unavailable, falling back to individual endpoints",
+			slog.Error(err))
+		// Fall back to the legacy per-profile endpoint approach.
+		serverPprof = PprofInfo(ctx, d.Client, d.Log)
+	}
 	if serverPprof != nil {
 		pprof.Server = serverPprof
 	}

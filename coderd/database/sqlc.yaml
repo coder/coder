@@ -148,6 +148,17 @@ sql:
             go_type: "database/sql.NullTime"
           - column: "task_event_data.first_status_after_resume_at"
             go_type: "database/sql.NullTime"
+          - db_type: "pg_catalog.numeric"
+            go_type:
+              import: "github.com/shopspring/decimal"
+              type: "Decimal"
+              package: "decimal"
+          - db_type: "pg_catalog.numeric"
+            nullable: true
+            go_type:
+              import: "github.com/shopspring/decimal"
+              type: "NullDecimal"
+              package: "decimal"
         rename:
           group_member: GroupMemberTable
           group_members_expanded: GroupMember

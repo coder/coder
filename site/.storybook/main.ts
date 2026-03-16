@@ -3,6 +3,7 @@ export default {
 
 	addons: [
 		"@chromatic-com/storybook",
+		"@storybook/addon-a11y",
 		"@storybook/addon-docs",
 		"@storybook/addon-links",
 		"@storybook/addon-themes",

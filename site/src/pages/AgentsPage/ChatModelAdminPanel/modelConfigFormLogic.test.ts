@@ -210,10 +210,10 @@ describe("extractModelConfigFormState", () => {
 			...baseChatModelConfig,
 			model_config: {
 				cost: {
-					input_price_per_million_tokens: 0.15,
-					output_price_per_million_tokens: 0.6,
-					cache_read_price_per_million_tokens: 0.03,
-					cache_write_price_per_million_tokens: 0.3,
+					input_price_per_million_tokens: "0.15",
+					output_price_per_million_tokens: "0.6",
+					cache_read_price_per_million_tokens: "0.03",
+					cache_write_price_per_million_tokens: "0.3",
 				},
 			},
 		};
@@ -553,10 +553,10 @@ describe("buildModelConfigFromForm", () => {
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig).toMatchObject({
 				cost: {
-					input_price_per_million_tokens: 0.15,
-					output_price_per_million_tokens: 0.6,
-					cache_read_price_per_million_tokens: 0.03,
-					cache_write_price_per_million_tokens: 0.3,
+					input_price_per_million_tokens: "0.15",
+					output_price_per_million_tokens: "0.6",
+					cache_read_price_per_million_tokens: "0.03",
+					cache_write_price_per_million_tokens: "0.3",
 				},
 			});
 		});

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -69,7 +70,12 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	proc, err := api.manager.start(req)
+	var chatID string
+	if id, _, ok := agentgit.ExtractChatContext(r); ok {
+		chatID = id.String()
+	}
+
+	proc, err := api.manager.start(req, chatID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to start process.",
@@ -105,7 +111,28 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 func (api *API) handleListProcesses(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	infos := api.manager.list()
+	var chatID string
+	if id, _, ok := agentgit.ExtractChatContext(r); ok {
+		chatID = id.String()
+	}
+
+	infos := api.manager.list(chatID)
+
+	// Sort by running state (running first), then by started_at
+	// descending so the most recent processes appear first.
+	sort.Slice(infos, func(i, j int) bool {
+		if infos[i].Running != infos[j].Running {
+			return infos[i].Running
+		}
+		return infos[i].StartedAt > infos[j].StartedAt
+	})
+
+	// Cap the response to avoid bloating LLM context.
+	const maxListProcesses = 10
+	if len(infos) > maxListProcesses {
+		infos = infos[:maxListProcesses]
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.ListProcessesResponse{
 		Processes: infos,
 	})

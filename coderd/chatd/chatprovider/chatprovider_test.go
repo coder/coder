@@ -137,61 +137,6 @@ func TestMergeMissingProviderOptions_OpenRouterNested(t *testing.T) {
 	require.Equal(t, "latency", *options.OpenRouter.Provider.Sort)
 }
 
-func TestMergeMissingCallConfig_FillsUnsetFields(t *testing.T) {
-	t.Parallel()
-
-	dst := codersdk.ChatModelCallConfig{
-		Temperature: float64Ptr(0.2),
-		Cost: &codersdk.ModelCostConfig{
-			OutputPricePerMillionTokens: float64Ptr(0.7),
-		},
-		ProviderOptions: &codersdk.ChatModelProviderOptions{
-			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-				User: stringPtr("alice"),
-			},
-		},
-	}
-	defaultCallConfig := codersdk.ChatModelCallConfig{
-		MaxOutputTokens: int64Ptr(512),
-		Temperature:     float64Ptr(0.9),
-		TopP:            float64Ptr(0.8),
-		Cost: &codersdk.ModelCostConfig{
-			InputPricePerMillionTokens:      float64Ptr(0.15),
-			OutputPricePerMillionTokens:     float64Ptr(0.9),
-			CacheReadPricePerMillionTokens:  float64Ptr(0.03),
-			CacheWritePricePerMillionTokens: float64Ptr(0.3),
-		},
-		ProviderOptions: &codersdk.ChatModelProviderOptions{
-			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-				User:            stringPtr("bob"),
-				ReasoningEffort: stringPtr("medium"),
-			},
-		},
-	}
-
-	chatprovider.MergeMissingCallConfig(&dst, defaultCallConfig)
-
-	require.NotNil(t, dst.MaxOutputTokens)
-	require.EqualValues(t, 512, *dst.MaxOutputTokens)
-	require.NotNil(t, dst.Temperature)
-	require.Equal(t, 0.2, *dst.Temperature)
-	require.NotNil(t, dst.TopP)
-	require.Equal(t, 0.8, *dst.TopP)
-	require.NotNil(t, dst.Cost)
-	require.NotNil(t, dst.Cost.InputPricePerMillionTokens)
-	require.Equal(t, 0.15, *dst.Cost.InputPricePerMillionTokens)
-	require.NotNil(t, dst.Cost.OutputPricePerMillionTokens)
-	require.Equal(t, 0.7, *dst.Cost.OutputPricePerMillionTokens)
-	require.NotNil(t, dst.Cost.CacheReadPricePerMillionTokens)
-	require.Equal(t, 0.03, *dst.Cost.CacheReadPricePerMillionTokens)
-	require.NotNil(t, dst.Cost.CacheWritePricePerMillionTokens)
-	require.Equal(t, 0.3, *dst.Cost.CacheWritePricePerMillionTokens)
-	require.NotNil(t, dst.ProviderOptions)
-	require.NotNil(t, dst.ProviderOptions.OpenAI)
-	require.Equal(t, "alice", *dst.ProviderOptions.OpenAI.User)
-	require.Equal(t, "medium", *dst.ProviderOptions.OpenAI.ReasoningEffort)
-}
-
 func stringPtr(value string) *string {
 	return &value
 }
@@ -201,9 +146,5 @@ func boolPtr(value bool) *bool {
 }
 
 func int64Ptr(value int64) *int64 {
-	return &value
-}
-
-func float64Ptr(value float64) *float64 {
 	return &value
 }

@@ -1289,6 +1289,21 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
 		}
+
+		// Publish workspace build update to the all builds channel if the experiment is enabled.
+		if s.Experiments.Enabled(codersdk.ExperimentWorkspaceBuildUpdates) {
+			err = wspubsub.PublishWorkspaceBuildUpdate(ctx, s.Pubsub, codersdk.WorkspaceBuildUpdate{
+				WorkspaceID:   workspace.ID,
+				WorkspaceName: workspace.Name,
+				BuildID:       build.ID,
+				Transition:    string(build.Transition),
+				JobStatus:     string(database.ProvisionerJobStatusFailed),
+				BuildNumber:   build.BuildNumber,
+			})
+			if err != nil {
+				s.Logger.Warn(ctx, "failed to publish workspace build update", slog.Error(err))
+			}
+		}
 	case *proto.FailedJob_TemplateImport_:
 	}
 
@@ -1528,13 +1543,18 @@ func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvi
 
 	// A graceful error message will help debugging.
 	fail := func(err error) error {
-		_ = stream.Send(&sdkproto.FileUpload{
+		if sendErr := stream.Send(&sdkproto.FileUpload{
 			Type: &sdkproto.FileUpload_Error{
 				Error: &sdkproto.FailedFile{
 					Error: err.Error(),
 				},
 			},
-		})
+		}); sendErr != nil {
+			s.Logger.Warn(ctx, "failed to send error response on download stream",
+				slog.Error(sendErr),
+				slog.F("original_error", err.Error()),
+			)
+		}
 		return err
 	}
 	if request.FileId == "" || request.FileId == uuid.Nil.String() {
@@ -2484,6 +2504,21 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		return xerrors.Errorf("update workspace: %w", err)
 	}
 
+	// Publish workspace build update to the all builds channel if the experiment is enabled.
+	if s.Experiments.Enabled(codersdk.ExperimentWorkspaceBuildUpdates) {
+		err = wspubsub.PublishWorkspaceBuildUpdate(ctx, s.Pubsub, codersdk.WorkspaceBuildUpdate{
+			WorkspaceID:   workspace.ID,
+			WorkspaceName: workspace.Name,
+			BuildID:       workspaceBuild.ID,
+			Transition:    string(workspaceBuild.Transition),
+			JobStatus:     string(database.ProvisionerJobStatusSucceeded),
+			BuildNumber:   workspaceBuild.BuildNumber,
+		})
+		if err != nil {
+			s.Logger.Warn(ctx, "failed to publish workspace build update", slog.Error(err))
+		}
+	}
+
 	if input.PrebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
 		s.Logger.Info(ctx, "workspace prebuild successfully claimed by user",
 			slog.F("workspace_id", workspace.ID))
@@ -2947,14 +2982,11 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				scriptsParams.ScriptIDs = append(scriptsParams.ScriptIDs, id)                            // Re-use the devcontainer ID as the script ID for identification.
 				scriptsParams.ScriptDisplayNames = append(scriptsParams.ScriptDisplayNames, displayName)
 				scriptsParams.ScriptLogPaths = append(scriptsParams.ScriptLogPaths, "")
-				scriptsParams.ScriptSources = append(scriptsParams.ScriptSources, `echo "WARNING: Dev Containers are early access. If you're seeing this message then Dev Containers haven't been enabled for your workspace yet. To enable, the agent needs to run with the environment variable CODER_AGENT_DEVCONTAINERS_ENABLE=true set."`)
+				scriptsParams.ScriptSources = append(scriptsParams.ScriptSources, "")
 				scriptsParams.ScriptCron = append(scriptsParams.ScriptCron, "")
 				scriptsParams.ScriptTimeout = append(scriptsParams.ScriptTimeout, 0)
 				scriptsParams.ScriptStartBlocksLogin = append(scriptsParams.ScriptStartBlocksLogin, false)
-				// Run on start to surface the warning message in case the
-				// terraform resource is used, but the experiment hasn't
-				// been enabled.
-				scriptsParams.ScriptRunOnStart = append(scriptsParams.ScriptRunOnStart, true)
+				scriptsParams.ScriptRunOnStart = append(scriptsParams.ScriptRunOnStart, false)
 				scriptsParams.ScriptRunOnStop = append(scriptsParams.ScriptRunOnStop, false)
 			}
 

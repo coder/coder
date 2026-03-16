@@ -19,11 +19,17 @@ import { CoderIcon } from "components/Icons/CoderIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { Spinner } from "components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
 	ArchiveIcon,
 	ArchiveRestoreIcon,
+	BarChart3Icon,
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -80,6 +86,7 @@ interface AgentsSidebarProps {
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange?: (filter: "active" | "archived") => void;
 	onCollapse?: () => void;
+	onOpenAnalytics?: () => void;
 	onOpenSettings?: () => void;
 }
 
@@ -375,14 +382,6 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
-	const isExecuting =
-		chat.status === "pending" ||
-		chat.status === "running" ||
-		(hasChildren &&
-			childIDs.some((id) => {
-				const c = chatById.get(id);
-				return c?.status === "pending" || c?.status === "running";
-			}));
 
 	return (
 		<div className="flex min-w-0 flex-col">
@@ -405,12 +404,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 					<div
 						className={cn(
 							"flex h-5 w-5 items-center justify-center rounded-md",
-							hasChildren &&
-								!isExecuting &&
-								"[@media(hover:hover)]:group-hover:invisible",
-							hasChildren &&
-								isExecuting &&
-								"[@media(hover:hover)]:group-hover/icon:invisible",
+							hasChildren && "[@media(hover:hover)]:group-hover/icon:invisible",
 						)}
 					>
 						<StatusIcon
@@ -429,9 +423,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 							onClick={() => toggleExpanded(chatID)}
 							className={cn(
 								"absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
-								isExecuting
-									? "[@media(hover:hover)]:group-hover/icon:visible"
-									: "[@media(hover:hover)]:group-hover:visible",
+								"[@media(hover:hover)]:group-hover/icon:visible",
 							)}
 							data-testid={`agents-tree-toggle-${chat.id}`}
 							aria-label={isExpanded ? "Collapse" : "Expand"}
@@ -587,6 +579,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		archivedFilter,
 		onArchivedFilterChange,
 		onCollapse,
+		onOpenAnalytics,
 		onOpenSettings,
 	} = props;
 	const { agentId, chatId } = useParams<{
@@ -873,6 +866,22 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							/>
 						</DropdownMenuContent>
 					</DropdownMenu>
+					{onOpenAnalytics && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant="subtle"
+									size="icon"
+									onClick={onOpenAnalytics}
+									aria-label="Analytics"
+									className="mr-1"
+								>
+									<BarChart3Icon className="h-4 w-4" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Analytics</TooltipContent>
+						</Tooltip>
+					)}
 					{onOpenSettings && (
 						<button
 							type="button"
@@ -894,22 +903,39 @@ const LoadMoreSentinel: FC<{
 	isFetchingNextPage?: boolean;
 }> = ({ onLoadMore, isFetchingNextPage }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
+	const onLoadMoreRef = useRef(onLoadMore);
+	const isFetchingNextPageRef = useRef(isFetchingNextPage);
+
+	// Keep refs in sync with the latest prop values so the
+	// observer callback always reads current state without
+	// needing to tear down and re-create the observer.
+	useEffect(() => {
+		onLoadMoreRef.current = onLoadMore;
+	}, [onLoadMore]);
+
+	useEffect(() => {
+		isFetchingNextPageRef.current = isFetchingNextPage;
+	}, [isFetchingNextPage]);
 
 	useEffect(() => {
 		const el = sentinelRef.current;
-		if (!el || !onLoadMore) return;
+		if (!el) return;
 
 		const observer = new IntersectionObserver(
 			(entries) => {
-				if (entries[0]?.isIntersecting) {
-					onLoadMore();
+				if (
+					entries[0]?.isIntersecting &&
+					!isFetchingNextPageRef.current &&
+					onLoadMoreRef.current
+				) {
+					onLoadMoreRef.current();
 				}
 			},
 			{ threshold: 0 },
 		);
 		observer.observe(el);
 		return () => observer.disconnect();
-	}, [onLoadMore]);
+	}, []);
 
 	return (
 		<div ref={sentinelRef} className="flex items-center justify-center py-2">

@@ -14,15 +14,25 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { useSpeechRecognition } from "hooks/useSpeechRecognition";
 import {
 	AlertTriangleIcon,
 	ArrowUpIcon,
+	CheckIcon,
 	ImageIcon,
+	MicIcon,
 	Square,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
-import { memo, type ReactNode, useCallback, useRef, useState } from "react";
+import {
+	memo,
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { cn } from "utils/cn";
 import { ImageLightbox } from "./ImageLightbox";
 import { formatProviderLabel } from "./modelOptions";
@@ -351,6 +361,22 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 
 		const [hasFileReferences, setHasFileReferences] = useState(false);
 
+		const speech = useSpeechRecognition();
+		const [preRecordingValue, setPreRecordingValue] = useState<string>("");
+
+		useEffect(() => {
+			if (!speech.isRecording) return;
+			const editor = internalRef.current;
+			if (!editor) return;
+			editor.clear();
+			const combined = preRecordingValue
+				? `${preRecordingValue} ${speech.transcript}`
+				: speech.transcript;
+			if (combined) {
+				editor.insertText(combined);
+			}
+		}, [speech.transcript, speech.isRecording, preRecordingValue]);
+
 		// Merge the external inputRef with our internal ref so both
 		// point to the same ChatMessageInputRef instance.
 		const setRef = useCallback(
@@ -497,6 +523,28 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			queuedMessages,
 			onPromoteQueuedMessage,
 		]);
+		const handleStartRecording = useCallback(() => {
+			setPreRecordingValue(internalRef.current?.getValue()?.trim() ?? "");
+			speech.start();
+		}, [speech]);
+
+		const handleAcceptRecording = useCallback(() => {
+			speech.stop();
+		}, [speech]);
+
+		const handleCancelRecording = useCallback(() => {
+			const original = preRecordingValue;
+			speech.cancel();
+			const editor = internalRef.current;
+			if (editor) {
+				editor.clear();
+				if (original) {
+					editor.insertText(original);
+				}
+			}
+			setPreRecordingValue("");
+		}, [speech, preRecordingValue]);
+
 		const handleKeyDown = (e: React.KeyboardEvent) => {
 			if (e.key === "Escape") {
 				if (editingQueuedMessageID !== null) {
@@ -646,6 +694,37 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 									</Button>
 								</>
 							)}
+							{speech.isSupported && !isStreaming && (
+								<>
+									<Button
+										type="button"
+										variant="subtle"
+										size="icon"
+										className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+										onClick={
+											speech.isRecording
+												? handleCancelRecording
+												: handleStartRecording
+										}
+										disabled={isDisabled}
+										aria-label={
+											speech.isRecording ? "Cancel voice input" : "Voice input"
+										}
+									>
+										{speech.isRecording ? <XIcon /> : <MicIcon />}
+									</Button>
+									{speech.error && !speech.isRecording && (
+										<span
+											className="text-2xs text-content-destructive"
+											role="alert"
+										>
+											{speech.error === "not-allowed"
+												? "Mic access denied"
+												: "Voice input failed"}
+										</span>
+									)}
+								</>
+							)}
 							{contextUsage !== undefined && (
 								<ContextUsageIndicator usage={contextUsage} />
 							)}{" "}
@@ -666,15 +745,23 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 									size="icon"
 									variant="default"
 									className="size-7 rounded-full transition-colors [&>svg]:!size-5 [&>svg]:p-0"
-									onClick={handleSubmit}
-									disabled={!canSend}
+									onClick={
+										speech.isRecording ? handleAcceptRecording : handleSubmit
+									}
+									disabled={speech.isRecording ? false : !canSend}
 								>
 									{isLoading ? (
 										<Spinner size="sm" loading aria-hidden="true" />
+									) : speech.isRecording ? (
+										<CheckIcon />
 									) : (
 										<ArrowUpIcon />
 									)}
-									<span className="sr-only">{sendButtonLabel}</span>
+									<span className="sr-only">
+										{speech.isRecording
+											? "Accept voice input"
+											: sendButtonLabel}
+									</span>
 								</Button>
 							)}
 						</div>

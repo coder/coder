@@ -7,9 +7,10 @@ import {
 	chatKey,
 	chatModelConfigs,
 	chatModels,
-	chatsKey,
 	createChat,
 	infiniteChats,
+	invalidateChatListQueries,
+	prependToInfiniteChatsCache,
 	readInfiniteChatsCache,
 	unarchiveChat,
 	updateInfiniteChatsCache,
@@ -153,8 +154,11 @@ const AgentsPage: FC = () => {
 		},
 		onSuccess: async ({ chatId }) => {
 			clearChatErrorReason(chatId);
-			await queryClient.invalidateQueries({ queryKey: chatsKey });
-			await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
+			await invalidateChatListQueries(queryClient);
+			await queryClient.invalidateQueries({
+				queryKey: chatKey(chatId),
+				exact: true,
+			});
 		},
 		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
@@ -385,9 +389,6 @@ const AgentsPage: FC = () => {
 					if (chatEvent.kind === "diff_status_change") {
 						void Promise.all([
 							queryClient.invalidateQueries({
-								queryKey: chatsKey,
-							}),
-							queryClient.invalidateQueries({
 								queryKey: chatDiffStatusKey(updatedChat.id),
 							}),
 							queryClient.invalidateQueries({
@@ -405,9 +406,15 @@ const AgentsPage: FC = () => {
 					const isTitleEvent = chatEvent.kind === "title_change";
 					const isStatusEvent = chatEvent.kind === "status_change";
 
-					updateInfiniteChatsCache(queryClient, (chats) => {
-						const exists = chats.some((c) => c.id === updatedChat.id);
-						if (exists) {
+					// For "created" events, use a cross-page existence
+					// check and prepend only to the first page.
+					// updateInfiniteChatsCache runs the updater per
+					// page, so a naive prepend would duplicate the
+					// chat into every loaded page.
+					if (chatEvent.kind === "created") {
+						prependToInfiniteChatsCache(queryClient, updatedChat);
+					} else {
+						updateInfiniteChatsCache(queryClient, (chats) => {
 							return chats.map((c) => {
 								if (c.id !== updatedChat.id) return c;
 								return {
@@ -420,13 +427,9 @@ const AgentsPage: FC = () => {
 											: updatedChat.updated_at,
 								};
 							});
-						}
-						if (chatEvent.kind === "created") {
-							return [updatedChat, ...chats];
-						}
-						return chats;
-					});
-					queryClient.setQueryData<TypesGen.ChatWithMessages | undefined>(
+						});
+					}
+					queryClient.setQueryData<TypesGen.Chat | undefined>(
 						chatKey(updatedChat.id),
 						(previousChat) => {
 							if (!previousChat) {
@@ -434,15 +437,12 @@ const AgentsPage: FC = () => {
 							}
 							return {
 								...previousChat,
-								chat: {
-									...previousChat.chat,
-									...(isStatusEvent && { status: updatedChat.status }),
-									...(isTitleEvent && { title: updatedChat.title }),
-									updated_at:
-										previousChat.chat.updated_at > updatedChat.updated_at
-											? previousChat.chat.updated_at
-											: updatedChat.updated_at,
-								},
+								...(isStatusEvent && { status: updatedChat.status }),
+								...(isTitleEvent && { title: updatedChat.title }),
+								updated_at:
+									previousChat.updated_at > updatedChat.updated_at
+										? previousChat.updated_at
+										: updatedChat.updated_at,
 							};
 						},
 					);
@@ -451,10 +451,7 @@ const AgentsPage: FC = () => {
 				return ws;
 			},
 			onOpen() {
-				void queryClient.invalidateQueries({ queryKey: chatsKey });
-			},
-			onDisconnect() {
-				void queryClient.invalidateQueries({ queryKey: chatsKey });
+				void invalidateChatListQueries(queryClient);
 			},
 		});
 	}, [queryClient]);

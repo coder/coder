@@ -499,6 +499,82 @@ func TestRun_ShutdownDuringToolExecutionReturnsContextCanceled(t *testing.T) {
 	assert.ErrorIs(t, err, context.Canceled, "shutdown should propagate as context.Canceled")
 }
 
+func TestToResponseMessages_ProviderExecutedToolResultInAssistantMessage(t *testing.T) {
+	t.Parallel()
+
+	sr := stepResult{
+		content: []fantasy.Content{
+			// Provider-executed tool call (e.g. web_search).
+			fantasy.ToolCallContent{
+				ToolCallID:       "provider-tc-1",
+				ToolName:         "web_search",
+				Input:            `{"query":"coder"}`,
+				ProviderExecuted: true,
+			},
+			// Provider-executed tool result — must stay in
+			// assistant message.
+			fantasy.ToolResultContent{
+				ToolCallID:       "provider-tc-1",
+				ToolName:         "web_search",
+				ProviderExecuted: true,
+				ProviderMetadata: fantasy.ProviderMetadata{"anthropic": nil},
+			},
+			// Local tool call (e.g. read_file).
+			fantasy.ToolCallContent{
+				ToolCallID:       "local-tc-1",
+				ToolName:         "read_file",
+				Input:            `{"path":"main.go"}`,
+				ProviderExecuted: false,
+			},
+			// Local tool result — should go into tool message.
+			fantasy.ToolResultContent{
+				ToolCallID:       "local-tc-1",
+				ToolName:         "read_file",
+				Result:           fantasy.ToolResultOutputContentText{Text: "some result"},
+				ProviderExecuted: false,
+			},
+		},
+	}
+
+	msgs := sr.toResponseMessages()
+	require.Len(t, msgs, 2, "expected assistant + tool messages")
+
+	// First message: assistant role.
+	assistantMsg := msgs[0]
+	assert.Equal(t, fantasy.MessageRoleAssistant, assistantMsg.Role)
+	require.Len(t, assistantMsg.Content, 3,
+		"assistant message should have provider ToolCallPart, provider ToolResultPart, and local ToolCallPart")
+
+	// Part 0: provider tool call.
+	providerTC, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](assistantMsg.Content[0])
+	require.True(t, ok, "part 0 should be ToolCallPart")
+	assert.Equal(t, "provider-tc-1", providerTC.ToolCallID)
+	assert.True(t, providerTC.ProviderExecuted)
+
+	// Part 1: provider tool result (inline in assistant turn).
+	providerTR, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](assistantMsg.Content[1])
+	require.True(t, ok, "part 1 should be ToolResultPart")
+	assert.Equal(t, "provider-tc-1", providerTR.ToolCallID)
+	assert.True(t, providerTR.ProviderExecuted)
+
+	// Part 2: local tool call.
+	localTC, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](assistantMsg.Content[2])
+	require.True(t, ok, "part 2 should be ToolCallPart")
+	assert.Equal(t, "local-tc-1", localTC.ToolCallID)
+	assert.False(t, localTC.ProviderExecuted)
+
+	// Second message: tool role.
+	toolMsg := msgs[1]
+	assert.Equal(t, fantasy.MessageRoleTool, toolMsg.Role)
+	require.Len(t, toolMsg.Content, 1,
+		"tool message should have only the local ToolResultPart")
+
+	localTR, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](toolMsg.Content[0])
+	require.True(t, ok, "tool part should be ToolResultPart")
+	assert.Equal(t, "local-tc-1", localTR.ToolCallID)
+	assert.False(t, localTR.ProviderExecuted)
+}
+
 func hasAnthropicEphemeralCacheControl(message fantasy.Message) bool {
 	if len(message.ProviderOptions) == 0 {
 		return false
@@ -511,4 +587,180 @@ func hasAnthropicEphemeralCacheControl(message fantasy.Message) bool {
 
 	cacheOptions, ok := options.(*fantasyanthropic.ProviderCacheControlOptions)
 	return ok && cacheOptions.CacheControl.Type == "ephemeral"
+}
+
+// TestRun_InterruptedDuringToolExecutionPersistsStep verifies that when
+// tools are executing and the chat is interrupted, the accumulated step
+// content (assistant blocks + tool results) is persisted via the
+// interrupt-safe path rather than being lost.
+func TestRun_InterruptedDuringToolExecutionPersistsStep(t *testing.T) {
+	t.Parallel()
+
+	toolStarted := make(chan struct{})
+
+	// Model returns a completed tool call in the stream.
+	model := &loopTestModel{
+		provider: "fake",
+		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "calling tool"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeReasoningStart, ID: "reason-1"},
+				{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reason-1", Delta: "let me think"},
+				{Type: fantasy.StreamPartTypeReasoningEnd, ID: "reason-1"},
+				{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "slow_tool"},
+				{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{"key":"value"}`},
+				{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+				{
+					Type:          fantasy.StreamPartTypeToolCall,
+					ID:            "tc-1",
+					ToolCallName:  "slow_tool",
+					ToolCallInput: `{"key":"value"}`,
+				},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+			}), nil
+		},
+	}
+
+	// Tool that blocks until context is canceled, simulating
+	// a long-running operation interrupted by the user.
+	slowTool := fantasy.NewAgentTool(
+		"slow_tool",
+		"blocks until canceled",
+		func(ctx context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			close(toolStarted)
+			<-ctx.Done()
+			return fantasy.ToolResponse{}, ctx.Err()
+		},
+	)
+
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+
+	go func() {
+		<-toolStarted
+		cancel(ErrInterrupted)
+	}()
+
+	var persistedContent []fantasy.Content
+	persistedCtxErr := xerrors.New("unset")
+
+	err := Run(ctx, RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "run the slow tool"),
+		},
+		Tools:    []fantasy.AgentTool{slowTool},
+		MaxSteps: 3,
+		PersistStep: func(persistCtx context.Context, step PersistedStep) error {
+			persistedCtxErr = persistCtx.Err()
+			persistedContent = append([]fantasy.Content(nil), step.Content...)
+			return nil
+		},
+	})
+	require.ErrorIs(t, err, ErrInterrupted)
+	// persistInterruptedStep uses context.WithoutCancel, so the
+	// persist callback should see a non-canceled context.
+	require.NoError(t, persistedCtxErr)
+	require.NotEmpty(t, persistedContent)
+
+	var (
+		foundText       bool
+		foundReasoning  bool
+		foundToolCall   bool
+		foundToolResult bool
+	)
+	for _, block := range persistedContent {
+		if text, ok := fantasy.AsContentType[fantasy.TextContent](block); ok {
+			if strings.Contains(text.Text, "calling tool") {
+				foundText = true
+			}
+			continue
+		}
+		if reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](block); ok {
+			if strings.Contains(reasoning.Text, "let me think") {
+				foundReasoning = true
+			}
+			continue
+		}
+		if toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block); ok {
+			if toolCall.ToolCallID == "tc-1" && toolCall.ToolName == "slow_tool" {
+				foundToolCall = true
+			}
+			continue
+		}
+		if toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block); ok {
+			if toolResult.ToolCallID == "tc-1" {
+				foundToolResult = true
+			}
+		}
+	}
+	require.True(t, foundText, "persisted content should include text from the stream")
+	require.True(t, foundReasoning, "persisted content should include reasoning from the stream")
+	require.True(t, foundToolCall, "persisted content should include the tool call")
+	require.True(t, foundToolResult, "persisted content should include the tool result (error from cancellation)")
+}
+
+// TestRun_PersistStepInterruptedFallback verifies that when the normal
+// PersistStep call returns ErrInterrupted (e.g., context canceled in a
+// race), the step is retried via the interrupt-safe path.
+func TestRun_PersistStepInterruptedFallback(t *testing.T) {
+	t.Parallel()
+
+	model := &loopTestModel{
+		provider: "fake",
+		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "hello world"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	var (
+		mu           sync.Mutex
+		persistCalls int
+		savedContent []fantasy.Content
+	)
+
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "hello"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			mu.Lock()
+			defer mu.Unlock()
+			persistCalls++
+			if persistCalls == 1 {
+				// First call: simulate an interrupt race by
+				// returning ErrInterrupted without persisting.
+				return ErrInterrupted
+			}
+			// Second call (from persistInterruptedStep fallback):
+			// accept the content.
+			savedContent = append([]fantasy.Content(nil), step.Content...)
+			return nil
+		},
+	})
+	require.ErrorIs(t, err, ErrInterrupted)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, 2, persistCalls, "PersistStep should be called twice: once normally (failing), once via fallback")
+	require.NotEmpty(t, savedContent)
+
+	var foundText bool
+	for _, block := range savedContent {
+		if text, ok := fantasy.AsContentType[fantasy.TextContent](block); ok {
+			if strings.Contains(text.Text, "hello world") {
+				foundText = true
+			}
+		}
+	}
+	require.True(t, foundText, "fallback should persist the text content")
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const titleGenerationPrompt = "You are a title generator. Your ONLY job is to output a short title (2-8 words) " +
@@ -76,7 +77,7 @@ func (p *Server) maybeGenerateChatTitle(
 	candidates := make([]fantasy.LanguageModel, 0, len(preferredTitleModels)+1)
 	for _, c := range preferredTitleModels {
 		m, err := chatprovider.ModelFromConfig(
-			c.provider, c.model, keys,
+			c.provider, c.model, keys, chatprovider.UserAgent(),
 		)
 		if err == nil {
 			candidates = append(candidates, m)
@@ -158,14 +159,12 @@ func titleInput(
 		}
 
 		switch message.Role {
-		case string(fantasy.MessageRoleAssistant), string(fantasy.MessageRoleTool):
+		case database.ChatMessageRoleAssistant, database.ChatMessageRoleTool:
 			return "", false
-		case string(fantasy.MessageRoleUser):
+		case database.ChatMessageRoleUser:
 			userCount++
 			if firstUserText == "" {
-				parsed, err := chatprompt.ParseContent(
-					string(fantasy.MessageRoleUser), message.Content,
-				)
+				parsed, err := chatprompt.ParseContent(message)
 				if err != nil {
 					return "", false
 				}
@@ -226,22 +225,21 @@ func fallbackChatTitle(message string) string {
 	return truncateRunes(title, maxRunes)
 }
 
-// contentBlocksToText concatenates the text parts of content blocks
-// into a single space-separated string.
-func contentBlocksToText(content []fantasy.Content) string {
-	parts := make([]string, 0, len(content))
-	for _, block := range content {
-		textBlock, ok := fantasy.AsContentType[fantasy.TextContent](block)
-		if !ok {
+// contentBlocksToText concatenates the text parts of SDK chat
+// message parts into a single space-separated string.
+func contentBlocksToText(parts []codersdk.ChatMessagePart) string {
+	texts := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part.Type != codersdk.ChatMessagePartTypeText {
 			continue
 		}
-		text := strings.TrimSpace(textBlock.Text)
+		text := strings.TrimSpace(part.Text)
 		if text == "" {
 			continue
 		}
-		parts = append(parts, text)
+		texts = append(texts, text)
 	}
-	return strings.Join(parts, " ")
+	return strings.Join(texts, " ")
 }
 
 func truncateRunes(value string, maxLen int) string {
@@ -281,7 +279,7 @@ func generatePushSummary(
 	candidates := make([]fantasy.LanguageModel, 0, len(preferredTitleModels)+1)
 	for _, c := range preferredTitleModels {
 		m, err := chatprovider.ModelFromConfig(
-			c.provider, c.model, keys,
+			c.provider, c.model, keys, chatprovider.UserAgent(),
 		)
 		if err == nil {
 			candidates = append(candidates, m)
@@ -343,7 +341,13 @@ func generateShortText(
 		return "", xerrors.Errorf("generate short text: %w", err)
 	}
 
-	text := strings.TrimSpace(contentBlocksToText(response.Content))
+	responseParts := make([]codersdk.ChatMessagePart, 0, len(response.Content))
+	for _, block := range response.Content {
+		if p := chatprompt.PartFromContent(block); p.Type != "" {
+			responseParts = append(responseParts, p)
+		}
+	}
+	text := strings.TrimSpace(contentBlocksToText(responseParts))
 	text = strings.Trim(text, "\"'`")
 	return text, nil
 }

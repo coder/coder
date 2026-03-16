@@ -3,12 +3,14 @@ package chattool
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"time"
 
 	"charm.land/fantasy"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -65,7 +67,6 @@ type ExecuteResult struct {
 type ExecuteOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
 	DefaultTimeout   time.Duration
-	ChatID           string
 }
 
 // ProcessToolOptions configures a process management tool
@@ -97,7 +98,7 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return executeTool(ctx, conn, args, options.DefaultTimeout, options.ChatID), nil
+			return executeTool(ctx, conn, args, options.DefaultTimeout), nil
 		},
 	)
 }
@@ -107,7 +108,6 @@ func executeTool(
 	conn workspacesdk.AgentConn,
 	args ExecuteArgs,
 	optTimeout time.Duration,
-	chatID string,
 ) fantasy.ToolResponse {
 	if args.Command == "" {
 		return fantasy.NewTextErrorResponse("command is required")
@@ -116,9 +116,6 @@ func executeTool(
 	// Build the environment map for the process request.
 	env := make(map[string]string, len(nonInteractiveEnvVars)+1)
 	env["CODER_CHAT_AGENT"] = "true"
-	if chatID != "" {
-		env["CODER_CHAT_ID"] = chatID
-	}
 	for k, v := range nonInteractiveEnvVars {
 		env[k] = v
 	}
@@ -250,14 +247,18 @@ func pollProcess(
 				context.Background(),
 				5*time.Second,
 			)
-			outputResp, _ := conn.ProcessOutput(bgCtx, processID)
+			outputResp, outputErr := conn.ProcessOutput(bgCtx, processID)
 			bgCancel()
 			output := truncateOutput(outputResp.Output)
+			timeoutErr := xerrors.Errorf("command timed out after %s", timeout)
+			if outputErr != nil {
+				timeoutErr = errors.Join(timeoutErr, xerrors.Errorf("failed to get output: %w", outputErr))
+			}
 			return ExecuteResult{
 				Success:   false,
 				Output:    output,
 				ExitCode:  -1,
-				Error:     fmt.Sprintf("command timed out after %s", timeout),
+				Error:     timeoutErr.Error(),
 				Truncated: outputResp.Truncated,
 			}
 		case <-ticker.C:

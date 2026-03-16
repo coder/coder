@@ -1,5 +1,5 @@
 import { useTheme } from "@emotion/react";
-import type { FileDiffMetadata } from "@pierre/diffs";
+import type { DiffLineAnnotation, FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
@@ -28,8 +28,6 @@ import { changeColor, changeLabel } from "./diffColors";
 // -------------------------------------------------------------------
 
 interface DiffViewerProps {
-	/** Fragment to display in the top-left of the header bar. */
-	headerLeft?: ReactNode;
 	/** Parsed file diffs to render. */
 	parsedFiles: readonly FileDiffMetadata[];
 	/** Cache key prefix for parsePatchFiles worker pool LRU cache. */
@@ -44,6 +42,44 @@ interface DiffViewerProps {
 	emptyMessage?: string;
 	/** Which diff rendering style to use. */
 	diffStyle: DiffStyle;
+	/**
+	 * Called when a line number gutter element is clicked.
+	 * Receives the file name and click metadata.
+	 */
+	onLineNumberClick?: (
+		fileName: string,
+		props: { lineNumber: number; annotationSide: "additions" | "deletions" },
+	) => void;
+	/**
+	 * Called when a range of lines is selected (e.g. shift-click).
+	 * Receives the file name and the selected range (or null on
+	 * deselection).
+	 */
+	onLineSelected?: (
+		fileName: string,
+		range: {
+			start: number;
+			end: number;
+			side?: "additions" | "deletions";
+		} | null,
+	) => void;
+	/**
+	 * Returns line annotations for the given file. Used to render
+	 * inline widgets such as comment inputs.
+	 */
+	getLineAnnotations?: (fileName: string) => DiffLineAnnotation<string>[];
+	/**
+	 * Renderer for line annotations returned by `getLineAnnotations`.
+	 */
+	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
+	/**
+	 * When set to a file name, DiffViewer scrolls to that file and
+	 * highlights it in the tree. The parent should reset this to
+	 * null via `onScrollToFileComplete` after the scroll completes.
+	 */
+	scrollToFile?: string | null;
+	/** Called after scrollToFile has been processed. */
+	onScrollToFileComplete?: () => void;
 }
 
 // -------------------------------------------------------------------
@@ -307,7 +343,14 @@ const FileTreeNodeView: FC<{
 const LazyFileDiff: FC<{
 	fileDiff: FileDiffMetadata;
 	options: ComponentProps<typeof FileDiff>["options"];
-}> = ({ fileDiff, options }) => {
+	lineAnnotations?: DiffLineAnnotation<string>[];
+	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
+}> = ({
+	fileDiff,
+	options,
+	lineAnnotations,
+	renderAnnotation: renderAnnotationProp,
+}) => {
 	const placeholderRef = useRef<HTMLDivElement>(null);
 	const [visible, setVisible] = useState(false);
 
@@ -348,7 +391,13 @@ const LazyFileDiff: FC<{
 	}
 
 	return (
-		<FileDiff fileDiff={fileDiff} options={options} style={DIFFS_FONT_STYLE} />
+		<FileDiff
+			fileDiff={fileDiff}
+			options={options}
+			style={DIFFS_FONT_STYLE}
+			lineAnnotations={lineAnnotations}
+			renderAnnotation={renderAnnotationProp}
+		/>
 	);
 };
 
@@ -357,13 +406,18 @@ const LazyFileDiff: FC<{
 // -------------------------------------------------------------------
 
 export const DiffViewer: FC<DiffViewerProps> = ({
-	headerLeft,
 	parsedFiles,
 	isExpanded,
 	isLoading,
 	error,
 	emptyMessage = "No file changes to display.",
 	diffStyle,
+	onLineNumberClick,
+	onLineSelected,
+	getLineAnnotations,
+	renderAnnotation,
+	scrollToFile,
+	onScrollToFileComplete,
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
@@ -394,6 +448,38 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			},
 		}),
 		[diffOptions],
+	);
+
+	// When the parent provides per-file callbacks (e.g. line click
+	// handlers for comment inputs), build options per file. Otherwise
+	// share a single stable object to avoid unnecessary re-highlights.
+	const hasPerFileCallbacks = !!(onLineNumberClick || onLineSelected);
+
+	const getOptionsForFile = useCallback(
+		(fileName: string) => ({
+			...diffOptions,
+			overflow: "wrap" as const,
+			enableLineSelection: true,
+			enableHoverUtility: true,
+			...(onLineNumberClick && {
+				onLineNumberClick: (props: {
+					lineNumber: number;
+					annotationSide: "additions" | "deletions";
+				}) => onLineNumberClick(fileName, props),
+			}),
+			onLineSelected: onLineSelected
+				? (
+						range: {
+							start: number;
+							end: number;
+							side?: "additions" | "deletions";
+						} | null,
+					) => onLineSelected(fileName, range)
+				: () => {
+						// TODO: Make this add context to the input.
+					},
+		}),
+		[diffOptions, onLineNumberClick, onLineSelected],
 	);
 
 	const fileTree = useMemo(() => buildFileTree(parsedFiles), [parsedFiles]);
@@ -540,6 +626,20 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		}
 	}, []);
 
+	// Scroll to a file programmatically when the parent sets
+	// scrollToFile. This enables external navigation (e.g.
+	// clicking a file reference chip in the chat input).
+	useEffect(() => {
+		if (scrollToFile) {
+			const el = fileRefs.current.get(scrollToFile);
+			if (el) {
+				el.scrollIntoView({ block: "start", behavior: "smooth" });
+				setActiveFile(scrollToFile);
+			}
+			onScrollToFileComplete?.();
+		}
+	}, [scrollToFile, onScrollToFileComplete]);
+
 	// ---------------------------------------------------------------
 	// Loading state
 	// ---------------------------------------------------------------
@@ -579,11 +679,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			ref={containerRef}
 			className="flex h-full min-w-0 flex-col overflow-hidden"
 		>
-			{/* Header */}
-			<div className="flex items-center gap-1 bg-surface-secondary px-3 py-2">
-				{headerLeft}
-			</div>
-			{/* Diff contents */}
+			{/* Diff contents */}{" "}
 			{sortedFiles.length === 0 ? (
 				<div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-content-secondary">
 					{emptyMessage}
@@ -632,7 +728,16 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 									key={fileDiff.name}
 									ref={(el) => setFileRef(fileDiff.name, el)}
 								>
-									<LazyFileDiff fileDiff={fileDiff} options={fileOptions} />
+									<LazyFileDiff
+										fileDiff={fileDiff}
+										options={
+											hasPerFileCallbacks
+												? getOptionsForFile(fileDiff.name)
+												: fileOptions
+										}
+										lineAnnotations={getLineAnnotations?.(fileDiff.name)}
+										renderAnnotation={renderAnnotation}
+									/>
 								</div>
 							))}
 							{/* Spacer so the last file can scroll fully to the top. */}

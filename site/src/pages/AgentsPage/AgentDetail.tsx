@@ -2,6 +2,7 @@ import { API, watchWorkspace } from "api/api";
 import {
 	chat,
 	chatDiffStatus,
+	chatMessages,
 	chatModelConfigs,
 	chatModels,
 	chats,
@@ -603,8 +604,12 @@ const AgentDetail: FC = () => {
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
 	});
+	const chatMessagesQuery = useQuery({
+		...chatMessages(agentId ?? ""),
+		enabled: Boolean(agentId),
+	});
 	const chatsQuery = useQuery(chats());
-	const workspaceId = chatQuery.data?.chat?.workspace_id;
+	const workspaceId = chatQuery.data?.workspace_id;
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
@@ -669,11 +674,11 @@ const AgentDetail: FC = () => {
 		[proxy.preferredWildcardHostname, workspaceAgent, workspace],
 	);
 
-	const chatData = chatQuery.data;
-	const chatRecord = chatData?.chat;
+	const chatRecord = chatQuery.data;
+	const chatMessagesData = chatMessagesQuery.data;
 	const isArchived = chatRecord?.archived ?? false;
-	const chatMessages = chatData?.messages;
-	const chatQueuedMessages = chatData?.queued_messages;
+	const chatMessagesList = chatMessagesData?.messages;
+	const chatQueuedMessages = chatMessagesData?.queued_messages;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
 	const modelOptions = useMemo(
@@ -729,9 +734,9 @@ const AgentDetail: FC = () => {
 
 	const { store, clearStreamError } = useChatStore({
 		chatID: agentId,
-		chatMessages,
+		chatMessages: chatMessagesList,
 		chatRecord,
-		chatData,
+		chatMessagesData,
 		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
@@ -980,7 +985,7 @@ const AgentDetail: FC = () => {
 		inputValueRef,
 	});
 
-	const chatTitle = chatQuery.data?.chat?.title;
+	const chatTitle = chatQuery.data?.title;
 
 	const titleElement = (
 		<title>
@@ -988,7 +993,7 @@ const AgentDetail: FC = () => {
 		</title>
 	);
 
-	const parentChatID = getParentChatID(chatQuery.data?.chat);
+	const parentChatID = getParentChatID(chatQuery.data);
 	const parentChat = parentChatID
 		? chatsQuery.data?.find((chat) => chat.id === parentChatID)
 		: undefined;
@@ -1074,7 +1079,7 @@ const AgentDetail: FC = () => {
 		requestUnarchiveAgent(agentId);
 	};
 
-	if (chatQuery.isLoading) {
+	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (
 			<AgentDetailLoadingView
 				titleElement={titleElement}
@@ -1093,7 +1098,7 @@ const AgentDetail: FC = () => {
 		);
 	}
 
-	if (!chatQuery.data || !agentId) {
+	if (!chatQuery.data || !chatMessagesQuery.data || !agentId) {
 		return (
 			<AgentDetailNotFoundView
 				titleElement={titleElement}
@@ -1150,6 +1155,7 @@ const AgentDetail: FC = () => {
 			}
 			urlTransform={urlTransform}
 			scrollContainerRef={scrollContainerRef}
+			desktopChatId={agentId}
 		/>
 	);
 };
