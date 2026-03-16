@@ -1193,6 +1193,7 @@ jobs:
           df -h .
           du -sh "$(go env GOMODCACHE)" || true
           du -sh "$(go env GOCACHE)" || true
+          du -sh /tmp/depotcache 2>/dev/null || true
 
       - name: Build
         run: |
