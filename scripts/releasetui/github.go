@@ -108,13 +108,38 @@ type prMetadata struct {
 	Author string
 }
 
-// ghBuildPRMetadataMap returns a map of full merge-commit SHA →
-// metadata (labels and author) for merged PRs targeting main. This
-// matches the bash script's approach of querying --base main with a
-// date filter based on the oldest commit in the range.
-func ghBuildPRMetadataMap(commits []commitEntry) (map[string]prMetadata, error) {
+// prMetadataMaps holds PR metadata indexed by both merge-commit SHA
+// and PR number. On release branches, commits are cherry-picked so
+// their SHA differs from the original merge commit on main. The PR
+// number (preserved in the commit title) provides a fallback lookup.
+type prMetadataMaps struct {
+	bySHA    map[string]prMetadata
+	byNumber map[int]prMetadata
+}
+
+// lookupCommit returns PR metadata for a commit, trying the full SHA
+// first and falling back to PR number for cherry-picked commits.
+func (m *prMetadataMaps) lookupCommit(fullSHA string, prNumber int) prMetadata {
+	if meta, ok := m.bySHA[fullSHA]; ok {
+		return meta
+	}
+	if prNumber > 0 {
+		return m.byNumber[prNumber]
+	}
+	return prMetadata{}
+}
+
+// ghBuildPRMetadataMap returns PR metadata indexed by both
+// merge-commit SHA and PR number for merged PRs targeting main.
+// This matches the bash script's approach of querying --base main
+// with a date filter based on the oldest commit in the range.
+func ghBuildPRMetadataMap(commits []commitEntry) (*prMetadataMaps, error) {
+	empty := &prMetadataMaps{
+		bySHA:    make(map[string]prMetadata),
+		byNumber: make(map[int]prMetadata),
+	}
 	if len(commits) == 0 {
-		return make(map[string]prMetadata), nil
+		return empty, nil
 	}
 	// Find the earliest commit timestamp to scope the PR query.
 	earliest := commits[0].Timestamp
@@ -131,31 +156,39 @@ func ghBuildPRMetadataMap(commits []commitEntry) (map[string]prMetadata, error) 
 		"--state", "merged",
 		"--limit", "10000",
 		"--search", "merged:>="+lookbackDate,
-		"--json", "mergeCommit,labels,author",
-		"--jq", `.[] | "\(.mergeCommit.oid)\t\(.author.login)\t\([.labels[].name] | join(","))"`,
+		"--json", "number,mergeCommit,labels,author",
+		"--jq", `.[] | "\(.number)\t\(.mergeCommit.oid)\t\(.author.login)\t\([.labels[].name] | join(","))"`,
 	)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[string]prMetadata)
 	if out == "" {
-		return result, nil
+		return empty, nil
+	}
+	result := &prMetadataMaps{
+		bySHA:    make(map[string]prMetadata),
+		byNumber: make(map[int]prMetadata),
 	}
 	for _, line := range strings.Split(out, "\n") {
-		parts := strings.SplitN(line, "\t", 3)
-		if len(parts) < 3 {
+		parts := strings.SplitN(line, "\t", 4)
+		if len(parts) < 4 {
 			continue
 		}
-		sha := parts[0]
-		author := parts[1]
+		num, _ := strconv.Atoi(parts[0])
+		sha := parts[1]
+		author := parts[2]
 		var labels []string
-		if parts[2] != "" {
-			labels = strings.Split(parts[2], ",")
+		if parts[3] != "" {
+			labels = strings.Split(parts[3], ",")
 			sort.Strings(labels)
 		}
-		result[sha] = prMetadata{
+		meta := prMetadata{
 			Labels: labels,
 			Author: author,
+		}
+		result.bySHA[sha] = meta
+		if num > 0 {
+			result.byNumber[num] = meta
 		}
 	}
 	return result, nil

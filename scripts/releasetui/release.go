@@ -340,8 +340,8 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return xerrors.Errorf("reading commit log: %w", err)
 	}
 
-	// Build merge-commit SHA → metadata map via gh CLI.
-	var prMeta map[string]prMetadata
+	// Build PR metadata maps (by SHA and PR number) via gh CLI.
+	var prMeta *prMetadataMaps
 	if ghAvailable {
 		prMeta, err = ghBuildPRMetadataMap(commits)
 		if err != nil {
@@ -349,7 +349,10 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		}
 	}
 	if prMeta == nil {
-		prMeta = make(map[string]prMetadata)
+		prMeta = &prMetadataMaps{
+			bySHA:    make(map[string]prMetadata),
+			byNumber: make(map[int]prMetadata),
+		}
 	}
 
 	type section struct {
@@ -375,7 +378,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	sectionCommits := make(map[string][]string)
 
 	for _, c := range commits {
-		meta := prMeta[c.FullSHA]
+		meta := prMeta.lookupCommit(c.FullSHA, c.PRCount)
 		// Skip dependabot commits.
 		if meta.Author == "dependabot" || meta.Author == "app/dependabot" {
 			continue
