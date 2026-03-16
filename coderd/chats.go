@@ -2469,7 +2469,7 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 		chat.WorkspaceID = &c.WorkspaceID.UUID
 	}
 	if diffStatus != nil {
-		convertedDiffStatus := convertChatDiffStatus(c.ID, diffStatus)
+		convertedDiffStatus := db2sdk.ChatDiffStatus(c.ID, diffStatus)
 		chat.DiffStatus = &convertedDiffStatus
 	}
 	return chat
@@ -2486,7 +2486,7 @@ func convertChats(chats []database.Chat, diffStatusesByChatID map[uuid.UUID]data
 
 		result[i] = convertChat(c, nil)
 		if diffStatusesByChatID != nil {
-			emptyDiffStatus := convertChatDiffStatus(c.ID, nil)
+			emptyDiffStatus := db2sdk.ChatDiffStatus(c.ID, nil)
 			result[i].DiffStatus = &emptyDiffStatus
 		}
 	}
@@ -2567,86 +2567,6 @@ func convertChatMessages(messages []database.ChatMessage) []codersdk.ChatMessage
 	for _, m := range messages {
 		result = append(result, convertChatMessage(m))
 	}
-	return result
-}
-
-func convertChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.ChatDiffStatus {
-	result := codersdk.ChatDiffStatus{
-		ChatID: chatID,
-	}
-	if status == nil {
-		return result
-	}
-
-	result.ChatID = status.ChatID
-	if status.Url.Valid {
-		u := strings.TrimSpace(status.Url.String)
-		if u != "" {
-			result.URL = &u
-		}
-	}
-	if result.URL == nil {
-		// Try to build a branch URL from the stored origin.
-		// Since convertChatDiffStatus does not have access to
-		// the API instance, we construct a GitHub provider
-		// directly as a best-effort fallback.
-		// TODO: This uses the default github.com API base URL,
-		// so branch URLs for GitHub Enterprise instances will
-		// be incorrect. To fix this, convertChatDiffStatus
-		// would need access to the external auth configs.
-		gp := gitprovider.New("github", "", nil)
-		if gp != nil {
-			if owner, repo, _, ok := gp.ParseRepositoryOrigin(status.GitRemoteOrigin); ok {
-				branchURL := gp.BuildBranchURL(owner, repo, status.GitBranch)
-				if branchURL != "" {
-					result.URL = &branchURL
-				}
-			}
-		}
-	}
-	if status.PullRequestState.Valid {
-		pullRequestState := strings.TrimSpace(status.PullRequestState.String)
-		if pullRequestState != "" {
-			result.PullRequestState = &pullRequestState
-		}
-	}
-	result.PullRequestTitle = status.PullRequestTitle
-	result.PullRequestDraft = status.PullRequestDraft
-	result.ChangesRequested = status.ChangesRequested
-	result.Additions = status.Additions
-	result.Deletions = status.Deletions
-	result.ChangedFiles = status.ChangedFiles
-	if status.AuthorLogin.Valid {
-		result.AuthorLogin = &status.AuthorLogin.String
-	}
-	if status.AuthorAvatarUrl.Valid {
-		result.AuthorAvatarURL = &status.AuthorAvatarUrl.String
-	}
-	if status.BaseBranch.Valid {
-		result.BaseBranch = &status.BaseBranch.String
-	}
-	if status.HeadBranch.Valid {
-		result.HeadBranch = &status.HeadBranch.String
-	}
-	if status.PrNumber.Valid {
-		result.PRNumber = &status.PrNumber.Int32
-	}
-	if status.Commits.Valid {
-		result.Commits = &status.Commits.Int32
-	}
-	if status.Approved.Valid {
-		result.Approved = &status.Approved.Bool
-	}
-	if status.ReviewerCount.Valid {
-		result.ReviewerCount = &status.ReviewerCount.Int32
-	}
-	if status.RefreshedAt.Valid {
-		refreshedAt := status.RefreshedAt.Time
-		result.RefreshedAt = &refreshedAt
-	}
-	staleAt := status.StaleAt
-	result.StaleAt = &staleAt
-
 	return result
 }
 

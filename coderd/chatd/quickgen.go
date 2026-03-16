@@ -111,7 +111,7 @@ func (p *Server) maybeGenerateChatTitle(
 			return
 		}
 		chat.Title = title
-		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindTitleChange)
+		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindTitleChange, nil)
 		return
 	}
 
