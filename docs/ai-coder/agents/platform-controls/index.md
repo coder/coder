@@ -39,7 +39,7 @@ Developers select from the set of models an administrator has enabled. They
 cannot add their own providers, supply their own API keys, or access models that
 have not been explicitly configured.
 
-See [Models](./models.md) for setup instructions.
+See [Models](../models.md) for setup instructions.
 
 ### System prompt
 

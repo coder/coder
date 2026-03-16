@@ -1,4 +1,4 @@
-# Agent Workspaces
+# Template Routing
 
 Not every chat with Coder Agents requires a workspace. A workspace is only provisioned when the
 agent decides it needs compute — to read files, write code, run commands, or
@@ -116,7 +116,7 @@ layer. If the workspace cannot reach an external service, it does not matter
 what command the agent runs — the connection simply fails. This provides a
 firmer security guarantee than trying to restrict individual process behaviors.
 
-See [Architecture](./architecture.md#workspaces-can-be-fully-network-isolated)
+See [Architecture](../architecture.md#workspaces-can-be-fully-network-isolated)
 for more detail on the security model.
 
 ## Scope permissions and credentials
@@ -137,7 +137,7 @@ required:
   only the permissions the agent needs (e.g., read/write access to specific
   repositories, no admin access).
 - **Configure external auth at the template level.** Use Coder's
-  [external authentication](../../admin/external-auth/index.md) to provide scoped
+  [external authentication](../../../admin/external-auth/index.md) to provide scoped
   git credentials. The agent uses the same external auth flow as any other
   workspace, so credentials are managed centrally.
 - **Avoid injecting long-lived secrets.** Prefer short-lived tokens or
@@ -235,7 +235,7 @@ task. Templates with complex infrastructure, large images, or lengthy startup
 scripts can take minutes to provision — time where the developer is waiting
 and the agent is idle.
 
-[Prebuilt workspaces](../../admin/templates/extending-templates/prebuilt-workspaces.md)
+[Prebuilt workspaces](../../../admin/templates/extending-templates/prebuilt-workspaces.md)
 eliminate this delay by maintaining a pool of ready-to-use workspaces for
 specific parameter presets. When the agent creates a workspace that matches a
 preset, Coder assigns an already-running prebuilt workspace instead of
@@ -256,10 +256,10 @@ Prebuilds turn workspace creation from a provisioning operation into an
 ownership transfer, reducing creation time to seconds.
 
 See
-[Prebuilt workspaces](../../admin/templates/extending-templates/prebuilt-workspaces.md)
+[Prebuilt workspaces](../../../admin/templates/extending-templates/prebuilt-workspaces.md)
 for full setup instructions, scheduling, lifecycle details, and
 troubleshooting. Prebuilt workspaces require a
-[Premium license](../../admin/licensing/index.md).
+[Premium license](../../../admin/licensing/index.md).
 
 ## Checklist
 
