@@ -3278,51 +3278,149 @@ func TestAgentConnectionInfo(t *testing.T) {
 func TestReinit(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t)
-	pubsubSpy := pubsubReinitSpy{
-		Pubsub:           ps,
-		triedToSubscribe: make(chan string),
-	}
-	client := coderdtest.New(t, &coderdtest.Options{
-		Database: db,
-		Pubsub:   &pubsubSpy,
+	t.Run("agent receives reinit via pubsub", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		pubsubSpy := pubsubReinitSpy{
+			Pubsub:           ps,
+			triedToSubscribe: make(chan string),
+		}
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   &pubsubSpy,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+
+		pubsubSpy.Lock()
+		pubsubSpy.expectedEvent = agentsdk.PrebuildClaimedChannel(r.Workspace.ID)
+		pubsubSpy.Unlock()
+
+		agentCtx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+
+		agentReinitializedCh := make(chan *agentsdk.ReinitializationEvent)
+		go func() {
+			reinitEvent, err := agentClient.WaitForReinit(agentCtx)
+			assert.NoError(t, err)
+			agentReinitializedCh <- reinitEvent
+		}()
+
+		// We need to subscribe before we publish, lest we miss the event
+		ctx := testutil.Context(t, testutil.WaitShort)
+		testutil.TryReceive(ctx, t, pubsubSpy.triedToSubscribe)
+
+		// Now that we're subscribed, publish the event
+		err := prebuilds.NewPubsubWorkspaceClaimPublisher(ps).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
+			WorkspaceID: r.Workspace.ID,
+			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+		})
+		require.NoError(t, err)
+
+		ctx = testutil.Context(t, testutil.WaitShort)
+		reinitEvent := testutil.TryReceive(ctx, t, agentReinitializedCh)
+		require.NotNil(t, reinitEvent)
+		require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
 	})
-	user := coderdtest.CreateFirstUser(t, client)
 
-	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OrganizationID: user.OrganizationID,
-		OwnerID:        user.UserID,
-	}).WithAgent().Do()
+	// Verifies the durable claim check: when an agent reconnects after
+	// missing the pubsub event, the handler detects the workspace is
+	// already claimed (owner != PrebuildsSystemUserID) and the latest
+	// build succeeded, so it sends a reinit event immediately.
+	t.Run("agent receives reinit on reconnect after missed event", func(t *testing.T) {
+		t.Parallel()
 
-	pubsubSpy.Lock()
-	pubsubSpy.expectedEvent = agentsdk.PrebuildClaimedChannel(r.Workspace.ID)
-	pubsubSpy.Unlock()
+		db, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
 
-	agentCtx := testutil.Context(t, testutil.WaitShort)
-	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+		// Create a workspace owned by the real user (not
+		// PrebuildsSystemUserID). The handler's durable check sees
+		// !workspace.IsPrebuild() and the completed build, so it
+		// fires a reinit event without any pubsub message.
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
 
-	agentReinitializedCh := make(chan *agentsdk.ReinitializationEvent)
-	go func() {
-		reinitEvent, err := agentClient.WaitForReinit(agentCtx)
-		assert.NoError(t, err)
-		agentReinitializedCh <- reinitEvent
-	}()
+		agentCtx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 
-	// We need to subscribe before we publish, lest we miss the event
-	ctx := testutil.Context(t, testutil.WaitShort)
-	testutil.TryReceive(ctx, t, pubsubSpy.triedToSubscribe)
+		agentReinitializedCh := make(chan *agentsdk.ReinitializationEvent)
+		go func() {
+			reinitEvent, err := agentClient.WaitForReinit(agentCtx)
+			assert.NoError(t, err)
+			agentReinitializedCh <- reinitEvent
+		}()
 
-	// Now that we're subscribed, publish the event
-	err := prebuilds.NewPubsubWorkspaceClaimPublisher(ps).PublishWorkspaceClaim(agentsdk.ReinitializationEvent{
-		WorkspaceID: r.Workspace.ID,
-		Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+		// The agent should receive a reinit event immediately from
+		// the durable claim check — no pubsub publish needed.
+		ctx := testutil.Context(t, testutil.WaitShort)
+		reinitEvent := testutil.TryReceive(ctx, t, agentReinitializedCh)
+		require.NotNil(t, reinitEvent)
+		require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
+		require.Equal(t, agentsdk.ReinitializeReasonPrebuildClaimed, reinitEvent.Reason)
+		require.Equal(t, user.UserID, reinitEvent.UserID)
 	})
-	require.NoError(t, err)
 
-	ctx = testutil.Context(t, testutil.WaitShort)
-	reinitEvent := testutil.TryReceive(ctx, t, agentReinitializedCh)
-	require.NotNil(t, reinitEvent)
-	require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
+	// Verifies that the durable claim check does NOT fire when the
+	// latest build's provisioner job is still running. This prevents
+	// premature reinit during an in-progress claim build.
+	t.Run("agent does not receive premature reinit during in-progress claim build", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create a workspace owned by a real user with a completed
+		// build and agent. This satisfies the first condition of the
+		// durable check (!workspace.IsPrebuild()) but we'll then
+		// simulate an in-progress job.
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+
+		// Simulate an in-progress claim build by clearing the job's
+		// completed_at timestamp. The agent can still authenticate
+		// (it belongs to the latest build), but the durable check
+		// sees !job.CompletedAt.Valid and skips the reinit.
+		_, err := sqlDB.Exec("UPDATE provisioner_jobs SET completed_at = NULL WHERE id = $1", r.Build.JobID)
+		require.NoError(t, err)
+
+		agentCtx, agentCancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer agentCancel()
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+
+		agentReinitializedCh := make(chan *agentsdk.ReinitializationEvent, 1)
+		go func() {
+			reinitEvent, err := agentClient.WaitForReinit(agentCtx)
+			if err == nil {
+				agentReinitializedCh <- reinitEvent
+			}
+		}()
+
+		// The agent should NOT receive a reinit event because the
+		// latest build's job is still in progress.
+		select {
+		case ev := <-agentReinitializedCh:
+			t.Fatalf("expected no reinit event, but got one: %+v", ev)
+		case <-time.After(200 * time.Millisecond):
+			// Expected: no reinit event within the timeout.
+		}
+	})
 }
 
 type pubsubReinitSpy struct {
