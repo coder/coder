@@ -286,14 +286,14 @@ func ReconcileSystemRole(
 	inOrgPerms := ConvertDBPermissions(in.OrgPermissions)
 	inMemberPerms := ConvertDBPermissions(in.MemberPermissions)
 
-	want := permsFunc(orgSettings(org))
+	outPerms := permsFunc(orgSettings(org))
 
-	match := rbac.PermissionsEqual(inOrgPerms, want.Org) &&
-		rbac.PermissionsEqual(inMemberPerms, want.Member)
+	match := rbac.PermissionsEqual(inOrgPerms, outPerms.Org) &&
+		rbac.PermissionsEqual(inMemberPerms, outPerms.Member)
 
 	if !match {
-		out.OrgPermissions = ConvertPermissionsToDB(want.Org)
-		out.MemberPermissions = ConvertPermissionsToDB(want.Member)
+		out.OrgPermissions = ConvertPermissionsToDB(outPerms.Org)
+		out.MemberPermissions = ConvertPermissionsToDB(outPerms.Member)
 
 		_, err := tx.UpdateCustomRole(ctx, database.UpdateCustomRoleParams{
 			Name:              out.Name,
