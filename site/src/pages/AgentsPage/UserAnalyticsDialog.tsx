@@ -58,29 +58,27 @@ export const UserAnalyticsDialog: FC<UserAnalyticsDialogProps> = ({
 						Review your personal chat usage for the last 30 days.
 					</DialogDescription>
 				</DialogHeader>
+				<DialogClose asChild>
+					<Button
+						variant="subtle"
+						size="icon-lg"
+						className="absolute right-4 top-4 z-10 shrink-0 border-none bg-transparent shadow-none hover:bg-surface-tertiary/50"
+					>
+						<XIcon className="text-content-secondary" />
+						<span className="sr-only">Close</span>
+					</Button>
+				</DialogClose>
 				<div className="flex max-h-[min(88dvh,720px)] min-h-0 flex-col overflow-y-auto px-6 py-5 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
-					<div className="mb-6 flex items-start justify-between gap-4">
-						<SectionHeader
-							label="Analytics"
-							description="Review your personal chat usage and cost breakdowns."
-							action={
-								<div className="flex items-center gap-2 text-xs text-content-secondary">
-									<BarChart3Icon className="h-4 w-4" />
-									<span>{dateRange.rangeLabel}</span>
-								</div>
-							}
-						/>
-						<DialogClose asChild>
-							<Button
-								variant="subtle"
-								size="icon-lg"
-								className="shrink-0 border-none bg-transparent shadow-none hover:bg-surface-tertiary/50"
-							>
-								<XIcon className="text-content-secondary" />
-								<span className="sr-only">Close</span>
-							</Button>
-						</DialogClose>
-					</div>
+					<SectionHeader
+						label="Analytics"
+						description="Review your personal chat usage and cost breakdowns."
+						action={
+							<div className="flex items-center gap-2 text-xs text-content-secondary">
+								<BarChart3Icon className="h-4 w-4" />
+								<span>{dateRange.rangeLabel}</span>
+							</div>
+						}
+					/>
 
 					<ChatCostSummaryView
 						summary={summaryQuery.data}

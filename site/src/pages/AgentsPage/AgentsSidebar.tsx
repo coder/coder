@@ -883,14 +883,20 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						</Tooltip>
 					)}
 					{onOpenSettings && (
-						<button
-							type="button"
-							onClick={onOpenSettings}
-							className="flex shrink-0 items-center justify-center bg-transparent border-0 cursor-pointer p-2 mr-1 rounded-md text-content-secondary hover:text-content-primary hover:bg-surface-tertiary/50 transition-colors"
-							aria-label="Settings"
-						>
-							<SettingsIcon className="h-4 w-4" />
-						</button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant="subtle"
+									size="icon"
+									onClick={onOpenSettings}
+									aria-label="Settings"
+									className="mr-1"
+								>
+									<SettingsIcon className="h-4 w-4" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Settings</TooltipContent>
+						</Tooltip>
 					)}
 				</div>
 			</div>

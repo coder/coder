@@ -296,10 +296,10 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 					</p>
 				) : (
 					<>
-						<div className="overflow-hidden rounded-lg border border-border-default">
+						<div className="overflow-x-auto rounded-lg border border-border-default">
 							<Table>
 								<TableHeader>
-									<TableRow className="text-left text-xs uppercase tracking-wide text-content-secondary">
+									<TableRow className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
 										<TableHead className="px-4 py-3">User</TableHead>
 										<TableHead className="px-4 py-3 text-right">
 											Total Cost
