@@ -1,8 +1,8 @@
 import { checkAuthorization } from "api/queries/authCheck";
 import { organizations } from "api/queries/organizations";
 import type { AuthorizationCheck, Organization } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
 import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
+import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import {
 	Command,
@@ -24,7 +24,6 @@ import { useQuery } from "react-query";
 type OrganizationAutocompleteProps = {
 	onChange: (organization: Organization | null) => void;
 	id?: string;
-	className?: string;
 	required?: boolean;
 	check?: AuthorizationCheck;
 };
@@ -32,7 +31,6 @@ type OrganizationAutocompleteProps = {
 export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	onChange,
 	id,
-	className,
 	required,
 	check,
 }) => {
