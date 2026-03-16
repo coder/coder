@@ -87,6 +87,75 @@ type AIBridgeListSessionsResponse struct {
 	Sessions []AIBridgeSession `json:"sessions"`
 }
 
+// AIBridgeSessionThreadsResponse is the response for GET
+// /api/v2/aibridge/sessions/{session_id} which returns a single
+// session with fully expanded threads.
+type AIBridgeSessionThreadsResponse struct {
+	ID                string                           `json:"id"`
+	Initiator         MinimalUser                      `json:"initiator"`
+	Providers         []string                         `json:"providers"`
+	Models            []string                         `json:"models"`
+	Client            *string                          `json:"client,omitempty"`
+	Metadata          map[string]any                   `json:"metadata"`
+	PageStartedAt     *time.Time                       `json:"page_started_at,omitempty" format:"date-time"`
+	PageEndedAt       *time.Time                       `json:"page_ended_at,omitempty" format:"date-time"`
+	StartedAt         time.Time                        `json:"started_at" format:"date-time"`
+	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
+	TokenUsageSummary AIBridgeSessionThreadsTokenUsage `json:"token_usage_summary"`
+	Threads           []AIBridgeThread                 `json:"threads"`
+}
+
+// AIBridgeSessionThreadsTokenUsage represents aggregated token usage
+// with metadata containing provider-specific fields like
+// cache_creation_input, cache_read_input, etc.
+type AIBridgeSessionThreadsTokenUsage struct {
+	InputTokens  int64          `json:"input_tokens"`
+	OutputTokens int64          `json:"output_tokens"`
+	Metadata     map[string]any `json:"metadata"`
+}
+
+// AIBridgeThread represents a single thread within a session.
+// A thread groups interceptions by their thread_root_id.
+type AIBridgeThread struct {
+	ID             uuid.UUID                        `json:"id" format:"uuid"`
+	Prompt         *string                          `json:"prompt,omitempty"`
+	Model          string                           `json:"model"`
+	Provider       string                           `json:"provider"`
+	StartedAt      time.Time                        `json:"started_at" format:"date-time"`
+	EndedAt        *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
+	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
+	AgenticActions []AIBridgeAgenticAction          `json:"agentic_actions"`
+}
+
+// AIBridgeAgenticAction represents a tool call with associated
+// thinking blocks and token usage from one or more interceptions.
+type AIBridgeAgenticAction struct {
+	Model      string                           `json:"model"`
+	TokenUsage AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
+	Thinking   []AIBridgeModelThought           `json:"thinking"`
+	ToolCalls  []AIBridgeToolCall               `json:"tool_calls"`
+}
+
+// AIBridgeModelThought represents a single thinking block from
+// the model.
+type AIBridgeModelThought struct {
+	Text string `json:"text"`
+}
+
+// AIBridgeToolCall represents a tool call recorded during an
+// interception.
+type AIBridgeToolCall struct {
+	ID                 uuid.UUID      `json:"id" format:"uuid"`
+	InterceptionID     uuid.UUID      `json:"interception_id" format:"uuid"`
+	ProviderResponseID string         `json:"provider_response_id"`
+	ServerURL          string         `json:"server_url"`
+	Tool               string         `json:"tool"`
+	Injected           bool           `json:"injected"`
+	Input              string         `json:"input"`
+	Metadata           map[string]any `json:"metadata"`
+	CreatedAt          time.Time      `json:"created_at" format:"date-time"`
+}
+
 // @typescript-ignore AIBridgeListSessionsFilter
 type AIBridgeListSessionsFilter struct {
 	// Limit defaults to 100, max is 1000.
@@ -226,5 +295,32 @@ func (c *Client) AIBridgeListSessions(ctx context.Context, filter AIBridgeListSe
 		return AIBridgeListSessionsResponse{}, ReadBodyAsError(res)
 	}
 	var resp AIBridgeListSessionsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// AIBridgeGetSessionThreads returns a single session with expanded
+// thread details including agentic actions and thinking blocks.
+func (c *Client) AIBridgeGetSessionThreads(ctx context.Context, sessionID string, afterID, beforeID uuid.UUID, limit int32) (AIBridgeSessionThreadsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/aibridge/sessions/%s", sessionID), nil, func(r *http.Request) {
+		q := r.URL.Query()
+		if afterID != uuid.Nil {
+			q.Set("after_id", afterID.String())
+		}
+		if beforeID != uuid.Nil {
+			q.Set("before_id", beforeID.String())
+		}
+		if limit > 0 {
+			q.Set("limit", fmt.Sprintf("%d", limit))
+		}
+		r.URL.RawQuery = q.Encode()
+	})
+	if err != nil {
+		return AIBridgeSessionThreadsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AIBridgeSessionThreadsResponse{}, ReadBodyAsError(res)
+	}
+	var resp AIBridgeSessionThreadsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
