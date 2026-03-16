@@ -9,7 +9,13 @@ import {
 	SelectValue,
 } from "components/Select/Select";
 import { Switch } from "components/Switch/Switch";
-import { TriangleAlertIcon } from "lucide-react";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import { type FC, type ReactNode, useId } from "react";
 import { SectionHeader } from "../SectionHeader";
 
@@ -67,7 +73,20 @@ export const DefaultLimitSection: FC<DefaultLimitSectionProps> = ({
 				{enabled && (
 					<div className="flex flex-col gap-3 md:flex-row md:items-end">
 						<div className="flex-1 space-y-1">
-							<Label htmlFor={periodId}>Period</Label>
+							<div className="flex items-center gap-1">
+								<Label htmlFor={periodId}>Period</Label>
+								<TooltipProvider delayDuration={0}>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<InfoIcon className="h-3.5 w-3.5 shrink-0 cursor-help text-content-secondary" />
+										</TooltipTrigger>
+										<TooltipContent>
+											Only one period can be active at a time. Changing the
+											period resets spend tracking for all users.
+										</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+							</div>
 							<Select
 								value={period}
 								onValueChange={(value) =>
