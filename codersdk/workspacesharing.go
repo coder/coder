@@ -24,7 +24,8 @@ type WorkspaceSharingSettings struct {
 	// organization because of a deployment-wide setting.
 	SharingGloballyDisabled bool `json:"sharing_globally_disabled"`
 	// SharingDisabled is deprecated and left for backward compatibility
-	// purposes, use `ShareableWorkspaceOwners` instead.
+	// purposes.
+	// Deprecated: use `ShareableWorkspaceOwners` instead
 	SharingDisabled bool `json:"sharing_disabled"`
 	// ShareableWorkspaceOwners controls whose workspaces can be shared
 	// within the organization.
