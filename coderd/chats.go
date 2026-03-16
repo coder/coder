@@ -796,15 +796,26 @@ func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	override, err := api.Database.UpsertChatUsageLimitUserOverride(ctx, database.UpsertChatUsageLimitUserOverrideParams{
+	user, err := api.Database.GetUserByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "User not found.",
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to look up chat usage limit user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	_, err = api.Database.UpsertChatUsageLimitUserOverride(ctx, database.UpsertChatUsageLimitUserOverrideParams{
 		UserID:           userID,
 		SpendLimitMicros: req.SpendLimitMicros,
 	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeChatUsageLimitUserNotFound(ctx, rw)
-			return
-		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to upsert chat usage limit override.",
 			Detail:  err.Error(),
@@ -813,11 +824,11 @@ func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatUsageLimitOverride{
-		UserID:           override.UserID,
-		Username:         override.Username,
-		Name:             override.Name,
-		AvatarURL:        override.AvatarURL,
-		SpendLimitMicros: nullInt64Ptr(override.SpendLimitMicros),
+		UserID:           user.ID,
+		Username:         user.Username,
+		Name:             user.Name,
+		AvatarURL:        user.AvatarURL,
+		SpendLimitMicros: nullInt64Ptr(sql.NullInt64{Int64: req.SpendLimitMicros, Valid: true}),
 	})
 }
 
@@ -902,15 +913,26 @@ func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	override, err := api.Database.UpsertChatUsageLimitGroupOverride(ctx, database.UpsertChatUsageLimitGroupOverrideParams{
+	group, err := api.Database.GetGroupByID(ctx, groupID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Group not found.",
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to look up group details.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	_, err = api.Database.UpsertChatUsageLimitGroupOverride(ctx, database.UpsertChatUsageLimitGroupOverrideParams{
 		GroupID:          groupID,
 		SpendLimitMicros: req.SpendLimitMicros,
 	})
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeChatUsageLimitGroupNotFound(ctx, rw)
-			return
-		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to upsert group usage limit override.",
 			Detail:  err.Error(),
@@ -935,12 +957,12 @@ func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatUsageLimitGroupOverride{
-		GroupID:          override.GroupID,
-		GroupName:        override.Name,
-		GroupDisplayName: override.DisplayName,
-		GroupAvatarURL:   override.AvatarURL,
+		GroupID:          group.ID,
+		GroupName:        group.Name,
+		GroupDisplayName: group.DisplayName,
+		GroupAvatarURL:   group.AvatarURL,
 		MemberCount:      memberCount,
-		SpendLimitMicros: nullInt64Ptr(override.SpendLimitMicros),
+		SpendLimitMicros: nullInt64Ptr(sql.NullInt64{Int64: req.SpendLimitMicros, Valid: true}),
 	})
 }
 

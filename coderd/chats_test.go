@@ -3670,6 +3670,20 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 		require.Equal(t, "Spend limit must be greater than 0.", sdkErr.Detail)
 	})
 
+	t.Run("UpsertUserOverrideMissingUser", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.UpsertChatUsageLimitOverride(ctx, uuid.New(), codersdk.UpsertChatUsageLimitOverrideRequest{
+			SpendLimitMicros: 7_000_000,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusNotFound)
+		require.Equal(t, "User not found.", sdkErr.Message)
+	})
+
 	t.Run("DeleteUserOverrideMissingUser", func(t *testing.T) {
 		t.Parallel()
 
@@ -3727,6 +3741,20 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 		}
 		require.NotNil(t, listed)
 		require.EqualValues(t, 1, listed.MemberCount)
+	})
+
+	t.Run("UpsertGroupOverrideMissingGroup", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.UpsertChatUsageLimitGroupOverride(ctx, uuid.New(), codersdk.UpsertChatUsageLimitGroupOverrideRequest{
+			SpendLimitMicros: 7_000_000,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusNotFound)
+		require.Equal(t, "Group not found.", sdkErr.Message)
 	})
 
 	t.Run("DeleteGroupOverrideMissingOverride", func(t *testing.T) {
