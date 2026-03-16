@@ -3,7 +3,8 @@ import { withAuthProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
-import { fn, spyOn } from "storybook/test";
+import dayjs from "dayjs";
+import { expect, fn, screen, spyOn, waitFor } from "storybook/test";
 import { UserAnalyticsDialog } from "./UserAnalyticsDialog";
 
 const mockSummary: TypesGen.ChatCostSummary = {
@@ -63,5 +64,11 @@ export const Default: Story = {
 	args: {
 		open: true,
 		onOpenChange: fn(),
+		now: dayjs("2026-03-12T12:00:00Z"),
+	},
+	play: async () => {
+		await waitFor(() => {
+			expect(screen.getByText(/Feb 10\s*–\s*Mar 12, 2026/)).toBeInTheDocument();
+		});
 	},
 };
