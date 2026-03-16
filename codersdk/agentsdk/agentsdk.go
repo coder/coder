@@ -3,6 +3,7 @@ package agentsdk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -759,6 +760,12 @@ func WaitForReinitLoop(ctx context.Context, logger slog.Logger, client *Client) 
 			logger.Debug(ctx, "waiting for agent reinitialization instructions")
 			reinitEvent, err := client.WaitForReinit(ctx)
 			if err != nil {
+				var sdkErr *codersdk.Error
+				if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusConflict {
+					logger.Info(ctx, "workspace is not a prebuilt workspace, not waiting for reinit")
+					close(reinitEvents)
+					return
+				}
 				logger.Error(ctx, "failed to wait for agent reinitialization instructions", slog.Error(err))
 				continue
 			}
