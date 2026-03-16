@@ -204,7 +204,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 
 	if (selectedUser) {
 		return (
-			<div className="space-y-6">
+			<>
 				<button
 					type="button"
 					onClick={() => setSelectedUser(null)}
@@ -214,28 +214,30 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 					Back
 				</button>
 				{header}
-				<div className="flex flex-wrap items-center gap-3 rounded-lg border border-border-default bg-surface-secondary px-4 py-3">
-					<AvatarData
-						title={selectedUser.name || selectedUser.username}
-						subtitle={`@${selectedUser.username}`}
-						src={selectedUser.avatar_url}
-						imgFallbackText={selectedUser.username}
-					/>
-					<div className="min-w-0 text-xs text-content-secondary">
-						<div>User ID: {selectedUser.user_id}</div>
-						<div>{dateRange.rangeLabel}</div>
+				<div className="space-y-6">
+					<div className="flex flex-wrap items-center gap-3 rounded-lg border border-border-default bg-surface-secondary px-4 py-3">
+						<AvatarData
+							title={selectedUser.name || selectedUser.username}
+							subtitle={`@${selectedUser.username}`}
+							src={selectedUser.avatar_url}
+							imgFallbackText={selectedUser.username}
+						/>
+						<div className="min-w-0 text-xs text-content-secondary">
+							<div>User ID: {selectedUser.user_id}</div>
+							<div>{dateRange.rangeLabel}</div>
+						</div>
 					</div>
-				</div>
 
-				<ChatCostSummaryView
-					summary={summaryQuery.data}
-					isLoading={summaryQuery.isLoading}
-					error={summaryQuery.error}
-					onRetry={() => void summaryQuery.refetch()}
-					loadingLabel="Loading usage details"
-					emptyMessage="No usage data for this user in the selected period."
-				/>
-			</div>
+					<ChatCostSummaryView
+						summary={summaryQuery.data}
+						isLoading={summaryQuery.isLoading}
+						error={summaryQuery.error}
+						onRetry={() => void summaryQuery.refetch()}
+						loadingLabel="Loading usage details"
+						emptyMessage="No usage data for this user in the selected period."
+					/>
+				</div>
+			</>
 		);
 	}
 
