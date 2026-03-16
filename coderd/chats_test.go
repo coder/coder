@@ -3480,10 +3480,21 @@ func TestGetChatFile(t *testing.T) {
 }
 
 type chatCostTestFixture struct {
-	Client        *codersdk.Client
-	DB            database.Store
-	ModelConfigID uuid.UUID
-	ChatID        uuid.UUID
+	Client            *codersdk.Client
+	DB                database.Store
+	ModelConfigID     uuid.UUID
+	ChatID            uuid.UUID
+	EarliestCreatedAt time.Time
+	LatestCreatedAt   time.Time
+}
+
+// safeOptions returns an explicit time window around the fixture messages to
+// avoid app-time/database-time boundary flakes in summary tests.
+func (f chatCostTestFixture) safeOptions() codersdk.ChatCostSummaryOptions {
+	return codersdk.ChatCostSummaryOptions{
+		StartDate: f.EarliestCreatedAt.Add(-time.Minute),
+		EndDate:   f.LatestCreatedAt.Add(time.Minute),
+	}
 }
 
 func seedChatCostFixture(t *testing.T) chatCostTestFixture {
@@ -3501,8 +3512,10 @@ func seedChatCostFixture(t *testing.T) chatCostTestFixture {
 	})
 	require.NoError(t, err)
 
+	var earliestCreatedAt time.Time
+	var latestCreatedAt time.Time
 	for i := 0; i < 2; i++ {
-		_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+		message, err := db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
 			ChatID:          chat.ID,
 			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 			Role:            "assistant",
@@ -3512,13 +3525,21 @@ func seedChatCostFixture(t *testing.T) chatCostTestFixture {
 			TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
 		})
 		require.NoError(t, err)
+		if i == 0 || message.CreatedAt.Before(earliestCreatedAt) {
+			earliestCreatedAt = message.CreatedAt
+		}
+		if i == 0 || message.CreatedAt.After(latestCreatedAt) {
+			latestCreatedAt = message.CreatedAt
+		}
 	}
 
 	return chatCostTestFixture{
-		Client:        client,
-		DB:            db,
-		ModelConfigID: modelConfig.ID,
-		ChatID:        chat.ID,
+		Client:            client,
+		DB:                db,
+		ModelConfigID:     modelConfig.ID,
+		ChatID:            chat.ID,
+		EarliestCreatedAt: earliestCreatedAt,
+		LatestCreatedAt:   latestCreatedAt,
 	}
 }
 
@@ -3551,7 +3572,8 @@ func TestChatCostSummary(t *testing.T) {
 		f := seedChatCostFixture(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		summary, err := f.Client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{})
+		// Use a window derived from DB timestamps to avoid time boundary flakes.
+		summary, err := f.Client.GetChatCostSummary(ctx, "me", f.safeOptions())
 		require.NoError(t, err)
 		assertChatCostSummary(t, summary, f.ModelConfigID, f.ChatID)
 	})
@@ -3562,9 +3584,10 @@ func TestChatCostSummary_AfterModelDeletion(t *testing.T) {
 
 	f := seedChatCostFixture(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
+	options := f.safeOptions()
 
-	// Baseline: costs are correct before deletion.
-	summary, err := f.Client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{})
+	// Baseline: use DB-derived timestamps to avoid time boundary flakes.
+	summary, err := f.Client.GetChatCostSummary(ctx, "me", options)
 	require.NoError(t, err)
 	assertChatCostSummary(t, summary, f.ModelConfigID, f.ChatID)
 
@@ -3572,8 +3595,8 @@ func TestChatCostSummary_AfterModelDeletion(t *testing.T) {
 	err = f.Client.DeleteChatModelConfig(ctx, f.ModelConfigID)
 	require.NoError(t, err)
 
-	// Costs must survive the deletion unchanged.
-	summary, err = f.Client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{})
+	// Costs must survive the deletion unchanged within the same safe window.
+	summary, err = f.Client.GetChatCostSummary(ctx, "me", options)
 	require.NoError(t, err)
 	assertChatCostSummary(t, summary, f.ModelConfigID, f.ChatID)
 }
@@ -3594,7 +3617,7 @@ func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessageParams{
+	message, err := db.InsertChatMessage(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessageParams{
 		ChatID:          chat.ID,
 		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Role:            "assistant",
@@ -3604,12 +3627,17 @@ func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 		TotalCostMicros: sql.NullInt64{Int64: 750, Valid: true},
 	})
 	require.NoError(t, err)
+	options := codersdk.ChatCostSummaryOptions{
+		// Pad the DB-assigned timestamp so the query window cannot race it.
+		StartDate: message.CreatedAt.Add(-time.Minute),
+		EndDate:   message.CreatedAt.Add(time.Minute),
+	}
 
 	t.Run("AdminCanDrilldown", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		summary, err := client.GetChatCostSummary(ctx, member.ID.String(), codersdk.ChatCostSummaryOptions{})
+		summary, err := client.GetChatCostSummary(ctx, member.ID.String(), options)
 		require.NoError(t, err)
 		require.Equal(t, int64(750), summary.TotalCostMicros)
 		require.Equal(t, int64(1), summary.PricedMessageCount)
@@ -3619,7 +3647,7 @@ func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err := memberClient.GetChatCostSummary(ctx, firstUser.UserID.String(), codersdk.ChatCostSummaryOptions{})
+		_, err := memberClient.GetChatCostSummary(ctx, firstUser.UserID.String(), options)
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
@@ -3790,7 +3818,7 @@ func TestChatCostSummary_UnpricedMessages(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+	pricedMessage, err := db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
 		ChatID:          chat.ID,
 		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Role:            "assistant",
@@ -3801,7 +3829,7 @@ func TestChatCostSummary_UnpricedMessages(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+	unpricedMessage, err := db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
 		ChatID:          chat.ID,
 		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
 		Role:            "assistant",
@@ -3812,7 +3840,21 @@ func TestChatCostSummary_UnpricedMessages(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	summary, err := client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{})
+	earliestCreatedAt := pricedMessage.CreatedAt
+	latestCreatedAt := pricedMessage.CreatedAt
+	if unpricedMessage.CreatedAt.Before(earliestCreatedAt) {
+		earliestCreatedAt = unpricedMessage.CreatedAt
+	}
+	if unpricedMessage.CreatedAt.After(latestCreatedAt) {
+		latestCreatedAt = unpricedMessage.CreatedAt
+	}
+	options := codersdk.ChatCostSummaryOptions{
+		// Pad the DB-assigned timestamps to avoid time boundary flakes.
+		StartDate: earliestCreatedAt.Add(-time.Minute),
+		EndDate:   latestCreatedAt.Add(time.Minute),
+	}
+
+	summary, err := client.GetChatCostSummary(ctx, "me", options)
 	require.NoError(t, err)
 
 	require.Equal(t, int64(500), summary.TotalCostMicros)
