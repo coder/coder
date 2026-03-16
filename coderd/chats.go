@@ -95,6 +95,15 @@ func writeChatUsageLimitExceeded(
 	})
 }
 
+func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) bool {
+	var limitErr *chatd.UsageLimitExceededError
+	if errors.As(err, &limitErr) {
+		writeChatUsageLimitExceeded(ctx, rw, limitErr)
+		return true
+	}
+	return false
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -281,9 +290,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		InitialUserContent: contentBlocks,
 	})
 	if err != nil {
-		var limitErr *chatd.UsageLimitExceededError
-		if errors.As(err, &limitErr) {
-			writeChatUsageLimitExceeded(ctx, rw, limitErr)
+		if maybeWriteLimitErr(ctx, rw, err) {
 			return
 		}
 		if database.IsForeignKeyViolation(
@@ -582,10 +589,6 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	config, configErr := api.Database.GetChatUsageLimitConfig(ctx)
 	if configErr != nil && !errors.Is(configErr, sql.ErrNoRows) {
@@ -639,10 +642,12 @@ func (api *API) getChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request)
 
 	for _, row := range overrideRows {
 		response.Overrides = append(response.Overrides, codersdk.ChatUsageLimitOverride{
-			UserID:           row.UserID,
-			Username:         row.Username,
-			Name:             row.Name,
-			AvatarURL:        row.AvatarURL,
+			MinimalUser: codersdk.MinimalUser{
+				ID:        row.UserID,
+				Username:  row.Username,
+				Name:      row.Name,
+				AvatarURL: row.AvatarURL,
+			},
 			SpendLimitMicros: ptr.Ref(row.LimitMicros),
 			CreatedAt:        row.CreatedAt,
 			UpdatedAt:        row.UpdatedAt,
@@ -663,15 +668,6 @@ func (api *API) getChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request)
 		})
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, response)
-}
-
-func isValidChatUsageLimitPeriod(period codersdk.ChatUsageLimitPeriod) bool {
-	switch period {
-	case codersdk.ChatUsageLimitPeriodDay, codersdk.ChatUsageLimitPeriodWeek, codersdk.ChatUsageLimitPeriodMonth:
-		return true
-	default:
-		return false
-	}
 }
 
 // @Summary Update chat usage limit config
@@ -695,7 +691,7 @@ func (api *API) updateChatUsageLimitConfig(rw http.ResponseWriter, r *http.Reque
 		Period:             "",
 	}
 	if req.SpendLimitMicros == nil {
-		if req.Period != "" && !isValidChatUsageLimitPeriod(req.Period) {
+		if req.Period != "" && !req.Period.Valid() {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid chat usage limit period.",
 				Detail:  "Period must be one of: day, week, month.",
@@ -717,7 +713,7 @@ func (api *API) updateChatUsageLimitConfig(rw http.ResponseWriter, r *http.Reque
 			})
 			return
 		}
-		if !isValidChatUsageLimitPeriod(req.Period) {
+		if !req.Period.Valid() {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid chat usage limit period.",
 				Detail:  "Period must be one of: day, week, month.",
@@ -778,10 +774,10 @@ func (api *API) getMyChatUsageLimitStatus(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, status)
 }
 
-// @Summary Upsert chat usage limit override
+// @Summary Update chat user usage limit override
 // @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Request) {
+func (api *API) updateChatUserUsageLimitOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
@@ -793,14 +789,14 @@ func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	var req codersdk.UpsertChatUsageLimitOverrideRequest
+	var req codersdk.UpdateChatUsageLimitOverrideRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 	if req.SpendLimitMicros <= 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid chat usage limit override.",
-			Detail:  "Spend limit must be greater than 0.",
+			Message: "Invalid chat user usage limit override.",
+			Detail:  "Spend limit (in microdollars) must be greater than 0.",
 		})
 		return
 	}
@@ -831,20 +827,22 @@ func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Req
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatUsageLimitOverride{
-		UserID:           override.UserID,
-		Username:         user.Username,
-		Name:             user.Name,
-		AvatarURL:        user.AvatarURL,
+		MinimalUser: codersdk.MinimalUser{
+			ID:        override.UserID,
+			Username:  user.Username,
+			Name:      user.Name,
+			AvatarURL: user.AvatarURL,
+		},
 		SpendLimitMicros: ptr.Ref(override.LimitMicros),
 		CreatedAt:        override.CreatedAt,
 		UpdatedAt:        override.UpdatedAt,
 	})
 }
 
-// @Summary Delete chat usage limit override
+// @Summary Delete chat user usage limit override
 // @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) deleteChatUsageLimitOverride(rw http.ResponseWriter, r *http.Request) {
+func (api *API) deleteChatUserUsageLimitOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
@@ -909,7 +907,7 @@ func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	var req codersdk.UpsertChatUsageLimitGroupOverrideRequest
+	var req codersdk.UpdateChatUsageLimitGroupOverrideRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -917,7 +915,7 @@ func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 	if req.SpendLimitMicros <= 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid chat usage limit group override.",
-			Detail:  "Spend limit must be greater than 0.",
+			Detail:  "Spend limit (in microdollars) must be greater than 0.",
 		})
 		return
 	}
@@ -1481,9 +1479,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if sendErr != nil {
-		var limitErr *chatd.UsageLimitExceededError
-		if errors.As(sendErr, &limitErr) {
-			writeChatUsageLimitExceeded(ctx, rw, limitErr)
+		if maybeWriteLimitErr(ctx, rw, sendErr) {
 			return
 		}
 		if xerrors.Is(sendErr, chatd.ErrMessageQueueFull) {
@@ -1558,9 +1554,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		Content:         contentBlocks,
 	})
 	if editErr != nil {
-		var limitErr *chatd.UsageLimitExceededError
-		if errors.As(editErr, &limitErr) {
-			writeChatUsageLimitExceeded(ctx, rw, limitErr)
+		if maybeWriteLimitErr(ctx, rw, editErr) {
 			return
 		}
 
@@ -1654,9 +1648,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	})
 
 	if txErr != nil {
-		var limitErr *chatd.UsageLimitExceededError
-		if errors.As(txErr, &limitErr) {
-			writeChatUsageLimitExceeded(ctx, rw, limitErr)
+		if maybeWriteLimitErr(ctx, rw, txErr) {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

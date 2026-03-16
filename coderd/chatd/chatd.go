@@ -14,6 +14,7 @@ import (
 	"charm.land/fantasy"
 	"charm.land/fantasy/providers/anthropic"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -180,11 +181,15 @@ type UsageLimitExceededError struct {
 	PeriodEnd      time.Time
 }
 
+func formatMicrosAsDollars(micros int64) string {
+	return "$" + decimal.NewFromInt(micros).Shift(-6).StringFixed(2)
+}
+
 func (e *UsageLimitExceededError) Error() string {
 	return fmt.Sprintf(
-		"usage limit exceeded: spent %d of %d micros, resets at %s",
-		e.ConsumedMicros,
-		e.LimitMicros,
+		"usage limit exceeded: spent %s of %s limit, resets at %s",
+		formatMicrosAsDollars(e.ConsumedMicros),
+		formatMicrosAsDollars(e.LimitMicros),
 		e.PeriodEnd.Format(time.RFC3339),
 	)
 }
@@ -741,6 +746,7 @@ func (p *Server) DeleteQueued(
 			QueuedMessages: db2sdk.ChatQueuedMessages(queuedMessages),
 		})
 	}
+
 	// Always notify subscribers so they can re-fetch, even if we
 	// failed to load the updated queue payload above.
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
@@ -2025,7 +2031,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				// Try to auto-promote the next queued message.
 				queuedMessages, queueErr := tx.GetChatQueuedMessages(cleanupCtx, chat.ID)
 				if queueErr != nil {
-					logger.Error(cleanupCtx, "failed to fetch queued messages for auto-promotion", slog.Error(queueErr))
+					logger.Warn(cleanupCtx, "failed to fetch queued messages for auto-promotion", slog.Error(queueErr))
 				}
 				if queueErr == nil && len(queuedMessages) > 0 {
 					nextQueued := queuedMessages[0]
@@ -2039,7 +2045,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 						ChatID: chat.ID,
 					})
 					if deleteErr != nil {
-						logger.Error(cleanupCtx, "failed to delete queued message during auto-promotion",
+						logger.Warn(cleanupCtx, "failed to delete queued message during auto-promotion",
 							slog.F("queued_message_id", nextQueued.ID), slog.Error(deleteErr))
 					} else {
 						msg, insertErr := tx.InsertChatMessage(cleanupCtx, database.InsertChatMessageParams{
@@ -2064,7 +2070,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 							Compressed:          sql.NullBool{},
 						})
 						if insertErr != nil {
-							logger.Error(cleanupCtx, "failed to promote queued message",
+							logger.Warn(cleanupCtx, "failed to promote queued message",
 								slog.F("queued_message_id", nextQueued.ID), slog.Error(insertErr))
 						} else {
 							status = database.ChatStatusPending
