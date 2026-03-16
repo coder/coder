@@ -746,7 +746,6 @@ func (p *Server) DeleteQueued(
 			QueuedMessages: db2sdk.ChatQueuedMessages(queuedMessages),
 		})
 	}
-
 	// Always notify subscribers so they can re-fetch, even if we
 	// failed to load the updated queue payload above.
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
@@ -800,6 +799,7 @@ func (p *Server) PromoteQueued(
 		if !found {
 			return xerrors.New("queued message not found")
 		}
+
 		err = tx.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
 			ID:     opts.QueuedMessageID,
 			ChatID: opts.ChatID,
@@ -1913,6 +1913,62 @@ func (p *Server) chatFileResolver() chatprompt.FileResolver {
 	}
 }
 
+// tryAutoPromoteQueuedMessage pops the next queued message and converts it
+// into a pending user message inside the caller's transaction. Queued
+// messages were already admitted through SendMessage, so this preserves FIFO
+// order without re-checking usage limits.
+func (p *Server) tryAutoPromoteQueuedMessage(
+	ctx context.Context,
+	tx database.Store,
+	chat database.Chat,
+) (*database.ChatMessage, []database.ChatQueuedMessage, bool, error) {
+	logger := p.logger.With(slog.F("chat_id", chat.ID))
+
+	nextQueued, err := tx.PopNextQueuedMessage(ctx, chat.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil, false, nil
+	}
+	if err != nil {
+		return nil, nil, false, xerrors.Errorf("pop next queued message: %w", err)
+	}
+
+	msg, err := insertChatMessageWithStore(ctx, tx, database.InsertChatMessageParams{
+		ChatID:         chat.ID,
+		ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: true},
+		Role:           database.ChatMessageRoleUser,
+		ContentVersion: chatprompt.CurrentContentVersion,
+		Content: pqtype.NullRawMessage{
+			RawMessage: nextQueued.Content,
+			Valid:      len(nextQueued.Content) > 0,
+		},
+		CreatedBy:           uuid.NullUUID{UUID: chat.OwnerID, Valid: chat.OwnerID != uuid.Nil},
+		Visibility:          database.ChatMessageVisibilityBoth,
+		InputTokens:         sql.NullInt64{},
+		OutputTokens:        sql.NullInt64{},
+		TotalTokens:         sql.NullInt64{},
+		ReasoningTokens:     sql.NullInt64{},
+		CacheCreationTokens: sql.NullInt64{},
+		CacheReadTokens:     sql.NullInt64{},
+		ContextLimit:        sql.NullInt64{},
+		TotalCostMicros:     sql.NullInt64{},
+		Compressed:          sql.NullBool{},
+	})
+	if err != nil {
+		logger.Error(ctx, "failed to promote queued message",
+			slog.F("queued_message_id", nextQueued.ID), slog.Error(err))
+		return nil, nil, false, nil
+	}
+
+	remainingQueuedMessages, err := tx.GetChatQueuedMessages(ctx, chat.ID)
+	if err != nil {
+		logger.Error(ctx, "failed to load remaining queued messages after auto-promotion",
+			slog.F("queued_message_id", nextQueued.ID), slog.Error(err))
+		return &msg, nil, false, nil
+	}
+
+	return &msg, remainingQueuedMessages, true, nil
+}
+
 func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
 	logger.Info(ctx, "processing chat request")
@@ -2028,61 +2084,14 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			if latestChat.Status == database.ChatStatusPending {
 				status = database.ChatStatusPending
 			} else if status == database.ChatStatusWaiting {
-				// Try to auto-promote the next queued message.
-				queuedMessages, queueErr := tx.GetChatQueuedMessages(cleanupCtx, chat.ID)
-				if queueErr != nil {
-					logger.Warn(cleanupCtx, "failed to fetch queued messages for auto-promotion", slog.Error(queueErr))
-				}
-				if queueErr == nil && len(queuedMessages) > 0 {
-					nextQueued := queuedMessages[0]
-					// Queued messages were already admitted through SendMessage,
-					// so auto-promotion must preserve FIFO order even if later
-					// spend changes would now reject new messages.
-					// Re-checking limits here can strand the chat in waiting
-					// forever because only pending chats are reacquired.
-					deleteErr := tx.DeleteChatQueuedMessage(cleanupCtx, database.DeleteChatQueuedMessageParams{
-						ID:     nextQueued.ID,
-						ChatID: chat.ID,
-					})
-					if deleteErr != nil {
-						logger.Warn(cleanupCtx, "failed to delete queued message during auto-promotion",
-							slog.F("queued_message_id", nextQueued.ID), slog.Error(deleteErr))
-					} else {
-						msg, insertErr := tx.InsertChatMessage(cleanupCtx, database.InsertChatMessageParams{
-							ChatID:         chat.ID,
-							ModelConfigID:  uuid.NullUUID{UUID: latestChat.LastModelConfigID, Valid: true},
-							Role:           database.ChatMessageRoleUser,
-							ContentVersion: chatprompt.CurrentContentVersion,
-							Content: pqtype.NullRawMessage{
-								RawMessage: nextQueued.Content,
-								Valid:      len(nextQueued.Content) > 0,
-							},
-							CreatedBy:           uuid.NullUUID{UUID: chat.OwnerID, Valid: chat.OwnerID != uuid.Nil},
-							Visibility:          database.ChatMessageVisibilityBoth,
-							InputTokens:         sql.NullInt64{},
-							OutputTokens:        sql.NullInt64{},
-							TotalTokens:         sql.NullInt64{},
-							ReasoningTokens:     sql.NullInt64{},
-							CacheCreationTokens: sql.NullInt64{},
-							CacheReadTokens:     sql.NullInt64{},
-							ContextLimit:        sql.NullInt64{},
-							TotalCostMicros:     sql.NullInt64{},
-							Compressed:          sql.NullBool{},
-						})
-						if insertErr != nil {
-							logger.Warn(cleanupCtx, "failed to promote queued message",
-								slog.F("queued_message_id", nextQueued.ID), slog.Error(insertErr))
-						} else {
-							status = database.ChatStatusPending
-							promotedMessage = &msg
-
-							remaining, qErr := tx.GetChatQueuedMessages(cleanupCtx, chat.ID)
-							if qErr == nil {
-								remainingQueuedMessages = remaining
-								shouldPublishQueueUpdate = true
-							}
-						}
-					}
+				// Queued messages were already admitted through SendMessage,
+				// so auto-promotion only preserves FIFO order here.
+				var promoteErr error
+				promotedMessage, remainingQueuedMessages, shouldPublishQueueUpdate, promoteErr = p.tryAutoPromoteQueuedMessage(cleanupCtx, tx, latestChat)
+				if promoteErr != nil {
+					logger.Error(cleanupCtx, "failed to auto-promote queued message", slog.Error(promoteErr))
+				} else if promotedMessage != nil {
+					status = database.ChatStatusPending
 				}
 			}
 

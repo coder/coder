@@ -876,6 +876,14 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 		}
 	}, testutil.WaitMedium, testutil.IntervalFast)
 
+	laterQueuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:  chat.ID,
+		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("later queued")},
+	})
+	require.NoError(t, err)
+	require.True(t, laterQueuedResult.Queued)
+	require.NotNil(t, laterQueuedResult.QueuedMessage)
+
 	spendChat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OwnerID:           user.ID,
 		WorkspaceID:       uuid.NullUUID{},
@@ -919,6 +927,11 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 			return false
 		}
 
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil || fromDB.Status != database.ChatStatusWaiting {
+			return false
+		}
+
 		messages, dbErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 			ChatID:  chat.ID,
 			AfterID: 0,
@@ -926,16 +939,22 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 		if dbErr != nil {
 			return false
 		}
+
+		userTexts := make([]string, 0, 3)
 		for _, message := range messages {
 			if message.Role != database.ChatMessageRoleUser {
 				continue
 			}
 			sdkMessage := db2sdk.ChatMessage(message)
-			if len(sdkMessage.Content) == 1 && sdkMessage.Content[0].Text == "queued" {
-				return true
+			if len(sdkMessage.Content) != 1 {
+				continue
 			}
+			userTexts = append(userTexts, sdkMessage.Content[0].Text)
 		}
-		return false
+		if len(userTexts) != 3 {
+			return false
+		}
+		return userTexts[0] == "hello" && userTexts[1] == "queued" && userTexts[2] == "later queued"
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
