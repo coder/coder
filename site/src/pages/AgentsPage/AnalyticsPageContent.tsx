@@ -39,8 +39,8 @@ export const AnalyticsPageContent: FC<AnalyticsPageContentProps> = ({
 	});
 
 	return (
-		<div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-10 py-8 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
-			<div className="mx-auto w-full max-w-4xl">
+		<div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 pt-8 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+			<div className="mx-auto w-full max-w-3xl">
 				<SectionHeader
 					label="Analytics"
 					description="Review your personal chat usage and cost breakdowns."
