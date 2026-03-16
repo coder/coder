@@ -21,7 +21,7 @@ const (
 func main() {
 	var dryRun bool
 	cmd := &serpent.Command{
-		Use:   "releasetui",
+		Use:   "releaser",
 		Short: "Interactive release tagging for coder/coder.",
 		Long:  "Run this from a release branch (release/X.Y). The tool detects the branch, infers the next version, and walks you through tagging, pushing, and triggering the release workflow.",
 		Options: serpent.OptionSet{
