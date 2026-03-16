@@ -1235,9 +1235,9 @@ jobs:
           docker system df || true
           du -sh site/out/ 2>/dev/null || true
           du -sh site/node_modules/ 2>/dev/null || true
-          du -sh site/.next/ 2>/dev/null || true
-          du -sh /home/runner/* 2>/dev/null | sort -rh | head -20 || true
-          du -sh /home/runner/work/coder/coder/* 2>/dev/null | sort -rh | head -20 || true
+          du -sh .git/ 2>/dev/null || true
+          du -sh /tmp/* 2>/dev/null | sort -rh | head -20 || true
+          du -sh /* 2>/dev/null | sort -rh | head -20 || true
 
       - name: Build Linux Docker images
         id: build-docker
