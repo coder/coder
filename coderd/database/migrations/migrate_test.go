@@ -465,6 +465,180 @@ func TestMigration000362AggregateUsageEvents(t *testing.T) {
 	}
 }
 
+func TestMigration000439ChatCostRolloutSafety(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.SkipNow()
+		return
+	}
+
+	const migrationVersion = 439
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	orgID := uuid.New()
+	userID := uuid.New()
+	chatProviderID := uuid.New()
+	modelConfigID := uuid.New()
+	chatID := uuid.New()
+
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO organizations (id, name, display_name, description, icon, created_at, updated_at, is_default)
+		VALUES ($1, 'test-org', 'Test Org', '', '', NOW(), NOW(), false)
+	`, orgID)
+	require.NoError(t, err)
+
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO users (id, email, username, name, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, 'test@test.com', 'testuser', 'Test User', 'xxx', NOW(), NOW(), 'active', '{}', 'password')
+	`, userID)
+	require.NoError(t, err)
+
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO organization_members (organization_id, user_id, created_at, updated_at, roles)
+		VALUES ($1, $2, NOW(), NOW(), '{}')
+	`, orgID, userID)
+	require.NoError(t, err)
+
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO chat_providers (
+			id,
+			provider,
+			display_name,
+			api_key,
+			api_key_key_id,
+			enabled,
+			created_at,
+			updated_at
+		) VALUES (
+			$1,
+			'openai',
+			'OpenAI',
+			'',
+			NULL,
+			true,
+			NOW(),
+			NOW()
+		)
+	`, chatProviderID)
+	require.NoError(t, err)
+
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO chat_model_configs (
+			id,
+			display_name,
+			provider,
+			model,
+			enabled,
+			context_limit,
+			compression_threshold,
+			created_at,
+			updated_at
+		) VALUES (
+			$1,
+			'test model',
+			'openai',
+			'gpt-4',
+			true,
+			200000,
+			70,
+			NOW(),
+			NOW()
+		)
+	`, modelConfigID)
+	require.NoError(t, err)
+
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO chats (id, owner_id, last_model_config_id, title, created_at, updated_at)
+		VALUES ($1, $2, $3, 'test chat', NOW(), NOW())
+	`, chatID, userID, modelConfigID)
+	require.NoError(t, err)
+
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO chat_messages (chat_id, role, content_version, visibility, total_cost_micros, created_at)
+		VALUES ($1, 'assistant', 1, 'both', 500, NOW())
+	`, chatID)
+	require.NoError(t, err)
+
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO chat_messages (chat_id, role, content_version, visibility, total_cost_micros, created_at)
+		VALUES ($1, 'assistant', 1, 'both', NULL, NOW())
+	`, chatID)
+	require.NoError(t, err)
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	rows, err := sqlDB.QueryContext(ctx, `
+		SELECT total_cost_micros, cost_valid
+		FROM chat_messages
+		WHERE chat_id = $1
+		ORDER BY id
+	`, chatID)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	var messages []struct {
+		totalCost sql.NullInt64
+		costValid sql.NullBool
+	}
+	for rows.Next() {
+		var message struct {
+			totalCost sql.NullInt64
+			costValid sql.NullBool
+		}
+		err = rows.Scan(&message.totalCost, &message.costValid)
+		require.NoError(t, err)
+		messages = append(messages, message)
+	}
+	require.NoError(t, rows.Err())
+	require.Len(t, messages, 2)
+
+	require.True(t, messages[0].totalCost.Valid)
+	require.Equal(t, int64(500), messages[0].totalCost.Int64)
+	require.True(t, messages[0].costValid.Valid)
+	require.True(t, messages[0].costValid.Bool)
+
+	require.False(t, messages[1].totalCost.Valid)
+	require.True(t, messages[1].costValid.Valid)
+	require.False(t, messages[1].costValid.Bool)
+
+	_, err = sqlDB.ExecContext(ctx, `
+		INSERT INTO chat_messages (chat_id, role, content_version, visibility, total_cost_micros, created_at)
+		VALUES ($1, 'assistant', 1, 'both', NULL, NOW())
+	`, chatID)
+	require.NoError(t, err)
+
+	var oldStyleTotalCost sql.NullInt64
+	var oldStyleCostValid sql.NullBool
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT total_cost_micros, cost_valid
+		FROM chat_messages
+		WHERE chat_id = $1
+		ORDER BY id DESC
+		LIMIT 1
+	`, chatID).Scan(&oldStyleTotalCost, &oldStyleCostValid)
+	require.NoError(t, err)
+	require.False(t, oldStyleTotalCost.Valid)
+	require.False(t, oldStyleCostValid.Valid)
+}
+
 func TestMigration000387MigrateTaskWorkspaces(t *testing.T) {
 	t.Parallel()
 

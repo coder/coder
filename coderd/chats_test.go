@@ -3829,6 +3829,69 @@ func TestChatCostSummary_UnpricedMessages(t *testing.T) {
 	require.Equal(t, int64(125), summary.TotalOutputTokens)
 }
 
+func TestChatCostSummary_MixedVersionRows(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	modelConfig := createChatModelConfig(t, client)
+
+	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+		OwnerID:           firstUser.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "mixed version test",
+	})
+	require.NoError(t, err)
+
+	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+		ChatID:          chat.ID,
+		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+		Role:            "assistant",
+		ContentVersion:  1,
+		Visibility:      database.ChatMessageVisibilityBoth,
+		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
+		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
+		TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
+		CostValid:       sql.NullBool{Bool: true, Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+		ChatID:          chat.ID,
+		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+		Role:            "assistant",
+		ContentVersion:  1,
+		Visibility:      database.ChatMessageVisibilityBoth,
+		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
+		OutputTokens:    sql.NullInt64{Int64: 100, Valid: true},
+		TotalCostMicros: sql.NullInt64{Int64: 300, Valid: true},
+		CostValid:       sql.NullBool{},
+	})
+	require.NoError(t, err)
+
+	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+		ChatID:          chat.ID,
+		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+		Role:            "assistant",
+		ContentVersion:  1,
+		Visibility:      database.ChatMessageVisibilityBoth,
+		InputTokens:     sql.NullInt64{Int64: 150, Valid: true},
+		OutputTokens:    sql.NullInt64{Int64: 75, Valid: true},
+		TotalCostMicros: sql.NullInt64{},
+		CostValid:       sql.NullBool{},
+	})
+	require.NoError(t, err)
+
+	summary, err := client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{})
+	require.NoError(t, err)
+	require.Equal(t, int64(800), summary.TotalCostMicros)
+	require.Equal(t, int64(2), summary.PricedMessageCount)
+	require.Equal(t, int64(1), summary.UnpricedMessageCount)
+	require.Equal(t, int64(450), summary.TotalInputTokens)
+	require.Equal(t, int64(225), summary.TotalOutputTokens)
+}
+
 func requireChatModelPricing(
 	t *testing.T,
 	actual *codersdk.ChatModelCallConfig,
