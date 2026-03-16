@@ -342,7 +342,7 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.3.2"
+  version  = "1.4.0"
   agent_id = coder_agent.dev.id
 }
 
@@ -911,7 +911,7 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.8.0"
+  version             = "4.8.1"
   enable_boundary     = true
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
