@@ -1233,6 +1233,9 @@ jobs:
           du -sh "$(go env GOCACHE)" || true
           du -sh build/ || true
           docker system df || true
+          du -sh site/out/ 2>/dev/null || true
+          du -sh site/node_modules/ 2>/dev/null || true
+          du -sh site/.next/ 2>/dev/null || true
           du -sh /home/runner/* 2>/dev/null | sort -rh | head -20 || true
           du -sh /home/runner/work/coder/coder/* 2>/dev/null | sort -rh | head -20 || true
 
