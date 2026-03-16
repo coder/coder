@@ -38,13 +38,13 @@ type ManifestAPI struct {
 }
 
 func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
-	workspaceAgent := a.Agent
 	var (
-		dbApps        []database.WorkspaceApp
-		scripts       []database.WorkspaceAgentScript
-		metadata      []database.WorkspaceAgentMetadatum
-		workspace     database.Workspace
-		devcontainers []database.WorkspaceAgentDevcontainer
+		dbApps         []database.WorkspaceApp
+		scripts        []database.WorkspaceAgentScript
+		metadata       []database.WorkspaceAgentMetadatum
+		workspace      database.Workspace
+		devcontainers  []database.WorkspaceAgentDevcontainer
+		workspaceAgent = a.Agent
 	)
 
 	var eg errgroup.Group

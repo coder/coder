@@ -81,9 +81,9 @@ func TestSubAgentAPI(t *testing.T) {
 		return &agentapi.SubAgentAPI{
 			OwnerID:        user.ID,
 			OrganizationID: org.ID,
-			Agent: agent,
-			Clock:    clock,
-			Database: dbauthz.New(db, auth, logger, accessControlStore),
+			Agent:          agent,
+			Clock:          clock,
+			Database:       dbauthz.New(db, auth, logger, accessControlStore),
 		}
 	}
 

@@ -48,6 +48,12 @@ func (cws *CachedWorkspaceFields) UpdateValues(ws database.Workspace) {
 	cws.taskID = ws.TaskID
 }
 
+func (cws *CachedWorkspaceFields) TaskID() uuid.NullUUID {
+	cws.lock.RLock()
+	defer cws.lock.RUnlock()
+	return cws.taskID
+}
+
 // Returns the Workspace, true, unless the workspace has not been cached (nuked or was a prebuild).
 func (cws *CachedWorkspaceFields) AsWorkspaceIdentity() (database.WorkspaceIdentity, bool) {
 	cws.lock.RLock()
@@ -57,13 +63,6 @@ func (cws *CachedWorkspaceFields) AsWorkspaceIdentity() (database.WorkspaceIdent
 		return database.WorkspaceIdentity{}, false
 	}
 	return cws.identity, true
-}
-
-// TaskID returns the cached workspace's task ID.
-func (cws *CachedWorkspaceFields) TaskID() uuid.NullUUID {
-	cws.lock.RLock()
-	defer cws.lock.RUnlock()
-	return cws.taskID
 }
 
 // ContextInject attempts to inject the rbac object for the cached workspace fields
