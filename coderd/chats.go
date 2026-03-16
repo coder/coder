@@ -193,7 +193,16 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertChats(chats, diffStatusesByChatID))
+	owner, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat owner.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertChats(chats, owner, diffStatusesByChatID))
 }
 
 func (api *API) getChatDiffStatusesByChatID(
@@ -286,7 +295,16 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertChat(chat, nil))
+	owner, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat owner.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, convertChat(chat, owner, nil))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -553,7 +571,17 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
-	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, nil))
+
+	owner, err := api.Database.GetUserByID(ctx, chat.OwnerID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat owner.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, owner, nil))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -1296,7 +1324,16 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 		chat = updatedChat
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, nil))
+	owner, err := api.Database.GetUserByID(ctx, chat.OwnerID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat owner.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, owner, nil))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -2447,10 +2484,12 @@ func truncateRunes(value string, maxLen int) string {
 	return string(runes[:maxLen])
 }
 
-func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
+func convertChat(c database.Chat, owner database.User, diffStatus *database.ChatDiffStatus) codersdk.Chat {
 	chat := codersdk.Chat{
 		ID:                c.ID,
 		OwnerID:           c.OwnerID,
+		OwnerName:         owner.Username,
+		OwnerAvatarURL:    owner.AvatarURL,
 		LastModelConfigID: c.LastModelConfigID,
 		Title:             c.Title,
 		Status:            codersdk.ChatStatus(c.Status),
@@ -2486,16 +2525,16 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 	return chat
 }
 
-func convertChats(chats []database.Chat, diffStatusesByChatID map[uuid.UUID]database.ChatDiffStatus) []codersdk.Chat {
+func convertChats(chats []database.Chat, owner database.User, diffStatusesByChatID map[uuid.UUID]database.ChatDiffStatus) []codersdk.Chat {
 	result := make([]codersdk.Chat, len(chats))
 	for i, c := range chats {
 		diffStatus, ok := diffStatusesByChatID[c.ID]
 		if ok {
-			result[i] = convertChat(c, &diffStatus)
+			result[i] = convertChat(c, owner, &diffStatus)
 			continue
 		}
 
-		result[i] = convertChat(c, nil)
+		result[i] = convertChat(c, owner, nil)
 		if diffStatusesByChatID != nil {
 			emptyDiffStatus := convertChatDiffStatus(c.ID, nil)
 			result[i].DiffStatus = &emptyDiffStatus

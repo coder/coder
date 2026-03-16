@@ -35,6 +35,8 @@ const (
 type Chat struct {
 	ID                uuid.UUID       `json:"id" format:"uuid"`
 	OwnerID           uuid.UUID       `json:"owner_id" format:"uuid"`
+	OwnerName         string          `json:"owner_name"`
+	OwnerAvatarURL    string          `json:"owner_avatar_url"`
 	WorkspaceID       *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
 	ParentChatID      *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
 	RootChatID        *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`

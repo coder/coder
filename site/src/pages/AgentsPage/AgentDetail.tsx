@@ -828,7 +828,7 @@ const AgentDetail: FC = () => {
 		sendMutation.isPending ||
 		editMutation.isPending ||
 		interruptMutation.isPending;
-	const isInputDisabled = !hasModelOptions || isArchived || isViewingOtherChat;
+	const isInputDisabled = !hasModelOptions || isArchived;
 
 	const handleSend = async (
 		message: string,
@@ -1120,8 +1120,15 @@ const AgentDetail: FC = () => {
 			chatErrorReasons={chatErrorReasons}
 			chatRecord={chatRecord}
 			isArchived={isArchived}
-			isViewingOtherChat={isViewingOtherChat}
-			chatOwner={undefined}
+			chatOwner={
+				isViewingOtherChat && chatRecord
+					? {
+							id: chatRecord.owner_id,
+							username: chatRecord.owner_name,
+							avatar_url: chatRecord.owner_avatar_url,
+						}
+					: undefined
+			}
 			hasWorkspace={Boolean(workspaceId)}
 			store={store}
 			editing={editing}

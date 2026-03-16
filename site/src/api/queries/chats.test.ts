@@ -74,6 +74,8 @@ const makeChat = (
 ): TypesGen.Chat => ({
 	id,
 	owner_id: "owner-1",
+	owner_name: "owner1",
+	owner_avatar_url: "",
 	last_model_config_id: "model-1",
 	title: `Chat ${id}`,
 	status: "running",

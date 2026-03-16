@@ -1058,6 +1058,8 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
 export interface Chat {
 	readonly id: string;
 	readonly owner_id: string;
+	readonly owner_name: string;
+	readonly owner_avatar_url: string;
 	readonly workspace_id?: string;
 	readonly parent_chat_id?: string;
 	readonly root_chat_id?: string;

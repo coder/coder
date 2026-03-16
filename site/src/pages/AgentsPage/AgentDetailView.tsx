@@ -1,7 +1,7 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ChatDiffStatus } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { ArchiveIcon, EyeIcon } from "lucide-react";
+import { ArchiveIcon } from "lucide-react";
 import { type FC, type RefObject, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
@@ -56,7 +56,6 @@ interface AgentDetailViewProps {
 	chatErrorReasons: Record<string, string>;
 	chatRecord: TypesGen.Chat | undefined;
 	isArchived: boolean;
-	isViewingOtherChat: boolean;
 	chatOwner?: TypesGen.MinimalUser;
 	hasWorkspace: boolean;
 
@@ -135,7 +134,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	chatErrorReasons,
 	chatRecord,
 	isArchived,
-	isViewingOtherChat,
 	chatOwner,
 	hasWorkspace,
 	store,
@@ -240,12 +238,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							This agent has been archived and is read-only.
 						</div>
 					)}
-					{isViewingOtherChat && !isArchived && (
-						<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
-							<EyeIcon className="h-4 w-4 shrink-0" />
-							You are viewing someone else&apos;s agent. This chat is read-only.
-						</div>
-					)}
+
 					<div
 						aria-hidden
 						className="pointer-events-none absolute inset-x-0 top-full z-10 h-6 bg-surface-primary"
@@ -268,9 +261,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							persistedErrorReason={
 								chatErrorReasons[agentId] || chatRecord?.last_error || undefined
 							}
-							onEditUserMessage={
-								isViewingOtherChat ? undefined : editing.handleEditUserMessage
-							}
+							onEditUserMessage={editing.handleEditUserMessage}
 							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
 							urlTransform={urlTransform}

@@ -37,6 +37,8 @@ const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
 	owner_id: "owner-1",
+	owner_name: "owner1",
+	owner_avatar_url: "",
 	title: "Agent",
 	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,

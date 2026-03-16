@@ -182,6 +182,8 @@ const createTestQueryClient = (): QueryClient =>
 const makeChat = (chatID: string): TypesGen.Chat => ({
 	id: chatID,
 	owner_id: "owner-1",
+	owner_name: "owner1",
+	owner_avatar_url: "",
 	last_model_config_id: "model-1",
 	title: "test",
 	status: "running",

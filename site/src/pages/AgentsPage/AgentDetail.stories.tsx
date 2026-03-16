@@ -105,6 +105,8 @@ const mockModelCatalog: TypesGen.ChatModelsResponse = {
 
 const baseChatFields = {
 	owner_id: MockUserOwner.id,
+	owner_name: MockUserOwner.username,
+	owner_avatar_url: MockUserOwner.avatar_url ?? "",
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: "model-config-1",
 	created_at: "2026-02-18T00:00:00.000Z",
@@ -114,13 +116,8 @@ const baseChatFields = {
 } as const;
 
 const OTHER_USER_ID = "other-user-id";
-
-const mockOtherUser: TypesGen.MinimalUser = {
-	id: OTHER_USER_ID,
-	username: "alice",
-	avatar_url: "",
-	name: "Alice Smith",
-};
+const OTHER_USER_NAME = "alice";
+const OTHER_USER_AVATAR = "";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1051,7 +1048,7 @@ export const StreamedReasoningCollapsed: Story = {
 	},
 };
 
-/** Viewing another user's chat — read-only banner is shown. */
+/** Viewing another user's chat — owner badge is shown in the top bar. */
 export const ViewingOtherUsersChat: Story = {
 	parameters: {
 		queries: [
@@ -1060,6 +1057,8 @@ export const ViewingOtherUsersChat: Story = {
 					id: CHAT_ID,
 					...baseChatFields,
 					owner_id: OTHER_USER_ID,
+					owner_name: OTHER_USER_NAME,
+					owner_avatar_url: OTHER_USER_AVATAR,
 					title: "Someone else's agent",
 					status: "completed",
 				},
@@ -1094,21 +1093,11 @@ export const ViewingOtherUsersChat: Story = {
 				},
 				{ diffUrl: undefined },
 			),
-			{
-				key: ["users", OTHER_USER_ID],
-				data: { users: [mockOtherUser], count: 1 },
-			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText(/viewing someone else/i)).toBeInTheDocument();
-		});
 	},
 };
 
-/** Viewing another user's archived chat — archived banner takes priority. */
+/** Viewing another user's archived chat — both owner badge and archived banner show. */
 export const ViewingOtherUsersChatArchived: Story = {
 	parameters: {
 		queries: [
@@ -1117,6 +1106,8 @@ export const ViewingOtherUsersChatArchived: Story = {
 					id: CHAT_ID,
 					...baseChatFields,
 					owner_id: OTHER_USER_ID,
+					owner_name: OTHER_USER_NAME,
+					owner_avatar_url: OTHER_USER_AVATAR,
 					title: "Archived foreign agent",
 					status: "completed",
 					archived: true,
@@ -1124,19 +1115,6 @@ export const ViewingOtherUsersChatArchived: Story = {
 				{ messages: [], queued_messages: [] },
 				{ diffUrl: undefined },
 			),
-			{
-				key: ["users", OTHER_USER_ID],
-				data: { users: [mockOtherUser], count: 1 },
-			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(
-				canvas.getByText(/archived and is read-only/i),
-			).toBeInTheDocument();
-		});
-		expect(canvas.queryByText(/viewing someone else/i)).not.toBeInTheDocument();
 	},
 };
