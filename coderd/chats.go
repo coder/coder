@@ -557,7 +557,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	diffStatus, err := api.resolveChatDiffStatus(ctx, chat)
 	if err != nil {
 		// Log but don't fail - diff status is supplementary.
-		api.Logger.Warn(ctx, "failed to resolve chat diff status",
+		api.Logger.Error(ctx, "failed to resolve chat diff status",
 			slog.F("chat_id", chat.ID),
 			slog.Error(err),
 		)
@@ -1307,10 +1307,6 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, nil))
 }
-
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
-//nolint:revive // HTTP handler writes to ResponseWriter.
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //

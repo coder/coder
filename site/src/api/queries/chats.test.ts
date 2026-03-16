@@ -476,7 +476,8 @@ describe("mutation invalidation scope", () => {
 		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
 		// Messages: ["chats", chatId, "messages"]
 		queryClient.setQueryData(chatMessagesKey(chatId), []);
-		// Diff contents: ["chats", chatId, "diff-contents"]		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
+		// Diff contents: ["chats", chatId, "diff-contents"]
+		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
 		// Cost summary: ["chats", "costSummary", "me", undefined]
 		queryClient.setQueryData(
 			chatCostSummaryKey("me", undefined),
