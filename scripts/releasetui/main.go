@@ -71,7 +71,7 @@ func main() {
 				executor = &liveExecutor{}
 			}
 
-			return runRelease(ctx, inv, executor, ghAvailable, gpgConfigured)
+			return runRelease(ctx, inv, executor, ghAvailable, gpgConfigured, dryRun)
 		},
 	}
 

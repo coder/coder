@@ -19,7 +19,7 @@ import (
 )
 
 //nolint:revive // Long function is fine for a sequential release flow.
-func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseExecutor, ghAvailable, gpgConfigured bool) error {
+func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseExecutor, ghAvailable, gpgConfigured, dryRun bool) error {
 	w := inv.Stderr
 
 	// --- Release landscape ---
@@ -574,6 +574,10 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		return xerrors.Errorf("triggering workflow: %w", err)
 	}
 	successf(w, "Release workflow triggered!")
+
+	// --- Update release docs ---
+	promptAndUpdateDocs(inv, newVersion, channel, allTags, dryRun)
+
 	fmt.Fprintln(w)
 	successf(w, "Done! 🎉")
 	return nil
