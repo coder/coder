@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -275,8 +276,9 @@ func workspaceAgent() *serpent.Command {
 			reinitEvents := agentsdk.WaitForReinitLoop(ctx, logger, client)
 
 			var (
-				lastErr  error
-				mustExit bool
+				lastOwnerID uuid.UUID
+				lastErr     error
+				mustExit    bool
 			)
 			for {
 				prometheusRegistry := prometheus.NewRegistry()
@@ -344,6 +346,12 @@ func workspaceAgent() *serpent.Command {
 					logger.Info(ctx, "agent shutting down", slog.Error(context.Cause(ctx)))
 					mustExit = true
 				case event := <-reinitEvents:
+					if event.UserID != uuid.Nil && event.UserID == lastOwnerID {
+						logger.Info(ctx, "skipping redundant reinit, owner unchanged",
+							slog.F("owner_id", event.UserID))
+						continue
+					}
+					lastOwnerID = event.UserID
 					logger.Info(ctx, "agent received instruction to reinitialize",
 						slog.F("workspace_id", event.WorkspaceID), slog.F("reason", event.Reason))
 				}
