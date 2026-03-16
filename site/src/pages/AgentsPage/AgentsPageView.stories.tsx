@@ -117,6 +117,9 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 });
 
 const agentsRouting = [
+	{ path: "/agents/settings/:section", useStoryElement: true },
+	{ path: "/agents/settings", useStoryElement: true },
+	{ path: "/agents/analytics", useStoryElement: true },
 	{ path: "/agents/:agentId", useStoryElement: true },
 	{ path: "/agents", useStoryElement: true },
 ] satisfies [
@@ -381,8 +384,6 @@ export const WithErrorReasons: Story = {
 		},
 	},
 };
-
-
 
 const openAnalyticsView = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);

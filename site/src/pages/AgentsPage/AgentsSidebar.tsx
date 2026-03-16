@@ -70,7 +70,7 @@ import { cn } from "utils/cn";
 import { shortRelativeTime } from "utils/time";
 import { getTimeGroup, TIME_GROUPS } from "./timeGroups";
 
-export type SidebarView =
+type SidebarView =
 	| { panel: "chats" }
 	| { panel: "settings"; section: string }
 	| { panel: "analytics" };
@@ -766,19 +766,24 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							)}
 						</div>
 					</div>
-						<SettingsNavItem
-							icon={SquarePenIcon}
-							label="New Agent"
-							active={!activeChatId && sidebarView.panel === "chats"}
-							onClick={onNewAgent}
-							disabled={isCreating}
-						/>					<div className="mt-0.5 flex flex-col gap-0.5">
+					<SettingsNavItem
+						icon={SquarePenIcon}
+						label="New Agent"
+						active={!activeChatId && sidebarView.panel === "chats"}
+						onClick={onNewAgent}
+						disabled={isCreating}
+					/>{" "}
+					<div className="mt-0.5 flex flex-col gap-0.5">
 						<SettingsNavItem
 							icon={SettingsIcon}
 							label="Settings"
 							active={sidebarView.panel === "settings"}
-							onClick={() => navigate("/agents/settings")}
-						/>
+							onClick={() =>
+								navigate("/agents/settings", {
+									state: { from: location.pathname },
+								})
+							}
+						/>{" "}
 						<SettingsNavItem
 							icon={BarChart3Icon}
 							label="Analytics"
@@ -882,8 +887,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				<div className="hidden border-0 border-t border-solid md:block">
 					<div className="flex items-center">
 						<DropdownMenu>
-								<DropdownMenuTrigger asChild>
-									<button									type="button"
+							<DropdownMenuTrigger asChild>
+								<button
+									type="button"
 									className="flex min-w-0 flex-1 items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors"
 								>
 									<Avatar
@@ -930,7 +936,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				<div className="hidden border-b border-border-default px-3 py-2.5 md:block">
 					<button
 						type="button"
-						onClick={() => navigate("/agents")}
+						onClick={() =>
+							navigate((location.state as { from?: string })?.from || "/agents")
+						}
 						className="flex items-center gap-1.5 rounded-md border-0 bg-transparent px-0 py-1 text-sm font-medium text-content-primary cursor-pointer hover:text-content-secondary transition-colors"
 						aria-label={`Back to chats from ${subNavTitle}`}
 					>
@@ -945,7 +953,12 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							icon={UserIcon}
 							label="Behavior"
 							active={sidebarView.section === "behavior"}
-							onClick={() => navigate("/agents/settings/behavior")}
+							onClick={() =>
+								navigate("/agents/settings/behavior", {
+									replace: true,
+									state: location.state,
+								})
+							}
 						/>
 						{isAdmin && (
 							<>
@@ -953,14 +966,24 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									icon={KeyRoundIcon}
 									label="Providers"
 									active={sidebarView.section === "providers"}
-									onClick={() => navigate("/agents/settings/providers")}
+									onClick={() =>
+										navigate("/agents/settings/providers", {
+											replace: true,
+											state: location.state,
+										})
+									}
 									adminOnly
 								/>
 								<SettingsNavItem
 									icon={BoxesIcon}
 									label="Models"
 									active={sidebarView.section === "models"}
-									onClick={() => navigate("/agents/settings/models")}
+									onClick={() =>
+										navigate("/agents/settings/models", {
+											replace: true,
+											state: location.state,
+										})
+									}
 									adminOnly
 								/>
 								<SettingsNavItem
@@ -974,7 +997,12 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									icon={BarChart3Icon}
 									label="Usage"
 									active={sidebarView.section === "usage"}
-									onClick={() => navigate("/agents/settings/usage")}
+									onClick={() =>
+										navigate("/agents/settings/usage", {
+											replace: true,
+											state: location.state,
+										})
+									}
 									adminOnly
 								/>
 							</>
