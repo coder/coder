@@ -592,6 +592,11 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 func (api *API) getChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	config, configErr := api.Database.GetChatUsageLimitConfig(ctx)
 	if configErr != nil && !errors.Is(configErr, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
