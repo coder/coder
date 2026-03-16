@@ -153,7 +153,10 @@ const buildQueries = (
 	};
 	return [
 		{ key: chatKey(CHAT_ID), data: chatWithDiffStatus },
-		{ key: chatMessagesKey(CHAT_ID), data: messagesData },
+		{
+			key: chatMessagesKey(CHAT_ID),
+			data: { pages: [messagesData], pageParams: [undefined] },
+		},
 		{ key: chatsKey, data: [chatWithDiffStatus] },
 		{
 			key: chatDiffContentsKey(CHAT_ID),
@@ -532,6 +535,7 @@ export const WithMessageHistory: Story = {
 					},
 				],
 				queued_messages: [],
+				has_more: false,
 			},
 			{ diffUrl: undefined },
 		),
@@ -555,7 +559,7 @@ export const CompletedWithDiffPanel: Story = {
 				title: "Build a feature",
 				status: "completed",
 			},
-			{ messages: [], queued_messages: [] },
+			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: "https://github.com/coder/coder/pull/123" },
 		),
 	},
@@ -590,7 +594,7 @@ export const NoDiffUrl: Story = {
 				title: "No diff yet",
 				status: "completed",
 			},
-			{ messages: [], queued_messages: [] },
+			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
 	},
@@ -634,6 +638,7 @@ export const WithSubagentCards: Story = {
 					},
 				],
 				queued_messages: [],
+				has_more: false,
 			},
 			{ diffUrl: undefined },
 		),
@@ -675,6 +680,7 @@ export const WithReasoningCollapsed: Story = {
 					},
 				],
 				queued_messages: [],
+				has_more: false,
 			},
 			{ diffUrl: undefined },
 		),
@@ -710,7 +716,7 @@ export const StreamedSubagentTitle: Story = {
 				title: "Streaming title",
 				status: "running",
 			},
-			{ messages: [], queued_messages: [] },
+			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
 		webSocket: {
@@ -762,7 +768,7 @@ export const SidebarWithPRAndRepos: Story = {
 				title: "Full sidebar demo",
 				status: "completed",
 			},
-			{ messages: [], queued_messages: [] },
+			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: "https://github.com/coder/coder/pull/456" },
 		),
 		webSocket: {
@@ -943,7 +949,7 @@ export const SidebarWithSingleRepo: Story = {
 				title: "Single repo sidebar",
 				status: "completed",
 			},
-			{ messages: [], queued_messages: [] },
+			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
 		webSocket: {
@@ -1005,7 +1011,7 @@ export const StreamedReasoningCollapsed: Story = {
 				title: "Streaming reasoning title",
 				status: "running",
 			},
-			{ messages: [], queued_messages: [] },
+			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
 		webSocket: {

@@ -573,9 +573,29 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
-	messages, err := api.Database.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chatID,
-		AfterID: 0,
+	// Parse optional cursor-based pagination parameters.
+	queryParams := r.URL.Query()
+	parser := httpapi.NewQueryParamParser()
+	beforeID := parser.PositiveInt64(queryParams, 0, "before_id")
+	limit := parser.PositiveInt32(queryParams, 50, "limit")
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+	if limit < 1 || limit > 200 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid limit parameter (1-200).",
+		})
+		return
+	}
+	// Fetch limit+1 rows to detect whether more pages exist.
+	messages, err := api.Database.GetChatMessagesByChatIDDescPaginated(ctx, database.GetChatMessagesByChatIDDescPaginatedParams{
+		ChatID:   chatID,
+		BeforeID: beforeID,
+		LimitVal: limit + 1,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -585,18 +605,28 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	queuedMessages, err := api.Database.GetChatQueuedMessages(ctx, chatID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get queued messages.",
-			Detail:  err.Error(),
-		})
-		return
+	hasMore := len(messages) > int(limit)
+	if hasMore {
+		messages = messages[:limit]
+	}
+
+	// Only fetch queued messages on the first page (no cursor).
+	var queuedMessages []database.ChatQueuedMessage
+	if beforeID == 0 {
+		queuedMessages, err = api.Database.GetChatQueuedMessages(ctx, chatID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to get queued messages.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMessagesResponse{
 		Messages:       convertChatMessages(messages),
 		QueuedMessages: convertChatQueuedMessages(queuedMessages),
+		HasMore:        hasMore,
 	})
 }
 
