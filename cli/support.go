@@ -113,6 +113,20 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			)
 			cliLog.Debug(inv.Context(), "invocation", slog.F("args", strings.Join(os.Args, " ")))
 
+			// Bypass rate limiting for support bundle collection since it makes many API calls.
+			// Note: this can only be done by the owner user.
+			if ok, err := hasOwnerRole(inv.Context(), client); err == nil && ok {
+				cliLog.Debug(inv.Context(), "running as owner")
+				client.HTTPClient.Transport = &codersdk.HeaderTransport{
+					Transport: client.HTTPClient.Transport,
+					Header:    http.Header{codersdk.BypassRatelimitHeader: {"true"}},
+				}
+			} else if !ok {
+				cliLog.Warn(inv.Context(), "not running as owner, not all information available")
+			} else {
+				cliLog.Error(inv.Context(), "failed to look up current user", slog.Error(err))
+			}
+
 			// Check if we're running inside a workspace
 			if val, found := os.LookupEnv("CODER"); found && val == "true" {
 				cliui.Warn(inv.Stderr, "Running inside Coder workspace; this can affect results!")
@@ -200,12 +214,6 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				_, _ = fmt.Fprintln(inv.Stderr, "pprof data collection will take approximately 30 seconds...")
 			}
 
-			// Bypass rate limiting for support bundle collection since it makes many API calls.
-			client.HTTPClient.Transport = &codersdk.HeaderTransport{
-				Transport: client.HTTPClient.Transport,
-				Header:    http.Header{codersdk.BypassRatelimitHeader: {"true"}},
-			}
-
 			deps := support.Deps{
 				Client: client,
 				// Support adds a sink so we don't need to supply one ourselves.
@@ -271,6 +279,24 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 	}
 
 	return cmd
+}
+
+func hasOwnerRole(ctx context.Context, client *codersdk.Client) (bool, error) {
+	resp, err := client.User(ctx, codersdk.Me)
+	if err != nil {
+		return false, err
+	}
+	for _, role := range resp.Roles {
+		if len(role.OrganizationID) != 0 {
+			continue
+		}
+		if role.Name != "owner" {
+			continue
+		}
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // Resolve a template to its ID, supporting:
