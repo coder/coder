@@ -183,6 +183,37 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		fmt.Fprintln(w)
 	}
 
+	// --- Check open PRs ---
+	// This runs before breaking changes so any last-minute merges
+	// are caught by the subsequent checks.
+	infof(w, "Checking for open PRs against %s...", currentBranch)
+	var openPRs []ghPR
+	if ghAvailable {
+		openPRs, err = ghListOpenPRs(currentBranch)
+		if err != nil {
+			warnf(w, "Failed to check open PRs: %v", err)
+		}
+	} else {
+		infof(w, "Skipping (no gh CLI).")
+	}
+
+	if len(openPRs) > 0 {
+		fmt.Fprintln(w)
+		warnf(w, "There are open PRs targeting %s that may need merging first:", currentBranch)
+		fmt.Fprintln(w)
+		for _, pr := range openPRs {
+			fmt.Fprintf(w, "  #%d %s (@%s)\n", pr.Number, pr.Title, pr.Author)
+		}
+		fmt.Fprintln(w)
+		if err := confirmWithDefault(inv, "Continue without merging these?", cliui.ConfirmNo); err != nil {
+			return err
+		}
+		fmt.Fprintln(w)
+	} else {
+		successf(w, "No open PRs against %s.", currentBranch)
+	}
+	fmt.Fprintln(w)
+
 	// --- Semver sanity checks ---
 	if prevVersion != nil { //nolint:nestif // Sequential release checks are inherently nested.
 		// Downgrade check.
@@ -268,35 +299,6 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 			}
 		}
 	}
-
-	// --- Check open PRs ---
-	infof(w, "Checking for open PRs against %s...", currentBranch)
-	var openPRs []ghPR
-	if ghAvailable {
-		openPRs, err = ghListOpenPRs(currentBranch)
-		if err != nil {
-			warnf(w, "Failed to check open PRs: %v", err)
-		}
-	} else {
-		infof(w, "Skipping (no gh CLI).")
-	}
-
-	if len(openPRs) > 0 {
-		fmt.Fprintln(w)
-		warnf(w, "There are open PRs targeting %s that may need merging first:", currentBranch)
-		fmt.Fprintln(w)
-		for _, pr := range openPRs {
-			fmt.Fprintf(w, "  #%d %s (@%s)\n", pr.Number, pr.Title, pr.Author)
-		}
-		fmt.Fprintln(w)
-		if err := confirmWithDefault(inv, "Continue without merging these?", cliui.ConfirmNo); err != nil {
-			return err
-		}
-		fmt.Fprintln(w)
-	} else {
-		successf(w, "No open PRs against %s.", currentBranch)
-	}
-	fmt.Fprintln(w)
 
 	// --- Channel selection ---
 	// This is done before release notes generation because the
