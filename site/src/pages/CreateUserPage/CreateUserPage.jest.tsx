@@ -5,7 +5,6 @@ import {
 import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import CreateUserPage from "./CreateUserPage";
-import { Language as FormLanguage } from "./Language";
 
 const renderCreateUserPage = async () => {
 	renderWithAuth(<CreateUserPage />, {
@@ -25,21 +24,16 @@ const fillForm = async ({
 	email?: string;
 	password?: string;
 }) => {
-	const usernameField = screen.getByLabelText(FormLanguage.usernameLabel);
-	const emailField = screen.getByLabelText(FormLanguage.emailLabel);
-	const passwordField = screen
-		.getByTestId("password-input")
-		.querySelector("input");
+	await userEvent.type(screen.getByLabelText("Username"), username);
+	await userEvent.type(screen.getByLabelText(/email/i), email);
 
-	const loginTypeField = screen.getByTestId("login-type-input");
-	await userEvent.type(usernameField, username);
-	await userEvent.type(emailField, email);
-	await userEvent.type(loginTypeField, "password");
-	await userEvent.type(passwordField as HTMLElement, password);
-	const submitButton = screen.getByRole("button", {
-		name: /save/i,
-	});
-	fireEvent.click(submitButton);
+	// Open the login type select and choose "password"
+	await userEvent.click(screen.getByTestId("login-type-input"));
+	await userEvent.click(screen.getByRole("option", { name: /password/i }));
+
+	await userEvent.type(screen.getByTestId("password-input"), password);
+
+	fireEvent.click(screen.getByRole("button", { name: /save/i }));
 };
 
 describe("Create User Page", () => {

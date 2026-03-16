@@ -1,18 +1,24 @@
-import Link from "@mui/material/Link";
-import MenuItem from "@mui/material/MenuItem";
-import TextField from "@mui/material/TextField";
+import * as SelectPrimitive from "@radix-ui/react-select";
 import { hasApiFieldErrors, isApiError } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
-import { FormFooter } from "components/Form/Form";
+import { FormField, FormFooter } from "components/Form/Form";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
+import { Label } from "components/Label/Label";
+import { Link } from "components/Link/Link";
 import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
-import { PasswordField } from "components/PasswordField/PasswordField";
+import {
+	Select,
+	SelectContent,
+	SelectTrigger,
+	SelectValue,
+} from "components/Select/Select";
 import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
+import { Check } from "lucide-react";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -20,61 +26,71 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
-import { Language } from "./Language";
 
-export const authMethodLanguage = {
+const loginTypeOptions = {
 	password: {
-		displayName: "Password",
-		description: "Use an email address and password to login",
+		label: "Password",
+		description: "Use an email address and password to log in.",
 	},
 	oidc: {
-		displayName: "OpenID Connect",
-		description: "Use an OpenID Connect provider for authentication",
+		label: "OpenID Connect",
+		description: "Use an OpenID Connect provider for authentication.",
 	},
 	github: {
-		displayName: "Github",
-		description: "Use Github OAuth for authentication",
+		label: "GitHub",
+		description: "Use GitHub OAuth for authentication.",
 	},
 	none: {
-		displayName: "None",
+		label: "Service account",
 		description: (
 			<>
-				Disable authentication for this user (See the{" "}
+				Cannot log in interactively. Intended for automated pipelines, bots, and
+				other non-human access.{" "}
 				<Link
 					target="_blank"
 					rel="noopener"
 					href="https://coder.com/docs/admin/users/headless-auth"
 				>
-					documentation
-				</Link>{" "}
-				for more details)
+					See the documentation.
+				</Link>
 			</>
 		),
 	},
-};
+} as const;
+
+type LoginTypeKey = keyof typeof loginTypeOptions;
 
 const validationSchema = Yup.object({
+	username: nameValidator("Username"),
+	name: displayNameValidator("Full name"),
 	email: Yup.string()
 		.trim()
-		.email(Language.emailInvalid)
-		.required(Language.emailRequired),
+		.when("service_account", {
+			is: false,
+			then: (schema) =>
+				schema
+					.email("Please enter a valid email address.")
+					.required("Please enter an email address."),
+			otherwise: (schema) => schema.optional(),
+		}),
+	login_type: Yup.string()
+		.oneOf(Object.keys(loginTypeOptions))
+		.required("Please select a login type."),
 	password: Yup.string().when("login_type", {
 		is: "password",
-		then: (schema) => schema.required(Language.passwordRequired),
+		then: (schema) => schema.required("Please enter a password."),
 		otherwise: (schema) => schema,
 	}),
-	username: nameValidator(Language.usernameLabel),
-	name: displayNameValidator(Language.nameLabel),
-	login_type: Yup.string().oneOf(Object.keys(authMethodLanguage)),
 });
 
-type CreateUserFormData = {
+export type CreateUserFormData = {
 	readonly username: string;
 	readonly name: string;
 	readonly email: string;
 	readonly organization: string;
 	readonly login_type: TypesGen.LoginType;
 	readonly password: string;
+	readonly service_account: boolean;
 };
 
 interface CreateUserFormProps {
@@ -86,9 +102,7 @@ interface CreateUserFormProps {
 	showOrganizations: boolean;
 }
 
-export const CreateUserForm: FC<
-	React.PropsWithChildren<CreateUserFormProps>
-> = ({
+export const CreateUserForm: FC<CreateUserFormProps> = ({
 	error,
 	isLoading,
 	onSubmit,
@@ -102,24 +116,33 @@ export const CreateUserForm: FC<
 			password: "",
 			username: "",
 			name: "",
-			// If organizations aren't enabled, use the fallback ID to add the user to
-			// the default organization.
 			organization: showOrganizations
 				? ""
 				: "00000000-0000-0000-0000-000000000000",
 			login_type: "",
+			service_account: false,
 		},
 		validationSchema,
 		onSubmit,
 	});
+
 	const getFieldHelpers = getFormHelpers(form, error);
 
-	const methods = [
-		authMethods?.password.enabled && "password",
-		authMethods?.oidc.enabled && "oidc",
-		authMethods?.github.enabled && "github",
-		"none",
-	].filter(Boolean) as Array<keyof typeof authMethodLanguage>;
+	const availableLoginTypeKeys = (
+		Object.keys(loginTypeOptions) as LoginTypeKey[]
+	).filter((key) => {
+		if (key === "none") return true;
+		if (key === "password") return authMethods?.password.enabled;
+		if (key === "oidc") return authMethods?.oidc.enabled;
+		if (key === "github") return authMethods?.github.enabled;
+		return false;
+	});
+
+	const isServiceAccount = form.values.login_type === "none";
+	const isPasswordLogin = form.values.login_type === "password";
+	const loginTypeField = getFieldHelpers("login_type", {
+		helperText: "Authentication method for this user.",
+	});
 
 	return (
 		<FullPageForm title="Create user">
@@ -127,28 +150,135 @@ export const CreateUserForm: FC<
 				<ErrorAlert error={error} css={{ marginBottom: 32 }} />
 			)}
 			<form onSubmit={form.handleSubmit} autoComplete="off">
-				<Stack spacing={2.5}>
-					<TextField
-						{...getFieldHelpers("username")}
+				<div className="flex flex-col gap-6">
+					<FormField
+						field={getFieldHelpers("username")}
+						label="Username"
+						id="username"
+						name="username"
+						value={form.values.username}
 						onChange={onChangeTrimmed(form)}
+						onBlur={form.handleBlur}
 						autoComplete="username"
 						autoFocus
-						fullWidth
-						label={Language.usernameLabel}
 					/>
-					<TextField
-						{...getFieldHelpers("name")}
+
+					<FormField
+						field={getFieldHelpers("name")}
+						label={
+							<>
+								Full name{" "}
+								<span className="font-normal text-content-secondary">
+									(optional)
+								</span>
+							</>
+						}
+						id="name"
+						name="name"
+						value={form.values.name}
+						onChange={form.handleChange}
+						onBlur={form.handleBlur}
 						autoComplete="name"
-						fullWidth
-						label={Language.nameLabel}
 					/>
-					<TextField
-						{...getFieldHelpers("email")}
-						onChange={onChangeTrimmed(form)}
-						autoComplete="email"
-						fullWidth
-						label={Language.emailLabel}
-					/>
+
+					{/* Login type — "none" is presented as "Service account" */}
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="login_type">Login type</Label>
+						<Select
+							value={form.values.login_type}
+							onValueChange={async (value) => {
+								const isNone = value === "none";
+								await Promise.all([
+									form.setFieldValue("login_type", value),
+									form.setFieldValue("service_account", isNone),
+									value !== "password"
+										? form.setFieldValue("password", "")
+										: Promise.resolve(),
+								]);
+							}}
+						>
+							<SelectTrigger
+								id="login_type"
+								data-testid="login-type-input"
+								aria-invalid={loginTypeField.error}
+								aria-describedby={
+									loginTypeField.error
+										? "login_type-error"
+										: "login_type-helper"
+								}
+								className={cn(
+									loginTypeField.error && "border-border-destructive",
+								)}
+							>
+								<SelectValue placeholder="Select a login type…" />
+							</SelectTrigger>
+							<SelectContent>
+								{availableLoginTypeKeys.map((key) => {
+									const opt = loginTypeOptions[key];
+									return (
+										<SelectPrimitive.Item
+											key={key}
+											value={key}
+											className="relative flex w-full cursor-default select-none items-start rounded-sm py-1.5 pl-2 pr-8 text-sm text-content-secondary outline-none focus:bg-surface-secondary focus:text-content-primary data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+										>
+											<span className="absolute right-2 top-2 flex items-center justify-center">
+												<SelectPrimitive.ItemIndicator>
+													<Check className="size-icon-sm" />
+												</SelectPrimitive.ItemIndicator>
+											</span>
+											<div className="flex flex-col py-0.5">
+												<SelectPrimitive.ItemText>
+													{opt.label}
+												</SelectPrimitive.ItemText>
+												<span className="text-xs text-content-secondary whitespace-normal">
+													{opt.description}
+												</span>
+											</div>
+										</SelectPrimitive.Item>
+									);
+								})}
+							</SelectContent>
+						</Select>
+						{loginTypeField.error ? (
+							<span
+								id="login_type-error"
+								className="text-xs text-content-destructive"
+							>
+								{loginTypeField.helperText}
+							</span>
+						) : (
+							loginTypeField.helperText && (
+								<span
+									id="login_type-helper"
+									className="text-xs text-content-secondary"
+								>
+									{loginTypeField.helperText}
+								</span>
+							)
+						)}
+					</div>
+
+					{!isServiceAccount && (
+						<FormField
+							field={getFieldHelpers("email")}
+							label={
+								<>
+									Email{" "}
+									<span className="text-xs font-bold text-content-destructive">
+										*
+									</span>
+								</>
+							}
+							id="email"
+							name="email"
+							value={form.values.email}
+							onChange={onChangeTrimmed(form)}
+							onBlur={form.handleBlur}
+							autoComplete="email"
+							type="email"
+						/>
+					)}
+
 					{showOrganizations && (
 						<OrganizationAutocomplete
 							{...getFieldHelpers("organization")}
@@ -163,67 +293,22 @@ export const CreateUserForm: FC<
 							}}
 						/>
 					)}
-					<TextField
-						{...getFieldHelpers("login_type", {
-							helperText: "Authentication method for this user",
-						})}
-						select
-						id="login_type"
-						data-testid="login-type-input"
-						value={form.values.login_type}
-						label="Login Type"
-						onChange={async (e) => {
-							if (e.target.value !== "password") {
-								await form.setFieldValue("password", "");
-							}
-							await form.setFieldValue("login_type", e.target.value);
-						}}
-						SelectProps={{
-							renderValue: (selected: unknown) =>
-								authMethodLanguage[selected as keyof typeof authMethodLanguage]
-									?.displayName ?? "",
-						}}
-					>
-						{methods.map((value) => {
-							const language = authMethodLanguage[value];
-							return (
-								<MenuItem key={value} id={`item-${value}`} value={value}>
-									<Stack
-										spacing={0}
-										css={{
-											maxWidth: 400,
-										}}
-									>
-										{language.displayName}
-										<span
-											css={(theme) => ({
-												fontSize: 14,
-												color: theme.palette.text.secondary,
-												wordWrap: "normal",
-												whiteSpace: "break-spaces",
-											})}
-										>
-											{language.description}
-										</span>
-									</Stack>
-								</MenuItem>
-							);
-						})}
-					</TextField>
-					<PasswordField
-						{...getFieldHelpers("password", {
-							helperText:
-								form.values.login_type !== "password" &&
-								"No password required for this login type",
-						})}
-						autoComplete="current-password"
-						fullWidth
-						id="password"
-						data-testid="password-input"
-						disabled={form.values.login_type !== "password"}
-						label={Language.passwordLabel}
-					/>
-				</Stack>
+
+					{isPasswordLogin && (
+						<FormField
+							field={getFieldHelpers("password")}
+							label="Password"
+							id="password"
+							name="password"
+							value={form.values.password}
+							onChange={form.handleChange}
+							onBlur={form.handleBlur}
+							autoComplete="new-password"
+							type="password"
+							data-testid="password-input"
+						/>
+					)}
+				</div>
 
 				<FormFooter className="mt-8">
 					<Button onClick={onCancel} variant="outline">

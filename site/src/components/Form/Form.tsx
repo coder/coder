@@ -1,5 +1,7 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { AlphaBadge, DeprecatedBadge } from "components/Badges/Badges";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
 import { Stack } from "components/Stack/Stack";
 import {
 	type ComponentProps,
@@ -10,6 +12,7 @@ import {
 	useContext,
 } from "react";
 import { cn } from "utils/cn";
+import type { FormHelpers } from "utils/formUtils";
 
 type FormContextValue = { direction?: "horizontal" | "vertical" };
 
@@ -187,6 +190,52 @@ const styles = {
 		width: "100%",
 	},
 } satisfies Record<string, Interpolation<Theme>>;
+
+// ─── FormField ────────────────────────────────────────────────────────────────
+
+type FormFieldProps = React.ComponentPropsWithRef<"input"> & {
+	field: FormHelpers;
+	label: ReactNode;
+};
+
+export const FormField: FC<FormFieldProps> = ({
+	field,
+	label,
+	id,
+	className,
+	...inputProps
+}) => {
+	const errorId = `${id}-error`;
+	const helperId = `${id}-helper`;
+
+	return (
+		<div className="flex flex-col gap-2">
+			<Label htmlFor={id}>{label}</Label>
+			<Input
+				{...inputProps}
+				id={id}
+				aria-invalid={field.error}
+				aria-describedby={
+					field.error ? errorId : field.helperText ? helperId : undefined
+				}
+				className={cn(field.error && "border-border-destructive", className)}
+			/>
+			{field.error ? (
+				<span id={errorId} className="text-xs text-content-destructive">
+					{field.helperText}
+				</span>
+			) : (
+				field.helperText && (
+					<span id={helperId} className="text-xs text-content-secondary">
+						{field.helperText}
+					</span>
+				)
+			)}
+		</div>
+	);
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const FormFooter: FC<HTMLProps<HTMLDivElement>> = ({
 	className,

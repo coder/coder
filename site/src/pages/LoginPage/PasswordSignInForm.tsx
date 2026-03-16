@@ -1,6 +1,5 @@
 import { Button } from "components/Button/Button";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
+import { FormField } from "components/Form/Form";
 import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
@@ -39,65 +38,47 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 		validateOnBlur: false,
 	});
 	const getFieldHelpers = getFormHelpers(form);
-	const emailField = getFieldHelpers("email");
-	const passwordField = getFieldHelpers("password");
-	const emailErrorId = "signin-email-error";
-	const passwordErrorId = "signin-password-error";
 
 	return (
 		<form onSubmit={form.handleSubmit} className="flex flex-col gap-5">
-			<div className="flex flex-col items-start gap-2">
-				<Label htmlFor={emailField.id}>
-					{Language.emailLabel}{" "}
-					<span className="text-xs text-content-destructive font-bold">*</span>
-				</Label>
-				<Input
-					id={emailField.id}
-					name={emailField.name}
-					value={emailField.value}
-					onChange={onChangeTrimmed(form)}
-					onBlur={emailField.onBlur}
-					autoFocus={autoFocus}
-					autoComplete="email"
-					type="email"
-					aria-invalid={Boolean(emailField.error)}
-					aria-describedby={emailField.error ? emailErrorId : undefined}
-				/>
-				{emailField.error && (
-					<span
-						id={emailErrorId}
-						className="text-xs text-content-destructive text-left"
-					>
-						{emailField.helperText}
-					</span>
-				)}
-			</div>
+			<FormField
+				field={getFieldHelpers("email")}
+				label={
+					<>
+						{Language.emailLabel}{" "}
+						<span className="text-xs text-content-destructive font-bold">
+							*
+						</span>
+					</>
+				}
+				id="email"
+				name="email"
+				value={form.values.email}
+				onChange={onChangeTrimmed(form)}
+				onBlur={form.handleBlur}
+				autoFocus={autoFocus}
+				autoComplete="email"
+				type="email"
+			/>
 
-			<div className="flex flex-col items-start gap-2">
-				<Label htmlFor={passwordField.id}>
-					{Language.passwordLabel}{" "}
-					<span className="text-xs text-content-destructive font-bold">*</span>
-				</Label>
-				<Input
-					id={passwordField.id}
-					name={passwordField.name}
-					value={passwordField.value}
-					onChange={passwordField.onChange}
-					onBlur={passwordField.onBlur}
-					autoComplete="current-password"
-					type="password"
-					aria-invalid={Boolean(passwordField.error)}
-					aria-describedby={passwordField.error ? passwordErrorId : undefined}
-				/>
-				{passwordField.error && (
-					<span
-						id={passwordErrorId}
-						className="text-xs text-content-destructive text-left"
-					>
-						{passwordField.helperText}
-					</span>
-				)}
-			</div>
+			<FormField
+				field={getFieldHelpers("password")}
+				label={
+					<>
+						{Language.passwordLabel}{" "}
+						<span className="text-xs text-content-destructive font-bold">
+							*
+						</span>
+					</>
+				}
+				id="password"
+				name="password"
+				value={form.values.password}
+				onChange={form.handleChange}
+				onBlur={form.handleBlur}
+				autoComplete="current-password"
+				type="password"
+			/>
 
 			<Button size="lg" disabled={isSigningIn} className="w-full" type="submit">
 				<Spinner loading={isSigningIn} />
