@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"mime"
 	"net/http"
 	"net/http/httptest"
@@ -18,12 +19,13 @@ import (
 	"sync"
 	"time"
 
-	"charm.land/fantasy"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
@@ -42,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
@@ -103,28 +106,34 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 					api.Logger.Error(ctx, "chat event subscription error", slog.Error(err))
 					return
 				}
-				_ = sendEvent(codersdk.ServerSentEvent{
+				if err := sendEvent(codersdk.ServerSentEvent{
 					Type: codersdk.ServerSentEventTypeData,
 					Data: payload,
-				})
+				}); err != nil {
+					api.Logger.Debug(ctx, "failed to send chat event", slog.Error(err))
+				}
 			},
 		))
 	if err != nil {
-		_ = sendEvent(codersdk.ServerSentEvent{
+		if err := sendEvent(codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeError,
 			Data: codersdk.Response{
 				Message: "Internal error subscribing to chat events.",
 				Detail:  err.Error(),
 			},
-		})
+		}); err != nil {
+			api.Logger.Debug(ctx, "failed to send chat subscribe error event", slog.Error(err))
+		}
 		return
 	}
 	defer cancelSubscribe()
 
 	// Send initial ping to signal the connection is ready.
-	_ = sendEvent(codersdk.ServerSentEvent{
+	if err := sendEvent(codersdk.ServerSentEvent{
 		Type: codersdk.ServerSentEventTypePing,
-	})
+	}); err != nil {
+		api.Logger.Debug(ctx, "failed to send chat ping event", slog.Error(err))
+	}
 
 	for {
 		select {
@@ -222,7 +231,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, contentFileIDs, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
+	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
 		return
@@ -257,7 +266,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		ModelConfigID:      modelConfigID,
 		SystemPrompt:       api.resolvedChatSystemPrompt(ctx),
 		InitialUserContent: contentBlocks,
-		ContentFileIDs:     contentFileIDs,
 	})
 	if err != nil {
 		if database.IsForeignKeyViolation(
@@ -356,10 +364,202 @@ func (api *API) listChatModels(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
+func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	// Default date range: last 30 days.
+	now := time.Now()
+	defaultStart := now.AddDate(0, 0, -30)
+
+	qp := r.URL.Query()
+	p := httpapi.NewQueryParamParser()
+	startDate := p.Time(qp, defaultStart, "start_date", time.RFC3339)
+	endDate := p.Time(qp, now, "end_date", time.RFC3339)
+	p.ErrorExcessParams(qp)
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
+	targetUser := httpmw.UserParam(r)
+	if targetUser.ID != apiKey.UserID && !api.Authorize(r, policy.ActionRead, rbac.ResourceChat.WithOwner(targetUser.ID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	summary, err := api.Database.GetChatCostSummary(ctx, database.GetChatCostSummaryParams{
+		OwnerID:   targetUser.ID,
+		StartDate: startDate,
+		EndDate:   endDate,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	byModel, err := api.Database.GetChatCostPerModel(ctx, database.GetChatCostPerModelParams{
+		OwnerID:   targetUser.ID,
+		StartDate: startDate,
+		EndDate:   endDate,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	byChat, err := api.Database.GetChatCostPerChat(ctx, database.GetChatCostPerChatParams{
+		OwnerID:   targetUser.ID,
+		StartDate: startDate,
+		EndDate:   endDate,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	modelBreakdowns := make([]codersdk.ChatCostModelBreakdown, 0, len(byModel))
+	for _, model := range byModel {
+		modelBreakdowns = append(modelBreakdowns, convertChatCostModelBreakdown(model))
+	}
+
+	chatBreakdowns := make([]codersdk.ChatCostChatBreakdown, 0, len(byChat))
+	for _, chat := range byChat {
+		chatBreakdowns = append(chatBreakdowns, convertChatCostChatBreakdown(chat))
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCostSummary{
+		StartDate:                startDate,
+		EndDate:                  endDate,
+		TotalCostMicros:          summary.TotalCostMicros,
+		PricedMessageCount:       summary.PricedMessageCount,
+		UnpricedMessageCount:     summary.UnpricedMessageCount,
+		TotalInputTokens:         summary.TotalInputTokens,
+		TotalOutputTokens:        summary.TotalOutputTokens,
+		TotalCacheReadTokens:     summary.TotalCacheReadTokens,
+		TotalCacheCreationTokens: summary.TotalCacheCreationTokens,
+		ByModel:                  modelBreakdowns,
+		ByChat:                   chatBreakdowns,
+	})
+}
+
+func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceChat) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	now := time.Now()
+	defaultStart := now.AddDate(0, 0, -30)
+
+	qp := r.URL.Query()
+	p := httpapi.NewQueryParamParser()
+	startDate := p.Time(qp, defaultStart, "start_date", time.RFC3339)
+	endDate := p.Time(qp, now, "end_date", time.RFC3339)
+	username := strings.TrimSpace(p.String(qp, "", "username"))
+	limit := p.Int(qp, 10, "limit")
+	offset := p.Int(qp, 0, "offset")
+	p.ErrorExcessParams(qp)
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: p.Errors,
+		})
+		return
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	if offset < 0 || offset > math.MaxInt32 || limit > math.MaxInt32 {
+		validations := make([]codersdk.ValidationError, 0, 2)
+		if offset < 0 {
+			validations = append(validations, codersdk.ValidationError{
+				Field:  "offset",
+				Detail: "Must be greater than or equal to 0.",
+			})
+		}
+		if offset > math.MaxInt32 {
+			validations = append(validations, codersdk.ValidationError{
+				Field:  "offset",
+				Detail: fmt.Sprintf("Must be less than or equal to %d.", math.MaxInt32),
+			})
+		}
+		if limit > math.MaxInt32 {
+			validations = append(validations, codersdk.ValidationError{
+				Field:  "limit",
+				Detail: fmt.Sprintf("Must be less than or equal to %d.", math.MaxInt32),
+			})
+		}
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: validations,
+		})
+		return
+	}
+
+	users, err := api.Database.GetChatCostPerUser(ctx, database.GetChatCostPerUserParams{
+		StartDate: startDate,
+		EndDate:   endDate,
+		Username:  username,
+		// #nosec G115 - Pagination limits are validated to fit in int32 above.
+		PageLimit: int32(limit),
+		// #nosec G115 - Pagination offsets are validated to fit in int32 above.
+		PageOffset: int32(offset),
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	rollups := make([]codersdk.ChatCostUserRollup, 0, len(users))
+	count := int64(0)
+	for _, user := range users {
+		count = user.TotalCount
+		rollups = append(rollups, convertChatCostUserRollup(user))
+	}
+
+	if len(users) == 0 && offset > 0 {
+		countUsers, countErr := api.Database.GetChatCostPerUser(ctx, database.GetChatCostPerUserParams{
+			StartDate:  startDate,
+			EndDate:    endDate,
+			Username:   username,
+			PageLimit:  1,
+			PageOffset: 0,
+		})
+		if countErr != nil {
+			httpapi.InternalServerError(rw, countErr)
+			return
+		}
+		if len(countUsers) > 0 {
+			count = countUsers[0].TotalCount
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCostUsersResponse{
+		StartDate: startDate,
+		EndDate:   endDate,
+		Count:     count,
+		Users:     rollups,
+	})
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+	httpapi.Write(ctx, rw, http.StatusOK, convertChat(chat, nil))
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
@@ -385,8 +585,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatWithMessages{
-		Chat:           convertChat(chat, nil),
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMessagesResponse{
 		Messages:       convertChatMessages(messages),
 		QueuedMessages: convertChatQueuedMessages(queuedMessages),
 	})
@@ -540,6 +739,134 @@ proxyLoop:
 	_ = clientStream.Close(websocket.StatusGoingAway)
 }
 
+// @Summary Watch chat desktop
+// @ID watch-chat-desktop
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 101
+// @Router /chats/{chat}/desktop [get]
+//
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		chat   = httpmw.ChatParam(r)
+		logger = api.Logger.Named("chat_desktop").With(slog.F("chat_id", chat.ID))
+	)
+
+	if !chat.WorkspaceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat has no workspace.",
+		})
+		return
+	}
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat workspace not found.",
+		})
+		return
+	}
+	if !api.Authorize(r, policy.ActionApplicationConnect, workspace) &&
+		!api.Authorize(r, policy.ActionSSH, workspace) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, chat.WorkspaceID.UUID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agents.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(agents) == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat workspace has no agents.",
+		})
+		return
+	}
+
+	apiAgent, err := db2sdk.WorkspaceAgent(
+		api.DERPMap(),
+		*api.TailnetCoordinator.Load(),
+		agents[0],
+		nil,
+		nil,
+		nil,
+		api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Agent state is %q, must be connected.", apiAgent.Status),
+		})
+		return
+	}
+
+	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer dialCancel()
+
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agents[0].ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to dial workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer release()
+
+	desktopConn, err := agentConn.ConnectDesktopVNC(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to connect to agent desktop.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer desktopConn.Close()
+
+	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		logger.Error(ctx, "failed to accept websocket", slog.Error(err))
+		return
+	}
+
+	// No read limit — RFB framebuffer updates can be large.
+	conn.SetReadLimit(-1)
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	ctx, wsNetConn := workspaceapps.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
+	defer wsNetConn.Close()
+
+	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
+
+	agentssh.Bicopy(ctx, wsNetConn, desktopConn)
+	logger.Debug(ctx, "desktop Bicopy finished")
+}
+
+// @Summary Archive a chat
+// @ID archive-chat
+// @Tags Chats
+// @Success 204
+// @Router /chats/{chat}/archive [post]
 func (api *API) archiveChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -622,7 +949,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, contentFileIDs, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
+	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -634,12 +961,11 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
-			ChatID:         chatID,
-			CreatedBy:      apiKey.UserID,
-			Content:        contentBlocks,
-			ContentFileIDs: contentFileIDs,
-			ModelConfigID:  req.ModelConfigID,
-			BusyBehavior:   chatd.SendMessageBusyBehaviorQueue,
+			ChatID:        chatID,
+			CreatedBy:     apiKey.UserID,
+			Content:       contentBlocks,
+			ModelConfigID: req.ModelConfigID,
+			BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
 		},
 	)
 	if sendErr != nil {
@@ -699,7 +1025,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, contentFileIDs, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
+	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -713,7 +1039,6 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		CreatedBy:       apiKey.UserID,
 		EditedMessageID: messageID,
 		Content:         contentBlocks,
-		ContentFileIDs:  contentFileIDs,
 	})
 	if editErr != nil {
 		switch {
@@ -853,13 +1178,15 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	}
 	snapshot, events, cancel, ok := api.chatDaemon.Subscribe(ctx, chatID, r.Header, afterMessageID)
 	if !ok {
-		_ = sendEvent(codersdk.ServerSentEvent{
+		if err := sendEvent(codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeError,
 			Data: codersdk.Response{
 				Message: "Chat streaming is not available.",
 				Detail:  "Chat stream state is not configured.",
 			},
-		})
+		}); err != nil {
+			api.Logger.Debug(ctx, "failed to send chat stream unavailable event", slog.Error(err))
+		}
 		// Ensure the WebSocket is closed so senderClosed
 		// completes and the handler can return.
 		<-senderClosed
@@ -1973,12 +2300,13 @@ func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 	rw.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
 	rw.Header().Set("Content-Length", strconv.Itoa(len(chatFile.Data)))
 	rw.WriteHeader(http.StatusOK)
-	_, _ = rw.Write(chatFile.Data)
+	if _, err := rw.Write(chatFile.Data); err != nil {
+		api.Logger.Debug(ctx, "failed to write chat file response", slog.Error(err))
+	}
 }
 
 func createChatInputFromRequest(ctx context.Context, db database.Store, req codersdk.CreateChatRequest) (
-	[]fantasy.Content,
-	map[int]uuid.UUID,
+	[]codersdk.ChatMessagePart,
 	string,
 	*codersdk.Response,
 ) {
@@ -1990,32 +2318,31 @@ func createChatInputFromParts(
 	db database.Store,
 	parts []codersdk.ChatInputPart,
 	fieldName string,
-) ([]fantasy.Content, map[int]uuid.UUID, string, *codersdk.Response) {
+) ([]codersdk.ChatMessagePart, string, *codersdk.Response) {
 	if len(parts) == 0 {
-		return nil, nil, "", &codersdk.Response{
+		return nil, "", &codersdk.Response{
 			Message: "Content is required.",
 			Detail:  "Content cannot be empty.",
 		}
 	}
 
-	content := make([]fantasy.Content, 0, len(parts))
-	fileIDs := make(map[int]uuid.UUID)
+	content := make([]codersdk.ChatMessagePart, 0, len(parts))
 	textParts := make([]string, 0, len(parts))
 	for i, part := range parts {
 		switch strings.ToLower(strings.TrimSpace(string(part.Type))) {
 		case string(codersdk.ChatInputPartTypeText):
 			text := strings.TrimSpace(part.Text)
 			if text == "" {
-				return nil, nil, "", &codersdk.Response{
+				return nil, "", &codersdk.Response{
 					Message: "Invalid input part.",
 					Detail:  fmt.Sprintf("%s[%d].text cannot be empty.", fieldName, i),
 				}
 			}
-			content = append(content, fantasy.TextContent{Text: text})
+			content = append(content, codersdk.ChatMessageText(text))
 			textParts = append(textParts, text)
 		case string(codersdk.ChatInputPartTypeFile):
 			if part.FileID == uuid.Nil {
-				return nil, nil, "", &codersdk.Response{
+				return nil, "", &codersdk.Response{
 					Message: "Invalid input part.",
 					Detail:  fmt.Sprintf("%s[%d].file_id is required for file parts.", fieldName, i),
 				}
@@ -2026,27 +2353,26 @@ func createChatInputFromParts(
 			chatFile, err := db.GetChatFileByID(ctx, part.FileID)
 			if err != nil {
 				if httpapi.Is404Error(err) {
-					return nil, nil, "", &codersdk.Response{
+					return nil, "", &codersdk.Response{
 						Message: "Invalid input part.",
 						Detail:  fmt.Sprintf("%s[%d].file_id references a file that does not exist.", fieldName, i),
 					}
 				}
-				return nil, nil, "", &codersdk.Response{
+				return nil, "", &codersdk.Response{
 					Message: "Internal error.",
 					Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
 				}
 			}
-			content = append(content, fantasy.FileContent{
-				MediaType: chatFile.Mimetype,
-			})
-			fileIDs[len(content)-1] = part.FileID
+			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype))
 		case string(codersdk.ChatInputPartTypeFileReference):
 			if part.FileName == "" {
-				return nil, nil, "", &codersdk.Response{
+				return nil, "", &codersdk.Response{
 					Message: "Invalid input part.",
 					Detail:  fmt.Sprintf("%s[%d].file_name cannot be empty for file-reference.", fieldName, i),
 				}
 			}
+			content = append(content, codersdk.ChatMessageFileReference(part.FileName, part.StartLine, part.EndLine, part.Content))
+			// Build text representation for title generation.
 			lineRange := fmt.Sprintf("%d", part.StartLine)
 			if part.StartLine != part.EndLine {
 				lineRange = fmt.Sprintf("%d-%d", part.StartLine, part.EndLine)
@@ -2056,11 +2382,9 @@ func createChatInputFromParts(
 			if strings.TrimSpace(part.Content) != "" {
 				_, _ = fmt.Fprintf(&sb, "\n```%s\n%s\n```", part.FileName, strings.TrimSpace(part.Content))
 			}
-			text := sb.String()
-			content = append(content, fantasy.TextContent{Text: text})
-			textParts = append(textParts, text)
+			textParts = append(textParts, sb.String())
 		default:
-			return nil, nil, "", &codersdk.Response{
+			return nil, "", &codersdk.Response{
 				Message: "Invalid input part.",
 				Detail: fmt.Sprintf(
 					"%s[%d].type %q is not supported.",
@@ -2075,13 +2399,13 @@ func createChatInputFromParts(
 	// Allow file-only messages. The titleSource may be empty
 	// when only file parts are provided, callers handle this.
 	if len(content) == 0 {
-		return nil, nil, "", &codersdk.Response{
+		return nil, "", &codersdk.Response{
 			Message: "Content is required.",
 			Detail:  fmt.Sprintf("%s must include at least one text or file part.", fieldName),
 		}
 	}
 	titleSource := strings.TrimSpace(strings.Join(textParts, " "))
-	return content, fileIDs, titleSource, nil
+	return content, titleSource, nil
 }
 
 func chatTitleFromMessage(message string) string {
@@ -2173,6 +2497,54 @@ func convertChats(chats []database.Chat, diffStatusesByChatID map[uuid.UUID]data
 	return result
 }
 
+func convertChatCostModelBreakdown(model database.GetChatCostPerModelRow) codersdk.ChatCostModelBreakdown {
+	displayName := strings.TrimSpace(model.DisplayName)
+	if displayName == "" {
+		displayName = model.Model
+	}
+	return codersdk.ChatCostModelBreakdown{
+		ModelConfigID:            model.ModelConfigID,
+		DisplayName:              displayName,
+		Provider:                 model.Provider,
+		Model:                    model.Model,
+		TotalCostMicros:          model.TotalCostMicros,
+		MessageCount:             model.MessageCount,
+		TotalInputTokens:         model.TotalInputTokens,
+		TotalOutputTokens:        model.TotalOutputTokens,
+		TotalCacheReadTokens:     model.TotalCacheReadTokens,
+		TotalCacheCreationTokens: model.TotalCacheCreationTokens,
+	}
+}
+
+func convertChatCostChatBreakdown(chat database.GetChatCostPerChatRow) codersdk.ChatCostChatBreakdown {
+	return codersdk.ChatCostChatBreakdown{
+		RootChatID:               chat.RootChatID,
+		ChatTitle:                chat.ChatTitle,
+		TotalCostMicros:          chat.TotalCostMicros,
+		MessageCount:             chat.MessageCount,
+		TotalInputTokens:         chat.TotalInputTokens,
+		TotalOutputTokens:        chat.TotalOutputTokens,
+		TotalCacheReadTokens:     chat.TotalCacheReadTokens,
+		TotalCacheCreationTokens: chat.TotalCacheCreationTokens,
+	}
+}
+
+func convertChatCostUserRollup(user database.GetChatCostPerUserRow) codersdk.ChatCostUserRollup {
+	return codersdk.ChatCostUserRollup{
+		UserID:                   user.UserID,
+		Username:                 user.Username,
+		Name:                     user.Name,
+		AvatarURL:                user.AvatarURL,
+		TotalCostMicros:          user.TotalCostMicros,
+		MessageCount:             user.MessageCount,
+		ChatCount:                user.ChatCount,
+		TotalInputTokens:         user.TotalInputTokens,
+		TotalOutputTokens:        user.TotalOutputTokens,
+		TotalCacheReadTokens:     user.TotalCacheReadTokens,
+		TotalCacheCreationTokens: user.TotalCacheCreationTokens,
+	}
+}
+
 func convertChatQueuedMessage(m database.ChatQueuedMessage) codersdk.ChatQueuedMessage {
 	return db2sdk.ChatQueuedMessage(m)
 }
@@ -2248,6 +2620,30 @@ func convertChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) co
 	result.Additions = status.Additions
 	result.Deletions = status.Deletions
 	result.ChangedFiles = status.ChangedFiles
+	if status.AuthorLogin.Valid {
+		result.AuthorLogin = &status.AuthorLogin.String
+	}
+	if status.AuthorAvatarUrl.Valid {
+		result.AuthorAvatarURL = &status.AuthorAvatarUrl.String
+	}
+	if status.BaseBranch.Valid {
+		result.BaseBranch = &status.BaseBranch.String
+	}
+	if status.HeadBranch.Valid {
+		result.HeadBranch = &status.HeadBranch.String
+	}
+	if status.PrNumber.Valid {
+		result.PRNumber = &status.PrNumber.Int32
+	}
+	if status.Commits.Valid {
+		result.Commits = &status.Commits.Int32
+	}
+	if status.Approved.Valid {
+		result.Approved = &status.Approved.Bool
+	}
+	if status.ReviewerCount.Valid {
+		result.ReviewerCount = &status.ReviewerCount.Int32
+	}
 	if status.RefreshedAt.Valid {
 		refreshedAt := status.RefreshedAt.Time
 		result.RefreshedAt = &refreshedAt
@@ -3118,7 +3514,7 @@ func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) erro
 
 	pricingFields := []struct {
 		name  string
-		value *float64
+		value *decimal.Decimal
 	}{
 		{name: "cost.input_price_per_million_tokens", value: costConfig.InputPricePerMillionTokens},
 		{name: "cost.output_price_per_million_tokens", value: costConfig.OutputPricePerMillionTokens},
@@ -3126,7 +3522,7 @@ func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) erro
 		{name: "cost.cache_write_price_per_million_tokens", value: costConfig.CacheWritePricePerMillionTokens},
 	}
 	for _, field := range pricingFields {
-		if err := validateNonNegativeFloat64Field(field.name, field.value); err != nil {
+		if err := validateNonNegativeDecimalField(field.name, field.value); err != nil {
 			return err
 		}
 	}
@@ -3134,11 +3530,11 @@ func validateChatModelCallConfig(modelConfig *codersdk.ChatModelCallConfig) erro
 	return nil
 }
 
-func validateNonNegativeFloat64Field(name string, value *float64) error {
+func validateNonNegativeDecimalField(name string, value *decimal.Decimal) error {
 	if value == nil {
 		return nil
 	}
-	if *value < 0 {
+	if value.IsNegative() {
 		return xerrors.Errorf("%s must be greater than or equal to zero", name)
 	}
 	return nil

@@ -467,7 +467,7 @@ func TestChatMessage_PreservesProviderExecutedOnToolResults(t *testing.T) {
 	dbMsg := database.ChatMessage{
 		ID:     1,
 		ChatID: uuid.New(),
-		Role:   string(fantasy.MessageRoleAssistant),
+		Role:   database.ChatMessageRoleAssistant,
 		Content: pqtype.NullRawMessage{
 			RawMessage: rawContent,
 			Valid:      true,
@@ -495,8 +495,9 @@ func TestChatMessage_PreservesProviderExecutedOnToolResults(t *testing.T) {
 func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {
 	t.Parallel()
 
-	rawContent, err := json.Marshal([]fantasy.Content{
-		fantasy.TextContent{Text: "queued text"},
+	// Queued messages are always written via MarshalParts (SDK format).
+	rawContent, err := json.Marshal([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("queued text"),
 	})
 	require.NoError(t, err)
 
@@ -512,35 +513,15 @@ func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {
 	require.Equal(t, "queued text", queued.Content[0].Text)
 }
 
-func TestChatQueuedMessage_FallsBackToTextForLegacyContent(t *testing.T) {
+func TestChatQueuedMessage_MalformedContent(t *testing.T) {
 	t.Parallel()
 
-	t.Run("legacy_string", func(t *testing.T) {
-		t.Parallel()
-
-		queued := db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
-			ID:        1,
-			ChatID:    uuid.New(),
-			Content:   json.RawMessage(`"legacy queued text"`),
-			CreatedAt: time.Now(),
-		})
-
-		require.Len(t, queued.Content, 1)
-		require.Equal(t, codersdk.ChatMessagePartTypeText, queued.Content[0].Type)
-		require.Equal(t, "legacy queued text", queued.Content[0].Text)
+	queued := db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
+		ID:        1,
+		ChatID:    uuid.New(),
+		Content:   json.RawMessage(`{"unexpected":"shape"}`),
+		CreatedAt: time.Now(),
 	})
 
-	t.Run("malformed_payload", func(t *testing.T) {
-		t.Parallel()
-
-		raw := json.RawMessage(`{"unexpected":"shape"}`)
-		queued := db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
-			ID:        1,
-			ChatID:    uuid.New(),
-			Content:   raw,
-			CreatedAt: time.Now(),
-		})
-
-		require.Empty(t, queued.Content)
-	})
+	require.Empty(t, queued.Content)
 }

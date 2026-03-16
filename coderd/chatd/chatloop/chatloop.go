@@ -63,15 +63,16 @@ type RunOptions struct {
 	// of the provider, which lives in chatd, not chatloop.
 	ProviderOptions fantasy.ProviderOptions
 
-	// ProviderTools are provider-native tools (like web search)
-	// that are passed directly to the provider API alongside
-	// function tool definitions. These are not necessarily
-	// executed server-side; handling is provider-specific.
-	ProviderTools []fantasy.Tool
+	// ProviderTools are provider-native tools (like web search
+	// and computer use) whose definitions are passed directly
+	// to the provider API. When a ProviderTool has a non-nil
+	// Runner, tool calls are executed locally; otherwise the
+	// provider handles execution (e.g. web search).
+	ProviderTools []ProviderTool
 
 	PersistStep        func(context.Context, PersistedStep) error
 	PublishMessagePart func(
-		role fantasy.MessageRole,
+		role codersdk.ChatMessageRole,
 		part codersdk.ChatMessagePart,
 	)
 	Compaction     *CompactionOptions
@@ -86,6 +87,16 @@ type RunOptions struct {
 	OnRetry chatretry.OnRetryFn
 
 	OnInterruptedPersistError func(error)
+}
+
+// ProviderTool pairs a provider-native tool definition with an
+// optional local executor. When Runner is nil the tool is fully
+// provider-executed (e.g. web search). When Runner is non-nil
+// the definition is sent to the API but execution is handled
+// locally (e.g. computer use).
+type ProviderTool struct {
+	Definition fantasy.Tool
+	Runner     fantasy.AgentTool
 }
 
 // stepResult holds the accumulated output of a single streaming
@@ -216,7 +227,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 		opts.MaxSteps = 1
 	}
 
-	publishMessagePart := func(role fantasy.MessageRole, part codersdk.ChatMessagePart) {
+	publishMessagePart := func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 		if opts.PublishMessagePart == nil {
 			return
 		}
@@ -315,9 +326,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 					return ctx.Err()
 				}
 
-				toolResults = executeTools(ctx, opts.Tools, result.toolCalls, func(tr fantasy.ToolResultContent) {
+				toolResults = executeTools(ctx, opts.Tools, opts.ProviderTools, result.toolCalls, func(tr fantasy.ToolResultContent) {
 					publishMessagePart(
-						fantasy.MessageRoleTool,
+						codersdk.ChatMessageRoleTool,
 						chatprompt.PartFromContent(tr),
 					)
 				})
@@ -455,7 +466,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 func processStepStream(
 	ctx context.Context,
 	stream fantasy.StreamResponse,
-	publishMessagePart func(fantasy.MessageRole, codersdk.ChatMessagePart),
+	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
 ) (stepResult, error) {
 	var result stepResult
 
@@ -474,10 +485,7 @@ func processStepStream(
 			if _, exists := activeTextContent[part.ID]; exists {
 				activeTextContent[part.ID] += part.Delta
 			}
-			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-				Type: codersdk.ChatMessagePartTypeText,
-				Text: part.Delta,
-			})
+			publishMessagePart(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText(part.Delta))
 
 		case fantasy.StreamPartTypeTextEnd:
 			if text, exists := activeTextContent[part.ID]; exists {
@@ -500,10 +508,7 @@ func processStepStream(
 				active.options = part.ProviderMetadata
 				activeReasoningContent[part.ID] = active
 			}
-			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-				Type: codersdk.ChatMessagePartTypeReasoning,
-				Text: part.Delta,
-			})
+			publishMessagePart(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageReasoning(part.Delta))
 
 		case fantasy.StreamPartTypeReasoningEnd:
 			if active, exists := activeReasoningContent[part.ID]; exists {
@@ -535,7 +540,7 @@ func processStepStream(
 				providerExecuted = toolCall.ProviderExecuted
 			}
 			toolName := toolNames[part.ID]
-			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
+			publishMessagePart(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{
 				Type:             codersdk.ChatMessagePartTypeToolCall,
 				ToolCallID:       part.ID,
 				ToolName:         toolName,
@@ -563,7 +568,7 @@ func processStepStream(
 			delete(activeToolCalls, part.ID)
 
 			publishMessagePart(
-				fantasy.MessageRoleAssistant,
+				codersdk.ChatMessageRoleAssistant,
 				chatprompt.PartFromContent(tc),
 			)
 
@@ -577,7 +582,7 @@ func processStepStream(
 			}
 			result.content = append(result.content, sourceContent)
 			publishMessagePart(
-				fantasy.MessageRoleAssistant,
+				codersdk.ChatMessageRoleAssistant,
 				chatprompt.PartFromContent(sourceContent),
 			)
 
@@ -595,7 +600,7 @@ func processStepStream(
 				}
 				result.content = append(result.content, tr)
 				publishMessagePart(
-					fantasy.MessageRoleTool,
+					codersdk.ChatMessageRoleTool,
 					chatprompt.PartFromContent(tr),
 				)
 			}
@@ -645,6 +650,7 @@ func processStepStream(
 func executeTools(
 	ctx context.Context,
 	allTools []fantasy.AgentTool,
+	providerTools []ProviderTool,
 	toolCalls []fantasy.ToolCallContent,
 	onResult func(fantasy.ToolResultContent),
 ) []fantasy.ToolResultContent {
@@ -669,6 +675,13 @@ func executeTools(
 	toolMap := make(map[string]fantasy.AgentTool, len(allTools))
 	for _, t := range allTools {
 		toolMap[t.Info().Name] = t
+	}
+	// Include runners from provider tools so locally-executed
+	// provider tools (e.g. computer use) can be dispatched.
+	for _, pt := range providerTools {
+		if pt.Runner != nil {
+			toolMap[pt.Runner.Info().Name] = pt.Runner
+		}
 	}
 
 	results := make([]fantasy.ToolResultContent, len(localToolCalls))
@@ -869,15 +882,16 @@ func persistInterruptedStep(
 // buildToolDefinitions converts AgentTool definitions into the
 // fantasy.Tool slice expected by fantasy.Call. When activeTools
 // is non-empty, only function tools whose name appears in the
-// list are included. Provider tools bypass this filter and are
-// always appended unconditionally.
-func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, providerTools []fantasy.Tool) []fantasy.Tool {
-	prepared := make([]fantasy.Tool, 0, len(tools))
+// list are included. Provider tool definitions are always
+// appended unconditionally.
+func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, providerTools []ProviderTool) []fantasy.Tool {
+	prepared := make([]fantasy.Tool, 0, len(tools)+len(providerTools))
 	for _, tool := range tools {
 		info := tool.Info()
 		if len(activeTools) > 0 && !slices.Contains(activeTools, info.Name) {
 			continue
 		}
+
 		inputSchema := map[string]any{
 			"type":       "object",
 			"properties": info.Parameters,
@@ -891,7 +905,9 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 			ProviderOptions: tool.ProviderOptions(),
 		})
 	}
-	prepared = append(prepared, providerTools...)
+	for _, pt := range providerTools {
+		prepared = append(prepared, pt.Definition)
+	}
 	return prepared
 }
 

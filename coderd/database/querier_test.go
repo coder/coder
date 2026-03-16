@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -9044,17 +9045,18 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 	insertMsg := func(
 		t *testing.T,
 		chatID uuid.UUID,
-		role string,
+		role database.ChatMessageRole,
 		vis database.ChatMessageVisibility,
 		compressed bool,
 		content string,
 	) database.ChatMessage {
 		t.Helper()
 		msg, err := db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID:     chatID,
-			Role:       role,
-			Visibility: vis,
-			Compressed: sql.NullBool{Bool: compressed, Valid: true},
+			ChatID:         chatID,
+			Role:           role,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			Visibility:     vis,
+			Compressed:     sql.NullBool{Bool: compressed, Valid: true},
 			Content: pqtype.NullRawMessage{
 				RawMessage: json.RawMessage(`"` + content + `"`),
 				Valid:      true,
@@ -9076,9 +9078,9 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		t.Parallel()
 		chat := newChat(t)
 
-		sys := insertMsg(t, chat.ID, "system", database.ChatMessageVisibilityModel, false, "system prompt")
-		usr := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "hello")
-		ast := insertMsg(t, chat.ID, "assistant", database.ChatMessageVisibilityBoth, false, "hi there")
+		sys := insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		usr := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "hello")
+		ast := insertMsg(t, chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false, "hi there")
 
 		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 		require.NoError(t, err)
@@ -9091,9 +9093,9 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 
 		// Messages with visibility=user should NOT appear in the
 		// prompt (they are only for the UI).
-		insertMsg(t, chat.ID, "system", database.ChatMessageVisibilityModel, false, "system prompt")
-		insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityUser, false, "user-only msg")
-		usr := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "hello")
+		insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityUser, false, "user-only msg")
+		usr := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "hello")
 
 		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 		require.NoError(t, err)
@@ -9109,21 +9111,21 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		chat := newChat(t)
 
 		// Pre-compaction conversation.
-		sys := insertMsg(t, chat.ID, "system", database.ChatMessageVisibilityModel, false, "system prompt")
-		preUser := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "old question")
-		preAsst := insertMsg(t, chat.ID, "assistant", database.ChatMessageVisibilityBoth, false, "old answer")
+		sys := insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		preUser := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "old question")
+		preAsst := insertMsg(t, chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false, "old answer")
 
 		// Compaction messages:
 		// 1. Summary (role=user, visibility=model, compressed=true).
-		summary := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityModel, true, "compaction summary")
+		summary := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "compaction summary")
 		// 2. Compressed assistant tool-call (visibility=user).
-		insertMsg(t, chat.ID, "assistant", database.ChatMessageVisibilityUser, true, "tool call")
+		insertMsg(t, chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, true, "tool call")
 		// 3. Compressed tool result (visibility=both).
-		insertMsg(t, chat.ID, "tool", database.ChatMessageVisibilityBoth, true, "tool result")
+		insertMsg(t, chat.ID, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, true, "tool result")
 
 		// Post-compaction messages.
-		postUser := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "new question")
-		postAsst := insertMsg(t, chat.ID, "assistant", database.ChatMessageVisibilityBoth, false, "new answer")
+		postUser := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "new question")
+		postAsst := insertMsg(t, chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false, "new answer")
 
 		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 		require.NoError(t, err)
@@ -9151,9 +9153,9 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		// After compaction the summary must appear as role=user so
 		// that LLM APIs (e.g. Anthropic) see at least one
 		// non-system message in the prompt.
-		insertMsg(t, chat.ID, "system", database.ChatMessageVisibilityModel, false, "system prompt")
-		summary := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityModel, true, "summary text")
-		newUsr := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "new question")
+		insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		summary := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "summary text")
+		newUsr := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "new question")
 
 		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 		require.NoError(t, err)
@@ -9179,10 +9181,10 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		// used IN ('model','both'), the compressed tool result
 		// (visibility=both) would be picked as the "summary"
 		// instead of the actual summary.
-		insertMsg(t, chat.ID, "system", database.ChatMessageVisibilityModel, false, "system prompt")
-		summary := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityModel, true, "real summary")
-		compressedTool := insertMsg(t, chat.ID, "tool", database.ChatMessageVisibilityBoth, true, "tool result")
-		postUser := insertMsg(t, chat.ID, "user", database.ChatMessageVisibilityBoth, false, "follow-up")
+		insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		summary := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "real summary")
+		compressedTool := insertMsg(t, chat.ID, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, true, "tool result")
+		postUser := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "follow-up")
 
 		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 		require.NoError(t, err)

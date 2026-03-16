@@ -265,10 +265,21 @@ CREATE TYPE build_reason AS ENUM (
     'task_resume'
 );
 
+CREATE TYPE chat_message_role AS ENUM (
+    'system',
+    'user',
+    'assistant',
+    'tool'
+);
+
 CREATE TYPE chat_message_visibility AS ENUM (
     'user',
     'model',
     'both'
+);
+
+CREATE TYPE chat_mode AS ENUM (
+    'computer_use'
 );
 
 CREATE TYPE chat_status AS ENUM (
@@ -1189,7 +1200,15 @@ CREATE TABLE chat_diff_statuses (
     git_branch text DEFAULT ''::text NOT NULL,
     git_remote_origin text DEFAULT ''::text NOT NULL,
     pull_request_title text DEFAULT ''::text NOT NULL,
-    pull_request_draft boolean DEFAULT false NOT NULL
+    pull_request_draft boolean DEFAULT false NOT NULL,
+    author_login text,
+    author_avatar_url text,
+    base_branch text,
+    pr_number integer,
+    commits integer,
+    approved boolean,
+    reviewer_count integer,
+    head_branch text
 );
 
 CREATE TABLE chat_files (
@@ -1207,7 +1226,7 @@ CREATE TABLE chat_messages (
     chat_id uuid NOT NULL,
     model_config_id uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    role text NOT NULL,
+    role chat_message_role NOT NULL,
     content jsonb,
     visibility chat_message_visibility DEFAULT 'both'::chat_message_visibility NOT NULL,
     input_tokens bigint,
@@ -1218,7 +1237,9 @@ CREATE TABLE chat_messages (
     cache_read_tokens bigint,
     context_limit bigint,
     compressed boolean DEFAULT false NOT NULL,
-    created_by uuid
+    created_by uuid,
+    content_version smallint NOT NULL,
+    total_cost_micros bigint
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -1297,7 +1318,8 @@ CREATE TABLE chats (
     root_chat_id uuid,
     last_model_config_id uuid NOT NULL,
     archived boolean DEFAULT false NOT NULL,
-    last_error text
+    last_error text,
+    mode chat_mode
 );
 
 CREATE TABLE connection_logs (
@@ -3524,7 +3546,9 @@ CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
 
-CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, created_at DESC, id DESC) WHERE ((compressed = true) AND (role = 'system'::text) AND (visibility = ANY (ARRAY['model'::chat_message_visibility, 'both'::chat_message_visibility])));
+CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, created_at DESC, id DESC) WHERE ((compressed = true) AND (role = 'system'::chat_message_role) AND (visibility = ANY (ARRAY['model'::chat_message_visibility, 'both'::chat_message_visibility])));
+
+CREATE INDEX idx_chat_messages_created_at ON chat_messages USING btree (created_at);
 
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
 

@@ -95,14 +95,20 @@ type Config struct {
 	// AppInstallationsURL is an API endpoint that returns a list of
 	// installations for the user. This is used for GitHub Apps.
 	AppInstallationsURL string
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	//
 	// MCPURL is the endpoint that clients must use to communicate with the associated
 	// MCP server.
 	MCPURL string
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	//
 	// MCPToolAllowRegex is a [regexp.Regexp] to match tools which are explicitly allowed to be
 	// injected into Coder AI Bridge upstream requests.
 	// In the case of conflicts, [MCPToolDenylistPattern] overrides items evaluated by this list.
 	// This field can be nil if unspecified in the config.
 	MCPToolAllowRegex *regexp.Regexp
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	//
 	// MCPToolDenyRegex is a [regexp.Regexp] to match tools which are explicitly NOT allowed to be
 	// injected into Coder AI Bridge upstream requests.
 	// In the case of conflicts, items evaluated by this list override [MCPToolAllowRegex].

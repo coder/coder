@@ -92,17 +92,19 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 	// Verify the chat completed and messages were persisted.
 	chatData, err := client.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
+	chatMsgs, err := client.GetChatMessages(ctx, chat.ID)
+	require.NoError(t, err)
 	t.Logf("Chat status after step 1: %s, messages: %d",
-		chatData.Chat.Status, len(chatData.Messages))
-	logMessages(t, chatData.Messages)
+		chatData.Status, len(chatMsgs.Messages))
+	logMessages(t, chatMsgs.Messages)
 
-	require.Equal(t, codersdk.ChatStatusWaiting, chatData.Chat.Status,
+	require.Equal(t, codersdk.ChatStatusWaiting, chatData.Status,
 		"chat should be in waiting status after step 1")
 
 	// Find the first assistant message and verify it has the
 	// content parts the UI needs to render web search results:
 	// tool-call(PE), source, tool-result(PE), and text.
-	assistantMsg := findAssistantWithText(t, chatData.Messages)
+	assistantMsg := findAssistantWithText(t, chatMsgs.Messages)
 	require.NotNil(t, assistantMsg,
 		"expected an assistant message with text content after step 1")
 
@@ -152,17 +154,19 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 	// Verify the follow-up completed and produced content.
 	chatData2, err := client.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
+	chatMsgs2, err := client.GetChatMessages(ctx, chat.ID)
+	require.NoError(t, err)
 	t.Logf("Chat status after step 2: %s, messages: %d",
-		chatData2.Chat.Status, len(chatData2.Messages))
-	logMessages(t, chatData2.Messages)
+		chatData2.Status, len(chatMsgs2.Messages))
+	logMessages(t, chatMsgs2.Messages)
 
-	require.Equal(t, codersdk.ChatStatusWaiting, chatData2.Chat.Status,
+	require.Equal(t, codersdk.ChatStatusWaiting, chatData2.Status,
 		"chat should be in waiting status after step 2")
-	require.Greater(t, len(chatData2.Messages), len(chatData.Messages),
+	require.Greater(t, len(chatMsgs2.Messages), len(chatMsgs.Messages),
 		"follow-up should have added more messages")
 
 	// The last assistant message should have text.
-	lastAssistant := findLastAssistantWithText(t, chatData2.Messages)
+	lastAssistant := findLastAssistantWithText(t, chatMsgs2.Messages)
 	require.NotNil(t, lastAssistant,
 		"expected an assistant message with text in the follow-up")
 

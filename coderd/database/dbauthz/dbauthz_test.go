@@ -438,6 +438,81 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByIDForUpdate(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(chat)
 	}))
+	s.Run("GetChatCostPerChat", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetChatCostPerChatParams{
+			OwnerID:   uuid.New(),
+			StartDate: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			EndDate:   time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
+		}
+		rows := []database.GetChatCostPerChatRow{{
+			RootChatID:        uuid.New(),
+			ChatTitle:         "chat-cost",
+			TotalCostMicros:   123,
+			MessageCount:      4,
+			TotalInputTokens:  55,
+			TotalOutputTokens: 89,
+		}}
+		dbm.EXPECT().GetChatCostPerChat(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.OwnerID.String()), policy.ActionRead).Returns(rows)
+	}))
+	s.Run("GetChatCostPerModel", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetChatCostPerModelParams{
+			OwnerID:   uuid.New(),
+			StartDate: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			EndDate:   time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
+		}
+		rows := []database.GetChatCostPerModelRow{{
+			ModelConfigID:     uuid.New(),
+			DisplayName:       "GPT 4.1",
+			Provider:          "openai",
+			Model:             "gpt-4.1",
+			TotalCostMicros:   456,
+			MessageCount:      7,
+			TotalInputTokens:  144,
+			TotalOutputTokens: 233,
+		}}
+		dbm.EXPECT().GetChatCostPerModel(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.OwnerID.String()), policy.ActionRead).Returns(rows)
+	}))
+	s.Run("GetChatCostPerUser", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetChatCostPerUserParams{
+			PageOffset: 0,
+			PageLimit:  25,
+			StartDate:  time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			EndDate:    time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
+			Username:   "cost-user",
+		}
+		rows := []database.GetChatCostPerUserRow{{
+			UserID:            uuid.New(),
+			Username:          "cost-user",
+			Name:              "Cost User",
+			AvatarURL:         "https://example.com/avatar.png",
+			TotalCostMicros:   789,
+			MessageCount:      11,
+			ChatCount:         3,
+			TotalInputTokens:  377,
+			TotalOutputTokens: 610,
+			TotalCount:        1,
+		}}
+		dbm.EXPECT().GetChatCostPerUser(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("GetChatCostSummary", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetChatCostSummaryParams{
+			OwnerID:   uuid.New(),
+			StartDate: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			EndDate:   time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC),
+		}
+		row := database.GetChatCostSummaryRow{
+			TotalCostMicros:      987,
+			PricedMessageCount:   12,
+			UnpricedMessageCount: 2,
+			TotalInputTokens:     400,
+			TotalOutputTokens:    800,
+		}
+		dbm.EXPECT().GetChatCostSummary(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat.WithOwner(arg.OwnerID.String()), policy.ActionRead).Returns(row)
+	}))
 	s.Run("GetChatDiffStatusByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		diffStatus := testutil.Fake(s.T(), faker, database.ChatDiffStatus{ChatID: chat.ID})
@@ -486,7 +561,7 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("GetLastChatMessageByRole", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		msg := testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})
-		arg := database.GetLastChatMessageByRoleParams{ChatID: chat.ID, Role: "assistant"}
+		arg := database.GetLastChatMessageByRoleParams{ChatID: chat.ID, Role: database.ChatMessageRoleAssistant}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().GetLastChatMessageByRole(gomock.Any(), arg).Return(msg, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(msg)
