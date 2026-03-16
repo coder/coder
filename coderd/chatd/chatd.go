@@ -2388,6 +2388,7 @@ func (p *Server) runChat(
 				}
 
 				totalCostMicros, costValid := chatcost.CalculateTotalCostMicros(usageForCost, callConfig.Cost)
+				totalCostMicrosValue, costValidValue := persistedMessageCost(totalCostMicros, costValid)
 
 				assistantMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
 					ChatID:         chat.ID,
@@ -2412,9 +2413,11 @@ func (p *Server) runChat(
 					ContextLimit:    step.ContextLimit,
 					Compressed:      sql.NullBool{},
 					// cost_valid=true means priced (including zero-cost),
-					// false means unpriced.
-					TotalCostMicros: sql.NullInt64{Int64: totalCostMicros, Valid: true},
-					CostValid:       sql.NullBool{Bool: costValid, Valid: true},
+					// false means unpriced. Keep total_cost_micros NULL for
+					// unpriced writes so older readers still infer pricing
+					// correctly during mixed-version rollout.
+					TotalCostMicros: totalCostMicrosValue,
+					CostValid:       costValidValue,
 				})
 				if insertErr != nil {
 					return xerrors.Errorf("insert assistant message: %w", insertErr)
@@ -3000,6 +3003,16 @@ func usageNullInt64(value int64, valid bool) sql.NullInt64 {
 		Int64: value,
 		Valid: valid,
 	}
+}
+
+//nolint:revive // Boolean controls SQL NULL validity.
+func persistedMessageCost(totalCostMicros int64, costValid bool) (sql.NullInt64, sql.NullBool) {
+	costValidValue := sql.NullBool{Bool: costValid, Valid: true}
+	if !costValid {
+		return sql.NullInt64{}, costValidValue
+	}
+
+	return sql.NullInt64{Int64: totalCostMicros, Valid: true}, costValidValue
 }
 
 func refreshChatWorkspaceSnapshot(

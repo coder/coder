@@ -3879,6 +3879,19 @@ func TestChatCostSummary_MixedVersionRows(t *testing.T) {
 		InputTokens:     sql.NullInt64{Int64: 150, Valid: true},
 		OutputTokens:    sql.NullInt64{Int64: 75, Valid: true},
 		TotalCostMicros: sql.NullInt64{},
+		CostValid:       sql.NullBool{Bool: false, Valid: true},
+	})
+	require.NoError(t, err)
+
+	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+		ChatID:          chat.ID,
+		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+		Role:            "assistant",
+		ContentVersion:  1,
+		Visibility:      database.ChatMessageVisibilityBoth,
+		InputTokens:     sql.NullInt64{Int64: 25, Valid: true},
+		OutputTokens:    sql.NullInt64{Int64: 10, Valid: true},
+		TotalCostMicros: sql.NullInt64{},
 		CostValid:       sql.NullBool{},
 	})
 	require.NoError(t, err)
@@ -3887,9 +3900,9 @@ func TestChatCostSummary_MixedVersionRows(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(800), summary.TotalCostMicros)
 	require.Equal(t, int64(2), summary.PricedMessageCount)
-	require.Equal(t, int64(1), summary.UnpricedMessageCount)
-	require.Equal(t, int64(450), summary.TotalInputTokens)
-	require.Equal(t, int64(225), summary.TotalOutputTokens)
+	require.Equal(t, int64(2), summary.UnpricedMessageCount)
+	require.Equal(t, int64(475), summary.TotalInputTokens)
+	require.Equal(t, int64(235), summary.TotalOutputTokens)
 }
 
 func requireChatModelPricing(

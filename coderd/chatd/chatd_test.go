@@ -1411,6 +1411,82 @@ func setOpenAIProviderBaseURL(
 	require.NoError(t, err)
 }
 
+func TestSuccessfulChatPersistsNullCostForUnpricedAssistantMessages(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("done")...,
+		)
+	})
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	_, err := db.UpdateChatModelConfig(ctx, database.UpdateChatModelConfigParams{
+		Provider:             model.Provider,
+		Model:                model.Model,
+		DisplayName:          model.DisplayName,
+		UpdatedBy:            model.UpdatedBy,
+		Enabled:              model.Enabled,
+		IsDefault:            model.IsDefault,
+		ContextLimit:         model.ContextLimit,
+		CompressionThreshold: model.CompressionThreshold,
+		Options:              json.RawMessage(`{"cost":{"input_price_per_million_tokens":"0.15"}}`),
+		ID:                   model.ID,
+	})
+	require.NoError(t, err)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "unpriced-cost-write-test",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusWaiting && !fromDB.WorkerID.Valid
+	}, testutil.IntervalFast)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+
+	assistantMessage := messages[1]
+	require.Equal(t, database.ChatMessageRoleAssistant, assistantMessage.Role)
+	require.False(t, assistantMessage.TotalCostMicros.Valid)
+	require.Equal(t, int64(0), assistantMessage.TotalCostMicros.Int64)
+	require.True(t, assistantMessage.CostValid.Valid)
+	require.False(t, assistantMessage.CostValid.Bool)
+}
+
 func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 	t.Parallel()
 
