@@ -1217,14 +1217,19 @@
 							"path": "./ai-coder/agents/chats-api.md",
 							"state": ["early access"]
 						},
-						{
-							"title": "Early Access",
-							"description": "About the Coder Agents Early Access program",
-							"path": "./ai-coder/agents/early-access.md",
-							"state": ["early access"]
-						}
-					]
-				}
+							{
+								"title": "Agent Workspaces",
+								"description": "Best practices for creating workspaces that are discoverable and useful to Coder Agents",
+								"path": "./ai-coder/agents/workspaces.md",
+								"state": ["early access"]
+							},
+							{
+								"title": "Early Access",
+								"description": "About the Coder Agents Early Access program",
+								"path": "./ai-coder/agents/early-access.md",
+								"state": ["early access"]
+							}
+						]				}
 			]
 		},
 		{
