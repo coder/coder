@@ -1,16 +1,12 @@
 # Agent Workspaces
 
-Not every chat with Coder Agents requires a workspace. The agent runs in the
-control plane and can answer questions, discuss architecture, or plan an
-approach without any infrastructure. A workspace is only provisioned when the
+Not every chat with Coder Agents requires a workspace. A workspace is only provisioned when the
 agent decides it needs compute — to read files, write code, run commands, or
 execute builds.
 
 When a workspace is needed, the agent reads the available templates, selects
 the appropriate one based on its name and description, and provisions a
-workspace automatically. The quality of that experience — whether the agent
-picks the right template, has the tools it needs, and operates within your
-security boundaries — depends on how you design your templates.
+workspace automatically.
 
 This guide covers best practices for creating templates that are discoverable
 and useful to Coder Agents.
