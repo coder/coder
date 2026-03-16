@@ -29,7 +29,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/codersdk"
