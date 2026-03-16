@@ -548,64 +548,76 @@ func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 	client := codersdk.New(serverURL)
 	cfgRoot := config.Root(cfg.configDir)
 
-	// Reuse an existing session if still valid.
+	// Try reusing an existing session.
+	loggedIn := false
 	if token, err := cfgRoot.Session().Read(); err == nil && token != "" {
 		client.SetSessionToken(token)
 		if _, err := client.User(ctx, codersdk.Me); err == nil {
-			logger.Info(ctx, "already logged in, skipping setup")
-			return client, nil
+			loggedIn = true
+		} else {
+			client.SetSessionToken("")
 		}
-		client.SetSessionToken("")
 	}
 
-	hasUser, err := client.HasFirstUser(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("checking first user: %w", err)
-	}
-	if !hasUser {
-		logger.Info(ctx, "creating first user",
-			slog.F("email", "admin@coder.com"),
-			slog.F("password", cfg.password))
-		_, err := client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+	if !loggedIn {
+		hasUser, err := client.HasFirstUser(ctx)
+		if err != nil {
+			return nil, xerrors.Errorf("checking first user: %w", err)
+		}
+		if !hasUser {
+			logger.Info(ctx, "creating first user",
+				slog.F("email", "admin@coder.com"),
+				slog.F("password", cfg.password))
+			_, err := client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
+				Email:    "admin@coder.com",
+				Username: "admin",
+				Name:     "Admin User",
+				Password: cfg.password,
+			})
+			if err != nil {
+				return nil, xerrors.Errorf("creating first user: %w", err)
+			}
+		}
+
+		loginResp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    "admin@coder.com",
-			Username: "admin",
-			Name:     "Admin User",
 			Password: cfg.password,
 		})
 		if err != nil {
-			return nil, xerrors.Errorf("creating first user: %w", err)
+			return nil, xerrors.Errorf("login: %w", err)
 		}
-	}
+		client.SetSessionToken(loginResp.SessionToken)
 
-	loginResp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
-		Email:    "admin@coder.com",
-		Password: cfg.password,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("login: %w", err)
-	}
-	client.SetSessionToken(loginResp.SessionToken)
-
-	if err := cfgRoot.Session().Write(loginResp.SessionToken); err != nil {
-		return nil, xerrors.Errorf("writing session: %w", err)
-	}
-	if err := cfgRoot.URL().Write(apiURL); err != nil {
-		return nil, xerrors.Errorf("writing url: %w", err)
+		if err := cfgRoot.Session().Write(loginResp.SessionToken); err != nil {
+			return nil, xerrors.Errorf("writing session: %w", err)
+		}
+		if err := cfgRoot.URL().Write(apiURL); err != nil {
+			return nil, xerrors.Errorf("writing url: %w", err)
+		}
 	}
 	logger.Info(ctx, "logged in", slog.F("email", "admin@coder.com"))
 
-	// Member user is best-effort.
-	_, err = client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-		Email:         "member@coder.com",
-		Username:      "member",
-		Name:          "Regular User",
-		Password:      cfg.password,
-		UserLoginType: codersdk.LoginTypePassword,
-	})
+	// Look up the default org for member creation.
+	defaultOrg, err := client.OrganizationByName(ctx, codersdk.DefaultOrganization)
 	if err != nil {
-		logger.Warn(ctx, "member user not created (may already exist)", slog.Error(err))
-	} else {
-		logger.Info(ctx, "created member user", slog.F("email", "member@coder.com"))
+		return nil, xerrors.Errorf("looking up default org: %w", err)
+	}
+
+	// Member user is best-effort.
+	if _, err := client.User(ctx, "member"); err != nil {
+		_, err = client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "member@coder.com",
+			Username:        "member",
+			Name:            "Regular User",
+			Password:        cfg.password,
+			UserLoginType:   codersdk.LoginTypePassword,
+			OrganizationIDs: []uuid.UUID{defaultOrg.ID},
+		})
+		if err != nil {
+			logger.Warn(ctx, "failed to create member user", slog.Error(err))
+		} else {
+			logger.Info(ctx, "created member user", slog.F("email", "member@coder.com"))
+		}
 	}
 
 	return client, nil
@@ -683,17 +695,6 @@ func setupDockerTemplate(ctx context.Context, logger slog.Logger, cfg *devConfig
 		return nil
 	}
 
-	defaultOrg, err := client.OrganizationByName(ctx, codersdk.DefaultOrganization)
-	if err != nil {
-		return xerrors.Errorf("looking up default org: %w", err)
-	}
-
-	// Skip if the template already exists (idempotent).
-	if _, err := client.TemplateByName(ctx, defaultOrg.ID, "docker"); err == nil {
-		logger.Debug(ctx, "docker template already exists, skipping")
-		return nil
-	}
-
 	// Resolve Docker host for template variables.
 	dockerHost := ""
 	if out, err := exec.CommandContext(ctx, "docker", "context", "inspect",
@@ -701,44 +702,12 @@ func setupDockerTemplate(ctx context.Context, logger slog.Logger, cfg *devConfig
 		dockerHost = strings.TrimSpace(string(out))
 	}
 
-	// Create template version from the embedded "docker" example.
-	version, err := client.CreateTemplateVersion(ctx, defaultOrg.ID,
-		codersdk.CreateTemplateVersionRequest{
-			StorageMethod: codersdk.ProvisionerStorageMethodFile,
-			ExampleID:     "docker",
-			Provisioner:   codersdk.ProvisionerTypeTerraform,
-			UserVariableValues: []codersdk.VariableValue{
-				{Name: "docker_arch", Value: runtime.GOARCH},
-				{Name: "docker_host", Value: dockerHost},
-			},
-		})
-	if err != nil {
-		return xerrors.Errorf("creating template version: %w", err)
-	}
-	logger.Info(ctx, "docker template version created, waiting for build",
-		slog.F("version_id", version.ID))
-
-	// Poll until the provisioner job completes.
-	version, err = waitForVersion(ctx, client, version.ID)
-	if err != nil {
-		return xerrors.Errorf("docker template build: %w", err)
+	if err := createTemplateInOrg(ctx, logger, client, codersdk.DefaultOrganization, dockerHost); err != nil {
+		return err
 	}
 
-	// Create the template pointing at the built version.
-	_, err = client.CreateTemplate(ctx, defaultOrg.ID,
-		codersdk.CreateTemplateRequest{
-			Name:      "docker",
-			VersionID: version.ID,
-		})
-	if err != nil {
-		return xerrors.Errorf("creating docker template: %w", err)
-	}
-	logger.Info(ctx, "docker template created")
-
-	// Push to the second org if multi-org is enabled.
 	if cfg.multiOrg {
-		if err := createTemplateInOrg(ctx, logger, client,
-			"second-organization", dockerHost); err != nil {
+		if err := createTemplateInOrg(ctx, logger, client, "second-organization", dockerHost); err != nil {
 			logger.Warn(ctx, "failed to create docker template in second org",
 				slog.Error(err))
 		}
@@ -769,13 +738,17 @@ func waitForVersion(ctx context.Context, client *codersdk.Client, id uuid.UUID) 
 		})
 }
 
-// createTemplateInOrg creates the "docker" template in a
-// non-default org. Factored out to keep setupDockerTemplate
-// readable.
+// createTemplateInOrg ensures the "docker" template exists in the
+// given org, creating it from the embedded example if needed.
 func createTemplateInOrg(ctx context.Context, logger slog.Logger, client *codersdk.Client, orgName string, dockerHost string) error {
 	org, err := client.OrganizationByName(ctx, orgName)
 	if err != nil {
 		return xerrors.Errorf("looking up org %q: %w", orgName, err)
+	}
+	if _, err := client.TemplateByName(ctx, org.ID, "docker"); err == nil {
+		logger.Debug(ctx, "docker template already exists",
+			slog.F("org", orgName))
+		return nil
 	}
 	version, err := client.CreateTemplateVersion(ctx, org.ID,
 		codersdk.CreateTemplateVersionRequest{
