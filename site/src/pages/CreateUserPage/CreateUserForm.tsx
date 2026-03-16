@@ -271,18 +271,21 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 					)}
 
 					{showOrganizations && (
-						<OrganizationAutocomplete
-							{...getFieldHelpers("organization")}
-							required
-							label="Organization"
-							onChange={(newValue) => {
-								void form.setFieldValue("organization", newValue?.id ?? "");
-							}}
-							check={{
-								object: { resource_type: "organization_member" },
-								action: "create",
-							}}
-						/>
+						<div className="flex flex-col gap-2">
+							<Label htmlFor="organization">Organization</Label>
+							<OrganizationAutocomplete
+								{...getFieldHelpers("organization")}
+								id="organization"
+								required
+								onChange={(newValue) => {
+									void form.setFieldValue("organization", newValue?.id ?? "");
+								}}
+								check={{
+									object: { resource_type: "organization_member" },
+									action: "create",
+								}}
+							/>
+						</div>
 					)}
 
 					{isPasswordLogin && (
