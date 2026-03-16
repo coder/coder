@@ -644,9 +644,31 @@ export const router = createBrowserRouter(
 							<AgentsPage />
 						</Suspense>
 					}
+					>
+						<Route path="settings" />
+						<Route path="settings/:section" />
+						<Route path="analytics" />
+						<Route
+							path=":agentId"
+							element={
+								<Suspense fallback={<AgentDetailSkeleton />}>
+									<AgentDetail />
+								</Suspense>
+							}
+						/>
+					</Route>
+				</Route>
+
+				<Route
+					path="/agents/:agentId/embed"
+					element={
+						<Suspense fallback={<AgentDetailSkeleton />}>
+							<AgentEmbedPage />
+						</Suspense>
+					}
 				>
 					<Route
-						path=":agentId"
+						index
 						element={
 							<Suspense fallback={<AgentDetailSkeleton />}>
 								<AgentDetail />
@@ -654,25 +676,5 @@ export const router = createBrowserRouter(
 						}
 					/>
 				</Route>
-			</Route>
-
-			<Route
-				path="/agents/:agentId/embed"
-				element={
-					<Suspense fallback={<AgentDetailSkeleton />}>
-						<AgentEmbedPage />
-					</Suspense>
-				}
-			>
-				<Route
-					index
-					element={
-						<Suspense fallback={<AgentDetailSkeleton />}>
-							<AgentDetail />
-						</Suspense>
-					}
-				/>
-			</Route>
-		</Route>,
-	),
-);
+			</Route>,
+		),);
