@@ -39,6 +39,7 @@ import {
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
+import { isMobileViewport } from "utils/mobile";
 import { pageTitle } from "utils/page";
 import { portForwardURL } from "utils/portForward";
 import type { ChatMessageInputRef } from "./AgentChatInput";
@@ -171,7 +172,9 @@ export function useConversationEditingState(deps: {
 			await onSend(message, fileIds, editedMessageID);
 			// Clear input and editing state on success.
 			chatInputRef.current?.clear();
-			chatInputRef.current?.focus();
+			if (!isMobileViewport()) {
+				chatInputRef.current?.focus();
+			}
 			inputValueRef.current = "";
 			if (typeof window !== "undefined" && draftStorageKey) {
 				localStorage.removeItem(draftStorageKey);
