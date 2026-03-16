@@ -24,7 +24,7 @@ import {
 	Trash2Icon,
 } from "lucide-react";
 import type { FC } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
 
 interface SidebarPanelState {
@@ -119,7 +119,10 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 							{chatTitle}
 						</span>
 						{chatOwner && (
-							<span className="flex shrink-0 items-center gap-1 rounded bg-surface-tertiary px-1.5 py-0.5 text-xs text-content-secondary">
+							<Link
+								to={`/users/${chatOwner.username}`}
+								className="flex shrink-0 items-center gap-1 rounded bg-surface-tertiary px-1.5 py-0.5 text-xs text-content-secondary no-underline hover:bg-surface-quaternary"
+							>
 								<Avatar
 									src={chatOwner.avatar_url}
 									fallback={chatOwner.username}
@@ -127,7 +130,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 									className="size-4"
 								/>
 								@{chatOwner.username}&apos;s chat
-							</span>
+							</Link>
 						)}
 					</div>
 				)}
