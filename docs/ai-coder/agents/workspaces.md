@@ -137,7 +137,7 @@ required:
   only the permissions the agent needs (e.g., read/write access to specific
   repositories, no admin access).
 - **Configure external auth at the template level.** Use Coder's
-  [external authentication](../../admin/external-auth.md) to provide scoped
+  [external authentication](../../admin/external-auth/index.md) to provide scoped
   git credentials. The agent uses the same external auth flow as any other
   workspace, so credentials are managed centrally.
 - **Avoid injecting long-lived secrets.** Prefer short-lived tokens or
