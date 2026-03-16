@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -253,10 +254,14 @@ func (g *procGroup) Start(name string, cmd *exec.Cmd) error {
 	}
 	cmd.Env = append(cmd.Env, "FORCE_COLOR=1")
 
-	// Graceful shutdown: SIGINT on context cancel, escalate to
-	// SIGKILL after WaitDelay. Handled by the Go runtime.
+	// Run in a new process group so signals reach the entire
+	// child tree (e.g. pnpm → vite), not just the direct child.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	// Graceful shutdown: SIGINT the process group on context
+	// cancel, escalate to SIGKILL after WaitDelay.
 	cmd.Cancel = func() error {
-		return cmd.Process.Signal(os.Interrupt)
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGINT)
 	}
 	cmd.WaitDelay = shutdownTimeout
 
@@ -791,9 +796,11 @@ func pnpmCmd(ctx context.Context, cfg *devConfig) *exec.Cmd {
 
 func printBanner(logger slog.Logger, cfg *devConfig) {
 	ifaces := []string{"localhost"}
-	if out, err := exec.Command("hostname", "-I").Output(); err == nil {
-		for _, ip := range strings.Fields(string(out)) {
-			ifaces = append(ifaces, ip)
+	if addrs, err := net.InterfaceAddrs(); err == nil {
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
+				ifaces = append(ifaces, ipnet.IP.String())
+			}
 		}
 	}
 	var b strings.Builder
@@ -801,15 +808,15 @@ func printBanner(logger slog.Logger, cfg *devConfig) {
 	fmt.Fprintln(&b, "====================================================================")
 	fmt.Fprintln(&b, "==            Coder is now running in development mode.           ==")
 	for _, h := range ifaces {
-		fmt.Fprintf(&b, "==  API:    http://%s:%d\n", h, cfg.apiPort)
-		fmt.Fprintf(&b, "==  Web UI: http://%s:%d\n", h, cfg.webPort)
+		fmt.Fprintf(&b, "%-66s==\n", fmt.Sprintf("==  API:    http://%s:%d", h, cfg.apiPort))
+		fmt.Fprintf(&b, "%-66s==\n", fmt.Sprintf("==  Web UI: http://%s:%d", h, cfg.webPort))
 		if cfg.useProxy {
-			fmt.Fprintf(&b, "==  Proxy:  http://%s:%d\n", h, cfg.proxyPort)
+			fmt.Fprintf(&b, "%-66s==\n", fmt.Sprintf("==  Proxy:  http://%s:%d", h, cfg.proxyPort))
 		}
 	}
-	fmt.Fprintln(&b, "==")
-	fmt.Fprintln(&b, "==  Use ./scripts/coder-dev.sh to talk to this instance!")
-	fmt.Fprintf(&b, "==  alias cdr=%s/scripts/coder-dev.sh\n", cfg.projectRoot)
+	fmt.Fprintln(&b, "==                                                                ==")
+	fmt.Fprintln(&b, "==  Use ./scripts/coder-dev.sh to talk to this instance!          ==")
+	fmt.Fprintf(&b, "%-66s==\n", fmt.Sprintf("==  alias cdr=%s/scripts/coder-dev.sh", cfg.projectRoot))
 	fmt.Fprintln(&b, "====================================================================")
 	logger.Info(context.Background(), b.String())
 }
