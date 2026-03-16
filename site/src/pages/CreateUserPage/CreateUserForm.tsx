@@ -239,22 +239,13 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 								})}
 							</SelectContent>
 						</Select>
-						{loginTypeField.error ? (
+						{loginTypeField.helperText && (
 							<span
-								id="login_type-error"
-								className="text-xs text-content-destructive"
+								id="login_type-helper"
+								className="text-xs text-content-secondary"
 							>
 								{loginTypeField.helperText}
 							</span>
-						) : (
-							loginTypeField.helperText && (
-								<span
-									id="login_type-helper"
-									className="text-xs text-content-secondary"
-								>
-									{loginTypeField.helperText}
-								</span>
-							)
 						)}
 					</div>
 
