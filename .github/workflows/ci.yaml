@@ -1185,6 +1185,13 @@ jobs:
       - name: Setup GCloud SDK
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
+      - name: Disk usage (pre-build)
+        run: |
+          set -x
+          df -h .
+          du -sh $(go env GOMODCACHE) || true
+          du -sh $(go env GOCACHE) || true
+
       - name: Build
         run: |
           set -euxo pipefail
@@ -1215,6 +1222,14 @@ jobs:
           EV_CERTIFICATE_PATH: /tmp/ev_cert.pem
           GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
           JSIGN_PATH: /tmp/jsign-6.0.jar
+
+      - name: Disk usage (post-build)
+        run: |
+          set -x
+          df -h .
+          du -sh $(go env GOMODCACHE) || true
+          du -sh $(go env GOCACHE) || true
+          du -sh build/ || true
 
       - name: Build Linux Docker images
         id: build-docker
