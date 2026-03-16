@@ -1,5 +1,4 @@
 import { GlobalErrorBoundary } from "components/ErrorBoundary/GlobalErrorBoundary";
-import { TemplateRedirectController } from "pages/TemplatePage/TemplateRedirectController";
 import { lazy, Suspense } from "react";
 import {
 	createBrowserRouter,
@@ -19,6 +18,7 @@ import LoginOAuthDevicePage from "./pages/LoginOAuthDevicePage/LoginOAuthDeviceP
 import LoginPage from "./pages/LoginPage/LoginPage";
 import { SetupPage } from "./pages/SetupPage/SetupPage";
 import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
+import { TemplateRedirectController } from "./pages/TemplatePage/TemplateRedirectController";
 import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
 import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
@@ -364,6 +364,17 @@ const AIBridgeRequestLogsPage = lazy(
 	() => import("./pages/AIBridgePage/RequestLogsPage/RequestLogsPage"),
 );
 
+const AIBridgeSessionsLayout = lazy(
+	() => import("./pages/AIBridgePage/AIBridgeSessionsLayout"),
+);
+
+const AIBridgeListSessionsPage = lazy(
+	() => import("./pages/AIBridgePage/ListSessionsPage/ListSessionsPage"),
+);
+const AIBridgeSessionThreadsPage = lazy(
+	() => import("./pages/AIBridgePage/SessionThreadsPage/SessionThreadsPage"),
+);
+
 const GlobalLayout = () => {
 	return (
 		<Suspense fallback={<Loader fullscreen />}>
@@ -594,6 +605,11 @@ export const router = createBrowserRouter(
 					<Route path="/aibridge" element={<AIBridgeLayout />}>
 						<Route index element={<Navigate to="request-logs" replace />} />
 						<Route path="request-logs" element={<AIBridgeRequestLogsPage />} />
+					</Route>
+
+					<Route path="/aibridge/sessions" element={<AIBridgeSessionsLayout />}>
+						<Route index element={<AIBridgeListSessionsPage />} />
+						<Route path=":sessionId" element={<AIBridgeSessionThreadsPage />} />
 					</Route>
 
 					<Route path="/health" element={<HealthLayout />}>
