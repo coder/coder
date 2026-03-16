@@ -514,6 +514,9 @@ install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 	cp "$<" "$$output_file"
 .PHONY: install
 
+build/.bin/develop: go.mod go.sum $(GO_SRC_FILES)
+	CGO_ENABLED=0 go build -o $@ ./scripts/develop
+
 BOLD := $(shell tput bold 2>/dev/null)
 GREEN := $(shell tput setaf 2 2>/dev/null)
 RED := $(shell tput setaf 1 2>/dev/null)
