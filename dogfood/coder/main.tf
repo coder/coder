@@ -254,12 +254,13 @@ data "coder_external_auth" "github" {
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 data "coder_task" "me" {}
-data "coder_workspace_tags" "tags" {
-  tags = {
-    "cluster" : "dogfood-v2"
-    "env" : "gke"
-  }
-}
+# TODO(cian): reinstate once tagged provisioners back online
+#data "coder_workspace_tags" "tags" {
+#  tags = {
+#    "cluster" : "dogfood-v2"
+#    "env" : "gke"
+#  }
+#}
 
 data "coder_workspace_tags" "prebuild" {
   count = data.coder_workspace_owner.me.name == "prebuilds" ? 1 : 0
