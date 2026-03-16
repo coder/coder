@@ -1097,6 +1097,304 @@ func AIBridgeToolUsage(usage database.AIBridgeToolUsage) codersdk.AIBridgeToolUs
 	}
 }
 
+// AIBridgeSessionThreads converts session metadata and thread interceptions
+// into the threads response. It groups interceptions into threads, builds
+// agentic actions from tool usages and model thoughts, and aggregates
+// token usage with metadata.
+func AIBridgeSessionThreads(
+	session database.GetAIBridgeSessionByIDRow,
+	interceptions []database.ListAIBridgeSessionThreadInterceptionsRow,
+	tokenUsages []database.AIBridgeTokenUsage,
+	toolUsages []database.AIBridgeToolUsage,
+	userPrompts []database.AIBridgeUserPrompt,
+	modelThoughts []database.AIBridgeModelThought,
+) codersdk.AIBridgeSessionThreadsResponse {
+	// Index subresources by interception ID.
+	tokensByInterception := make(map[uuid.UUID][]database.AIBridgeTokenUsage)
+	for _, tu := range tokenUsages {
+		tokensByInterception[tu.InterceptionID] = append(tokensByInterception[tu.InterceptionID], tu)
+	}
+	toolsByInterception := make(map[uuid.UUID][]database.AIBridgeToolUsage)
+	for _, tu := range toolUsages {
+		toolsByInterception[tu.InterceptionID] = append(toolsByInterception[tu.InterceptionID], tu)
+	}
+	promptsByInterception := make(map[uuid.UUID][]database.AIBridgeUserPrompt)
+	for _, up := range userPrompts {
+		promptsByInterception[up.InterceptionID] = append(promptsByInterception[up.InterceptionID], up)
+	}
+	thoughtsByInterception := make(map[uuid.UUID][]database.AIBridgeModelThought)
+	for _, mt := range modelThoughts {
+		thoughtsByInterception[mt.InterceptionID] = append(thoughtsByInterception[mt.InterceptionID], mt)
+	}
+
+	// Group interceptions into threads by thread_root_id.
+	type threadData struct {
+		threadID      uuid.UUID
+		startedAt     time.Time
+		interceptions []database.AIBridgeInterception
+	}
+	threadOrder := make([]uuid.UUID, 0)
+	threadMap := make(map[uuid.UUID]*threadData)
+	for _, row := range interceptions {
+		intc := row.AIBridgeInterception
+		threadID := intc.ID
+		if intc.ThreadRootID.Valid {
+			threadID = intc.ThreadRootID.UUID
+		}
+		td, ok := threadMap[threadID]
+		if !ok {
+			td = &threadData{threadID: threadID, startedAt: intc.StartedAt}
+			threadMap[threadID] = td
+			threadOrder = append(threadOrder, threadID)
+		}
+		if intc.StartedAt.Before(td.startedAt) {
+			td.startedAt = intc.StartedAt
+		}
+		td.interceptions = append(td.interceptions, intc)
+	}
+
+	// Sort threads by started_at DESC to match the SQL pagination
+	// order (newest threads first).
+	slices.SortFunc(threadOrder, func(a, b uuid.UUID) int {
+		ta, tb := threadMap[a].startedAt, threadMap[b].startedAt
+		if ta.After(tb) {
+			return -1
+		}
+		if ta.Before(tb) {
+			return 1
+		}
+		// Break ties by thread ID DESC for consistency with SQL.
+		switch {
+		case a.String() > b.String():
+			return -1
+		case a.String() < b.String():
+			return 1
+		default:
+			return 0
+		}
+	})
+
+	// Build threads.
+	threads := make([]codersdk.AIBridgeThread, 0, len(threadOrder))
+	var pageStartedAt, pageEndedAt *time.Time
+	for _, threadID := range threadOrder {
+		td := threadMap[threadID]
+		thread := buildAIBridgeThread(td.threadID, td.interceptions, tokensByInterception, toolsByInterception, promptsByInterception, thoughtsByInterception)
+
+		// Track page time bounds from thread interceptions.
+		for _, intc := range td.interceptions {
+			if pageStartedAt == nil || intc.StartedAt.Before(*pageStartedAt) {
+				t := intc.StartedAt
+				pageStartedAt = &t
+			}
+			if intc.EndedAt.Valid {
+				if pageEndedAt == nil || intc.EndedAt.Time.After(*pageEndedAt) {
+					t := intc.EndedAt.Time
+					pageEndedAt = &t
+				}
+			}
+		}
+		threads = append(threads, thread)
+	}
+
+	// Aggregate session-level token usage metadata from all token
+	// usages in the session (not just the page).
+	sessionTokenMeta := aggregateTokenMetadata(tokenUsages)
+
+	resp := codersdk.AIBridgeSessionThreadsResponse{
+		ID: session.SessionID.String,
+		Initiator: MinimalUserFromVisibleUser(database.VisibleUser{
+			ID:        session.UserID,
+			Username:  session.UserUsername,
+			Name:      session.UserName,
+			AvatarURL: session.UserAvatarUrl,
+		}),
+		Providers:     session.Providers,
+		Models:        session.Models,
+		Metadata:      jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: session.Metadata, Valid: len(session.Metadata) > 0}),
+		StartedAt:     session.StartedAt,
+		PageStartedAt: pageStartedAt,
+		PageEndedAt:   pageEndedAt,
+		TokenUsageSummary: codersdk.AIBridgeSessionThreadsTokenUsage{
+			InputTokens:  session.InputTokens,
+			OutputTokens: session.OutputTokens,
+			Metadata:     sessionTokenMeta,
+		},
+		Threads: threads,
+	}
+	if resp.Providers == nil {
+		resp.Providers = []string{}
+	}
+	if resp.Models == nil {
+		resp.Models = []string{}
+	}
+	if session.Client != "" {
+		resp.Client = &session.Client
+	}
+	if !session.EndedAt.IsZero() {
+		resp.EndedAt = &session.EndedAt
+	}
+	return resp
+}
+
+func buildAIBridgeThread(
+	threadID uuid.UUID,
+	interceptions []database.AIBridgeInterception,
+	tokensByInterception map[uuid.UUID][]database.AIBridgeTokenUsage,
+	toolsByInterception map[uuid.UUID][]database.AIBridgeToolUsage,
+	promptsByInterception map[uuid.UUID][]database.AIBridgeUserPrompt,
+	thoughtsByInterception map[uuid.UUID][]database.AIBridgeModelThought,
+) codersdk.AIBridgeThread {
+	// Find the root interception (where id == threadID) to get the
+	// thread prompt and model.
+	var rootIntc *database.AIBridgeInterception
+	for i := range interceptions {
+		if interceptions[i].ID == threadID {
+			rootIntc = &interceptions[i]
+			break
+		}
+	}
+	// Fallback to first interception if root not found.
+	if rootIntc == nil && len(interceptions) > 0 {
+		rootIntc = &interceptions[0]
+	}
+
+	thread := codersdk.AIBridgeThread{
+		ID: threadID,
+	}
+	if rootIntc != nil {
+		thread.Model = rootIntc.Model
+		thread.Provider = rootIntc.Provider
+		// Get first user prompt from root interception.
+		if prompts := promptsByInterception[rootIntc.ID]; len(prompts) > 0 {
+			thread.Prompt = &prompts[0].Prompt
+		}
+	}
+
+	// Compute thread time bounds from interceptions.
+	for _, intc := range interceptions {
+		if thread.StartedAt.IsZero() || intc.StartedAt.Before(thread.StartedAt) {
+			thread.StartedAt = intc.StartedAt
+		}
+		if intc.EndedAt.Valid {
+			if thread.EndedAt == nil || intc.EndedAt.Time.After(*thread.EndedAt) {
+				t := intc.EndedAt.Time
+				thread.EndedAt = &t
+			}
+		}
+	}
+
+	// Build agentic actions grouped by interception. Each
+	// interception that has tool calls produces one action with all
+	// its tool calls, thinking blocks, and token usage.
+	var actions []codersdk.AIBridgeAgenticAction
+	for _, intc := range interceptions {
+		tools := toolsByInterception[intc.ID]
+		if len(tools) == 0 {
+			continue
+		}
+		// Sort tool usages within the interception by created_at.
+		sort.Slice(tools, func(i, j int) bool {
+			if tools[i].CreatedAt.Equal(tools[j].CreatedAt) {
+				return tools[i].ID.String() < tools[j].ID.String()
+			}
+			return tools[i].CreatedAt.Before(tools[j].CreatedAt)
+		})
+
+		// Thinking blocks for this interception.
+		thoughts := thoughtsByInterception[intc.ID]
+		thinking := make([]codersdk.AIBridgeModelThought, 0, len(thoughts))
+		for _, mt := range thoughts {
+			thinking = append(thinking, codersdk.AIBridgeModelThought{
+				Text: mt.Content,
+			})
+		}
+
+		// Token usage for the interception.
+		actionTokenUsage := aggregateTokenUsage(tokensByInterception[intc.ID])
+
+		// Build tool call list.
+		toolCalls := make([]codersdk.AIBridgeToolCall, 0, len(tools))
+		for _, tu := range tools {
+			toolCalls = append(toolCalls, codersdk.AIBridgeToolCall{
+				ID:                 tu.ID,
+				InterceptionID:     tu.InterceptionID,
+				ProviderResponseID: tu.ProviderResponseID,
+				ServerURL:          tu.ServerUrl.String,
+				Tool:               tu.Tool,
+				Injected:           tu.Injected,
+				Input:              tu.Input,
+				Metadata:           jsonOrEmptyMap(tu.Metadata),
+				CreatedAt:          tu.CreatedAt,
+			})
+		}
+
+		actions = append(actions, codersdk.AIBridgeAgenticAction{
+			Model:      intc.Model,
+			TokenUsage: actionTokenUsage,
+			Thinking:   thinking,
+			ToolCalls:  toolCalls,
+		})
+	}
+
+	if actions == nil {
+		// Make an empty slice so we don't serialize `null`.
+		actions = make([]codersdk.AIBridgeAgenticAction, 0)
+	}
+
+	thread.AgenticActions = actions
+
+	// Aggregate thread-level token usage.
+	var threadTokens []database.AIBridgeTokenUsage
+	for _, intc := range interceptions {
+		threadTokens = append(threadTokens, tokensByInterception[intc.ID]...)
+	}
+	thread.TokenUsage = aggregateTokenUsage(threadTokens)
+
+	return thread
+}
+
+// aggregateTokenUsage sums token usage rows and aggregates metadata.
+func aggregateTokenUsage(tokens []database.AIBridgeTokenUsage) codersdk.AIBridgeSessionThreadsTokenUsage {
+	var inputTokens, outputTokens int64
+	for _, tu := range tokens {
+		inputTokens += tu.InputTokens
+		outputTokens += tu.OutputTokens
+	}
+	return codersdk.AIBridgeSessionThreadsTokenUsage{
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+		Metadata:     aggregateTokenMetadata(tokens),
+	}
+}
+
+// aggregateTokenMetadata sums all numeric values from the metadata
+// JSONB across the given token usage rows by key.
+func aggregateTokenMetadata(tokens []database.AIBridgeTokenUsage) map[string]any {
+	sums := make(map[string]int64)
+	for _, tu := range tokens {
+		if !tu.Metadata.Valid || len(tu.Metadata.RawMessage) == 0 {
+			continue
+		}
+		var m map[string]json.Number
+		if err := json.Unmarshal(tu.Metadata.RawMessage, &m); err != nil {
+			continue
+		}
+		for k, v := range m {
+			n, err := v.Int64()
+			if err != nil {
+				continue
+			}
+			sums[k] += n
+		}
+	}
+	result := make(map[string]any, len(sums))
+	for k, v := range sums {
+		result[k] = v
+	}
+	return result
+}
+
 func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidatedAtRow) []codersdk.InvalidatedPreset {
 	var presets []codersdk.InvalidatedPreset
 	for _, p := range invalidatedPresets {

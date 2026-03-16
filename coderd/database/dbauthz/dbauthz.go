@@ -2335,6 +2335,14 @@ func (q *querier) GetAIBridgeInterceptions(ctx context.Context) ([]database.AIBr
 	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
 }
 
+func (q *querier) GetAIBridgeSessionByID(ctx context.Context, sessionID string) (database.GetAIBridgeSessionByIDRow, error) {
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
+	if err != nil {
+		return database.GetAIBridgeSessionByIDRow{}, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.db.GetAuthorizedAIBridgeSessionByID(ctx, sessionID, prep)
+}
+
 func (q *querier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
 	// All aibridge_token_usages records belong to the initiator of their associated interception.
 	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionRead, interceptionID); err != nil {
@@ -5317,12 +5325,30 @@ func (q *querier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Contex
 	return q.db.ListAIBridgeInterceptionsTelemetrySummaries(ctx, arg)
 }
 
+func (q *querier) ListAIBridgeModelThoughtsByInterceptionIDs(ctx context.Context, interceptionIDs []uuid.UUID) ([]database.AIBridgeModelThought, error) {
+	// This function is a system function until we implement a join
+	// for aibridge interceptions. AI Bridge interception subresources
+	// use the same authorization call as their parent.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.ListAIBridgeModelThoughtsByInterceptionIDs(ctx, interceptionIDs)
+}
+
 func (q *querier) ListAIBridgeModels(ctx context.Context, arg database.ListAIBridgeModelsParams) ([]string, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
 	return q.db.ListAuthorizedAIBridgeModels(ctx, arg, prep)
+}
+
+func (q *querier) ListAIBridgeSessionThreadInterceptions(ctx context.Context, arg database.ListAIBridgeSessionThreadInterceptionsParams) ([]database.ListAIBridgeSessionThreadInterceptionsRow, error) {
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.db.ListAuthorizedAIBridgeSessionThreadInterceptions(ctx, arg, prep)
 }
 
 func (q *querier) ListAIBridgeSessions(ctx context.Context, arg database.ListAIBridgeSessionsParams) ([]database.ListAIBridgeSessionsRow, error) {
@@ -7144,6 +7170,14 @@ func (q *querier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg databa
 
 func (q *querier) CountAuthorizedAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams, prepared rbac.PreparedAuthorized) (int64, error) {
 	return q.db.CountAuthorizedAIBridgeSessions(ctx, arg, prepared)
+}
+
+func (q *querier) GetAuthorizedAIBridgeSessionByID(ctx context.Context, sessionID string, prepared rbac.PreparedAuthorized) (database.GetAIBridgeSessionByIDRow, error) {
+	return q.db.GetAuthorizedAIBridgeSessionByID(ctx, sessionID, prepared)
+}
+
+func (q *querier) ListAuthorizedAIBridgeSessionThreadInterceptions(ctx context.Context, arg database.ListAIBridgeSessionThreadInterceptionsParams, prepared rbac.PreparedAuthorized) ([]database.ListAIBridgeSessionThreadInterceptionsRow, error) {
+	return q.db.ListAuthorizedAIBridgeSessionThreadInterceptions(ctx, arg, prepared)
 }
 
 func (q *querier) GetAuthorizedChats(ctx context.Context, arg database.GetChatsParams, _ rbac.PreparedAuthorized) ([]database.Chat, error) {

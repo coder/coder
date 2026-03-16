@@ -62,5 +62,8 @@
 	"[markdown]": {
 		"editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
 	},
-	"biome.lsp.bin": "site/node_modules/.bin/biome"
+	"biome.lsp.bin": "site/node_modules/.bin/biome",
+	"[json]": {
+		"editor.defaultFormatter": "vscode.json-language-features"
+	}
 }
