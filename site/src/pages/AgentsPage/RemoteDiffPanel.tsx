@@ -449,9 +449,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 								{headBranch && baseBranch && (
 									<ArrowLeftIcon className="size-3 shrink-0 opacity-50" />
 								)}
-								{headBranch && (
-									<span className="truncate"> {headBranch}</span>
-								)}{" "}
+								{headBranch && <span className="truncate"> {headBranch}</span>}
 							</>
 						) : parsedPr ? (
 							<span className="truncate">
@@ -460,7 +458,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 						) : (
 							<span className="truncate">{pullRequestUrl}</span>
 						)}
-					</div>{" "}
+					</div>
 					<div className="ml-auto flex shrink-0 items-center gap-1.5">
 						<PullRequestStateBadge state={prState} draft={prDraft} />
 						{diffStatusQuery.data?.additions ||
@@ -481,7 +479,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 						</a>
 					</div>
 				</div>
-			)}{" "}
+			)}
 			<DiffViewer
 				parsedFiles={parsedFiles}
 				isExpanded={isExpanded}

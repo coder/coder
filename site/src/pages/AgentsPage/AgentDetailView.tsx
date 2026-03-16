@@ -333,7 +333,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 					chatTitle={chatTitle}
 					desktopChatId={desktopChatId}
 				/>
-			</RightPanel>{" "}
+			</RightPanel>
 		</div>
 	);
 };
@@ -473,7 +473,7 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
 			/>
 			<div className="flex flex-1 items-center justify-center text-content-secondary">
 				Chat not found
-			</div>{" "}
+			</div>
 		</div>
 	);
 };

@@ -679,7 +679,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			ref={containerRef}
 			className="flex h-full min-w-0 flex-col overflow-hidden"
 		>
-			{/* Diff contents */}{" "}
+			{/* Diff contents */}
 			{sortedFiles.length === 0 ? (
 				<div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-content-secondary">
 					{emptyMessage}
