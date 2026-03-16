@@ -18,27 +18,13 @@ CREATE TABLE chat_usage_limit_config (
 -- Seed a single disabled row so reads never return empty.
 INSERT INTO chat_usage_limit_config (singleton) VALUES (TRUE);
 
--- 2. Per-user overrides
-CREATE TABLE chat_usage_limit_overrides (
-    id              BIGSERIAL   PRIMARY KEY,
-    user_id         UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    limit_micros    BIGINT      NOT NULL DEFAULT 0
-                    CHECK (limit_micros > 0),
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (user_id)
-);
+-- 2. Per-user overrides (inline on users table).
+ALTER TABLE users ADD COLUMN chat_spend_limit_micros BIGINT DEFAULT NULL
+    CHECK (chat_spend_limit_micros IS NULL OR chat_spend_limit_micros > 0);
 
--- 3. Per-group overrides
-CREATE TABLE chat_usage_limit_group_overrides (
-    id              BIGSERIAL   PRIMARY KEY,
-    group_id        UUID        NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-    limit_micros    BIGINT      NOT NULL DEFAULT 0
-                    CHECK (limit_micros > 0),
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (group_id)
-);
+-- 3. Per-group overrides (inline on groups table).
+ALTER TABLE groups ADD COLUMN chat_spend_limit_micros BIGINT DEFAULT NULL
+    CHECK (chat_spend_limit_micros IS NULL OR chat_spend_limit_micros > 0);
 
 -- Speed up per-user spend aggregation in the usage-limit hot path.
 CREATE INDEX idx_chat_messages_owner_spend

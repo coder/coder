@@ -424,11 +424,11 @@ func (m queryMetricsStore) DeleteChatUsageLimitGroupOverride(ctx context.Context
 	return r0
 }
 
-func (m queryMetricsStore) DeleteChatUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
+func (m queryMetricsStore) DeleteChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) error {
 	start := time.Now()
-	r0 := m.s.DeleteChatUsageLimitOverride(ctx, userID)
-	m.queryLatencies.WithLabelValues("DeleteChatUsageLimitOverride").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatUsageLimitOverride").Inc()
+	r0 := m.s.DeleteChatUsageLimitUserOverride(ctx, userID)
+	m.queryLatencies.WithLabelValues("DeleteChatUsageLimitUserOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatUsageLimitUserOverride").Inc()
 	return r0
 }
 
@@ -1175,19 +1175,19 @@ func (m queryMetricsStore) GetChatUsageLimitConfig(ctx context.Context) (databas
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatUsageLimitGroupOverrideByGroupID(ctx context.Context, groupID uuid.UUID) (database.ChatUsageLimitGroupOverride, error) {
+func (m queryMetricsStore) GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (database.GetChatUsageLimitGroupOverrideRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetChatUsageLimitGroupOverrideByGroupID(ctx, groupID)
-	m.queryLatencies.WithLabelValues("GetChatUsageLimitGroupOverrideByGroupID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatUsageLimitGroupOverrideByGroupID").Inc()
+	r0, r1 := m.s.GetChatUsageLimitGroupOverride(ctx, groupID)
+	m.queryLatencies.WithLabelValues("GetChatUsageLimitGroupOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatUsageLimitGroupOverride").Inc()
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatUsageLimitOverrideByUserID(ctx context.Context, userID uuid.UUID) (database.ChatUsageLimitOverride, error) {
+func (m queryMetricsStore) GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (database.GetChatUsageLimitUserOverrideRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetChatUsageLimitOverrideByUserID(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetChatUsageLimitOverrideByUserID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatUsageLimitOverrideByUserID").Inc()
+	r0, r1 := m.s.GetChatUsageLimitUserOverride(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetChatUsageLimitUserOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatUsageLimitUserOverride").Inc()
 	return r0, r1
 }
 
@@ -4574,7 +4574,7 @@ func (m queryMetricsStore) UpsertChatUsageLimitConfig(ctx context.Context, arg d
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpsertChatUsageLimitGroupOverride(ctx context.Context, arg database.UpsertChatUsageLimitGroupOverrideParams) (database.ChatUsageLimitGroupOverride, error) {
+func (m queryMetricsStore) UpsertChatUsageLimitGroupOverride(ctx context.Context, arg database.UpsertChatUsageLimitGroupOverrideParams) (database.UpsertChatUsageLimitGroupOverrideRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpsertChatUsageLimitGroupOverride(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertChatUsageLimitGroupOverride").Observe(time.Since(start).Seconds())
@@ -4582,11 +4582,11 @@ func (m queryMetricsStore) UpsertChatUsageLimitGroupOverride(ctx context.Context
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpsertChatUsageLimitOverride(ctx context.Context, arg database.UpsertChatUsageLimitOverrideParams) (database.ChatUsageLimitOverride, error) {
+func (m queryMetricsStore) UpsertChatUsageLimitUserOverride(ctx context.Context, arg database.UpsertChatUsageLimitUserOverrideParams) (database.UpsertChatUsageLimitUserOverrideRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.UpsertChatUsageLimitOverride(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertChatUsageLimitOverride").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatUsageLimitOverride").Inc()
+	r0, r1 := m.s.UpsertChatUsageLimitUserOverride(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertChatUsageLimitUserOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatUsageLimitUserOverride").Inc()
 	return r0, r1
 }
 

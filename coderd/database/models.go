@@ -4206,22 +4206,6 @@ type ChatUsageLimitConfig struct {
 	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
 }
 
-type ChatUsageLimitGroupOverride struct {
-	ID          int64     `db:"id" json:"id"`
-	GroupID     uuid.UUID `db:"group_id" json:"group_id"`
-	LimitMicros int64     `db:"limit_micros" json:"limit_micros"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-}
-
-type ChatUsageLimitOverride struct {
-	ID          int64     `db:"id" json:"id"`
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	LimitMicros int64     `db:"limit_micros" json:"limit_micros"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-}
-
 type ConnectionLog struct {
 	ID               uuid.UUID      `db:"id" json:"id"`
 	ConnectTime      time.Time      `db:"connect_time" json:"connect_time"`
@@ -4334,7 +4318,8 @@ type Group struct {
 	// Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.
 	DisplayName string `db:"display_name" json:"display_name"`
 	// Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.
-	Source GroupSource `db:"source" json:"source"`
+	Source               GroupSource   `db:"source" json:"source"`
+	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 }
 
 // Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).
@@ -5104,7 +5089,8 @@ type User struct {
 	// Determines if a user is a system user, and therefore cannot login or perform normal actions
 	IsSystem bool `db:"is_system" json:"is_system"`
 	// Determines if a user is an admin-managed account that cannot login
-	IsServiceAccount bool `db:"is_service_account" json:"is_service_account"`
+	IsServiceAccount     bool          `db:"is_service_account" json:"is_service_account"`
+	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 }
 
 type UserConfig struct {

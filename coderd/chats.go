@@ -648,23 +648,18 @@ func (api *API) getChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request)
 				Name:      row.Name,
 				AvatarURL: row.AvatarURL,
 			},
-			SpendLimitMicros: ptr.Ref(row.LimitMicros),
-			CreatedAt:        row.CreatedAt,
-			UpdatedAt:        row.UpdatedAt,
+			SpendLimitMicros: nullInt64Ptr(row.SpendLimitMicros),
 		})
 	}
 
 	for _, glo := range groupOverrides {
-		limitMicros := glo.LimitMicros
 		response.GroupOverrides = append(response.GroupOverrides, codersdk.ChatUsageLimitGroupOverride{
 			GroupID:          glo.GroupID,
 			GroupName:        glo.GroupName,
 			GroupDisplayName: glo.GroupDisplayName,
 			GroupAvatarURL:   glo.GroupAvatarUrl,
 			MemberCount:      glo.MemberCount,
-			SpendLimitMicros: &limitMicros,
-			CreatedAt:        glo.CreatedAt,
-			UpdatedAt:        glo.UpdatedAt,
+			SpendLimitMicros: nullInt64Ptr(glo.SpendLimitMicros),
 		})
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, response)
@@ -801,12 +796,12 @@ func (api *API) updateChatUserUsageLimitOverride(rw http.ResponseWriter, r *http
 		return
 	}
 
-	override, err := api.Database.UpsertChatUsageLimitOverride(ctx, database.UpsertChatUsageLimitOverrideParams{
-		UserID:      userID,
-		LimitMicros: req.SpendLimitMicros,
+	override, err := api.Database.UpsertChatUsageLimitUserOverride(ctx, database.UpsertChatUsageLimitUserOverrideParams{
+		UserID:           userID,
+		SpendLimitMicros: req.SpendLimitMicros,
 	})
 	if err != nil {
-		if database.IsForeignKeyViolation(err) {
+		if errors.Is(err, sql.ErrNoRows) {
 			writeChatUsageLimitUserNotFound(ctx, rw)
 			return
 		}
@@ -817,25 +812,14 @@ func (api *API) updateChatUserUsageLimitOverride(rw http.ResponseWriter, r *http
 		return
 	}
 
-	user, err := api.Database.GetUserByID(ctx, userID)
-	if err != nil {
-		api.Logger.Warn(ctx, "failed to fetch user for override response",
-			slog.F("user_id", userID),
-			slog.Error(err),
-		)
-		user = database.User{}
-	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatUsageLimitOverride{
 		MinimalUser: codersdk.MinimalUser{
 			ID:        override.UserID,
-			Username:  user.Username,
-			Name:      user.Name,
-			AvatarURL: user.AvatarURL,
+			Username:  override.Username,
+			Name:      override.Name,
+			AvatarURL: override.AvatarURL,
 		},
-		SpendLimitMicros: ptr.Ref(override.LimitMicros),
-		CreatedAt:        override.CreatedAt,
-		UpdatedAt:        override.UpdatedAt,
+		SpendLimitMicros: nullInt64Ptr(override.SpendLimitMicros),
 	})
 }
 
@@ -865,7 +849,7 @@ func (api *API) deleteChatUserUsageLimitOverride(rw http.ResponseWriter, r *http
 		})
 		return
 	}
-	if _, err := api.Database.GetChatUsageLimitOverrideByUserID(ctx, userID); err != nil {
+	if _, err := api.Database.GetChatUsageLimitUserOverride(ctx, userID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeChatUsageLimitOverrideNotFound(ctx, rw)
 			return
@@ -876,7 +860,7 @@ func (api *API) deleteChatUserUsageLimitOverride(rw http.ResponseWriter, r *http
 		})
 		return
 	}
-	if err := api.Database.DeleteChatUsageLimitOverride(ctx, userID); err != nil {
+	if err := api.Database.DeleteChatUsageLimitUserOverride(ctx, userID); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete chat usage limit override.",
 			Detail:  err.Error(),
@@ -921,29 +905,16 @@ func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 	}
 
 	override, err := api.Database.UpsertChatUsageLimitGroupOverride(ctx, database.UpsertChatUsageLimitGroupOverrideParams{
-		GroupID:     groupID,
-		LimitMicros: req.SpendLimitMicros,
+		GroupID:          groupID,
+		SpendLimitMicros: req.SpendLimitMicros,
 	})
-	if err != nil {
-		if database.IsForeignKeyViolation(err) {
-			writeChatUsageLimitGroupNotFound(ctx, rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to upsert group usage limit override.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	group, err := api.Database.GetGroupByID(ctx, groupID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeChatUsageLimitGroupNotFound(ctx, rw)
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to fetch group details.",
+			Message: "Failed to upsert group usage limit override.",
 			Detail:  err.Error(),
 		})
 		return
@@ -965,16 +936,13 @@ func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	limitMicros := override.LimitMicros
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatUsageLimitGroupOverride{
 		GroupID:          override.GroupID,
-		GroupName:        group.Name,
-		GroupDisplayName: group.DisplayName,
-		GroupAvatarURL:   group.AvatarURL,
+		GroupName:        override.Name,
+		GroupDisplayName: override.DisplayName,
+		GroupAvatarURL:   override.AvatarURL,
 		MemberCount:      memberCount,
-		SpendLimitMicros: &limitMicros,
-		CreatedAt:        override.CreatedAt,
-		UpdatedAt:        override.UpdatedAt,
+		SpendLimitMicros: nullInt64Ptr(override.SpendLimitMicros),
 	})
 }
 
@@ -1009,7 +977,7 @@ func (api *API) deleteChatUsageLimitGroupOverride(rw http.ResponseWriter, r *htt
 		})
 		return
 	}
-	if _, err := api.Database.GetChatUsageLimitGroupOverrideByGroupID(ctx, groupID); err != nil {
+	if _, err := api.Database.GetChatUsageLimitGroupOverride(ctx, groupID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeChatUsageLimitGroupOverrideNotFound(ctx, rw)
 			return
@@ -3846,6 +3814,13 @@ func chatModelConfigToUpdateParams(
 		UpdatedBy:            uuid.NullUUID{},
 		ID:                   config.ID,
 	}
+}
+
+func nullInt64Ptr(n sql.NullInt64) *int64 {
+	if !n.Valid {
+		return nil
+	}
+	return &n.Int64
 }
 
 func writeChatUsageLimitUserNotFound(ctx context.Context, rw http.ResponseWriter) {

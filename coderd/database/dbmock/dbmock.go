@@ -668,18 +668,18 @@ func (mr *MockStoreMockRecorder) DeleteChatUsageLimitGroupOverride(ctx, groupID 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatUsageLimitGroupOverride", reflect.TypeOf((*MockStore)(nil).DeleteChatUsageLimitGroupOverride), ctx, groupID)
 }
 
-// DeleteChatUsageLimitOverride mocks base method.
-func (m *MockStore) DeleteChatUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
+// DeleteChatUsageLimitUserOverride mocks base method.
+func (m *MockStore) DeleteChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteChatUsageLimitOverride", ctx, userID)
+	ret := m.ctrl.Call(m, "DeleteChatUsageLimitUserOverride", ctx, userID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteChatUsageLimitOverride indicates an expected call of DeleteChatUsageLimitOverride.
-func (mr *MockStoreMockRecorder) DeleteChatUsageLimitOverride(ctx, userID any) *gomock.Call {
+// DeleteChatUsageLimitUserOverride indicates an expected call of DeleteChatUsageLimitUserOverride.
+func (mr *MockStoreMockRecorder) DeleteChatUsageLimitUserOverride(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatUsageLimitOverride", reflect.TypeOf((*MockStore)(nil).DeleteChatUsageLimitOverride), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatUsageLimitUserOverride", reflect.TypeOf((*MockStore)(nil).DeleteChatUsageLimitUserOverride), ctx, userID)
 }
 
 // DeleteCryptoKey mocks base method.
@@ -2136,34 +2136,34 @@ func (mr *MockStoreMockRecorder) GetChatUsageLimitConfig(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatUsageLimitConfig", reflect.TypeOf((*MockStore)(nil).GetChatUsageLimitConfig), ctx)
 }
 
-// GetChatUsageLimitGroupOverrideByGroupID mocks base method.
-func (m *MockStore) GetChatUsageLimitGroupOverrideByGroupID(ctx context.Context, groupID uuid.UUID) (database.ChatUsageLimitGroupOverride, error) {
+// GetChatUsageLimitGroupOverride mocks base method.
+func (m *MockStore) GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (database.GetChatUsageLimitGroupOverrideRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatUsageLimitGroupOverrideByGroupID", ctx, groupID)
-	ret0, _ := ret[0].(database.ChatUsageLimitGroupOverride)
+	ret := m.ctrl.Call(m, "GetChatUsageLimitGroupOverride", ctx, groupID)
+	ret0, _ := ret[0].(database.GetChatUsageLimitGroupOverrideRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatUsageLimitGroupOverrideByGroupID indicates an expected call of GetChatUsageLimitGroupOverrideByGroupID.
-func (mr *MockStoreMockRecorder) GetChatUsageLimitGroupOverrideByGroupID(ctx, groupID any) *gomock.Call {
+// GetChatUsageLimitGroupOverride indicates an expected call of GetChatUsageLimitGroupOverride.
+func (mr *MockStoreMockRecorder) GetChatUsageLimitGroupOverride(ctx, groupID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatUsageLimitGroupOverrideByGroupID", reflect.TypeOf((*MockStore)(nil).GetChatUsageLimitGroupOverrideByGroupID), ctx, groupID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatUsageLimitGroupOverride", reflect.TypeOf((*MockStore)(nil).GetChatUsageLimitGroupOverride), ctx, groupID)
 }
 
-// GetChatUsageLimitOverrideByUserID mocks base method.
-func (m *MockStore) GetChatUsageLimitOverrideByUserID(ctx context.Context, userID uuid.UUID) (database.ChatUsageLimitOverride, error) {
+// GetChatUsageLimitUserOverride mocks base method.
+func (m *MockStore) GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (database.GetChatUsageLimitUserOverrideRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatUsageLimitOverrideByUserID", ctx, userID)
-	ret0, _ := ret[0].(database.ChatUsageLimitOverride)
+	ret := m.ctrl.Call(m, "GetChatUsageLimitUserOverride", ctx, userID)
+	ret0, _ := ret[0].(database.GetChatUsageLimitUserOverrideRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatUsageLimitOverrideByUserID indicates an expected call of GetChatUsageLimitOverrideByUserID.
-func (mr *MockStoreMockRecorder) GetChatUsageLimitOverrideByUserID(ctx, userID any) *gomock.Call {
+// GetChatUsageLimitUserOverride indicates an expected call of GetChatUsageLimitUserOverride.
+func (mr *MockStoreMockRecorder) GetChatUsageLimitUserOverride(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatUsageLimitOverrideByUserID", reflect.TypeOf((*MockStore)(nil).GetChatUsageLimitOverrideByUserID), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatUsageLimitUserOverride", reflect.TypeOf((*MockStore)(nil).GetChatUsageLimitUserOverride), ctx, userID)
 }
 
 // GetChatsByOwnerID mocks base method.
@@ -8540,10 +8540,10 @@ func (mr *MockStoreMockRecorder) UpsertChatUsageLimitConfig(ctx, arg any) *gomoc
 }
 
 // UpsertChatUsageLimitGroupOverride mocks base method.
-func (m *MockStore) UpsertChatUsageLimitGroupOverride(ctx context.Context, arg database.UpsertChatUsageLimitGroupOverrideParams) (database.ChatUsageLimitGroupOverride, error) {
+func (m *MockStore) UpsertChatUsageLimitGroupOverride(ctx context.Context, arg database.UpsertChatUsageLimitGroupOverrideParams) (database.UpsertChatUsageLimitGroupOverrideRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertChatUsageLimitGroupOverride", ctx, arg)
-	ret0, _ := ret[0].(database.ChatUsageLimitGroupOverride)
+	ret0, _ := ret[0].(database.UpsertChatUsageLimitGroupOverrideRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -8554,19 +8554,19 @@ func (mr *MockStoreMockRecorder) UpsertChatUsageLimitGroupOverride(ctx, arg any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatUsageLimitGroupOverride", reflect.TypeOf((*MockStore)(nil).UpsertChatUsageLimitGroupOverride), ctx, arg)
 }
 
-// UpsertChatUsageLimitOverride mocks base method.
-func (m *MockStore) UpsertChatUsageLimitOverride(ctx context.Context, arg database.UpsertChatUsageLimitOverrideParams) (database.ChatUsageLimitOverride, error) {
+// UpsertChatUsageLimitUserOverride mocks base method.
+func (m *MockStore) UpsertChatUsageLimitUserOverride(ctx context.Context, arg database.UpsertChatUsageLimitUserOverrideParams) (database.UpsertChatUsageLimitUserOverrideRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertChatUsageLimitOverride", ctx, arg)
-	ret0, _ := ret[0].(database.ChatUsageLimitOverride)
+	ret := m.ctrl.Call(m, "UpsertChatUsageLimitUserOverride", ctx, arg)
+	ret0, _ := ret[0].(database.UpsertChatUsageLimitUserOverrideRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// UpsertChatUsageLimitOverride indicates an expected call of UpsertChatUsageLimitOverride.
-func (mr *MockStoreMockRecorder) UpsertChatUsageLimitOverride(ctx, arg any) *gomock.Call {
+// UpsertChatUsageLimitUserOverride indicates an expected call of UpsertChatUsageLimitUserOverride.
+func (mr *MockStoreMockRecorder) UpsertChatUsageLimitUserOverride(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatUsageLimitOverride", reflect.TypeOf((*MockStore)(nil).UpsertChatUsageLimitOverride), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatUsageLimitUserOverride", reflect.TypeOf((*MockStore)(nil).UpsertChatUsageLimitUserOverride), ctx, arg)
 }
 
 // UpsertConnectionLog mocks base method.

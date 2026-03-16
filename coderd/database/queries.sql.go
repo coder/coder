@@ -3276,7 +3276,7 @@ func (q *sqlQuerier) DeleteChatQueuedMessage(ctx context.Context, arg DeleteChat
 }
 
 const deleteChatUsageLimitGroupOverride = `-- name: DeleteChatUsageLimitGroupOverride :exec
-DELETE FROM chat_usage_limit_group_overrides WHERE group_id = $1::uuid
+UPDATE groups SET chat_spend_limit_micros = NULL WHERE id = $1::uuid
 `
 
 func (q *sqlQuerier) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error {
@@ -3284,12 +3284,12 @@ func (q *sqlQuerier) DeleteChatUsageLimitGroupOverride(ctx context.Context, grou
 	return err
 }
 
-const deleteChatUsageLimitOverride = `-- name: DeleteChatUsageLimitOverride :exec
-DELETE FROM chat_usage_limit_overrides WHERE user_id = $1::uuid
+const deleteChatUsageLimitUserOverride = `-- name: DeleteChatUsageLimitUserOverride :exec
+UPDATE users SET chat_spend_limit_micros = NULL WHERE id = $1::uuid
 `
 
-func (q *sqlQuerier) DeleteChatUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatUsageLimitOverride, userID)
+func (q *sqlQuerier) DeleteChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatUsageLimitUserOverride, userID)
 	return err
 }
 
@@ -4138,37 +4138,39 @@ func (q *sqlQuerier) GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimi
 	return i, err
 }
 
-const getChatUsageLimitGroupOverrideByGroupID = `-- name: GetChatUsageLimitGroupOverrideByGroupID :one
-SELECT id, group_id, limit_micros, created_at, updated_at FROM chat_usage_limit_group_overrides WHERE group_id = $1::uuid
+const getChatUsageLimitGroupOverride = `-- name: GetChatUsageLimitGroupOverride :one
+SELECT id AS group_id, chat_spend_limit_micros AS spend_limit_micros
+FROM groups
+WHERE id = $1::uuid AND chat_spend_limit_micros IS NOT NULL
 `
 
-func (q *sqlQuerier) GetChatUsageLimitGroupOverrideByGroupID(ctx context.Context, groupID uuid.UUID) (ChatUsageLimitGroupOverride, error) {
-	row := q.db.QueryRowContext(ctx, getChatUsageLimitGroupOverrideByGroupID, groupID)
-	var i ChatUsageLimitGroupOverride
-	err := row.Scan(
-		&i.ID,
-		&i.GroupID,
-		&i.LimitMicros,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
+type GetChatUsageLimitGroupOverrideRow struct {
+	GroupID          uuid.UUID     `db:"group_id" json:"group_id"`
+	SpendLimitMicros sql.NullInt64 `db:"spend_limit_micros" json:"spend_limit_micros"`
+}
+
+func (q *sqlQuerier) GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (GetChatUsageLimitGroupOverrideRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatUsageLimitGroupOverride, groupID)
+	var i GetChatUsageLimitGroupOverrideRow
+	err := row.Scan(&i.GroupID, &i.SpendLimitMicros)
 	return i, err
 }
 
-const getChatUsageLimitOverrideByUserID = `-- name: GetChatUsageLimitOverrideByUserID :one
-SELECT id, user_id, limit_micros, created_at, updated_at FROM chat_usage_limit_overrides WHERE user_id = $1::uuid
+const getChatUsageLimitUserOverride = `-- name: GetChatUsageLimitUserOverride :one
+SELECT id AS user_id, chat_spend_limit_micros AS spend_limit_micros
+FROM users
+WHERE id = $1::uuid AND chat_spend_limit_micros IS NOT NULL
 `
 
-func (q *sqlQuerier) GetChatUsageLimitOverrideByUserID(ctx context.Context, userID uuid.UUID) (ChatUsageLimitOverride, error) {
-	row := q.db.QueryRowContext(ctx, getChatUsageLimitOverrideByUserID, userID)
-	var i ChatUsageLimitOverride
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.LimitMicros,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
+type GetChatUsageLimitUserOverrideRow struct {
+	UserID           uuid.UUID     `db:"user_id" json:"user_id"`
+	SpendLimitMicros sql.NullInt64 `db:"spend_limit_micros" json:"spend_limit_micros"`
+}
+
+func (q *sqlQuerier) GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (GetChatUsageLimitUserOverrideRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatUsageLimitUserOverride, userID)
+	var i GetChatUsageLimitUserOverrideRow
+	err := row.Scan(&i.UserID, &i.SpendLimitMicros)
 	return i, err
 }
 
@@ -4387,10 +4389,11 @@ func (q *sqlQuerier) GetUserChatSpendInPeriod(ctx context.Context, arg GetUserCh
 }
 
 const getUserGroupSpendLimit = `-- name: GetUserGroupSpendLimit :one
-SELECT COALESCE(MIN(glo.limit_micros), -1)::bigint AS limit_micros
-FROM chat_usage_limit_group_overrides glo
-JOIN group_members_expanded gme ON gme.group_id = glo.group_id
+SELECT COALESCE(MIN(g.chat_spend_limit_micros), -1)::bigint AS limit_micros
+FROM groups g
+JOIN group_members_expanded gme ON gme.group_id = g.id
 WHERE gme.user_id = $1::uuid
+  AND g.chat_spend_limit_micros IS NOT NULL
 `
 
 // Returns the minimum (most restrictive) group limit for a user.
@@ -4603,29 +4606,27 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 
 const listChatUsageLimitGroupOverrides = `-- name: ListChatUsageLimitGroupOverrides :many
 SELECT
-    glo.id, glo.group_id, glo.limit_micros, glo.created_at, glo.updated_at,
+    g.id AS group_id,
     g.name AS group_name,
     g.display_name AS group_display_name,
     g.avatar_url AS group_avatar_url,
+    g.chat_spend_limit_micros AS spend_limit_micros,
     (SELECT COUNT(*)
         FROM group_members_expanded gme
-        WHERE gme.group_id = glo.group_id
+        WHERE gme.group_id = g.id
           AND gme.user_is_system = FALSE) AS member_count
-FROM chat_usage_limit_group_overrides glo
-JOIN groups g ON g.id = glo.group_id
+FROM groups g
+WHERE g.chat_spend_limit_micros IS NOT NULL
 ORDER BY g.name ASC
 `
 
 type ListChatUsageLimitGroupOverridesRow struct {
-	ID               int64     `db:"id" json:"id"`
-	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
-	LimitMicros      int64     `db:"limit_micros" json:"limit_micros"`
-	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
-	GroupName        string    `db:"group_name" json:"group_name"`
-	GroupDisplayName string    `db:"group_display_name" json:"group_display_name"`
-	GroupAvatarUrl   string    `db:"group_avatar_url" json:"group_avatar_url"`
-	MemberCount      int64     `db:"member_count" json:"member_count"`
+	GroupID          uuid.UUID     `db:"group_id" json:"group_id"`
+	GroupName        string        `db:"group_name" json:"group_name"`
+	GroupDisplayName string        `db:"group_display_name" json:"group_display_name"`
+	GroupAvatarUrl   string        `db:"group_avatar_url" json:"group_avatar_url"`
+	SpendLimitMicros sql.NullInt64 `db:"spend_limit_micros" json:"spend_limit_micros"`
+	MemberCount      int64         `db:"member_count" json:"member_count"`
 }
 
 func (q *sqlQuerier) ListChatUsageLimitGroupOverrides(ctx context.Context) ([]ListChatUsageLimitGroupOverridesRow, error) {
@@ -4638,14 +4639,11 @@ func (q *sqlQuerier) ListChatUsageLimitGroupOverrides(ctx context.Context) ([]Li
 	for rows.Next() {
 		var i ListChatUsageLimitGroupOverridesRow
 		if err := rows.Scan(
-			&i.ID,
 			&i.GroupID,
-			&i.LimitMicros,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.GroupName,
 			&i.GroupDisplayName,
 			&i.GroupAvatarUrl,
+			&i.SpendLimitMicros,
 			&i.MemberCount,
 		); err != nil {
 			return nil, err
@@ -4662,21 +4660,19 @@ func (q *sqlQuerier) ListChatUsageLimitGroupOverrides(ctx context.Context) ([]Li
 }
 
 const listChatUsageLimitOverrides = `-- name: ListChatUsageLimitOverrides :many
-SELECT o.id, o.user_id, o.limit_micros, o.created_at, o.updated_at, u.username, u.name, u.avatar_url
-FROM chat_usage_limit_overrides o
-JOIN users u ON u.id = o.user_id
+SELECT u.id AS user_id, u.username, u.name, u.avatar_url,
+       u.chat_spend_limit_micros AS spend_limit_micros
+FROM users u
+WHERE u.chat_spend_limit_micros IS NOT NULL
 ORDER BY u.username ASC
 `
 
 type ListChatUsageLimitOverridesRow struct {
-	ID          int64     `db:"id" json:"id"`
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	LimitMicros int64     `db:"limit_micros" json:"limit_micros"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	Username    string    `db:"username" json:"username"`
-	Name        string    `db:"name" json:"name"`
-	AvatarURL   string    `db:"avatar_url" json:"avatar_url"`
+	UserID           uuid.UUID     `db:"user_id" json:"user_id"`
+	Username         string        `db:"username" json:"username"`
+	Name             string        `db:"name" json:"name"`
+	AvatarURL        string        `db:"avatar_url" json:"avatar_url"`
+	SpendLimitMicros sql.NullInt64 `db:"spend_limit_micros" json:"spend_limit_micros"`
 }
 
 func (q *sqlQuerier) ListChatUsageLimitOverrides(ctx context.Context) ([]ListChatUsageLimitOverridesRow, error) {
@@ -4689,14 +4685,11 @@ func (q *sqlQuerier) ListChatUsageLimitOverrides(ctx context.Context) ([]ListCha
 	for rows.Next() {
 		var i ListChatUsageLimitOverridesRow
 		if err := rows.Scan(
-			&i.ID,
 			&i.UserID,
-			&i.LimitMicros,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.Username,
 			&i.Name,
 			&i.AvatarURL,
+			&i.SpendLimitMicros,
 		); err != nil {
 			return nil, err
 		}
@@ -4739,21 +4732,22 @@ SELECT CASE
     -- If limits are disabled, return -1.
     WHEN NOT cfg.enabled THEN -1
     -- Individual override takes priority.
-    WHEN uo.limit_micros IS NOT NULL THEN uo.limit_micros
+    WHEN u.chat_spend_limit_micros IS NOT NULL THEN u.chat_spend_limit_micros
     -- Group limit (minimum across all user's groups) is next.
     WHEN gl.limit_micros IS NOT NULL THEN gl.limit_micros
     -- Fall back to global default.
     ELSE cfg.default_limit_micros
 END::bigint AS effective_limit_micros
 FROM chat_usage_limit_config cfg
-LEFT JOIN chat_usage_limit_overrides uo
-    ON uo.user_id = $1::uuid
+CROSS JOIN users u
 LEFT JOIN LATERAL (
-    SELECT MIN(glo.limit_micros) AS limit_micros
-    FROM chat_usage_limit_group_overrides glo
-    JOIN group_members_expanded gme ON gme.group_id = glo.group_id
+    SELECT MIN(g.chat_spend_limit_micros) AS limit_micros
+    FROM groups g
+    JOIN group_members_expanded gme ON gme.group_id = g.id
     WHERE gme.user_id = $1::uuid
+      AND g.chat_spend_limit_micros IS NOT NULL
 ) gl ON TRUE
+WHERE u.id = $1::uuid
 LIMIT 1
 `
 
@@ -5238,55 +5232,67 @@ func (q *sqlQuerier) UpsertChatUsageLimitConfig(ctx context.Context, arg UpsertC
 }
 
 const upsertChatUsageLimitGroupOverride = `-- name: UpsertChatUsageLimitGroupOverride :one
-INSERT INTO chat_usage_limit_group_overrides (group_id, limit_micros, updated_at)
-VALUES ($1::uuid, $2::bigint, NOW())
-ON CONFLICT (group_id) DO UPDATE SET
-    limit_micros = EXCLUDED.limit_micros,
-    updated_at = NOW()
-RETURNING id, group_id, limit_micros, created_at, updated_at
+UPDATE groups
+SET chat_spend_limit_micros = $1::bigint
+WHERE id = $2::uuid
+RETURNING id AS group_id, name, display_name, avatar_url, chat_spend_limit_micros AS spend_limit_micros
 `
 
 type UpsertChatUsageLimitGroupOverrideParams struct {
-	GroupID     uuid.UUID `db:"group_id" json:"group_id"`
-	LimitMicros int64     `db:"limit_micros" json:"limit_micros"`
+	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
 }
 
-func (q *sqlQuerier) UpsertChatUsageLimitGroupOverride(ctx context.Context, arg UpsertChatUsageLimitGroupOverrideParams) (ChatUsageLimitGroupOverride, error) {
-	row := q.db.QueryRowContext(ctx, upsertChatUsageLimitGroupOverride, arg.GroupID, arg.LimitMicros)
-	var i ChatUsageLimitGroupOverride
+type UpsertChatUsageLimitGroupOverrideRow struct {
+	GroupID          uuid.UUID     `db:"group_id" json:"group_id"`
+	Name             string        `db:"name" json:"name"`
+	DisplayName      string        `db:"display_name" json:"display_name"`
+	AvatarURL        string        `db:"avatar_url" json:"avatar_url"`
+	SpendLimitMicros sql.NullInt64 `db:"spend_limit_micros" json:"spend_limit_micros"`
+}
+
+func (q *sqlQuerier) UpsertChatUsageLimitGroupOverride(ctx context.Context, arg UpsertChatUsageLimitGroupOverrideParams) (UpsertChatUsageLimitGroupOverrideRow, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatUsageLimitGroupOverride, arg.SpendLimitMicros, arg.GroupID)
+	var i UpsertChatUsageLimitGroupOverrideRow
 	err := row.Scan(
-		&i.ID,
 		&i.GroupID,
-		&i.LimitMicros,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.Name,
+		&i.DisplayName,
+		&i.AvatarURL,
+		&i.SpendLimitMicros,
 	)
 	return i, err
 }
 
-const upsertChatUsageLimitOverride = `-- name: UpsertChatUsageLimitOverride :one
-INSERT INTO chat_usage_limit_overrides (user_id, limit_micros, updated_at)
-VALUES ($1::uuid, $2::bigint, NOW())
-ON CONFLICT (user_id) DO UPDATE SET
-    limit_micros = EXCLUDED.limit_micros,
-    updated_at = NOW()
-RETURNING id, user_id, limit_micros, created_at, updated_at
+const upsertChatUsageLimitUserOverride = `-- name: UpsertChatUsageLimitUserOverride :one
+UPDATE users
+SET chat_spend_limit_micros = $1::bigint
+WHERE id = $2::uuid
+RETURNING id AS user_id, username, name, avatar_url, chat_spend_limit_micros AS spend_limit_micros
 `
 
-type UpsertChatUsageLimitOverrideParams struct {
-	UserID      uuid.UUID `db:"user_id" json:"user_id"`
-	LimitMicros int64     `db:"limit_micros" json:"limit_micros"`
+type UpsertChatUsageLimitUserOverrideParams struct {
+	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
 }
 
-func (q *sqlQuerier) UpsertChatUsageLimitOverride(ctx context.Context, arg UpsertChatUsageLimitOverrideParams) (ChatUsageLimitOverride, error) {
-	row := q.db.QueryRowContext(ctx, upsertChatUsageLimitOverride, arg.UserID, arg.LimitMicros)
-	var i ChatUsageLimitOverride
+type UpsertChatUsageLimitUserOverrideRow struct {
+	UserID           uuid.UUID     `db:"user_id" json:"user_id"`
+	Username         string        `db:"username" json:"username"`
+	Name             string        `db:"name" json:"name"`
+	AvatarURL        string        `db:"avatar_url" json:"avatar_url"`
+	SpendLimitMicros sql.NullInt64 `db:"spend_limit_micros" json:"spend_limit_micros"`
+}
+
+func (q *sqlQuerier) UpsertChatUsageLimitUserOverride(ctx context.Context, arg UpsertChatUsageLimitUserOverrideParams) (UpsertChatUsageLimitUserOverrideRow, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatUsageLimitUserOverride, arg.SpendLimitMicros, arg.UserID)
+	var i UpsertChatUsageLimitUserOverrideRow
 	err := row.Scan(
-		&i.ID,
 		&i.UserID,
-		&i.LimitMicros,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.Username,
+		&i.Name,
+		&i.AvatarURL,
+		&i.SpendLimitMicros,
 	)
 	return i, err
 }
@@ -6898,7 +6904,7 @@ func (q *sqlQuerier) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {
 
 const getGroupByID = `-- name: GetGroupByID :one
 SELECT
-	id, name, organization_id, avatar_url, quota_allowance, display_name, source
+	id, name, organization_id, avatar_url, quota_allowance, display_name, source, chat_spend_limit_micros
 FROM
 	groups
 WHERE
@@ -6918,13 +6924,14 @@ func (q *sqlQuerier) GetGroupByID(ctx context.Context, id uuid.UUID) (Group, err
 		&i.QuotaAllowance,
 		&i.DisplayName,
 		&i.Source,
+		&i.ChatSpendLimitMicros,
 	)
 	return i, err
 }
 
 const getGroupByOrgAndName = `-- name: GetGroupByOrgAndName :one
 SELECT
-	id, name, organization_id, avatar_url, quota_allowance, display_name, source
+	id, name, organization_id, avatar_url, quota_allowance, display_name, source, chat_spend_limit_micros
 FROM
 	groups
 WHERE
@@ -6951,13 +6958,14 @@ func (q *sqlQuerier) GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrg
 		&i.QuotaAllowance,
 		&i.DisplayName,
 		&i.Source,
+		&i.ChatSpendLimitMicros,
 	)
 	return i, err
 }
 
 const getGroups = `-- name: GetGroups :many
 SELECT
-		groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance, groups.display_name, groups.source,
+		groups.id, groups.name, groups.organization_id, groups.avatar_url, groups.quota_allowance, groups.display_name, groups.source, groups.chat_spend_limit_micros,
 		organizations.name AS organization_name,
 		organizations.display_name AS organization_display_name
 FROM
@@ -7032,6 +7040,7 @@ func (q *sqlQuerier) GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetG
 			&i.Group.QuotaAllowance,
 			&i.Group.DisplayName,
 			&i.Group.Source,
+			&i.Group.ChatSpendLimitMicros,
 			&i.OrganizationName,
 			&i.OrganizationDisplayName,
 		); err != nil {
@@ -7055,7 +7064,7 @@ INSERT INTO groups (
 	organization_id
 )
 VALUES
-	($1, 'Everyone', $1) RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name, source
+	($1, 'Everyone', $1) RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name, source, chat_spend_limit_micros
 `
 
 // We use the organization_id as the id
@@ -7072,6 +7081,7 @@ func (q *sqlQuerier) InsertAllUsersGroup(ctx context.Context, organizationID uui
 		&i.QuotaAllowance,
 		&i.DisplayName,
 		&i.Source,
+		&i.ChatSpendLimitMicros,
 	)
 	return i, err
 }
@@ -7086,7 +7096,7 @@ INSERT INTO groups (
 	quota_allowance
 )
 VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name, source
+	($1, $2, $3, $4, $5, $6) RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name, source, chat_spend_limit_micros
 `
 
 type InsertGroupParams struct {
@@ -7116,6 +7126,7 @@ func (q *sqlQuerier) InsertGroup(ctx context.Context, arg InsertGroupParams) (Gr
 		&i.QuotaAllowance,
 		&i.DisplayName,
 		&i.Source,
+		&i.ChatSpendLimitMicros,
 	)
 	return i, err
 }
@@ -7135,7 +7146,7 @@ SELECT
 FROM
 						UNNEST($3 :: text[]) AS group_name
 ON CONFLICT DO NOTHING
-RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name, source
+RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name, source, chat_spend_limit_micros
 `
 
 type InsertMissingGroupsParams struct {
@@ -7165,6 +7176,7 @@ func (q *sqlQuerier) InsertMissingGroups(ctx context.Context, arg InsertMissingG
 			&i.QuotaAllowance,
 			&i.DisplayName,
 			&i.Source,
+			&i.ChatSpendLimitMicros,
 		); err != nil {
 			return nil, err
 		}
@@ -7189,7 +7201,7 @@ SET
 	quota_allowance = $4
 WHERE
 	id = $5
-RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name, source
+RETURNING id, name, organization_id, avatar_url, quota_allowance, display_name, source, chat_spend_limit_micros
 `
 
 type UpdateGroupByIDParams struct {
@@ -7217,6 +7229,7 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 		&i.QuotaAllowance,
 		&i.DisplayName,
 		&i.Source,
+		&i.ChatSpendLimitMicros,
 	)
 	return i, err
 }
@@ -19368,7 +19381,7 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 FROM
 	users
 WHERE
@@ -19406,13 +19419,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
 		&i.IsServiceAccount,
+		&i.ChatSpendLimitMicros,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 FROM
 	users
 WHERE
@@ -19444,6 +19458,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
 		&i.IsServiceAccount,
+		&i.ChatSpendLimitMicros,
 	)
 	return i, err
 }
@@ -19535,7 +19550,7 @@ func (q *sqlQuerier) GetUserThemePreference(ctx context.Context, userID uuid.UUI
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, COUNT(*) OVER() AS count
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, COUNT(*) OVER() AS count
 FROM
 	users
 WHERE
@@ -19677,6 +19692,7 @@ type GetUsersRow struct {
 	OneTimePasscodeExpiresAt sql.NullTime   `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
 	IsSystem                 bool           `db:"is_system" json:"is_system"`
 	IsServiceAccount         bool           `db:"is_service_account" json:"is_service_account"`
+	ChatSpendLimitMicros     sql.NullInt64  `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 	Count                    int64          `db:"count" json:"count"`
 }
 
@@ -19725,6 +19741,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 			&i.OneTimePasscodeExpiresAt,
 			&i.IsSystem,
 			&i.IsServiceAccount,
+			&i.ChatSpendLimitMicros,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -19741,7 +19758,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account FROM users WHERE id = ANY($1 :: uuid [ ])
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros FROM users WHERE id = ANY($1 :: uuid [ ])
 `
 
 // This shouldn't check for deleted, because it's frequently used
@@ -19776,6 +19793,7 @@ func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User
 			&i.OneTimePasscodeExpiresAt,
 			&i.IsSystem,
 			&i.IsServiceAccount,
+			&i.ChatSpendLimitMicros,
 		); err != nil {
 			return nil, err
 		}
@@ -19811,7 +19829,7 @@ VALUES
 		-- we were doing before.
 		COALESCE(NULLIF($10::text, '')::user_status, 'dormant'::user_status),
 		$11::bool
-	) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
+	) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 `
 
 type InsertUserParams struct {
@@ -19863,6 +19881,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
 		&i.IsServiceAccount,
+		&i.ChatSpendLimitMicros,
 	)
 	return i, err
 }
@@ -20029,7 +20048,7 @@ SET
 	last_seen_at = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 `
 
 type UpdateUserLastSeenAtParams struct {
@@ -20061,6 +20080,7 @@ func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLas
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
 		&i.IsServiceAccount,
+		&i.ChatSpendLimitMicros,
 	)
 	return i, err
 }
@@ -20080,7 +20100,7 @@ SET
 WHERE
 	id = $2
 	AND NOT is_system
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 `
 
 type UpdateUserLoginTypeParams struct {
@@ -20111,6 +20131,7 @@ func (q *sqlQuerier) UpdateUserLoginType(ctx context.Context, arg UpdateUserLogi
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
 		&i.IsServiceAccount,
+		&i.ChatSpendLimitMicros,
 	)
 	return i, err
 }
@@ -20126,7 +20147,7 @@ SET
 	name = $6
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 `
 
 type UpdateUserProfileParams struct {
@@ -20168,6 +20189,7 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
 		&i.IsServiceAccount,
+		&i.ChatSpendLimitMicros,
 	)
 	return i, err
 }
@@ -20179,7 +20201,7 @@ SET
 	quiet_hours_schedule = $2
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 `
 
 type UpdateUserQuietHoursScheduleParams struct {
@@ -20210,6 +20232,7 @@ func (q *sqlQuerier) UpdateUserQuietHoursSchedule(ctx context.Context, arg Updat
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
 		&i.IsServiceAccount,
+		&i.ChatSpendLimitMicros,
 	)
 	return i, err
 }
@@ -20222,7 +20245,7 @@ SET
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
 	id = $2
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 `
 
 type UpdateUserRolesParams struct {
@@ -20253,6 +20276,7 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
 		&i.IsServiceAccount,
+		&i.ChatSpendLimitMicros,
 	)
 	return i, err
 }
@@ -20266,7 +20290,7 @@ SET
 	-- If the user is logging in, set last_seen_at to updated_at.
 	last_seen_at = CASE WHEN $4 :: boolean THEN $3 :: timestamptz ELSE last_seen_at END
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 `
 
 type UpdateUserStatusParams struct {
@@ -20304,6 +20328,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.OneTimePasscodeExpiresAt,
 		&i.IsSystem,
 		&i.IsServiceAccount,
+		&i.ChatSpendLimitMicros,
 	)
 	return i, err
 }

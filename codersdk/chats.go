@@ -845,9 +845,7 @@ type ChatUsageLimitOverride struct {
 	AvatarURL string    `json:"avatar_url"`
 	// Nil in the API means no user override is set. Persisted override rows
 	// store positive values.
-	SpendLimitMicros *int64    `json:"spend_limit_micros"`
-	CreatedAt        time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
+	SpendLimitMicros *int64 `json:"spend_limit_micros"`
 }
 
 // ChatUsageLimitGroupOverride represents a group-scoped spend limit override.
@@ -859,9 +857,7 @@ type ChatUsageLimitGroupOverride struct {
 	MemberCount      int64     `json:"member_count"`
 	// Nil in the API means no group override is set. Persisted override rows
 	// store positive values.
-	SpendLimitMicros *int64    `json:"spend_limit_micros"`
-	CreatedAt        time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
+	SpendLimitMicros *int64 `json:"spend_limit_micros"`
 }
 
 // UpsertChatUsageLimitOverrideRequest is the body for creating/updating a

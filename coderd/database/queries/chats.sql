@@ -715,24 +715,25 @@ ON CONFLICT (singleton) DO UPDATE SET
 RETURNING *;
 
 -- name: ListChatUsageLimitOverrides :many
-SELECT o.*, u.username, u.name, u.avatar_url
-FROM chat_usage_limit_overrides o
-JOIN users u ON u.id = o.user_id
+SELECT u.id AS user_id, u.username, u.name, u.avatar_url,
+       u.chat_spend_limit_micros AS spend_limit_micros
+FROM users u
+WHERE u.chat_spend_limit_micros IS NOT NULL
 ORDER BY u.username ASC;
 
--- name: UpsertChatUsageLimitOverride :one
-INSERT INTO chat_usage_limit_overrides (user_id, limit_micros, updated_at)
-VALUES (@user_id::uuid, @limit_micros::bigint, NOW())
-ON CONFLICT (user_id) DO UPDATE SET
-    limit_micros = EXCLUDED.limit_micros,
-    updated_at = NOW()
-RETURNING *;
+-- name: UpsertChatUsageLimitUserOverride :one
+UPDATE users
+SET chat_spend_limit_micros = @spend_limit_micros::bigint
+WHERE id = @user_id::uuid
+RETURNING id AS user_id, username, name, avatar_url, chat_spend_limit_micros AS spend_limit_micros;
 
--- name: DeleteChatUsageLimitOverride :exec
-DELETE FROM chat_usage_limit_overrides WHERE user_id = @user_id::uuid;
+-- name: DeleteChatUsageLimitUserOverride :exec
+UPDATE users SET chat_spend_limit_micros = NULL WHERE id = @user_id::uuid;
 
--- name: GetChatUsageLimitOverrideByUserID :one
-SELECT * FROM chat_usage_limit_overrides WHERE user_id = @user_id::uuid;
+-- name: GetChatUsageLimitUserOverride :one
+SELECT id AS user_id, chat_spend_limit_micros AS spend_limit_micros
+FROM users
+WHERE id = @user_id::uuid AND chat_spend_limit_micros IS NOT NULL;
 
 -- name: GetUserChatSpendInPeriod :one
 SELECT COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_spend_micros
@@ -761,39 +762,41 @@ WHERE enabled = TRUE
 
 -- name: ListChatUsageLimitGroupOverrides :many
 SELECT
-    glo.*,
+    g.id AS group_id,
     g.name AS group_name,
     g.display_name AS group_display_name,
     g.avatar_url AS group_avatar_url,
+    g.chat_spend_limit_micros AS spend_limit_micros,
     (SELECT COUNT(*)
         FROM group_members_expanded gme
-        WHERE gme.group_id = glo.group_id
+        WHERE gme.group_id = g.id
           AND gme.user_is_system = FALSE) AS member_count
-FROM chat_usage_limit_group_overrides glo
-JOIN groups g ON g.id = glo.group_id
+FROM groups g
+WHERE g.chat_spend_limit_micros IS NOT NULL
 ORDER BY g.name ASC;
 
 -- name: UpsertChatUsageLimitGroupOverride :one
-INSERT INTO chat_usage_limit_group_overrides (group_id, limit_micros, updated_at)
-VALUES (@group_id::uuid, @limit_micros::bigint, NOW())
-ON CONFLICT (group_id) DO UPDATE SET
-    limit_micros = EXCLUDED.limit_micros,
-    updated_at = NOW()
-RETURNING *;
+UPDATE groups
+SET chat_spend_limit_micros = @spend_limit_micros::bigint
+WHERE id = @group_id::uuid
+RETURNING id AS group_id, name, display_name, avatar_url, chat_spend_limit_micros AS spend_limit_micros;
 
 -- name: DeleteChatUsageLimitGroupOverride :exec
-DELETE FROM chat_usage_limit_group_overrides WHERE group_id = @group_id::uuid;
+UPDATE groups SET chat_spend_limit_micros = NULL WHERE id = @group_id::uuid;
 
--- name: GetChatUsageLimitGroupOverrideByGroupID :one
-SELECT * FROM chat_usage_limit_group_overrides WHERE group_id = @group_id::uuid;
+-- name: GetChatUsageLimitGroupOverride :one
+SELECT id AS group_id, chat_spend_limit_micros AS spend_limit_micros
+FROM groups
+WHERE id = @group_id::uuid AND chat_spend_limit_micros IS NOT NULL;
 
 -- name: GetUserGroupSpendLimit :one
 -- Returns the minimum (most restrictive) group limit for a user.
 -- Returns -1 if the user has no group limits applied.
-SELECT COALESCE(MIN(glo.limit_micros), -1)::bigint AS limit_micros
-FROM chat_usage_limit_group_overrides glo
-JOIN group_members_expanded gme ON gme.group_id = glo.group_id
-WHERE gme.user_id = @user_id::uuid;
+SELECT COALESCE(MIN(g.chat_spend_limit_micros), -1)::bigint AS limit_micros
+FROM groups g
+JOIN group_members_expanded gme ON gme.group_id = g.id
+WHERE gme.user_id = @user_id::uuid
+  AND g.chat_spend_limit_micros IS NOT NULL;
 
 -- name: ResolveUserChatSpendLimit :one
 -- Resolves the effective spend limit for a user using the hierarchy:
@@ -805,19 +808,20 @@ SELECT CASE
     -- If limits are disabled, return -1.
     WHEN NOT cfg.enabled THEN -1
     -- Individual override takes priority.
-    WHEN uo.limit_micros IS NOT NULL THEN uo.limit_micros
+    WHEN u.chat_spend_limit_micros IS NOT NULL THEN u.chat_spend_limit_micros
     -- Group limit (minimum across all user's groups) is next.
     WHEN gl.limit_micros IS NOT NULL THEN gl.limit_micros
     -- Fall back to global default.
     ELSE cfg.default_limit_micros
 END::bigint AS effective_limit_micros
 FROM chat_usage_limit_config cfg
-LEFT JOIN chat_usage_limit_overrides uo
-    ON uo.user_id = @user_id::uuid
+CROSS JOIN users u
 LEFT JOIN LATERAL (
-    SELECT MIN(glo.limit_micros) AS limit_micros
-    FROM chat_usage_limit_group_overrides glo
-    JOIN group_members_expanded gme ON gme.group_id = glo.group_id
+    SELECT MIN(g.chat_spend_limit_micros) AS limit_micros
+    FROM groups g
+    JOIN group_members_expanded gme ON gme.group_id = g.id
     WHERE gme.user_id = @user_id::uuid
+      AND g.chat_spend_limit_micros IS NOT NULL
 ) gl ON TRUE
+WHERE u.id = @user_id::uuid
 LIMIT 1;

@@ -1837,8 +1837,6 @@ export interface ChatUsageLimitGroupOverride {
 	 * store positive values.
 	 */
 	readonly spend_limit_micros: number | null;
-	readonly created_at: string;
-	readonly updated_at: string;
 }
 
 // From codersdk/chats.go
@@ -1851,8 +1849,6 @@ export interface ChatUsageLimitOverride extends MinimalUser {
 	 * store positive values.
 	 */
 	readonly spend_limit_micros: number | null;
-	readonly created_at: string;
-	readonly updated_at: string;
 }
 
 // From codersdk/chats.go

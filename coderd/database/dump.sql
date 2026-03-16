@@ -1340,42 +1340,6 @@ CREATE SEQUENCE chat_usage_limit_config_id_seq
 
 ALTER SEQUENCE chat_usage_limit_config_id_seq OWNED BY chat_usage_limit_config.id;
 
-CREATE TABLE chat_usage_limit_group_overrides (
-    id bigint NOT NULL,
-    group_id uuid NOT NULL,
-    limit_micros bigint DEFAULT 0 NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chat_usage_limit_group_overrides_limit_micros_check CHECK ((limit_micros > 0))
-);
-
-CREATE SEQUENCE chat_usage_limit_group_overrides_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-ALTER SEQUENCE chat_usage_limit_group_overrides_id_seq OWNED BY chat_usage_limit_group_overrides.id;
-
-CREATE TABLE chat_usage_limit_overrides (
-    id bigint NOT NULL,
-    user_id uuid NOT NULL,
-    limit_micros bigint DEFAULT 0 NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT chat_usage_limit_overrides_limit_micros_check CHECK ((limit_micros > 0))
-);
-
-CREATE SEQUENCE chat_usage_limit_overrides_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-ALTER SEQUENCE chat_usage_limit_overrides_id_seq OWNED BY chat_usage_limit_overrides.id;
-
 CREATE TABLE chats (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     owner_id uuid NOT NULL,
@@ -1532,7 +1496,9 @@ CREATE TABLE groups (
     avatar_url text DEFAULT ''::text NOT NULL,
     quota_allowance integer DEFAULT 0 NOT NULL,
     display_name text DEFAULT ''::text NOT NULL,
-    source group_source DEFAULT 'user'::group_source NOT NULL
+    source group_source DEFAULT 'user'::group_source NOT NULL,
+    chat_spend_limit_micros bigint,
+    CONSTRAINT groups_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0)))
 );
 
 COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.';
@@ -1567,7 +1533,9 @@ CREATE TABLE users (
     one_time_passcode_expires_at timestamp with time zone,
     is_system boolean DEFAULT false NOT NULL,
     is_service_account boolean DEFAULT false NOT NULL,
+    chat_spend_limit_micros bigint,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL)))),
+    CONSTRAINT users_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0))),
     CONSTRAINT users_email_not_empty CHECK (((is_service_account = true) = (email = ''::text))),
     CONSTRAINT users_service_account_login_type CHECK (((is_service_account = false) OR (login_type = 'none'::login_type))),
     CONSTRAINT users_username_min_length CHECK ((length(username) >= 1))
@@ -3216,10 +3184,6 @@ ALTER TABLE ONLY chat_queued_messages ALTER COLUMN id SET DEFAULT nextval('chat_
 
 ALTER TABLE ONLY chat_usage_limit_config ALTER COLUMN id SET DEFAULT nextval('chat_usage_limit_config_id_seq'::regclass);
 
-ALTER TABLE ONLY chat_usage_limit_group_overrides ALTER COLUMN id SET DEFAULT nextval('chat_usage_limit_group_overrides_id_seq'::regclass);
-
-ALTER TABLE ONLY chat_usage_limit_overrides ALTER COLUMN id SET DEFAULT nextval('chat_usage_limit_overrides_id_seq'::regclass);
-
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
@@ -3285,18 +3249,6 @@ ALTER TABLE ONLY chat_usage_limit_config
 
 ALTER TABLE ONLY chat_usage_limit_config
     ADD CONSTRAINT chat_usage_limit_config_singleton_key UNIQUE (singleton);
-
-ALTER TABLE ONLY chat_usage_limit_group_overrides
-    ADD CONSTRAINT chat_usage_limit_group_overrides_group_id_key UNIQUE (group_id);
-
-ALTER TABLE ONLY chat_usage_limit_group_overrides
-    ADD CONSTRAINT chat_usage_limit_group_overrides_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY chat_usage_limit_overrides
-    ADD CONSTRAINT chat_usage_limit_overrides_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY chat_usage_limit_overrides
-    ADD CONSTRAINT chat_usage_limit_overrides_user_id_key UNIQUE (user_id);
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
@@ -3959,12 +3911,6 @@ ALTER TABLE ONLY chat_providers
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY chat_usage_limit_group_overrides
-    ADD CONSTRAINT chat_usage_limit_group_overrides_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY chat_usage_limit_overrides
-    ADD CONSTRAINT chat_usage_limit_overrides_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_last_model_config_id_fkey FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id);

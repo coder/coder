@@ -1868,11 +1868,11 @@ func (q *querier) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID
 	return q.db.DeleteChatUsageLimitGroupOverride(ctx, groupID)
 }
 
-func (q *querier) DeleteChatUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
+func (q *querier) DeleteChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
 	}
-	return q.db.DeleteChatUsageLimitOverride(ctx, userID)
+	return q.db.DeleteChatUsageLimitUserOverride(ctx, userID)
 }
 
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
@@ -2639,18 +2639,18 @@ func (q *querier) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsa
 	return q.db.GetChatUsageLimitConfig(ctx)
 }
 
-func (q *querier) GetChatUsageLimitGroupOverrideByGroupID(ctx context.Context, groupID uuid.UUID) (database.ChatUsageLimitGroupOverride, error) {
+func (q *querier) GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (database.GetChatUsageLimitGroupOverrideRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.ChatUsageLimitGroupOverride{}, err
+		return database.GetChatUsageLimitGroupOverrideRow{}, err
 	}
-	return q.db.GetChatUsageLimitGroupOverrideByGroupID(ctx, groupID)
+	return q.db.GetChatUsageLimitGroupOverride(ctx, groupID)
 }
 
-func (q *querier) GetChatUsageLimitOverrideByUserID(ctx context.Context, userID uuid.UUID) (database.ChatUsageLimitOverride, error) {
+func (q *querier) GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (database.GetChatUsageLimitUserOverrideRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.ChatUsageLimitOverride{}, err
+		return database.GetChatUsageLimitUserOverrideRow{}, err
 	}
-	return q.db.GetChatUsageLimitOverrideByUserID(ctx, userID)
+	return q.db.GetChatUsageLimitUserOverride(ctx, userID)
 }
 
 func (q *querier) GetChatsByOwnerID(ctx context.Context, ownerID database.GetChatsByOwnerIDParams) ([]database.Chat, error) {
@@ -6575,18 +6575,18 @@ func (q *querier) UpsertChatUsageLimitConfig(ctx context.Context, arg database.U
 	return q.db.UpsertChatUsageLimitConfig(ctx, arg)
 }
 
-func (q *querier) UpsertChatUsageLimitGroupOverride(ctx context.Context, arg database.UpsertChatUsageLimitGroupOverrideParams) (database.ChatUsageLimitGroupOverride, error) {
+func (q *querier) UpsertChatUsageLimitGroupOverride(ctx context.Context, arg database.UpsertChatUsageLimitGroupOverrideParams) (database.UpsertChatUsageLimitGroupOverrideRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.ChatUsageLimitGroupOverride{}, err
+		return database.UpsertChatUsageLimitGroupOverrideRow{}, err
 	}
 	return q.db.UpsertChatUsageLimitGroupOverride(ctx, arg)
 }
 
-func (q *querier) UpsertChatUsageLimitOverride(ctx context.Context, arg database.UpsertChatUsageLimitOverrideParams) (database.ChatUsageLimitOverride, error) {
+func (q *querier) UpsertChatUsageLimitUserOverride(ctx context.Context, arg database.UpsertChatUsageLimitUserOverrideParams) (database.UpsertChatUsageLimitUserOverrideRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.ChatUsageLimitOverride{}, err
+		return database.UpsertChatUsageLimitUserOverrideRow{}, err
 	}
-	return q.db.UpsertChatUsageLimitOverride(ctx, arg)
+	return q.db.UpsertChatUsageLimitUserOverride(ctx, arg)
 }
 
 func (q *querier) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {

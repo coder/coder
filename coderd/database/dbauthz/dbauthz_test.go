@@ -881,59 +881,43 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatUsageLimitConfig(gomock.Any()).Return(config, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(config)
 	}))
-	s.Run("GetChatUsageLimitGroupOverrideByGroupID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		now := dbtime.Now()
+	s.Run("GetChatUsageLimitGroupOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		groupID := uuid.New()
-		override := database.ChatUsageLimitGroupOverride{
-			ID:          1,
-			GroupID:     groupID,
-			LimitMicros: 2_000_000,
-			CreatedAt:   now,
-			UpdatedAt:   now,
+		override := database.GetChatUsageLimitGroupOverrideRow{
+			GroupID:          groupID,
+			SpendLimitMicros: sql.NullInt64{Int64: 2_000_000, Valid: true},
 		}
-		dbm.EXPECT().GetChatUsageLimitGroupOverrideByGroupID(gomock.Any(), groupID).Return(override, nil).AnyTimes()
+		dbm.EXPECT().GetChatUsageLimitGroupOverride(gomock.Any(), groupID).Return(override, nil).AnyTimes()
 		check.Args(groupID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(override)
 	}))
-	s.Run("GetChatUsageLimitOverrideByUserID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		now := dbtime.Now()
+	s.Run("GetChatUsageLimitUserOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		userID := uuid.New()
-		override := database.ChatUsageLimitOverride{
-			ID:          1,
-			UserID:      userID,
-			LimitMicros: 3_000_000,
-			CreatedAt:   now,
-			UpdatedAt:   now,
+		override := database.GetChatUsageLimitUserOverrideRow{
+			UserID:           userID,
+			SpendLimitMicros: sql.NullInt64{Int64: 3_000_000, Valid: true},
 		}
-		dbm.EXPECT().GetChatUsageLimitOverrideByUserID(gomock.Any(), userID).Return(override, nil).AnyTimes()
+		dbm.EXPECT().GetChatUsageLimitUserOverride(gomock.Any(), userID).Return(override, nil).AnyTimes()
 		check.Args(userID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(override)
 	}))
 	s.Run("ListChatUsageLimitGroupOverrides", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		now := dbtime.Now()
 		overrides := []database.ListChatUsageLimitGroupOverridesRow{{
-			ID:               1,
 			GroupID:          uuid.New(),
-			LimitMicros:      4_000_000,
-			CreatedAt:        now,
-			UpdatedAt:        now,
 			GroupName:        "group-name",
 			GroupDisplayName: "Group Name",
 			GroupAvatarUrl:   "https://example.com/group.png",
+			SpendLimitMicros: sql.NullInt64{Int64: 4_000_000, Valid: true},
 			MemberCount:      5,
 		}}
 		dbm.EXPECT().ListChatUsageLimitGroupOverrides(gomock.Any()).Return(overrides, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(overrides)
 	}))
 	s.Run("ListChatUsageLimitOverrides", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		now := dbtime.Now()
 		overrides := []database.ListChatUsageLimitOverridesRow{{
-			ID:          1,
-			UserID:      uuid.New(),
-			LimitMicros: 5_000_000,
-			CreatedAt:   now,
-			UpdatedAt:   now,
-			Username:    "usage-limit-user",
-			Name:        "Usage Limit User",
-			AvatarURL:   "https://example.com/avatar.png",
+			UserID:           uuid.New(),
+			Username:         "usage-limit-user",
+			Name:             "Usage Limit User",
+			AvatarURL:        "https://example.com/avatar.png",
+			SpendLimitMicros: sql.NullInt64{Int64: 5_000_000, Valid: true},
 		}}
 		dbm.EXPECT().ListChatUsageLimitOverrides(gomock.Any()).Return(overrides, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(overrides)
@@ -958,35 +942,33 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(config)
 	}))
 	s.Run("UpsertChatUsageLimitGroupOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		now := dbtime.Now()
 		arg := database.UpsertChatUsageLimitGroupOverrideParams{
-			GroupID:     uuid.New(),
-			LimitMicros: 7_000_000,
+			SpendLimitMicros: 7_000_000,
+			GroupID:          uuid.New(),
 		}
-		override := database.ChatUsageLimitGroupOverride{
-			ID:          1,
-			GroupID:     arg.GroupID,
-			LimitMicros: arg.LimitMicros,
-			CreatedAt:   now,
-			UpdatedAt:   now,
+		override := database.UpsertChatUsageLimitGroupOverrideRow{
+			GroupID:          arg.GroupID,
+			Name:             "group",
+			DisplayName:      "Group",
+			AvatarURL:        "",
+			SpendLimitMicros: sql.NullInt64{Int64: arg.SpendLimitMicros, Valid: true},
 		}
 		dbm.EXPECT().UpsertChatUsageLimitGroupOverride(gomock.Any(), arg).Return(override, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(override)
 	}))
-	s.Run("UpsertChatUsageLimitOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		now := dbtime.Now()
-		arg := database.UpsertChatUsageLimitOverrideParams{
-			UserID:      uuid.New(),
-			LimitMicros: 8_000_000,
+	s.Run("UpsertChatUsageLimitUserOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpsertChatUsageLimitUserOverrideParams{
+			SpendLimitMicros: 8_000_000,
+			UserID:           uuid.New(),
 		}
-		override := database.ChatUsageLimitOverride{
-			ID:          1,
-			UserID:      arg.UserID,
-			LimitMicros: arg.LimitMicros,
-			CreatedAt:   now,
-			UpdatedAt:   now,
+		override := database.UpsertChatUsageLimitUserOverrideRow{
+			UserID:           arg.UserID,
+			Username:         "user",
+			Name:             "User",
+			AvatarURL:        "",
+			SpendLimitMicros: sql.NullInt64{Int64: arg.SpendLimitMicros, Valid: true},
 		}
-		dbm.EXPECT().UpsertChatUsageLimitOverride(gomock.Any(), arg).Return(override, nil).AnyTimes()
+		dbm.EXPECT().UpsertChatUsageLimitUserOverride(gomock.Any(), arg).Return(override, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(override)
 	}))
 	s.Run("DeleteChatUsageLimitGroupOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -994,9 +976,9 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteChatUsageLimitGroupOverride(gomock.Any(), groupID).Return(nil).AnyTimes()
 		check.Args(groupID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
-	s.Run("DeleteChatUsageLimitOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("DeleteChatUsageLimitUserOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		userID := uuid.New()
-		dbm.EXPECT().DeleteChatUsageLimitOverride(gomock.Any(), userID).Return(nil).AnyTimes()
+		dbm.EXPECT().DeleteChatUsageLimitUserOverride(gomock.Any(), userID).Return(nil).AnyTimes()
 		check.Args(userID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 }
