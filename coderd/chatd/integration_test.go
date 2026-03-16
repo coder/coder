@@ -272,6 +272,218 @@ func logMessages(t *testing.T, msgs []codersdk.ChatMessage) {
 	}
 }
 
+// TestOpenAIReasoningRoundTrip is an integration test that verifies
+// reasoning content from OpenAI reasoning models (e.g. gpt-5.4)
+// survives the full stream → persist → reconstruct → re-send cycle.
+// It sends a query that triggers reasoning, verifies reasoning parts
+// appear in the persisted message, then sends a follow-up to confirm
+// the reasoning metadata (including encrypted content) round-trips
+// correctly.
+//
+// The test requires OPENAI_API_KEY to be set.
+func TestOpenAIReasoningRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		t.Skip("OPENAI_API_KEY not set; skipping OpenAI integration test")
+	}
+	baseURL := os.Getenv("OPENAI_BASE_URL")
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	// Stand up a full coderd with the agents experiment.
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: deploymentValues,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	// Configure an OpenAI provider with the real API key.
+	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		Provider: "openai",
+		APIKey:   apiKey,
+		BaseURL:  baseURL,
+	})
+	require.NoError(t, err)
+
+	// Create a model config for gpt-5.4 with reasoning summary
+	// enabled. Without reasoning_summary set to "auto", OpenAI
+	// reasoning models do not emit summary events and no visible
+	// reasoning text reaches the frontend.
+	contextLimit := int64(1048576)
+	isDefault := true
+	_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		Provider:     "openai",
+		Model:        "gpt-5.4",
+		ContextLimit: &contextLimit,
+		IsDefault:    &isDefault,
+		ModelConfig: &codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+					ReasoningSummary: ptr.Ref("auto"),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// --- Step 1: Send a message that should trigger reasoning ---
+	t.Log("Creating chat with reasoning-triggering query...")
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		Content: []codersdk.ChatInputPart{
+			{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "What is 73 * 97? Think step by step.",
+			},
+		},
+	})
+	require.NoError(t, err)
+	t.Logf("Chat created: %s (status=%s)", chat.ID, chat.Status)
+
+	// Stream events until the chat reaches a terminal status.
+	// Track whether we saw reasoning parts during streaming.
+	events, closer, err := client.StreamChat(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	defer closer.Close()
+
+	sawReasoningStream := waitForChatDoneWithReasoning(ctx, t, events, "step 1")
+	t.Logf("Saw reasoning during streaming: %v", sawReasoningStream)
+
+	// Verify the chat completed and messages were persisted.
+	chatData, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	chatMsgs, err := client.GetChatMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	t.Logf("Chat status after step 1: %s, messages: %d",
+		chatData.Status, len(chatMsgs.Messages))
+	logMessages(t, chatMsgs.Messages)
+
+	require.Equal(t, codersdk.ChatStatusWaiting, chatData.Status,
+		"chat should be in waiting status after step 1")
+
+	// Find the assistant message with text content.
+	assistantMsg := findAssistantWithText(t, chatMsgs.Messages)
+	require.NotNil(t, assistantMsg,
+		"expected an assistant message with text content after step 1")
+
+	// Verify reasoning parts are present in the persisted message.
+	partTypes := partTypeSet(assistantMsg.Content)
+	require.Contains(t, partTypes, codersdk.ChatMessagePartTypeText,
+		"assistant message should contain a text part")
+	require.Contains(t, partTypes, codersdk.ChatMessagePartTypeReasoning,
+		"assistant message should contain a reasoning part "+
+			"(is reasoning_summary set to 'auto'?)")
+
+	// Verify the reasoning part has non-empty text.
+	var reasoningText string
+	for _, part := range assistantMsg.Content {
+		if part.Type == codersdk.ChatMessagePartTypeReasoning {
+			reasoningText += part.Text
+		}
+	}
+	require.NotEmpty(t, reasoningText,
+		"reasoning part should contain visible summary text")
+	t.Logf("Reasoning text length: %d chars", len(reasoningText))
+
+	// --- Step 2: Send a follow-up message ---
+	// This verifies the reasoning metadata (encrypted content)
+	// survives the persist → reconstruct cycle. If it's lost,
+	// the OpenAI Responses API may reject the second request.
+	t.Log("Sending follow-up message...")
+	_, err = client.CreateChatMessage(ctx, chat.ID,
+		codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "Now multiply that result by 2.",
+				},
+			},
+		})
+	require.NoError(t, err)
+
+	// Stream the follow-up response.
+	events2, closer2, err := client.StreamChat(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	defer closer2.Close()
+
+	waitForChatDone(ctx, t, events2, "step 2")
+
+	// Verify the follow-up completed and produced content.
+	chatData2, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	chatMsgs2, err := client.GetChatMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	t.Logf("Chat status after step 2: %s, messages: %d",
+		chatData2.Status, len(chatMsgs2.Messages))
+	logMessages(t, chatMsgs2.Messages)
+
+	require.Equal(t, codersdk.ChatStatusWaiting, chatData2.Status,
+		"chat should be in waiting status after step 2")
+	require.Greater(t, len(chatMsgs2.Messages), len(chatMsgs.Messages),
+		"follow-up should have added more messages")
+
+	// The last assistant message should have text.
+	lastAssistant := findLastAssistantWithText(t, chatMsgs2.Messages)
+	require.NotNil(t, lastAssistant,
+		"expected an assistant message with text in the follow-up")
+
+	t.Log("OpenAI reasoning round-trip test passed.")
+}
+
+// waitForChatDoneWithReasoning is like waitForChatDone but also
+// tracks whether any reasoning parts were streamed.
+func waitForChatDoneWithReasoning(
+	ctx context.Context,
+	t *testing.T,
+	events <-chan codersdk.ChatStreamEvent,
+	label string,
+) bool {
+	t.Helper()
+	sawReasoning := false
+	for {
+		select {
+		case <-ctx.Done():
+			require.FailNow(t, "timed out waiting for "+label+" completion")
+		case event, ok := <-events:
+			if !ok {
+				return sawReasoning
+			}
+			switch event.Type {
+			case codersdk.ChatStreamEventTypeError:
+				if event.Error != nil {
+					t.Logf("[%s] stream error: %s", label, event.Error.Message)
+				}
+			case codersdk.ChatStreamEventTypeStatus:
+				if event.Status != nil {
+					t.Logf("[%s] status → %s", label, event.Status.Status)
+					switch event.Status.Status {
+					case codersdk.ChatStatusWaiting,
+						codersdk.ChatStatusCompleted:
+						return sawReasoning
+					case codersdk.ChatStatusError:
+						require.FailNow(t, label+" ended with error status")
+					}
+				}
+			case codersdk.ChatStreamEventTypeMessage:
+				if event.Message != nil {
+					t.Logf("[%s] persisted message: role=%s parts=%d",
+						label, event.Message.Role, len(event.Message.Content))
+				}
+			case codersdk.ChatStreamEventTypeMessagePart:
+				if event.MessagePart != nil {
+					t.Logf("[%s] part: type=%s",
+						label, event.MessagePart.Part.Type)
+					if event.MessagePart.Part.Type == codersdk.ChatMessagePartTypeReasoning {
+						sawReasoning = true
+					}
+				}
+			}
+		}
+	}
+}
+
 // partTypeSet returns the set of part types present in a message.
 func partTypeSet(parts []codersdk.ChatMessagePart) map[codersdk.ChatMessagePartType]struct{} {
 	set := make(map[codersdk.ChatMessagePartType]struct{}, len(parts))
