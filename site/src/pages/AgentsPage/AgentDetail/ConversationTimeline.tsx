@@ -662,7 +662,10 @@ const StickyUserMessage: FC<{
 		const scroller = sentinel.closest(".overflow-y-auto") as HTMLElement | null;
 		if (!scroller) return;
 
-		const MIN_HEIGHT = 72;
+		// Halve the minimum visible height on mobile so the
+		// sticky message takes up less vertical space.
+		const isMobile = window.matchMedia("(max-width: 639px)").matches;
+		const MIN_HEIGHT = isMobile ? 52 : 72;
 		let scrollerTop = scroller.getBoundingClientRect().top;
 		let scrollerHeight = scroller.clientHeight;
 
@@ -776,7 +779,7 @@ const StickyUserMessage: FC<{
 			<div
 				ref={containerRef}
 				className={cn(
-					"relative px-3 -mx-3 pt-2 pb-2",
+					"relative px-3 -mx-3 pt-0.5 pb-0.5 sm:pt-2 sm:pb-2",
 					!isTooTall && "sticky top-0 z-10",
 					!isReady && "invisible",
 					isStuck && !isTooTall && "pointer-events-none",
@@ -815,26 +818,29 @@ const StickyUserMessage: FC<{
 						}}
 					>
 						{/* Blur layer: extends 48px beyond the
-						    clipped content so the frosted effect
-						    is visible around the bubble. Promoted
-						    to its own GPU layer via will-change. */}
+							    clipped content so the frosted effect
+							    is visible around the bubble. A mask
+							    gradient fades the backdrop-blur out
+							    gradually instead of a hard cutoff.
+							    Promoted to its own GPU layer via
+							    will-change. */}
 						<div
 							className="absolute inset-0 backdrop-blur-[1px] bg-surface-primary/15"
 							style={{
 								maxHeight: "calc(var(--clip-h, 100%) + 48px)",
 								willChange: "max-height, mask-image",
 								maskImage:
-									"linear-gradient(to bottom, black calc(var(--clip-h, 100%) + 24px), transparent calc(var(--clip-h, 100%) + 48px))",
+									"linear-gradient(to bottom, black calc(var(--clip-h, 100%) - 24px), transparent calc(var(--clip-h, 100%) + 48px))",
 								WebkitMaskImage:
-									"linear-gradient(to bottom, black calc(var(--clip-h, 100%) + 24px), transparent calc(var(--clip-h, 100%) + 48px))",
+									"linear-gradient(to bottom, black calc(var(--clip-h, 100%) - 24px), transparent calc(var(--clip-h, 100%) + 48px))",
 							}}
 						/>
-						{/* Content layer: px-3 pt-2 matches the
-						    sticky container's padding so the
-						    overlay aligns with the flow element.
-						    will-change promotes to GPU layer. */}
+						{/* Content layer: px-3 pt-1 sm:pt-2 matches
+							    the sticky container's padding so the
+							    overlay aligns with the flow element.
+							    will-change promotes to GPU layer. */}
 						<div
-							className="relative px-3 pt-2 pointer-events-auto"
+							className="relative px-3 pt-0.5 sm:pt-2 pointer-events-auto"
 							style={{ willChange: "max-height" }}
 						>
 							<ChatMessageItem
@@ -898,7 +904,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 		hasStreamOutput && parsedSections.length > 0;
 
 	return (
-		<div className="mx-auto w-full max-w-3xl py-6">
+		<div className="mx-auto w-full max-w-3xl py-3 sm:py-6">
 			{isEmpty && !hasStreamOutput ? (
 				<div className="py-12 text-center text-content-secondary">
 					<p className="text-sm">Start a conversation with your agent.</p>

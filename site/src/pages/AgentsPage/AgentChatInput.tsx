@@ -563,7 +563,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		const sendButtonLabel = editingQueuedMessageID !== null ? "Save" : "Send";
 
 		const content = (
-			<div className="mx-auto w-full max-w-3xl pb-4">
+			<div className="mx-auto w-full max-w-3xl pb-0 sm:pb-4">
 				{queuedMessages.length > 0 && (
 					<QueuedMessagesList
 						messages={queuedMessages}
@@ -642,13 +642,12 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 						ref={setRef}
 						onFilePaste={onAttach ? handleFilePaste : undefined}
 						aria-label="Chat message"
-						className="min-h-[120px] w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+						className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 						placeholder={placeholder}
 						initialValue={initialValue}
 						onChange={handleContentChange}
 						onEnter={handleSubmit}
 						disabled={isDisabled || isLoading}
-						rows={4}
 						autoFocus
 					/>
 					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
