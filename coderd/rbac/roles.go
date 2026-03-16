@@ -980,8 +980,6 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 
 	orgPerms := Permissions(orgPermMap)
 
-	// Not using owners=service_accounts here because it would block
-	// org admins from sharing an SA-owned workspace.
 	if org.ShareableWorkspaceOwners == ShareableWorkspaceOwnersNone {
 		// Org-level negation blocks sharing on ANY workspace in the
 		// org. This overrides any positive permission from other
@@ -993,12 +991,6 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
-	// Member-scoped permissions (workspaces owned by the member).
-	memberWorkspaceActions := ResourceWorkspace.AvailableActions()
-	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {
-		memberWorkspaceActions = slice.Omit(
-			memberWorkspaceActions, policy.ActionShare)
-	}
 	// Uses allPermsExcept to automatically include permissions for new resources.
 	memberPerms := append(
 		allPermsExcept(
@@ -1006,7 +998,6 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			ResourcePrebuiltWorkspace,
 			ResourceUser,
 			ResourceOrganizationMember,
-			ResourceWorkspace,
 		),
 		Permissions(map[string][]policy.Action{
 			// Reduced permission set on dormant workspaces. No build,
@@ -1025,11 +1016,16 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 			ResourceOrganizationMember.Type: {
 				policy.ActionRead,
 			},
-			// Allowed actions on their own workspaces depend on the
-			// settings.
-			ResourceWorkspace.Type: memberWorkspaceActions,
 		})...,
 	)
+
+	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {
+		memberPerms = append(memberPerms, Permission{
+			Negate:       true,
+			ResourceType: ResourceWorkspace.Type,
+			Action:       policy.ActionShare,
+		})
+	}
 
 	return OrgRolePermissions{Org: orgPerms, Member: memberPerms}
 }

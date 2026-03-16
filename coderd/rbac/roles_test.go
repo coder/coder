@@ -66,26 +66,20 @@ func TestOrgSharingPermissions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		permsFunc      func(rbac.OrgSettings) rbac.OrgRolePermissions
-		mode           rbac.ShareableWorkspaceOwners
-		orgReadMembers bool
-		orgReadGroups  bool
-		orgNegateShare bool
-		memberShare    bool
+		name              string
+		permsFunc         func(rbac.OrgSettings) rbac.OrgRolePermissions
+		mode              rbac.ShareableWorkspaceOwners
+		orgReadMembers    bool
+		orgReadGroups     bool
+		orgNegateShare    bool
+		memberNegateShare bool
 	}{
-		// OrgMemberPermissions: members can share their own
-		// workspaces only in "everyone" mode.
-		{"Member/Everyone", rbac.OrgMemberPermissions, rbac.ShareableWorkspaceOwnersEveryone, true, true, false, true},
-		{"Member/None", rbac.OrgMemberPermissions, rbac.ShareableWorkspaceOwnersNone, false, false, true, false},
-		{"Member/ServiceAccounts", rbac.OrgMemberPermissions, rbac.ShareableWorkspaceOwnersServiceAccounts, true, false, false, false},
-		// OrgServiceAccountPermissions: SAs get wildcard workspace
-		// actions in member-scoped perms, so share is always
-		// granted there. The org-level negation in "none" mode is
-		// what blocks sharing at evaluation time.
-		{"ServiceAccount/Everyone", rbac.OrgServiceAccountPermissions, rbac.ShareableWorkspaceOwnersEveryone, true, true, false, true},
-		{"ServiceAccount/None", rbac.OrgServiceAccountPermissions, rbac.ShareableWorkspaceOwnersNone, false, false, true, true},
-		{"ServiceAccount/ServiceAccounts", rbac.OrgServiceAccountPermissions, rbac.ShareableWorkspaceOwnersServiceAccounts, true, true, false, true},
+		{"Member/Everyone", rbac.OrgMemberPermissions, rbac.ShareableWorkspaceOwnersEveryone, true, true, false, false},
+		{"Member/None", rbac.OrgMemberPermissions, rbac.ShareableWorkspaceOwnersNone, false, false, true, true},
+		{"Member/ServiceAccounts", rbac.OrgMemberPermissions, rbac.ShareableWorkspaceOwnersServiceAccounts, true, false, false, true},
+		{"ServiceAccount/Everyone", rbac.OrgServiceAccountPermissions, rbac.ShareableWorkspaceOwnersEveryone, true, true, false, false},
+		{"ServiceAccount/None", rbac.OrgServiceAccountPermissions, rbac.ShareableWorkspaceOwnersNone, false, false, true, false},
+		{"ServiceAccount/ServiceAccounts", rbac.OrgServiceAccountPermissions, rbac.ShareableWorkspaceOwnersServiceAccounts, true, true, false, false},
 	}
 
 	for _, tt := range tests {
@@ -112,10 +106,11 @@ func TestOrgSharingPermissions(t *testing.T) {
 				Action:       policy.ActionShare,
 			}), "org negate share")
 
-			assert.Equal(t, tt.memberShare, permissionGranted(perms.Member, rbac.Permission{
+			assert.Equal(t, tt.memberNegateShare, permissionGranted(perms.Member, rbac.Permission{
+				Negate:       true,
 				ResourceType: rbac.ResourceWorkspace.Type,
 				Action:       policy.ActionShare,
-			}), "member share")
+			}), "member negate share")
 		})
 	}
 }
