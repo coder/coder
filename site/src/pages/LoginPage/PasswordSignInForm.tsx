@@ -1,5 +1,5 @@
 import { Button } from "components/Button/Button";
-import { FormField } from "components/Form/Form";
+import { FormField } from "components/FormField/FormField";
 import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
