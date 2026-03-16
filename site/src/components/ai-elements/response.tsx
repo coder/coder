@@ -170,7 +170,7 @@ const createComponents = (
 		// Inline code only — fenced blocks are handled by the pre override.
 		code: ({ children }: MarkdownComponentProps) => (
 			<code className="rounded bg-surface-quaternary/25 px-1 py-0.5 font-mono text-content-primary">
-				{children}{" "}
+				{children}
 			</code>
 		),
 		// Fenced code blocks: extract language and content from the HAST

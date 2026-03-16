@@ -122,7 +122,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 						)}
 						<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />
 					</button>
-				))}{" "}
+				))}
 			</div>
 		</>
 	);

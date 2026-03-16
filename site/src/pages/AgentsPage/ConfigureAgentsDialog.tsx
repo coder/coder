@@ -533,11 +533,11 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								onSubmit={(event) => void handleSaveUserPrompt(event)}
 							>
 								<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-									Personal Instructions{" "}
+									Personal Instructions
 								</h3>
 								<p className="!mt-0.5 m-0 text-xs text-content-secondary">
 									Applied to all your chats. Only visible to you.
-								</p>{" "}
+								</p>
 								<TextareaAutosize
 									className={textareaClassName}
 									placeholder="Additional behavior, style, and tone preferences"
@@ -555,7 +555,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 										disabled={isDisabled || !userPromptDraft}
 									>
 										Clear
-									</Button>{" "}
+									</Button>
 									<Button
 										size="sm"
 										type="submit"
@@ -588,7 +588,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 										<p className="!mt-0.5 m-0 text-xs text-content-secondary">
 											Applied to all chats for every user. When empty, the
 											built-in default is used.
-										</p>{" "}
+										</p>
 										<TextareaAutosize
 											className={textareaClassName}
 											placeholder="Additional behavior, style, and tone preferences for all users"
@@ -606,7 +606,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 												disabled={isDisabled || !systemPromptDraft}
 											>
 												Clear
-											</Button>{" "}
+											</Button>
 											<Button
 												size="sm"
 												type="submit"
