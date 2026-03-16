@@ -1319,7 +1319,8 @@ CREATE TABLE chats (
     last_model_config_id uuid NOT NULL,
     archived boolean DEFAULT false NOT NULL,
     last_error text,
-    mode chat_mode
+    mode chat_mode,
+    mcp_servers jsonb
 );
 
 CREATE TABLE connection_logs (

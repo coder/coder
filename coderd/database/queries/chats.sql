@@ -143,7 +143,8 @@ INSERT INTO chats (
     root_chat_id,
     last_model_config_id,
     title,
-    mode
+    mode,
+    mcp_servers
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
@@ -151,10 +152,14 @@ INSERT INTO chats (
     sqlc.narg('root_chat_id')::uuid,
     @last_model_config_id::uuid,
     @title::text,
-    sqlc.narg('mode')::chat_mode
+    sqlc.narg('mode')::chat_mode,
+    sqlc.narg('mcp_servers')::jsonb
 )
 RETURNING
     *;
+
+-- name: UpdateChatMCPServers :exec
+UPDATE chats SET mcp_servers = @mcp_servers::jsonb, updated_at = NOW() WHERE id = @id::uuid;
 
 -- name: InsertChatMessage :one
 WITH updated_chat AS (

@@ -5330,6 +5330,17 @@ func (q *querier) UpdateChatHeartbeat(ctx context.Context, arg database.UpdateCh
 	return q.db.UpdateChatHeartbeat(ctx, arg)
 }
 
+func (q *querier) UpdateChatMCPServers(ctx context.Context, arg database.UpdateChatMCPServersParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.UpdateChatMCPServers(ctx, arg)
+}
+
 func (q *querier) UpdateChatMessageByID(ctx context.Context, arg database.UpdateChatMessageByIDParams) (database.ChatMessage, error) {
 	// Authorize update on the parent chat of the edited message.
 	msg, err := q.db.GetChatMessageByID(ctx, arg.ID)

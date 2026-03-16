@@ -1066,6 +1066,7 @@ export interface Chat {
 	readonly status: ChatStatus;
 	readonly last_error: string | null;
 	readonly diff_status?: ChatDiffStatus;
+	readonly mcp_servers?: readonly ChatMCPServer[];
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly archived: boolean;
@@ -1253,6 +1254,41 @@ export const ChatInputPartTypes: ChatInputPartType[] = [
 	"file-reference",
 	"text",
 ];
+
+// From codersdk/chats.go
+/**
+ * ChatMCPServer represents an MCP server attached to a chat session.
+ * MCP servers provide additional tools to the chat agent via the
+ * Model Context Protocol.
+ */
+export interface ChatMCPServer {
+	/**
+	 * Slug is a unique identifier for this MCP server within the chat.
+	 * Tool names are namespaced as mcp__{slug}__{tool_name}.
+	 */
+	readonly slug: string;
+	/**
+	 * URL is the MCP server endpoint (Streamable HTTP transport).
+	 */
+	readonly url: string;
+	/**
+	 * DisplayName is a human-readable name shown in tool descriptions.
+	 */
+	readonly display_name?: string;
+	/**
+	 * AuthHeaders are sent with every request to the MCP server.
+	 * Only admins may set this field. Values are encrypted at rest.
+	 */
+	readonly auth_headers?: Record<string, string>;
+	/**
+	 * ToolAllowRegex, if set, only tools matching this regex are exposed.
+	 */
+	readonly tool_allow_regex?: string;
+	/**
+	 * ToolDenyRegex, if set, tools matching this regex are excluded.
+	 */
+	readonly tool_deny_regex?: string;
+}
 
 // From codersdk/chats.go
 /**
@@ -1907,6 +1943,7 @@ export interface ConvertLoginRequest {
 export interface CreateChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
 	readonly model_config_id?: string;
+	readonly mcp_servers?: readonly ChatMCPServer[];
 }
 
 // From codersdk/chats.go
@@ -1954,6 +1991,7 @@ export interface CreateChatRequest {
 	readonly content: readonly ChatInputPart[];
 	readonly workspace_id?: string;
 	readonly model_config_id?: string;
+	readonly mcp_servers?: readonly ChatMCPServer[];
 }
 
 // From codersdk/users.go

@@ -4012,22 +4012,23 @@ type BoundaryUsageStat struct {
 }
 
 type Chat struct {
-	ID                uuid.UUID      `db:"id" json:"id"`
-	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
-	WorkspaceID       uuid.NullUUID  `db:"workspace_id" json:"workspace_id"`
-	Title             string         `db:"title" json:"title"`
-	Status            ChatStatus     `db:"status" json:"status"`
-	WorkerID          uuid.NullUUID  `db:"worker_id" json:"worker_id"`
-	StartedAt         sql.NullTime   `db:"started_at" json:"started_at"`
-	HeartbeatAt       sql.NullTime   `db:"heartbeat_at" json:"heartbeat_at"`
-	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
-	ParentChatID      uuid.NullUUID  `db:"parent_chat_id" json:"parent_chat_id"`
-	RootChatID        uuid.NullUUID  `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID uuid.UUID      `db:"last_model_config_id" json:"last_model_config_id"`
-	Archived          bool           `db:"archived" json:"archived"`
-	LastError         sql.NullString `db:"last_error" json:"last_error"`
-	Mode              NullChatMode   `db:"mode" json:"mode"`
+	ID                uuid.UUID             `db:"id" json:"id"`
+	OwnerID           uuid.UUID             `db:"owner_id" json:"owner_id"`
+	WorkspaceID       uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
+	Title             string                `db:"title" json:"title"`
+	Status            ChatStatus            `db:"status" json:"status"`
+	WorkerID          uuid.NullUUID         `db:"worker_id" json:"worker_id"`
+	StartedAt         sql.NullTime          `db:"started_at" json:"started_at"`
+	HeartbeatAt       sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
+	CreatedAt         time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time             `db:"updated_at" json:"updated_at"`
+	ParentChatID      uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID        uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
+	Archived          bool                  `db:"archived" json:"archived"`
+	LastError         sql.NullString        `db:"last_error" json:"last_error"`
+	Mode              NullChatMode          `db:"mode" json:"mode"`
+	MCPServers        pqtype.NullRawMessage `db:"mcp_servers" json:"mcp_servers"`
 }
 
 type ChatDiffStatus struct {

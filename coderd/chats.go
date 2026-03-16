@@ -22,6 +22,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -231,6 +232,14 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Only admins can attach MCP servers to a chat.
+	if len(req.MCPServers) > 0 {
+		if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+			httpapi.Forbidden(rw)
+			return
+		}
+	}
+
 	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
@@ -259,6 +268,19 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var mcpServersJSON pqtype.NullRawMessage
+	if len(req.MCPServers) > 0 {
+		raw, err := json.Marshal(req.MCPServers)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to encode MCP servers.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		mcpServersJSON = pqtype.NullRawMessage{RawMessage: raw, Valid: true}
+	}
+
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
@@ -266,6 +288,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		ModelConfigID:      modelConfigID,
 		SystemPrompt:       api.resolvedChatSystemPrompt(ctx),
 		InitialUserContent: contentBlocks,
+		MCPServers:         mcpServersJSON,
 	})
 	if err != nil {
 		if database.IsForeignKeyViolation(
@@ -956,6 +979,33 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	var req codersdk.CreateChatMessageRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
+	}
+
+	// Only admins can attach MCP servers to a chat.
+	if len(req.MCPServers) > 0 {
+		if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		raw, err := json.Marshal(req.MCPServers)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to encode MCP servers.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		err = api.Database.UpdateChatMCPServers(ctx, database.UpdateChatMCPServersParams{
+			ID:         chatID,
+			MCPServers: raw,
+		})
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update MCP servers.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
@@ -2467,6 +2517,16 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 	}
 	if c.WorkspaceID.Valid {
 		chat.WorkspaceID = &c.WorkspaceID.UUID
+	}
+	if c.MCPServers.Valid && len(c.MCPServers.RawMessage) > 0 {
+		var servers []codersdk.ChatMCPServer
+		if err := json.Unmarshal(c.MCPServers.RawMessage, &servers); err == nil {
+			// Strip auth headers from the response — never leak secrets.
+			for i := range servers {
+				servers[i].AuthHeaders = nil
+			}
+			chat.MCPServers = servers
+		}
 	}
 	if diffStatus != nil {
 		convertedDiffStatus := convertChatDiffStatus(c.ID, diffStatus)

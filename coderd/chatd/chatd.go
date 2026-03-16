@@ -183,6 +183,7 @@ type CreateOptions struct {
 	ChatMode           database.NullChatMode
 	SystemPrompt       string
 	InitialUserContent []codersdk.ChatMessagePart
+	MCPServers         pqtype.NullRawMessage
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -265,6 +266,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			LastModelConfigID: opts.ModelConfigID,
 			Title:             opts.Title,
 			Mode:              opts.ChatMode,
+			MCPServers:        opts.MCPServers,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)
@@ -2596,6 +2598,72 @@ func (p *Server) runChat(
 		})...)
 	}
 
+	// Discover and register tools from chat-level MCP servers.
+	// Each server is connected in parallel for performance.
+	// Failures are treated as errors since the admin explicitly
+	// configured these servers and expects them to work.
+	if chat.MCPServers.Valid && len(chat.MCPServers.RawMessage) > 0 {
+		var mcpServers []codersdk.ChatMCPServer
+		if err := json.Unmarshal(chat.MCPServers.RawMessage, &mcpServers); err != nil {
+			return xerrors.Errorf("parse chat mcp_servers config: %w", err)
+		}
+
+		mcpCtx, mcpCancel := context.WithTimeout(ctx, 30*time.Second)
+		defer mcpCancel()
+
+		type mcpResult struct {
+			slug    string
+			tools   []fantasy.AgentTool
+			cleanup func()
+		}
+
+		var (
+			mcpMu      sync.Mutex
+			mcpResults []mcpResult
+		)
+		var mcpGroup errgroup.Group
+		for _, server := range mcpServers {
+			server := server
+			mcpGroup.Go(func() error {
+				serverTools, cleanup, err := chattool.MCPServer(mcpCtx, server, logger)
+				if err != nil {
+					return xerrors.Errorf("MCP server %q: %w", server.Slug, err)
+				}
+				mcpMu.Lock()
+				mcpResults = append(mcpResults, mcpResult{
+					slug:    server.Slug,
+					tools:   serverTools,
+					cleanup: cleanup,
+				})
+				mcpMu.Unlock()
+				return nil
+			})
+		}
+		if err := mcpGroup.Wait(); err != nil {
+			// Clean up any servers that did connect before the error.
+			for _, r := range mcpResults {
+				if r.cleanup != nil {
+					r.cleanup()
+				}
+			}
+			return xerrors.Errorf("connect to MCP servers: %w", err)
+		}
+
+		for _, r := range mcpResults {
+			logger.Info(ctx, "discovered mcp server tools",
+				slog.F("mcp_server", r.slug),
+				slog.F("num_tools", len(r.tools)),
+			)
+			tools = append(tools, r.tools...)
+		}
+		defer func() {
+			for _, r := range mcpResults {
+				if r.cleanup != nil {
+					r.cleanup()
+				}
+			}
+		}()
+	}
 	// Build provider-native tools (e.g., web search) based on
 	// the model configuration.
 	var providerTools []chatloop.ProviderTool

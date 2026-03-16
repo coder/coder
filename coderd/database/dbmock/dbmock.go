@@ -6944,6 +6944,20 @@ func (mr *MockStoreMockRecorder) UpdateChatHeartbeat(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatHeartbeat", reflect.TypeOf((*MockStore)(nil).UpdateChatHeartbeat), ctx, arg)
 }
 
+// UpdateChatMCPServers mocks base method.
+func (m *MockStore) UpdateChatMCPServers(ctx context.Context, arg database.UpdateChatMCPServersParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatMCPServers", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateChatMCPServers indicates an expected call of UpdateChatMCPServers.
+func (mr *MockStoreMockRecorder) UpdateChatMCPServers(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatMCPServers", reflect.TypeOf((*MockStore)(nil).UpdateChatMCPServers), ctx, arg)
+}
+
 // UpdateChatMessageByID mocks base method.
 func (m *MockStore) UpdateChatMessageByID(ctx context.Context, arg database.UpdateChatMessageByIDParams) (database.ChatMessage, error) {
 	m.ctrl.T.Helper()

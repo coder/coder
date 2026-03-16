@@ -43,6 +43,7 @@ type Chat struct {
 	Status            ChatStatus      `json:"status"`
 	LastError         *string         `json:"last_error"`
 	DiffStatus        *ChatDiffStatus `json:"diff_status,omitempty"`
+	MCPServers        []ChatMCPServer `json:"mcp_servers,omitempty"`
 	CreatedAt         time.Time       `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time       `json:"updated_at" format:"date-time"`
 	Archived          bool            `json:"archived"`
@@ -233,11 +234,32 @@ type ChatInputPart struct {
 	Content string `json:"content,omitempty"`
 }
 
+// ChatMCPServer represents an MCP server attached to a chat session.
+// MCP servers provide additional tools to the chat agent via the
+// Model Context Protocol.
+type ChatMCPServer struct {
+	// Slug is a unique identifier for this MCP server within the chat.
+	// Tool names are namespaced as mcp__{slug}__{tool_name}.
+	Slug string `json:"slug"`
+	// URL is the MCP server endpoint (Streamable HTTP transport).
+	URL string `json:"url"`
+	// DisplayName is a human-readable name shown in tool descriptions.
+	DisplayName string `json:"display_name,omitempty"`
+	// AuthHeaders are sent with every request to the MCP server.
+	// Only admins may set this field. Values are encrypted at rest.
+	AuthHeaders map[string]string `json:"auth_headers,omitempty"`
+	// ToolAllowRegex, if set, only tools matching this regex are exposed.
+	ToolAllowRegex string `json:"tool_allow_regex,omitempty"`
+	// ToolDenyRegex, if set, tools matching this regex are excluded.
+	ToolDenyRegex string `json:"tool_deny_regex,omitempty"`
+}
+
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
 	Content       []ChatInputPart `json:"content"`
 	WorkspaceID   *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
 	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServers    []ChatMCPServer `json:"mcp_servers,omitempty"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -249,6 +271,7 @@ type UpdateChatRequest struct {
 type CreateChatMessageRequest struct {
 	Content       []ChatInputPart `json:"content"`
 	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServers    []ChatMCPServer `json:"mcp_servers,omitempty"`
 }
 
 // EditChatMessageRequest is the request to edit a user message in a chat.

@@ -16,6 +16,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mark3labs/mcp-go/mcp"
+	mcpserver "github.com/mark3labs/mcp-go/server"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -2120,4 +2123,166 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	require.True(t, children[0].Mode.Valid)
 	require.Equal(t, database.ChatModeComputerUse,
 		children[0].Mode.ChatMode)
+}
+
+func TestChatMCPServerConnectionFailure(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Set up a fake OpenAI server that just returns text (we should
+	// never reach it if MCP connection fails first).
+	openAIURL := chattest.NewOpenAI(t, func(_ *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("should not reach here")...,
+		)
+	})
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	// Create a chat with an MCP server pointing to a dead URL.
+	mcpConfig, err := json.Marshal([]codersdk.ChatMCPServer{
+		{
+			Slug:        "dead-server",
+			URL:         "http://localhost:1/nonexistent",
+			DisplayName: "Dead Server",
+		},
+	})
+	require.NoError(t, err)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:       user.ID,
+		Title:         "mcp-failure-test",
+		ModelConfigID: model.ID,
+		MCPServers: pqtype.NullRawMessage{
+			RawMessage: mcpConfig,
+			Valid:      true,
+		},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("hello"),
+		},
+	})
+	require.NoError(t, err)
+
+	// Wait for the chat to be processed and fail due to MCP
+	// connection error.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusError
+	}, testutil.IntervalFast)
+
+	// Verify the error message mentions MCP.
+	fromDB, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusError, fromDB.Status)
+	require.True(t, fromDB.LastError.Valid)
+	require.Contains(t, fromDB.LastError.String, "MCP")
+}
+
+func TestChatMCPServerToolsDiscovered(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Start a real MCP server with a simple tool.
+	mcpSrv := mcpserver.NewMCPServer("test", "1.0.0")
+	mcpSrv.AddTools(mcpserver.ServerTool{
+		Tool: mcp.NewTool("get_weather",
+			mcp.WithDescription("Get weather"),
+			mcp.WithString("city", mcp.Required()),
+		),
+		Handler: func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			city := req.GetArguments()["city"].(string)
+			return mcp.NewToolResultText(fmt.Sprintf("Sunny in %s", city)), nil
+		},
+	})
+	testSrv := mcpserver.NewTestStreamableHTTPServer(mcpSrv)
+	defer testSrv.Close()
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("ok")
+		}
+		// Just respond with text — we're verifying tools are
+		// discovered, not that the LLM uses them.
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Done.")...,
+		)
+	})
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	mcpConfig, err := json.Marshal([]codersdk.ChatMCPServer{
+		{
+			Slug:        "weather",
+			URL:         testSrv.URL,
+			DisplayName: "Weather API",
+		},
+	})
+	require.NoError(t, err)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:       user.ID,
+		Title:         "mcp-tools-test",
+		ModelConfigID: model.ID,
+		MCPServers: pqtype.NullRawMessage{
+			RawMessage: mcpConfig,
+			Valid:      true,
+		},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("What is the weather?"),
+		},
+	})
+	require.NoError(t, err)
+
+	// Wait for the chat to complete — this means MCP server tools
+	// were successfully discovered and registered (the log confirms
+	// "discovered mcp server tools" with num_tools=1).
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusWaiting
+	}, testutil.IntervalFast)
+
+	// If we got here without error, the MCP server was connected,
+	// tools were discovered, and the chat completed normally.
+	fromDB, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.False(t, fromDB.LastError.Valid,
+		"expected no error, got: %s", fromDB.LastError.String)
 }
