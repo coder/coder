@@ -1213,7 +1213,7 @@
 						},
 						{
 							"title": "Chats API",
-							"description": "Programmatic access to Coder Agents via the experimental Chat API",
+							"description": "Programmatic access to Coder Agents via the experimental Chats API",
 							"path": "./ai-coder/agents/chat-api.md",
 							"state": ["early access"]
 						},
