@@ -1408,30 +1408,47 @@ func (p *Server) Subscribe(
 			case <-mergedCtx.Done():
 				return
 			case psErr := <-errCh:
-				p.logger.Error(mergedCtx, "chat stream pubsub error, degrading to local-only",
-					slog.F("chat_id", chatID),
-					slog.Error(psErr),
-				)
-				// Notify the client about the error.
-				select {
-				case mergedEvents <- codersdk.ChatStreamEvent{
-					Type:   codersdk.ChatStreamEventTypeError,
-					ChatID: chatID,
-					Error: &codersdk.ChatStreamError{
-						Message: psErr.Error(),
-					},
-				}:
-				case <-mergedCtx.Done():
-					return
+				if xerrors.Is(psErr, pubsub.ErrDroppedMessages) {
+					// PGPubsub reconnected and some notifications
+					// were lost. Do a DB catch-up to recover any
+					// missed messages, the subscription is still
+					// active.
+					p.logger.Warn(mergedCtx, "chat stream pubsub dropped messages, catching up",
+						slog.F("chat_id", chatID),
+					)
+					newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
+						ChatID:  chatID,
+						AfterID: lastMessageID,
+					})
+					if msgErr != nil {
+						p.logger.Warn(mergedCtx, "failed to catch up chat messages after dropped pubsub messages",
+							slog.F("chat_id", chatID),
+							slog.Error(msgErr),
+						)
+					} else {
+						for _, msg := range newMessages {
+							sdkMsg := db2sdk.ChatMessage(msg)
+							select {
+							case <-mergedCtx.Done():
+								return
+							case mergedEvents <- codersdk.ChatStreamEvent{
+								Type:    codersdk.ChatStreamEventTypeMessage,
+								ChatID:  chatID,
+								Message: &sdkMsg,
+							}:
+							}
+							lastMessageID = msg.ID
+						}
+					}
+				} else {
+					// Unmarshal errors or other unexpected errors:
+					// log and continue, the subscription is still
+					// active.
+					p.logger.Warn(mergedCtx, "chat stream pubsub error",
+						slog.F("chat_id", chatID),
+						slog.Error(psErr),
+					)
 				}
-				// Degrade to local-only mode: disable pubsub
-				// channels so the event loop continues with
-				// local events only. Setting channels to nil
-				// disables their select cases (nil channels
-				// block forever in select).
-				errCh = nil
-				notifications = nil
-				hasPubsub = false
 			case notify := <-notifications:
 				if notify.AfterMessageID > 0 || notify.FullRefresh {
 					afterID := lastMessageID

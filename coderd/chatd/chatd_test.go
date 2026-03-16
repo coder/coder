@@ -2187,31 +2187,41 @@ func TestSubscribeRecoversAfterPubsubError(t *testing.T) {
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
-	// Inject a pubsub error. The merge goroutine should handle
-	// this gracefully and continue delivering subsequent events.
-	faultPS.injectError(xerrors.New("simulated pubsub disconnect"))
+	// Insert a message that the catch-up query should find.
+	newContent, marshalErr := json.Marshal([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("message inserted before dropped-messages"),
+	})
+	require.NoError(t, marshalErr)
+	newMsg, err := db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		ChatID:     chat.ID,
+		Role:       database.ChatMessageRoleAssistant,
+		Content:    pqtype.NullRawMessage{RawMessage: newContent, Valid: true},
+		Visibility: database.ChatMessageVisibilityBoth,
+	})
+	require.NoError(t, err)
 
-	// Drain the error event that the merge goroutine sends in
-	// response to the pubsub error.
+	// Inject ErrDroppedMessages. The merge goroutine should do a
+	// DB catch-up and deliver the message we just inserted.
+	faultPS.injectError(dbpubsub.ErrDroppedMessages)
+
+	// The catch-up should deliver the new message.
 	require.Eventually(t, func() bool {
 		select {
 		case event := <-events:
-			return event.Type == codersdk.ChatStreamEventTypeError
+			if event.Type == codersdk.ChatStreamEventTypeMessage && event.Message != nil {
+				return event.Message.ID == newMsg.ID
+			}
+			return false
 		default:
 			return false
 		}
 	}, testutil.WaitMedium, testutil.IntervalFast)
 
-	// Trigger a real status change. InterruptChat updates the DB
-	// and publishes a notification via pubsub.
+	// Verify pubsub is still active: trigger a real status
+	// change via InterruptChat (publishes via pubsub).
 	updated := server.InterruptChat(ctx, chat)
 	require.Equal(t, database.ChatStatusWaiting, updated.Status)
 
-	// Assert that the stream delivers the status=waiting event
-	// via the local channel. After pubsub degradation,
-	// hasPubsub=false makes the local events case forward all
-	// event types, so the status event from InterruptChat's
-	// publishToStream arrives here.
 	require.Eventually(t, func() bool {
 		select {
 		case event, ok := <-events:
@@ -2230,7 +2240,7 @@ func TestSubscribeRecoversAfterPubsubError(t *testing.T) {
 	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
-func TestSubscribePubsubErrorDegradesGracefully(t *testing.T) {
+func TestSubscribePubsubUnmarshalErrorContinues(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -2242,9 +2252,21 @@ func TestSubscribePubsubErrorDegradesGracefully(t *testing.T) {
 
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
-		Title:              "degrade-gracefully",
+		Title:              "unmarshal-error-continues",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	// Set the chat to "running" so InterruptChat can transition
+	// it to "waiting".
+	workerID := uuid.New()
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:          chat.ID,
+		Status:      database.ChatStatusRunning,
+		WorkerID:    uuid.NullUUID{UUID: workerID, Valid: true},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
 	})
 	require.NoError(t, err)
 
@@ -2252,26 +2274,15 @@ func TestSubscribePubsubErrorDegradesGracefully(t *testing.T) {
 	require.True(t, ok)
 	t.Cleanup(cancel)
 
-	// Inject pubsub error to trigger degradation.
-	faultPS.injectError(xerrors.New("simulated connection reset"))
+	// Inject an unmarshal-style error. The merge goroutine
+	// should log it and continue, not degrade.
+	faultPS.injectError(xerrors.New("unmarshal chat stream notify: invalid character"))
 
-	// The merge goroutine should send an error event.
-	require.Eventually(t, func() bool {
-		select {
-		case event := <-events:
-			return event.Type == codersdk.ChatStreamEventTypeError
-		default:
-			return false
-		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	// Verify pubsub still works: trigger a real status change
+	// via InterruptChat which publishes via pubsub.
+	updated := server.InterruptChat(ctx, chat)
+	require.Equal(t, database.ChatStatusWaiting, updated.Status)
 
-	// Now publish a local status event. In degraded mode
-	// (hasPubsub=false), all local event types should be
-	// forwarded, not just message_part.
-	err = server.RefreshStatus(ctx, chat.ID)
-	require.NoError(t, err)
-
-	// Verify the status event arrives via the local channel.
 	require.Eventually(t, func() bool {
 		select {
 		case event, ok := <-events:
@@ -2279,7 +2290,11 @@ func TestSubscribePubsubErrorDegradesGracefully(t *testing.T) {
 				t.Log("events channel closed unexpectedly")
 				return false
 			}
-			return event.Type == codersdk.ChatStreamEventTypeStatus
+			if event.Type == codersdk.ChatStreamEventTypeStatus && event.Status != nil {
+				return event.Status.Status == codersdk.ChatStatusWaiting
+			}
+			t.Logf("skipping event: type=%s", event.Type)
+			return false
 		default:
 			return false
 		}
@@ -2657,31 +2672,45 @@ func TestSubscribePubsubMalformedNotification(t *testing.T) {
 
 	// Publish malformed JSON to the pubsub channel. The listener's
 	// unmarshal will fail, sending an error to errCh. The merge
-	// goroutine degrades to local-only mode.
+	// goroutine logs it and continues (no degradation).
 	err = ps.Publish(
 		coderdpubsub.ChatStreamNotifyChannel(chat.ID),
 		[]byte("not valid json{{{"),
 	)
 	require.NoError(t, err)
 
-	// Expect an error event from the unmarshal failure.
-	require.Eventually(t, func() bool {
-		select {
-		case event := <-events:
-			return event.Type == codersdk.ChatStreamEventTypeError
-		default:
-			return false
-		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
-
-	// After degradation, local events still flow.
-	err = server.RefreshStatus(ctx, chat.ID)
+	// Insert a new message and publish a valid notification.
+	// This proves pubsub is still active after the malformed
+	// message.
+	newContent, marshalErr := json.Marshal([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("valid message after malformed"),
+	})
+	require.NoError(t, marshalErr)
+	newMsg, err := db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+		ChatID:     chat.ID,
+		Role:       database.ChatMessageRoleAssistant,
+		Content:    pqtype.NullRawMessage{RawMessage: newContent, Valid: true},
+		Visibility: database.ChatMessageVisibilityBoth,
+	})
 	require.NoError(t, err)
 
+	notify := coderdpubsub.ChatStreamNotifyMessage{
+		AfterMessageID: newMsg.ID,
+	}
+	payload, notifyMarshalErr := json.Marshal(notify)
+	require.NoError(t, notifyMarshalErr)
+	err = ps.Publish(coderdpubsub.ChatStreamNotifyChannel(chat.ID), payload)
+	require.NoError(t, err)
+
+	// The valid notification should deliver the new message,
+	// proving pubsub was not degraded by the malformed one.
 	require.Eventually(t, func() bool {
 		select {
 		case event := <-events:
-			return event.Type == codersdk.ChatStreamEventTypeStatus
+			if event.Type == codersdk.ChatStreamEventTypeMessage && event.Message != nil {
+				return event.Message.ID == newMsg.ID
+			}
+			return false
 		default:
 			return false
 		}
