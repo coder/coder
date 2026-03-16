@@ -28,6 +28,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"APIKey":          {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"License":         {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"Task":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AiSeatState":     {codersdk.AuditActionCreate},
 }
 
 type Action string
@@ -350,6 +351,17 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&idpsync.RoleSyncSettings{}: {
 		"field":   ActionTrack,
 		"mapping": ActionTrack,
+	},
+	&database.AiSeatState{}: {
+		"user_id":                ActionTrack,
+		"first_used_at":          ActionTrack,
+		"last_event_type":        ActionTrack,
+		"last_event_description": ActionTrack,
+
+		// Since the audit log only fires on the first event, these fields will always
+		// match "first_used_at".
+		"last_used_at": ActionIgnore,
+		"updated_at":   ActionIgnore,
 	},
 	&database.TaskTable{}: {
 		"id":                  ActionTrack,

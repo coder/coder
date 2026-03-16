@@ -18478,7 +18478,8 @@ const docTemplate = `{
                 "idp_sync_settings_role",
                 "workspace_agent",
                 "workspace_app",
-                "task"
+                "task",
+                "ai_seat"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -18506,7 +18507,8 @@ const docTemplate = `{
                 "ResourceTypeIdpSyncSettingsRole",
                 "ResourceTypeWorkspaceAgent",
                 "ResourceTypeWorkspaceApp",
-                "ResourceTypeTask"
+                "ResourceTypeTask",
+                "ResourceTypeAISeat"
             ]
         },
         "codersdk.Response": {

@@ -8,11 +8,12 @@ import {
 	Tool,
 } from "components/ai-elements";
 import { WebSearchSources } from "components/ai-elements/tool";
-import { FileIcon } from "components/FileIcon/FileIcon";
+import { FileReferenceChip } from "components/ChatMessageInput/FileReferenceNode";
 import { Spinner } from "components/Spinner/Spinner";
 import { ChevronDownIcon } from "lucide-react";
 import {
 	type FC,
+	Fragment,
 	memo,
 	type ReactNode,
 	type RefObject,
@@ -337,6 +338,20 @@ const ChatMessageItem = memo<{
 			parsed.blocks.length > 0 ||
 			parsed.tools.length > 0 ||
 			parsed.sources.length > 0;
+
+		// Pre-compute the inline content for user messages so we
+		// avoid a filter + map inside the JSX return path.
+		const userInlineContent = isUser
+			? parsed.blocks.filter(
+					(
+						b,
+					): b is
+						| Extract<RenderBlock, { type: "response" }>
+						| Extract<RenderBlock, { type: "file-reference" }> =>
+						b.type === "response" || b.type === "file-reference",
+				)
+			: [];
+
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
 		};
@@ -392,7 +407,20 @@ const ChatMessageItem = memo<{
 								<div className="flex flex-col gap-1.5">
 									<div className="flex items-start gap-2">
 										<span className="min-w-0 flex-1">
-											{parsed.markdown || ""}
+											{userInlineContent.length > 0
+												? userInlineContent.map((block, i) =>
+														block.type === "response" ? (
+															<Fragment key={i}>{block.text}</Fragment>
+														) : (
+															<FileReferenceChip
+																key={i}
+																fileName={block.fileName}
+																startLine={block.startLine}
+																endLine={block.endLine}
+															/>
+														),
+													)
+												: parsed.markdown || ""}
 										</span>
 										{isSavingMessage && (
 											<Spinner
@@ -435,45 +463,7 @@ const ChatMessageItem = memo<{
 											</div>
 										);
 									})()}
-									{(() => {
-										const fileRefBlocks = parsed.blocks.filter(
-											(
-												b,
-											): b is Extract<
-												RenderBlock,
-												{ type: "file-reference" }
-											> => b.type === "file-reference",
-										);
-										if (fileRefBlocks.length === 0) return null;
-										return (
-											<div className="flex flex-col gap-1 border-t border-border-default pt-1.5">
-												{fileRefBlocks.map((dc, i) => (
-													<div
-														key={i}
-														className="flex items-start gap-2 rounded border border-content-link/20 bg-content-link/5 px-2 py-1"
-													>
-														<FileIcon
-															fileName={
-																dc.fileName.split("/").pop() || dc.fileName
-															}
-															className="shrink-0"
-														/>
-														<span className="shrink-0 text-2xs font-mono font-medium text-content-link">
-															{dc.fileName.split("/").pop()}:
-															{dc.startLine === dc.endLine
-																? dc.startLine
-																: `${dc.startLine}\u2013${dc.endLine}`}
-														</span>
-														{dc.text && (
-															<span className="text-2xs text-content-primary">
-																{dc.text}
-															</span>
-														)}
-													</div>
-												))}
-											</div>
-										);
-									})()} {fadeFromBottom && (
+									{fadeFromBottom && (
 										<div
 											className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
 											style={{

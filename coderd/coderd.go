@@ -630,8 +630,8 @@ func New(options *Options) *API {
 		),
 		dbRolluper:       options.DatabaseRolluper,
 		ProfileCollector: defaultProfileCollector{},
+		AISeatTracker:    aiseats.Noop{},
 	}
-	api.AISeatTracker = aiseats.Noop{}
 
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
