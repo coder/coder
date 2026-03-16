@@ -656,20 +656,17 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 	// permission that `genCtx` does not have.
 	sysCtx := dbauthz.AsSystemRestricted(genCtx)
 	for roleName := range rolestore.SystemRoleNames {
-		_, _, err = rolestore.ReconcileSystemRole(sysCtx, db, database.CustomRole{
+		role := database.CustomRole{
 			Name:           roleName,
 			OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
-		}, org)
+		}
+		_, _, err = rolestore.ReconcileSystemRole(sysCtx, db, role, org)
 		if errors.Is(err, sql.ErrNoRows) {
 			// The trigger that creates the placeholder role didn't run (e.g.,
 			// triggers were disabled in the test). Create the role manually.
 			err = rolestore.CreateSystemRole(sysCtx, db, org, roleName)
 			require.NoError(t, err, "create role "+roleName)
-
-			_, _, err = rolestore.ReconcileSystemRole(sysCtx, db, database.CustomRole{
-				Name:           roleName,
-				OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
-			}, org)
+			_, _, err = rolestore.ReconcileSystemRole(sysCtx, db, role, org)
 		}
 		require.NoError(t, err, "reconcile role "+roleName)
 	}

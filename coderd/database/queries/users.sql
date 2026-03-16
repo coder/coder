@@ -394,7 +394,7 @@ SELECT
 				-- All org members get an implied role for their orgs. Most members
 				-- get organization-member, but service accounts will get
 				-- organization-service-account instead. They're largely the same,
-				-- but having them be distinct means  we can allow configuring
+				-- but having them be distinct means we can allow configuring
 				-- service-accounts to have slightly broader permissions–such as
 				-- for workspace sharing.
 				unnest(
