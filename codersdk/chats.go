@@ -1346,20 +1346,6 @@ func (c *Client) GetChatGitChanges(ctx context.Context, chatID uuid.UUID) ([]Cha
 	return changes, json.NewDecoder(res.Body).Decode(&changes)
 }
 
-// GetChatDiffStatus returns cached GitHub pull request diff status for a chat.
-func (c *Client) GetChatDiffStatus(ctx context.Context, chatID uuid.UUID) (ChatDiffStatus, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/diff-status", chatID), nil)
-	if err != nil {
-		return ChatDiffStatus{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatDiffStatus{}, ReadBodyAsError(res)
-	}
-	var status ChatDiffStatus
-	return status, json.NewDecoder(res.Body).Decode(&status)
-}
-
 // GetChatDiffContents returns resolved diff contents for a chat.
 func (c *Client) GetChatDiffContents(ctx context.Context, chatID uuid.UUID) (ChatDiffContents, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/diff", chatID), nil)

@@ -13,7 +13,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import {
 	chatDiffContentsKey,
-	chatDiffStatusKey,
 	chatKey,
 	chatMessagesKey,
 	chatModelsKey,
@@ -137,37 +136,40 @@ const buildQueries = (
 	chat: TypesGen.Chat,
 	messagesData: TypesGen.ChatMessagesResponse,
 	opts?: { diffUrl?: string },
-) => [
-	{ key: chatKey(CHAT_ID), data: chat },
-	{ key: chatMessagesKey(CHAT_ID), data: messagesData },
-	{ key: chatsKey, data: [chat] },
-	{
-		key: chatDiffStatusKey(CHAT_ID),
-		data: {
-			chat_id: CHAT_ID,
-			url: opts?.diffUrl,
-			pull_request_title: "",
-			pull_request_draft: false,
-			changes_requested: false,
-			additions: opts?.diffUrl ? 4 : 0,
-			deletions: opts?.diffUrl ? 1 : 0,
-			changed_files: opts?.diffUrl ? 2 : 0,
-		} satisfies TypesGen.ChatDiffStatus,
-	},
-	{
-		key: chatDiffContentsKey(CHAT_ID),
-		data: {
-			chat_id: CHAT_ID,
-			diff: opts?.diffUrl ? sampleDiff : undefined,
-			pull_request_url: opts?.diffUrl,
-		} satisfies TypesGen.ChatDiffContents,
-	},
-	{
-		key: workspaceByIdKey(mockWorkspace.id),
-		data: mockWorkspace,
-	},
-	{ key: chatModelsKey, data: mockModelCatalog },
-];
+) => {
+	const diffStatus: TypesGen.ChatDiffStatus = {
+		chat_id: CHAT_ID,
+		url: opts?.diffUrl,
+		pull_request_title: "",
+		pull_request_draft: false,
+		changes_requested: false,
+		additions: opts?.diffUrl ? 4 : 0,
+		deletions: opts?.diffUrl ? 1 : 0,
+		changed_files: opts?.diffUrl ? 2 : 0,
+	};
+	const chatWithDiffStatus: TypesGen.Chat = {
+		...chat,
+		diff_status: diffStatus,
+	};
+	return [
+		{ key: chatKey(CHAT_ID), data: chatWithDiffStatus },
+		{ key: chatMessagesKey(CHAT_ID), data: messagesData },
+		{ key: chatsKey, data: [chatWithDiffStatus] },
+		{
+			key: chatDiffContentsKey(CHAT_ID),
+			data: {
+				chat_id: CHAT_ID,
+				diff: opts?.diffUrl ? sampleDiff : undefined,
+				pull_request_url: opts?.diffUrl,
+			} satisfies TypesGen.ChatDiffContents,
+		},
+		{
+			key: workspaceByIdKey(mockWorkspace.id),
+			data: mockWorkspace,
+		},
+		{ key: chatModelsKey, data: mockModelCatalog },
+	];
+};
 
 /**
  * Wrap a chat stream event payload in the JSON string format that
