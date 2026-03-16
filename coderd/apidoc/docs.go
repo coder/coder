@@ -20396,7 +20396,7 @@ const docTemplate = `{
                     ]
                 },
                 "sharing_disabled": {
-                    "description": "SharingDisabled is deprecated and left for backward compatibility\npurposes, use ` + "`" + `ShareableWorkspaceOwners` + "`" + ` instead.",
+                    "description": "SharingDisabled is deprecated and left for backward compatibility\npurposes.\nDeprecated: use ` + "`" + `ShareableWorkspaceOwners` + "`" + ` instead",
                     "type": "boolean"
                 }
             }
@@ -22251,7 +22251,7 @@ const docTemplate = `{
                     ]
                 },
                 "sharing_disabled": {
-                    "description": "SharingDisabled is deprecated and left for backward compatibility\npurposes, use ` + "`" + `ShareableWorkspaceOwners` + "`" + ` instead.",
+                    "description": "SharingDisabled is deprecated and left for backward compatibility\npurposes.\nDeprecated: use ` + "`" + `ShareableWorkspaceOwners` + "`" + ` instead",
                     "type": "boolean"
                 },
                 "sharing_globally_disabled": {

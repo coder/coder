@@ -6802,7 +6802,8 @@ export interface UpdateWorkspaceRequest {
 export interface UpdateWorkspaceSharingSettingsRequest {
 	/**
 	 * SharingDisabled is deprecated and left for backward compatibility
-	 * purposes, use `ShareableWorkspaceOwners` instead.
+	 * purposes.
+	 * Deprecated: use `ShareableWorkspaceOwners` instead
 	 */
 	readonly sharing_disabled: boolean;
 	/**
@@ -7945,7 +7946,8 @@ export interface WorkspaceSharingSettings {
 	readonly sharing_globally_disabled: boolean;
 	/**
 	 * SharingDisabled is deprecated and left for backward compatibility
-	 * purposes, use `ShareableWorkspaceOwners` instead.
+	 * purposes.
+	 * Deprecated: use `ShareableWorkspaceOwners` instead
 	 */
 	readonly sharing_disabled: boolean;
 	/**

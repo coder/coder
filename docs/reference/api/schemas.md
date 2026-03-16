@@ -9850,10 +9850,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                         | Type                                                                   | Required | Restrictions | Description                                                                                                          |
-|------------------------------|------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------|
-| `shareable_workspace_owners` | [codersdk.ShareableWorkspaceOwners](#codersdkshareableworkspaceowners) | false    |              | Shareable workspace owners controls whose workspaces can be shared within the organization.                          |
-| `sharing_disabled`           | boolean                                                                | false    |              | Sharing disabled is deprecated and left for backward compatibility purposes, use `ShareableWorkspaceOwners` instead. |
+| Name                         | Type                                                                   | Required | Restrictions | Description                                                                                                                     |
+|------------------------------|------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------|
+| `shareable_workspace_owners` | [codersdk.ShareableWorkspaceOwners](#codersdkshareableworkspaceowners) | false    |              | Shareable workspace owners controls whose workspaces can be shared within the organization.                                     |
+| `sharing_disabled`           | boolean                                                                | false    |              | Sharing disabled is deprecated and left for backward compatibility purposes. Deprecated: use `ShareableWorkspaceOwners` instead |
 
 #### Enumerated Values
 
@@ -12338,11 +12338,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                         | Type                                                                   | Required | Restrictions | Description                                                                                                                |
-|------------------------------|------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
-| `shareable_workspace_owners` | [codersdk.ShareableWorkspaceOwners](#codersdkshareableworkspaceowners) | false    |              | Shareable workspace owners controls whose workspaces can be shared within the organization.                                |
-| `sharing_disabled`           | boolean                                                                | false    |              | Sharing disabled is deprecated and left for backward compatibility purposes, use `ShareableWorkspaceOwners` instead.       |
-| `sharing_globally_disabled`  | boolean                                                                | false    |              | Sharing globally disabled is true if sharing has been disabled for this organization because of a deployment-wide setting. |
+| Name                         | Type                                                                   | Required | Restrictions | Description                                                                                                                     |
+|------------------------------|------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------|
+| `shareable_workspace_owners` | [codersdk.ShareableWorkspaceOwners](#codersdkshareableworkspaceowners) | false    |              | Shareable workspace owners controls whose workspaces can be shared within the organization.                                     |
+| `sharing_disabled`           | boolean                                                                | false    |              | Sharing disabled is deprecated and left for backward compatibility purposes. Deprecated: use `ShareableWorkspaceOwners` instead |
+| `sharing_globally_disabled`  | boolean                                                                | false    |              | Sharing globally disabled is true if sharing has been disabled for this organization because of a deployment-wide setting.      |
 
 #### Enumerated Values
 
