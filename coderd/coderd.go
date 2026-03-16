@@ -1182,9 +1182,9 @@ func New(options *Options) *API {
 				r.Get("/", api.getChatUsageLimitConfig)
 				r.Put("/", api.updateChatUsageLimitConfig)
 				r.Get("/status", api.getMyChatUsageLimitStatus)
-				r.Route("/overrides/{user}", func(r chi.Router) {
-					r.Put("/", api.upsertChatUsageLimitOverride)
-					r.Delete("/", api.deleteChatUsageLimitOverride)
+				r.Route("/user-overrides/{user}", func(r chi.Router) {
+					r.Put("/", api.updateChatUserUsageLimitOverride)
+					r.Delete("/", api.deleteChatUserUsageLimitOverride)
 				})
 				r.Route("/group-overrides/{group}", func(r chi.Router) {
 					r.Put("/", api.upsertChatUsageLimitGroupOverride)
