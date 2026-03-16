@@ -118,8 +118,6 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 		"none",
 	].filter(Boolean) as Array<keyof typeof loginTypeOptions>;
 
-	console.log(availableLoginTypes);
-
 	const defaultLoginType = availableLoginTypes[0];
 
 	const form = useFormik<CreateUserFormData>({
@@ -130,7 +128,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 			name: "",
 			organization: showOrganizations
 				? ""
-	x			: "00000000-0000-0000-0000-000000000000",
+				: "00000000-0000-0000-0000-000000000000",
 			login_type: defaultLoginType,
 			service_account: defaultLoginType === "none",
 		},
@@ -150,7 +148,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 	return (
 		<FullPageForm title="Create user">
 			{isApiError(error) && !hasApiFieldErrors(error) && (
-				<ErrorAlert error={error} css={{ marginBottom: 32 }} />
+				<ErrorAlert error={error} className="mb-8" />
 			)}
 			<form onSubmit={form.handleSubmit} autoComplete="off">
 				<div className="flex flex-col gap-6">
@@ -208,10 +206,10 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 						<Select
 							value={form.values.login_type}
 							onValueChange={async (value) => {
-								const isNone = value === "none";
+								const isServiceAccount = value === "none";
 								await Promise.all([
 									form.setFieldValue("login_type", value),
-									form.setFieldValue("service_account", isNone),
+									form.setFieldValue("service_account", isServiceAccount),
 									value !== "password"
 										? form.setFieldValue("password", "")
 										: Promise.resolve(),
