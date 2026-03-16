@@ -943,3 +943,23 @@ export const ValidatesModelConfigFields: Story = {
 		expect(API.createChatModelConfig).not.toHaveBeenCalled();
 	},
 };
+
+export const ProvidersLoadingSkeleton: Story = {
+	args: { section: "providers" as ChatModelAdminSection },
+	beforeEach: () => {
+		// Return promises that never resolve to keep the component in loading state.
+		spyOn(API, "getChatProviderConfigs").mockReturnValue(new Promise(() => {}));
+		spyOn(API, "getChatModelConfigs").mockReturnValue(new Promise(() => {}));
+		spyOn(API, "getChatModels").mockReturnValue(new Promise(() => {}));
+	},
+};
+
+export const ModelsLoadingSkeleton: Story = {
+	args: { section: "models" as ChatModelAdminSection },
+	beforeEach: () => {
+		// Return promises that never resolve to keep the component in loading state.
+		spyOn(API, "getChatProviderConfigs").mockReturnValue(new Promise(() => {}));
+		spyOn(API, "getChatModelConfigs").mockReturnValue(new Promise(() => {}));
+		spyOn(API, "getChatModels").mockReturnValue(new Promise(() => {}));
+	},
+};

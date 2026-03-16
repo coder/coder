@@ -12,7 +12,7 @@ import {
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Spinner } from "components/Spinner/Spinner";
+import { Skeleton } from "components/Skeleton/Skeleton";
 import { type FC, type ReactNode, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { cn } from "utils/cn";
@@ -197,6 +197,74 @@ const useProviderStates = (
 		});
 	}, [modelConfigs, catalogData, providerConfigsData]);
 
+// ── Skeleton placeholders ──────────────────────────────────────
+
+const ProvidersSectionSkeleton: FC = () => (
+	<>
+		{/* Section header skeleton */}
+		<div className="flex items-start justify-between gap-4">
+			<div>
+				<Skeleton className="h-5 w-24" />
+				<Skeleton className="mt-2 h-4 w-72" />
+			</div>
+		</div>
+		<hr className="my-4 border-0 border-t border-solid border-border" />
+		{/* Provider row skeletons */}
+		<div>
+			{Array.from({ length: 4 }, (_, i) => (
+				<div
+					key={i}
+					className={cn(
+						"flex w-full items-center gap-3.5 px-3 py-3",
+						i > 0 && "border-0 border-t border-solid border-border/50",
+					)}
+				>
+					<Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
+					<Skeleton
+						className="h-4 flex-1"
+						style={{ maxWidth: `${120 + i * 30}px` }}
+					/>
+					<Skeleton className="h-4 w-4 shrink-0 rounded-full" />
+					<Skeleton className="h-5 w-5 shrink-0 rounded" />
+				</div>
+			))}
+		</div>
+	</>
+);
+
+const ModelsSectionSkeleton: FC = () => (
+	<>
+		{/* Section header skeleton */}
+		<div className="flex items-start justify-between gap-4">
+			<div>
+				<Skeleton className="h-5 w-20" />
+				<Skeleton className="mt-2 h-4 w-80" />
+			</div>
+		</div>
+		<hr className="my-4 border-0 border-t border-solid border-border" />
+		{/* Model row skeletons */}
+		<div>
+			{Array.from({ length: 3 }, (_, i) => (
+				<div
+					key={i}
+					className={cn(
+						"flex items-center gap-3.5 px-3 py-3",
+						i > 0 && "border-0 border-t border-solid border-border/50",
+					)}
+				>
+					<Skeleton className="h-7 w-7 shrink-0 rounded-md" />
+					<Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
+					<Skeleton
+						className="h-4 flex-1"
+						style={{ maxWidth: `${100 + i * 40}px` }}
+					/>
+					<Skeleton className="h-5 w-5 shrink-0 rounded" />
+				</div>
+			))}
+		</div>
+	</>
+);
+
 // ── Component ──────────────────────────────────────────────────
 
 interface ChatModelAdminPanelProps {
@@ -301,95 +369,94 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	const modelMutationError =
 		createModelMut.error ?? updateModelMut.error ?? deleteModelMut.error;
 
-	return (
-		<div className={cn("flex min-h-full flex-col space-y-3", className)}>
-			{isLoading && (
-				<div className="flex items-center gap-1.5 text-xs text-content-secondary">
-					<Spinner className="h-4 w-4" loading />
-					Loading
+		return (
+			<div className={cn("flex min-h-full flex-col space-y-3", className)}>
+				{/* Content */}
+				<div className="flex flex-1 flex-col">
+					{isLoading ? (
+						section === "providers" ? (
+							<ProvidersSectionSkeleton />
+						) : (
+							<ModelsSectionSkeleton />
+						)
+					) : section === "providers" ? (
+						<ProvidersSection
+							sectionLabel={sectionLabel}
+							sectionDescription={sectionDescription}
+							sectionBadge={sectionBadge}
+							providerStates={providerStates}
+							providerConfigsUnavailable={providerConfigsUnavailable}
+							isProviderMutationPending={isProviderMutationPending}
+							onCreateProvider={(req) => createProviderMut.mutateAsync(req)}
+							onUpdateProvider={(providerConfigId, req) =>
+								updateProviderMut.mutateAsync({
+									providerConfigId,
+									req,
+								})
+							}
+							onDeleteProvider={(id) => deleteProviderMut.mutateAsync(id)}
+							onSelectedProviderChange={setRequestedProvider}
+						/>
+					) : (
+						<ModelsSection
+							sectionLabel={sectionLabel}
+							sectionDescription={sectionDescription}
+							sectionBadge={sectionBadge}
+							providerStates={providerStates}
+							selectedProvider={selectedProvider}
+							selectedProviderState={selectedProviderState}
+							onSelectedProviderChange={setRequestedProvider}
+							modelConfigs={modelConfigs}
+							modelConfigsUnavailable={modelConfigsUnavailable}
+							isCreating={createModelMut.isPending}
+							isUpdating={updateModelMut.isPending}
+							isDeleting={deleteModelMut.isPending}
+							onCreateModel={(req) => createModelMut.mutateAsync(req)}
+							onUpdateModel={(modelConfigId, req) =>
+								updateModelMut.mutateAsync({
+									modelConfigId,
+									req,
+								})
+							}
+							onDeleteModel={(id) => deleteModelMut.mutateAsync(id)}
+						/>
+					)}
+					</div>
+
+					{/* Errors — rendered at the bottom */}
+					{providerConfigsQuery.isError && (
+						<ErrorAlert error={providerConfigsQuery.error} />
+					)}
+					{modelConfigsQuery.isError && (
+						<ErrorAlert error={modelConfigsQuery.error} />
+					)}
+					{modelCatalogQuery.isError && (
+						<ErrorAlert error={modelCatalogQuery.error} />
+					)}
+					{providerMutationError && <ErrorAlert error={providerMutationError} />}
+					{modelMutationError && <ErrorAlert error={modelMutationError} />}
+
+					{providerConfigsUnavailable && (
+						<Alert severity="info">
+							<AlertTitle>
+								Chat provider admin API is unavailable on this deployment.
+							</AlertTitle>
+							<AlertDescription>
+								/api/v2/chats/providers is missing.
+							</AlertDescription>
+						</Alert>
+					)}
+
+					{modelConfigsUnavailable && (
+						<Alert severity="info">
+							<AlertTitle>
+								Chat model admin API is unavailable on this deployment.
+							</AlertTitle>
+							<AlertDescription>
+								/api/v2/chats/model-configs is missing.
+							</AlertDescription>
+						</Alert>
+					)}
 				</div>
-			)}
-
-			{/* Content */}
-			<div className="flex flex-1 flex-col">
-				{section === "providers" ? (
-					<ProvidersSection
-						sectionLabel={sectionLabel}
-						sectionDescription={sectionDescription}
-						sectionBadge={sectionBadge}
-						providerStates={providerStates}
-						providerConfigsUnavailable={providerConfigsUnavailable}
-						isProviderMutationPending={isProviderMutationPending}
-						onCreateProvider={(req) => createProviderMut.mutateAsync(req)}
-						onUpdateProvider={(providerConfigId, req) =>
-							updateProviderMut.mutateAsync({
-								providerConfigId,
-								req,
-							})
-						}
-						onDeleteProvider={(id) => deleteProviderMut.mutateAsync(id)}
-						onSelectedProviderChange={setRequestedProvider}
-					/>
-				) : (
-					<ModelsSection
-						sectionLabel={sectionLabel}
-						sectionDescription={sectionDescription}
-						sectionBadge={sectionBadge}
-						providerStates={providerStates}
-						selectedProvider={selectedProvider}
-						selectedProviderState={selectedProviderState}
-						onSelectedProviderChange={setRequestedProvider}
-						modelConfigs={modelConfigs}
-						modelConfigsUnavailable={modelConfigsUnavailable}
-						isCreating={createModelMut.isPending}
-						isUpdating={updateModelMut.isPending}
-						isDeleting={deleteModelMut.isPending}
-						onCreateModel={(req) => createModelMut.mutateAsync(req)}
-						onUpdateModel={(modelConfigId, req) =>
-							updateModelMut.mutateAsync({
-								modelConfigId,
-								req,
-							})
-						}
-						onDeleteModel={(id) => deleteModelMut.mutateAsync(id)}
-					/>
-				)}
-			</div>
-
-			{/* Errors — rendered at the bottom */}
-			{providerConfigsQuery.isError && (
-				<ErrorAlert error={providerConfigsQuery.error} />
-			)}
-			{modelConfigsQuery.isError && (
-				<ErrorAlert error={modelConfigsQuery.error} />
-			)}
-			{modelCatalogQuery.isError && (
-				<ErrorAlert error={modelCatalogQuery.error} />
-			)}
-			{providerMutationError && <ErrorAlert error={providerMutationError} />}
-			{modelMutationError && <ErrorAlert error={modelMutationError} />}
-
-			{providerConfigsUnavailable && (
-				<Alert severity="info">
-					<AlertTitle>
-						Chat provider admin API is unavailable on this deployment.
-					</AlertTitle>
-					<AlertDescription>
-						/api/v2/chats/providers is missing.
-					</AlertDescription>
-				</Alert>
-			)}
-
-			{modelConfigsUnavailable && (
-				<Alert severity="info">
-					<AlertTitle>
-						Chat model admin API is unavailable on this deployment.
-					</AlertTitle>
-					<AlertDescription>
-						/api/v2/chats/model-configs is missing.
-					</AlertDescription>
-				</Alert>
-			)}
-		</div>
-	);
-};
+		);
+	};
