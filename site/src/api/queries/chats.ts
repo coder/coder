@@ -20,7 +20,7 @@ export const updateInfiniteChatsCache = (
 	queryClient.setQueriesData<{
 		pages: TypesGen.Chat[][];
 		pageParams: unknown[];
-	}>({ queryKey: chatsKey }, (prev) => {
+	}>({ queryKey: chatsKey, predicate: isChatListQuery }, (prev) => {
 		if (!prev) return prev;
 		if (!prev.pages) return prev;
 		const nextPages = prev.pages.map((page) => updater(page));
@@ -44,7 +44,7 @@ export const prependToInfiniteChatsCache = (
 	queryClient.setQueriesData<{
 		pages: TypesGen.Chat[][];
 		pageParams: unknown[];
-	}>({ queryKey: chatsKey }, (prev) => {
+	}>({ queryKey: chatsKey, predicate: isChatListQuery }, (prev) => {
 		if (!prev?.pages) return prev;
 		// Check across ALL pages to avoid duplicates.
 		const exists = prev.pages.some((page) =>
@@ -69,7 +69,7 @@ export const readInfiniteChatsCache = (
 	const queries = queryClient.getQueriesData<{
 		pages: TypesGen.Chat[][];
 		pageParams: unknown[];
-	}>({ queryKey: chatsKey });
+	}>({ queryKey: chatsKey, predicate: isChatListQuery });
 	for (const [, data] of queries) {
 		if (data?.pages) {
 			return data.pages.flat();
@@ -80,24 +80,27 @@ export const readInfiniteChatsCache = (
 
 /**
  * Invalidate only the sidebar chat-list queries (flat + infinite)
- * without cascading to per-chat queries (detail, messages, diffs, cost).
+/**
+ * Predicate that matches only chat-list queries (the sidebar), not
+ * per-chat queries (detail, messages, diffs, cost).
  *
  * Sidebar keys look like ["chats"] or ["chats", <object|undefined>].
- * Per-chat keys look like ["chats", <string-id>, ...]. The predicate
- * distinguishes them by allowlisting known sidebar key shapes.
+ * Per-chat keys look like ["chats", <string-id>, ...].
  */
+const isChatListQuery = (query: { queryKey: readonly unknown[] }): boolean => {
+	const key = query.queryKey;
+	// Match: ["chats"] (flat list).
+	if (key.length <= 1) return true;
+	// Match: ["chats", <object | undefined>] (infinite query
+	// with optional filter opts like {archived, q}).
+	const segment = key[1];
+	return segment === undefined || typeof segment === "object";
+};
+
 export const invalidateChatListQueries = (queryClient: QueryClient) => {
 	return queryClient.invalidateQueries({
 		queryKey: chatsKey,
-		predicate: (query) => {
-			const key = query.queryKey;
-			// Match: ["chats"] (flat list).
-			if (key.length <= 1) return true;
-			// Match: ["chats", <object | undefined>] (infinite query
-			// with optional filter opts like {archived, q}).
-			const segment = key[1];
-			return segment === undefined || typeof segment === "object";
-		},
+		predicate: isChatListQuery,
 	});
 };
 
