@@ -1212,9 +1212,9 @@
 							"state": ["early access"]
 						},
 						{
-							"title": "Chat API",
-							"description": "Programmatic access to Coder Agents via the experimental Chat API",
-							"path": "./ai-coder/agents/chat-api.md",
+							"title": "Chats API",
+							"description": "Programmatic access to Coder Agents via the experimental Chats API",
+							"path": "./ai-coder/agents/chats-api.md",
 							"state": ["early access"]
 						},
 						{

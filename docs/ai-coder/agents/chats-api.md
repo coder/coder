@@ -1,10 +1,10 @@
-# Chat API
+# Chats API
 
 > [!NOTE]
-> The Chat API is experimental and gated behind the `agents` experiment flag.
+> The Chats API is experimental and gated behind the `agents` experiment flag.
 > Endpoints live under `/api/experimental/chats` and may change without notice.
 
-The Chat API lets you create and interact with Coder Agents
+The Chats API lets you create and interact with Coder Agents
 programmatically. You can start a chat, send follow-up messages, and stream
 the agent's response — all without using the Coder dashboard.
 
