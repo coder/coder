@@ -776,18 +776,18 @@ func New(options *Options) *API {
 	}
 
 	api.chatDaemon = chatd.New(chatd.Config{
-		Logger:             options.Logger.Named("chats"),
-		Database:           options.Database,
-		ReplicaID:          api.ID,
-		SubscribeFn:        options.ChatSubscribeFn,
-		MaxChatsPerAcquire: int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-		ProviderAPIKeys:    chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
-		AgentConn:          api.agentProvider.AgentConn,
-		CreateWorkspace:    api.chatCreateWorkspace,
-		StartWorkspace:     api.chatStartWorkspace,
-		Pubsub:             options.Pubsub,
-		WebpushDispatcher:  options.WebPushDispatcher,
-	})
+			Logger:             options.Logger.Named("chats"),
+			Database:           options.Database,
+			ReplicaID:          api.ID,
+			SubscribeFn:        options.ChatSubscribeFn,
+			MaxChatsPerAcquire: int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
+			ProviderAPIKeys:    chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
+			AgentConn:          api.agentProvider.AgentConn,
+			CreateWorkspace:    api.chatCreateWorkspace,
+			StartWorkspace:     api.chatStartWorkspace,
+			Pubsub:             options.Pubsub,
+			WebpushDispatcher:  options.WebPushDispatcher,
+			UsageTracker:       options.WorkspaceUsageTracker,	})
 	gitSyncLogger := options.Logger.Named("gitsync")
 	refresher := gitsync.NewRefresher(
 		api.resolveGitProvider,

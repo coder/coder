@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/webpush"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
@@ -95,6 +96,8 @@ type Server struct {
 	// workspace agent ID so we don't re-dial on every chat turn.
 	instructionCacheMu sync.RWMutex
 	instructionCache   map[uuid.UUID]cachedInstruction
+
+	usageTracker *workspacestats.UsageTracker
 
 	// Configuration
 	pendingChatAcquireInterval time.Duration
@@ -1224,6 +1227,7 @@ type Config struct {
 	Pubsub                     pubsub.Pubsub
 	ProviderAPIKeys            chatprovider.ProviderAPIKeys
 	WebpushDispatcher          webpush.Dispatcher
+	UsageTracker               *workspacestats.UsageTracker
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -1269,6 +1273,7 @@ func New(cfg Config) *Server {
 		pendingChatAcquireInterval: pendingChatAcquireInterval,
 		maxChatsPerAcquire:         maxChatsPerAcquire,
 		inFlightChatStaleAfter:     inFlightChatStaleAfter,
+		usageTracker:               cfg.UsageTracker,
 	}
 
 	//nolint:gocritic // The chat processor uses a scoped chatd context.
@@ -2200,6 +2205,9 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				if rows == 0 {
 					cancel(chatloop.ErrInterrupted)
 					return
+				}
+				if p.usageTracker != nil && chat.WorkspaceID.Valid {
+					p.usageTracker.Add(chat.WorkspaceID.UUID)
 				}
 			}
 		}
