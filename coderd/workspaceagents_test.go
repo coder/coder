@@ -3294,7 +3294,7 @@ func TestReinit(t *testing.T) {
 
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
+			OwnerID:        database.PrebuildsSystemUserID,
 		}).WithAgent().Do()
 
 		pubsubSpy.Lock()
@@ -3328,29 +3328,39 @@ func TestReinit(t *testing.T) {
 		require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
 	})
 
-	// Verifies the durable claim check: when an agent reconnects after
-	// missing the pubsub event, the handler detects the workspace is
-	// already claimed (owner != PrebuildsSystemUserID) and the latest
-	// build succeeded, so it sends a reinit event immediately.
+	// Verifies the durable claim check: when a pre-claim agent
+	// reconnects after missing the pubsub event, the handler detects
+	// the workspace has been claimed (owner != PrebuildsSystemUserID)
+	// and the claim build succeeded, so it sends a reinit event
+	// immediately.
 	t.Run("agent receives reinit on reconnect after missed event", func(t *testing.T) {
 		t.Parallel()
 
-		db, ps := dbtestutil.NewDB(t)
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 		client := coderdtest.New(t, &coderdtest.Options{
 			Database: db,
 			Pubsub:   ps,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
-		// Create a workspace owned by the real user (not
-		// PrebuildsSystemUserID). The handler's durable check sees
-		// !workspace.IsPrebuild() and the completed build, so it
-		// fires a reinit event without any pubsub message.
+		// Build 1: unclaimed prebuild with agent.
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
+			OwnerID:        database.PrebuildsSystemUserID,
 		}).WithAgent().Do()
 
+		// Simulate claim: transfer ownership to the real user.
+		_, err := sqlDB.Exec("UPDATE workspaces SET owner_id = $1 WHERE id = $2",
+			user.UserID, r.Workspace.ID)
+		require.NoError(t, err)
+
+		// Build 2: completed claim build.
+		_ = dbfake.WorkspaceBuild(t, db, r.Workspace).
+			Seed(database.WorkspaceBuild{BuildNumber: 2}).Do()
+
+		// The pre-claim agent connects. The handler sees
+		// !IsPrebuild() + agent on older build + completed claim
+		// build → one-shot reinit.
 		agentCtx := testutil.Context(t, testutil.WaitShort)
 		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 
@@ -3361,8 +3371,6 @@ func TestReinit(t *testing.T) {
 			agentReinitializedCh <- reinitEvent
 		}()
 
-		// The agent should receive a reinit event immediately from
-		// the durable claim check — no pubsub publish needed.
 		ctx := testutil.Context(t, testutil.WaitShort)
 		reinitEvent := testutil.TryReceive(ctx, t, agentReinitializedCh)
 		require.NotNil(t, reinitEvent)
@@ -3372,7 +3380,7 @@ func TestReinit(t *testing.T) {
 	})
 
 	// Verifies that the durable claim check does NOT fire when the
-	// latest build's provisioner job is still running. This prevents
+	// claim build's provisioner job is still running. This prevents
 	// premature reinit during an in-progress claim build.
 	t.Run("agent does not receive premature reinit during in-progress claim build", func(t *testing.T) {
 		t.Parallel()
@@ -3384,22 +3392,24 @@ func TestReinit(t *testing.T) {
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
-		// Create a workspace owned by a real user with a completed
-		// build and agent. This satisfies the first condition of the
-		// durable check (!workspace.IsPrebuild()) but we'll then
-		// simulate an in-progress job.
+		// Build 1: unclaimed prebuild with agent.
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
+			OwnerID:        database.PrebuildsSystemUserID,
 		}).WithAgent().Do()
 
-		// Simulate an in-progress claim build by clearing the job's
-		// completed_at timestamp. The agent can still authenticate
-		// (it belongs to the latest build), but the durable check
-		// sees !job.CompletedAt.Valid and skips the reinit.
-		_, err := sqlDB.Exec("UPDATE provisioner_jobs SET completed_at = NULL WHERE id = $1", r.Build.JobID)
+		// Simulate claim: transfer ownership to the real user.
+		_, err := sqlDB.Exec("UPDATE workspaces SET owner_id = $1 WHERE id = $2",
+			user.UserID, r.Workspace.ID)
 		require.NoError(t, err)
 
+		// Build 2: in-progress claim build (job is still running).
+		_ = dbfake.WorkspaceBuild(t, db, r.Workspace).
+			Seed(database.WorkspaceBuild{BuildNumber: 2}).Starting().Do()
+
+		// The pre-claim agent connects. The handler sees
+		// !IsPrebuild() + agent on older build + in-progress claim
+		// build → falls through to pubsub wait (no immediate reinit).
 		agentCtx, agentCancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer agentCancel()
 		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
@@ -3413,13 +3423,86 @@ func TestReinit(t *testing.T) {
 		}()
 
 		// The agent should NOT receive a reinit event because the
-		// latest build's job is still in progress.
+		// claim build's job is still in progress.
 		select {
 		case ev := <-agentReinitializedCh:
 			t.Fatalf("expected no reinit event, but got one: %+v", ev)
 		case <-time.After(200 * time.Millisecond):
 			// Expected: no reinit event within the timeout.
 		}
+	})
+
+	// Verifies that an agent on the latest build of a non-prebuild
+	// workspace receives a 409 Conflict. This covers the case where
+	// a post-claim agent (or a regular workspace agent) calls
+	// WaitForReinit — reinit is not applicable.
+	t.Run("post-claim agent gets 409", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Regular workspace (not a prebuild) with a single build.
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+
+		_, err := agentClient.WaitForReinit(ctx)
+		require.Error(t, err)
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		assert.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+	})
+
+	// Verifies that a pre-claim agent receives a one-shot reinit
+	// event and that calling WaitForReinit again also succeeds
+	// (the handler re-checks DB state each call).
+	t.Run("pre-claim agent receives one-shot reinit and stream closes", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Build 1: unclaimed prebuild with agent.
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        database.PrebuildsSystemUserID,
+		}).WithAgent().Do()
+
+		// Claim: transfer owner + create completed build 2.
+		_, err := sqlDB.Exec("UPDATE workspaces SET owner_id = $1 WHERE id = $2",
+			user.UserID, r.Workspace.ID)
+		require.NoError(t, err)
+		_ = dbfake.WorkspaceBuild(t, db, r.Workspace).
+			Seed(database.WorkspaceBuild{BuildNumber: 2}).Do()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+
+		// First call: gets one-shot reinit.
+		reinitEvent, err := agentClient.WaitForReinit(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
+		assert.Equal(t, agentsdk.ReinitializeReasonPrebuildClaimed, reinitEvent.Reason)
+		assert.Equal(t, user.UserID, reinitEvent.UserID)
+
+		// Second call: handler re-checks DB state → also gets reinit.
+		reinitEvent2, err := agentClient.WaitForReinit(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, r.Workspace.ID, reinitEvent2.WorkspaceID)
 	})
 }
 
