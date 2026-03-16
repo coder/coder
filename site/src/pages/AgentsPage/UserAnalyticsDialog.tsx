@@ -62,7 +62,7 @@ export const UserAnalyticsDialog: FC<UserAnalyticsDialogProps> = ({
 					<Button
 						variant="subtle"
 						size="icon-lg"
-						className="absolute right-4 top-4 z-10 shrink-0 border-none bg-transparent shadow-none hover:bg-surface-tertiary/50"
+						className="absolute left-4 top-4 z-10 shrink-0 border-none bg-transparent shadow-none hover:bg-surface-tertiary/50"
 					>
 						<XIcon className="text-content-secondary" />
 						<span className="sr-only">Close</span>
