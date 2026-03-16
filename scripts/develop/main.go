@@ -377,7 +377,7 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 		}
 	}
 
-	printBanner(logger, cfg)
+	printBanner(ctx, logger, cfg)
 
 	// Block until a signal fires or a child process exits.
 	<-ctx.Done()
@@ -387,7 +387,7 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	// If a signal triggered shutdown, process exit errors are
 	// expected (SIGINT deaths). Report clean shutdown.
 	if sigCtx.Err() != nil {
-		logger.Info(context.Background(), "signal received, shutting down")
+		logger.Info(ctx, "signal received, shutting down")
 		return nil
 	}
 	return waitErr
@@ -793,7 +793,7 @@ func pnpmCmd(ctx context.Context, cfg *devConfig) *exec.Cmd {
 	return cmd
 }
 
-func printBanner(logger slog.Logger, cfg *devConfig) {
+func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig) {
 	ifaces := []string{"localhost"}
 	if addrs, err := net.InterfaceAddrs(); err == nil {
 		for _, addr := range addrs {
@@ -827,7 +827,7 @@ func printBanner(logger slog.Logger, cfg *devConfig) {
 	line(fmt.Sprintf("  alias cdr=%s/scripts/coder-dev.sh", cfg.projectRoot))
 	line("")
 	_, _ = fmt.Fprintln(&b, bottom)
-	logger.Info(context.Background(), b.String())
+	logger.Info(ctx, b.String())
 }
 
 // logWriter adapts an slog.Logger into an io.Writer. Each complete
