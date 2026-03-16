@@ -153,7 +153,10 @@ const buildQueries = (
 	};
 	return [
 		{ key: chatKey(CHAT_ID), data: chatWithDiffStatus },
-		{ key: chatMessagesKey(CHAT_ID), data: messagesData },
+		{
+			key: chatMessagesKey(CHAT_ID),
+			data: { pages: [messagesData], pageParams: [undefined] },
+		},
 		{ key: chatsKey, data: [chatWithDiffStatus] },
 		{
 			key: chatDiffContentsKey(CHAT_ID),
