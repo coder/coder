@@ -111,6 +111,17 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 	showOrganizations,
 	authMethods,
 }) => {
+	const availableLoginTypes = [
+		authMethods?.password.enabled && "password",
+		authMethods?.oidc.enabled && "oidc",
+		authMethods?.github.enabled && "github",
+		"none",
+	].filter(Boolean) as Array<keyof typeof loginTypeOptions>;
+
+	console.log(availableLoginTypes);
+
+	const defaultLoginType = availableLoginTypes[0];
+
 	const form = useFormik<CreateUserFormData>({
 		initialValues: {
 			email: "",
@@ -119,25 +130,16 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 			name: "",
 			organization: showOrganizations
 				? ""
-				: "00000000-0000-0000-0000-000000000000",
-			login_type: "",
-			service_account: false,
+	x			: "00000000-0000-0000-0000-000000000000",
+			login_type: defaultLoginType,
+			service_account: defaultLoginType === "none",
 		},
 		validationSchema,
 		onSubmit,
+		enableReinitialize: true,
 	});
 
 	const getFieldHelpers = getFormHelpers(form, error);
-
-	const availableLoginTypeKeys = (
-		Object.keys(loginTypeOptions) as LoginTypeKey[]
-	).filter((key) => {
-		if (key === "none") return true;
-		if (key === "password") return authMethods?.password.enabled;
-		if (key === "oidc") return authMethods?.oidc.enabled;
-		if (key === "github") return authMethods?.github.enabled;
-		return false;
-	});
 
 	const isServiceAccount = form.values.login_type === "none";
 	const isPasswordLogin = form.values.login_type === "password";
@@ -182,6 +184,24 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 						autoComplete="name"
 					/>
 
+					{showOrganizations && (
+						<div className="flex flex-col gap-2">
+							<Label htmlFor="organization">Organization</Label>
+							<OrganizationAutocomplete
+								{...getFieldHelpers("organization")}
+								id="organization"
+								required
+								onChange={(newValue) => {
+									void form.setFieldValue("organization", newValue?.id ?? "");
+								}}
+								check={{
+									object: { resource_type: "organization_member" },
+									action: "create",
+								}}
+							/>
+						</div>
+					)}
+
 					{/* Login type — "none" is presented as "Service account" */}
 					<div className="flex flex-col gap-2">
 						<Label htmlFor="login_type">Login type</Label>
@@ -214,7 +234,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 								<SelectValue placeholder="Select a login type…" />
 							</SelectTrigger>
 							<SelectContent>
-								{availableLoginTypeKeys.map((key) => {
+								{availableLoginTypes.map((key) => {
 									const opt = loginTypeOptions[key];
 									return (
 										<SelectPrimitive.Item
@@ -269,24 +289,6 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 							autoComplete="email"
 							type="email"
 						/>
-					)}
-
-					{showOrganizations && (
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="organization">Organization</Label>
-							<OrganizationAutocomplete
-								{...getFieldHelpers("organization")}
-								id="organization"
-								required
-								onChange={(newValue) => {
-									void form.setFieldValue("organization", newValue?.id ?? "");
-								}}
-								check={{
-									object: { resource_type: "organization_member" },
-									action: "create",
-								}}
-							/>
-						</div>
 					)}
 
 					{isPasswordLogin && (
