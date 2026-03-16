@@ -155,7 +155,7 @@ func TestPostChats(t *testing.T) {
 			},
 			WorkspaceID: &workspaceBuild.Workspace.ID,
 		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		sdkErr := requireSDKError(t, err, http.StatusNotFound)
 		require.Equal(
 			t,
 			"Workspace not found or you do not have access to this resource",
@@ -190,7 +190,7 @@ func TestPostChats(t *testing.T) {
 			},
 			WorkspaceID: &workspaceBuild.Workspace.ID,
 		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		sdkErr := requireSDKError(t, err, http.StatusNotFound)
 		require.Equal(
 			t,
 			"Workspace not found or you do not have access to this resource",
@@ -215,7 +215,7 @@ func TestPostChats(t *testing.T) {
 			},
 			WorkspaceID: &workspaceID,
 		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		sdkErr := requireSDKError(t, err, http.StatusNotFound)
 		require.Equal(
 			t,
 			"Workspace not found or you do not have access to this resource",
@@ -3958,6 +3958,81 @@ func TestWatchChatDesktop(t *testing.T) {
 		require.NoError(t, err)
 		defer res.Body.Close()
 		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
+
+	t.Run("WorkspaceNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		createdChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID: firstUser.UserID,
+			WorkspaceID: uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			},
+			LastModelConfigID: modelConfig.ID,
+			Title:             "desktop missing workspace test",
+		})
+		require.NoError(t, err)
+
+		res, err := client.Request(
+			ctx,
+			http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/%s/desktop", createdChat.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		err = codersdk.ReadBodyAsError(res)
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("WorkspaceNotAccessible", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		orgAdminClient, _ := coderdtest.CreateAnotherUser(
+			t,
+			adminClient,
+			firstUser.OrganizationID,
+			rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID),
+		)
+		modelConfig := createChatModelConfig(t, adminClient)
+
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).WithAgent().Do()
+
+		createdChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID: firstUser.UserID,
+			WorkspaceID: uuid.NullUUID{
+				UUID:  workspaceBuild.Workspace.ID,
+				Valid: true,
+			},
+			LastModelConfigID: modelConfig.ID,
+			Title:             "desktop inaccessible workspace test",
+		})
+		require.NoError(t, err)
+
+		res, err := orgAdminClient.Request(
+			ctx,
+			http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/%s/desktop", createdChat.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		err = codersdk.ReadBodyAsError(res)
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 }
 
