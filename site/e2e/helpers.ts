@@ -56,12 +56,18 @@ import {
  * near-zero latency. When the error boundary rendered, the "visible"
  * check wins immediately and we reload once.
  */
-async function safeGoto(
+export async function safeGoto(
 	page: Page,
 	url: string,
 	options?: Parameters<Page["goto"]>[1],
 ) {
 	const response = await page.goto(url, options);
+
+	// Callers that pass waitUntil:"domcontentloaded" return before React
+	// mounts, so the error boundary heading may not exist yet. Waiting for
+	// the load event ensures scripts have executed and React has had a
+	// chance to render the error boundary before we check.
+	await page.waitForLoadState("load");
 
 	const errorHeading = page.getByRole("heading", {
 		name: "Something went wrong",
@@ -79,7 +85,7 @@ async function safeGoto(
 	]);
 
 	if (hitBoundary) {
-		await page.reload({ waitUntil: "domcontentloaded" });
+		return page.reload({ waitUntil: "domcontentloaded" });
 	}
 
 	return response;
@@ -128,14 +134,14 @@ export async function login(page: Page, options: LoginOptions = users.owner) {
 	// login page. In the happy path the redirect wins immediately.
 	const signInOk = await Promise.race([
 		page
-			.waitForURL((url) => url.pathname === "/workspaces", { timeout: 15000 })
+			.waitForURL((url) => url.pathname === "/workspaces", { timeout: 10000 })
 			.then(
 				() => true,
 				() => false,
 			),
 		page
 			.getByRole("alert")
-			.waitFor({ state: "visible", timeout: 15000 })
+			.waitFor({ state: "visible", timeout: 10000 })
 			.then(
 				() => false,
 				() => false,
