@@ -58,17 +58,17 @@ export const UserAnalyticsDialog: FC<UserAnalyticsDialogProps> = ({
 						Review your personal chat usage for the last 30 days.
 					</DialogDescription>
 				</DialogHeader>
-				<DialogClose asChild>
-					<Button
-						variant="subtle"
-						size="icon-lg"
-						className="absolute left-4 top-4 z-10 shrink-0 border-none bg-transparent shadow-none hover:bg-surface-tertiary/50"
-					>
-						<XIcon className="text-content-secondary" />
-						<span className="sr-only">Close</span>
-					</Button>
-				</DialogClose>
 				<div className="flex max-h-[min(88dvh,720px)] min-h-0 flex-col overflow-y-auto px-6 py-5 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+					<DialogClose asChild>
+						<Button
+							variant="subtle"
+							size="icon-lg"
+							className="mb-3 shrink-0 border-none bg-transparent shadow-none hover:bg-surface-tertiary/50"
+						>
+							<XIcon className="text-content-secondary" />
+							<span className="sr-only">Close</span>
+						</Button>
+					</DialogClose>
 					<SectionHeader
 						label="Analytics"
 						description="Review your personal chat usage and cost breakdowns."
