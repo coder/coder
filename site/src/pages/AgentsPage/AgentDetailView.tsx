@@ -7,13 +7,13 @@ import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
-import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetail";
 import {
 	selectChatStatus,
 	useChatSelector,
 	type useChatStore,
 } from "./AgentDetail/ChatContext";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
+import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetailContent";
 import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
