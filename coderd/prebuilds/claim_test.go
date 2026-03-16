@@ -33,9 +33,11 @@ func TestPubsubWorkspaceClaimPublisher(t *testing.T) {
 		require.NoError(t, err)
 		defer cancel()
 
+		userID := uuid.New()
 		claim := agentsdk.ReinitializationEvent{
 			WorkspaceID: workspaceID,
 			Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+			UserID:      userID,
 		}
 		err = publisher.PublishWorkspaceClaim(claim)
 		require.NoError(t, err)
@@ -43,6 +45,7 @@ func TestPubsubWorkspaceClaimPublisher(t *testing.T) {
 		gotEvent := testutil.RequireReceive(ctx, t, reinitEvents)
 		require.Equal(t, workspaceID, gotEvent.WorkspaceID)
 		require.Equal(t, claim.Reason, gotEvent.Reason)
+		require.Equal(t, userID, gotEvent.UserID)
 	})
 
 	t.Run("fail to publish claim", func(t *testing.T) {
@@ -87,6 +90,7 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 		claim := testutil.RequireReceive(ctx, t, claims)
 		require.Equal(t, workspaceID, claim.WorkspaceID)
 		require.Equal(t, reason, claim.Reason)
+		require.Equal(t, uuid.Nil, claim.UserID)
 	})
 
 	t.Run("ignores claim events for other workspaces", func(t *testing.T) {
