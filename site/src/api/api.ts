@@ -2960,10 +2960,18 @@ class ApiMethods {
 	};
 	getChatMessages = async (
 		chatId: string,
+		opts?: { before_id?: number; limit?: number },
 	): Promise<TypesGen.ChatMessagesResponse> => {
-		const response = await this.axios.get<TypesGen.ChatMessagesResponse>(
-			`/api/experimental/chats/${chatId}/messages`,
-		);
+		const params = new URLSearchParams();
+		if (opts?.before_id) {
+			params.set("before_id", opts.before_id.toString());
+		}
+		if (opts?.limit) {
+			params.set("limit", opts.limit.toString());
+		}
+		const query = params.toString();
+		const url = `/api/experimental/chats/${chatId}/messages${query ? `?${query}` : ""}`;
+		const response = await this.axios.get<TypesGen.ChatMessagesResponse>(url);
 		return response.data;
 	};
 
@@ -3039,15 +3047,6 @@ class ApiMethods {
 	): Promise<ChatGitChangeResponse[]> => {
 		const response = await this.axios.get<ChatGitChangeResponse[]>(
 			`/api/experimental/chats/${chatId}/git-changes`,
-		);
-		return response.data;
-	};
-
-	getChatDiffStatus = async (
-		chatId: string,
-	): Promise<TypesGen.ChatDiffStatus> => {
-		const response = await this.axios.get<TypesGen.ChatDiffStatus>(
-			`/api/experimental/chats/${chatId}/diff-status`,
 		);
 		return response.data;
 	};

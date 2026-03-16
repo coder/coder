@@ -10,6 +10,11 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
     'no_user_data'
 );
 
+CREATE TYPE ai_seat_usage_reason AS ENUM (
+    'aibridge',
+    'task'
+);
+
 CREATE TYPE api_key_scope AS ENUM (
     'coder:all',
     'coder:application_connect',
@@ -1064,6 +1069,15 @@ BEGIN
 	END IF;
 END;
 $$;
+
+CREATE TABLE ai_seat_state (
+    user_id uuid NOT NULL,
+    first_used_at timestamp with time zone NOT NULL,
+    last_used_at timestamp with time zone NOT NULL,
+    last_event_type ai_seat_usage_reason NOT NULL,
+    last_event_description text NOT NULL,
+    updated_at timestamp with time zone NOT NULL
+);
 
 CREATE TABLE aibridge_interceptions (
     id uuid NOT NULL,
@@ -3177,6 +3191,9 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY ai_seat_state
+    ADD CONSTRAINT ai_seat_state_pkey PRIMARY KEY (user_id);
+
 ALTER TABLE ONLY aibridge_interceptions
     ADD CONSTRAINT aibridge_interceptions_pkey PRIMARY KEY (id);
 
@@ -3836,6 +3853,9 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY ai_seat_state
+    ADD CONSTRAINT ai_seat_state_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY aibridge_interceptions
     ADD CONSTRAINT aibridge_interceptions_initiator_id_fkey FOREIGN KEY (initiator_id) REFERENCES users(id);

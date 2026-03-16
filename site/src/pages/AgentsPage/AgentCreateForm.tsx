@@ -393,6 +393,17 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						</Combobox>
 					}
 				/>
+				<p className="mt-1 text-center text-xs text-content-secondary/50">
+					Coder Agents is available via{" "}
+					<a
+						href="https://coder.com/docs/ai-coder/agents/early-access"
+						target="_blank"
+						rel="noreferrer"
+						className="text-content-secondary/50 underline hover:text-content-secondary"
+					>
+						Early Access
+					</a>
+				</p>
 			</div>
 		</div>
 	);

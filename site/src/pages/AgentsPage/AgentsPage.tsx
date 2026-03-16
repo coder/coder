@@ -3,7 +3,6 @@ import { getErrorMessage } from "api/errors";
 import {
 	archiveChat,
 	chatDiffContentsKey,
-	chatDiffStatusKey,
 	chatKey,
 	chatModelConfigs,
 	chatModels,
@@ -389,15 +388,13 @@ const AgentsPage: FC = () => {
 					if (chatEvent.kind === "diff_status_change") {
 						void Promise.all([
 							queryClient.invalidateQueries({
-								queryKey: chatDiffStatusKey(updatedChat.id),
+								queryKey: chatKey(updatedChat.id),
 							}),
 							queryClient.invalidateQueries({
 								queryKey: chatDiffContentsKey(updatedChat.id),
 							}),
 						]);
-						return;
 					}
-
 					// Scope field updates by event kind so that
 					// status_change events (which may carry a stale title
 					// snapshot from before async title generation
@@ -405,6 +402,7 @@ const AgentsPage: FC = () => {
 					// landed.
 					const isTitleEvent = chatEvent.kind === "title_change";
 					const isStatusEvent = chatEvent.kind === "status_change";
+					const isDiffStatusEvent = chatEvent.kind === "diff_status_change";
 
 					// For "created" events, use a cross-page existence
 					// check and prepend only to the first page.
@@ -421,6 +419,9 @@ const AgentsPage: FC = () => {
 									...c,
 									...(isStatusEvent && { status: updatedChat.status }),
 									...(isTitleEvent && { title: updatedChat.title }),
+									...(isDiffStatusEvent && {
+										diff_status: updatedChat.diff_status,
+									}),
 									updated_at:
 										c.updated_at > updatedChat.updated_at
 											? c.updated_at
@@ -439,6 +440,9 @@ const AgentsPage: FC = () => {
 								...previousChat,
 								...(isStatusEvent && { status: updatedChat.status }),
 								...(isTitleEvent && { title: updatedChat.title }),
+								...(isDiffStatusEvent && {
+									diff_status: updatedChat.diff_status,
+								}),
 								updated_at:
 									previousChat.updated_at > updatedChat.updated_at
 										? previousChat.updated_at

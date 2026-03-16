@@ -1105,7 +1105,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, workspaceName, workspace.Name)
 
-	chatMsgs, err := client.GetChatMessages(ctx, chat.ID)
+	chatMsgs, err := client.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
 
 	var foundCreateWorkspaceResult bool
@@ -1276,7 +1276,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, codersdk.WorkspaceTransitionStart, updatedWorkspace.LatestBuild.Transition)
 
-	chatMsgs, err := client.GetChatMessages(ctx, chat.ID)
+	chatMsgs, err := client.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
 
 	// Verify start_workspace tool result exists in the chat messages.

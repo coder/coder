@@ -28,6 +28,7 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aiseats"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -76,6 +77,7 @@ const (
 type Options struct {
 	OIDCConfig          promoauth.OAuth2Config
 	ExternalAuthConfigs []*externalauth.Config
+	AISeatTracker       aiseats.SeatTracker
 
 	// Clock for testing
 	Clock quartz.Clock
@@ -120,6 +122,7 @@ type server struct {
 	NotificationsEnqueuer       notifications.Enqueuer
 	PrebuildsOrchestrator       *atomic.Pointer[prebuilds.ReconciliationOrchestrator]
 	UsageInserter               *atomic.Pointer[usage.Inserter]
+	AISeatTracker               aiseats.SeatTracker
 	Experiments                 codersdk.Experiments
 
 	OIDCConfig promoauth.OAuth2Config
@@ -215,6 +218,9 @@ func NewServer(
 	if err := tags.Valid(); err != nil {
 		return nil, xerrors.Errorf("invalid tags: %w", err)
 	}
+	if options.AISeatTracker == nil {
+		options.AISeatTracker = aiseats.Noop{}
+	}
 	if options.AcquireJobLongPollDur == 0 {
 		options.AcquireJobLongPollDur = DefaultAcquireJobLongPollDur
 	}
@@ -253,6 +259,7 @@ func NewServer(
 		heartbeatFn:                 options.HeartbeatFn,
 		PrebuildsOrchestrator:       prebuildsOrchestrator,
 		UsageInserter:               usageInserter,
+		AISeatTracker:               options.AISeatTracker,
 		metrics:                     metrics,
 		Experiments:                 experiments,
 	}
@@ -2437,6 +2444,12 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		})
 	}
 
+	// Record AI seat usage for successful task workspace builds.
+	if workspaceBuild.Transition == database.WorkspaceTransitionStart && workspace.TaskID.Valid {
+		s.AISeatTracker.RecordUsage(ctx, workspace.OwnerID,
+			aiseats.ReasonTask("task workspace build succeeded"))
+	}
+
 	if s.PrebuildsOrchestrator != nil && input.PrebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
 		// Track resource replacements, if there are any.
 		orchestrator := s.PrebuildsOrchestrator.Load()
@@ -2982,14 +2995,11 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				scriptsParams.ScriptIDs = append(scriptsParams.ScriptIDs, id)                            // Re-use the devcontainer ID as the script ID for identification.
 				scriptsParams.ScriptDisplayNames = append(scriptsParams.ScriptDisplayNames, displayName)
 				scriptsParams.ScriptLogPaths = append(scriptsParams.ScriptLogPaths, "")
-				scriptsParams.ScriptSources = append(scriptsParams.ScriptSources, `echo "WARNING: Dev Containers are early access. If you're seeing this message then Dev Containers haven't been enabled for your workspace yet. To enable, the agent needs to run with the environment variable CODER_AGENT_DEVCONTAINERS_ENABLE=true set."`)
+				scriptsParams.ScriptSources = append(scriptsParams.ScriptSources, "")
 				scriptsParams.ScriptCron = append(scriptsParams.ScriptCron, "")
 				scriptsParams.ScriptTimeout = append(scriptsParams.ScriptTimeout, 0)
 				scriptsParams.ScriptStartBlocksLogin = append(scriptsParams.ScriptStartBlocksLogin, false)
-				// Run on start to surface the warning message in case the
-				// terraform resource is used, but the experiment hasn't
-				// been enabled.
-				scriptsParams.ScriptRunOnStart = append(scriptsParams.ScriptRunOnStart, true)
+				scriptsParams.ScriptRunOnStart = append(scriptsParams.ScriptRunOnStart, false)
 				scriptsParams.ScriptRunOnStop = append(scriptsParams.ScriptRunOnStop, false)
 			}
 

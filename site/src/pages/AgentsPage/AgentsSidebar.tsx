@@ -461,9 +461,9 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 											</span>
 											<span className="text-git-deleted-bright">
 												&minus;{deletions}
-											</span>{" "}
+											</span>
 										</span>
-									)}{" "}
+									)}
 									<div
 										className={cn(
 											"min-w-0 overflow-hidden text-[13px] leading-4",
@@ -500,7 +500,6 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 									</Button>
 								</DropdownMenuTrigger>
 								<DropdownMenuContent align="end">
-									{" "}
 									{chat.archived ? (
 										<DropdownMenuItem
 											disabled={isArchiving}
@@ -729,7 +728,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							</Button>
 						)}
 					</div>
-				</div>{" "}
+				</div>
 				<Button
 					size="sm"
 					variant="subtle"
@@ -841,13 +840,12 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								type="button"
 								className="flex min-w-0 flex-1 items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors"
 							>
-								{" "}
 								<Avatar
 									fallback={user.username}
 									src={user.avatar_url}
 									size="sm"
 									className="rounded-full"
-								/>{" "}
+								/>
 								<span className="truncate text-sm text-content-secondary">
 									{user.name || user.username}
 								</span>

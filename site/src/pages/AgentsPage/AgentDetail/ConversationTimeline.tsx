@@ -194,7 +194,6 @@ function renderBlockList({
 							key={`${keyPrefix}-file-reference-${index}`}
 							className="my-1 flex items-start gap-2 rounded-md border border-content-link/20 bg-content-link/5 px-2.5 py-1.5"
 						>
-							{" "}
 							<span className="shrink-0 text-xs font-medium text-content-link">
 								{block.fileName}:
 								{block.startLine === block.endLine

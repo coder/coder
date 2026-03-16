@@ -139,21 +139,25 @@ const UserRow: FC<{
 	);
 };
 
-const UsageContent: FC = () => {
+interface UsageContentProps {
+	now?: dayjs.Dayjs;
+}
+
+const UsageContent: FC<UsageContentProps> = ({ now }) => {
 	const [selectedUser, setSelectedUser] =
 		useState<TypesGen.ChatCostUserRollup | null>(null);
 	const [usernameFilter, setUsernameFilter] = useState("");
 	const debouncedUsername = useDebouncedValue(usernameFilter, 300);
 	const [page, setPage] = useState(1);
 	const dateRange = useMemo(() => {
-		const end = dayjs();
+		const end = now ?? dayjs();
 		const start = end.subtract(30, "day");
 		return {
 			startDate: start.toISOString(),
 			endDate: end.toISOString(),
 			rangeLabel: `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`,
 		};
-	}, []);
+	}, [now]);
 	const offset = (page - 1) * pageSize;
 
 	const usersQuery = useQuery({
@@ -354,6 +358,8 @@ interface ConfigureAgentsDialogProps {
 	canManageChatModelConfigs: boolean;
 	canSetSystemPrompt: boolean;
 	initialSection?: ConfigureAgentsSection;
+	/** Override the current time for date range calculation. Used for deterministic Storybook snapshots. */
+	now?: dayjs.Dayjs;
 }
 
 export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
@@ -362,6 +368,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 	canManageChatModelConfigs,
 	canSetSystemPrompt,
 	initialSection = "behavior",
+	now,
 }) => {
 	const queryClient = useQueryClient();
 
@@ -493,13 +500,13 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								onClick={() => setUserActiveSection(section.id)}
 							>
 								<SectionIcon className="h-5 w-5 shrink-0" />
-								<span className="flex items-center gap-2 text-sm font-medium">
+								<span className="flex flex-1 items-center gap-2 text-sm font-medium">
 									{section.label}
 									{section.adminOnly && (
 										<TooltipProvider delayDuration={0}>
 											<Tooltip>
 												<TooltipTrigger asChild>
-													<span className="inline-flex">
+													<span className="ml-auto inline-flex">
 														<ShieldIcon className="h-3 w-3 shrink-0 opacity-50" />
 													</span>
 												</TooltipTrigger>
@@ -526,11 +533,11 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								onSubmit={(event) => void handleSaveUserPrompt(event)}
 							>
 								<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-									Personal Instructions{" "}
+									Personal Instructions
 								</h3>
 								<p className="!mt-0.5 m-0 text-xs text-content-secondary">
 									Applied to all your chats. Only visible to you.
-								</p>{" "}
+								</p>
 								<TextareaAutosize
 									className={textareaClassName}
 									placeholder="Additional behavior, style, and tone preferences"
@@ -548,7 +555,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 										disabled={isDisabled || !userPromptDraft}
 									>
 										Clear
-									</Button>{" "}
+									</Button>
 									<Button
 										size="sm"
 										type="submit"
@@ -581,7 +588,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 										<p className="!mt-0.5 m-0 text-xs text-content-secondary">
 											Applied to all chats for every user. When empty, the
 											built-in default is used.
-										</p>{" "}
+										</p>
 										<TextareaAutosize
 											className={textareaClassName}
 											placeholder="Additional behavior, style, and tone preferences for all users"
@@ -599,7 +606,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 												disabled={isDisabled || !systemPromptDraft}
 											>
 												Clear
-											</Button>{" "}
+											</Button>
 											<Button
 												size="sm"
 												type="submit"
@@ -635,7 +642,7 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 						/>
 					)}
 					{activeSection === "usage" && canManageChatModelConfigs && (
-						<UsageContent />
+						<UsageContent now={now} />
 					)}
 				</div>
 			</DialogContent>

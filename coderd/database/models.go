@@ -741,6 +741,64 @@ func AllAgentKeyScopeEnumValues() []AgentKeyScopeEnum {
 	}
 }
 
+type AiSeatUsageReason string
+
+const (
+	AiSeatUsageReasonAibridge AiSeatUsageReason = "aibridge"
+	AiSeatUsageReasonTask     AiSeatUsageReason = "task"
+)
+
+func (e *AiSeatUsageReason) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AiSeatUsageReason(s)
+	case string:
+		*e = AiSeatUsageReason(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AiSeatUsageReason: %T", src)
+	}
+	return nil
+}
+
+type NullAiSeatUsageReason struct {
+	AiSeatUsageReason AiSeatUsageReason `json:"ai_seat_usage_reason"`
+	Valid             bool              `json:"valid"` // Valid is true if AiSeatUsageReason is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAiSeatUsageReason) Scan(value interface{}) error {
+	if value == nil {
+		ns.AiSeatUsageReason, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AiSeatUsageReason.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAiSeatUsageReason) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AiSeatUsageReason), nil
+}
+
+func (e AiSeatUsageReason) Valid() bool {
+	switch e {
+	case AiSeatUsageReasonAibridge,
+		AiSeatUsageReasonTask:
+		return true
+	}
+	return false
+}
+
+func AllAiSeatUsageReasonValues() []AiSeatUsageReason {
+	return []AiSeatUsageReason{
+		AiSeatUsageReasonAibridge,
+		AiSeatUsageReasonTask,
+	}
+}
+
 type AppSharingLevel string
 
 const (
@@ -4034,6 +4092,15 @@ type APIKey struct {
 	TokenName       string       `db:"token_name" json:"token_name"`
 	Scopes          APIKeyScopes `db:"scopes" json:"scopes"`
 	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
+}
+
+type AiSeatState struct {
+	UserID               uuid.UUID         `db:"user_id" json:"user_id"`
+	FirstUsedAt          time.Time         `db:"first_used_at" json:"first_used_at"`
+	LastUsedAt           time.Time         `db:"last_used_at" json:"last_used_at"`
+	LastEventType        AiSeatUsageReason `db:"last_event_type" json:"last_event_type"`
+	LastEventDescription string            `db:"last_event_description" json:"last_event_description"`
+	UpdatedAt            time.Time         `db:"updated_at" json:"updated_at"`
 }
 
 type AuditLog struct {

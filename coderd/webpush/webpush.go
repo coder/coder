@@ -174,8 +174,8 @@ func (n *Webpusher) webpushSend(ctx context.Context, msg []byte, endpoint string
 
 func (n *Webpusher) Test(ctx context.Context, req codersdk.WebpushSubscription) error {
 	msgJSON, err := json.Marshal(codersdk.WebpushMessage{
-		Title: "Test",
-		Body:  "This is a test Web Push notification",
+		Title: "It's working!",
+		Body:  "You've subscribed to push notifications.",
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal webpush notification: %w", err)
