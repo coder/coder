@@ -169,8 +169,6 @@ const mockGroupOverrides: ChatUsageLimitGroupOverride[] = [
 		group_avatar_url: "",
 		member_count: 12,
 		spend_limit_micros: 20_000_000,
-		created_at: "2026-03-01T00:00:00Z",
-		updated_at: "2026-03-01T00:00:00Z",
 	},
 ];
 
@@ -181,8 +179,6 @@ const mockUserOverrides: ChatUsageLimitOverride[] = [
 		name: "Alice Example",
 		avatar_url: "https://example.com/alice.png",
 		spend_limit_micros: 50_000_000,
-		created_at: "2026-03-01T00:00:00Z",
-		updated_at: "2026-03-01T00:00:00Z",
 	},
 ];
 
