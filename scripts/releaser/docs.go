@@ -8,20 +8,21 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
-	"golang.org/x/xerrors"
 )
 
 const (
 	calendarStartMarker = "<!-- RELEASE_CALENDAR_START -->"
 	calendarEndMarker   = "<!-- RELEASE_CALENDAR_END -->"
 
-	releasesFile    = "docs/install/releases/index.md"
-	kubernetesFile  = "docs/install/kubernetes.md"
-	rancherFile     = "docs/install/rancher.md"
-	changelogURLFmt = "https://coder.com/changelog/coder-%d-%d"
+	releasesFile     = "docs/install/releases/index.md"
+	kubernetesFile   = "docs/install/kubernetes.md"
+	rancherFile      = "docs/install/rancher.md"
+	changelogURLFmt  = "https://coder.com/changelog/coder-%d-%d"
 	releaseTagURLFmt = "https://github.com/coder/coder/releases/tag/%s"
 )
 
@@ -104,13 +105,12 @@ func parseCalendarTable(content string) ([]calendarRow, error) {
 
 // parseReleaseName extracts major.minor from a release name
 // like "2.30" or "[2.30](https://...)".
-func parseReleaseName(name string) (int, int) {
+func parseReleaseName(name string) (major, minor int) {
 	// Strip markdown link if present.
 	re := regexp.MustCompile(`\[(\d+\.\d+)\]`)
 	if m := re.FindStringSubmatch(name); len(m) > 1 {
 		name = m[1]
 	}
-	var major, minor int
 	_, _ = fmt.Sscanf(name, "%d.%d", &major, &minor)
 	return major, minor
 }
@@ -165,7 +165,6 @@ func updateCalendar(
 	rows []calendarRow,
 	newVer version,
 	channel string,
-	allTags []version,
 ) []calendarRow {
 	// For any release, update the "Latest Release" for the
 	// matching major.minor row.
@@ -282,7 +281,6 @@ func updateCalendarFile(
 	repoRoot string,
 	newVer version,
 	channel string,
-	allTags []version,
 ) error {
 	path := filepath.Join(repoRoot, releasesFile)
 	content, err := os.ReadFile(path)
@@ -295,7 +293,7 @@ func updateCalendarFile(
 		return xerrors.Errorf("parsing calendar: %w", err)
 	}
 
-	rows = updateCalendar(rows, newVer, channel, allTags)
+	rows = updateCalendar(rows, newVer, channel)
 	newTable := renderCalendarTable(rows)
 
 	// Replace the content between markers.
@@ -398,11 +396,12 @@ func updateRancherFile(path, channel, newVer string) error {
 
 // updateReleaseDocs updates all release-related docs files and
 // creates a PR with the changes.
+//
+//nolint:revive // dryRun flag is needed to control PR creation behavior.
 func updateReleaseDocs(
 	inv *serpent.Invocation,
 	newVer version,
 	channel string,
-	allTags []version,
 	dryRun bool,
 ) error {
 	w := inv.Stderr
@@ -435,7 +434,7 @@ func updateReleaseDocs(
 	}
 
 	// Update the files.
-	if err := updateCalendarFile(repoRoot, newVer, channel, allTags); err != nil {
+	if err := updateCalendarFile(repoRoot, newVer, channel); err != nil {
 		return xerrors.Errorf("updating calendar: %w", err)
 	}
 	successf(w, "Updated %s", releasesFile)
@@ -499,22 +498,21 @@ func promptAndUpdateDocs(
 	inv *serpent.Invocation,
 	newVer version,
 	channel string,
-	allTags []version,
 	dryRun bool,
 ) {
 	w := inv.Stderr
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(),
+	_, _ = fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(),
 		"Next step: create a PR updating release docs "+
 			"(calendar, helm versions, rancher)."))
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w)
 
 	if err := confirmWithDefault(inv, "Create docs update PR?", cliui.ConfirmYes); err != nil {
 		infof(w, "Skipped docs update. You can update them manually.")
 		return
 	}
 
-	if err := updateReleaseDocs(inv, newVer, channel, allTags, dryRun); err != nil {
+	if err := updateReleaseDocs(inv, newVer, channel, dryRun); err != nil {
 		warnf(w, "Failed to create docs PR: %v", err)
 		warnf(w, "You'll need to update release docs manually.")
 	}

@@ -576,7 +576,7 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	successf(w, "Release workflow triggered!")
 
 	// --- Update release docs ---
-	promptAndUpdateDocs(inv, newVersion, channel, allTags, dryRun)
+	promptAndUpdateDocs(inv, newVersion, channel, dryRun)
 
 	fmt.Fprintln(w)
 	successf(w, "Done! 🎉")
