@@ -264,6 +264,35 @@ if [[ "${CODER_LIBSH_NO_CHECK_DEPENDENCIES:-}" != *t* ]]; then
 		log
 	fi
 
+	# Check Node.js version against engines.node in site/package.json.
+	if command -v node >/dev/null && command -v jq >/dev/null; then
+		node_engines=$(jq -r '.engines.node // empty' "$PROJECT_ROOT/site/package.json" 2>/dev/null)
+		if [[ -n "$node_engines" ]]; then
+			node_version=$(node -v)
+			node_major=${node_version#v}
+			node_major=${node_major%%.*}
+			node_min=$(echo "$node_engines" | grep -oE '>=([0-9]+)' | grep -oE '[0-9]+')
+			node_max=$(echo "$node_engines" | grep -oE '<([0-9]+)' | grep -oE '[0-9]+')
+			if [[ -n "$node_major" ]] && { [[ -n "$node_min" && "$node_major" -lt "$node_min" ]] || [[ -n "$node_max" && "$node_major" -ge "$node_max" ]]; }; then
+				libsh_bad_dependencies=1
+				log "ERROR: Node.js ${node_version} does not satisfy engines.node \"${node_engines}\" in site/package.json."
+				if isdarwin && [[ -n "$node_max" ]]; then
+					log "On darwin:"
+					log "- brew install node@$((node_max - 1))"
+					# shellcheck disable=SC2016
+					log '- Add "$(brew --prefix node@'"$((node_max - 1))"')/bin" to your PATH'
+					log "- Restart your terminal"
+				else
+					log "Use a version manager (nvm, fnm, mise) to install a compatible version."
+				fi
+				log
+			fi
+		fi
+	elif command -v node >/dev/null; then
+		log "WARNING: jq not found, skipping Node.js version check."
+		log
+	fi
+
 	# Allow for yq to be installed as yq4.
 	if command -v yq4 >/dev/null; then
 		export CODER_LIBSH_YQ=yq4
