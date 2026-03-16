@@ -47,6 +47,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 			r.Use(middlewares...)
 			r.Get("/interceptions", api.aiBridgeListInterceptions)
 			r.Get("/sessions", api.aiBridgeListSessions)
+			r.Get("/sessions/{session_id}", api.aiBridgeGetSessionThreads)
 			r.Get("/models", api.aiBridgeListModels)
 		})
 
@@ -302,6 +303,172 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 		Count:    count,
 		Sessions: sessions,
 	})
+}
+
+// aiBridgeGetSessionThreads returns a single session with fully expanded
+// threads including agentic actions and thinking blocks.
+//
+// @Summary Get AI Bridge session threads
+// @ID get-ai-bridge-session-threads
+// @Security CoderSessionToken
+// @Produce json
+// @Tags AI Bridge
+// @Param session_id path string true "Session ID (client_session_id or interception UUID)"
+// @Param after_id query string false "Thread pagination cursor (forward/older)"
+// @Param before_id query string false "Thread pagination cursor (backward/newer)"
+// @Param limit query int false "Number of threads per page (default 50)"
+// @Success 200 {object} codersdk.AIBridgeSessionThreadsResponse
+// @Router /aibridge/sessions/{session_id} [get]
+func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	sessionIDParam := chi.URLParam(r, "session_id")
+	if sessionIDParam == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing session_id path parameter.",
+		})
+		return
+	}
+
+	// Parse optional pagination cursors.
+	var afterID, beforeID uuid.UUID
+	if v := r.URL.Query().Get("after_id"); v != "" {
+		var err error
+		afterID, err = uuid.Parse(v)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid after_id query parameter.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+	if v := r.URL.Query().Get("before_id"); v != "" {
+		var err error
+		beforeID, err = uuid.Parse(v)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid before_id query parameter.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+	if afterID != uuid.Nil && beforeID != uuid.Nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot use both after_id and before_id in the same request.",
+		})
+		return
+	}
+
+	var limit int32 = 50
+	if v := r.URL.Query().Get("limit"); v != "" {
+		parsed, err := fmt.Sscanf(v, "%d", &limit)
+		if err != nil || parsed != 1 || limit < 1 || limit > 200 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid limit query parameter.",
+				Detail:  "Limit must be between 1 and 200.",
+			})
+			return
+		}
+	}
+
+	// Resolve session ID. If it parses as a UUID, it might be an
+	// interception ID rather than a client_session_id. Try to
+	// resolve it via the interception lookup. If that fails, fall
+	// through and use the original string as-is — it could be a
+	// client_session_id that happens to be a valid UUID.
+	sessionID := sessionIDParam
+	if parsed, err := uuid.Parse(sessionIDParam); err == nil {
+		intc, err := api.Database.GetAIBridgeInterceptionByID(ctx, parsed)
+		if err == nil {
+			// Derive session_id using the same COALESCE logic
+			// as SQL.
+			switch {
+			case intc.ClientSessionID.Valid:
+				sessionID = intc.ClientSessionID.String
+			case intc.ThreadRootID.Valid:
+				sessionID = intc.ThreadRootID.UUID.String()
+			default:
+				sessionID = intc.ID.String()
+			}
+		}
+	}
+
+	// Fetch session metadata.
+	session, err := api.Database.GetAIBridgeSessionByID(ctx, sessionID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Session not found.",
+		})
+		return
+	}
+
+	// Fetch paginated thread interceptions.
+	threadRows, err := api.Database.ListAIBridgeSessionThreadInterceptions(ctx, database.ListAIBridgeSessionThreadInterceptionsParams{
+		SessionID: sessionID,
+		AfterID:   afterID,
+		BeforeID:  beforeID,
+		Limit:     limit,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error listing session thread interceptions.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Collect interception IDs for batch sub-resource fetching.
+	ids := make([]uuid.UUID, len(threadRows))
+	for i, row := range threadRows {
+		ids[i] = row.AIBridgeInterception.ID
+	}
+
+	// Batch fetch sub-resources using system context since parent
+	// authorization has already been applied.
+	//nolint:gocritic // System function: sub-resources inherit authorization from parent interception query.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+
+	tokenUsages, err := api.Database.ListAIBridgeTokenUsagesByInterceptionIDs(sysCtx, ids)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching token usages.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	toolUsages, err := api.Database.ListAIBridgeToolUsagesByInterceptionIDs(sysCtx, ids)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching tool usages.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	userPrompts, err := api.Database.ListAIBridgeUserPromptsByInterceptionIDs(sysCtx, ids)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user prompts.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	modelThoughts, err := api.Database.ListAIBridgeModelThoughtsByInterceptionIDs(sysCtx, ids)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching model thoughts.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	resp := db2sdk.AIBridgeSessionThreads(session, threadRows, tokenUsages, toolUsages, userPrompts, modelThoughts)
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 // aiBridgeListModels returns all AI Bridge models a user can see.
