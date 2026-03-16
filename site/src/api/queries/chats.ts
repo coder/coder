@@ -152,7 +152,7 @@ export const chat = (chatId: string) => ({
 
 const MESSAGES_PAGE_SIZE = 50;
 
-export const chatMessagesInfinite = (chatId: string) => ({
+export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	queryKey: chatMessagesKey(chatId),
 	initialPageParam: undefined as number | undefined,
 	queryFn: ({ pageParam }: { pageParam: number | undefined }) =>

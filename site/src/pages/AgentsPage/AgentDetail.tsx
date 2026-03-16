@@ -1,7 +1,7 @@
 import { API, watchWorkspace } from "api/api";
 import {
 	chat,
-	chatMessagesInfinite,
+	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
 	chats,
@@ -609,7 +609,7 @@ const AgentDetail: FC = () => {
 		enabled: Boolean(agentId),
 	});
 	const chatMessagesQuery = useInfiniteQuery({
-		...chatMessagesInfinite(agentId ?? ""),
+		...chatMessagesForInfiniteScroll(agentId ?? ""),
 		enabled: Boolean(agentId),
 	});
 	const chatsQuery = useQuery(chats());
@@ -682,10 +682,7 @@ const AgentDetail: FC = () => {
 		const pages = chatMessagesQuery.data?.pages;
 		if (!pages || pages.length === 0) return undefined;
 		// Collect all messages, then sort chronologically by ID.
-		const all: TypesGen.ChatMessage[] = [];
-		for (const page of pages) {
-			all.push(...page.messages);
-		}
+		const all = pages.flatMap((p) => p.messages);
 		// Sort ascending by ID for chronological order.
 		all.sort((a, b) => a.id - b.id);
 		return all;
@@ -702,9 +699,7 @@ const AgentDetail: FC = () => {
 			return {
 				messages: chatMessagesList,
 				queued_messages: chatQueuedMessages ?? [],
-				has_more:
-					chatMessagesQuery.data?.pages[chatMessagesQuery.data.pages.length - 1]
-						?.has_more ?? false,
+				has_more: chatMessagesQuery.data?.pages.at(-1)?.has_more ?? false,
 			};
 		}, [chatMessagesList, chatQueuedMessages, chatMessagesQuery.data]);
 	const isArchived = chatRecord?.archived ?? false;

@@ -574,35 +574,28 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	chatID := chat.ID
 
 	// Parse optional cursor-based pagination parameters.
-	var beforeID int64
-	if v := r.URL.Query().Get("before_id"); v != "" {
-		parsed, err := strconv.ParseInt(v, 10, 64)
-		if err != nil || parsed < 0 {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid before_id parameter.",
-			})
-			return
-		}
-		beforeID = parsed
+	queryParams := r.URL.Query()
+	parser := httpapi.NewQueryParamParser()
+	beforeID := parser.PositiveInt64(queryParams, 0, "before_id")
+	limit := parser.PositiveInt32(queryParams, 50, "limit")
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return
 	}
-	limit := 50
-	if v := r.URL.Query().Get("limit"); v != "" {
-		parsed, err := strconv.Atoi(v)
-		if err != nil || parsed < 1 || parsed > 200 {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid limit parameter (1-200).",
-			})
-			return
-		}
-		limit = parsed
+	if limit < 1 || limit > 200 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid limit parameter (1-200).",
+		})
+		return
 	}
-
 	// Fetch limit+1 rows to detect whether more pages exist.
 	messages, err := api.Database.GetChatMessagesByChatIDPaginated(ctx, database.GetChatMessagesByChatIDPaginatedParams{
 		ChatID:   chatID,
 		BeforeID: beforeID,
-		// #nosec G115 - Pagination limit is validated to be between 1 and 200, so limit+1 fits in int32.
-		LimitVal: int32(limit + 1),
+		LimitVal: limit + 1,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -612,7 +605,7 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hasMore := len(messages) > limit
+	hasMore := len(messages) > int(limit)
 	if hasMore {
 		messages = messages[:limit]
 	}
