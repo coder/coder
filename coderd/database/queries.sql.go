@@ -4211,6 +4211,7 @@ WITH updated_chat AS (
     WHERE
         id = $1::uuid
         AND $3::uuid IS NOT NULL
+        AND chats.last_model_config_id IS DISTINCT FROM $3::uuid
 )
 INSERT INTO chat_messages (
     chat_id,

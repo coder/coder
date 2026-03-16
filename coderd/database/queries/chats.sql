@@ -165,6 +165,7 @@ WITH updated_chat AS (
     WHERE
         id = @chat_id::uuid
         AND sqlc.narg('model_config_id')::uuid IS NOT NULL
+        AND chats.last_model_config_id IS DISTINCT FROM sqlc.narg('model_config_id')::uuid
 )
 INSERT INTO chat_messages (
     chat_id,
