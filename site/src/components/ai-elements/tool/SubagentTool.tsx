@@ -93,18 +93,13 @@ export const SubagentTool: React.FC<{
 
 	return (
 		<div className="w-full">
-			<div
-				role="button"
-				tabIndex={0}
+			<button
+				type="button"
 				aria-expanded={expanded}
 				onClick={() => hasExpandableContent && setExpanded((v) => !v)}
-				onKeyDown={(e) => {
-					if ((e.key === "Enter" || e.key === " ") && hasExpandableContent) {
-						setExpanded((v) => !v);
-					}
-				}}
 				className={cn(
-					"flex items-center gap-2",
+					"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
+					"flex w-full items-center gap-2",
 					hasExpandableContent && "cursor-pointer",
 				)}
 			>
@@ -142,7 +137,7 @@ export const SubagentTool: React.FC<{
 						)}
 					/>
 				)}
-			</div>
+			</button>
 
 			{expanded && hasPrompt && (
 				<ScrollArea

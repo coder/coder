@@ -11,9 +11,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -21,6 +24,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentfiles"
+	"github.com/coder/coder/v2/agent/agentgit"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
@@ -116,7 +120,7 @@ func TestReadFile(t *testing.T) {
 		}
 		return nil
 	})
-	api := agentfiles.NewAPI(logger, fs)
+	api := agentfiles.NewAPI(logger, fs, nil)
 
 	dirPath := filepath.Join(tmpdir, "a-directory")
 	err := fs.MkdirAll(dirPath, 0o755)
@@ -296,7 +300,7 @@ func TestWriteFile(t *testing.T) {
 		}
 		return nil
 	})
-	api := agentfiles.NewAPI(logger, fs)
+	api := agentfiles.NewAPI(logger, fs, nil)
 
 	dirPath := filepath.Join(tmpdir, "directory")
 	err := fs.MkdirAll(dirPath, 0o755)
@@ -414,7 +418,7 @@ func TestEditFiles(t *testing.T) {
 		}
 		return nil
 	})
-	api := agentfiles.NewAPI(logger, fs)
+	api := agentfiles.NewAPI(logger, fs, nil)
 
 	dirPath := filepath.Join(tmpdir, "directory")
 	err := fs.MkdirAll(dirPath, 0o755)
@@ -572,7 +576,9 @@ func TestEditFiles(t *testing.T) {
 			expected: map[string]string{filepath.Join(tmpdir, "edit1"): "bar bar"},
 		},
 		{
-			name:     "EditEdit", // Edits affect previous edits.
+			// When the second edit creates ambiguity (two "bar"
+			// occurrences), it should fail.
+			name:     "EditEditAmbiguous",
 			contents: map[string]string{filepath.Join(tmpdir, "edit-edit"): "foo bar"},
 			edits: []workspacesdk.FileEdits{
 				{
@@ -589,7 +595,33 @@ func TestEditFiles(t *testing.T) {
 					},
 				},
 			},
-			expected: map[string]string{filepath.Join(tmpdir, "edit-edit"): "qux qux"},
+			errCode: http.StatusBadRequest,
+			errors:  []string{"matches 2 occurrences"},
+			// File should not be modified on error.
+			expected: map[string]string{filepath.Join(tmpdir, "edit-edit"): "foo bar"},
+		},
+		{
+			// With replace_all the cascading edit replaces
+			// both occurrences.
+			name:     "EditEditReplaceAll",
+			contents: map[string]string{filepath.Join(tmpdir, "edit-edit-ra"): "foo bar"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "edit-edit-ra"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo",
+							Replace: "bar",
+						},
+						{
+							Search:     "bar",
+							Replace:    "qux",
+							ReplaceAll: true,
+						},
+					},
+				},
+			},
+			expected: map[string]string{filepath.Join(tmpdir, "edit-edit-ra"): "qux qux"},
 		},
 		{
 			name:     "Multiline",
@@ -716,7 +748,7 @@ func TestEditFiles(t *testing.T) {
 			expected: map[string]string{filepath.Join(tmpdir, "exact-preferred"): "goodbye world"},
 		},
 		{
-			name:     "NoMatchStillSucceeds",
+			name:     "NoMatchErrors",
 			contents: map[string]string{filepath.Join(tmpdir, "no-match"): "original content"},
 			edits: []workspacesdk.FileEdits{
 				{
@@ -729,8 +761,45 @@ func TestEditFiles(t *testing.T) {
 					},
 				},
 			},
+			errCode: http.StatusBadRequest,
+			errors:  []string{"search string not found in file"},
 			// File should remain unchanged.
 			expected: map[string]string{filepath.Join(tmpdir, "no-match"): "original content"},
+		},
+		{
+			name:     "AmbiguousExactMatch",
+			contents: map[string]string{filepath.Join(tmpdir, "ambig-exact"): "foo bar foo baz foo"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "ambig-exact"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo",
+							Replace: "qux",
+						},
+					},
+				},
+			},
+			errCode:  http.StatusBadRequest,
+			errors:   []string{"matches 3 occurrences"},
+			expected: map[string]string{filepath.Join(tmpdir, "ambig-exact"): "foo bar foo baz foo"},
+		},
+		{
+			name:     "ReplaceAllExact",
+			contents: map[string]string{filepath.Join(tmpdir, "ra-exact"): "foo bar foo baz foo"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "ra-exact"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:     "foo",
+							Replace:    "qux",
+							ReplaceAll: true,
+						},
+					},
+				},
+			},
+			expected: map[string]string{filepath.Join(tmpdir, "ra-exact"): "qux bar qux baz qux"},
 		},
 		{
 			name:     "MixedWhitespaceMultiline",
@@ -838,6 +907,169 @@ func TestEditFiles(t *testing.T) {
 	}
 }
 
+func TestHandleWriteFile_ChatHeaders_UpdatesPathStore(t *testing.T) {
+	t.Parallel()
+
+	pathStore := agentgit.NewPathStore()
+	logger := slogtest.Make(t, nil)
+	fs := afero.NewMemMapFs()
+	api := agentfiles.NewAPI(logger, fs, pathStore)
+
+	testPath := filepath.Join(os.TempDir(), "test.txt")
+
+	chatID := uuid.New()
+	ancestorID := uuid.New()
+	ancestorJSON, _ := json.Marshal([]string{ancestorID.String()})
+
+	body := strings.NewReader("hello world")
+	req := httptest.NewRequest(http.MethodPost, "/write-file?path="+testPath, body)
+	req.Header.Set(workspacesdk.CoderChatIDHeader, chatID.String())
+	req.Header.Set(workspacesdk.CoderAncestorChatIDsHeader, string(ancestorJSON))
+
+	rr := httptest.NewRecorder()
+	r := chi.NewRouter()
+	r.Post("/write-file", api.HandleWriteFile)
+	r.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// Verify PathStore was updated for both chat and ancestor.
+	paths := pathStore.GetPaths(chatID)
+	require.Equal(t, []string{testPath}, paths)
+
+	ancestorPaths := pathStore.GetPaths(ancestorID)
+	require.Equal(t, []string{testPath}, ancestorPaths)
+}
+
+func TestHandleWriteFile_NoChatHeaders_NoPathStoreUpdate(t *testing.T) {
+	t.Parallel()
+
+	pathStore := agentgit.NewPathStore()
+	logger := slogtest.Make(t, nil)
+	fs := afero.NewMemMapFs()
+	api := agentfiles.NewAPI(logger, fs, pathStore)
+
+	testPath := filepath.Join(os.TempDir(), "test.txt")
+
+	body := strings.NewReader("hello world")
+	req := httptest.NewRequest(http.MethodPost, "/write-file?path="+testPath, body)
+
+	rr := httptest.NewRecorder()
+	r := chi.NewRouter()
+	r.Post("/write-file", api.HandleWriteFile)
+	r.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// PathStore should be globally empty since no chat headers were set.
+	require.Equal(t, 0, pathStore.Len())
+}
+
+func TestHandleWriteFile_Failure_NoPathStoreUpdate(t *testing.T) {
+	t.Parallel()
+
+	pathStore := agentgit.NewPathStore()
+	logger := slogtest.Make(t, nil)
+	fs := afero.NewMemMapFs()
+	api := agentfiles.NewAPI(logger, fs, pathStore)
+
+	chatID := uuid.New()
+
+	// Write to a relative path (should fail with 400).
+	body := strings.NewReader("hello world")
+	req := httptest.NewRequest(http.MethodPost, "/write-file?path=relative/path.txt", body)
+	req.Header.Set(workspacesdk.CoderChatIDHeader, chatID.String())
+
+	rr := httptest.NewRecorder()
+	r := chi.NewRouter()
+	r.Post("/write-file", api.HandleWriteFile)
+	r.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code)
+
+	// PathStore should NOT be updated on failure.
+	paths := pathStore.GetPaths(chatID)
+	require.Empty(t, paths)
+}
+
+func TestHandleEditFiles_ChatHeaders_UpdatesPathStore(t *testing.T) {
+	t.Parallel()
+
+	pathStore := agentgit.NewPathStore()
+	logger := slogtest.Make(t, nil)
+	fs := afero.NewMemMapFs()
+	api := agentfiles.NewAPI(logger, fs, pathStore)
+
+	testPath := filepath.Join(os.TempDir(), "test.txt")
+
+	// Create the file first.
+	require.NoError(t, afero.WriteFile(fs, testPath, []byte("hello"), 0o644))
+
+	chatID := uuid.New()
+	editReq := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{
+			{
+				Path: testPath,
+				Edits: []workspacesdk.FileEdit{
+					{Search: "hello", Replace: "world"},
+				},
+			},
+		},
+	}
+	body, _ := json.Marshal(editReq)
+	req := httptest.NewRequest(http.MethodPost, "/edit-files", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(workspacesdk.CoderChatIDHeader, chatID.String())
+
+	rr := httptest.NewRecorder()
+	r := chi.NewRouter()
+	r.Post("/edit-files", api.HandleEditFiles)
+	r.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	paths := pathStore.GetPaths(chatID)
+	require.Equal(t, []string{testPath}, paths)
+}
+
+func TestHandleEditFiles_Failure_NoPathStoreUpdate(t *testing.T) {
+	t.Parallel()
+
+	pathStore := agentgit.NewPathStore()
+	logger := slogtest.Make(t, nil)
+	fs := afero.NewMemMapFs()
+	api := agentfiles.NewAPI(logger, fs, pathStore)
+
+	chatID := uuid.New()
+
+	// Edit a non-existent file (should fail with 404).
+	editReq := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{
+			{
+				Path: "/nonexistent/file.txt",
+				Edits: []workspacesdk.FileEdit{
+					{Search: "hello", Replace: "world"},
+				},
+			},
+		},
+	}
+	body, _ := json.Marshal(editReq)
+	req := httptest.NewRequest(http.MethodPost, "/edit-files", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(workspacesdk.CoderChatIDHeader, chatID.String())
+
+	rr := httptest.NewRecorder()
+	r := chi.NewRouter()
+	r.Post("/edit-files", api.HandleEditFiles)
+	r.ServeHTTP(rr, req)
+
+	require.NotEqual(t, http.StatusOK, rr.Code)
+
+	// PathStore should NOT be updated on failure.
+	paths := pathStore.GetPaths(chatID)
+	require.Empty(t, paths)
+}
+
 func TestReadFileLines(t *testing.T) {
 	t.Parallel()
 
@@ -851,7 +1083,7 @@ func TestReadFileLines(t *testing.T) {
 		}
 		return nil
 	})
-	api := agentfiles.NewAPI(logger, fs)
+	api := agentfiles.NewAPI(logger, fs, nil)
 
 	dirPath := filepath.Join(tmpdir, "a-directory-lines")
 	err := fs.MkdirAll(dirPath, 0o755)

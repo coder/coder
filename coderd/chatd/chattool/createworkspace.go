@@ -2,7 +2,7 @@ package chattool
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/codersdk"
@@ -37,6 +38,13 @@ const (
 	// agentPingTimeout is the timeout for a single agent ping
 	// when checking whether an existing workspace is alive.
 	agentPingTimeout = 5 * time.Second
+	// startupScriptTimeout is the maximum time to wait for the
+	// workspace agent's startup scripts to finish after the agent
+	// is reachable.
+	startupScriptTimeout = 10 * time.Minute
+	// startupScriptPollInterval is how often we check the agent's
+	// lifecycle state while waiting for startup scripts.
+	startupScriptPollInterval = 2 * time.Second
 )
 
 // CreateWorkspaceFn creates a workspace for the given owner.
@@ -60,6 +68,7 @@ type CreateWorkspaceOptions struct {
 	CreateFn    CreateWorkspaceFn
 	AgentConnFn AgentConnFunc
 	WorkspaceMu *sync.Mutex
+	Logger      slog.Logger
 }
 
 type createWorkspaceArgs struct {
@@ -185,36 +194,39 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 
 			// Persist workspace + agent association on the chat.
 			if options.DB != nil && options.ChatID != uuid.Nil {
-				_, _ = options.DB.UpdateChatWorkspace(ctx, database.UpdateChatWorkspaceParams{
+				if _, err := options.DB.UpdateChatWorkspace(ctx, database.UpdateChatWorkspaceParams{
 					ID: options.ChatID,
 					WorkspaceID: uuid.NullUUID{
 						UUID:  workspace.ID,
 						Valid: true,
 					},
-				})
+				}); err != nil {
+					options.Logger.Error(ctx, "failed to persist chat workspace association",
+						slog.F("chat_id", options.ChatID),
+						slog.F("workspace_id", workspace.ID),
+						slog.Error(err),
+					)
+				}
 			}
 
-			// Wait for the agent to come online.
-			if workspaceAgentID != uuid.Nil && options.AgentConnFn != nil {
-				if err := waitForAgent(ctx, options.AgentConnFn, workspaceAgentID); err != nil {
-					// Non-fatal: the workspace was created
-					// successfully, the agent just isn't ready
-					// yet. The model can retry.
-					return toolResponse(map[string]any{
-						"created":        true,
-						"workspace_name": workspace.FullName(),
-						"agent_status":   "not_ready",
-						"agent_error":    err.Error(),
-					}), nil
+			// Wait for the agent to come online and startup scripts to finish.
+			if workspaceAgentID != uuid.Nil {
+				agentStatus := waitForAgentReady(ctx, options.DB, workspaceAgentID, options.AgentConnFn)
+				result := map[string]any{
+					"created":        true,
+					"workspace_name": workspace.FullName(),
 				}
+				for k, v := range agentStatus {
+					result[k] = v
+				}
+				return toolResponse(result), nil
 			}
 
 			return toolResponse(map[string]any{
 				"created":        true,
 				"workspace_name": workspace.FullName(),
 			}), nil
-		},
-	)
+		})
 }
 
 // checkExistingWorkspace checks whether the chat already has a usable
@@ -236,14 +248,13 @@ func checkExistingWorkspace(
 		return nil, false, nil
 	}
 
-	// Check if workspace still exists.
 	ws, err := db.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			// Workspace was deleted — allow creation.
-			return nil, false, nil
-		}
 		return nil, false, xerrors.Errorf("load workspace: %w", err)
+	}
+	// Workspace was soft-deleted — allow creation.
+	if ws.Deleted {
+		return nil, false, nil
 	}
 
 	// Check the latest build status.
@@ -268,34 +279,53 @@ func checkExistingWorkspace(
 				"existing workspace build failed: %w", err,
 			)
 		}
-		return map[string]any{
+		result := map[string]any{
 			"created":        false,
 			"workspace_name": ws.Name,
 			"status":         "already_exists",
-			"message":        "workspace was already being built and is now ready",
-		}, true, nil
+			"message":        "workspace build completed",
+		}
+		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
+		if agentsErr == nil && len(agents) > 0 {
+			for k, v := range waitForAgentReady(ctx, db, agents[0].ID, agentConnFn) {
+				result[k] = v
+			}
+		}
+		return result, true, nil
 
 	case database.ProvisionerJobStatusSucceeded:
+		// If the workspace was stopped, tell the model to use
+		// start_workspace instead of creating a new one.
+		if build.Transition == database.WorkspaceTransitionStop {
+			return map[string]any{
+				"created":        false,
+				"workspace_name": ws.Name,
+				"status":         "stopped",
+				"message":        "workspace is stopped; use start_workspace to start it",
+			}, true, nil
+		}
+
 		// Build succeeded — check if agent is reachable.
 		agents, agentsErr := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, ws.ID)
 		if agentsErr == nil && len(agents) > 0 && agentConnFn != nil {
-			pingCtx, cancel := context.WithTimeout(
-				ctx, agentPingTimeout,
-			)
-			defer cancel()
-
-			conn, release, connErr := agentConnFn(
-				pingCtx, agents[0].ID,
-			)
+			pingCtx, cancel := context.WithTimeout(ctx, agentPingTimeout)
+			conn, release, connErr := agentConnFn(pingCtx, agents[0].ID)
+			cancel()
 			if connErr == nil {
 				release()
 				_ = conn
-				return map[string]any{
+				// Agent is reachable; wait for startup scripts.
+				result := map[string]any{
 					"created":        false,
 					"workspace_name": ws.Name,
 					"status":         "already_exists",
 					"message":        "workspace is already running and reachable",
-				}, true, nil
+				}
+				// Pass nil for agentConnFn since we already confirmed connectivity.
+				for k, v := range waitForAgentReady(ctx, db, agents[0].ID, nil) {
+					result[k] = v
+				}
+				return result, true, nil
 			}
 			// Agent unreachable — workspace is dead, allow
 			// creation.
@@ -365,40 +395,88 @@ func waitForBuild(
 	}
 }
 
-// waitForAgent retries connecting to the workspace agent until it
-// succeeds or the timeout expires.
-func waitForAgent(
+// waitForAgentReady waits for the workspace agent to become
+// reachable and for its startup scripts to finish. It returns
+// status fields suitable for merging into a tool response.
+func waitForAgentReady(
 	ctx context.Context,
-	agentConnFn AgentConnFunc,
+	db database.Store,
 	agentID uuid.UUID,
-) error {
-	agentCtx, cancel := context.WithTimeout(ctx, agentConnectTimeout)
-	defer cancel()
+	agentConnFn AgentConnFunc,
+) map[string]any {
+	result := map[string]any{}
 
-	ticker := time.NewTicker(agentRetryInterval)
-	defer ticker.Stop()
+	// Phase 1: retry connecting to the agent.
+	if agentConnFn != nil {
+		agentCtx, agentCancel := context.WithTimeout(ctx, agentConnectTimeout)
+		defer agentCancel()
 
-	var lastErr error
-	for {
-		attemptCtx, attemptCancel := context.WithTimeout(agentCtx, agentAttemptTimeout)
-		conn, release, err := agentConnFn(attemptCtx, agentID)
-		attemptCancel()
-		if err == nil {
-			release()
-			_ = conn
-			return nil
-		}
-		lastErr = err
+		ticker := time.NewTicker(agentRetryInterval)
+		defer ticker.Stop()
 
-		select {
-		case <-agentCtx.Done():
-			return xerrors.Errorf(
-				"timed out waiting for workspace agent: %w",
-				lastErr,
-			)
-		case <-ticker.C:
+		var lastErr error
+		for {
+			attemptCtx, attemptCancel := context.WithTimeout(agentCtx, agentAttemptTimeout)
+			conn, release, err := agentConnFn(attemptCtx, agentID)
+			attemptCancel()
+			if err == nil {
+				release()
+				_ = conn
+				break
+			}
+			lastErr = err
+
+			select {
+			case <-agentCtx.Done():
+				result["agent_status"] = "not_ready"
+				result["agent_error"] = lastErr.Error()
+				return result
+			case <-ticker.C:
+			}
 		}
 	}
+
+	// Phase 2: poll lifecycle until startup scripts finish.
+	if db != nil {
+		scriptCtx, scriptCancel := context.WithTimeout(ctx, startupScriptTimeout)
+		defer scriptCancel()
+
+		ticker := time.NewTicker(startupScriptPollInterval)
+		defer ticker.Stop()
+
+		var lastState database.WorkspaceAgentLifecycleState
+		for {
+			row, err := db.GetWorkspaceAgentLifecycleStateByID(scriptCtx, agentID)
+			if err == nil {
+				lastState = row.LifecycleState
+				switch lastState {
+				case database.WorkspaceAgentLifecycleStateCreated,
+					database.WorkspaceAgentLifecycleStateStarting:
+					// Still in progress, keep polling.
+				case database.WorkspaceAgentLifecycleStateReady:
+					return result
+				default:
+					// Terminal non-ready state.
+					result["startup_scripts"] = "startup_scripts_failed"
+					result["lifecycle_state"] = string(lastState)
+					return result
+				}
+			}
+
+			select {
+			case <-scriptCtx.Done():
+				if errors.Is(scriptCtx.Err(), context.DeadlineExceeded) {
+					result["startup_scripts"] = "startup_scripts_timeout"
+				} else {
+					result["startup_scripts"] = "startup_scripts_unknown"
+				}
+				return result
+			case <-ticker.C:
+			}
+		}
+	}
+
+	return result
 }
 
 func generatedWorkspaceName(seed string) string {

@@ -106,8 +106,9 @@ export const MembersError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const combobox = await canvas.findByRole("combobox");
-		await userEvent.click(combobox);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Select a user" }),
+		);
 	},
 };
 
@@ -119,13 +120,14 @@ export const NoMembers: Story = {
 				members: [],
 			}),
 			permissionsQuery({ canUpdateGroup: true }),
-			membersQuery([]),
+			membersQuery({ members: [] }),
 		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const combobox = await canvas.findByRole("combobox");
-		await userEvent.click(combobox);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Select a user" }),
+		);
 	},
 };
 
@@ -134,11 +136,15 @@ export const FiltersByMembers: Story = {
 		queries: [
 			groupQuery(MockGroup),
 			permissionsQuery({ canUpdateGroup: true }),
-			membersQuery([MockOrganizationMember, MockOrganizationMember2]),
+			membersQuery({
+				members: [MockOrganizationMember, MockOrganizationMember2],
+			}),
 		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByRole("button", { name: "Open" }));
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Select a user" }),
+		);
 	},
 };

@@ -13,6 +13,7 @@ import (
 	context "context"
 	io "io"
 	net "net"
+	http "net/http"
 	reflect "reflect"
 	time "time"
 
@@ -20,6 +21,7 @@ import (
 	codersdk "github.com/coder/coder/v2/codersdk"
 	healthsdk "github.com/coder/coder/v2/codersdk/healthsdk"
 	workspacesdk "github.com/coder/coder/v2/codersdk/workspacesdk"
+	wsjson "github.com/coder/coder/v2/codersdk/wsjson"
 	tailnet "github.com/coder/coder/v2/tailnet"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
@@ -79,6 +81,21 @@ func (m *MockAgentConn) Close() error {
 func (mr *MockAgentConnMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockAgentConn)(nil).Close))
+}
+
+// ConnectDesktopVNC mocks base method.
+func (m *MockAgentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConnectDesktopVNC", ctx)
+	ret0, _ := ret[0].(net.Conn)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ConnectDesktopVNC indicates an expected call of ConnectDesktopVNC.
+func (mr *MockAgentConnMockRecorder) ConnectDesktopVNC(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConnectDesktopVNC", reflect.TypeOf((*MockAgentConn)(nil).ConnectDesktopVNC), ctx)
 }
 
 // DebugLogs mocks base method.
@@ -167,6 +184,21 @@ func (m *MockAgentConn) EditFiles(ctx context.Context, edits workspacesdk.FileEd
 func (mr *MockAgentConnMockRecorder) EditFiles(ctx, edits any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EditFiles", reflect.TypeOf((*MockAgentConn)(nil).EditFiles), ctx, edits)
+}
+
+// ExecuteDesktopAction mocks base method.
+func (m *MockAgentConn) ExecuteDesktopAction(ctx context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExecuteDesktopAction", ctx, action)
+	ret0, _ := ret[0].(workspacesdk.DesktopActionResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExecuteDesktopAction indicates an expected call of ExecuteDesktopAction.
+func (mr *MockAgentConnMockRecorder) ExecuteDesktopAction(ctx, action any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExecuteDesktopAction", reflect.TypeOf((*MockAgentConn)(nil).ExecuteDesktopAction), ctx, action)
 }
 
 // GetPeerDiagnostics mocks base method.
@@ -431,6 +463,18 @@ func (mr *MockAgentConnMockRecorder) SSHOnPort(ctx, port any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SSHOnPort", reflect.TypeOf((*MockAgentConn)(nil).SSHOnPort), ctx, port)
 }
 
+// SetExtraHeaders mocks base method.
+func (m *MockAgentConn) SetExtraHeaders(h http.Header) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetExtraHeaders", h)
+}
+
+// SetExtraHeaders indicates an expected call of SetExtraHeaders.
+func (mr *MockAgentConnMockRecorder) SetExtraHeaders(h any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetExtraHeaders", reflect.TypeOf((*MockAgentConn)(nil).SetExtraHeaders), h)
+}
+
 // SignalProcess mocks base method.
 func (m *MockAgentConn) SignalProcess(ctx context.Context, id, signal string) error {
 	m.ctrl.T.Helper()
@@ -503,6 +547,21 @@ func (m *MockAgentConn) WatchContainers(ctx context.Context, logger slog.Logger)
 func (mr *MockAgentConnMockRecorder) WatchContainers(ctx, logger any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchContainers", reflect.TypeOf((*MockAgentConn)(nil).WatchContainers), ctx, logger)
+}
+
+// WatchGit mocks base method.
+func (m *MockAgentConn) WatchGit(ctx context.Context, logger slog.Logger, chatID uuid.UUID) (*wsjson.Stream[codersdk.WorkspaceAgentGitServerMessage, codersdk.WorkspaceAgentGitClientMessage], error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WatchGit", ctx, logger, chatID)
+	ret0, _ := ret[0].(*wsjson.Stream[codersdk.WorkspaceAgentGitServerMessage, codersdk.WorkspaceAgentGitClientMessage])
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WatchGit indicates an expected call of WatchGit.
+func (mr *MockAgentConnMockRecorder) WatchGit(ctx, logger, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WatchGit", reflect.TypeOf((*MockAgentConn)(nil).WatchGit), ctx, logger, chatID)
 }
 
 // WriteFile mocks base method.

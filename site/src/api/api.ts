@@ -159,6 +159,17 @@ export const watchChats = (): OneWayWebSocket<TypesGen.ServerSentEvent> => {
 	});
 };
 
+export const watchChatGit = (chatId: string): WebSocket => {
+	return createWebSocket(`/api/experimental/chats/${chatId}/git/watch`);
+};
+
+export const watchChatDesktop = (chatId: string): WebSocket => {
+	const socket = createWebSocket(`/api/experimental/chats/${chatId}/desktop`);
+	// RFB is a binary protocol — noVNC expects arraybuffer, not blob.
+	socket.binaryType = "arraybuffer";
+	return socket;
+};
+
 export const watchAgentContainers = (
 	agentId: string,
 ): OneWayWebSocket<TypesGen.WorkspaceAgentListContainersResponse> => {
@@ -182,7 +193,7 @@ export function watchInboxNotifications(
 
 export const getURLWithSearchParams = (
 	basePath: string,
-	options?: SearchParamOptions,
+	options?: object,
 ): string => {
 	if (!options) {
 		return basePath;
@@ -354,20 +365,6 @@ interface ChatGitChangeResponse extends TypesGen.ChatGitChange {
 	readonly diffs_link?: string;
 }
 
-export type ChatDiffStatusResponse = Readonly<
-	{
-		chat_id: string;
-		url?: string;
-		pull_request_state?: string;
-		changes_requested: boolean;
-		additions: number;
-		deletions: number;
-		changed_files: number;
-		refreshed_at?: string;
-		stale_at?: string;
-	} & Record<string, unknown>
->;
-
 function normalizeGetTemplatesOptions(
 	options: GetTemplatesOptions | GetTemplatesQuery = {},
 ): Record<string, string> {
@@ -403,6 +400,17 @@ export type DeploymentConfig = Readonly<{
 
 const chatProviderConfigsPath = "/api/experimental/chats/providers";
 const chatModelConfigsPath = "/api/experimental/chats/model-configs";
+
+type ChatCostDateParams = {
+	start_date?: string;
+	end_date?: string;
+};
+
+type ChatCostUsersParams = ChatCostDateParams & {
+	username?: string;
+	limit?: number;
+	offset?: number;
+};
 
 type Claims = {
 	license_expires: number;
@@ -2292,6 +2300,23 @@ class ApiMethods {
 		return response.data;
 	};
 
+	uploadChatFile = async (
+		file: File,
+		organizationId: string,
+	): Promise<TypesGen.UploadChatFileResponse> => {
+		const response = await this.axios.post(
+			`/api/experimental/chats/files?organization=${organizationId}`,
+			file,
+			{
+				headers: {
+					"Content-Type": file.type || "application/octet-stream",
+					"Content-Disposition": `attachment; filename="${file.name}"`,
+				},
+			},
+		);
+		return response.data;
+	};
+
 	getTemplateVersionLogs = async (
 		versionId: string,
 	): Promise<TypesGen.ProvisionerJobLog[]> => {
@@ -2916,17 +2941,37 @@ class ApiMethods {
 	};
 
 	// Chat API methods
-	getChats = async (): Promise<TypesGen.Chat[]> => {
+	getChats = async (req?: {
+		after_id?: string;
+		limit?: number;
+		offset?: number;
+		q?: string;
+	}): Promise<TypesGen.Chat[]> => {
 		const response = await this.axios.get<TypesGen.Chat[]>(
-			"/api/experimental/chats",
+			getURLWithSearchParams("/api/experimental/chats", req),
 		);
 		return response.data;
 	};
-
-	getChat = async (chatId: string): Promise<TypesGen.ChatWithMessages> => {
-		const response = await this.axios.get<TypesGen.ChatWithMessages>(
+	getChat = async (chatId: string): Promise<TypesGen.Chat> => {
+		const response = await this.axios.get<TypesGen.Chat>(
 			`/api/experimental/chats/${chatId}`,
 		);
+		return response.data;
+	};
+	getChatMessages = async (
+		chatId: string,
+		opts?: { before_id?: number; limit?: number },
+	): Promise<TypesGen.ChatMessagesResponse> => {
+		const params = new URLSearchParams();
+		if (opts?.before_id) {
+			params.set("before_id", opts.before_id.toString());
+		}
+		if (opts?.limit) {
+			params.set("limit", opts.limit.toString());
+		}
+		const query = params.toString();
+		const url = `/api/experimental/chats/${chatId}/messages${query ? `?${query}` : ""}`;
+		const response = await this.axios.get<TypesGen.ChatMessagesResponse>(url);
 		return response.data;
 	};
 
@@ -3006,15 +3051,6 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getChatDiffStatus = async (
-		chatId: string,
-	): Promise<ChatDiffStatusResponse> => {
-		const response = await this.axios.get<ChatDiffStatusResponse>(
-			`/api/experimental/chats/${chatId}/diff-status`,
-		);
-		return response.data;
-	};
-
 	getChatDiffContents = async (
 		chatId: string,
 	): Promise<TypesGen.ChatDiffContents> => {
@@ -3028,6 +3064,40 @@ class ApiMethods {
 		const response = await this.axios.get<TypesGen.ChatModelsResponse>(
 			"/api/experimental/chats/models",
 		);
+		return response.data;
+	};
+
+	getChatSystemPrompt =
+		async (): Promise<TypesGen.ChatSystemPromptResponse> => {
+			const response = await this.axios.get<TypesGen.ChatSystemPromptResponse>(
+				"/api/experimental/chats/config/system-prompt",
+			);
+			return response.data;
+		};
+
+	updateChatSystemPrompt = async (
+		req: TypesGen.UpdateChatSystemPromptRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/system-prompt", req);
+	};
+
+	getUserChatCustomPrompt =
+		async (): Promise<TypesGen.UserChatCustomPromptResponse> => {
+			const response =
+				await this.axios.get<TypesGen.UserChatCustomPromptResponse>(
+					"/api/experimental/chats/config/user-prompt",
+				);
+			return response.data;
+		};
+
+	updateUserChatCustomPrompt = async (
+		req: TypesGen.UpdateUserChatCustomPromptRequest,
+	): Promise<TypesGen.UserChatCustomPromptResponse> => {
+		const response =
+			await this.axios.put<TypesGen.UserChatCustomPromptResponse>(
+				"/api/experimental/chats/config/user-prompt",
+				req,
+			);
 		return response.data;
 	};
 
@@ -3103,6 +3173,29 @@ class ApiMethods {
 		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
 
 		const response = await this.axios.get<string[]>(url);
+		return response.data;
+	};
+
+	getChatCostSummary = async (
+		user = "me",
+		params?: ChatCostDateParams,
+	): Promise<TypesGen.ChatCostSummary> => {
+		const url = getURLWithSearchParams(
+			`/api/experimental/chats/cost/${encodeURIComponent(user)}/summary`,
+			params,
+		);
+		const response = await this.axios.get<TypesGen.ChatCostSummary>(url);
+		return response.data;
+	};
+
+	getChatCostUsers = async (
+		params?: ChatCostUsersParams,
+	): Promise<TypesGen.ChatCostUsersResponse> => {
+		const url = getURLWithSearchParams(
+			"/api/experimental/chats/cost/users",
+			params,
+		);
+		const response = await this.axios.get<TypesGen.ChatCostUsersResponse>(url);
 		return response.data;
 	};
 }

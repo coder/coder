@@ -553,30 +553,33 @@ func normalizedEnumValue(value string, allowed ...string) *string {
 	return nil
 }
 
-// MergeMissingCallConfig fills unset call config values from defaults.
-func MergeMissingCallConfig(
-	dst *codersdk.ChatModelCallConfig,
-	defaults codersdk.ChatModelCallConfig,
+// MergeMissingModelCostConfig fills unset pricing metadata from defaults.
+func MergeMissingModelCostConfig(
+	dst **codersdk.ModelCostConfig,
+	defaults *codersdk.ModelCostConfig,
 ) {
-	if dst.MaxOutputTokens == nil {
-		dst.MaxOutputTokens = defaults.MaxOutputTokens
+	if defaults == nil {
+		return
 	}
-	if dst.Temperature == nil {
-		dst.Temperature = defaults.Temperature
+	if *dst == nil {
+		copied := *defaults
+		*dst = &copied
+		return
 	}
-	if dst.TopP == nil {
-		dst.TopP = defaults.TopP
+
+	current := *dst
+	if current.InputPricePerMillionTokens == nil {
+		current.InputPricePerMillionTokens = defaults.InputPricePerMillionTokens
 	}
-	if dst.TopK == nil {
-		dst.TopK = defaults.TopK
+	if current.OutputPricePerMillionTokens == nil {
+		current.OutputPricePerMillionTokens = defaults.OutputPricePerMillionTokens
 	}
-	if dst.PresencePenalty == nil {
-		dst.PresencePenalty = defaults.PresencePenalty
+	if current.CacheReadPricePerMillionTokens == nil {
+		current.CacheReadPricePerMillionTokens = defaults.CacheReadPricePerMillionTokens
 	}
-	if dst.FrequencyPenalty == nil {
-		dst.FrequencyPenalty = defaults.FrequencyPenalty
+	if current.CacheWritePricePerMillionTokens == nil {
+		current.CacheWritePricePerMillionTokens = defaults.CacheWritePricePerMillionTokens
 	}
-	MergeMissingProviderOptions(&dst.ProviderOptions, defaults.ProviderOptions)
 }
 
 // MergeMissingProviderOptions fills unset provider option fields from defaults.
@@ -885,11 +888,14 @@ func MergeMissingProviderOptions(
 }
 
 // ModelFromConfig resolves a provider/model pair and constructs a fantasy
-// language model client using the provided provider credentials.
+// language model client using the provided provider credentials. The
+// userAgent is sent as the User-Agent header on every outgoing LLM
+// API request.
 func ModelFromConfig(
 	providerHint string,
 	modelName string,
 	providerKeys ProviderAPIKeys,
+	userAgent string,
 ) (fantasy.LanguageModel, error) {
 	provider, modelID, err := ResolveModelWithProviderHint(modelName, providerHint)
 	if err != nil {
@@ -907,6 +913,7 @@ func ModelFromConfig(
 	case fantasyanthropic.Name:
 		options := []fantasyanthropic.Option{
 			fantasyanthropic.WithAPIKey(apiKey),
+			fantasyanthropic.WithUserAgent(userAgent),
 		}
 		if baseURL != "" {
 			options = append(options, fantasyanthropic.WithBaseURL(baseURL))
@@ -920,12 +927,17 @@ func ModelFromConfig(
 			fantasyazure.WithAPIKey(apiKey),
 			fantasyazure.WithBaseURL(baseURL),
 			fantasyazure.WithUseResponsesAPI(),
+			fantasyazure.WithUserAgent(userAgent),
 		)
 	case fantasybedrock.Name:
-		providerClient, err = fantasybedrock.New(fantasybedrock.WithAPIKey(apiKey))
+		providerClient, err = fantasybedrock.New(
+			fantasybedrock.WithAPIKey(apiKey),
+			fantasybedrock.WithUserAgent(userAgent),
+		)
 	case fantasygoogle.Name:
 		options := []fantasygoogle.Option{
 			fantasygoogle.WithGeminiAPIKey(apiKey),
+			fantasygoogle.WithUserAgent(userAgent),
 		}
 		if baseURL != "" {
 			options = append(options, fantasygoogle.WithBaseURL(baseURL))
@@ -935,6 +947,7 @@ func ModelFromConfig(
 		options := []fantasyopenai.Option{
 			fantasyopenai.WithAPIKey(apiKey),
 			fantasyopenai.WithUseResponsesAPI(),
+			fantasyopenai.WithUserAgent(userAgent),
 		}
 		if baseURL != "" {
 			options = append(options, fantasyopenai.WithBaseURL(baseURL))
@@ -943,16 +956,21 @@ func ModelFromConfig(
 	case fantasyopenaicompat.Name:
 		options := []fantasyopenaicompat.Option{
 			fantasyopenaicompat.WithAPIKey(apiKey),
+			fantasyopenaicompat.WithUserAgent(userAgent),
 		}
 		if baseURL != "" {
 			options = append(options, fantasyopenaicompat.WithBaseURL(baseURL))
 		}
 		providerClient, err = fantasyopenaicompat.New(options...)
 	case fantasyopenrouter.Name:
-		providerClient, err = fantasyopenrouter.New(fantasyopenrouter.WithAPIKey(apiKey))
+		providerClient, err = fantasyopenrouter.New(
+			fantasyopenrouter.WithAPIKey(apiKey),
+			fantasyopenrouter.WithUserAgent(userAgent),
+		)
 	case fantasyvercel.Name:
 		options := []fantasyvercel.Option{
 			fantasyvercel.WithAPIKey(apiKey),
+			fantasyvercel.WithUserAgent(userAgent),
 		}
 		if baseURL != "" {
 			options = append(options, fantasyvercel.WithBaseURL(baseURL))

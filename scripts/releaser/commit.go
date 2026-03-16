@@ -211,30 +211,17 @@ func categorizeCommit(title string, labels []string) string {
 	// Extract the conventional commit prefix (e.g. "feat", "fix(scope)").
 	prefixRe := regexp.MustCompile(`^([a-z]+)(\(.+\))?[!]?:`)
 	m := prefixRe.FindStringSubmatch(title)
-	if m != nil {
-		switch m[1] {
-		case "feat":
-			return "feat"
-		case "fix":
-			return "fix"
-		case "docs":
-			return "docs"
-		case "style":
-			return "other"
-		case "refactor":
-			return "refactor"
-		case "perf":
-			return "perf"
-		case "test":
-			return "test"
-		case "build":
-			return "build"
-		case "ci":
-			return "ci"
-		case "chore":
-			return "chore"
-		case "revert":
-			return "revert"
+	if m == nil {
+		return "other"
+	}
+
+	validPrefixes := []string{
+		"feat", "fix", "docs", "refactor", "perf",
+		"test", "build", "ci", "chore", "revert",
+	}
+	for _, p := range validPrefixes {
+		if m[1] == p {
+			return p
 		}
 	}
 	return "other"

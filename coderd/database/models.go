@@ -741,6 +741,64 @@ func AllAgentKeyScopeEnumValues() []AgentKeyScopeEnum {
 	}
 }
 
+type AiSeatUsageReason string
+
+const (
+	AiSeatUsageReasonAibridge AiSeatUsageReason = "aibridge"
+	AiSeatUsageReasonTask     AiSeatUsageReason = "task"
+)
+
+func (e *AiSeatUsageReason) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AiSeatUsageReason(s)
+	case string:
+		*e = AiSeatUsageReason(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AiSeatUsageReason: %T", src)
+	}
+	return nil
+}
+
+type NullAiSeatUsageReason struct {
+	AiSeatUsageReason AiSeatUsageReason `json:"ai_seat_usage_reason"`
+	Valid             bool              `json:"valid"` // Valid is true if AiSeatUsageReason is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAiSeatUsageReason) Scan(value interface{}) error {
+	if value == nil {
+		ns.AiSeatUsageReason, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AiSeatUsageReason.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAiSeatUsageReason) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AiSeatUsageReason), nil
+}
+
+func (e AiSeatUsageReason) Valid() bool {
+	switch e {
+	case AiSeatUsageReasonAibridge,
+		AiSeatUsageReasonTask:
+		return true
+	}
+	return false
+}
+
+func AllAiSeatUsageReasonValues() []AiSeatUsageReason {
+	return []AiSeatUsageReason{
+		AiSeatUsageReasonAibridge,
+		AiSeatUsageReasonTask,
+	}
+}
+
 type AppSharingLevel string
 
 const (
@@ -1049,6 +1107,70 @@ func AllBuildReasonValues() []BuildReason {
 	}
 }
 
+type ChatMessageRole string
+
+const (
+	ChatMessageRoleSystem    ChatMessageRole = "system"
+	ChatMessageRoleUser      ChatMessageRole = "user"
+	ChatMessageRoleAssistant ChatMessageRole = "assistant"
+	ChatMessageRoleTool      ChatMessageRole = "tool"
+)
+
+func (e *ChatMessageRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatMessageRole(s)
+	case string:
+		*e = ChatMessageRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatMessageRole: %T", src)
+	}
+	return nil
+}
+
+type NullChatMessageRole struct {
+	ChatMessageRole ChatMessageRole `json:"chat_message_role"`
+	Valid           bool            `json:"valid"` // Valid is true if ChatMessageRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatMessageRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatMessageRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatMessageRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatMessageRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatMessageRole), nil
+}
+
+func (e ChatMessageRole) Valid() bool {
+	switch e {
+	case ChatMessageRoleSystem,
+		ChatMessageRoleUser,
+		ChatMessageRoleAssistant,
+		ChatMessageRoleTool:
+		return true
+	}
+	return false
+}
+
+func AllChatMessageRoleValues() []ChatMessageRole {
+	return []ChatMessageRole{
+		ChatMessageRoleSystem,
+		ChatMessageRoleUser,
+		ChatMessageRoleAssistant,
+		ChatMessageRoleTool,
+	}
+}
+
 type ChatMessageVisibility string
 
 const (
@@ -1107,6 +1229,61 @@ func AllChatMessageVisibilityValues() []ChatMessageVisibility {
 		ChatMessageVisibilityUser,
 		ChatMessageVisibilityModel,
 		ChatMessageVisibilityBoth,
+	}
+}
+
+type ChatMode string
+
+const (
+	ChatModeComputerUse ChatMode = "computer_use"
+)
+
+func (e *ChatMode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatMode(s)
+	case string:
+		*e = ChatMode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatMode: %T", src)
+	}
+	return nil
+}
+
+type NullChatMode struct {
+	ChatMode ChatMode `json:"chat_mode"`
+	Valid    bool     `json:"valid"` // Valid is true if ChatMode is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatMode) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatMode, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatMode.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatMode) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatMode), nil
+}
+
+func (e ChatMode) Valid() bool {
+	switch e {
+	case ChatModeComputerUse:
+		return true
+	}
+	return false
+}
+
+func AllChatModeValues() []ChatMode {
+	return []ChatMode{
+		ChatModeComputerUse,
 	}
 }
 
@@ -3793,6 +3970,8 @@ type AIBridgeInterception struct {
 	ThreadParentID uuid.NullUUID `db:"thread_parent_id" json:"thread_parent_id"`
 	// The root interception of the thread that this interception belongs to.
 	ThreadRootID uuid.NullUUID `db:"thread_root_id" json:"thread_root_id"`
+	// The session ID supplied by the client (optional and not universally supported).
+	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
 }
 
 // Audit log of tokens used by intercepted requests in AI Bridge
@@ -3854,6 +4033,15 @@ type APIKey struct {
 	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
 }
 
+type AiSeatState struct {
+	UserID               uuid.UUID         `db:"user_id" json:"user_id"`
+	FirstUsedAt          time.Time         `db:"first_used_at" json:"first_used_at"`
+	LastUsedAt           time.Time         `db:"last_used_at" json:"last_used_at"`
+	LastEventType        AiSeatUsageReason `db:"last_event_type" json:"last_event_type"`
+	LastEventDescription string            `db:"last_event_description" json:"last_event_description"`
+	UpdatedAt            time.Time         `db:"updated_at" json:"updated_at"`
+}
+
 type AuditLog struct {
 	ID               uuid.UUID       `db:"id" json:"id"`
 	Time             time.Time       `db:"time" json:"time"`
@@ -3906,6 +4094,7 @@ type Chat struct {
 	LastModelConfigID uuid.UUID      `db:"last_model_config_id" json:"last_model_config_id"`
 	Archived          bool           `db:"archived" json:"archived"`
 	LastError         sql.NullString `db:"last_error" json:"last_error"`
+	Mode              NullChatMode   `db:"mode" json:"mode"`
 }
 
 type ChatDiffStatus struct {
@@ -3922,6 +4111,26 @@ type ChatDiffStatus struct {
 	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at"`
 	GitBranch        string         `db:"git_branch" json:"git_branch"`
 	GitRemoteOrigin  string         `db:"git_remote_origin" json:"git_remote_origin"`
+	PullRequestTitle string         `db:"pull_request_title" json:"pull_request_title"`
+	PullRequestDraft bool           `db:"pull_request_draft" json:"pull_request_draft"`
+	AuthorLogin      sql.NullString `db:"author_login" json:"author_login"`
+	AuthorAvatarUrl  sql.NullString `db:"author_avatar_url" json:"author_avatar_url"`
+	BaseBranch       sql.NullString `db:"base_branch" json:"base_branch"`
+	PrNumber         sql.NullInt32  `db:"pr_number" json:"pr_number"`
+	Commits          sql.NullInt32  `db:"commits" json:"commits"`
+	Approved         sql.NullBool   `db:"approved" json:"approved"`
+	ReviewerCount    sql.NullInt32  `db:"reviewer_count" json:"reviewer_count"`
+	HeadBranch       sql.NullString `db:"head_branch" json:"head_branch"`
+}
+
+type ChatFile struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	Name           string    `db:"name" json:"name"`
+	Mimetype       string    `db:"mimetype" json:"mimetype"`
+	Data           []byte    `db:"data" json:"data"`
 }
 
 type ChatMessage struct {
@@ -3929,7 +4138,7 @@ type ChatMessage struct {
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
 	ModelConfigID       uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
 	CreatedAt           time.Time             `db:"created_at" json:"created_at"`
-	Role                string                `db:"role" json:"role"`
+	Role                ChatMessageRole       `db:"role" json:"role"`
 	Content             pqtype.NullRawMessage `db:"content" json:"content"`
 	Visibility          ChatMessageVisibility `db:"visibility" json:"visibility"`
 	InputTokens         sql.NullInt64         `db:"input_tokens" json:"input_tokens"`
@@ -3940,6 +4149,9 @@ type ChatMessage struct {
 	CacheReadTokens     sql.NullInt64         `db:"cache_read_tokens" json:"cache_read_tokens"`
 	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
 	Compressed          bool                  `db:"compressed" json:"compressed"`
+	CreatedBy           uuid.NullUUID         `db:"created_by" json:"created_by"`
+	ContentVersion      int16                 `db:"content_version" json:"content_version"`
+	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
 }
 
 type ChatModelConfig struct {
@@ -4494,6 +4706,8 @@ type Task struct {
 	CreatedAt                    time.Time                        `db:"created_at" json:"created_at"`
 	DeletedAt                    sql.NullTime                     `db:"deleted_at" json:"deleted_at"`
 	DisplayName                  string                           `db:"display_name" json:"display_name"`
+	WorkspaceGroupACL            WorkspaceACL                     `db:"workspace_group_acl" json:"workspace_group_acl"`
+	WorkspaceUserACL             WorkspaceACL                     `db:"workspace_user_acl" json:"workspace_user_acl"`
 	Status                       TaskStatus                       `db:"status" json:"status"`
 	StatusDebug                  json.RawMessage                  `db:"status_debug" json:"status_debug"`
 	WorkspaceBuildNumber         sql.NullInt32                    `db:"workspace_build_number" json:"workspace_build_number"`
@@ -4860,6 +5074,8 @@ type User struct {
 	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
 	// Determines if a user is a system user, and therefore cannot login or perform normal actions
 	IsSystem bool `db:"is_system" json:"is_system"`
+	// Determines if a user is an admin-managed account that cannot login
+	IsServiceAccount bool `db:"is_service_account" json:"is_service_account"`
 }
 
 type UserConfig struct {

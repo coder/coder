@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aiseats"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -81,10 +82,12 @@ type Server struct {
 
 	coderMCPConfig    *proto.MCPServerConfig // may be nil if not available
 	structuredLogging bool
+	aiSeatTracker     aiseats.SeatTracker
 }
 
 func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, accessURL string,
 	bridgeCfg codersdk.AIBridgeConfig, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments,
+	aiSeatTracker aiseats.SeatTracker,
 ) (*Server, error) {
 	eac := make(map[string]*externalauth.Config, len(externalAuthConfigs))
 
@@ -102,9 +105,11 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 		logger:              logger,
 		externalAuthConfigs: eac,
 		structuredLogging:   bridgeCfg.StructuredLogging.Value(),
+		aiSeatTracker:       aiSeatTracker,
 	}
 
 	if bridgeCfg.InjectCoderMCPTools {
+		logger.Warn(lifecycleCtx, "inject MCP tools option is deprecated and will be removed in a future release")
 		coderMCPConfig, err := getCoderMCPServerConfig(experiments, accessURL)
 		if err != nil {
 			logger.Warn(lifecycleCtx, "failed to retrieve coder MCP server config, Coder MCP will not be available", slog.Error(err))
@@ -152,6 +157,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 			slog.F("provider", in.Provider),
 			slog.F("model", in.Model),
 			slog.F("client", in.Client),
+			slog.F("client_session_id", in.GetClientSessionId()),
 			slog.F("started_at", in.StartedAt.AsTime()),
 			slog.F("metadata", metadata),
 			slog.F("correlating_tool_call_id", in.GetCorrelatingToolCallId()),
@@ -169,6 +175,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		ID:                         intcID,
 		APIKeyID:                   sql.NullString{String: in.ApiKeyId, Valid: true},
 		Client:                     sql.NullString{String: in.Client, Valid: in.Client != ""},
+		ClientSessionID:            sql.NullString{String: in.GetClientSessionId(), Valid: in.GetClientSessionId() != ""},
 		InitiatorID:                initID,
 		Provider:                   in.Provider,
 		Model:                      in.Model,
@@ -181,6 +188,8 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		return nil, xerrors.Errorf("start interception: %w", err)
 	}
 
+	reason := aiseats.ReasonAIBridge("provider=" + in.Provider + ", model=" + in.Model)
+	s.aiSeatTracker.RecordUsage(ctx, initID, reason)
 	return &proto.RecordInterceptionResponse{}, nil
 }
 
@@ -549,6 +558,7 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}, nil
 }
 
+// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string) (*proto.MCPServerConfig, error) {
 	// Both the MCP & OAuth2 experiments are currently required in order to use our
 	// internal MCP server.

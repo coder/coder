@@ -5,6 +5,7 @@ import type { ComponentPropsWithRef, FC } from "react";
 import { memo } from "react";
 import { cn } from "utils/cn";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
+import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
 import { EditFilesTool } from "./EditFilesTool";
 import {
@@ -13,6 +14,7 @@ import {
 	WaitForExternalAuthTool,
 } from "./ExecuteTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
+import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ReadFileTool } from "./ReadFileTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
 import { SubagentTool } from "./SubagentTool";
@@ -100,6 +102,29 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 			command={command}
 			output={output}
 			status={status}
+			isError={isError}
+		/>
+	);
+};
+
+const ProcessOutputRenderer: FC<ToolRendererProps> = ({
+	status,
+	result,
+	isError,
+}) => {
+	const rec = asRecord(result);
+	const output = rec ? asString(rec.output).trim() : "";
+	const exitCode = rec
+		? rec.exit_code !== undefined && rec.exit_code !== null
+			? Number(rec.exit_code)
+			: null
+		: null;
+
+	return (
+		<ProcessOutputTool
+			output={output}
+			isRunning={status === "running"}
+			exitCode={exitCode}
 			isError={isError}
 		/>
 	);
@@ -342,6 +367,53 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+const ComputerRenderer: FC<ToolRendererProps> = ({
+	status,
+	result,
+	isError,
+}) => {
+	// The result can be a single object with {data, text, mime_type}
+	// or an array of content blocks.
+	let imageData = "";
+	let mimeType = "image/png";
+	let text = "";
+
+	if (Array.isArray(result)) {
+		for (const block of result) {
+			const blockRec = asRecord(block);
+			if (blockRec) {
+				if (blockRec.type === "image" || asString(blockRec.data)) {
+					imageData = asString(blockRec.data);
+					mimeType = asString(blockRec.mime_type) || "image/png";
+				}
+				if (
+					blockRec.type === "text" ||
+					(!imageData && asString(blockRec.text))
+				) {
+					text = asString(blockRec.text);
+				}
+			}
+		}
+	} else {
+		const rec = asRecord(result);
+		if (rec) {
+			imageData = asString(rec.data);
+			mimeType = asString(rec.mime_type) || "image/png";
+			text = asString(rec.text);
+		}
+	}
+
+	return (
+		<ComputerTool
+			imageData={imageData}
+			mimeType={mimeType}
+			text={text}
+			status={status}
+			isError={isError}
+		/>
+	);
+};
+
 // Generic fallback renderer — only path that needs theme, diff
 // viewers, and file content helpers.
 const GenericToolRenderer: FC<ToolRendererProps> = ({
@@ -424,6 +496,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 
 const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	execute: ExecuteRenderer,
+	process_output: ProcessOutputRenderer,
 	wait_for_external_auth: WaitForExternalAuthRenderer,
 	read_file: ReadFileRenderer,
 	write_file: WriteFileRenderer,
@@ -436,6 +509,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	message_agent: SubagentRenderer,
 	close_agent: SubagentRenderer,
 	chat_summarized: ChatSummarizedRenderer,
+	computer: ComputerRenderer,
 };
 
 // ---------------------------------------------------------------------------
@@ -461,7 +535,9 @@ export const Tool = memo(
 			<div
 				ref={ref}
 				className={cn(
-					name === "execute" ? "w-full py-0.5" : "py-0.5",
+					name === "execute" || name === "process_output"
+						? "w-full py-0.5"
+						: "py-0.5",
 					className,
 				)}
 				{...props}

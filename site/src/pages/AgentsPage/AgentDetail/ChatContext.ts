@@ -1,5 +1,5 @@
 import { watchChat } from "api/api";
-import { chatKey, chatsKey } from "api/queries/chats";
+import { chatMessagesKey, updateInfiniteChatsCache } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 import { asRecord, asString } from "components/ai-elements/runtimeTypeUtils";
 import {
@@ -9,8 +9,9 @@ import {
 	useRef,
 	useSyncExternalStore,
 } from "react";
-import { useQueryClient } from "react-query";
+import { type InfiniteData, useQueryClient } from "react-query";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
+import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
 import { applyMessagePartToStreamState } from "./streamState";
 import type { StreamState } from "./types";
 
@@ -213,6 +214,7 @@ export const createChatStore = (): ChatStore => {
 		const nextMessagesByID = buildMessageMap(safeMessages);
 		const nextOrderedMessageIDs = buildOrderedMessageIDs(safeMessages);
 
+		// Fast-path: skip setState entirely when nothing changed.
 		if (
 			mapsEqualByRef(state.messagesByID, nextMessagesByID) &&
 			arraysEqual(state.orderedMessageIDs, nextOrderedMessageIDs)
@@ -220,35 +222,62 @@ export const createChatStore = (): ChatStore => {
 			return;
 		}
 
-		setState((current) => ({
-			...current,
-			messagesByID: nextMessagesByID,
-			orderedMessageIDs: nextOrderedMessageIDs,
-		}));
+		setState((current) => {
+			// Re-check equality against `current` inside the updater
+			// to avoid overwriting a concurrent state change.
+			if (
+				mapsEqualByRef(current.messagesByID, nextMessagesByID) &&
+				arraysEqual(current.orderedMessageIDs, nextOrderedMessageIDs)
+			) {
+				return current;
+			}
+			return {
+				...current,
+				messagesByID: nextMessagesByID,
+				orderedMessageIDs: nextOrderedMessageIDs,
+			};
+		});
 	};
 
 	const upsertDurableMessage = (message: TypesGen.ChatMessage) => {
+		// Use `state` for the early-return guard so we can return
+		// the result synchronously. The actual mutation below uses
+		// `current` inside the updater to avoid overwriting a
+		// concurrent state change (TOCTOU).
 		const existing = state.messagesByID.get(message.id);
 		const isDuplicate = state.messagesByID.has(message.id);
 		if (existing && chatMessagesEqualByValue(existing, message)) {
 			return { isDuplicate, changed: false };
 		}
 
-		const nextMessagesByID = new Map(state.messagesByID);
-		nextMessagesByID.set(message.id, message);
+		let actuallyChanged = false;
+		setState((current) => {
+			// Re-check inside the updater: another call may have
+			// already applied this exact message.
+			const curExisting = current.messagesByID.get(message.id);
+			if (curExisting && chatMessagesEqualByValue(curExisting, message)) {
+				return current;
+			}
 
-		const needsReorder =
-			!isDuplicate || nextMessagesByID.size !== state.messagesByID.size;
-		const nextOrderedMessageIDs = needsReorder
-			? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
-			: state.orderedMessageIDs;
+			actuallyChanged = true;
 
-		setState((current) => ({
-			...current,
-			messagesByID: nextMessagesByID,
-			orderedMessageIDs: nextOrderedMessageIDs,
-		}));
-		return { isDuplicate, changed: true };
+			const nextMessagesByID = new Map(current.messagesByID);
+			nextMessagesByID.set(message.id, message);
+
+			const curIsDuplicate = current.messagesByID.has(message.id);
+			const needsReorder =
+				!curIsDuplicate || nextMessagesByID.size !== current.messagesByID.size;
+			const nextOrderedMessageIDs = needsReorder
+				? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
+				: current.orderedMessageIDs;
+
+			return {
+				...current,
+				messagesByID: nextMessagesByID,
+				orderedMessageIDs: nextOrderedMessageIDs,
+			};
+		});
+		return { isDuplicate, changed: actuallyChanged };
 	};
 
 	const applyMessageParts = (parts: readonly Record<string, unknown>[]) => {
@@ -256,17 +285,19 @@ export const createChatStore = (): ChatStore => {
 			return;
 		}
 
-		let nextStreamState: StreamState | null = state.streamState;
-		for (const part of parts) {
-			nextStreamState = applyMessagePartToStreamState(nextStreamState, part);
-		}
-		if (nextStreamState === state.streamState) {
-			return;
-		}
-		setState((current) => ({
-			...current,
-			streamState: nextStreamState,
-		}));
+		setState((current) => {
+			let nextStreamState: StreamState | null = current.streamState;
+			for (const part of parts) {
+				nextStreamState = applyMessagePartToStreamState(nextStreamState, part);
+			}
+			if (nextStreamState === current.streamState) {
+				return current;
+			}
+			return {
+				...current,
+				streamState: nextStreamState,
+			};
+		});
 	};
 
 	return {
@@ -283,15 +314,17 @@ export const createChatStore = (): ChatStore => {
 		applyMessageParts,
 		setQueuedMessages: (queuedMessages) => {
 			const nextQueuedMessages = queuedMessages ?? [];
-			if (
-				chatQueuedMessagesEqualByID(state.queuedMessages, nextQueuedMessages)
-			) {
-				return;
-			}
-			setState((current) => ({
-				...current,
-				queuedMessages: nextQueuedMessages,
-			}));
+			setState((current) => {
+				if (
+					chatQueuedMessagesEqualByID(
+						current.queuedMessages,
+						nextQueuedMessages,
+					)
+				) {
+					return current;
+				}
+				return { ...current, queuedMessages: nextQueuedMessages };
+			});
 		},
 		setChatStatus: (status) => {
 			if (state.chatStatus === status) {
@@ -351,12 +384,14 @@ export const createChatStore = (): ChatStore => {
 			if (state.subagentStatusOverrides.get(chatID) === status) {
 				return;
 			}
-			const nextOverrides = new Map(state.subagentStatusOverrides);
-			nextOverrides.set(chatID, status);
-			setState((current) => ({
-				...current,
-				subagentStatusOverrides: nextOverrides,
-			}));
+			setState((current) => {
+				if (current.subagentStatusOverrides.get(chatID) === status) {
+					return current;
+				}
+				const nextOverrides = new Map(current.subagentStatusOverrides);
+				nextOverrides.set(chatID, status);
+				return { ...current, subagentStatusOverrides: nextOverrides };
+			});
 		},
 		resetTransientState: () => {
 			if (
@@ -382,7 +417,7 @@ interface UseChatStoreOptions {
 	chatID: string | undefined;
 	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	chatRecord: TypesGen.Chat | undefined;
-	chatData: TypesGen.ChatWithMessages | undefined;
+	chatMessagesData: TypesGen.ChatMessagesResponse | undefined;
 	chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
 	setChatErrorReason: (chatID: string, reason: string) => void;
 	clearChatErrorReason: (chatID: string) => void;
@@ -409,7 +444,7 @@ export const useChatStore = (
 		chatID,
 		chatMessages,
 		chatRecord,
-		chatData,
+		chatMessagesData,
 		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
@@ -419,6 +454,13 @@ export const useChatStore = (
 	const storeRef = useRef<ChatStore>(createChatStore());
 	const streamResetFrameRef = useRef<number | null>(null);
 	const queuedMessagesHydratedChatIDRef = useRef<string | null>(null);
+	// Tracks whether the WebSocket has delivered a queue_update for the
+	// current chat. When true, the stream is the authoritative source
+	// and REST re-fetches must not overwrite the store. When false,
+	// REST data is allowed to re-hydrate so stale cached queued
+	// messages are corrected when switching back to a chat whose
+	// queue was drained while the user was away.
+	const wsQueueUpdateReceivedRef = useRef(false);
 	const activeChatIDRef = useRef<string | null>(null);
 	const prevChatIDRef = useRef<string | undefined>(chatID);
 
@@ -440,23 +482,17 @@ export const useChatStore = (
 			if (!chatID) {
 				return;
 			}
-			queryClient.setQueryData<readonly TypesGen.Chat[] | undefined>(
-				chatsKey,
-				(currentChats) => {
-					if (!currentChats) {
-						return currentChats;
+			updateInfiniteChatsCache(queryClient, (chats) => {
+				let didUpdate = false;
+				const nextChats = chats.map((chat) => {
+					if (chat.id !== chatID) {
+						return chat;
 					}
-					let didUpdate = false;
-					const nextChats = currentChats.map((chat) => {
-						if (chat.id !== chatID) {
-							return chat;
-						}
-						didUpdate = true;
-						return updater(chat);
-					});
-					return didUpdate ? nextChats : currentChats;
-				},
-			);
+					didUpdate = true;
+					return updater(chat);
+				});
+				return didUpdate ? nextChats : chats;
+			});
 		},
 		[chatID, queryClient],
 	);
@@ -483,26 +519,29 @@ export const useChatStore = (
 				return;
 			}
 			const nextQueuedMessages = queuedMessages ?? [];
-			queryClient.setQueryData<TypesGen.ChatWithMessages | undefined>(
-				chatKey(chatID),
-				(currentChat) => {
-					if (!currentChat) {
-						return currentChat;
-					}
-					if (
-						chatQueuedMessagesEqualByID(
-							currentChat.queued_messages,
-							nextQueuedMessages,
-						)
-					) {
-						return currentChat;
-					}
-					return {
-						...currentChat,
-						queued_messages: nextQueuedMessages,
-					};
-				},
-			);
+			queryClient.setQueryData<
+				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+			>(chatMessagesKey(chatID), (currentData) => {
+				if (!currentData?.pages?.length) {
+					return currentData;
+				}
+				const firstPage = currentData.pages[0];
+				if (
+					chatQueuedMessagesEqualByID(
+						firstPage.queued_messages,
+						nextQueuedMessages,
+					)
+				) {
+					return currentData;
+				}
+				return {
+					...currentData,
+					pages: [
+						{ ...firstPage, queued_messages: nextQueuedMessages },
+						...currentData.pages.slice(1),
+					],
+				};
+			});
 		},
 		[chatID, queryClient],
 	);
@@ -515,7 +554,15 @@ export const useChatStore = (
 			prevChatIDRef.current = chatID;
 			store.replaceMessages([]);
 		}
-		store.replaceMessages(chatMessages);
+		// Merge REST-fetched messages into the store one-by-one instead
+		// of replacing the entire map. This preserves any messages the
+		// WebSocket delivered via upsertDurableMessage that haven't
+		// appeared in a REST page yet.
+		if (chatMessages) {
+			for (const message of chatMessages) {
+				store.upsertDurableMessage(message);
+			}
+		}
 	}, [chatID, chatMessages, store]);
 
 	useEffect(() => {
@@ -524,6 +571,7 @@ export const useChatStore = (
 
 	useEffect(() => {
 		queuedMessagesHydratedChatIDRef.current = null;
+		wsQueueUpdateReceivedRef.current = false;
 		store.setQueuedMessages([]);
 		if (!chatID) {
 			return;
@@ -531,15 +579,23 @@ export const useChatStore = (
 	}, [chatID, store]);
 
 	useEffect(() => {
-		if (!chatID || !chatData) {
+		if (!chatID || !chatMessagesData) {
 			return;
 		}
-		if (queuedMessagesHydratedChatIDRef.current === chatID) {
+		// Allow re-hydration from REST as long as the WebSocket hasn't
+		// delivered a queue_update yet (which would be fresher). This
+		// ensures that when the user navigates back to a chat whose
+		// queued messages were drained server-side while they were
+		// away, the REST refetch corrects the stale cached state.
+		if (
+			queuedMessagesHydratedChatIDRef.current === chatID &&
+			wsQueueUpdateReceivedRef.current
+		) {
 			return;
 		}
 		queuedMessagesHydratedChatIDRef.current = chatID;
 		store.setQueuedMessages(chatQueuedMessages);
-	}, [chatData, chatID, chatQueuedMessages, store]);
+	}, [chatMessagesData, chatID, chatQueuedMessages, store]);
 
 	useEffect(() => {
 		cancelScheduledStreamReset();
@@ -550,12 +606,18 @@ export const useChatStore = (
 			return;
 		}
 
-		// Pass the last REST-fetched message ID so the stream
-		// only sends newer messages.
-		const socket = watchChat(chatID, lastMessageIdRef.current);
+		// Capture chatID as a narrowed string for use in closures.
+		const activeChatID = chatID;
+		// Local disposed flag so the message handler (which lives
+		// outside the utility) can bail out after cleanup.
+		let disposed = false;
+
 		const handleMessage = (
 			payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
 		) => {
+			if (disposed) {
+				return;
+			}
 			if (payload.parseError || !payload.parsedMessage) {
 				store.setStreamError("Failed to parse chat stream update.");
 				return;
@@ -625,13 +687,25 @@ export const useChatStore = (
 							continue;
 						}
 						const { changed } = store.upsertDurableMessage(message);
+						// Keep lastMessageIdRef in sync with
+						// stream-delivered messages so reconnections use
+						// the correct after_id and don't re-fetch or
+						// miss events.
+						if (
+							message.id !== undefined &&
+							(lastMessageIdRef.current === undefined ||
+								message.id > lastMessageIdRef.current)
+						) {
+							lastMessageIdRef.current = message.id;
+						}
 						if (changed) {
 							scheduleStreamReset();
 						}
-						updateSidebarChat((chat) => ({
-							...chat,
-							updated_at: message.created_at ?? new Date().toISOString(),
-						}));
+						// Do not update updated_at here. The global
+						// chat-list WebSocket delivers the authoritative
+						// server timestamp; fabricating a client-side
+						// value causes the chat to flicker between time
+						// groups when the two sources race.
 						continue;
 					}
 					case "queue_update":
@@ -641,6 +715,7 @@ export const useChatStore = (
 								continue;
 							}
 						}
+						wsQueueUpdateReceivedRef.current = true;
 						store.setQueuedMessages(streamEvent.queued_messages);
 						updateChatQueuedMessages(streamEvent.queued_messages);
 						continue;
@@ -671,12 +746,14 @@ export const useChatStore = (
 						updateSidebarChat((chat) => ({
 							...chat,
 							status: nextStatus,
-							updated_at: new Date().toISOString(),
 						}));
-
 						continue;
 					}
 					case "error": {
+						const eventChatID = asString(streamEvent.chat_id);
+						if (eventChatID && eventChatID !== chatID) {
+							continue;
+						}
 						const error = asRecord(streamEvent.error);
 						const reason =
 							asString(error?.message).trim() || "Chat processing failed.";
@@ -687,13 +764,17 @@ export const useChatStore = (
 						updateSidebarChat((chat) => ({
 							...chat,
 							status: "error",
-							updated_at: new Date().toISOString(),
 						}));
 						continue;
 					}
 					case "retry": {
+						const eventChatID = asString(streamEvent.chat_id);
+						if (eventChatID && eventChatID !== chatID) {
+							continue;
+						}
 						const retry = streamEvent.retry;
 						if (retry) {
+							store.clearStreamState();
 							store.setRetryState({
 								attempt: retry.attempt,
 								error: retry.error,
@@ -708,19 +789,42 @@ export const useChatStore = (
 			flushMessageParts();
 		};
 
-		const handleError = () => {
-			if (!store.getSnapshot().streamError) {
-				store.setStreamError("Chat stream disconnected.");
-			}
-		};
-
-		socket.addEventListener("message", handleMessage);
-		socket.addEventListener("error", handleError);
+		const disposeSocket = createReconnectingWebSocket({
+			connect() {
+				// Use the latest known message ID so the server only
+				// sends events the client hasn't seen yet.
+				const socket = watchChat(activeChatID, lastMessageIdRef.current);
+				socket.addEventListener("message", handleMessage);
+				return socket;
+			},
+			onOpen() {
+				// Connection succeeded — clear any previous disconnect
+				// error and stale stream state. Clearing stream state
+				// is critical for reconnections: the server replays
+				// all buffered message_part events, so we must start
+				// from a clean slate to avoid duplicating text.
+				store.clearStreamError();
+				store.clearStreamState();
+			},
+			onDisconnect(attempt) {
+				// Show the error only on the first disconnect (not
+				// while we are already retrying).
+				if (attempt === 0) {
+					store.setStreamError("Chat stream disconnected. Reconnecting\u2026");
+				}
+				// Clear "running" status on disconnect so the UI
+				// doesn't show a stale spinner. The reconnected
+				// stream will deliver the authoritative status.
+				const currentStatus = store.getSnapshot().chatStatus;
+				if (currentStatus === "running") {
+					store.setChatStatus(null);
+				}
+			},
+		});
 
 		return () => {
-			socket.removeEventListener("message", handleMessage);
-			socket.removeEventListener("error", handleError);
-			socket.close();
+			disposed = true;
+			disposeSocket();
 			cancelScheduledStreamReset();
 			activeChatIDRef.current = null;
 		};

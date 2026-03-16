@@ -180,15 +180,11 @@ func TestSSH(t *testing.T) {
 
 		// Delay until workspace is starting, otherwise the agent may be
 		// booted due to outdated build.
-		var err error
-		for {
+		require.Eventually(t, func() bool {
+			var err error
 			workspace, err = client.Workspace(ctx, workspace.ID)
-			require.NoError(t, err)
-			if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart {
-				break
-			}
-			time.Sleep(testutil.IntervalFast)
-		}
+			return err == nil && workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart
+		}, testutil.WaitShort, testutil.IntervalFast)
 
 		// When the agent connects, the workspace was started, and we should
 		// have access to the shell.
@@ -763,15 +759,11 @@ func TestSSH(t *testing.T) {
 
 		// Delay until workspace is starting, otherwise the agent may be
 		// booted due to outdated build.
-		var err error
-		for {
+		require.Eventually(t, func() bool {
+			var err error
 			workspace, err = client.Workspace(ctx, workspace.ID)
-			require.NoError(t, err)
-			if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart {
-				break
-			}
-			time.Sleep(testutil.IntervalFast)
-		}
+			return err == nil && workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionStart
+		}, testutil.WaitShort, testutil.IntervalFast)
 
 		// When the agent connects, the workspace was started, and we should
 		// have access to the shell.

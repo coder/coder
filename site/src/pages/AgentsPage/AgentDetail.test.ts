@@ -1,5 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
+import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ChatMessageInputRef } from "./AgentChatInput";
 import {
 	draftInputStorageKeyPrefix,
 	useConversationEditingState,
@@ -16,12 +18,16 @@ describe("useConversationEditingState", () => {
 	const renderEditing = (id: string | undefined = chatID) => {
 		const onSend = vi.fn().mockResolvedValue(undefined);
 		const onDeleteQueuedMessage = vi.fn().mockResolvedValue(undefined);
+		const chatInputRef = createRef<ChatMessageInputRef>();
+		const inputValueRef: import("react").RefObject<string> = { current: "" };
 
 		const hook = renderHook(() =>
 			useConversationEditingState({
 				chatID: id,
 				onSend,
 				onDeleteQueuedMessage,
+				chatInputRef,
+				inputValueRef,
 			}),
 		);
 
@@ -83,6 +89,34 @@ describe("useConversationEditingState", () => {
 		expect(
 			localStorage.getItem(`${draftInputStorageKeyPrefix}undefined`),
 		).toBeNull();
+		unmount();
+	});
+
+	it("calls focus on the input ref after a successful send", async () => {
+		const { result, onSend, unmount } = renderEditing();
+
+		// Attach a mock ChatMessageInputRef to the chatInputRef
+		const mockFocus = vi.fn();
+		const mockClear = vi.fn();
+		const mockInputRef = {
+			focus: mockFocus,
+			clear: mockClear,
+			insertText: vi.fn(),
+			getValue: vi.fn().mockReturnValue(""),
+			addFileReference: vi.fn(),
+			getContentParts: vi.fn().mockReturnValue([]),
+		}; // The hook exposes chatInputRef – assign the mock to it.
+		result.current.chatInputRef.current = mockInputRef;
+
+		await act(async () => {
+			result.current.handleSendFromInput("hello");
+			await vi.waitFor(() => {
+				expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
+			});
+		});
+
+		expect(mockClear).toHaveBeenCalled();
+		expect(mockFocus).toHaveBeenCalled();
 		unmount();
 	});
 

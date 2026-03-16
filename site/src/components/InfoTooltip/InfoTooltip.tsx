@@ -24,7 +24,7 @@ const tooltipColorClasses: Record<ThemeRole, string> = {
 	success: "text-content-success",
 	danger: "text-content-destructive",
 	active: "text-content-link",
-	inactive: "text-highlight-grey",
+	inactive: "text-content-secondary",
 	preview: "text-highlight-purple",
 };
 

@@ -116,10 +116,10 @@ func TestWorkspaceActivityBump(t *testing.T) {
 				// is required. The Activity Bump behavior is also coupled with
 				// Last Used, so it would be obvious to the user if we
 				// are falsely recognizing activity.
-				time.Sleep(testutil.IntervalMedium)
-				workspace, err = client.Workspace(ctx, workspace.ID)
-				require.NoError(t, err)
-				require.Equal(t, workspace.LatestBuild.Deadline.Time, firstDeadline)
+				require.Never(t, func() bool {
+					workspace, err = client.Workspace(ctx, workspace.ID)
+					return err == nil && !workspace.LatestBuild.Deadline.Time.Equal(firstDeadline)
+				}, testutil.IntervalMedium, testutil.IntervalFast, "deadline should not change")
 				return
 			}
 

@@ -48,17 +48,17 @@ const (
 // proxyAuthRequiredMsg is the response body for 407 responses.
 var proxyAuthRequiredMsg = []byte(http.StatusText(http.StatusProxyAuthRequired))
 
-// loadMitmOnce ensures the MITM certificate is loaded exactly once.
+// loadMITMOnce ensures the MITM certificate is loaded exactly once.
 // goproxy.GoproxyCa is a package-level global variable shared across all
 // goproxy.ProxyHttpServer instances in the process. In tests, multiple proxy
 // servers run in parallel, and without this guard they would race on writing
 // to GoproxyCa. In production, only one server runs, so this has no impact.
-var loadMitmOnce sync.Once
+var loadMITMOnce sync.Once
 
 // Server is the AI MITM (Man-in-the-Middle) proxy server.
 // It is responsible for:
 //   - intercepting HTTPS requests to AI providers
-//   - decrypting requests using the configured CA certificate
+//   - decrypting requests using the configured MITM CA certificate
 //   - forwarding requests to aibridged for processing
 type Server struct {
 	ctx                      context.Context
@@ -66,10 +66,11 @@ type Server struct {
 	proxy                    *goproxy.ProxyHttpServer
 	httpServer               *http.Server
 	listener                 net.Listener
+	tlsEnabled               bool
 	coderAccessURL           *url.URL
 	aibridgeProviderFromHost func(host string) string
-	// caCert is the PEM-encoded CA certificate loaded during initialization.
-	// This is served to clients who need to trust the proxy.
+	// caCert is the PEM-encoded MITM CA certificate loaded during initialization.
+	// This is served to clients who need to trust the proxy's generated certificates.
 	caCert []byte
 	// Metrics is the Prometheus metrics for the proxy. If nil, metrics are disabled.
 	metrics *Metrics
@@ -99,13 +100,17 @@ type requestContext struct {
 type Options struct {
 	// ListenAddr is the address the proxy server will listen on.
 	ListenAddr string
+	// TLSCertFile is the path to the TLS certificate file for the proxy listener.
+	TLSCertFile string
+	// TLSKeyFile is the path to the TLS private key file for the proxy listener.
+	TLSKeyFile string
 	// CoderAccessURL is the URL of the Coder deployment where aibridged is running.
 	// Requests to supported AI providers are forwarded here.
 	CoderAccessURL string
-	// CertFile is the path to the CA certificate file used for MITM.
-	CertFile string
-	// KeyFile is the path to the CA private key file used for MITM.
-	KeyFile string
+	// MITMCertFile is the path to the CA certificate file used for MITM.
+	MITMCertFile string
+	// MITMKeyFile is the path to the CA private key file used for MITM.
+	MITMKeyFile string
 	// AllowedPorts is the list of ports allowed for CONNECT requests.
 	// Defaults to ["80", "443"] if empty.
 	AllowedPorts []string
@@ -141,6 +146,12 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		return nil, xerrors.New("listen address is required")
 	}
 
+	// Listener TLS requires both cert and key files. When set, the proxy listener
+	// is served over HTTPS, otherwise it defaults to HTTP.
+	if (opts.TLSCertFile != "") != (opts.TLSKeyFile != "") {
+		return nil, xerrors.New("tls cert file and tls key file must both be set")
+	}
+
 	if strings.TrimSpace(opts.CoderAccessURL) == "" {
 		return nil, xerrors.New("coder access URL is required")
 	}
@@ -149,8 +160,9 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		return nil, xerrors.Errorf("invalid coder access URL %q: %w", opts.CoderAccessURL, err)
 	}
 
-	if opts.CertFile == "" || opts.KeyFile == "" {
-		return nil, xerrors.New("cert file and key file are required")
+	// MITM cert and key are required to intercept and decrypt HTTPS traffic.
+	if opts.MITMCertFile == "" || opts.MITMKeyFile == "" {
+		return nil, xerrors.New("MITM CA cert file and key file are required")
 	}
 
 	allowedPorts := opts.AllowedPorts
@@ -182,8 +194,8 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		}
 	}
 
-	// Load CA certificate for MITM
-	certPEM, err := loadMitmCertificate(opts.CertFile, opts.KeyFile)
+	// Load the CA certificate for MITM.
+	certPEM, err := loadMITMCertificate(opts.MITMCertFile, opts.MITMKeyFile)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to load MITM certificate: %w", err)
 	}
@@ -271,6 +283,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		ctx:                      ctx,
 		logger:                   logger,
 		proxy:                    proxy,
+		tlsEnabled:               opts.TLSCertFile != "",
 		coderAccessURL:           coderAccessURL,
 		aibridgeProviderFromHost: aibridgeProviderFromHost,
 		caCert:                   certPEM,
@@ -300,12 +313,27 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	// Handle responses from aibridged.
 	proxy.OnResponse().DoFunc(srv.handleResponse)
 
-	// Create listener first so we can get the actual address.
-	// This is useful in tests where port 0 is used to avoid conflicts.
+	// Create a plain HTTP listener by default. Port 0 is accepted and resolves
+	// to a random available port, which is useful in tests to avoid conflicts.
 	listener, err := net.Listen("tcp", opts.ListenAddr)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to listen on %s: %w", opts.ListenAddr, err)
 	}
+
+	// Upgrade to HTTPS by wrapping the listener in TLS. The plain listener is
+	// closed explicitly on error to avoid leaking the bound socket.
+	if opts.TLSCertFile != "" {
+		tlsCert, err := tls.LoadX509KeyPair(opts.TLSCertFile, opts.TLSKeyFile)
+		if err != nil {
+			_ = listener.Close()
+			return nil, xerrors.Errorf("load listener TLS certificate: %w", err)
+		}
+		listener = tls.NewListener(listener, &tls.Config{
+			MinVersion:   tls.VersionTLS12,
+			Certificates: []tls.Certificate{tlsCert},
+		})
+	}
+
 	srv.listener = listener
 
 	// Start HTTP server in background
@@ -316,6 +344,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 
 	logger.Info(ctx, "aibridgeproxyd configured",
 		slog.F("listen_addr", listener.Addr().String()),
+		slog.F("tls_listener_enabled", srv.tlsEnabled),
 		slog.F("coder_access_url", coderAccessURL.String()),
 		slog.F("domain_allowlist", mitmHosts),
 		slog.F("upstream_proxy", opts.UpstreamProxy),
@@ -340,6 +369,11 @@ func (s *Server) Addr() string {
 	return s.listener.Addr().String()
 }
 
+// IsTLSListener reports whether the proxy listener is serving TLS.
+func (s *Server) IsTLSListener() bool {
+	return s.tlsEnabled
+}
+
 // Close gracefully shuts down the proxy server.
 func (s *Server) Close() error {
 	if s.httpServer == nil {
@@ -357,14 +391,14 @@ func (s *Server) Close() error {
 	return s.httpServer.Shutdown(ctx)
 }
 
-// loadMitmCertificate loads the CA certificate and private key for MITM proxying.
+// loadMITMCertificate loads the MITM CA certificate and private key for MITM proxying.
 // This function is safe to call concurrently - the certificate is only loaded once
 // into the global goproxy.GoproxyCa variable.
 // Returns the PEM-encoded certificate for serving to clients.
-func loadMitmCertificate(certFile, keyFile string) ([]byte, error) {
+func loadMITMCertificate(certFile, keyFile string) ([]byte, error) {
 	tlsCert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
-		return nil, xerrors.Errorf("load CA certificate: %w", err)
+		return nil, xerrors.Errorf("load MITM CA certificate: %w", err)
 	}
 
 	if len(tlsCert.Certificate) == 0 {
@@ -373,7 +407,7 @@ func loadMitmCertificate(certFile, keyFile string) ([]byte, error) {
 
 	x509Cert, err := x509.ParseCertificate(tlsCert.Certificate[0])
 	if err != nil {
-		return nil, xerrors.Errorf("parse CA certificate: %w", err)
+		return nil, xerrors.Errorf("parse MITM CA certificate: %w", err)
 	}
 
 	// Ensure that we only return the certificate and never any included private keys.
@@ -383,7 +417,7 @@ func loadMitmCertificate(certFile, keyFile string) ([]byte, error) {
 	})
 
 	// Only protect the global assignment with sync.Once
-	loadMitmOnce.Do(func() {
+	loadMITMOnce.Do(func() {
 		goproxy.GoproxyCa = tls.Certificate{
 			Certificate: tlsCert.Certificate,
 			PrivateKey:  tlsCert.PrivateKey,
@@ -801,7 +835,7 @@ func (s *Server) Handler() http.Handler {
 // connections. The certificate was validated during server initialization.
 func (s *Server) serveCACert(rw http.ResponseWriter, _ *http.Request) {
 	if len(s.caCert) == 0 {
-		http.Error(rw, "CA certificate not configured", http.StatusNotFound)
+		http.Error(rw, "MITM CA certificate not configured", http.StatusNotFound)
 		return
 	}
 

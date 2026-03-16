@@ -2,22 +2,28 @@
 
 ![AI Bridge example Grafana Dashboard](./grafana_dashboard.png)A sample Grafana dashboard for monitoring AI Bridge token usage, costs, and cache hit rates in Coder.
 
-The dashboard includes three main sections with multiple visualization panels:
+The dashboard includes four main sections with multiple visualization panels:
 
-**Usage Leaderboards** - Track token consumption across your organization:
+**Usage Leaderboards** - Track token consumption and interception hotspots across your organization:
+
 - Bar chart showing input, output, cache read, and cache write tokens per user
 - Total usage statistics with breakdowns by token type
+- Top models by interception count
+- Top clients by interception count
 
 **Approximate Cost Table** - Estimate AI spending by joining token usage with live pricing data from LiteLLM:
+
 - Per-provider and per-model cost breakdown
 - Input, output, cache read, and cache write costs
 - Total cost calculations with footer summaries
 
 **Interceptions** - Monitor AI API calls over time:
+
 - Time-series bar chart of interceptions by user
 - Total interception count
 
 **Prompts & Tool Calls Details** - Inspect actual AI interactions:
+
 - User Prompts table showing all prompts sent to AI models with timestamps
 - Tool Calls table displaying MCP tool invocations, inputs, and errors (color-coded for failures)
 
@@ -36,4 +42,5 @@ All panels support filtering by time range, username, provider (Anthropic, OpenA
 ## Features
 
 - Token usage leaderboards by user, provider, and model
+- Interception leaderboards by model and client
 - Filterable by time range, username, provider, and model (regex supported)

@@ -13,6 +13,8 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/scripts/atomicwrite"
 )
 
 var (
@@ -186,13 +188,7 @@ func updatePrometheusDoc(doc []byte, metricFamilies []*dto.MetricFamily) ([]byte
 }
 
 func writePrometheusDoc(doc []byte) error {
-	// G306: Expect WriteFile permissions to be 0600 or less
-	/* #nosec G306 */
-	err := os.WriteFile(prometheusDocFile, doc, 0o644)
-	if err != nil {
-		return err
-	}
-	return nil
+	return atomicwrite.File(prometheusDocFile, doc)
 }
 
 func sortedKeys(m map[string]struct{}) []string {

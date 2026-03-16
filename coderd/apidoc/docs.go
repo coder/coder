@@ -481,34 +481,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/chats/{chat}/archive": {
-            "post": {
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Archive a chat",
-                "operationId": "archive-chat",
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
-            }
-        },
-        "/chats/{chat}/unarchive": {
-            "post": {
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Unarchive a chat",
-                "operationId": "unarchive-chat",
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
-            }
-        },
         "/connectionlog": {
             "get": {
                 "security": [
@@ -897,6 +869,28 @@ const docTemplate = `{
                 }
             }
         },
+        "/debug/profile": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Collect debug profiles",
+                "operationId": "collect-debug-profiles",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/debug/tailnet": {
             "get": {
                 "security": [
@@ -1094,6 +1088,31 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Entitlements"
                         }
                     }
+                }
+            }
+        },
+        "/experimental/watch-all-workspacebuilds": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Watch all workspace builds",
+                "operationId": "watch-all-workspace-builds",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -12454,6 +12473,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "inject_coder_mcp_tools": {
+                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
                     "type": "boolean"
                 },
                 "max_concurrency": {
@@ -12574,6 +12594,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "listen_addr": {
+                    "type": "string"
+                },
+                "tls_cert_file": {
+                    "type": "string"
+                },
+                "tls_key_file": {
                     "type": "string"
                 },
                 "upstream_proxy": {
@@ -14334,7 +14360,6 @@ const docTemplate = `{
         "codersdk.CreateUserRequestWithOrgs": {
             "type": "object",
             "required": [
-                "email",
                 "username"
             ],
             "properties": {
@@ -14363,6 +14388,10 @@ const docTemplate = `{
                 },
                 "password": {
                     "type": "string"
+                },
+                "service_account": {
+                    "description": "Service accounts are admin-managed accounts that cannot login.",
+                    "type": "boolean"
                 },
                 "user_status": {
                     "description": "UserStatus defaults to UserStatusDormant.",
@@ -15179,7 +15208,8 @@ const docTemplate = `{
                 "web-push",
                 "oauth2",
                 "agents",
-                "mcp-server-http"
+                "mcp-server-http",
+                "workspace-build-updates"
             ],
             "x-enum-comments": {
                 "ExperimentAgents": "Enables agent-powered chat functionality.",
@@ -15189,6 +15219,7 @@ const docTemplate = `{
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
+                "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-descriptions": [
@@ -15199,7 +15230,8 @@ const docTemplate = `{
                 "Enables web push notifications through the browser.",
                 "Enables OAuth2 provider functionality.",
                 "Enables agent-powered chat functionality.",
-                "Enables the MCP HTTP server functionality."
+                "Enables the MCP HTTP server functionality.",
+                "Enables publishing workspace build updates to the all builds pubsub channel."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -15209,7 +15241,8 @@ const docTemplate = `{
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
                 "ExperimentAgents",
-                "ExperimentMCPServerHTTP"
+                "ExperimentMCPServerHTTP",
+                "ExperimentWorkspaceBuildUpdates"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -15291,6 +15324,10 @@ const docTemplate = `{
         "codersdk.ExternalAuthConfig": {
             "type": "object",
             "properties": {
+                "api_base_url": {
+                    "description": "APIBaseURL is the base URL for provider REST API calls\n(e.g., \"https://api.github.com\" for GitHub). Derived from\ndefaults when not explicitly configured.",
+                    "type": "string"
+                },
                 "app_install_url": {
                     "type": "string"
                 },
@@ -15329,12 +15366,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "mcp_tool_allow_regex": {
+                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
                     "type": "string"
                 },
                 "mcp_tool_deny_regex": {
+                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
                     "type": "string"
                 },
                 "mcp_url": {
+                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
                     "type": "string"
                 },
                 "no_refresh": {

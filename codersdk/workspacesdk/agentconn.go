@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/netip"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,10 +42,21 @@ func NewAgentConn(conn *tailnet.Conn, opts AgentConnOptions) AgentConn {
 	}
 }
 
+const (
+	// CoderChatIDHeader is the HTTP header containing the current
+	// chat ID. Set by coderd on agentconn requests originating
+	// from chatd.
+	CoderChatIDHeader = "Coder-Chat-Id"
+	// CoderAncestorChatIDsHeader is the HTTP header containing a
+	// JSON array of ancestor chat UUIDs.
+	CoderAncestorChatIDsHeader = "Coder-Ancestor-Chat-Ids"
+)
+
 // AgentConn represents a connection to a workspace agent.
 // @typescript-ignore AgentConn
 type AgentConn interface {
 	TailnetConn() *tailnet.Conn
+	SetExtraHeaders(h http.Header)
 
 	AwaitReachable(ctx context.Context) bool
 	Close() error
@@ -76,17 +88,28 @@ type AgentConn interface {
 	SSHOnPort(ctx context.Context, port uint16) (*gonet.TCPConn, error)
 	Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error)
 	WatchContainers(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error)
+	WatchGit(ctx context.Context, logger slog.Logger, chatID uuid.UUID) (*wsjson.Stream[codersdk.WorkspaceAgentGitServerMessage, codersdk.WorkspaceAgentGitClientMessage], error)
+	ConnectDesktopVNC(ctx context.Context) (net.Conn, error)
+	ExecuteDesktopAction(ctx context.Context, action DesktopAction) (DesktopActionResponse, error)
 }
 
 // AgentConn represents a connection to a workspace agent.
 // @typescript-ignore AgentConn
 type agentConn struct {
 	*tailnet.Conn
-	opts AgentConnOptions
+	opts         AgentConnOptions
+	headersMu    sync.RWMutex
+	extraHeaders http.Header
 }
 
 func (c *agentConn) TailnetConn() *tailnet.Conn {
 	return c.Conn
+}
+
+func (c *agentConn) SetExtraHeaders(h http.Header) {
+	c.headersMu.Lock()
+	c.extraHeaders = h
+	c.headersMu.Unlock()
 }
 
 // @typescript-ignore AgentConnOptions
@@ -466,6 +489,155 @@ func (c *agentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-
 	return d.Chan(), d, nil
 }
 
+// WatchGit opens a bidirectional WebSocket to the agent's git watch
+// endpoint and returns a stream for sending subscribe/refresh messages
+// and receiving change notifications.
+func (c *agentConn) WatchGit(ctx context.Context, logger slog.Logger, chatID uuid.UUID) (*wsjson.Stream[codersdk.WorkspaceAgentGitServerMessage, codersdk.WorkspaceAgentGitClientMessage], error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
+
+	dialOpts := &websocket.DialOptions{
+		HTTPClient:      c.apiClient(),
+		CompressionMode: websocket.CompressionNoContextTakeover,
+	}
+	c.headersMu.RLock()
+	if len(c.extraHeaders) > 0 {
+		dialOpts.HTTPHeader = c.extraHeaders.Clone()
+	}
+	c.headersMu.RUnlock()
+
+	url := fmt.Sprintf("http://%s%s", host, "/api/v0/git/watch")
+	if chatID != uuid.Nil {
+		url += "?chat_id=" + chatID.String()
+	}
+
+	conn, res, err := websocket.Dial(ctx, url, dialOpts)
+	if err != nil {
+		if res == nil {
+			return nil, err
+		}
+		return nil, codersdk.ReadBodyAsError(res)
+	}
+	if res != nil && res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	conn.SetReadLimit(1 << 22) // 4MiB
+
+	return wsjson.NewStream[
+		codersdk.WorkspaceAgentGitServerMessage,
+		codersdk.WorkspaceAgentGitClientMessage,
+	](conn, websocket.MessageText, websocket.MessageText, logger), nil
+}
+
+// ConnectDesktopVNC opens a WebSocket to the agent's desktop endpoint and
+// returns a net.Conn carrying raw RFB (VNC) binary data.
+func (c *agentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
+
+	dialOpts := &websocket.DialOptions{
+		HTTPClient:      c.apiClient(),
+		CompressionMode: websocket.CompressionDisabled,
+	}
+	c.headersMu.RLock()
+	if len(c.extraHeaders) > 0 {
+		dialOpts.HTTPHeader = c.extraHeaders.Clone()
+	}
+	c.headersMu.RUnlock()
+
+	url := fmt.Sprintf("http://%s/api/v0/desktop/vnc", host)
+	conn, res, err := websocket.Dial(ctx, url, dialOpts)
+	if err != nil {
+		if res == nil {
+			return nil, err
+		}
+		return nil, codersdk.ReadBodyAsError(res)
+	}
+	if res != nil && res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	// No read limit — RFB framebuffer updates can be large.
+	conn.SetReadLimit(-1)
+
+	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
+}
+
+// DesktopAction is the request body for the desktop action
+// endpoint.
+type DesktopAction struct {
+	Action          string  `json:"action"`
+	Coordinate      *[2]int `json:"coordinate,omitempty"`
+	StartCoordinate *[2]int `json:"start_coordinate,omitempty"`
+	Text            *string `json:"text,omitempty"`
+	Duration        *int    `json:"duration,omitempty"`
+	ScrollAmount    *int    `json:"scroll_amount,omitempty"`
+	ScrollDirection *string `json:"scroll_direction,omitempty"`
+	ScaledWidth     *int    `json:"scaled_width,omitempty"`
+	ScaledHeight    *int    `json:"scaled_height,omitempty"`
+}
+
+// DesktopActionResponse is the response from the desktop action
+// endpoint.
+type DesktopActionResponse struct {
+	Output           string `json:"output,omitempty"`
+	ScreenshotData   string `json:"screenshot_data,omitempty"`
+	ScreenshotWidth  int    `json:"screenshot_width,omitempty"`
+	ScreenshotHeight int    `json:"screenshot_height,omitempty"`
+}
+
+// ExecuteDesktopAction executes a mouse/keyboard/scroll action on the
+// agent's desktop.
+func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopAction) (DesktopActionResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	host := net.JoinHostPort(
+		c.agentAddress().String(),
+		strconv.Itoa(AgentHTTPAPIServerPort),
+	)
+
+	body, err := json.Marshal(action)
+	if err != nil {
+		return DesktopActionResponse{}, xerrors.Errorf("marshal action: %w", err)
+	}
+
+	url := fmt.Sprintf("http://%s/api/v0/desktop/action", host)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return DesktopActionResponse{}, xerrors.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	c.headersMu.RLock()
+	if len(c.extraHeaders) > 0 {
+		for k, v := range c.extraHeaders {
+			req.Header[k] = v
+		}
+	}
+	c.headersMu.RUnlock()
+
+	resp, err := c.apiClient().Do(req)
+	if err != nil {
+		return DesktopActionResponse{}, xerrors.Errorf("action request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return DesktopActionResponse{}, codersdk.ReadBodyAsError(resp)
+	}
+
+	var result DesktopActionResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return DesktopActionResponse{}, xerrors.Errorf("decode action response: %w", err)
+	}
+	return result, nil
+}
+
 // DeleteDevcontainer deletes the provided devcontainer.
 // This is a blocking call and will wait for the container to be deleted.
 func (c *agentConn) DeleteDevcontainer(ctx context.Context, devcontainerID string) error {
@@ -727,8 +899,9 @@ func DefaultReadFileLinesLimits() ReadFileLinesLimits {
 }
 
 type FileEdit struct {
-	Search  string `json:"search"`
-	Replace string `json:"replace"`
+	Search     string `json:"search"`
+	Replace    string `json:"replace"`
+	ReplaceAll bool   `json:"replace_all,omitempty"`
 }
 
 type FileEdits struct {
@@ -859,6 +1032,15 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 	req, err := http.NewRequestWithContext(ctx, method, url, r)
 	if err != nil {
 		return nil, xerrors.Errorf("new http api request to %q: %w", url, err)
+	}
+
+	c.headersMu.RLock()
+	extraHeaders := c.extraHeaders.Clone()
+	c.headersMu.RUnlock()
+	for key, values := range extraHeaders {
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
 	}
 
 	return c.apiClient().Do(req)
