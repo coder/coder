@@ -601,6 +601,7 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	messages, err := api.Database.GetChatMessagesByChatIDPaginated(ctx, database.GetChatMessagesByChatIDPaginatedParams{
 		ChatID:   chatID,
 		BeforeID: beforeID,
+		// #nosec G115 - Pagination limit is validated to be between 1 and 200, so limit+1 fits in int32.
 		LimitVal: int32(limit + 1),
 	})
 	if err != nil {

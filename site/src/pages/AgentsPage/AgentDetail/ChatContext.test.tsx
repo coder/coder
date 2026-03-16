@@ -887,7 +887,12 @@ describe("useChatStore", () => {
 			queued_messages: [queuedMessage],
 			has_more: false,
 		};
-		queryClient.setQueryData(chatMessagesKey(chatID), initialChatMessagesData);
+		// The cache is InfiniteData<ChatMessagesResponse> after the
+		// migration to useInfiniteQuery for chat messages.
+		queryClient.setQueryData(chatMessagesKey(chatID), {
+			pages: [initialChatMessagesData],
+			pageParams: [undefined],
+		});
 
 		const wrapper = ({ children }: PropsWithChildren) => (
 			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -928,11 +933,11 @@ describe("useChatStore", () => {
 		await waitFor(() => {
 			expect(result.current.queuedMessages).toEqual([]);
 		});
-		expect(
-			queryClient.getQueryData<TypesGen.ChatMessagesResponse | undefined>(
-				chatMessagesKey(chatID),
-			)?.queued_messages,
-		).toEqual([]);
+		const cachedData = queryClient.getQueryData<{
+			pages: TypesGen.ChatMessagesResponse[];
+			pageParams: unknown[];
+		}>(chatMessagesKey(chatID));
+		expect(cachedData?.pages[0]?.queued_messages).toEqual([]);
 	});
 
 	it("closes old WebSocket and resets state when chatID changes", async () => {
