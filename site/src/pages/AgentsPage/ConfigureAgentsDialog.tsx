@@ -500,13 +500,13 @@ export const ConfigureAgentsDialog: FC<ConfigureAgentsDialogProps> = ({
 								onClick={() => setUserActiveSection(section.id)}
 							>
 								<SectionIcon className="h-5 w-5 shrink-0" />
-								<span className="flex items-center gap-2 text-sm font-medium">
+								<span className="flex flex-1 items-center gap-2 text-sm font-medium">
 									{section.label}
 									{section.adminOnly && (
 										<TooltipProvider delayDuration={0}>
 											<Tooltip>
 												<TooltipTrigger asChild>
-													<span className="inline-flex">
+													<span className="ml-auto inline-flex">
 														<ShieldIcon className="h-3 w-3 shrink-0 opacity-50" />
 													</span>
 												</TooltipTrigger>
