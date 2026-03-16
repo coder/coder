@@ -1,4 +1,4 @@
--- Fixture for migration 000439_three_options_for_allowed_workspace_sharing.
+-- Fixture for migration 000440_three_options_for_allowed_workspace_sharing.
 -- Inserts a custom role named 'Organization-Service-Account' (mixed case)
 -- to ensure the migration's case-insensitive rename catches it.
 INSERT INTO custom_roles (
