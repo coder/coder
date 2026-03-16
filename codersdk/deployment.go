@@ -3953,6 +3953,16 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "upstream_proxy_ca",
 		},
+		{
+			Name:        "AI Bridge Proxy Allowed Private CIDRs",
+			Description: "Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges. By default all private ranges are blocked to prevent SSRF attacks. Use this to allow access to specific internal networks.",
+			Flag:        "aibridge-proxy-allowed-private-cidrs",
+			Env:         "CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS",
+			Value:       &c.AI.BridgeProxyConfig.AllowedPrivateCIDRs,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "allowed_private_cidrs",
+		},
 
 		// Retention settings
 		{
@@ -4058,15 +4068,16 @@ type AIBridgeBedrockConfig struct {
 }
 
 type AIBridgeProxyConfig struct {
-	Enabled         serpent.Bool        `json:"enabled" typescript:",notnull"`
-	ListenAddr      serpent.String      `json:"listen_addr" typescript:",notnull"`
-	TLSCertFile     serpent.String      `json:"tls_cert_file" typescript:",notnull"`
-	TLSKeyFile      serpent.String      `json:"tls_key_file" typescript:",notnull"`
-	MITMCertFile    serpent.String      `json:"cert_file" typescript:",notnull"`
-	MITMKeyFile     serpent.String      `json:"key_file" typescript:",notnull"`
-	DomainAllowlist serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`
-	UpstreamProxy   serpent.String      `json:"upstream_proxy" typescript:",notnull"`
-	UpstreamProxyCA serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
+	Enabled             serpent.Bool        `json:"enabled" typescript:",notnull"`
+	ListenAddr          serpent.String      `json:"listen_addr" typescript:",notnull"`
+	TLSCertFile         serpent.String      `json:"tls_cert_file" typescript:",notnull"`
+	TLSKeyFile          serpent.String      `json:"tls_key_file" typescript:",notnull"`
+	MITMCertFile        serpent.String      `json:"cert_file" typescript:",notnull"`
+	MITMKeyFile         serpent.String      `json:"key_file" typescript:",notnull"`
+	DomainAllowlist     serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`
+	UpstreamProxy       serpent.String      `json:"upstream_proxy" typescript:",notnull"`
+	UpstreamProxyCA     serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
+	AllowedPrivateCIDRs serpent.StringArray `json:"allowed_private_cidrs" typescript:",notnull"`
 }
 
 type ChatConfig struct {
