@@ -1358,7 +1358,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 				})
 				return
 			}
-			logger.Warn(ctx, "allowing unverified oidc email %q")
+			logger.Warn(ctx, "allowing unverified oidc email", slog.F("email", email))
 		}
 	}
 
