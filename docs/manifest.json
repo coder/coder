@@ -1194,6 +1194,12 @@
 					"state": ["early access"],
 					"children": [
 						{
+							"title": "Early Access",
+							"description": "About the Coder Agents Early Access program",
+							"path": "./ai-coder/agents/early-access.md",
+							"state": ["early access"]
+						},
+						{
 							"title": "Architecture",
 							"description": "How the agent in the control plane communicates with workspaces",
 							"path": "./ai-coder/agents/architecture.md",
@@ -1212,29 +1218,23 @@
 							"state": ["early access"]
 						},
 						{
+							"title": "Agent Workspaces",
+							"description": "Best practices for creating workspaces that are discoverable and useful to Coder Agents",
+							"path": "./ai-coder/agents/workspaces.md",
+							"state": ["early access"]
+						},
+						{
 							"title": "Chats API",
 							"description": "Programmatic access to Coder Agents via the experimental Chats API",
 							"path": "./ai-coder/agents/chats-api.md",
 							"state": ["early access"]
-						},
-							{
-								"title": "Agent Workspaces",
-								"description": "Best practices for creating workspaces that are discoverable and useful to Coder Agents",
-								"path": "./ai-coder/agents/workspaces.md",
-								"state": ["early access"]
-							},
-							{
-								"title": "Early Access",
-								"description": "About the Coder Agents Early Access program",
-								"path": "./ai-coder/agents/early-access.md",
-								"state": ["early access"]
-							}
-						]				}
+						}
+					]
+				}
 			]
-		},
-		{
-			"title": "Tutorials",
-			"description": "Coder knowledgebase for administrating your deployment",
+			},
+			{
+				"title": "Tutorials",			"description": "Coder knowledgebase for administrating your deployment",
 			"path": "./tutorials/index.md",
 			"icon_path": "./images/icons/generic.svg",
 			"children": [
