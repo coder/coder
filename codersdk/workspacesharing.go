@@ -36,7 +36,8 @@ type WorkspaceSharingSettings struct {
 // that can be updated for an organization.
 type UpdateWorkspaceSharingSettingsRequest struct {
 	// SharingDisabled is deprecated and left for backward compatibility
-	// purposes, use `ShareableWorkspaceOwners` instead.
+	// purposes.
+	// Deprecated: use `ShareableWorkspaceOwners` instead
 	SharingDisabled bool `json:"sharing_disabled"`
 	// ShareableWorkspaceOwners controls whose workspaces can be shared
 	// within the organization.
