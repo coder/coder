@@ -70,7 +70,7 @@ const validationSchema = Yup.object({
 	}),
 });
 
-export type CreateUserFormData = {
+type CreateUserFormData = {
 	readonly username: string;
 	readonly name: string;
 	readonly email: string;
