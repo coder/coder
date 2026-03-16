@@ -25,6 +25,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
@@ -43,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
@@ -235,7 +237,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaceSelection, validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ctx, req)
+	workspaceSelection, validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ctx, r, req)
 	if validationError != nil {
 		httpapi.Write(ctx, rw, validationStatus, *validationError)
 		return
@@ -430,15 +432,17 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCostSummary{
-		StartDate:            startDate,
-		EndDate:              endDate,
-		TotalCostMicros:      summary.TotalCostMicros,
-		PricedMessageCount:   summary.PricedMessageCount,
-		UnpricedMessageCount: summary.UnpricedMessageCount,
-		TotalInputTokens:     summary.TotalInputTokens,
-		TotalOutputTokens:    summary.TotalOutputTokens,
-		ByModel:              modelBreakdowns,
-		ByChat:               chatBreakdowns,
+		StartDate:                startDate,
+		EndDate:                  endDate,
+		TotalCostMicros:          summary.TotalCostMicros,
+		PricedMessageCount:       summary.PricedMessageCount,
+		UnpricedMessageCount:     summary.UnpricedMessageCount,
+		TotalInputTokens:         summary.TotalInputTokens,
+		TotalOutputTokens:        summary.TotalOutputTokens,
+		TotalCacheReadTokens:     summary.TotalCacheReadTokens,
+		TotalCacheCreationTokens: summary.TotalCacheCreationTokens,
+		ByModel:                  modelBreakdowns,
+		ByChat:                   chatBreakdowns,
 	})
 }
 
@@ -735,6 +739,134 @@ proxyLoop:
 	_ = clientStream.Close(websocket.StatusGoingAway)
 }
 
+// @Summary Watch chat desktop
+// @ID watch-chat-desktop
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 101
+// @Router /chats/{chat}/desktop [get]
+//
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		chat   = httpmw.ChatParam(r)
+		logger = api.Logger.Named("chat_desktop").With(slog.F("chat_id", chat.ID))
+	)
+
+	if !chat.WorkspaceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat has no workspace.",
+		})
+		return
+	}
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat workspace not found.",
+		})
+		return
+	}
+	if !api.Authorize(r, policy.ActionApplicationConnect, workspace) &&
+		!api.Authorize(r, policy.ActionSSH, workspace) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, chat.WorkspaceID.UUID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agents.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(agents) == 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat workspace has no agents.",
+		})
+		return
+	}
+
+	apiAgent, err := db2sdk.WorkspaceAgent(
+		api.DERPMap(),
+		*api.TailnetCoordinator.Load(),
+		agents[0],
+		nil,
+		nil,
+		nil,
+		api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Agent state is %q, must be connected.", apiAgent.Status),
+		})
+		return
+	}
+
+	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer dialCancel()
+
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agents[0].ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to dial workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer release()
+
+	desktopConn, err := agentConn.ConnectDesktopVNC(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to connect to agent desktop.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer desktopConn.Close()
+
+	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	if err != nil {
+		logger.Error(ctx, "failed to accept websocket", slog.Error(err))
+		return
+	}
+
+	// No read limit — RFB framebuffer updates can be large.
+	conn.SetReadLimit(-1)
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	ctx, wsNetConn := workspaceapps.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
+	defer wsNetConn.Close()
+
+	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
+
+	agentssh.Bicopy(ctx, wsNetConn, desktopConn)
+	logger.Debug(ctx, "desktop Bicopy finished")
+}
+
+// @Summary Archive a chat
+// @ID archive-chat
+// @Tags Chats
+// @Success 204
+// @Router /chats/{chat}/archive [post]
 func (api *API) archiveChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -1767,6 +1899,7 @@ type createChatWorkspaceSelection struct {
 
 func (api *API) validateCreateChatWorkspaceSelection(
 	ctx context.Context,
+	r *http.Request,
 	req codersdk.CreateChatRequest,
 ) (
 	createChatWorkspaceSelection,
@@ -1793,6 +1926,12 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	selection.WorkspaceID = uuid.NullUUID{
 		UUID:  workspace.ID,
 		Valid: true,
+	}
+
+	if !api.Authorize(r, policy.ActionSSH, workspace) {
+		return selection, http.StatusBadRequest, &codersdk.Response{
+			Message: "Workspace not found or you do not have access to this resource",
+		}
 	}
 
 	return selection, 0, nil
@@ -2371,39 +2510,45 @@ func convertChatCostModelBreakdown(model database.GetChatCostPerModelRow) coders
 		displayName = model.Model
 	}
 	return codersdk.ChatCostModelBreakdown{
-		ModelConfigID:     model.ModelConfigID,
-		DisplayName:       displayName,
-		Provider:          model.Provider,
-		Model:             model.Model,
-		TotalCostMicros:   model.TotalCostMicros,
-		MessageCount:      model.MessageCount,
-		TotalInputTokens:  model.TotalInputTokens,
-		TotalOutputTokens: model.TotalOutputTokens,
+		ModelConfigID:            model.ModelConfigID,
+		DisplayName:              displayName,
+		Provider:                 model.Provider,
+		Model:                    model.Model,
+		TotalCostMicros:          model.TotalCostMicros,
+		MessageCount:             model.MessageCount,
+		TotalInputTokens:         model.TotalInputTokens,
+		TotalOutputTokens:        model.TotalOutputTokens,
+		TotalCacheReadTokens:     model.TotalCacheReadTokens,
+		TotalCacheCreationTokens: model.TotalCacheCreationTokens,
 	}
 }
 
 func convertChatCostChatBreakdown(chat database.GetChatCostPerChatRow) codersdk.ChatCostChatBreakdown {
 	return codersdk.ChatCostChatBreakdown{
-		RootChatID:        chat.RootChatID,
-		ChatTitle:         chat.ChatTitle,
-		TotalCostMicros:   chat.TotalCostMicros,
-		MessageCount:      chat.MessageCount,
-		TotalInputTokens:  chat.TotalInputTokens,
-		TotalOutputTokens: chat.TotalOutputTokens,
+		RootChatID:               chat.RootChatID,
+		ChatTitle:                chat.ChatTitle,
+		TotalCostMicros:          chat.TotalCostMicros,
+		MessageCount:             chat.MessageCount,
+		TotalInputTokens:         chat.TotalInputTokens,
+		TotalOutputTokens:        chat.TotalOutputTokens,
+		TotalCacheReadTokens:     chat.TotalCacheReadTokens,
+		TotalCacheCreationTokens: chat.TotalCacheCreationTokens,
 	}
 }
 
 func convertChatCostUserRollup(user database.GetChatCostPerUserRow) codersdk.ChatCostUserRollup {
 	return codersdk.ChatCostUserRollup{
-		UserID:            user.UserID,
-		Username:          user.Username,
-		Name:              user.Name,
-		AvatarURL:         user.AvatarURL,
-		TotalCostMicros:   user.TotalCostMicros,
-		MessageCount:      user.MessageCount,
-		ChatCount:         user.ChatCount,
-		TotalInputTokens:  user.TotalInputTokens,
-		TotalOutputTokens: user.TotalOutputTokens,
+		UserID:                   user.UserID,
+		Username:                 user.Username,
+		Name:                     user.Name,
+		AvatarURL:                user.AvatarURL,
+		TotalCostMicros:          user.TotalCostMicros,
+		MessageCount:             user.MessageCount,
+		ChatCount:                user.ChatCount,
+		TotalInputTokens:         user.TotalInputTokens,
+		TotalOutputTokens:        user.TotalOutputTokens,
+		TotalCacheReadTokens:     user.TotalCacheReadTokens,
+		TotalCacheCreationTokens: user.TotalCacheCreationTokens,
 	}
 }
 
@@ -2482,6 +2627,30 @@ func convertChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) co
 	result.Additions = status.Additions
 	result.Deletions = status.Deletions
 	result.ChangedFiles = status.ChangedFiles
+	if status.AuthorLogin.Valid {
+		result.AuthorLogin = &status.AuthorLogin.String
+	}
+	if status.AuthorAvatarUrl.Valid {
+		result.AuthorAvatarURL = &status.AuthorAvatarUrl.String
+	}
+	if status.BaseBranch.Valid {
+		result.BaseBranch = &status.BaseBranch.String
+	}
+	if status.HeadBranch.Valid {
+		result.HeadBranch = &status.HeadBranch.String
+	}
+	if status.PrNumber.Valid {
+		result.PRNumber = &status.PrNumber.Int32
+	}
+	if status.Commits.Valid {
+		result.Commits = &status.Commits.Int32
+	}
+	if status.Approved.Valid {
+		result.Approved = &status.Approved.Bool
+	}
+	if status.ReviewerCount.Valid {
+		result.ReviewerCount = &status.ReviewerCount.Int32
+	}
 	if status.RefreshedAt.Valid {
 		refreshedAt := status.RefreshedAt.Time
 		result.RefreshedAt = &refreshedAt

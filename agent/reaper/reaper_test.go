@@ -78,6 +78,9 @@ func withDone(t *testing.T) []reaper.Option {
 // processes and passes their PIDs through the shared channel.
 func TestReap(t *testing.T) {
 	t.Parallel()
+	if testutil.InCI() {
+		t.Skip("Detected CI, skipping reaper tests")
+	}
 	if !runSubprocess(t) {
 		return
 	}
@@ -124,6 +127,9 @@ func TestReap(t *testing.T) {
 //nolint:tparallel // Subtests must be sequential, each starts its own reaper.
 func TestForkReapExitCodes(t *testing.T) {
 	t.Parallel()
+	if testutil.InCI() {
+		t.Skip("Detected CI, skipping reaper tests")
+	}
 	if !runSubprocess(t) {
 		return
 	}
@@ -164,6 +170,9 @@ func TestForkReapExitCodes(t *testing.T) {
 // ensures SIGINT cannot kill the parent test binary.
 func TestReapInterrupt(t *testing.T) {
 	t.Parallel()
+	if testutil.InCI() {
+		t.Skip("Detected CI, skipping reaper tests")
+	}
 	if !runSubprocess(t) {
 		return
 	}

@@ -1,11 +1,19 @@
-import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
+import type {
+	ChatDiffStatus,
+	WorkspaceAgentRepoChanges,
+} from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import {
 	CheckIcon,
+	CircleDotIcon,
 	ColumnsIcon,
-	FileDiffIcon,
 	GitBranchIcon,
 	GitCompareArrowsIcon,
+	GitMergeIcon,
+	GitPullRequestClosedIcon,
+	GitPullRequestDraftIcon,
+	GitPullRequestIcon,
 	RefreshCwIcon,
 	RowsIcon,
 } from "lucide-react";
@@ -22,10 +30,10 @@ import { cn } from "utils/cn";
 import type { ChatMessageInputRef } from "./AgentChatInput";
 import { DiffStatBadge } from "./DiffStats";
 import { type DiffStyle, loadDiffStyle, saveDiffStyle } from "./DiffViewer";
-import { FilesChangedPanel } from "./FilesChangedPanel";
-import { RepoChangesPanel } from "./RepoChangesPanel";
+import { LocalDiffPanel } from "./LocalDiffPanel";
+import { RemoteDiffPanel } from "./RemoteDiffPanel";
 
-type GitView = "remote" | "local";
+type GitView = { type: "remote" } | { type: "local"; repoRoot: string };
 
 interface DiffStats {
 	additions: number;
@@ -46,11 +54,9 @@ interface GitPanelProps {
 	onCommit: (repoRoot: string) => void;
 	/** Whether the panel is in expanded/fullscreen mode. */
 	isExpanded?: boolean;
-	/** Diff stats for the remote/branch view. */
-	remoteDiffStats?: DiffStats;
-	/** Diff stats for the local/working tree view. */
-	localDiffStats?: DiffStats;
-	/** Ref to the chat input, forwarded to FilesChangedPanel. */
+	/** Diff status for the remote/branch view (includes PR metadata). */
+	remoteDiffStats?: ChatDiffStatus;
+	/** Ref to the chat input, forwarded to RemoteDiffPanel. */
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 }
 
@@ -66,24 +72,70 @@ export const GitPanel: FC<GitPanelProps> = ({
 	onCommit,
 	isExpanded,
 	remoteDiffStats,
-	localDiffStats,
 	chatInputRef,
 }) => {
 	const hasRemoteStats =
 		!!remoteDiffStats &&
 		(remoteDiffStats.additions > 0 || remoteDiffStats.deletions > 0);
-	const hasLocalStats =
-		!!localDiffStats &&
-		(localDiffStats.additions > 0 || localDiffStats.deletions > 0);
 
-	// Default to "local" when there are only local changes and no
-	// remote stats, so the user sees content immediately.
-	const [view, setView] = useState<GitView>(
-		!hasRemoteStats && hasLocalStats ? "local" : "remote",
+	const showRemoteTab = !!prTab || hasRemoteStats;
+
+	const prTitle = remoteDiffStats?.pull_request_title;
+	const prState = remoteDiffStats?.pull_request_state;
+	const prDraft = remoteDiffStats?.pull_request_draft;
+
+	// Compute per-repo diff stats from unified diffs.
+	const repoStats = useMemo(() => {
+		const stats = new Map<string, DiffStats>();
+		for (const [root, repo] of repositories.entries()) {
+			if (!repo.unified_diff) continue;
+			let additions = 0;
+			let deletions = 0;
+			for (const line of repo.unified_diff.split("\n")) {
+				if (line.startsWith("+") && !line.startsWith("+++")) {
+					additions++;
+				} else if (line.startsWith("-") && !line.startsWith("---")) {
+					deletions++;
+				}
+			}
+			if (additions > 0 || deletions > 0) {
+				stats.set(root, { additions, deletions });
+			}
+		}
+		return stats;
+	}, [repositories]);
+
+	const localRepos = useMemo(
+		() => Array.from(repoStats.keys()).sort((a, b) => a.localeCompare(b)),
+		[repoStats],
 	);
 
-	// Diff style is managed here for the local view only.
-	// FilesChangedPanel manages its own diff style internally.
+	// Default to the first local repo when there are only local
+	// changes and no remote stats.
+	const [view, setView] = useState<GitView>(() => {
+		if (!showRemoteTab && localRepos.length > 0) {
+			return { type: "local", repoRoot: localRepos[0] };
+		}
+		return { type: "remote" };
+	});
+
+	// If the active tab gets hidden, switch to the first available.
+	useEffect(() => {
+		if (view.type === "remote" && !showRemoteTab) {
+			if (localRepos.length > 0) {
+				setView({ type: "local", repoRoot: localRepos[0] });
+			}
+		} else if (view.type === "local") {
+			if (!repoStats.has(view.repoRoot)) {
+				if (showRemoteTab) {
+					setView({ type: "remote" });
+				} else if (localRepos.length > 0) {
+					setView({ type: "local", repoRoot: localRepos[0] });
+				}
+			}
+		}
+	}, [view, showRemoteTab, localRepos, repoStats]);
+
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 
 	const handleDiffStyleChange = useCallback((style: DiffStyle) => {
@@ -91,70 +143,90 @@ export const GitPanel: FC<GitPanelProps> = ({
 		setDiffStyle(style);
 	}, []);
 
+	const [spinning, setSpinning] = useState(false);
+	const spinTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+	useEffect(() => () => clearTimeout(spinTimerRef.current), []);
+	const handleRefresh = useCallback(() => {
+		onRefresh();
+		setSpinning(true);
+		clearTimeout(spinTimerRef.current);
+		spinTimerRef.current = setTimeout(() => setSpinning(false), 1000);
+	}, [onRefresh]);
+
 	return (
 		<div className="flex h-full flex-col">
 			{/* Toolbar */}
-			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
-				{/* Remote / Local segmented control */}
-				<div className="flex h-6 items-stretch overflow-hidden rounded-md text-xs">
-					<button
-						type="button"
-						onClick={() => setView("remote")}
-						className={cn(
-							"flex cursor-pointer items-center gap-3 border-none font-medium transition-colors outline-none focus-visible:outline-none",
-							view === "remote"
-								? "bg-surface-quaternary/25 text-content-primary"
-								: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
-							hasRemoteStats ? "pl-3 pr-0" : "px-3",
-						)}
-					>
-						Remote
-						{hasRemoteStats && (
-							<span
+			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3">
+				{/* Tabs — scrollable when they overflow */}
+				<ScrollArea
+					className="min-w-0 flex-1"
+					orientation="horizontal"
+					scrollBarClassName="h-1.5"
+				>
+					<div className="flex items-center gap-0.5 py-1.5 text-xs">
+						{showRemoteTab && (
+							<Button
+								variant="outline"
+								size="lg"
+								onClick={() => setView({ type: "remote" })}
 								className={cn(
-									"flex -my-px items-center self-stretch transition-opacity",
-									view !== "remote" && "opacity-50",
+									"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
+									view.type === "remote" &&
+										"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
 								)}
 							>
-								<DiffStatBadge
-									additions={remoteDiffStats.additions}
-									deletions={remoteDiffStats.deletions}
-								/>
-							</span>
-						)}
-					</button>
-					<button
-						type="button"
-						onClick={() => setView("local")}
-						className={cn(
-							"flex cursor-pointer items-center gap-3 border-0 border-l border-solid border-border-default font-medium transition-colors outline-none focus-visible:outline-none",
-							view === "local"
-								? "bg-surface-quaternary/25 text-content-primary"
-								: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
-							hasLocalStats ? "pl-3 pr-0" : "px-3",
-						)}
-					>
-						Local
-						{hasLocalStats && (
-							<span
-								className={cn(
-									"flex -my-px items-center self-stretch transition-opacity",
-									view !== "local" && "opacity-50",
+								{prTab ? (
+									<>
+										<PrStateIcon
+											state={prState}
+											draft={prDraft}
+											className="!size-4 shrink-0"
+										/>
+										<span className="truncate">
+											{prTitle || `PR #${prTab.prNumber}`}
+										</span>
+									</>
+								) : (
+									<>
+										<GitBranchIcon className="!size-3.5 shrink-0" />
+										<span className="truncate">Branch</span>
+									</>
 								)}
-							>
-								<DiffStatBadge
-									additions={localDiffStats.additions}
-									deletions={localDiffStats.deletions}
-								/>
-							</span>
+							</Button>
 						)}
-					</button>
-				</div>
-				<div className="flex-1" />
-				{/* Split / Unified toggle — only shown for local view since
-				    FilesChangedPanel has its own toggle built in. */}
-				{view === "local" && (
-					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default text-xs">
+						{localRepos.map((repoRoot) => {
+							const isActive =
+								view.type === "local" && view.repoRoot === repoRoot;
+							return (
+								<Button
+									key={repoRoot}
+									variant="outline"
+									size="lg"
+									onClick={() => setView({ type: "local", repoRoot })}
+									className={cn(
+										"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
+										isActive &&
+											"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
+									)}
+								>
+									<CircleDotIcon
+										className={cn(
+											"!size-3.5 shrink-0",
+											isActive ? "text-amber-400" : "text-amber-400/60",
+										)}
+									/>
+									<span className="truncate">
+										Working{" "}
+										<span className="opacity-50">{repoTabLabel(repoRoot)}</span>
+									</span>
+								</Button>
+							);
+						})}
+					</div>
+				</ScrollArea>
+				{/* Controls */}
+				<div className="flex shrink-0 items-center gap-1 py-1.5">
+					<div className="flex h-6 items-stretch overflow-hidden rounded-md border border-solid border-border-default">
 						<button
 							type="button"
 							onClick={() => handleDiffStyleChange("unified")}
@@ -182,21 +254,38 @@ export const GitPanel: FC<GitPanelProps> = ({
 							<ColumnsIcon className="size-3.5" />
 						</button>
 					</div>
-				)}
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={handleRefresh}
+						aria-label="Refresh"
+						className="h-6 w-6 text-content-secondary hover:text-content-primary"
+					>
+						<RefreshCwIcon
+							className={cn(
+								"size-3.5",
+								spinning && "motion-safe:animate-spin-once",
+							)}
+						/>
+					</Button>
+				</div>
 			</div>
-
 			{/* Content */}
 			<div className="min-h-0 flex-1">
-				{view === "remote" ? (
+				{view.type === "remote" ? (
 					<RemoteContent
 						prTab={prTab}
 						isExpanded={isExpanded}
 						chatInputRef={chatInputRef}
+						diffStyle={diffStyle}
 					/>
 				) : (
-					<LocalContent
-						repositories={repositories}
-						onRefresh={onRefresh}
+					<LocalRepoContent
+						repoRoot={view.repoRoot}
+						repo={repositories.get(view.repoRoot)}
+						diffStats={
+							repoStats.get(view.repoRoot) ?? { additions: 0, deletions: 0 }
+						}
 						onCommit={onCommit}
 						isExpanded={isExpanded}
 						diffStyle={diffStyle}
@@ -215,7 +304,8 @@ const RemoteContent: FC<{
 	prTab?: { prNumber: number; chatId: string };
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
-}> = ({ prTab, isExpanded, chatInputRef }) => {
+	diffStyle: DiffStyle;
+}> = ({ prTab, isExpanded, chatInputRef, diffStyle }) => {
 	if (!prTab) {
 		return (
 			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
@@ -233,75 +323,44 @@ const RemoteContent: FC<{
 	}
 
 	return (
-		<FilesChangedPanel
+		<RemoteDiffPanel
 			chatId={prTab.chatId}
 			isExpanded={isExpanded}
 			chatInputRef={chatInputRef}
+			diffStyle={diffStyle}
 		/>
 	);
 };
 
 // ---------------------------------------------------------------
-// Local view (working tree changes)
+// Local view (single repo)
 // ---------------------------------------------------------------
 
-const LocalContent: FC<{
-	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
-	onRefresh: () => void;
+const LocalRepoContent: FC<{
+	repoRoot: string;
+	repo: WorkspaceAgentRepoChanges | undefined;
+	diffStats: DiffStats;
 	onCommit: (repoRoot: string) => void;
 	isExpanded?: boolean;
 	diffStyle: DiffStyle;
-}> = ({ repositories, onRefresh, onCommit, isExpanded, diffStyle }) => {
-	const repoEntries = useMemo(
-		() =>
-			Array.from(repositories.entries()).sort(([a], [b]) => a.localeCompare(b)),
-		[repositories],
-	);
-
-	if (repoEntries.length === 0) {
-		return (
-			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
-				<div className="mb-4 flex size-10 items-center justify-center rounded-lg border border-solid border-border-default bg-surface-secondary">
-					<FileDiffIcon className="size-5 text-content-secondary" />
-				</div>
-				<p className="text-sm font-medium text-content-primary">
-					No uncommitted changes
-				</p>
-				<p className="mt-1 max-w-52 text-xs text-content-secondary">
-					Local file modifications will appear here as you edit.
-				</p>
-			</div>
-		);
+}> = ({ repoRoot, repo, diffStats, onCommit, isExpanded, diffStyle }) => {
+	if (!repo) {
+		return null;
 	}
 
 	return (
 		<div className="flex h-full flex-col">
-			{repoEntries.map(([repoRoot, repo], index) => {
-				const showSeparator = index > 0;
-
-				return (
-					<section
-						key={repoRoot}
-						className={cn(
-							"flex min-h-0 flex-1 flex-col",
-							showSeparator &&
-								"border-0 border-t border-solid border-border-default",
-						)}
-					>
-						<RepoHeader
-							repoRoot={repoRoot}
-							repo={repo}
-							onRefresh={onRefresh}
-							onCommit={() => onCommit(repoRoot)}
-						/>
-						<RepoChangesPanel
-							repo={repo}
-							isExpanded={isExpanded}
-							diffStyle={diffStyle}
-						/>
-					</section>
-				);
-			})}
+			<RepoHeader
+				repoRoot={repoRoot}
+				repo={repo}
+				diffStats={diffStats}
+				onCommit={() => onCommit(repoRoot)}
+			/>
+			<LocalDiffPanel
+				repo={repo}
+				isExpanded={isExpanded}
+				diffStyle={diffStyle}
+			/>
 		</div>
 	);
 };
@@ -313,60 +372,60 @@ const LocalContent: FC<{
 const RepoHeader: FC<{
 	repoRoot: string;
 	repo: WorkspaceAgentRepoChanges;
-	onRefresh: () => void;
+	diffStats: DiffStats;
 	onCommit: () => void;
-}> = ({ repoRoot, repo, onRefresh, onCommit }) => {
-	const [spinning, setSpinning] = useState(false);
-	const spinTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-	useEffect(() => () => clearTimeout(spinTimerRef.current), []);
-	const handleRefresh = useCallback(() => {
-		onRefresh();
-		setSpinning(true);
-		clearTimeout(spinTimerRef.current);
-		spinTimerRef.current = setTimeout(() => setSpinning(false), 1000);
-	}, [onRefresh]);
-
+}> = ({ repoRoot, repo, diffStats, onCommit }) => {
 	return (
-		<div className="flex shrink-0 items-center gap-2 bg-surface-secondary px-3 py-2">
-			{/* Repo identity */}
-			<div className="flex min-w-0 flex-1 items-center gap-2">
-				<GitBranchIcon className="size-3.5 shrink-0 text-content-secondary" />
-				<span className="truncate text-sm font-medium text-content-primary">
+		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
+			<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
+				<GitBranchIcon className="size-3.5 shrink-0" />
+				<span className="truncate">
 					{repo.branch?.trim() || repoTabLabel(repoRoot)}
 				</span>
-				{repo.branch?.trim() && (
-					<span className="truncate text-xs text-content-secondary">
-						{repoTabLabel(repoRoot)}
-					</span>
-				)}
+				<span className="truncate opacity-50">{repoRoot}</span>
 			</div>
-
-			{/* Actions */}
-			<div className="flex shrink-0 items-center gap-1">
-				<Button
-					size="sm"
+			<div className="ml-auto flex shrink-0 items-center gap-1.5">
+				<DiffStatBadge
+					additions={diffStats.additions}
+					deletions={diffStats.deletions}
+				/>
+				<button
+					type="button"
 					onClick={onCommit}
 					disabled={!repo.unified_diff}
-					className="h-7 gap-1.5 border border-transparent bg-surface-invert-primary px-2 text-xs text-content-invert hover:bg-surface-invert-secondary active:opacity-80"
+					className="inline-flex cursor-pointer items-center gap-1 rounded-sm border border-solid border-border-default bg-transparent px-2 text-[13px] font-medium leading-5 text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary disabled:pointer-events-none disabled:opacity-50"
 				>
 					<CheckIcon className="size-3" />
 					Commit
-				</Button>
-				<Button
-					variant="subtle"
-					size="icon"
-					onClick={handleRefresh}
-					aria-label="Refresh"
-					className="h-7 w-7 text-content-secondary hover:text-content-primary"
-				>
-					<RefreshCwIcon
-						className={cn(
-							"size-3.5",
-							spinning && "motion-safe:animate-spin-once",
-						)}
-					/>
-				</Button>
+				</button>
 			</div>
 		</div>
 	);
+};
+
+// ---------------------------------------------------------------
+// PR state icon (compact, for the tab bar)
+// ---------------------------------------------------------------
+
+const PrStateIcon: FC<{
+	state?: string;
+	draft?: boolean;
+	className?: string;
+}> = ({ state, draft, className }) => {
+	if (state === "merged") {
+		return <GitMergeIcon className={cn("text-purple-400", className)} />;
+	}
+	if (state === "closed") {
+		return (
+			<GitPullRequestClosedIcon className={cn("text-red-400", className)} />
+		);
+	}
+	if (draft) {
+		return (
+			<GitPullRequestDraftIcon
+				className={cn("text-content-secondary", className)}
+			/>
+		);
+	}
+	return <GitPullRequestIcon className={cn("text-green-400", className)} />;
 };

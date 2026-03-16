@@ -228,7 +228,7 @@ func (s *openAIServer) writeResponsesAPIResponse(w http.ResponseWriter, req *Ope
 		http.Error(w, "handler returned streaming response for non-streaming request", http.StatusInternalServerError)
 		return
 	case hasStreaming:
-		writeResponsesAPIStreaming(w, req.Request, resp.StreamingChunks)
+		writeResponsesAPIStreaming(s.t, w, req.Request, resp.StreamingChunks)
 	default:
 		s.writeResponsesAPINonStreaming(w, resp.Response)
 	}
@@ -320,7 +320,7 @@ func writeSSEEvent(w http.ResponseWriter, v interface{}) error {
 	return err
 }
 
-func writeResponsesAPIStreaming(w http.ResponseWriter, r *http.Request, chunks <-chan OpenAIChunk) {
+func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Request, chunks <-chan OpenAIChunk) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -351,6 +351,7 @@ func writeResponsesAPIStreaming(w http.ResponseWriter, r *http.Request, chunks <
 						ItemID:      itemID,
 						OutputIndex: int64(outputIndex),
 					}); err != nil {
+						t.Logf("writeResponsesAPIStreaming: failed to write ResponseTextDoneEvent: %v", err)
 						return
 					}
 					if err := writeSSEEvent(w, responses.ResponseOutputItemDoneEvent{
@@ -360,10 +361,12 @@ func writeResponsesAPIStreaming(w http.ResponseWriter, r *http.Request, chunks <
 							Type: "message",
 						},
 					}); err != nil {
+						t.Logf("writeResponsesAPIStreaming: failed to write ResponseOutputItemDoneEvent: %v", err)
 						return
 					}
 				}
 				if err := writeSSEEvent(w, responses.ResponseCompletedEvent{}); err != nil {
+					t.Logf("writeResponsesAPIStreaming: failed to write ResponseCompletedEvent: %v", err)
 					return
 				}
 				flusher.Flush()
@@ -390,6 +393,7 @@ func writeResponsesAPIStreaming(w http.ResponseWriter, r *http.Request, chunks <
 						Type: "message",
 					},
 				}); err != nil {
+					t.Logf("writeResponsesAPIStreaming: failed to write ResponseOutputItemAddedEvent: %v", err)
 					return
 				}
 				flusher.Flush()
@@ -407,10 +411,12 @@ func writeResponsesAPIStreaming(w http.ResponseWriter, r *http.Request, chunks <
 
 			chunkBytes, err := json.Marshal(chunkData)
 			if err != nil {
+				t.Logf("writeResponsesAPIStreaming: failed to marshal chunk data: %v", err)
 				return
 			}
 
 			if _, err := fmt.Fprintf(w, "data: %s\n\n", chunkBytes); err != nil {
+				t.Logf("writeResponsesAPIStreaming: failed to write chunk data: %v", err)
 				return
 			}
 			flusher.Flush()
@@ -421,7 +427,7 @@ func writeResponsesAPIStreaming(w http.ResponseWriter, r *http.Request, chunks <
 func (s *openAIServer) writeChatCompletionsNonStreaming(w http.ResponseWriter, resp *OpenAICompletion) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		s.t.Logf("writeChatCompletionsNonStreaming: failed to encode response: %v", err)
+		s.t.Errorf("writeChatCompletionsNonStreaming: failed to encode response: %v", err)
 	}
 }
 
@@ -452,7 +458,7 @@ func (s *openAIServer) writeResponsesAPINonStreaming(w http.ResponseWriter, resp
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		s.t.Logf("writeResponsesAPINonStreaming: failed to encode response: %v", err)
+		s.t.Errorf("writeResponsesAPINonStreaming: failed to encode response: %v", err)
 	}
 }
 

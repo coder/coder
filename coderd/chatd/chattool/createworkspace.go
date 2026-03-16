@@ -201,7 +201,7 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 						Valid: true,
 					},
 				}); err != nil {
-					options.Logger.Warn(ctx, "failed to persist chat workspace association",
+					options.Logger.Error(ctx, "failed to persist chat workspace association",
 						slog.F("chat_id", options.ChatID),
 						slog.F("workspace_id", workspace.ID),
 						slog.Error(err),

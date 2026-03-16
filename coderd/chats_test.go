@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/websocket"
@@ -146,6 +147,41 @@ func TestPostChats(t *testing.T) {
 		}).WithAgent().Do()
 
 		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "hello",
+				},
+			},
+			WorkspaceID: &workspaceBuild.Workspace.ID,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(
+			t,
+			"Workspace not found or you do not have access to this resource",
+			sdkErr.Message,
+		)
+	})
+
+	t.Run("WorkspaceAccessibleButNoSSH", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		orgAdminClient, _ := coderdtest.CreateAnotherUser(
+			t,
+			adminClient,
+			firstUser.OrganizationID,
+			rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID),
+		)
+
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).WithAgent().Do()
+
+		_, err := orgAdminClient.CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
@@ -3479,56 +3515,103 @@ func TestGetChatFile(t *testing.T) {
 	})
 }
 
+type chatCostTestFixture struct {
+	Client        *codersdk.Client
+	DB            database.Store
+	ModelConfigID uuid.UUID
+	ChatID        uuid.UUID
+}
+
+func seedChatCostFixture(t *testing.T) chatCostTestFixture {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	modelConfig := createChatModelConfig(t, client)
+
+	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+		OwnerID:           firstUser.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "test chat",
+	})
+	require.NoError(t, err)
+
+	for i := 0; i < 2; i++ {
+		_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+			ChatID:          chat.ID,
+			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:            "assistant",
+			Visibility:      database.ChatMessageVisibilityBoth,
+			InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
+			OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
+			TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
+		})
+		require.NoError(t, err)
+	}
+
+	return chatCostTestFixture{
+		Client:        client,
+		DB:            db,
+		ModelConfigID: modelConfig.ID,
+		ChatID:        chat.ID,
+	}
+}
+
+func assertChatCostSummary(t *testing.T, summary codersdk.ChatCostSummary, modelConfigID, chatID uuid.UUID) {
+	t.Helper()
+
+	require.Equal(t, int64(1000), summary.TotalCostMicros)
+	require.Equal(t, int64(2), summary.PricedMessageCount)
+	require.Equal(t, int64(0), summary.UnpricedMessageCount)
+	require.Equal(t, int64(200), summary.TotalInputTokens)
+	require.Equal(t, int64(100), summary.TotalOutputTokens)
+
+	require.Len(t, summary.ByModel, 1)
+	require.Equal(t, modelConfigID, summary.ByModel[0].ModelConfigID)
+	require.Equal(t, int64(1000), summary.ByModel[0].TotalCostMicros)
+	require.Equal(t, int64(2), summary.ByModel[0].MessageCount)
+
+	require.Len(t, summary.ByChat, 1)
+	require.Equal(t, chatID, summary.ByChat[0].RootChatID)
+	require.Equal(t, int64(1000), summary.ByChat[0].TotalCostMicros)
+	require.Equal(t, int64(2), summary.ByChat[0].MessageCount)
+}
+
 func TestChatCostSummary(t *testing.T) {
 	t.Parallel()
 
 	t.Run("BasicSummary", func(t *testing.T) {
 		t.Parallel()
 
+		f := seedChatCostFixture(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
-		modelConfig := createChatModelConfig(t, client)
 
-		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
-			OwnerID:           firstUser.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "test chat",
-		})
+		summary, err := f.Client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{})
 		require.NoError(t, err)
-
-		for i := 0; i < 2; i++ {
-			_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
-				ChatID:          chat.ID,
-				ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-				Role:            "assistant",
-				Visibility:      database.ChatMessageVisibilityBoth,
-				InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
-				OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-				TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
-			})
-			require.NoError(t, err)
-		}
-
-		summary, err := client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{})
-		require.NoError(t, err)
-
-		require.Equal(t, int64(1000), summary.TotalCostMicros)
-		require.Equal(t, int64(2), summary.PricedMessageCount)
-		require.Equal(t, int64(0), summary.UnpricedMessageCount)
-		require.Equal(t, int64(200), summary.TotalInputTokens)
-		require.Equal(t, int64(100), summary.TotalOutputTokens)
-
-		require.Len(t, summary.ByModel, 1)
-		require.Equal(t, modelConfig.ID, summary.ByModel[0].ModelConfigID)
-		require.Equal(t, int64(1000), summary.ByModel[0].TotalCostMicros)
-		require.Equal(t, int64(2), summary.ByModel[0].MessageCount)
-
-		require.Len(t, summary.ByChat, 1)
-		require.Equal(t, chat.ID, summary.ByChat[0].RootChatID)
-		require.Equal(t, int64(1000), summary.ByChat[0].TotalCostMicros)
-		require.Equal(t, int64(2), summary.ByChat[0].MessageCount)
+		assertChatCostSummary(t, summary, f.ModelConfigID, f.ChatID)
 	})
+}
+
+func TestChatCostSummary_AfterModelDeletion(t *testing.T) {
+	t.Parallel()
+
+	f := seedChatCostFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Baseline: costs are correct before deletion.
+	summary, err := f.Client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{})
+	require.NoError(t, err)
+	assertChatCostSummary(t, summary, f.ModelConfigID, f.ChatID)
+
+	// Soft-delete the model config.
+	err = f.Client.DeleteChatModelConfig(ctx, f.ModelConfigID)
+	require.NoError(t, err)
+
+	// Costs must survive the deletion unchanged.
+	summary, err = f.Client.GetChatCostSummary(ctx, "me", codersdk.ChatCostSummaryOptions{})
+	require.NoError(t, err)
+	assertChatCostSummary(t, summary, f.ModelConfigID, f.ChatID)
 }
 
 func TestChatCostSummary_AdminDrilldown(t *testing.T) {
@@ -3800,6 +3883,41 @@ func requireChatModelPricing(
 func decRef(value string) *decimal.Decimal {
 	d := decimal.RequireFromString(value)
 	return &d
+}
+
+func TestWatchChatDesktop(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		_ = createChatModelConfig(t, client)
+
+		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "desktop no workspace test",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Try to connect to the desktop endpoint — should fail because
+		// chat has no workspace.
+		res, err := client.Request(
+			ctx,
+			http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/%s/desktop", createdChat.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+	})
 }
 
 func createChatModelConfig(t *testing.T, client *codersdk.Client) codersdk.ChatModelConfig {

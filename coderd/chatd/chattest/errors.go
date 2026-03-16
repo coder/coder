@@ -26,7 +26,7 @@ func writeErrorResponse(t testing.TB, w http.ResponseWriter, errResp *ErrorRespo
 		},
 	}
 	if err := json.NewEncoder(w).Encode(body); err != nil {
-		t.Logf("writeErrorResponse: failed to encode error response: %v", err)
+		t.Errorf("writeErrorResponse: failed to encode error response: %v", err)
 	}
 }
 

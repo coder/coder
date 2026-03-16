@@ -211,6 +211,13 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
+# Install Google Chrome directly from Google. Ubuntu 22.04 ships
+# chromium-browser as a snap-only package, which does not work in
+# Docker containers.
+RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+	apt-get install --yes ./google-chrome-stable_current_amd64.deb && \
+	rm google-chrome-stable_current_amd64.deb
+
 # Install Rust via rustup. Using rustup ensures we get a current stable
 # toolchain.
 ENV RUSTUP_HOME=/usr/local/rustup \

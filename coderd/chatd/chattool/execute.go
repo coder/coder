@@ -3,12 +3,14 @@ package chattool
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"time"
 
 	"charm.land/fantasy"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -248,15 +250,15 @@ func pollProcess(
 			outputResp, outputErr := conn.ProcessOutput(bgCtx, processID)
 			bgCancel()
 			output := truncateOutput(outputResp.Output)
-			timeoutMsg := fmt.Sprintf("command timed out after %s", timeout)
+			timeoutErr := xerrors.Errorf("command timed out after %s", timeout)
 			if outputErr != nil {
-				timeoutMsg += fmt.Sprintf(" (failed to get output: %v)", outputErr)
+				timeoutErr = errors.Join(timeoutErr, xerrors.Errorf("failed to get output: %w", outputErr))
 			}
 			return ExecuteResult{
 				Success:   false,
 				Output:    output,
 				ExitCode:  -1,
-				Error:     timeoutMsg,
+				Error:     timeoutErr.Error(),
 				Truncated: outputResp.Truncated,
 			}
 		case <-ticker.C:

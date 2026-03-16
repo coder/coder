@@ -17,6 +17,8 @@ import {
 	useState,
 } from "react";
 import { cn } from "utils/cn";
+import { DesktopPanel } from "./DesktopPanel";
+import type { UseDesktopConnectionResult } from "./useDesktopConnection";
 
 /** A single tab definition for the sidebar panel. */
 export interface SidebarTab {
@@ -46,6 +48,10 @@ interface SidebarTabViewProps {
 	chatTitle?: string;
 	/** Callback to close the panel (used on mobile). */
 	onClose?: () => void;
+	/** Desktop chat ID. Omitted if desktop is not available. */
+	desktopChatId?: string;
+	/** Optional override for the desktop connection. Used in stories. */
+	desktopConnectionOverride?: UseDesktopConnectionResult;
 }
 
 /** How far (px) each chevron click scrolls the tab strip. */
@@ -112,26 +118,37 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	onToggleSidebarCollapsed,
 	chatTitle,
 	onClose,
+	desktopChatId,
+	desktopConnectionOverride,
 }) => {
 	const tabIdPrefix = useId();
 	const [activeTabId, setActiveTabId] = useState<string | null>(
 		tabs.length > 0 ? tabs[0].id : null,
 	);
 
+	// Build the full list of tab IDs including the desktop tab
+	// so that effectiveTabId validation covers it.
+	const allTabIds = new Set(tabs.map((t) => t.id));
+	if (desktopChatId) {
+		allTabIds.add("desktop");
+	}
+
 	// Derive the effective tab. Fall back to the first tab if
 	// the stored activeTabId no longer matches any tab in the list.
 	const effectiveTabId =
-		activeTabId !== null && tabs.some((t) => t.id === activeTabId)
+		activeTabId !== null && allTabIds.has(activeTabId)
 			? activeTabId
 			: tabs.length > 0
 				? tabs[0].id
-				: null;
+				: desktopChatId
+					? "desktop"
+					: null;
 
 	const activeTab = tabs.find((t) => t.id === effectiveTabId) ?? null;
 
 	const tabScroll = useTabScroll();
 
-	if (tabs.length === 0) {
+	if (tabs.length === 0 && !desktopChatId) {
 		return (
 			<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 				{/* Tab bar – always visible for the expand button. */}
@@ -242,6 +259,22 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 								</Button>
 							);
 						})}
+						{desktopChatId && (
+							<Button
+								id={`${tabIdPrefix}-tab-desktop`}
+								role="tab"
+								aria-selected={effectiveTabId === "desktop"}
+								onClick={() => setActiveTabId("desktop")}
+								variant="outline"
+								size="lg"
+								className={cn(
+									"shrink-0 h-6 px-3 gap-3 py-0 bg-surface-primary",
+									effectiveTabId === "desktop" && "bg-surface-tertiary",
+								)}
+							>
+								Desktop
+							</Button>
+						)}
 					</div>
 					{tabScroll.canScrollRight && (
 						<button
@@ -292,7 +325,15 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				}
 				className="min-h-0 flex-1"
 			>
-				{activeTab?.content}
+				{effectiveTabId === "desktop" && desktopChatId ? (
+					<DesktopPanel
+						chatId={desktopChatId}
+						isExpanded={isExpanded}
+						connectionOverride={desktopConnectionOverride}
+					/>
+				) : (
+					activeTab?.content
+				)}
 			</div>
 		</div>
 	);
