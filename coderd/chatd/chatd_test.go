@@ -588,8 +588,8 @@ func TestEditMessageRejectsNonUserMessage(t *testing.T) {
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
-		TotalCostMicros:     0,
-		CostValid:           false,
+		TotalCostMicros:     sql.NullInt64{},
+		CostValid:           sql.NullBool{},
 	})
 	require.NoError(t, err)
 
@@ -938,8 +938,8 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
-		TotalCostMicros:     0,
-		CostValid:           false,
+		TotalCostMicros:     sql.NullInt64{},
+		CostValid:           sql.NullBool{},
 	})
 	require.NoError(t, err)
 
@@ -963,8 +963,8 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
-		TotalCostMicros:     0,
-		CostValid:           false,
+		TotalCostMicros:     sql.NullInt64{},
+		CostValid:           sql.NullBool{},
 	})
 	require.NoError(t, err)
 

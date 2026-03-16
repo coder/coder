@@ -3563,10 +3563,10 @@ const getChatCostSummary = `-- name: GetChatCostSummary :one
 SELECT
     COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
     COUNT(*) FILTER (
-        WHERE cm.cost_valid
+        WHERE COALESCE(cm.cost_valid, cm.total_cost_micros IS NOT NULL)
     )::bigint AS priced_message_count,
     COUNT(*) FILTER (
-        WHERE NOT cm.cost_valid
+        WHERE NOT COALESCE(cm.cost_valid, cm.total_cost_micros IS NOT NULL)
             AND (
                 cm.input_tokens IS NOT NULL
                 OR cm.output_tokens IS NOT NULL
@@ -4273,8 +4273,8 @@ type InsertChatMessageParams struct {
 	CacheReadTokens     sql.NullInt64         `db:"cache_read_tokens" json:"cache_read_tokens"`
 	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
 	Compressed          sql.NullBool          `db:"compressed" json:"compressed"`
-	TotalCostMicros     int64                 `db:"total_cost_micros" json:"total_cost_micros"`
-	CostValid           bool                  `db:"cost_valid" json:"cost_valid"`
+	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
+	CostValid           sql.NullBool          `db:"cost_valid" json:"cost_valid"`
 }
 
 func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessageParams) (ChatMessage, error) {

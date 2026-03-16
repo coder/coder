@@ -200,8 +200,8 @@ INSERT INTO chat_messages (
     sqlc.narg('cache_read_tokens')::bigint,
     sqlc.narg('context_limit')::bigint,
     COALESCE(sqlc.narg('compressed')::boolean, FALSE),
-    @total_cost_micros::bigint,
-    @cost_valid::boolean
+    sqlc.narg('total_cost_micros')::bigint,
+    sqlc.narg('cost_valid')::boolean
 )
 RETURNING
     *;
@@ -518,10 +518,10 @@ WHERE
 SELECT
     COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
     COUNT(*) FILTER (
-        WHERE cm.cost_valid
+        WHERE COALESCE(cm.cost_valid, cm.total_cost_micros IS NOT NULL)
     )::bigint AS priced_message_count,
     COUNT(*) FILTER (
-        WHERE NOT cm.cost_valid
+        WHERE NOT COALESCE(cm.cost_valid, cm.total_cost_micros IS NOT NULL)
             AND (
                 cm.input_tokens IS NOT NULL
                 OR cm.output_tokens IS NOT NULL

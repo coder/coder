@@ -297,8 +297,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 				CacheReadTokens:     sql.NullInt64{},
 				ContextLimit:        sql.NullInt64{},
 				Compressed:          sql.NullBool{},
-				TotalCostMicros:     0,
-				CostValid:           false,
+				TotalCostMicros:     sql.NullInt64{},
+				CostValid:           sql.NullBool{},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert system message: %w", err)
@@ -327,8 +327,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			CacheCreationTokens: sql.NullInt64{},
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
-			TotalCostMicros:     0,
-			CostValid:           false,
+			TotalCostMicros:     sql.NullInt64{},
+			CostValid:           sql.NullBool{},
 			Compressed:          sql.NullBool{},
 		})
 		if err != nil {
@@ -918,8 +918,8 @@ func insertUserMessageAndSetPending(
 		CacheCreationTokens: sql.NullInt64{},
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
-		TotalCostMicros:     0,
-		CostValid:           false,
+		TotalCostMicros:     sql.NullInt64{},
+		CostValid:           sql.NullBool{},
 		Compressed:          sql.NullBool{},
 	})
 	if err != nil {
@@ -1979,8 +1979,8 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 						CacheCreationTokens: sql.NullInt64{},
 						CacheReadTokens:     sql.NullInt64{},
 						ContextLimit:        sql.NullInt64{},
-						TotalCostMicros:     0,
-						CostValid:           false,
+						TotalCostMicros:     sql.NullInt64{},
+						CostValid:           sql.NullBool{},
 						Compressed:          sql.NullBool{},
 					})
 					if insertErr != nil {
@@ -2413,8 +2413,8 @@ func (p *Server) runChat(
 					Compressed:      sql.NullBool{},
 					// cost_valid=true means priced (including zero-cost),
 					// false means unpriced.
-					TotalCostMicros: totalCostMicros,
-					CostValid:       costValid,
+					TotalCostMicros: sql.NullInt64{Int64: totalCostMicros, Valid: true},
+					CostValid:       sql.NullBool{Bool: costValid, Valid: true},
 				})
 				if insertErr != nil {
 					return xerrors.Errorf("insert assistant message: %w", insertErr)
@@ -2444,8 +2444,8 @@ func (p *Server) runChat(
 					CacheCreationTokens: sql.NullInt64{},
 					CacheReadTokens:     sql.NullInt64{},
 					ContextLimit:        sql.NullInt64{},
-					TotalCostMicros:     0,
-					CostValid:           false,
+					TotalCostMicros:     sql.NullInt64{},
+					CostValid:           sql.NullBool{},
 					Compressed:          sql.NullBool{},
 				})
 				if insertErr != nil {
@@ -2820,8 +2820,8 @@ func (p *Server) persistChatContextSummary(
 			CacheCreationTokens: sql.NullInt64{},
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
-			TotalCostMicros:     0,
-			CostValid:           false,
+			TotalCostMicros:     sql.NullInt64{},
+			CostValid:           sql.NullBool{},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert hidden summary message: %w", txErr)
@@ -2846,8 +2846,8 @@ func (p *Server) persistChatContextSummary(
 			CacheCreationTokens: sql.NullInt64{},
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
-			TotalCostMicros:     0,
-			CostValid:           false,
+			TotalCostMicros:     sql.NullInt64{},
+			CostValid:           sql.NullBool{},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert summary tool call message: %w", txErr)
@@ -2873,8 +2873,8 @@ func (p *Server) persistChatContextSummary(
 			CacheCreationTokens: sql.NullInt64{},
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
-			TotalCostMicros:     0,
-			CostValid:           false,
+			TotalCostMicros:     sql.NullInt64{},
+			CostValid:           sql.NullBool{},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert summary tool result message: %w", txErr)

@@ -9057,8 +9057,8 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 			ContentVersion:  chatprompt.CurrentContentVersion,
 			Visibility:      vis,
 			Compressed:      sql.NullBool{Bool: compressed, Valid: true},
-			TotalCostMicros: 0,
-			CostValid:       false,
+			TotalCostMicros: sql.NullInt64{},
+			CostValid:       sql.NullBool{},
 			Content: pqtype.NullRawMessage{
 				RawMessage: json.RawMessage(`"` + content + `"`),
 				Valid:      true,
