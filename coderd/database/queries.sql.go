@@ -24791,8 +24791,10 @@ WHERE
 	AND workspaces.deleted = FALSE
 	-- Filter out deleted sub agents.
 	AND workspace_agents.deleted = FALSE
-	-- Filter out builds that are not the latest, with exception for shutdown case.
-	-- Use CASE for short-circuiting: check normal case first (most common), then shutdown case.
+	-- Filter out builds that are not the latest, with exception for
+	-- shutdown and prebuild claim cases. Use CASE for short-circuiting:
+	-- check normal case first (most common), then shutdown, then
+	-- prebuild claim case.
 	AND CASE
 		-- Normal case: Agent's build is the latest build.
 		WHEN workspace_build_with_user.build_number = (
@@ -24823,6 +24825,24 @@ WHERE
 				AND latest.transition = 'stop'
 				AND pj.job_status IN ('pending', 'running')
 			) THEN TRUE
+		-- Prebuild claim case: Agent from previous START build when
+			-- a newer START build (the claim build) exists as the latest
+			-- build. This allows the pre-claim agent to authenticate and
+			-- hit /reinit to learn about the claim.
+			WHEN workspace_build_with_user.transition = 'start'
+				AND (SELECT job_status FROM provisioner_jobs WHERE id = workspace_build_with_user.job_id) = 'succeeded'
+				AND EXISTS (
+					SELECT 1
+					FROM workspace_builds latest
+					WHERE latest.workspace_id = workspace_build_with_user.workspace_id
+					AND latest.build_number = workspace_build_with_user.build_number + 1
+					AND latest.build_number = (
+						SELECT MAX(build_number)
+						FROM workspace_builds l2
+						WHERE l2.workspace_id = latest.workspace_id
+					)
+					AND latest.transition = 'start'
+				) THEN TRUE
 		ELSE FALSE
 	END
 `
