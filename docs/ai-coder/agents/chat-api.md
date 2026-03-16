@@ -1,4 +1,4 @@
-# Chat API
+# Chats API
 
 > [!NOTE]
 > The Chat API is experimental and gated behind the `agents` experiment flag.
