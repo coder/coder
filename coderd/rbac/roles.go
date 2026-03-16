@@ -959,10 +959,10 @@ func OrgMemberPermissions(org OrgSettings) (
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
 	}
 
-	// With both modes of workspace sharing, members need to see other
-	// org members (including service accounts) to either share with
-	// them or get access to their shared workspaces, resolved through
-	// GET /users/{user}/workspace/{workspace}
+	// In all modes of workspace sharing but `none`, members need to
+	// see other org members (including service accounts) to either
+	// share with them or get access to their shared workspaces,
+	// resolved through GET /users/{user}/workspace/{workspace}
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersNone {
 		orgPermMap[ResourceOrganizationMember.Type] = []policy.Action{policy.ActionRead}
 	}
@@ -975,8 +975,8 @@ func OrgMemberPermissions(org OrgSettings) (
 
 	orgPerms = Permissions(orgPermMap)
 
-	// Not negating when owners=service_accounts because it will
-	// block org admins from sharing an SA-owned workspace.
+	// Not using owners=service_accounts here because it would block
+	// org admins from sharing an SA-owned workspace.
 	if org.ShareableWorkspaceOwners == ShareableWorkspaceOwnersNone {
 		// Org-level negation blocks sharing on ANY workspace in the
 		// org. This overrides any positive permission from other
