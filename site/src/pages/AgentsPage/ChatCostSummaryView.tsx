@@ -61,8 +61,8 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 	}
 
 	return (
-		<>
-			<div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+		<div className="space-y-6">
+			<div className="grid grid-cols-2 gap-4 md:grid-cols-3">
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
 					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
 						Total Cost
@@ -85,6 +85,22 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</p>
 					<p className="mt-1 text-2xl font-semibold text-content-primary">
 						{formatTokenCount(summary.total_output_tokens)}
+					</p>
+				</div>
+				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
+					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+						Cache Read
+					</p>
+					<p className="mt-1 text-2xl font-semibold text-content-primary">
+						{formatTokenCount(summary.total_cache_read_tokens)}
+					</p>
+				</div>
+				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
+					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
+						Cache Write
+					</p>
+					<p className="mt-1 text-2xl font-semibold text-content-primary">
+						{formatTokenCount(summary.total_cache_creation_tokens)}
 					</p>
 				</div>
 				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
@@ -128,6 +144,12 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 									</TableHead>
 									<TableHead className="px-4 py-3 text-right">Input</TableHead>
 									<TableHead className="px-4 py-3 text-right">Output</TableHead>
+									<TableHead className="px-4 py-3 text-right">
+										Cache Read
+									</TableHead>
+									<TableHead className="px-4 py-3 text-right">
+										Cache Write
+									</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -154,6 +176,12 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 										<TableCell className="px-4 py-3 text-right">
 											{formatTokenCount(model.total_output_tokens)}
 										</TableCell>
+										<TableCell className="px-4 py-3 text-right">
+											{formatTokenCount(model.total_cache_read_tokens)}
+										</TableCell>
+										<TableCell className="px-4 py-3 text-right">
+											{formatTokenCount(model.total_cache_creation_tokens)}
+										</TableCell>
 									</TableRow>
 								))}
 							</TableBody>
@@ -171,6 +199,12 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 									</TableHead>
 									<TableHead className="px-4 py-3 text-right">Input</TableHead>
 									<TableHead className="px-4 py-3 text-right">Output</TableHead>
+									<TableHead className="px-4 py-3 text-right">
+										Cache Read
+									</TableHead>
+									<TableHead className="px-4 py-3 text-right">
+										Cache Write
+									</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -198,6 +232,12 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 										<TableCell className="px-4 py-3 text-right">
 											{formatTokenCount(chat.total_output_tokens)}
 										</TableCell>
+										<TableCell className="px-4 py-3 text-right">
+											{formatTokenCount(chat.total_cache_read_tokens)}
+										</TableCell>
+										<TableCell className="px-4 py-3 text-right">
+											{formatTokenCount(chat.total_cache_creation_tokens)}
+										</TableCell>
 									</TableRow>
 								))}
 							</TableBody>
@@ -205,6 +245,6 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 					</div>
 				</>
 			)}
-		</>
+		</div>
 	);
 };

@@ -40,6 +40,23 @@ WHERE
 ORDER BY
     created_at ASC;
 
+-- name: GetChatMessagesByChatIDDescPaginated :many
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND CASE
+        WHEN @before_id::bigint > 0 THEN id < @before_id::bigint
+        ELSE true
+    END
+    AND visibility IN ('user', 'both')
+ORDER BY
+    id DESC
+LIMIT
+    COALESCE(NULLIF(@limit_val::int, 0), 50);
+
 -- name: GetChatMessagesForPromptByChatID :many
 WITH latest_compressed_summary AS (
     SELECT
@@ -165,6 +182,7 @@ WITH updated_chat AS (
     WHERE
         id = @chat_id::uuid
         AND sqlc.narg('model_config_id')::uuid IS NOT NULL
+        AND chats.last_model_config_id IS DISTINCT FROM sqlc.narg('model_config_id')::uuid
 )
 INSERT INTO chat_messages (
     chat_id,
@@ -367,6 +385,7 @@ INSERT INTO chat_diff_statuses (
     author_login,
     author_avatar_url,
     base_branch,
+    head_branch,
     pr_number,
     commits,
     approved,
@@ -386,6 +405,7 @@ INSERT INTO chat_diff_statuses (
     sqlc.narg('author_login')::text,
     sqlc.narg('author_avatar_url')::text,
     sqlc.narg('base_branch')::text,
+    sqlc.narg('head_branch')::text,
     sqlc.narg('pr_number')::integer,
     sqlc.narg('commits')::integer,
     sqlc.narg('approved')::boolean,
@@ -406,6 +426,7 @@ SET
     author_login = EXCLUDED.author_login,
     author_avatar_url = EXCLUDED.author_avatar_url,
     base_branch = EXCLUDED.base_branch,
+    head_branch = EXCLUDED.head_branch,
     pr_number = EXCLUDED.pr_number,
     commits = EXCLUDED.commits,
     approved = EXCLUDED.approved,
@@ -526,7 +547,9 @@ SELECT
             )
     )::bigint AS unpriced_message_count,
     COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
+    COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
 FROM
     chat_messages cm
 JOIN
@@ -554,7 +577,9 @@ SELECT
             OR cm.cache_read_tokens IS NOT NULL
     )::bigint AS message_count,
     COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
+    COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
 FROM
     chat_messages cm
 JOIN
@@ -587,7 +612,9 @@ WITH chat_costs AS (
                 OR cm.cache_read_tokens IS NOT NULL
         )::bigint AS message_count,
         COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
+        COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
     FROM chat_messages cm
     JOIN chats c ON c.id = cm.chat_id
     WHERE c.owner_id = @owner_id::uuid
@@ -602,7 +629,9 @@ SELECT
     cc.total_cost_micros,
     cc.message_count,
     cc.total_input_tokens,
-    cc.total_output_tokens
+    cc.total_output_tokens,
+    cc.total_cache_read_tokens,
+    cc.total_cache_creation_tokens
 FROM chat_costs cc
 LEFT JOIN chats rc ON rc.id = cc.root_chat_id
 ORDER BY cc.total_cost_micros DESC;
@@ -626,7 +655,9 @@ WITH chat_cost_users AS (
         )::bigint AS message_count,
         COUNT(DISTINCT COALESCE(c.root_chat_id, c.id))::bigint AS chat_count,
         COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens
+        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
+        COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens
     FROM
         chat_messages cm
     JOIN
@@ -657,6 +688,8 @@ SELECT
     chat_count,
     total_input_tokens,
     total_output_tokens,
+    total_cache_read_tokens,
+    total_cache_creation_tokens,
     COUNT(*) OVER()::bigint AS total_count
 FROM
     chat_cost_users

@@ -9,7 +9,7 @@ import {
 	useRef,
 	useSyncExternalStore,
 } from "react";
-import { useQueryClient } from "react-query";
+import { type InfiniteData, useQueryClient } from "react-query";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
 import { applyMessagePartToStreamState } from "./streamState";
@@ -519,26 +519,29 @@ export const useChatStore = (
 				return;
 			}
 			const nextQueuedMessages = queuedMessages ?? [];
-			queryClient.setQueryData<TypesGen.ChatMessagesResponse | undefined>(
-				chatMessagesKey(chatID),
-				(currentData) => {
-					if (!currentData) {
-						return currentData;
-					}
-					if (
-						chatQueuedMessagesEqualByID(
-							currentData.queued_messages,
-							nextQueuedMessages,
-						)
-					) {
-						return currentData;
-					}
-					return {
-						...currentData,
-						queued_messages: nextQueuedMessages,
-					};
-				},
-			);
+			queryClient.setQueryData<
+				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+			>(chatMessagesKey(chatID), (currentData) => {
+				if (!currentData?.pages?.length) {
+					return currentData;
+				}
+				const firstPage = currentData.pages[0];
+				if (
+					chatQueuedMessagesEqualByID(
+						firstPage.queued_messages,
+						nextQueuedMessages,
+					)
+				) {
+					return currentData;
+				}
+				return {
+					...currentData,
+					pages: [
+						{ ...firstPage, queued_messages: nextQueuedMessages },
+						...currentData.pages.slice(1),
+					],
+				};
+			});
 		},
 		[chatID, queryClient],
 	);
@@ -551,7 +554,15 @@ export const useChatStore = (
 			prevChatIDRef.current = chatID;
 			store.replaceMessages([]);
 		}
-		store.replaceMessages(chatMessages);
+		// Merge REST-fetched messages into the store one-by-one instead
+		// of replacing the entire map. This preserves any messages the
+		// WebSocket delivered via upsertDurableMessage that haven't
+		// appeared in a REST page yet.
+		if (chatMessages) {
+			for (const message of chatMessages) {
+				store.upsertDurableMessage(message);
+			}
+		}
 	}, [chatID, chatMessages, store]);
 
 	useEffect(() => {

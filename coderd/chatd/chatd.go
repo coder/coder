@@ -347,7 +347,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		return database.Chat{}, txErr
 	}
 
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindCreated)
+	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindCreated, nil)
 	return chat, nil
 }
 
@@ -488,7 +488,7 @@ func (p *Server) SendMessage(
 
 	p.publishMessage(opts.ChatID, result.Message)
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
-	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange)
+	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
 	return result, nil
 }
 
@@ -585,7 +585,7 @@ func (p *Server) EditMessage(
 		QueueUpdate: true,
 	})
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
-	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange)
+	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
 
 	return result, nil
 }
@@ -605,7 +605,7 @@ func (p *Server) ArchiveChat(ctx context.Context, chatID uuid.UUID) error {
 		return xerrors.Errorf("archive chat: %w", err)
 	}
 
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindDeleted)
+	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindDeleted, nil)
 	return nil
 }
 
@@ -625,7 +625,7 @@ func (p *Server) UnarchiveChat(ctx context.Context, chatID uuid.UUID) error {
 		return xerrors.Errorf("unarchive chat: %w", err)
 	}
 
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindCreated)
+	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindCreated, nil)
 	return nil
 }
 
@@ -780,7 +780,7 @@ func (p *Server) PromoteQueued(
 	})
 	p.publishMessage(opts.ChatID, promoted)
 	p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
-	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange)
+	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
 
 	return result, nil
 }
@@ -877,7 +877,7 @@ func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database
 		return database.Chat{}, err
 	}
 	p.publishStatus(chatID, updatedChat.Status, updatedChat.WorkerID)
-	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange)
+	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
 	return updatedChat, nil
 }
 
@@ -1611,7 +1611,7 @@ func (p *Server) publishChatStreamNotify(chatID uuid.UUID, notify coderdpubsub.C
 
 // publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
 // pubsub so that all replicas can push updates to watching clients.
-func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.ChatEventKind) {
+func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.ChatEventKind, diffStatus *codersdk.ChatDiffStatus) {
 	if p.pubsub == nil {
 		return
 	}
@@ -1636,6 +1636,9 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind coderdpubsub.Ch
 	}
 	if chat.WorkspaceID.Valid {
 		sdkChat.WorkspaceID = &chat.WorkspaceID.UUID
+	}
+	if diffStatus != nil {
+		sdkChat.DiffStatus = diffStatus
 	}
 	event := coderdpubsub.ChatEvent{
 		Kind: kind,
@@ -1672,7 +1675,13 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID) 
 		return xerrors.Errorf("get chat: %w", err)
 	}
 
-	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindDiffStatusChange)
+	dbStatus, err := p.db.GetChatDiffStatusByChatID(ctx, chatID)
+	if err != nil {
+		return xerrors.Errorf("get chat diff status: %w", err)
+	}
+
+	sdkStatus := db2sdk.ChatDiffStatus(chatID, &dbStatus)
+	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindDiffStatusChange, &sdkStatus)
 	return nil
 }
 
@@ -2041,7 +2050,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				slog.F("chat_id", chat.ID), slog.Error(readErr))
 		}
 		chat.Status = status
-		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange)
+		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange, nil)
 
 		if !wasInterrupted {
 			p.maybeSendPushNotification(cleanupCtx, chat, status, lastError, logger)

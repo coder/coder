@@ -3,13 +3,13 @@ import { getErrorMessage } from "api/errors";
 import {
 	archiveChat,
 	chatDiffContentsKey,
-	chatDiffStatusKey,
 	chatKey,
 	chatModelConfigs,
 	chatModels,
-	chatsKey,
 	createChat,
 	infiniteChats,
+	invalidateChatListQueries,
+	prependToInfiniteChatsCache,
 	readInfiniteChatsCache,
 	unarchiveChat,
 	updateInfiniteChatsCache,
@@ -153,8 +153,11 @@ const AgentsPage: FC = () => {
 		},
 		onSuccess: async ({ chatId }) => {
 			clearChatErrorReason(chatId);
-			await queryClient.invalidateQueries({ queryKey: chatsKey });
-			await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
+			await invalidateChatListQueries(queryClient);
+			await queryClient.invalidateQueries({
+				queryKey: chatKey(chatId),
+				exact: true,
+			});
 		},
 		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
@@ -385,18 +388,13 @@ const AgentsPage: FC = () => {
 					if (chatEvent.kind === "diff_status_change") {
 						void Promise.all([
 							queryClient.invalidateQueries({
-								queryKey: chatsKey,
-							}),
-							queryClient.invalidateQueries({
-								queryKey: chatDiffStatusKey(updatedChat.id),
+								queryKey: chatKey(updatedChat.id),
 							}),
 							queryClient.invalidateQueries({
 								queryKey: chatDiffContentsKey(updatedChat.id),
 							}),
 						]);
-						return;
 					}
-
 					// Scope field updates by event kind so that
 					// status_change events (which may carry a stale title
 					// snapshot from before async title generation
@@ -404,28 +402,34 @@ const AgentsPage: FC = () => {
 					// landed.
 					const isTitleEvent = chatEvent.kind === "title_change";
 					const isStatusEvent = chatEvent.kind === "status_change";
+					const isDiffStatusEvent = chatEvent.kind === "diff_status_change";
 
-					updateInfiniteChatsCache(queryClient, (chats) => {
-						const exists = chats.some((c) => c.id === updatedChat.id);
-						if (exists) {
+					// For "created" events, use a cross-page existence
+					// check and prepend only to the first page.
+					// updateInfiniteChatsCache runs the updater per
+					// page, so a naive prepend would duplicate the
+					// chat into every loaded page.
+					if (chatEvent.kind === "created") {
+						prependToInfiniteChatsCache(queryClient, updatedChat);
+					} else {
+						updateInfiniteChatsCache(queryClient, (chats) => {
 							return chats.map((c) => {
 								if (c.id !== updatedChat.id) return c;
 								return {
 									...c,
 									...(isStatusEvent && { status: updatedChat.status }),
 									...(isTitleEvent && { title: updatedChat.title }),
+									...(isDiffStatusEvent && {
+										diff_status: updatedChat.diff_status,
+									}),
 									updated_at:
 										c.updated_at > updatedChat.updated_at
 											? c.updated_at
 											: updatedChat.updated_at,
 								};
 							});
-						}
-						if (chatEvent.kind === "created") {
-							return [updatedChat, ...chats];
-						}
-						return chats;
-					});
+						});
+					}
 					queryClient.setQueryData<TypesGen.Chat | undefined>(
 						chatKey(updatedChat.id),
 						(previousChat) => {
@@ -436,6 +440,9 @@ const AgentsPage: FC = () => {
 								...previousChat,
 								...(isStatusEvent && { status: updatedChat.status }),
 								...(isTitleEvent && { title: updatedChat.title }),
+								...(isDiffStatusEvent && {
+									diff_status: updatedChat.diff_status,
+								}),
 								updated_at:
 									previousChat.updated_at > updatedChat.updated_at
 										? previousChat.updated_at
@@ -448,10 +455,7 @@ const AgentsPage: FC = () => {
 				return ws;
 			},
 			onOpen() {
-				void queryClient.invalidateQueries({ queryKey: chatsKey });
-			},
-			onDisconnect() {
-				void queryClient.invalidateQueries({ queryKey: chatsKey });
+				void invalidateChatListQueries(queryClient);
 			},
 		});
 	}, [queryClient]);

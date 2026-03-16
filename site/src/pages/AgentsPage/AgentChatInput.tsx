@@ -650,7 +650,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 						disabled={isDisabled || isLoading}
 						rows={4}
 						autoFocus
-					/>{" "}
+					/>
 					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 						<div className="flex min-w-0 items-center gap-2">
 							<ModelSelector
@@ -727,7 +727,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 							)}
 							{contextUsage !== undefined && (
 								<ContextUsageIndicator usage={contextUsage} />
-							)}{" "}
+							)}
 							{isStreaming && onInterrupt && (
 								<Button
 									size="icon"

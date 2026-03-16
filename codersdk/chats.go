@@ -272,6 +272,7 @@ type UploadChatFileResponse struct {
 type ChatMessagesResponse struct {
 	Messages       []ChatMessage       `json:"messages"`
 	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
+	HasMore        bool                `json:"has_more"`
 }
 
 // ChatModelProviderUnavailableReason explains why a provider cannot be used.
@@ -633,6 +634,7 @@ type ChatDiffStatus struct {
 	AuthorLogin      *string    `json:"author_login,omitempty"`
 	AuthorAvatarURL  *string    `json:"author_avatar_url,omitempty"`
 	BaseBranch       *string    `json:"base_branch,omitempty"`
+	HeadBranch       *string    `json:"head_branch,omitempty"`
 	PRNumber         *int32     `json:"pr_number,omitempty"`
 	Commits          *int32     `json:"commits,omitempty"`
 	Approved         *bool      `json:"approved,omitempty"`
@@ -733,50 +735,58 @@ type ChatCostUsersOptions struct {
 
 // ChatCostSummary is the response from the chat cost summary endpoint.
 type ChatCostSummary struct {
-	StartDate            time.Time                `json:"start_date" format:"date-time"`
-	EndDate              time.Time                `json:"end_date" format:"date-time"`
-	TotalCostMicros      int64                    `json:"total_cost_micros"`
-	PricedMessageCount   int64                    `json:"priced_message_count"`
-	UnpricedMessageCount int64                    `json:"unpriced_message_count"`
-	TotalInputTokens     int64                    `json:"total_input_tokens"`
-	TotalOutputTokens    int64                    `json:"total_output_tokens"`
-	ByModel              []ChatCostModelBreakdown `json:"by_model"`
-	ByChat               []ChatCostChatBreakdown  `json:"by_chat"`
+	StartDate                time.Time                `json:"start_date" format:"date-time"`
+	EndDate                  time.Time                `json:"end_date" format:"date-time"`
+	TotalCostMicros          int64                    `json:"total_cost_micros"`
+	PricedMessageCount       int64                    `json:"priced_message_count"`
+	UnpricedMessageCount     int64                    `json:"unpriced_message_count"`
+	TotalInputTokens         int64                    `json:"total_input_tokens"`
+	TotalOutputTokens        int64                    `json:"total_output_tokens"`
+	TotalCacheReadTokens     int64                    `json:"total_cache_read_tokens"`
+	TotalCacheCreationTokens int64                    `json:"total_cache_creation_tokens"`
+	ByModel                  []ChatCostModelBreakdown `json:"by_model"`
+	ByChat                   []ChatCostChatBreakdown  `json:"by_chat"`
 }
 
 // ChatCostModelBreakdown contains per-model cost aggregation.
 type ChatCostModelBreakdown struct {
-	ModelConfigID     uuid.UUID `json:"model_config_id" format:"uuid"`
-	DisplayName       string    `json:"display_name"`
-	Provider          string    `json:"provider"`
-	Model             string    `json:"model"`
-	TotalCostMicros   int64     `json:"total_cost_micros"`
-	MessageCount      int64     `json:"message_count"`
-	TotalInputTokens  int64     `json:"total_input_tokens"`
-	TotalOutputTokens int64     `json:"total_output_tokens"`
+	ModelConfigID            uuid.UUID `json:"model_config_id" format:"uuid"`
+	DisplayName              string    `json:"display_name"`
+	Provider                 string    `json:"provider"`
+	Model                    string    `json:"model"`
+	TotalCostMicros          int64     `json:"total_cost_micros"`
+	MessageCount             int64     `json:"message_count"`
+	TotalInputTokens         int64     `json:"total_input_tokens"`
+	TotalOutputTokens        int64     `json:"total_output_tokens"`
+	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
+	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
 }
 
 // ChatCostChatBreakdown contains per-root-chat cost aggregation.
 type ChatCostChatBreakdown struct {
-	RootChatID        uuid.UUID `json:"root_chat_id" format:"uuid"`
-	ChatTitle         string    `json:"chat_title"`
-	TotalCostMicros   int64     `json:"total_cost_micros"`
-	MessageCount      int64     `json:"message_count"`
-	TotalInputTokens  int64     `json:"total_input_tokens"`
-	TotalOutputTokens int64     `json:"total_output_tokens"`
+	RootChatID               uuid.UUID `json:"root_chat_id" format:"uuid"`
+	ChatTitle                string    `json:"chat_title"`
+	TotalCostMicros          int64     `json:"total_cost_micros"`
+	MessageCount             int64     `json:"message_count"`
+	TotalInputTokens         int64     `json:"total_input_tokens"`
+	TotalOutputTokens        int64     `json:"total_output_tokens"`
+	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
+	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
 }
 
 // ChatCostUserRollup contains per-user cost aggregation for admin views.
 type ChatCostUserRollup struct {
-	UserID            uuid.UUID `json:"user_id" format:"uuid"`
-	Username          string    `json:"username"`
-	Name              string    `json:"name"`
-	AvatarURL         string    `json:"avatar_url"`
-	TotalCostMicros   int64     `json:"total_cost_micros"`
-	MessageCount      int64     `json:"message_count"`
-	ChatCount         int64     `json:"chat_count"`
-	TotalInputTokens  int64     `json:"total_input_tokens"`
-	TotalOutputTokens int64     `json:"total_output_tokens"`
+	UserID                   uuid.UUID `json:"user_id" format:"uuid"`
+	Username                 string    `json:"username"`
+	Name                     string    `json:"name"`
+	AvatarURL                string    `json:"avatar_url"`
+	TotalCostMicros          int64     `json:"total_cost_micros"`
+	MessageCount             int64     `json:"message_count"`
+	ChatCount                int64     `json:"chat_count"`
+	TotalInputTokens         int64     `json:"total_input_tokens"`
+	TotalOutputTokens        int64     `json:"total_output_tokens"`
+	TotalCacheReadTokens     int64     `json:"total_cache_read_tokens"`
+	TotalCacheCreationTokens int64     `json:"total_cache_creation_tokens"`
 }
 
 // ChatCostUsersResponse is the response from the admin chat cost users endpoint.
@@ -1234,8 +1244,29 @@ func (c *Client) GetChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 }
 
 // GetChatMessages returns the messages and queued messages for a chat.
-func (c *Client) GetChatMessages(ctx context.Context, chatID uuid.UUID) (ChatMessagesResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/messages", chatID), nil)
+// ChatMessagesPaginationOptions are optional pagination params for
+// GetChatMessages.
+type ChatMessagesPaginationOptions struct {
+	BeforeID int64
+	Limit    int
+}
+
+// GetChatMessages returns the messages and queued messages for a chat.
+func (c *Client) GetChatMessages(ctx context.Context, chatID uuid.UUID, opts *ChatMessagesPaginationOptions) (ChatMessagesResponse, error) {
+	reqOpts := []RequestOption{}
+	if opts != nil {
+		reqOpts = append(reqOpts, func(r *http.Request) {
+			q := r.URL.Query()
+			if opts.BeforeID > 0 {
+				q.Set("before_id", strconv.FormatInt(opts.BeforeID, 10))
+			}
+			if opts.Limit > 0 {
+				q.Set("limit", strconv.Itoa(opts.Limit))
+			}
+			r.URL.RawQuery = q.Encode()
+		})
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/messages", chatID), nil, reqOpts...)
 	if err != nil {
 		return ChatMessagesResponse{}, err
 	}
@@ -1335,20 +1366,6 @@ func (c *Client) GetChatGitChanges(ctx context.Context, chatID uuid.UUID) ([]Cha
 	}
 	var changes []ChatGitChange
 	return changes, json.NewDecoder(res.Body).Decode(&changes)
-}
-
-// GetChatDiffStatus returns cached GitHub pull request diff status for a chat.
-func (c *Client) GetChatDiffStatus(ctx context.Context, chatID uuid.UUID) (ChatDiffStatus, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/diff-status", chatID), nil)
-	if err != nil {
-		return ChatDiffStatus{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatDiffStatus{}, ReadBodyAsError(res)
-	}
-	var status ChatDiffStatus
-	return status, json.NewDecoder(res.Body).Decode(&status)
 }
 
 // GetChatDiffContents returns resolved diff contents for a chat.

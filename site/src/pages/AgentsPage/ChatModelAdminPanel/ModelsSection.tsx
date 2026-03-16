@@ -136,7 +136,6 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button size="sm" className="gap-1.5" aria-label="Add model">
-					{" "}
 					<PlusIcon className="h-4 w-4" />
 					Add
 					<ChevronDownIcon className="h-3.5 w-3.5 text-content-secondary" />
@@ -202,7 +201,6 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 								key={modelConfig.id}
 								className="flex items-center gap-3.5 px-3 py-3"
 							>
-								{" "}
 								{/* Star for default */}
 								<Tooltip>
 									<TooltipTrigger asChild>
@@ -273,7 +271,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 										</Badge>
 									)}
 									<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />
-								</button>{" "}
+								</button>
 							</div>
 						);
 					})}
