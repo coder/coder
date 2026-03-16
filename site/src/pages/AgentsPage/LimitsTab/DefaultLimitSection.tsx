@@ -81,8 +81,8 @@ export const DefaultLimitSection: FC<DefaultLimitSectionProps> = ({
 											<InfoIcon className="h-3.5 w-3.5 shrink-0 cursor-help text-content-secondary" />
 										</TooltipTrigger>
 										<TooltipContent>
-											Only one period can be active at a time. Changing the
-											period resets spend tracking for all users.
+											Only one period can be active at a time. Spend is
+											calculated from the start of the current period.
 										</TooltipContent>
 									</Tooltip>
 								</TooltipProvider>
