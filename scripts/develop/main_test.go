@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
@@ -435,7 +436,7 @@ func TestPoll(t *testing.T) {
 			func(_ context.Context) (string, bool, error) {
 				calls++
 				if calls == 2 {
-					return "", false, fmt.Errorf("boom")
+					return "", false, xerrors.New("boom")
 				}
 				return "", false, nil
 			})
