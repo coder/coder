@@ -43,6 +43,7 @@ import type { LucideIcon } from "lucide-react";
 import {
 	BarChart3Icon,
 	BoxesIcon,
+	ChevronLeftIcon,
 	KeyRoundIcon,
 	ShieldIcon,
 	UserIcon,
@@ -192,20 +193,11 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 			}
 			badge={<AdminBadge />}
 			action={
-				selectedUser ? (
-					<Button
-						variant="outline"
-						size="sm"
-						type="button"
-						onClick={() => setSelectedUser(null)}
-					>
-						← Back to all users
-					</Button>
-				) : (
+				!selectedUser ? (
 					<span className="text-xs text-content-secondary">
 						{dateRange.rangeLabel}
 					</span>
-				)
+				) : undefined
 			}
 		/>
 	);
@@ -213,6 +205,14 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 	if (selectedUser) {
 		return (
 			<div className="space-y-6">
+				<button
+					type="button"
+					onClick={() => setSelectedUser(null)}
+					className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
+				>
+					<ChevronLeftIcon className="h-4 w-4" />
+					Back
+				</button>
 				{header}
 				<div className="flex flex-wrap items-center gap-3 rounded-lg border border-border-default bg-surface-secondary px-4 py-3">
 					<AvatarData
