@@ -43,19 +43,8 @@ const loginTypeOptions = {
 	},
 	none: {
 		label: "Service account",
-		description: (
-			<>
-				Cannot log in interactively. Intended for automated pipelines, bots, and
-				other non-human access.{" "}
-				<Link
-					target="_blank"
-					rel="noopener"
-					href="https://coder.com/docs/admin/users/headless-auth"
-				>
-					See the documentation.
-				</Link>
-			</>
-		),
+		description:
+			"Cannot log in interactively. Intended for automated pipelines, bots, and other non-human access.",
 	},
 } as const;
 
@@ -231,7 +220,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 							>
 								<SelectValue placeholder="Select a login type…" />
 							</SelectTrigger>
-							<SelectContent>
+							<SelectContent className="max-w-sm">
 								{availableLoginTypes.map((key) => {
 									const opt = loginTypeOptions[key];
 									return (
@@ -249,7 +238,7 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 												<SelectPrimitive.ItemText>
 													{opt.label}
 												</SelectPrimitive.ItemText>
-												<span className="text-xs text-content-secondary whitespace-normal">
+												<span className="text-xs text-content-secondary whitespace-normal break-words">
 													{opt.description}
 												</span>
 											</div>
