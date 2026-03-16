@@ -83,13 +83,24 @@ export const getTerminalHref = ({
 	}/terminal?${params}`;
 };
 
+// Opens a workspace app in a slim popup window while severing the
+// opener relationship for security. We use a two-step approach:
+// first open about:blank, then navigate. This is necessary because
+// passing "noopener" to window.open() causes it to return null per
+// the WHATWG spec, which is indistinguishable from the browser
+// blocking the popup. By opening about:blank first we can detect
+// popup blockers, null out the opener reference ourselves, and
+// only then navigate to the target URL.
 export const openAppInNewWindow = (href: string) => {
-	const popup = window.open(href, "_blank", "width=900,height=600");
+	const popup = window.open("about:blank", "_blank", "width=900,height=600");
 	if (!popup) {
 		toast.error("Failed to open app in new window.", {
 			description: "Popup blocked. Allow popups to open this app.",
 		});
+		return;
 	}
+	popup.opener = null;
+	popup.location.href = href;
 };
 
 type GetAppHrefParams = {
