@@ -345,7 +345,15 @@ func workspaceAgent() *serpent.Command {
 				case <-ctx.Done():
 					logger.Info(ctx, "agent shutting down", slog.Error(context.Cause(ctx)))
 					mustExit = true
-				case event := <-reinitEvents:
+				case event, ok := <-reinitEvents:
+					if !ok {
+						// Channel closed — no reinit needed (not an
+						// unclaimed prebuild). Disable reinit and
+						// continue running normally.
+						logger.Info(ctx, "reinit channel closed, running without reinit capability")
+						reinitEvents = nil // nil channel blocks forever in select
+						continue
+					}
 					if event.UserID != uuid.Nil && event.UserID == lastOwnerID {
 						logger.Info(ctx, "skipping redundant reinit, owner unchanged",
 							slog.F("owner_id", event.UserID))
