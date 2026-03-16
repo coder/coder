@@ -3947,6 +3947,7 @@ func TestWatchChatDesktop(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+		require.NotNil(t, createdChat)
 
 		// Try to connect to the desktop endpoint — should fail because
 		// chat has no workspace.
