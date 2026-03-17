@@ -299,8 +299,10 @@ func (a *API) agent(ctx context.Context) (database.WorkspaceAgent, error) {
 func (a *API) refreshCachedWorkspace(ctx context.Context) {
 	ws, err := a.opts.Database.GetWorkspaceByID(ctx, a.opts.WorkspaceID)
 	if err != nil {
+		// Do not clear the cache on transient DB errors. Stale data is
+		// preferable to no data, which forces callers to fall back to
+		// expensive queries like GetWorkspaceByAgentID.
 		a.opts.Log.Warn(ctx, "failed to refresh cached workspace fields", slog.Error(err))
-		a.cachedWorkspaceFields.Clear()
 		return
 	}
 
