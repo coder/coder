@@ -245,8 +245,8 @@ type CreateChatRequest struct {
 
 // UpdateChatRequest is the request to update a chat.
 type UpdateChatRequest struct {
-	Title    string `json:"title,omitempty"`
-	Archived *bool  `json:"archived,omitempty"`
+	Title    *string `json:"title,omitempty"`
+	Archived *bool   `json:"archived,omitempty"`
 }
 
 // CreateChatMessageRequest is the request to add a message to a chat.

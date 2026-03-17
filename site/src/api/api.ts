@@ -3066,12 +3066,12 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getChatSystemPrompt =
-async (): Promise<TypesGen.ChatSystemPrompt> => {
-				const response = await this.axios.get<TypesGen.ChatSystemPrompt>(				"/api/experimental/chats/config/system-prompt",
-			);
-			return response.data;
-		};
+	getChatSystemPrompt = async (): Promise<TypesGen.ChatSystemPrompt> => {
+		const response = await this.axios.get<TypesGen.ChatSystemPrompt>(
+			"/api/experimental/chats/config/system-prompt",
+		);
+		return response.data;
+	};
 
 	updateChatSystemPrompt = async (
 		req: TypesGen.ChatSystemPrompt,
@@ -3080,21 +3080,19 @@ async (): Promise<TypesGen.ChatSystemPrompt> => {
 	};
 
 	getUserChatCustomPrompt =
-async (): Promise<TypesGen.UserChatCustomPrompt> => {
-				const response =
-					await this.axios.get<TypesGen.UserChatCustomPrompt>(					"/api/experimental/chats/config/user-prompt",
-				);
+		async (): Promise<TypesGen.UserChatCustomPrompt> => {
+			const response = await this.axios.get<TypesGen.UserChatCustomPrompt>(
+				"/api/experimental/chats/config/user-prompt",
+			);
 			return response.data;
 		};
-
 	updateUserChatCustomPrompt = async (
 		req: TypesGen.UserChatCustomPrompt,
 	): Promise<TypesGen.UserChatCustomPrompt> => {
-		const response =
-			await this.axios.put<TypesGen.UserChatCustomPrompt>(
-				"/api/experimental/chats/config/user-prompt",
-				req,
-			);
+		const response = await this.axios.put<TypesGen.UserChatCustomPrompt>(
+			"/api/experimental/chats/config/user-prompt",
+			req,
+		);
 		return response.data;
 	};
 
