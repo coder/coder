@@ -419,7 +419,9 @@ const PrStateIcon: FC<{
 	}
 	if (state === "closed") {
 		return (
-			<GitPullRequestClosedIcon className={cn("text-git-deleted-bright", className)} />
+			<GitPullRequestClosedIcon
+				className={cn("text-git-deleted-bright", className)}
+			/>
 		);
 	}
 	if (draft) {
@@ -429,5 +431,7 @@ const PrStateIcon: FC<{
 			/>
 		);
 	}
-	return <GitPullRequestIcon className={cn("text-git-added-bright", className)} />;
+	return (
+		<GitPullRequestIcon className={cn("text-git-added-bright", className)} />
+	);
 };
