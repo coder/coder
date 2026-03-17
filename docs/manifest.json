@@ -1211,20 +1211,21 @@
 							"path": "./ai-coder/agents/models.md",
 							"state": ["early access"]
 						},
-							{
-								"title": "Platform Controls",
-								"description": "How platform teams control agent behavior, models, and policies",
-								"path": "./ai-coder/agents/platform-controls/index.md",
-								"state": ["early access"],
-								"children": [
-									{
-										"title": "Template Routing",
-										"description": "Best practices for creating templates that are discoverable and useful to Coder Agents",
-										"path": "./ai-coder/agents/platform-controls/template-routing.md",
-										"state": ["early access"]
-									}
-								]
-							},						{
+						{
+							"title": "Platform Controls",
+							"description": "How platform teams control agent behavior, models, and policies",
+							"path": "./ai-coder/agents/platform-controls/index.md",
+							"state": ["early access"],
+							"children": [
+								{
+									"title": "Template Routing",
+									"description": "Best practices for creating templates that are discoverable and useful to Coder Agents",
+									"path": "./ai-coder/agents/platform-controls/template-routing.md",
+									"state": ["early access"]
+								}
+							]
+						},
+						{
 							"title": "Chats API",
 							"description": "Programmatic access to Coder Agents via the experimental Chats API",
 							"path": "./ai-coder/agents/chats-api.md",
@@ -1233,9 +1234,10 @@
 					]
 				}
 			]
-			},
-			{
-				"title": "Tutorials",			"description": "Coder knowledgebase for administrating your deployment",
+		},
+		{
+			"title": "Tutorials",
+			"description": "Coder knowledgebase for administrating your deployment",
 			"path": "./tutorials/index.md",
 			"icon_path": "./images/icons/generic.svg",
 			"children": [
