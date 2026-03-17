@@ -106,6 +106,167 @@ type cachedInstruction struct {
 	fetchedAt   time.Time
 }
 
+type turnWorkspaceContext struct {
+	server           *Server
+	chatStateMu      *sync.Mutex
+	currentChat      *database.Chat
+	loadChatSnapshot func(context.Context, uuid.UUID) (database.Chat, error)
+
+	mu          sync.Mutex
+	agent       database.WorkspaceAgent
+	agentLoaded bool
+	conn        workspacesdk.AgentConn
+	releaseConn func()
+}
+
+func (c *turnWorkspaceContext) close() {
+	c.mu.Lock()
+	releaseConn := c.releaseConn
+	c.conn = nil
+	c.releaseConn = nil
+	c.mu.Unlock()
+
+	if releaseConn != nil {
+		releaseConn()
+	}
+}
+
+func (c *turnWorkspaceContext) getWorkspaceAgent(ctx context.Context) (database.WorkspaceAgent, error) {
+	_, agent, err := c.ensureWorkspaceAgent(ctx)
+	return agent, err
+}
+
+func (c *turnWorkspaceContext) ensureWorkspaceAgent(
+	ctx context.Context,
+) (database.Chat, database.WorkspaceAgent, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.agentLoaded {
+		c.chatStateMu.Lock()
+		chatSnapshot := *c.currentChat
+		c.chatStateMu.Unlock()
+		return chatSnapshot, c.agent, nil
+	}
+
+	return c.loadWorkspaceAgentLocked(ctx)
+}
+
+func (c *turnWorkspaceContext) refreshWorkspaceAgent(
+	ctx context.Context,
+) (database.Chat, database.WorkspaceAgent, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.agent = database.WorkspaceAgent{}
+	c.agentLoaded = false
+	return c.loadWorkspaceAgentLocked(ctx)
+}
+
+func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
+	ctx context.Context,
+) (database.Chat, database.WorkspaceAgent, error) {
+	c.chatStateMu.Lock()
+	chatSnapshot := *c.currentChat
+	c.chatStateMu.Unlock()
+
+	if !chatSnapshot.WorkspaceID.Valid {
+		refreshedChat, refreshErr := refreshChatWorkspaceSnapshot(
+			ctx,
+			chatSnapshot,
+			c.loadChatSnapshot,
+		)
+		if refreshErr != nil {
+			return chatSnapshot, database.WorkspaceAgent{}, refreshErr
+		}
+		if refreshedChat.WorkspaceID.Valid {
+			c.chatStateMu.Lock()
+			*c.currentChat = refreshedChat
+			c.chatStateMu.Unlock()
+			chatSnapshot = refreshedChat
+		}
+	}
+
+	if !chatSnapshot.WorkspaceID.Valid {
+		return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("chat has no workspace")
+	}
+
+	agents, err := c.server.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
+		ctx,
+		chatSnapshot.WorkspaceID.UUID,
+	)
+	if err != nil || len(agents) == 0 {
+		return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("chat has no workspace agent")
+	}
+
+	c.agent = agents[0]
+	c.agentLoaded = true
+	return chatSnapshot, c.agent, nil
+}
+
+func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspacesdk.AgentConn, error) {
+	c.mu.Lock()
+	if c.conn != nil {
+		currentConn := c.conn
+		c.mu.Unlock()
+		return currentConn, nil
+	}
+	c.mu.Unlock()
+
+	if c.server.agentConnFn == nil {
+		return nil, xerrors.New("workspace agent connector is not configured")
+	}
+
+	chatSnapshot, agent, err := c.ensureWorkspaceAgent(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	agentConn, agentRelease, err := c.server.agentConnFn(ctx, agent.ID)
+	if err != nil {
+		refreshedChat, refreshedAgent, refreshErr := c.refreshWorkspaceAgent(ctx)
+		if refreshErr != nil {
+			return nil, xerrors.Errorf("connect to workspace agent: %w", err)
+		}
+
+		retryConn, retryRelease, retryErr := c.server.agentConnFn(ctx, refreshedAgent.ID)
+		if retryErr != nil {
+			return nil, xerrors.Errorf("connect to workspace agent after refresh: %w", retryErr)
+		}
+
+		chatSnapshot = refreshedChat
+		agentConn = retryConn
+		agentRelease = retryRelease
+	}
+
+	c.mu.Lock()
+	if c.conn == nil {
+		c.conn = agentConn
+		c.releaseConn = agentRelease
+
+		var ancestorIDs []string
+		if chatSnapshot.ParentChatID.Valid {
+			ancestorIDs = append(ancestorIDs, chatSnapshot.ParentChatID.UUID.String())
+		}
+		ancestorJSON, marshalErr := json.Marshal(ancestorIDs)
+		if marshalErr != nil {
+			ancestorJSON = []byte("[]")
+		}
+		agentConn.SetExtraHeaders(http.Header{
+			workspacesdk.CoderChatIDHeader:          {chatSnapshot.ID.String()},
+			workspacesdk.CoderAncestorChatIDsHeader: {string(ancestorJSON)},
+		})
+
+		c.mu.Unlock()
+		return agentConn, nil
+	}
+	currentConn := c.conn
+	c.mu.Unlock()
+
+	agentRelease()
+	return currentConn, nil
+}
+
 // AgentConnFunc provides access to workspace agent connections.
 type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error)
 
@@ -2293,98 +2454,24 @@ func (p *Server) runChat(
 	var (
 		chatStateMu sync.Mutex
 		workspaceMu sync.Mutex
-		conn        workspacesdk.AgentConn
-		releaseConn func()
 	)
-	closeConn := func() {
-		if releaseConn != nil {
-			releaseConn()
-			releaseConn = nil
-		}
+	workspaceCtx := turnWorkspaceContext{
+		server:           p,
+		chatStateMu:      &chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: loadChatSnapshot,
 	}
-	defer closeConn()
-
-	getWorkspaceConn := func(ctx context.Context) (workspacesdk.AgentConn, error) {
-		chatStateMu.Lock()
-		if conn != nil {
-			currentConn := conn
-			chatStateMu.Unlock()
-			return currentConn, nil
-		}
-		chatSnapshot := currentChat
-		chatStateMu.Unlock()
-
-		if p.agentConnFn == nil {
-			return nil, xerrors.New("workspace agent connector is not configured")
-		}
-
-		if !chatSnapshot.WorkspaceID.Valid {
-			refreshedChat, refreshErr := refreshChatWorkspaceSnapshot(
-				ctx,
-				chatSnapshot,
-				loadChatSnapshot,
-			)
-			if refreshErr != nil {
-				return nil, refreshErr
-			}
-			if refreshedChat.WorkspaceID.Valid {
-				chatStateMu.Lock()
-				currentChat = refreshedChat
-				chatSnapshot = refreshedChat
-				chatStateMu.Unlock()
-			}
-		}
-
-		if !chatSnapshot.WorkspaceID.Valid {
-			return nil, xerrors.New("chat has no workspace")
-		}
-
-		agents, err := p.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
-			ctx,
-			chatSnapshot.WorkspaceID.UUID,
-		)
-		if err != nil || len(agents) == 0 {
-			return nil, xerrors.New("chat has no workspace agent")
-		}
-
-		agentConn, agentRelease, err := p.agentConnFn(ctx, agents[0].ID)
-		if err != nil {
-			return nil, xerrors.Errorf("connect to workspace agent: %w", err)
-		}
-
-		chatStateMu.Lock()
-		if conn == nil {
-			conn = agentConn
-			releaseConn = agentRelease
-
-			var ancestorIDs []string
-			if chatSnapshot.ParentChatID.Valid {
-				ancestorIDs = append(ancestorIDs, chatSnapshot.ParentChatID.UUID.String())
-			}
-			ancestorJSON, err := json.Marshal(ancestorIDs)
-			if err != nil {
-				logger.Warn(ctx, "failed to marshal ancestor chat IDs", slog.Error(err))
-				ancestorJSON = []byte("[]")
-			}
-			agentConn.SetExtraHeaders(http.Header{
-				workspacesdk.CoderChatIDHeader:          {chatSnapshot.ID.String()},
-				workspacesdk.CoderAncestorChatIDsHeader: {string(ancestorJSON)},
-			})
-
-			chatStateMu.Unlock()
-			return agentConn, nil
-		}
-		currentConn := conn
-		chatStateMu.Unlock()
-
-		agentRelease()
-		return currentConn, nil
-	}
+	defer workspaceCtx.close()
 
 	var instruction, resolvedUserPrompt string
 	var g2 errgroup.Group
 	g2.Go(func() error {
-		instruction = p.resolveInstructions(ctx, chat, getWorkspaceConn)
+		instruction = p.resolveInstructions(
+			ctx,
+			chat,
+			workspaceCtx.getWorkspaceAgent,
+			workspaceCtx.getWorkspaceConn,
+		)
 		return nil
 	})
 	g2.Go(func() error {
@@ -2652,25 +2739,25 @@ func (p *Server) runChat(
 	// Here are all the tools we have for the chat.
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{
-			GetWorkspaceConn: getWorkspaceConn,
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 		chattool.WriteFile(chattool.WriteFileOptions{
-			GetWorkspaceConn: getWorkspaceConn,
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 		chattool.EditFiles(chattool.EditFilesOptions{
-			GetWorkspaceConn: getWorkspaceConn,
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 		chattool.Execute(chattool.ExecuteOptions{
-			GetWorkspaceConn: getWorkspaceConn,
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 		chattool.ProcessOutput(chattool.ProcessToolOptions{
-			GetWorkspaceConn: getWorkspaceConn,
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 		chattool.ProcessList(chattool.ProcessToolOptions{
-			GetWorkspaceConn: getWorkspaceConn,
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 		chattool.ProcessSignal(chattool.ProcessToolOptions{
-			GetWorkspaceConn: getWorkspaceConn,
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 	}
 	// Only root chats (not delegated subagents) get workspace
@@ -2725,7 +2812,7 @@ func (p *Server) runChat(
 			Runner: chattool.NewComputerUseTool(
 				workspacesdk.DesktopDisplayWidth,
 				workspacesdk.DesktopDisplayHeight,
-				getWorkspaceConn, quartz.NewReal(),
+				workspaceCtx.getWorkspaceConn, quartz.NewReal(),
 			),
 		})
 	}
@@ -2763,7 +2850,12 @@ func (p *Server) runChat(
 			var reloadInstruction, reloadUserPrompt string
 			var rg errgroup.Group
 			rg.Go(func() error {
-				reloadInstruction = p.resolveInstructions(reloadCtx, chat, getWorkspaceConn)
+				reloadInstruction = p.resolveInstructions(
+					reloadCtx,
+					chat,
+					workspaceCtx.getWorkspaceAgent,
+					workspaceCtx.getWorkspaceConn,
+				)
 				return nil
 			})
 			rg.Go(func() error {
@@ -3144,20 +3236,18 @@ func refreshChatWorkspaceSnapshot(
 func (p *Server) resolveInstructions(
 	ctx context.Context,
 	chat database.Chat,
+	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
 ) string {
-	if !chat.WorkspaceID.Valid {
+	if !chat.WorkspaceID.Valid || getWorkspaceAgent == nil {
 		return ""
 	}
 
-	agents, agentsErr := p.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
-		ctx,
-		chat.WorkspaceID.UUID,
-	)
-	if agentsErr != nil || len(agents) == 0 {
+	agent, agentErr := getWorkspaceAgent(ctx)
+	if agentErr != nil {
 		return ""
 	}
-	agentID := agents[0].ID
+	agentID := agent.ID
 
 	p.instructionCacheMu.Lock()
 	cached, ok := p.instructionCache[agentID]
@@ -3167,14 +3257,6 @@ func (p *Server) resolveInstructions(
 		return cached.instruction
 	}
 
-	// Look up the agent's OS and working directory.
-	agent, err := p.db.GetWorkspaceAgentByID(ctx, agentID)
-	if err != nil {
-		p.logger.Debug(ctx, "failed to look up workspace agent for instruction context",
-			slog.F("agent_id", agentID),
-			slog.Error(err),
-		)
-	}
 	directory := agent.ExpandedDirectory
 	if directory == "" {
 		directory = agent.Directory
