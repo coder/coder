@@ -6,7 +6,6 @@ import {
 	type FC,
 	type RefObject,
 	useEffect,
-	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
@@ -524,10 +523,6 @@ const ScrollAnchoredContainer: FC<{
 	children,
 }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
-	// Snapshot of scrollHeight taken just before a fetch is triggered.
-	// Used by the layout effect to compute how much content was inserted
-	// and adjust scrollTop so the viewport stays on the same messages.
-	const prevScrollHeightRef = useRef<number | null>(null);
 	const isFetchingRef = useRef(isFetchingMoreMessages);
 	isFetchingRef.current = isFetchingMoreMessages;
 
@@ -540,9 +535,6 @@ const ScrollAnchoredContainer: FC<{
 		const observer = new IntersectionObserver(
 			([entry]) => {
 				if (entry.isIntersecting && !isFetchingRef.current) {
-					// Snapshot scroll state BEFORE the fetch so the
-					// layout effect can restore position after render.
-					prevScrollHeightRef.current = container.scrollHeight;
 					onFetchMoreMessages();
 				}
 			},
@@ -555,29 +547,6 @@ const ScrollAnchoredContainer: FC<{
 		observer.observe(sentinel);
 		return () => observer.disconnect();
 	}, [scrollContainerRef, onFetchMoreMessages]);
-
-	// After React commits new message DOM nodes, adjust scrollTop to
-	// compensate for the height that was added above the viewport.
-	// In a flex-col-reverse container, scrollTop is negative (measured
-	// from the visual bottom). Adding content at the visual top makes
-	// scrollHeight grow without moving the visual-bottom origin, so
-	// subtracting the delta keeps the viewport on the same messages.
-	useLayoutEffect(() => {
-		const container = scrollContainerRef.current;
-		const prevHeight = prevScrollHeightRef.current;
-		if (!container || prevHeight === null) return;
-
-		const delta = container.scrollHeight - prevHeight;
-		if (delta > 0) {
-			container.scrollTop -= delta;
-			// Only clear after a real adjustment. Intermediate renders
-			// (e.g. react-query state update before the ChatContext
-			// effect upserts messages into the store) will see delta=0
-			// because the DOM hasn't changed yet — keep the ref so the
-			// next render can apply the correction.
-			prevScrollHeightRef.current = null;
-		}
-	});
 
 	return (
 		<div
