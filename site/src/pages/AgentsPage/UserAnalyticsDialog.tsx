@@ -63,12 +63,6 @@ export const UserAnalyticsDialog: FC<UserAnalyticsDialogProps> = ({
 						<SectionHeader
 							label="Analytics"
 							description="Review your personal chat usage and cost breakdowns."
-							action={
-								<div className="flex items-center gap-2 text-xs text-content-secondary">
-									<BarChart3Icon className="h-4 w-4" />
-									<span>{dateRange.rangeLabel}</span>
-								</div>
-							}
 						/>
 						<DialogClose asChild>
 							<Button
@@ -80,6 +74,11 @@ export const UserAnalyticsDialog: FC<UserAnalyticsDialogProps> = ({
 								<span className="sr-only">Close</span>
 							</Button>
 						</DialogClose>
+					</div>
+
+					<div className="mb-4 flex w-fit items-center gap-2 text-xs text-content-secondary">
+						<BarChart3Icon className="h-4 w-4" />
+						<span>{dateRange.rangeLabel}</span>
 					</div>
 
 					<ChatCostSummaryView
