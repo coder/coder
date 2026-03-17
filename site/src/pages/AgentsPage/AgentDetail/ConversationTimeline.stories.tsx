@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type * as TypesGen from "api/typesGenerated";
-import { createRef } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { ConversationTimeline } from "./ConversationTimeline";
 import {
@@ -25,8 +24,6 @@ const defaultArgs: Omit<
 	"parsedSections"
 > = {
 	isEmpty: false,
-	hasMoreMessages: false,
-	loadMoreSentinelRef: createRef<HTMLDivElement>(),
 	hasStreamOutput: false,
 	streamState: null,
 	streamTools: [],
@@ -249,7 +246,6 @@ export const UserMessageWithImagesAndFileRefs: Story = {
 export const UsageLimitExceeded: Story = {
 	args: {
 		...defaultArgs,
-		loadMoreSentinelRef: { current: null },
 		parsedSections: [],
 		detailError: {
 			kind: "usage-limit",
@@ -274,7 +270,6 @@ export const UsageLimitExceeded: Story = {
 export const GenericErrorDoesNotShowUsageAction: Story = {
 	args: {
 		...defaultArgs,
-		loadMoreSentinelRef: { current: null },
 		parsedSections: [],
 		detailError: { kind: "generic", message: "Provider request failed." },
 		onOpenAnalytics: fn(),

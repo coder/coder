@@ -23,7 +23,6 @@ import {
 	Fragment,
 	memo,
 	type ReactNode,
-	type RefObject,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -871,8 +870,6 @@ const StickyUserMessage: FC<{
 
 interface ConversationTimelineProps {
 	isEmpty: boolean;
-	hasMoreMessages: boolean;
-	loadMoreSentinelRef: RefObject<HTMLDivElement | null>;
 	parsedSections: readonly ParsedMessageSection[];
 	hasStreamOutput: boolean;
 	streamState: StreamState | null;
@@ -895,8 +892,6 @@ interface ConversationTimelineProps {
 
 export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	isEmpty,
-	hasMoreMessages,
-	loadMoreSentinelRef,
 	parsedSections,
 	hasStreamOutput,
 	streamState,
@@ -943,24 +938,11 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 				</div>
 			) : (
 				<div className="flex flex-col">
-					{hasMoreMessages && (
-						<div
-							ref={loadMoreSentinelRef}
-							className="flex items-center justify-center py-4 text-xs text-content-secondary"
-						>
-							Loading earlier messages…
-						</div>
-					)}
 					{parsedSections.map((section, sectionIdx) => (
 						<div
-							key={section.userEntry?.message.id ?? `section-${sectionIdx}`}
-							className="-mx-1 px-1"
-							style={{
-								contentVisibility: "auto",
-								containIntrinsicSize: "1px 600px",
-							}}
-						>
-							<div className="flex flex-col gap-3">
+								key={section.userEntry?.message.id ?? `section-${sectionIdx}`}
+								className="-mx-1 px-1"
+							>							<div className="flex flex-col gap-3">
 								{section.entries.map(({ message, parsed }) =>
 									message.role === "user" ? (
 										<StickyUserMessage

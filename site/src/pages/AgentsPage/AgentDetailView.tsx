@@ -2,7 +2,14 @@ import type * as TypesGen from "api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { ArchiveIcon } from "lucide-react";
-import { type FC, type RefObject, useEffect, useRef, useState } from "react";
+import {
+	type FC,
+	type RefObject,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
@@ -258,36 +265,31 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 						}}
 					/>
 				</div>
-				<div
-					ref={scrollContainerRef}
-					className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
-				>
-					<div className="px-4">
-						<AgentDetailTimeline
-							store={store}
-							chatID={agentId}
-							persistedErrorReason={
-								chatErrorReasons[agentId] ??
-								(chatStatus === "error" && chatRecord?.last_error
-									? { kind: "generic" as const, message: chatRecord.last_error }
-									: undefined)
-							}
-							onOpenAnalytics={onOpenAnalytics}
-							onEditUserMessage={editing.handleEditUserMessage}
-							editingMessageId={editing.editingMessageId}
-							savingMessageId={pendingEditMessageId}
-							urlTransform={urlTransform}
-						/>
-					</div>
-					{hasMoreMessages && (
-						<MessagesPaginationSentinel
-							containerRef={scrollContainerRef}
-							isFetching={isFetchingMoreMessages}
-							onLoadMore={onFetchMoreMessages}
-						/>
-					)}
-				</div>
-				<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+					<ScrollAnchoredContainer
+						scrollContainerRef={scrollContainerRef}
+						isFetchingMoreMessages={isFetchingMoreMessages}
+						hasMoreMessages={hasMoreMessages}
+						onFetchMoreMessages={onFetchMoreMessages}
+					>
+						<div className="px-4">
+							<AgentDetailTimeline
+								store={store}
+								chatID={agentId}
+								persistedErrorReason={
+									chatErrorReasons[agentId] ??
+									(chatStatus === "error" && chatRecord?.last_error
+										? { kind: "generic" as const, message: chatRecord.last_error }
+										: undefined)
+								}
+								onOpenAnalytics={onOpenAnalytics}
+								onEditUserMessage={editing.handleEditUserMessage}
+								editingMessageId={editing.editingMessageId}
+								savingMessageId={pendingEditMessageId}
+								urlTransform={urlTransform}
+							/>
+						</div>
+						</ScrollAnchoredContainer>
+						<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<AgentDetailInput
 						store={store}
 						compressionThreshold={compressionThreshold}
@@ -502,37 +504,86 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
 };
 
 /**
- * Invisible sentinel that triggers loading older messages when it
- * scrolls into view. Placed at the visual top of the flex-col-reverse
- * container (which is the DOM bottom).
+ * Scroll container that uses flex-col-reverse for bottom-anchored chat
+ * layout. Handles loading older message pages via an IntersectionObserver
+ * sentinel and manually restores scroll position after new content
+ * renders — CSS scroll anchoring is unreliable in flex-col-reverse
+ * containers.
  */
-const MessagesPaginationSentinel: FC<{
-	containerRef: RefObject<HTMLDivElement | null>;
-	isFetching: boolean;
-	onLoadMore: () => void;
-}> = ({ containerRef, isFetching, onLoadMore }) => {
+const ScrollAnchoredContainer: FC<{
+	scrollContainerRef: RefObject<HTMLDivElement | null>;
+	isFetchingMoreMessages: boolean;
+	hasMoreMessages: boolean;
+	onFetchMoreMessages: () => void;
+	children: React.ReactNode;
+}> = ({
+	scrollContainerRef,
+	isFetchingMoreMessages,
+	hasMoreMessages,
+	onFetchMoreMessages,
+	children,
+}) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
+	// Snapshot of scrollHeight taken just before a fetch is triggered.
+	// Used by the layout effect to compute how much content was inserted
+	// and adjust scrollTop so the viewport stays on the same messages.
+	const prevScrollHeightRef = useRef<number | null>(null);
+	const isFetchingRef = useRef(isFetchingMoreMessages);
+	isFetchingRef.current = isFetchingMoreMessages;
 
+	// Sentinel observer — triggers loading older messages.
 	useEffect(() => {
 		const sentinel = sentinelRef.current;
-		const container = containerRef.current;
+		const container = scrollContainerRef.current;
 		if (!sentinel || !container) return;
 
 		const observer = new IntersectionObserver(
 			([entry]) => {
-				if (entry.isIntersecting && !isFetching) {
-					onLoadMore();
+				if (entry.isIntersecting && !isFetchingRef.current) {
+					// Snapshot scroll state BEFORE the fetch so the
+					// layout effect can restore position after render.
+					prevScrollHeightRef.current = container.scrollHeight;
+					onFetchMoreMessages();
 				}
 			},
 			{
 				root: container,
-				rootMargin: "200px 0px 0px 0px",
+				rootMargin: "600px 0px 0px 0px",
 				threshold: 0.01,
 			},
 		);
 		observer.observe(sentinel);
 		return () => observer.disconnect();
-	}, [containerRef, isFetching, onLoadMore]);
+	}, [scrollContainerRef, onFetchMoreMessages]);
 
-	return <div ref={sentinelRef} className="h-px shrink-0" />;
+	// After React commits new message DOM nodes, adjust scrollTop to
+	// compensate for the height that was added above the viewport.
+	// In a flex-col-reverse container, scrollTop is negative (measured
+	// from the visual bottom). Adding content at the visual top makes
+	// scrollHeight grow without moving the visual-bottom origin, so
+	// subtracting the delta keeps the viewport on the same messages.
+	useLayoutEffect(() => {
+		const container = scrollContainerRef.current;
+		const prevHeight = prevScrollHeightRef.current;
+		if (!container || prevHeight === null) return;
+
+		const delta = container.scrollHeight - prevHeight;
+		if (delta > 0) {
+			container.scrollTop -= delta;
+		}
+		prevScrollHeightRef.current = null;
+	});
+
+	return (
+		<div
+			ref={scrollContainerRef}
+			className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+			style={{ overflowAnchor: "none" }}
+		>
+			{children}
+			{hasMoreMessages && (
+				<div ref={sentinelRef} className="h-px shrink-0" />
+			)}
+		</div>
+	);
 };

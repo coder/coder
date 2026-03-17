@@ -30,7 +30,6 @@ import {
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
 import { buildStreamTools } from "./AgentDetail/streamState";
-import { useMessageWindow } from "./AgentDetail/useMessageWindow";
 import type { ChatDetailError } from "./usageLimitMessage";
 import { useFileAttachments } from "./useFileAttachments";
 
@@ -87,14 +86,9 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 		() => buildStreamTools(streamState),
 		[streamState],
 	);
-	const { hasMoreMessages, windowedMessages, loadMoreSentinelRef } =
-		useMessageWindow({
-			messages,
-			resetKey: chatID,
-		});
 	const parsedMessages = useMemo(
-		() => parseMessagesWithMergedTools(windowedMessages),
-		[windowedMessages],
+		() => parseMessagesWithMergedTools(messages),
+		[messages],
 	);
 	const subagentTitles = useMemo(
 		() => buildSubagentTitles(parsedMessages),
@@ -123,8 +117,6 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	return (
 		<ConversationTimeline
 			isEmpty={messages.length === 0}
-			hasMoreMessages={hasMoreMessages}
-			loadMoreSentinelRef={loadMoreSentinelRef}
 			parsedSections={parsedSections}
 			hasStreamOutput={hasStreamOutput}
 			streamState={streamState}

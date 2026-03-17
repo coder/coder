@@ -478,6 +478,13 @@ export const useChatStore = (
 			? chatMessages[chatMessages.length - 1].id
 			: undefined;
 
+	// True once the initial REST page has resolved for the current
+	// chat. The WebSocket effect gates on this so that
+	// lastMessageIdRef is populated before the socket opens;
+	// otherwise the server replays the entire message history as
+	// its snapshot, defeating pagination.
+	const initialDataLoaded = chatMessages !== undefined;
+
 	const updateSidebarChat = useCallback(
 		(updater: (chat: TypesGen.Chat) => TypesGen.Chat) => {
 			if (!chatID) {
@@ -616,7 +623,7 @@ export const useChatStore = (
 		store.resetTransientState();
 		activeChatIDRef.current = chatID ?? null;
 
-		if (!chatID) {
+		if (!chatID || !initialDataLoaded) {
 			return;
 		}
 
@@ -849,6 +856,7 @@ export const useChatStore = (
 		cancelScheduledStreamReset,
 		chatID,
 		clearChatErrorReason,
+		initialDataLoaded,
 		scheduleStreamReset,
 		setChatErrorReason,
 		store,
