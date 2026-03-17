@@ -570,8 +570,13 @@ const ScrollAnchoredContainer: FC<{
 		const delta = container.scrollHeight - prevHeight;
 		if (delta > 0) {
 			container.scrollTop -= delta;
+			// Only clear after a real adjustment. Intermediate renders
+			// (e.g. react-query state update before the ChatContext
+			// effect upserts messages into the store) will see delta=0
+			// because the DOM hasn't changed yet — keep the ref so the
+			// next render can apply the correction.
+			prevScrollHeightRef.current = null;
 		}
-		prevScrollHeightRef.current = null;
 	});
 
 	return (
