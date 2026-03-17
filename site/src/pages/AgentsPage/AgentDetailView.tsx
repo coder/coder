@@ -1,7 +1,7 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { ArchiveIcon } from "lucide-react";
+import { ArchiveIcon, ArrowDownIcon } from "lucide-react";
 import { type FC, type RefObject, useEffect, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
@@ -119,8 +119,12 @@ interface AgentDetailViewProps {
 	handleUnarchiveAgentAction: () => void;
 	handleArchiveAndDeleteWorkspaceAction: () => void;
 
-	// Scroll container ref.
-	scrollContainerRef: RefObject<HTMLDivElement | null>;
+	// Scroll container ref (callback ref from useStickToBottom).
+	scrollContainerRef: (node: HTMLDivElement | null) => void;
+
+	// Stick-to-bottom scroll state.
+	isScrollStuck: boolean;
+	onScrollToBottom: () => void;
 
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
@@ -178,6 +182,8 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	handleUnarchiveAgentAction,
 	handleArchiveAndDeleteWorkspaceAction,
 	scrollContainerRef,
+	isScrollStuck,
+	onScrollToBottom,
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	onFetchMoreMessages,
@@ -260,7 +266,8 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 				</div>
 				<div
 					ref={scrollContainerRef}
-					className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+					data-scroll-container
+					className="relative flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [overflow-anchor:none] [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 				>
 					<div className="px-4">
 						<AgentDetailTimeline
@@ -281,11 +288,14 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 					</div>
 					{hasMoreMessages && (
 						<MessagesPaginationSentinel
-							containerRef={scrollContainerRef}
 							isFetching={isFetchingMoreMessages}
 							onLoadMore={onFetchMoreMessages}
 						/>
 					)}
+					<ScrollToBottomButton
+						visible={!isScrollStuck}
+						onClick={onScrollToBottom}
+					/>
 				</div>
 				<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<AgentDetailInput
@@ -507,16 +517,19 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
  * container (which is the DOM bottom).
  */
 const MessagesPaginationSentinel: FC<{
-	containerRef: RefObject<HTMLDivElement | null>;
 	isFetching: boolean;
 	onLoadMore: () => void;
-}> = ({ containerRef, isFetching, onLoadMore }) => {
+}> = ({ isFetching, onLoadMore }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
 		const sentinel = sentinelRef.current;
-		const container = containerRef.current;
-		if (!sentinel || !container) return;
+		if (!sentinel) return;
+		// Walk up to the nearest scrollable ancestor. This avoids
+		// the need for a RefObject prop now that the scroll container
+		// uses a callback ref from useStickToBottom.
+		const container = sentinel.closest("[data-scroll-container]");
+		if (!container) return;
 
 		const observer = new IntersectionObserver(
 			([entry]) => {
@@ -532,7 +545,46 @@ const MessagesPaginationSentinel: FC<{
 		);
 		observer.observe(sentinel);
 		return () => observer.disconnect();
-	}, [containerRef, isFetching, onLoadMore]);
+	}, [isFetching, onLoadMore]);
 
 	return <div ref={sentinelRef} className="h-px shrink-0" />;
 };
+
+/**
+ * Floating button that appears when the user scrolls away from the
+ * bottom of the chat. Clicking it scrolls back to the newest
+ * messages. Uses a sticky position inside the flex-col-reverse
+ * scroll container so it stays anchored to the visual bottom.
+ */
+const ScrollToBottomButton: FC<{
+	visible: boolean;
+	onClick: () => void;
+}> = ({ visible, onClick }) => (
+	<div
+		className={cn(
+			"sticky bottom-4 z-20 flex justify-center",
+			"transition-opacity duration-200",
+			visible
+				? "opacity-100"
+				: "opacity-0 pointer-events-none",
+		)}
+		aria-hidden={visible ? undefined : true}
+	>
+		<button
+			type="button"
+			onClick={onClick}
+			tabIndex={visible ? 0 : -1}
+			className={cn(
+				"flex items-center gap-1.5",
+				"rounded-full border border-border-default bg-surface-primary",
+				"px-3 py-1.5 text-xs font-medium text-content-secondary",
+				"shadow-md hover:bg-surface-secondary",
+				"transition-colors cursor-pointer",
+			)}
+			aria-label="Scroll to latest messages"
+		>
+			<ArrowDownIcon className="size-3.5" />
+			Jump to bottom
+		</button>
+	</div>
+);

@@ -17,6 +17,7 @@ import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import type { ChatMessagePart } from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
+import { useStickToBottom } from "hooks/useStickToBottom";
 import {
 	getTerminalHref,
 	getVSCodeHref,
@@ -252,7 +253,7 @@ const AgentDetail: FC = () => {
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 	} = outletContext;
-	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+	const { isStuck: isScrollStuck, scrollToBottom, scrollRef: scrollContainerRef } = useStickToBottom();
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef("");
 
@@ -601,9 +602,7 @@ const AgentDetail: FC = () => {
 			clearChatErrorReason(agentId);
 			clearStreamError();
 			setPendingEditMessageId(editedMessageID);
-			if (scrollContainerRef.current) {
-				scrollContainerRef.current.scrollTop = 0;
-			}
+			scrollToBottom();
 			store.clearStreamState();
 			try {
 				await editMutation.mutateAsync({
@@ -628,9 +627,7 @@ const AgentDetail: FC = () => {
 		};
 		clearChatErrorReason(agentId);
 		clearStreamError();
-		if (scrollContainerRef.current) {
-			scrollContainerRef.current.scrollTop = 0;
-		}
+		scrollToBottom();
 
 		// No optimistic rendering — the message will appear in the
 		// timeline when the server confirms via the POST response or
@@ -894,6 +891,8 @@ const AgentDetail: FC = () => {
 			}
 			urlTransform={urlTransform}
 			scrollContainerRef={scrollContainerRef}
+			isScrollStuck={isScrollStuck}
+			onScrollToBottom={scrollToBottom}
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}

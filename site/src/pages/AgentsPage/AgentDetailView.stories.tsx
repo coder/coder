@@ -134,7 +134,9 @@ const meta: Meta<typeof AgentDetailView> = {
 		handleArchiveAgentAction: fn(),
 		handleUnarchiveAgentAction: fn(),
 		handleArchiveAndDeleteWorkspaceAction: fn(),
-		scrollContainerRef: { current: null },
+		scrollContainerRef: () => {},
+		isScrollStuck: true,
+		onScrollToBottom: () => {},
 	},
 };
 

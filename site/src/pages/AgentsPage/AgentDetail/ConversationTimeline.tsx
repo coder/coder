@@ -637,7 +637,7 @@ const StickyUserMessage: FC<{
 		if (!sentinel) return;
 		// Immediate check so the first paint is correct when the
 		// sentinel is already scrolled out of view.
-		const scroller = sentinel.closest(".overflow-y-auto");
+		const scroller = sentinel.closest("[data-scroll-container]");
 		if (scroller) {
 			const stuck =
 				sentinel.getBoundingClientRect().top <
@@ -662,7 +662,7 @@ const StickyUserMessage: FC<{
 		const sentinel = sentinelRef.current;
 		const container = containerRef.current;
 		if (!sentinel || !container) return;
-		const scroller = sentinel.closest(".overflow-y-auto") as HTMLElement | null;
+		const scroller = sentinel.closest("[data-scroll-container]") as HTMLElement | null;
 		if (!scroller) return;
 
 		const MIN_HEIGHT = 72;
@@ -758,7 +758,7 @@ const StickyUserMessage: FC<{
 					const sentinel = sentinelRef.current;
 					if (!sentinel) return;
 					const scroller = sentinel.closest(
-						".overflow-y-auto",
+						"[data-scroll-container]",
 					) as HTMLElement | null;
 					if (!scroller) return;
 					const offset =
