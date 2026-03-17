@@ -868,6 +868,19 @@ const StickyUserMessage: FC<{
 	);
 };
 
+
+// Key sections by the first *response* message (entries[1]),
+// which is stable when a user message is prepended during
+// pagination.  Falls back to entries[0] for sections that
+// only have a user prompt (no response yet u2014 always the
+// newest section at the bottom where scroll is anchored).
+const stableSectionKey = (
+	section: ParsedMessageSection,
+	index: number,
+): string | number =>
+	section.entries[1]?.message.id ??
+	section.entries[0]?.message.id ??
+	`section-${index}`;
 interface ConversationTimelineProps {
 	isEmpty: boolean;
 	parsedSections: readonly ParsedMessageSection[];
@@ -940,7 +953,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 				<div className="flex flex-col">
 					{parsedSections.map((section, sectionIdx) => (
 							<div
-									key={section.userEntry?.message.id ?? section.entries[0]?.message.id ?? `section-${sectionIdx}`}
+									key={stableSectionKey(section, sectionIdx)}
 									className="-mx-1 px-1"							>							<div className="flex flex-col gap-3">
 								{section.entries.map(({ message, parsed }) =>
 									message.role === "user" ? (
