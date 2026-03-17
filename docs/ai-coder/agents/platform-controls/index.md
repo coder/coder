@@ -61,7 +61,7 @@ Python backend services in the payments repo" — platform teams can guide the
 agent toward the correct infrastructure without requiring developers to
 understand template selection at all.
 
-See [Template Routing](./template-routing.md) for best practices on writing
+See [Template Optimization](./template-optimization.md) for best practices on writing
 discoverable descriptions, configuring network boundaries, scoping credentials,
 and designing template parameters for agent use.
 
