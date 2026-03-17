@@ -5,12 +5,11 @@
       "type": "null_resource",
       "agents": [
         {
-          "id": "aaaaaaaa-1111-2222-3333-444444444444",
           "name": "dev",
           "operating_system": "linux",
           "architecture": "amd64",
           "Auth": {
-            "Token": "11111111-2222-3333-4444-555555555555"
+            "Token": ""
           },
           "connection_timeout_seconds": 120,
           "display_apps": {

@@ -481,49 +481,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/chats/{chat}/archive": {
-            "post": {
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Archive a chat",
-                "operationId": "archive-chat",
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
-            }
-        },
-        "/chats/{chat}/desktop": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Watch chat desktop",
-                "operationId": "watch-chat-desktop",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "101": {
-                        "description": "Switching Protocols"
-                    }
-                }
-            }
-        },
         "/connectionlog": {
             "get": {
                 "security": [
@@ -18521,7 +18478,8 @@ const docTemplate = `{
                 "idp_sync_settings_role",
                 "workspace_agent",
                 "workspace_app",
-                "task"
+                "task",
+                "ai_seat"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -18549,7 +18507,8 @@ const docTemplate = `{
                 "ResourceTypeIdpSyncSettingsRole",
                 "ResourceTypeWorkspaceAgent",
                 "ResourceTypeWorkspaceApp",
-                "ResourceTypeTask"
+                "ResourceTypeTask",
+                "ResourceTypeAISeat"
             ]
         },
         "codersdk.Response": {

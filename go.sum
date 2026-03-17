@@ -1,5 +1,5 @@
-cdr.dev/slog/v3 v3.0.0-rc1 h1:EN7Zim6GvTpAeHQjI0ERDEfqKbTyXRvgH4UhlzLpvWM=
-cdr.dev/slog/v3 v3.0.0-rc1/go.mod h1:iO/OALX1VxlI03mkodCGdVP7pXzd2bRMvu3ePvlJ9ak=
+cdr.dev/slog/v3 v3.0.0 h1:kXFUqAqK7ogRKcvo4BnduQVp+Jh0uV1AUKf3NW5FU74=
+cdr.dev/slog/v3 v3.0.0/go.mod h1:iO/OALX1VxlI03mkodCGdVP7pXzd2bRMvu3ePvlJ9ak=
 cel.dev/expr v0.25.1 h1:1KrZg61W6TWSxuNZ37Xy49ps13NUovb66QLprthtwi4=
 cel.dev/expr v0.25.1/go.mod h1:hrXvqGP6G6gyx8UAHSHJ5RGk//1Oj5nXQ2NI02Nrsg4=
 cloud.google.com/go v0.123.0 h1:2NAUJwPR47q+E35uaJeYoNhuNEM9kM8SjgRgdeOJUSE=
@@ -313,8 +313,8 @@ github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 h1:aBangftG7EVZoUb69Os
 github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2/go.mod h1:qwXFYgsP6T7XnJtbKlf1HP8AjxZZyzxMmc+Lq5GjlU4=
 github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225 h1:tRIViZ5JRmzdOEo5wUWngaGEFBG8OaE1o2GIHN5ujJ8=
 github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225/go.mod h1:rNLVpYgEVeu1Zk29K64z6Od8RBP9DwqCu9OfCzh8MR4=
-github.com/coder/aibridge v1.0.8-0.20260306121236-1e9e0d835d7a h1:SgaJ/U2aasuBwK0dFZJSVP5wXhWhoBHMYU4VlQcx4t0=
-github.com/coder/aibridge v1.0.8-0.20260306121236-1e9e0d835d7a/go.mod h1:3BTl243k7OhpqtaITARAw647uC2V0YrxGOTQrkscnkk=
+github.com/coder/aibridge v1.0.8-0.20260316151612-5c071a7db41b h1:O470JUI+D8cuCSsPVSI6JMUq1JlKDdsPtk7feDCaLqQ=
+github.com/coder/aibridge v1.0.8-0.20260316151612-5c071a7db41b/go.mod h1:u6WvGLMQQbk3ByeOw+LBdVgDNc/v/ujAtUc6MfvzQb4=
 github.com/coder/aisdk-go v0.0.9 h1:Vzo/k2qwVGLTR10ESDeP2Ecek1SdPfZlEjtTfMveiVo=
 github.com/coder/aisdk-go v0.0.9/go.mod h1:KF6/Vkono0FJJOtWtveh5j7yfNrSctVTpwgweYWSp5M=
 github.com/coder/boundary v0.8.4-0.20260304164748-566aeea939ab h1:HrlxyTmMQpOHfSKzRU1vf5TxrmV6vL5OiWq+Dvn5qh0=

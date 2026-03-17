@@ -20,7 +20,7 @@ export const updateInfiniteChatsCache = (
 	queryClient.setQueriesData<{
 		pages: TypesGen.Chat[][];
 		pageParams: unknown[];
-	}>({ queryKey: chatsKey }, (prev) => {
+	}>({ queryKey: chatsKey, predicate: isChatListQuery }, (prev) => {
 		if (!prev) return prev;
 		if (!prev.pages) return prev;
 		const nextPages = prev.pages.map((page) => updater(page));
@@ -44,7 +44,7 @@ export const prependToInfiniteChatsCache = (
 	queryClient.setQueriesData<{
 		pages: TypesGen.Chat[][];
 		pageParams: unknown[];
-	}>({ queryKey: chatsKey }, (prev) => {
+	}>({ queryKey: chatsKey, predicate: isChatListQuery }, (prev) => {
 		if (!prev?.pages) return prev;
 		// Check across ALL pages to avoid duplicates.
 		const exists = prev.pages.some((page) =>
@@ -69,7 +69,7 @@ export const readInfiniteChatsCache = (
 	const queries = queryClient.getQueriesData<{
 		pages: TypesGen.Chat[][];
 		pageParams: unknown[];
-	}>({ queryKey: chatsKey });
+	}>({ queryKey: chatsKey, predicate: isChatListQuery });
 	for (const [, data] of queries) {
 		if (data?.pages) {
 			return data.pages.flat();
@@ -80,24 +80,27 @@ export const readInfiniteChatsCache = (
 
 /**
  * Invalidate only the sidebar chat-list queries (flat + infinite)
- * without cascading to per-chat queries (detail, messages, diffs, cost).
+/**
+ * Predicate that matches only chat-list queries (the sidebar), not
+ * per-chat queries (detail, messages, diffs, cost).
  *
  * Sidebar keys look like ["chats"] or ["chats", <object|undefined>].
- * Per-chat keys look like ["chats", <string-id>, ...]. The predicate
- * distinguishes them by allowlisting known sidebar key shapes.
+ * Per-chat keys look like ["chats", <string-id>, ...].
  */
+const isChatListQuery = (query: { queryKey: readonly unknown[] }): boolean => {
+	const key = query.queryKey;
+	// Match: ["chats"] (flat list).
+	if (key.length <= 1) return true;
+	// Match: ["chats", <object | undefined>] (infinite query
+	// with optional filter opts like {archived, q}).
+	const segment = key[1];
+	return segment === undefined || typeof segment === "object";
+};
+
 export const invalidateChatListQueries = (queryClient: QueryClient) => {
 	return queryClient.invalidateQueries({
 		queryKey: chatsKey,
-		predicate: (query) => {
-			const key = query.queryKey;
-			// Match: ["chats"] (flat list).
-			if (key.length <= 1) return true;
-			// Match: ["chats", <object | undefined>] (infinite query
-			// with optional filter opts like {archived, q}).
-			const segment = key[1];
-			return segment === undefined || typeof segment === "object";
-		},
+		predicate: isChatListQuery,
 	});
 };
 
@@ -150,9 +153,25 @@ export const chat = (chatId: string) => ({
 	queryFn: () => API.getChat(chatId),
 });
 
-export const chatMessages = (chatId: string) => ({
+const MESSAGES_PAGE_SIZE = 50;
+
+export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	queryKey: chatMessagesKey(chatId),
-	queryFn: () => API.getChatMessages(chatId),
+	initialPageParam: undefined as number | undefined,
+	queryFn: ({ pageParam }: { pageParam: number | undefined }) =>
+		API.getChatMessages(chatId, {
+			before_id: pageParam,
+			limit: MESSAGES_PAGE_SIZE,
+		}),
+	getNextPageParam: (lastPage: TypesGen.ChatMessagesResponse) => {
+		if (!lastPage.has_more || lastPage.messages.length === 0) {
+			return undefined;
+		}
+		// The API returns messages in DESC order (newest first).
+		// The last item in the array is the oldest in this page.
+		// Use its ID as the cursor for the next (older) page.
+		return lastPage.messages[lastPage.messages.length - 1].id;
+	},
 });
 
 export const archiveChat = (queryClient: QueryClient) => ({
@@ -352,15 +371,6 @@ export const promoteChatQueuedMessage = (
 	// change in real-time.
 });
 
-export const chatDiffStatusKey = (chatId: string) =>
-	["chats", chatId, "diff-status"] as const;
-
-export const chatDiffStatus = (chatId: string) => ({
-	queryKey: chatDiffStatusKey(chatId),
-	queryFn: (): Promise<TypesGen.ChatDiffStatus> =>
-		API.getChatDiffStatus(chatId),
-});
-
 export const chatDiffContentsKey = (chatId: string) =>
 	["chats", chatId, "diff-contents"] as const;
 
@@ -519,4 +529,80 @@ export const chatCostUsers = (params?: ChatCostUsersParams) => ({
 	queryKey: chatCostUsersKey(params),
 	queryFn: () => API.getChatCostUsers(params),
 	staleTime: 60_000,
+});
+
+export const chatUsageLimitConfigKey = [
+	...chatsKey,
+	"usageLimitConfig",
+] as const;
+
+export const chatUsageLimitConfig = () => ({
+	queryKey: chatUsageLimitConfigKey,
+	queryFn: () => API.getChatUsageLimitConfig(),
+});
+
+export const updateChatUsageLimitConfig = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.ChatUsageLimitConfig) =>
+		API.updateChatUsageLimitConfig(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});
+
+type UpsertChatUsageLimitOverrideMutationArgs = {
+	userID: string;
+	req: TypesGen.UpsertChatUsageLimitOverrideRequest;
+};
+
+export const upsertChatUsageLimitOverride = (queryClient: QueryClient) => ({
+	mutationFn: ({ userID, req }: UpsertChatUsageLimitOverrideMutationArgs) =>
+		API.upsertChatUsageLimitOverride(userID, req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});
+
+export const deleteChatUsageLimitOverride = (queryClient: QueryClient) => ({
+	mutationFn: (userID: string) => API.deleteChatUsageLimitOverride(userID),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});
+
+type UpsertChatUsageLimitGroupOverrideMutationArgs = {
+	groupID: string;
+	req: TypesGen.UpsertChatUsageLimitGroupOverrideRequest;
+};
+
+export const upsertChatUsageLimitGroupOverride = (
+	queryClient: QueryClient,
+) => ({
+	mutationFn: ({
+		groupID,
+		req,
+	}: UpsertChatUsageLimitGroupOverrideMutationArgs) =>
+		API.upsertChatUsageLimitGroupOverride(groupID, req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});
+
+export const deleteChatUsageLimitGroupOverride = (
+	queryClient: QueryClient,
+) => ({
+	mutationFn: (groupID: string) =>
+		API.deleteChatUsageLimitGroupOverride(groupID),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
 });

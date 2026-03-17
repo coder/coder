@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type * as TypesGen from "api/typesGenerated";
 import { createRef } from "react";
-import { expect, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { ConversationTimeline } from "./ConversationTimeline";
 import {
 	buildParsedMessageSections,
@@ -242,5 +242,50 @@ export const UserMessageWithImagesAndFileRefs: Story = {
 		const images = canvas.getAllByRole("img", { name: "Attached image" });
 		expect(images).toHaveLength(1);
 		expect(canvas.getByText(/main\.go/)).toBeInTheDocument();
+	},
+};
+
+/** Usage-limit errors render as an info alert with analytics access. */
+export const UsageLimitExceeded: Story = {
+	args: {
+		...defaultArgs,
+		loadMoreSentinelRef: { current: null },
+		parsedSections: [],
+		detailError: {
+			kind: "usage-limit",
+			message:
+				"You've used $50.00 of your $50.00 spend limit. Your limit resets on July 1, 2025.",
+		},
+		onOpenAnalytics: fn(),
+		subagentTitles: new Map(),
+		subagentStatusOverrides: new Map(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/spend limit/i)).toBeVisible();
+		const btn = canvas.getByRole("button", { name: /view usage/i });
+		expect(btn).toBeVisible();
+		await userEvent.click(btn);
+		expect(args.onOpenAnalytics).toHaveBeenCalled();
+	},
+};
+
+/** Non-usage errors must not show the usage CTA. */
+export const GenericErrorDoesNotShowUsageAction: Story = {
+	args: {
+		...defaultArgs,
+		loadMoreSentinelRef: { current: null },
+		parsedSections: [],
+		detailError: { kind: "generic", message: "Provider request failed." },
+		onOpenAnalytics: fn(),
+		subagentTitles: new Map(),
+		subagentStatusOverrides: new Map(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/provider request failed/i)).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: /view usage/i }),
+		).not.toBeInTheDocument();
 	},
 };

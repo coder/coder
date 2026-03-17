@@ -8997,6 +8997,131 @@ func TestInsertWorkspaceAgentDevcontainers(t *testing.T) {
 	}
 }
 
+func TestInsertChatMessage(t *testing.T) {
+	t.Parallel()
+
+	insertModelConfig := func(
+		t *testing.T,
+		store database.Store,
+		ctx context.Context,
+		userID uuid.UUID,
+		provider string,
+		model string,
+		displayName string,
+		isDefault bool,
+	) database.ChatModelConfig {
+		t.Helper()
+
+		modelConfig, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+			Provider:             provider,
+			Model:                model,
+			DisplayName:          displayName,
+			CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+			Enabled:              true,
+			IsDefault:            isDefault,
+			ContextLimit:         128000,
+			CompressionThreshold: 80,
+			Options:              json.RawMessage(`{}`),
+		})
+		require.NoError(t, err)
+
+		return modelConfig
+	}
+
+	setupChat := func(t *testing.T) (database.Store, context.Context, database.User, database.Chat, string, database.ChatModelConfig) {
+		t.Helper()
+
+		store, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+
+		dbgen.Organization(t, store, database.Organization{})
+		user := dbgen.User(t, store, database.User{})
+		provider := "openai"
+
+		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+			Provider:    provider,
+			DisplayName: "OpenAI",
+			APIKey:      "test-key",
+			Enabled:     true,
+		})
+		require.NoError(t, err)
+
+		modelConfigA := insertModelConfig(
+			t,
+			store,
+			ctx,
+			user.ID,
+			provider,
+			"test-model-a-"+uuid.NewString(),
+			"Test Model A",
+			true,
+		)
+
+		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           user.ID,
+			LastModelConfigID: modelConfigA.ID,
+			Title:             "test-chat-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+
+		return store, ctx, user, chat, provider, modelConfigA
+	}
+
+	insertMessage := func(t *testing.T, store database.Store, ctx context.Context, chatID, userID, modelConfigID uuid.UUID, content string) {
+		t.Helper()
+
+		_, err := store.InsertChatMessage(ctx, database.InsertChatMessageParams{
+			ChatID:         chatID,
+			CreatedBy:      uuid.NullUUID{UUID: userID, Valid: true},
+			ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			Role:           database.ChatMessageRoleUser,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content: pqtype.NullRawMessage{
+				RawMessage: json.RawMessage(fmt.Sprintf("%q", content)),
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	t.Run("ModelSwitchUpdatesLastModelConfigID", func(t *testing.T) {
+		t.Parallel()
+
+		store, ctx, user, chat, provider, modelConfigA := setupChat(t)
+		modelConfigB := insertModelConfig(
+			t,
+			store,
+			ctx,
+			user.ID,
+			provider,
+			"test-model-b-"+uuid.NewString(),
+			"Test Model B",
+			false,
+		)
+
+		insertMessage(t, store, ctx, chat.ID, user.ID, modelConfigB.ID, "switch models")
+
+		gotChat, err := store.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, modelConfigA.ID, chat.LastModelConfigID)
+		require.Equal(t, modelConfigB.ID, gotChat.LastModelConfigID)
+	})
+
+	t.Run("SameModelDoesNotBreakAnything", func(t *testing.T) {
+		t.Parallel()
+
+		store, ctx, user, chat, _, modelConfigA := setupChat(t)
+
+		insertMessage(t, store, ctx, chat.ID, user.ID, modelConfigA.ID, "same model")
+
+		gotChat, err := store.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, modelConfigA.ID, gotChat.LastModelConfigID)
+	})
+}
+
 func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 	t.Parallel()
 
@@ -9315,4 +9440,43 @@ func TestGetWorkspaceBuildMetricsByResourceID(t *testing.T) {
 		require.True(t, parentReadyAt.Equal(row.LastAgentReadyAt))
 		require.Equal(t, "success", row.WorstStatus)
 	})
+}
+
+// TestUpsertAISeats verifies 'UpsertAISeatState' only returns true when a new
+// row is inserted.
+func TestUpsertAISeats(t *testing.T) {
+	t.Parallel()
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	now := dbtime.Now()
+
+	user := dbgen.User(t, db, database.User{})
+	newRow, err := db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
+		UserID:        user.ID,
+		FirstUsedAt:   now.Add(time.Hour * -24),
+		LastEventType: database.AiSeatUsageReasonTask,
+	})
+	require.NoError(t, err)
+	require.True(t, newRow)
+
+	alreadyExists, err := db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
+		UserID:        user.ID,
+		FirstUsedAt:   now.Add(time.Hour * -23),
+		LastEventType: database.AiSeatUsageReasonTask,
+	})
+	require.NoError(t, err)
+	require.False(t, alreadyExists)
+
+	alreadyExists, err = db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
+		UserID:        user.ID,
+		FirstUsedAt:   now,
+		LastEventType: database.AiSeatUsageReasonTask,
+	})
+	require.NoError(t, err)
+	require.False(t, alreadyExists)
 }

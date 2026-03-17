@@ -1,8 +1,13 @@
 package codersdk_test
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -53,6 +58,81 @@ func TestChatModelProviderOptions_UnmarshalJSON_ParsesPlainProviderPayloads(t *t
 		"high",
 		*decoded.Anthropic.Effort,
 	)
+}
+
+func TestChatUsageLimitExceededFrom(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ExtractsTyped409", func(t *testing.T) {
+		t.Parallel()
+
+		want := codersdk.ChatUsageLimitExceededResponse{
+			Response:    codersdk.Response{Message: "Chat usage limit exceeded."},
+			SpentMicros: 123,
+			LimitMicros: 456,
+			ResetsAt:    time.Date(2026, time.March, 16, 12, 0, 0, 0, time.UTC),
+		}
+
+		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodPost, r.Method)
+			require.Equal(t, "/api/experimental/chats", r.URL.Path)
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(http.StatusConflict)
+			require.NoError(t, json.NewEncoder(rw).Encode(want))
+		}))
+		defer srv.Close()
+
+		serverURL, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		client := codersdk.New(serverURL)
+		_, err = client.CreateChat(context.Background(), codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
+		})
+		require.Error(t, err)
+
+		sdkErr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+		require.Equal(t, want.Message, sdkErr.Message)
+
+		limitErr := codersdk.ChatUsageLimitExceededFrom(err)
+		require.NotNil(t, limitErr)
+		require.Equal(t, want, *limitErr)
+	})
+
+	t.Run("ReturnsNilForNonLimitErrors", func(t *testing.T) {
+		t.Parallel()
+
+		require.Nil(t, codersdk.ChatUsageLimitExceededFrom(codersdk.NewError(http.StatusConflict, codersdk.Response{Message: "plain conflict"})))
+
+		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(http.StatusBadRequest)
+			require.NoError(t, json.NewEncoder(rw).Encode(codersdk.Response{Message: "Invalid request."}))
+		}))
+		defer srv.Close()
+
+		serverURL, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		client := codersdk.New(serverURL)
+		_, err = client.CreateChat(context.Background(), codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
+		})
+		require.Error(t, err)
+
+		sdkErr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Nil(t, codersdk.ChatUsageLimitExceededFrom(err))
+	})
 }
 
 func TestChatMessagePart_StripInternal(t *testing.T) {

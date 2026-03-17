@@ -35,7 +35,7 @@ function FileReferenceChip({
 	startLine: number;
 	endLine: number;
 	isSelected?: boolean;
-	onRemove: () => void;
+	onRemove?: () => void;
 	onClick?: () => void;
 }) {
 	const shortFile = fileName.split("/").pop() || fileName;
@@ -66,19 +66,21 @@ function FileReferenceChip({
 				{shortFile}
 				<span className="text-content-link">:{lineLabel}</span>
 			</span>
-			<button
-				type="button"
-				className="ml-auto inline-flex size-4 shrink-0 items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors hover:text-content-primary cursor-pointer"
-				onClick={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					onRemove();
-				}}
-				aria-label="Remove reference"
-				tabIndex={-1}
-			>
-				<XIcon className="size-2" />
-			</button>
+			{onRemove && (
+				<button
+					type="button"
+					className="ml-auto inline-flex size-4 shrink-0 items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors hover:text-content-primary cursor-pointer"
+					onClick={(e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						onRemove();
+					}}
+					aria-label="Remove reference"
+					tabIndex={-1}
+				>
+					<XIcon className="size-2" />
+				</button>
+			)}
 		</span>
 	);
 }

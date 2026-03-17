@@ -53,6 +53,14 @@ INSERT INTO aibridge_tool_usages (
 )
 RETURNING *;
 
+-- name: InsertAIBridgeModelThought :one
+INSERT INTO aibridge_model_thoughts (
+  interception_id, content, metadata, created_at
+) VALUES (
+  @interception_id, @content, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
+)
+RETURNING *;
+
 -- name: GetAIBridgeInterceptionByID :one
 SELECT
 	*
@@ -362,6 +370,11 @@ WITH
     WHERE started_at < @before_time::timestamp with time zone
   ),
   -- CTEs are executed in order.
+  model_thoughts AS (
+    DELETE FROM aibridge_model_thoughts
+    WHERE interception_id IN (SELECT id FROM to_delete)
+    RETURNING 1
+  ),
   tool_usages AS (
     DELETE FROM aibridge_tool_usages
     WHERE interception_id IN (SELECT id FROM to_delete)
@@ -384,6 +397,7 @@ WITH
   )
 -- Cumulative count.
 SELECT (
+  (SELECT COUNT(*) FROM model_thoughts) +
   (SELECT COUNT(*) FROM tool_usages) +
   (SELECT COUNT(*) FROM token_usages) +
   (SELECT COUNT(*) FROM user_prompts) +

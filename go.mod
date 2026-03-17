@@ -85,7 +85,7 @@ replace charm.land/fantasy => github.com/kylecarbs/fantasy v0.0.0-20260313123746
 replace github.com/charmbracelet/anthropic-sdk-go => github.com/kylecarbs/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab
 
 require (
-	cdr.dev/slog/v3 v3.0.0-rc1
+	cdr.dev/slog/v3 v3.0.0
 	cloud.google.com/go/compute/metadata v0.9.0
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
@@ -485,7 +485,7 @@ require (
 	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/brianvoe/gofakeit/v7 v7.14.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
-	github.com/coder/aibridge v1.0.8-0.20260306121236-1e9e0d835d7a
+	github.com/coder/aibridge v1.0.8-0.20260316151612-5c071a7db41b
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.8.4-0.20260304164748-566aeea939ab
 	github.com/coder/preview v1.0.8

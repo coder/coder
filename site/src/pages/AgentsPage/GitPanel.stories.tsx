@@ -111,7 +111,6 @@ const meta: Meta<typeof GitPanel> = {
 		),
 	],
 	beforeEach: () => {
-		spyOn(API, "getChatDiffStatus").mockResolvedValue(defaultDiffStatus);
 		spyOn(API, "getChatDiffContents").mockResolvedValue(defaultDiffContents);
 	},
 };
@@ -131,7 +130,6 @@ export const PullRequestAndWorkingChanges: Story = {
 		repositories: new Map([["/home/coder/coder", makeRepo()]]),
 	},
 	beforeEach: () => {
-		spyOn(API, "getChatDiffStatus").mockResolvedValue(makePrStatus());
 		spyOn(API, "getChatDiffContents").mockResolvedValue({
 			...defaultDiffContents,
 			diff: sampleDiff,
@@ -157,17 +155,6 @@ export const DraftPullRequest: Story = {
 		]),
 	},
 	beforeEach: () => {
-		spyOn(API, "getChatDiffStatus").mockResolvedValue(
-			makePrStatus({
-				url: "https://github.com/coder/coder/pull/22950",
-				pull_request_title: "fix: resolve race condition in workspace builds",
-				pull_request_draft: true,
-				head_branch: "fix/race-condition",
-				additions: 142,
-				deletions: 38,
-				changed_files: 5,
-			}),
-		);
 		spyOn(API, "getChatDiffContents").mockResolvedValue({
 			...defaultDiffContents,
 			diff: sampleDiff,
@@ -190,17 +177,6 @@ export const MergedPullRequest: Story = {
 		}),
 	},
 	beforeEach: () => {
-		spyOn(API, "getChatDiffStatus").mockResolvedValue(
-			makePrStatus({
-				url: "https://github.com/coder/coder/pull/23000",
-				pull_request_title: "chore: update dependencies to latest",
-				pull_request_state: "merged",
-				head_branch: "chore/update-deps",
-				additions: 89,
-				deletions: 45,
-				changed_files: 3,
-			}),
-		);
 		spyOn(API, "getChatDiffContents").mockResolvedValue({
 			...defaultDiffContents,
 			diff: sampleDiff,
@@ -223,17 +199,6 @@ export const ClosedPullRequest: Story = {
 		}),
 	},
 	beforeEach: () => {
-		spyOn(API, "getChatDiffStatus").mockResolvedValue(
-			makePrStatus({
-				url: "https://github.com/coder/coder/pull/22800",
-				pull_request_title: "feat: experimental websocket transport",
-				pull_request_state: "closed",
-				head_branch: "feat/websocket-transport",
-				additions: 200,
-				deletions: 10,
-				changed_files: 4,
-			}),
-		);
 		spyOn(API, "getChatDiffContents").mockResolvedValue({
 			...defaultDiffContents,
 			diff: sampleDiff,
@@ -286,15 +251,6 @@ export const MultipleRepos: Story = {
 		]),
 	},
 	beforeEach: () => {
-		spyOn(API, "getChatDiffStatus").mockResolvedValue(
-			makePrStatus({
-				pull_request_title: "feat: multi-repo workspace support",
-				head_branch: "feat/multi-repo",
-				additions: 500,
-				deletions: 120,
-				changed_files: 8,
-			}),
-		);
 		spyOn(API, "getChatDiffContents").mockResolvedValue({
 			...defaultDiffContents,
 			diff: sampleDiff,
@@ -327,7 +283,6 @@ export const InlineCommentInput: Story = {
 		),
 	],
 	beforeEach: () => {
-		spyOn(API, "getChatDiffStatus").mockResolvedValue(makePrStatus());
 		spyOn(API, "getChatDiffContents").mockResolvedValue({
 			...defaultDiffContents,
 			diff: sampleDiff,

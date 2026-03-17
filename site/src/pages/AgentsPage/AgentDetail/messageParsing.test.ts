@@ -258,9 +258,9 @@ describe("parseMessageContent", () => {
 		expect(result.blocks).toHaveLength(1);
 		expect(result.blocks[0]).toEqual({
 			type: "file",
-			mediaType: "image/png",
+			media_type: "image/png",
 			data: undefined,
-			fileId: "abc-123-def",
+			file_id: "abc-123-def",
 		});
 	});
 
@@ -275,9 +275,9 @@ describe("parseMessageContent", () => {
 		expect(result.blocks).toHaveLength(1);
 		expect(result.blocks[0]).toEqual({
 			type: "file",
-			mediaType: "image/png",
+			media_type: "image/png",
 			data: "iVBORw0KGgo=",
-			fileId: undefined,
+			file_id: undefined,
 		});
 	});
 

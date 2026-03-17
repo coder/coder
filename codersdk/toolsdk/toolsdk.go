@@ -1702,11 +1702,15 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
 									"properties": map[string]any{
 										"search": map[string]any{
 											"type":        "string",
-											"description": "The old string to replace.",
+											"description": "The old string to replace. Must uniquely match exactly one location in the file unless replace_all is true. Include enough surrounding context to make the match unique.",
 										},
 										"replace": map[string]any{
 											"type":        "string",
 											"description": "The new string that replaces the old string.",
+										},
+										"replace_all": map[string]any{
+											"type":        "boolean",
+											"description": "When true, replaces all occurrences of the search string. Defaults to false, which requires the search string to match exactly once.",
 										},
 									},
 									"required": []string{"search", "replace"},
