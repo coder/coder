@@ -9,17 +9,22 @@ import (
 	"net/http"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/SherClockHolmes/webpush-go"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
+
+const defaultSubscriptionCacheTTL = 3 * time.Minute
 
 // Dispatcher is an interface that can be used to dispatch
 // web push notifications to clients such as browsers.
@@ -33,6 +38,36 @@ type Dispatcher interface {
 	PublicKey() string
 }
 
+// SubscriptionCacheInvalidator is an optional interface that lets local
+// subscription mutation handlers invalidate cached subscriptions.
+type SubscriptionCacheInvalidator interface {
+	InvalidateUser(userID uuid.UUID)
+}
+
+type options struct {
+	clock                quartz.Clock
+	subscriptionCacheTTL time.Duration
+}
+
+// Option configures optional behavior for a Webpusher.
+type Option func(*options)
+
+// WithClock sets the clock used by the subscription cache. Defaults to a real
+// clock when not provided.
+func WithClock(clock quartz.Clock) Option {
+	return func(o *options) {
+		o.clock = clock
+	}
+}
+
+// WithSubscriptionCacheTTL sets the in-memory subscription cache TTL. Defaults
+// to three minutes when not provided or when given a non-positive duration.
+func WithSubscriptionCacheTTL(ttl time.Duration) Option {
+	return func(o *options) {
+		o.subscriptionCacheTTL = ttl
+	}
+}
+
 // New creates a new Dispatcher to dispatch web push notifications.
 //
 // This is *not* integrated into the enqueue system unfortunately.
@@ -41,7 +76,21 @@ type Dispatcher interface {
 // for updates inside of a workspace, which we want to be immediate.
 //
 // See: https://github.com/coder/internal/issues/528
-func New(ctx context.Context, log *slog.Logger, db database.Store, vapidSub string) (Dispatcher, error) {
+func New(ctx context.Context, log *slog.Logger, db database.Store, vapidSub string, opts ...Option) (Dispatcher, error) {
+	cfg := options{
+		clock:                quartz.NewReal(),
+		subscriptionCacheTTL: defaultSubscriptionCacheTTL,
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	if cfg.clock == nil {
+		cfg.clock = quartz.NewReal()
+	}
+	if cfg.subscriptionCacheTTL <= 0 {
+		cfg.subscriptionCacheTTL = defaultSubscriptionCacheTTL
+	}
+
 	keys, err := db.GetWebpushVAPIDKeys(ctx)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -63,12 +112,21 @@ func New(ctx context.Context, log *slog.Logger, db database.Store, vapidSub stri
 	}
 
 	return &Webpusher{
-		vapidSub:        vapidSub,
-		store:           db,
-		log:             log,
-		VAPIDPublicKey:  keys.VapidPublicKey,
-		VAPIDPrivateKey: keys.VapidPrivateKey,
+		vapidSub:                vapidSub,
+		store:                   db,
+		log:                     log,
+		VAPIDPublicKey:          keys.VapidPublicKey,
+		VAPIDPrivateKey:         keys.VapidPrivateKey,
+		clock:                   cfg.clock,
+		subscriptionCacheTTL:    cfg.subscriptionCacheTTL,
+		subscriptionCache:       make(map[uuid.UUID]cachedSubscriptions),
+		subscriptionGenerations: make(map[uuid.UUID]uint64),
 	}, nil
+}
+
+type cachedSubscriptions struct {
+	subscriptions []database.WebpushSubscription
+	expiresAt     time.Time
 }
 
 type Webpusher struct {
@@ -83,10 +141,18 @@ type Webpusher struct {
 	// the message payload.
 	VAPIDPublicKey  string
 	VAPIDPrivateKey string
+
+	clock quartz.Clock
+
+	cacheMu                 sync.RWMutex
+	subscriptionCache       map[uuid.UUID]cachedSubscriptions
+	subscriptionGenerations map[uuid.UUID]uint64
+	subscriptionCacheTTL    time.Duration
+	subscriptionFetches     singleflight.Group[string, []database.WebpushSubscription]
 }
 
 func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, msg codersdk.WebpushMessage) error {
-	subscriptions, err := n.store.GetWebpushSubscriptionsByUserID(ctx, userID)
+	subscriptions, err := n.subscriptionsForUser(ctx, userID)
 	if err != nil {
 		return xerrors.Errorf("get web push subscriptions by user ID: %w", err)
 	}
@@ -142,10 +208,127 @@ func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, msg codersdk
 		err = n.store.DeleteWebpushSubscriptions(dbauthz.AsNotifier(ctx), cleanupSubscriptions)
 		if err != nil {
 			n.log.Error(ctx, "failed to delete stale push subscriptions", slog.Error(err))
+		} else {
+			n.pruneSubscriptions(userID, cleanupSubscriptions)
 		}
 	}
 
 	return nil
+}
+
+func (n *Webpusher) subscriptionsForUser(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
+	if subscriptions, ok := n.cachedSubscriptions(userID); ok {
+		return subscriptions, nil
+	}
+
+	subscriptions, err, _ := n.subscriptionFetches.Do(userID.String(), func() ([]database.WebpushSubscription, error) {
+		if cached, ok := n.cachedSubscriptions(userID); ok {
+			return cached, nil
+		}
+
+		generation := n.subscriptionGeneration(userID)
+		fetched, err := n.store.GetWebpushSubscriptionsByUserID(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		n.storeSubscriptions(userID, generation, fetched)
+		return slices.Clone(fetched), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return slices.Clone(subscriptions), nil
+}
+
+func (n *Webpusher) cachedSubscriptions(userID uuid.UUID) ([]database.WebpushSubscription, bool) {
+	n.cacheMu.RLock()
+	entry, ok := n.subscriptionCache[userID]
+	n.cacheMu.RUnlock()
+	if !ok {
+		return nil, false
+	}
+	if n.clock.Now().Before(entry.expiresAt) {
+		return slices.Clone(entry.subscriptions), true
+	}
+
+	n.cacheMu.Lock()
+	if current, ok := n.subscriptionCache[userID]; ok && !n.clock.Now().Before(current.expiresAt) {
+		delete(n.subscriptionCache, userID)
+	}
+	n.cacheMu.Unlock()
+
+	return nil, false
+}
+
+func (n *Webpusher) subscriptionGeneration(userID uuid.UUID) uint64 {
+	n.cacheMu.RLock()
+	generation := n.subscriptionGenerations[userID]
+	n.cacheMu.RUnlock()
+	return generation
+}
+
+func (n *Webpusher) storeSubscriptions(userID uuid.UUID, generation uint64, subscriptions []database.WebpushSubscription) {
+	n.cacheMu.Lock()
+	defer n.cacheMu.Unlock()
+
+	if n.subscriptionGenerations[userID] != generation {
+		return
+	}
+
+	n.subscriptionCache[userID] = cachedSubscriptions{
+		subscriptions: slices.Clone(subscriptions),
+		expiresAt:     n.clock.Now().Add(n.subscriptionCacheTTL),
+	}
+}
+
+func (n *Webpusher) pruneSubscriptions(userID uuid.UUID, staleIDs []uuid.UUID) {
+	if len(staleIDs) == 0 {
+		return
+	}
+
+	stale := make(map[uuid.UUID]struct{}, len(staleIDs))
+	for _, id := range staleIDs {
+		stale[id] = struct{}{}
+	}
+
+	n.cacheMu.Lock()
+	defer n.cacheMu.Unlock()
+
+	entry, ok := n.subscriptionCache[userID]
+	if !ok {
+		return
+	}
+	if !n.clock.Now().Before(entry.expiresAt) {
+		delete(n.subscriptionCache, userID)
+		return
+	}
+
+	filtered := make([]database.WebpushSubscription, 0, len(entry.subscriptions))
+	for _, subscription := range entry.subscriptions {
+		if _, shouldDelete := stale[subscription.ID]; shouldDelete {
+			continue
+		}
+		filtered = append(filtered, subscription)
+	}
+	if len(filtered) == 0 {
+		delete(n.subscriptionCache, userID)
+		return
+	}
+
+	entry.subscriptions = filtered
+	n.subscriptionCache[userID] = entry
+}
+
+// InvalidateUser clears the cached subscriptions for a user and advances
+// its invalidation generation. Local subscribe and unsubscribe handlers call
+// this after mutating subscriptions in the same process.
+func (n *Webpusher) InvalidateUser(userID uuid.UUID) {
+	n.cacheMu.Lock()
+	delete(n.subscriptionCache, userID)
+	n.subscriptionGenerations[userID]++
+	n.cacheMu.Unlock()
+	n.subscriptionFetches.Forget(userID.String())
 }
 
 func (n *Webpusher) webpushSend(ctx context.Context, msg []byte, endpoint string, keys webpush.Keys) (int, []byte, error) {

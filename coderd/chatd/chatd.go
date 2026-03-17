@@ -2038,6 +2038,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	status := database.ChatStatusWaiting
 	wasInterrupted := false
 	lastError := ""
+	runResult := runChatResult{}
 	remainingQueuedMessages := []database.ChatQueuedMessage{}
 	shouldPublishQueueUpdate := false
 	var promotedMessage *database.ChatMessage
@@ -2144,11 +2145,12 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange, nil)
 
 		if !wasInterrupted {
-			p.maybeSendPushNotification(cleanupCtx, chat, status, lastError, logger)
+			p.maybeSendPushNotification(cleanupCtx, chat, status, lastError, runResult, logger)
 		}
 	}()
 
-	if err := p.runChat(chatCtx, chat, logger); err != nil {
+	runResult, err := p.runChat(chatCtx, chat, logger)
+	if err != nil {
 		if errors.Is(err, chatloop.ErrInterrupted) || errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted) {
 			logger.Info(ctx, "chat interrupted")
 			status = database.ChatStatusWaiting
@@ -2205,11 +2207,18 @@ func isShutdownCancellation(
 	return errors.Is(context.Cause(chatCtx), context.Canceled)
 }
 
+type runChatResult struct {
+	FinalAssistantText string
+	PushSummaryModel   fantasy.LanguageModel
+	ProviderKeys       chatprovider.ProviderAPIKeys
+}
+
 func (p *Server) runChat(
 	ctx context.Context,
 	chat database.Chat,
 	logger slog.Logger,
-) error {
+) (runChatResult, error) {
+	result := runChatResult{}
 	var (
 		model        fantasy.LanguageModel
 		modelConfig  database.ChatModelConfig
@@ -2241,14 +2250,16 @@ func (p *Server) runChat(
 		return nil
 	})
 	if err := g.Wait(); err != nil {
-		return err
+		return result, err
 	}
+	result.PushSummaryModel = model
+	result.ProviderKeys = providerKeys
 	// Fire title generation asynchronously so it doesn't block the
 	// chat response. It uses a detached context so it can finish
 	// even after the chat processing context is canceled.
-	// Snapshot model so the goroutine doesn't race with the
-	// model = cuModel reassignment below.
-	titleModel := model
+	// Snapshot the original chat model so the goroutine doesn't
+	// race with the model = cuModel reassignment below.
+	titleModel := result.PushSummaryModel
 	p.inflight.Add(1)
 	go func() {
 		defer p.inflight.Done()
@@ -2257,7 +2268,7 @@ func (p *Server) runChat(
 
 	prompt, err := chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver(), logger)
 	if err != nil {
-		return xerrors.Errorf("build chat prompt: %w", err)
+		return result, xerrors.Errorf("build chat prompt: %w", err)
 	}
 	if chat.ParentChatID.Valid {
 		prompt = chatprompt.InsertSystem(prompt, defaultSubagentInstruction)
@@ -2389,9 +2400,11 @@ func (p *Server) runChat(
 		prompt = chatprompt.InsertSystem(prompt, resolvedUserPrompt)
 	}
 
-	// Use the model config's context_limit as a fallback when the LLM	// provider doesn't include context_limit in its response metadata
+	// Use the model config's context_limit as a fallback when the LLM
+	// provider doesn't include context_limit in its response metadata
 	// (which is the common case).
 	modelConfigContextLimit := modelConfig.ContextLimit
+	var finalAssistantText string
 
 	persistStep := func(persistCtx context.Context, step chatloop.PersistedStep) error {
 		// If the chat context has been canceled, bail out before
@@ -2455,6 +2468,7 @@ func (p *Server) runChat(
 				for _, block := range assistantBlocks {
 					sdkParts = append(sdkParts, chatprompt.PartFromContent(block))
 				}
+				finalAssistantText = strings.TrimSpace(contentBlocksToText(sdkParts))
 				assistantContent, marshalErr := chatprompt.MarshalParts(sdkParts)
 				if marshalErr != nil {
 					return marshalErr
@@ -2630,7 +2644,7 @@ func (p *Server) runChat(
 			chatprovider.UserAgent(),
 		)
 		if cuErr != nil {
-			return xerrors.Errorf("resolve computer use model: %w", cuErr)
+			return result, xerrors.Errorf("resolve computer use model: %w", cuErr)
 		}
 		model = cuModel
 	}
@@ -2796,7 +2810,11 @@ func (p *Server) runChat(
 			p.logger.Warn(ctx, "failed to persist interrupted chat step", slog.Error(err))
 		},
 	})
-	return err
+	if err != nil {
+		return result, err
+	}
+	result.FinalAssistantText = finalAssistantText
+	return result, nil
 }
 
 // buildProviderTools creates provider-native tool definitions
@@ -3301,6 +3319,7 @@ func (p *Server) maybeSendPushNotification(
 	chat database.Chat,
 	status database.ChatStatus,
 	lastError string,
+	runResult runChatResult,
 	logger slog.Logger,
 ) {
 	if p.webpushDispatcher == nil || p.webpushDispatcher.PublicKey() == "" {
@@ -3328,23 +3347,17 @@ func (p *Server) maybeSendPushNotification(
 			defer p.inflight.Done()
 			pushCtx := context.WithoutCancel(ctx)
 			pushBody := "Agent has finished running."
-
-			msg, err := p.db.GetLastChatMessageByRole(pushCtx, database.GetLastChatMessageByRoleParams{
-				ChatID: chat.ID,
-				Role:   database.ChatMessageRoleAssistant,
-			})
-			if err == nil {
-				content, parseErr := chatprompt.ParseContent(msg)
-				if parseErr == nil {
-					assistantText := strings.TrimSpace(contentBlocksToText(content))
-					if assistantText != "" {
-						model, _, keys, resolveErr := p.resolveChatModel(pushCtx, chat)
-						if resolveErr == nil {
-							if summary := generatePushSummary(pushCtx, chat.Title, assistantText, model, keys, logger); summary != "" {
-								pushBody = summary
-							}
-						}
-					}
+			assistantText := strings.TrimSpace(runResult.FinalAssistantText)
+			if assistantText != "" && runResult.PushSummaryModel != nil {
+				if summary := generatePushSummary(
+					pushCtx,
+					chat.Title,
+					assistantText,
+					runResult.PushSummaryModel,
+					runResult.ProviderKeys,
+					logger,
+				); summary != "" {
+					pushBody = summary
 				}
 			}
 

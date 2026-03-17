@@ -2234,12 +2234,10 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 	const assistantText = "I have completed the task successfully and all tests are passing now."
 	const summaryText = "Completed task and verified all tests pass."
 
+	var nonStreamingRequests atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
-			// Non-streaming calls are used for title
-			// generation and push summary generation.
-			// Return the summary text for both — the title
-			// result is irrelevant to this test.
+			nonStreamingRequests.Add(1)
 			return chattest.OpenAINonStreamingResponse(summaryText)
 		}
 		return chattest.OpenAIStreamingResponse(
@@ -2286,6 +2284,63 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 		"push body should be the LLM-generated summary")
 	require.NotEqual(t, "Agent has finished running.", msg.Body,
 		"push body should not use the default fallback text")
+	require.Equal(t, int32(1), nonStreamingRequests.Load(),
+		"expected exactly one non-streaming request for push summary generation")
+}
+
+func TestSuccessfulChatSendsWebPushFallbackWithoutSummaryForEmptyAssistantText(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var nonStreamingRequests atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			nonStreamingRequests.Add(1)
+			return chattest.OpenAINonStreamingResponse("unexpected summary request")
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("   ")...,
+		)
+	})
+
+	mockPush := &mockWebpushDispatcher{}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+		WebpushDispatcher:          mockPush,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	_, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "empty-summary-push-test",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("do the thing")},
+	})
+	require.NoError(t, err)
+
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		return mockPush.dispatchCount.Load() >= 1
+	}, testutil.IntervalFast)
+
+	msg := mockPush.getLastMessage()
+	require.Equal(t, "Agent has finished running.", msg.Body,
+		"push body should fall back when the final assistant text is empty")
+	require.Equal(t, int32(0), nonStreamingRequests.Load(),
+		"push summary should not be requested when final assistant text has no usable text")
 }
 
 func TestComputerUseSubagentToolsAndModel(t *testing.T) {
