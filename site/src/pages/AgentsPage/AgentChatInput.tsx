@@ -34,6 +34,7 @@ import {
 	useState,
 } from "react";
 import { cn } from "utils/cn";
+import { isMobileViewport } from "utils/mobile";
 import { ImageLightbox } from "./ImageLightbox";
 import { formatProviderLabel } from "./modelOptions";
 import { QueuedMessagesList } from "./QueuedMessagesList";
@@ -473,7 +474,9 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		if (prevIsLoading !== isLoading) {
 			setPrevIsLoading(isLoading);
 			if (prevIsLoading && !isLoading) {
-				internalRef.current?.focus();
+				if (!isMobileViewport()) {
+					internalRef.current?.focus();
+				}
 			}
 		}
 
@@ -518,7 +521,9 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				return;
 			}
 			onSend(text);
-			internalRef.current?.focus();
+			if (!isMobileViewport()) {
+				internalRef.current?.focus();
+			}
 		}, [
 			isDisabled,
 			isLoading,
