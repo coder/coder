@@ -130,7 +130,11 @@ export function useConversationEditingState(deps: {
 		setEditingMessageId(null);
 		setDraftBeforeHistoryEdit(null);
 		setEditingFileBlocks([]);
-	}, [draftBeforeHistoryEdit, inputValueRef]);
+		chatInputRef.current?.clear();
+		if (draftBeforeHistoryEdit) {
+			chatInputRef.current?.insertText(draftBeforeHistoryEdit);
+		}
+	}, [draftBeforeHistoryEdit, inputValueRef, chatInputRef]);
 
 	// -- Queue editing state --
 	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<

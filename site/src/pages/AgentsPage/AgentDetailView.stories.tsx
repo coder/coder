@@ -333,6 +333,77 @@ export const LoadingSidebarCollapsed: Story = {
 };
 
 // ---------------------------------------------------------------------------
+// Helpers for seeding stores with messages
+// ---------------------------------------------------------------------------
+
+const buildMessage = (
+	id: number,
+	role: TypesGen.ChatMessageRole,
+	text: string,
+): TypesGen.ChatMessage => ({
+	id,
+	chat_id: AGENT_ID,
+	created_at: new Date(Date.now() - (10 - id) * 60_000).toISOString(),
+	role,
+	content: [{ type: "text", text }],
+});
+
+const buildStoreWithMessages = (
+	msgs: TypesGen.ChatMessage[],
+	status: TypesGen.ChatStatus = "completed",
+) => {
+	const store = createChatStore();
+	store.replaceMessages(msgs);
+	store.setChatStatus(status);
+	return store;
+};
+
+// ---------------------------------------------------------------------------
+// Editing flow stories
+// ---------------------------------------------------------------------------
+
+const editingMessages = [
+	buildMessage(1, "user", "Say hi back"),
+	buildMessage(2, "assistant", "Hi!"),
+	buildMessage(3, "user", "Now tell me a joke"),
+	buildMessage(
+		4,
+		"assistant",
+		"Why did the developer quit? Because they didn't get arrays.",
+	),
+	buildMessage(5, "user", "That was terrible, try again"),
+];
+
+/** Editing a message in the middle of the conversation — shows the warning
+ *  border on the edited message, faded subsequent messages, and the editing
+ *  banner + outline on the chat input. */
+export const EditingMessage: Story = {
+	args: {
+		store: buildStoreWithMessages(editingMessages),
+		editing: {
+			...defaultEditing,
+			editingMessageId: 3,
+			editorInitialValue: "Now tell me a joke",
+		},
+	},
+};
+
+/** The saving state while an edit is in progress — shows the pending
+ *  indicator on the message being saved. */
+export const EditingSaving: Story = {
+	args: {
+		store: buildStoreWithMessages(editingMessages),
+		editing: {
+			...defaultEditing,
+			editingMessageId: 3,
+			editorInitialValue: "Now tell me a better joke",
+		},
+		pendingEditMessageId: 3,
+		isSubmissionPending: true,
+	},
+};
+
+// ---------------------------------------------------------------------------
 // AgentDetailNotFoundView stories
 // ---------------------------------------------------------------------------
 

@@ -12,7 +12,12 @@ import { WebSearchSources } from "components/ai-elements/tool";
 import { Button } from "components/Button/Button";
 import { FileReferenceChip } from "components/ChatMessageInput/FileReferenceNode";
 import { Spinner } from "components/Spinner/Spinner";
-import { ChevronDownIcon } from "lucide-react";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { ChevronDownIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -296,6 +301,7 @@ const ChatMessageItem = memo<{
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
+	isAfterEditingMessage?: boolean;
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
 	// overlay to indicate truncated content.
@@ -308,6 +314,7 @@ const ChatMessageItem = memo<{
 		onEditUserMessage,
 		editingMessageId,
 		savingMessageId,
+		isAfterEditingMessage = false,
 		fadeFromBottom = false,
 		urlTransform,
 	}) => {
@@ -369,40 +376,26 @@ const ChatMessageItem = memo<{
 		);
 
 		return (
-			<>
+			<div
+				className={cn(
+					isAfterEditingMessage && "opacity-40 pointer-events-none",
+					"transition-opacity duration-200",
+				)}
+			>
 				<ConversationItem {...conversationItemProps}>
 					{isUser ? (
 						<Message className="my-2 w-full max-w-none">
 							<MessageContent
 								className={cn(
-									"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
-									onEditUserMessage &&
-										!isSavingMessage &&
-										"cursor-pointer [&:hover:not(:has(button:hover))]:bg-surface-tertiary",
+									"group/msg rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
 									editingMessageId === message.id &&
-										"ring-2 ring-content-link/40",
+										"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 									isSavingMessage && "ring-2 ring-content-secondary/40",
 									fadeFromBottom && "relative overflow-hidden",
 								)}
 								style={
 									fadeFromBottom
 										? { maxHeight: "var(--clip-h, none)" }
-										: undefined
-								}
-								onClick={
-									onEditUserMessage && !isSavingMessage
-										? () => {
-												const fileBlocks = parsed.blocks.filter(
-													(b): b is Extract<RenderBlock, { type: "file" }> =>
-														b.type === "file" &&
-														b.media_type.startsWith("image/"),
-												);
-												onEditUserMessage(
-													message.id,
-													parsed.markdown || "",
-													fileBlocks.length > 0 ? fileBlocks : undefined,
-												);
-											}
 										: undefined
 								}
 							>
@@ -430,6 +423,37 @@ const ChatMessageItem = memo<{
 												aria-label="Saving message edit"
 												loading
 											/>
+										)}
+										{onEditUserMessage && !isSavingMessage && (
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<button
+														type="button"
+														className="mt-0.5 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-content-secondary opacity-0 transition-opacity hover:bg-surface-tertiary hover:text-content-primary focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link group-hover/msg:opacity-100"
+														aria-label="Edit message"
+														onClick={() => {
+															const fileBlocks = parsed.blocks.filter(
+																(
+																	b,
+																): b is Extract<
+																	RenderBlock,
+																	{ type: "file" }
+																> =>
+																	b.type === "file" &&
+																	b.media_type.startsWith("image/"),
+															);
+															onEditUserMessage(
+																message.id,
+																parsed.markdown || "",
+																fileBlocks.length > 0 ? fileBlocks : undefined,
+															);
+														}}
+													>
+														<PencilIcon className="size-3.5" />
+													</button>
+												</TooltipTrigger>
+												<TooltipContent side="top">Edit message</TooltipContent>
+											</Tooltip>
 										)}
 									</div>
 									{(() => {
@@ -508,7 +532,7 @@ const ChatMessageItem = memo<{
 						onClose={() => setPreviewImage(null)}
 					/>
 				)}
-			</>
+			</div>
 		);
 	},
 );
@@ -605,12 +629,14 @@ const StickyUserMessage: FC<{
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
+	isAfterEditingMessage?: boolean;
 }> = ({
 	message,
 	parsed,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
+	isAfterEditingMessage = false,
 }) => {
 	const [isStuck, setIsStuck] = useState(false);
 	const [isReady, setIsReady] = useState(false);
@@ -787,6 +813,7 @@ const StickyUserMessage: FC<{
 						onEditUserMessage={handleEditUserMessage}
 						editingMessageId={editingMessageId}
 						savingMessageId={savingMessageId}
+						isAfterEditingMessage={isAfterEditingMessage}
 					/>
 				</div>
 
@@ -831,6 +858,7 @@ const StickyUserMessage: FC<{
 								onEditUserMessage={handleEditUserMessage}
 								editingMessageId={editingMessageId}
 								savingMessageId={savingMessageId}
+								isAfterEditingMessage={isAfterEditingMessage}
 								fadeFromBottom
 							/>
 						</div>
@@ -889,6 +917,24 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	const isUsageLimitError = detailError?.kind === "usage-limit";
 	const showUsageAction = onOpenAnalytics !== undefined && isUsageLimitError;
 
+	// Build a set of message IDs that appear after the message
+	// currently being edited so they can be visually faded.
+	const afterEditingMessageIds = new Set<number>();
+	if (editingMessageId != null) {
+		let found = false;
+		for (const section of parsedSections) {
+			for (const entry of section.entries) {
+				if (entry.message.id === editingMessageId) {
+					found = true;
+					continue;
+				}
+				if (found) {
+					afterEditingMessageIds.add(entry.message.id);
+				}
+			}
+		}
+	}
+
 	return (
 		<div className="mx-auto w-full max-w-3xl py-6">
 			{isEmpty && !hasStreamOutput ? (
@@ -924,6 +970,9 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 											onEditUserMessage={onEditUserMessage}
 											editingMessageId={editingMessageId}
 											savingMessageId={savingMessageId}
+											isAfterEditingMessage={afterEditingMessageIds.has(
+												message.id,
+											)}
 										/>
 									) : (
 										<ChatMessageItem
@@ -932,9 +981,12 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 											parsed={parsed}
 											savingMessageId={savingMessageId}
 											urlTransform={urlTransform}
+											isAfterEditingMessage={afterEditingMessageIds.has(
+												message.id,
+											)}
 										/>
 									),
-								)}
+								)}{" "}
 								{shouldRenderStreamInLastSection &&
 									sectionIdx === parsedSections.length - 1 && (
 										<StreamingOutput
