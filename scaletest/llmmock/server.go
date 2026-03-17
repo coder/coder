@@ -206,14 +206,10 @@ func streamWait(ctx context.Context, d time.Duration) bool {
 	}
 }
 
-func streamContentChunks(content string, useFixedWindow bool) []string {
-	if useFixedWindow {
-		return chunkString(content, 10)
-	}
-
+func streamContentChunks(content string) []string {
 	fields := strings.Fields(content)
 	if len(fields) == 0 {
-		return chunkString(content, 10)
+		return streamContentFixedWindows(content)
 	}
 
 	chunks := make([]string, 0, len(fields))
@@ -225,6 +221,10 @@ func streamContentChunks(content string, useFixedWindow bool) []string {
 	}
 
 	return chunks
+}
+
+func streamContentFixedWindows(content string) []string {
+	return chunkString(content, 10)
 }
 
 func chunkString(content string, size int) []string {
@@ -565,7 +565,10 @@ func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, re
 			return
 		}
 	} else {
-		chunks := streamContentChunks(resp.Choices[0].Message.Content, s.responsePayloadSize > 0)
+		chunks := streamContentChunks(resp.Choices[0].Message.Content)
+		if s.responsePayloadSize > 0 {
+			chunks = streamContentFixedWindows(resp.Choices[0].Message.Content)
+		}
 		delay := totalDuration / time.Duration(len(chunks))
 		for i, content := range chunks {
 			delta := map[string]interface{}{
@@ -670,7 +673,10 @@ func (s *Server) sendResponsesStream(ctx context.Context, w http.ResponseWriter,
 			return
 		}
 	} else {
-		chunks := streamContentChunks(resp.Output[0].Content[0].Text, s.responsePayloadSize > 0)
+		chunks := streamContentChunks(resp.Output[0].Content[0].Text)
+		if s.responsePayloadSize > 0 {
+			chunks = streamContentFixedWindows(resp.Output[0].Content[0].Text)
+		}
 		delay := totalDuration / time.Duration(len(chunks))
 		for i, content := range chunks {
 			deltaChunk := map[string]interface{}{
@@ -800,7 +806,10 @@ func (s *Server) sendAnthropicStream(ctx context.Context, w http.ResponseWriter,
 			return
 		}
 	} else {
-		chunks := streamContentChunks(resp.Content[0].Text, s.responsePayloadSize > 0)
+		chunks := streamContentChunks(resp.Content[0].Text)
+		if s.responsePayloadSize > 0 {
+			chunks = streamContentFixedWindows(resp.Content[0].Text)
+		}
 		delay := totalDuration / time.Duration(len(chunks))
 		for i, content := range chunks {
 			deltaEvent := map[string]interface{}{
