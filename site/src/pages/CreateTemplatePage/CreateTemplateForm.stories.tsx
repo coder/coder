@@ -107,7 +107,7 @@ export const StarterTemplateWithProvisionerWarning: Story = {
 	},
 	play: async () => {
 		const organizationPicker = screen.getByPlaceholderText(
-			/select and organization/i,
+			/select an organization/i,
 		);
 		await userEvent.click(organizationPicker);
 		const org2 = await screen.findByText(MockOrganization2.display_name);
@@ -149,7 +149,7 @@ export const StarterTemplatePermissionsCheck: Story = {
 	},
 	play: async () => {
 		const organizationPicker = screen.getByPlaceholderText(
-			/select and organization/i,
+			/select an organization/i,
 		);
 		await userEvent.click(organizationPicker);
 	},
