@@ -143,13 +143,22 @@ export function useConversationEditingState(deps: {
 	>(null);
 
 	const handleStartQueueEdit = useCallback(
-		(id: number, text: string) => {
+		(
+			id: number,
+			text: string,
+			fileBlocks: readonly {
+				mediaType: string;
+				data?: string;
+				fileId?: string;
+			}[],
+		) => {
 			setDraftBeforeQueueEdit((prev) =>
 				editingQueuedMessageID === null ? inputValueRef.current : prev,
 			);
 			setEditingQueuedMessageID(id);
 			setEditorInitialValue(text);
 			inputValueRef.current = text;
+			setEditingFileBlocks(fileBlocks);
 		},
 		[editingQueuedMessageID, inputValueRef],
 	);
@@ -159,6 +168,7 @@ export function useConversationEditingState(deps: {
 		inputValueRef.current = draftBeforeQueueEdit ?? "";
 		setEditingQueuedMessageID(null);
 		setDraftBeforeQueueEdit(null);
+		setEditingFileBlocks([]);
 	}, [draftBeforeQueueEdit, inputValueRef]);
 
 	// Wraps the parent onSend to clear local input/editing state
@@ -185,6 +195,7 @@ export function useConversationEditingState(deps: {
 			if (queueEditID !== null) {
 				setEditingQueuedMessageID(null);
 				setDraftBeforeQueueEdit(null);
+				setEditingFileBlocks([]);
 				void onDeleteQueuedMessage(queueEditID);
 			}
 		},

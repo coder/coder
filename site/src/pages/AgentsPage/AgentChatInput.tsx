@@ -91,7 +91,15 @@ interface AgentChatInputProps {
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
 	// Queue editing state, owned by the parent.
 	editingQueuedMessageID?: number | null;
-	onStartQueueEdit?: (id: number, text: string) => void;
+	onStartQueueEdit?: (
+		id: number,
+		text: string,
+		fileBlocks: readonly {
+			mediaType: string;
+			data?: string;
+			fileId?: string;
+		}[],
+	) => void;
 	onCancelQueueEdit?: () => void;
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
@@ -496,6 +504,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				!hasFileReferences &&
 				!isDisabled &&
 				!isLoading &&
+				!isUploading &&
 				queuedMessages.length > 0 &&
 				onPromoteQueuedMessage
 			) {
@@ -507,6 +516,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				(!text && !hasUploadedAttachments && !hasFileReferences) ||
 				isDisabled ||
 				isLoading ||
+				isUploading ||
 				!hasModelOptions
 			) {
 				return;
@@ -516,6 +526,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		}, [
 			isDisabled,
 			isLoading,
+			isUploading,
 			hasModelOptions,
 			hasUploadedAttachments,
 			hasFileReferences,
