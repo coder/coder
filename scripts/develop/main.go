@@ -40,7 +40,7 @@ const (
 	defaultAPIPort         = "3000"
 	defaultWebPort         = "8080"
 	defaultProxyPort       = "3010"
-	defaultAccessURL       = "127.0.0.1:%d"
+	defaultAccessURL       = "http://127.0.0.1:%d"
 	defaultPassword        = "SomeSecurePassword!"
 	defaultStarterTemplate = "docker"
 	healthTimeout          = 60 * time.Second
