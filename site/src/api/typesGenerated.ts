@@ -6599,7 +6599,7 @@ export interface UpdateChatProviderConfigRequest {
  * UpdateChatRequest is the request to update a chat.
  */
 export interface UpdateChatRequest {
-	readonly title: string;
+	readonly title?: string;
 	readonly archived?: boolean;
 }
 
