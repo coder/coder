@@ -2951,6 +2951,14 @@ func (m queryMetricsStore) InsertAIBridgeInterception(ctx context.Context, arg d
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertAIBridgeModelThought(ctx context.Context, arg database.InsertAIBridgeModelThoughtParams) (database.AIBridgeModelThought, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAIBridgeModelThought(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIBridgeModelThought").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIBridgeModelThought").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) (database.AIBridgeTokenUsage, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAIBridgeTokenUsage(ctx, arg)
