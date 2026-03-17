@@ -65,7 +65,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { NavLink, useLocation, useNavigate, useParams } from "react-router";
+import { Link, NavLink, useLocation, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { shortRelativeTime } from "utils/time";
 import { getTimeGroup, TIME_GROUPS } from "./timeGroups";
@@ -98,7 +98,7 @@ interface AgentsSidebarProps {
 	onArchiveAgent: (chatId: string) => void;
 	onUnarchiveAgent: (chatId: string) => void;
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
-	onNewAgent: () => void;
+	onBeforeNewAgent?: () => void;
 	isCreating: boolean;
 	isArchiving?: boolean;
 	archivingChatId?: string | null;
@@ -589,7 +589,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
-		onNewAgent,
+		onBeforeNewAgent,
 		isCreating,
 		isArchiving = false,
 		archivingChatId = null,
@@ -612,7 +612,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const { user, signOut } = useAuthenticated();
 	const { appearance, buildInfo } = useDashboard();
 	const location = useLocation();
-	const navigate = useNavigate();
 	const sidebarView = sidebarViewFromPath(location.pathname);
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
@@ -770,7 +769,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						icon={SquarePenIcon}
 						label="New Agent"
 						active={!activeChatId && sidebarView.panel === "chats"}
-						onClick={onNewAgent}
+						to="/agents"
+						onClick={onBeforeNewAgent}
 						disabled={isCreating}
 					/>{" "}
 					<div className="mt-0.5 flex flex-col gap-0.5">
@@ -778,17 +778,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							icon={SettingsIcon}
 							label="Settings"
 							active={sidebarView.panel === "settings"}
-							onClick={() =>
-								navigate("/agents/settings", {
-									state: { from: location.pathname },
-								})
-							}
+							to="/agents/settings"
+							state={{ from: location.pathname }}
 						/>{" "}
 						<SettingsNavItem
 							icon={BarChart3Icon}
 							label="Analytics"
 							active={sidebarView.panel === "analytics"}
-							onClick={() => navigate("/agents/analytics")}
+							to="/agents/analytics"
 						/>
 					</div>
 				</div>
@@ -934,17 +931,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			>
 				{/* Back header */}
 				<div className="hidden border-b border-border-default px-3 py-2.5 md:block">
-					<button
-						type="button"
-						onClick={() =>
-							navigate((location.state as { from?: string })?.from || "/agents")
-						}
-						className="flex items-center gap-1.5 rounded-md border-0 bg-transparent px-0 py-1 text-sm font-medium text-content-primary cursor-pointer hover:text-content-secondary transition-colors"
+					<Link
+						to={(location.state as { from?: string })?.from || "/agents"}
+						className="flex items-center gap-1.5 rounded-md bg-transparent px-0 py-1 text-sm font-medium text-content-primary no-underline cursor-pointer hover:text-content-secondary transition-colors"
 						aria-label={`Back to chats from ${subNavTitle}`}
 					>
 						<ChevronLeftIcon className="h-4 w-4 shrink-0" />
 						{subNavTitle}
-					</button>
+					</Link>
 				</div>
 				{/* Sub-navigation items */}
 				{sidebarView.panel === "settings" && (
@@ -953,12 +947,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							icon={UserIcon}
 							label="Behavior"
 							active={sidebarView.section === "behavior"}
-							onClick={() =>
-								navigate("/agents/settings/behavior", {
-									replace: true,
-									state: location.state,
-								})
-							}
+							to="/agents/settings/behavior"
+							replace
+							state={location.state}
 						/>
 						{isAdmin && (
 							<>
@@ -966,43 +957,36 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									icon={KeyRoundIcon}
 									label="Providers"
 									active={sidebarView.section === "providers"}
-									onClick={() =>
-										navigate("/agents/settings/providers", {
-											replace: true,
-											state: location.state,
-										})
-									}
+									to="/agents/settings/providers"
+									replace
+									state={location.state}
 									adminOnly
 								/>
 								<SettingsNavItem
 									icon={BoxesIcon}
 									label="Models"
 									active={sidebarView.section === "models"}
-									onClick={() =>
-										navigate("/agents/settings/models", {
-											replace: true,
-											state: location.state,
-										})
-									}
+									to="/agents/settings/models"
+									replace
+									state={location.state}
 									adminOnly
 								/>
 								<SettingsNavItem
 									icon={ShieldAlertIcon}
 									label="Limits"
 									active={sidebarView.section === "limits"}
-									onClick={() => navigate("/agents/settings/limits")}
+									to="/agents/settings/limits"
+									replace
+									state={location.state}
 									adminOnly
 								/>
 								<SettingsNavItem
 									icon={BarChart3Icon}
 									label="Usage"
 									active={sidebarView.section === "usage"}
-									onClick={() =>
-										navigate("/agents/settings/usage", {
-											replace: true,
-											state: location.state,
-										})
-									}
+									to="/agents/settings/usage"
+									replace
+									state={location.state}
 									adminOnly
 								/>
 							</>
@@ -1014,27 +998,32 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	);
 };
 
-const SettingsNavItem: FC<{
+type SettingsNavItemProps = {
 	icon: FC<{ className?: string }>;
 	label: string;
 	active: boolean;
-	onClick: () => void;
 	adminOnly?: boolean;
 	disabled?: boolean;
-}> = ({ icon: Icon, label, active, onClick, adminOnly, disabled }) => (
-	<button
-		type="button"
-		onClick={onClick}
-		disabled={disabled}
-		className={cn(
-			"flex w-full items-center gap-2.5 rounded-md border-0 px-2.5 py-2 text-left text-sm cursor-pointer transition-colors",
-			active
-				? "bg-surface-quaternary/25 text-content-primary font-medium"
-				: "bg-transparent text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
-			disabled && "opacity-50 pointer-events-none",
-		)}
-		aria-current={active ? "page" : undefined}
-	>
+} & (
+	| { to: string; replace?: boolean; state?: unknown; onClick?: () => void }
+	| { to?: never; replace?: never; state?: never; onClick: () => void }
+);
+
+const navItemClassName = (active: boolean, disabled: boolean | undefined) =>
+	cn(
+		"flex w-full items-center gap-2.5 rounded-md border-0 px-2.5 py-2 text-left text-sm cursor-pointer transition-colors no-underline",
+		active
+			? "bg-surface-quaternary/25 text-content-primary font-medium"
+			: "bg-transparent text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
+		disabled && "opacity-50 pointer-events-none",
+	);
+
+const NavItemContent: FC<{
+	icon: FC<{ className?: string }>;
+	label: string;
+	adminOnly?: boolean;
+}> = ({ icon: Icon, label, adminOnly }) => (
+	<>
 		<Icon className="h-4 w-4 shrink-0" />
 		<span className="flex flex-1 items-center gap-2">
 			{label}
@@ -1049,8 +1038,45 @@ const SettingsNavItem: FC<{
 				</Tooltip>
 			)}
 		</span>
-	</button>
+	</>
 );
+
+const SettingsNavItem: FC<SettingsNavItemProps> = ({
+	icon,
+	label,
+	active,
+	adminOnly,
+	disabled,
+	...rest
+}) => {
+	if (rest.to != null) {
+		return (
+			<Link
+				to={rest.to}
+				replace={rest.replace}
+				state={rest.state}
+				onClick={rest.onClick}
+				className={navItemClassName(active, disabled)}
+				aria-current={active ? "page" : undefined}
+				tabIndex={disabled ? -1 : undefined}
+			>
+				<NavItemContent icon={icon} label={label} adminOnly={adminOnly} />
+			</Link>
+		);
+	}
+
+	return (
+		<button
+			type="button"
+			onClick={rest.onClick}
+			disabled={disabled}
+			className={navItemClassName(active, disabled)}
+			aria-current={active ? "page" : undefined}
+		>
+			<NavItemContent icon={icon} label={label} adminOnly={adminOnly} />
+		</button>
+	);
+};
 
 const LoadMoreSentinel: FC<{
 	onLoadMore?: () => void;
