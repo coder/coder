@@ -383,11 +383,17 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 								handleWorkspaceChange(value ?? autoCreateWorkspaceValue)
 							}
 						>
+							{/* pointer-events-auto overrides the pointer-events:none
+								   that Radix Select's DismissableLayer sets on
+								   document.body when the Model Selector is open.
+								   Without it the first click only dismisses the
+								   Select and a second click is needed to open
+								   the Combobox. */}
 							<ComboboxTrigger asChild>
 								<button
 									type="button"
 									disabled={isCreating || workspacesQuery.isLoading}
-									className="group flex h-8 items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:bg-transparent hover:text-content-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+									className="pointer-events-auto group flex h-8 items-center gap-1.5 rounded-md border-none bg-transparent px-1 text-xs text-content-secondary shadow-none ring-offset-background transition-colors hover:bg-transparent hover:text-content-primary focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
 								>
 									<MonitorIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary transition-colors group-hover:text-content-primary" />
 									<span>{selectedWorkspaceLabel ?? "Workspace"}</span>
@@ -396,8 +402,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							</ComboboxTrigger>
 							<ComboboxContent
 								side="top"
-								align="center"
-								className="w-72 [&_[cmdk-item]]:text-xs"
+								align="start"
+								className="w-72 bg-surface-primary border-border [&_[cmdk-root]]:bg-surface-primary [&_[cmdk-item]]:text-xs [&_[cmdk-item]>svg:last-child]:ml-auto"
 							>
 								<ComboboxInput placeholder="Search workspaces..." />
 								<ComboboxList>
