@@ -1,6 +1,6 @@
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
-import type { FC, ReactNode } from "react";
+import { type FC, type ReactNode, useId } from "react";
 import { cn } from "utils/cn";
 import type { FormHelpers } from "utils/formUtils";
 
@@ -12,10 +12,11 @@ type FormFieldProps = React.ComponentPropsWithRef<"input"> & {
 export const FormField: FC<FormFieldProps> = ({
 	field,
 	label,
-	id,
 	className,
 	...inputProps
 }) => {
+	const generatedId = useId();
+	const id = inputProps.id ?? generatedId;
 	const errorId = `${id}-error`;
 	const helperId = `${id}-helper`;
 
