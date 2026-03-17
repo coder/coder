@@ -741,6 +741,64 @@ func AllAgentKeyScopeEnumValues() []AgentKeyScopeEnum {
 	}
 }
 
+type AiSeatUsageReason string
+
+const (
+	AiSeatUsageReasonAibridge AiSeatUsageReason = "aibridge"
+	AiSeatUsageReasonTask     AiSeatUsageReason = "task"
+)
+
+func (e *AiSeatUsageReason) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AiSeatUsageReason(s)
+	case string:
+		*e = AiSeatUsageReason(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AiSeatUsageReason: %T", src)
+	}
+	return nil
+}
+
+type NullAiSeatUsageReason struct {
+	AiSeatUsageReason AiSeatUsageReason `json:"ai_seat_usage_reason"`
+	Valid             bool              `json:"valid"` // Valid is true if AiSeatUsageReason is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAiSeatUsageReason) Scan(value interface{}) error {
+	if value == nil {
+		ns.AiSeatUsageReason, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AiSeatUsageReason.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAiSeatUsageReason) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AiSeatUsageReason), nil
+}
+
+func (e AiSeatUsageReason) Valid() bool {
+	switch e {
+	case AiSeatUsageReasonAibridge,
+		AiSeatUsageReasonTask:
+		return true
+	}
+	return false
+}
+
+func AllAiSeatUsageReasonValues() []AiSeatUsageReason {
+	return []AiSeatUsageReason{
+		AiSeatUsageReasonAibridge,
+		AiSeatUsageReasonTask,
+	}
+}
+
 type AppSharingLevel string
 
 const (
@@ -1171,6 +1229,61 @@ func AllChatMessageVisibilityValues() []ChatMessageVisibility {
 		ChatMessageVisibilityUser,
 		ChatMessageVisibilityModel,
 		ChatMessageVisibilityBoth,
+	}
+}
+
+type ChatMode string
+
+const (
+	ChatModeComputerUse ChatMode = "computer_use"
+)
+
+func (e *ChatMode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatMode(s)
+	case string:
+		*e = ChatMode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatMode: %T", src)
+	}
+	return nil
+}
+
+type NullChatMode struct {
+	ChatMode ChatMode `json:"chat_mode"`
+	Valid    bool     `json:"valid"` // Valid is true if ChatMode is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatMode) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatMode, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatMode.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatMode) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatMode), nil
+}
+
+func (e ChatMode) Valid() bool {
+	switch e {
+	case ChatModeComputerUse:
+		return true
+	}
+	return false
+}
+
+func AllChatModeValues() []ChatMode {
+	return []ChatMode{
+		ChatModeComputerUse,
 	}
 }
 
@@ -2914,6 +3027,7 @@ const (
 	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
 	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
 	ResourceTypeTask                        ResourceType = "task"
+	ResourceTypeAiSeat                      ResourceType = "ai_seat"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -2978,7 +3092,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeWorkspaceAgent,
 		ResourceTypeWorkspaceApp,
 		ResourceTypePrebuildsSettings,
-		ResourceTypeTask:
+		ResourceTypeTask,
+		ResourceTypeAiSeat:
 		return true
 	}
 	return false
@@ -3012,6 +3127,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeWorkspaceApp,
 		ResourceTypePrebuildsSettings,
 		ResourceTypeTask,
+		ResourceTypeAiSeat,
 	}
 }
 
@@ -3861,6 +3977,14 @@ type AIBridgeInterception struct {
 	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
 }
 
+// Audit log of model thinking in intercepted requests in AI Bridge
+type AIBridgeModelThought struct {
+	InterceptionID uuid.UUID             `db:"interception_id" json:"interception_id"`
+	Content        string                `db:"content" json:"content"`
+	Metadata       pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt      time.Time             `db:"created_at" json:"created_at"`
+}
+
 // Audit log of tokens used by intercepted requests in AI Bridge
 type AIBridgeTokenUsage struct {
 	ID             uuid.UUID `db:"id" json:"id"`
@@ -3920,6 +4044,15 @@ type APIKey struct {
 	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
 }
 
+type AiSeatState struct {
+	UserID               uuid.UUID         `db:"user_id" json:"user_id"`
+	FirstUsedAt          time.Time         `db:"first_used_at" json:"first_used_at"`
+	LastUsedAt           time.Time         `db:"last_used_at" json:"last_used_at"`
+	LastEventType        AiSeatUsageReason `db:"last_event_type" json:"last_event_type"`
+	LastEventDescription string            `db:"last_event_description" json:"last_event_description"`
+	UpdatedAt            time.Time         `db:"updated_at" json:"updated_at"`
+}
+
 type AuditLog struct {
 	ID               uuid.UUID       `db:"id" json:"id"`
 	Time             time.Time       `db:"time" json:"time"`
@@ -3972,6 +4105,7 @@ type Chat struct {
 	LastModelConfigID uuid.UUID      `db:"last_model_config_id" json:"last_model_config_id"`
 	Archived          bool           `db:"archived" json:"archived"`
 	LastError         sql.NullString `db:"last_error" json:"last_error"`
+	Mode              NullChatMode   `db:"mode" json:"mode"`
 }
 
 type ChatDiffStatus struct {
@@ -3990,6 +4124,14 @@ type ChatDiffStatus struct {
 	GitRemoteOrigin  string         `db:"git_remote_origin" json:"git_remote_origin"`
 	PullRequestTitle string         `db:"pull_request_title" json:"pull_request_title"`
 	PullRequestDraft bool           `db:"pull_request_draft" json:"pull_request_draft"`
+	AuthorLogin      sql.NullString `db:"author_login" json:"author_login"`
+	AuthorAvatarUrl  sql.NullString `db:"author_avatar_url" json:"author_avatar_url"`
+	BaseBranch       sql.NullString `db:"base_branch" json:"base_branch"`
+	PrNumber         sql.NullInt32  `db:"pr_number" json:"pr_number"`
+	Commits          sql.NullInt32  `db:"commits" json:"commits"`
+	Approved         sql.NullBool   `db:"approved" json:"approved"`
+	ReviewerCount    sql.NullInt32  `db:"reviewer_count" json:"reviewer_count"`
+	HeadBranch       sql.NullString `db:"head_branch" json:"head_branch"`
 }
 
 type ChatFile struct {
@@ -4060,6 +4202,16 @@ type ChatQueuedMessage struct {
 	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
 	Content   json.RawMessage `db:"content" json:"content"`
 	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+}
+
+type ChatUsageLimitConfig struct {
+	ID                 int64     `db:"id" json:"id"`
+	Singleton          bool      `db:"singleton" json:"singleton"`
+	Enabled            bool      `db:"enabled" json:"enabled"`
+	DefaultLimitMicros int64     `db:"default_limit_micros" json:"default_limit_micros"`
+	Period             string    `db:"period" json:"period"`
+	CreatedAt          time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type ConnectionLog struct {
@@ -4174,7 +4326,8 @@ type Group struct {
 	// Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.
 	DisplayName string `db:"display_name" json:"display_name"`
 	// Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.
-	Source GroupSource `db:"source" json:"source"`
+	Source               GroupSource   `db:"source" json:"source"`
+	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 }
 
 // Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).
@@ -4944,7 +5097,8 @@ type User struct {
 	// Determines if a user is a system user, and therefore cannot login or perform normal actions
 	IsSystem bool `db:"is_system" json:"is_system"`
 	// Determines if a user is an admin-managed account that cannot login
-	IsServiceAccount bool `db:"is_service_account" json:"is_service_account"`
+	IsServiceAccount     bool          `db:"is_service_account" json:"is_service_account"`
+	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 }
 
 type UserConfig struct {

@@ -48,8 +48,8 @@ type Store interface {
 	UpsertChatDiffStatusReference(
 		ctx context.Context, arg database.UpsertChatDiffStatusReferenceParams,
 	) (database.ChatDiffStatus, error)
-	GetChatsByOwnerID(
-		ctx context.Context, arg database.GetChatsByOwnerIDParams,
+	GetChats(
+		ctx context.Context, arg database.GetChatsParams,
 	) ([]database.Chat, error)
 }
 
@@ -140,12 +140,22 @@ func chatDiffStatusFromRow(row database.AcquireStaleChatDiffStatusesRow) databas
 		Additions:        row.Additions,
 		Deletions:        row.Deletions,
 		ChangedFiles:     row.ChangedFiles,
+		AuthorLogin:      row.AuthorLogin,
+		AuthorAvatarUrl:  row.AuthorAvatarUrl,
+		BaseBranch:       row.BaseBranch,
+		HeadBranch:       row.HeadBranch,
+		PrNumber:         row.PrNumber,
+		Commits:          row.Commits,
+		Approved:         row.Approved,
+		ReviewerCount:    row.ReviewerCount,
 		RefreshedAt:      row.RefreshedAt,
 		StaleAt:          row.StaleAt,
 		CreatedAt:        row.CreatedAt,
 		UpdatedAt:        row.UpdatedAt,
 		GitBranch:        row.GitBranch,
 		GitRemoteOrigin:  row.GitRemoteOrigin,
+		PullRequestTitle: row.PullRequestTitle,
+		PullRequestDraft: row.PullRequestDraft,
 	}
 }
 
@@ -240,7 +250,7 @@ func (w *Worker) MarkStale(
 		return
 	}
 
-	chats, err := w.store.GetChatsByOwnerID(ctx, database.GetChatsByOwnerIDParams{
+	chats, err := w.store.GetChats(ctx, database.GetChatsParams{
 		OwnerID: ownerID,
 	})
 	if err != nil {

@@ -1235,6 +1235,230 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 	})
 }
 
+func TestGetAuthorizedChats(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	// Create users with different roles.
+	owner := dbgen.User(t, db, database.User{
+		RBACRoles: []string{rbac.RoleOwner().String()},
+	})
+	member := dbgen.User(t, db, database.User{})
+	secondMember := dbgen.User(t, db, database.User{})
+
+	// Create FK dependencies: a chat provider and model config.
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+		APIKey:      "test-key",
+		Enabled:     true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "test-model",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	// Create 3 chats owned by owner.
+	for i := range 3 {
+		_, err := db.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             fmt.Sprintf("owner chat %d", i+1),
+		})
+		require.NoError(t, err)
+	}
+
+	// Create 2 chats owned by member.
+	for i := range 2 {
+		_, err := db.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           member.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             fmt.Sprintf("member chat %d", i+1),
+		})
+		require.NoError(t, err)
+	}
+
+	t.Run("sqlQuerier", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Member should only see their own 2 chats.
+		memberSubject, _, err := httpmw.UserRBACSubject(ctx, db, member.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedMember, err := authorizer.Prepare(ctx, memberSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+		memberRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedMember)
+		require.NoError(t, err)
+		require.Len(t, memberRows, 2)
+		for _, row := range memberRows {
+			require.Equal(t, member.ID, row.OwnerID, "member should only see own chats")
+		}
+
+		// Owner should see at least the 5 pre-created chats (site-wide
+		// access). Parallel subtests may add more, so use GreaterOrEqual.
+		ownerSubject, _, err := httpmw.UserRBACSubject(ctx, db, owner.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedOwner, err := authorizer.Prepare(ctx, ownerSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+		ownerRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedOwner)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(ownerRows), 5)
+
+		// secondMember has no chats and should see 0.
+		secondSubject, _, err := httpmw.UserRBACSubject(ctx, db, secondMember.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedSecond, err := authorizer.Prepare(ctx, secondSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+		secondRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedSecond)
+		require.NoError(t, err)
+		require.Len(t, secondRows, 0)
+
+		// Org admin should NOT see other users' chats — chats are
+		// not org-scoped resources.
+		orgs, err := db.GetOrganizations(ctx, database.GetOrganizationsParams{})
+		require.NoError(t, err)
+		require.NotEmpty(t, orgs)
+		orgAdmin := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         orgAdmin.ID,
+			OrganizationID: orgs[0].ID,
+			Roles:          []string{rbac.RoleOrgAdmin()},
+		})
+		orgAdminSubject, _, err := httpmw.UserRBACSubject(ctx, db, orgAdmin.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedOrgAdmin, err := authorizer.Prepare(ctx, orgAdminSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+		orgAdminRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedOrgAdmin)
+		require.NoError(t, err)
+		require.Len(t, orgAdminRows, 0, "org admin with no chats should see 0 chats")
+
+		// OwnerID filter: member queries their own chats.
+		memberFilterSelf, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+			OwnerID: member.ID,
+		}, preparedMember)
+		require.NoError(t, err)
+		require.Len(t, memberFilterSelf, 2)
+
+		// OwnerID filter: member queries owner's chats → sees 0.
+		memberFilterOwner, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+			OwnerID: owner.ID,
+		}, preparedMember)
+		require.NoError(t, err)
+		require.Len(t, memberFilterOwner, 0)
+	})
+
+	t.Run("dbauthz", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+
+		// As member: should see only own 2 chats.
+		memberSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, member.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		memberCtx := dbauthz.As(ctx, memberSubject)
+		memberRows, err := authzdb.GetChats(memberCtx, database.GetChatsParams{})
+		require.NoError(t, err)
+		require.Len(t, memberRows, 2)
+		for _, row := range memberRows {
+			require.Equal(t, member.ID, row.OwnerID, "member should only see own chats")
+		}
+
+		// As owner: should see at least the 5 pre-created chats.
+		ownerSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, owner.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		ownerCtx := dbauthz.As(ctx, ownerSubject)
+		ownerRows, err := authzdb.GetChats(ownerCtx, database.GetChatsParams{})
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(ownerRows), 5)
+
+		// As secondMember: should see 0 chats.
+		secondSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, secondMember.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		secondCtx := dbauthz.As(ctx, secondSubject)
+		secondRows, err := authzdb.GetChats(secondCtx, database.GetChatsParams{})
+		require.NoError(t, err)
+		require.Len(t, secondRows, 0)
+	})
+
+	t.Run("pagination", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Use a dedicated user for pagination to avoid interference
+		// with the other parallel subtests.
+		paginationUser := dbgen.User(t, db, database.User{})
+		for i := range 7 {
+			_, err := db.InsertChat(ctx, database.InsertChatParams{
+				OwnerID:           paginationUser.ID,
+				LastModelConfigID: modelCfg.ID,
+				Title:             fmt.Sprintf("pagination chat %d", i+1),
+			})
+			require.NoError(t, err)
+		}
+
+		pagUserSubject, _, err := httpmw.UserRBACSubject(ctx, db, paginationUser.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedMember, err := authorizer.Prepare(ctx, pagUserSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+
+		// Fetch first page with limit=2.
+		page1, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+			LimitOpt: 2,
+		}, preparedMember)
+		require.NoError(t, err)
+		require.Len(t, page1, 2)
+		for _, row := range page1 {
+			require.Equal(t, paginationUser.ID, row.OwnerID, "paginated results must belong to pagination user")
+		}
+
+		// Fetch remaining pages and collect all chat IDs.
+		allIDs := make(map[uuid.UUID]struct{})
+		for _, row := range page1 {
+			allIDs[row.ID] = struct{}{}
+		}
+		offset := int32(2)
+		for {
+			page, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+				LimitOpt:  2,
+				OffsetOpt: offset,
+			}, preparedMember)
+			require.NoError(t, err)
+			for _, row := range page {
+				require.Equal(t, paginationUser.ID, row.OwnerID, "paginated results must belong to pagination user")
+				allIDs[row.ID] = struct{}{}
+			}
+			if len(page) < 2 {
+				break
+			}
+			offset += int32(len(page)) //nolint:gosec // Test code, pagination values are small.
+		}
+
+		// All 7 member chats should be accounted for with no leakage.
+		require.Len(t, allIDs, 7, "pagination should return all member chats exactly once")
+	})
+}
+
 func TestInsertWorkspaceAgentLogs(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -8997,6 +9221,131 @@ func TestInsertWorkspaceAgentDevcontainers(t *testing.T) {
 	}
 }
 
+func TestInsertChatMessage(t *testing.T) {
+	t.Parallel()
+
+	insertModelConfig := func(
+		t *testing.T,
+		store database.Store,
+		ctx context.Context,
+		userID uuid.UUID,
+		provider string,
+		model string,
+		displayName string,
+		isDefault bool,
+	) database.ChatModelConfig {
+		t.Helper()
+
+		modelConfig, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+			Provider:             provider,
+			Model:                model,
+			DisplayName:          displayName,
+			CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+			Enabled:              true,
+			IsDefault:            isDefault,
+			ContextLimit:         128000,
+			CompressionThreshold: 80,
+			Options:              json.RawMessage(`{}`),
+		})
+		require.NoError(t, err)
+
+		return modelConfig
+	}
+
+	setupChat := func(t *testing.T) (database.Store, context.Context, database.User, database.Chat, string, database.ChatModelConfig) {
+		t.Helper()
+
+		store, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+
+		dbgen.Organization(t, store, database.Organization{})
+		user := dbgen.User(t, store, database.User{})
+		provider := "openai"
+
+		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+			Provider:    provider,
+			DisplayName: "OpenAI",
+			APIKey:      "test-key",
+			Enabled:     true,
+		})
+		require.NoError(t, err)
+
+		modelConfigA := insertModelConfig(
+			t,
+			store,
+			ctx,
+			user.ID,
+			provider,
+			"test-model-a-"+uuid.NewString(),
+			"Test Model A",
+			true,
+		)
+
+		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           user.ID,
+			LastModelConfigID: modelConfigA.ID,
+			Title:             "test-chat-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+
+		return store, ctx, user, chat, provider, modelConfigA
+	}
+
+	insertMessage := func(t *testing.T, store database.Store, ctx context.Context, chatID, userID, modelConfigID uuid.UUID, content string) {
+		t.Helper()
+
+		_, err := store.InsertChatMessage(ctx, database.InsertChatMessageParams{
+			ChatID:         chatID,
+			CreatedBy:      uuid.NullUUID{UUID: userID, Valid: true},
+			ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			Role:           database.ChatMessageRoleUser,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content: pqtype.NullRawMessage{
+				RawMessage: json.RawMessage(fmt.Sprintf("%q", content)),
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	t.Run("ModelSwitchUpdatesLastModelConfigID", func(t *testing.T) {
+		t.Parallel()
+
+		store, ctx, user, chat, provider, modelConfigA := setupChat(t)
+		modelConfigB := insertModelConfig(
+			t,
+			store,
+			ctx,
+			user.ID,
+			provider,
+			"test-model-b-"+uuid.NewString(),
+			"Test Model B",
+			false,
+		)
+
+		insertMessage(t, store, ctx, chat.ID, user.ID, modelConfigB.ID, "switch models")
+
+		gotChat, err := store.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, modelConfigA.ID, chat.LastModelConfigID)
+		require.Equal(t, modelConfigB.ID, gotChat.LastModelConfigID)
+	})
+
+	t.Run("SameModelDoesNotBreakAnything", func(t *testing.T) {
+		t.Parallel()
+
+		store, ctx, user, chat, _, modelConfigA := setupChat(t)
+
+		insertMessage(t, store, ctx, chat.ID, user.ID, modelConfigA.ID, "same model")
+
+		gotChat, err := store.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, modelConfigA.ID, gotChat.LastModelConfigID)
+	})
+}
+
 func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 	t.Parallel()
 
@@ -9315,4 +9664,43 @@ func TestGetWorkspaceBuildMetricsByResourceID(t *testing.T) {
 		require.True(t, parentReadyAt.Equal(row.LastAgentReadyAt))
 		require.Equal(t, "success", row.WorstStatus)
 	})
+}
+
+// TestUpsertAISeats verifies 'UpsertAISeatState' only returns true when a new
+// row is inserted.
+func TestUpsertAISeats(t *testing.T) {
+	t.Parallel()
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	now := dbtime.Now()
+
+	user := dbgen.User(t, db, database.User{})
+	newRow, err := db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
+		UserID:        user.ID,
+		FirstUsedAt:   now.Add(time.Hour * -24),
+		LastEventType: database.AiSeatUsageReasonTask,
+	})
+	require.NoError(t, err)
+	require.True(t, newRow)
+
+	alreadyExists, err := db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
+		UserID:        user.ID,
+		FirstUsedAt:   now.Add(time.Hour * -23),
+		LastEventType: database.AiSeatUsageReasonTask,
+	})
+	require.NoError(t, err)
+	require.False(t, alreadyExists)
+
+	alreadyExists, err = db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
+		UserID:        user.ID,
+		FirstUsedAt:   now,
+		LastEventType: database.AiSeatUsageReasonTask,
+	})
+	require.NoError(t, err)
+	require.False(t, alreadyExists)
 }

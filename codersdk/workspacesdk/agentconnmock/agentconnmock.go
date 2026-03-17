@@ -83,6 +83,21 @@ func (mr *MockAgentConnMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockAgentConn)(nil).Close))
 }
 
+// ConnectDesktopVNC mocks base method.
+func (m *MockAgentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ConnectDesktopVNC", ctx)
+	ret0, _ := ret[0].(net.Conn)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ConnectDesktopVNC indicates an expected call of ConnectDesktopVNC.
+func (mr *MockAgentConnMockRecorder) ConnectDesktopVNC(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConnectDesktopVNC", reflect.TypeOf((*MockAgentConn)(nil).ConnectDesktopVNC), ctx)
+}
+
 // DebugLogs mocks base method.
 func (m *MockAgentConn) DebugLogs(ctx context.Context) ([]byte, error) {
 	m.ctrl.T.Helper()
@@ -169,6 +184,21 @@ func (m *MockAgentConn) EditFiles(ctx context.Context, edits workspacesdk.FileEd
 func (mr *MockAgentConnMockRecorder) EditFiles(ctx, edits any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EditFiles", reflect.TypeOf((*MockAgentConn)(nil).EditFiles), ctx, edits)
+}
+
+// ExecuteDesktopAction mocks base method.
+func (m *MockAgentConn) ExecuteDesktopAction(ctx context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExecuteDesktopAction", ctx, action)
+	ret0, _ := ret[0].(workspacesdk.DesktopActionResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExecuteDesktopAction indicates an expected call of ExecuteDesktopAction.
+func (mr *MockAgentConnMockRecorder) ExecuteDesktopAction(ctx, action any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExecuteDesktopAction", reflect.TypeOf((*MockAgentConn)(nil).ExecuteDesktopAction), ctx, action)
 }
 
 // GetPeerDiagnostics mocks base method.

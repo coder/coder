@@ -244,7 +244,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				>
 					<ChevronLeftIcon className="h-4 w-4" />
 					Back
-				</button>{" "}
+				</button>
 				<h2 className="m-0 text-lg font-medium text-content-primary">
 					{isEditing ? "Edit Model" : "Add Model"}
 				</h2>
@@ -268,7 +268,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				</button>
 				<h2 className="m-0 text-lg font-medium text-content-primary">
 					Add Model
-				</h2>{" "}
+				</h2>
 				<hr className="my-4 border-0 border-t border-solid border-border" />
 				<div className="space-y-3">
 					{providerSelect}
@@ -318,7 +318,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 							isEditing ? (editingModel?.model ?? "Model name") : "Model name"
 						}
 					/>
-				</div>{" "}
+				</div>
 			</div>
 			<hr className="my-4 border-0 border-t border-solid border-border" />
 
@@ -423,7 +423,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 									<ChevronRightIcon className="h-4 w-4" />
 								)}
 								Pricing
-							</button>{" "}
+							</button>
 							{showPricing && (
 								<div className="mt-4 space-y-3">
 									<div>
@@ -458,7 +458,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 									<ChevronRightIcon className="h-4 w-4" />
 								)}
 								Advanced
-							</button>{" "}
+							</button>
 							{showAdvanced && (
 								<div className="mt-4 space-y-5">
 									<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -531,7 +531,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 									onClick={() => void onDeleteModel(editingModel.id)}
 								>
 									{isDeleting && <Spinner className="h-4 w-4" loading />}
-									Delete model{" "}
+									Delete model
 								</Button>
 							</div>
 						</div>
@@ -557,14 +557,14 @@ export const ModelForm: FC<ModelFormProps> = ({
 								>
 									Cancel
 								</Button>
-							)}{" "}
+							)}
 							<Button
 								size="lg"
 								type="submit"
 								disabled={isSaving || !form.isValid || hasFieldErrors}
 							>
 								{isSaving && <Spinner className="h-4 w-4" loading />}{" "}
-								{isEditing ? "Save" : "Add model"}{" "}
+								{isEditing ? "Save" : "Add model"}
 							</Button>
 						</div>
 					)}

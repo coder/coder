@@ -1198,7 +1198,7 @@ jobs:
           make -j \
             build/coder_linux_{amd64,arm64,armv7} \
             build/coder_"$version"_windows_amd64.zip \
-            build/coder_"$version"_linux_amd64.{tar.gz,deb}
+            build/coder_"$version"_linux_{amd64,arm64,armv7}.{tar.gz,deb}
         env:
           # The Windows and Darwin slim binaries must be signed for Coder
           # Desktop to accept them.
@@ -1216,11 +1216,28 @@ jobs:
           GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
           JSIGN_PATH: /tmp/jsign-6.0.jar
 
+      # Free up disk space before building Docker images. The preceding
+      # Build step produces ~2 GB of binaries and packages, the Go build
+      # cache is ~1.3 GB, and node_modules is ~500 MB. Docker image
+      # builds, pushes, and SBOM generation need headroom that isn't
+      # available without reclaiming some of that space.
+      - name: Clean up build cache
+        run: |
+          set -euxo pipefail
+          # Go caches are no longer needed — binaries are already compiled.
+          go clean -cache -modcache
+          # Remove .apk and .rpm packages that are not uploaded as
+          # artifacts and were only built as make prerequisites.
+          rm -f ./build/*.apk ./build/*.rpm
+
       - name: Build Linux Docker images
         id: build-docker
         env:
           CODER_IMAGE_BASE: ghcr.io/coder/coder-preview
           DOCKER_CLI_EXPERIMENTAL: "enabled"
+          # Skip building .deb/.rpm/.apk/.tar.gz as prerequisites for
+          # the Docker image targets — they were already built above.
+          DOCKER_IMAGE_NO_PREREQUISITES: "true"
         run: |
           set -euxo pipefail
 
@@ -1438,15 +1455,60 @@ jobs:
             ^v
           prune-untagged: true
 
-      - name: Upload build artifacts
+      - name: Upload build artifact (coder-linux-amd64.tar.gz)
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: coder
-          path: |
-            ./build/*.zip
-            ./build/*.tar.gz
-            ./build/*.deb
+          name: coder-linux-amd64.tar.gz
+          path: ./build/*_linux_amd64.tar.gz
+          retention-days: 7
+
+      - name: Upload build artifact (coder-linux-amd64.deb)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: coder-linux-amd64.deb
+          path: ./build/*_linux_amd64.deb
+          retention-days: 7
+
+      - name: Upload build artifact (coder-linux-arm64.tar.gz)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: coder-linux-arm64.tar.gz
+          path: ./build/*_linux_arm64.tar.gz
+          retention-days: 7
+
+      - name: Upload build artifact (coder-linux-arm64.deb)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: coder-linux-arm64.deb
+          path: ./build/*_linux_arm64.deb
+          retention-days: 7
+
+      - name: Upload build artifact (coder-linux-armv7.tar.gz)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: coder-linux-armv7.tar.gz
+          path: ./build/*_linux_armv7.tar.gz
+          retention-days: 7
+
+      - name: Upload build artifact (coder-linux-armv7.deb)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: coder-linux-armv7.deb
+          path: ./build/*_linux_armv7.deb
+          retention-days: 7
+
+      - name: Upload build artifact (coder-windows-amd64.zip)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: coder-windows-amd64.zip
+          path: ./build/*_windows_amd64.zip
           retention-days: 7
 
   # Deploy is handled in deploy.yaml so we can apply concurrency limits.

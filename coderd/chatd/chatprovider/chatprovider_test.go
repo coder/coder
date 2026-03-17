@@ -82,7 +82,7 @@ func TestMergeMissingProviderOptions_OpenRouterNested(t *testing.T) {
 
 	options := &codersdk.ChatModelProviderOptions{
 		OpenRouter: &codersdk.ChatModelOpenRouterProviderOptions{
-			Reasoning: &codersdk.ChatModelOpenRouterReasoningOptions{
+			Reasoning: &codersdk.ChatModelReasoningOptions{
 				Enabled: boolPtr(true),
 			},
 			Provider: &codersdk.ChatModelOpenRouterProvider{
@@ -92,7 +92,7 @@ func TestMergeMissingProviderOptions_OpenRouterNested(t *testing.T) {
 	}
 	defaults := &codersdk.ChatModelProviderOptions{
 		OpenRouter: &codersdk.ChatModelOpenRouterProviderOptions{
-			Reasoning: &codersdk.ChatModelOpenRouterReasoningOptions{
+			Reasoning: &codersdk.ChatModelReasoningOptions{
 				Enabled:   boolPtr(false),
 				Exclude:   boolPtr(true),
 				MaxTokens: int64Ptr(123),

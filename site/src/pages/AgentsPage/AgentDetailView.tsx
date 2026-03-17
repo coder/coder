@@ -1,15 +1,19 @@
-import type { ChatDiffStatusResponse } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
+import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { ArchiveIcon } from "lucide-react";
-import { type FC, type RefObject, useMemo, useState } from "react";
+import { type FC, type RefObject, useEffect, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
-import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetail";
-import type { useChatStore } from "./AgentDetail/ChatContext";
+import {
+	selectChatStatus,
+	useChatSelector,
+	type useChatStore,
+} from "./AgentDetail/ChatContext";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
+import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetailContent";
 import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
@@ -17,6 +21,7 @@ import {
 import { GitPanel } from "./GitPanel";
 import { RightPanel } from "./RightPanel";
 import { SidebarTabView } from "./SidebarTabView";
+import type { ChatDetailError } from "./usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -26,23 +31,19 @@ interface EditingState {
 	chatInputRef: RefObject<ChatMessageInputRef | null>;
 	editorInitialValue: string;
 	editingMessageId: number | null;
-	editingFileBlocks: readonly {
-		mediaType: string;
-		data?: string;
-		fileId?: string;
-	}[];
+	editingFileBlocks: readonly ChatMessagePart[];
 	handleEditUserMessage: (
 		messageId: number,
 		text: string,
-		fileBlocks?: readonly {
-			mediaType: string;
-			data?: string;
-			fileId?: string;
-		}[],
+		fileBlocks?: readonly ChatMessagePart[],
 	) => void;
 	handleCancelHistoryEdit: () => void;
 	editingQueuedMessageID: number | null;
-	handleStartQueueEdit: (id: number, text: string) => void;
+	handleStartQueueEdit: (
+		id: number,
+		text: string,
+		fileBlocks: readonly ChatMessagePart[],
+	) => void;
 	handleCancelQueueEdit: () => void;
 	handleSendFromInput: (message: string, fileIds?: string[]) => void;
 	handleContentChange: (content: string) => void;
@@ -53,7 +54,7 @@ interface AgentDetailViewProps {
 	agentId: string;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
-	chatErrorReasons: Record<string, string>;
+	chatErrorReasons: Record<string, ChatDetailError>;
 	chatRecord: TypesGen.Chat | undefined;
 	isArchived: boolean;
 	hasWorkspace: boolean;
@@ -81,6 +82,7 @@ interface AgentDetailViewProps {
 	// Sidebar / panel state.
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
+	onOpenAnalytics?: () => void;
 
 	// Right panel state (owned by the parent so loading and
 	// loaded views share the same layout).
@@ -89,7 +91,7 @@ interface AgentDetailViewProps {
 
 	// Sidebar content data.
 	prNumber: number | undefined;
-	diffStatusData: ChatDiffStatusResponse | undefined;
+	diffStatusData: ChatDiffStatus | undefined;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 		refresh: () => void;
@@ -120,7 +122,15 @@ interface AgentDetailViewProps {
 	// Scroll container ref.
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
 
+	// Pagination for loading older messages.
+	hasMoreMessages: boolean;
+	isFetchingMoreMessages: boolean;
+	onFetchMoreMessages: () => void;
+
 	urlTransform?: UrlTransform;
+
+	// Desktop chat ID (optional).
+	desktopChatId?: string;
 }
 
 export const AgentDetailView: FC<AgentDetailViewProps> = ({
@@ -147,6 +157,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	isInterruptPending,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
+	onOpenAnalytics,
 	showSidebarPanel,
 	onSetShowSidebarPanel,
 	prNumber,
@@ -167,30 +178,20 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	handleUnarchiveAgentAction,
 	handleArchiveAndDeleteWorkspaceAction,
 	scrollContainerRef,
+	hasMoreMessages,
+	isFetchingMoreMessages,
+	onFetchMoreMessages,
 	urlTransform,
+	desktopChatId,
 }) => {
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,
 	);
 	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
+	const chatStatus = useChatSelector(store, selectChatStatus);
 
 	// Compute local diff stats from git watcher unified diffs.
-	const localDiffStats = useMemo(() => {
-		let additions = 0;
-		let deletions = 0;
-		for (const repo of gitWatcher.repositories.values()) {
-			if (!repo.unified_diff) continue;
-			for (const line of repo.unified_diff.split("\n")) {
-				if (line.startsWith("+") && !line.startsWith("+++")) {
-					additions++;
-				} else if (line.startsWith("-") && !line.startsWith("---")) {
-					deletions++;
-				}
-			}
-		}
-		return { additions, deletions, changed_files: 0 };
-	}, [gitWatcher.repositories]);
 
 	const titleElement = (
 		<title>
@@ -248,7 +249,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 					)}
 					<div
 						aria-hidden
-						className="pointer-events-none absolute inset-x-0 top-full z-10 h-6 bg-surface-primary"
+						className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
 						style={{
 							maskImage:
 								"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
@@ -266,14 +267,25 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							store={store}
 							chatID={agentId}
 							persistedErrorReason={
-								chatErrorReasons[agentId] || chatRecord?.last_error || undefined
+								chatErrorReasons[agentId] ??
+								(chatStatus === "error" && chatRecord?.last_error
+									? { kind: "generic" as const, message: chatRecord.last_error }
+									: undefined)
 							}
+							onOpenAnalytics={onOpenAnalytics}
 							onEditUserMessage={editing.handleEditUserMessage}
 							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
 							urlTransform={urlTransform}
 						/>
 					</div>
+					{hasMoreMessages && (
+						<MessagesPaginationSentinel
+							containerRef={scrollContainerRef}
+							isFetching={isFetchingMoreMessages}
+							onLoadMore={onFetchMoreMessages}
+						/>
+					)}
 				</div>
 				<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<AgentDetailInput
@@ -331,7 +343,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 									onCommit={handleCommit}
 									isExpanded={visualExpanded}
 									remoteDiffStats={diffStatusData}
-									localDiffStats={localDiffStats}
 									chatInputRef={editing.chatInputRef}
 								/>
 							),
@@ -343,8 +354,9 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 					chatTitle={chatTitle}
+					desktopChatId={desktopChatId}
 				/>
-			</RightPanel>{" "}
+			</RightPanel>
 		</div>
 	);
 };
@@ -484,7 +496,43 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
 			/>
 			<div className="flex flex-1 items-center justify-center text-content-secondary">
 				Chat not found
-			</div>{" "}
+			</div>
 		</div>
 	);
+};
+
+/**
+ * Invisible sentinel that triggers loading older messages when it
+ * scrolls into view. Placed at the visual top of the flex-col-reverse
+ * container (which is the DOM bottom).
+ */
+const MessagesPaginationSentinel: FC<{
+	containerRef: RefObject<HTMLDivElement | null>;
+	isFetching: boolean;
+	onLoadMore: () => void;
+}> = ({ containerRef, isFetching, onLoadMore }) => {
+	const sentinelRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		const sentinel = sentinelRef.current;
+		const container = containerRef.current;
+		if (!sentinel || !container) return;
+
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				if (entry.isIntersecting && !isFetching) {
+					onLoadMore();
+				}
+			},
+			{
+				root: container,
+				rootMargin: "200px 0px 0px 0px",
+				threshold: 0.01,
+			},
+		);
+		observer.observe(sentinel);
+		return () => observer.disconnect();
+	}, [containerRef, isFetching, onLoadMore]);
+
+	return <div ref={sentinelRef} className="h-px shrink-0" />;
 };

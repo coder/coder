@@ -3998,9 +3998,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                 |
-|--------------------------------------------------------------------------------------------------------------------------|
-| `agents`, `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `web-push`, `workspace-usage` |
+| Value(s)                                                                                                                                            |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agents`, `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `web-push`, `workspace-build-updates`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -7557,9 +7557,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `api_key`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_seat`, `api_key`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 

@@ -44,8 +44,8 @@ describe("getChimeEnabled / setChimeEnabled", () => {
 		localStorage.clear();
 	});
 
-	it("defaults to true when nothing is stored", () => {
-		expect(getChimeEnabled()).toBe(true);
+	it("defaults to false when nothing is stored", () => {
+		expect(getChimeEnabled()).toBe(false);
 	});
 
 	it("returns true when stored as 'true'", () => {
@@ -80,6 +80,8 @@ describe("maybePlayChime", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		localStorage.clear();
+		// Explicitly enable the chime — the default is now disabled.
+		setChimeEnabled(true);
 
 		mockLocks = new MockLockManager();
 		Object.defineProperty(navigator, "locks", {

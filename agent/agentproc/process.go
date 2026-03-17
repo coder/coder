@@ -113,6 +113,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		cmd.Dir = req.WorkDir
 	}
 	cmd.Stdin = nil
+	cmd.SysProcAttr = procSysProcAttr()
 
 	// WaitDelay ensures cmd.Wait returns promptly after
 	// the process is killed, even if child processes are
@@ -272,13 +273,15 @@ func (m *manager) signal(id string, sig string) error {
 
 	switch sig {
 	case "kill":
-		if err := proc.cmd.Process.Kill(); err != nil {
+		// Use process group kill to ensure child processes
+		// (e.g. from shell pipelines) are also killed.
+		if err := signalProcess(proc.cmd.Process, syscall.SIGKILL); err != nil {
 			return xerrors.Errorf("kill process: %w", err)
 		}
 	case "terminate":
-		//nolint:revive // syscall.SIGTERM is portable enough
-		// for our supported platforms.
-		if err := proc.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		// Use process group signal to ensure child processes
+		// are also terminated.
+		if err := signalProcess(proc.cmd.Process, syscall.SIGTERM); err != nil {
 			return xerrors.Errorf("terminate process: %w", err)
 		}
 	default:

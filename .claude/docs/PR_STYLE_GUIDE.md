@@ -4,22 +4,13 @@ This guide documents the PR description style used in the Coder repository, base
 
 ## PR Title Format
 
-Follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) format:
+Format: `type(scope): description`. See [CONTRIBUTING.md](docs/about/contributing/CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
 
-```text
-type(scope): brief description
-```
+- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
+- Scopes must be a real path (directory or file stem) containing all changed files
+- Omit scope if changes span multiple top-level directories
 
-**Common types:**
-
-- `feat`: New features
-- `fix`: Bug fixes
-- `refactor`: Code refactoring without behavior change
-- `perf`: Performance improvements
-- `docs`: Documentation changes
-- `chore`: Dependency updates, tooling changes
-
-**Examples:**
+Examples:
 
 - `feat: add tracing to aibridge`
 - `fix: move contexts to appropriate locations`
