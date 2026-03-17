@@ -55,9 +55,9 @@ RETURNING *;
 
 -- name: InsertAIBridgeModelThought :one
 INSERT INTO aibridge_model_thoughts (
-  id, interception_id, content, metadata, created_at
+  interception_id, content, metadata, created_at
 ) VALUES (
-  @id, @interception_id, @content, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
+  @interception_id, @content, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
 )
 RETURNING *;
 

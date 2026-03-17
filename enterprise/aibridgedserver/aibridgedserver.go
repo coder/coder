@@ -387,7 +387,6 @@ func (s *Server) RecordModelThought(ctx context.Context, in *proto.RecordModelTh
 	}
 
 	_, err = s.store.InsertAIBridgeModelThought(ctx, database.InsertAIBridgeModelThoughtParams{
-		ID:             uuid.New(),
 		InterceptionID: intcID,
 		Content:        in.GetContent(),
 		Metadata:       out,

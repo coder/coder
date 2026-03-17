@@ -1014,15 +1014,13 @@ func TestRecordModelThought(t *testing.T) {
 					assert.NoError(t, err, "parse interception UUID")
 
 					db.EXPECT().InsertAIBridgeModelThought(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeModelThoughtParams) bool {
-						if !assert.NotEqual(t, uuid.Nil, p.ID, "ID not nil") ||
-							!assert.Equal(t, interceptionID, p.InterceptionID, "interception ID") ||
+						if !assert.Equal(t, interceptionID, p.InterceptionID, "interception ID") ||
 							!assert.Equal(t, "I should list the files.", p.Content, "content") ||
 							!assert.JSONEq(t, metadataJSON, string(p.Metadata), "metadata") {
 							return false
 						}
 						return true
 					})).Return(database.AIBridgeModelThought{
-						ID:             uuid.New(),
 						InterceptionID: interceptionID,
 						Content:        "I should list the files.",
 						Metadata: pqtype.NullRawMessage{
@@ -1157,7 +1155,6 @@ func TestStructuredLogging(t *testing.T) {
 		expectedErr       error
 		setupMocks        func(db *dbmock.MockStore, interceptionID uuid.UUID)
 		recordFn          func(srv *aibridgedserver.Server, ctx context.Context, interceptionID uuid.UUID) error
-		expectedLineIdx   int
 		expectedFields    map[string]any
 	}
 
@@ -1371,7 +1368,6 @@ func TestStructuredLogging(t *testing.T) {
 			structuredLogging: true,
 			setupMocks: func(db *dbmock.MockStore, intcID uuid.UUID) {
 				db.EXPECT().InsertAIBridgeModelThought(gomock.Any(), gomock.Any()).Return(database.AIBridgeModelThought{
-					ID:             uuid.New(),
 					InterceptionID: intcID,
 				}, nil)
 			},
@@ -1422,9 +1418,9 @@ func TestStructuredLogging(t *testing.T) {
 				require.Empty(t, lines)
 			} else {
 				matchedLines := getLogLinesWithMessage(lines, aibridgedserver.InterceptionLogMarker)
-				require.GreaterOrEqual(t, len(matchedLines), tc.expectedLineIdx+1, "expected at least %d log line(s) with message %q", tc.expectedLineIdx+1, aibridgedserver.InterceptionLogMarker)
+				require.GreaterOrEqual(t, len(matchedLines), 1, "expected at least 1 log line(s) with message %q", aibridgedserver.InterceptionLogMarker)
 
-				fields := matchedLines[tc.expectedLineIdx].Fields
+				fields := matchedLines[0].Fields
 				for key, expected := range tc.expectedFields {
 					require.Equal(t, expected, fields[key], "field %q mismatch", key)
 				}
