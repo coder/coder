@@ -40,23 +40,25 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	const organizationsQuery = useQuery(organizations());
 
 	const checks =
-		check && organizationsQuery.data
-			? Object.fromEntries(
-					organizationsQuery.data.map((org) => [
-						org.id,
-						{
-							...check,
-							object: { ...check.object, organization_id: org.id },
-						},
-					]),
-				)
-			: undefined;
+		check &&
+		organizationsQuery.data &&
+		Object.fromEntries(
+			organizationsQuery.data.map((org) => [
+				org.id,
+				{
+					...check,
+					object: { ...check.object, organization_id: org.id },
+				},
+			]),
+		);
 
 	const permissionsQuery = useQuery({
 		...checkAuthorization({ checks: checks ?? {} }),
 		enabled: Boolean(check && organizationsQuery.data),
 	});
 
+	// If an authorization check was provided, filter the organizations based on
+	// the results of that check.
 	let options = organizationsQuery.data ?? [];
 	if (check) {
 		options = permissionsQuery.data
@@ -64,12 +66,15 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 			: [];
 	}
 
-	// Auto-select when only one option is available
+	// Unfortunate: this useEffect sets a default org value
+	// if only one is available and is necessary as the autocomplete loads
+	// its own data. Until we refactor, proceed cautiously!
 	useEffect(() => {
 		const org = options[0];
 		if (options.length !== 1 || org === selected) {
 			return;
 		}
+
 		setSelected(org);
 		onChange(org);
 	}, [options, selected, onChange]);
@@ -104,7 +109,6 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 			</PopoverTrigger>
 			<PopoverContent
 				align="start"
-				// Match the trigger width
 				className="w-[var(--radix-popover-trigger-width)] p-0"
 			>
 				<Command loop>
