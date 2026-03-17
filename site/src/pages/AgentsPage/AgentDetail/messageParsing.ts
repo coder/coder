@@ -22,9 +22,6 @@ const appendText = (current: string, next: string): string => {
 export const asOptionalTitle = (value: unknown): string | undefined =>
 	asNonEmptyString(value);
 
-export const normalizeBlockType = (value: unknown): string =>
-	asString(value).toLowerCase().replace(/_/g, "-");
-
 const isSubagentToolName = (name: string): boolean =>
 	name === "spawn_agent" || name === "wait_agent" || name === "message_agent";
 
@@ -153,7 +150,7 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 				continue;
 			}
 
-			switch (normalizeBlockType(typedBlock.type)) {
+			switch (asString(typedBlock.type)) {
 				case "text": {
 					const text = asString(typedBlock.text);
 					parsed.markdown = appendText(parsed.markdown, text);
@@ -164,8 +161,7 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 					);
 					break;
 				}
-				case "reasoning":
-				case "thinking": {
+				case "reasoning": {
 					const text = asString(typedBlock.text);
 					const title = asOptionalTitle(typedBlock.title);
 					parsed.reasoning = appendText(parsed.reasoning, text);
@@ -177,8 +173,7 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 					);
 					break;
 				}
-				case "tool-call":
-				case "toolcall": {
+				case "tool-call": {
 					// Provider-executed tool calls (e.g. web_search) are
 					// handled by the provider itself — hide them from the
 					// tool card UI and let the sources component render
@@ -186,16 +181,12 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 					if (typedBlock.provider_executed) {
 						break;
 					}
-					const name =
-						asString(typedBlock.tool_name) || asString(typedBlock.name);
-					const id =
-						asString(typedBlock.tool_call_id) ||
-						asString(typedBlock.id) ||
-						`tool-call-${index}`;
+					const name = asString(typedBlock.tool_name);
+					const id = asString(typedBlock.tool_call_id) || `tool-call-${index}`;
 					parsed.toolCalls.push({
 						id,
 						name: name || "Tool",
-						args: typedBlock.args ?? typedBlock.input ?? typedBlock.arguments,
+						args: typedBlock.args,
 					});
 					parsed.blocks = ensureToolBlock(parsed.blocks, id);
 					break;
@@ -203,10 +194,8 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 				case "file-reference": {
 					const text = asString(typedBlock.text);
 					const fileName = asString(typedBlock.file_name);
-					const startLine =
-						Number(typedBlock.start_line ?? typedBlock.line_number) || 0;
-					const endLine =
-						Number(typedBlock.end_line ?? typedBlock.line_number) || startLine;
+					const startLine = Number(typedBlock.start_line) || 0;
+					const endLine = Number(typedBlock.end_line) || startLine;
 					const contentStr = asString(typedBlock.content);
 					parsed.blocks.push({
 						type: "file-reference",
@@ -218,23 +207,15 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 					});
 					break;
 				}
-				case "tool-result":
-				case "toolresult": {
+				case "tool-result": {
 					// Skip synthetic results for provider-executed tools.
 					if (typedBlock.provider_executed) {
 						break;
 					}
-					const name =
-						asString(typedBlock.tool_name) || asString(typedBlock.name);
+					const name = asString(typedBlock.tool_name);
 					const id =
-						asString(typedBlock.tool_call_id) ||
-						asString(typedBlock.id) ||
-						`tool-result-${index}`;
-					const result =
-						typedBlock.result ??
-						typedBlock.output ??
-						typedBlock.content ??
-						typedBlock.data;
+						asString(typedBlock.tool_call_id) || `tool-result-${index}`;
+					const result = typedBlock.result;
 					parsed.toolResults.push({
 						id,
 						name: name || "Tool",

@@ -1212,6 +1212,26 @@ export interface ChatDiffStatus {
 }
 
 // From codersdk/chats.go
+export interface ChatFilePart {
+	readonly type: "file";
+	readonly media_type: string;
+	readonly data?: string;
+	readonly file_id?: string;
+}
+
+// From codersdk/chats.go
+export interface ChatFileReferencePart {
+	readonly type: "file-reference";
+	readonly file_name: string;
+	readonly start_line: number;
+	readonly end_line: number;
+	/**
+	 * The code content from the diff that was commented on.
+	 */
+	readonly content: string;
+}
+
+// From codersdk/chats.go
 /**
  * ChatGitChange represents a git file change detected during a chat session.
  */
@@ -1280,41 +1300,21 @@ export interface ChatMessage {
  * changes, and omitempty behavior all affect backward-compatible
  * deserialization of stored rows. Treat changes to this struct
  * with the same care as a database migration.
+ *
+ * The variants struct tag declares which discriminated-union
+ * variants include each field in the generated TypeScript. Bare
+ * name = required, ? suffix = optional. Fields without a variants
+ * tag are excluded from the generated union. See
+ * scripts/apitypings/main.go for the codegen that reads these.
  */
-export interface ChatMessagePart {
-	readonly type: ChatMessagePartType;
-	readonly text?: string;
-	readonly signature?: string;
-	readonly tool_call_id?: string;
-	readonly tool_name?: string;
-	readonly args?: Record<string, string>;
-	readonly args_delta?: string;
-	readonly result?: Record<string, string>;
-	readonly result_delta?: string;
-	readonly is_error?: boolean;
-	readonly source_id?: string;
-	readonly url?: string;
-	readonly title?: string;
-	readonly media_type?: string;
-	readonly data?: string;
-	readonly file_id?: string;
-	/**
-	 * The following fields are only set when Type is
-	 * ChatInputPartTypeFileReference.
-	 */
-	readonly file_name?: string;
-	readonly start_line?: number;
-	readonly end_line?: number;
-	/**
-	 * The code content from the diff that was commented on.
-	 */
-	readonly content?: string;
-	/**
-	 * ProviderExecuted indicates the tool call was executed by
-	 * the provider (e.g. Anthropic computer use).
-	 */
-	readonly provider_executed?: boolean;
-}
+export type ChatMessagePart =
+	| ChatTextPart
+	| ChatReasoningPart
+	| ChatToolCallPart
+	| ChatToolResultPart
+	| ChatSourcePart
+	| ChatFilePart
+	| ChatFileReferencePart;
 
 // From codersdk/chats.go
 export type ChatMessagePartType =
@@ -1676,6 +1676,20 @@ export interface ChatQueuedMessage {
 }
 
 // From codersdk/chats.go
+export interface ChatReasoningPart {
+	readonly type: "reasoning";
+	readonly text: string;
+}
+
+// From codersdk/chats.go
+export interface ChatSourcePart {
+	readonly type: "source";
+	readonly url: string;
+	readonly source_id?: string;
+	readonly title?: string;
+}
+
+// From codersdk/chats.go
 export type ChatStatus =
 	| "completed"
 	| "error"
@@ -1781,6 +1795,40 @@ export interface ChatStreamStatus {
  */
 export interface ChatSystemPromptResponse {
 	readonly system_prompt: string;
+}
+
+// From codersdk/chats.go
+export interface ChatTextPart {
+	readonly type: "text";
+	readonly text: string;
+}
+
+// From codersdk/chats.go
+export interface ChatToolCallPart {
+	readonly type: "tool-call";
+	readonly tool_call_id: string;
+	readonly tool_name: string;
+	readonly args?: Record<string, string>;
+	readonly args_delta?: string;
+	/**
+	 * ProviderExecuted indicates the tool call was executed by
+	 * the provider (e.g. Anthropic computer use).
+	 */
+	readonly provider_executed?: boolean;
+}
+
+// From codersdk/chats.go
+export interface ChatToolResultPart {
+	readonly type: "tool-result";
+	readonly tool_call_id: string;
+	readonly tool_name: string;
+	readonly result?: Record<string, string>;
+	readonly is_error?: boolean;
+	/**
+	 * ProviderExecuted indicates the tool call was executed by
+	 * the provider (e.g. Anthropic computer use).
+	 */
+	readonly provider_executed?: boolean;
 }
 
 // From codersdk/chats.go

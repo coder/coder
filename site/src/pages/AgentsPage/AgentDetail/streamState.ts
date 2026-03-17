@@ -3,7 +3,6 @@ import { appendTextBlock } from "./blockUtils";
 import {
 	asOptionalTitle,
 	ensureToolBlock,
-	normalizeBlockType,
 	parseToolResultIsError,
 } from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
@@ -25,7 +24,7 @@ export const applyMessagePartToStreamState = (
 	prev: StreamState | null,
 	part: Record<string, unknown>,
 ): StreamState | null => {
-	const partType = normalizeBlockType(part.type);
+	const partType = asString(part.type);
 	const nextState: StreamState = prev ?? createEmptyStreamState();
 
 	switch (partType) {
@@ -39,8 +38,7 @@ export const applyMessagePartToStreamState = (
 				blocks: appendStreamTextBlock(nextState.blocks, "response", text),
 			};
 		}
-		case "reasoning":
-		case "thinking": {
+		case "reasoning": {
 			const text = asString(part.text);
 			if (!text) {
 				return prev;
@@ -56,8 +54,7 @@ export const applyMessagePartToStreamState = (
 				),
 			};
 		}
-		case "tool-call":
-		case "toolcall": {
+		case "tool-call": {
 			// Provider-executed tool calls (e.g. web_search) are
 			// handled natively by the provider — skip rendering them
 			// as tool cards.
@@ -94,8 +91,7 @@ export const applyMessagePartToStreamState = (
 				},
 			};
 		}
-		case "tool-result":
-		case "toolresult": {
+		case "tool-result": {
 			// Skip synthetic results for provider-executed tools.
 			if (part.provider_executed) {
 				return prev;
@@ -119,7 +115,7 @@ export const applyMessagePartToStreamState = (
 				existing?.result,
 				existing?.resultRaw,
 				part.result,
-				part.result_delta,
+				undefined, // no delta: tool results arrive complete, not streamed incrementally
 			);
 			const nextToolName = toolName || existing?.name || "Tool";
 			const nextIsError =

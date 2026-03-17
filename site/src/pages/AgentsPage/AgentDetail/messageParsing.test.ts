@@ -1,22 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
 	mergeTools,
-	normalizeBlockType,
 	parseMessageContent,
 	parseToolResultIsError,
 } from "./messageParsing";
-
-describe("normalizeBlockType", () => {
-	it("lowercases and replaces underscores with hyphens", () => {
-		expect(normalizeBlockType("Tool_Call")).toBe("tool-call");
-		expect(normalizeBlockType("TOOL_RESULT")).toBe("tool-result");
-	});
-
-	it("returns empty string for non-string input", () => {
-		expect(normalizeBlockType(undefined)).toBe("");
-		expect(normalizeBlockType(null)).toBe("");
-	});
-});
 
 describe("parseToolResultIsError", () => {
 	it("returns the boolean is_error when present", () => {
@@ -126,9 +113,9 @@ describe("parseMessageContent", () => {
 		});
 	});
 
-	it("parses a thinking block", () => {
+	it("parses a reasoning block", () => {
 		const result = parseMessageContent([
-			{ type: "thinking", text: "Let me think...", title: "Reasoning" },
+			{ type: "reasoning", text: "Let me think...", title: "Reasoning" },
 		]);
 		expect(result.reasoning).toBe("Let me think...");
 		expect(result.blocks).toEqual([
@@ -234,19 +221,6 @@ describe("parseMessageContent", () => {
 		expect(result.markdown).toBe("fallback text");
 	});
 
-	it("normalizes underscore block types like tool_call", () => {
-		const result = parseMessageContent([
-			{
-				type: "tool_call",
-				tool_name: "test",
-				tool_call_id: "tc-1",
-				args: {},
-			},
-		]);
-		expect(result.toolCalls).toHaveLength(1);
-		expect(result.toolCalls[0].name).toBe("test");
-	});
-
 	it("extracts fileId from a file block with file_id", () => {
 		const result = parseMessageContent([
 			{
@@ -303,39 +277,6 @@ describe("parseMessageContent", () => {
 		});
 	});
 
-	it("falls back to line_number when start_line and end_line are missing", () => {
-		const result = parseMessageContent([
-			{
-				type: "file-reference",
-				file_name: "index.ts",
-				line_number: 42,
-				content: "fallback content",
-				text: "Fallback line.",
-			},
-		]);
-		const ref = result.blocks[0] as { startLine: number; endLine: number };
-		expect(ref.startLine).toBe(42);
-		expect(ref.endLine).toBe(42);
-	});
-
-	it("uses line_number for end_line when only start_line is provided", () => {
-		// When start_line is present it is used directly. end_line is
-		// missing so the fallback chain tries line_number next.
-		const result = parseMessageContent([
-			{
-				type: "file-reference",
-				file_name: "foo.ts",
-				start_line: 5,
-				line_number: 7,
-				content: "partial content",
-				text: "Partial fallback.",
-			},
-		]);
-		const ref = result.blocks[0] as { startLine: number; endLine: number };
-		expect(ref.startLine).toBe(5);
-		expect(ref.endLine).toBe(7);
-	});
-
 	it("defaults lines to 0 when no line fields are provided", () => {
 		const result = parseMessageContent([
 			{
@@ -373,6 +314,63 @@ describe("parseMessageContent", () => {
 			content: "nit code content",
 			text: "Nit.",
 		});
+	});
+
+	it("skips provider_executed tool-call parts", () => {
+		const result = parseMessageContent([
+			{
+				type: "tool-call",
+				tool_name: "web_search",
+				tool_call_id: "tc-1",
+				provider_executed: true,
+			},
+		]);
+		expect(result.toolCalls).toEqual([]);
+		expect(result.blocks.some((b) => b.type === "tool")).toBe(false);
+	});
+
+	it("skips provider_executed tool-result parts", () => {
+		const result = parseMessageContent([
+			{
+				type: "tool-result",
+				tool_name: "web_search",
+				tool_call_id: "tc-1",
+				provider_executed: true,
+				result: { output: "results" },
+			},
+		]);
+		expect(result.toolResults).toEqual([]);
+		expect(result.blocks.some((b) => b.type === "tool")).toBe(false);
+	});
+
+	it("parses a source part into a sources block", () => {
+		const result = parseMessageContent([
+			{ type: "source", url: "https://example.com", title: "Example" },
+		]);
+		expect(result.blocks).toHaveLength(1);
+		expect(result.blocks[0]).toEqual({
+			type: "sources",
+			sources: [{ url: "https://example.com", title: "Example" }],
+		});
+		expect(result.sources).toEqual([
+			{ url: "https://example.com", title: "Example" },
+		]);
+	});
+
+	it("groups multiple consecutive sources into a single sources block", () => {
+		const result = parseMessageContent([
+			{ type: "source", url: "https://example.com", title: "Example" },
+			{ type: "source", url: "https://other.com", title: "Other" },
+		]);
+		expect(result.blocks).toHaveLength(1);
+		expect(result.blocks[0]).toEqual({
+			type: "sources",
+			sources: [
+				{ url: "https://example.com", title: "Example" },
+				{ url: "https://other.com", title: "Other" },
+			],
+		});
+		expect(result.sources).toHaveLength(2);
 	});
 });
 
