@@ -23,7 +23,6 @@ import {
 	Fragment,
 	memo,
 	type ReactNode,
-	type RefObject,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -37,7 +36,7 @@ import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
 	ParsedMessageContent,
-	ParsedMessageSection,
+	ParsedMessageEntry,
 	RenderBlock,
 	StreamState,
 } from "./types";
@@ -695,9 +694,9 @@ const StickyUserMessage: FC<{
 			if (tooTall) {
 				container.style.setProperty("--clip-h", `${fullHeight}px`);
 				container.style.setProperty("--fade-opacity", "0");
+				container.style.top = "0px";
 				return;
 			}
-
 			const sentinelTop = sentinel.getBoundingClientRect().top;
 			const scrolledPast = scrollerTop - sentinelTop;
 
@@ -706,10 +705,10 @@ const StickyUserMessage: FC<{
 				// correct height immediately when isStuck flips.
 				container.style.setProperty("--clip-h", `${fullHeight}px`);
 				container.style.setProperty("--fade-opacity", "0");
+				container.style.top = "0px";
 				return;
 			}
-
-			const visible = Math.max(fullHeight - scrolledPast, MIN_HEIGHT);
+			const visible = Math.max(fullHeight - scrolledPast - 48, MIN_HEIGHT);
 			container.style.setProperty("--clip-h", `${visible}px`);
 			// Only show the fade gradient once enough content is
 			// clipped to be visually meaningful.
@@ -717,6 +716,24 @@ const StickyUserMessage: FC<{
 				"--fade-opacity",
 				visible < fullHeight - 8 ? "1" : "0",
 			);
+
+			// Push-up effect: when the next user message's sentinel
+			// approaches the bottom of this sticky container, shift
+			// this container upward so it slides out of view — the
+			// same visual as the old section-boundary behavior.
+			let nextSentinel: Element | null = sentinel.nextElementSibling;
+			while (nextSentinel) {
+				if (nextSentinel.hasAttribute("data-user-sentinel")) {
+					break;
+				}
+				nextSentinel = nextSentinel.nextElementSibling;
+			}
+			if (nextSentinel) {
+				const nextY = nextSentinel.getBoundingClientRect().top - scrollerTop;
+				container.style.top = `${Math.min(0, nextY - visible)}px`;
+			} else {
+				container.style.top = "0px";
+			}
 		};
 		updateFnRef.current = update;
 
@@ -786,12 +803,12 @@ const StickyUserMessage: FC<{
 
 	return (
 		<>
-			<div ref={sentinelRef} className="h-0" />
+			<div ref={sentinelRef} className="h-0" data-user-sentinel />
 			<div
 				ref={containerRef}
 				className={cn(
 					"relative px-3 -mx-3 pt-2 pb-2",
-					!isTooTall && "sticky top-0 z-10",
+					!isTooTall && "sticky z-10",
 					!isReady && "invisible",
 					isStuck && !isTooTall && "pointer-events-none",
 				)}
@@ -871,9 +888,7 @@ const StickyUserMessage: FC<{
 
 interface ConversationTimelineProps {
 	isEmpty: boolean;
-	hasMoreMessages: boolean;
-	loadMoreSentinelRef: RefObject<HTMLDivElement | null>;
-	parsedSections: readonly ParsedMessageSection[];
+	parsedMessages: readonly ParsedMessageEntry[];
 	hasStreamOutput: boolean;
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
@@ -895,9 +910,7 @@ interface ConversationTimelineProps {
 
 export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	isEmpty,
-	hasMoreMessages,
-	loadMoreSentinelRef,
-	parsedSections,
+	parsedMessages,
 	hasStreamOutput,
 	streamState,
 	streamTools,
@@ -912,8 +925,8 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	savingMessageId,
 	urlTransform,
 }) => {
-	const shouldRenderStreamInLastSection =
-		hasStreamOutput && parsedSections.length > 0;
+	const shouldRenderStreamAfterMessages =
+		hasStreamOutput && parsedMessages.length > 0;
 	const isUsageLimitError = detailError?.kind === "usage-limit";
 	const showUsageAction = onOpenAnalytics !== undefined && isUsageLimitError;
 
@@ -922,15 +935,13 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	const afterEditingMessageIds = new Set<number>();
 	if (editingMessageId != null) {
 		let found = false;
-		for (const section of parsedSections) {
-			for (const entry of section.entries) {
-				if (entry.message.id === editingMessageId) {
-					found = true;
-					continue;
-				}
-				if (found) {
-					afterEditingMessageIds.add(entry.message.id);
-				}
+		for (const entry of parsedMessages) {
+			if (entry.message.id === editingMessageId) {
+				found = true;
+				continue;
+			}
+			if (found) {
+				afterEditingMessageIds.add(entry.message.id);
 			}
 		}
 	}
@@ -943,66 +954,40 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 				</div>
 			) : (
 				<div className="flex flex-col">
-					{hasMoreMessages && (
-						<div
-							ref={loadMoreSentinelRef}
-							className="flex items-center justify-center py-4 text-xs text-content-secondary"
-						>
-							Loading earlier messages…
-						</div>
+					{parsedMessages.map(({ message, parsed }) =>
+						message.role === "user" ? (
+							<StickyUserMessage
+								key={message.id}
+								message={message}
+								parsed={parsed}
+								onEditUserMessage={onEditUserMessage}
+								editingMessageId={editingMessageId}
+								savingMessageId={savingMessageId}
+								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+							/>
+						) : (
+							<ChatMessageItem
+								key={message.id}
+								message={message}
+								parsed={parsed}
+								savingMessageId={savingMessageId}
+								urlTransform={urlTransform}
+								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+							/>
+						),
 					)}
-					{parsedSections.map((section, sectionIdx) => (
-						<div
-							key={section.userEntry?.message.id ?? `section-${sectionIdx}`}
-							className="-mx-1 px-1"
-							style={{
-								contentVisibility: "auto",
-								containIntrinsicSize: "1px 600px",
-							}}
-						>
-							<div className="flex flex-col gap-3">
-								{section.entries.map(({ message, parsed }) =>
-									message.role === "user" ? (
-										<StickyUserMessage
-											key={message.id}
-											message={message}
-											parsed={parsed}
-											onEditUserMessage={onEditUserMessage}
-											editingMessageId={editingMessageId}
-											savingMessageId={savingMessageId}
-											isAfterEditingMessage={afterEditingMessageIds.has(
-												message.id,
-											)}
-										/>
-									) : (
-										<ChatMessageItem
-											key={message.id}
-											message={message}
-											parsed={parsed}
-											savingMessageId={savingMessageId}
-											urlTransform={urlTransform}
-											isAfterEditingMessage={afterEditingMessageIds.has(
-												message.id,
-											)}
-										/>
-									),
-								)}{" "}
-								{shouldRenderStreamInLastSection &&
-									sectionIdx === parsedSections.length - 1 && (
-										<StreamingOutput
-											streamState={streamState}
-											streamTools={streamTools}
-											subagentTitles={subagentTitles}
-											subagentStatusOverrides={subagentStatusOverrides}
-											showInitialPlaceholder={isAwaitingFirstStreamChunk}
-											retryState={retryState}
-											urlTransform={urlTransform}
-										/>
-									)}
-							</div>
-						</div>
-					))}
-					{hasStreamOutput && parsedSections.length === 0 && (
+					{shouldRenderStreamAfterMessages && (
+						<StreamingOutput
+							streamState={streamState}
+							streamTools={streamTools}
+							subagentTitles={subagentTitles}
+							subagentStatusOverrides={subagentStatusOverrides}
+							showInitialPlaceholder={isAwaitingFirstStreamChunk}
+							retryState={retryState}
+							urlTransform={urlTransform}
+						/>
+					)}
+					{hasStreamOutput && parsedMessages.length === 0 && (
 						<StreamingOutput
 							streamState={streamState}
 							streamTools={streamTools}

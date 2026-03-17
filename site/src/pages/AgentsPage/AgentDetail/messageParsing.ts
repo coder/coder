@@ -5,7 +5,6 @@ import type {
 	MergedTool,
 	ParsedMessageContent,
 	ParsedMessageEntry,
-	ParsedMessageSection,
 	ParsedToolCall,
 	ParsedToolResult,
 	RenderBlock,
@@ -382,24 +381,4 @@ export const buildSubagentTitles = (
 		}
 	}
 	return map;
-};
-
-export const buildParsedMessageSections = (
-	parsedMessages: readonly ParsedMessageEntry[],
-): ParsedMessageSection[] => {
-	const sections: ParsedMessageSection[] = [];
-
-	for (const entry of parsedMessages) {
-		if (entry.message.role === "user") {
-			sections.push({ userEntry: entry, entries: [entry] });
-			continue;
-		}
-		if (sections.length === 0) {
-			sections.push({ userEntry: null, entries: [entry] });
-			continue;
-		}
-		sections[sections.length - 1].entries.push(entry);
-	}
-
-	return sections;
 };
