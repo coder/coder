@@ -42,8 +42,13 @@ export const AIGovernanceUsersConsumption: FC<
 		return <ErrorAlert error="Invalid license usage limits" />;
 	}
 
+	const actual = aiGovernanceUserFeature.actual;
+	const isExceeded = actual !== undefined && actual > limit;
+
 	return (
-		<section className="border border-solid rounded">
+		<section
+			className={`border border-solid rounded ${isExceeded ? "border-border-destructive" : ""}`}
+		>
 			<div className="p-4">
 				<Collapsible>
 					<header className="flex flex-col gap-2 items-start">
@@ -105,13 +110,39 @@ export const AIGovernanceUsersConsumption: FC<
 
 			<div className="px-6 py-12 border-0 border-t border-solid">
 				<div className="flex flex-col gap-4 text-center justify-center items-center">
-					<div className="flex flex-col gap-2 text-center justify-center items-center">
-						<div className="text-3xl font-bold">{limit.toLocaleString()}</div>
-						<div className="text-sm text-content-secondary">Users Entitled</div>
-					</div>
-					<div className="text-sm text-content-secondary">
-						Additional analytics and measurements coming soon
-					</div>
+					{actual !== undefined ? (
+						<>
+							<div className="flex flex-col gap-2 text-center justify-center items-center">
+								<div
+									className={`text-3xl font-bold ${isExceeded ? "text-content-destructive" : ""}`}
+								>
+									{actual.toLocaleString()}
+								</div>
+								<div className="text-sm text-content-secondary">
+									of {limit.toLocaleString()} Users Entitled
+								</div>
+							</div>
+							<div
+								className={`text-sm ${isExceeded ? "text-content-destructive font-medium" : "text-content-secondary"}`}
+							>
+								{isExceeded ? "Add-on exceeded" : "Active"}
+							</div>
+						</>
+					) : (
+						<>
+							<div className="flex flex-col gap-2 text-center justify-center items-center">
+								<div className="text-3xl font-bold">
+									{limit.toLocaleString()}
+								</div>
+								<div className="text-sm text-content-secondary">
+									Users Entitled
+								</div>
+							</div>
+							<div className="text-sm text-content-secondary">
+								Additional analytics and measurements coming soon
+							</div>
+						</>
+					)}
 				</div>
 			</div>
 		</section>
