@@ -229,26 +229,6 @@ specific parameter presets. When the agent creates a workspace that matches a
 preset, Coder assigns an already-running prebuilt workspace instead of
 provisioning from scratch. The agent can begin working immediately.
 
-### Why prebuilds matter for agent workloads
-
-Agent-driven workflows amplify provisioning costs in two ways:
-
-- **Higher workspace volume.** Agents create workspaces on demand — often many
-  more than developers would create manually. A team running dozens of agent
-  chats per day generates correspondingly more provisioning load.
-- **Latency is more visible.** In an interactive IDE session, a developer can
-  do other work while a workspace provisions. In an agent chat, provisioning
-  time is dead time — the developer is waiting for the agent to start.
-
-Prebuilds turn workspace creation from a provisioning operation into an
-ownership transfer, reducing creation time to seconds.
-
-See
-[Prebuilt workspaces](../../../admin/templates/extending-templates/prebuilt-workspaces.md)
-for full setup instructions, scheduling, lifecycle details, and
-troubleshooting. Prebuilt workspaces require a
-[Premium license](../../../admin/licensing/index.md).
-
 ## Checklist
 
 Use this as a quick reference when creating or updating templates for Coder
