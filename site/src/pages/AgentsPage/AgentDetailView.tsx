@@ -1,5 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
-import type { ChatDiffStatus } from "api/typesGenerated";
+import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { ArchiveIcon } from "lucide-react";
 import { type FC, type RefObject, useEffect, useRef, useState } from "react";
@@ -31,30 +31,18 @@ interface EditingState {
 	chatInputRef: RefObject<ChatMessageInputRef | null>;
 	editorInitialValue: string;
 	editingMessageId: number | null;
-	editingFileBlocks: readonly {
-		mediaType: string;
-		data?: string;
-		fileId?: string;
-	}[];
+	editingFileBlocks: readonly ChatMessagePart[];
 	handleEditUserMessage: (
 		messageId: number,
 		text: string,
-		fileBlocks?: readonly {
-			mediaType: string;
-			data?: string;
-			fileId?: string;
-		}[],
+		fileBlocks?: readonly ChatMessagePart[],
 	) => void;
 	handleCancelHistoryEdit: () => void;
 	editingQueuedMessageID: number | null;
 	handleStartQueueEdit: (
 		id: number,
 		text: string,
-		fileBlocks: readonly {
-			mediaType: string;
-			data?: string;
-			fileId?: string;
-		}[],
+		fileBlocks: readonly ChatMessagePart[],
 	) => void;
 	handleCancelQueueEdit: () => void;
 	handleSendFromInput: (message: string, fileIds?: string[]) => void;

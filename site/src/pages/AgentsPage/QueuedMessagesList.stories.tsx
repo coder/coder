@@ -163,7 +163,7 @@ export const EditPassesFileBlocks: Story = {
 		const editButton = canvas.getByRole("button", { name: "Edit" });
 		await userEvent.click(editButton);
 		expect(args.onEdit).toHaveBeenCalledWith(1, "Check this screenshot", [
-			{ mediaType: "image/png", fileId: "abc-123" },
+			{ type: "file", file_id: "abc-123", media_type: "image/png" },
 		]);
 	},
 };
@@ -184,8 +184,8 @@ export const EditAttachmentOnlyMessage: Story = {
 		const editButton = canvas.getByRole("button", { name: "Edit" });
 		await userEvent.click(editButton);
 		expect(args.onEdit).toHaveBeenCalledWith(1, "", [
-			{ mediaType: "image/png", fileId: "img-1" },
-			{ mediaType: "image/jpeg", fileId: "img-2" },
+			{ type: "file", file_id: "img-1", media_type: "image/png" },
+			{ type: "file", file_id: "img-2", media_type: "image/jpeg" },
 		]);
 	},
 };

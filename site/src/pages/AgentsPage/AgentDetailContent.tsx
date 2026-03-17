@@ -48,7 +48,7 @@ interface AgentDetailTimelineProps {
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: readonly { mediaType: string; data?: string }[],
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
@@ -169,22 +169,14 @@ interface AgentDetailInputProps {
 	onStartQueueEdit: (
 		id: number,
 		text: string,
-		fileBlocks: readonly {
-			mediaType: string;
-			data?: string;
-			fileId?: string;
-		}[],
+		fileBlocks: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	onCancelQueueEdit: () => void;
 	isEditingHistoryMessage: boolean;
 	onCancelHistoryEdit: () => void;
-	// File blocks from the message being edited, converted to
+	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
-	editingFileBlocks?: readonly {
-		mediaType: string;
-		data?: string;
-		fileId?: string;
-	}[];
+	editingFileBlocks?: readonly TypesGen.ChatMessagePart[];
 }
 
 export const AgentDetailInput: FC<AgentDetailInputProps> = ({
@@ -258,29 +250,28 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			return;
 		}
 		const files = editingFileBlocks.map((block, i) => {
-			const ext = block.mediaType.split("/")[1] ?? "png";
+			const mt = block.media_type ?? "application/octet-stream";
+			const ext = mt.split("/")[1] ?? "png";
 			// Empty File used as a Map key only, its content is never
-			// read because the existing fileId is reused at send time.
-			return new File([], `attachment-${i}.${ext}`, {
-				type: block.mediaType,
-			});
+			// read because the existing file_id is reused at send time.
+			return new File([], `attachment-${i}.${ext}`, { type: mt });
 		});
 		setAttachments(files);
 		setPreviewUrls(
 			new Map(
 				files.map((f, i) => [
 					f,
-					`/api/experimental/chats/files/${editingFileBlocks[i].fileId}`,
+					`/api/experimental/chats/files/${editingFileBlocks[i].file_id}`,
 				]),
 			),
 		);
 		const newUploadStates = new Map<File, UploadState>();
 		for (const [i, file] of files.entries()) {
 			const block = editingFileBlocks[i];
-			if (block.fileId) {
+			if (block.file_id) {
 				newUploadStates.set(file, {
 					status: "uploaded",
-					fileId: block.fileId,
+					fileId: block.file_id,
 				});
 			}
 		}
