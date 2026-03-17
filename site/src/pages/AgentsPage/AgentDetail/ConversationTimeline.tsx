@@ -953,7 +953,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 					<p className="text-sm">Start a conversation with your agent.</p>
 				</div>
 			) : (
-				<div className="flex flex-col">
+				<div className="flex flex-col gap-3">
 					{parsedMessages.map(({ message, parsed }) =>
 						message.role === "user" ? (
 							<StickyUserMessage
