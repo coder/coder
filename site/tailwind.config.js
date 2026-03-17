@@ -98,6 +98,7 @@ module.exports = {
 					merged: "hsl(var(--git-merged))",
 					"added-bright": "hsl(var(--git-added-bright))",
 					"deleted-bright": "hsl(var(--git-deleted-bright))",
+					"merged-bright": "hsl(var(--git-merged-bright))",
 				},
 			},
 			keyframes: {
