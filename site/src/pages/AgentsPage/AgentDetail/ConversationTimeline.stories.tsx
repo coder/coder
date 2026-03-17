@@ -289,3 +289,82 @@ export const GenericErrorDoesNotShowUsageAction: Story = {
 		).not.toBeInTheDocument();
 	},
 };
+
+/** File references render inline with text, matching the chat input style. */
+export const UserMessageWithInlineFileRef: Story = {
+	args: {
+		...defaultArgs,
+		parsedSections: buildSections([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Can you refactor " },
+					{
+						type: "file-reference",
+						file_name: "site/src/components/Button.tsx",
+						start_line: 42,
+						end_line: 42,
+						content: "export const Button = ...",
+					},
+					{ type: "text", text: " to use the new API?" },
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "text",
+						text: "Sure, I'll update that component.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Button\.tsx/)).toBeInTheDocument();
+		expect(canvas.getByText(/Can you refactor/)).toBeInTheDocument();
+		expect(canvas.getByText(/to use the new API/)).toBeInTheDocument();
+	},
+};
+
+/** Multiple file references render inline, no separate section. */
+export const UserMessageWithMultipleInlineFileRefs: Story = {
+	args: {
+		...defaultArgs,
+		parsedSections: buildSections([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Compare " },
+					{
+						type: "file-reference",
+						file_name: "api/handler.go",
+						start_line: 1,
+						end_line: 50,
+						content: "...",
+					},
+					{ type: "text", text: " with " },
+					{
+						type: "file-reference",
+						file_name: "api/handler_test.go",
+						start_line: 10,
+						end_line: 30,
+						content: "...",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/handler\.go/)).toBeInTheDocument();
+		expect(canvas.getByText(/handler_test\.go/)).toBeInTheDocument();
+	},
+};
