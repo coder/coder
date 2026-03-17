@@ -77,6 +77,9 @@ Agent templates differ from developer templates in several ways:
 - **Reduced permissions.** Agent workspaces can use scoped credentials with
   fewer permissions than a developer's interactive session.
 
+See [Creating templates](../../../admin/templates/creating-templates.md) for
+step-by-step instructions on creating templates via the UI, CLI, or CI/CD.
+
 ## Configure network boundaries
 
 The workspace is the network boundary for the agent. If you want to control
@@ -182,6 +185,13 @@ Parameters with values like `ami-0abcdef1234567890` or `subnet-12345` are
 difficult for the agent to reason about. Where possible, use human-readable
 option labels or map opaque IDs to descriptive names using Terraform locals.
 
+For full parameter reference — including types, validation, mutability, and
+workspace presets — see
+[Parameters](../../../admin/templates/extending-templates/parameters.md).
+[Dynamic parameters](../../../admin/templates/extending-templates/dynamic-parameters.md)
+add conditional form controls and identity-aware defaults for more advanced
+use cases.
+
 ## Pre-install tools and dependencies
 
 Agent workspaces should be ready to work immediately after provisioning. The
@@ -199,6 +209,9 @@ time spent installing dependencies is time not spent on the task.
   setup script as part of workspace startup.
 - **Git configuration.** Ensure `git` is configured with credentials and author
   information so the agent can commit and push without additional setup.
+
+For guidance on building and maintaining workspace images, see
+[Image management](../../../admin/templates/managing-templates/image-management.md).
 
 ### Set a meaningful working directory
 
