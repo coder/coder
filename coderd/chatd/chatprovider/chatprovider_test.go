@@ -77,6 +77,26 @@ func TestReasoningEffortFromChat(t *testing.T) {
 	}
 }
 
+func TestMergeMissingProviderOptions_AnthropicComputerUseEnabled(t *testing.T) {
+	t.Parallel()
+
+	options := &codersdk.ChatModelProviderOptions{
+		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{},
+	}
+	defaults := &codersdk.ChatModelProviderOptions{
+		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+			ComputerUseEnabled: boolPtr(true),
+		},
+	}
+
+	chatprovider.MergeMissingProviderOptions(&options, defaults)
+
+	require.NotNil(t, options)
+	require.NotNil(t, options.Anthropic)
+	require.NotNil(t, options.Anthropic.ComputerUseEnabled)
+	require.True(t, *options.Anthropic.ComputerUseEnabled)
+}
+
 func TestMergeMissingProviderOptions_OpenRouterNested(t *testing.T) {
 	t.Parallel()
 

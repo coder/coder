@@ -704,6 +704,9 @@ func MergeMissingProviderOptions(
 			if dstAnthropic.DisableParallelToolUse == nil {
 				dstAnthropic.DisableParallelToolUse = defaultAnthropic.DisableParallelToolUse
 			}
+			if dstAnthropic.ComputerUseEnabled == nil {
+				dstAnthropic.ComputerUseEnabled = defaultAnthropic.ComputerUseEnabled
+			}
 
 		case fantasygoogle.Name:
 			if defaults.Google == nil {

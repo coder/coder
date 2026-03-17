@@ -1223,6 +1223,53 @@ func TestListChatModelConfigs(t *testing.T) {
 		})
 	})
 
+	t.Run("ReturnsAnthropicComputerUseEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "anthropic",
+			APIKey:   "test-api-key",
+		})
+		require.NoError(t, err)
+
+		options, err := json.Marshal(&codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+					ComputerUseEnabled: boolRef(true),
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		storedConfig, err := db.InsertChatModelConfig(dbauthz.AsSystemRestricted(ctx), database.InsertChatModelConfigParams{
+			Provider:             "anthropic",
+			Model:                "claude-3-5-sonnet-latest",
+			DisplayName:          "Claude 3.5 Sonnet",
+			CreatedBy:            uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
+			Enabled:              true,
+			IsDefault:            true,
+			ContextLimit:         8192,
+			CompressionThreshold: 70,
+			Options:              options,
+		})
+		require.NoError(t, err)
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		require.Equal(t, storedConfig.ID, configs[0].ID)
+		requireChatModelAnthropicComputerUseEnabled(
+			t,
+			configs[0].ModelConfig,
+			boolRef(true),
+		)
+	})
+
 	t.Run("SuccessForOrganizationMember", func(t *testing.T) {
 		t.Parallel()
 
@@ -1294,6 +1341,51 @@ func TestCreateChatModelConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, configs, 1)
 		requireChatModelPricing(t, configs[0].ModelConfig, pricing)
+	})
+
+	t.Run("PersistsAnthropicComputerUseEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "anthropic",
+			APIKey:   "test-api-key",
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(8192)
+		isDefault := true
+		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "anthropic",
+			Model:        "claude-3-5-sonnet-latest",
+			ContextLimit: &contextLimit,
+			IsDefault:    &isDefault,
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				ProviderOptions: &codersdk.ChatModelProviderOptions{
+					Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+						ComputerUseEnabled: boolRef(true),
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		requireChatModelAnthropicComputerUseEnabled(
+			t,
+			modelConfig.ModelConfig,
+			boolRef(true),
+		)
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		requireChatModelAnthropicComputerUseEnabled(
+			t,
+			configs[0].ModelConfig,
+			boolRef(true),
+		)
 	})
 
 	t.Run("RejectsNegativePricing", func(t *testing.T) {
@@ -1420,6 +1512,62 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, configs, 1)
 		requireChatModelPricing(t, configs[0].ModelConfig, pricing)
+	})
+
+	t.Run("PersistsAnthropicComputerUseEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+			Provider: "anthropic",
+			APIKey:   "test-api-key",
+		})
+		require.NoError(t, err)
+
+		contextLimit := int64(8192)
+		isDefault := true
+		modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			Provider:     "anthropic",
+			Model:        "claude-3-5-sonnet-latest",
+			ContextLimit: &contextLimit,
+			IsDefault:    &isDefault,
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				ProviderOptions: &codersdk.ChatModelProviderOptions{
+					Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+						ComputerUseEnabled: boolRef(false),
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				ProviderOptions: &codersdk.ChatModelProviderOptions{
+					Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+						ComputerUseEnabled: boolRef(true),
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		requireChatModelAnthropicComputerUseEnabled(
+			t,
+			updated.ModelConfig,
+			boolRef(true),
+		)
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		requireChatModelAnthropicComputerUseEnabled(
+			t,
+			configs[0].ModelConfig,
+			boolRef(true),
+		)
 	})
 
 	t.Run("RejectsNegativePricing", func(t *testing.T) {
@@ -4409,6 +4557,23 @@ func TestChatCostSummary_UnpricedMessages(t *testing.T) {
 	require.Equal(t, int64(125), summary.TotalOutputTokens)
 }
 
+func requireChatModelAnthropicComputerUseEnabled(
+	t *testing.T,
+	actual *codersdk.ChatModelCallConfig,
+	want *bool,
+) {
+	t.Helper()
+	require.NotNil(t, actual)
+	require.NotNil(t, actual.ProviderOptions)
+	require.NotNil(t, actual.ProviderOptions.Anthropic)
+	if want == nil {
+		require.Nil(t, actual.ProviderOptions.Anthropic.ComputerUseEnabled)
+		return
+	}
+	require.NotNil(t, actual.ProviderOptions.Anthropic.ComputerUseEnabled)
+	require.Equal(t, *want, *actual.ProviderOptions.Anthropic.ComputerUseEnabled)
+}
+
 func requireChatModelPricing(
 	t *testing.T,
 	actual *codersdk.ChatModelCallConfig,
@@ -4434,6 +4599,10 @@ func requireChatModelPricing(
 func decRef(value string) *decimal.Decimal {
 	d := decimal.RequireFromString(value)
 	return &d
+}
+
+func boolRef(value bool) *bool {
+	return &value
 }
 
 func TestWatchChatDesktop(t *testing.T) {

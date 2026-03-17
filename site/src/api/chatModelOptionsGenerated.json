@@ -142,6 +142,15 @@
 					"description": "Block web search on these domains (cannot be used with allowed_domains)",
 					"required": false,
 					"input_type": "json"
+				},
+				{
+					"json_name": "computer_use_enabled",
+					"go_name": "ComputerUseEnabled",
+					"type": "boolean",
+					"description": "Enable Anthropic computer use features for this model",
+					"required": false,
+					"input_type": "select",
+					"hidden": true
 				}
 			]
 		},

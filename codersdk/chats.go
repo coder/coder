@@ -437,6 +437,7 @@ type ChatModelAnthropicProviderOptions struct {
 	WebSearchEnabled       *bool                              `json:"web_search_enabled,omitempty" description:"Enable Anthropic web search tool for grounding responses with real-time information"`
 	AllowedDomains         []string                           `json:"allowed_domains,omitempty" description:"Restrict web search to these domains (cannot be used with blocked_domains)"`
 	BlockedDomains         []string                           `json:"blocked_domains,omitempty" description:"Block web search on these domains (cannot be used with allowed_domains)"`
+	ComputerUseEnabled     *bool                              `json:"computer_use_enabled,omitempty" description:"Enable Anthropic computer use features for this model" hidden:"true"`
 }
 
 // ChatModelGoogleThinkingConfig configures Google thinking behavior.

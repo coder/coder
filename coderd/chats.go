@@ -4052,11 +4052,34 @@ func isZeroChatModelProviderOptions(options *codersdk.ChatModelProviderOptions) 
 	}
 
 	return options.OpenAI == nil &&
-		options.Anthropic == nil &&
+		isZeroChatModelAnthropicProviderOptions(options.Anthropic) &&
 		options.Google == nil &&
 		options.OpenAICompat == nil &&
 		options.OpenRouter == nil &&
 		options.Vercel == nil
+}
+
+func isZeroChatModelAnthropicProviderOptions(options *codersdk.ChatModelAnthropicProviderOptions) bool {
+	if options == nil {
+		return true
+	}
+
+	return options.SendReasoning == nil &&
+		isZeroChatModelAnthropicThinkingOptions(options.Thinking) &&
+		options.Effort == nil &&
+		options.DisableParallelToolUse == nil &&
+		options.WebSearchEnabled == nil &&
+		len(options.AllowedDomains) == 0 &&
+		len(options.BlockedDomains) == 0 &&
+		options.ComputerUseEnabled == nil
+}
+
+func isZeroChatModelAnthropicThinkingOptions(options *codersdk.ChatModelAnthropicThinkingOptions) bool {
+	if options == nil {
+		return true
+	}
+
+	return options.BudgetTokens == nil
 }
 
 func normalizeChatProvider(provider string) string {

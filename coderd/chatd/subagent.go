@@ -84,6 +84,38 @@ func (p *Server) isAnthropicConfigured(ctx context.Context) bool {
 	return false
 }
 
+func (p *Server) computerUseAvailable(
+	ctx context.Context,
+	chat database.Chat,
+) bool {
+	if !p.isAnthropicConfigured(ctx) {
+		return false
+	}
+	if chat.LastModelConfigID == uuid.Nil {
+		return false
+	}
+
+	modelConfig, err := p.db.GetChatModelConfigByID(ctx, chat.LastModelConfigID)
+	if err != nil {
+		return false
+	}
+	if len(modelConfig.Options) == 0 {
+		return false
+	}
+
+	var callConfig codersdk.ChatModelCallConfig
+	if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
+		return false
+	}
+	if callConfig.ProviderOptions == nil ||
+		callConfig.ProviderOptions.Anthropic == nil ||
+		callConfig.ProviderOptions.Anthropic.ComputerUseEnabled == nil {
+		return false
+	}
+
+	return *callConfig.ProviderOptions.Anthropic.ComputerUseEnabled
+}
+
 func (p *Server) subagentTools(ctx context.Context, currentChat func() database.Chat) []fantasy.AgentTool {
 	tools := []fantasy.AgentTool{
 		fantasy.NewAgentTool(
@@ -253,9 +285,9 @@ func (p *Server) subagentTools(ctx context.Context, currentChat func() database.
 	}
 
 	// Only include the computer use tool when an Anthropic
-	// provider is configured, since it requires an Anthropic
-	// model.
-	if p.isAnthropicConfigured(ctx) {
+	// provider is configured and the current chat model config
+	// explicitly enables computer use.
+	if currentChat != nil && p.computerUseAvailable(ctx, currentChat()) {
 		tools = append(tools, fantasy.NewAgentTool(
 			"spawn_computer_use_agent",
 			"Spawn a dedicated computer use agent that can see the desktop "+

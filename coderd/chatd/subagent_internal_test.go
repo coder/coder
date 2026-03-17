@@ -94,13 +94,14 @@ func newInternalTestServer(
 	return server
 }
 
-// seedInternalChatDeps inserts an OpenAI provider and model config
-// into the database and returns the created user and model. This
+// seedInternalChatDepsWithModelConfig inserts an OpenAI provider and model
+// config into the database and returns the created user and model. This
 // deliberately does NOT create an Anthropic provider.
-func seedInternalChatDeps(
+func seedInternalChatDepsWithModelConfig(
 	ctx context.Context,
 	t *testing.T,
 	db database.Store,
+	modelConfig *codersdk.ChatModelCallConfig,
 ) (database.User, database.ChatModelConfig) {
 	t.Helper()
 
@@ -116,6 +117,13 @@ func seedInternalChatDeps(
 	})
 	require.NoError(t, err)
 
+	options := json.RawMessage(`{}`)
+	if modelConfig != nil {
+		encoded, err := json.Marshal(modelConfig)
+		require.NoError(t, err)
+		options = encoded
+	}
+
 	model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
 		Provider:             "openai",
 		Model:                "gpt-4o-mini",
@@ -126,11 +134,25 @@ func seedInternalChatDeps(
 		IsDefault:            true,
 		ContextLimit:         128000,
 		CompressionThreshold: 70,
-		Options:              json.RawMessage(`{}`),
+		Options:              options,
 	})
 	require.NoError(t, err)
 
 	return user, model
+}
+
+func anthropicComputerUseModelConfig(enabled *bool) *codersdk.ChatModelCallConfig {
+	return &codersdk.ChatModelCallConfig{
+		ProviderOptions: &codersdk.ChatModelProviderOptions{
+			Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+				ComputerUseEnabled: enabled,
+			},
+		},
+	}
+}
+
+func boolPtr(value bool) *bool {
+	return &value
 }
 
 // findToolByName returns the tool with the given name from the
@@ -152,7 +174,12 @@ func TestSpawnComputerUseAgent_NoAnthropicProvider(t *testing.T) {
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedInternalChatDeps(ctx, t, db)
+	user, model := seedInternalChatDepsWithModelConfig(
+		ctx,
+		t,
+		db,
+		anthropicComputerUseModelConfig(boolPtr(true)),
+	)
 
 	// Create a root parent chat.
 	parent, err := server.CreateChat(ctx, CreateOptions{
@@ -172,6 +199,102 @@ func TestSpawnComputerUseAgent_NoAnthropicProvider(t *testing.T) {
 	assert.Nil(t, tool, "spawn_computer_use_agent tool must be omitted when Anthropic is not configured")
 }
 
+func TestSpawnComputerUseAgent_OmittedWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
+		Anthropic: "test-anthropic-key",
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedInternalChatDepsWithModelConfig(
+		ctx,
+		t,
+		db,
+		anthropicComputerUseModelConfig(boolPtr(false)),
+	)
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "parent-disabled",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tool := findToolByName(tools, "spawn_computer_use_agent")
+	assert.Nil(t, tool, "spawn_computer_use_agent tool must be omitted when computer use is disabled")
+}
+
+func TestSpawnComputerUseAgent_OmittedWhenUnset(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
+		Anthropic: "test-anthropic-key",
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedInternalChatDepsWithModelConfig(
+		ctx,
+		t,
+		db,
+		anthropicComputerUseModelConfig(nil),
+	)
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "parent-unset",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tool := findToolByName(tools, "spawn_computer_use_agent")
+	assert.Nil(t, tool, "spawn_computer_use_agent tool must be omitted when computer use is unset")
+}
+
+func TestSpawnComputerUseAgent_AvailableWhenEnabled(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
+		Anthropic: "test-anthropic-key",
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedInternalChatDepsWithModelConfig(
+		ctx,
+		t,
+		db,
+		anthropicComputerUseModelConfig(boolPtr(true)),
+	)
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "parent-enabled",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tool := findToolByName(tools, "spawn_computer_use_agent")
+	require.NotNil(t, tool, "spawn_computer_use_agent tool must be present when computer use is enabled")
+}
+
 func TestSpawnComputerUseAgent_NotAvailableForChildChats(t *testing.T) {
 	t.Parallel()
 
@@ -182,7 +305,12 @@ func TestSpawnComputerUseAgent_NotAvailableForChildChats(t *testing.T) {
 	})
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedInternalChatDeps(ctx, t, db)
+	user, model := seedInternalChatDepsWithModelConfig(
+		ctx,
+		t,
+		db,
+		anthropicComputerUseModelConfig(boolPtr(true)),
+	)
 
 	// Create a root parent chat.
 	parent, err := server.CreateChat(ctx, CreateOptions{
@@ -242,7 +370,12 @@ func TestSpawnComputerUseAgent_UsesComputerUseModelNotParent(t *testing.T) {
 	})
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, model := seedInternalChatDeps(ctx, t, db)
+	user, model := seedInternalChatDepsWithModelConfig(
+		ctx,
+		t,
+		db,
+		anthropicComputerUseModelConfig(boolPtr(true)),
+	)
 
 	// The parent uses an OpenAI model.
 	require.Equal(t, "openai", model.Provider,
