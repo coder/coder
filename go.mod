@@ -497,6 +497,7 @@ require (
 	github.com/mark3labs/mcp-go v0.38.0
 	github.com/openai/openai-go/v3 v3.15.0
 	github.com/shopspring/decimal v1.4.0
+	golang.org/x/image v0.36.0
 	gonum.org/v1/gonum v0.17.0
 )
 

@@ -8,6 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"math"
 	"mime"
@@ -19,9 +22,14 @@ import (
 	"sync"
 	"time"
 
+	// Register decoders so image.Decode recognizes these formats.
+	_ "image/gif"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	xdraw "golang.org/x/image/draw"
+	_ "golang.org/x/image/webp"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -2479,6 +2487,13 @@ const (
 	maxChatFileSize = 10 << 20
 	// maxChatFileName is the maximum length of an uploaded file name.
 	maxChatFileName = 255
+	// maxChatImageDimension is the maximum width or height (in
+	// pixels) allowed for chat image attachments. Anthropic caps
+	// images at 2000 px for many-image requests (>20 images in a
+	// conversation). OpenAI has the same 2000 px limit. We resize
+	// at upload time so the stored image never triggers a provider
+	// rejection.
+	maxChatImageDimension = 2000
 )
 
 // allowedChatFileMIMETypes lists the content types accepted for chat
@@ -2506,6 +2521,68 @@ func detectChatFileType(data []byte) string {
 		return "image/webp"
 	}
 	return http.DetectContentType(data)
+}
+
+// resizeChatImage downsizes a raster image when either dimension
+// exceeds maxChatImageDimension. It returns the (possibly new) data
+// and MIME type. When the image cannot be decoded or the resize
+// fails, the original data is returned unchanged so uploads are
+// never blocked by the resize step.
+//
+// JPEG inputs are re-encoded as JPEG (quality 90). All other
+// formats (PNG, GIF, WebP) are re-encoded as PNG.
+func resizeChatImage(data []byte, mimeType string) ([]byte, string) {
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return data, mimeType
+	}
+
+	bounds := img.Bounds()
+	origW, origH := bounds.Dx(), bounds.Dy()
+
+	newW, newH, needsResize := chatImageResizedDimensions(
+		origW, origH, maxChatImageDimension,
+	)
+	if !needsResize {
+		return data, mimeType
+	}
+
+	dst := image.NewRGBA(image.Rect(0, 0, newW, newH))
+	xdraw.CatmullRom.Scale(dst, dst.Bounds(), img, bounds, xdraw.Over, nil)
+
+	var buf bytes.Buffer
+	outMime := "image/png"
+
+	if mimeType == "image/jpeg" {
+		outMime = "image/jpeg"
+		if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 90}); err != nil {
+			return data, mimeType
+		}
+	} else {
+		if err := png.Encode(&buf, dst); err != nil {
+			return data, mimeType
+		}
+	}
+
+	return buf.Bytes(), outMime
+}
+
+// chatImageResizedDimensions computes new dimensions that fit within
+// maxDim while preserving the aspect ratio. Returns (w, h, true)
+// when a resize is needed, or (origW, origH, false) otherwise.
+func chatImageResizedDimensions(origW, origH, maxDim int) (int, int, bool) {
+	if origW <= maxDim && origH <= maxDim {
+		return origW, origH, false
+	}
+
+	scaleW := float64(maxDim) / float64(origW)
+	scaleH := float64(maxDim) / float64(origH)
+	scale := math.Min(scaleW, scaleH)
+
+	newW := max(1, int(math.Round(float64(origW)*scale)))
+	newH := max(1, int(math.Round(float64(origH)*scale)))
+
+	return newW, newH, true
 }
 
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
@@ -2718,6 +2795,11 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// Downsize images that exceed provider dimension limits
+	// (e.g. Anthropic's 2000 px cap for many-image requests).
+	// This runs before storage so every client benefits.
+	data, detected = resizeChatImage(data, detected)
 
 	// Extract filename from Content-Disposition header if provided.
 	var filename string
