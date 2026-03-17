@@ -4167,6 +4167,38 @@ type Chat struct {
 	Archived          bool           `db:"archived" json:"archived"`
 	LastError         sql.NullString `db:"last_error" json:"last_error"`
 	Mode              NullChatMode   `db:"mode" json:"mode"`
+	AutomationID      uuid.NullUUID  `db:"automation_id" json:"automation_id"`
+}
+
+type ChatAutomation struct {
+	ID                uuid.UUID      `db:"id" json:"id"`
+	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
+	Name              string         `db:"name" json:"name"`
+	Description       string         `db:"description" json:"description"`
+	Icon              string         `db:"icon" json:"icon"`
+	TriggerType       string         `db:"trigger_type" json:"trigger_type"`
+	WebhookSecret     sql.NullString `db:"webhook_secret" json:"webhook_secret"`
+	CronSchedule      sql.NullString `db:"cron_schedule" json:"cron_schedule"`
+	ModelConfigID     uuid.UUID      `db:"model_config_id" json:"model_config_id"`
+	SystemPrompt      string         `db:"system_prompt" json:"system_prompt"`
+	PromptTemplate    string         `db:"prompt_template" json:"prompt_template"`
+	Enabled           bool           `db:"enabled" json:"enabled"`
+	MaxConcurrentRuns int32          `db:"max_concurrent_runs" json:"max_concurrent_runs"`
+	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+}
+
+type ChatAutomationRun struct {
+	ID             uuid.UUID       `db:"id" json:"id"`
+	AutomationID   uuid.UUID       `db:"automation_id" json:"automation_id"`
+	ChatID         uuid.NullUUID   `db:"chat_id" json:"chat_id"`
+	TriggerPayload json.RawMessage `db:"trigger_payload" json:"trigger_payload"`
+	RenderedPrompt string          `db:"rendered_prompt" json:"rendered_prompt"`
+	Status         string          `db:"status" json:"status"`
+	Error          sql.NullString  `db:"error" json:"error"`
+	StartedAt      sql.NullTime    `db:"started_at" json:"started_at"`
+	CompletedAt    sql.NullTime    `db:"completed_at" json:"completed_at"`
+	CreatedAt      time.Time       `db:"created_at" json:"created_at"`
 }
 
 type ChatDiffStatus struct {

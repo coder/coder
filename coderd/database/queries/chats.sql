@@ -142,6 +142,14 @@ WHERE
         WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
         ELSE chats.archived = sqlc.narg('archived') :: boolean
     END
+    -- By default, exclude automation-spawned chats from the normal list.
+    -- When automation_id is explicitly provided, filter to that automation.
+    AND CASE
+        WHEN sqlc.narg('automation_id') :: uuid IS NOT NULL THEN
+            chats.automation_id = sqlc.narg('automation_id') :: uuid
+        ELSE
+            chats.automation_id IS NULL
+    END
     AND CASE
         -- This allows using the last element on a page as effectively a cursor.
         -- This is an important option for scripts that need to paginate without
@@ -180,7 +188,8 @@ INSERT INTO chats (
     root_chat_id,
     last_model_config_id,
     title,
-    mode
+    mode,
+    automation_id
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
@@ -188,7 +197,8 @@ INSERT INTO chats (
     sqlc.narg('root_chat_id')::uuid,
     @last_model_config_id::uuid,
     @title::text,
-    sqlc.narg('mode')::chat_mode
+    sqlc.narg('mode')::chat_mode,
+    sqlc.narg('automation_id')::uuid
 )
 RETURNING
     *;
