@@ -867,6 +867,19 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	require.True(t, queuedResult.Queued)
 	require.NotNil(t, queuedResult.QueuedMessage)
 
+	// Send "later queued" immediately after "queued" while the first
+	// message is still in chat_queued_messages. The existing backlog
+	// (len(existingQueued) > 0) guarantees this is queued regardless
+	// of chat status, avoiding a race where the auto-promoted "queued"
+	// message finishes processing before we can send this.
+	laterQueuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:  chat.ID,
+		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("later queued")},
+	})
+	require.NoError(t, err)
+	require.True(t, laterQueuedResult.Queued)
+	require.NotNil(t, laterQueuedResult.QueuedMessage)
+
 	require.Eventually(t, func() bool {
 		select {
 		case <-interrupted:
@@ -875,14 +888,6 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 			return false
 		}
 	}, testutil.WaitMedium, testutil.IntervalFast)
-
-	laterQueuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:  chat.ID,
-		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("later queued")},
-	})
-	require.NoError(t, err)
-	require.True(t, laterQueuedResult.Queued)
-	require.NotNil(t, laterQueuedResult.QueuedMessage)
 
 	spendChat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OwnerID:           user.ID,
