@@ -30,6 +30,10 @@ export MAKE_TIMED
 export MAKE_LOGDIR
 endif
 
+# Detect a grep that supports -P (Perl-compatible regex). BSD grep on macOS
+# does not support -P; GNU grep (available as ggrep via Homebrew) does.
+GREP := $(shell if printf 'test' | grep -qP '' 2>/dev/null; then echo grep; elif command -v ggrep >/dev/null 2>&1; then echo ggrep; else echo "ERROR: no grep with -P support; install GNU grep (brew install grep)"; fi)
+
 # This doesn't work on directories.
 # See https://stackoverflow.com/questions/25752543/make-delete-on-error-for-directory-targets
 .DELETE_ON_ERROR:
@@ -525,7 +529,7 @@ fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/biome fmt/markdown
 fmt/go:
 ifdef FILE
 	# Format single file
-	if [[ -f "$(FILE)" ]] && [[ "$(FILE)" == *.go ]] && ! grep -q "DO NOT EDIT" "$(FILE)"; then \
+	if [[ -f "$(FILE)" ]] && [[ "$(FILE)" == *.go ]] && ! $(GREP) -q "DO NOT EDIT" "$(FILE)"; then \
 		echo "$(GREEN)==>$(RESET) $(BOLD)fmt/go$(RESET) $(FILE)"; \
 		./scripts/format_go_file.sh "$(FILE)"; \
 	fi
@@ -535,7 +539,7 @@ else
 	# VS Code users should check out
 	# https://github.com/mvdan/gofumpt#visual-studio-code
 	find . $(FIND_EXCLUSIONS) -type f -name '*.go' -print0 | \
-		xargs -0 grep -E --null -L '^// Code generated .* DO NOT EDIT\.$$' | \
+		xargs -0 $(GREP) -E --null -L '^// Code generated .* DO NOT EDIT\.$$' | \
 		xargs -0 ./scripts/format_go_file.sh
 endif
 .PHONY: fmt/go
@@ -641,7 +645,7 @@ lint/ts: site/node_modules/.installed
 lint/go:
 	./scripts/check_enterprise_imports.sh
 	./scripts/check_codersdk_imports.sh
-	linter_ver=$$(grep -oE 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
+	linter_ver=$$($(GREP) -oE 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
 	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context" ./...
 .PHONY: lint/go
@@ -695,20 +699,49 @@ lint/migrations:
 	./scripts/check_pg_schema.sh "Fixtures" $(FIXTURE_FILES)
 .PHONY: lint/migrations
 
-TYPOS_VERSION := $(shell grep -oP 'crate-ci/typos@\S+\s+\#\s+v\K[0-9.]+' .github/workflows/ci.yaml)
+TYPOS_VERSION := $(shell $(GREP) -oP 'crate-ci/typos@\S+\s+\#\s+v\K[0-9.]+' .github/workflows/ci.yaml)
 
 # Map uname values to typos release asset names.
-TYPOS_ARCH := $(shell uname -m)
+# macOS Apple Silicon reports arm64; typos release assets use aarch64.
+TYPOS_ARCH := $(shell uname -m | sed 's/arm64/aarch64/')
 ifeq ($(shell uname -s),Darwin)
 TYPOS_OS := apple-darwin
 else
 TYPOS_OS := unknown-linux-musl
 endif
 
+TYPOS_URL := https://github.com/crate-ci/typos/releases/download/v$(TYPOS_VERSION)/typos-v$(TYPOS_VERSION)-$(TYPOS_ARCH)-$(TYPOS_OS).tar.gz
+
+# check/typos-url validates that the computed download URL is reachable before
+# spending time on linting or downloading. Run manually to diagnose failures.
+check/typos-url:
+	if [ -z "$(TYPOS_VERSION)" ]; then
+		echo "ERROR: TYPOS_VERSION is empty (GREP=$(GREP)); ensure grep supports -P (brew install grep)"
+		exit 1
+	fi
+	echo "typos URL: $(TYPOS_URL)"
+	if ! curl -sSfIL "$(TYPOS_URL)" >/dev/null 2>&1; then
+		echo "ERROR: typos URL is not reachable:"
+		echo "  TYPOS_VERSION=$(TYPOS_VERSION)"
+		echo "  TYPOS_ARCH=$(TYPOS_ARCH)"
+		echo "  TYPOS_OS=$(TYPOS_OS)"
+		echo "  URL=$(TYPOS_URL)"
+		exit 1
+	fi
+	echo "typos URL OK"
+.PHONY: check/typos-url
+
 build/typos-$(TYPOS_VERSION):
+	if [ -z "$(TYPOS_VERSION)" ]; then
+		echo "ERROR: TYPOS_VERSION is empty (GREP=$(GREP)); ensure grep supports -P (brew install grep)"
+		exit 1
+	fi
+	if ! curl -sSfIL "$(TYPOS_URL)" >/dev/null 2>&1; then
+		echo "ERROR: typos URL is not reachable — run 'make check/typos-url' for diagnostics"
+		exit 1
+	fi
 	mkdir -p build/
-	curl -sSfL "https://github.com/crate-ci/typos/releases/download/v$(TYPOS_VERSION)/typos-v$(TYPOS_VERSION)-$(TYPOS_ARCH)-$(TYPOS_OS).tar.gz" \
-		| tar -xzf - -C build/ ./typos
+	curl -sSfL "$(TYPOS_URL)" | tar -xzf - -C build/ ./typos
 	mv build/typos "$@"
 
 lint/typos: build/typos-$(TYPOS_VERSION)
@@ -1356,7 +1389,7 @@ test-migrations: test-postgres-docker
 # NOTE: we set --memory to the same size as a GitHub runner.
 test-postgres-docker:
 	# If our container is already running, nothing to do.
-	if docker ps --filter "name=test-postgres-docker-${POSTGRES_VERSION}" --format '{{.Names}}' | grep -q .; then \
+	if docker ps --filter "name=test-postgres-docker-${POSTGRES_VERSION}" --format '{{.Names}}' | $(GREP) -q .; then \
 		echo "test-postgres-docker-${POSTGRES_VERSION} is already running."; \
 		exit 0; \
 	fi

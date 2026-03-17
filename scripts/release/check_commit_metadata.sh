@@ -78,7 +78,7 @@ main() {
 		[enterprise]="Enterprise"
 		[examples]="Examples"
 		[helm]="Helm"
-		[install.sh]="Installer"
+		["install.sh"]="Installer"
 		[provisionersdk]="SDK"
 		[provisionerd]="Provisioner"
 		[provisioner]="Provisioner"
@@ -113,7 +113,7 @@ main() {
 
 			title2=
 			if ((i + 1 < ${#cherry_picks[@]})); then
-				mapfile -d ' ' -t parts2 <<<"${cherry_picks[i + 1]}"
+				mapfile -d ' ' -t parts2 <<<"${cherry_picks[i+1]}"
 				commit2=${parts2[1]}
 				title2=${parts2[*]:2}
 			fi

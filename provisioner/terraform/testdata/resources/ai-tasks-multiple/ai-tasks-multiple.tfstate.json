@@ -12,9 +12,9 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "arch": "amd64",
+            "arch": "arm64",
             "id": "764f8b0b-d931-4356-b1a8-446fa95fbeb0",
-            "os": "linux"
+            "os": "darwin"
           },
           "sensitive_values": {}
         },
