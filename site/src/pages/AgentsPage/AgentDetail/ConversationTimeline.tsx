@@ -731,8 +731,7 @@ const StickyUserMessage: FC<{
 				if (nextSentinel) {
 					const nextY =
 						nextSentinel.getBoundingClientRect().top - scrollerTop;
-					container.style.top = `${Math.min(0, nextY - fullHeight)}px`;
-				} else {
+						container.style.top = `${Math.min(0, nextY - visible)}px`;				} else {
 					container.style.top = "0px";
 				}
 			};		updateFnRef.current = update;
