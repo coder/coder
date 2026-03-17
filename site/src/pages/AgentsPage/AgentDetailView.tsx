@@ -238,6 +238,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 						onArchiveAndDeleteWorkspace={handleArchiveAndDeleteWorkspaceAction}
 						hasWorkspace={hasWorkspace}
 						isArchived={isArchived}
+						diffStatusData={diffStatusData}
 						isSidebarCollapsed={isSidebarCollapsed}
 						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 					/>
