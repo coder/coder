@@ -488,7 +488,6 @@ resource "coder_agent" "dev" {
     data.coder_parameter.use_ai_bridge.value ? {
       ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
-      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/aibridge/openai/v1",
       OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
     } : {}
   )
