@@ -679,8 +679,7 @@ const StickyUserMessage: FC<{
 		const scroller = sentinel.closest(".overflow-y-auto") as HTMLElement | null;
 		if (!scroller) return;
 
-		const MIN_HEIGHT = 72;
-		let scrollerTop = scroller.getBoundingClientRect().top;
+			const MIN_HEIGHT = 0;		let scrollerTop = scroller.getBoundingClientRect().top;
 		let scrollerHeight = scroller.clientHeight;
 
 		const update = () => {
