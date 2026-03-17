@@ -655,17 +655,12 @@ func (p *Server) EditMessage(
 }
 
 // ArchiveChat archives a chat and all descendants, then broadcasts a deleted event.
-func (p *Server) ArchiveChat(ctx context.Context, chatID uuid.UUID) error {
-	if chatID == uuid.Nil {
+func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
+	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
 
-	chat, err := p.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return xerrors.Errorf("get chat: %w", err)
-	}
-
-	if err := p.db.ArchiveChatByID(ctx, chatID); err != nil {
+	if err := p.db.ArchiveChatByID(ctx, chat.ID); err != nil {
 		return xerrors.Errorf("archive chat: %w", err)
 	}
 
@@ -675,17 +670,12 @@ func (p *Server) ArchiveChat(ctx context.Context, chatID uuid.UUID) error {
 
 // UnarchiveChat unarchives a chat and publishes a created event so sidebar
 // clients are notified that the chat has reappeared.
-func (p *Server) UnarchiveChat(ctx context.Context, chatID uuid.UUID) error {
-	if chatID == uuid.Nil {
+func (p *Server) UnarchiveChat(ctx context.Context, chat database.Chat) error {
+	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
 
-	chat, err := p.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return xerrors.Errorf("get chat: %w", err)
-	}
-
-	if err := p.db.UnarchiveChatByID(ctx, chatID); err != nil {
+	if err := p.db.UnarchiveChatByID(ctx, chat.ID); err != nil {
 		return xerrors.Errorf("unarchive chat: %w", err)
 	}
 
