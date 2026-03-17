@@ -338,8 +338,7 @@
 					"type": "string",
 					"description": "Key for enabling cross-request prompt caching",
 					"required": false,
-					"input_type": "input",
-					"hidden": true
+					"input_type": "input"
 				},
 				{
 					"json_name": "safety_identifier",
