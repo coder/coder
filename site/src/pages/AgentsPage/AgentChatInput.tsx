@@ -21,6 +21,7 @@ import {
 	CheckIcon,
 	ImageIcon,
 	MicIcon,
+	PencilIcon,
 	Square,
 	XIcon,
 } from "lucide-react";
@@ -520,6 +521,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			) {
 				return;
 			}
+
 			onSend(text);
 			if (!isMobileViewport()) {
 				internalRef.current?.focus();
@@ -572,10 +574,20 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			}
 		};
 
-		const sendButtonLabel = editingQueuedMessageID !== null ? "Save" : "Send";
+		const sendButtonLabel =
+			editingQueuedMessageID !== null
+				? "Save"
+				: isEditingHistoryMessage
+					? "Save Edit"
+					: "Send";
 
 		const content = (
-			<div className="mx-auto w-full max-w-3xl pb-0 sm:pb-4">
+			<div
+				className={cn(
+					"mx-auto w-full max-w-3xl pb-0 sm:pb-4",
+					isEditingHistoryMessage && "pt-1",
+				)}
+			>
 				{queuedMessages.length > 0 && (
 					<QueuedMessagesList
 						messages={queuedMessages}
@@ -600,6 +612,8 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 					className={cn(
 						"rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 						isDragging && "ring-2 ring-content-link/40",
+						isEditingHistoryMessage &&
+							"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 					)}
 					onKeyDown={handleKeyDown}
 					onDragOver={onAttach ? handleDragOver : undefined}
@@ -623,10 +637,12 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 						</div>
 					)}
 					{isEditingHistoryMessage && editingQueuedMessageID === null && (
-						<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
-							<span className="flex items-center gap-1.5 text-sm text-content-secondary">
-								{isLoading && <Spinner className="h-3.5 w-3.5" loading />}
-								{isLoading ? "Saving edit..." : "Editing message"}
+						<div className="flex items-center justify-between border-b border-border-warning/50 px-3 py-1.5">
+							<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
+								<PencilIcon className="h-3.5 w-3.5" />
+								{isLoading
+									? "Saving edit..."
+									: "Editing message \u2014 all subsequent messages will be deleted"}
 							</span>
 							<Button
 								type="button"
@@ -635,7 +651,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								aria-label="Cancel editing"
 								onClick={onCancelHistoryEdit}
 								disabled={isLoading}
-								className="size-6 rounded text-content-secondary hover:text-content-primary"
+								className="size-6 rounded text-content-warning hover:text-content-primary"
 							>
 								<XIcon className="h-3.5 w-3.5" />
 							</Button>
@@ -662,8 +678,10 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 						disabled={isDisabled || isLoading}
 						autoFocus
 					/>
+
 					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 						<div className="flex min-w-0 items-center gap-2">
+							{" "}
 							<ModelSelector
 								value={selectedModel}
 								onValueChange={onModelChange}

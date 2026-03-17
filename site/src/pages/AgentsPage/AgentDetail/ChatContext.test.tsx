@@ -2268,6 +2268,76 @@ describe("useChatStore", () => {
 			expect(clearChatErrorReason).toHaveBeenCalledWith(chatID);
 		});
 	});
+
+	it("removes stale messages when refetched set is smaller (edit truncation)", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-edit-truncation";
+		const msg1 = makeMessage(chatID, 1, "user", "first");
+		const msg2 = makeMessage(chatID, 2, "assistant", "second");
+		const msg3 = makeMessage(chatID, 3, "user", "third");
+
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper: FC<PropsWithChildren> = ({ children }) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const noQueued: TypesGen.ChatQueuedMessage[] = [];
+		const initialMessages = [msg1, msg2, msg3];
+
+		const initialOptions = {
+			chatID,
+			chatMessages: initialMessages,
+			chatRecord: makeChat(chatID),
+			chatMessagesData: {
+				messages: initialMessages,
+				queued_messages: noQueued,
+				has_more: false,
+			},
+			chatQueuedMessages: noQueued,
+			setChatErrorReason,
+			clearChatErrorReason,
+		};
+
+		const { result, rerender } = renderHook(
+			(options: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(options);
+				return {
+					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ initialProps: initialOptions, wrapper },
+		);
+
+		// All three messages should be in the store.
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+		});
+
+		// Simulate a post-edit refetch that only returns the first
+		// message (server truncated messages 2 and 3).
+		rerender({
+			...initialOptions,
+			chatMessages: [msg1],
+			chatMessagesData: {
+				messages: [msg1],
+				queued_messages: [],
+				has_more: false,
+			},
+		});
+
+		// Messages 2 and 3 should be removed — replaceMessages should
+		// have been used instead of upsert because the store contained
+		// IDs not present in the fetched set.
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1]);
+		});
+	});
 });
 
 describe("updateSidebarChat via stream events", () => {
