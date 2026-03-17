@@ -77,18 +77,6 @@ Agent templates differ from developer templates in several ways:
 - **Reduced permissions.** Agent workspaces can use scoped credentials with
   fewer permissions than a developer's interactive session.
 
-> [!NOTE]
-> Developers can still connect to agent-created workspaces via their IDE to
-> review, refine, and complete work. Dedicated agent templates restrict what
-> the *agent* can do during unattended execution, not what a developer can do
-> when they connect afterward.
-
-You can duplicate an existing template and adjust the network policies,
-credentials, and installed tooling to create an agent-specific variant. Use
-a clear description so the agent selects it for the right tasks — for example,
-"Agent-only: Python backend services for the payments repo. Restricted network
-access."
-
 ## Configure network boundaries
 
 The workspace is the network boundary for the agent. If you want to control
