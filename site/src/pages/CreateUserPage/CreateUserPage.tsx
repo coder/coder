@@ -9,10 +9,6 @@ import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { CreateUserForm } from "./CreateUserForm";
 
-const _Language = {
-	unknownError: "Oops, an unknown error occurred.",
-};
-
 const CreateUserPage: FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
@@ -37,6 +33,7 @@ const CreateUserPage: FC = () => {
 							login_type: user.login_type,
 							password: user.password,
 							user_status: null,
+							service_account: user.service_account,
 						},
 						{
 							onSuccess: () => {

@@ -195,13 +195,14 @@ func MinimalUserFromVisibleUser(user database.VisibleUser) codersdk.MinimalUser 
 
 func ReducedUser(user database.User) codersdk.ReducedUser {
 	return codersdk.ReducedUser{
-		MinimalUser: MinimalUser(user),
-		Email:       user.Email,
-		CreatedAt:   user.CreatedAt,
-		UpdatedAt:   user.UpdatedAt,
-		LastSeenAt:  user.LastSeenAt,
-		Status:      codersdk.UserStatus(user.Status),
-		LoginType:   codersdk.LoginType(user.LoginType),
+		MinimalUser:      MinimalUser(user),
+		Email:            user.Email,
+		CreatedAt:        user.CreatedAt,
+		UpdatedAt:        user.UpdatedAt,
+		LastSeenAt:       user.LastSeenAt,
+		Status:           codersdk.UserStatus(user.Status),
+		LoginType:        codersdk.LoginType(user.LoginType),
+		IsServiceAccount: user.IsServiceAccount,
 	}
 }
 
