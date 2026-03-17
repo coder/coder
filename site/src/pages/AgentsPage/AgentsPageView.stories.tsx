@@ -387,12 +387,12 @@ export const WithErrorReasons: Story = {
 
 const openAnalyticsView = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
-	await userEvent.click(canvas.getByRole("button", { name: "Analytics" }));
+	await userEvent.click(canvas.getByRole("link", { name: "Analytics" }));
 };
 
 const openSettingsView = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
-	await userEvent.click(canvas.getByRole("button", { name: "Settings" }));
+	await userEvent.click(canvas.getByRole("link", { name: "Settings" }));
 };
 
 export const OpensAnalyticsForAdmins: Story = {

@@ -719,6 +719,34 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							)}
 						</NavLink>
 						<div className="flex items-center gap-0.5 -mr-1.5">
+							<Button
+								asChild
+								variant="subtle"
+								size="icon"
+								aria-label="Settings"
+								className={cn(
+									"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
+									sidebarView.panel === "settings" && "text-content-primary",
+								)}
+							>
+								<Link to="/agents/settings" state={{ from: location.pathname }}>
+									<SettingsIcon />
+								</Link>
+							</Button>
+							<Button
+								asChild
+								variant="subtle"
+								size="icon"
+								aria-label="Analytics"
+								className={cn(
+									"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
+									sidebarView.panel === "analytics" && "text-content-primary",
+								)}
+							>
+								<Link to="/agents/analytics">
+									<BarChart3Icon />
+								</Link>
+							</Button>{" "}
 							<DropdownMenu>
 								<DropdownMenuTrigger asChild>
 									<Button
@@ -772,22 +800,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						to="/agents"
 						onClick={onBeforeNewAgent}
 						disabled={isCreating}
-					/>{" "}
-					<div className="mt-0.5 flex flex-col gap-0.5">
-						<SettingsNavItem
-							icon={SettingsIcon}
-							label="Settings"
-							active={sidebarView.panel === "settings"}
-							to="/agents/settings"
-							state={{ from: location.pathname }}
-						/>{" "}
-						<SettingsNavItem
-							icon={BarChart3Icon}
-							label="Analytics"
-							active={sidebarView.panel === "analytics"}
-							to="/agents/analytics"
-						/>
-					</div>
+					/>
 				</div>
 				<ScrollArea
 					className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
@@ -933,7 +946,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				<div className="hidden border-b border-border-default px-3 py-2.5 md:block">
 					<Link
 						to={(location.state as { from?: string })?.from || "/agents"}
-						className="flex items-center gap-1.5 rounded-md bg-transparent px-0 py-1 text-sm font-medium text-content-primary no-underline cursor-pointer hover:text-content-secondary transition-colors"
+						className="flex items-center gap-1.5 rounded-md bg-transparent px-0 py-1 text-sm font-medium text-content-secondary no-underline cursor-pointer hover:text-content-primary transition-colors"
 						aria-label={`Back to chats from ${subNavTitle}`}
 					>
 						<ChevronLeftIcon className="h-4 w-4 shrink-0" />
