@@ -2129,7 +2129,7 @@ func (q *querier) DeleteWorkspaceACLsByOrganization(ctx context.Context, params 
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.DeleteWorkspaceACLsByOrganization(ctx, organizationID)
+	return q.db.DeleteWorkspaceACLsByOrganization(ctx, params)
 }
 
 func (q *querier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {

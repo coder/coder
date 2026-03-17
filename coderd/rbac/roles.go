@@ -1044,8 +1044,8 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
 	}
 
-	// When workspace sharing is enabled, SAs need to see other org members
-	// and groups to share workspaces with them.
+	// When workspace sharing is enabled, service accounts need to see
+	// other org members and groups to share workspaces with them.
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersNone {
 		orgPermMap[ResourceOrganizationMember.Type] = []policy.Action{policy.ActionRead}
 		orgPermMap[ResourceGroup.Type] = []policy.Action{policy.ActionRead}
@@ -1055,8 +1055,8 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 
 	if org.ShareableWorkspaceOwners == ShareableWorkspaceOwnersNone {
 		// Org-level negation blocks sharing on ANY workspace in the
-		// org. If a service account has any other roles assigned, this negation
-		// will override any positive perms in them, too.
+		// org. If a service account has any other roles assigned,
+		// this negation will override any positive perms in them, too.
 		orgPerms = append(orgPerms, Permission{
 			Negate:       true,
 			ResourceType: ResourceWorkspace.Type,
@@ -1064,9 +1064,9 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
-	// SA-scoped permissions (resources owned by the service account).
-	// Uses allPermsExcept to automatically include permissions for
-	// new resources.
+	// service account-scoped permissions (resources owned by the
+	// service account).  Uses allPermsExcept to automatically include
+	// permissions for new resources.
 	memberPerms := append(
 		allPermsExcept(
 			ResourceWorkspaceDormant,
