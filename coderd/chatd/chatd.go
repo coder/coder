@@ -2053,6 +2053,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		// races with the promote endpoint (which also sets status to
 		// pending). We use a transaction with FOR UPDATE to ensure we
 		// don't overwrite a status change made by another caller.
+		var updatedChat database.Chat
 		err := p.db.InTx(func(tx database.Store) error {
 			// Re-read the chat status under lock — another caller
 			// (e.g. promote) may have already set it to pending.
@@ -2087,7 +2088,8 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				}
 			}
 
-			_, updateErr := tx.UpdateChatStatus(cleanupCtx, database.UpdateChatStatusParams{
+			var updateErr error
+			updatedChat, updateErr = tx.UpdateChatStatus(cleanupCtx, database.UpdateChatStatusParams{
 				ID:          chat.ID,
 				Status:      status,
 				WorkerID:    uuid.NullUUID{},
@@ -2127,13 +2129,12 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		// can reflect it without another DB read. The dedicated
 		// title_change event remains the source of truth.
 		if title, ok := generatedTitle.Load(); ok {
-			chat.Title = title
+			updatedChat.Title = title
 		}
-		chat.Status = status
-		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange, nil)
+		p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
 
 		if !wasInterrupted {
-			p.maybeSendPushNotification(cleanupCtx, chat, status, lastError, runResult, logger)
+			p.maybeSendPushNotification(cleanupCtx, updatedChat, status, lastError, runResult, logger)
 		}
 	}()
 
