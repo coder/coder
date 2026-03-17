@@ -58,11 +58,14 @@ describe("LoginPage", () => {
 			new RegExp(Language.passwordLabel),
 		);
 		expect(emailInput).not.toHaveAttribute("aria-invalid", "true");
-		expect(emailInput).not.toHaveAttribute("aria-describedby", "email-error");
+		expect(emailInput).not.toHaveAttribute(
+			"aria-describedby",
+			"signin-email-error",
+		);
 		expect(passwordInput).not.toHaveAttribute("aria-invalid", "true");
 		expect(passwordInput).not.toHaveAttribute(
 			"aria-describedby",
-			"password-error",
+			"signin-password-error",
 		);
 
 		const signInButton = await screen.findByText(Language.passwordSignIn);
@@ -71,18 +74,21 @@ describe("LoginPage", () => {
 		// Then
 		const emailError = await screen.findByText(Language.emailRequired);
 		expect(emailInput).toHaveAttribute("aria-invalid", "true");
-		expect(emailInput).toHaveAttribute("aria-describedby", "email-error");
+		expect(emailInput).toHaveAttribute(
+			"aria-describedby",
+			"signin-email-error",
+		);
 
-		const emailErrorElement = document.getElementById("email-error");
+		const emailErrorElement = document.getElementById("signin-email-error");
 		expect(emailErrorElement).toBe(emailError);
 		expect(emailErrorElement).toHaveTextContent(Language.emailRequired);
 
 		expect(passwordInput).not.toHaveAttribute("aria-invalid", "true");
 		expect(passwordInput).not.toHaveAttribute(
 			"aria-describedby",
-			"password-error",
+			"signin-password-error",
 		);
-		expect(document.getElementById("password-error")).toBeNull();
+		expect(document.getElementById("signin-password-error")).toBeNull();
 	});
 	it("redirects to the setup page if there is no first user", async () => {
 		// Given
