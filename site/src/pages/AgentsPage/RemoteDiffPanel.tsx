@@ -138,7 +138,7 @@ const PullRequestStateBadge: FC<{
 	return (
 		<span
 			className={cn(
-				"inline-flex shrink-0 items-center gap-1 rounded-sm px-2 text-[13px] font-medium leading-5",
+				"inline-flex shrink-0 items-center gap-1 rounded-sm border border-solid border-border-default px-2 text-[13px] font-medium leading-5",
 				colorClasses,
 			)}
 		>
