@@ -2028,6 +2028,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	status := database.ChatStatusWaiting
 	wasInterrupted := false
 	lastError := ""
+	generatedTitle := &generatedChatTitle{}
 	runResult := runChatResult{}
 	remainingQueuedMessages := []database.ChatQueuedMessage{}
 	shouldPublishQueueUpdate := false
@@ -2121,15 +2122,12 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 
 		p.publishStatus(chat.ID, status, uuid.NullUUID{})
-		// Re-read the chat from the database to pick up any title
-		// changes made during processing (e.g. AI-generated titles
-		// from maybeGenerateChatTitle). The local `chat` variable
-		// is a value copy and won't reflect updates made in runChat.
-		if freshChat, readErr := p.db.GetChatByID(cleanupCtx, chat.ID); readErr == nil {
-			chat = freshChat
-		} else {
-			logger.Warn(cleanupCtx, "failed to re-read chat for status event",
-				slog.F("chat_id", chat.ID), slog.Error(readErr))
+		// Best-effort: use any generated title captured during
+		// processing so push notifications and the status snapshot
+		// can reflect it without another DB read. The dedicated
+		// title_change event remains the source of truth.
+		if title, ok := generatedTitle.Load(); ok {
+			chat.Title = title
 		}
 		chat.Status = status
 		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange, nil)
@@ -2139,7 +2137,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 	}()
 
-	runResult, err := p.runChat(chatCtx, chat, logger)
+	runResult, err := p.runChat(chatCtx, chat, generatedTitle, logger)
 	if err != nil {
 		if errors.Is(err, chatloop.ErrInterrupted) || errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted) {
 			logger.Info(ctx, "chat interrupted")
@@ -2197,6 +2195,36 @@ func isShutdownCancellation(
 	return errors.Is(context.Cause(chatCtx), context.Canceled)
 }
 
+// generatedChatTitle shares an asynchronously generated title between the
+// detached title-generation goroutine and the deferred cleanup path.
+type generatedChatTitle struct {
+	mu    sync.RWMutex
+	title string
+}
+
+func (t *generatedChatTitle) Store(title string) {
+	if t == nil || title == "" {
+		return
+	}
+
+	t.mu.Lock()
+	t.title = title
+	t.mu.Unlock()
+}
+
+func (t *generatedChatTitle) Load() (string, bool) {
+	if t == nil {
+		return "", false
+	}
+
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if t.title == "" {
+		return "", false
+	}
+	return t.title, true
+}
+
 type runChatResult struct {
 	FinalAssistantText string
 	PushSummaryModel   fantasy.LanguageModel
@@ -2206,6 +2234,7 @@ type runChatResult struct {
 func (p *Server) runChat(
 	ctx context.Context,
 	chat database.Chat,
+	generatedTitle *generatedChatTitle,
 	logger slog.Logger,
 ) (runChatResult, error) {
 	result := runChatResult{}
@@ -2253,7 +2282,15 @@ func (p *Server) runChat(
 	p.inflight.Add(1)
 	go func() {
 		defer p.inflight.Done()
-		p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, titleModel, providerKeys, logger)
+		p.maybeGenerateChatTitle(
+			context.WithoutCancel(ctx),
+			chat,
+			messages,
+			titleModel,
+			providerKeys,
+			generatedTitle,
+			logger,
+		)
 	}()
 
 	prompt, err := chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver(), logger)
