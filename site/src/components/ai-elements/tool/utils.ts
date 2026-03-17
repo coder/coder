@@ -189,6 +189,15 @@ export function getFileViewerOptionsMinimal(isDark: boolean) {
 	};
 }
 
+/**
+ * Strips SVN-style "Index:" headers that `Diff.createPatch()`
+ * emits but `@pierre/diffs` does not recognize as file
+ * boundaries. Left in place they leak into hunk bodies and
+ * trigger console errors.
+ */
+export const stripSvnIndexHeaders = (patch: string): string =>
+	patch.replace(/^Index: .*\n={3,}\n/gm, "");
+
 export const DIFFS_FONT_STYLE = {
 	"--diffs-font-family": '"Geist Mono Variable", monospace, monospace',
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
@@ -261,7 +270,7 @@ export const buildWriteFileDiff = (
 ): FileDiffMetadata | null => {
 	if (!content) return null;
 	const patch = Diff.createPatch(path, "", content, "", "");
-	const parsed = parsePatchFiles(patch);
+	const parsed = parsePatchFiles(stripSvnIndexHeaders(patch));
 	if (!parsed.length || !parsed[0].files.length) return null;
 	return parsed[0].files[0];
 };
@@ -338,12 +347,10 @@ export const buildEditDiff = (
 		// All edits were skipped (empty search). Produce a
 		// header-only patch so the parser still returns a file
 		// entry with zero hunks.
-		patches.push(
-			`Index: ${diffPath}\n===================================================================\n--- ${diffPath}\n+++ ${diffPath}\n`,
-		);
+		patches.push(`--- ${diffPath}\n+++ ${diffPath}\n`);
 	}
 
-	const parsed = parsePatchFiles(patches.join(""));
+	const parsed = parsePatchFiles(stripSvnIndexHeaders(patches.join("")));
 	if (!parsed.length || !parsed[0].files.length) return null;
 	return parsed[0].files[0];
 };
