@@ -34,11 +34,12 @@ type GetVSCodeHrefParams = {
 	token: string;
 	agent?: string;
 	folder?: string;
+	chatId?: string;
 };
 
 export const getVSCodeHref = (
 	app: "vscode" | "vscode-insiders" | "cursor",
-	{ owner, workspace, token, agent, folder }: GetVSCodeHrefParams,
+	{ owner, workspace, token, agent, folder, chatId }: GetVSCodeHrefParams,
 ) => {
 	const query = new URLSearchParams({
 		owner,
@@ -52,6 +53,9 @@ export const getVSCodeHref = (
 	}
 	if (folder) {
 		query.set("folder", folder);
+	}
+	if (chatId) {
+		query.set("chatId", chatId);
 	}
 	return `${app}://coder.coder-remote/open?${query}`;
 };
