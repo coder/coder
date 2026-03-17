@@ -47,7 +47,15 @@ interface EditingState {
 	) => void;
 	handleCancelHistoryEdit: () => void;
 	editingQueuedMessageID: number | null;
-	handleStartQueueEdit: (id: number, text: string) => void;
+	handleStartQueueEdit: (
+		id: number,
+		text: string,
+		fileBlocks: readonly {
+			mediaType: string;
+			data?: string;
+			fileId?: string;
+		}[],
+	) => void;
 	handleCancelQueueEdit: () => void;
 	handleSendFromInput: (message: string, fileIds?: string[]) => void;
 	handleContentChange: (content: string) => void;

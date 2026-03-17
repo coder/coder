@@ -166,7 +166,15 @@ interface AgentDetailInputProps {
 	initialValue?: string;
 	onContentChange?: (content: string) => void;
 	editingQueuedMessageID: number | null;
-	onStartQueueEdit: (id: number, text: string) => void;
+	onStartQueueEdit: (
+		id: number,
+		text: string,
+		fileBlocks: readonly {
+			mediaType: string;
+			data?: string;
+			fileId?: string;
+		}[],
+	) => void;
 	onCancelQueueEdit: () => void;
 	isEditingHistoryMessage: boolean;
 	onCancelHistoryEdit: () => void;
