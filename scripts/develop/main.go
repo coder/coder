@@ -37,12 +37,13 @@ import (
 )
 
 const (
-	defaultAPIPort   = "3000"
-	defaultWebPort   = "8080"
-	defaultProxyPort = "3010"
-	defaultPassword  = "SomeSecurePassword!"
-	healthTimeout    = 60 * time.Second
-	shutdownTimeout  = 15 * time.Second
+	defaultAPIPort         = "3000"
+	defaultWebPort         = "8080"
+	defaultProxyPort       = "3010"
+	defaultPassword        = "SomeSecurePassword!"
+	defaultStarterTemplate = "docker"
+	healthTimeout          = 60 * time.Second
+	shutdownTimeout        = 15 * time.Second
 )
 
 func main() {
@@ -110,7 +111,7 @@ func main() {
 			{
 				Flag:        "starter-template",
 				Env:         "CODER_DEV_STARTER_TEMPLATE",
-				Default:     "docker",
+				Default:     defaultStarterTemplate,
 				Description: "Starter template to create (empty to skip).",
 				Value:       serpent.StringOf(&cfg.starterTemplate),
 			},
@@ -700,14 +701,26 @@ func setupWorkspaceProxy(ctx context.Context, cfg *devConfig, client *codersdk.C
 }
 
 // setupStarterTemplate creates a template from a starter example.
-// For the "docker" starter, it checks Docker availability and
-// resolves the Docker host for template variables.
+// For starters tagged with "docker", it checks Docker availability
+// and resolves the Docker host for template variables.
 func setupStarterTemplate(ctx context.Context, logger slog.Logger, cfg *devConfig, client *codersdk.Client) error {
 	templateID := cfg.starterTemplate
 
+	// Fetch starter template metadata from the running coderd.
+	examples, err := client.StarterTemplates(ctx)
+	if err != nil {
+		return xerrors.Errorf("fetch starter templates failed: %w", err)
+	}
+	example, ok := slice.Find(examples, func(e codersdk.TemplateExample) bool {
+		return e.ID == templateID
+	})
+	if !ok {
+		return xerrors.Errorf("starter template %q not found", templateID)
+	}
+
 	// Docker-specific: check availability and resolve host.
 	var userVars []codersdk.VariableValue
-	if templateID == "docker" {
+	if slices.Contains(example.Tags, "docker") {
 		if err := exec.CommandContext(ctx, "docker", "info").Run(); err != nil {
 			logger.Debug(ctx, "docker not available, skipping template setup")
 			return nil
@@ -723,12 +736,12 @@ func setupStarterTemplate(ctx context.Context, logger slog.Logger, cfg *devConfi
 		}
 	}
 
-	if err := createTemplateInOrg(ctx, logger, client, codersdk.DefaultOrganization, templateID, userVars); err != nil {
+	if err := createTemplateInOrg(ctx, logger, client, codersdk.DefaultOrganization, example, userVars); err != nil {
 		return err
 	}
 
 	if cfg.multiOrg {
-		if err := createTemplateInOrg(ctx, logger, client, "second-organization", templateID, userVars); err != nil {
+		if err := createTemplateInOrg(ctx, logger, client, "second-organization", example, userVars); err != nil {
 			logger.Warn(ctx, "failed to create starter template in second org", slog.Error(err))
 		}
 	}
@@ -760,26 +773,14 @@ func waitForVersion(ctx context.Context, client *codersdk.Client, id uuid.UUID) 
 
 // createTemplateInOrg ensures a starter template exists in the
 // given org, creating it from the example if needed.
-func createTemplateInOrg(ctx context.Context, logger slog.Logger, client *codersdk.Client, orgName string, templateID string, userVars []codersdk.VariableValue) error {
+func createTemplateInOrg(ctx context.Context, logger slog.Logger, client *codersdk.Client, orgName string, example codersdk.TemplateExample, userVars []codersdk.VariableValue) error {
 	org, err := client.OrganizationByName(ctx, orgName)
 	if err != nil {
 		return xerrors.Errorf("look up org %q failed: %w", orgName, err)
 	}
-	if _, err := client.TemplateByName(ctx, org.ID, templateID); err == nil {
-		logger.Debug(ctx, "template already exists, skipping creation", slog.F("template", templateID), slog.F("org", orgName))
+	if _, err := client.TemplateByName(ctx, org.ID, example.ID); err == nil {
+		logger.Debug(ctx, "template already exists, skipping creation", slog.F("template", example.ID), slog.F("org", orgName))
 		return nil
-	}
-
-	// Fetch starter template metadata from the running coderd.
-	examples, err := client.StarterTemplates(ctx)
-	if err != nil {
-		return xerrors.Errorf("fetch starter templates failed: %w", err)
-	}
-	example, ok := slice.Find(examples, func(e codersdk.TemplateExample) bool {
-		return e.ID == templateID
-	})
-	if !ok {
-		return xerrors.Errorf("starter template %q not found", templateID)
 	}
 
 	version, err := client.CreateTemplateVersion(ctx, org.ID,
