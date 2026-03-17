@@ -524,10 +524,11 @@ const ScrollAnchoredContainer: FC<{
 	children,
 }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
-	// Snapshot of scrollHeight captured right before a fetch fires.
-	// The layout effect uses it to compute how much content was
-	// inserted and adjust scrollTop so the viewport stays put.
-	const prevScrollHeightRef = useRef<number | null>(null);
+	// Snapshot captured right before a fetch fires. Stores both
+	// scrollHeight and scrollTop so the layout effect can restore
+	// the exact viewport position after new content renders,
+	// even if the user scrolls while the fetch is in-flight.
+	const scrollSnapshotRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
 	const isFetchingRef = useRef(isFetchingMoreMessages);
 	isFetchingRef.current = isFetchingMoreMessages;
 
@@ -540,7 +541,10 @@ const ScrollAnchoredContainer: FC<{
 		const observer = new IntersectionObserver(
 			([entry]) => {
 				if (entry.isIntersecting && !isFetchingRef.current) {
-					prevScrollHeightRef.current = container.scrollHeight;
+					scrollSnapshotRef.current = {
+						scrollHeight: container.scrollHeight,
+						scrollTop: container.scrollTop,
+					};
 					onFetchMoreMessages();
 				}
 			},
@@ -554,20 +558,22 @@ const ScrollAnchoredContainer: FC<{
 		return () => observer.disconnect();
 	}, [scrollContainerRef, onFetchMoreMessages]);
 
-	// After React commits new DOM nodes, compensate for the height
-	// added above the viewport. Only clear the snapshot once a real
-	// delta is observed — intermediate renders (e.g. react-query
-	// state flip before the store upserts messages) see delta=0
-	// because the DOM hasn't changed yet.
+	// After React commits new DOM nodes, restore the viewport to
+	// the same position relative to the content that was visible
+	// when the fetch started.  Uses the snapshotted scrollTop
+	// (not the live value) so user scrolling during the fetch
+	// doesn't cause jumps.  Only clears once a real height
+	// change is observed — intermediate renders where the DOM
+	// hasn't updated yet are harmless no-ops.
 	useLayoutEffect(() => {
 		const container = scrollContainerRef.current;
-		const prevHeight = prevScrollHeightRef.current;
-		if (!container || prevHeight === null) return;
+		const snapshot = scrollSnapshotRef.current;
+		if (!container || !snapshot) return;
 
-		const delta = container.scrollHeight - prevHeight;
+		const delta = container.scrollHeight - snapshot.scrollHeight;
 		if (delta > 0) {
-			container.scrollTop -= delta;
-			prevScrollHeightRef.current = null;
+			container.scrollTop = snapshot.scrollTop - delta;
+			scrollSnapshotRef.current = null;
 		}
 	});
 
