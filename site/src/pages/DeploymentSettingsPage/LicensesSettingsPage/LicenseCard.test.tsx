@@ -14,6 +14,8 @@ describe("LicenseCard", () => {
 				userLimitLimit={10}
 				onRemove={() => null}
 				isRemoving={false}
+				includedWithPremium={0}
+				additionalPurchased={0}
 			/>,
 		);
 
@@ -32,6 +34,8 @@ describe("LicenseCard", () => {
 				userLimitLimit={undefined}
 				onRemove={() => null}
 				isRemoving={false}
+				includedWithPremium={1000}
+				additionalPurchased={1000}
 			/>,
 		);
 
@@ -50,6 +54,8 @@ describe("LicenseCard", () => {
 				userLimitLimit={10}
 				onRemove={() => null}
 				isRemoving={false}
+				includedWithPremium={1000}
+				additionalPurchased={1000}
 			/>,
 		);
 
@@ -69,6 +75,8 @@ describe("LicenseCard", () => {
 				userLimitLimit={10}
 				onRemove={() => null}
 				isRemoving={false}
+				includedWithPremium={1000}
+				additionalPurchased={1000}
 			/>,
 		);
 
@@ -101,6 +109,8 @@ describe("LicenseCard", () => {
 				userLimitLimit={100} // This should not be used
 				onRemove={() => null}
 				isRemoving={false}
+				includedWithPremium={1000}
+				additionalPurchased={1000}
 			/>,
 		);
 
@@ -120,6 +130,8 @@ describe("LicenseCard", () => {
 				userLimitLimit={10}
 				onRemove={onRemove}
 				isRemoving={false}
+				includedWithPremium={1000}
+				additionalPurchased={1000}
 			/>,
 		);
 
