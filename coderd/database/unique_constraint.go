@@ -7,6 +7,7 @@ type UniqueConstraint string
 // UniqueConstraint enums.
 const (
 	UniqueAgentStatsPkey                                      UniqueConstraint = "agent_stats_pkey"                                                // ALTER TABLE ONLY workspace_agent_stats ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
+	UniqueAiSeatStatePkey                                     UniqueConstraint = "ai_seat_state_pkey"                                              // ALTER TABLE ONLY ai_seat_state ADD CONSTRAINT ai_seat_state_pkey PRIMARY KEY (user_id);
 	UniqueAibridgeInterceptionsPkey                           UniqueConstraint = "aibridge_interceptions_pkey"                                     // ALTER TABLE ONLY aibridge_interceptions ADD CONSTRAINT aibridge_interceptions_pkey PRIMARY KEY (id);
 	UniqueAibridgeTokenUsagesPkey                             UniqueConstraint = "aibridge_token_usages_pkey"                                      // ALTER TABLE ONLY aibridge_token_usages ADD CONSTRAINT aibridge_token_usages_pkey PRIMARY KEY (id);
 	UniqueAibridgeToolUsagesPkey                              UniqueConstraint = "aibridge_tool_usages_pkey"                                       // ALTER TABLE ONLY aibridge_tool_usages ADD CONSTRAINT aibridge_tool_usages_pkey PRIMARY KEY (id);
@@ -21,6 +22,8 @@ const (
 	UniqueChatProvidersPkey                                   UniqueConstraint = "chat_providers_pkey"                                             // ALTER TABLE ONLY chat_providers ADD CONSTRAINT chat_providers_pkey PRIMARY KEY (id);
 	UniqueChatProvidersProviderKey                            UniqueConstraint = "chat_providers_provider_key"                                     // ALTER TABLE ONLY chat_providers ADD CONSTRAINT chat_providers_provider_key UNIQUE (provider);
 	UniqueChatQueuedMessagesPkey                              UniqueConstraint = "chat_queued_messages_pkey"                                       // ALTER TABLE ONLY chat_queued_messages ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
+	UniqueChatUsageLimitConfigPkey                            UniqueConstraint = "chat_usage_limit_config_pkey"                                    // ALTER TABLE ONLY chat_usage_limit_config ADD CONSTRAINT chat_usage_limit_config_pkey PRIMARY KEY (id);
+	UniqueChatUsageLimitConfigSingletonKey                    UniqueConstraint = "chat_usage_limit_config_singleton_key"                           // ALTER TABLE ONLY chat_usage_limit_config ADD CONSTRAINT chat_usage_limit_config_singleton_key UNIQUE (singleton);
 	UniqueChatsPkey                                           UniqueConstraint = "chats_pkey"                                                      // ALTER TABLE ONLY chats ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
 	UniqueConnectionLogsPkey                                  UniqueConstraint = "connection_logs_pkey"                                            // ALTER TABLE ONLY connection_logs ADD CONSTRAINT connection_logs_pkey PRIMARY KEY (id);
 	UniqueCryptoKeysPkey                                      UniqueConstraint = "crypto_keys_pkey"                                                // ALTER TABLE ONLY crypto_keys ADD CONSTRAINT crypto_keys_pkey PRIMARY KEY (feature, sequence);

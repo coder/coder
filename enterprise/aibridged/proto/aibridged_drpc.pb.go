@@ -43,6 +43,7 @@ type DRPCRecorderClient interface {
 	RecordTokenUsage(ctx context.Context, in *RecordTokenUsageRequest) (*RecordTokenUsageResponse, error)
 	RecordPromptUsage(ctx context.Context, in *RecordPromptUsageRequest) (*RecordPromptUsageResponse, error)
 	RecordToolUsage(ctx context.Context, in *RecordToolUsageRequest) (*RecordToolUsageResponse, error)
+	RecordModelThought(ctx context.Context, in *RecordModelThoughtRequest) (*RecordModelThoughtResponse, error)
 }
 
 type drpcRecorderClient struct {
@@ -100,12 +101,22 @@ func (c *drpcRecorderClient) RecordToolUsage(ctx context.Context, in *RecordTool
 	return out, nil
 }
 
+func (c *drpcRecorderClient) RecordModelThought(ctx context.Context, in *RecordModelThoughtRequest) (*RecordModelThoughtResponse, error) {
+	out := new(RecordModelThoughtResponse)
+	err := c.cc.Invoke(ctx, "/proto.Recorder/RecordModelThought", drpcEncoding_File_enterprise_aibridged_proto_aibridged_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCRecorderServer interface {
 	RecordInterception(context.Context, *RecordInterceptionRequest) (*RecordInterceptionResponse, error)
 	RecordInterceptionEnded(context.Context, *RecordInterceptionEndedRequest) (*RecordInterceptionEndedResponse, error)
 	RecordTokenUsage(context.Context, *RecordTokenUsageRequest) (*RecordTokenUsageResponse, error)
 	RecordPromptUsage(context.Context, *RecordPromptUsageRequest) (*RecordPromptUsageResponse, error)
 	RecordToolUsage(context.Context, *RecordToolUsageRequest) (*RecordToolUsageResponse, error)
+	RecordModelThought(context.Context, *RecordModelThoughtRequest) (*RecordModelThoughtResponse, error)
 }
 
 type DRPCRecorderUnimplementedServer struct{}
@@ -130,9 +141,13 @@ func (s *DRPCRecorderUnimplementedServer) RecordToolUsage(context.Context, *Reco
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCRecorderUnimplementedServer) RecordModelThought(context.Context, *RecordModelThoughtRequest) (*RecordModelThoughtResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCRecorderDescription struct{}
 
-func (DRPCRecorderDescription) NumMethods() int { return 5 }
+func (DRPCRecorderDescription) NumMethods() int { return 6 }
 
 func (DRPCRecorderDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -181,6 +196,15 @@ func (DRPCRecorderDescription) Method(n int) (string, drpc.Encoding, drpc.Receiv
 						in1.(*RecordToolUsageRequest),
 					)
 			}, DRPCRecorderServer.RecordToolUsage, true
+	case 5:
+		return "/proto.Recorder/RecordModelThought", drpcEncoding_File_enterprise_aibridged_proto_aibridged_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCRecorderServer).
+					RecordModelThought(
+						ctx,
+						in1.(*RecordModelThoughtRequest),
+					)
+			}, DRPCRecorderServer.RecordModelThought, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -264,6 +288,22 @@ type drpcRecorder_RecordToolUsageStream struct {
 }
 
 func (x *drpcRecorder_RecordToolUsageStream) SendAndClose(m *RecordToolUsageResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_enterprise_aibridged_proto_aibridged_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCRecorder_RecordModelThoughtStream interface {
+	drpc.Stream
+	SendAndClose(*RecordModelThoughtResponse) error
+}
+
+type drpcRecorder_RecordModelThoughtStream struct {
+	drpc.Stream
+}
+
+func (x *drpcRecorder_RecordModelThoughtStream) SendAndClose(m *RecordModelThoughtResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_enterprise_aibridged_proto_aibridged_proto{}); err != nil {
 		return err
 	}

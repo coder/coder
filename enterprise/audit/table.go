@@ -28,6 +28,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"APIKey":          {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"License":         {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"Task":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AiSeatState":     {codersdk.AuditActionCreate},
 }
 
 type Action string
@@ -161,6 +162,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"one_time_passcode_expires_at": ActionTrack,
 		"is_system":                    ActionTrack, // Should never change, but track it anyway.
 		"is_service_account":           ActionTrack, // Should never change, but track it anyway.
+		"chat_spend_limit_micros":      ActionTrack,
 	},
 	&database.WorkspaceTable{}: {
 		"id":                 ActionTrack,
@@ -204,14 +206,15 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"has_external_agent":         ActionIgnore, // Never changes.
 	},
 	&database.AuditableGroup{}: {
-		"id":              ActionTrack,
-		"name":            ActionTrack,
-		"display_name":    ActionTrack,
-		"organization_id": ActionIgnore, // Never changes.
-		"avatar_url":      ActionTrack,
-		"quota_allowance": ActionTrack,
-		"members":         ActionTrack,
-		"source":          ActionIgnore,
+		"id":                      ActionTrack,
+		"name":                    ActionTrack,
+		"display_name":            ActionTrack,
+		"organization_id":         ActionIgnore, // Never changes.
+		"avatar_url":              ActionTrack,
+		"quota_allowance":         ActionTrack,
+		"members":                 ActionTrack,
+		"source":                  ActionIgnore,
+		"chat_spend_limit_micros": ActionTrack,
 	},
 	&database.APIKey{}: {
 		"id":               ActionIgnore,
@@ -350,6 +353,17 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&idpsync.RoleSyncSettings{}: {
 		"field":   ActionTrack,
 		"mapping": ActionTrack,
+	},
+	&database.AiSeatState{}: {
+		"user_id":                ActionTrack,
+		"first_used_at":          ActionTrack,
+		"last_event_type":        ActionTrack,
+		"last_event_description": ActionTrack,
+
+		// Since the audit log only fires on the first event, these fields will always
+		// match "first_used_at".
+		"last_used_at": ActionIgnore,
+		"updated_at":   ActionIgnore,
 	},
 	&database.TaskTable{}: {
 		"id":                  ActionTrack,

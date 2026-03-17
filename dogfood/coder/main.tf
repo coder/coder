@@ -471,6 +471,12 @@ module "devcontainers-cli" {
   agent_id = coder_agent.dev.id
 }
 
+module "portabledesktop" {
+  source   = "dev.registry.coder.com/coder/portabledesktop/coder"
+  version  = "0.1.0"
+  agent_id = coder_agent.dev.id
+}
+
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"

@@ -63,8 +63,10 @@
 		--git-merged: 271 91% 65%;
 		--git-added-bright: 142 72% 29%;
 		--git-deleted-bright: 0 74% 42%;
+		--git-merged-bright: 272 72% 47%;
 		--surface-git-added: 141 84% 93%;
 		--surface-git-deleted: 0 93% 94%;
+		--surface-git-merged: 269 100% 95%;
 		--border: 240 5.9% 90%;
 		--input: 240 5.9% 90%;
 		--ring: 240 10% 3.9%;
@@ -129,8 +131,10 @@
 		--git-merged: 271 91% 65%;
 		--git-added-bright: 142 71% 45%;
 		--git-deleted-bright: 0 91% 71%;
+		--git-merged-bright: 270 95% 75%;
 		--surface-git-added: 145 80% 10%;
 		--surface-git-deleted: 0 75% 15%;
+		--surface-git-merged: 274 87% 21%;
 		--border: 240 3.7% 15.9%;
 		--input: 240 3.7% 15.9%;
 		--ring: 240 4.9% 83.9%;

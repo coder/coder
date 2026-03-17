@@ -3,7 +3,7 @@ import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
-import type { ChatDiffStatus } from "api/typesGenerated";
+import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { fn, spyOn } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
@@ -47,11 +47,7 @@ const defaultEditing = {
 	chatInputRef: { current: null },
 	editorInitialValue: "",
 	editingMessageId: null,
-	editingFileBlocks: [] as readonly {
-		mediaType: string;
-		data?: string;
-		fileId?: string;
-	}[],
+	editingFileBlocks: [] as readonly ChatMessagePart[],
 	handleEditUserMessage: fn(),
 	handleCancelHistoryEdit: fn(),
 	editingQueuedMessageID: null,
@@ -174,7 +170,9 @@ export const WithParentChat: Story = {
 /** Persisted error reason shown in the timeline area. */
 export const WithError: Story = {
 	args: {
-		chatErrorReasons: { [AGENT_ID]: "Model rate limited" },
+		chatErrorReasons: {
+			[AGENT_ID]: { kind: "generic", message: "Model rate limited" },
+		},
 	},
 };
 
@@ -332,6 +330,77 @@ export const LoadingSidebarCollapsed: Story = {
 			showRightPanel={false}
 		/>
 	),
+};
+
+// ---------------------------------------------------------------------------
+// Helpers for seeding stores with messages
+// ---------------------------------------------------------------------------
+
+const buildMessage = (
+	id: number,
+	role: TypesGen.ChatMessageRole,
+	text: string,
+): TypesGen.ChatMessage => ({
+	id,
+	chat_id: AGENT_ID,
+	created_at: new Date(Date.now() - (10 - id) * 60_000).toISOString(),
+	role,
+	content: [{ type: "text", text }],
+});
+
+const buildStoreWithMessages = (
+	msgs: TypesGen.ChatMessage[],
+	status: TypesGen.ChatStatus = "completed",
+) => {
+	const store = createChatStore();
+	store.replaceMessages(msgs);
+	store.setChatStatus(status);
+	return store;
+};
+
+// ---------------------------------------------------------------------------
+// Editing flow stories
+// ---------------------------------------------------------------------------
+
+const editingMessages = [
+	buildMessage(1, "user", "Say hi back"),
+	buildMessage(2, "assistant", "Hi!"),
+	buildMessage(3, "user", "Now tell me a joke"),
+	buildMessage(
+		4,
+		"assistant",
+		"Why did the developer quit? Because they didn't get arrays.",
+	),
+	buildMessage(5, "user", "That was terrible, try again"),
+];
+
+/** Editing a message in the middle of the conversation — shows the warning
+ *  border on the edited message, faded subsequent messages, and the editing
+ *  banner + outline on the chat input. */
+export const EditingMessage: Story = {
+	args: {
+		store: buildStoreWithMessages(editingMessages),
+		editing: {
+			...defaultEditing,
+			editingMessageId: 3,
+			editorInitialValue: "Now tell me a joke",
+		},
+	},
+};
+
+/** The saving state while an edit is in progress — shows the pending
+ *  indicator on the message being saved. */
+export const EditingSaving: Story = {
+	args: {
+		store: buildStoreWithMessages(editingMessages),
+		editing: {
+			...defaultEditing,
+			editingMessageId: 3,
+			editorInitialValue: "Now tell me a better joke",
+		},
+		pendingEditMessageId: 3,
+		isSubmissionPending: true,
+	},
 };
 
 // ---------------------------------------------------------------------------
