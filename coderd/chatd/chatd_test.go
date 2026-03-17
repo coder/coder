@@ -638,7 +638,7 @@ func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	beforeChats, err := db.GetChatsByOwnerID(ctx, database.GetChatsByOwnerIDParams{
+	beforeChats, err := db.GetChats(ctx, database.GetChatsParams{
 		OwnerID:   user.ID,
 		AfterID:   uuid.Nil,
 		OffsetOpt: 0,
@@ -660,7 +660,7 @@ func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
 	require.Equal(t, int64(100), limitErr.LimitMicros)
 	require.Equal(t, int64(100), limitErr.ConsumedMicros)
 
-	afterChats, err := db.GetChatsByOwnerID(ctx, database.GetChatsByOwnerIDParams{
+	afterChats, err := db.GetChats(ctx, database.GetChatsParams{
 		OwnerID:   user.ID,
 		AfterID:   uuid.Nil,
 		OffsetOpt: 0,
@@ -2678,7 +2678,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 
 	// 6. Verify the child chat has Mode = computer_use in
 	//    the DB.
-	allChats, err := db.GetChatsByOwnerID(ctx, database.GetChatsByOwnerIDParams{
+	allChats, err := db.GetChats(ctx, database.GetChatsParams{
 		OwnerID: user.ID,
 	})
 	require.NoError(t, err)

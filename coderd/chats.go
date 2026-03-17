@@ -189,7 +189,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	params := database.GetChatsByOwnerIDParams{
+	params := database.GetChatsParams{
 		OwnerID:  apiKey.UserID,
 		Archived: searchParams.Archived,
 		AfterID:  paginationParams.AfterID,
@@ -199,7 +199,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		LimitOpt: int32(paginationParams.Limit),
 	}
 
-	chats, err := api.Database.GetChatsByOwnerID(ctx, params)
+	chats, err := api.Database.GetChats(ctx, params)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chats.",

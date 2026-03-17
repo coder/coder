@@ -4213,13 +4213,16 @@ func (q *sqlQuerier) GetChatUsageLimitUserOverride(ctx context.Context, userID u
 	return i, err
 }
 
-const getChatsByOwnerID = `-- name: GetChatsByOwnerID :many
+const getChats = `-- name: GetChats :many
 SELECT
     id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
 FROM
     chats
 WHERE
-    owner_id = $1::uuid
+    CASE
+        WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats.owner_id = $1
+        ELSE true
+    END
     AND CASE
         WHEN $2 :: boolean IS NULL THEN true
         ELSE chats.archived = $2 :: boolean
@@ -4243,6 +4246,8 @@ WHERE
         )
         ELSE true
     END
+    -- Authorize Filter clause will be injected below in GetAuthorizedChats
+    -- @authorize_filter
 ORDER BY
     -- Deterministic and consistent ordering of all rows, even if they share
     -- a timestamp. This is to ensure consistent pagination.
@@ -4253,7 +4258,7 @@ LIMIT
     COALESCE(NULLIF($5 :: int, 0), 50)
 `
 
-type GetChatsByOwnerIDParams struct {
+type GetChatsParams struct {
 	OwnerID   uuid.UUID    `db:"owner_id" json:"owner_id"`
 	Archived  sql.NullBool `db:"archived" json:"archived"`
 	AfterID   uuid.UUID    `db:"after_id" json:"after_id"`
@@ -4261,8 +4266,8 @@ type GetChatsByOwnerIDParams struct {
 	LimitOpt  int32        `db:"limit_opt" json:"limit_opt"`
 }
 
-func (q *sqlQuerier) GetChatsByOwnerID(ctx context.Context, arg GetChatsByOwnerIDParams) ([]Chat, error) {
-	rows, err := q.db.QueryContext(ctx, getChatsByOwnerID,
+func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChats,
 		arg.OwnerID,
 		arg.Archived,
 		arg.AfterID,
