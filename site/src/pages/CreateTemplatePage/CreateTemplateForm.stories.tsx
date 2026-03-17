@@ -106,9 +106,7 @@ export const StarterTemplateWithProvisionerWarning: Story = {
 		showOrganizationPicker: true,
 	},
 	play: async () => {
-		const organizationPicker = screen.getByPlaceholderText(
-			/select an organization/i,
-		);
+		const organizationPicker = screen.getByTestId("organization-autocomplete");
 		await userEvent.click(organizationPicker);
 		const org2 = await screen.findByText(MockOrganization2.display_name);
 		await userEvent.click(org2);
@@ -148,9 +146,7 @@ export const StarterTemplatePermissionsCheck: Story = {
 		showOrganizationPicker: true,
 	},
 	play: async () => {
-		const organizationPicker = screen.getByPlaceholderText(
-			/select an organization/i,
-		);
+		const organizationPicker = screen.getByTestId("organization-autocomplete");
 		await userEvent.click(organizationPicker);
 	},
 };
