@@ -1,7 +1,7 @@
 import { watchChat } from "api/api";
 import { chatMessagesKey, updateInfiniteChatsCache } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
-import { asRecord, asString } from "components/ai-elements/runtimeTypeUtils";
+
 import {
 	startTransition,
 	useCallback,
@@ -16,21 +16,7 @@ import type { ChatDetailError } from "../usageLimitMessage";
 import { applyMessagePartToStreamState } from "./streamState";
 import type { StreamState } from "./types";
 
-const VALID_CHAT_STATUSES: ReadonlySet<string> = new Set<TypesGen.ChatStatus>([
-	"pending",
-	"running",
-	"completed",
-	"error",
-	"paused",
-	"waiting",
-]);
-
-const isValidChatStatus = (value: unknown): value is TypesGen.ChatStatus =>
-	typeof value === "string" && VALID_CHAT_STATUSES.has(value);
-
-const isChatStreamEvent = (
-	data: unknown,
-): data is TypesGen.ChatStreamEvent & Record<string, unknown> =>
+const isChatStreamEvent = (data: unknown): data is TypesGen.ChatStreamEvent =>
 	typeof data === "object" &&
 	data !== null &&
 	"type" in data &&
@@ -38,12 +24,10 @@ const isChatStreamEvent = (
 
 const isChatStreamEventArray = (
 	data: unknown,
-): data is (TypesGen.ChatStreamEvent & Record<string, unknown>)[] =>
+): data is TypesGen.ChatStreamEvent[] =>
 	Array.isArray(data) && data.every(isChatStreamEvent);
 
-const toChatStreamEvents = (
-	data: unknown,
-): (TypesGen.ChatStreamEvent & Record<string, unknown>)[] => {
+const toChatStreamEvents = (data: unknown): TypesGen.ChatStreamEvent[] => {
 	if (isChatStreamEvent(data)) {
 		return [data];
 	}
@@ -158,8 +142,8 @@ type ChatStore = {
 		isDuplicate: boolean;
 		changed: boolean;
 	};
-	applyMessagePart: (part: Record<string, unknown>) => void;
-	applyMessageParts: (parts: readonly Record<string, unknown>[]) => void;
+	applyMessagePart: (part: TypesGen.ChatMessagePart) => void;
+	applyMessageParts: (parts: readonly TypesGen.ChatMessagePart[]) => void;
 	setQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	) => void;
@@ -281,7 +265,7 @@ export const createChatStore = (): ChatStore => {
 		return { isDuplicate, changed: actuallyChanged };
 	};
 
-	const applyMessageParts = (parts: readonly Record<string, unknown>[]) => {
+	const applyMessageParts = (parts: readonly TypesGen.ChatMessagePart[]) => {
 		if (parts.length === 0) {
 			return;
 		}
@@ -657,7 +641,7 @@ export const useChatStore = (
 				return currentStatus !== "pending" && currentStatus !== "waiting";
 			};
 
-			const pendingMessageParts: Record<string, unknown>[] = [];
+			const pendingMessageParts: TypesGen.ChatMessagePart[] = [];
 			const flushMessageParts = () => {
 				if (pendingMessageParts.length === 0) {
 					return;
@@ -681,14 +665,13 @@ export const useChatStore = (
 
 			for (const streamEvent of streamEvents) {
 				if (streamEvent.type === "message_part") {
-					const eventChatID = asString(streamEvent.chat_id);
-					if (eventChatID && eventChatID !== chatID) {
+					if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 						continue;
 					}
 					if (!shouldApplyMessagePart()) {
 						continue;
 					}
-					const part = asRecord(streamEvent.message_part?.part);
+					const part = streamEvent.message_part?.part;
 					if (part) {
 						cancelScheduledStreamReset();
 						pendingMessageParts.push(part);
@@ -703,8 +686,7 @@ export const useChatStore = (
 						if (!message) {
 							continue;
 						}
-						const eventChatID = asString(streamEvent.chat_id);
-						if (eventChatID && eventChatID !== chatID) {
+						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 							continue;
 						}
 						const { changed } = store.upsertDurableMessage(message);
@@ -730,26 +712,21 @@ export const useChatStore = (
 						continue;
 					}
 					case "queue_update":
-						{
-							const eventChatID = asString(streamEvent.chat_id);
-							if (eventChatID && eventChatID !== chatID) {
-								continue;
-							}
+						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+							continue;
 						}
 						wsQueueUpdateReceivedRef.current = true;
 						store.setQueuedMessages(streamEvent.queued_messages);
 						updateChatQueuedMessages(streamEvent.queued_messages);
 						continue;
 					case "status": {
-						const status = asRecord(streamEvent.status);
-						const nextStatus = asString(status?.status);
-						if (!isValidChatStatus(nextStatus)) {
+						const nextStatus = streamEvent.status?.status;
+						if (!nextStatus) {
 							continue;
 						}
 
-						const eventChatID = asString(streamEvent.chat_id);
-						if (eventChatID && eventChatID !== chatID) {
-							store.setSubagentStatusOverride(eventChatID, nextStatus);
+						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+							store.setSubagentStatusOverride(streamEvent.chat_id, nextStatus);
 							continue;
 						}
 
@@ -771,13 +748,11 @@ export const useChatStore = (
 						continue;
 					}
 					case "error": {
-						const eventChatID = asString(streamEvent.chat_id);
-						if (eventChatID && eventChatID !== chatID) {
+						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 							continue;
 						}
-						const error = asRecord(streamEvent.error);
 						const reason =
-							asString(error?.message).trim() || "Chat processing failed.";
+							streamEvent.error?.message.trim() || "Chat processing failed.";
 						store.setChatStatus("error");
 						store.setStreamError(reason);
 						store.clearRetryState();
@@ -792,8 +767,7 @@ export const useChatStore = (
 						continue;
 					}
 					case "retry": {
-						const eventChatID = asString(streamEvent.chat_id);
-						if (eventChatID && eventChatID !== chatID) {
+						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 							continue;
 						}
 						const retry = streamEvent.retry;
