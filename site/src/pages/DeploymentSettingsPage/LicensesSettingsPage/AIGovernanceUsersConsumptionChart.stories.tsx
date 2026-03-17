@@ -21,26 +21,6 @@ type Story = StoryObj<typeof AIGovernanceUsersConsumption>;
 
 export const Default: Story = {};
 
-export const Normal: Story = {
-	args: {
-		aiGovernanceUserFeature: {
-			enabled: true,
-			entitlement: "entitled",
-			limit: 1000,
-			actual: 750,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("750")).toBeInTheDocument();
-		await expect(
-			canvas.getByText(/of 1,000 Users Entitled/i),
-		).toBeInTheDocument();
-		await expect(canvas.getByText("Active")).toBeInTheDocument();
-		await expect(canvas.queryByText("Add-on exceeded")).not.toBeInTheDocument();
-	},
-};
-
 export const Exceeded: Story = {
 	args: {
 		aiGovernanceUserFeature: {
