@@ -30,17 +30,19 @@ const (
 
 func (r *RootCmd) scaletestChat() *serpent.Command {
 	var (
-		count           int64
-		workspaceID     string
-		prompt          string
-		turns           int64
-		followUpPrompt  string
-		llmMockURL      string
-		tracingFlags    = &scaletestTracingFlags{}
-		prometheusFlags = &scaletestPrometheusFlags{}
-		timeoutStrategy = &timeoutFlags{}
-		cleanupStrategy = newScaletestCleanupStrategy()
-		output          = &scaletestOutputFlags{}
+		count              int64
+		workspaceID        string
+		prompt             string
+		turns              int64
+		followUpPrompt     string
+		followUpStartDelay time.Duration
+		llmMockURL         string
+		summaryOutput      string
+		tracingFlags       = &scaletestTracingFlags{}
+		prometheusFlags    = &scaletestPrometheusFlags{}
+		timeoutStrategy    = &timeoutFlags{}
+		cleanupStrategy    = newScaletestCleanupStrategy()
+		output             = &scaletestOutputFlags{}
 	)
 
 	cmd := &serpent.Command{
@@ -53,6 +55,26 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			outputs, err := output.parse()
 			if err != nil {
 				return xerrors.Errorf("could not parse --output flags: %w", err)
+			}
+
+			if count < 1 {
+				return xerrors.Errorf("--count must be at least 1")
+			}
+
+			if turns < 1 {
+				return xerrors.Errorf("--turns must be at least 1")
+			}
+
+			if followUpStartDelay > 0 && turns < 2 {
+				return xerrors.Errorf("--follow-up-start-delay requires --turns to be at least 2")
+			}
+			if summaryOutput == "-" {
+				return xerrors.Errorf("--summary-output must be a file path, not stdout")
+			}
+
+			wsID, err := uuid.Parse(workspaceID)
+			if err != nil {
+				return xerrors.Errorf("parse workspace-id: %w", err)
 			}
 
 			client, err := r.InitClient(inv)
@@ -68,11 +90,6 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			client.HTTPClient.Transport = &codersdk.HeaderTransport{
 				Transport: client.HTTPClient.Transport,
 				Header:    BypassHeader,
-			}
-
-			wsID, err := uuid.Parse(workspaceID)
-			if err != nil {
-				return xerrors.Errorf("parse workspace-id: %w", err)
 			}
 
 			ws, err := client.Workspace(ctx, wsID)
@@ -151,8 +168,11 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				}
 			}
 
+			runID := uuid.NewString()
+			metricLabelValues := chat.MetricLabelValues(runID)
+
 			reg := prometheus.NewRegistry()
-			metrics := chat.NewMetrics(reg)
+			metrics := chat.NewMetrics(reg, chat.MetricLabelNames()...)
 
 			logger := slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
 			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
@@ -177,6 +197,12 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 
 			readyWG := &sync.WaitGroup{}
 			startChan := make(chan struct{})
+			var followUpReadyWG *sync.WaitGroup
+			var startFollowUpChan chan struct{}
+			if followUpStartDelay > 0 && turns > 1 {
+				followUpReadyWG = &sync.WaitGroup{}
+				startFollowUpChan = make(chan struct{})
+			}
 
 			th := harness.NewTestHarness(
 				timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}),
@@ -185,16 +211,23 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 
 			for i := range count {
 				readyWG.Add(1)
+				if followUpReadyWG != nil {
+					followUpReadyWG.Add(1)
+				}
 				cfg := chat.Config{
-					WorkspaceID:       wsID,
-					Prompt:            prompt,
-					ModelConfigID:     modelConfigID,
-					Turns:             int(turns),
-					FollowUpPrompt:    followUpPrompt,
-					ReadyWaitGroup:    readyWG,
-					StartChan:         startChan,
-					Metrics:           metrics,
-					MetricLabelValues: []string{},
+					RunID:                  runID,
+					WorkspaceID:            wsID,
+					Prompt:                 prompt,
+					ModelConfigID:          modelConfigID,
+					Turns:                  int(turns),
+					FollowUpPrompt:         followUpPrompt,
+					FollowUpStartDelay:     followUpStartDelay,
+					ReadyWaitGroup:         readyWG,
+					StartChan:              startChan,
+					FollowUpReadyWaitGroup: followUpReadyWG,
+					StartFollowUpChan:      startFollowUpChan,
+					Metrics:                metrics,
+					MetricLabelValues:      append([]string(nil), metricLabelValues...),
 				}
 				if err := cfg.Validate(); err != nil {
 					return xerrors.Errorf("validate config for runner %d: %w", i, err)
@@ -236,13 +269,66 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			case <-ctx.Done():
 				return ctx.Err()
 			}
+			loadStartedAt := time.Now().UTC()
 			close(startChan)
+
+			var followUpPhaseReleasedAt *time.Time
+			if followUpReadyWG != nil {
+				followUpReadyDone := make(chan struct{})
+				go func() {
+					followUpReadyWG.Wait()
+					close(followUpReadyDone)
+				}()
+				select {
+				case <-followUpReadyDone:
+					_, _ = fmt.Fprintf(inv.Stderr, "All %d runners finished the initial turn, waiting %s before follow-up turns...\n", count, followUpStartDelay)
+				case <-time.After(10 * time.Minute):
+					return xerrors.Errorf("timed out waiting for runners to finish the initial turn")
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+				if followUpStartDelay > 0 {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-time.After(followUpStartDelay):
+					}
+				}
+				releasedAt := time.Now().UTC()
+				followUpPhaseReleasedAt = &releasedAt
+				close(startFollowUpChan)
+			}
 
 			if err := <-done; err != nil {
 				return xerrors.Errorf("run harness: %w", err)
 			}
+			loadCompletedAt := time.Now().UTC()
 
 			res := th.Results()
+			summary := chat.NewSummary(chat.SummaryConfig{
+				RunID:              runID,
+				WorkspaceID:        wsID,
+				ModelConfigID:      modelConfigID,
+				Count:              count,
+				Turns:              int(turns),
+				Prompt:             prompt,
+				FollowUpPrompt:     followUpPrompt,
+				FollowUpStartDelay: followUpStartDelay,
+				LLMMockURL:         llmMockURL,
+				OutputSpecs:        scaletestOutputSpecs(outputs),
+			}, res, loadStartedAt, loadCompletedAt, followUpPhaseReleasedAt)
+			summaryJSON, err := summary.CompactJSON()
+			if err != nil {
+				return xerrors.Errorf("marshal chat scaletest summary: %w", err)
+			}
+			_, _ = fmt.Fprintf(inv.Stderr, "CHAT_SCALETEST_SUMMARY=%s\n", summaryJSON)
+			if summaryOutput != "" {
+				if err := summary.Write(summaryOutput); err != nil {
+					return xerrors.Errorf("write chat scaletest summary to %q: %w", summaryOutput, err)
+				}
+				_, _ = fmt.Fprintf(inv.Stderr, "Wrote chat scaletest summary to %s\n", summaryOutput)
+			}
+
 			for _, o := range outputs {
 				if err := o.write(res, inv.Stdout); err != nil {
 					return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
@@ -296,9 +382,20 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			Value:       serpent.StringOf(&followUpPrompt),
 		},
 		{
+			Flag:        "follow-up-start-delay",
+			Description: "Delay between the first completed turn and the release of turns 2 through N.",
+			Default:     "0s",
+			Value:       serpent.DurationOf(&followUpStartDelay),
+		},
+		{
 			Flag:        "llm-mock-url",
 			Description: "URL of the mock LLM server (e.g. http://127.0.0.1:8080/v1). When set, bootstraps an openai-compat chat provider and model config pointing at this URL.",
 			Value:       serpent.StringOf(&llmMockURL),
+		},
+		{
+			Flag:        "summary-output",
+			Description: "Optional file path for a compact chat scaletest run summary JSON artifact.",
+			Value:       serpent.StringOf(&summaryOutput),
 		},
 	}
 	output.attach(&cmd.Options)
@@ -307,4 +404,16 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 	timeoutStrategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)
 	return cmd
+}
+
+func scaletestOutputSpecs(outputs []scaleTestOutput) []string {
+	specs := make([]string, 0, len(outputs))
+	for _, output := range outputs {
+		spec := string(output.format)
+		if output.path != "-" {
+			spec += ":" + output.path
+		}
+		specs = append(specs, spec)
+	}
+	return specs
 }

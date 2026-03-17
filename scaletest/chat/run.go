@@ -22,6 +22,7 @@ type Runner struct {
 	mu             sync.Mutex
 	chatID         uuid.UUID
 	finalStatus    string
+	failureStage   string
 	totalDuration  time.Duration
 	sawFirstOutput bool
 	retryCount     int
@@ -52,17 +53,24 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error)
 
 	conversationStart := time.Now()
 	turnStartTime := conversationStart
+	currentPhase := phaseInitial
 	var (
-		sawRunning      bool
-		sawFirstOutput  bool
-		retryCount      int
-		eventCount      int
-		lastStreamError string
-		turnsCompleted  int
-		finalStatus     string
+		sawRunning           bool
+		sawTurnFirstOutput   bool
+		sawAnyFirstOutput    bool
+		retryCount           int
+		eventCount           int
+		lastStreamError      string
+		turnsCompleted       int
+		finalStatus          string
+		failureStage         string
+		followUpGateSignaled bool
 	)
 	defer func() {
-		r.storeResults(finalStatus, time.Since(conversationStart), sawFirstOutput, retryCount, eventCount, turnsCompleted)
+		totalDuration := time.Since(conversationStart)
+		r.cfg.Metrics.ChatConversationDurationSeconds.WithLabelValues(r.cfg.MetricLabelValues...).Observe(totalDuration.Seconds())
+		r.signalFollowUpGateReady(&followUpGateSignaled)
+		r.storeResults(finalStatus, failureStage, totalDuration, sawAnyFirstOutput, retryCount, eventCount, turnsCompleted)
 	}()
 
 	chat, err := r.client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -76,7 +84,9 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error)
 	createDuration := time.Since(conversationStart)
 	r.cfg.Metrics.ChatCreateLatencySeconds.WithLabelValues(r.cfg.MetricLabelValues...).Observe(createDuration.Seconds())
 	if err != nil {
+		failureStage = failureStageCreateChat
 		r.cfg.Metrics.ChatCreateErrorsTotal.WithLabelValues(r.cfg.MetricLabelValues...).Inc()
+		r.recordStageFailure(failureStage)
 		return xerrors.Errorf("create chat: %w", err)
 	}
 
@@ -85,7 +95,9 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error)
 
 	events, closer, err := r.client.StreamChat(ctx, chat.ID, nil)
 	if err != nil {
+		failureStage = failureStageStreamOpen
 		r.cfg.Metrics.ChatStreamErrorsTotal.WithLabelValues(r.cfg.MetricLabelValues...).Inc()
+		r.recordStageFailure(failureStage)
 		return xerrors.Errorf("stream chat: %w", err)
 	}
 
@@ -112,12 +124,12 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error)
 					continue
 				}
 				sawRunning = true
-				r.cfg.Metrics.ChatTimeToRunningSeconds.WithLabelValues(r.cfg.MetricLabelValues...).Observe(time.Since(turnStartTime).Seconds())
-				_, _ = fmt.Fprintf(logs, "chat %s reached running status\n", chat.ID)
+				r.cfg.Metrics.ChatTimeToRunningSeconds.WithLabelValues(r.phaseMetricLabelValues(currentPhase)...).Observe(time.Since(turnStartTime).Seconds())
+				_, _ = fmt.Fprintf(logs, "chat %s reached running status for %s phase\n", chat.ID, currentPhase)
 			case codersdk.ChatStatusWaiting:
 				turnsCompleted++
 				turnDuration := time.Since(turnStartTime)
-				r.cfg.Metrics.ChatTimeToTerminalStatusSeconds.WithLabelValues(r.cfg.MetricLabelValues...).Observe(turnDuration.Seconds())
+				r.cfg.Metrics.ChatTimeToTerminalStatusSeconds.WithLabelValues(r.phaseMetricLabelValues(currentPhase)...).Observe(turnDuration.Seconds())
 				r.cfg.Metrics.ChatTerminalStatusTotal.WithLabelValues(r.terminalMetricLabelValues(string(codersdk.ChatStatusWaiting))...).Inc()
 				r.cfg.Metrics.ChatTurnsCompletedTotal.WithLabelValues(r.cfg.MetricLabelValues...).Inc()
 				_, _ = fmt.Fprintf(logs, "chat %s completed turn %d/%d in %s\n", chat.ID, turnsCompleted, r.cfg.Turns, turnDuration)
@@ -129,8 +141,21 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error)
 				}
 
 				nextTurn := turnsCompleted + 1
+				if nextTurn == 2 && r.cfg.ShouldGateFollowUps() {
+					r.signalFollowUpGateReady(&followUpGateSignaled)
+					_, _ = fmt.Fprintf(logs, "chat %s waiting for delayed follow-up phase release (%s)\n", chat.ID, r.cfg.FollowUpStartDelay)
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-r.cfg.StartFollowUpChan:
+					}
+				}
+
+				currentPhase = phaseFollowUp
 				sawRunning = false
+				sawTurnFirstOutput = false
 				turnStartTime = time.Now()
+				messageStartTime := turnStartTime
 				_, err = r.client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 					Content: []codersdk.ChatInputPart{{
 						Type: codersdk.ChatInputPartTypeText,
@@ -138,15 +163,20 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error)
 					}},
 					ModelConfigID: r.cfg.ModelConfigID,
 				})
+				r.cfg.Metrics.ChatMessageLatencySeconds.WithLabelValues(r.phaseMetricLabelValues(currentPhase)...).Observe(time.Since(messageStartTime).Seconds())
 				if err != nil {
+					failureStage = failureStageCreateMessage
+					r.recordStageFailure(failureStage)
 					return xerrors.Errorf("create chat message for turn %d: %w", nextTurn, err)
 				}
 				_, _ = fmt.Fprintf(logs, "chat %s sent follow-up message for turn %d/%d\n", chat.ID, nextTurn, r.cfg.Turns)
 			case codersdk.ChatStatusError:
 				finalStatus = string(codersdk.ChatStatusError)
+				failureStage = failureStageStatusError
 				turnDuration := time.Since(turnStartTime)
-				r.cfg.Metrics.ChatTimeToTerminalStatusSeconds.WithLabelValues(r.cfg.MetricLabelValues...).Observe(turnDuration.Seconds())
+				r.cfg.Metrics.ChatTimeToTerminalStatusSeconds.WithLabelValues(r.phaseMetricLabelValues(currentPhase)...).Observe(turnDuration.Seconds())
 				r.cfg.Metrics.ChatTerminalStatusTotal.WithLabelValues(r.terminalMetricLabelValues(string(codersdk.ChatStatusError))...).Inc()
+				r.recordStageFailure(failureStage)
 
 				errMessage := lastStreamError
 				if errMessage == "" {
@@ -156,13 +186,14 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error)
 				return xerrors.Errorf("chat %s reached error status: %s", chat.ID, errMessage)
 			}
 		case codersdk.ChatStreamEventTypeMessagePart:
-			if sawFirstOutput {
+			if sawTurnFirstOutput {
 				continue
 			}
-			sawFirstOutput = true
-			firstOutputDuration := time.Since(conversationStart)
-			r.cfg.Metrics.ChatTimeToFirstOutputSeconds.WithLabelValues(r.cfg.MetricLabelValues...).Observe(firstOutputDuration.Seconds())
-			_, _ = fmt.Fprintf(logs, "chat %s received first output in %s\n", chat.ID, firstOutputDuration)
+			sawTurnFirstOutput = true
+			sawAnyFirstOutput = true
+			firstOutputDuration := time.Since(turnStartTime)
+			r.cfg.Metrics.ChatTimeToFirstOutputSeconds.WithLabelValues(r.phaseMetricLabelValues(currentPhase)...).Observe(firstOutputDuration.Seconds())
+			_, _ = fmt.Fprintf(logs, "chat %s received first output for %s phase in %s\n", chat.ID, currentPhase, firstOutputDuration)
 		case codersdk.ChatStreamEventTypeRetry:
 			retryCount++
 			r.cfg.Metrics.ChatRetryEventsTotal.WithLabelValues(r.cfg.MetricLabelValues...).Inc()
@@ -173,6 +204,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error)
 			_, _ = fmt.Fprintf(logs, "chat %s received retry event\n", chat.ID)
 		case codersdk.ChatStreamEventTypeError:
 			r.cfg.Metrics.ChatStreamErrorsTotal.WithLabelValues(r.cfg.MetricLabelValues...).Inc()
+			r.recordStageFailure(failureStageStreamEvent)
 			if event.Error != nil && event.Error.Message != "" {
 				lastStreamError = event.Error.Message
 				_, _ = fmt.Fprintf(logs, "chat %s stream error: %s\n", chat.ID, lastStreamError)
@@ -186,6 +218,9 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error)
 		return ctx.Err()
 	}
 
+	failureStage = failureStageStreamClosed
+	r.cfg.Metrics.ChatStreamErrorsTotal.WithLabelValues(r.cfg.MetricLabelValues...).Inc()
+	r.recordStageFailure(failureStage)
 	if lastStreamError != "" {
 		return xerrors.Errorf("chat %s stream ended before completing %d of %d turns: %s", chat.ID, turnsCompleted, r.cfg.Turns, lastStreamError)
 	}
@@ -212,14 +247,18 @@ func (r *Runner) GetMetrics() map[string]any {
 	defer r.mu.Unlock()
 
 	return map[string]any{
-		"chat_id":          r.chatID.String(),
-		"final_status":     r.finalStatus,
-		"total_duration":   r.totalDuration.Seconds(),
-		"saw_first_output": r.sawFirstOutput,
-		"retry_count":      r.retryCount,
-		"event_count":      r.eventCount,
-		"turns_requested":  r.cfg.Turns,
-		"turns_completed":  r.turnsCompleted,
+		"run_id":                   r.cfg.RunID,
+		"follow_up_delay_enabled":  r.cfg.ShouldGateFollowUps(),
+		"follow_up_start_delay_ms": r.cfg.FollowUpStartDelay.Milliseconds(),
+		"chat_id":                  r.chatID.String(),
+		"final_status":             r.finalStatus,
+		"failure_stage":            r.failureStage,
+		"total_duration":           r.totalDuration.Seconds(),
+		"saw_first_output":         r.sawFirstOutput,
+		"retry_count":              r.retryCount,
+		"event_count":              r.eventCount,
+		"turns_requested":          r.cfg.Turns,
+		"turns_completed":          r.turnsCompleted,
 	}
 }
 
@@ -235,10 +274,11 @@ func (r *Runner) getChatID() uuid.UUID {
 	return r.chatID
 }
 
-func (r *Runner) storeResults(status string, totalDuration time.Duration, sawFirstOutput bool, retryCount int, eventCount int, turnsCompleted int) {
+func (r *Runner) storeResults(status string, failureStage string, totalDuration time.Duration, sawFirstOutput bool, retryCount int, eventCount int, turnsCompleted int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.finalStatus = status
+	r.failureStage = failureStage
 	r.totalDuration = totalDuration
 	r.sawFirstOutput = sawFirstOutput
 	r.retryCount = retryCount
@@ -246,9 +286,38 @@ func (r *Runner) storeResults(status string, totalDuration time.Duration, sawFir
 	r.turnsCompleted = turnsCompleted
 }
 
+func (r *Runner) phaseMetricLabelValues(phase string) []string {
+	labelValues := make([]string, 0, len(r.cfg.MetricLabelValues)+1)
+	labelValues = append(labelValues, r.cfg.MetricLabelValues...)
+	labelValues = append(labelValues, phase)
+	return labelValues
+}
+
 func (r *Runner) terminalMetricLabelValues(status string) []string {
 	labelValues := make([]string, 0, len(r.cfg.MetricLabelValues)+1)
 	labelValues = append(labelValues, r.cfg.MetricLabelValues...)
 	labelValues = append(labelValues, status)
 	return labelValues
+}
+
+func (r *Runner) stageMetricLabelValues(stage string) []string {
+	labelValues := make([]string, 0, len(r.cfg.MetricLabelValues)+1)
+	labelValues = append(labelValues, r.cfg.MetricLabelValues...)
+	labelValues = append(labelValues, stage)
+	return labelValues
+}
+
+func (r *Runner) recordStageFailure(stage string) {
+	if stage == "" {
+		return
+	}
+	r.cfg.Metrics.ChatStageFailuresTotal.WithLabelValues(r.stageMetricLabelValues(stage)...).Inc()
+}
+
+func (r *Runner) signalFollowUpGateReady(signaled *bool) {
+	if signaled == nil || *signaled || !r.cfg.ShouldGateFollowUps() || r.cfg.FollowUpReadyWaitGroup == nil {
+		return
+	}
+	r.cfg.FollowUpReadyWaitGroup.Done()
+	*signaled = true
 }
