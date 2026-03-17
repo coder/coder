@@ -45,6 +45,7 @@ import {
 import * as Yup from "yup";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";
+import { Label } from "components/Label/Label";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
@@ -258,8 +259,11 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 					{showOrganizationPicker && (
 						<>
 							{showProvisionerWarning && <ProvisionerWarning />}
+
+							<Label htmlFor="organization">Organization</Label>
 							<OrganizationAutocomplete
 								{...getFieldHelpers("organization")}
+								id="organization"
 								required
 								onChange={(newValue) => {
 									setSelectedOrg(newValue);
