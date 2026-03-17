@@ -1055,7 +1055,7 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 
 	if org.ShareableWorkspaceOwners == ShareableWorkspaceOwnersNone {
 		// Org-level negation blocks sharing on ANY workspace in the
-		// org. If an SA has any other roles assigned, this negation
+		// org. If a service account has any other roles assigned, this negation
 		// will override any positive perms in them, too.
 		orgPerms = append(orgPerms, Permission{
 			Negate:       true,
