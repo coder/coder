@@ -1,4 +1,4 @@
-import type { ChatQueuedMessage } from "api/typesGenerated";
+import type { ChatMessagePart, ChatQueuedMessage } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Spinner } from "components/Spinner/Spinner";
 import {
@@ -16,17 +16,15 @@ import {
 import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import { cn } from "utils/cn";
 
-interface FileBlock {
-	mediaType: string;
-	data?: string;
-	fileId?: string;
-}
-
 interface QueuedMessagesListProps {
 	messages: readonly ChatQueuedMessage[];
 	onDelete: (id: number) => Promise<void> | void;
 	onPromote: (id: number) => Promise<void> | void;
-	onEdit?: (id: number, text: string, fileBlocks: readonly FileBlock[]) => void;
+	onEdit?: (
+		id: number,
+		text: string,
+		fileBlocks: readonly ChatMessagePart[],
+	) => void;
 	editingMessageID?: number | null;
 	className?: string;
 }
@@ -35,20 +33,14 @@ interface QueuedMessageInfo {
 	displayText: string;
 	rawText: string;
 	attachmentCount: number;
-	fileBlocks: readonly FileBlock[];
+	fileBlocks: readonly ChatMessagePart[];
 }
 
 export const getQueuedMessageInfo = (
 	message: ChatQueuedMessage,
 ): QueuedMessageInfo => {
 	const { content } = message;
-	const fileBlocks: FileBlock[] = content
-		.filter((p) => p.type === "file")
-		.map((p) => ({
-			mediaType: p.media_type ?? "application/octet-stream",
-			fileId: p.file_id,
-			data: p.data,
-		}));
+	const fileBlocks = content.filter((p) => p.type === "file");
 	const rawText = content
 		.filter((p) => p.type === "text")
 		.map((p) => p.text)

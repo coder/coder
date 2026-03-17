@@ -38,21 +38,21 @@ describe("getQueuedMessageInfo", () => {
 
 	it("returns attachment label for a single file", () => {
 		const result = getQueuedMessageInfo(
-			makeMessage([{ type: "file", file_id: "a" }]),
+			makeMessage([{ type: "file", file_id: "a", media_type: "image/png" }]),
 		);
 		expect(result).toEqual({
 			displayText: "[Queued message]",
 			rawText: "",
 			attachmentCount: 1,
-			fileBlocks: [{ mediaType: "application/octet-stream", fileId: "a" }],
+			fileBlocks: [{ type: "file", file_id: "a", media_type: "image/png" }],
 		});
 	});
 
 	it("returns attachment label for multiple files", () => {
 		const result = getQueuedMessageInfo(
 			makeMessage([
-				{ type: "file", file_id: "a" },
-				{ type: "file", file_id: "b" },
+				{ type: "file", file_id: "a", media_type: "image/png" },
+				{ type: "file", file_id: "b", media_type: "image/png" },
 			]),
 		);
 		expect(result).toEqual({
@@ -60,8 +60,8 @@ describe("getQueuedMessageInfo", () => {
 			rawText: "",
 			attachmentCount: 2,
 			fileBlocks: [
-				{ mediaType: "application/octet-stream", fileId: "a" },
-				{ mediaType: "application/octet-stream", fileId: "b" },
+				{ type: "file", file_id: "a", media_type: "image/png" },
+				{ type: "file", file_id: "b", media_type: "image/png" },
 			],
 		});
 	});
@@ -70,14 +70,14 @@ describe("getQueuedMessageInfo", () => {
 		const result = getQueuedMessageInfo(
 			makeMessage([
 				{ type: "text", text: "look" },
-				{ type: "file", file_id: "a" },
+				{ type: "file", file_id: "a", media_type: "image/png" },
 			]),
 		);
 		expect(result).toEqual({
 			displayText: "look",
 			rawText: "look",
 			attachmentCount: 1,
-			fileBlocks: [{ mediaType: "application/octet-stream", fileId: "a" }],
+			fileBlocks: [{ type: "file", file_id: "a", media_type: "image/png" }],
 		});
 	});
 
@@ -107,14 +107,14 @@ describe("getQueuedMessageInfo", () => {
 		const result = getQueuedMessageInfo(
 			makeMessage([
 				{ type: "text", text: " " },
-				{ type: "file", file_id: "a" },
+				{ type: "file", file_id: "a", media_type: "image/png" },
 			]),
 		);
 		expect(result).toEqual({
 			displayText: "[Queued message]",
 			rawText: "",
 			attachmentCount: 1,
-			fileBlocks: [{ mediaType: "application/octet-stream", fileId: "a" }],
+			fileBlocks: [{ type: "file", file_id: "a", media_type: "image/png" }],
 		});
 	});
 
@@ -146,8 +146,8 @@ describe("getQueuedMessageInfo", () => {
 			rawText: "check this",
 			attachmentCount: 2,
 			fileBlocks: [
-				{ mediaType: "image/png", fileId: "img-1" },
-				{ mediaType: "application/pdf", fileId: "doc-2" },
+				{ type: "file", file_id: "img-1", media_type: "image/png" },
+				{ type: "file", file_id: "doc-2", media_type: "application/pdf" },
 			],
 		});
 	});

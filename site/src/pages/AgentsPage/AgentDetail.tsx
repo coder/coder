@@ -15,6 +15,7 @@ import {
 import { deploymentSSHConfig } from "api/queries/deployment";
 import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
+import type { ChatMessagePart } from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
 import {
 	getTerminalHref,
@@ -102,18 +103,14 @@ export function useConversationEditingState(deps: {
 		string | null
 	>(null);
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
-		readonly { mediaType: string; data?: string; fileId?: string }[]
+		readonly ChatMessagePart[]
 	>([]);
 
 	const handleEditUserMessage = useCallback(
 		(
 			messageId: number,
 			text: string,
-			fileBlocks?: readonly {
-				mediaType: string;
-				data?: string;
-				fileId?: string;
-			}[],
+			fileBlocks?: readonly ChatMessagePart[],
 		) => {
 			setDraftBeforeHistoryEdit((prev) =>
 				editingMessageId !== null ? prev : inputValueRef.current,
@@ -143,15 +140,7 @@ export function useConversationEditingState(deps: {
 	>(null);
 
 	const handleStartQueueEdit = useCallback(
-		(
-			id: number,
-			text: string,
-			fileBlocks: readonly {
-				mediaType: string;
-				data?: string;
-				fileId?: string;
-			}[],
-		) => {
+		(id: number, text: string, fileBlocks: readonly ChatMessagePart[]) => {
 			setDraftBeforeQueueEdit((prev) =>
 				editingQueuedMessageID === null ? inputValueRef.current : prev,
 			);

@@ -246,10 +246,10 @@ function renderBlockList({
 					);
 				}
 				case "file":
-					if (block.mediaType.startsWith("image/")) {
-						const src = block.fileId
-							? `/api/experimental/chats/files/${block.fileId}`
-							: `data:${block.mediaType};base64,${block.data}`;
+					if (block.media_type.startsWith("image/")) {
+						const src = block.file_id
+							? `/api/experimental/chats/files/${block.file_id}`
+							: `data:${block.media_type};base64,${block.data}`;
 						return (
 							<button
 								key={`${keyPrefix}-file-${index}`}
@@ -291,7 +291,7 @@ const ChatMessageItem = memo<{
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: Array<{ mediaType: string; data?: string; fileId?: string }>,
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
@@ -381,7 +381,7 @@ const ChatMessageItem = memo<{
 												const fileBlocks = parsed.blocks.filter(
 													(b): b is Extract<RenderBlock, { type: "file" }> =>
 														b.type === "file" &&
-														b.mediaType.startsWith("image/"),
+														b.media_type.startsWith("image/"),
 												);
 												onEditUserMessage(
 													message.id,
@@ -408,15 +408,15 @@ const ChatMessageItem = memo<{
 									{(() => {
 										const imageBlocks = parsed.blocks.filter(
 											(b): b is Extract<RenderBlock, { type: "file" }> =>
-												b.type === "file" && b.mediaType.startsWith("image/"),
+												b.type === "file" && b.media_type.startsWith("image/"),
 										);
 										if (imageBlocks.length === 0) return null;
 										return (
 											<div className="mt-2 flex flex-wrap gap-2">
 												{imageBlocks.map((block, i) => {
-													const src = block.fileId
-														? `/api/experimental/chats/files/${block.fileId}`
-														: `data:${block.mediaType};base64,${block.data}`;
+													const src = block.file_id
+														? `/api/experimental/chats/files/${block.file_id}`
+														: `data:${block.media_type};base64,${block.data}`;
 													return (
 														<button
 															key={`user-file-${i}`}
@@ -612,7 +612,7 @@ const StickyUserMessage: FC<{
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: Array<{ mediaType: string; data?: string; fileId?: string }>,
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
@@ -751,11 +751,7 @@ const StickyUserMessage: FC<{
 		? (
 				messageId: number,
 				text: string,
-				fileBlocks?: Array<{
-					mediaType: string;
-					data?: string;
-					fileId?: string;
-				}>,
+				fileBlocks?: readonly TypesGen.ChatMessagePart[],
 			) => {
 				onEditUserMessage(messageId, text, fileBlocks);
 				requestAnimationFrame(() => {
@@ -873,7 +869,7 @@ interface ConversationTimelineProps {
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: Array<{ mediaType: string; data?: string; fileId?: string }>,
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
