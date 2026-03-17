@@ -708,7 +708,7 @@ const StickyUserMessage: FC<{
 				container.style.top = "0px";
 				return;
 			}
-			const visible = Math.max(fullHeight - scrolledPast, MIN_HEIGHT);
+			const visible = Math.max(fullHeight - scrolledPast - 48, MIN_HEIGHT);
 			container.style.setProperty("--clip-h", `${visible}px`);
 			// Only show the fade gradient once enough content is
 			// clipped to be visually meaningful.
