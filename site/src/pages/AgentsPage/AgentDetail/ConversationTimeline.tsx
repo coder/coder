@@ -684,7 +684,7 @@ const StickyUserMessage: FC<{
 		let scrollerHeight = scroller.clientHeight;
 
 		const update = () => {
-			const fullHeight = container.offsetHeight;
+			const fullHeight = container.scrollHeight;
 
 			// Skip sticky behavior for messages that take up
 			// most of the visible area — accounting for the
@@ -695,6 +695,8 @@ const StickyUserMessage: FC<{
 				container.style.setProperty("--clip-h", `${fullHeight}px`);
 				container.style.setProperty("--fade-opacity", "0");
 				container.style.top = "0px";
+				container.style.overflow = "";
+				container.style.maxHeight = "";
 				return;
 			}
 			const sentinelTop = sentinel.getBoundingClientRect().top;
@@ -706,10 +708,16 @@ const StickyUserMessage: FC<{
 				container.style.setProperty("--clip-h", `${fullHeight}px`);
 				container.style.setProperty("--fade-opacity", "0");
 				container.style.top = "0px";
+				container.style.overflow = "";
+				container.style.maxHeight = "";
 				return;
 			}
 			const visible = Math.max(fullHeight - scrolledPast, MIN_HEIGHT);
 			container.style.setProperty("--clip-h", `${visible}px`);
+			// Constrain the container's box so it doesn't
+			// visually overlap the assistant text below.
+			container.style.overflow = "clip";
+			container.style.maxHeight = `${visible}px`;
 			// Only show the fade gradient once enough content is
 			// clipped to be visually meaningful.
 			container.style.setProperty(
