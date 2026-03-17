@@ -2,18 +2,22 @@ import { getErrorMessage } from "api/errors";
 import {
 	chatCostSummary,
 	chatCostUsers,
+	chatDesktopEnabled,
 	chatSystemPrompt,
 	chatUserCustomPrompt,
+	updateChatDesktopEnabled,
 	updateChatSystemPrompt,
 	updateUserChatCustomPrompt,
 } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
+import { Link } from "components/Link/Link";
 import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
 import { SearchField } from "components/SearchField/SearchField";
 import { Spinner } from "components/Spinner/Spinner";
+import { Switch } from "components/Switch/Switch";
 import {
 	Table,
 	TableBody,
@@ -31,7 +35,7 @@ import {
 import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { ShieldIcon } from "lucide-react";
+import { FlaskConicalIcon, ShieldIcon } from "lucide-react";
 import { type FC, type FormEvent, useCallback, useMemo, useState } from "react";
 import {
 	keepPreviousData,
@@ -59,6 +63,20 @@ const AdminBadge: FC = () => (
 			<TooltipContent side="right">
 				Only visible to deployment administrators.
 			</TooltipContent>
+		</Tooltip>
+	</TooltipProvider>
+);
+
+const ExperimentBadge: FC = () => (
+	<TooltipProvider delayDuration={0}>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span className="inline-flex cursor-default items-center gap-1 rounded bg-surface-tertiary/60 px-1.5 py-px text-[11px] font-medium text-content-secondary">
+					<FlaskConicalIcon className="h-3 w-3" />
+					Experiment
+				</span>
+			</TooltipTrigger>
+			<TooltipContent side="right">Experimental feature.</TooltipContent>
 		</Tooltip>
 	</TooltipProvider>
 );
@@ -355,6 +373,13 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 		isError: isSaveUserPromptError,
 	} = useMutation(updateUserChatCustomPrompt(queryClient));
 
+	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
+	const {
+		mutate: saveDesktopEnabled,
+		isPending: isSavingDesktopEnabled,
+		isError: isSaveDesktopEnabledError,
+	} = useMutation(updateChatDesktopEnabled(queryClient));
+
 	const serverPrompt = systemPromptQuery.data?.system_prompt ?? "";
 	const [localEdit, setLocalEdit] = useState<string | null>(null);
 	const systemPromptDraft = localEdit ?? serverPrompt;
@@ -366,7 +391,9 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 	const isSystemPromptDirty = localEdit !== null && localEdit !== serverPrompt;
 	const isUserPromptDirty =
 		localUserEdit !== null && localUserEdit !== serverUserPrompt;
-	const isDisabled = isSavingSystemPrompt || isSavingUserPrompt;
+	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
+	const isDisabled =
+		isSavingSystemPrompt || isSavingUserPrompt || isSavingDesktopEnabled;
 
 	const handleSaveSystemPrompt = useCallback(
 		(event: FormEvent) => {
@@ -495,6 +522,50 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 										</p>
 									)}
 								</form>
+								<hr className="my-5 border-0 border-t border-solid border-border" />
+								<div className="space-y-2">
+									<div className="flex items-center gap-2">
+										<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+											Virtual Desktop
+										</h3>
+										<AdminBadge />
+										<ExperimentBadge />
+									</div>
+									<div className="flex items-center justify-between gap-4">
+										<div className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
+											<p className="m-0">
+												Allow agents to use a virtual, graphical desktop within
+												workspaces. Requires the{" "}
+												<Link
+													href="https://registry.coder.com/modules/coder/portabledesktop"
+													target="_blank"
+													size="sm"
+												>
+													portabledesktop module
+												</Link>{" "}
+												to be installed in the workspace and the Anthropic
+												provider to be configured.
+											</p>
+											<p className="mt-2 mb-0 font-semibold text-content-secondary">
+												Warning: This is an experimental, in-progress feature,
+												and you’re likely to encounter bugs if you enable it.
+											</p>
+										</div>
+										<Switch
+											checked={desktopEnabled}
+											onCheckedChange={(checked) =>
+												saveDesktopEnabled({ enable_desktop: checked })
+											}
+											aria-label="Enable"
+											disabled={isDisabled}
+										/>
+									</div>
+									{isSaveDesktopEnabledError && (
+										<p className="m-0 text-xs text-content-destructive">
+											Failed to save desktop setting.
+										</p>
+									)}
+								</div>
 							</>
 						)}
 					</>
