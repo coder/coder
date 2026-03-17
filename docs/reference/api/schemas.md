@@ -8011,6 +8011,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `max_token_lifetime`       | integer | false    |              |                                                                                                                                                                                        |
 | `refresh_default_duration` | integer | false    |              | Refresh default duration is the default lifetime for OAuth2 refresh tokens. This should generally be longer than access token lifetimes to allow refreshing after access token expiry. |
 
+## codersdk.ShareableWorkspaceOwners
+
+```json
+"none"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                               |
+|----------------------------------------|
+| `everyone`, `none`, `service_accounts` |
+
 ## codersdk.SharedWorkspaceActor
 
 ```json
@@ -9829,15 +9843,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "shareable_workspace_owners": "none",
   "sharing_disabled": true
 }
 ```
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-|--------------------|---------|----------|--------------|-------------|
-| `sharing_disabled` | boolean | false    |              |             |
+| Name                         | Type                                                                   | Required | Restrictions | Description                                                                                                                     |
+|------------------------------|------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------|
+| `shareable_workspace_owners` | [codersdk.ShareableWorkspaceOwners](#codersdkshareableworkspaceowners) | false    |              | Shareable workspace owners controls whose workspaces can be shared within the organization.                                     |
+| `sharing_disabled`           | boolean                                                                | false    |              | Sharing disabled is deprecated and left for backward compatibility purposes. Deprecated: use `ShareableWorkspaceOwners` instead |
+
+#### Enumerated Values
+
+| Property                     | Value(s)                               |
+|------------------------------|----------------------------------------|
+| `shareable_workspace_owners` | `everyone`, `none`, `service_accounts` |
 
 ## codersdk.UpdateWorkspaceTTLRequest
 
@@ -12308,6 +12330,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "shareable_workspace_owners": "none",
   "sharing_disabled": true,
   "sharing_globally_disabled": true
 }
@@ -12315,10 +12338,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                        | Type    | Required | Restrictions | Description                                                                                                                |
-|-----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
-| `sharing_disabled`          | boolean | false    |              |                                                                                                                            |
-| `sharing_globally_disabled` | boolean | false    |              | Sharing globally disabled is true if sharing has been disabled for this organization because of a deployment-wide setting. |
+| Name                         | Type                                                                   | Required | Restrictions | Description                                                                                                                     |
+|------------------------------|------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------|
+| `shareable_workspace_owners` | [codersdk.ShareableWorkspaceOwners](#codersdkshareableworkspaceowners) | false    |              | Shareable workspace owners controls whose workspaces can be shared within the organization.                                     |
+| `sharing_disabled`           | boolean                                                                | false    |              | Sharing disabled is deprecated and left for backward compatibility purposes. Deprecated: use `ShareableWorkspaceOwners` instead |
+| `sharing_globally_disabled`  | boolean                                                                | false    |              | Sharing globally disabled is true if sharing has been disabled for this organization because of a deployment-wide setting.      |
+
+#### Enumerated Values
+
+| Property                     | Value(s)                               |
+|------------------------------|----------------------------------------|
+| `shareable_workspace_owners` | `everyone`, `none`, `service_accounts` |
 
 ## codersdk.WorkspaceStatus
 
