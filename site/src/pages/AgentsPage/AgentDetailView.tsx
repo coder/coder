@@ -6,6 +6,7 @@ import {
 	type FC,
 	type RefObject,
 	useEffect,
+	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
@@ -523,6 +524,10 @@ const ScrollAnchoredContainer: FC<{
 	children,
 }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
+	// Snapshot of scrollHeight captured right before a fetch fires.
+	// The layout effect uses it to compute how much content was
+	// inserted and adjust scrollTop so the viewport stays put.
+	const prevScrollHeightRef = useRef<number | null>(null);
 	const isFetchingRef = useRef(isFetchingMoreMessages);
 	isFetchingRef.current = isFetchingMoreMessages;
 
@@ -535,6 +540,7 @@ const ScrollAnchoredContainer: FC<{
 		const observer = new IntersectionObserver(
 			([entry]) => {
 				if (entry.isIntersecting && !isFetchingRef.current) {
+					prevScrollHeightRef.current = container.scrollHeight;
 					onFetchMoreMessages();
 				}
 			},
@@ -547,6 +553,23 @@ const ScrollAnchoredContainer: FC<{
 		observer.observe(sentinel);
 		return () => observer.disconnect();
 	}, [scrollContainerRef, onFetchMoreMessages]);
+
+	// After React commits new DOM nodes, compensate for the height
+	// added above the viewport. Only clear the snapshot once a real
+	// delta is observed — intermediate renders (e.g. react-query
+	// state flip before the store upserts messages) see delta=0
+	// because the DOM hasn't changed yet.
+	useLayoutEffect(() => {
+		const container = scrollContainerRef.current;
+		const prevHeight = prevScrollHeightRef.current;
+		if (!container || prevHeight === null) return;
+
+		const delta = container.scrollHeight - prevHeight;
+		if (delta > 0) {
+			container.scrollTop -= delta;
+			prevScrollHeightRef.current = null;
+		}
+	});
 
 	return (
 		<div
