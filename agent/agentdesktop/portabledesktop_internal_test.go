@@ -2,11 +2,6 @@ package agentdesktop
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -77,7 +72,6 @@ func TestPortableDesktop_Start_ParsesOutput(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, nil)
-	dataDir := t.TempDir()
 
 	// The "up" script prints the JSON line then sleeps until
 	// the context is canceled (simulating a long-running process).
@@ -88,13 +82,13 @@ func TestPortableDesktop_Start_ParsesOutput(t *testing.T) {
 	}
 
 	pd := &portableDesktop{
-		logger:  logger,
-		execer:  rec,
-		dataDir: dataDir,
-		binPath: "portabledesktop", // pre-set so ensureBinary is a no-op
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		binPath:      "portabledesktop", // pre-set so ensureBinary is a no-op
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	cfg, err := pd.Start(ctx)
 	require.NoError(t, err)
 
@@ -111,7 +105,6 @@ func TestPortableDesktop_Start_Idempotent(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, nil)
-	dataDir := t.TempDir()
 
 	rec := &recordedExecer{
 		scripts: map[string]string{
@@ -120,13 +113,13 @@ func TestPortableDesktop_Start_Idempotent(t *testing.T) {
 	}
 
 	pd := &portableDesktop{
-		logger:  logger,
-		execer:  rec,
-		dataDir: dataDir,
-		binPath: "portabledesktop",
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		binPath:      "portabledesktop",
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	cfg1, err := pd.Start(ctx)
 	require.NoError(t, err)
 
@@ -154,7 +147,6 @@ func TestPortableDesktop_Screenshot(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, nil)
-	dataDir := t.TempDir()
 
 	rec := &recordedExecer{
 		scripts: map[string]string{
@@ -163,13 +155,13 @@ func TestPortableDesktop_Screenshot(t *testing.T) {
 	}
 
 	pd := &portableDesktop{
-		logger:  logger,
-		execer:  rec,
-		dataDir: dataDir,
-		binPath: "portabledesktop",
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		binPath:      "portabledesktop",
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	result, err := pd.Screenshot(ctx, ScreenshotOptions{})
 	require.NoError(t, err)
 
@@ -180,7 +172,6 @@ func TestPortableDesktop_Screenshot_WithTargetDimensions(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, nil)
-	dataDir := t.TempDir()
 
 	rec := &recordedExecer{
 		scripts: map[string]string{
@@ -189,13 +180,13 @@ func TestPortableDesktop_Screenshot_WithTargetDimensions(t *testing.T) {
 	}
 
 	pd := &portableDesktop{
-		logger:  logger,
-		execer:  rec,
-		dataDir: dataDir,
-		binPath: "portabledesktop",
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		binPath:      "portabledesktop",
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err := pd.Screenshot(ctx, ScreenshotOptions{
 		TargetWidth:  800,
 		TargetHeight: 600,
@@ -287,13 +278,13 @@ func TestPortableDesktop_MouseMethods(t *testing.T) {
 			}
 
 			pd := &portableDesktop{
-				logger:  logger,
-				execer:  rec,
-				dataDir: t.TempDir(),
-				binPath: "portabledesktop",
+				logger:       logger,
+				execer:       rec,
+				scriptBinDir: t.TempDir(),
+				binPath:      "portabledesktop",
 			}
 
-			err := tt.invoke(context.Background(), pd)
+			err := tt.invoke(t.Context(), pd)
 			require.NoError(t, err)
 
 			cmds := rec.allCommands()
@@ -372,13 +363,13 @@ func TestPortableDesktop_KeyboardMethods(t *testing.T) {
 			}
 
 			pd := &portableDesktop{
-				logger:  logger,
-				execer:  rec,
-				dataDir: t.TempDir(),
-				binPath: "portabledesktop",
+				logger:       logger,
+				execer:       rec,
+				scriptBinDir: t.TempDir(),
+				binPath:      "portabledesktop",
 			}
 
-			err := tt.invoke(context.Background(), pd)
+			err := tt.invoke(t.Context(), pd)
 			require.NoError(t, err)
 
 			cmds := rec.allCommands()
@@ -404,13 +395,13 @@ func TestPortableDesktop_CursorPosition(t *testing.T) {
 	}
 
 	pd := &portableDesktop{
-		logger:  logger,
-		execer:  rec,
-		dataDir: t.TempDir(),
-		binPath: "portabledesktop",
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		binPath:      "portabledesktop",
 	}
 
-	x, y, err := pd.CursorPosition(context.Background())
+	x, y, err := pd.CursorPosition(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, 100, x)
 	assert.Equal(t, 200, y)
@@ -428,13 +419,13 @@ func TestPortableDesktop_Close(t *testing.T) {
 	}
 
 	pd := &portableDesktop{
-		logger:  logger,
-		execer:  rec,
-		dataDir: t.TempDir(),
-		binPath: "portabledesktop",
+		logger:       logger,
+		execer:       rec,
+		scriptBinDir: t.TempDir(),
+		binPath:      "portabledesktop",
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	_, err := pd.Start(ctx)
 	require.NoError(t, err)
 
@@ -457,81 +448,6 @@ func TestPortableDesktop_Close(t *testing.T) {
 	assert.Contains(t, err.Error(), "desktop is closed")
 }
 
-// --- downloadBinary tests ---
-
-func TestDownloadBinary_Success(t *testing.T) {
-	t.Parallel()
-
-	binaryContent := []byte("#!/bin/sh\necho portable\n")
-	hash := sha256.Sum256(binaryContent)
-	expectedSHA := hex.EncodeToString(hash[:])
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(binaryContent)
-	}))
-	defer srv.Close()
-
-	destDir := t.TempDir()
-	destPath := filepath.Join(destDir, "portabledesktop")
-
-	err := downloadBinary(context.Background(), srv.Client(), srv.URL, expectedSHA, destPath)
-	require.NoError(t, err)
-
-	// Verify the file exists and has correct content.
-	got, err := os.ReadFile(destPath)
-	require.NoError(t, err)
-	assert.Equal(t, binaryContent, got)
-
-	// Verify executable permissions.
-	info, err := os.Stat(destPath)
-	require.NoError(t, err)
-	assert.NotZero(t, info.Mode()&0o700, "binary should be executable")
-}
-
-func TestDownloadBinary_ChecksumMismatch(t *testing.T) {
-	t.Parallel()
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("real binary content"))
-	}))
-	defer srv.Close()
-
-	destDir := t.TempDir()
-	destPath := filepath.Join(destDir, "portabledesktop")
-
-	wrongSHA := "0000000000000000000000000000000000000000000000000000000000000000"
-	err := downloadBinary(context.Background(), srv.Client(), srv.URL, wrongSHA, destPath)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "SHA-256 mismatch")
-
-	// The destination file should not exist (temp file cleaned up).
-	_, statErr := os.Stat(destPath)
-	assert.True(t, os.IsNotExist(statErr), "dest file should not exist after checksum failure")
-
-	// No leftover temp files in the directory.
-	entries, err := os.ReadDir(destDir)
-	require.NoError(t, err)
-	assert.Empty(t, entries, "no leftover temp files should remain")
-}
-
-func TestDownloadBinary_HTTPError(t *testing.T) {
-	t.Parallel()
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-	}))
-	defer srv.Close()
-
-	destDir := t.TempDir()
-	destPath := filepath.Join(destDir, "portabledesktop")
-
-	err := downloadBinary(context.Background(), srv.Client(), srv.URL, "irrelevant", destPath)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "status 404")
-}
-
 // --- ensureBinary tests ---
 
 func TestEnsureBinary_UsesCachedBinPath(t *testing.T) {
@@ -541,173 +457,89 @@ func TestEnsureBinary_UsesCachedBinPath(t *testing.T) {
 	// immediately without doing any work.
 	logger := slogtest.Make(t, nil)
 	pd := &portableDesktop{
-		logger:  logger,
-		execer:  agentexec.DefaultExecer,
-		dataDir: t.TempDir(),
-		binPath: "/already/set",
+		logger:       logger,
+		execer:       agentexec.DefaultExecer,
+		scriptBinDir: t.TempDir(),
+		binPath:      "/already/set",
 	}
 
-	err := pd.ensureBinary(context.Background())
+	err := pd.ensureBinary(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "/already/set", pd.binPath)
 }
 
-func TestEnsureBinary_UsesCachedBinary(t *testing.T) {
+func TestEnsureBinary_UsesScriptBinDir(t *testing.T) {
 	// Cannot use t.Parallel because t.Setenv modifies the process
 	// environment.
-	if runtime.GOOS != "linux" {
-		t.Skip("portabledesktop is only supported on Linux")
-	}
 
-	bin, ok := platformBinaries[runtime.GOARCH]
-	if !ok {
-		t.Skipf("no platformBinary entry for %s", runtime.GOARCH)
-	}
-
-	dataDir := t.TempDir()
-	cacheDir := filepath.Join(dataDir, "portabledesktop", bin.SHA256)
-	require.NoError(t, os.MkdirAll(cacheDir, 0o700))
-
-	cachedPath := filepath.Join(cacheDir, "portabledesktop")
-	require.NoError(t, os.WriteFile(cachedPath, []byte("#!/bin/sh\n"), 0o600))
+	scriptBinDir := t.TempDir()
+	binPath := filepath.Join(scriptBinDir, "portabledesktop")
+	require.NoError(t, os.WriteFile(binPath, []byte("#!/bin/sh\n"), 0o600))
+	require.NoError(t, os.Chmod(binPath, 0o755))
 
 	logger := slogtest.Make(t, nil)
 	pd := &portableDesktop{
-		logger:  logger,
-		execer:  agentexec.DefaultExecer,
-		dataDir: dataDir,
+		logger:       logger,
+		execer:       agentexec.DefaultExecer,
+		scriptBinDir: scriptBinDir,
 	}
 
 	// Clear PATH so LookPath won't find a real binary.
 	t.Setenv("PATH", "")
 
-	err := pd.ensureBinary(context.Background())
+	err := pd.ensureBinary(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, cachedPath, pd.binPath)
+	assert.Equal(t, binPath, pd.binPath)
 }
 
-func TestEnsureBinary_Downloads(t *testing.T) {
+func TestEnsureBinary_ScriptBinDirNotExecutable(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not support Unix permission bits")
+	}
 	// Cannot use t.Parallel because t.Setenv modifies the process
-	// environment and we override the package-level platformBinaries.
-	if runtime.GOOS != "linux" {
-		t.Skip("portabledesktop is only supported on Linux")
-	}
+	// environment.
 
-	binaryContent := []byte("#!/bin/sh\necho downloaded\n")
-	hash := sha256.Sum256(binaryContent)
-	expectedSHA := hex.EncodeToString(hash[:])
+	scriptBinDir := t.TempDir()
+	binPath := filepath.Join(scriptBinDir, "portabledesktop")
+	// Write without execute permission.
+	require.NoError(t, os.WriteFile(binPath, []byte("#!/bin/sh\n"), 0o600))
+	_ = binPath
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(binaryContent)
-	}))
-	defer srv.Close()
-
-	// Save and restore platformBinaries for this test.
-	origBinaries := platformBinaries
-	platformBinaries = map[string]struct {
-		URL    string
-		SHA256 string
-	}{
-		runtime.GOARCH: {
-			URL:    srv.URL + "/portabledesktop",
-			SHA256: expectedSHA,
-		},
-	}
-	t.Cleanup(func() { platformBinaries = origBinaries })
-
-	dataDir := t.TempDir()
 	logger := slogtest.Make(t, nil)
 	pd := &portableDesktop{
-		logger:     logger,
-		execer:     agentexec.DefaultExecer,
-		dataDir:    dataDir,
-		httpClient: srv.Client(),
+		logger:       logger,
+		execer:       agentexec.DefaultExecer,
+		scriptBinDir: scriptBinDir,
 	}
 
-	// Ensure PATH doesn't contain a real portabledesktop binary.
+	// Clear PATH so LookPath won't find a real binary.
 	t.Setenv("PATH", "")
 
-	err := pd.ensureBinary(context.Background())
-	require.NoError(t, err)
-
-	expectedPath := filepath.Join(dataDir, "portabledesktop", expectedSHA, "portabledesktop")
-	assert.Equal(t, expectedPath, pd.binPath)
-
-	// Verify the downloaded file has correct content.
-	got, err := os.ReadFile(expectedPath)
-	require.NoError(t, err)
-	assert.Equal(t, binaryContent, got)
+	err := pd.ensureBinary(t.Context())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
 }
 
-func TestEnsureBinary_RetriesOnFailure(t *testing.T) {
-	t.Parallel()
+func TestEnsureBinary_NotFound(t *testing.T) {
+	// Cannot use t.Parallel because t.Setenv modifies the process
+	// environment.
 
-	if runtime.GOOS != "linux" {
-		t.Skip("portabledesktop is only supported on Linux")
+	logger := slogtest.Make(t, nil)
+	pd := &portableDesktop{
+		logger:       logger,
+		execer:       agentexec.DefaultExecer,
+		scriptBinDir: t.TempDir(), // empty directory
 	}
 
-	binaryContent := []byte("#!/bin/sh\necho retried\n")
-	hash := sha256.Sum256(binaryContent)
-	expectedSHA := hex.EncodeToString(hash[:])
+	// Clear PATH so LookPath won't find a real binary.
+	t.Setenv("PATH", "")
 
-	var mu sync.Mutex
-	attempt := 0
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		mu.Lock()
-		current := attempt
-		attempt++
-		mu.Unlock()
-
-		// Fail the first 2 attempts, succeed on the third.
-		if current < 2 {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(binaryContent)
-	}))
-	defer srv.Close()
-
-	// Test downloadBinary directly to avoid time.Sleep in
-	// ensureBinary's retry loop. We call it 3 times to simulate
-	// what ensureBinary would do.
-	destDir := t.TempDir()
-	destPath := filepath.Join(destDir, "portabledesktop")
-
-	var lastErr error
-	for i := range 3 {
-		lastErr = downloadBinary(context.Background(), srv.Client(), srv.URL, expectedSHA, destPath)
-		if lastErr == nil {
-			break
-		}
-		if i < 2 {
-			// In the real code, ensureBinary sleeps here.
-			// We skip the sleep in tests.
-			continue
-		}
-	}
-	require.NoError(t, lastErr, "download should succeed on the third attempt")
-
-	got, err := os.ReadFile(destPath)
-	require.NoError(t, err)
-	assert.Equal(t, binaryContent, got)
-
-	mu.Lock()
-	assert.Equal(t, 3, attempt, "server should have been hit 3 times")
-	mu.Unlock()
+	err := pd.ensureBinary(t.Context())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
 }
 
 // Ensure that portableDesktop satisfies the Desktop interface at
 // compile time. This uses the unexported type so it lives in the
 // internal test package.
 var _ Desktop = (*portableDesktop)(nil)
-
-// Silence the linter about unused imports — agentexec.DefaultExecer
-// is used in TestEnsureBinary_UsesCachedBinPath and others, and
-// fmt.Sscanf is used indirectly via the implementation.
-var (
-	_ = agentexec.DefaultExecer
-	_ = fmt.Sprintf
-)

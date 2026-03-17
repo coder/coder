@@ -2,13 +2,9 @@ package agentdesktop
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,28 +19,6 @@ import (
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
-
-const (
-	portableDesktopVersion = "v0.0.4"
-	downloadRetries        = 3
-	downloadRetryDelay     = time.Second
-)
-
-// platformBinaries maps GOARCH to download URL and expected SHA-256
-// digest for each supported platform.
-var platformBinaries = map[string]struct {
-	URL    string
-	SHA256 string
-}{
-	"amd64": {
-		URL:    "https://github.com/coder/portabledesktop/releases/download/" + portableDesktopVersion + "/portabledesktop-linux-x64",
-		SHA256: "a04e05e6c7d6f2e6b3acbf1729a7b21271276300b4fee321f4ffee6136538317",
-	},
-	"arm64": {
-		URL:    "https://github.com/coder/portabledesktop/releases/download/" + portableDesktopVersion + "/portabledesktop-linux-arm64",
-		SHA256: "b8cb9142dc32d46a608f25229cbe8168ff2a3aadc54253c74ff54cd347e16ca6",
-	},
-}
 
 // portableDesktopOutput is the JSON output from
 // `portabledesktop up --json`.
@@ -78,41 +52,29 @@ type screenshotOutput struct {
 // portableDesktop implements Desktop by shelling out to the
 // portabledesktop CLI via agentexec.Execer.
 type portableDesktop struct {
-	logger  slog.Logger
-	execer  agentexec.Execer
-	dataDir string // agent's ScriptDataDir, used for binary caching
+	logger       slog.Logger
+	execer       agentexec.Execer
+	scriptBinDir string // coder script bin directory
 
 	mu      sync.Mutex
 	session *desktopSession // nil until started
 	binPath string          // resolved path to binary, cached
 	closed  bool
-
-	// httpClient is used for downloading the binary. If nil,
-	// http.DefaultClient is used.
-	httpClient *http.Client
 }
 
 // NewPortableDesktop creates a Desktop backed by the portabledesktop
-// CLI binary, using execer to spawn child processes. dataDir is used
-// to cache the downloaded binary.
+// CLI binary, using execer to spawn child processes. scriptBinDir is
+// the coder script bin directory checked for the binary.
 func NewPortableDesktop(
 	logger slog.Logger,
 	execer agentexec.Execer,
-	dataDir string,
+	scriptBinDir string,
 ) Desktop {
 	return &portableDesktop{
-		logger:  logger,
-		execer:  execer,
-		dataDir: dataDir,
+		logger:       logger,
+		execer:       execer,
+		scriptBinDir: scriptBinDir,
 	}
-}
-
-// httpDo returns the HTTP client to use for downloads.
-func (p *portableDesktop) httpDo() *http.Client {
-	if p.httpClient != nil {
-		return p.httpClient
-	}
-	return http.DefaultClient
 }
 
 // Start launches the desktop session (idempotent).
@@ -399,8 +361,8 @@ func (p *portableDesktop) runCmd(ctx context.Context, args ...string) (string, e
 	return string(out), nil
 }
 
-// ensureBinary resolves or downloads the portabledesktop binary. It
-// must be called while p.mu is held.
+// ensureBinary resolves the portabledesktop binary from PATH or the
+// coder script bin directory. It must be called while p.mu is held.
 func (p *portableDesktop) ensureBinary(ctx context.Context) error {
 	if p.binPath != "" {
 		return nil
@@ -415,130 +377,23 @@ func (p *portableDesktop) ensureBinary(ctx context.Context) error {
 		return nil
 	}
 
-	// 2. Platform checks.
-	if runtime.GOOS != "linux" {
-		return xerrors.New("portabledesktop is only supported on Linux")
-	}
-	bin, ok := platformBinaries[runtime.GOARCH]
-	if !ok {
-		return xerrors.Errorf("unsupported architecture for portabledesktop: %s", runtime.GOARCH)
-	}
-
-	// 3. Check cache.
-	cacheDir := filepath.Join(p.dataDir, "portabledesktop", bin.SHA256)
-	cachedPath := filepath.Join(cacheDir, "portabledesktop")
-
-	if info, err := os.Stat(cachedPath); err == nil && !info.IsDir() {
-		// Verify it is executable.
-		if info.Mode()&0o100 != 0 {
-			p.logger.Info(ctx, "using cached portabledesktop binary",
-				slog.F("path", cachedPath),
+	// 2. Check the coder script bin directory.
+	scriptBinPath := filepath.Join(p.scriptBinDir, "portabledesktop")
+	if info, err := os.Stat(scriptBinPath); err == nil && !info.IsDir() {
+		// On Windows, permission bits don't indicate executability,
+		// so accept any regular file.
+		if runtime.GOOS == "windows" || info.Mode()&0o111 != 0 {
+			p.logger.Info(ctx, "found portabledesktop in script bin directory",
+				slog.F("path", scriptBinPath),
 			)
-			p.binPath = cachedPath
+			p.binPath = scriptBinPath
 			return nil
 		}
-	}
-
-	// 4. Download with retry.
-	p.logger.Info(ctx, "downloading portabledesktop binary",
-		slog.F("url", bin.URL),
-		slog.F("version", portableDesktopVersion),
-		slog.F("arch", runtime.GOARCH),
-	)
-
-	var lastErr error
-	for attempt := range downloadRetries {
-		if err := downloadBinary(ctx, p.httpDo(), bin.URL, bin.SHA256, cachedPath); err != nil {
-			lastErr = err
-			p.logger.Warn(ctx, "download attempt failed",
-				slog.F("attempt", attempt+1),
-				slog.F("max_attempts", downloadRetries),
-				slog.Error(err),
-			)
-			if attempt < downloadRetries-1 {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-time.After(downloadRetryDelay):
-				}
-			}
-			continue
-		}
-		p.binPath = cachedPath
-		p.logger.Info(ctx, "downloaded portabledesktop binary",
-			slog.F("path", cachedPath),
-		)
-		return nil
-	}
-
-	return xerrors.Errorf("download portabledesktop after %d attempts: %w", downloadRetries, lastErr)
-}
-
-// downloadBinary fetches a binary from url, verifies its SHA-256
-// digest matches expectedSHA256, and atomically writes it to destPath.
-func downloadBinary(ctx context.Context, client *http.Client, url, expectedSHA256, destPath string) error {
-	if err := os.MkdirAll(filepath.Dir(destPath), 0o700); err != nil {
-		return xerrors.Errorf("create cache directory: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return xerrors.Errorf("create HTTP request: %w", err)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return xerrors.Errorf("HTTP GET %s: %w", url, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return xerrors.Errorf("HTTP GET %s: status %d", url, resp.StatusCode)
-	}
-
-	// Write to a temp file in the same directory so the final rename
-	// is atomic on the same filesystem.
-	tmpFile, err := os.CreateTemp(filepath.Dir(destPath), "portabledesktop-download-*")
-	if err != nil {
-		return xerrors.Errorf("create temp file: %w", err)
-	}
-	tmpPath := tmpFile.Name()
-
-	// Clean up the temp file on any error path.
-	success := false
-	defer func() {
-		if !success {
-			_ = tmpFile.Close()
-			_ = os.Remove(tmpPath)
-		}
-	}()
-
-	// Stream the response body while computing SHA-256.
-	hasher := sha256.New()
-	if _, err := io.Copy(tmpFile, io.TeeReader(resp.Body, hasher)); err != nil {
-		return xerrors.Errorf("download body: %w", err)
-	}
-
-	if err := tmpFile.Close(); err != nil {
-		return xerrors.Errorf("close temp file: %w", err)
-	}
-
-	// Verify digest.
-	actualSHA256 := hex.EncodeToString(hasher.Sum(nil))
-	if actualSHA256 != expectedSHA256 {
-		return xerrors.Errorf(
-			"SHA-256 mismatch: expected %s, got %s",
-			expectedSHA256, actualSHA256,
+		p.logger.Warn(ctx, "portabledesktop found in script bin directory but not executable",
+			slog.F("path", scriptBinPath),
+			slog.F("mode", info.Mode().String()),
 		)
 	}
 
-	if err := os.Chmod(tmpPath, 0o700); err != nil {
-		return xerrors.Errorf("chmod: %w", err)
-	}
-
-	if err := os.Rename(tmpPath, destPath); err != nil {
-		return xerrors.Errorf("rename to final path: %w", err)
-	}
-
-	success = true
-	return nil
+	return xerrors.New("portabledesktop binary not found in PATH or script bin directory")
 }
