@@ -25,7 +25,6 @@ import {
 import { ConversationTimeline } from "./AgentDetail/ConversationTimeline";
 import { getLatestContextUsage } from "./AgentDetail/chatHelpers";
 import {
-	buildParsedMessageSections,
 	buildSubagentTitles,
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
@@ -41,7 +40,6 @@ const isChatMessage = (
 
 interface AgentDetailTimelineProps {
 	store: ChatStoreHandle;
-	chatID: string;
 	persistedErrorReason: ChatDetailError | undefined;
 	onOpenAnalytics?: () => void;
 	onEditUserMessage?: (
@@ -56,7 +54,6 @@ interface AgentDetailTimelineProps {
 
 export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	store,
-	chatID,
 	persistedErrorReason,
 	onOpenAnalytics,
 	onEditUserMessage,
@@ -94,10 +91,6 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 		() => buildSubagentTitles(parsedMessages),
 		[parsedMessages],
 	);
-	const parsedSections = useMemo(
-		() => buildParsedMessageSections(parsedMessages),
-		[parsedMessages],
-	);
 	const detailError: ChatDetailError | undefined =
 		(persistedErrorReason?.kind === "usage-limit" || chatStatus === "error"
 			? persistedErrorReason
@@ -117,7 +110,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	return (
 		<ConversationTimeline
 			isEmpty={messages.length === 0}
-			parsedSections={parsedSections}
+			parsedMessages={parsedMessages}
 			hasStreamOutput={hasStreamOutput}
 			streamState={streamState}
 			streamTools={streamTools}

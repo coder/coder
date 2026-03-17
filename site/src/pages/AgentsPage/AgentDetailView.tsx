@@ -258,31 +258,30 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 						}}
 					/>
 				</div>
-					<ScrollAnchoredContainer
-						scrollContainerRef={scrollContainerRef}
-						isFetchingMoreMessages={isFetchingMoreMessages}
-						hasMoreMessages={hasMoreMessages}
-						onFetchMoreMessages={onFetchMoreMessages}
-					>
-						<div className="px-4">
-							<AgentDetailTimeline
-								store={store}
-								chatID={agentId}
-								persistedErrorReason={
-									chatErrorReasons[agentId] ??
-									(chatStatus === "error" && chatRecord?.last_error
-										? { kind: "generic" as const, message: chatRecord.last_error }
-										: undefined)
-								}
-								onOpenAnalytics={onOpenAnalytics}
-								onEditUserMessage={editing.handleEditUserMessage}
-								editingMessageId={editing.editingMessageId}
-								savingMessageId={pendingEditMessageId}
-								urlTransform={urlTransform}
-							/>
-						</div>
-						</ScrollAnchoredContainer>
-						<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+				<ScrollAnchoredContainer
+					scrollContainerRef={scrollContainerRef}
+					isFetchingMoreMessages={isFetchingMoreMessages}
+					hasMoreMessages={hasMoreMessages}
+					onFetchMoreMessages={onFetchMoreMessages}
+				>
+					<div className="px-4">
+						<AgentDetailTimeline
+							store={store}
+							persistedErrorReason={
+								chatErrorReasons[agentId] ??
+								(chatStatus === "error" && chatRecord?.last_error
+									? { kind: "generic" as const, message: chatRecord.last_error }
+									: undefined)
+							}
+							onOpenAnalytics={onOpenAnalytics}
+							onEditUserMessage={editing.handleEditUserMessage}
+							editingMessageId={editing.editingMessageId}
+							savingMessageId={pendingEditMessageId}
+							urlTransform={urlTransform}
+						/>
+					</div>
+				</ScrollAnchoredContainer>
+				<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<AgentDetailInput
 						store={store}
 						compressionThreshold={compressionThreshold}
@@ -546,12 +545,9 @@ const ScrollAnchoredContainer: FC<{
 		<div
 			ref={scrollContainerRef}
 			className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
-	
 		>
 			{children}
-			{hasMoreMessages && (
-				<div ref={sentinelRef} className="h-px shrink-0" />
-			)}
+			{hasMoreMessages && <div ref={sentinelRef} className="h-px shrink-0" />}
 		</div>
 	);
 };

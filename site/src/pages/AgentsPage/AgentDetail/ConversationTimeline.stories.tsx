@@ -2,17 +2,14 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type * as TypesGen from "api/typesGenerated";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { ConversationTimeline } from "./ConversationTimeline";
-import {
-	buildParsedMessageSections,
-	parseMessagesWithMergedTools,
-} from "./messageParsing";
+import { parseMessagesWithMergedTools } from "./messageParsing";
 
 // 1×1 solid coral (#FF6B6B) PNG encoded as base64.
 const TEST_PNG_B64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==";
 
-const buildSections = (messages: TypesGen.ChatMessage[]) =>
-	buildParsedMessageSections(parseMessagesWithMergedTools(messages));
+const buildMessages = (messages: TypesGen.ChatMessage[]) =>
+	parseMessagesWithMergedTools(messages);
 
 const baseMessage = {
 	chat_id: "story-chat",
@@ -21,7 +18,7 @@ const baseMessage = {
 
 const defaultArgs: Omit<
 	React.ComponentProps<typeof ConversationTimeline>,
-	"parsedSections"
+	"parsedMessages"
 > = {
 	isEmpty: false,
 	hasStreamOutput: false,
@@ -50,7 +47,7 @@ type Story = StoryObj<typeof ConversationTimeline>;
 export const UserMessageWithSingleImage: Story = {
 	args: {
 		...defaultArgs,
-		parsedSections: buildSections([
+		parsedMessages: buildMessages([
 			{
 				...baseMessage,
 				id: 1,
@@ -88,7 +85,7 @@ export const UserMessageWithSingleImage: Story = {
 export const UserMessageWithMultipleImages: Story = {
 	args: {
 		...defaultArgs,
-		parsedSections: buildSections([
+		parsedMessages: buildMessages([
 			{
 				...baseMessage,
 				id: 1,
@@ -125,7 +122,7 @@ export const UserMessageWithMultipleImages: Story = {
 export const UserMessageWithFileIdImage: Story = {
 	args: {
 		...defaultArgs,
-		parsedSections: buildSections([
+		parsedMessages: buildMessages([
 			{
 				...baseMessage,
 				id: 1,
@@ -157,7 +154,7 @@ export const UserMessageWithFileIdImage: Story = {
 export const UserMessageTextOnly: Story = {
 	args: {
 		...defaultArgs,
-		parsedSections: buildSections([
+		parsedMessages: buildMessages([
 			{
 				...baseMessage,
 				id: 1,
@@ -178,7 +175,7 @@ export const UserMessageTextOnly: Story = {
 export const AssistantMessageWithImage: Story = {
 	args: {
 		...defaultArgs,
-		parsedSections: buildSections([
+		parsedMessages: buildMessages([
 			{
 				...baseMessage,
 				id: 1,
@@ -211,7 +208,7 @@ export const AssistantMessageWithImage: Story = {
 export const UserMessageWithImagesAndFileRefs: Story = {
 	args: {
 		...defaultArgs,
-		parsedSections: buildSections([
+		parsedMessages: buildMessages([
 			{
 				...baseMessage,
 				id: 1,
@@ -246,7 +243,7 @@ export const UserMessageWithImagesAndFileRefs: Story = {
 export const UsageLimitExceeded: Story = {
 	args: {
 		...defaultArgs,
-		parsedSections: [],
+		parsedMessages: [],
 		detailError: {
 			kind: "usage-limit",
 			message:
@@ -270,7 +267,7 @@ export const UsageLimitExceeded: Story = {
 export const GenericErrorDoesNotShowUsageAction: Story = {
 	args: {
 		...defaultArgs,
-		parsedSections: [],
+		parsedMessages: [],
 		detailError: { kind: "generic", message: "Provider request failed." },
 		onOpenAnalytics: fn(),
 		subagentTitles: new Map(),
@@ -289,7 +286,7 @@ export const GenericErrorDoesNotShowUsageAction: Story = {
 export const UserMessageWithInlineFileRef: Story = {
 	args: {
 		...defaultArgs,
-		parsedSections: buildSections([
+		parsedMessages: buildMessages([
 			{
 				...baseMessage,
 				id: 1,
@@ -331,7 +328,7 @@ export const UserMessageWithInlineFileRef: Story = {
 export const UserMessageWithMultipleInlineFileRefs: Story = {
 	args: {
 		...defaultArgs,
-		parsedSections: buildSections([
+		parsedMessages: buildMessages([
 			{
 				...baseMessage,
 				id: 1,

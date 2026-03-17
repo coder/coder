@@ -36,7 +36,7 @@ import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
 	ParsedMessageContent,
-	ParsedMessageSection,
+	ParsedMessageEntry,
 	RenderBlock,
 	StreamState,
 } from "./types";
@@ -868,22 +868,9 @@ const StickyUserMessage: FC<{
 	);
 };
 
-
-// Key sections by the first *response* message (entries[1]),
-// which is stable when a user message is prepended during
-// pagination.  Falls back to entries[0] for sections that
-// only have a user prompt (no response yet u2014 always the
-// newest section at the bottom where scroll is anchored).
-const stableSectionKey = (
-	section: ParsedMessageSection,
-	index: number,
-): string | number =>
-	section.entries[1]?.message.id ??
-	section.entries[0]?.message.id ??
-	`section-${index}`;
 interface ConversationTimelineProps {
 	isEmpty: boolean;
-	parsedSections: readonly ParsedMessageSection[];
+	parsedMessages: readonly ParsedMessageEntry[];
 	hasStreamOutput: boolean;
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
@@ -905,7 +892,7 @@ interface ConversationTimelineProps {
 
 export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	isEmpty,
-	parsedSections,
+	parsedMessages,
 	hasStreamOutput,
 	streamState,
 	streamTools,
@@ -920,8 +907,8 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	savingMessageId,
 	urlTransform,
 }) => {
-	const shouldRenderStreamInLastSection =
-		hasStreamOutput && parsedSections.length > 0;
+	const shouldRenderStreamAfterMessages =
+		hasStreamOutput && parsedMessages.length > 0;
 	const isUsageLimitError = detailError?.kind === "usage-limit";
 	const showUsageAction = onOpenAnalytics !== undefined && isUsageLimitError;
 
@@ -930,15 +917,13 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	const afterEditingMessageIds = new Set<number>();
 	if (editingMessageId != null) {
 		let found = false;
-		for (const section of parsedSections) {
-			for (const entry of section.entries) {
-				if (entry.message.id === editingMessageId) {
-					found = true;
-					continue;
-				}
-				if (found) {
-					afterEditingMessageIds.add(entry.message.id);
-				}
+		for (const entry of parsedMessages) {
+			if (entry.message.id === editingMessageId) {
+				found = true;
+				continue;
+			}
+			if (found) {
+				afterEditingMessageIds.add(entry.message.id);
 			}
 		}
 	}
@@ -951,52 +936,40 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 				</div>
 			) : (
 				<div className="flex flex-col">
-					{parsedSections.map((section, sectionIdx) => (
-							<div
-									key={stableSectionKey(section, sectionIdx)}
-									className="-mx-1 px-1"							>							<div className="flex flex-col gap-3">
-								{section.entries.map(({ message, parsed }) =>
-									message.role === "user" ? (
-										<StickyUserMessage
-											key={message.id}
-											message={message}
-											parsed={parsed}
-											onEditUserMessage={onEditUserMessage}
-											editingMessageId={editingMessageId}
-											savingMessageId={savingMessageId}
-											isAfterEditingMessage={afterEditingMessageIds.has(
-												message.id,
-											)}
-										/>
-									) : (
-										<ChatMessageItem
-											key={message.id}
-											message={message}
-											parsed={parsed}
-											savingMessageId={savingMessageId}
-											urlTransform={urlTransform}
-											isAfterEditingMessage={afterEditingMessageIds.has(
-												message.id,
-											)}
-										/>
-									),
-								)}{" "}
-								{shouldRenderStreamInLastSection &&
-									sectionIdx === parsedSections.length - 1 && (
-										<StreamingOutput
-											streamState={streamState}
-											streamTools={streamTools}
-											subagentTitles={subagentTitles}
-											subagentStatusOverrides={subagentStatusOverrides}
-											showInitialPlaceholder={isAwaitingFirstStreamChunk}
-											retryState={retryState}
-											urlTransform={urlTransform}
-										/>
-									)}
-							</div>
-						</div>
-					))}
-					{hasStreamOutput && parsedSections.length === 0 && (
+					{parsedMessages.map(({ message, parsed }) =>
+						message.role === "user" ? (
+							<StickyUserMessage
+								key={message.id}
+								message={message}
+								parsed={parsed}
+								onEditUserMessage={onEditUserMessage}
+								editingMessageId={editingMessageId}
+								savingMessageId={savingMessageId}
+								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+							/>
+						) : (
+							<ChatMessageItem
+								key={message.id}
+								message={message}
+								parsed={parsed}
+								savingMessageId={savingMessageId}
+								urlTransform={urlTransform}
+								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+							/>
+						),
+					)}
+					{shouldRenderStreamAfterMessages && (
+						<StreamingOutput
+							streamState={streamState}
+							streamTools={streamTools}
+							subagentTitles={subagentTitles}
+							subagentStatusOverrides={subagentStatusOverrides}
+							showInitialPlaceholder={isAwaitingFirstStreamChunk}
+							retryState={retryState}
+							urlTransform={urlTransform}
+						/>
+					)}
+					{hasStreamOutput && parsedMessages.length === 0 && (
 						<StreamingOutput
 							streamState={streamState}
 							streamTools={streamTools}
