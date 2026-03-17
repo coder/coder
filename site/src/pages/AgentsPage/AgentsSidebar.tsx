@@ -122,7 +122,7 @@ const getPRIconConfig = (
 		return undefined;
 	}
 	if (state === "merged") {
-		return { icon: GitMergeIcon, className: "text-git-merged" };
+		return { icon: GitMergeIcon, className: "text-git-merged-bright" };
 	}
 	if (state === "closed") {
 		return {
