@@ -991,6 +991,44 @@ func AIBridgeInterception(interception database.AIBridgeInterception, initiator 
 	return intc
 }
 
+func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSession {
+	session := codersdk.AIBridgeSession{
+		ID: row.SessionID.String,
+		Initiator: MinimalUserFromVisibleUser(database.VisibleUser{
+			ID:        row.UserID,
+			Username:  row.UserUsername,
+			Name:      row.UserName,
+			AvatarURL: row.UserAvatarUrl,
+		}),
+		Providers: row.Providers,
+		Models:    row.Models,
+		Metadata:  jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: row.Metadata, Valid: len(row.Metadata) > 0}),
+		StartedAt: row.StartedAt,
+		Threads:   row.Threads,
+		TokenUsageSummary: codersdk.AIBridgeSessionTokenUsageSummary{
+			InputTokens:  row.InputTokens,
+			OutputTokens: row.OutputTokens,
+		},
+	}
+	// Ensure non-nil slices for JSON serialization.
+	if session.Providers == nil {
+		session.Providers = []string{}
+	}
+	if session.Models == nil {
+		session.Models = []string{}
+	}
+	if row.Client != "" {
+		session.Client = &row.Client
+	}
+	if !row.EndedAt.IsZero() {
+		session.EndedAt = &row.EndedAt
+	}
+	if row.LastPrompt.Valid {
+		session.LastPrompt = &row.LastPrompt.String
+	}
+	return session
+}
+
 func AIBridgeTokenUsage(usage database.AIBridgeTokenUsage) codersdk.AIBridgeTokenUsage {
 	return codersdk.AIBridgeTokenUsage{
 		ID:                 usage.ID,

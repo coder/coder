@@ -22,8 +22,10 @@ import (
 
 const (
 	maxListInterceptionsLimit     = 1000
+	maxListSessionsLimit          = 1000
 	maxListModelsLimit            = 1000
 	defaultListInterceptionsLimit = 100
+	defaultListSessionsLimit      = 100
 	defaultListModelsLimit        = 100
 	// aiBridgeRateLimitWindow is the fixed duration for rate limiting AI Bridge
 	// requests. This is hardcoded to keep configuration simple.
@@ -43,6 +45,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 		r.Group(func(r chi.Router) {
 			r.Use(middlewares...)
 			r.Get("/interceptions", api.aiBridgeListInterceptions)
+			r.Get("/sessions", api.aiBridgeListSessions)
 			r.Get("/models", api.aiBridgeListModels)
 		})
 
@@ -173,6 +176,101 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AIBridgeListInterceptionsResponse{
 		Count:   count,
 		Results: items,
+	})
+}
+
+// aiBridgeListSessions returns AI Bridge sessions (aggregated interceptions).
+//
+// @Summary List AI Bridge sessions
+// @ID list-ai-bridge-sessions
+// @Security CoderSessionToken
+// @Produce json
+// @Tags AI Bridge
+// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, model, client, started_after, started_before."
+// @Param limit query int false "Page limit"
+// @Param after_session_id query string false "Cursor pagination after session ID (cannot be used with offset)"
+// @Param offset query int false "Offset pagination (cannot be used with after_session_id)"
+// @Success 200 {object} codersdk.AIBridgeListSessionsResponse
+// @Router /aibridge/sessions [get]
+func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	page, ok := coderd.ParsePagination(rw, r)
+	if !ok {
+		return
+	}
+
+	afterSessionID := r.URL.Query().Get("after_session_id")
+	if afterSessionID != "" && page.Offset != 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Query parameters have invalid values.",
+			Detail:  "Cannot use both after_session_id and offset pagination in the same request.",
+		})
+		return
+	}
+	if page.Limit == 0 {
+		page.Limit = defaultListSessionsLimit
+	}
+	if page.Limit > maxListSessionsLimit || page.Limit < 1 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid pagination limit value.",
+			Detail:  fmt.Sprintf("Pagination limit must be in range (0, %d]", maxListSessionsLimit),
+		})
+		return
+	}
+
+	queryStr := r.URL.Query().Get("q")
+	filter, errs := searchquery.AIBridgeSessions(ctx, api.Database, queryStr, page, apiKey.UserID, afterSessionID)
+	if len(errs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid session search query.",
+			Validations: errs,
+		})
+		return
+	}
+
+	var (
+		count int64
+		rows  []database.ListAIBridgeSessionsRow
+	)
+	err := api.Database.InTx(func(db database.Store) error {
+		var err error
+		count, err = db.CountAIBridgeSessions(ctx, database.CountAIBridgeSessionsParams{
+			StartedAfter:  filter.StartedAfter,
+			StartedBefore: filter.StartedBefore,
+			InitiatorID:   filter.InitiatorID,
+			Provider:      filter.Provider,
+			Model:         filter.Model,
+			Client:        filter.Client,
+		})
+		if err != nil {
+			return xerrors.Errorf("count authorized aibridge sessions: %w", err)
+		}
+
+		rows, err = db.ListAIBridgeSessions(ctx, filter)
+		if err != nil {
+			return xerrors.Errorf("list aibridge sessions: %w", err)
+		}
+
+		return nil
+	}, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error getting AI Bridge sessions.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	sessions := make([]codersdk.AIBridgeSession, len(rows))
+	for i, row := range rows {
+		sessions[i] = db2sdk.AIBridgeSession(row)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AIBridgeListSessionsResponse{
+		Count:    count,
+		Sessions: sessions,
 	})
 }
 

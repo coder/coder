@@ -75,6 +75,12 @@ export interface AIBridgeListInterceptionsResponse {
 	readonly results: readonly AIBridgeInterception[];
 }
 
+// From codersdk/aibridge.go
+export interface AIBridgeListSessionsResponse {
+	readonly count: number;
+	readonly sessions: readonly AIBridgeSession[];
+}
+
 // From codersdk/deployment.go
 export interface AIBridgeOpenAIConfig {
 	readonly base_url: string;
@@ -92,6 +98,28 @@ export interface AIBridgeProxyConfig {
 	readonly domain_allowlist: string;
 	readonly upstream_proxy: string;
 	readonly upstream_proxy_ca: string;
+}
+
+// From codersdk/aibridge.go
+export interface AIBridgeSession {
+	readonly id: string;
+	readonly initiator: MinimalUser;
+	readonly providers: readonly string[];
+	readonly models: readonly string[];
+	readonly client: string | null;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
+	readonly started_at: string;
+	readonly ended_at?: string;
+	readonly threads: number;
+	readonly token_usage_summary: AIBridgeSessionTokenUsageSummary;
+	readonly last_prompt?: string;
+}
+
+// From codersdk/aibridge.go
+export interface AIBridgeSessionTokenUsageSummary {
+	readonly input_tokens: number;
+	readonly output_tokens: number;
 }
 
 // From codersdk/aibridge.go

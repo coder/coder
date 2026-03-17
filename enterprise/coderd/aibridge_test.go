@@ -665,6 +665,335 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 	})
 }
 
+func TestAIBridgeListSessions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RequiresLicenseFeature", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // Owner role is irrelevant here.
+		_, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
+
+	t.Run("EmptyDB", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // Owner role is irrelevant here.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.Empty(t, res.Sessions)
+		require.EqualValues(t, 0, res.Count)
+	})
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+
+		// Session 1: Two interceptions sharing client_session_id "session-A".
+		s1i1EndedAt := now.Add(time.Minute)
+		s1i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           "claude-4",
+			StartedAt:       now,
+			Client:          sql.NullString{String: "claude-code", Valid: true},
+			ClientSessionID: sql.NullString{String: "session-A", Valid: true},
+		}, &s1i1EndedAt)
+		s1i2EndedAt := now.Add(2 * time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:                firstUser.UserID,
+			Provider:                   "anthropic",
+			Model:                      "claude-4-haiku",
+			StartedAt:                  now.Add(time.Minute),
+			Client:                     sql.NullString{String: "claude-code", Valid: true},
+			ClientSessionID:            sql.NullString{String: "session-A", Valid: true},
+			ThreadRootInterceptionID:   uuid.NullUUID{UUID: s1i1.ID, Valid: true},
+			ThreadParentInterceptionID: uuid.NullUUID{UUID: s1i1.ID, Valid: true},
+		}, &s1i2EndedAt)
+
+		// Add token usages to session 1 interceptions.
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: s1i1.ID,
+			InputTokens:    100,
+			OutputTokens:   50,
+			CreatedAt:      now,
+		})
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: s1i1.ID,
+			InputTokens:    200,
+			OutputTokens:   75,
+			CreatedAt:      now.Add(time.Second),
+		})
+
+		// Add user prompts to session 1.
+		dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
+			InterceptionID: s1i1.ID,
+			Prompt:         "first prompt",
+			CreatedAt:      now,
+		})
+		dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
+			InterceptionID: s1i1.ID,
+			Prompt:         "last prompt in session",
+			CreatedAt:      now.Add(time.Minute),
+		})
+
+		// Session 2: Thread-based session (no client_session_id, shared
+		// thread_root_id).
+		s2i1EndedAt := now.Add(-time.Hour + time.Minute)
+		s2i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			Provider:    "openai",
+			Model:       "gpt-4",
+			StartedAt:   now.Add(-time.Hour),
+		}, &s2i1EndedAt)
+		s2i2EndedAt := now.Add(-time.Hour + 2*time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:                firstUser.UserID,
+			Provider:                   "openai",
+			Model:                      "gpt-4",
+			StartedAt:                  now.Add(-time.Hour + time.Minute),
+			ThreadRootInterceptionID:   uuid.NullUUID{UUID: s2i1.ID, Valid: true},
+			ThreadParentInterceptionID: uuid.NullUUID{UUID: s2i1.ID, Valid: true},
+		}, &s2i2EndedAt)
+
+		// Session 3: Standalone interception (no client_session_id, no
+		// thread_root_id).
+		s3EndedAt := now.Add(-2*time.Hour + time.Minute)
+		s3i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			Provider:    "anthropic",
+			Model:       "claude-4",
+			StartedAt:   now.Add(-2 * time.Hour),
+		}, &s3EndedAt)
+
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.EqualValues(t, 3, res.Count)
+		require.Len(t, res.Sessions, 3)
+
+		// Sessions ordered by started_at DESC: session-A (now), then
+		// thread-based (now-1h), then standalone (now-2h).
+		require.Equal(t, "session-A", res.Sessions[0].ID)
+		require.Equal(t, s2i1.ID.String(), res.Sessions[1].ID)
+		require.Equal(t, s3i1.ID.String(), res.Sessions[2].ID)
+
+		// Verify session 1 aggregations.
+		s1 := res.Sessions[0]
+		require.ElementsMatch(t, []string{"anthropic"}, s1.Providers)
+		require.ElementsMatch(t, []string{"claude-4", "claude-4-haiku"}, s1.Models)
+		require.NotNil(t, s1.Client)
+		require.Equal(t, "claude-code", *s1.Client)
+		require.EqualValues(t, 300, s1.TokenUsageSummary.InputTokens)
+		require.EqualValues(t, 125, s1.TokenUsageSummary.OutputTokens)
+		require.NotNil(t, s1.LastPrompt)
+		require.Equal(t, "last prompt in session", *s1.LastPrompt)
+		// Two interceptions in session-A, but they share a thread root,
+		// so thread count is 1.
+		require.EqualValues(t, 1, s1.Threads)
+
+		// Verify session 2 (thread-based).
+		s2 := res.Sessions[1]
+		require.ElementsMatch(t, []string{"openai"}, s2.Providers)
+		// Thread count: the root interception and its child share the same
+		// thread root, so count is 1.
+		require.EqualValues(t, 1, s2.Threads)
+
+		// Verify session 3 (standalone).
+		s3 := res.Sessions[2]
+		require.EqualValues(t, 1, s3.Threads)
+		require.Nil(t, s3.LastPrompt)
+	})
+
+	t.Run("Pagination", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		// Create 5 standalone sessions with different start times.
+		allSessionIDs := make([]string, 5)
+		for i := range 5 {
+			endedAt := now.Add(-time.Duration(i)*time.Hour + time.Minute)
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: firstUser.UserID,
+				StartedAt:   now.Add(-time.Duration(i) * time.Hour),
+			}, &endedAt)
+			// Standalone session: ID = interception UUID string.
+			allSessionIDs[i] = intc.ID.String()
+		}
+
+		// Test offset pagination.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Pagination: codersdk.Pagination{Limit: 2},
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 2)
+		require.EqualValues(t, 5, res.Count)
+		require.Equal(t, allSessionIDs[0], res.Sessions[0].ID)
+		require.Equal(t, allSessionIDs[1], res.Sessions[1].ID)
+
+		// Second page with offset.
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Pagination: codersdk.Pagination{Limit: 2, Offset: 2},
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 2)
+		require.Equal(t, allSessionIDs[2], res.Sessions[0].ID)
+		require.Equal(t, allSessionIDs[3], res.Sessions[1].ID)
+
+		// Test cursor pagination.
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Pagination:     codersdk.Pagination{Limit: 2},
+			AfterSessionID: allSessionIDs[1],
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 2)
+		require.Equal(t, allSessionIDs[2], res.Sessions[0].ID)
+		require.Equal(t, allSessionIDs[3], res.Sessions[1].ID)
+
+		// Test mutual exclusion of cursor and offset.
+		_, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Pagination:     codersdk.Pagination{Limit: 2, Offset: 1},
+			AfterSessionID: allSessionIDs[0],
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Contains(t, sdkErr.Detail, "Cannot use both after_session_id and offset pagination")
+	})
+
+	t.Run("Filters", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, user2 := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		now := dbtime.Now()
+
+		// Session from user1 with provider "anthropic" and client "claude-code".
+		s1EndedAt := now.Add(time.Minute)
+		s1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			Provider:    "anthropic",
+			Model:       "claude-4",
+			StartedAt:   now,
+			Client:      sql.NullString{String: "claude-code", Valid: true},
+		}, &s1EndedAt)
+
+		// Session from user2 with provider "openai".
+		s2EndedAt := now.Add(-time.Hour + time.Minute)
+		s2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: user2.ID,
+			Provider:    "openai",
+			Model:       "gpt-4",
+			StartedAt:   now.Add(-time.Hour),
+		}, &s2EndedAt)
+
+		// Filter by initiator.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Initiator: user2.Username,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Equal(t, s2.ID.String(), res.Sessions[0].ID)
+
+		// Filter by provider.
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Provider: "anthropic",
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Equal(t, s1.ID.String(), res.Sessions[0].ID)
+
+		// Filter by model.
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Model: "gpt-4",
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Equal(t, s2.ID.String(), res.Sessions[0].ID)
+
+		// Filter by client.
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Client: "claude-code",
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Equal(t, s1.ID.String(), res.Sessions[0].ID)
+
+		// Filter by time range.
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			StartedAfter: now.Add(-30 * time.Minute),
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Equal(t, s1.ID.String(), res.Sessions[0].ID)
+	})
+}
+
 func TestAIBridgeRouting(t *testing.T) {
 	t.Parallel()
 
