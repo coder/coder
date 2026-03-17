@@ -15404,6 +15404,18 @@ func (q *sqlQuerier) GetApplicationName(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getChatDesktopEnabled = `-- name: GetChatDesktopEnabled :one
+SELECT
+	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_desktop_enabled'), false) :: boolean AS enable_desktop
+`
+
+func (q *sqlQuerier) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getChatDesktopEnabled)
+	var enable_desktop bool
+	err := row.Scan(&enable_desktop)
+	return enable_desktop, err
+}
+
 const getChatSystemPrompt = `-- name: GetChatSystemPrompt :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_system_prompt'), '') :: text AS chat_system_prompt
@@ -15595,6 +15607,28 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'application
 
 func (q *sqlQuerier) UpsertApplicationName(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertApplicationName, value)
+	return err
+}
+
+const upsertChatDesktopEnabled = `-- name: UpsertChatDesktopEnabled :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'agents_desktop_enabled',
+    CASE
+        WHEN $1::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN $1::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'agents_desktop_enabled'
+`
+
+func (q *sqlQuerier) UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bool) error {
+	_, err := q.db.ExecContext(ctx, upsertChatDesktopEnabled, enableDesktop)
 	return err
 }
 

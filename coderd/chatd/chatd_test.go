@@ -2517,6 +2517,9 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	err = db.UpsertChatDesktopEnabled(ctx, true)
+	require.NoError(t, err)
+
 	// Build workspace + agent records so getWorkspaceConn can
 	// resolve the agent for the computer use child.
 	org := dbgen.Organization(t, db, database.Organization{})

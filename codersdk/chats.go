@@ -320,6 +320,16 @@ type UserChatCustomPrompt struct {
 	CustomPrompt string `json:"custom_prompt"`
 }
 
+// ChatDesktopEnabledResponse is the response for getting the desktop setting.
+type ChatDesktopEnabledResponse struct {
+	EnableDesktop bool `json:"enable_desktop"`
+}
+
+// UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
+type UpdateChatDesktopEnabledRequest struct {
+	EnableDesktop bool `json:"enable_desktop"`
+}
+
 // ChatProviderConfigSource describes how a provider entry is sourced.
 type ChatProviderConfigSource string
 
@@ -1268,6 +1278,33 @@ func (c *Client) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPro
 	}
 	var resp UserChatCustomPrompt
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetChatDesktopEnabled returns the deployment-wide desktop setting.
+func (c *Client) GetChatDesktopEnabled(ctx context.Context) (ChatDesktopEnabledResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/desktop-enabled", nil)
+	if err != nil {
+		return ChatDesktopEnabledResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatDesktopEnabledResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatDesktopEnabledResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatDesktopEnabled updates the deployment-wide desktop setting.
+func (c *Client) UpdateChatDesktopEnabled(ctx context.Context, req UpdateChatDesktopEnabledRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/desktop-enabled", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // UpdateUserChatCustomPrompt updates the user's custom chat prompt.
