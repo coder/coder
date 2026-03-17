@@ -516,6 +516,7 @@ const ScrollAnchoredContainer: FC<{
 	children,
 }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
+	const observerRef = useRef<IntersectionObserver | null>(null);
 	const isFetchingRef = useRef(isFetchingMoreMessages);
 	isFetchingRef.current = isFetchingMoreMessages;
 	const onFetchRef = useRef(onFetchMoreMessages);
@@ -542,10 +543,28 @@ const ScrollAnchoredContainer: FC<{
 				threshold: 0.01,
 			},
 		);
+		observerRef.current = observer;
 		observer.observe(sentinel);
-		return () => observer.disconnect();
+		return () => {
+			observer.disconnect();
+			observerRef.current = null;
+		};
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [scrollContainerRef]);
+
+	// When a fetch completes, re-observe the sentinel to force
+	// the IntersectionObserver to re-evaluate. The observer only
+	// fires on state *changes* (entering/leaving), so if the
+	// sentinel stayed visible throughout the fetch it won't fire
+	// again on its own.
+	useEffect(() => {
+		if (isFetchingMoreMessages) return;
+		const sentinel = sentinelRef.current;
+		const observer = observerRef.current;
+		if (!sentinel || !observer) return;
+		observer.unobserve(sentinel);
+		observer.observe(sentinel);
+	}, [isFetchingMoreMessages]);
 
 	return (
 		<div
