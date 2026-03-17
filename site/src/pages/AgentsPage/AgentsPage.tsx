@@ -395,15 +395,13 @@ const AgentsPage: FC = () => {
 					}
 
 					if (chatEvent.kind === "diff_status_change") {
-						void Promise.all([
-							queryClient.invalidateQueries({
-								queryKey: chatKey(updatedChat.id),
-							}),
-							queryClient.invalidateQueries({
-								queryKey: chatDiffContentsKey(updatedChat.id),
-							}),
-							invalidateChatListQueries(queryClient),
-						]);
+						// Only refetch the diff file contents — the chat's
+						// diff_status field is already written into the
+						// chatKey and infinite-list caches below.
+						void queryClient.invalidateQueries({
+							queryKey: chatDiffContentsKey(updatedChat.id),
+							exact: true,
+						});
 					}
 					// Scope field updates by event kind so that
 					// status_change events (which may carry a stale title
