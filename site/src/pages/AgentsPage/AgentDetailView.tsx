@@ -518,8 +518,13 @@ const ScrollAnchoredContainer: FC<{
 	const sentinelRef = useRef<HTMLDivElement>(null);
 	const isFetchingRef = useRef(isFetchingMoreMessages);
 	isFetchingRef.current = isFetchingMoreMessages;
+	const onFetchRef = useRef(onFetchMoreMessages);
+	onFetchRef.current = onFetchMoreMessages;
 
 	// Sentinel observer — triggers loading older messages.
+	// All changing values are read from refs so the observer
+	// is created once and never torn down / recreated, which
+	// would cause spurious intersection callbacks.
 	useEffect(() => {
 		const sentinel = sentinelRef.current;
 		const container = scrollContainerRef.current;
@@ -528,7 +533,7 @@ const ScrollAnchoredContainer: FC<{
 		const observer = new IntersectionObserver(
 			([entry]) => {
 				if (entry.isIntersecting && !isFetchingRef.current) {
-					onFetchMoreMessages();
+					onFetchRef.current();
 				}
 			},
 			{
@@ -539,7 +544,8 @@ const ScrollAnchoredContainer: FC<{
 		);
 		observer.observe(sentinel);
 		return () => observer.disconnect();
-	}, [scrollContainerRef, onFetchMoreMessages]);
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [scrollContainerRef]);
 
 	return (
 		<div
