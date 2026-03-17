@@ -939,10 +939,9 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 			) : (
 				<div className="flex flex-col">
 					{parsedSections.map((section, sectionIdx) => (
-						<div
-								key={section.userEntry?.message.id ?? `section-${sectionIdx}`}
-								className="-mx-1 px-1"
-							>							<div className="flex flex-col gap-3">
+							<div
+									key={section.userEntry?.message.id ?? section.entries[0]?.message.id ?? `section-${sectionIdx}`}
+									className="-mx-1 px-1"							>							<div className="flex flex-col gap-3">
 								{section.entries.map(({ message, parsed }) =>
 									message.role === "user" ? (
 										<StickyUserMessage
