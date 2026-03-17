@@ -118,16 +118,16 @@ const PullRequestStateBadge: FC<{
 }> = ({ state, draft }) => {
 	let Icon = GitPullRequestIcon;
 	let label = "Open";
-	let colorClasses = "border-border-default bg-green-500/10 text-green-400";
+	let colorClasses = "border-border-green bg-surface-git-added text-git-added";
 
 	if (state === "merged") {
 		Icon = GitMergeIcon;
 		label = "Merged";
-		colorClasses = "border-border-default bg-purple-500/10 text-purple-400";
+		colorClasses = "border-border-purple bg-surface-git-merged text-git-merged";
 	} else if (state === "closed") {
 		Icon = GitPullRequestClosedIcon;
 		label = "Closed";
-		colorClasses = "border-border-default bg-red-500/10 text-red-400";
+		colorClasses = "border-border-destructive bg-surface-git-deleted text-git-deleted";
 	} else if (draft) {
 		Icon = GitPullRequestDraftIcon;
 		label = "Draft";

@@ -415,11 +415,11 @@ const PrStateIcon: FC<{
 	className?: string;
 }> = ({ state, draft, className }) => {
 	if (state === "merged") {
-		return <GitMergeIcon className={cn("text-purple-400", className)} />;
+		return <GitMergeIcon className={cn("text-git-merged", className)} />;
 	}
 	if (state === "closed") {
 		return (
-			<GitPullRequestClosedIcon className={cn("text-red-400", className)} />
+			<GitPullRequestClosedIcon className={cn("text-git-deleted", className)} />
 		);
 	}
 	if (draft) {
@@ -429,5 +429,5 @@ const PrStateIcon: FC<{
 			/>
 		);
 	}
-	return <GitPullRequestIcon className={cn("text-green-400", className)} />;
+	return <GitPullRequestIcon className={cn("text-git-added", className)} />;
 };
