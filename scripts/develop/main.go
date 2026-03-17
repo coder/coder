@@ -1,3 +1,5 @@
+//go:build !windows
+
 // Command develop orchestrates the Coder development environment. It
 // builds the binary, starts the API server and frontend dev server,
 // sets up a first user, and handles graceful shutdown on signals.
