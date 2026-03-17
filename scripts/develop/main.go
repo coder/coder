@@ -31,17 +31,19 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/config"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
 
 const (
-	defaultAPIPort   = "3000"
-	defaultWebPort   = "8080"
-	defaultProxyPort = "3010"
-	defaultPassword  = "SomeSecurePassword!"
-	healthTimeout    = 60 * time.Second
-	shutdownTimeout  = 15 * time.Second
+	defaultAPIPort         = "3000"
+	defaultWebPort         = "8080"
+	defaultProxyPort       = "3010"
+	defaultPassword        = "SomeSecurePassword!"
+	defaultStarterTemplate = "docker"
+	healthTimeout          = 60 * time.Second
+	shutdownTimeout        = 15 * time.Second
 )
 
 func main() {
@@ -106,6 +108,13 @@ func main() {
 				Description: "Run under Delve debugger.",
 				Value:       serpent.BoolOf(&cfg.debug),
 			},
+			{
+				Flag:        "starter-template",
+				Env:         "CODER_DEV_STARTER_TEMPLATE",
+				Default:     defaultStarterTemplate,
+				Description: "Starter template to create (empty to skip).",
+				Value:       serpent.StringOf(&cfg.starterTemplate),
+			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			cfg.serverExtraArgs = inv.Args
@@ -129,19 +138,20 @@ func main() {
 }
 
 type devConfig struct {
-	apiPort     int64
-	webPort     int64
-	proxyPort   int64
-	agpl        bool
-	accessURL   string
-	password    string
-	useProxy    bool
-	multiOrg    bool
-	debug       bool
-	projectRoot string
-	binaryPath  string
-	configDir   string
-	childEnv    []string
+	apiPort         int64
+	webPort         int64
+	proxyPort       int64
+	agpl            bool
+	accessURL       string
+	password        string
+	useProxy        bool
+	multiOrg        bool
+	debug           bool
+	starterTemplate string
+	projectRoot     string
+	binaryPath      string
+	configDir       string
+	childEnv        []string
 	// Extra args after flags forwarded to "coder server".
 	serverExtraArgs []string
 }
@@ -366,8 +376,10 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 		}
 	}
 
-	if err := setupDockerTemplate(ctx, logger, cfg, client); err != nil {
-		logger.Warn(ctx, "docker template setup failed, continuing", slog.Error(err))
+	if cfg.starterTemplate != "" {
+		if err := setupStarterTemplate(ctx, logger, cfg, client); err != nil {
+			logger.Warn(ctx, "starter template setup failed, continuing", slog.Error(err))
+		}
 	}
 
 	if cfg.useProxy {
@@ -688,32 +700,49 @@ func setupWorkspaceProxy(ctx context.Context, cfg *devConfig, client *codersdk.C
 	return group.Start("proxy", cmd)
 }
 
-// setupDockerTemplate creates a Docker template from the embedded
-// starter example when Docker is available and the template does
-// not already exist. Uses the SDK's ExampleID field so the server
-// resolves the template archive internally, no CLI shelling needed.
-func setupDockerTemplate(ctx context.Context, logger slog.Logger, cfg *devConfig, client *codersdk.Client) error {
-	// Check if Docker is available.
-	if err := exec.CommandContext(ctx, "docker", "info").Run(); err != nil {
-		logger.Debug(ctx, "docker not available, skipping template setup")
-		return nil
+// setupStarterTemplate creates a template from a starter example.
+// For starters tagged with "docker", it checks Docker availability
+// and resolves the Docker host for template variables.
+func setupStarterTemplate(ctx context.Context, logger slog.Logger, cfg *devConfig, client *codersdk.Client) error {
+	templateID := cfg.starterTemplate
+
+	// Fetch starter template metadata from the running coderd.
+	examples, err := client.StarterTemplates(ctx)
+	if err != nil {
+		return xerrors.Errorf("fetch starter templates failed: %w", err)
+	}
+	example, ok := slice.Find(examples, func(e codersdk.TemplateExample) bool {
+		return e.ID == templateID
+	})
+	if !ok {
+		return xerrors.Errorf("starter template %q not found", templateID)
 	}
 
-	// Resolve Docker host for template variables.
-	dockerHost := ""
-	if out, err := exec.CommandContext(ctx, "docker", "context", "inspect",
-		"--format", "{{ .Endpoints.docker.Host }}").Output(); err == nil {
-		dockerHost = strings.TrimSpace(string(out))
+	// Docker-specific: check availability and resolve host.
+	var userVars []codersdk.VariableValue
+	if slices.Contains(example.Tags, "docker") {
+		if err := exec.CommandContext(ctx, "docker", "info").Run(); err != nil {
+			logger.Debug(ctx, "docker not available, skipping template setup")
+			return nil
+		}
+		dockerHost := ""
+		if out, err := exec.CommandContext(ctx, "docker", "context", "inspect",
+			"--format", "{{ .Endpoints.docker.Host }}").Output(); err == nil {
+			dockerHost = strings.TrimSpace(string(out))
+		}
+		userVars = []codersdk.VariableValue{
+			{Name: "docker_arch", Value: runtime.GOARCH},
+			{Name: "docker_host", Value: dockerHost},
+		}
 	}
 
-	if err := createTemplateInOrg(ctx, logger, client, codersdk.DefaultOrganization, dockerHost); err != nil {
+	if err := createTemplateInOrg(ctx, logger, client, codersdk.DefaultOrganization, example, userVars); err != nil {
 		return err
 	}
 
 	if cfg.multiOrg {
-		if err := createTemplateInOrg(ctx, logger, client, "second-organization", dockerHost); err != nil {
-			logger.Warn(ctx, "failed to create docker template in second org",
-				slog.Error(err))
+		if err := createTemplateInOrg(ctx, logger, client, "second-organization", example, userVars); err != nil {
+			logger.Warn(ctx, "failed to create starter template in second org", slog.Error(err))
 		}
 	}
 
@@ -742,30 +771,27 @@ func waitForVersion(ctx context.Context, client *codersdk.Client, id uuid.UUID) 
 		})
 }
 
-// createTemplateInOrg ensures the "docker" template exists in the
-// given org, creating it from the embedded example if needed.
-func createTemplateInOrg(ctx context.Context, logger slog.Logger, client *codersdk.Client, orgName string, dockerHost string) error {
+// createTemplateInOrg ensures a starter template exists in the
+// given org, creating it from the example if needed.
+func createTemplateInOrg(ctx context.Context, logger slog.Logger, client *codersdk.Client, orgName string, example codersdk.TemplateExample, userVars []codersdk.VariableValue) error {
 	org, err := client.OrganizationByName(ctx, orgName)
 	if err != nil {
-		return xerrors.Errorf("looking up org %q: %w", orgName, err)
+		return xerrors.Errorf("look up org %q failed: %w", orgName, err)
 	}
-	if _, err := client.TemplateByName(ctx, org.ID, "docker"); err == nil {
-		logger.Debug(ctx, "docker template already exists",
-			slog.F("org", orgName))
+	if _, err := client.TemplateByName(ctx, org.ID, example.ID); err == nil {
+		logger.Debug(ctx, "template already exists, skipping creation", slog.F("template", example.ID), slog.F("org", orgName))
 		return nil
 	}
+
 	version, err := client.CreateTemplateVersion(ctx, org.ID,
 		codersdk.CreateTemplateVersionRequest{
-			StorageMethod: codersdk.ProvisionerStorageMethodFile,
-			ExampleID:     "docker",
-			Provisioner:   codersdk.ProvisionerTypeTerraform,
-			UserVariableValues: []codersdk.VariableValue{
-				{Name: "docker_arch", Value: runtime.GOARCH},
-				{Name: "docker_host", Value: dockerHost},
-			},
+			StorageMethod:      codersdk.ProvisionerStorageMethodFile,
+			ExampleID:          example.ID,
+			Provisioner:        codersdk.ProvisionerTypeTerraform,
+			UserVariableValues: userVars,
 		})
 	if err != nil {
-		return xerrors.Errorf("creating version: %w", err)
+		return xerrors.Errorf("create template version failed: %w", err)
 	}
 	version, err = waitForVersion(ctx, client, version.ID)
 	if err != nil {
@@ -773,14 +799,16 @@ func createTemplateInOrg(ctx context.Context, logger slog.Logger, client *coders
 	}
 	_, err = client.CreateTemplate(ctx, org.ID,
 		codersdk.CreateTemplateRequest{
-			Name:      "docker",
-			VersionID: version.ID,
+			Name:        example.ID,
+			DisplayName: example.Name,
+			Description: example.Description,
+			Icon:        example.Icon,
+			VersionID:   version.ID,
 		})
 	if err != nil {
-		return xerrors.Errorf("creating template: %w", err)
+		return xerrors.Errorf("create template failed: %w", err)
 	}
-	logger.Info(ctx, "docker template created in org",
-		slog.F("org", orgName))
+	logger.Info(ctx, "template created in org", slog.F("template", example.ID), slog.F("org", orgName))
 	return nil
 }
 
@@ -801,6 +829,11 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig) {
 				ifaces = append(ifaces, ipnet.IP.String())
 			}
 		}
+	}
+	if os.Getenv("CODER") == "true" {
+		// Inside a workspace, add Coder Desktop entry.
+		ifaces = append(ifaces, fmt.Sprintf("%s.%s.me.coder", os.Getenv("CODER_WORKSPACE_AGENT_NAME"), os.Getenv("CODER_WORKSPACE_NAME")))
+		ifaces = append(ifaces, fmt.Sprintf("%s.%s.%s.coder", os.Getenv("CODER_WORKSPACE_AGENT_NAME"), os.Getenv("CODER_WORKSPACE_NAME"), os.Getenv("CODER_WORKSPACE_OWNER_NAME")))
 	}
 	var b strings.Builder
 	w := 64
