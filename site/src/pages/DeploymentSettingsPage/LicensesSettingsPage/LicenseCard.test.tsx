@@ -10,6 +10,8 @@ describe("LicenseCard", () => {
 		render(
 			<LicenseCard
 				license={MockLicenseResponse[0]}
+				includedWithPremium={10}
+				additionalPurchased={0}
 				userLimitActual={1}
 				userLimitLimit={10}
 				onRemove={() => null}
@@ -30,6 +32,8 @@ describe("LicenseCard", () => {
 		render(
 			<LicenseCard
 				license={MockLicenseResponse[0]}
+				includedWithPremium={10}
+				additionalPurchased={0}
 				userLimitActual={1}
 				userLimitLimit={undefined}
 				onRemove={() => null}
@@ -50,6 +54,8 @@ describe("LicenseCard", () => {
 		render(
 			<LicenseCard
 				license={MockLicenseResponse[3]}
+				includedWithPremium={10}
+				additionalPurchased={0}
 				userLimitActual={1}
 				userLimitLimit={10}
 				onRemove={() => null}
@@ -71,6 +77,8 @@ describe("LicenseCard", () => {
 		render(
 			<LicenseCard
 				license={MockLicenseResponse[0]}
+				includedWithPremium={10}
+				additionalPurchased={0}
 				userLimitActual={1}
 				userLimitLimit={10}
 				onRemove={() => null}
@@ -105,6 +113,8 @@ describe("LicenseCard", () => {
 		render(
 			<LicenseCard
 				license={license}
+				includedWithPremium={10}
+				additionalPurchased={0}
 				userLimitActual={1}
 				userLimitLimit={100} // This should not be used
 				onRemove={() => null}
@@ -126,6 +136,8 @@ describe("LicenseCard", () => {
 		render(
 			<LicenseCard
 				license={license}
+				includedWithPremium={10}
+				additionalPurchased={0}
 				userLimitActual={1}
 				userLimitLimit={10}
 				onRemove={onRemove}
