@@ -549,7 +549,6 @@ const ScrollAnchoredContainer: FC<{
 			observer.disconnect();
 			observerRef.current = null;
 		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [scrollContainerRef]);
 
 	// When a fetch completes, re-observe the sentinel to force
@@ -570,9 +569,10 @@ const ScrollAnchoredContainer: FC<{
 		<div
 			ref={scrollContainerRef}
 			className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
-				style={{ overflowAnchor: "none" }}
-			>
-				{children}			{hasMoreMessages && <div ref={sentinelRef} className="h-px shrink-0" />}
+			style={{ overflowAnchor: "none" }}
+		>
+			{children}
+			{hasMoreMessages && <div ref={sentinelRef} className="h-px shrink-0" />}
 		</div>
 	);
 };

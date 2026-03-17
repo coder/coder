@@ -360,3 +360,77 @@ export const UserMessageWithMultipleInlineFileRefs: Story = {
 		expect(canvas.getByText(/handler_test\.go/)).toBeInTheDocument();
 	},
 };
+
+/**
+ * Verifies the structural requirements for sticky user messages
+ * in the flat (section-less) message list:
+ * - Each user message renders a data-user-sentinel marker so
+ *   the push-up logic can find the next user message via DOM
+ *   traversal.
+ * - The user message container gets position:sticky.
+ * - Sentinels appear in the correct order (matching user
+ *   message order).
+ */
+export const StickyUserMessageStructure: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "First prompt" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [{ type: "text", text: "First response" }],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "user",
+				content: [{ type: "text", text: "Second prompt" }],
+			},
+			{
+				...baseMessage,
+				id: 4,
+				role: "assistant",
+				content: [{ type: "text", text: "Second response" }],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		// Each user message should produce a data-user-sentinel
+		// marker that the push-up scroll logic relies on.
+		const sentinels = canvasElement.querySelectorAll("[data-user-sentinel]");
+		expect(sentinels.length).toBe(2);
+
+		// Each sentinel should be immediately followed by a sticky
+		// container (the user message itself).
+		for (const sentinel of sentinels) {
+			const container = sentinel.nextElementSibling;
+			expect(container).not.toBeNull();
+			const style = window.getComputedStyle(container!);
+			expect(style.position).toBe("sticky");
+		}
+
+		// Sentinels must appear in DOM order matching the message
+		// order so nextElementSibling traversal finds the correct
+		// next user message.
+		const allElements = Array.from(
+			canvasElement.querySelectorAll("[data-user-sentinel], [class*='sticky']"),
+		);
+		const sentinelIndices = Array.from(sentinels).map((s) =>
+			allElements.indexOf(s),
+		);
+		// Sentinels should be in ascending DOM order.
+		expect(sentinelIndices[0]).toBeLessThan(sentinelIndices[1]);
+
+		// Both user messages should be visible.
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("First prompt")).toBeVisible();
+		expect(canvas.getByText("Second prompt")).toBeVisible();
+	},
+};

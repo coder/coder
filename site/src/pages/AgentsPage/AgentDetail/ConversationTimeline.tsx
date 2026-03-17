@@ -963,16 +963,17 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 								onEditUserMessage={onEditUserMessage}
 								editingMessageId={editingMessageId}
 								savingMessageId={savingMessageId}
-									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-								/>
-							) : (
-								<ChatMessageItem
-									key={message.id}
-									message={message}
-									parsed={parsed}
-									savingMessageId={savingMessageId}
-									urlTransform={urlTransform}
-									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}							/>
+								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+							/>
+						) : (
+							<ChatMessageItem
+								key={message.id}
+								message={message}
+								parsed={parsed}
+								savingMessageId={savingMessageId}
+								urlTransform={urlTransform}
+								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+							/>
 						),
 					)}
 					{shouldRenderStreamAfterMessages && (
