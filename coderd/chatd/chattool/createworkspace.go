@@ -2,7 +2,6 @@ package chattool
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/codersdk"
@@ -68,6 +68,7 @@ type CreateWorkspaceOptions struct {
 	CreateFn    CreateWorkspaceFn
 	AgentConnFn AgentConnFunc
 	WorkspaceMu *sync.Mutex
+	Logger      slog.Logger
 }
 
 type createWorkspaceArgs struct {
@@ -193,13 +194,19 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 
 			// Persist workspace + agent association on the chat.
 			if options.DB != nil && options.ChatID != uuid.Nil {
-				_, _ = options.DB.UpdateChatWorkspace(ctx, database.UpdateChatWorkspaceParams{
+				if _, err := options.DB.UpdateChatWorkspace(ctx, database.UpdateChatWorkspaceParams{
 					ID: options.ChatID,
 					WorkspaceID: uuid.NullUUID{
 						UUID:  workspace.ID,
 						Valid: true,
 					},
-				})
+				}); err != nil {
+					options.Logger.Error(ctx, "failed to persist chat workspace association",
+						slog.F("chat_id", options.ChatID),
+						slog.F("workspace_id", workspace.ID),
+						slog.Error(err),
+					)
+				}
 			}
 
 			// Wait for the agent to come online and startup scripts to finish.
@@ -241,14 +248,13 @@ func checkExistingWorkspace(
 		return nil, false, nil
 	}
 
-	// Check if workspace still exists.
 	ws, err := db.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			// Workspace was deleted — allow creation.
-			return nil, false, nil
-		}
 		return nil, false, xerrors.Errorf("load workspace: %w", err)
+	}
+	// Workspace was soft-deleted — allow creation.
+	if ws.Deleted {
+		return nil, false, nil
 	}
 
 	// Check the latest build status.

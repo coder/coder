@@ -1,5 +1,5 @@
 import { watchChat } from "api/api";
-import { chatKey, chatsKey } from "api/queries/chats";
+import { chatMessagesKey, updateInfiniteChatsCache } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 import { asRecord, asString } from "components/ai-elements/runtimeTypeUtils";
 import {
@@ -9,9 +9,10 @@ import {
 	useRef,
 	useSyncExternalStore,
 } from "react";
-import { useQueryClient } from "react-query";
+import { type InfiniteData, useQueryClient } from "react-query";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
+import type { ChatDetailError } from "../usageLimitMessage";
 import { applyMessagePartToStreamState } from "./streamState";
 import type { StreamState } from "./types";
 
@@ -417,9 +418,9 @@ interface UseChatStoreOptions {
 	chatID: string | undefined;
 	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	chatRecord: TypesGen.Chat | undefined;
-	chatData: TypesGen.ChatWithMessages | undefined;
+	chatMessagesData: TypesGen.ChatMessagesResponse | undefined;
 	chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
-	setChatErrorReason: (chatID: string, reason: string) => void;
+	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatID: string) => void;
 }
 
@@ -444,7 +445,7 @@ export const useChatStore = (
 		chatID,
 		chatMessages,
 		chatRecord,
-		chatData,
+		chatMessagesData,
 		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
@@ -454,6 +455,13 @@ export const useChatStore = (
 	const storeRef = useRef<ChatStore>(createChatStore());
 	const streamResetFrameRef = useRef<number | null>(null);
 	const queuedMessagesHydratedChatIDRef = useRef<string | null>(null);
+	// Tracks whether the WebSocket has delivered a queue_update for the
+	// current chat. When true, the stream is the authoritative source
+	// and REST re-fetches must not overwrite the store. When false,
+	// REST data is allowed to re-hydrate so stale cached queued
+	// messages are corrected when switching back to a chat whose
+	// queue was drained while the user was away.
+	const wsQueueUpdateReceivedRef = useRef(false);
 	const activeChatIDRef = useRef<string | null>(null);
 	const prevChatIDRef = useRef<string | undefined>(chatID);
 
@@ -475,23 +483,17 @@ export const useChatStore = (
 			if (!chatID) {
 				return;
 			}
-			queryClient.setQueryData<readonly TypesGen.Chat[] | undefined>(
-				chatsKey,
-				(currentChats) => {
-					if (!currentChats) {
-						return currentChats;
+			updateInfiniteChatsCache(queryClient, (chats) => {
+				let didUpdate = false;
+				const nextChats = chats.map((chat) => {
+					if (chat.id !== chatID) {
+						return chat;
 					}
-					let didUpdate = false;
-					const nextChats = currentChats.map((chat) => {
-						if (chat.id !== chatID) {
-							return chat;
-						}
-						didUpdate = true;
-						return updater(chat);
-					});
-					return didUpdate ? nextChats : currentChats;
-				},
-			);
+					didUpdate = true;
+					return updater(chat);
+				});
+				return didUpdate ? nextChats : chats;
+			});
 		},
 		[chatID, queryClient],
 	);
@@ -518,26 +520,29 @@ export const useChatStore = (
 				return;
 			}
 			const nextQueuedMessages = queuedMessages ?? [];
-			queryClient.setQueryData<TypesGen.ChatWithMessages | undefined>(
-				chatKey(chatID),
-				(currentChat) => {
-					if (!currentChat) {
-						return currentChat;
-					}
-					if (
-						chatQueuedMessagesEqualByID(
-							currentChat.queued_messages,
-							nextQueuedMessages,
-						)
-					) {
-						return currentChat;
-					}
-					return {
-						...currentChat,
-						queued_messages: nextQueuedMessages,
-					};
-				},
-			);
+			queryClient.setQueryData<
+				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+			>(chatMessagesKey(chatID), (currentData) => {
+				if (!currentData?.pages?.length) {
+					return currentData;
+				}
+				const firstPage = currentData.pages[0];
+				if (
+					chatQueuedMessagesEqualByID(
+						firstPage.queued_messages,
+						nextQueuedMessages,
+					)
+				) {
+					return currentData;
+				}
+				return {
+					...currentData,
+					pages: [
+						{ ...firstPage, queued_messages: nextQueuedMessages },
+						...currentData.pages.slice(1),
+					],
+				};
+			});
 		},
 		[chatID, queryClient],
 	);
@@ -550,7 +555,15 @@ export const useChatStore = (
 			prevChatIDRef.current = chatID;
 			store.replaceMessages([]);
 		}
-		store.replaceMessages(chatMessages);
+		// Merge REST-fetched messages into the store one-by-one instead
+		// of replacing the entire map. This preserves any messages the
+		// WebSocket delivered via upsertDurableMessage that haven't
+		// appeared in a REST page yet.
+		if (chatMessages) {
+			for (const message of chatMessages) {
+				store.upsertDurableMessage(message);
+			}
+		}
 	}, [chatID, chatMessages, store]);
 
 	useEffect(() => {
@@ -559,6 +572,7 @@ export const useChatStore = (
 
 	useEffect(() => {
 		queuedMessagesHydratedChatIDRef.current = null;
+		wsQueueUpdateReceivedRef.current = false;
 		store.setQueuedMessages([]);
 		if (!chatID) {
 			return;
@@ -566,15 +580,23 @@ export const useChatStore = (
 	}, [chatID, store]);
 
 	useEffect(() => {
-		if (!chatID || !chatData) {
+		if (!chatID || !chatMessagesData) {
 			return;
 		}
-		if (queuedMessagesHydratedChatIDRef.current === chatID) {
+		// Allow re-hydration from REST as long as the WebSocket hasn't
+		// delivered a queue_update yet (which would be fresher). This
+		// ensures that when the user navigates back to a chat whose
+		// queued messages were drained server-side while they were
+		// away, the REST refetch corrects the stale cached state.
+		if (
+			queuedMessagesHydratedChatIDRef.current === chatID &&
+			wsQueueUpdateReceivedRef.current
+		) {
 			return;
 		}
 		queuedMessagesHydratedChatIDRef.current = chatID;
 		store.setQueuedMessages(chatQueuedMessages);
-	}, [chatData, chatID, chatQueuedMessages, store]);
+	}, [chatMessagesData, chatID, chatQueuedMessages, store]);
 
 	useEffect(() => {
 		cancelScheduledStreamReset();
@@ -694,6 +716,7 @@ export const useChatStore = (
 								continue;
 							}
 						}
+						wsQueueUpdateReceivedRef.current = true;
 						store.setQueuedMessages(streamEvent.queued_messages);
 						updateChatQueuedMessages(streamEvent.queued_messages);
 						continue;
@@ -738,7 +761,10 @@ export const useChatStore = (
 						store.setChatStatus("error");
 						store.setStreamError(reason);
 						store.clearRetryState();
-						setChatErrorReason(chatID, reason);
+						setChatErrorReason(chatID, {
+							kind: "generic",
+							message: reason,
+						});
 						updateSidebarChat((chat) => ({
 							...chat,
 							status: "error",

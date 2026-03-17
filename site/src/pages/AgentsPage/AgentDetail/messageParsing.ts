@@ -11,15 +11,12 @@ import type {
 	RenderBlock,
 } from "./types";
 
+/** Concatenate text chunks, skipping whitespace-only values. */
 const appendText = (current: string, next: string): string => {
-	const trimmed = next.trim();
-	if (!trimmed) {
+	if (!next.trim()) {
 		return current;
 	}
-	if (!current) {
-		return next;
-	}
-	return `${current}\n${next}`;
+	return `${current}${next}`;
 };
 
 export const asOptionalTitle = (value: unknown): string | undefined =>
@@ -76,15 +73,17 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	toolResults: [],
 	tools: [],
 	blocks: [],
+	sources: [],
 });
 
-/** Wraps appendTextBlock with newline-joining for complete message blocks. */
+/** Wraps appendTextBlock using the same direct concatenation as
+ *  the streaming path so both produce identical markdown. */
 const appendParsedTextBlock = (
 	blocks: RenderBlock[],
 	type: "response" | "thinking",
 	text: string,
 	title?: string,
-): RenderBlock[] => appendTextBlock(blocks, type, text, title, appendText);
+): RenderBlock[] => appendTextBlock(blocks, type, text, title);
 
 export const ensureToolBlock = (
 	blocks: RenderBlock[],
@@ -180,6 +179,13 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 				}
 				case "tool-call":
 				case "toolcall": {
+					// Provider-executed tool calls (e.g. web_search) are
+					// handled by the provider itself — hide them from the
+					// tool card UI and let the sources component render
+					// their results.
+					if (typedBlock.provider_executed) {
+						break;
+					}
 					const name =
 						asString(typedBlock.tool_name) || asString(typedBlock.name);
 					const id =
@@ -214,6 +220,10 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 				}
 				case "tool-result":
 				case "toolresult": {
+					// Skip synthetic results for provider-executed tools.
+					if (typedBlock.provider_executed) {
+						break;
+					}
 					const name =
 						asString(typedBlock.tool_name) || asString(typedBlock.name);
 					const id =
@@ -234,20 +244,41 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 					parsed.blocks = ensureToolBlock(parsed.blocks, id);
 					break;
 				}
-				case "file": {
-					const mediaType = asString(typedBlock.media_type);
-					const data = asString(typedBlock.data);
-					const fileId = asString(typedBlock.file_id);
-					if (mediaType && (data || fileId)) {
+				case "file":
+					if (
+						typedBlock.media_type &&
+						(typedBlock.data || typedBlock.file_id)
+					) {
 						parsed.blocks = [
 							...parsed.blocks,
-							{
-								type: "file",
-								mediaType,
-								data: data || undefined,
-								fileId: fileId || undefined,
-							},
+							typedBlock as Extract<RenderBlock, { type: "file" }>,
 						];
+					}
+					break;
+				case "source": {
+					const url = asString(typedBlock.url);
+					const title = asString(typedBlock.title);
+					if (url) {
+						const source = { url, title: title || url };
+						// Still populate the flat list for backward compat.
+						if (!parsed.sources.some((s) => s.url === url)) {
+							parsed.sources.push(source);
+						}
+						// Group consecutive sources into a single
+						// inline block at this position.
+						const lastBlock = parsed.blocks[parsed.blocks.length - 1];
+						if (
+							lastBlock &&
+							lastBlock.type === "sources" &&
+							!lastBlock.sources.some((s) => s.url === url)
+						) {
+							lastBlock.sources.push(source);
+						} else if (!lastBlock || lastBlock.type !== "sources") {
+							parsed.blocks.push({
+								type: "sources",
+								sources: [source],
+							});
+						}
 					}
 					break;
 				}

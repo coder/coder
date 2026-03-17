@@ -481,185 +481,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/chats/files": {
-            "post": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "consumes": [
-                    "application/octet-stream"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Upload a chat file",
-                "operationId": "upload-chat-file",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Content-Type must be an image type (image/png, image/jpeg, image/gif, image/webp)",
-                        "name": "Content-Type",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UploadChatFileResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    }
-                }
-            }
-        },
-        "/chats/files/{file}": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get a chat file",
-                "operationId": "get-chat-file",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "File ID",
-                        "name": "file",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK"
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    }
-                }
-            }
-        },
-        "/chats/{chat}/archive": {
-            "post": {
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Archive a chat",
-                "operationId": "archive-chat",
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
-            }
-        },
-        "/chats/{chat}/git/watch": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Watch git changes for a chat.",
-                "operationId": "watch-chat-git",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat ID",
-                        "name": "chat",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "101": {
-                        "description": "Switching Protocols"
-                    }
-                }
-            }
-        },
-        "/chats/{chat}/unarchive": {
-            "post": {
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Unarchive a chat",
-                "operationId": "unarchive-chat",
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                }
-            }
-        },
         "/connectionlog": {
             "get": {
                 "security": [
@@ -1048,6 +869,28 @@ const docTemplate = `{
                 }
             }
         },
+        "/debug/profile": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Collect debug profiles",
+                "operationId": "collect-debug-profiles",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/debug/tailnet": {
             "get": {
                 "security": [
@@ -1245,6 +1088,31 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Entitlements"
                         }
                     }
+                }
+            }
+        },
+        "/experimental/watch-all-workspacebuilds": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Watch all workspace builds",
+                "operationId": "watch-all-workspace-builds",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -12605,6 +12473,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "inject_coder_mcp_tools": {
+                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
                     "type": "boolean"
                 },
                 "max_concurrency": {
@@ -14491,7 +14360,6 @@ const docTemplate = `{
         "codersdk.CreateUserRequestWithOrgs": {
             "type": "object",
             "required": [
-                "email",
                 "username"
             ],
             "properties": {
@@ -14520,6 +14388,10 @@ const docTemplate = `{
                 },
                 "password": {
                     "type": "string"
+                },
+                "service_account": {
+                    "description": "Service accounts are admin-managed accounts that cannot login.",
+                    "type": "boolean"
                 },
                 "user_status": {
                     "description": "UserStatus defaults to UserStatusDormant.",
@@ -15336,7 +15208,8 @@ const docTemplate = `{
                 "web-push",
                 "oauth2",
                 "agents",
-                "mcp-server-http"
+                "mcp-server-http",
+                "workspace-build-updates"
             ],
             "x-enum-comments": {
                 "ExperimentAgents": "Enables agent-powered chat functionality.",
@@ -15346,6 +15219,7 @@ const docTemplate = `{
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
+                "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-descriptions": [
@@ -15356,7 +15230,8 @@ const docTemplate = `{
                 "Enables web push notifications through the browser.",
                 "Enables OAuth2 provider functionality.",
                 "Enables agent-powered chat functionality.",
-                "Enables the MCP HTTP server functionality."
+                "Enables the MCP HTTP server functionality.",
+                "Enables publishing workspace build updates to the all builds pubsub channel."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -15366,7 +15241,8 @@ const docTemplate = `{
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
                 "ExperimentAgents",
-                "ExperimentMCPServerHTTP"
+                "ExperimentMCPServerHTTP",
+                "ExperimentWorkspaceBuildUpdates"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -15448,6 +15324,10 @@ const docTemplate = `{
         "codersdk.ExternalAuthConfig": {
             "type": "object",
             "properties": {
+                "api_base_url": {
+                    "description": "APIBaseURL is the base URL for provider REST API calls\n(e.g., \"https://api.github.com\" for GitHub). Derived from\ndefaults when not explicitly configured.",
+                    "type": "string"
+                },
                 "app_install_url": {
                     "type": "string"
                 },
@@ -15486,12 +15366,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "mcp_tool_allow_regex": {
+                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
                     "type": "string"
                 },
                 "mcp_tool_deny_regex": {
+                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
                     "type": "string"
                 },
                 "mcp_url": {
+                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
                     "type": "string"
                 },
                 "no_refresh": {
@@ -18595,7 +18478,8 @@ const docTemplate = `{
                 "idp_sync_settings_role",
                 "workspace_agent",
                 "workspace_app",
-                "task"
+                "task",
+                "ai_seat"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -18623,7 +18507,8 @@ const docTemplate = `{
                 "ResourceTypeIdpSyncSettingsRole",
                 "ResourceTypeWorkspaceAgent",
                 "ResourceTypeWorkspaceApp",
-                "ResourceTypeTask"
+                "ResourceTypeTask",
+                "ResourceTypeAISeat"
             ]
         },
         "codersdk.Response": {
@@ -20453,15 +20338,6 @@ const docTemplate = `{
             "properties": {
                 "ttl_ms": {
                     "type": "integer"
-                }
-            }
-        },
-        "codersdk.UploadChatFileResponse": {
-            "type": "object",
-            "properties": {
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
                 }
             }
         },

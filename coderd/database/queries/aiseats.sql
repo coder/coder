@@ -1,4 +1,5 @@
--- name: UpsertAISeatState :exec
+-- name: UpsertAISeatState :one
+-- Returns true if a new rows was inserted, false otherwise.
 INSERT INTO ai_seat_state (
 	user_id,
 	first_used_at,
@@ -15,7 +16,9 @@ SET
 	last_event_type = EXCLUDED.last_event_type,
 	last_event_description = EXCLUDED.last_event_description,
 	updated_at = EXCLUDED.updated_at
-;
+RETURNING
+	-- Postgres vodoo to know if a row was inserted.
+	(xmax = 0)::boolean AS is_new;
 
 -- name: GetActiveAISeatCount :one
 SELECT

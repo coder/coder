@@ -447,13 +447,10 @@ func (api *API) editFile(ctx context.Context, path string, edits []workspacesdk.
 	content := string(data)
 
 	for _, edit := range edits {
-		var ok bool
-		content, ok = fuzzyReplace(content, edit.Search, edit.Replace)
-		if !ok {
-			api.logger.Warn(ctx, "edit search string not found, skipping",
-				slog.F("path", path),
-				slog.F("search_preview", truncate(edit.Search, 64)),
-			)
+		var err error
+		content, err = fuzzyReplace(content, edit)
+		if err != nil {
+			return http.StatusBadRequest, xerrors.Errorf("edit %s: %w", path, err)
 		}
 	}
 
@@ -480,51 +477,92 @@ func (api *API) editFile(ctx context.Context, path string, edits []workspacesdk.
 	return 0, nil
 }
 
-// fuzzyReplace attempts to find `search` inside `content` and replace its first
-// occurrence with `replace`. It uses a cascading match strategy inspired by
+// fuzzyReplace attempts to find `search` inside `content` and replace it
+// with `replace`. It uses a cascading match strategy inspired by
 // openai/codex's apply_patch:
 //
 //  1. Exact substring match (byte-for-byte).
 //  2. Line-by-line match ignoring trailing whitespace on each line.
-//  3. Line-by-line match ignoring all leading/trailing whitespace (indentation-tolerant).
+//  3. Line-by-line match ignoring all leading/trailing whitespace
+//     (indentation-tolerant).
 //
-// When a fuzzy match is found (passes 2 or 3), the replacement is still applied
-// at the byte offsets of the original content so that surrounding text (including
-// indentation of untouched lines) is preserved.
+// When edit.ReplaceAll is false (the default), the search string must
+// match exactly one location. If multiple matches are found, an error
+// is returned asking the caller to include more context or set
+// replace_all.
 //
-// Returns the (possibly modified) content and a bool indicating whether a match
-// was found.
-func fuzzyReplace(content, search, replace string) (string, bool) {
-	// Pass 1 – exact substring (replace all occurrences).
+// When a fuzzy match is found (passes 2 or 3), the replacement is still
+// applied at the byte offsets of the original content so that surrounding
+// text (including indentation of untouched lines) is preserved.
+func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
+	search := edit.Search
+	replace := edit.Replace
+
+	// Pass 1 – exact substring match.
 	if strings.Contains(content, search) {
-		return strings.ReplaceAll(content, search, replace), true
+		if edit.ReplaceAll {
+			return strings.ReplaceAll(content, search, replace), nil
+		}
+		count := strings.Count(content, search)
+		if count > 1 {
+			return "", xerrors.Errorf("search string matches %d occurrences "+
+				"(expected exactly 1). Include more surrounding "+
+				"context to make the match unique, or set "+
+				"replace_all to true", count)
+		}
+		// Exactly one match.
+		return strings.Replace(content, search, replace, 1), nil
 	}
 
-	// For line-level fuzzy matching we split both content and search into lines.
+	// For line-level fuzzy matching we split both content and search
+	// into lines.
 	contentLines := strings.SplitAfter(content, "\n")
 	searchLines := strings.SplitAfter(search, "\n")
 
-	// A trailing newline in the search produces an empty final element from
-	// SplitAfter.  Drop it so it doesn't interfere with line matching.
+	// A trailing newline in the search produces an empty final element
+	// from SplitAfter. Drop it so it doesn't interfere with line
+	// matching.
 	if len(searchLines) > 0 && searchLines[len(searchLines)-1] == "" {
 		searchLines = searchLines[:len(searchLines)-1]
 	}
 
-	// Pass 2 – trim trailing whitespace on each line.
-	if start, end, ok := seekLines(contentLines, searchLines, func(a, b string) bool {
+	trimRight := func(a, b string) bool {
 		return strings.TrimRight(a, " \t\r\n") == strings.TrimRight(b, " \t\r\n")
-	}); ok {
-		return spliceLines(contentLines, start, end, replace), true
 	}
-
-	// Pass 3 – trim all leading and trailing whitespace (indentation-tolerant).
-	if start, end, ok := seekLines(contentLines, searchLines, func(a, b string) bool {
+	trimAll := func(a, b string) bool {
 		return strings.TrimSpace(a) == strings.TrimSpace(b)
-	}); ok {
-		return spliceLines(contentLines, start, end, replace), true
 	}
 
-	return content, false
+	// Pass 2 – trim trailing whitespace on each line.
+	if start, end, ok := seekLines(contentLines, searchLines, trimRight); ok {
+		if !edit.ReplaceAll {
+			if count := countLineMatches(contentLines, searchLines, trimRight); count > 1 {
+				return "", xerrors.Errorf("search string matches %d occurrences "+
+					"(expected exactly 1). Include more surrounding "+
+					"context to make the match unique, or set "+
+					"replace_all to true", count)
+			}
+		}
+		return spliceLines(contentLines, start, end, replace), nil
+	}
+
+	// Pass 3 – trim all leading and trailing whitespace
+	// (indentation-tolerant).
+	if start, end, ok := seekLines(contentLines, searchLines, trimAll); ok {
+		if !edit.ReplaceAll {
+			if count := countLineMatches(contentLines, searchLines, trimAll); count > 1 {
+				return "", xerrors.Errorf("search string matches %d occurrences "+
+					"(expected exactly 1). Include more surrounding "+
+					"context to make the match unique, or set "+
+					"replace_all to true", count)
+			}
+		}
+		return spliceLines(contentLines, start, end, replace), nil
+	}
+
+	return "", xerrors.New("search string not found in file. Verify the search " +
+		"string matches the file content exactly, including whitespace " +
+		"and indentation")
 }
 
 // seekLines scans contentLines looking for a contiguous subsequence that matches
@@ -549,6 +587,26 @@ outer:
 	return 0, 0, false
 }
 
+// countLineMatches counts how many non-overlapping contiguous
+// subsequences of contentLines match searchLines according to eq.
+func countLineMatches(contentLines, searchLines []string, eq func(a, b string) bool) int {
+	count := 0
+	if len(searchLines) == 0 || len(searchLines) > len(contentLines) {
+		return count
+	}
+outer:
+	for i := 0; i <= len(contentLines)-len(searchLines); i++ {
+		for j, sLine := range searchLines {
+			if !eq(contentLines[i+j], sLine) {
+				continue outer
+			}
+		}
+		count++
+		i += len(searchLines) - 1 // skip past this match
+	}
+	return count
+}
+
 // spliceLines replaces contentLines[start:end] with replacement text, returning
 // the full content as a single string.
 func spliceLines(contentLines []string, start, end int, replacement string) string {
@@ -561,11 +619,4 @@ func spliceLines(contentLines []string, start, end int, replacement string) stri
 		_, _ = b.WriteString(l)
 	}
 	return b.String()
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
 }

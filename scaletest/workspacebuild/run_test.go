@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -118,25 +117,23 @@ func Test_Runner(t *testing.T) {
 		// finish, then start the agents.
 		go func() {
 			var workspace codersdk.Workspace
-			for {
+			if !assert.Eventually(t, func() bool {
 				res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 					Owner: codersdk.Me,
 				})
-				if !assert.NoError(t, err) {
-					return
+				if err != nil {
+					return false
 				}
-				workspaces := res.Workspaces
-
-				if len(workspaces) == 1 {
-					workspace = workspaces[0]
-					break
+				if len(res.Workspaces) == 1 {
+					workspace = res.Workspaces[0]
+					return true
 				}
-
-				time.Sleep(100 * time.Millisecond)
+				return false
+			}, testutil.WaitShort, testutil.IntervalMedium) {
+				return
 			}
 
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
 			// Start the three agents.
 			for i, authToken := range []string{authToken1, authToken2, authToken3} {
 				i := i + 1

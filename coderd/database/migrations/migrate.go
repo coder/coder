@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/source"
@@ -100,6 +101,13 @@ func setup(db *sql.DB, migs fs.FS) (source.Driver, *migrate.Migrate, error) {
 	if err != nil {
 		return nil, nil, xerrors.Errorf("new migrate instance: %w", err)
 	}
+
+	// The default LockTimeout of 15s is too short for concurrent migrations,
+	// especially when the number of migrations is large. Since we use
+	// pg_advisory_xact_lock which releases automatically when the transaction
+	// ends, we just need to wait long enough for any concurrent migration to
+	// finish.
+	m.LockTimeout = 2 * time.Minute
 
 	return sourceDriver, m, nil
 }

@@ -1,4 +1,4 @@
-import type { ChatQueuedMessage } from "api/typesGenerated";
+import type { ChatMessagePart, ChatQueuedMessage } from "api/typesGenerated";
 import {
 	ModelSelector,
 	type ModelSelectorOption,
@@ -14,16 +14,27 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { useSpeechRecognition } from "hooks/useSpeechRecognition";
 import {
 	AlertTriangleIcon,
 	ArrowUpIcon,
+	CheckIcon,
 	ImageIcon,
+	MicIcon,
 	Square,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
-import { memo, type ReactNode, useCallback, useRef, useState } from "react";
+import {
+	memo,
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { cn } from "utils/cn";
+import { isMobileViewport } from "utils/mobile";
 import { ImageLightbox } from "./ImageLightbox";
 import { formatProviderLabel } from "./modelOptions";
 import { QueuedMessagesList } from "./QueuedMessagesList";
@@ -81,7 +92,11 @@ interface AgentChatInputProps {
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
 	// Queue editing state, owned by the parent.
 	editingQueuedMessageID?: number | null;
-	onStartQueueEdit?: (id: number, text: string) => void;
+	onStartQueueEdit?: (
+		id: number,
+		text: string,
+		fileBlocks: readonly ChatMessagePart[],
+	) => void;
 	onCancelQueueEdit?: () => void;
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
@@ -169,10 +184,10 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 					<button
 						type="button"
 						aria-label={ariaLabel}
-						className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+						className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
 					>
 						<svg
-							className={cn("h-5 w-5 -rotate-90", toneClassName)}
+							className={cn("size-icon-sm -rotate-90", toneClassName)}
 							viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
 							aria-hidden
 						>
@@ -351,6 +366,22 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 
 		const [hasFileReferences, setHasFileReferences] = useState(false);
 
+		const speech = useSpeechRecognition();
+		const [preRecordingValue, setPreRecordingValue] = useState<string>("");
+
+		useEffect(() => {
+			if (!speech.isRecording) return;
+			const editor = internalRef.current;
+			if (!editor) return;
+			editor.clear();
+			const combined = preRecordingValue
+				? `${preRecordingValue} ${speech.transcript}`
+				: speech.transcript;
+			if (combined) {
+				editor.insertText(combined);
+			}
+		}, [speech.transcript, speech.isRecording, preRecordingValue]);
+
 		// Merge the external inputRef with our internal ref so both
 		// point to the same ChatMessageInputRef instance.
 		const setRef = useCallback(
@@ -443,7 +474,9 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		if (prevIsLoading !== isLoading) {
 			setPrevIsLoading(isLoading);
 			if (prevIsLoading && !isLoading) {
-				internalRef.current?.focus();
+				if (!isMobileViewport()) {
+					internalRef.current?.focus();
+				}
 			}
 		}
 
@@ -470,6 +503,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				!hasFileReferences &&
 				!isDisabled &&
 				!isLoading &&
+				!isUploading &&
 				queuedMessages.length > 0 &&
 				onPromoteQueuedMessage
 			) {
@@ -481,15 +515,19 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				(!text && !hasUploadedAttachments && !hasFileReferences) ||
 				isDisabled ||
 				isLoading ||
+				isUploading ||
 				!hasModelOptions
 			) {
 				return;
 			}
 			onSend(text);
-			internalRef.current?.focus();
+			if (!isMobileViewport()) {
+				internalRef.current?.focus();
+			}
 		}, [
 			isDisabled,
 			isLoading,
+			isUploading,
 			hasModelOptions,
 			hasUploadedAttachments,
 			hasFileReferences,
@@ -497,6 +535,28 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			queuedMessages,
 			onPromoteQueuedMessage,
 		]);
+		const handleStartRecording = useCallback(() => {
+			setPreRecordingValue(internalRef.current?.getValue()?.trim() ?? "");
+			speech.start();
+		}, [speech]);
+
+		const handleAcceptRecording = useCallback(() => {
+			speech.stop();
+		}, [speech]);
+
+		const handleCancelRecording = useCallback(() => {
+			const original = preRecordingValue;
+			speech.cancel();
+			const editor = internalRef.current;
+			if (editor) {
+				editor.clear();
+				if (original) {
+					editor.insertText(original);
+				}
+			}
+			setPreRecordingValue("");
+		}, [speech, preRecordingValue]);
+
 		const handleKeyDown = (e: React.KeyboardEvent) => {
 			if (e.key === "Escape") {
 				if (editingQueuedMessageID !== null) {
@@ -515,7 +575,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		const sendButtonLabel = editingQueuedMessageID !== null ? "Save" : "Send";
 
 		const content = (
-			<div className="mx-auto w-full max-w-3xl pb-4">
+			<div className="mx-auto w-full max-w-3xl pb-0 sm:pb-4">
 				{queuedMessages.length > 0 && (
 					<QueuedMessagesList
 						messages={queuedMessages}
@@ -594,15 +654,14 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 						ref={setRef}
 						onFilePaste={onAttach ? handleFilePaste : undefined}
 						aria-label="Chat message"
-						className="min-h-[120px] w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+						className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 						placeholder={placeholder}
 						initialValue={initialValue}
 						onChange={handleContentChange}
 						onEnter={handleSubmit}
 						disabled={isDisabled || isLoading}
-						rows={4}
 						autoFocus
-					/>{" "}
+					/>
 					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 						<div className="flex min-w-0 items-center gap-2">
 							<ModelSelector
@@ -623,9 +682,6 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 							)}
 						</div>
 						<div className="flex items-center gap-2">
-							{contextUsage !== undefined && (
-								<ContextUsageIndicator usage={contextUsage} />
-							)}
 							{onAttach && (
 								<>
 									<input
@@ -638,26 +694,60 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 									/>
 									<Button
 										type="button"
-										variant="outline"
+										variant="subtle"
 										size="icon"
-										className="size-7 shrink-0 rounded-full [&>svg]:p-0"
+										className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
 										onClick={() => fileInputRef.current?.click()}
 										disabled={isDisabled}
 										aria-label="Attach files"
 									>
-										<ImageIcon className="h-4 w-4" />
+										<ImageIcon />
 									</Button>
 								</>
+							)}
+							{speech.isSupported && !isStreaming && (
+								<>
+									<Button
+										type="button"
+										variant="subtle"
+										size="icon"
+										className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+										onClick={
+											speech.isRecording
+												? handleCancelRecording
+												: handleStartRecording
+										}
+										disabled={isDisabled}
+										aria-label={
+											speech.isRecording ? "Cancel voice input" : "Voice input"
+										}
+									>
+										{speech.isRecording ? <XIcon /> : <MicIcon />}
+									</Button>
+									{speech.error && !speech.isRecording && (
+										<span
+											className="text-2xs text-content-destructive"
+											role="alert"
+										>
+											{speech.error === "not-allowed"
+												? "Mic access denied"
+												: "Voice input failed"}
+										</span>
+									)}
+								</>
+							)}
+							{contextUsage !== undefined && (
+								<ContextUsageIndicator usage={contextUsage} />
 							)}
 							{isStreaming && onInterrupt && (
 								<Button
 									size="icon"
 									variant="default"
-									className="size-7 rounded-full transition-colors [&>svg]:p-0"
+									className="size-7 rounded-full transition-colors [&>svg]:!size-3 [&>svg]:p-0"
 									onClick={onInterrupt}
 									disabled={isInterruptPending}
 								>
-									<Square className="h-3 w-3 fill-current" />
+									<Square className="fill-current" />
 									<span className="sr-only">Stop</span>
 								</Button>
 							)}
@@ -665,16 +755,24 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								<Button
 									size="icon"
 									variant="default"
-									className="size-7 rounded-full transition-colors [&>svg]:!size-6 flex items-center justify-center"
-									onClick={handleSubmit}
-									disabled={!canSend}
+									className="size-7 rounded-full transition-colors [&>svg]:!size-5 [&>svg]:p-0"
+									onClick={
+										speech.isRecording ? handleAcceptRecording : handleSubmit
+									}
+									disabled={speech.isRecording ? false : !canSend}
 								>
 									{isLoading ? (
 										<Spinner size="sm" loading aria-hidden="true" />
+									) : speech.isRecording ? (
+										<CheckIcon />
 									) : (
 										<ArrowUpIcon />
 									)}
-									<span className="sr-only">{sendButtonLabel}</span>
+									<span className="sr-only">
+										{speech.isRecording
+											? "Accept voice input"
+											: sendButtonLabel}
+									</span>
 								</Button>
 							)}
 						</div>

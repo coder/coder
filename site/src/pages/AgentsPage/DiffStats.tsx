@@ -12,14 +12,14 @@ export const DiffStatBadge: FC<{ additions: number; deletions: number }> = ({
 		return null;
 	}
 	return (
-		<span className="inline-flex h-full items-center self-stretch overflow-hidden font-mono text-xs font-medium">
+		<span className="inline-flex items-center overflow-hidden rounded-sm border border-solid border-border-default font-mono text-[13px] font-medium leading-5">
 			{additions > 0 && (
-				<span className="flex h-full items-center bg-green-100 dark:bg-green-950 px-1.5 text-green-700 dark:text-green-500">
+				<span className="flex items-center px-1.5 bg-surface-git-added text-git-added-bright">
 					+{additions}
 				</span>
 			)}
 			{deletions > 0 && (
-				<span className="flex h-full items-center bg-red-100 dark:bg-red-950 px-1.5 text-red-700 dark:text-red-400">
+				<span className="flex items-center px-1.5 bg-surface-git-deleted text-git-deleted-bright">
 					&minus;{deletions}
 				</span>
 			)}

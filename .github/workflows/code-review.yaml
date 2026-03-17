@@ -31,6 +31,9 @@ on:
         default: ""
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   code-review:
     name: AI Code Review
@@ -51,7 +54,6 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-      actions: write
 
     steps:
       - name: Check if secrets are available

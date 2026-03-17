@@ -19,7 +19,7 @@ new patch version will be created.
 
 To mark a release as containing breaking changes, the commit title should
 either contain a known prefix with an exclamation mark ("feat!:",
-"feat(api)!:") or the PR that was merged can be tagged with the
+"feat(coderd)!:") or the PR that was merged can be tagged with the
 "release/breaking" label.
 
 GitHub labels that affect release notes:

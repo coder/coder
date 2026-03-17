@@ -62,6 +62,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
+	"github.com/coder/coder/v2/coderd/gitsync"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -627,9 +628,10 @@ func New(options *Options) *API {
 			options.Database,
 			options.Pubsub,
 		),
-		dbRolluper: options.DatabaseRolluper,
+		dbRolluper:       options.DatabaseRolluper,
+		ProfileCollector: defaultProfileCollector{},
+		AISeatTracker:    aiseats.Noop{},
 	}
-	api.AISeatTracker = aiseats.Noop{}
 
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
@@ -776,6 +778,21 @@ func New(options *Options) *API {
 		Pubsub:            options.Pubsub,
 		WebpushDispatcher: options.WebPushDispatcher,
 	})
+	gitSyncLogger := options.Logger.Named("gitsync")
+	refresher := gitsync.NewRefresher(
+		api.resolveGitProvider,
+		api.resolveChatGitAccessToken,
+		gitSyncLogger.Named("refresher"),
+		quartz.NewReal(),
+	)
+	api.gitSyncWorker = gitsync.NewWorker(options.Database,
+		refresher,
+		api.chatDaemon.PublishDiffStatusChange,
+		quartz.NewReal(),
+		gitSyncLogger,
+	)
+	// nolint:gocritic // chat diff worker needs to be able to CRUD chats.
+	go api.gitSyncWorker.Start(dbauthz.AsChatd(api.ctx))
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
 		api.lifecycleMetrics = agentapi.NewLifecycleMetrics(options.PrometheusRegistry)
@@ -1125,11 +1142,25 @@ func New(options *Options) *API {
 			r.Post("/", api.postChats)
 			r.Get("/models", api.listChatModels)
 			r.Get("/watch", api.watchChats)
+			r.Route("/cost", func(r chi.Router) {
+				r.Get("/users", api.chatCostUsers)
+				r.Route("/{user}", func(r chi.Router) {
+					r.Use(httpmw.ExtractUserParam(options.Database))
+					r.Get("/summary", api.chatCostSummary)
+				})
+			})
 			r.Route("/files", func(r chi.Router) {
 				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
 				r.Post("/", api.postChatFile)
 				r.Get("/{file}", api.chatFileByID)
 			})
+			r.Route("/config", func(r chi.Router) {
+				r.Get("/system-prompt", api.getChatSystemPrompt)
+				r.Put("/system-prompt", api.putChatSystemPrompt)
+				r.Get("/user-prompt", api.getUserChatCustomPrompt)
+				r.Put("/user-prompt", api.putUserChatCustomPrompt)
+			})
+			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/providers", func(r chi.Router) {
 				r.Get("/", api.listChatProviders)
 				r.Post("/", api.createChatProvider)
@@ -1138,6 +1169,7 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatProvider)
 				})
 			})
+			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/model-configs", func(r chi.Router) {
 				r.Get("/", api.listChatModelConfigs)
 				r.Post("/", api.createChatModelConfig)
@@ -1146,17 +1178,30 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatModelConfig)
 				})
 			})
+			r.Route("/usage-limits", func(r chi.Router) {
+				r.Get("/", api.getChatUsageLimitConfig)
+				r.Put("/", api.updateChatUsageLimitConfig)
+				r.Get("/status", api.getMyChatUsageLimitStatus)
+				r.Route("/overrides/{user}", func(r chi.Router) {
+					r.Put("/", api.upsertChatUsageLimitOverride)
+					r.Delete("/", api.deleteChatUsageLimitOverride)
+				})
+				r.Route("/group-overrides/{group}", func(r chi.Router) {
+					r.Put("/", api.upsertChatUsageLimitGroupOverride)
+					r.Delete("/", api.deleteChatUsageLimitGroupOverride)
+				})
+			})
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Use(httpmw.ExtractChatParam(options.Database))
 				r.Get("/", api.getChat)
 				r.Get("/git/watch", api.watchChatGit)
-				r.Post("/archive", api.archiveChat)
-				r.Post("/unarchive", api.unarchiveChat)
+				r.Get("/desktop", api.watchChatDesktop)
+				r.Patch("/", api.patchChat)
+				r.Get("/messages", api.getChatMessages)
 				r.Post("/messages", api.postChatMessages)
 				r.Patch("/messages/{message}", api.patchChatMessage)
 				r.Get("/stream", api.streamChat)
 				r.Post("/interrupt", api.interruptChat)
-				r.Get("/diff-status", api.getChatDiffStatus)
 				r.Get("/diff", api.getChatDiffContents)
 				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
 					r.Delete("/", api.deleteChatQueuedMessage)
@@ -1172,6 +1217,13 @@ func New(options *Options) *API {
 			)
 			// MCP HTTP transport endpoint with mandatory authentication
 			r.Mount("/http", api.mcpHTTPHandler())
+		})
+		r.Route("/watch-all-workspacebuilds", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentWorkspaceBuildUpdates),
+			)
+			r.Get("/", api.watchAllWorkspaceBuilds)
 		})
 	})
 
@@ -1460,6 +1512,7 @@ func New(options *Options) *API {
 						r.Put("/appearance", api.putUserAppearanceSettings)
 						r.Get("/preferences", api.userPreferenceSettings)
 						r.Put("/preferences", api.putUserPreferenceSettings)
+
 						r.Route("/password", func(r chi.Router) {
 							r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 							r.Put("/", api.putUserPassword)
@@ -1708,6 +1761,8 @@ func New(options *Options) *API {
 				})
 			}
 			r.Method("GET", "/expvar", expvar.Handler()) // contains DERP metrics as well as cmdline and memstats
+
+			r.Post("/profile", api.debugCollectProfile)
 
 			r.Route("/pprof", func(r chi.Router) {
 				r.Use(func(next http.Handler) http.Handler {
@@ -1995,6 +2050,18 @@ type API struct {
 	chatDaemon *chatd.Server
 	// AISeatTracker records AI seat usage.
 	AISeatTracker aiseats.SeatTracker
+	// gitSyncWorker refreshes stale chat diff statuses in the
+	// background.
+	gitSyncWorker *gitsync.Worker
+
+	// ProfileCollector abstracts the runtime/pprof and runtime/trace
+	// calls used by the /debug/profile endpoint. Tests override this
+	// with a stub to avoid process-global side-effects.
+	ProfileCollector ProfileCollector
+	// ProfileCollecting is used as a concurrency guard so that only one
+	// profile collection (via /debug/profile) can run at a time. The CPU
+	// profiler is process-global, so concurrent collections would fail.
+	ProfileCollecting atomic.Bool
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -2024,6 +2091,13 @@ func (api *API) Close() error {
 		api.Logger.Warn(api.ctx, "websocket shutdown timed out after 10 seconds")
 	}
 	api.dbRolluper.Close()
+	// chatDiffWorker is unconditionally initialized in New().
+	select {
+	case <-api.gitSyncWorker.Done():
+	case <-time.After(10 * time.Second):
+		api.Logger.Warn(context.Background(),
+			"chat diff refresh worker did not exit in time")
+	}
 	if err := api.chatDaemon.Close(); err != nil {
 		api.Logger.Warn(api.ctx, "close chat processor", slog.Error(err))
 	}

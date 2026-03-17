@@ -1107,6 +1107,70 @@ func AllBuildReasonValues() []BuildReason {
 	}
 }
 
+type ChatMessageRole string
+
+const (
+	ChatMessageRoleSystem    ChatMessageRole = "system"
+	ChatMessageRoleUser      ChatMessageRole = "user"
+	ChatMessageRoleAssistant ChatMessageRole = "assistant"
+	ChatMessageRoleTool      ChatMessageRole = "tool"
+)
+
+func (e *ChatMessageRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatMessageRole(s)
+	case string:
+		*e = ChatMessageRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatMessageRole: %T", src)
+	}
+	return nil
+}
+
+type NullChatMessageRole struct {
+	ChatMessageRole ChatMessageRole `json:"chat_message_role"`
+	Valid           bool            `json:"valid"` // Valid is true if ChatMessageRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatMessageRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatMessageRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatMessageRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatMessageRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatMessageRole), nil
+}
+
+func (e ChatMessageRole) Valid() bool {
+	switch e {
+	case ChatMessageRoleSystem,
+		ChatMessageRoleUser,
+		ChatMessageRoleAssistant,
+		ChatMessageRoleTool:
+		return true
+	}
+	return false
+}
+
+func AllChatMessageRoleValues() []ChatMessageRole {
+	return []ChatMessageRole{
+		ChatMessageRoleSystem,
+		ChatMessageRoleUser,
+		ChatMessageRoleAssistant,
+		ChatMessageRoleTool,
+	}
+}
+
 type ChatMessageVisibility string
 
 const (
@@ -1165,6 +1229,61 @@ func AllChatMessageVisibilityValues() []ChatMessageVisibility {
 		ChatMessageVisibilityUser,
 		ChatMessageVisibilityModel,
 		ChatMessageVisibilityBoth,
+	}
+}
+
+type ChatMode string
+
+const (
+	ChatModeComputerUse ChatMode = "computer_use"
+)
+
+func (e *ChatMode) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatMode(s)
+	case string:
+		*e = ChatMode(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatMode: %T", src)
+	}
+	return nil
+}
+
+type NullChatMode struct {
+	ChatMode ChatMode `json:"chat_mode"`
+	Valid    bool     `json:"valid"` // Valid is true if ChatMode is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatMode) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatMode, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatMode.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatMode) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatMode), nil
+}
+
+func (e ChatMode) Valid() bool {
+	switch e {
+	case ChatModeComputerUse:
+		return true
+	}
+	return false
+}
+
+func AllChatModeValues() []ChatMode {
+	return []ChatMode{
+		ChatModeComputerUse,
 	}
 }
 
@@ -2908,6 +3027,7 @@ const (
 	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
 	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
 	ResourceTypeTask                        ResourceType = "task"
+	ResourceTypeAiSeat                      ResourceType = "ai_seat"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -2972,7 +3092,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeWorkspaceAgent,
 		ResourceTypeWorkspaceApp,
 		ResourceTypePrebuildsSettings,
-		ResourceTypeTask:
+		ResourceTypeTask,
+		ResourceTypeAiSeat:
 		return true
 	}
 	return false
@@ -3006,6 +3127,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeWorkspaceApp,
 		ResourceTypePrebuildsSettings,
 		ResourceTypeTask,
+		ResourceTypeAiSeat,
 	}
 }
 
@@ -3855,6 +3977,14 @@ type AIBridgeInterception struct {
 	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
 }
 
+// Audit log of model thinking in intercepted requests in AI Bridge
+type AIBridgeModelThought struct {
+	InterceptionID uuid.UUID             `db:"interception_id" json:"interception_id"`
+	Content        string                `db:"content" json:"content"`
+	Metadata       pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt      time.Time             `db:"created_at" json:"created_at"`
+}
+
 // Audit log of tokens used by intercepted requests in AI Bridge
 type AIBridgeTokenUsage struct {
 	ID             uuid.UUID `db:"id" json:"id"`
@@ -3975,6 +4105,7 @@ type Chat struct {
 	LastModelConfigID uuid.UUID      `db:"last_model_config_id" json:"last_model_config_id"`
 	Archived          bool           `db:"archived" json:"archived"`
 	LastError         sql.NullString `db:"last_error" json:"last_error"`
+	Mode              NullChatMode   `db:"mode" json:"mode"`
 }
 
 type ChatDiffStatus struct {
@@ -3991,6 +4122,16 @@ type ChatDiffStatus struct {
 	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at"`
 	GitBranch        string         `db:"git_branch" json:"git_branch"`
 	GitRemoteOrigin  string         `db:"git_remote_origin" json:"git_remote_origin"`
+	PullRequestTitle string         `db:"pull_request_title" json:"pull_request_title"`
+	PullRequestDraft bool           `db:"pull_request_draft" json:"pull_request_draft"`
+	AuthorLogin      sql.NullString `db:"author_login" json:"author_login"`
+	AuthorAvatarUrl  sql.NullString `db:"author_avatar_url" json:"author_avatar_url"`
+	BaseBranch       sql.NullString `db:"base_branch" json:"base_branch"`
+	PrNumber         sql.NullInt32  `db:"pr_number" json:"pr_number"`
+	Commits          sql.NullInt32  `db:"commits" json:"commits"`
+	Approved         sql.NullBool   `db:"approved" json:"approved"`
+	ReviewerCount    sql.NullInt32  `db:"reviewer_count" json:"reviewer_count"`
+	HeadBranch       sql.NullString `db:"head_branch" json:"head_branch"`
 }
 
 type ChatFile struct {
@@ -4008,7 +4149,7 @@ type ChatMessage struct {
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
 	ModelConfigID       uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
 	CreatedAt           time.Time             `db:"created_at" json:"created_at"`
-	Role                string                `db:"role" json:"role"`
+	Role                ChatMessageRole       `db:"role" json:"role"`
 	Content             pqtype.NullRawMessage `db:"content" json:"content"`
 	Visibility          ChatMessageVisibility `db:"visibility" json:"visibility"`
 	InputTokens         sql.NullInt64         `db:"input_tokens" json:"input_tokens"`
@@ -4019,6 +4160,9 @@ type ChatMessage struct {
 	CacheReadTokens     sql.NullInt64         `db:"cache_read_tokens" json:"cache_read_tokens"`
 	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
 	Compressed          bool                  `db:"compressed" json:"compressed"`
+	CreatedBy           uuid.NullUUID         `db:"created_by" json:"created_by"`
+	ContentVersion      int16                 `db:"content_version" json:"content_version"`
+	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
 }
 
 type ChatModelConfig struct {
@@ -4058,6 +4202,16 @@ type ChatQueuedMessage struct {
 	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
 	Content   json.RawMessage `db:"content" json:"content"`
 	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+}
+
+type ChatUsageLimitConfig struct {
+	ID                 int64     `db:"id" json:"id"`
+	Singleton          bool      `db:"singleton" json:"singleton"`
+	Enabled            bool      `db:"enabled" json:"enabled"`
+	DefaultLimitMicros int64     `db:"default_limit_micros" json:"default_limit_micros"`
+	Period             string    `db:"period" json:"period"`
+	CreatedAt          time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type ConnectionLog struct {
@@ -4172,7 +4326,8 @@ type Group struct {
 	// Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.
 	DisplayName string `db:"display_name" json:"display_name"`
 	// Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.
-	Source GroupSource `db:"source" json:"source"`
+	Source               GroupSource   `db:"source" json:"source"`
+	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 }
 
 // Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).
@@ -4941,6 +5096,9 @@ type User struct {
 	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
 	// Determines if a user is a system user, and therefore cannot login or perform normal actions
 	IsSystem bool `db:"is_system" json:"is_system"`
+	// Determines if a user is an admin-managed account that cannot login
+	IsServiceAccount     bool          `db:"is_service_account" json:"is_service_account"`
+	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 }
 
 type UserConfig struct {

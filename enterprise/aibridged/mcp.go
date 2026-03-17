@@ -23,6 +23,7 @@ const (
 	InternalMCPServerID = "coder"
 )
 
+// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 type MCPProxyBuilder interface {
 	// Build creates a [mcp.ServerProxier] for the given request initiator.
 	// At minimum, the Coder MCP server will be proxied.
@@ -34,6 +35,7 @@ type MCPProxyBuilder interface {
 
 var _ MCPProxyBuilder = &MCPProxyFactory{}
 
+// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 type MCPProxyFactory struct {
 	logger   slog.Logger
 	tracer   trace.Tracer

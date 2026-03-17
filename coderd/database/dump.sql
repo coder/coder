@@ -270,10 +270,21 @@ CREATE TYPE build_reason AS ENUM (
     'task_resume'
 );
 
+CREATE TYPE chat_message_role AS ENUM (
+    'system',
+    'user',
+    'assistant',
+    'tool'
+);
+
 CREATE TYPE chat_message_visibility AS ENUM (
     'user',
     'model',
     'both'
+);
+
+CREATE TYPE chat_mode AS ENUM (
+    'computer_use'
 );
 
 CREATE TYPE chat_status AS ENUM (
@@ -497,7 +508,8 @@ CREATE TYPE resource_type AS ENUM (
     'workspace_agent',
     'workspace_app',
     'prebuilds_settings',
-    'task'
+    'task',
+    'ai_seat'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -1074,6 +1086,15 @@ COMMENT ON COLUMN aibridge_interceptions.thread_root_id IS 'The root interceptio
 
 COMMENT ON COLUMN aibridge_interceptions.client_session_id IS 'The session ID supplied by the client (optional and not universally supported).';
 
+CREATE TABLE aibridge_model_thoughts (
+    interception_id uuid NOT NULL,
+    content text NOT NULL,
+    metadata jsonb,
+    created_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE aibridge_model_thoughts IS 'Audit log of model thinking in intercepted requests in AI Bridge';
+
 CREATE TABLE aibridge_token_usages (
     id uuid NOT NULL,
     interception_id uuid NOT NULL,
@@ -1201,7 +1222,17 @@ CREATE TABLE chat_diff_statuses (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     git_branch text DEFAULT ''::text NOT NULL,
-    git_remote_origin text DEFAULT ''::text NOT NULL
+    git_remote_origin text DEFAULT ''::text NOT NULL,
+    pull_request_title text DEFAULT ''::text NOT NULL,
+    pull_request_draft boolean DEFAULT false NOT NULL,
+    author_login text,
+    author_avatar_url text,
+    base_branch text,
+    pr_number integer,
+    commits integer,
+    approved boolean,
+    reviewer_count integer,
+    head_branch text
 );
 
 CREATE TABLE chat_files (
@@ -1219,7 +1250,7 @@ CREATE TABLE chat_messages (
     chat_id uuid NOT NULL,
     model_config_id uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    role text NOT NULL,
+    role chat_message_role NOT NULL,
     content jsonb,
     visibility chat_message_visibility DEFAULT 'both'::chat_message_visibility NOT NULL,
     input_tokens bigint,
@@ -1229,7 +1260,10 @@ CREATE TABLE chat_messages (
     cache_creation_tokens bigint,
     cache_read_tokens bigint,
     context_limit bigint,
-    compressed boolean DEFAULT false NOT NULL
+    compressed boolean DEFAULT false NOT NULL,
+    created_by uuid,
+    content_version smallint NOT NULL,
+    total_cost_micros bigint
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -1293,6 +1327,28 @@ CREATE SEQUENCE chat_queued_messages_id_seq
 
 ALTER SEQUENCE chat_queued_messages_id_seq OWNED BY chat_queued_messages.id;
 
+CREATE TABLE chat_usage_limit_config (
+    id bigint NOT NULL,
+    singleton boolean DEFAULT true NOT NULL,
+    enabled boolean DEFAULT false NOT NULL,
+    default_limit_micros bigint DEFAULT 0 NOT NULL,
+    period text DEFAULT 'month'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_usage_limit_config_default_limit_micros_check CHECK ((default_limit_micros >= 0)),
+    CONSTRAINT chat_usage_limit_config_period_check CHECK ((period = ANY (ARRAY['day'::text, 'week'::text, 'month'::text]))),
+    CONSTRAINT chat_usage_limit_config_singleton_check CHECK (singleton)
+);
+
+CREATE SEQUENCE chat_usage_limit_config_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE chat_usage_limit_config_id_seq OWNED BY chat_usage_limit_config.id;
+
 CREATE TABLE chats (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     owner_id uuid NOT NULL,
@@ -1308,7 +1364,8 @@ CREATE TABLE chats (
     root_chat_id uuid,
     last_model_config_id uuid NOT NULL,
     archived boolean DEFAULT false NOT NULL,
-    last_error text
+    last_error text,
+    mode chat_mode
 );
 
 CREATE TABLE connection_logs (
@@ -1448,7 +1505,9 @@ CREATE TABLE groups (
     avatar_url text DEFAULT ''::text NOT NULL,
     quota_allowance integer DEFAULT 0 NOT NULL,
     display_name text DEFAULT ''::text NOT NULL,
-    source group_source DEFAULT 'user'::group_source NOT NULL
+    source group_source DEFAULT 'user'::group_source NOT NULL,
+    chat_spend_limit_micros bigint,
+    CONSTRAINT groups_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0)))
 );
 
 COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.';
@@ -1482,7 +1541,12 @@ CREATE TABLE users (
     hashed_one_time_passcode bytea,
     one_time_passcode_expires_at timestamp with time zone,
     is_system boolean DEFAULT false NOT NULL,
+    is_service_account boolean DEFAULT false NOT NULL,
+    chat_spend_limit_micros bigint,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL)))),
+    CONSTRAINT users_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0))),
+    CONSTRAINT users_email_not_empty CHECK (((is_service_account = true) = (email = ''::text))),
+    CONSTRAINT users_service_account_login_type CHECK (((is_service_account = false) OR (login_type = 'none'::login_type))),
     CONSTRAINT users_username_min_length CHECK ((length(username) >= 1))
 );
 
@@ -1497,6 +1561,8 @@ COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-pass
 COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
 
 COMMENT ON COLUMN users.is_system IS 'Determines if a user is a system user, and therefore cannot login or perform normal actions';
+
+COMMENT ON COLUMN users.is_service_account IS 'Determines if a user is an admin-managed account that cannot login';
 
 CREATE VIEW group_members_expanded AS
  WITH all_members AS (
@@ -3125,6 +3191,8 @@ ALTER TABLE ONLY chat_messages ALTER COLUMN id SET DEFAULT nextval('chat_message
 
 ALTER TABLE ONLY chat_queued_messages ALTER COLUMN id SET DEFAULT nextval('chat_queued_messages_id_seq'::regclass);
 
+ALTER TABLE ONLY chat_usage_limit_config ALTER COLUMN id SET DEFAULT nextval('chat_usage_limit_config_id_seq'::regclass);
+
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
@@ -3184,6 +3252,12 @@ ALTER TABLE ONLY chat_providers
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_usage_limit_config
+    ADD CONSTRAINT chat_usage_limit_config_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_usage_limit_config
+    ADD CONSTRAINT chat_usage_limit_config_singleton_key UNIQUE (singleton);
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
@@ -3497,6 +3571,8 @@ CREATE INDEX idx_aibridge_interceptions_thread_parent_id ON aibridge_interceptio
 
 CREATE INDEX idx_aibridge_interceptions_thread_root_id ON aibridge_interceptions USING btree (thread_root_id);
 
+CREATE INDEX idx_aibridge_model_thoughts_interception_id ON aibridge_model_thoughts USING btree (interception_id);
+
 CREATE INDEX idx_aibridge_token_usages_interception_id ON aibridge_token_usages USING btree (interception_id);
 
 CREATE INDEX idx_aibridge_token_usages_provider_response_id ON aibridge_token_usages USING btree (provider_response_id);
@@ -3533,7 +3609,11 @@ CREATE INDEX idx_chat_messages_chat ON chat_messages USING btree (chat_id);
 
 CREATE INDEX idx_chat_messages_chat_created ON chat_messages USING btree (chat_id, created_at);
 
-CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, created_at DESC, id DESC) WHERE ((compressed = true) AND (role = 'system'::text) AND (visibility = ANY (ARRAY['model'::chat_message_visibility, 'both'::chat_message_visibility])));
+CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, created_at DESC, id DESC) WHERE ((compressed = true) AND (role = 'system'::chat_message_role) AND (visibility = ANY (ARRAY['model'::chat_message_visibility, 'both'::chat_message_visibility])));
+
+CREATE INDEX idx_chat_messages_created_at ON chat_messages USING btree (created_at);
+
+CREATE INDEX idx_chat_messages_owner_spend ON chat_messages USING btree (chat_id, created_at) WHERE (total_cost_micros IS NOT NULL);
 
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
 
@@ -3550,6 +3630,8 @@ CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btre
 CREATE INDEX idx_chats_last_model_config_id ON chats USING btree (last_model_config_id);
 
 CREATE INDEX idx_chats_owner ON chats USING btree (owner_id);
+
+CREATE INDEX idx_chats_owner_updated_id ON chats USING btree (owner_id, updated_at DESC, id DESC);
 
 CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
 
@@ -3613,7 +3695,7 @@ CREATE INDEX idx_user_deleted_deleted_at ON user_deleted USING btree (deleted_at
 
 CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes USING btree (changed_at);
 
-CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
+CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE ((deleted = false) AND (email <> ''::text));
 
 CREATE UNIQUE INDEX idx_users_username ON users USING btree (username) WHERE (deleted = false);
 
@@ -3663,7 +3745,7 @@ CREATE UNIQUE INDEX user_secrets_user_file_path_idx ON user_secrets USING btree 
 
 CREATE UNIQUE INDEX user_secrets_user_name_idx ON user_secrets USING btree (user_id, name);
 
-CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE (deleted = false);
+CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE ((deleted = false) AND (email <> ''::text));
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
 

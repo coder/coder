@@ -104,11 +104,11 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
-func (m queryMetricsStore) AcquireChat(ctx context.Context, arg database.AcquireChatParams) (database.Chat, error) {
+func (m queryMetricsStore) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	start := time.Now()
-	r0, r1 := m.s.AcquireChat(ctx, arg)
-	m.queryLatencies.WithLabelValues("AcquireChat").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AcquireChat").Inc()
+	r0, r1 := m.s.AcquireChats(ctx, arg)
+	m.queryLatencies.WithLabelValues("AcquireChats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AcquireChats").Inc()
 	return r0, r1
 }
 
@@ -133,6 +133,14 @@ func (m queryMetricsStore) AcquireProvisionerJob(ctx context.Context, arg databa
 	r0, r1 := m.s.AcquireProvisionerJob(ctx, arg)
 	m.queryLatencies.WithLabelValues("AcquireProvisionerJob").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AcquireProvisionerJob").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.AcquireStaleChatDiffStatuses(ctx, limitVal)
+	m.queryLatencies.WithLabelValues("AcquireStaleChatDiffStatuses").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AcquireStaleChatDiffStatuses").Inc()
 	return r0, r1
 }
 
@@ -166,6 +174,14 @@ func (m queryMetricsStore) ArchiveUnusedTemplateVersions(ctx context.Context, ar
 	m.queryLatencies.WithLabelValues("ArchiveUnusedTemplateVersions").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ArchiveUnusedTemplateVersions").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) BackoffChatDiffStatus(ctx context.Context, arg database.BackoffChatDiffStatusParams) error {
+	start := time.Now()
+	r0 := m.s.BackoffChatDiffStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("BackoffChatDiffStatus").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "BackoffChatDiffStatus").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg database.BatchUpdateWorkspaceAgentMetadataParams) error {
@@ -272,6 +288,14 @@ func (m queryMetricsStore) CountConnectionLogs(ctx context.Context, arg database
 	return r0, r1
 }
 
+func (m queryMetricsStore) CountEnabledModelsWithoutPricing(ctx context.Context) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountEnabledModelsWithoutPricing(ctx)
+	m.queryLatencies.WithLabelValues("CountEnabledModelsWithoutPricing").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountEnabledModelsWithoutPricing").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountInProgressPrebuilds(ctx)
@@ -368,14 +392,6 @@ func (m queryMetricsStore) DeleteChatMessagesAfterID(ctx context.Context, arg da
 	return r0
 }
 
-func (m queryMetricsStore) DeleteChatMessagesByChatID(ctx context.Context, chatID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.DeleteChatMessagesByChatID(ctx, chatID)
-	m.queryLatencies.WithLabelValues("DeleteChatMessagesByChatID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatMessagesByChatID").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatModelConfigByID(ctx, id)
@@ -397,6 +413,22 @@ func (m queryMetricsStore) DeleteChatQueuedMessage(ctx context.Context, arg data
 	r0 := m.s.DeleteChatQueuedMessage(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteChatQueuedMessage").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatQueuedMessage").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatUsageLimitGroupOverride(ctx, groupID)
+	m.queryLatencies.WithLabelValues("DeleteChatUsageLimitGroupOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatUsageLimitGroupOverride").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) DeleteChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatUsageLimitUserOverride(ctx, userID)
+	m.queryLatencies.WithLabelValues("DeleteChatUsageLimitUserOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatUsageLimitUserOverride").Inc()
 	return r0
 }
 
@@ -429,14 +461,6 @@ func (m queryMetricsStore) DeleteExternalAuthLink(ctx context.Context, arg datab
 	r0 := m.s.DeleteExternalAuthLink(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteExternalAuthLink").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteExternalAuthLink").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.DeleteGitSSHKey(ctx, userID)
-	m.queryLatencies.WithLabelValues("DeleteGitSSHKey").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteGitSSHKey").Inc()
 	return r0
 }
 
@@ -943,14 +967,6 @@ func (m queryMetricsStore) GetAnnouncementBanners(ctx context.Context) (string, 
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAppSecurityKey(ctx context.Context) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAppSecurityKey(ctx)
-	m.queryLatencies.WithLabelValues("GetAppSecurityKey").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAppSecurityKey").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetApplicationName(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetApplicationName(ctx)
@@ -996,6 +1012,38 @@ func (m queryMetricsStore) GetChatByIDForUpdate(ctx context.Context, id uuid.UUI
 	r0, r1 := m.s.GetChatByIDForUpdate(ctx, id)
 	m.queryLatencies.WithLabelValues("GetChatByIDForUpdate").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatByIDForUpdate").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatCostPerChat(ctx context.Context, arg database.GetChatCostPerChatParams) ([]database.GetChatCostPerChatRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatCostPerChat(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatCostPerChat").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCostPerChat").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatCostPerModel(ctx context.Context, arg database.GetChatCostPerModelParams) ([]database.GetChatCostPerModelRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatCostPerModel(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatCostPerModel").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCostPerModel").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatCostPerUser(ctx context.Context, arg database.GetChatCostPerUserParams) ([]database.GetChatCostPerUserRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatCostPerUser(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatCostPerUser").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCostPerUser").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatCostSummary(ctx context.Context, arg database.GetChatCostSummaryParams) (database.GetChatCostSummaryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatCostSummary(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatCostSummary").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCostSummary").Inc()
 	return r0, r1
 }
 
@@ -1047,6 +1095,14 @@ func (m queryMetricsStore) GetChatMessagesByChatID(ctx context.Context, chatID d
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg database.GetChatMessagesByChatIDDescPaginatedParams) ([]database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatMessagesByChatIDDescPaginated(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatMessagesByChatIDDescPaginated").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatMessagesByChatIDDescPaginated").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatMessagesForPromptByChatID(ctx, chatID)
@@ -1060,14 +1116,6 @@ func (m queryMetricsStore) GetChatModelConfigByID(ctx context.Context, id uuid.U
 	r0, r1 := m.s.GetChatModelConfigByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetChatModelConfigByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatModelConfigByID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetChatModelConfigByProviderAndModel(ctx context.Context, arg database.GetChatModelConfigByProviderAndModelParams) (database.ChatModelConfig, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatModelConfigByProviderAndModel(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetChatModelConfigByProviderAndModel").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatModelConfigByProviderAndModel").Inc()
 	return r0, r1
 }
 
@@ -1111,6 +1159,38 @@ func (m queryMetricsStore) GetChatQueuedMessages(ctx context.Context, chatID uui
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatSystemPrompt(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatSystemPrompt(ctx)
+	m.queryLatencies.WithLabelValues("GetChatSystemPrompt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatSystemPrompt").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatUsageLimitConfig(ctx)
+	m.queryLatencies.WithLabelValues("GetChatUsageLimitConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatUsageLimitConfig").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (database.GetChatUsageLimitGroupOverrideRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatUsageLimitGroupOverride(ctx, groupID)
+	m.queryLatencies.WithLabelValues("GetChatUsageLimitGroupOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatUsageLimitGroupOverride").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (database.GetChatUsageLimitUserOverrideRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatUsageLimitUserOverride(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetChatUsageLimitUserOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatUsageLimitUserOverride").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatsByOwnerID(ctx context.Context, ownerID database.GetChatsByOwnerIDParams) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatsByOwnerID(ctx, ownerID)
@@ -1124,14 +1204,6 @@ func (m queryMetricsStore) GetConnectionLogsOffset(ctx context.Context, arg data
 	r0, r1 := m.s.GetConnectionLogsOffset(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetConnectionLogsOffset").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetConnectionLogsOffset").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetCoordinatorResumeTokenSigningKey(ctx context.Context) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetCoordinatorResumeTokenSigningKey(ctx)
-	m.queryLatencies.WithLabelValues("GetCoordinatorResumeTokenSigningKey").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCoordinatorResumeTokenSigningKey").Inc()
 	return r0, r1
 }
 
@@ -1196,14 +1268,6 @@ func (m queryMetricsStore) GetDefaultProxyConfig(ctx context.Context) (database.
 	r0, r1 := m.s.GetDefaultProxyConfig(ctx)
 	m.queryLatencies.WithLabelValues("GetDefaultProxyConfig").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDefaultProxyConfig").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetDeploymentDAUs(ctx context.Context, tzOffset int32) ([]database.GetDeploymentDAUsRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetDeploymentDAUs(ctx, tzOffset)
-	m.queryLatencies.WithLabelValues("GetDeploymentDAUs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDeploymentDAUs").Inc()
 	return r0, r1
 }
 
@@ -1303,14 +1367,6 @@ func (m queryMetricsStore) GetFileByID(ctx context.Context, id uuid.UUID) (datab
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetFileIDByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (uuid.UUID, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetFileIDByTemplateVersionID(ctx, templateVersionID)
-	m.queryLatencies.WithLabelValues("GetFileIDByTemplateVersionID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetFileIDByTemplateVersionID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]database.GetFileTemplatesRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetFileTemplates(ctx, fileID)
@@ -1404,6 +1460,14 @@ func (m queryMetricsStore) GetInboxNotificationsByUserID(ctx context.Context, ar
 	r0, r1 := m.s.GetInboxNotificationsByUserID(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetInboxNotificationsByUserID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetLastChatMessageByRole(ctx context.Context, arg database.GetLastChatMessageByRoleParams) (database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLastChatMessageByRole(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetLastChatMessageByRole").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLastChatMessageByRole").Inc()
 	return r0, r1
 }
 
@@ -1543,14 +1607,6 @@ func (m queryMetricsStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken []byte) (database.OAuth2ProviderApp, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetOAuth2ProviderAppByRegistrationToken(ctx, registrationAccessToken)
-	m.queryLatencies.WithLabelValues("GetOAuth2ProviderAppByRegistrationToken").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOAuth2ProviderAppByRegistrationToken").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOAuth2ProviderAppCodeByID(ctx, id)
@@ -1620,14 +1676,6 @@ func (m queryMetricsStore) GetOAuth2ProviderAppsByUserID(ctx context.Context, us
 	r0, r1 := m.s.GetOAuth2ProviderAppsByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetOAuth2ProviderAppsByUserID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOAuth2ProviderAppsByUserID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetOAuthSigningKey(ctx context.Context) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetOAuthSigningKey(ctx)
-	m.queryLatencies.WithLabelValues("GetOAuthSigningKey").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOAuthSigningKey").Inc()
 	return r0, r1
 }
 
@@ -1828,14 +1876,6 @@ func (m queryMetricsStore) GetProvisionerJobTimingsByJobID(ctx context.Context, 
 	r0, r1 := m.s.GetProvisionerJobTimingsByJobID(ctx, jobID)
 	m.queryLatencies.WithLabelValues("GetProvisionerJobTimingsByJobID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetProvisionerJobTimingsByJobID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetProvisionerJobsByIDs(ctx, ids)
-	m.queryLatencies.WithLabelValues("GetProvisionerJobsByIDs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetProvisionerJobsByIDs").Inc()
 	return r0, r1
 }
 
@@ -2087,14 +2127,6 @@ func (m queryMetricsStore) GetTemplateByOrganizationAndName(ctx context.Context,
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTemplateDAUs(ctx context.Context, arg database.GetTemplateDAUsParams) ([]database.GetTemplateDAUsRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetTemplateDAUs(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetTemplateDAUs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateDAUs").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetTemplateInsights(ctx context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplateInsights(ctx, arg)
@@ -2164,14 +2196,6 @@ func (m queryMetricsStore) GetTemplateVersionByTemplateIDAndName(ctx context.Con
 	r0, r1 := m.s.GetTemplateVersionByTemplateIDAndName(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetTemplateVersionByTemplateIDAndName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateVersionByTemplateIDAndName").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetTemplateVersionHasAITask(ctx context.Context, id uuid.UUID) (bool, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetTemplateVersionHasAITask(ctx, id)
-	m.queryLatencies.WithLabelValues("GetTemplateVersionHasAITask").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateVersionHasAITask").Inc()
 	return r0, r1
 }
 
@@ -2287,11 +2311,35 @@ func (m queryMetricsStore) GetUserByID(ctx context.Context, id uuid.UUID) (datab
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserChatCustomPrompt(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserChatCustomPrompt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserChatCustomPrompt").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetUserChatSpendInPeriod(ctx context.Context, arg database.GetUserChatSpendInPeriodParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserChatSpendInPeriod(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserChatSpendInPeriod").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserChatSpendInPeriod").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserCount(ctx, includeSystem)
 	m.queryLatencies.WithLabelValues("GetUserCount").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserCount").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetUserGroupSpendLimit(ctx context.Context, userID uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserGroupSpendLimit(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserGroupSpendLimit").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserGroupSpendLimit").Inc()
 	return r0, r1
 }
 
@@ -2679,14 +2727,6 @@ func (m queryMetricsStore) GetWorkspaceBuildParameters(ctx context.Context, work
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIds []uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceBuildParametersByBuildIDs(ctx, workspaceBuildIds)
-	m.queryLatencies.WithLabelValues("GetWorkspaceBuildParametersByBuildIDs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceBuildParametersByBuildIDs").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetWorkspaceBuildProvisionerStateByID(ctx context.Context, workspaceBuildID uuid.UUID) (database.GetWorkspaceBuildProvisionerStateByIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceBuildProvisionerStateByID(ctx, workspaceBuildID)
@@ -2908,6 +2948,14 @@ func (m queryMetricsStore) InsertAIBridgeInterception(ctx context.Context, arg d
 	r0, r1 := m.s.InsertAIBridgeInterception(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertAIBridgeInterception").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIBridgeInterception").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertAIBridgeModelThought(ctx context.Context, arg database.InsertAIBridgeModelThoughtParams) (database.AIBridgeModelThought, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAIBridgeModelThought(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIBridgeModelThought").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIBridgeModelThought").Inc()
 	return r0, r1
 }
 
@@ -3327,14 +3375,6 @@ func (m queryMetricsStore) InsertUserGroupsByID(ctx context.Context, arg databas
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertUserGroupsByName(ctx context.Context, arg database.InsertUserGroupsByNameParams) error {
-	start := time.Now()
-	r0 := m.s.InsertUserGroupsByName(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertUserGroupsByName").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertUserGroupsByName").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) InsertUserLink(ctx context.Context, arg database.InsertUserLinkParams) (database.UserLink, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertUserLink(ctx, arg)
@@ -3543,19 +3583,19 @@ func (m queryMetricsStore) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.
 	return r0, r1
 }
 
-func (m queryMetricsStore) ListChatsByRootID(ctx context.Context, rootChatID uuid.UUID) ([]database.Chat, error) {
+func (m queryMetricsStore) ListChatUsageLimitGroupOverrides(ctx context.Context) ([]database.ListChatUsageLimitGroupOverridesRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.ListChatsByRootID(ctx, rootChatID)
-	m.queryLatencies.WithLabelValues("ListChatsByRootID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListChatsByRootID").Inc()
+	r0, r1 := m.s.ListChatUsageLimitGroupOverrides(ctx)
+	m.queryLatencies.WithLabelValues("ListChatUsageLimitGroupOverrides").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListChatUsageLimitGroupOverrides").Inc()
 	return r0, r1
 }
 
-func (m queryMetricsStore) ListChildChatsByParentID(ctx context.Context, parentChatID uuid.UUID) ([]database.Chat, error) {
+func (m queryMetricsStore) ListChatUsageLimitOverrides(ctx context.Context) ([]database.ListChatUsageLimitOverridesRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.ListChildChatsByParentID(ctx, parentChatID)
-	m.queryLatencies.WithLabelValues("ListChildChatsByParentID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListChildChatsByParentID").Inc()
+	r0, r1 := m.s.ListChatUsageLimitOverrides(ctx)
+	m.queryLatencies.WithLabelValues("ListChatUsageLimitOverrides").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListChatUsageLimitOverrides").Inc()
 	return r0, r1
 }
 
@@ -3663,19 +3703,19 @@ func (m queryMetricsStore) RegisterWorkspaceProxy(ctx context.Context, arg datab
 	return r0, r1
 }
 
-func (m queryMetricsStore) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.RemoveUserFromAllGroups(ctx, userID)
-	m.queryLatencies.WithLabelValues("RemoveUserFromAllGroups").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RemoveUserFromAllGroups").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) RemoveUserFromGroups(ctx context.Context, arg database.RemoveUserFromGroupsParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.RemoveUserFromGroups(ctx, arg)
 	m.queryLatencies.WithLabelValues("RemoveUserFromGroups").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RemoveUserFromGroups").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ResolveUserChatSpendLimit(ctx context.Context, userID uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.ResolveUserChatSpendLimit(ctx, userID)
+	m.queryLatencies.WithLabelValues("ResolveUserChatSpendLimit").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ResolveUserChatSpendLimit").Inc()
 	return r0, r1
 }
 
@@ -3911,14 +3951,6 @@ func (m queryMetricsStore) UpdateOAuth2ProviderAppByID(ctx context.Context, arg 
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg database.UpdateOAuth2ProviderAppSecretByIDParams) (database.OAuth2ProviderAppSecret, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateOAuth2ProviderAppSecretByID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateOAuth2ProviderAppSecretByID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOAuth2ProviderAppSecretByID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) UpdateOrganization(ctx context.Context, arg database.UpdateOrganizationParams) (database.Organization, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateOrganization(ctx, arg)
@@ -4150,6 +4182,14 @@ func (m queryMetricsStore) UpdateUsageEventsPostPublish(ctx context.Context, arg
 	return r0
 }
 
+func (m queryMetricsStore) UpdateUserChatCustomPrompt(ctx context.Context, arg database.UpdateUserChatCustomPromptParams) (database.UserConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserChatCustomPrompt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserChatCustomPrompt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserChatCustomPrompt").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.UpdateUserDeletedByID(ctx, id)
@@ -4195,14 +4235,6 @@ func (m queryMetricsStore) UpdateUserLink(ctx context.Context, arg database.Upda
 	r0, r1 := m.s.UpdateUserLink(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserLink").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserLink").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) UpdateUserLinkedID(ctx context.Context, arg database.UpdateUserLinkedIDParams) (database.UserLink, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateUserLinkedID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateUserLinkedID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserLinkedID").Inc()
 	return r0, r1
 }
 
@@ -4486,12 +4518,12 @@ func (m queryMetricsStore) UpdateWorkspacesTTLByTemplateID(ctx context.Context, 
 	return r0
 }
 
-func (m queryMetricsStore) UpsertAISeatState(ctx context.Context, arg database.UpsertAISeatStateParams) error {
+func (m queryMetricsStore) UpsertAISeatState(ctx context.Context, arg database.UpsertAISeatStateParams) (bool, error) {
 	start := time.Now()
-	r0 := m.s.UpsertAISeatState(ctx, arg)
+	r0, r1 := m.s.UpsertAISeatState(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertAISeatState").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertAISeatState").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpsertAnnouncementBanners(ctx context.Context, value string) error {
@@ -4499,14 +4531,6 @@ func (m queryMetricsStore) UpsertAnnouncementBanners(ctx context.Context, value 
 	r0 := m.s.UpsertAnnouncementBanners(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertAnnouncementBanners").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertAnnouncementBanners").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) UpsertAppSecurityKey(ctx context.Context, value string) error {
-	start := time.Now()
-	r0 := m.s.UpsertAppSecurityKey(ctx, value)
-	m.queryLatencies.WithLabelValues("UpsertAppSecurityKey").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertAppSecurityKey").Inc()
 	return r0
 }
 
@@ -4542,20 +4566,44 @@ func (m queryMetricsStore) UpsertChatDiffStatusReference(ctx context.Context, ar
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpsertChatSystemPrompt(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatSystemPrompt(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertChatSystemPrompt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatSystemPrompt").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertChatUsageLimitConfig(ctx context.Context, arg database.UpsertChatUsageLimitConfigParams) (database.ChatUsageLimitConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertChatUsageLimitConfig(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertChatUsageLimitConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatUsageLimitConfig").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertChatUsageLimitGroupOverride(ctx context.Context, arg database.UpsertChatUsageLimitGroupOverrideParams) (database.UpsertChatUsageLimitGroupOverrideRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertChatUsageLimitGroupOverride(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertChatUsageLimitGroupOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatUsageLimitGroupOverride").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertChatUsageLimitUserOverride(ctx context.Context, arg database.UpsertChatUsageLimitUserOverrideParams) (database.UpsertChatUsageLimitUserOverrideRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertChatUsageLimitUserOverride(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertChatUsageLimitUserOverride").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatUsageLimitUserOverride").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpsertConnectionLog(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertConnectionLog").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertConnectionLog").Inc()
 	return r0, r1
-}
-
-func (m queryMetricsStore) UpsertCoordinatorResumeTokenSigningKey(ctx context.Context, value string) error {
-	start := time.Now()
-	r0 := m.s.UpsertCoordinatorResumeTokenSigningKey(ctx, value)
-	m.queryLatencies.WithLabelValues("UpsertCoordinatorResumeTokenSigningKey").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertCoordinatorResumeTokenSigningKey").Inc()
-	return r0
 }
 
 func (m queryMetricsStore) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {
@@ -4611,14 +4659,6 @@ func (m queryMetricsStore) UpsertOAuth2GithubDefaultEligible(ctx context.Context
 	r0 := m.s.UpsertOAuth2GithubDefaultEligible(ctx, eligible)
 	m.queryLatencies.WithLabelValues("UpsertOAuth2GithubDefaultEligible").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertOAuth2GithubDefaultEligible").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) UpsertOAuthSigningKey(ctx context.Context, value string) error {
-	start := time.Now()
-	r0 := m.s.UpsertOAuthSigningKey(ctx, value)
-	m.queryLatencies.WithLabelValues("UpsertOAuthSigningKey").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertOAuthSigningKey").Inc()
 	return r0
 }
 
@@ -4787,14 +4827,6 @@ func (m queryMetricsStore) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context
 	r0, r1 := m.s.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, prepared)
 	m.queryLatencies.WithLabelValues("GetAuthorizedWorkspacesAndAgentsByOwnerID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedWorkspacesAndAgentsByOwnerID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx context.Context, workspaceBuildIDs []uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.WorkspaceBuildParameter, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAuthorizedWorkspaceBuildParametersByBuildIDs(ctx, workspaceBuildIDs, prepared)
-	m.queryLatencies.WithLabelValues("GetAuthorizedWorkspaceBuildParametersByBuildIDs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedWorkspaceBuildParametersByBuildIDs").Inc()
 	return r0, r1
 }
 
