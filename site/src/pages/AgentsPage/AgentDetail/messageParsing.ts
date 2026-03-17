@@ -5,7 +5,6 @@ import type {
 	MergedTool,
 	ParsedMessageContent,
 	ParsedMessageEntry,
-	ParsedMessageSection,
 	ParsedToolCall,
 	ParsedToolResult,
 	RenderBlock,
@@ -244,23 +243,17 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 					parsed.blocks = ensureToolBlock(parsed.blocks, id);
 					break;
 				}
-				case "file": {
-					const mediaType = asString(typedBlock.media_type);
-					const data = asString(typedBlock.data);
-					const fileId = asString(typedBlock.file_id);
-					if (mediaType && (data || fileId)) {
+				case "file":
+					if (
+						typedBlock.media_type &&
+						(typedBlock.data || typedBlock.file_id)
+					) {
 						parsed.blocks = [
 							...parsed.blocks,
-							{
-								type: "file",
-								mediaType,
-								data: data || undefined,
-								fileId: fileId || undefined,
-							},
+							typedBlock as Extract<RenderBlock, { type: "file" }>,
 						];
 					}
 					break;
-				}
 				case "source": {
 					const url = asString(typedBlock.url);
 					const title = asString(typedBlock.title);
@@ -388,24 +381,4 @@ export const buildSubagentTitles = (
 		}
 	}
 	return map;
-};
-
-export const buildParsedMessageSections = (
-	parsedMessages: readonly ParsedMessageEntry[],
-): ParsedMessageSection[] => {
-	const sections: ParsedMessageSection[] = [];
-
-	for (const entry of parsedMessages) {
-		if (entry.message.role === "user") {
-			sections.push({ userEntry: entry, entries: [entry] });
-			continue;
-		}
-		if (sections.length === 0) {
-			sections.push({ userEntry: null, entries: [entry] });
-			continue;
-		}
-		sections[sections.length - 1].entries.push(entry);
-	}
-
-	return sections;
 };

@@ -1,8 +1,11 @@
+import { isApiError } from "api/errors";
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { Button } from "components/Button/Button";
 import {
 	Combobox,
 	ComboboxContent,
@@ -30,6 +33,7 @@ import {
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
+import { formatUsageLimitMessage, isUsageLimitData } from "./usageLimitMessage";
 import { useFileAttachments } from "./useFileAttachments";
 
 /** @internal Exported for testing. */
@@ -110,6 +114,7 @@ interface AgentCreateFormProps {
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
 	modelCatalogError: unknown;
+	onOpenAnalytics?: () => void;
 }
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
@@ -122,6 +127,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isModelCatalogLoading,
 	isModelConfigsLoading,
 	modelCatalogError,
+	onOpenAnalytics,
 }) => {
 	const { organizations } = useDashboard();
 	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
@@ -326,7 +332,27 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	return (
 		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-				{createError ? <ErrorAlert error={createError} /> : null}
+				{createError ? (
+					isApiError(createError) &&
+					createError.response?.status === 409 &&
+					isUsageLimitData(createError.response.data) ? (
+						<Alert
+							severity="info"
+							className="py-2"
+							actions={
+								onOpenAnalytics && (
+									<Button variant="subtle" size="sm" onClick={onOpenAnalytics}>
+										View Usage
+									</Button>
+								)
+							}
+						>
+							{formatUsageLimitMessage(createError.response.data)}
+						</Alert>
+					) : (
+						<ErrorAlert error={createError} />
+					)
+				) : null}
 				{workspacesQuery.isError && (
 					<ErrorAlert error={workspacesQuery.error} />
 				)}
@@ -357,11 +383,17 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 								handleWorkspaceChange(value ?? autoCreateWorkspaceValue)
 							}
 						>
+							{/* pointer-events-auto overrides the pointer-events:none
+								   that Radix Select's DismissableLayer sets on
+								   document.body when the Model Selector is open.
+								   Without it the first click only dismisses the
+								   Select and a second click is needed to open
+								   the Combobox. */}
 							<ComboboxTrigger asChild>
 								<button
 									type="button"
 									disabled={isCreating || workspacesQuery.isLoading}
-									className="group flex h-8 items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:bg-transparent hover:text-content-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+									className="pointer-events-auto group flex h-8 items-center gap-1.5 rounded-md border-none bg-transparent px-1 text-xs text-content-secondary shadow-none ring-offset-background transition-colors hover:bg-transparent hover:text-content-primary focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
 								>
 									<MonitorIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary transition-colors group-hover:text-content-primary" />
 									<span>{selectedWorkspaceLabel ?? "Workspace"}</span>
@@ -370,8 +402,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							</ComboboxTrigger>
 							<ComboboxContent
 								side="top"
-								align="center"
-								className="w-72 [&_[cmdk-item]]:text-xs"
+								align="start"
+								className="w-72 bg-surface-primary border-border [&_[cmdk-root]]:bg-surface-primary [&_[cmdk-item]]:text-xs [&_[cmdk-item]>svg:last-child]:ml-auto"
 							>
 								<ComboboxInput placeholder="Search workspaces..." />
 								<ComboboxList>

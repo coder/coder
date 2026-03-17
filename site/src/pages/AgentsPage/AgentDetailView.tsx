@@ -1,5 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
-import type { ChatDiffStatus } from "api/typesGenerated";
+import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { ArchiveIcon } from "lucide-react";
 import { type FC, type RefObject, useEffect, useRef, useState } from "react";
@@ -7,9 +7,13 @@ import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
-import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetail";
-import type { useChatStore } from "./AgentDetail/ChatContext";
+import {
+	selectChatStatus,
+	useChatSelector,
+	type useChatStore,
+} from "./AgentDetail/ChatContext";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
+import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetailContent";
 import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
@@ -17,6 +21,7 @@ import {
 import { GitPanel } from "./GitPanel";
 import { RightPanel } from "./RightPanel";
 import { SidebarTabView } from "./SidebarTabView";
+import type { ChatDetailError } from "./usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -26,23 +31,19 @@ interface EditingState {
 	chatInputRef: RefObject<ChatMessageInputRef | null>;
 	editorInitialValue: string;
 	editingMessageId: number | null;
-	editingFileBlocks: readonly {
-		mediaType: string;
-		data?: string;
-		fileId?: string;
-	}[];
+	editingFileBlocks: readonly ChatMessagePart[];
 	handleEditUserMessage: (
 		messageId: number,
 		text: string,
-		fileBlocks?: readonly {
-			mediaType: string;
-			data?: string;
-			fileId?: string;
-		}[],
+		fileBlocks?: readonly ChatMessagePart[],
 	) => void;
 	handleCancelHistoryEdit: () => void;
 	editingQueuedMessageID: number | null;
-	handleStartQueueEdit: (id: number, text: string) => void;
+	handleStartQueueEdit: (
+		id: number,
+		text: string,
+		fileBlocks: readonly ChatMessagePart[],
+	) => void;
 	handleCancelQueueEdit: () => void;
 	handleSendFromInput: (message: string, fileIds?: string[]) => void;
 	handleContentChange: (content: string) => void;
@@ -53,7 +54,7 @@ interface AgentDetailViewProps {
 	agentId: string;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
-	chatErrorReasons: Record<string, string>;
+	chatErrorReasons: Record<string, ChatDetailError>;
 	chatRecord: TypesGen.Chat | undefined;
 	isArchived: boolean;
 	hasWorkspace: boolean;
@@ -81,6 +82,7 @@ interface AgentDetailViewProps {
 	// Sidebar / panel state.
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
+	onOpenAnalytics?: () => void;
 
 	// Right panel state (owned by the parent so loading and
 	// loaded views share the same layout).
@@ -155,6 +157,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	isInterruptPending,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
+	onOpenAnalytics,
 	showSidebarPanel,
 	onSetShowSidebarPanel,
 	prNumber,
@@ -186,6 +189,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 		null,
 	);
 	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
+	const chatStatus = useChatSelector(store, selectChatStatus);
 
 	// Compute local diff stats from git watcher unified diffs.
 
@@ -245,7 +249,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 					)}
 					<div
 						aria-hidden
-						className="pointer-events-none absolute inset-x-0 top-full z-10 h-6 bg-surface-primary"
+						className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
 						style={{
 							maskImage:
 								"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
@@ -254,31 +258,29 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 						}}
 					/>
 				</div>
-				<div
-					ref={scrollContainerRef}
-					className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+				<ScrollAnchoredContainer
+					scrollContainerRef={scrollContainerRef}
+					isFetchingMoreMessages={isFetchingMoreMessages}
+					hasMoreMessages={hasMoreMessages}
+					onFetchMoreMessages={onFetchMoreMessages}
 				>
 					<div className="px-4">
 						<AgentDetailTimeline
 							store={store}
-							chatID={agentId}
 							persistedErrorReason={
-								chatErrorReasons[agentId] || chatRecord?.last_error || undefined
+								chatErrorReasons[agentId] ??
+								(chatStatus === "error" && chatRecord?.last_error
+									? { kind: "generic" as const, message: chatRecord.last_error }
+									: undefined)
 							}
+							onOpenAnalytics={onOpenAnalytics}
 							onEditUserMessage={editing.handleEditUserMessage}
 							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
 							urlTransform={urlTransform}
 						/>
 					</div>
-					{hasMoreMessages && (
-						<MessagesPaginationSentinel
-							containerRef={scrollContainerRef}
-							isFetching={isFetchingMoreMessages}
-							onLoadMore={onFetchMoreMessages}
-						/>
-					)}
-				</div>
+				</ScrollAnchoredContainer>
 				<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<AgentDetailInput
 						store={store}
@@ -494,37 +496,83 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
 };
 
 /**
- * Invisible sentinel that triggers loading older messages when it
- * scrolls into view. Placed at the visual top of the flex-col-reverse
- * container (which is the DOM bottom).
+ * Scroll container that uses flex-col-reverse for bottom-anchored chat
+ * layout. Handles loading older message pages via an IntersectionObserver
+ * sentinel and manually restores scroll position after new content
+ * renders — CSS scroll anchoring is unreliable in flex-col-reverse
+ * containers.
  */
-const MessagesPaginationSentinel: FC<{
-	containerRef: RefObject<HTMLDivElement | null>;
-	isFetching: boolean;
-	onLoadMore: () => void;
-}> = ({ containerRef, isFetching, onLoadMore }) => {
+const ScrollAnchoredContainer: FC<{
+	scrollContainerRef: RefObject<HTMLDivElement | null>;
+	isFetchingMoreMessages: boolean;
+	hasMoreMessages: boolean;
+	onFetchMoreMessages: () => void;
+	children: React.ReactNode;
+}> = ({
+	scrollContainerRef,
+	isFetchingMoreMessages,
+	hasMoreMessages,
+	onFetchMoreMessages,
+	children,
+}) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
+	const observerRef = useRef<IntersectionObserver | null>(null);
+	const isFetchingRef = useRef(isFetchingMoreMessages);
+	isFetchingRef.current = isFetchingMoreMessages;
+	const onFetchRef = useRef(onFetchMoreMessages);
+	onFetchRef.current = onFetchMoreMessages;
 
+	// Sentinel observer — triggers loading older messages.
+	// All changing values are read from refs so the observer
+	// is created once and never torn down / recreated, which
+	// would cause spurious intersection callbacks.
 	useEffect(() => {
 		const sentinel = sentinelRef.current;
-		const container = containerRef.current;
+		const container = scrollContainerRef.current;
 		if (!sentinel || !container) return;
 
 		const observer = new IntersectionObserver(
 			([entry]) => {
-				if (entry.isIntersecting && !isFetching) {
-					onLoadMore();
+				if (entry.isIntersecting && !isFetchingRef.current) {
+					onFetchRef.current();
 				}
 			},
 			{
 				root: container,
-				rootMargin: "200px 0px 0px 0px",
+				rootMargin: "600px 0px 0px 0px",
 				threshold: 0.01,
 			},
 		);
+		observerRef.current = observer;
 		observer.observe(sentinel);
-		return () => observer.disconnect();
-	}, [containerRef, isFetching, onLoadMore]);
+		return () => {
+			observer.disconnect();
+			observerRef.current = null;
+		};
+	}, [scrollContainerRef]);
 
-	return <div ref={sentinelRef} className="h-px shrink-0" />;
+	// When a fetch completes, re-observe the sentinel to force
+	// the IntersectionObserver to re-evaluate. The observer only
+	// fires on state *changes* (entering/leaving), so if the
+	// sentinel stayed visible throughout the fetch it won't fire
+	// again on its own.
+	useEffect(() => {
+		if (isFetchingMoreMessages) return;
+		const sentinel = sentinelRef.current;
+		const observer = observerRef.current;
+		if (!sentinel || !observer) return;
+		observer.unobserve(sentinel);
+		observer.observe(sentinel);
+	}, [isFetchingMoreMessages]);
+
+	return (
+		<div
+			ref={scrollContainerRef}
+			className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+			style={{ overflowAnchor: "none" }}
+		>
+			{children}
+			{hasMoreMessages && <div ref={sentinelRef} className="h-px shrink-0" />}
+		</div>
+	);
 };

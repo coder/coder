@@ -2985,12 +2985,11 @@ class ApiMethods {
 		return response.data;
 	};
 
-	archiveChat = async (chatId: string): Promise<void> => {
-		await this.axios.post(`/api/experimental/chats/${chatId}/archive`);
-	};
-
-	unarchiveChat = async (chatId: string): Promise<void> => {
-		await this.axios.post(`/api/experimental/chats/${chatId}/unarchive`);
+	updateChat = async (
+		chatId: string,
+		req: TypesGen.UpdateChatRequest,
+	): Promise<void> => {
+		await this.axios.patch(`/api/experimental/chats/${chatId}`, req);
 	};
 
 	createChatMessage = async (
@@ -3067,37 +3066,33 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getChatSystemPrompt =
-		async (): Promise<TypesGen.ChatSystemPromptResponse> => {
-			const response = await this.axios.get<TypesGen.ChatSystemPromptResponse>(
-				"/api/experimental/chats/config/system-prompt",
-			);
-			return response.data;
-		};
+	getChatSystemPrompt = async (): Promise<TypesGen.ChatSystemPrompt> => {
+		const response = await this.axios.get<TypesGen.ChatSystemPrompt>(
+			"/api/experimental/chats/config/system-prompt",
+		);
+		return response.data;
+	};
 
 	updateChatSystemPrompt = async (
-		req: TypesGen.UpdateChatSystemPromptRequest,
+		req: TypesGen.ChatSystemPrompt,
 	): Promise<void> => {
 		await this.axios.put("/api/experimental/chats/config/system-prompt", req);
 	};
 
 	getUserChatCustomPrompt =
-		async (): Promise<TypesGen.UserChatCustomPromptResponse> => {
-			const response =
-				await this.axios.get<TypesGen.UserChatCustomPromptResponse>(
-					"/api/experimental/chats/config/user-prompt",
-				);
+		async (): Promise<TypesGen.UserChatCustomPrompt> => {
+			const response = await this.axios.get<TypesGen.UserChatCustomPrompt>(
+				"/api/experimental/chats/config/user-prompt",
+			);
 			return response.data;
 		};
-
 	updateUserChatCustomPrompt = async (
-		req: TypesGen.UpdateUserChatCustomPromptRequest,
-	): Promise<TypesGen.UserChatCustomPromptResponse> => {
-		const response =
-			await this.axios.put<TypesGen.UserChatCustomPromptResponse>(
-				"/api/experimental/chats/config/user-prompt",
-				req,
-			);
+		req: TypesGen.UserChatCustomPrompt,
+	): Promise<TypesGen.UserChatCustomPrompt> => {
+		const response = await this.axios.put<TypesGen.UserChatCustomPrompt>(
+			"/api/experimental/chats/config/user-prompt",
+			req,
+		);
 		return response.data;
 	};
 
@@ -3196,6 +3191,63 @@ class ApiMethods {
 			params,
 		);
 		const response = await this.axios.get<TypesGen.ChatCostUsersResponse>(url);
+		return response.data;
+	};
+
+	getChatUsageLimitConfig =
+		async (): Promise<TypesGen.ChatUsageLimitConfigResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatUsageLimitConfigResponse>(
+					"/api/experimental/chats/usage-limits",
+				);
+			return response.data;
+		};
+
+	updateChatUsageLimitConfig = async (
+		req: TypesGen.ChatUsageLimitConfig,
+	): Promise<TypesGen.ChatUsageLimitConfig> => {
+		const response = await this.axios.put<TypesGen.ChatUsageLimitConfig>(
+			"/api/experimental/chats/usage-limits",
+			req,
+		);
+		return response.data;
+	};
+
+	upsertChatUsageLimitOverride = async (
+		userID: string,
+		req: TypesGen.UpsertChatUsageLimitOverrideRequest,
+	): Promise<TypesGen.ChatUsageLimitOverride> => {
+		const response = await this.axios.put<TypesGen.ChatUsageLimitOverride>(
+			`/api/experimental/chats/usage-limits/overrides/${encodeURIComponent(userID)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatUsageLimitOverride = async (userID: string): Promise<void> => {
+		const response = await this.axios.delete(
+			`/api/experimental/chats/usage-limits/overrides/${encodeURIComponent(userID)}`,
+		);
+		return response.data;
+	};
+
+	upsertChatUsageLimitGroupOverride = async (
+		groupID: string,
+		req: TypesGen.UpsertChatUsageLimitGroupOverrideRequest,
+	): Promise<TypesGen.ChatUsageLimitGroupOverride> => {
+		const response = await this.axios.put<TypesGen.ChatUsageLimitGroupOverride>(
+			`/api/experimental/chats/usage-limits/group-overrides/${encodeURIComponent(groupID)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatUsageLimitGroupOverride = async (
+		groupID: string,
+	): Promise<void> => {
+		const response = await this.axios.delete(
+			`/api/experimental/chats/usage-limits/group-overrides/${encodeURIComponent(groupID)}`,
+		);
 		return response.data;
 	};
 }

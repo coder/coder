@@ -60,6 +60,7 @@ type store interface {
 	InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) (database.AIBridgeTokenUsage, error)
 	InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) (database.AIBridgeUserPrompt, error)
 	InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) (database.AIBridgeToolUsage, error)
+	InsertAIBridgeModelThought(ctx context.Context, arg database.InsertAIBridgeModelThoughtParams) (database.AIBridgeModelThought, error)
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, intcID database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error)
 	GetAIBridgeInterceptionLineageByToolCallID(ctx context.Context, toolCallID string) (database.GetAIBridgeInterceptionLineageByToolCallIDRow, error)
 
@@ -357,6 +358,45 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 	}
 
 	return &proto.RecordToolUsageResponse{}, nil
+}
+
+func (s *Server) RecordModelThought(ctx context.Context, in *proto.RecordModelThoughtRequest) (*proto.RecordModelThoughtResponse, error) {
+	//nolint:gocritic // AIBridged has specific authz rules.
+	ctx = dbauthz.AsAIBridged(ctx)
+
+	intcID, err := uuid.Parse(in.GetInterceptionId())
+	if err != nil {
+		return nil, xerrors.Errorf("failed to parse interception_id %q: %w", in.GetInterceptionId(), err)
+	}
+
+	metadata := metadataToMap(in.GetMetadata())
+
+	if s.structuredLogging {
+		s.logger.Info(ctx, InterceptionLogMarker,
+			slog.F("record_type", "model_thought"),
+			slog.F("interception_id", intcID.String()),
+			slog.F("content", in.GetContent()),
+			slog.F("created_at", in.GetCreatedAt().AsTime()),
+			slog.F("metadata", metadata),
+		)
+	}
+
+	out, err := json.Marshal(metadata)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
+	}
+
+	_, err = s.store.InsertAIBridgeModelThought(ctx, database.InsertAIBridgeModelThoughtParams{
+		InterceptionID: intcID,
+		Content:        in.GetContent(),
+		Metadata:       out,
+		CreatedAt:      in.GetCreatedAt().AsTime(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("insert model thought: %w", err)
+	}
+
+	return &proto.RecordModelThoughtResponse{}, nil
 }
 
 // findInterceptionLineage looks up the parent interception and the root

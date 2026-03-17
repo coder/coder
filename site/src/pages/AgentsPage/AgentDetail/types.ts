@@ -38,9 +38,9 @@ export type RenderBlock =
 	  }
 	| {
 			type: "file";
-			mediaType: string;
+			media_type: string;
 			data?: string; // base64, absent when file_id is available
-			fileId?: string;
+			file_id?: string;
 	  }
 	| {
 			type: "file-reference";
@@ -68,11 +68,6 @@ export type ParsedMessageContent = {
 export type ParsedMessageEntry = {
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
-};
-
-export type ParsedMessageSection = {
-	userEntry: ParsedMessageEntry | null;
-	entries: ParsedMessageEntry[];
 };
 
 type StreamToolCall = {

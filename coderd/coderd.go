@@ -1178,13 +1178,25 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatModelConfig)
 				})
 			})
+			r.Route("/usage-limits", func(r chi.Router) {
+				r.Get("/", api.getChatUsageLimitConfig)
+				r.Put("/", api.updateChatUsageLimitConfig)
+				r.Get("/status", api.getMyChatUsageLimitStatus)
+				r.Route("/overrides/{user}", func(r chi.Router) {
+					r.Put("/", api.upsertChatUsageLimitOverride)
+					r.Delete("/", api.deleteChatUsageLimitOverride)
+				})
+				r.Route("/group-overrides/{group}", func(r chi.Router) {
+					r.Put("/", api.upsertChatUsageLimitGroupOverride)
+					r.Delete("/", api.deleteChatUsageLimitGroupOverride)
+				})
+			})
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Use(httpmw.ExtractChatParam(options.Database))
 				r.Get("/", api.getChat)
 				r.Get("/git/watch", api.watchChatGit)
 				r.Get("/desktop", api.watchChatDesktop)
-				r.Post("/archive", api.archiveChat)
-				r.Post("/unarchive", api.unarchiveChat)
+				r.Patch("/", api.patchChat)
 				r.Get("/messages", api.getChatMessages)
 				r.Post("/messages", api.postChatMessages)
 				r.Patch("/messages/{message}", api.patchChatMessage)

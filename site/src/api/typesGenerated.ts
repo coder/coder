@@ -1119,6 +1119,7 @@ export interface ChatCostSummary {
 	readonly total_cache_creation_tokens: number;
 	readonly by_model: readonly ChatCostModelBreakdown[];
 	readonly by_chat: readonly ChatCostChatBreakdown[];
+	readonly usage_limit?: ChatUsageLimitStatus;
 }
 
 // From codersdk/chats.go
@@ -1537,7 +1538,7 @@ export interface ChatModelOpenRouterProvider {
  * ChatModelOpenRouterProviderOptions configures OpenRouter provider behavior.
  */
 export interface ChatModelOpenRouterProviderOptions {
-	readonly reasoning?: ChatModelOpenRouterReasoningOptions;
+	readonly reasoning?: ChatModelReasoningOptions;
 	// empty interface{} type, falling back to unknown
 	readonly extra_body?: Record<string, unknown>;
 	readonly include_usage?: boolean;
@@ -1546,17 +1547,6 @@ export interface ChatModelOpenRouterProviderOptions {
 	readonly parallel_tool_calls?: boolean;
 	readonly user?: string;
 	readonly provider?: ChatModelOpenRouterProvider;
-}
-
-// From codersdk/chats.go
-/**
- * ChatModelOpenRouterReasoningOptions configures OpenRouter reasoning behavior.
- */
-export interface ChatModelOpenRouterReasoningOptions {
-	readonly enabled?: boolean;
-	readonly exclude?: boolean;
-	readonly max_tokens?: number;
-	readonly effort?: string;
 }
 
 // From codersdk/chats.go
@@ -1596,6 +1586,18 @@ export const ChatModelProviderUnavailableReasons: ChatModelProviderUnavailableRe
 
 // From codersdk/chats.go
 /**
+ * ChatModelReasoningOptions configures reasoning behavior for model
+ * providers that support it.
+ */
+export interface ChatModelReasoningOptions {
+	readonly enabled?: boolean;
+	readonly exclude?: boolean;
+	readonly max_tokens?: number;
+	readonly effort?: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatModelVercelGatewayProviderOptions configures Vercel routing behavior.
  */
 export interface ChatModelVercelGatewayProviderOptions {
@@ -1608,7 +1610,7 @@ export interface ChatModelVercelGatewayProviderOptions {
  * ChatModelVercelProviderOptions configures Vercel provider behavior.
  */
 export interface ChatModelVercelProviderOptions {
-	readonly reasoning?: ChatModelVercelReasoningOptions;
+	readonly reasoning?: ChatModelReasoningOptions;
 	readonly providerOptions?: ChatModelVercelGatewayProviderOptions;
 	readonly user?: string;
 	readonly logit_bias?: Record<string, number>;
@@ -1617,17 +1619,6 @@ export interface ChatModelVercelProviderOptions {
 	readonly parallel_tool_calls?: boolean;
 	// empty interface{} type, falling back to unknown
 	readonly extra_body?: Record<string, unknown>;
-}
-
-// From codersdk/chats.go
-/**
- * ChatModelVercelReasoningOptions configures Vercel reasoning behavior.
- */
-export interface ChatModelVercelReasoningOptions {
-	readonly enabled?: boolean;
-	readonly max_tokens?: number;
-	readonly effort?: string;
-	readonly exclude?: boolean;
 }
 
 // From codersdk/chats.go
@@ -1776,10 +1767,105 @@ export interface ChatStreamStatus {
 
 // From codersdk/chats.go
 /**
- * ChatSystemPromptResponse is the response for getting the chat system prompt.
+ * ChatSystemPrompt is the request and response body for the chat
+ * system prompt configuration endpoint.
  */
-export interface ChatSystemPromptResponse {
+export interface ChatSystemPrompt {
 	readonly system_prompt: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatUsageLimitConfig is the deployment-wide default usage limit config.
+ */
+export interface ChatUsageLimitConfig {
+	/**
+	 * Nil in the API means no default limit is set. The DB stores 0 when
+	 * limiting is disabled.
+	 */
+	readonly spend_limit_micros: number | null;
+	readonly period: ChatUsageLimitPeriod;
+	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatUsageLimitConfigResponse is returned from the admin config endpoint
+ * and includes the config plus a count of models without pricing.
+ */
+export interface ChatUsageLimitConfigResponse extends ChatUsageLimitConfig {
+	readonly unpriced_model_count: number;
+	readonly overrides: readonly ChatUsageLimitOverride[];
+	readonly group_overrides: readonly ChatUsageLimitGroupOverride[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatUsageLimitExceededResponse is the 409 response body returned when a
+ * chat operation exceeds the caller's usage limit. The structured fields let
+ * frontends render user-friendly spend, limit, and reset information without
+ * parsing debug text.
+ */
+export interface ChatUsageLimitExceededResponse extends Response {
+	readonly spent_micros: number;
+	readonly limit_micros: number;
+	readonly resets_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatUsageLimitGroupOverride represents a group-scoped spend limit override.
+ */
+export interface ChatUsageLimitGroupOverride {
+	readonly group_id: string;
+	readonly group_name: string;
+	readonly group_display_name: string;
+	readonly group_avatar_url: string;
+	readonly member_count: number;
+	/**
+	 * Nil in the API means no group override is set. Persisted override rows
+	 * store positive values.
+	 */
+	readonly spend_limit_micros: number | null;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatUsageLimitOverride is a per-user override of the deployment default.
+ */
+export interface ChatUsageLimitOverride {
+	readonly user_id: string;
+	readonly username: string;
+	readonly name: string;
+	readonly avatar_url: string;
+	/**
+	 * Nil in the API means no user override is set. Persisted override rows
+	 * store positive values.
+	 */
+	readonly spend_limit_micros: number | null;
+}
+
+// From codersdk/chats.go
+export type ChatUsageLimitPeriod = "day" | "month" | "week";
+
+export const ChatUsageLimitPeriods: ChatUsageLimitPeriod[] = [
+	"day",
+	"month",
+	"week",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatUsageLimitStatus represents the current spend status for a user
+ * within their active limit period.
+ */
+export interface ChatUsageLimitStatus {
+	readonly is_limited: boolean;
+	readonly period?: ChatUsageLimitPeriod;
+	readonly spend_limit_micros?: number;
+	readonly current_spend: number;
+	readonly period_start?: string;
+	readonly period_end?: string;
 }
 
 // From codersdk/client.go
@@ -6522,15 +6608,24 @@ export interface UpdateChatProviderConfigRequest {
  * UpdateChatRequest is the request to update a chat.
  */
 export interface UpdateChatRequest {
-	readonly title: string;
+	readonly title?: string;
+	readonly archived?: boolean;
 }
 
 // From codersdk/chats.go
 /**
- * UpdateChatSystemPromptRequest is the request to update the chat system prompt.
+ * UpdateChatUsageLimitGroupOverrideRequest is kept as a compatibility alias.
  */
-export interface UpdateChatSystemPromptRequest {
-	readonly system_prompt: string;
+export interface UpdateChatUsageLimitGroupOverrideRequest {
+	readonly spend_limit_micros: number; // Must be greater than 0.
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatUsageLimitOverrideRequest is kept as a compatibility alias.
+ */
+export interface UpdateChatUsageLimitOverrideRequest {
+	readonly spend_limit_micros: number; // Must be greater than 0.
 }
 
 // From codersdk/updatecheck.go
@@ -6693,15 +6788,6 @@ export interface UpdateUserAppearanceSettingsRequest {
 	readonly terminal_font: TerminalFontName;
 }
 
-// From codersdk/chats.go
-/**
- * UpdateUserChatCustomPromptRequest is the request to update a user's
- * custom chat prompt.
- */
-export interface UpdateUserChatCustomPromptRequest {
-	readonly custom_prompt: string;
-}
-
 // From codersdk/notifications.go
 export interface UpdateUserNotificationPreferences {
 	readonly template_disabled_map: Record<string, boolean>;
@@ -6851,6 +6937,24 @@ export interface UploadResponse {
 	readonly hash: string;
 }
 
+// From codersdk/chats.go
+/**
+ * UpsertChatUsageLimitGroupOverrideRequest is the request to create or update
+ * a group-level spend limit override.
+ */
+export interface UpsertChatUsageLimitGroupOverrideRequest {
+	readonly spend_limit_micros: number; // Must be greater than 0.
+}
+
+// From codersdk/chats.go
+/**
+ * UpsertChatUsageLimitOverrideRequest is the body for creating/updating a
+ * per-user usage limit override.
+ */
+export interface UpsertChatUsageLimitOverrideRequest {
+	readonly spend_limit_micros: number; // Must be greater than 0.
+}
+
 // From codersdk/workspaceagentportshare.go
 export interface UpsertWorkspaceAgentPortShareRequest {
 	readonly agent_name: string;
@@ -6938,10 +7042,10 @@ export interface UserAppearanceSettings {
 
 // From codersdk/chats.go
 /**
- * UserChatCustomPromptResponse is the response for getting a user's
- * custom chat prompt.
+ * UserChatCustomPrompt is the request and response body for the
+ * user chat custom prompt configuration endpoint.
  */
-export interface UserChatCustomPromptResponse {
+export interface UserChatCustomPrompt {
 	readonly custom_prompt: string;
 }
 
