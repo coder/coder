@@ -289,7 +289,7 @@ func TestDevConfigResolveEnv(t *testing.T) {
 	t.Setenv("CODER_SESSION_TOKEN", "leaked")
 	t.Setenv("CODER_URL", "https://leaked.example.com")
 
-	cfg := &devConfig{apiPort: 3000}
+	cfg := &devConfig{apiPort: 3000, accessURL: defaultAccessURL}
 	require.NoError(t, cfg.resolveEnv())
 
 	wd, _ := os.Getwd()
