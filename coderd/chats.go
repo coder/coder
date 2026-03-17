@@ -1386,7 +1386,7 @@ func (api *API) archiveChat(rw http.ResponseWriter, r *http.Request) {
 	// active subscribers. Fall back to direct DB for the
 	// simple archive flag — no streaming state is involved.
 	if api.chatDaemon != nil {
-		err = api.chatDaemon.ArchiveChat(ctx, chat.ID)
+		err = api.chatDaemon.ArchiveChat(ctx, chat)
 	} else {
 		err = api.Database.ArchiveChatByID(ctx, chat.ID)
 	}
@@ -1417,7 +1417,7 @@ func (api *API) unarchiveChat(rw http.ResponseWriter, r *http.Request) {
 	// active subscribers. Fall back to direct DB for the
 	// simple unarchive flag — no streaming state is involved.
 	if api.chatDaemon != nil {
-		err = api.chatDaemon.UnarchiveChat(ctx, chat.ID)
+		err = api.chatDaemon.UnarchiveChat(ctx, chat)
 	} else {
 		err = api.Database.UnarchiveChatByID(ctx, chat.ID)
 	}

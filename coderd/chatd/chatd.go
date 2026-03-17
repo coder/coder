@@ -816,17 +816,12 @@ func (p *Server) EditMessage(
 }
 
 // ArchiveChat archives a chat and all descendants, then broadcasts a deleted event.
-func (p *Server) ArchiveChat(ctx context.Context, chatID uuid.UUID) error {
-	if chatID == uuid.Nil {
+func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
+	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
 
-	chat, err := p.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return xerrors.Errorf("get chat: %w", err)
-	}
-
-	if err := p.db.ArchiveChatByID(ctx, chatID); err != nil {
+	if err := p.db.ArchiveChatByID(ctx, chat.ID); err != nil {
 		return xerrors.Errorf("archive chat: %w", err)
 	}
 
@@ -836,17 +831,12 @@ func (p *Server) ArchiveChat(ctx context.Context, chatID uuid.UUID) error {
 
 // UnarchiveChat unarchives a chat and publishes a created event so sidebar
 // clients are notified that the chat has reappeared.
-func (p *Server) UnarchiveChat(ctx context.Context, chatID uuid.UUID) error {
-	if chatID == uuid.Nil {
+func (p *Server) UnarchiveChat(ctx context.Context, chat database.Chat) error {
+	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
 
-	chat, err := p.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return xerrors.Errorf("get chat: %w", err)
-	}
-
-	if err := p.db.UnarchiveChatByID(ctx, chatID); err != nil {
+	if err := p.db.UnarchiveChatByID(ctx, chat.ID); err != nil {
 		return xerrors.Errorf("unarchive chat: %w", err)
 	}
 
@@ -2199,6 +2189,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	status := database.ChatStatusWaiting
 	wasInterrupted := false
 	lastError := ""
+	generatedTitle := &generatedChatTitle{}
 	runResult := runChatResult{}
 	remainingQueuedMessages := []database.ChatQueuedMessage{}
 	shouldPublishQueueUpdate := false
@@ -2223,6 +2214,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		// races with the promote endpoint (which also sets status to
 		// pending). We use a transaction with FOR UPDATE to ensure we
 		// don't overwrite a status change made by another caller.
+		var updatedChat database.Chat
 		err := p.db.InTx(func(tx database.Store) error {
 			// Re-read the chat status under lock — another caller
 			// (e.g. promote) may have already set it to pending.
@@ -2257,7 +2249,8 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				}
 			}
 
-			_, updateErr := tx.UpdateChatStatus(cleanupCtx, database.UpdateChatStatusParams{
+			var updateErr error
+			updatedChat, updateErr = tx.UpdateChatStatus(cleanupCtx, database.UpdateChatStatusParams{
 				ID:          chat.ID,
 				Status:      status,
 				WorkerID:    uuid.NullUUID{},
@@ -2292,25 +2285,21 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 
 		p.publishStatus(chat.ID, status, uuid.NullUUID{})
-		// Re-read the chat from the database to pick up any title
-		// changes made during processing (e.g. AI-generated titles
-		// from maybeGenerateChatTitle). The local `chat` variable
-		// is a value copy and won't reflect updates made in runChat.
-		if freshChat, readErr := p.db.GetChatByID(cleanupCtx, chat.ID); readErr == nil {
-			chat = freshChat
-		} else {
-			logger.Warn(cleanupCtx, "failed to re-read chat for status event",
-				slog.F("chat_id", chat.ID), slog.Error(readErr))
+		// Best-effort: use any generated title captured during
+		// processing so push notifications and the status snapshot
+		// can reflect it without another DB read. The dedicated
+		// title_change event remains the source of truth.
+		if title, ok := generatedTitle.Load(); ok {
+			updatedChat.Title = title
 		}
-		chat.Status = status
-		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange, nil)
+		p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
 
 		if !wasInterrupted {
-			p.maybeSendPushNotification(cleanupCtx, chat, status, lastError, runResult, logger)
+			p.maybeSendPushNotification(cleanupCtx, updatedChat, status, lastError, runResult, logger)
 		}
 	}()
 
-	runResult, err := p.runChat(chatCtx, chat, logger)
+	runResult, err := p.runChat(chatCtx, chat, generatedTitle, logger)
 	if err != nil {
 		if errors.Is(err, chatloop.ErrInterrupted) || errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted) {
 			logger.Info(ctx, "chat interrupted")
@@ -2368,6 +2357,36 @@ func isShutdownCancellation(
 	return errors.Is(context.Cause(chatCtx), context.Canceled)
 }
 
+// generatedChatTitle shares an asynchronously generated title between the
+// detached title-generation goroutine and the deferred cleanup path.
+type generatedChatTitle struct {
+	mu    sync.RWMutex
+	title string
+}
+
+func (t *generatedChatTitle) Store(title string) {
+	if t == nil || title == "" {
+		return
+	}
+
+	t.mu.Lock()
+	t.title = title
+	t.mu.Unlock()
+}
+
+func (t *generatedChatTitle) Load() (string, bool) {
+	if t == nil {
+		return "", false
+	}
+
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if t.title == "" {
+		return "", false
+	}
+	return t.title, true
+}
+
 type runChatResult struct {
 	FinalAssistantText string
 	PushSummaryModel   fantasy.LanguageModel
@@ -2377,6 +2396,7 @@ type runChatResult struct {
 func (p *Server) runChat(
 	ctx context.Context,
 	chat database.Chat,
+	generatedTitle *generatedChatTitle,
 	logger slog.Logger,
 ) (runChatResult, error) {
 	result := runChatResult{}
@@ -2424,7 +2444,15 @@ func (p *Server) runChat(
 	p.inflight.Add(1)
 	go func() {
 		defer p.inflight.Done()
-		p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, titleModel, providerKeys, logger)
+		p.maybeGenerateChatTitle(
+			context.WithoutCancel(ctx),
+			chat,
+			messages,
+			titleModel,
+			providerKeys,
+			generatedTitle,
+			logger,
+		)
 	}()
 
 	prompt, err := chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver(), logger)
