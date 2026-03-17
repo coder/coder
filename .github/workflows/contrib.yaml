@@ -23,6 +23,44 @@ permissions:
 concurrency: pr-${{ github.ref }}
 
 jobs:
+  community-label:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    if: >-
+      ${{
+        github.event_name == 'pull_request_target' &&
+        github.event.action == 'opened' &&
+        github.event.pull_request.author_association != 'MEMBER' &&
+        github.event.pull_request.author_association != 'COLLABORATOR' &&
+        github.event.pull_request.author_association != 'OWNER'
+      }}
+    steps:
+      - name: Add community label
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const params = {
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            }
+
+            const labels = context.payload.pull_request.labels.map((label) => label.name)
+            if (labels.includes("community")) {
+              console.log('PR already has "community" label.')
+              return
+            }
+
+            console.log(
+              'Adding "community" label for author association "%s".',
+              context.payload.pull_request.author_association,
+            )
+            await github.rest.issues.addLabels({
+              ...params,
+              labels: ["community"],
+            })
+
   cla:
     runs-on: ubuntu-latest
     permissions:
