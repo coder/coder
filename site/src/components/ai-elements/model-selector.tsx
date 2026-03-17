@@ -3,7 +3,6 @@ import {
 	SelectContent,
 	SelectGroup,
 	SelectItem,
-	SelectLabel,
 	SelectTrigger,
 	SelectValue,
 } from "components/Select/Select";
@@ -86,14 +85,13 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 
 		return Array.from(grouped.entries());
 	}, [options]);
-	const showProviderHeading = optionsByProvider.length > 1;
 	const isDisabled = disabled || options.length === 0;
 
 	return (
 		<Select value={value} onValueChange={onValueChange} disabled={isDisabled}>
 			<SelectTrigger
 				className={cn(
-					"h-8 w-auto gap-1.5 border-none bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary [&>svg]:transition-colors [&>svg]:hover:text-content-primary focus:ring-0 focus-visible:ring-0",
+					"h-8 w-auto gap-1.5 border-none bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
 					className,
 				)}
 			>
@@ -111,9 +109,6 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 						const providerLabel = formatProviderLabel(provider);
 						return (
 							<SelectGroup key={provider}>
-								{showProviderHeading && (
-									<SelectLabel>{providerLabel}</SelectLabel>
-								)}
 								{providerOptions.map((option) => (
 									<ModelOptionItem
 										key={option.id}

@@ -233,17 +233,16 @@ func TestWorkspaceAgentRPCRole(t *testing.T) {
 
 		// Close the connection and give the server time to process.
 		_ = conn.Close()
-		time.Sleep(100 * time.Millisecond)
 
-		// Verify that connectivity timestamps were never set.
-		agent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), r.Agents[0].ID)
-		require.NoError(t, err)
-		assert.False(t, agent.FirstConnectedAt.Valid,
-			"first_connected_at should NOT be set for non-agent role")
-		assert.False(t, agent.LastConnectedAt.Valid,
-			"last_connected_at should NOT be set for non-agent role")
-		assert.False(t, agent.DisconnectedAt.Valid,
-			"disconnected_at should NOT be set for non-agent role")
+		// Verify that connectivity timestamps were never set
+		// (first_connected_at, last_connected_at, disconnected_at).
+		require.Never(t, func() bool {
+			agent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), r.Agents[0].ID)
+			if err != nil {
+				return false
+			}
+			return agent.FirstConnectedAt.Valid || agent.LastConnectedAt.Valid || agent.DisconnectedAt.Valid
+		}, testutil.IntervalMedium, testutil.IntervalFast, "connectivity timestamps should NOT be set for non-agent role")
 	})
 
 	// NOTE: Backward compatibility (empty role) is implicitly tested by

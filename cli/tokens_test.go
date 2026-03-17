@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -184,11 +185,22 @@ func TestTokens(t *testing.T) {
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	inv.Stdout = buf
+
+	// Precondition: validate token is not expired before expiring
+	var expiredAtBefore time.Time
+	token, err := client.APIKeyByName(ctx, secondUser.ID.String(), "token-two")
+	require.NoError(t, err)
+	now := dbtime.Now()
+	require.True(t, token.ExpiresAt.After(now), "token should not be expired yet (expiresAt=%s, now=%s)", token.ExpiresAt.UTC(), now)
+	expiredAtBefore = token.ExpiresAt
+
 	err = inv.WithContext(ctx).Run()
 	require.NoError(t, err)
 	// Validate that token was expired
 	if token, err := client.APIKeyByName(ctx, secondUser.ID.String(), "token-two"); assert.NoError(t, err) {
-		require.True(t, token.ExpiresAt.Before(time.Now()))
+		now := dbtime.Now()
+		require.NotEqual(t, token.ExpiresAt, expiredAtBefore, "token expiresAt is the same as before expiring, but should have been updated")
+		require.False(t, token.ExpiresAt.After(now), "token expiresAt should not be in the future after expiring, but was %s (now=%s)", token.ExpiresAt.UTC(), now)
 	}
 
 	// Delete by ID (explicit delete flag)

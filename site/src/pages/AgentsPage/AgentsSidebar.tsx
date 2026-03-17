@@ -5,6 +5,7 @@ import type {
 	ChatStatus,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Avatar } from "components/Avatar/Avatar";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import {
@@ -15,22 +16,38 @@ import {
 } from "components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
-import { Input } from "components/Input/Input";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
+import { Spinner } from "components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { useAuthenticated } from "hooks";
 import {
 	AlertTriangleIcon,
 	ArchiveIcon,
+	ArchiveRestoreIcon,
+	BarChart3Icon,
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
 	EllipsisIcon,
+	FilterIcon,
+	GitMergeIcon,
+	GitPullRequestArrowIcon,
+	GitPullRequestClosedIcon,
+	GitPullRequestDraftIcon,
 	Loader2Icon,
 	PanelLeftCloseIcon,
 	PauseIcon,
-	SearchIcon,
+	SettingsIcon,
+	SquarePenIcon,
 	Trash2Icon,
 } from "lucide-react";
+import { UserDropdownContent } from "modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	createContext,
 	type FC,
@@ -39,11 +56,13 @@ import {
 	useContext,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import { NavLink, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { shortRelativeTime } from "utils/time";
+import { getTimeGroup, TIME_GROUPS } from "./timeGroups";
 
 interface AgentsSidebarProps {
 	chats: readonly Chat[];
@@ -52,6 +71,7 @@ interface AgentsSidebarProps {
 	modelConfigs: readonly ChatModelConfig[];
 	logoUrl?: string;
 	onArchiveAgent: (chatId: string) => void;
+	onUnarchiveAgent: (chatId: string) => void;
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
 	onNewAgent: () => void;
 	isCreating: boolean;
@@ -60,7 +80,14 @@ interface AgentsSidebarProps {
 	isLoading?: boolean;
 	loadError?: unknown;
 	onRetryLoad?: () => void;
+	hasNextPage?: boolean;
+	onLoadMore?: () => void;
+	isFetchingNextPage?: boolean;
+	archivedFilter: "active" | "archived";
+	onArchivedFilterChange?: (filter: "active" | "archived") => void;
 	onCollapse?: () => void;
+	onOpenAnalytics?: () => void;
+	onOpenSettings?: () => void;
 }
 
 const statusConfig = {
@@ -78,26 +105,39 @@ type ChatTree = {
 	readonly parentById: ReadonlyMap<string, string | undefined>;
 };
 
-const TIME_GROUPS = ["Today", "Yesterday", "This Week", "Older"] as const;
-type TimeGroup = (typeof TIME_GROUPS)[number];
-
-function getTimeGroup(dateStr: string): TimeGroup {
-	const now = new Date();
-	const date = new Date(dateStr);
-	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-	const yesterday = new Date(today);
-	yesterday.setDate(yesterday.getDate() - 1);
-	const weekAgo = new Date(today);
-	weekAgo.setDate(weekAgo.getDate() - 7);
-
-	if (date >= today) return "Today";
-	if (date >= yesterday) return "Yesterday";
-	if (date >= weekAgo) return "This Week";
-	return "Older";
-}
-
 const getStatusConfig = (status: ChatStatus) => {
 	return statusConfig[status] ?? statusConfig.completed;
+};
+
+/**
+ * Returns the icon and className to use for a PR state, or undefined
+ * if there is no PR linked. Only overrides the icon when the chat
+ * is not actively executing (pending/running/paused/error).
+ */
+const getPRIconConfig = (
+	diffStatus: ChatDiffStatus | undefined,
+): { icon: typeof CheckIcon; className: string } | undefined => {
+	const state = diffStatus?.pull_request_state;
+	if (!state) {
+		return undefined;
+	}
+	if (state === "merged") {
+		return { icon: GitMergeIcon, className: "text-git-merged" };
+	}
+	if (state === "closed") {
+		return {
+			icon: GitPullRequestClosedIcon,
+			className: "text-git-deleted-bright",
+		};
+	}
+	// state === "open"
+	if (diffStatus?.pull_request_draft) {
+		return {
+			icon: GitPullRequestDraftIcon,
+			className: "text-content-secondary",
+		};
+	}
+	return { icon: GitPullRequestArrowIcon, className: "text-git-added-bright" };
 };
 
 const asNonEmptyString = (value: unknown): string | undefined => {
@@ -266,6 +306,7 @@ interface ChatTreeContextValue {
 	readonly archivingChatId: string | null;
 	readonly toggleExpanded: (chatID: string) => void;
 	readonly onArchiveAgent: (chatId: string) => void;
+	readonly onUnarchiveAgent: (chatId: string) => void;
 	readonly onArchiveAndDeleteWorkspace: (
 		chatId: string,
 		workspaceId: string,
@@ -301,6 +342,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 		archivingChatId,
 		toggleExpanded,
 		onArchiveAgent,
+		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
 	} = useChatTree();
 	const chatID = chat.id;
@@ -309,8 +351,6 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 	);
 	const hasChildren = childIDs.length > 0;
 	const isDelegated = Boolean(getParentChatID(chat));
-	const config = getStatusConfig(chat.status);
-	const StatusIcon = config.icon;
 	const isDelegatedExecuting =
 		isDelegated && (chat.status === "pending" || chat.status === "running");
 	const modelName = getModelDisplayName(
@@ -324,25 +364,24 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 			: undefined;
 	const subtitle = errorReason || modelName;
 	const diffStatus = getChatDiffStatus(chat);
+	const baseConfig = getStatusConfig(chat.status);
+	const prConfig =
+		chat.status === "waiting" || chat.status === "completed"
+			? getPRIconConfig(diffStatus)
+			: undefined;
+	const config = prConfig ?? baseConfig;
+	const StatusIcon = config.icon;
 	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;
 	const deletions = diffStatus?.deletions ?? 0;
-	const hasLineStats = additions > 0 || deletions > 0;
+	const hasLineStats = additions > 0 || deletions > 0 || changedFiles > 0;
 	const filesChangedLabel = `${changedFiles} ${
 		changedFiles === 1 ? "file" : "files"
 	}`;
 	const workspaceId = chat.workspace_id;
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
-	const isExecuting =
-		chat.status === "pending" ||
-		chat.status === "running" ||
-		(hasChildren &&
-			childIDs.some((id) => {
-				const c = chatById.get(id);
-				return c?.status === "pending" || c?.status === "running";
-			}));
 
 	return (
 		<div className="flex min-w-0 flex-col">
@@ -365,12 +404,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 					<div
 						className={cn(
 							"flex h-5 w-5 items-center justify-center rounded-md",
-							hasChildren &&
-								!isExecuting &&
-								"[@media(hover:hover)]:group-hover:invisible",
-							hasChildren &&
-								isExecuting &&
-								"[@media(hover:hover)]:group-hover/icon:invisible",
+							hasChildren && "[@media(hover:hover)]:group-hover/icon:invisible",
 						)}
 					>
 						<StatusIcon
@@ -389,9 +423,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 							onClick={() => toggleExpanded(chatID)}
 							className={cn(
 								"absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
-								isExecuting
-									? "[@media(hover:hover)]:group-hover/icon:visible"
-									: "[@media(hover:hover)]:group-hover:visible",
+								"[@media(hover:hover)]:group-hover/icon:visible",
 							)}
 							data-testid={`agents-tree-toggle-${chat.id}`}
 							aria-label={isExpanded ? "Collapse" : "Expand"}
@@ -421,12 +453,14 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 								<div className="flex min-w-0 items-center gap-1.5">
 									{hasLinkedDiffStatus && hasLineStats && (
 										<span
-											className="inline-flex shrink-0 items-center gap-0.5 text-[13px] font-medium leading-none tabular-nums"
+											className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
 											title={`${filesChangedLabel}, +${additions} -${deletions}`}
 										>
-											<span className="text-content-success">+{additions}</span>
-											<span className="text-content-destructive">
-												-{deletions}
+											<span className="text-git-added-bright">
+												+{additions}
+											</span>
+											<span className="text-git-deleted-bright">
+												&minus;{deletions}
 											</span>
 										</span>
 									)}
@@ -446,52 +480,62 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 						</>
 					)}
 				</NavLink>
-				<div className="relative mr-1 mt-1 h-6 w-7 shrink-0 text-right">
-					<span className="absolute inset-0 flex items-center justify-end text-xs text-content-secondary/50 tabular-nums transition-opacity [@media(hover:hover)]:group-hover:opacity-0">
-						{shortRelativeTime(chat.updated_at)}
-					</span>
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								size="icon"
-								variant="subtle"
-								className={cn(
-									"absolute inset-0 h-6 w-7 justify-end rounded-none px-0 text-content-secondary opacity-0 transition-opacity hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100",
-									isArchivingThisChat && "opacity-100",
-								)}
-								aria-label={`Open actions for ${chat.title}`}
-							>
-								{isArchivingThisChat ? (
-									<Loader2Icon className="h-3.5 w-3.5 animate-spin" />
-								) : (
-									<EllipsisIcon className="h-3.5 w-3.5" />
-								)}
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								disabled={isArchiving}
-								onSelect={() => onArchiveAgent(chat.id)}
-							>
-								<ArchiveIcon className="h-3.5 w-3.5" />
-								Archive agent
-							</DropdownMenuItem>
-							{workspaceId && (
-								<DropdownMenuItem
-									className="text-content-destructive focus:text-content-destructive"
-									disabled={isArchiving}
-									onSelect={() =>
-										onArchiveAndDeleteWorkspace(chat.id, workspaceId)
-									}
-								>
-									{" "}
-									<Trash2Icon className="h-3.5 w-3.5" />
-									Archive & delete workspace
-								</DropdownMenuItem>
-							)}
-						</DropdownMenuContent>{" "}
-					</DropdownMenu>
+				<div className="relative mr-1 mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
+					{isArchivingThisChat ? (
+						<Spinner className="h-3.5 w-3.5 text-content-secondary" loading />
+					) : (
+						<>
+							<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
+								{shortRelativeTime(chat.updated_at)}
+							</span>
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										size="icon"
+										variant="subtle"
+										className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+										aria-label={`Open actions for ${chat.title}`}
+									>
+										<EllipsisIcon className="h-3.5 w-3.5" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end">
+									{chat.archived ? (
+										<DropdownMenuItem
+											disabled={isArchiving}
+											onSelect={() => onUnarchiveAgent(chat.id)}
+										>
+											<ArchiveRestoreIcon className="h-3.5 w-3.5" />
+											Unarchive agent
+										</DropdownMenuItem>
+									) : (
+										<>
+											<DropdownMenuItem
+												className="text-content-destructive focus:text-content-destructive"
+												disabled={isArchiving}
+												onSelect={() => onArchiveAgent(chat.id)}
+											>
+												<ArchiveIcon className="h-3.5 w-3.5" />
+												Archive agent
+											</DropdownMenuItem>
+											{workspaceId && (
+												<DropdownMenuItem
+													className="text-content-destructive focus:text-content-destructive"
+													disabled={isArchiving}
+													onSelect={() =>
+														onArchiveAndDeleteWorkspace(chat.id, workspaceId)
+													}
+												>
+													<Trash2Icon className="h-3.5 w-3.5" />
+													Archive & delete workspace
+												</DropdownMenuItem>
+											)}
+										</>
+									)}
+								</DropdownMenuContent>
+							</DropdownMenu>
+						</>
+					)}
 				</div>
 			</div>
 
@@ -519,6 +563,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		modelConfigs,
 		logoUrl,
 		onArchiveAgent,
+		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
 		onNewAgent,
 		isCreating,
@@ -527,15 +572,23 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isLoading = false,
 		loadError,
 		onRetryLoad,
+		hasNextPage,
+		onLoadMore,
+		isFetchingNextPage,
+		archivedFilter,
+		onArchivedFilterChange,
 		onCollapse,
+		onOpenAnalytics,
+		onOpenSettings,
 	} = props;
 	const { agentId, chatId } = useParams<{
 		agentId?: string;
 		chatId?: string;
 	}>();
 	const activeChatId = agentId ?? chatId;
-	const [search, setSearch] = useState("");
-	const normalizedSearch = search.trim().toLowerCase();
+	const { user, signOut } = useAuthenticated();
+	const { appearance, buildInfo } = useDashboard();
+	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 
 	const chatTree = useMemo(() => buildChatTree(chats), [chats]);
@@ -549,7 +602,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				search: normalizedSearch,
 				tree: chatTree,
 			}),
-		[chats, normalizedSearch, chatTree],
+		[chats, chatTree],
 	);
 	const visibleRootIDs = useMemo(
 		() => chatTree.rootIds.filter((chatID) => visibleChatIDs.has(chatID)),
@@ -598,13 +651,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			archivingChatId,
 			toggleExpanded,
 			onArchiveAgent,
+			onUnarchiveAgent,
 			onArchiveAndDeleteWorkspace,
 		}),
 		[
 			chatTree,
 			chatById,
 			visibleChatIDs,
-			normalizedSearch,
 			expandedById,
 			modelOptions,
 			modelConfigs,
@@ -613,6 +666,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			archivingChatId,
 			toggleExpanded,
 			onArchiveAgent,
+			onUnarchiveAgent,
 			onArchiveAndDeleteWorkspace,
 		],
 	);
@@ -621,52 +675,71 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		<div className="flex h-full w-full min-h-0 flex-col border-0 border-r border-solid">
 			<div className="hidden border-b border-border-default px-3 pb-3 pt-1.5 md:block md:px-3.5">
 				<div className="mb-2.5 flex items-center justify-between">
-					<NavLink to="/workspaces" className="inline-flex opacity-50">
+					<NavLink to="/workspaces" className="inline-flex">
 						{logoUrl ? (
 							<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
 						) : (
 							<CoderIcon className="h-6 w-6 fill-content-primary" />
 						)}
 					</NavLink>
-					{onCollapse && (
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={onCollapse}
-							aria-label="Collapse sidebar"
-							className="h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
-						>
-							<PanelLeftCloseIcon />
-						</Button>
-					)}
-				</div>
-				<div className="flex flex-col gap-2.5">
-					<div className="relative">
-						<label className="sr-only" htmlFor="agents-sidebar-search">
-							Search agents...
-						</label>
-						<SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-icon-xs -translate-y-1/2 text-content-secondary" />
-						<Input
-							id="agents-sidebar-search"
-							type="search"
-							placeholder="Search agents..."
-							value={search}
-							onChange={(event) => setSearch(event.target.value)}
-							className="h-9 rounded-lg border-border-default bg-surface-primary pl-8 text-[13px] shadow-none"
-						/>
+					<div className="flex items-center gap-0.5">
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="subtle"
+									size="icon"
+									aria-label="Filter agents"
+									className={cn(
+										"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
+										archivedFilter === "archived" && "text-content-primary",
+									)}
+								>
+									<FilterIcon />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem
+									onSelect={() => onArchivedFilterChange?.("active")}
+								>
+									Active
+									{archivedFilter === "active" && (
+										<CheckIcon className="ml-auto h-3.5 w-3.5" />
+									)}
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onSelect={() => onArchivedFilterChange?.("archived")}
+								>
+									Archived
+									{archivedFilter === "archived" && (
+										<CheckIcon className="ml-auto h-3.5 w-3.5" />
+									)}
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+						{onCollapse && (
+							<Button
+								variant="subtle"
+								size="icon"
+								onClick={onCollapse}
+								aria-label="Collapse sidebar"
+								className="h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
+							>
+								<PanelLeftCloseIcon />
+							</Button>
+						)}
 					</div>
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={onNewAgent}
-						disabled={isCreating}
-						className="w-full justify-center rounded-lg py-4 text-[13px] text-content-secondary hover:bg-surface-tertiary"
-					>
-						New Agent
-					</Button>
 				</div>
+				<Button
+					size="sm"
+					variant="subtle"
+					onClick={onNewAgent}
+					disabled={isCreating}
+					className="-mx-1 w-[calc(100%+0.5rem)] justify-start gap-1.5 rounded-md py-1 pl-1 pr-2 text-sm text-content-secondary hover:bg-surface-tertiary/50 md:-mx-1.5 md:w-[calc(100%+0.75rem)]"
+				>
+					<SquarePenIcon className="!h-[18px] !w-[18px] shrink-0" />
+					New Agent
+				</Button>
 			</div>
-
 			<ScrollArea
 				className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
 				scrollBarClassName="w-1.5"
@@ -706,40 +779,167 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						<ChatTreeContext.Provider value={chatTreeCtx}>
 							{visibleRootIDs.length === 0 ? (
 								<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-									{normalizedSearch ? "No matching agents" : "No agents yet"}
+									{normalizedSearch
+										? "No matching agents"
+										: archivedFilter === "archived"
+											? "No archived agents"
+											: "No agents yet"}
 								</div>
 							) : (
-								TIME_GROUPS.map((group) => {
-									const groupChats = visibleRootIDs
-										.map((id) => chatById.get(id))
-										.filter(
-											(chat): chat is Chat =>
-												chat !== undefined &&
-												getTimeGroup(chat.updated_at) === group,
-										);
-									if (groupChats.length === 0) return null;
-									return (
-										<div key={group}>
-											<div className="mb-1 ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-												<span>{group}</span>
-											</div>
-											<div className="flex flex-col gap-0.5">
-												{groupChats.map((chat) => (
-													<ChatTreeNode
-														key={chat.id}
-														chat={chat}
-														isChildNode={false}
-													/>
-												))}
-											</div>
+								<div>
+									{visibleRootIDs.length > 0 && (
+										<div className="pb-2">
+											{TIME_GROUPS.map((group) => {
+												const groupChats = visibleRootIDs
+													.map((id) => chatById.get(id))
+													.filter(
+														(chat): chat is Chat =>
+															chat !== undefined &&
+															getTimeGroup(chat.updated_at) === group,
+													);
+												if (groupChats.length === 0) return null;
+												return (
+													<div
+														key={group}
+														className="[&:not(:first-child)]:mt-3"
+													>
+														<div className="mb-1 ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+															<span>{group}</span>
+														</div>
+														<div className="flex flex-col gap-0.5">
+															{groupChats.map((chat) => (
+																<ChatTreeNode
+																	key={chat.id}
+																	chat={chat}
+																	isChildNode={false}
+																/>
+															))}
+														</div>
+													</div>
+												);
+											})}
 										</div>
-									);
-								})
+									)}
+								</div>
+							)}
+							{(hasNextPage || isFetchingNextPage) && (
+								<LoadMoreSentinel
+									onLoadMore={onLoadMore}
+									isFetchingNextPage={isFetchingNextPage}
+								/>
 							)}
 						</ChatTreeContext.Provider>
 					)}
 				</div>
 			</ScrollArea>
+			<div className="hidden border-0 border-t border-solid md:block">
+				<div className="flex items-center">
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<button
+								type="button"
+								className="flex min-w-0 flex-1 items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors"
+							>
+								<Avatar
+									fallback={user.username}
+									src={user.avatar_url}
+									size="sm"
+									className="rounded-full"
+								/>
+								<span className="truncate text-sm text-content-secondary">
+									{user.name || user.username}
+								</span>
+							</button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="start" className="min-w-auto w-[260px]">
+							<UserDropdownContent
+								user={user}
+								buildInfo={buildInfo}
+								supportLinks={
+									appearance.support_links?.filter(
+										(link) => link.location !== "navbar",
+									) ?? []
+								}
+								onSignOut={signOut}
+							/>
+						</DropdownMenuContent>
+					</DropdownMenu>
+					{onOpenAnalytics && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant="subtle"
+									size="icon"
+									onClick={onOpenAnalytics}
+									aria-label="Analytics"
+									className="mr-1"
+								>
+									<BarChart3Icon className="h-4 w-4" />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Analytics</TooltipContent>
+						</Tooltip>
+					)}
+					{onOpenSettings && (
+						<button
+							type="button"
+							onClick={onOpenSettings}
+							className="flex shrink-0 items-center justify-center bg-transparent border-0 cursor-pointer p-2 mr-1 rounded-md text-content-secondary hover:text-content-primary hover:bg-surface-tertiary/50 transition-colors"
+							aria-label="Settings"
+						>
+							<SettingsIcon className="h-4 w-4" />
+						</button>
+					)}
+				</div>
+			</div>
+		</div>
+	);
+};
+
+const LoadMoreSentinel: FC<{
+	onLoadMore?: () => void;
+	isFetchingNextPage?: boolean;
+}> = ({ onLoadMore, isFetchingNextPage }) => {
+	const sentinelRef = useRef<HTMLDivElement>(null);
+	const onLoadMoreRef = useRef(onLoadMore);
+	const isFetchingNextPageRef = useRef(isFetchingNextPage);
+
+	// Keep refs in sync with the latest prop values so the
+	// observer callback always reads current state without
+	// needing to tear down and re-create the observer.
+	useEffect(() => {
+		onLoadMoreRef.current = onLoadMore;
+	}, [onLoadMore]);
+
+	useEffect(() => {
+		isFetchingNextPageRef.current = isFetchingNextPage;
+	}, [isFetchingNextPage]);
+
+	useEffect(() => {
+		const el = sentinelRef.current;
+		if (!el) return;
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (
+					entries[0]?.isIntersecting &&
+					!isFetchingNextPageRef.current &&
+					onLoadMoreRef.current
+				) {
+					onLoadMoreRef.current();
+				}
+			},
+			{ threshold: 0 },
+		);
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, []);
+
+	return (
+		<div ref={sentinelRef} className="flex items-center justify-center py-2">
+			{isFetchingNextPage && (
+				<Spinner className="h-4 w-4 text-content-secondary" loading />
+			)}
 		</div>
 	);
 };

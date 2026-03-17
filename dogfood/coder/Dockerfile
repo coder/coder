@@ -1,5 +1,5 @@
 # 1.93.1
-FROM rust:slim@sha256:c0a38f5662afdb298898da1d70b909af4bda4e0acff2dc52aea6360a9b9c6956 AS rust-utils
+FROM rust:slim@sha256:7d3701660d2aa7101811ba0c54920021452aa60e5bae073b79c2b137a432b2f4 AS rust-utils
 # Install rust helper programs
 ENV CARGO_INSTALL_ROOT=/tmp/
 # Use more reliable mirrors for Debian packages
@@ -210,6 +210,13 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	apt-get clean && \
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
+
+# Install Google Chrome directly from Google. Ubuntu 22.04 ships
+# chromium-browser as a snap-only package, which does not work in
+# Docker containers.
+RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+	apt-get install --yes ./google-chrome-stable_current_amd64.deb && \
+	rm google-chrome-stable_current_amd64.deb
 
 # Install Rust via rustup. Using rustup ensures we get a current stable
 # toolchain.

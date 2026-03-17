@@ -422,7 +422,7 @@
 | `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                       |
 | `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                       |
 | `enabled`                           | boolean                                                              | false    |              |                                                                                                                       |
-| `inject_coder_mcp_tools`            | boolean                                                              | false    |              |                                                                                                                       |
+| `inject_coder_mcp_tools`            | boolean                                                              | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                          |
 | `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                       |
 | `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |                                                                                                                       |
 | `rate_limit`                        | integer                                                              | false    |              |                                                                                                                       |
@@ -623,6 +623,8 @@
   "enabled": true,
   "key_file": "string",
   "listen_addr": "string",
+  "tls_cert_file": "string",
+  "tls_key_file": "string",
   "upstream_proxy": "string",
   "upstream_proxy_ca": "string"
 }
@@ -637,6 +639,8 @@
 | `enabled`           | boolean         | false    |              |             |
 | `key_file`          | string          | false    |              |             |
 | `listen_addr`       | string          | false    |              |             |
+| `tls_cert_file`     | string          | false    |              |             |
+| `tls_key_file`      | string          | false    |              |             |
 | `upstream_proxy`    | string          | false    |              |             |
 | `upstream_proxy_ca` | string          | false    |              |             |
 
@@ -746,6 +750,8 @@
     "enabled": true,
     "key_file": "string",
     "listen_addr": "string",
+    "tls_cert_file": "string",
+    "tls_key_file": "string",
     "upstream_proxy": "string",
     "upstream_proxy_ca": "string"
   },
@@ -2160,6 +2166,7 @@ This is required on creation to enable a user-flow of validating a template work
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "password": "string",
+  "service_account": true,
   "user_status": "active",
   "username": "string"
 }
@@ -2169,11 +2176,12 @@ This is required on creation to enable a user-flow of validating a template work
 
 | Name               | Type                                       | Required | Restrictions | Description                                                                         |
 |--------------------|--------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------|
-| `email`            | string                                     | true     |              |                                                                                     |
+| `email`            | string                                     | false    |              |                                                                                     |
 | `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              | Login type defaults to LoginTypePassword.                                           |
 | `name`             | string                                     | false    |              |                                                                                     |
 | `organization_ids` | array of string                            | false    |              | Organization ids is a list of organization IDs that the user should be a member of. |
 | `password`         | string                                     | false    |              |                                                                                     |
+| `service_account`  | boolean                                    | false    |              | Service accounts are admin-managed accounts that cannot login.                      |
 | `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant.                                          |
 | `username`         | string                                     | true     |              |                                                                                     |
 
@@ -2671,6 +2679,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "enabled": true,
         "key_file": "string",
         "listen_addr": "string",
+        "tls_cert_file": "string",
+        "tls_key_file": "string",
         "upstream_proxy": "string",
         "upstream_proxy_ca": "string"
       },
@@ -2778,6 +2788,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "external_auth": {
       "value": [
         {
+          "api_base_url": "string",
           "app_install_url": "string",
           "app_installations_url": "string",
           "auth_url": "string",
@@ -3240,6 +3251,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "enabled": true,
       "key_file": "string",
       "listen_addr": "string",
+      "tls_cert_file": "string",
+      "tls_key_file": "string",
       "upstream_proxy": "string",
       "upstream_proxy_ca": "string"
     },
@@ -3347,6 +3360,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "external_auth": {
     "value": [
       {
+        "api_base_url": "string",
         "app_install_url": "string",
         "app_installations_url": "string",
         "auth_url": "string",
@@ -3984,9 +3998,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                 |
-|--------------------------------------------------------------------------------------------------------------------------|
-| `agents`, `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `web-push`, `workspace-usage` |
+| Value(s)                                                                                                                                            |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agents`, `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `web-push`, `workspace-build-updates`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -4094,6 +4108,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ```json
 {
+  "api_base_url": "string",
   "app_install_url": "string",
   "app_installations_url": "string",
   "auth_url": "string",
@@ -4123,22 +4138,23 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                               | Type            | Required | Restrictions | Description                                                                                                       |
-|------------------------------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
-| `app_install_url`                  | string          | false    |              |                                                                                                                   |
-| `app_installations_url`            | string          | false    |              |                                                                                                                   |
-| `auth_url`                         | string          | false    |              |                                                                                                                   |
-| `client_id`                        | string          | false    |              |                                                                                                                   |
-| `code_challenge_methods_supported` | array of string | false    |              | Code challenge methods supported lists the PKCE code challenge methods The only one supported by Coder is "S256". |
-| `device_code_url`                  | string          | false    |              |                                                                                                                   |
-| `device_flow`                      | boolean         | false    |              |                                                                                                                   |
-| `display_icon`                     | string          | false    |              | Display icon is a URL to an icon to display in the UI.                                                            |
-| `display_name`                     | string          | false    |              | Display name is shown in the UI to identify the auth config.                                                      |
-| `id`                               | string          | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided.                           |
-| `mcp_tool_allow_regex`             | string          | false    |              |                                                                                                                   |
-| `mcp_tool_deny_regex`              | string          | false    |              |                                                                                                                   |
-| `mcp_url`                          | string          | false    |              |                                                                                                                   |
-| `no_refresh`                       | boolean         | false    |              |                                                                                                                   |
+| Name                               | Type            | Required | Restrictions | Description                                                                                                                                                 |
+|------------------------------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `api_base_url`                     | string          | false    |              | Api base URL is the base URL for provider REST API calls (e.g., "https://api.github.com" for GitHub). Derived from defaults when not explicitly configured. |
+| `app_install_url`                  | string          | false    |              |                                                                                                                                                             |
+| `app_installations_url`            | string          | false    |              |                                                                                                                                                             |
+| `auth_url`                         | string          | false    |              |                                                                                                                                                             |
+| `client_id`                        | string          | false    |              |                                                                                                                                                             |
+| `code_challenge_methods_supported` | array of string | false    |              | Code challenge methods supported lists the PKCE code challenge methods The only one supported by Coder is "S256".                                           |
+| `device_code_url`                  | string          | false    |              |                                                                                                                                                             |
+| `device_flow`                      | boolean         | false    |              |                                                                                                                                                             |
+| `display_icon`                     | string          | false    |              | Display icon is a URL to an icon to display in the UI.                                                                                                      |
+| `display_name`                     | string          | false    |              | Display name is shown in the UI to identify the auth config.                                                                                                |
+| `id`                               | string          | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided.                                                                     |
+| `mcp_tool_allow_regex`             | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                |
+| `mcp_tool_deny_regex`              | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                |
+| `mcp_url`                          | string          | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                |
+| `no_refresh`                       | boolean         | false    |              |                                                                                                                                                             |
 |`regex`|string|false||Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type.
 Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the Coder server to match against the Regex.|
 |`revoke_url`|string|false|||
@@ -7541,9 +7557,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `api_key`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_seat`, `api_key`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -9346,9 +9362,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 #### Enumerated Values
 
-| Value(s)                                                              |
-|-----------------------------------------------------------------------|
-| ``, `fira-code`, `ibm-plex-mono`, `jetbrains-mono`, `source-code-pro` |
+| Value(s)                                                                            |
+|-------------------------------------------------------------------------------------|
+| ``, `fira-code`, `geist-mono`, `ibm-plex-mono`, `jetbrains-mono`, `source-code-pro` |
 
 ## codersdk.TimingStage
 
@@ -9808,6 +9824,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name   | Type   | Required | Restrictions | Description |
 |--------|--------|----------|--------------|-------------|
 | `name` | string | false    |              |             |
+
+## codersdk.UpdateWorkspaceSharingSettingsRequest
+
+```json
+{
+  "sharing_disabled": true
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+|--------------------|---------|----------|--------------|-------------|
+| `sharing_disabled` | boolean | false    |              |             |
 
 ## codersdk.UpdateWorkspaceTTLRequest
 
@@ -12278,15 +12308,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "sharing_disabled": true
+  "sharing_disabled": true,
+  "sharing_globally_disabled": true
 }
 ```
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description |
-|--------------------|---------|----------|--------------|-------------|
-| `sharing_disabled` | boolean | false    |              |             |
+| Name                        | Type    | Required | Restrictions | Description                                                                                                                |
+|-----------------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
+| `sharing_disabled`          | boolean | false    |              |                                                                                                                            |
+| `sharing_globally_disabled` | boolean | false    |              | Sharing globally disabled is true if sharing has been disabled for this organization because of a deployment-wide setting. |
 
 ## codersdk.WorkspaceStatus
 
@@ -14156,6 +14188,7 @@ None
 {
   "value": [
     {
+      "api_base_url": "string",
       "app_install_url": "string",
       "app_installations_url": "string",
       "auth_url": "string",

@@ -64,17 +64,14 @@ runs:
         TEST_PACKAGES: ${{ inputs.test-packages }}
         RACE_DETECTION: ${{ inputs.race-detection }}
         TS_DEBUG_DISCO: "true"
+        TS_DEBUG_DERP: "true"
         LC_CTYPE: "en_US.UTF-8"
         LC_ALL: "en_US.UTF-8"
       run: |
         set -euo pipefail
 
         if [[ ${RACE_DETECTION} == true ]]; then
-          gotestsum --junitfile="gotests.xml" --packages="${TEST_PACKAGES}" -- \
-            -tags=testsmallbatch \
-            -race \
-            -parallel "${TEST_NUM_PARALLEL_TESTS}" \
-            -p "${TEST_NUM_PARALLEL_PACKAGES}"
+          make test-race
         else
           make test
         fi

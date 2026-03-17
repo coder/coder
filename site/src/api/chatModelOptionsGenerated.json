@@ -1,0 +1,631 @@
+{
+	"general": {
+		"fields": [
+			{
+				"json_name": "max_output_tokens",
+				"go_name": "MaxOutputTokens",
+				"type": "integer",
+				"description": "Upper bound on tokens the model may generate",
+				"required": false,
+				"input_type": "input"
+			},
+			{
+				"json_name": "temperature",
+				"go_name": "Temperature",
+				"type": "number",
+				"description": "Sampling temperature between 0 and 2",
+				"required": false,
+				"input_type": "input"
+			},
+			{
+				"json_name": "top_p",
+				"go_name": "TopP",
+				"type": "number",
+				"description": "Nucleus sampling probability cutoff",
+				"required": false,
+				"input_type": "input"
+			},
+			{
+				"json_name": "top_k",
+				"go_name": "TopK",
+				"type": "integer",
+				"description": "Number of highest-probability tokens to keep for sampling",
+				"required": false,
+				"input_type": "input"
+			},
+			{
+				"json_name": "presence_penalty",
+				"go_name": "PresencePenalty",
+				"type": "number",
+				"description": "Penalty for tokens that have already appeared in the output",
+				"required": false,
+				"input_type": "input"
+			},
+			{
+				"json_name": "frequency_penalty",
+				"go_name": "FrequencyPenalty",
+				"type": "number",
+				"description": "Penalty for tokens based on their frequency in the output",
+				"required": false,
+				"input_type": "input"
+			},
+			{
+				"json_name": "cost.input_price_per_million_tokens",
+				"go_name": "Cost.InputPricePerMillionTokens",
+				"type": "number",
+				"description": "Input token price in USD per 1M tokens",
+				"required": false,
+				"input_type": "input"
+			},
+			{
+				"json_name": "cost.output_price_per_million_tokens",
+				"go_name": "Cost.OutputPricePerMillionTokens",
+				"type": "number",
+				"description": "Output token price in USD per 1M tokens",
+				"required": false,
+				"input_type": "input"
+			},
+			{
+				"json_name": "cost.cache_read_price_per_million_tokens",
+				"go_name": "Cost.CacheReadPricePerMillionTokens",
+				"type": "number",
+				"description": "Cache read token price in USD per 1M tokens",
+				"required": false,
+				"input_type": "input"
+			},
+			{
+				"json_name": "cost.cache_write_price_per_million_tokens",
+				"go_name": "Cost.CacheWritePricePerMillionTokens",
+				"type": "number",
+				"description": "Cache write or cache creation token price in USD per 1M tokens",
+				"required": false,
+				"input_type": "input"
+			}
+		]
+	},
+	"providers": {
+		"anthropic": {
+			"fields": [
+				{
+					"json_name": "send_reasoning",
+					"go_name": "SendReasoning",
+					"type": "boolean",
+					"description": "Whether to include reasoning content in the response",
+					"required": false,
+					"input_type": "select"
+				},
+				{
+					"json_name": "thinking.budget_tokens",
+					"go_name": "Thinking.BudgetTokens",
+					"type": "integer",
+					"description": "Maximum number of tokens the model may use for thinking",
+					"required": false,
+					"input_type": "input"
+				},
+				{
+					"json_name": "effort",
+					"go_name": "Effort",
+					"type": "string",
+					"description": "Controls the level of reasoning effort",
+					"required": false,
+					"enum": ["low", "medium", "high", "max"],
+					"input_type": "select"
+				},
+				{
+					"json_name": "disable_parallel_tool_use",
+					"go_name": "DisableParallelToolUse",
+					"type": "boolean",
+					"description": "Whether to disable parallel tool execution",
+					"required": false,
+					"input_type": "select"
+				},
+				{
+					"json_name": "web_search_enabled",
+					"go_name": "WebSearchEnabled",
+					"type": "boolean",
+					"description": "Enable Anthropic web search tool for grounding responses with real-time information",
+					"required": false,
+					"input_type": "select"
+				},
+				{
+					"json_name": "allowed_domains",
+					"go_name": "AllowedDomains",
+					"type": "array",
+					"description": "Restrict web search to these domains (cannot be used with blocked_domains)",
+					"required": false,
+					"input_type": "json"
+				},
+				{
+					"json_name": "blocked_domains",
+					"go_name": "BlockedDomains",
+					"type": "array",
+					"description": "Block web search on these domains (cannot be used with allowed_domains)",
+					"required": false,
+					"input_type": "json"
+				}
+			]
+		},
+		"google": {
+			"fields": [
+				{
+					"json_name": "thinking_config.thinking_budget",
+					"go_name": "ThinkingConfig.ThinkingBudget",
+					"type": "integer",
+					"description": "Maximum number of tokens the model may use for thinking",
+					"required": false,
+					"input_type": "input"
+				},
+				{
+					"json_name": "thinking_config.include_thoughts",
+					"go_name": "ThinkingConfig.IncludeThoughts",
+					"type": "boolean",
+					"description": "Whether to include thinking content in the response",
+					"required": false,
+					"input_type": "select"
+				},
+				{
+					"json_name": "cached_content",
+					"go_name": "CachedContent",
+					"type": "string",
+					"description": "Resource name of a cached content object",
+					"required": false,
+					"input_type": "input",
+					"hidden": true
+				},
+				{
+					"json_name": "safety_settings",
+					"go_name": "SafetySettings",
+					"type": "array",
+					"description": "Safety filtering settings for harmful content categories",
+					"required": false,
+					"input_type": "json",
+					"hidden": true
+				},
+				{
+					"json_name": "threshold",
+					"go_name": "Threshold",
+					"type": "string",
+					"required": false,
+					"input_type": "input",
+					"hidden": true
+				},
+				{
+					"json_name": "web_search_enabled",
+					"go_name": "WebSearchEnabled",
+					"type": "boolean",
+					"description": "Enable Google Search grounding for real-time information",
+					"required": false,
+					"input_type": "select"
+				}
+			]
+		},
+		"openai": {
+			"fields": [
+				{
+					"json_name": "include",
+					"go_name": "Include",
+					"type": "array",
+					"description": "Model names to include in discovery",
+					"required": false,
+					"input_type": "json",
+					"hidden": true
+				},
+				{
+					"json_name": "instructions",
+					"go_name": "Instructions",
+					"type": "string",
+					"description": "System-level instructions prepended to the conversation",
+					"required": false,
+					"input_type": "input",
+					"hidden": true
+				},
+				{
+					"json_name": "logit_bias",
+					"go_name": "LogitBias",
+					"type": "object",
+					"description": "Token IDs mapped to bias values from -100 to 100",
+					"required": false,
+					"input_type": "json",
+					"hidden": true
+				},
+				{
+					"json_name": "log_probs",
+					"go_name": "LogProbs",
+					"type": "boolean",
+					"description": "Whether to return log probabilities of output tokens",
+					"required": false,
+					"input_type": "select",
+					"hidden": true
+				},
+				{
+					"json_name": "top_log_probs",
+					"go_name": "TopLogProbs",
+					"type": "integer",
+					"description": "Number of most likely tokens to return log probabilities for",
+					"required": false,
+					"input_type": "input",
+					"hidden": true
+				},
+				{
+					"json_name": "max_tool_calls",
+					"go_name": "MaxToolCalls",
+					"type": "integer",
+					"description": "Maximum number of tool calls per response",
+					"required": false,
+					"input_type": "input"
+				},
+				{
+					"json_name": "parallel_tool_calls",
+					"go_name": "ParallelToolCalls",
+					"type": "boolean",
+					"description": "Whether the model may make multiple tool calls in parallel",
+					"required": false,
+					"input_type": "select"
+				},
+				{
+					"json_name": "user",
+					"go_name": "User",
+					"type": "string",
+					"description": "Unique identifier for the end user for abuse monitoring",
+					"required": false,
+					"input_type": "input",
+					"hidden": true
+				},
+				{
+					"json_name": "reasoning_effort",
+					"go_name": "ReasoningEffort",
+					"type": "string",
+					"description": "Controls the level of reasoning effort",
+					"required": false,
+					"enum": ["none", "minimal", "low", "medium", "high", "xhigh"],
+					"input_type": "select"
+				},
+				{
+					"json_name": "reasoning_summary",
+					"go_name": "ReasoningSummary",
+					"type": "string",
+					"description": "Controls whether reasoning tokens are summarized in the response",
+					"required": false,
+					"input_type": "input"
+				},
+				{
+					"json_name": "max_completion_tokens",
+					"go_name": "MaxCompletionTokens",
+					"type": "integer",
+					"description": "Upper bound on tokens the model may generate",
+					"required": false,
+					"input_type": "input"
+				},
+				{
+					"json_name": "text_verbosity",
+					"go_name": "TextVerbosity",
+					"type": "string",
+					"description": "Controls the verbosity of the text response",
+					"required": false,
+					"enum": ["low", "medium", "high"],
+					"input_type": "select"
+				},
+				{
+					"json_name": "prediction",
+					"go_name": "Prediction",
+					"type": "object",
+					"description": "Predicted output content to speed up responses",
+					"required": false,
+					"input_type": "json",
+					"hidden": true
+				},
+				{
+					"json_name": "store",
+					"go_name": "Store",
+					"type": "boolean",
+					"description": "Whether to store the output for model distillation or evals",
+					"required": false,
+					"input_type": "select",
+					"hidden": true
+				},
+				{
+					"json_name": "metadata",
+					"go_name": "Metadata",
+					"type": "object",
+					"description": "Arbitrary metadata to attach to the request",
+					"required": false,
+					"input_type": "json",
+					"hidden": true
+				},
+				{
+					"json_name": "prompt_cache_key",
+					"go_name": "PromptCacheKey",
+					"type": "string",
+					"description": "Key for enabling cross-request prompt caching",
+					"required": false,
+					"input_type": "input",
+					"hidden": true
+				},
+				{
+					"json_name": "safety_identifier",
+					"go_name": "SafetyIdentifier",
+					"type": "string",
+					"description": "Developer-specific safety identifier for the request",
+					"required": false,
+					"input_type": "input",
+					"hidden": true
+				},
+				{
+					"json_name": "service_tier",
+					"go_name": "ServiceTier",
+					"type": "string",
+					"description": "Latency tier to use for processing the request",
+					"required": false,
+					"input_type": "input"
+				},
+				{
+					"json_name": "structured_outputs",
+					"go_name": "StructuredOutputs",
+					"type": "boolean",
+					"description": "Whether to enable structured JSON output mode",
+					"required": false,
+					"input_type": "select",
+					"hidden": true
+				},
+				{
+					"json_name": "strict_json_schema",
+					"go_name": "StrictJSONSchema",
+					"type": "boolean",
+					"description": "Whether to enforce strict adherence to the JSON schema",
+					"required": false,
+					"input_type": "select",
+					"hidden": true
+				},
+				{
+					"json_name": "web_search_enabled",
+					"go_name": "WebSearchEnabled",
+					"type": "boolean",
+					"description": "Enable OpenAI web search tool for grounding responses with real-time information",
+					"required": false,
+					"input_type": "select"
+				},
+				{
+					"json_name": "search_context_size",
+					"go_name": "SearchContextSize",
+					"type": "string",
+					"description": "Amount of search context to use",
+					"required": false,
+					"enum": ["low", "medium", "high"],
+					"input_type": "select"
+				},
+				{
+					"json_name": "allowed_domains",
+					"go_name": "AllowedDomains",
+					"type": "array",
+					"description": "Restrict web search to these domains",
+					"required": false,
+					"input_type": "json"
+				}
+			]
+		},
+		"openaicompat": {
+			"fields": [
+				{
+					"json_name": "user",
+					"go_name": "User",
+					"type": "string",
+					"description": "Unique identifier for the end user for abuse monitoring",
+					"required": false,
+					"input_type": "input",
+					"hidden": true
+				},
+				{
+					"json_name": "reasoning_effort",
+					"go_name": "ReasoningEffort",
+					"type": "string",
+					"description": "Controls the level of reasoning effort",
+					"required": false,
+					"enum": ["none", "minimal", "low", "medium", "high", "xhigh"],
+					"input_type": "select"
+				}
+			]
+		},
+		"openrouter": {
+			"fields": [
+				{
+					"json_name": "reasoning.enabled",
+					"go_name": "Reasoning.Enabled",
+					"type": "boolean",
+					"description": "Whether reasoning is enabled",
+					"required": false,
+					"input_type": "select"
+				},
+				{
+					"json_name": "reasoning.exclude",
+					"go_name": "Reasoning.Exclude",
+					"type": "boolean",
+					"description": "Whether to exclude reasoning content from the response",
+					"required": false,
+					"input_type": "select"
+				},
+				{
+					"json_name": "reasoning.max_tokens",
+					"go_name": "Reasoning.MaxTokens",
+					"type": "integer",
+					"description": "Maximum number of tokens for reasoning output",
+					"required": false,
+					"input_type": "input"
+				},
+				{
+					"json_name": "reasoning.effort",
+					"go_name": "Reasoning.Effort",
+					"type": "string",
+					"description": "Controls the level of reasoning effort",
+					"required": false,
+					"enum": ["low", "medium", "high"],
+					"input_type": "select"
+				},
+				{
+					"json_name": "extra_body",
+					"go_name": "ExtraBody",
+					"type": "object",
+					"description": "Additional fields to include in the request body",
+					"required": false,
+					"input_type": "json",
+					"hidden": true
+				},
+				{
+					"json_name": "include_usage",
+					"go_name": "IncludeUsage",
+					"type": "boolean",
+					"description": "Whether to include token usage information in the response",
+					"required": false,
+					"input_type": "select",
+					"hidden": true
+				},
+				{
+					"json_name": "logit_bias",
+					"go_name": "LogitBias",
+					"type": "object",
+					"description": "Token IDs mapped to bias values from -100 to 100",
+					"required": false,
+					"input_type": "json",
+					"hidden": true
+				},
+				{
+					"json_name": "log_probs",
+					"go_name": "LogProbs",
+					"type": "boolean",
+					"description": "Whether to return log probabilities of output tokens",
+					"required": false,
+					"input_type": "select",
+					"hidden": true
+				},
+				{
+					"json_name": "parallel_tool_calls",
+					"go_name": "ParallelToolCalls",
+					"type": "boolean",
+					"description": "Whether the model may make multiple tool calls in parallel",
+					"required": false,
+					"input_type": "select"
+				},
+				{
+					"json_name": "user",
+					"go_name": "User",
+					"type": "string",
+					"description": "Unique identifier for the end user for abuse monitoring",
+					"required": false,
+					"input_type": "input",
+					"hidden": true
+				},
+				{
+					"json_name": "provider",
+					"go_name": "Provider",
+					"type": "string",
+					"description": "Routing preferences for provider selection",
+					"required": false,
+					"input_type": "input",
+					"hidden": true
+				}
+			]
+		},
+		"vercel": {
+			"fields": [
+				{
+					"json_name": "reasoning.enabled",
+					"go_name": "Reasoning.Enabled",
+					"type": "boolean",
+					"description": "Whether reasoning is enabled",
+					"required": false,
+					"input_type": "select"
+				},
+				{
+					"json_name": "reasoning.max_tokens",
+					"go_name": "Reasoning.MaxTokens",
+					"type": "integer",
+					"description": "Maximum number of tokens for reasoning output",
+					"required": false,
+					"input_type": "input"
+				},
+				{
+					"json_name": "reasoning.effort",
+					"go_name": "Reasoning.Effort",
+					"type": "string",
+					"description": "Controls the level of reasoning effort",
+					"required": false,
+					"enum": ["none", "minimal", "low", "medium", "high", "xhigh"],
+					"input_type": "select"
+				},
+				{
+					"json_name": "reasoning.exclude",
+					"go_name": "Reasoning.Exclude",
+					"type": "boolean",
+					"description": "Whether to exclude reasoning content from the response",
+					"required": false,
+					"input_type": "select"
+				},
+				{
+					"json_name": "providerOptions",
+					"go_name": "ProviderOptions",
+					"type": "string",
+					"description": "Gateway routing options for provider selection",
+					"required": false,
+					"input_type": "input",
+					"hidden": true
+				},
+				{
+					"json_name": "user",
+					"go_name": "User",
+					"type": "string",
+					"description": "Unique identifier for the end user for abuse monitoring",
+					"required": false,
+					"input_type": "input",
+					"hidden": true
+				},
+				{
+					"json_name": "logit_bias",
+					"go_name": "LogitBias",
+					"type": "object",
+					"description": "Token IDs mapped to bias values from -100 to 100",
+					"required": false,
+					"input_type": "json",
+					"hidden": true
+				},
+				{
+					"json_name": "logprobs",
+					"go_name": "LogProbs",
+					"type": "boolean",
+					"description": "Whether to return log probabilities of output tokens",
+					"required": false,
+					"input_type": "select",
+					"hidden": true
+				},
+				{
+					"json_name": "top_logprobs",
+					"go_name": "TopLogProbs",
+					"type": "integer",
+					"description": "Number of most likely tokens to return log probabilities for",
+					"required": false,
+					"input_type": "input",
+					"hidden": true
+				},
+				{
+					"json_name": "parallel_tool_calls",
+					"go_name": "ParallelToolCalls",
+					"type": "boolean",
+					"description": "Whether the model may make multiple tool calls in parallel",
+					"required": false,
+					"input_type": "select"
+				},
+				{
+					"json_name": "extra_body",
+					"go_name": "ExtraBody",
+					"type": "object",
+					"description": "Additional fields to include in the request body",
+					"required": false,
+					"input_type": "json",
+					"hidden": true
+				}
+			]
+		}
+	},
+	"provider_aliases": {
+		"azure": "openai",
+		"bedrock": "anthropic"
+	}
+}

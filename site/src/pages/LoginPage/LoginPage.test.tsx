@@ -48,6 +48,48 @@ describe("LoginPage", () => {
 		expect(errorMessage).toBeDefined();
 	});
 
+	it("associates email validation errors with the email input", async () => {
+		// When
+		render(<LoginPage />);
+		await waitForLoaderToBeRemoved();
+
+		const emailInput = screen.getByLabelText(new RegExp(Language.emailLabel));
+		const passwordInput = screen.getByLabelText(
+			new RegExp(Language.passwordLabel),
+		);
+		expect(emailInput).not.toHaveAttribute("aria-invalid", "true");
+		expect(emailInput).not.toHaveAttribute(
+			"aria-describedby",
+			"signin-email-error",
+		);
+		expect(passwordInput).not.toHaveAttribute("aria-invalid", "true");
+		expect(passwordInput).not.toHaveAttribute(
+			"aria-describedby",
+			"signin-password-error",
+		);
+
+		const signInButton = await screen.findByText(Language.passwordSignIn);
+		fireEvent.click(signInButton);
+
+		// Then
+		const emailError = await screen.findByText(Language.emailRequired);
+		expect(emailInput).toHaveAttribute("aria-invalid", "true");
+		expect(emailInput).toHaveAttribute(
+			"aria-describedby",
+			"signin-email-error",
+		);
+
+		const emailErrorElement = document.getElementById("signin-email-error");
+		expect(emailErrorElement).toBe(emailError);
+		expect(emailErrorElement).toHaveTextContent(Language.emailRequired);
+
+		expect(passwordInput).not.toHaveAttribute("aria-invalid", "true");
+		expect(passwordInput).not.toHaveAttribute(
+			"aria-describedby",
+			"signin-password-error",
+		);
+		expect(document.getElementById("signin-password-error")).toBeNull();
+	});
 	it("redirects to the setup page if there is no first user", async () => {
 		// Given
 		server.use(

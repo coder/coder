@@ -58,7 +58,7 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*agentsdk.Client, str
 	_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
 		o.Client = agentClient
 	})
-	_ = coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+	_ = coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).WithContext(ctx).Wait()
 	return agentClient, r.AgentToken, pubkey
 }
 
@@ -167,7 +167,7 @@ func TestGitSSH(t *testing.T) {
 		require.NoError(t, err)
 		writePrivateKeyToFile(t, idFile, privkey)
 
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		client, token, coderPubkey := prepareTestGitSSH(setupCtx, t)
 
 		authkey := make(chan gossh.PublicKey, 1)

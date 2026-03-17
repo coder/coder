@@ -1,151 +1,37 @@
+import {
+	type FieldSchema,
+	getGeneralFields,
+	getProviderFields,
+	getProviderNames,
+	resolveProvider,
+	snakeToCamel,
+} from "api/chatModelOptions";
 import type * as TypesGen from "api/typesGenerated";
 import * as Yup from "yup";
-import { normalizeProvider } from "./helpers";
-import {
-	modelConfigAnthropicEffortOptions,
-	modelConfigReasoningEffortOptions,
-	modelConfigTextVerbosityOptions,
-} from "./ModelConfigFields";
+import { pricingFieldNames } from "./pricingFields";
 
-// ── Per-provider form state types ──────────────────────────────
+// ── Preserved public types ─────────────────────────────────────
 
-export type OpenAIFormState = {
-	reasoningEffort: string;
-	parallelToolCalls: string;
-	textVerbosity: string;
-	serviceTier: string;
-	reasoningSummary: string;
-	user: string;
-};
-
-export type AnthropicFormState = {
-	effort: string;
-	thinkingBudgetTokens: string;
-	sendReasoning: string;
-	disableParallelToolUse: string;
-};
-
-export type GoogleFormState = {
-	thinkingBudget: string;
-	includeThoughts: string;
-	cachedContent: string;
-	safetySettingsJSON: string;
-};
-
-export type OpenAICompatFormState = {
-	reasoningEffort: string;
-	user: string;
-};
-
-export type OpenRouterFormState = {
-	reasoningEnabled: string;
-	reasoningEffort: string;
-	reasoningMaxTokens: string;
-	reasoningExclude: string;
-	parallelToolCalls: string;
-	includeUsage: string;
-	user: string;
-};
-
-export type VercelFormState = {
-	reasoningEnabled: string;
-	reasoningEffort: string;
-	reasoningMaxTokens: string;
-	reasoningExclude: string;
-	parallelToolCalls: string;
-	user: string;
-};
-
-// ── Main form state type ───────────────────────────────────────
-
-export type ModelConfigFormState = {
-	maxOutputTokens: string;
-	temperature: string;
-	topP: string;
-	topK: string;
-	presencePenalty: string;
-	frequencyPenalty: string;
-	openai: OpenAIFormState;
-	anthropic: AnthropicFormState;
-	google: GoogleFormState;
-	openaicompat: OpenAICompatFormState;
-	openrouter: OpenRouterFormState;
-	vercel: VercelFormState;
-};
+export type ModelConfigFormState = Record<
+	string,
+	string | Record<string, unknown>
+>;
 
 export type ModelConfigFormBuildResult = {
 	modelConfig?: TypesGen.ChatModelCallConfig;
 	fieldErrors: Record<string, string>;
 };
 
-// ── Empty defaults ─────────────────────────────────────────────
-
-export const emptyOpenAIFormState: OpenAIFormState = {
-	reasoningEffort: "",
-	parallelToolCalls: "",
-	textVerbosity: "",
-	serviceTier: "",
-	reasoningSummary: "",
-	user: "",
+export type ModelFormValues = {
+	model: string;
+	displayName: string;
+	contextLimit: string;
+	compressionThreshold: string;
+	isDefault: boolean;
+	config: ModelConfigFormState;
 };
 
-export const emptyAnthropicFormState: AnthropicFormState = {
-	effort: "",
-	thinkingBudgetTokens: "",
-	sendReasoning: "",
-	disableParallelToolUse: "",
-};
-
-export const emptyGoogleFormState: GoogleFormState = {
-	thinkingBudget: "",
-	includeThoughts: "",
-	cachedContent: "",
-	safetySettingsJSON: "",
-};
-
-export const emptyOpenAICompatFormState: OpenAICompatFormState = {
-	reasoningEffort: "",
-	user: "",
-};
-
-export const emptyOpenRouterFormState: OpenRouterFormState = {
-	reasoningEnabled: "",
-	reasoningEffort: "",
-	reasoningMaxTokens: "",
-	reasoningExclude: "",
-	parallelToolCalls: "",
-	includeUsage: "",
-	user: "",
-};
-
-export const emptyVercelFormState: VercelFormState = {
-	reasoningEnabled: "",
-	reasoningEffort: "",
-	reasoningMaxTokens: "",
-	reasoningExclude: "",
-	parallelToolCalls: "",
-	user: "",
-};
-
-export const emptyModelConfigFormState: ModelConfigFormState = {
-	maxOutputTokens: "",
-	temperature: "",
-	topP: "",
-	topK: "",
-	presencePenalty: "",
-	frequencyPenalty: "",
-	openai: { ...emptyOpenAIFormState },
-	anthropic: { ...emptyAnthropicFormState },
-	google: { ...emptyGoogleFormState },
-	openaicompat: { ...emptyOpenAICompatFormState },
-	openrouter: { ...emptyOpenRouterFormState },
-	vercel: { ...emptyVercelFormState },
-};
-
-// ── Helpers ────────────────────────────────────────────────────
-
-const hasObjectKeys = (value: Record<string, unknown>): boolean =>
-	Object.keys(value).length > 0;
+// ── Preserved parsing utilities ────────────────────────────────
 
 export const parsePositiveInteger = (value: string): number | null => {
 	const trimmed = value.trim();
@@ -163,7 +49,128 @@ export const parseThresholdInteger = (value: string): number | null => {
 	return parsed;
 };
 
-// ── Extract model config form state from an existing model ────
+// ── Internal helpers ───────────────────────────────────────────
+
+/**
+ * Set a value inside a nested object, creating intermediate
+ * objects along the way. The path is an array of string keys.
+ */
+function deepSet(
+	obj: Record<string, unknown>,
+	path: string[],
+	value: unknown,
+): void {
+	let current = obj;
+	for (let i = 0; i < path.length - 1; i++) {
+		const key = path[i];
+		if (
+			current[key] === undefined ||
+			current[key] === null ||
+			typeof current[key] !== "object"
+		) {
+			current[key] = {};
+		}
+		current = current[key] as Record<string, unknown>;
+	}
+	current[path[path.length - 1]] = value;
+}
+
+/**
+ * Get a value from a nested object using an array of string keys.
+ * Returns `undefined` if any intermediate key is missing.
+ */
+function deepGet(obj: unknown, path: string[]): unknown {
+	let current = obj;
+	for (const key of path) {
+		if (
+			current === undefined ||
+			current === null ||
+			typeof current !== "object"
+		) {
+			return undefined;
+		}
+		current = (current as Record<string, unknown>)[key];
+	}
+	return current;
+}
+
+const hasObjectKeys = (value: Record<string, unknown>): boolean =>
+	Object.keys(value).length > 0;
+
+/**
+ * Convert a form string value to its API representation based on
+ * the field schema type. Empty strings yield `undefined` so
+ * callers can conditionally include fields.
+ */
+function convertFormValue(value: string, field: FieldSchema): unknown {
+	const trimmed = value.trim();
+	if (!trimmed) return undefined;
+
+	switch (field.type) {
+		case "integer":
+			return Number.parseInt(trimmed, 10);
+		case "number":
+			return isNonNegativePricingField(field) ? trimmed : Number(trimmed);
+		case "boolean":
+			return trimmed === "true";
+		case "array":
+		case "object":
+			return JSON.parse(trimmed);
+		default:
+			return trimmed;
+	}
+}
+
+/**
+ * Convert an API value to a form string. Arrays and objects are
+ * pretty-printed as JSON; null/undefined become empty strings.
+ */
+function toFormString(v: unknown): string {
+	if (v === undefined || v === null) return "";
+	if (typeof v === "object") return JSON.stringify(v, null, 2);
+	return String(v);
+}
+
+// ── Schema-driven form state generation ────────────────────────
+
+/**
+ * Build an empty form state object for a single provider by
+ * walking its field schemas. Nested `json_name` values
+ * (e.g. `"thinking.budget_tokens"`) produce nested objects with
+ * camelCase keys matching `toFormFieldKey`.
+ */
+function buildEmptyProviderState(provider: string): Record<string, unknown> {
+	const state: Record<string, unknown> = {};
+	for (const field of getProviderFields(provider)) {
+		const camelSegments = field.json_name.split(".").map(snakeToCamel);
+		deepSet(state, camelSegments, "");
+	}
+	return state;
+}
+
+/**
+ * The empty form state, generated from the schema at module load.
+ * Contains general fields as top-level camelCase keys and one
+ * nested object per canonical provider.
+ */
+export const emptyModelConfigFormState: ModelConfigFormState = (() => {
+	const state: ModelConfigFormState = {};
+
+	// General fields (e.g. maxOutputTokens, cost.inputPricePerMillionTokens).
+	for (const field of getGeneralFields()) {
+		const camelSegments = field.json_name.split(".").map(snakeToCamel);
+		deepSet(state, camelSegments, "");
+	}
+
+	// Provider sub-objects.
+	for (const provider of getProviderNames()) {
+		state[provider] = buildEmptyProviderState(provider);
+	}
+
+	return state;
+})();
+
+// ── Extract form state from an existing API model ──────────────
 
 export const extractModelConfigFormState = (
 	model: TypesGen.ChatModelConfig,
@@ -173,86 +180,45 @@ export const extractModelConfigFormState = (
 		return structuredClone(emptyModelConfigFormState);
 	}
 
-	const toFormString = (v: unknown): string =>
-		v !== undefined && v !== null ? String(v) : "";
+	const state: ModelConfigFormState = {};
 
+	// General fields may be nested (for example, cost.input_price_per_million_tokens).
+	for (const field of getGeneralFields()) {
+		const snakeSegments = field.json_name.split(".");
+		const camelSegments = snakeSegments.map(snakeToCamel);
+		const apiValue = deepGet(config, snakeSegments);
+		deepSet(state, camelSegments, toFormString(apiValue));
+	}
+
+	// Provider sub-objects.
 	const po = config.provider_options;
-	const openai = po?.openai;
-	const anthropic = po?.anthropic;
-	const google = po?.google;
-	const openaicompat = po?.openaicompat;
-	const openrouter = po?.openrouter;
-	const vercel = po?.vercel;
+	for (const provider of getProviderNames()) {
+		const providerData = (po as Record<string, unknown> | undefined)?.[
+			provider
+		] as Record<string, unknown> | undefined;
+		const providerState: Record<string, unknown> = {};
 
-	return {
-		maxOutputTokens: toFormString(config.max_output_tokens),
-		temperature: toFormString(config.temperature),
-		topP: toFormString(config.top_p),
-		topK: toFormString(config.top_k),
-		presencePenalty: toFormString(config.presence_penalty),
-		frequencyPenalty: toFormString(config.frequency_penalty),
-		openai: {
-			reasoningEffort: toFormString(openai?.reasoning_effort),
-			parallelToolCalls: toFormString(openai?.parallel_tool_calls),
-			textVerbosity: toFormString(openai?.text_verbosity),
-			serviceTier: toFormString(openai?.service_tier),
-			reasoningSummary: toFormString(openai?.reasoning_summary),
-			user: toFormString(openai?.user),
-		},
-		anthropic: {
-			effort: toFormString(anthropic?.effort),
-			thinkingBudgetTokens: toFormString(anthropic?.thinking?.budget_tokens),
-			sendReasoning: toFormString(anthropic?.send_reasoning),
-			disableParallelToolUse: toFormString(
-				anthropic?.disable_parallel_tool_use,
-			),
-		},
-		google: {
-			thinkingBudget: toFormString(google?.thinking_config?.thinking_budget),
-			includeThoughts: toFormString(google?.thinking_config?.include_thoughts),
-			cachedContent: toFormString(google?.cached_content),
-			safetySettingsJSON: google?.safety_settings
-				? JSON.stringify(google.safety_settings, null, 2)
-				: "",
-		},
-		openaicompat: {
-			reasoningEffort: toFormString(openaicompat?.reasoning_effort),
-			user: toFormString(openaicompat?.user),
-		},
-		openrouter: {
-			reasoningEnabled: toFormString(openrouter?.reasoning?.enabled),
-			reasoningEffort: toFormString(openrouter?.reasoning?.effort),
-			reasoningMaxTokens: toFormString(openrouter?.reasoning?.max_tokens),
-			reasoningExclude: toFormString(openrouter?.reasoning?.exclude),
-			parallelToolCalls: toFormString(openrouter?.parallel_tool_calls),
-			includeUsage: toFormString(openrouter?.include_usage),
-			user: toFormString(openrouter?.user),
-		},
-		vercel: {
-			reasoningEnabled: toFormString(vercel?.reasoning?.enabled),
-			reasoningEffort: toFormString(vercel?.reasoning?.effort),
-			reasoningMaxTokens: toFormString(vercel?.reasoning?.max_tokens),
-			reasoningExclude: toFormString(vercel?.reasoning?.exclude),
-			parallelToolCalls: toFormString(vercel?.parallel_tool_calls),
-			user: toFormString(vercel?.user),
-		},
-	};
+		for (const field of getProviderFields(provider)) {
+			// Navigate into the API response using snake_case segments.
+			const snakeSegments = field.json_name.split(".");
+			const apiValue = providerData
+				? deepGet(providerData, snakeSegments)
+				: undefined;
+
+			// Store under camelCase segments to match the form field key
+			// structure produced by toFormFieldKey.
+			const camelSegments = field.json_name.split(".").map(snakeToCamel);
+			deepSet(providerState, camelSegments, toFormString(apiValue));
+		}
+
+		state[provider] = providerState;
+	}
+
+	return state;
 };
 
-// ── Unified form values type ─────────────────────────────────
+// ── Build initial model form values ────────────────────────────
 
-export type ModelFormValues = {
-	model: string;
-	displayName: string;
-	contextLimit: string;
-	compressionThreshold: string;
-	isDefault: boolean;
-	config: ModelConfigFormState;
-};
-
-/**
- * Build initial form values from an editing model or defaults.
- */
 export const buildInitialModelFormValues = (
 	editingModel?: TypesGen.ChatModelConfig,
 ): ModelFormValues => ({
@@ -268,140 +234,208 @@ export const buildInitialModelFormValues = (
 		: structuredClone(emptyModelConfigFormState),
 });
 
-// ── Parsing utilities ─────────────────────────────────────────
+function isNonNegativePricingField(field: FieldSchema): boolean {
+	return pricingFieldNames.has(field.json_name);
+}
+
+function isValidOptionalNumber(
+	value: string | undefined,
+	minimum?: number,
+): boolean {
+	const trimmed = value?.trim();
+	if (!trimmed) {
+		return true;
+	}
+
+	const parsed = Number(trimmed);
+	return (
+		Number.isFinite(parsed) && (minimum === undefined || parsed >= minimum)
+	);
+}
+
+// ── Schema-driven Yup validation ───────────────────────────────
+
+/**
+ * Build a Yup string test for a single field schema. All form
+ * values are strings; the test checks whether a non-empty value
+ * can be parsed according to the field's declared type and enum.
+ */
+function yupTestForField(field: FieldSchema): Yup.StringSchema {
+	const label = field.description ?? field.go_name;
+
+	switch (field.type) {
+		case "integer":
+			return Yup.string().test(
+				"optional-integer",
+				`${label} must be a valid integer.`,
+				(value) => {
+					const trimmed = value?.trim();
+					if (!trimmed) return true;
+					return Number.isFinite(Number.parseInt(trimmed, 10));
+				},
+			);
+
+		case "number": {
+			const minimum = isNonNegativePricingField(field) ? 0 : undefined;
+			const errorMessage =
+				minimum === 0
+					? `${label} must be zero or greater.`
+					: `${label} must be a valid number.`;
+			return Yup.string().test("optional-number", errorMessage, (value) =>
+				isValidOptionalNumber(value, minimum),
+			);
+		}
+
+		case "boolean":
+			return Yup.string().test(
+				"optional-boolean",
+				`${label} must be true or false.`,
+				(value) => {
+					const trimmed = value?.trim();
+					if (!trimmed) return true;
+					return trimmed === "true" || trimmed === "false";
+				},
+			);
+
+		case "string":
+			if (field.enum && field.enum.length > 0) {
+				const allowed = field.enum;
+				return Yup.string().test(
+					"optional-select",
+					`${label} has an invalid value.`,
+					(value) => {
+						const trimmed = value?.trim();
+						if (!trimmed) return true;
+						return allowed.includes(trimmed);
+					},
+				);
+			}
+			// Plain strings are always valid.
+			return Yup.string();
+
+		case "array":
+			return Yup.string().test(
+				"optional-json-array",
+				"",
+				function validate(value) {
+					const trimmed = value?.trim();
+					if (!trimmed) return true;
+					let parsed: unknown;
+					try {
+						parsed = JSON.parse(trimmed);
+					} catch {
+						return this.createError({
+							message: `${label} must be valid JSON.`,
+						});
+					}
+					if (!Array.isArray(parsed)) {
+						return this.createError({
+							message: `${label} must be a JSON array.`,
+						});
+					}
+					return true;
+				},
+			);
+
+		case "object":
+			return Yup.string().test(
+				"optional-json-object",
+				"",
+				function validate(value) {
+					const trimmed = value?.trim();
+					if (!trimmed) return true;
+					let parsed: unknown;
+					try {
+						parsed = JSON.parse(trimmed);
+					} catch {
+						return this.createError({
+							message: `${label} must be valid JSON.`,
+						});
+					}
+					if (
+						typeof parsed !== "object" ||
+						parsed === null ||
+						Array.isArray(parsed)
+					) {
+						return this.createError({
+							message: `${label} must be a JSON object.`,
+						});
+					}
+					return true;
+				},
+			);
+	}
+}
+
+/**
+ * Build a Yup object schema for a list of field schemas. Each
+ * field is keyed by the **leaf** camelCase name of its json_name.
+ * For nested fields (e.g. `thinking.budget_tokens`) we build a
+ * nested Yup object shape.
+ */
+function buildYupSchema(
+	fields: FieldSchema[],
+): Yup.ObjectSchema<Record<string, unknown>> {
+	const shape: Record<string, Yup.AnySchema> = {};
+
+	// Group fields by their first camelCase segment so we can
+	// build nested Yup.object() shapes for dot-notation names.
+	const nested = new Map<string, FieldSchema[]>();
+
+	for (const field of fields) {
+		const segments = field.json_name.split(".");
+		if (segments.length === 1) {
+			// Top-level field.
+			shape[snakeToCamel(segments[0])] = yupTestForField(field);
+		} else {
+			// Nested — group by first segment.
+			const parentKey = snakeToCamel(segments[0]);
+			if (!nested.has(parentKey)) {
+				nested.set(parentKey, []);
+			}
+			nested.get(parentKey)!.push(field);
+		}
+	}
+
+	// Build nested object schemas.
+	for (const [parentKey, nestedFields] of nested) {
+		const nestedShape: Record<string, Yup.AnySchema> = {};
+		for (const field of nestedFields) {
+			const segments = field.json_name.split(".");
+			// Use the tail segments (after the first) as the nested key.
+			const leafKey = segments.slice(1).map(snakeToCamel).join(".");
+			nestedShape[leafKey] = yupTestForField(field);
+		}
+		shape[parentKey] = Yup.object(nestedShape);
+	}
+
+	return Yup.object(shape) as Yup.ObjectSchema<Record<string, unknown>>;
+}
+
+// Pre-built general-fields schema.
+const generalFieldsSchema = buildYupSchema(getGeneralFields());
+
+// Cache of per-provider Yup schemas, built lazily.
+const providerSchemaCache = new Map<
+	string,
+	Yup.ObjectSchema<Record<string, unknown>>
+>();
+
+function getProviderYupSchema(
+	provider: string,
+): Yup.ObjectSchema<Record<string, unknown>> {
+	const resolved = resolveProvider(provider);
+	let schema = providerSchemaCache.get(resolved);
+	if (!schema) {
+		schema = buildYupSchema(getProviderFields(resolved));
+		providerSchemaCache.set(resolved, schema);
+	}
+	return schema;
+}
+
+// ── Yup error collection ───────────────────────────────────────
 
 type FieldErrors = Record<string, string>;
-
-// ── Yup transforms ──────────────────────────────────────────
-
-function yupOptionalInteger(label: string) {
-	return Yup.string().test(
-		"optional-integer",
-		`${label} must be a valid number.`,
-		(value) => {
-			const trimmed = value?.trim();
-			if (!trimmed) return true;
-			return Number.isFinite(Number.parseInt(trimmed, 10));
-		},
-	);
-}
-
-function yupOptionalNumber(label: string) {
-	return Yup.string().test(
-		"optional-number",
-		`${label} must be a valid number.`,
-		(value) => {
-			const trimmed = value?.trim();
-			if (!trimmed) return true;
-			return Number.isFinite(Number(trimmed));
-		},
-	);
-}
-
-function yupOptionalBoolean(label: string) {
-	return Yup.string().test(
-		"optional-boolean",
-		`${label} must be true or false.`,
-		(value) => {
-			const trimmed = value?.trim();
-			if (!trimmed) return true;
-			return trimmed === "true" || trimmed === "false";
-		},
-	);
-}
-
-function yupOptionalSelect(label: string, options: readonly string[]) {
-	return Yup.string().test(
-		"optional-select",
-		`${label} has an invalid value.`,
-		(value) => {
-			const trimmed = value?.trim();
-			if (!trimmed) return true;
-			return options.includes(trimmed);
-		},
-	);
-}
-
-function yupOptionalJSONArray(label: string) {
-	return Yup.string().test("optional-json-array", "", function validate(value) {
-		const trimmed = value?.trim();
-		if (!trimmed) return true;
-		let parsed: unknown;
-		try {
-			parsed = JSON.parse(trimmed);
-		} catch {
-			return this.createError({
-				message: `${label} must be valid JSON.`,
-			});
-		}
-		if (!Array.isArray(parsed)) {
-			return this.createError({
-				message: `${label} must be an array.`,
-			});
-		}
-		return true;
-	});
-}
-
-// ── Per-provider Yup schemas ─────────────────────────────────
-
-const topLevelSchema = Yup.object({
-	maxOutputTokens: yupOptionalInteger("Max output tokens"),
-	temperature: yupOptionalNumber("Temperature"),
-	topP: yupOptionalNumber("Top P"),
-	topK: yupOptionalInteger("Top K"),
-	presencePenalty: yupOptionalNumber("Presence penalty"),
-	frequencyPenalty: yupOptionalNumber("Frequency penalty"),
-});
-
-const openaiSchema = Yup.object({
-	reasoningEffort: yupOptionalSelect(
-		"Reasoning effort",
-		modelConfigReasoningEffortOptions,
-	),
-	parallelToolCalls: yupOptionalBoolean("Parallel tool calls"),
-	textVerbosity: yupOptionalSelect(
-		"Text verbosity",
-		modelConfigTextVerbosityOptions,
-	),
-});
-
-const anthropicSchema = Yup.object({
-	effort: yupOptionalSelect("Output effort", modelConfigAnthropicEffortOptions),
-	thinkingBudgetTokens: yupOptionalInteger("Thinking budget tokens"),
-	sendReasoning: yupOptionalBoolean("Send reasoning"),
-	disableParallelToolUse: yupOptionalBoolean("Disable parallel tool use"),
-});
-
-const googleSchema = Yup.object({
-	thinkingBudget: yupOptionalInteger("Thinking budget"),
-	includeThoughts: yupOptionalBoolean("Include thoughts"),
-	safetySettingsJSON: yupOptionalJSONArray("Safety settings JSON"),
-});
-
-const openaiCompatSchema = Yup.object({
-	reasoningEffort: yupOptionalSelect(
-		"Reasoning effort",
-		modelConfigReasoningEffortOptions,
-	),
-});
-
-const reasoningProviderSchema = Yup.object({
-	reasoningEnabled: yupOptionalBoolean("Reasoning enabled"),
-	reasoningEffort: yupOptionalSelect(
-		"Reasoning effort",
-		modelConfigReasoningEffortOptions,
-	),
-	reasoningMaxTokens: yupOptionalInteger("Reasoning max tokens"),
-	reasoningExclude: yupOptionalBoolean("Reasoning exclude"),
-	parallelToolCalls: yupOptionalBoolean("Parallel tool calls"),
-});
-
-const openrouterExtraSchema = Yup.object({
-	includeUsage: yupOptionalBoolean("Include usage"),
-});
-
-// ── Yup error collection ─────────────────────────────────────
 
 function collectYupErrors(
 	schema: Yup.ObjectSchema<Record<string, unknown>>,
@@ -421,174 +455,7 @@ function collectYupErrors(
 	}
 }
 
-// ── Post-validation transform helpers ────────────────────────
-// These assume validation has already passed. Empty strings
-// yield undefined so callers can conditionally include fields.
-
-function toInt(s: string): number | undefined {
-	const trimmed = s.trim();
-	if (!trimmed) return undefined;
-	return Number.parseInt(trimmed, 10);
-}
-
-function toNum(s: string): number | undefined {
-	const trimmed = s.trim();
-	if (!trimmed) return undefined;
-	return Number(trimmed);
-}
-
-function toBool(s: string): boolean | undefined {
-	const trimmed = s.trim();
-	if (!trimmed) return undefined;
-	return trimmed === "true";
-}
-
-function toTrimmedString(s: string): string | undefined {
-	const trimmed = s.trim();
-	return trimmed || undefined;
-}
-
-function toJSON(s: string): unknown | undefined {
-	const trimmed = s.trim();
-	if (!trimmed) return undefined;
-	return JSON.parse(trimmed);
-}
-
-// ── Per-provider option builders ──────────────────────────────
-
-/**
- * Build OpenAI/Azure provider options from form state.
- * Validation has already passed; uses transform helpers only.
- */
-function buildOpenAIOptions(form: OpenAIFormState): Record<string, unknown> {
-	const reasoningEffort = toTrimmedString(form.reasoningEffort);
-	const parallelToolCalls = toBool(form.parallelToolCalls);
-	const textVerbosity = toTrimmedString(form.textVerbosity);
-	const serviceTier = toTrimmedString(form.serviceTier);
-	const reasoningSummary = toTrimmedString(form.reasoningSummary);
-	const user = toTrimmedString(form.user);
-
-	return {
-		...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-		...(parallelToolCalls !== undefined
-			? { parallel_tool_calls: parallelToolCalls }
-			: {}),
-		...(textVerbosity ? { text_verbosity: textVerbosity } : {}),
-		...(serviceTier ? { service_tier: serviceTier } : {}),
-		...(reasoningSummary ? { reasoning_summary: reasoningSummary } : {}),
-		...(user ? { user } : {}),
-	};
-}
-
-/**
- * Build Anthropic/Bedrock provider options from form state.
- * Validation has already passed; uses transform helpers only.
- */
-function buildAnthropicOptions(
-	form: AnthropicFormState,
-): Record<string, unknown> {
-	const effort = toTrimmedString(form.effort);
-	const budgetTokens = toInt(form.thinkingBudgetTokens);
-	const sendReasoning = toBool(form.sendReasoning);
-	const disableParallelToolUse = toBool(form.disableParallelToolUse);
-
-	return {
-		...(effort ? { effort } : {}),
-		...(budgetTokens !== undefined
-			? { thinking: { budget_tokens: budgetTokens } }
-			: {}),
-		...(sendReasoning !== undefined ? { send_reasoning: sendReasoning } : {}),
-		...(disableParallelToolUse !== undefined
-			? { disable_parallel_tool_use: disableParallelToolUse }
-			: {}),
-	};
-}
-
-/**
- * Build Google provider options from form state.
- * Validation has already passed; uses transform helpers only.
- */
-function buildGoogleOptions(form: GoogleFormState): Record<string, unknown> {
-	const thinkingBudget = toInt(form.thinkingBudget);
-	const includeThoughts = toBool(form.includeThoughts);
-	const cachedContent = toTrimmedString(form.cachedContent);
-	const safetySettings = toJSON(form.safetySettingsJSON) as
-		| unknown[]
-		| undefined;
-
-	return {
-		...(thinkingBudget !== undefined || includeThoughts !== undefined
-			? {
-					thinking_config: {
-						...(thinkingBudget !== undefined
-							? { thinking_budget: thinkingBudget }
-							: {}),
-						...(includeThoughts !== undefined
-							? { include_thoughts: includeThoughts }
-							: {}),
-					},
-				}
-			: {}),
-		...(cachedContent ? { cached_content: cachedContent } : {}),
-		...(safetySettings ? { safety_settings: safetySettings } : {}),
-	};
-}
-
-/**
- * Build OpenAI-compatible provider options from form state.
- * Validation has already passed; uses transform helpers only.
- */
-function buildOpenAICompatOptions(
-	form: OpenAICompatFormState,
-): Record<string, unknown> {
-	const reasoningEffort = toTrimmedString(form.reasoningEffort);
-	const user = toTrimmedString(form.user);
-
-	return {
-		...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-		...(user ? { user } : {}),
-	};
-}
-
-/**
- * Shared builder for OpenRouter/Vercel provider options. Both
- * providers use an identical reasoning + parallel_tool_calls + user
- * structure. Validation has already passed.
- */
-function buildReasoningProviderOptions(form: {
-	reasoningEnabled: string;
-	reasoningEffort: string;
-	reasoningMaxTokens: string;
-	reasoningExclude: string;
-	parallelToolCalls: string;
-	user: string;
-}): Record<string, unknown> {
-	const reasoningEnabled = toBool(form.reasoningEnabled);
-	const reasoningEffort = toTrimmedString(form.reasoningEffort);
-	const reasoningMaxTokens = toInt(form.reasoningMaxTokens);
-	const reasoningExclude = toBool(form.reasoningExclude);
-	const parallelToolCalls = toBool(form.parallelToolCalls);
-	const user = toTrimmedString(form.user);
-
-	const reasoning: Record<string, unknown> = {
-		...(reasoningEnabled !== undefined ? { enabled: reasoningEnabled } : {}),
-		...(reasoningEffort ? { effort: reasoningEffort } : {}),
-		...(reasoningMaxTokens !== undefined
-			? { max_tokens: reasoningMaxTokens }
-			: {}),
-		...(reasoningExclude !== undefined ? { exclude: reasoningExclude } : {}),
-	};
-
-	return {
-		...(hasObjectKeys(reasoning) ? { reasoning } : {}),
-		...(parallelToolCalls !== undefined
-			? { parallel_tool_calls: parallelToolCalls }
-			: {}),
-		...(user ? { user } : {}),
-	};
-}
-
-// ── Form → model config builder ──────────────────────────────
+// ── Form → model config builder ────────────────────────────────
 
 export const buildModelConfigFromForm = (
 	provider: string | null | undefined,
@@ -596,146 +463,74 @@ export const buildModelConfigFromForm = (
 ): ModelConfigFormBuildResult => {
 	const fieldErrors: FieldErrors = {};
 
-	// Validate top-level fields.
-	collectYupErrors(topLevelSchema, form, fieldErrors);
+	// Validate general (top-level) fields.
+	collectYupErrors(
+		generalFieldsSchema,
+		form as Record<string, unknown>,
+		fieldErrors,
+	);
+
+	// Resolve the canonical provider name through the alias table.
+	const resolved = resolveProvider((provider ?? "").trim().toLowerCase());
 
 	// Validate provider-specific fields.
-	const normalizedProvider = normalizeProvider(provider ?? "");
-
-	switch (normalizedProvider) {
-		case "openai":
-		case "azure":
-			collectYupErrors(openaiSchema, form.openai, fieldErrors, "openai");
-			break;
-		case "anthropic":
-		case "bedrock":
-			collectYupErrors(
-				anthropicSchema,
-				form.anthropic,
-				fieldErrors,
-				"anthropic",
-			);
-			break;
-		case "google":
-			collectYupErrors(googleSchema, form.google, fieldErrors, "google");
-			break;
-		case "openaicompat":
-			collectYupErrors(
-				openaiCompatSchema,
-				form.openaicompat,
-				fieldErrors,
-				"openaicompat",
-			);
-			break;
-		case "openrouter":
-			collectYupErrors(
-				reasoningProviderSchema,
-				form.openrouter,
-				fieldErrors,
-				"openrouter",
-			);
-			collectYupErrors(
-				openrouterExtraSchema,
-				form.openrouter,
-				fieldErrors,
-				"openrouter",
-			);
-			break;
-		case "vercel":
-			collectYupErrors(
-				reasoningProviderSchema,
-				form.vercel,
-				fieldErrors,
-				"vercel",
-			);
-			break;
+	const providerFormState = form[resolved];
+	if (providerFormState && typeof providerFormState === "object") {
+		collectYupErrors(
+			getProviderYupSchema(resolved),
+			providerFormState as Record<string, unknown>,
+			fieldErrors,
+			resolved,
+		);
 	}
 
 	if (Object.keys(fieldErrors).length > 0) {
 		return { fieldErrors };
 	}
 
-	// Transform top-level fields.
-	const maxOutputTokens = toInt(form.maxOutputTokens);
-	const temperature = toNum(form.temperature);
-	const topP = toNum(form.topP);
-	const topK = toInt(form.topK);
-	const presencePenalty = toNum(form.presencePenalty);
-	const frequencyPenalty = toNum(form.frequencyPenalty);
+	// ── Transform general fields ──────────────────────────────
+	const modelConfig: Record<string, unknown> = {};
 
-	// Build provider-specific options.
-	let providerOptions: TypesGen.ChatModelProviderOptions | undefined;
-
-	switch (normalizedProvider) {
-		case "openai":
-		case "azure": {
-			const opts = buildOpenAIOptions(form.openai);
-			if (hasObjectKeys(opts)) {
-				providerOptions = { openai: opts };
-			}
-			break;
-		}
-		case "anthropic":
-		case "bedrock": {
-			const opts = buildAnthropicOptions(form.anthropic);
-			if (hasObjectKeys(opts)) {
-				providerOptions = { anthropic: opts };
-			}
-			break;
-		}
-		case "google": {
-			const opts = buildGoogleOptions(form.google);
-			if (hasObjectKeys(opts)) {
-				providerOptions = { google: opts };
-			}
-			break;
-		}
-		case "openaicompat": {
-			const opts = buildOpenAICompatOptions(form.openaicompat);
-			if (hasObjectKeys(opts)) {
-				providerOptions = { openaicompat: opts };
-			}
-			break;
-		}
-		case "openrouter": {
-			const opts = buildReasoningProviderOptions(form.openrouter);
-			const includeUsage = toBool(form.openrouter.includeUsage);
-			if (includeUsage !== undefined) {
-				opts.include_usage = includeUsage;
-			}
-			if (hasObjectKeys(opts)) {
-				providerOptions = { openrouter: opts };
-			}
-			break;
-		}
-		case "vercel": {
-			const opts = buildReasoningProviderOptions(form.vercel);
-			if (hasObjectKeys(opts)) {
-				providerOptions = { vercel: opts };
-			}
-			break;
+	for (const field of getGeneralFields()) {
+		const camelSegments = field.json_name.split(".").map(snakeToCamel);
+		const formValue = deepGet(form, camelSegments);
+		if (typeof formValue !== "string") continue;
+		const converted = convertFormValue(formValue, field);
+		if (converted !== undefined) {
+			deepSet(modelConfig, field.json_name.split("."), converted);
 		}
 	}
 
-	const modelConfig: TypesGen.ChatModelCallConfig = {
-		...(maxOutputTokens !== undefined
-			? { max_output_tokens: maxOutputTokens }
-			: {}),
-		...(temperature !== undefined ? { temperature } : {}),
-		...(topP !== undefined ? { top_p: topP } : {}),
-		...(topK !== undefined ? { top_k: topK } : {}),
-		...(presencePenalty !== undefined
-			? { presence_penalty: presencePenalty }
-			: {}),
-		...(frequencyPenalty !== undefined
-			? { frequency_penalty: frequencyPenalty }
-			: {}),
-		...(providerOptions ? { provider_options: providerOptions } : {}),
-	};
+	// ── Transform provider-specific fields ────────────────────
+	if (providerFormState && typeof providerFormState === "object") {
+		const providerPayload: Record<string, unknown> = {};
 
-	if (!hasObjectKeys(modelConfig as Record<string, unknown>)) {
+		for (const field of getProviderFields(resolved)) {
+			// Read the form value from the nested camelCase structure.
+			const camelSegments = field.json_name.split(".").map(snakeToCamel);
+			const formValue = deepGet(providerFormState, camelSegments);
+
+			if (typeof formValue !== "string") continue;
+			const converted = convertFormValue(formValue, field);
+			if (converted === undefined) continue;
+
+			// Write into the API payload using the snake_case
+			// json_name segments.
+			const snakeSegments = field.json_name.split(".");
+			deepSet(providerPayload, snakeSegments, converted);
+		}
+
+		if (hasObjectKeys(providerPayload)) {
+			modelConfig.provider_options = { [resolved]: providerPayload };
+		}
+	}
+
+	if (!hasObjectKeys(modelConfig)) {
 		return { fieldErrors: {} };
 	}
 
-	return { modelConfig, fieldErrors: {} };
+	return {
+		modelConfig: modelConfig as TypesGen.ChatModelCallConfig,
+		fieldErrors: {},
+	};
 };

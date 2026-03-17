@@ -1,4 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import {
 	ConversationItem,
 	Message,
@@ -7,7 +8,11 @@ import {
 	Shimmer,
 	Tool,
 } from "components/ai-elements";
-import { ChevronDownIcon, Loader2Icon } from "lucide-react";
+import { WebSearchSources } from "components/ai-elements/tool";
+import { Button } from "components/Button/Button";
+import { FileIcon } from "components/FileIcon/FileIcon";
+import { Spinner } from "components/Spinner/Spinner";
+import { ChevronDownIcon } from "lucide-react";
 import {
 	type FC,
 	memo,
@@ -17,7 +22,11 @@ import {
 	useRef,
 	useState,
 } from "react";
+import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
+import { ImageThumbnail } from "../AgentChatInput";
+import { ImageLightbox } from "../ImageLightbox";
+import type { ChatDetailError } from "../usageLimitMessage";
 import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
@@ -32,22 +41,32 @@ const ReasoningDisclosure: FC<{
 	title?: string;
 	text: string;
 	isStreaming?: boolean;
-}> = ({ id, title, text, isStreaming = false }) => {
+	urlTransform?: UrlTransform;
+}> = ({ id, title, text, isStreaming = false, urlTransform }) => {
 	const [isOpen, setIsOpen] = useState(false);
-	const hasText = text.trim().length > 0;
+	const { visibleText } = useSmoothStreamingText({
+		fullText: text,
+		isStreaming,
+		bypassSmoothing: !isStreaming,
+		streamKey: id,
+	});
+	const displayText = isStreaming ? visibleText : text;
+	const hasText = displayText.trim().length > 0;
 	const label = title ?? "Thinking";
 	const showStreamingPlaceholder = isStreaming && !hasText;
 
 	if (!title && hasText) {
 		return (
 			<div className="w-full">
-				<Response className="text-[11px] text-content-secondary">
-					{text}
+				<Response
+					className="text-[11px] text-content-secondary"
+					urlTransform={urlTransform}
+				>
+					{displayText}
 				</Response>
 			</div>
 		);
 	}
-
 	const labelContent = (
 		<span className="text-sm">
 			{showStreamingPlaceholder ? (
@@ -61,18 +80,12 @@ const ReasoningDisclosure: FC<{
 	return (
 		<div className="w-full">
 			{hasText ? (
-				<div
-					role="button"
-					tabIndex={0}
+				<button
+					type="button"
 					aria-expanded={isOpen}
 					aria-controls={id}
-					className="flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary cursor-pointer"
+					className="flex items-center gap-2 bg-transparent border-0 p-0 text-content-secondary transition-colors hover:text-content-primary cursor-pointer"
 					onClick={() => setIsOpen((prev) => !prev)}
-					onKeyDown={(event) => {
-						if (event.key === "Enter" || event.key === " ") {
-							setIsOpen((prev) => !prev);
-						}
-					}}
 				>
 					{labelContent}
 					<ChevronDownIcon
@@ -81,7 +94,7 @@ const ReasoningDisclosure: FC<{
 							isOpen ? "rotate-0" : "-rotate-90",
 						)}
 					/>
-				</div>
+				</button>
 			) : (
 				<div className="flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary">
 					{labelContent}
@@ -89,8 +102,11 @@ const ReasoningDisclosure: FC<{
 			)}
 			{isOpen && hasText ? (
 				<div id={id} className="mt-1.5">
-					<Response className="text-[11px] text-content-secondary">
-						{text}
+					<Response
+						className="text-[11px] text-content-secondary"
+						urlTransform={urlTransform}
+					>
+						{displayText}
 					</Response>
 				</div>
 			) : null}
@@ -108,6 +124,8 @@ type RenderBlockListParams = {
 	isStreaming?: boolean;
 	subagentTitles?: Map<string, string>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
+	onImageClick?: (src: string) => void;
+	urlTransform?: UrlTransform;
 };
 
 // Wrapper that runs the smooth-streaming jitter buffer on a single
@@ -116,14 +134,15 @@ type RenderBlockListParams = {
 const SmoothedResponse: FC<{
 	text: string;
 	streamKey: string;
-}> = ({ text, streamKey }) => {
+	urlTransform?: UrlTransform;
+}> = ({ text, streamKey, urlTransform }) => {
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
 		isStreaming: true,
 		bypassSmoothing: false,
 		streamKey,
 	});
-	return <Response>{visibleText}</Response>;
+	return <Response urlTransform={urlTransform}>{visibleText}</Response>;
 };
 
 type RenderBlockListResult = {
@@ -138,6 +157,8 @@ function renderBlockList({
 	isStreaming = false,
 	subagentTitles,
 	subagentStatusOverrides,
+	onImageClick,
+	urlTransform,
 }: RenderBlockListParams): RenderBlockListResult {
 	const renderedToolIDs = new Set<string>();
 	const elements = blocks
@@ -149,9 +170,13 @@ function renderBlockList({
 							key={`${keyPrefix}-response-${index}`}
 							text={block.text}
 							streamKey={keyPrefix}
+							urlTransform={urlTransform}
 						/>
 					) : (
-						<Response key={`${keyPrefix}-response-${index}`}>
+						<Response
+							key={`${keyPrefix}-response-${index}`}
+							urlTransform={urlTransform}
+						>
 							{block.text}
 						</Response>
 					);
@@ -163,7 +188,27 @@ function renderBlockList({
 							title={block.title}
 							text={block.text}
 							isStreaming={isStreaming}
+							urlTransform={urlTransform}
 						/>
+					);
+				case "file-reference":
+					return (
+						<div
+							key={`${keyPrefix}-file-reference-${index}`}
+							className="my-1 flex items-start gap-2 rounded-md border border-content-link/20 bg-content-link/5 px-2.5 py-1.5"
+						>
+							<span className="shrink-0 text-xs font-medium text-content-link">
+								{block.fileName}:
+								{block.startLine === block.endLine
+									? block.startLine
+									: `${block.startLine}\u2013${block.endLine}`}
+							</span>
+							{block.text && (
+								<span className="text-sm text-content-primary">
+									{block.text}
+								</span>
+							)}
+						</div>
 					);
 				case "tool": {
 					const tool = toolByID.get(block.id);
@@ -200,6 +245,38 @@ function renderBlockList({
 						/>
 					);
 				}
+				case "file":
+					if (block.mediaType.startsWith("image/")) {
+						const src = block.fileId
+							? `/api/experimental/chats/files/${block.fileId}`
+							: `data:${block.mediaType};base64,${block.data}`;
+						return (
+							<button
+								key={`${keyPrefix}-file-${index}`}
+								type="button"
+								aria-label="View image"
+								className="inline-block rounded-md border-0 bg-transparent p-0"
+								onClick={(e) => {
+									e.stopPropagation();
+									onImageClick?.(src);
+								}}
+							>
+								<ImageThumbnail
+									previewUrl={src}
+									name="Attached image"
+									className="cursor-pointer transition-opacity hover:opacity-80"
+								/>
+							</button>
+						);
+					}
+					return null;
+				case "sources":
+					return (
+						<WebSearchSources
+							key={`${keyPrefix}-sources-${index}`}
+							sources={block.sources}
+						/>
+					);
 				default:
 					return null;
 			}
@@ -211,13 +288,18 @@ function renderBlockList({
 const ChatMessageItem = memo<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
-	onEditUserMessage?: (messageId: number, text: string) => void;
+	onEditUserMessage?: (
+		messageId: number,
+		text: string,
+		fileBlocks?: Array<{ mediaType: string; data?: string; fileId?: string }>,
+	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
 	// overlay to indicate truncated content.
 	fadeFromBottom?: boolean;
+	urlTransform?: UrlTransform;
 }>(
 	({
 		message,
@@ -226,9 +308,11 @@ const ChatMessageItem = memo<{
 		editingMessageId,
 		savingMessageId,
 		fadeFromBottom = false,
+		urlTransform,
 	}) => {
 		const isUser = message.role === "user";
 		const isSavingMessage = savingMessageId === message.id;
+		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const toolByID = new Map(parsed.tools.map((tool) => [tool.id, tool]));
 
 		if (
@@ -240,8 +324,22 @@ const ChatMessageItem = memo<{
 			return null;
 		}
 
+		// Hide messages that consist entirely of provider-executed
+		// tool results. The parser skips these parts, so the parsed
+		// output is empty and would show a "no renderable content"
+		// fallback.
+		const parts = message.content ?? [];
+		if (
+			parts.length > 0 &&
+			parts.every((p) => p.type === "tool-result" && p.provider_executed)
+		) {
+			return null;
+		}
+
 		const hasRenderableContent =
-			parsed.blocks.length > 0 || parsed.tools.length > 0;
+			parsed.blocks.length > 0 ||
+			parsed.tools.length > 0 ||
+			parsed.sources.length > 0;
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
 		};
@@ -249,82 +347,179 @@ const ChatMessageItem = memo<{
 			blocks: parsed.blocks,
 			toolByID,
 			keyPrefix: String(message.id),
+			onImageClick: setPreviewImage,
+			urlTransform,
 		});
 		const remainingTools = parsed.tools.filter(
 			(tool) => !renderedToolIDs.has(tool.id),
 		);
 
 		return (
-			<ConversationItem {...conversationItemProps}>
-				{isUser ? (
-					<Message className="my-2 w-full max-w-none">
-						<MessageContent
-							className={cn(
-								"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-all",
-								onEditUserMessage &&
-									!isSavingMessage &&
-									"cursor-pointer hover:bg-surface-tertiary",
-								editingMessageId === message.id &&
-									"ring-2 ring-content-link/40",
-								isSavingMessage && "ring-2 ring-content-secondary/40",
-								fadeFromBottom && "relative overflow-hidden",
-							)}
-							style={
-								fadeFromBottom
-									? { maxHeight: "var(--clip-h, none)" }
-									: undefined
-							}
-							onClick={
-								onEditUserMessage && !isSavingMessage
-									? () => onEditUserMessage(message.id, parsed.markdown || "")
-									: undefined
-							}
-						>
-							<div className="flex items-start gap-2">
-								<span className="min-w-0 flex-1">{parsed.markdown || ""}</span>
-								{isSavingMessage && (
-									<Loader2Icon
-										className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary"
-										aria-label="Saving message edit"
-									/>
+			<>
+				<ConversationItem {...conversationItemProps}>
+					{isUser ? (
+						<Message className="my-2 w-full max-w-none">
+							<MessageContent
+								className={cn(
+									"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
+									onEditUserMessage &&
+										!isSavingMessage &&
+										"cursor-pointer [&:hover:not(:has(button:hover))]:bg-surface-tertiary",
+									editingMessageId === message.id &&
+										"ring-2 ring-content-link/40",
+									isSavingMessage && "ring-2 ring-content-secondary/40",
+									fadeFromBottom && "relative overflow-hidden",
 								)}
-							</div>
-							{fadeFromBottom && (
-								<div
-									className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
-									style={{
-										background:
-											"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
-									}}
-								/>
-							)}
-						</MessageContent>
-					</Message>
-				) : (
-					<Message className="w-full">
-						<MessageContent className="whitespace-normal">
-							<div className="space-y-3">
-								{orderedBlocks}
-								{remainingTools.map((tool) => (
-									<Tool
-										key={tool.id}
-										name={tool.name}
-										args={tool.args}
-										result={tool.result}
-										status={tool.status}
-										isError={tool.isError}
-									/>
-								))}
-								{!hasRenderableContent && (
-									<div className="text-xs text-content-secondary">
-										Message has no renderable content.
+								style={
+									fadeFromBottom
+										? { maxHeight: "var(--clip-h, none)" }
+										: undefined
+								}
+								onClick={
+									onEditUserMessage && !isSavingMessage
+										? () => {
+												const fileBlocks = parsed.blocks.filter(
+													(b): b is Extract<RenderBlock, { type: "file" }> =>
+														b.type === "file" &&
+														b.mediaType.startsWith("image/"),
+												);
+												onEditUserMessage(
+													message.id,
+													parsed.markdown || "",
+													fileBlocks.length > 0 ? fileBlocks : undefined,
+												);
+											}
+										: undefined
+								}
+							>
+								<div className="flex flex-col gap-1.5">
+									<div className="flex items-start gap-2">
+										<span className="min-w-0 flex-1">
+											{parsed.markdown || ""}
+										</span>
+										{isSavingMessage && (
+											<Spinner
+												className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-secondary"
+												aria-label="Saving message edit"
+												loading
+											/>
+										)}
 									</div>
-								)}
-							</div>
-						</MessageContent>
-					</Message>
+									{(() => {
+										const imageBlocks = parsed.blocks.filter(
+											(b): b is Extract<RenderBlock, { type: "file" }> =>
+												b.type === "file" && b.mediaType.startsWith("image/"),
+										);
+										if (imageBlocks.length === 0) return null;
+										return (
+											<div className="mt-2 flex flex-wrap gap-2">
+												{imageBlocks.map((block, i) => {
+													const src = block.fileId
+														? `/api/experimental/chats/files/${block.fileId}`
+														: `data:${block.mediaType};base64,${block.data}`;
+													return (
+														<button
+															key={`user-file-${i}`}
+															type="button"
+															className="inline-block rounded-md border-0 bg-transparent p-0"
+															onClick={(e) => {
+																e.stopPropagation();
+																setPreviewImage(src);
+															}}
+														>
+															<ImageThumbnail
+																previewUrl={src}
+																name="Attached image"
+																className="cursor-pointer transition-opacity hover:opacity-80"
+															/>
+														</button>
+													);
+												})}
+											</div>
+										);
+									})()}
+									{(() => {
+										const fileRefBlocks = parsed.blocks.filter(
+											(
+												b,
+											): b is Extract<
+												RenderBlock,
+												{ type: "file-reference" }
+											> => b.type === "file-reference",
+										);
+										if (fileRefBlocks.length === 0) return null;
+										return (
+											<div className="flex flex-col gap-1 border-t border-border-default pt-1.5">
+												{fileRefBlocks.map((dc, i) => (
+													<div
+														key={i}
+														className="flex items-start gap-2 rounded border border-content-link/20 bg-content-link/5 px-2 py-1"
+													>
+														<FileIcon
+															fileName={
+																dc.fileName.split("/").pop() || dc.fileName
+															}
+															className="shrink-0"
+														/>
+														<span className="shrink-0 text-2xs font-mono font-medium text-content-link">
+															{dc.fileName.split("/").pop()}:
+															{dc.startLine === dc.endLine
+																? dc.startLine
+																: `${dc.startLine}\u2013${dc.endLine}`}
+														</span>
+														{dc.text && (
+															<span className="text-2xs text-content-primary">
+																{dc.text}
+															</span>
+														)}
+													</div>
+												))}
+											</div>
+										);
+									})()} {fadeFromBottom && (
+										<div
+											className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
+											style={{
+												background:
+													"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
+											}}
+										/>
+									)}
+								</div>
+							</MessageContent>
+						</Message>
+					) : (
+						<Message className="w-full">
+							<MessageContent className="whitespace-normal">
+								<div className="space-y-3">
+									{orderedBlocks}
+									{remainingTools.map((tool) => (
+										<Tool
+											key={tool.id}
+											name={tool.name}
+											args={tool.args}
+											result={tool.result}
+											status={tool.status}
+											isError={tool.isError}
+										/>
+									))}
+									{!hasRenderableContent && (
+										<div className="text-xs text-content-secondary">
+											Message has no renderable content.
+										</div>
+									)}
+								</div>
+							</MessageContent>
+						</Message>
+					)}
+				</ConversationItem>
+				{previewImage && (
+					<ImageLightbox
+						src={previewImage}
+						onClose={() => setPreviewImage(null)}
+					/>
 				)}
-			</ConversationItem>
+			</>
 		);
 	},
 );
@@ -337,6 +532,7 @@ export const StreamingOutput = memo<{
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	showInitialPlaceholder?: boolean;
 	retryState?: { attempt: number; error: string } | null;
+	urlTransform?: UrlTransform;
 }>(
 	({
 		streamState,
@@ -345,6 +541,7 @@ export const StreamingOutput = memo<{
 		subagentStatusOverrides,
 		showInitialPlaceholder = false,
 		retryState,
+		urlTransform,
 	}) => {
 		const conversationItemProps = { role: "assistant" as const };
 		const toolByID = new Map(streamTools.map((tool) => [tool.id, tool]));
@@ -356,6 +553,7 @@ export const StreamingOutput = memo<{
 			isStreaming: true,
 			subagentTitles,
 			subagentStatusOverrides,
+			urlTransform,
 		});
 		const remainingTools = streamTools.filter(
 			(tool) => !renderedToolIDs.has(tool.id),
@@ -411,7 +609,11 @@ StreamingOutput.displayName = "StreamingOutput";
 const StickyUserMessage: FC<{
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
-	onEditUserMessage?: (messageId: number, text: string) => void;
+	onEditUserMessage?: (
+		messageId: number,
+		text: string,
+		fileBlocks?: Array<{ mediaType: string; data?: string; fileId?: string }>,
+	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
 }> = ({
@@ -546,8 +748,16 @@ const StickyUserMessage: FC<{
 	}, [isStuck]);
 
 	const handleEditUserMessage = onEditUserMessage
-		? (messageId: number, text: string) => {
-				onEditUserMessage(messageId, text);
+		? (
+				messageId: number,
+				text: string,
+				fileBlocks?: Array<{
+					mediaType: string;
+					data?: string;
+					fileId?: string;
+				}>,
+			) => {
+				onEditUserMessage(messageId, text, fileBlocks);
 				requestAnimationFrame(() => {
 					const sentinel = sentinelRef.current;
 					if (!sentinel) return;
@@ -646,7 +856,7 @@ const StickyUserMessage: FC<{
 	);
 };
 
-type ConversationTimelineProps = {
+interface ConversationTimelineProps {
 	isEmpty: boolean;
 	hasMoreMessages: boolean;
 	loadMoreSentinelRef: RefObject<HTMLDivElement | null>;
@@ -658,11 +868,17 @@ type ConversationTimelineProps = {
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	retryState?: { attempt: number; error: string } | null;
 	isAwaitingFirstStreamChunk: boolean;
-	detailErrorMessage?: string | null;
-	onEditUserMessage?: (messageId: number, text: string) => void;
+	detailError?: ChatDetailError | null;
+	onOpenAnalytics?: () => void;
+	onEditUserMessage?: (
+		messageId: number,
+		text: string,
+		fileBlocks?: Array<{ mediaType: string; data?: string; fileId?: string }>,
+	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
-};
+	urlTransform?: UrlTransform;
+}
 
 export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	isEmpty,
@@ -676,13 +892,17 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	subagentStatusOverrides,
 	retryState,
 	isAwaitingFirstStreamChunk,
-	detailErrorMessage,
+	detailError,
+	onOpenAnalytics,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
+	urlTransform,
 }) => {
 	const shouldRenderStreamInLastSection =
 		hasStreamOutput && parsedSections.length > 0;
+	const isUsageLimitError = detailError?.kind === "usage-limit";
+	const showUsageAction = onOpenAnalytics !== undefined && isUsageLimitError;
 
 	return (
 		<div className="mx-auto w-full max-w-3xl py-6">
@@ -726,6 +946,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 											message={message}
 											parsed={parsed}
 											savingMessageId={savingMessageId}
+											urlTransform={urlTransform}
 										/>
 									),
 								)}
@@ -738,6 +959,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 											subagentStatusOverrides={subagentStatusOverrides}
 											showInitialPlaceholder={isAwaitingFirstStreamChunk}
 											retryState={retryState}
+											urlTransform={urlTransform}
 										/>
 									)}
 							</div>
@@ -751,14 +973,25 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 							subagentStatusOverrides={subagentStatusOverrides}
 							showInitialPlaceholder={isAwaitingFirstStreamChunk}
 							retryState={retryState}
+							urlTransform={urlTransform}
 						/>
 					)}
 				</div>
 			)}
-			{detailErrorMessage && (
-				<div className="mt-4 rounded-md border border-border-destructive bg-surface-red px-3 py-2 text-xs text-content-destructive">
-					{detailErrorMessage}
-				</div>
+			{detailError && (
+				<Alert
+					severity={isUsageLimitError ? "info" : "error"}
+					className="py-2"
+					actions={
+						showUsageAction && (
+							<Button variant="subtle" size="sm" onClick={onOpenAnalytics}>
+								View Usage
+							</Button>
+						)
+					}
+				>
+					{detailError.message}
+				</Alert>
 			)}
 		</div>
 	);

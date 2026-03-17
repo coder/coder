@@ -15,8 +15,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -115,43 +115,46 @@ func (m *fakeClient) deleteWorkspace(ctx context.Context, workspaceID uuid.UUID)
 	return nil
 }
 
-// fakeAppStatusPatcher implements the appStatusPatcher interface for testing
-type fakeAppStatusPatcher struct {
+// fakeAppStatusUpdater implements the appStatusUpdater interface for testing.
+type fakeAppStatusUpdater struct {
 	t          *testing.T
 	logger     slog.Logger
 	agentToken string
 
 	// Channels for controlling the behavior
-	patchStatusCalls  chan agentsdk.PatchAppStatus
-	patchStatusErrors chan error
+	updateStatusCalls  chan *agentproto.UpdateAppStatusRequest
+	updateStatusErrors chan error
 }
 
-func newFakeAppStatusPatcher(t *testing.T) *fakeAppStatusPatcher {
-	return &fakeAppStatusPatcher{
-		t:                 t,
-		patchStatusCalls:  make(chan agentsdk.PatchAppStatus),
-		patchStatusErrors: make(chan error, 1),
+func newFakeAppStatusUpdater(t *testing.T) *fakeAppStatusUpdater {
+	return &fakeAppStatusUpdater{
+		t:                  t,
+		updateStatusCalls:  make(chan *agentproto.UpdateAppStatusRequest),
+		updateStatusErrors: make(chan error, 1),
 	}
 }
 
-func (p *fakeAppStatusPatcher) initialize(logger slog.Logger, agentToken string) {
-	p.logger = logger
-	p.agentToken = agentToken
+func (u *fakeAppStatusUpdater) initialize(_ context.Context, logger slog.Logger, agentToken string) error {
+	u.logger = logger
+	u.agentToken = agentToken
+	return nil
 }
 
-func (p *fakeAppStatusPatcher) patchAppStatus(ctx context.Context, req agentsdk.PatchAppStatus) error {
-	assert.NotEmpty(p.t, p.agentToken)
-	p.logger.Debug(ctx, "called fake PatchAppStatus", slog.F("req", req))
-	// Send the request to the channel so tests can verify it
+func (*fakeAppStatusUpdater) close() error {
+	return nil
+}
+
+func (u *fakeAppStatusUpdater) updateAppStatus(ctx context.Context, req *agentproto.UpdateAppStatusRequest) error {
+	assert.NotEmpty(u.t, u.agentToken)
+	u.logger.Debug(ctx, "called fake UpdateAppStatus", slog.F("req", req))
 	select {
-	case p.patchStatusCalls <- req:
+	case u.updateStatusCalls <- req:
 	case <-ctx.Done():
 		return ctx.Err()
 	}
 
-	// Check if there's an error to return
 	select {
-	case err := <-p.patchStatusErrors:
+	case err := <-u.updateStatusErrors:
 		return err
 	default:
 		return nil
@@ -165,7 +168,7 @@ func TestRunner_Run(t *testing.T) {
 
 	mClock := quartz.NewMock(t)
 	fClient := newFakeClient(t)
-	fPatcher := newFakeAppStatusPatcher(t)
+	fUpdater := newFakeAppStatusUpdater(t)
 	templateID := uuid.UUID{5, 6, 7, 8}
 	workspaceName := "test-workspace"
 	appSlug := "test-app"
@@ -190,13 +193,14 @@ func TestRunner_Run(t *testing.T) {
 	}
 	runner := &Runner{
 		client:      fClient,
-		patcher:     fPatcher,
+		updater:     fUpdater,
 		cfg:         cfg,
 		clock:       mClock,
+		randFloat64: func() float64 { return 0.5 }, // not random in tests
 		reportTimes: make(map[int]time.Time),
 	}
 
-	reportTickerTrap := mClock.Trap().TickerFunc("reportTaskStatus")
+	reportTickerTrap := mClock.Trap().NewTimer("reportTaskStatus")
 	defer reportTickerTrap.Close()
 	sinceTrap := mClock.Trap().Since("watchWorkspaceUpdates")
 	defer sinceTrap.Close()
@@ -224,17 +228,17 @@ func TestRunner_Run(t *testing.T) {
 	// Wait for the initial TickerFunc call before advancing time, otherwise our ticks will be off.
 	reportTickerTrap.MustWait(ctx).MustRelease(ctx)
 
-	// at this point, the patcher must be initialized
-	require.Equal(t, testAgentToken, fPatcher.agentToken)
+	// at this point, the updater must be initialized
+	require.Equal(t, testAgentToken, fUpdater.agentToken)
 
 	updateDelay := time.Duration(0)
 	for i := 0; i < 4; i++ {
 		tickWaiter := mClock.Advance((10 * time.Second) - updateDelay)
 
-		patchCall := testutil.RequireReceive(ctx, t, fPatcher.patchStatusCalls)
-		require.Equal(t, appSlug, patchCall.AppSlug)
-		require.Equal(t, fmt.Sprintf("scaletest status update:%d", i), patchCall.Message)
-		require.Equal(t, codersdk.WorkspaceAppStatusStateWorking, patchCall.State)
+		updateCall := testutil.RequireReceive(ctx, t, fUpdater.updateStatusCalls)
+		require.Equal(t, appSlug, updateCall.Slug)
+		require.Equal(t, fmt.Sprintf("scaletest status update:%d", i), updateCall.Message)
+		require.Equal(t, agentproto.UpdateAppStatusRequest_WORKING, updateCall.State)
 		tickWaiter.MustWait(ctx)
 
 		// Send workspace update 1, 2, 3, or 4 seconds after the report
@@ -287,7 +291,7 @@ func TestRunner_RunMissedUpdate(t *testing.T) {
 
 	mClock := quartz.NewMock(t)
 	fClient := newFakeClient(t)
-	fPatcher := newFakeAppStatusPatcher(t)
+	fUpdater := newFakeAppStatusUpdater(t)
 	templateID := uuid.UUID{5, 6, 7, 8}
 	workspaceName := "test-workspace"
 	appSlug := "test-app"
@@ -312,13 +316,14 @@ func TestRunner_RunMissedUpdate(t *testing.T) {
 	}
 	runner := &Runner{
 		client:      fClient,
-		patcher:     fPatcher,
+		updater:     fUpdater,
 		cfg:         cfg,
 		clock:       mClock,
+		randFloat64: func() float64 { return 0.5 }, // not random in tests
 		reportTimes: make(map[int]time.Time),
 	}
 
-	tickerTrap := mClock.Trap().TickerFunc("reportTaskStatus")
+	tickerTrap := mClock.Trap().NewTimer("reportTaskStatus")
 	defer tickerTrap.Close()
 	sinceTrap := mClock.Trap().Since("watchWorkspaceUpdates")
 	defer sinceTrap.Close()
@@ -349,10 +354,10 @@ func TestRunner_RunMissedUpdate(t *testing.T) {
 	updateDelay := time.Duration(0)
 	for i := 0; i < 4; i++ {
 		tickWaiter := mClock.Advance((10 * time.Second) - updateDelay)
-		patchCall := testutil.RequireReceive(testCtx, t, fPatcher.patchStatusCalls)
-		require.Equal(t, appSlug, patchCall.AppSlug)
-		require.Equal(t, fmt.Sprintf("scaletest status update:%d", i), patchCall.Message)
-		require.Equal(t, codersdk.WorkspaceAppStatusStateWorking, patchCall.State)
+		updateCall := testutil.RequireReceive(testCtx, t, fUpdater.updateStatusCalls)
+		require.Equal(t, appSlug, updateCall.Slug)
+		require.Equal(t, fmt.Sprintf("scaletest status update:%d", i), updateCall.Message)
+		require.Equal(t, agentproto.UpdateAppStatusRequest_WORKING, updateCall.State)
 		tickWaiter.MustWait(testCtx)
 
 		// Send workspace update 1, 2, 3, or 4 seconds after the report
@@ -412,7 +417,7 @@ func TestRunner_Run_WithErrors(t *testing.T) {
 
 	mClock := quartz.NewMock(t)
 	fClient := newFakeClient(t)
-	fPatcher := newFakeAppStatusPatcher(t)
+	fUpdater := newFakeAppStatusUpdater(t)
 	templateID := uuid.UUID{5, 6, 7, 8}
 	workspaceName := "test-workspace"
 	appSlug := "test-app"
@@ -437,13 +442,14 @@ func TestRunner_Run_WithErrors(t *testing.T) {
 	}
 	runner := &Runner{
 		client:      fClient,
-		patcher:     fPatcher,
+		updater:     fUpdater,
 		cfg:         cfg,
 		clock:       mClock,
+		randFloat64: func() float64 { return 0.5 }, // not random in tests
 		reportTimes: make(map[int]time.Time),
 	}
 
-	tickerTrap := mClock.Trap().TickerFunc("reportTaskStatus")
+	tickerTrap := mClock.Trap().NewTimer("reportTaskStatus")
 	defer tickerTrap.Close()
 	buildTickerTrap := mClock.Trap().TickerFunc("createExternalWorkspace")
 	defer buildTickerTrap.Close()
@@ -467,8 +473,8 @@ func TestRunner_Run_WithErrors(t *testing.T) {
 
 	for i := 0; i < 4; i++ {
 		tickWaiter := mClock.Advance(10 * time.Second)
-		testutil.RequireSend(testCtx, t, fPatcher.patchStatusErrors, xerrors.New("a bad thing happened"))
-		_ = testutil.RequireReceive(testCtx, t, fPatcher.patchStatusCalls)
+		testutil.RequireSend(testCtx, t, fUpdater.updateStatusErrors, xerrors.New("a bad thing happened"))
+		_ = testutil.RequireReceive(testCtx, t, fUpdater.updateStatusCalls)
 		tickWaiter.MustWait(testCtx)
 	}
 
@@ -513,7 +519,7 @@ func TestRunner_Run_BuildFailed(t *testing.T) {
 
 	mClock := quartz.NewMock(t)
 	fClient := newFakeClient(t)
-	fPatcher := newFakeAppStatusPatcher(t)
+	fUpdater := newFakeAppStatusUpdater(t)
 	templateID := uuid.UUID{5, 6, 7, 8}
 	workspaceName := "test-workspace"
 	appSlug := "test-app"
@@ -538,9 +544,10 @@ func TestRunner_Run_BuildFailed(t *testing.T) {
 	}
 	runner := &Runner{
 		client:      fClient,
-		patcher:     fPatcher,
+		updater:     fUpdater,
 		cfg:         cfg,
 		clock:       mClock,
+		randFloat64: func() float64 { return 0.5 }, // not random in tests
 		reportTimes: make(map[int]time.Time),
 	}
 
@@ -670,10 +677,11 @@ func TestRunner_Cleanup(t *testing.T) {
 	}
 
 	runner := &Runner{
-		client:  fakeClient,
-		patcher: newFakeAppStatusPatcher(t),
-		cfg:     cfg,
-		clock:   quartz.NewMock(t),
+		client:      fakeClient,
+		updater:     newFakeAppStatusUpdater(t),
+		cfg:         cfg,
+		clock:       quartz.NewMock(t),
+		randFloat64: func() float64 { return 0.5 }, // not random in tests
 	}
 
 	logWriter := testutil.NewTestLogWriter(t)

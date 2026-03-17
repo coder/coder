@@ -1,12 +1,13 @@
 import { getErrorMessage } from "api/errors";
 import { Button } from "components/Button/Button";
+import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useWebpushNotifications } from "contexts/useWebpushNotifications";
-import { BellIcon, BellOffIcon, Loader2Icon } from "lucide-react";
+import { BellIcon, BellOffIcon } from "lucide-react";
 import type { FC } from "react";
 import { toast } from "sonner";
 
@@ -21,17 +22,12 @@ export const WebPushButton: FC = () => {
 		try {
 			if (webPush.subscribed) {
 				await webPush.unsubscribe();
-				toast.success("Notifications disabled.");
 			} else {
 				await webPush.subscribe();
-				toast.success("Notifications enabled.");
 			}
 		} catch (error) {
-			if (webPush.subscribed) {
-				toast.error(getErrorMessage(error, "Failed to disable notifications."));
-			} else {
-				toast.error(getErrorMessage(error, "Failed to enable notifications."));
-			}
+			const action = webPush.subscribed ? "disable" : "enable";
+			toast.error(getErrorMessage(error, `Failed to ${action} notifications.`));
 		}
 	};
 
@@ -43,10 +39,15 @@ export const WebPushButton: FC = () => {
 					size="icon"
 					disabled={webPush.loading}
 					onClick={handleClick}
+					aria-label={
+						webPush.subscribed
+							? "Disable notifications"
+							: "Enable notifications"
+					}
 					className="h-7 w-7 text-content-secondary hover:text-content-primary"
 				>
 					{webPush.loading ? (
-						<Loader2Icon className="animate-spin" />
+						<Spinner size="sm" loading />
 					) : webPush.subscribed ? (
 						<BellIcon className="text-content-success" />
 					) : (

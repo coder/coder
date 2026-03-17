@@ -8,6 +8,7 @@ import (
 	"storj.io/drpc/drpcconn"
 
 	"github.com/coder/coder/v2/agent/agentsocket/proto"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/unit"
 )
 
@@ -130,6 +131,11 @@ func (c *Client) SyncStatus(ctx context.Context, unitName unit.ID) (SyncStatusRe
 		IsReady:      resp.IsReady,
 		Dependencies: dependencies,
 	}, nil
+}
+
+// UpdateAppStatus forwards an app status update to coderd via the agent.
+func (c *Client) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
+	return c.client.UpdateAppStatus(ctx, req)
 }
 
 // SyncStatusResponse contains the status information for a unit.

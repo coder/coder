@@ -138,7 +138,7 @@ type CreateUserRequest struct {
 }
 
 type CreateUserRequestWithOrgs struct {
-	Email    string `json:"email" validate:"required,email" format:"email"`
+	Email    string `json:"email" validate:"required_unless=ServiceAccount true,omitempty,email" format:"email"`
 	Username string `json:"username" validate:"required,username"`
 	Name     string `json:"name" validate:"user_real_name"`
 	Password string `json:"password"`
@@ -148,6 +148,8 @@ type CreateUserRequestWithOrgs struct {
 	UserStatus *UserStatus `json:"user_status"`
 	// OrganizationIDs is a list of organization IDs that the user should be a member of.
 	OrganizationIDs []uuid.UUID `json:"organization_ids" validate:"" format:"uuid"`
+	// Service accounts are admin-managed accounts that cannot login.
+	ServiceAccount bool `json:"service_account,omitempty"`
 }
 
 // UnmarshalJSON implements the unmarshal for the legacy param "organization_id".
@@ -196,12 +198,13 @@ type ValidateUserPasswordResponse struct {
 type TerminalFontName string
 
 var TerminalFontNames = []TerminalFontName{
-	TerminalFontUnknown, TerminalFontIBMPlexMono, TerminalFontFiraCode,
-	TerminalFontSourceCodePro, TerminalFontJetBrainsMono,
+	TerminalFontUnknown, TerminalFontGeistMono, TerminalFontIBMPlexMono,
+	TerminalFontFiraCode, TerminalFontSourceCodePro, TerminalFontJetBrainsMono,
 }
 
 const (
 	TerminalFontUnknown       TerminalFontName = ""
+	TerminalFontGeistMono     TerminalFontName = "geist-mono"
 	TerminalFontIBMPlexMono   TerminalFontName = "ibm-plex-mono"
 	TerminalFontFiraCode      TerminalFontName = "fira-code"
 	TerminalFontSourceCodePro TerminalFontName = "source-code-pro"

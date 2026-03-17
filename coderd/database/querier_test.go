@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -1852,6 +1853,84 @@ func TestUpdateSystemUser(t *testing.T) {
 	// Then: the attempt is rejected by a postgres trigger.
 	// require.ErrorContains(t, err, "Cannot modify or delete system users")
 	require.NoError(t, err)
+}
+
+func TestInsertUserServiceAccountConstraints(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	// Happy path: should succeed.
+	t.Run("ServiceAccountWithEmptyEmailAndLoginNone", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, err := db.InsertUser(ctx, database.InsertUserParams{
+			Email:            "",
+			LoginType:        database.LoginTypeNone,
+			ID:               uuid.New(),
+			Username:         "sa-ok",
+			RBACRoles:        []string{},
+			IsServiceAccount: true,
+		})
+		require.NoError(t, err)
+		require.True(t, user.IsServiceAccount)
+		require.Empty(t, user.Email)
+	})
+
+	// Service account with a non-empty email should be rejected
+	// by the users_email_not_empty constraint.
+	t.Run("ServiceAccountWithNonEmptyEmail", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := db.InsertUser(ctx, database.InsertUserParams{
+			Email:            "sa@coder.com",
+			LoginType:        database.LoginTypeNone,
+			ID:               uuid.New(),
+			Username:         "sa-with-email",
+			RBACRoles:        []string{},
+			IsServiceAccount: true,
+		})
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckUsersEmailNotEmpty))
+	})
+
+	// A non-service-account with empty email should be rejected
+	// by the users_email_not_empty constraint.
+	t.Run("RegularUserWithEmptyEmail", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := db.InsertUser(ctx, database.InsertUserParams{
+			Email:            "",
+			LoginType:        database.LoginTypePassword,
+			ID:               uuid.New(),
+			Username:         "regular-no-email",
+			RBACRoles:        []string{},
+			IsServiceAccount: false,
+		})
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckUsersEmailNotEmpty))
+	})
+
+	// Service account with login_type!=none should be rejected
+	// by the users_service_account_login_type constraint.
+	t.Run("ServiceAccountWithPasswordLoginType", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := db.InsertUser(ctx, database.InsertUserParams{
+			Email:            "",
+			LoginType:        database.LoginTypePassword,
+			ID:               uuid.New(),
+			Username:         "sa-with-password",
+			RBACRoles:        []string{},
+			IsServiceAccount: true,
+		})
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckUsersServiceAccountLoginType))
+	})
 }
 
 func TestUserChangeLoginType(t *testing.T) {
@@ -3867,6 +3946,37 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 			queueSizes:     nil, // TODO(yevhenii): should it be empty array instead?
 			queuePositions: nil,
 		},
+		// Many daemons with identical tags should produce same results as one.
+		{
+			name: "duplicate-daemons-same-tags",
+			jobTags: []database.StringMap{
+				{"a": "1"},
+				{"a": "1", "b": "2"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1", "b": "2"},
+				{"a": "1", "b": "2"},
+				{"a": "1", "b": "2"},
+			},
+			queueSizes:     []int64{2, 2},
+			queuePositions: []int64{1, 2},
+		},
+		// Jobs that don't match any queried job's daemon should still
+		// have correct queue positions.
+		{
+			name: "irrelevant-daemons-filtered",
+			jobTags: []database.StringMap{
+				{"a": "1"},
+				{"x": "9"},
+			},
+			daemonTags: []database.StringMap{
+				{"a": "1"},
+				{"x": "9"},
+			},
+			queueSizes:     []int64{1},
+			queuePositions: []int64{1},
+			skipJobIDs:     map[int]struct{}{1: {}},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -4192,6 +4302,51 @@ func TestGetProvisionerJobsByIDsWithQueuePosition_OrderValidation(t *testing.T) 
 	assert.EqualValues(t, []int64{1, 2, 3, 4, 5, 6}, queuePositions, "expected queue positions to be set correctly")
 }
 
+func TestGetProvisionerJobsByIDsWithQueuePosition_DuplicateDaemons(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	now := dbtime.Now()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Create 3 pending jobs with the same tags.
+	jobs := make([]database.ProvisionerJob, 3)
+	for i := range jobs {
+		jobs[i] = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt: now.Add(-time.Duration(3-i) * time.Minute),
+			Tags:      database.StringMap{"scope": "organization", "owner": ""},
+		})
+	}
+
+	// Create 50 daemons with identical tags (simulates scale).
+	for i := range 50 {
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:         fmt.Sprintf("daemon_%d", i),
+			Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags:         database.StringMap{"scope": "organization", "owner": ""},
+		})
+	}
+
+	jobIDs := make([]uuid.UUID, len(jobs))
+	for i, j := range jobs {
+		jobIDs[i] = j.ID
+	}
+
+	results, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx,
+		database.GetProvisionerJobsByIDsWithQueuePositionParams{
+			IDs:             jobIDs,
+			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+		})
+	require.NoError(t, err)
+	require.Len(t, results, 3)
+
+	// All daemons have identical tags, so queue should be same as
+	// if there were just one daemon.
+	for i, r := range results {
+		assert.Equal(t, int64(3), r.QueueSize, "job %d queue size", i)
+		assert.Equal(t, int64(i+1), r.QueuePosition, "job %d queue position", i)
+	}
+}
+
 func TestGroupRemovalTrigger(t *testing.T) {
 	t.Parallel()
 
@@ -4291,8 +4446,18 @@ func TestGroupRemovalTrigger(t *testing.T) {
 
 func TestGetUserStatusCounts(t *testing.T) {
 	t.Parallel()
-	t.Skip("https://github.com/coder/internal/issues/464")
 
+	type testCase struct {
+		timezone    string
+		location    *time.Location
+		reportFrom  time.Time
+		reportUntil time.Time
+	}
+	testCases := []testCase{}
+
+	// GetUserStatusCounts is sensitive to DST transitions, because it generates timestamps exactly
+	// one day apart from one another, and specific days can have varying lengths depending on the timezone.
+	// Therefore, we test with a variety of timezones.
 	timezones := []string{
 		"America/St_Johns",
 		"Africa/Johannesburg",
@@ -4302,18 +4467,39 @@ func TestGetUserStatusCounts(t *testing.T) {
 		"Australia/Sydney",
 	}
 
+	// assemble test cases
 	for _, tz := range timezones {
-		t.Run(tz, func(t *testing.T) {
+		location, err := time.LoadLocation(tz)
+		if err != nil {
+			t.Fatalf("failed to load location: %v", err)
+		}
+
+		// Testing based on the current system date will flake due to DST transitions.
+		// Instead, we test with a fixed range of dates that is large enough to span multiple DST transitions.
+		startOfTestDateRange := time.Date(2025, 1, 1, 0, 0, 0, 0, location)
+		endOfTestDateRange := time.Date(2026, 1, 1, 0, 0, 0, 0, location)
+		// To keep the number of test cases manageable given the large date range,
+		// we test with a suitable large interval. This interval is also the length of each report.
+		// this ensures we have full coverage of the date range.
+		testDateRangeInterval := 60
+
+		for reportFrom := startOfTestDateRange; !reportFrom.After(endOfTestDateRange); reportFrom = reportFrom.AddDate(0, 0, testDateRangeInterval) {
+			testCases = append(testCases, testCase{
+				timezone:    tz,
+				location:    location,
+				reportFrom:  dbtime.Time(reportFrom),
+				reportUntil: dbtime.Time(reportFrom.AddDate(0, 0, testDateRangeInterval)),
+			})
+		}
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%s/%s", tc.timezone, tc.reportUntil.Format("2006-01-02T15:04:05Z")), func(t *testing.T) {
 			t.Parallel()
 
-			location, err := time.LoadLocation(tz)
-			if err != nil {
-				t.Fatalf("failed to load location: %v", err)
-			}
-			today := dbtime.Now().In(location)
-			createdAt := today.Add(-5 * 24 * time.Hour)
-			firstTransitionTime := createdAt.Add(2 * 24 * time.Hour)
-			secondTransitionTime := firstTransitionTime.Add(2 * 24 * time.Hour)
+			userCreatedAt := tc.reportUntil.AddDate(0, 0, -60)
+			firstStatusChange := userCreatedAt.AddDate(0, 0, 29)
+			secondStatusChange := firstStatusChange.AddDate(0, 0, 29)
 
 			t.Run("No Users", func(t *testing.T) {
 				t.Parallel()
@@ -4321,8 +4507,9 @@ func TestGetUserStatusCounts(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				counts, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-					StartTime: createdAt,
-					EndTime:   today,
+					Tz:        tc.timezone,
+					StartTime: tc.reportFrom,
+					EndTime:   tc.reportUntil,
 				})
 				require.NoError(t, err)
 				require.Empty(t, counts, "should return no results when there are no users")
@@ -4331,7 +4518,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 			t.Run("One User/Creation Only", func(t *testing.T) {
 				t.Parallel()
 
-				testCases := []struct {
+				subTestCases := []struct {
 					name   string
 					status database.UserStatus
 				}{
@@ -4349,42 +4536,56 @@ func TestGetUserStatusCounts(t *testing.T) {
 					},
 				}
 
-				for _, tc := range testCases {
-					t.Run(tc.name, func(t *testing.T) {
+				for _, stc := range subTestCases {
+					t.Run(stc.name, func(t *testing.T) {
 						t.Parallel()
 						db, _ := dbtestutil.NewDB(t)
 						ctx := testutil.Context(t, testutil.WaitShort)
 
-						// Create a user that's been in the specified status for the past 30 days
 						dbgen.User(t, db, database.User{
-							Status:    tc.status,
-							CreatedAt: createdAt,
-							UpdatedAt: createdAt,
+							Status:    stc.status,
+							CreatedAt: userCreatedAt,
+							UpdatedAt: userCreatedAt,
 						})
 
+						startTime := dbtime.StartOfDay(userCreatedAt)
+						endTime := dbtime.StartOfDay(tc.reportUntil)
 						userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-							StartTime: dbtime.StartOfDay(createdAt),
-							EndTime:   dbtime.StartOfDay(today),
+							Tz:        tc.timezone,
+							StartTime: startTime,
+							EndTime:   endTime,
 						})
 						require.NoError(t, err)
 
-						numDays := int(dbtime.StartOfDay(today).Sub(dbtime.StartOfDay(createdAt)).Hours() / 24)
-						require.Len(t, userStatusChanges, numDays+1, "should have 1 entry per day between the start and end time, including the end time")
+						numDays := 0
+						for d := startTime; !d.After(endTime); d = d.AddDate(0, 0, 1) {
+							numDays++
+						}
+						assert.Len(
+							t,
+							userStatusChanges,
+							numDays,
+							"should have 1 entry per day between the start and end time, including the end time",
+						)
 
 						for i, row := range userStatusChanges {
-							require.Equal(t, tc.status, row.Status, "should have the correct status")
-							require.True(
+							require.Equal(t, stc.status, row.Status, "should have the correct status")
+
+							rowDate := row.Date.In(tc.location)
+							expectedDate := dbtime.StartOfDay(userCreatedAt).AddDate(0, 0, i)
+							assert.True(
 								t,
-								row.Date.In(location).Equal(dbtime.StartOfDay(createdAt).AddDate(0, 0, i)),
+								rowDate.Equal(expectedDate),
 								"expected date %s, but got %s for row %n",
-								dbtime.StartOfDay(createdAt).AddDate(0, 0, i),
-								row.Date.In(location).String(),
+								expectedDate.String(),
+								rowDate.String(),
 								i,
 							)
-							if row.Date.Before(createdAt) {
-								require.Equal(t, int64(0), row.Count, "should have 0 users before creation")
+
+							if row.Date.Before(userCreatedAt) {
+								assert.Equal(t, int64(0), row.Count, "should have 0 users before creation")
 							} else {
-								require.Equal(t, int64(1), row.Count, "should have 1 user after creation")
+								assert.Equal(t, int64(1), row.Count, "should have 1 user after creation")
 							}
 						}
 					})
@@ -4394,7 +4595,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 			t.Run("One User/One Transition", func(t *testing.T) {
 				t.Parallel()
 
-				testCases := []struct {
+				subTestCases := []struct {
 					name           string
 					initialStatus  database.UserStatus
 					targetStatus   database.UserStatus
@@ -4405,15 +4606,15 @@ func TestGetUserStatusCounts(t *testing.T) {
 						initialStatus: database.UserStatusActive,
 						targetStatus:  database.UserStatusDormant,
 						expectedCounts: map[time.Time]map[database.UserStatus]int64{
-							createdAt: {
+							userCreatedAt: {
 								database.UserStatusActive:  1,
 								database.UserStatusDormant: 0,
 							},
-							firstTransitionTime: {
+							firstStatusChange: {
 								database.UserStatusDormant: 1,
 								database.UserStatusActive:  0,
 							},
-							today: {
+							tc.reportUntil: {
 								database.UserStatusDormant: 1,
 								database.UserStatusActive:  0,
 							},
@@ -4424,15 +4625,15 @@ func TestGetUserStatusCounts(t *testing.T) {
 						initialStatus: database.UserStatusActive,
 						targetStatus:  database.UserStatusSuspended,
 						expectedCounts: map[time.Time]map[database.UserStatus]int64{
-							createdAt: {
+							userCreatedAt: {
 								database.UserStatusActive:    1,
 								database.UserStatusSuspended: 0,
 							},
-							firstTransitionTime: {
+							firstStatusChange: {
 								database.UserStatusSuspended: 1,
 								database.UserStatusActive:    0,
 							},
-							today: {
+							tc.reportUntil: {
 								database.UserStatusSuspended: 1,
 								database.UserStatusActive:    0,
 							},
@@ -4443,15 +4644,15 @@ func TestGetUserStatusCounts(t *testing.T) {
 						initialStatus: database.UserStatusDormant,
 						targetStatus:  database.UserStatusActive,
 						expectedCounts: map[time.Time]map[database.UserStatus]int64{
-							createdAt: {
+							userCreatedAt: {
 								database.UserStatusDormant: 1,
 								database.UserStatusActive:  0,
 							},
-							firstTransitionTime: {
+							firstStatusChange: {
 								database.UserStatusActive:  1,
 								database.UserStatusDormant: 0,
 							},
-							today: {
+							tc.reportUntil: {
 								database.UserStatusActive:  1,
 								database.UserStatusDormant: 0,
 							},
@@ -4462,15 +4663,15 @@ func TestGetUserStatusCounts(t *testing.T) {
 						initialStatus: database.UserStatusDormant,
 						targetStatus:  database.UserStatusSuspended,
 						expectedCounts: map[time.Time]map[database.UserStatus]int64{
-							createdAt: {
+							userCreatedAt: {
 								database.UserStatusDormant:   1,
 								database.UserStatusSuspended: 0,
 							},
-							firstTransitionTime: {
+							firstStatusChange: {
 								database.UserStatusSuspended: 1,
 								database.UserStatusDormant:   0,
 							},
-							today: {
+							tc.reportUntil: {
 								database.UserStatusSuspended: 1,
 								database.UserStatusDormant:   0,
 							},
@@ -4481,15 +4682,15 @@ func TestGetUserStatusCounts(t *testing.T) {
 						initialStatus: database.UserStatusSuspended,
 						targetStatus:  database.UserStatusActive,
 						expectedCounts: map[time.Time]map[database.UserStatus]int64{
-							createdAt: {
+							userCreatedAt: {
 								database.UserStatusSuspended: 1,
 								database.UserStatusActive:    0,
 							},
-							firstTransitionTime: {
+							firstStatusChange: {
 								database.UserStatusActive:    1,
 								database.UserStatusSuspended: 0,
 							},
-							today: {
+							tc.reportUntil: {
 								database.UserStatusActive:    1,
 								database.UserStatusSuspended: 0,
 							},
@@ -4500,15 +4701,15 @@ func TestGetUserStatusCounts(t *testing.T) {
 						initialStatus: database.UserStatusSuspended,
 						targetStatus:  database.UserStatusDormant,
 						expectedCounts: map[time.Time]map[database.UserStatus]int64{
-							createdAt: {
+							userCreatedAt: {
 								database.UserStatusSuspended: 1,
 								database.UserStatusDormant:   0,
 							},
-							firstTransitionTime: {
+							firstStatusChange: {
 								database.UserStatusDormant:   1,
 								database.UserStatusSuspended: 0,
 							},
-							today: {
+							tc.reportUntil: {
 								database.UserStatusDormant:   1,
 								database.UserStatusSuspended: 0,
 							},
@@ -4516,60 +4717,60 @@ func TestGetUserStatusCounts(t *testing.T) {
 					},
 				}
 
-				for _, tc := range testCases {
-					t.Run(tc.name, func(t *testing.T) {
+				for _, stc := range subTestCases {
+					t.Run(stc.name, func(t *testing.T) {
 						t.Parallel()
 						db, _ := dbtestutil.NewDB(t)
 						ctx := testutil.Context(t, testutil.WaitShort)
 
-						// Create a user that starts with initial status
 						user := dbgen.User(t, db, database.User{
-							Status:    tc.initialStatus,
-							CreatedAt: createdAt,
-							UpdatedAt: createdAt,
+							Status:    stc.initialStatus,
+							CreatedAt: userCreatedAt,
+							UpdatedAt: userCreatedAt,
 						})
 
-						// After 2 days, change status to target status
 						user, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 							ID:        user.ID,
-							Status:    tc.targetStatus,
-							UpdatedAt: firstTransitionTime,
+							Status:    stc.targetStatus,
+							UpdatedAt: firstStatusChange,
 						})
 						require.NoError(t, err)
 
-						// Query for the last 5 days
 						userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-							StartTime: dbtime.StartOfDay(createdAt),
-							EndTime:   dbtime.StartOfDay(today),
+							Tz:        tc.timezone,
+							StartTime: dbtime.StartOfDay(userCreatedAt),
+							EndTime:   dbtime.StartOfDay(tc.reportUntil),
 						})
 						require.NoError(t, err)
 
 						for i, row := range userStatusChanges {
+							rowDate := row.Date.In(tc.location)
+							expectedDate := dbtime.StartOfDay(userCreatedAt).AddDate(0, 0, i/2)
 							require.True(
 								t,
-								row.Date.In(location).Equal(dbtime.StartOfDay(createdAt).AddDate(0, 0, i/2)),
+								rowDate.Equal(expectedDate),
 								"expected date %s, but got %s for row %n",
-								dbtime.StartOfDay(createdAt).AddDate(0, 0, i/2),
-								row.Date.In(location).String(),
+								expectedDate.String(),
+								rowDate.String(),
 								i,
 							)
 							switch {
-							case row.Date.Before(createdAt):
+							case row.Date.Before(userCreatedAt):
 								require.Equal(t, int64(0), row.Count)
-							case row.Date.Before(firstTransitionTime):
-								if row.Status == tc.initialStatus {
+							case row.Date.Before(firstStatusChange):
+								if row.Status == stc.initialStatus {
 									require.Equal(t, int64(1), row.Count)
-								} else if row.Status == tc.targetStatus {
+								} else if row.Status == stc.targetStatus {
 									require.Equal(t, int64(0), row.Count)
 								}
-							case !row.Date.After(today):
-								if row.Status == tc.initialStatus {
+							case !row.Date.After(tc.reportUntil):
+								if row.Status == stc.initialStatus {
 									require.Equal(t, int64(0), row.Count)
-								} else if row.Status == tc.targetStatus {
+								} else if row.Status == stc.targetStatus {
 									require.Equal(t, int64(1), row.Count)
 								}
 							default:
-								t.Errorf("date %q beyond expected range end %q", row.Date, today)
+								t.Errorf("date %q beyond expected range end %q", row.Date, tc.reportUntil)
 							}
 						}
 					})
@@ -4590,7 +4791,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 					user2Transition transition
 				}
 
-				testCases := []testCase{
+				subTestCases := []testCase{
 					{
 						name: "Active->Dormant and Dormant->Suspended",
 						user1Transition: transition{
@@ -4648,49 +4849,48 @@ func TestGetUserStatusCounts(t *testing.T) {
 					},
 				}
 
-				for _, tc := range testCases {
-					t.Run(tc.name, func(t *testing.T) {
+				for _, stc := range subTestCases {
+					t.Run(stc.name, func(t *testing.T) {
 						t.Parallel()
 
 						db, _ := dbtestutil.NewDB(t)
 						ctx := testutil.Context(t, testutil.WaitShort)
 
 						user1 := dbgen.User(t, db, database.User{
-							Status:    tc.user1Transition.from,
-							CreatedAt: createdAt,
-							UpdatedAt: createdAt,
+							Status:    stc.user1Transition.from,
+							CreatedAt: userCreatedAt,
+							UpdatedAt: userCreatedAt,
 						})
 						user2 := dbgen.User(t, db, database.User{
-							Status:    tc.user2Transition.from,
-							CreatedAt: createdAt,
-							UpdatedAt: createdAt,
+							Status:    stc.user2Transition.from,
+							CreatedAt: userCreatedAt,
+							UpdatedAt: userCreatedAt,
 						})
 
-						// First transition at 2 days
 						user1, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 							ID:        user1.ID,
-							Status:    tc.user1Transition.to,
-							UpdatedAt: firstTransitionTime,
+							Status:    stc.user1Transition.to,
+							UpdatedAt: firstStatusChange,
 						})
 						require.NoError(t, err)
 
-						// Second transition at 4 days
 						user2, err = db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 							ID:        user2.ID,
-							Status:    tc.user2Transition.to,
-							UpdatedAt: secondTransitionTime,
+							Status:    stc.user2Transition.to,
+							UpdatedAt: secondStatusChange,
 						})
 						require.NoError(t, err)
 
 						userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-							StartTime: dbtime.StartOfDay(createdAt),
-							EndTime:   dbtime.StartOfDay(today),
+							Tz:        tc.timezone,
+							StartTime: dbtime.StartOfDay(userCreatedAt),
+							EndTime:   dbtime.StartOfDay(tc.reportUntil),
 						})
 						require.NoError(t, err)
 						require.NotEmpty(t, userStatusChanges)
 						gotCounts := map[time.Time]map[database.UserStatus]int64{}
 						for _, row := range userStatusChanges {
-							dateInLocation := row.Date.In(location)
+							dateInLocation := row.Date.In(tc.location)
 							if gotCounts[dateInLocation] == nil {
 								gotCounts[dateInLocation] = map[database.UserStatus]int64{}
 							}
@@ -4698,30 +4898,30 @@ func TestGetUserStatusCounts(t *testing.T) {
 						}
 
 						expectedCounts := map[time.Time]map[database.UserStatus]int64{}
-						for d := dbtime.StartOfDay(createdAt); !d.After(dbtime.StartOfDay(today)); d = d.AddDate(0, 0, 1) {
+						for d := dbtime.StartOfDay(userCreatedAt); !d.After(dbtime.StartOfDay(tc.reportUntil)); d = d.AddDate(0, 0, 1) {
 							expectedCounts[d] = map[database.UserStatus]int64{}
 
 							// Default values
-							expectedCounts[d][tc.user1Transition.from] = 0
-							expectedCounts[d][tc.user1Transition.to] = 0
-							expectedCounts[d][tc.user2Transition.from] = 0
-							expectedCounts[d][tc.user2Transition.to] = 0
+							expectedCounts[d][stc.user1Transition.from] = 0
+							expectedCounts[d][stc.user1Transition.to] = 0
+							expectedCounts[d][stc.user2Transition.from] = 0
+							expectedCounts[d][stc.user2Transition.to] = 0
 
 							// Counted Values
 							switch {
-							case d.Before(createdAt):
+							case d.Before(userCreatedAt):
 								continue
-							case d.Before(firstTransitionTime):
-								expectedCounts[d][tc.user1Transition.from]++
-								expectedCounts[d][tc.user2Transition.from]++
-							case d.Before(secondTransitionTime):
-								expectedCounts[d][tc.user1Transition.to]++
-								expectedCounts[d][tc.user2Transition.from]++
-							case d.Before(today):
-								expectedCounts[d][tc.user1Transition.to]++
-								expectedCounts[d][tc.user2Transition.to]++
+							case d.Before(firstStatusChange):
+								expectedCounts[d][stc.user1Transition.from]++
+								expectedCounts[d][stc.user2Transition.from]++
+							case d.Before(secondStatusChange):
+								expectedCounts[d][stc.user1Transition.to]++
+								expectedCounts[d][stc.user2Transition.from]++
+							case !d.After(tc.reportUntil):
+								expectedCounts[d][stc.user1Transition.to]++
+								expectedCounts[d][stc.user2Transition.to]++
 							default:
-								t.Fatalf("date %q beyond expected range end %q", d, today)
+								t.Fatalf("date %q beyond expected range end %q", d, tc.reportUntil)
 							}
 						}
 
@@ -4737,23 +4937,24 @@ func TestGetUserStatusCounts(t *testing.T) {
 
 				_ = dbgen.User(t, db, database.User{
 					Status:    database.UserStatusActive,
-					CreatedAt: createdAt,
-					UpdatedAt: createdAt,
+					CreatedAt: userCreatedAt,
+					UpdatedAt: userCreatedAt,
 				})
 
 				userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-					StartTime: dbtime.StartOfDay(createdAt.Add(time.Hour * 24)),
-					EndTime:   dbtime.StartOfDay(today),
+					Tz:        tc.timezone,
+					StartTime: dbtime.StartOfDay(userCreatedAt.Add(time.Hour * 24)),
+					EndTime:   dbtime.StartOfDay(tc.reportUntil),
 				})
 				require.NoError(t, err)
 
 				for i, row := range userStatusChanges {
 					require.True(
 						t,
-						row.Date.In(location).Equal(dbtime.StartOfDay(createdAt).AddDate(0, 0, 1+i)),
+						row.Date.In(tc.location).Equal(dbtime.StartOfDay(userCreatedAt).AddDate(0, 0, 1+i)),
 						"expected date %s, but got %s for row %n",
-						dbtime.StartOfDay(createdAt).AddDate(0, 0, 1+i),
-						row.Date.In(location).String(),
+						dbtime.StartOfDay(userCreatedAt).AddDate(0, 0, 1+i),
+						row.Date.In(tc.location).String(),
 						i,
 					)
 					require.Equal(t, database.UserStatusActive, row.Status)
@@ -4763,21 +4964,25 @@ func TestGetUserStatusCounts(t *testing.T) {
 
 			t.Run("User deleted before query range", func(t *testing.T) {
 				t.Parallel()
-				db, _ := dbtestutil.NewDB(t)
+				db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				user := dbgen.User(t, db, database.User{
 					Status:    database.UserStatusActive,
-					CreatedAt: createdAt,
-					UpdatedAt: createdAt,
+					CreatedAt: userCreatedAt,
+					UpdatedAt: userCreatedAt,
 				})
 
-				err = db.UpdateUserDeletedByID(ctx, user.ID)
+				err := db.UpdateUserDeletedByID(ctx, user.ID)
+				require.NoError(t, err)
+
+				_, err = sqlDB.ExecContext(ctx, "UPDATE user_deleted SET deleted_at = $1 WHERE user_id = $2", tc.reportUntil, user.ID)
 				require.NoError(t, err)
 
 				userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-					StartTime: today.Add(time.Hour * 24),
-					EndTime:   today.Add(time.Hour * 48),
+					Tz:        tc.timezone,
+					StartTime: tc.reportUntil.Add(time.Hour * 24),
+					EndTime:   tc.reportUntil.Add(time.Hour * 48),
 				})
 				require.NoError(t, err)
 				require.Empty(t, userStatusChanges)
@@ -4786,37 +4991,45 @@ func TestGetUserStatusCounts(t *testing.T) {
 			t.Run("User deleted during query range", func(t *testing.T) {
 				t.Parallel()
 
-				db, _ := dbtestutil.NewDB(t)
+				db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				user := dbgen.User(t, db, database.User{
 					Status:    database.UserStatusActive,
-					CreatedAt: createdAt,
-					UpdatedAt: createdAt,
+					CreatedAt: userCreatedAt,
+					UpdatedAt: userCreatedAt,
 				})
 
 				err := db.UpdateUserDeletedByID(ctx, user.ID)
 				require.NoError(t, err)
 
+				_, err = sqlDB.ExecContext(ctx, "UPDATE user_deleted SET deleted_at = $1 WHERE user_id = $2", tc.reportUntil, user.ID)
+				require.NoError(t, err)
+
 				userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-					StartTime: dbtime.StartOfDay(createdAt),
-					EndTime:   dbtime.StartOfDay(today.Add(time.Hour * 24)),
+					Tz:        tc.timezone,
+					StartTime: dbtime.StartOfDay(userCreatedAt),
+					EndTime:   dbtime.StartOfDay(tc.reportUntil.Add(time.Hour * 24)),
 				})
 				require.NoError(t, err)
 				for i, row := range userStatusChanges {
-					require.True(
+					row.Date = row.Date.In(tc.location)
+					userStatusChanges[i] = row
+					target := dbtime.StartOfDay(userCreatedAt).AddDate(0, 0, i)
+					assert.True(
 						t,
-						row.Date.In(location).Equal(dbtime.StartOfDay(createdAt).AddDate(0, 0, i)),
+						row.Date.Equal(target),
 						"expected date %s, but got %s for row %n",
-						dbtime.StartOfDay(createdAt).AddDate(0, 0, i),
-						row.Date.In(location).String(),
+						target.String(),
+						row.Date.String(),
 						i,
 					)
 					require.Equal(t, database.UserStatusActive, row.Status)
 					switch {
-					case row.Date.Before(createdAt):
+					case row.Date.Before(userCreatedAt):
 						require.Equal(t, int64(0), row.Count)
-					case i == len(userStatusChanges)-1:
+					case !row.Date.Before(tc.reportUntil):
+						// On or after the deletion date, the user should not be counted.
 						require.Equal(t, int64(0), row.Count)
 					default:
 						require.Equal(t, int64(1), row.Count)
@@ -8355,7 +8568,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent should still authenticate during stop build execution.
-		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent.AuthToken)
+		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
 		require.NoError(t, err, "agent should authenticate during stop build execution")
 		require.Equal(t, agent.ID, row.WorkspaceAgent.ID)
 		require.Equal(t, startBuild.ID, row.WorkspaceBuild.ID, "should return start build, not stop build")
@@ -8413,7 +8626,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent should NOT authenticate after stop job completes.
-		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent.AuthToken)
+		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent should not authenticate after stop job completes")
 	})
 
@@ -8467,7 +8680,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent should NOT authenticate (start build failed).
-		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent.AuthToken)
+		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent from failed start build should not authenticate")
 	})
 
@@ -8522,7 +8735,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent should authenticate during pending stop build.
-		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent.AuthToken)
+		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent.AuthToken)
 		require.NoError(t, err, "agent should authenticate during pending stop build")
 		require.Equal(t, agent.ID, row.WorkspaceAgent.ID)
 		require.Equal(t, startBuild.ID, row.WorkspaceBuild.ID, "should return start build")
@@ -8619,13 +8832,13 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent from build 3 should authenticate.
-		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent2.AuthToken)
+		row, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent2.AuthToken)
 		require.NoError(t, err, "agent from most recent start should authenticate during stop")
 		require.Equal(t, agent2.ID, row.WorkspaceAgent.ID)
 		require.Equal(t, startBuild2.ID, row.WorkspaceBuild.ID)
 
 		// Agent from build 1 should NOT authenticate.
-		_, err = db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent1.AuthToken)
+		_, err = db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent1.AuthToken)
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent from old cycle should not authenticate")
 	})
 
@@ -8679,7 +8892,7 @@ func TestGetAuthenticatedWorkspaceAgentAndBuildByAuthToken_ShutdownScripts(t *te
 		})
 
 		// Agent from build 1 should NOT authenticate (latest is not STOP).
-		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent1.AuthToken)
+		_, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(ctx, agent1.AuthToken)
 		require.ErrorIs(t, err, sql.ErrNoRows, "agent should not authenticate when latest build is not STOP")
 	})
 }
@@ -8782,4 +8995,488 @@ func TestInsertWorkspaceAgentDevcontainers(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInsertChatMessage(t *testing.T) {
+	t.Parallel()
+
+	insertModelConfig := func(
+		t *testing.T,
+		store database.Store,
+		ctx context.Context,
+		userID uuid.UUID,
+		provider string,
+		model string,
+		displayName string,
+		isDefault bool,
+	) database.ChatModelConfig {
+		t.Helper()
+
+		modelConfig, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+			Provider:             provider,
+			Model:                model,
+			DisplayName:          displayName,
+			CreatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: userID, Valid: true},
+			Enabled:              true,
+			IsDefault:            isDefault,
+			ContextLimit:         128000,
+			CompressionThreshold: 80,
+			Options:              json.RawMessage(`{}`),
+		})
+		require.NoError(t, err)
+
+		return modelConfig
+	}
+
+	setupChat := func(t *testing.T) (database.Store, context.Context, database.User, database.Chat, string, database.ChatModelConfig) {
+		t.Helper()
+
+		store, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+
+		dbgen.Organization(t, store, database.Organization{})
+		user := dbgen.User(t, store, database.User{})
+		provider := "openai"
+
+		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+			Provider:    provider,
+			DisplayName: "OpenAI",
+			APIKey:      "test-key",
+			Enabled:     true,
+		})
+		require.NoError(t, err)
+
+		modelConfigA := insertModelConfig(
+			t,
+			store,
+			ctx,
+			user.ID,
+			provider,
+			"test-model-a-"+uuid.NewString(),
+			"Test Model A",
+			true,
+		)
+
+		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           user.ID,
+			LastModelConfigID: modelConfigA.ID,
+			Title:             "test-chat-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+
+		return store, ctx, user, chat, provider, modelConfigA
+	}
+
+	insertMessage := func(t *testing.T, store database.Store, ctx context.Context, chatID, userID, modelConfigID uuid.UUID, content string) {
+		t.Helper()
+
+		_, err := store.InsertChatMessage(ctx, database.InsertChatMessageParams{
+			ChatID:         chatID,
+			CreatedBy:      uuid.NullUUID{UUID: userID, Valid: true},
+			ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			Role:           database.ChatMessageRoleUser,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content: pqtype.NullRawMessage{
+				RawMessage: json.RawMessage(fmt.Sprintf("%q", content)),
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	t.Run("ModelSwitchUpdatesLastModelConfigID", func(t *testing.T) {
+		t.Parallel()
+
+		store, ctx, user, chat, provider, modelConfigA := setupChat(t)
+		modelConfigB := insertModelConfig(
+			t,
+			store,
+			ctx,
+			user.ID,
+			provider,
+			"test-model-b-"+uuid.NewString(),
+			"Test Model B",
+			false,
+		)
+
+		insertMessage(t, store, ctx, chat.ID, user.ID, modelConfigB.ID, "switch models")
+
+		gotChat, err := store.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, modelConfigA.ID, chat.LastModelConfigID)
+		require.Equal(t, modelConfigB.ID, gotChat.LastModelConfigID)
+	})
+
+	t.Run("SameModelDoesNotBreakAnything", func(t *testing.T) {
+		t.Parallel()
+
+		store, ctx, user, chat, _, modelConfigA := setupChat(t)
+
+		insertMessage(t, store, ctx, chat.ID, user.ID, modelConfigA.ID, "same model")
+
+		gotChat, err := store.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, modelConfigA.ID, gotChat.LastModelConfigID)
+	})
+}
+
+func TestGetChatMessagesForPromptByChatID(t *testing.T) {
+	t.Parallel()
+
+	// This test exercises a complex CTE query for prompt
+	// reconstruction after compaction. It requires Postgres.
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+
+	// Helper: create a chat model config (required FK for chats).
+	user := dbgen.User(t, db, database.User{})
+
+	// A chat_providers row is required as a FK for model configs.
+	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+		APIKey:      "test-key",
+		Enabled:     true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "test-model",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	newChat := func(t *testing.T) database.Chat {
+		t.Helper()
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           user.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-chat-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	insertMsg := func(
+		t *testing.T,
+		chatID uuid.UUID,
+		role database.ChatMessageRole,
+		vis database.ChatMessageVisibility,
+		compressed bool,
+		content string,
+	) database.ChatMessage {
+		t.Helper()
+		msg, err := db.InsertChatMessage(ctx, database.InsertChatMessageParams{
+			ChatID:         chatID,
+			Role:           role,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			Visibility:     vis,
+			Compressed:     sql.NullBool{Bool: compressed, Valid: true},
+			Content: pqtype.NullRawMessage{
+				RawMessage: json.RawMessage(`"` + content + `"`),
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+		return msg
+	}
+
+	msgIDs := func(msgs []database.ChatMessage) []int64 {
+		ids := make([]int64, len(msgs))
+		for i, m := range msgs {
+			ids[i] = m.ID
+		}
+		return ids
+	}
+
+	t.Run("NoCompaction", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		sys := insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		usr := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "hello")
+		ast := insertMsg(t, chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false, "hi there")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, []int64{sys.ID, usr.ID, ast.ID}, msgIDs(got))
+	})
+
+	t.Run("UserOnlyVisibilityExcluded", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		// Messages with visibility=user should NOT appear in the
+		// prompt (they are only for the UI).
+		insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityUser, false, "user-only msg")
+		usr := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "hello")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		for _, m := range got {
+			require.NotEqual(t, database.ChatMessageVisibilityUser, m.Visibility,
+				"visibility=user messages should not appear in the prompt")
+		}
+		require.Contains(t, msgIDs(got), usr.ID)
+	})
+
+	t.Run("AfterCompaction", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		// Pre-compaction conversation.
+		sys := insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		preUser := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "old question")
+		preAsst := insertMsg(t, chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false, "old answer")
+
+		// Compaction messages:
+		// 1. Summary (role=user, visibility=model, compressed=true).
+		summary := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "compaction summary")
+		// 2. Compressed assistant tool-call (visibility=user).
+		insertMsg(t, chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, true, "tool call")
+		// 3. Compressed tool result (visibility=both).
+		insertMsg(t, chat.ID, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, true, "tool result")
+
+		// Post-compaction messages.
+		postUser := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "new question")
+		postAsst := insertMsg(t, chat.ID, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, false, "new answer")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		gotIDs := msgIDs(got)
+
+		// Must include: system prompt, summary, post-compaction.
+		require.Contains(t, gotIDs, sys.ID, "system prompt must be included")
+		require.Contains(t, gotIDs, summary.ID, "compaction summary must be included")
+		require.Contains(t, gotIDs, postUser.ID, "post-compaction user msg must be included")
+		require.Contains(t, gotIDs, postAsst.ID, "post-compaction assistant msg must be included")
+
+		// Must exclude: pre-compaction non-system messages.
+		require.NotContains(t, gotIDs, preUser.ID, "pre-compaction user msg must be excluded")
+		require.NotContains(t, gotIDs, preAsst.ID, "pre-compaction assistant msg must be excluded")
+
+		// Verify ordering.
+		require.Equal(t, []int64{sys.ID, summary.ID, postUser.ID, postAsst.ID}, gotIDs)
+	})
+
+	t.Run("AfterCompactionSummaryIsUserRole", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		// After compaction the summary must appear as role=user so
+		// that LLM APIs (e.g. Anthropic) see at least one
+		// non-system message in the prompt.
+		insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		summary := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "summary text")
+		newUsr := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "new question")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		hasNonSystem := false
+		for _, m := range got {
+			if m.Role != "system" {
+				hasNonSystem = true
+				break
+			}
+		}
+		require.True(t, hasNonSystem,
+			"prompt must contain at least one non-system message after compaction")
+		require.Contains(t, msgIDs(got), summary.ID)
+		require.Contains(t, msgIDs(got), newUsr.ID)
+	})
+
+	t.Run("CompressedToolResultNotPickedAsSummary", func(t *testing.T) {
+		t.Parallel()
+		chat := newChat(t)
+
+		// The CTE uses visibility='model' (exact match). If it
+		// used IN ('model','both'), the compressed tool result
+		// (visibility=both) would be picked as the "summary"
+		// instead of the actual summary.
+		insertMsg(t, chat.ID, database.ChatMessageRoleSystem, database.ChatMessageVisibilityModel, false, "system prompt")
+		summary := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityModel, true, "real summary")
+		compressedTool := insertMsg(t, chat.ID, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, true, "tool result")
+		postUser := insertMsg(t, chat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, false, "follow-up")
+
+		got, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		gotIDs := msgIDs(got)
+		require.Contains(t, gotIDs, summary.ID, "real summary must be included")
+		require.NotContains(t, gotIDs, compressedTool.ID,
+			"compressed tool result must not be included")
+		require.Contains(t, gotIDs, postUser.ID)
+	})
+}
+
+func TestGetWorkspaceBuildMetricsByResourceID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+
+		org := dbgen.Organization(t, db, database.Organization{})
+		user := dbgen.User(t, db, database.User{})
+		tmpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			TemplateID:     uuid.NullUUID{UUID: tmpl.ID, Valid: true},
+			CreatedBy:      user.ID,
+		})
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID:   org.ID,
+			TemplateID:       tmpl.ID,
+			OwnerID:          user.ID,
+			AutomaticUpdates: database.AutomaticUpdatesNever,
+		})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: tv.ID,
+			JobID:             job.ID,
+			InitiatorID:       user.ID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+
+		parentReadyAt := dbtime.Now()
+		parentStartedAt := parentReadyAt.Add(-time.Second)
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID:     resource.ID,
+			StartedAt:      sql.NullTime{Time: parentStartedAt, Valid: true},
+			ReadyAt:        sql.NullTime{Time: parentReadyAt, Valid: true},
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		})
+
+		row, err := db.GetWorkspaceBuildMetricsByResourceID(ctx, resource.ID)
+		require.NoError(t, err)
+		require.True(t, row.AllAgentsReady)
+		require.True(t, parentReadyAt.Equal(row.LastAgentReadyAt))
+		require.Equal(t, "success", row.WorstStatus)
+	})
+
+	t.Run("SubAgentExcluded", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+
+		org := dbgen.Organization(t, db, database.Organization{})
+		user := dbgen.User(t, db, database.User{})
+		tmpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			TemplateID:     uuid.NullUUID{UUID: tmpl.ID, Valid: true},
+			CreatedBy:      user.ID,
+		})
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID:   org.ID,
+			TemplateID:       tmpl.ID,
+			OwnerID:          user.ID,
+			AutomaticUpdates: database.AutomaticUpdatesNever,
+		})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: tv.ID,
+			JobID:             job.ID,
+			InitiatorID:       user.ID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+
+		parentReadyAt := dbtime.Now()
+		parentStartedAt := parentReadyAt.Add(-time.Second)
+		parentAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID:     resource.ID,
+			StartedAt:      sql.NullTime{Time: parentStartedAt, Valid: true},
+			ReadyAt:        sql.NullTime{Time: parentReadyAt, Valid: true},
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		})
+
+		// Sub-agent with ready_at 1 hour later should be excluded.
+		subAgentReadyAt := parentReadyAt.Add(time.Hour)
+		subAgentStartedAt := subAgentReadyAt.Add(-time.Second)
+		_ = dbgen.WorkspaceSubAgent(t, db, parentAgent, database.WorkspaceAgent{
+			StartedAt:      sql.NullTime{Time: subAgentStartedAt, Valid: true},
+			ReadyAt:        sql.NullTime{Time: subAgentReadyAt, Valid: true},
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+		})
+
+		row, err := db.GetWorkspaceBuildMetricsByResourceID(ctx, resource.ID)
+		require.NoError(t, err)
+		require.True(t, row.AllAgentsReady)
+		// LastAgentReadyAt should be the parent's, not the sub-agent's.
+		require.True(t, parentReadyAt.Equal(row.LastAgentReadyAt))
+		require.Equal(t, "success", row.WorstStatus)
+	})
+}
+
+// TestUpsertAISeats verifies 'UpsertAISeatState' only returns true when a new
+// row is inserted.
+func TestUpsertAISeats(t *testing.T) {
+	t.Parallel()
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	now := dbtime.Now()
+
+	user := dbgen.User(t, db, database.User{})
+	newRow, err := db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
+		UserID:        user.ID,
+		FirstUsedAt:   now.Add(time.Hour * -24),
+		LastEventType: database.AiSeatUsageReasonTask,
+	})
+	require.NoError(t, err)
+	require.True(t, newRow)
+
+	alreadyExists, err := db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
+		UserID:        user.ID,
+		FirstUsedAt:   now.Add(time.Hour * -23),
+		LastEventType: database.AiSeatUsageReasonTask,
+	})
+	require.NoError(t, err)
+	require.False(t, alreadyExists)
+
+	alreadyExists, err = db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
+		UserID:        user.ID,
+		FirstUsedAt:   now,
+		LastEventType: database.AiSeatUsageReasonTask,
+	})
+	require.NoError(t, err)
+	require.False(t, alreadyExists)
 }

@@ -178,53 +178,62 @@ export const verifyParameters = async (
 		waitUntil: "networkidle",
 	});
 
-	for (const buildParameter of expectedBuildParameters) {
-		const richParameter = richParameters.find(
-			(richParam) => richParam.name === buildParameter.name,
-		);
-		if (!richParameter) {
-			throw new Error(
-				"build parameter is expected to be present in rich parameter schema",
-			);
-		}
-
-		const parameterLabel = page.getByTestId(
-			`parameter-field-${richParameter.displayName}`,
-		);
-		await expect(parameterLabel).toBeVisible();
-
-		if (richParameter.options.length > 0) {
-			const parameterValue = parameterLabel.getByLabel(buildParameter.value);
-			const value = await parameterValue.isChecked();
-			expect(value).toBe(true);
-			continue;
-		}
-
-		switch (richParameter.type) {
-			case "bool":
-				{
-					const parameterField = parameterLabel.locator("input");
-					const value = await parameterField.isChecked();
-					expect(value.toString()).toEqual(buildParameter.value);
+	await Promise.all(
+		expectedBuildParameters.map(
+			async (buildParameter: WorkspaceBuildParameter) => {
+				const richParameter = richParameters.find(
+					(richParam) => richParam.name === buildParameter.name,
+				);
+				if (!richParameter) {
+					throw new Error(
+						"build parameter is expected to be present in rich parameter schema",
+					);
 				}
-				break;
-			case "string":
-			case "number":
-				{
-					const parameterField = parameterLabel.locator("input");
-					// Dynamic parameters can hydrate after initial render with
-					// stale or empty values. Retry with a longer timeout to
-					// allow the page to settle.
-					await expect(parameterField).toHaveValue(buildParameter.value, {
-						timeout: 15_000,
-					});
+
+				const parameterLabel = page.getByTestId(
+					`parameter-field-${richParameter.displayName}`,
+				);
+
+				await expect(parameterLabel).toBeVisible({
+					timeout: 10_000,
+				});
+
+				if (richParameter.options.length > 0) {
+					const parameterValue = parameterLabel.getByLabel(
+						buildParameter.value,
+					);
+					const value = await parameterValue.isChecked();
+					expect(value).toBe(true);
+					return;
 				}
-				break;
-			default:
-				// Some types like `list(string)` are not tested
-				throw new Error("not implemented yet");
-		}
-	}
+
+				switch (richParameter.type) {
+					case "bool":
+						{
+							const parameterField = parameterLabel.locator("input");
+							const value = await parameterField.isChecked();
+							expect(value.toString()).toEqual(buildParameter.value);
+						}
+						break;
+					case "string":
+					case "number":
+						{
+							const parameterField = parameterLabel.locator("input").first();
+							// Dynamic parameters can hydrate after initial render with
+							// stale or empty values. Retry with a longer timeout to
+							// allow the page to settle.
+							await expect(parameterField).toHaveValue(buildParameter.value, {
+								timeout: 15_000,
+							});
+						}
+						break;
+					default:
+						// Some types like `list(string)` are not tested
+						throw new Error("not implemented yet");
+				}
+			},
+		),
+	);
 };
 
 /**

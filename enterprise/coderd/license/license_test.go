@@ -749,7 +749,7 @@ func TestEntitlements(t *testing.T) {
 				Features: license.Features{
 					codersdk.FeatureHighAvailability: 1,
 				},
-				NotBefore: time.Now().Add(-time.Hour * 2),
+				NotBefore: dbtime.Now().Add(-time.Hour * 2),
 				GraceAt:   time.Now().Add(-time.Hour),
 				ExpiresAt: time.Now().Add(time.Hour),
 			}),
@@ -799,7 +799,7 @@ func TestEntitlements(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				NotBefore: time.Now().Add(-time.Hour * 2),
+				NotBefore: dbtime.Now().Add(-time.Hour * 2),
 				GraceAt:   time.Now().Add(-time.Hour),
 				ExpiresAt: time.Now().Add(time.Hour),
 				Features: license.Features{
@@ -1430,7 +1430,7 @@ func TestUsageLimitFeatures(t *testing.T) {
 			UUID:       uuid.New(),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				IssuedAt:  time.Now().Add(-time.Minute * 2),
-				NotBefore: time.Now().Add(-time.Minute * 2),
+				NotBefore: dbtime.Now().Add(-time.Minute * 2),
 				ExpiresAt: time.Now().Add(time.Hour * 2),
 				Features: license.Features{
 					codersdk.FeatureManagedAgentLimit: 100,

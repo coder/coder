@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -310,7 +311,7 @@ func Test_ResolveRequest(t *testing.T) {
 						CORSBehavior: codersdk.CORSBehaviorSimple,
 					}, token)
 					require.NotZero(t, token.Expiry)
-					require.WithinDuration(t, time.Now().Add(workspaceapps.DefaultTokenExpiry), token.Expiry.Time(), time.Minute)
+					require.WithinDuration(t, dbtime.Now().Add(workspaceapps.DefaultTokenExpiry), token.Expiry.Time(), time.Minute)
 
 					// Check that the token was set in the response and is valid.
 					require.Len(t, w.Cookies(), 1)

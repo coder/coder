@@ -2,6 +2,7 @@ import {
 	BotIcon,
 	FileIcon,
 	FilePenIcon,
+	MonitorIcon,
 	PlusCircleIcon,
 	TerminalIcon,
 	WrenchIcon,
@@ -17,6 +18,7 @@ export const ToolIcon: React.FC<{ name: string; isError: boolean }> = ({
 	const base = cn("h-4 w-4 shrink-0", color);
 	switch (name) {
 		case "execute":
+		case "process_output":
 			return <TerminalIcon className={base} />;
 		case "read_file":
 		case "list_templates":
@@ -29,6 +31,8 @@ export const ToolIcon: React.FC<{ name: string; isError: boolean }> = ({
 			return <PlusCircleIcon className={base} />;
 		case "chat_summarized":
 			return <BotIcon className={base} />;
+		case "computer":
+			return <MonitorIcon className={base} />;
 		default:
 			return <WrenchIcon className={base} />;
 	}

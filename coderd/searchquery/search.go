@@ -467,6 +467,36 @@ func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UU
 	return filter, parser.Errors
 }
 
+// Chats parses a search query for chats.
+//
+// Supported query parameters:
+//   - archived: boolean (default: false, excludes archived chats unless explicitly set)
+func Chats(query string) (database.GetChatsByOwnerIDParams, []codersdk.ValidationError) {
+	filter := database.GetChatsByOwnerIDParams{
+		// Default to hiding archived chats.
+		Archived: sql.NullBool{Bool: false, Valid: true},
+	}
+
+	if query == "" {
+		return filter, nil
+	}
+
+	// Always lowercase for all searches.
+	query = strings.ToLower(query)
+	values, errors := searchTerms(query, func(term string, _ url.Values) error {
+		return xerrors.Errorf("unsupported search term: %q", term)
+	})
+	if len(errors) > 0 {
+		return filter, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter.Archived = parser.NullableBoolean(values, filter.Archived, "archived")
+
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
 func searchTerms(query string, defaultKey func(term string, values url.Values) error) (url.Values, []codersdk.ValidationError) {
 	searchValues := make(url.Values)
 

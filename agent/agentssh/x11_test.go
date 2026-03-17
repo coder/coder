@@ -142,8 +142,13 @@ func TestServer_X11_EvictionLRU(t *testing.T) {
 	// Use in-process networking for X11 forwarding.
 	inproc := testutil.NewInProcNet()
 
+	// Limit port range so we only need a handful of sessions to fill it
+	// (the default 190 ports may easily timeout or conflict with other
+	// ports on the system).
+	maxPort := agentssh.X11StartPort + agentssh.X11DefaultDisplayOffset + 5
 	cfg := &agentssh.Config{
-		X11Net: inproc,
+		X11Net:     inproc,
+		X11MaxPort: &maxPort,
 	}
 
 	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), fs, agentexec.DefaultExecer, cfg)
@@ -172,7 +177,7 @@ func TestServer_X11_EvictionLRU(t *testing.T) {
 	// configured port range.
 
 	startPort := agentssh.X11StartPort + agentssh.X11DefaultDisplayOffset
-	maxSessions := agentssh.X11MaxPort - startPort + 1 - 1 // -1 for the blocked port
+	maxSessions := maxPort - startPort + 1 - 1 // -1 for the blocked port
 	require.Greater(t, maxSessions, 0, "expected a positive maxSessions value")
 
 	// shellSession holds references to the session and its standard streams so

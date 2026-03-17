@@ -1,8 +1,8 @@
 -- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
-	id, api_key_id, initiator_id, provider, model, metadata, started_at, client
+	id, api_key_id, initiator_id, provider, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id
 ) VALUES (
-	@id, @api_key_id, @initiator_id, @provider, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at, @client
+	@id, @api_key_id, @initiator_id, @provider, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at, @client, sqlc.narg('client_session_id'), sqlc.narg('thread_parent_interception_id')::uuid, sqlc.narg('thread_root_interception_id')::uuid
 )
 RETURNING *;
 
@@ -13,6 +13,21 @@ WHERE
 	id = @id::uuid
 	AND ended_at IS NULL
 RETURNING *;
+
+-- name: GetAIBridgeInterceptionLineageByToolCallID :one
+-- Look up the parent interception and the root of the thread by finding
+-- which interception recorded a tool usage with the given tool call ID.
+-- COALESCE ensures that if the parent has no thread_root_id (i.e. it IS
+-- the root), we return its own ID as the root.
+SELECT aibridge_interceptions.id AS thread_parent_id,
+       COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_root_id
+FROM aibridge_interceptions
+WHERE aibridge_interceptions.id = (
+  SELECT interception_id FROM aibridge_tool_usages
+  WHERE provider_tool_call_id = @tool_call_id::text
+  ORDER BY created_at DESC
+  LIMIT 1
+);
 
 -- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (
@@ -32,9 +47,9 @@ RETURNING *;
 
 -- name: InsertAIBridgeToolUsage :one
 INSERT INTO aibridge_tool_usages (
-  id, interception_id, provider_response_id, tool, server_url, input, injected, invocation_error, metadata, created_at
+  id, interception_id, provider_response_id, provider_tool_call_id, tool, server_url, input, injected, invocation_error, metadata, created_at
 ) VALUES (
-  @id, @interception_id, @provider_response_id, @tool, @server_url, @input, @injected, @invocation_error, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
+  @id, @interception_id, @provider_response_id, @provider_tool_call_id, @tool, @server_url, @input, @injected, @invocation_error, COALESCE(@metadata::jsonb, '{}'::jsonb), @created_at
 )
 RETURNING *;
 

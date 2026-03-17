@@ -170,6 +170,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "enabled": true,
         "key_file": "string",
         "listen_addr": "string",
+        "tls_cert_file": "string",
+        "tls_key_file": "string",
         "upstream_proxy": "string",
         "upstream_proxy_ca": "string"
       },
@@ -277,6 +279,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "external_auth": {
       "value": [
         {
+          "api_base_url": "string",
           "app_install_url": "string",
           "app_installations_url": "string",
           "auth_url": "string",

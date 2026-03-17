@@ -35,6 +35,24 @@ export type RenderBlock =
 	| {
 			type: "tool";
 			id: string;
+	  }
+	| {
+			type: "file";
+			mediaType: string;
+			data?: string; // base64, absent when file_id is available
+			fileId?: string;
+	  }
+	| {
+			type: "file-reference";
+			fileName: string;
+			startLine: number;
+			endLine: number;
+			content: string;
+			text: string;
+	  }
+	| {
+			type: "sources";
+			sources: Array<{ url: string; title: string }>;
 	  };
 
 export type ParsedMessageContent = {
@@ -44,6 +62,7 @@ export type ParsedMessageContent = {
 	toolResults: ParsedToolResult[];
 	tools: MergedTool[];
 	blocks: RenderBlock[];
+	sources: Array<{ url: string; title: string }>;
 };
 
 export type ParsedMessageEntry = {
@@ -75,4 +94,5 @@ export type StreamState = {
 	blocks: RenderBlock[];
 	toolCalls: Record<string, StreamToolCall>;
 	toolResults: Record<string, StreamToolResult>;
+	sources: Array<{ url: string; title: string }>;
 };

@@ -139,33 +139,6 @@ describe("upsertDurableMessage", () => {
 		);
 	});
 
-	it("removes optimistic (negative-ID) messages when a real message arrives", () => {
-		const store = createChatStore();
-		const optimistic = makeMessage(-1, "user", "typing...");
-		store.replaceMessages([optimistic]);
-		expect(store.getSnapshot().messagesByID.has(-1)).toBe(true);
-
-		const real = makeMessage(5, "user", "typed!");
-		store.upsertDurableMessage(real);
-
-		expect(store.getSnapshot().messagesByID.has(-1)).toBe(false);
-		expect(store.getSnapshot().messagesByID.has(5)).toBe(true);
-	});
-
-	it("only removes optimistic messages with the same role", () => {
-		const store = createChatStore();
-		const optimisticUser = makeMessage(-1, "user", "my prompt");
-		const optimisticAssistant = makeMessage(-2, "assistant", "placeholder");
-		store.replaceMessages([optimisticUser, optimisticAssistant]);
-
-		// A real "user" message arrives — only the user optimistic should
-		// be removed, not the assistant one.
-		store.upsertDurableMessage(makeMessage(5, "user", "real prompt"));
-
-		expect(store.getSnapshot().messagesByID.has(-1)).toBe(false);
-		expect(store.getSnapshot().messagesByID.has(-2)).toBe(true);
-	});
-
 	it("does not reorder when updating an existing message in place", () => {
 		const store = createChatStore();
 		store.upsertDurableMessage(makeMessage(1, "user", "first"));

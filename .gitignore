@@ -38,6 +38,7 @@ site/.swc
 
 # Make target for updating generated/golden files (any dir).
 .gen
+/_gen/
 .gen-golden
 
 # Build

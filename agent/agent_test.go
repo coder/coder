@@ -3040,6 +3040,62 @@ func TestAgent_Reconnect(t *testing.T) {
 	closer.Close()
 }
 
+func TestAgent_ReconnectNoLifecycleReemit(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+
+	fCoordinator := tailnettest.NewFakeCoordinator()
+	agentID := uuid.New()
+	statsCh := make(chan *proto.Stats, 50)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+
+	client := agenttest.NewClient(t,
+		logger,
+		agentID,
+		agentsdk.Manifest{
+			DERPMap: derpMap,
+			Scripts: []codersdk.WorkspaceAgentScript{{
+				Script:     "echo hello",
+				Timeout:    30 * time.Second,
+				RunOnStart: true,
+			}},
+		},
+		statsCh,
+		fCoordinator,
+	)
+	defer client.Close()
+
+	closer := agent.New(agent.Options{
+		Client: client,
+		Logger: logger.Named("agent"),
+	})
+	defer closer.Close()
+
+	// Wait for the agent to reach Ready state.
+	require.Eventually(t, func() bool {
+		return slices.Contains(client.GetLifecycleStates(), codersdk.WorkspaceAgentLifecycleReady)
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	statesBefore := slices.Clone(client.GetLifecycleStates())
+
+	// Disconnect by closing the coordinator response channel.
+	call1 := testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
+	close(call1.Resps)
+
+	// Wait for reconnect.
+	testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
+
+	// Wait for a stats report as a deterministic steady-state proof.
+	testutil.RequireReceive(ctx, t, statsCh)
+
+	statesAfter := client.GetLifecycleStates()
+	require.Equal(t, statesBefore, statesAfter,
+		"lifecycle states should not be re-reported after reconnect")
+
+	closer.Close()
+}
+
 func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	t.Parallel()
 	logger := testutil.Logger(t)

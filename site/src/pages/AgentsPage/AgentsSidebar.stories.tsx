@@ -1,3 +1,5 @@
+import { MockUserOwner } from "testHelpers/entities";
+import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type * as TypesGen from "api/typesGenerated";
 import type { Chat } from "api/typesGenerated";
@@ -30,14 +32,16 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	},
 ];
 
+const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
 	owner_id: "owner-1",
 	title: "Agent",
 	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
-	created_at: "2026-02-18T00:00:00.000Z",
-	updated_at: "2026-02-18T00:00:00.000Z",
+	created_at: oneWeekAgo,
+	updated_at: oneWeekAgo,
 	archived: false,
 	last_error: null,
 	...overrides,
@@ -54,16 +58,22 @@ const agentsRouting = [
 const meta: Meta<typeof AgentsSidebar> = {
 	title: "pages/AgentsPage/AgentsSidebar",
 	component: AgentsSidebar,
+	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
 		chatErrorReasons: {},
 		modelOptions: defaultModelOptions,
 		modelConfigs: defaultModelConfigs,
 		onArchiveAgent: fn(),
+		onUnarchiveAgent: fn(),
+		onArchiveAndDeleteWorkspace: fn(),
 		onNewAgent: fn(),
 		isCreating: false,
+		archivedFilter: "active" as const,
+		onArchivedFilterChange: fn(),
 	},
 	parameters: {
 		layout: "fullscreen",
+		user: MockUserOwner,
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents" },
 			routing: agentsRouting,
@@ -73,31 +83,6 @@ const meta: Meta<typeof AgentsSidebar> = {
 
 export default meta;
 type Story = StoryObj<typeof AgentsSidebar>;
-
-export const SearchFiltering: Story = {
-	args: {
-		chats: [
-			buildChat({ id: "parent-1", title: "Parent planner" }),
-			buildChat({
-				id: "child-1",
-				title: "Child executor",
-				parent_chat_id: "parent-1",
-				root_chat_id: "parent-1",
-			}),
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.type(
-			canvas.getByPlaceholderText("Search agents..."),
-			"child",
-		);
-		await waitFor(() => {
-			expect(canvas.getByText("Parent planner")).toBeInTheDocument();
-			expect(canvas.getByText("Child executor")).toBeInTheDocument();
-		});
-	},
-};
 
 export const RunningDelegatedChat: Story = {
 	args: {
@@ -321,5 +306,433 @@ export const ActiveChatAncestryExpanded: Story = {
 		await expect(
 			canvas.getByTestId("agents-tree-toggle-child-active"),
 		).toHaveAttribute("aria-expanded", "true");
+	},
+};
+
+const todayTimestamp = new Date().toISOString();
+
+export const ActiveFilterShowsActiveAgents: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-1",
+				title: "Active agent one",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "active-2",
+				title: "Active agent two",
+				updated_at: todayTimestamp,
+			}),
+		],
+		archivedFilter: "active",
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Active agent one")).toBeInTheDocument();
+			expect(canvas.getByText("Active agent two")).toBeInTheDocument();
+		});
+		expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
+	},
+};
+
+export const ArchivedFilterShowsArchivedAgents: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archived-1",
+				title: "Archived agent one",
+				archived: true,
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "archived-2",
+				title: "Archived agent two",
+				archived: true,
+				updated_at: todayTimestamp,
+			}),
+		],
+		archivedFilter: "archived",
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Archived agent one")).toBeInTheDocument();
+			expect(canvas.getByText("Archived agent two")).toBeInTheDocument();
+		});
+		expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
+	},
+};
+
+export const NoArchivedSection: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-a",
+				title: "First active agent",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "chat-b",
+				title: "Second active agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("First active agent")).toBeInTheDocument();
+			expect(canvas.getByText("Second active agent")).toBeInTheDocument();
+		});
+		expect(canvas.queryByText(/^Archived \(/)).not.toBeInTheDocument();
+	},
+};
+
+export const ArchivingShowsSpinnerOnly: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archiving-chat",
+				title: "Chat being archived",
+				updated_at: todayTimestamp,
+			}),
+		],
+		isArchiving: true,
+		archivingChatId: "archiving-chat",
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const DefaultShowsTimestampHidesMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "default-chat",
+				title: "Default state agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const WithDiffStats: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "diff-both",
+				title: "Agent with additions and deletions",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "diff-both",
+					url: "https://github.com/coder/coder/pull/1",
+					pull_request_title: "",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 42,
+					deletions: 7,
+					changed_files: 5,
+				},
+			}),
+			buildChat({
+				id: "diff-add-only",
+				title: "Agent with additions only",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "diff-add-only",
+					url: "https://github.com/coder/coder/pull/2",
+					pull_request_title: "",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 120,
+					deletions: 0,
+					changed_files: 3,
+				},
+			}),
+			buildChat({
+				id: "diff-del-only",
+				title: "Agent with deletions only",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "diff-del-only",
+					url: "https://github.com/coder/coder/pull/3",
+					pull_request_title: "",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 0,
+					deletions: 35,
+					changed_files: 2,
+				},
+			}),
+			buildChat({
+				id: "diff-none",
+				title: "Agent with no diff changes",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "diff-none",
+					url: "https://github.com/coder/coder/pull/4",
+					pull_request_title: "",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 0,
+					deletions: 0,
+					changed_files: 0,
+				},
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("+42")).toBeInTheDocument();
+			expect(canvas.getByText("+120")).toBeInTheDocument();
+		});
+		// The deletions-only agent should show −35.
+		const delOnlyNode = canvas.getByTestId("agents-tree-node-diff-del-only");
+		expect(
+			within(delOnlyNode).getByText("35", { exact: false }),
+		).toBeInTheDocument();
+		// The zero-change agent should NOT render any diff numbers.
+		const noneNode = canvas.getByTestId("agents-tree-node-diff-none");
+		expect(within(noneNode).queryByText("+")).not.toBeInTheDocument();
+	},
+};
+
+export const WithDiffStatsLight: Story = {
+	globals: {
+		theme: "light",
+	},
+	args: {
+		chats: [
+			buildChat({
+				id: "diff-both-light",
+				title: "Agent with additions and deletions",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "diff-both-light",
+					url: "https://github.com/coder/coder/pull/1",
+					pull_request_title: "",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 42,
+					deletions: 7,
+					changed_files: 5,
+				},
+			}),
+			buildChat({
+				id: "diff-add-only-light",
+				title: "Agent with additions only",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "diff-add-only-light",
+					url: "https://github.com/coder/coder/pull/2",
+					pull_request_title: "",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 120,
+					deletions: 0,
+					changed_files: 3,
+				},
+			}),
+			buildChat({
+				id: "diff-del-only-light",
+				title: "Agent with deletions only",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "diff-del-only-light",
+					url: "https://github.com/coder/coder/pull/3",
+					pull_request_title: "",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 0,
+					deletions: 35,
+					changed_files: 2,
+				},
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("+42")).toBeInTheDocument();
+			expect(canvas.getByText("+120")).toBeInTheDocument();
+		});
+	},
+};
+
+export const WithPRStateIcons: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "pr-open",
+				title: "Open pull request",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "pr-open",
+					url: "https://github.com/coder/coder/pull/100",
+					pull_request_state: "open",
+					pull_request_title: "feat: add new feature",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 50,
+					deletions: 10,
+					changed_files: 4,
+				},
+			}),
+			buildChat({
+				id: "pr-draft",
+				title: "Draft pull request",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "pr-draft",
+					url: "https://github.com/coder/coder/pull/101",
+					pull_request_state: "open",
+					pull_request_title: "wip: draft changes",
+					pull_request_draft: true,
+					changes_requested: false,
+					additions: 20,
+					deletions: 5,
+					changed_files: 2,
+				},
+			}),
+			buildChat({
+				id: "pr-merged",
+				title: "Merged pull request",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "pr-merged",
+					url: "https://github.com/coder/coder/pull/102",
+					pull_request_state: "merged",
+					pull_request_title: "feat: completed feature",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 200,
+					deletions: 80,
+					changed_files: 12,
+				},
+			}),
+			buildChat({
+				id: "pr-closed",
+				title: "Closed pull request",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "pr-closed",
+					url: "https://github.com/coder/coder/pull/103",
+					pull_request_state: "closed",
+					pull_request_title: "fix: abandoned approach",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 15,
+					deletions: 3,
+					changed_files: 1,
+				},
+			}),
+			buildChat({
+				id: "pr-no-state",
+				title: "No PR state (branch only)",
+				updated_at: todayTimestamp,
+				diff_status: {
+					chat_id: "pr-no-state",
+					url: "https://github.com/coder/coder/tree/my-branch",
+					pull_request_title: "",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 10,
+					deletions: 2,
+					changed_files: 1,
+				},
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const ArchivedAgentUnarchiveOption: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archived-unarchive",
+				title: "Archived agent with unarchive",
+				archived: true,
+				updated_at: todayTimestamp,
+			}),
+		],
+		archivedFilter: "archived",
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(
+				canvas.getByText("Archived agent with unarchive"),
+			).toBeInTheDocument();
+		});
+		// Open the dropdown menu for the archived agent
+		const trigger = canvas.getByLabelText(
+			"Open actions for Archived agent with unarchive",
+		);
+		await userEvent.click(trigger);
+		// Verify "Unarchive agent" is shown instead of "Archive agent"
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Unarchive agent")).toBeInTheDocument();
+		});
+		const body = within(document.body);
+		expect(body.queryByText("Archive agent")).not.toBeInTheDocument();
+		expect(
+			body.queryByText("Archive & delete workspace"),
+		).not.toBeInTheDocument();
 	},
 };

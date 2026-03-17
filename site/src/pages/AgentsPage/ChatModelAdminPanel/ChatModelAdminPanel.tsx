@@ -5,14 +5,15 @@ import {
 	createChatModelConfig as createChatModelConfigMutation,
 	createChatProviderConfig as createChatProviderConfigMutation,
 	deleteChatModelConfig as deleteChatModelConfigMutation,
+	deleteChatProviderConfig as deleteChatProviderConfigMutation,
 	updateChatModelConfig as updateChatModelConfigMutation,
 	updateChatProviderConfig as updateChatProviderConfigMutation,
 } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
-import { Alert, AlertDetail, AlertTitle } from "components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Loader2Icon } from "lucide-react";
-import { type FC, useMemo, useState } from "react";
+import { Spinner } from "components/Spinner/Spinner";
+import { type FC, type ReactNode, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { cn } from "utils/cn";
 import { formatProviderLabel } from "../modelOptions";
@@ -198,14 +199,20 @@ const useProviderStates = (
 
 // ── Component ──────────────────────────────────────────────────
 
-type ChatModelAdminPanelProps = {
+interface ChatModelAdminPanelProps {
 	className?: string;
 	section?: ChatModelAdminSection;
-};
+	sectionLabel?: string;
+	sectionDescription?: string;
+	sectionBadge?: ReactNode;
+}
 
 export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	className,
 	section = "providers",
+	sectionLabel,
+	sectionDescription,
+	sectionBadge,
 }) => {
 	const queryClient = useQueryClient();
 	const [requestedProvider, setRequestedProvider] = useState<string | null>(
@@ -229,6 +236,9 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	);
 	const updateModelMut = useMutation(
 		updateChatModelConfigMutation(queryClient),
+	);
+	const deleteProviderMut = useMutation(
+		deleteChatProviderConfigMutation(queryClient),
 	);
 	const deleteModelMut = useMutation(
 		deleteChatModelConfigMutation(queryClient),
@@ -281,30 +291,72 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	const providerConfigsUnavailable = providerConfigsQuery.data === null;
 	const modelConfigsUnavailable = modelConfigsQuery.data === null;
 	const isProviderMutationPending =
-		createProviderMut.isPending || updateProviderMut.isPending;
+		createProviderMut.isPending ||
+		updateProviderMut.isPending ||
+		deleteProviderMut.isPending;
 	const providerMutationError =
-		createProviderMut.error ?? updateProviderMut.error;
+		createProviderMut.error ??
+		updateProviderMut.error ??
+		deleteProviderMut.error;
 	const modelMutationError =
 		createModelMut.error ?? updateModelMut.error ?? deleteModelMut.error;
 
 	return (
-		<div className={cn("space-y-3", className)}>
-			{/* Header */}
-			<div className="flex items-center justify-between gap-4">
-				<p className="m-0 text-[13px] leading-relaxed text-content-secondary">
-					{section === "providers"
-						? "Configure provider credentials and network settings."
-						: "Manage models available in Agents across all providers."}
-				</p>
-				{isLoading && (
-					<div className="flex items-center gap-1.5 text-xs text-content-secondary">
-						<Loader2Icon className="h-4 w-4 animate-spin" />
-						Loading
-					</div>
+		<div className={cn("flex min-h-full flex-col space-y-3", className)}>
+			{isLoading && (
+				<div className="flex items-center gap-1.5 text-xs text-content-secondary">
+					<Spinner className="h-4 w-4" loading />
+					Loading
+				</div>
+			)}
+
+			{/* Content */}
+			<div className="flex flex-1 flex-col">
+				{section === "providers" ? (
+					<ProvidersSection
+						sectionLabel={sectionLabel}
+						sectionDescription={sectionDescription}
+						sectionBadge={sectionBadge}
+						providerStates={providerStates}
+						providerConfigsUnavailable={providerConfigsUnavailable}
+						isProviderMutationPending={isProviderMutationPending}
+						onCreateProvider={(req) => createProviderMut.mutateAsync(req)}
+						onUpdateProvider={(providerConfigId, req) =>
+							updateProviderMut.mutateAsync({
+								providerConfigId,
+								req,
+							})
+						}
+						onDeleteProvider={(id) => deleteProviderMut.mutateAsync(id)}
+						onSelectedProviderChange={setRequestedProvider}
+					/>
+				) : (
+					<ModelsSection
+						sectionLabel={sectionLabel}
+						sectionDescription={sectionDescription}
+						sectionBadge={sectionBadge}
+						providerStates={providerStates}
+						selectedProvider={selectedProvider}
+						selectedProviderState={selectedProviderState}
+						onSelectedProviderChange={setRequestedProvider}
+						modelConfigs={modelConfigs}
+						modelConfigsUnavailable={modelConfigsUnavailable}
+						isCreating={createModelMut.isPending}
+						isUpdating={updateModelMut.isPending}
+						isDeleting={deleteModelMut.isPending}
+						onCreateModel={(req) => createModelMut.mutateAsync(req)}
+						onUpdateModel={(modelConfigId, req) =>
+							updateModelMut.mutateAsync({
+								modelConfigId,
+								req,
+							})
+						}
+						onDeleteModel={(id) => deleteModelMut.mutateAsync(id)}
+					/>
 				)}
 			</div>
 
-			{/* Alerts */}
+			{/* Errors — rendered at the bottom */}
 			{providerConfigsQuery.isError && (
 				<ErrorAlert error={providerConfigsQuery.error} />
 			)}
@@ -318,58 +370,25 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 			{modelMutationError && <ErrorAlert error={modelMutationError} />}
 
 			{providerConfigsUnavailable && (
-				<Alert severity="info" className="mb-3">
+				<Alert severity="info">
 					<AlertTitle>
 						Chat provider admin API is unavailable on this deployment.
 					</AlertTitle>
-					<AlertDetail>/api/v2/chats/providers is missing.</AlertDetail>
+					<AlertDescription>
+						/api/v2/chats/providers is missing.
+					</AlertDescription>
 				</Alert>
 			)}
 
 			{modelConfigsUnavailable && (
-				<Alert severity="info" className="mb-3">
+				<Alert severity="info">
 					<AlertTitle>
 						Chat model admin API is unavailable on this deployment.
 					</AlertTitle>
-					<AlertDetail>/api/v2/chats/model-configs is missing.</AlertDetail>
+					<AlertDescription>
+						/api/v2/chats/model-configs is missing.
+					</AlertDescription>
 				</Alert>
-			)}
-
-			{/* Content */}
-			{section === "providers" ? (
-				<ProvidersSection
-					providerStates={providerStates}
-					providerConfigsUnavailable={providerConfigsUnavailable}
-					isProviderMutationPending={isProviderMutationPending}
-					onCreateProvider={(req) => createProviderMut.mutateAsync(req)}
-					onUpdateProvider={(providerConfigId, req) =>
-						updateProviderMut.mutateAsync({
-							providerConfigId,
-							req,
-						})
-					}
-					onSelectedProviderChange={setRequestedProvider}
-				/>
-			) : (
-				<ModelsSection
-					providerStates={providerStates}
-					selectedProvider={selectedProvider}
-					selectedProviderState={selectedProviderState}
-					onSelectedProviderChange={setRequestedProvider}
-					modelConfigs={modelConfigs}
-					modelConfigsUnavailable={modelConfigsUnavailable}
-					isCreating={createModelMut.isPending}
-					isUpdating={updateModelMut.isPending}
-					isDeleting={deleteModelMut.isPending}
-					onCreateModel={(req) => createModelMut.mutateAsync(req)}
-					onUpdateModel={(modelConfigId, req) =>
-						updateModelMut.mutateAsync({
-							modelConfigId,
-							req,
-						})
-					}
-					onDeleteModel={(id) => deleteModelMut.mutateAsync(id)}
-				/>
 			)}
 		</div>
 	);

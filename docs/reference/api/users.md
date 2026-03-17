@@ -90,6 +90,7 @@ curl -X POST http://coder-server:8080/api/v2/users \
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "password": "string",
+  "service_account": true,
   "user_status": "active",
   "username": "string"
 }

@@ -8,24 +8,43 @@ import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
 } from "components/ChatMessageInput/ChatMessageInput";
+import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { useSpeechRecognition } from "hooks/useSpeechRecognition";
 import {
+	AlertTriangleIcon,
 	ArrowUpIcon,
-	ListPlusIcon,
-	Loader2Icon,
+	CheckIcon,
+	ImageIcon,
+	MicIcon,
 	Square,
 	XIcon,
 } from "lucide-react";
-import { memo, type ReactNode, useCallback, useRef, useState } from "react";
+import type React from "react";
+import {
+	memo,
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { cn } from "utils/cn";
+import { ImageLightbox } from "./ImageLightbox";
 import { formatProviderLabel } from "./modelOptions";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 
 export type { ChatMessageInputRef } from "components/ChatMessageInput/ChatMessageInput";
+
+export type UploadState = {
+	status: "uploading" | "uploaded" | "error";
+	fileId?: string;
+	error?: string;
+};
 
 export interface AgentContextUsage {
 	readonly usedTokens?: number;
@@ -82,11 +101,12 @@ interface AgentChatInputProps {
 	// Pass `null` to render fallback values (e.g. when limit is unknown).
 	// Omit entirely to hide the indicator.
 	contextUsage?: AgentContextUsage | null;
-	// When true the entire input sticks to the bottom of the scroll
-	// container (used in the detail page).
-	sticky?: boolean;
+	attachments?: readonly File[];
+	onAttach?: (files: File[]) => void;
+	onRemoveAttachment?: (index: number) => void;
+	uploadStates?: Map<File, UploadState>;
+	previewUrls?: Map<File, string>;
 }
-
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
 	typeof value === "number" && Number.isFinite(value) && value >= 0;
 
@@ -159,10 +179,10 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 					<button
 						type="button"
 						aria-label={ariaLabel}
-						className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+						className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
 					>
 						<svg
-							className={cn("h-5 w-5 -rotate-90", toneClassName)}
+							className={cn("size-icon-sm -rotate-90", toneClassName)}
 							viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
 							aria-hidden
 						>
@@ -210,6 +230,97 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 );
 ContextUsageIndicator.displayName = "ContextUsageIndicator";
 
+/** Renders an image thumbnail from a pre-created preview URL. */
+export const ImageThumbnail = memo<{
+	previewUrl: string;
+	name: string;
+	className?: string;
+}>(({ previewUrl, name, className }) => (
+	<img
+		src={previewUrl}
+		alt={name}
+		className={cn(
+			"h-16 w-16 rounded-md border border-border-default object-cover",
+			className,
+		)}
+	/>
+));
+ImageThumbnail.displayName = "ImageThumbnail";
+
+/** Renders a horizontal strip of attachment thumbnails above the input. */
+export const AttachmentPreview = memo<{
+	attachments: readonly File[];
+	onRemove: (index: number) => void;
+	uploadStates?: Map<File, UploadState>;
+	previewUrls?: Map<File, string>;
+	onPreview?: (url: string) => void;
+}>(({ attachments, onRemove, uploadStates, previewUrls, onPreview }) => {
+	if (attachments.length === 0) return null;
+
+	return (
+		<div className="flex gap-2 overflow-x-auto border-b border-border-default/50 px-3 py-2">
+			{attachments.map((file, index) => {
+				const uploadState = uploadStates?.get(file);
+				const previewUrl = previewUrls?.get(file) ?? "";
+				return (
+					<div
+						// Key combines file metadata with index as a fallback for
+						// duplicate names. Acceptable for a small, append-only list.
+						key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+						className="group relative"
+					>
+						{file.type.startsWith("image/") && previewUrl ? (
+							<button
+								type="button"
+								className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
+								onClick={() => onPreview?.(previewUrl)}
+							>
+								<ImageThumbnail previewUrl={previewUrl} name={file.name} />
+							</button>
+						) : (
+							<div className="flex h-16 w-16 items-center justify-center rounded-md border border-border-default bg-surface-secondary text-xs text-content-secondary">
+								{file.name.split(".").pop()?.toUpperCase() || "FILE"}
+							</div>
+						)}
+						{uploadState?.status === "uploading" && (
+							<div className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay">
+								<Spinner className="h-5 w-5 text-white" loading />
+							</div>
+						)}
+						{uploadState?.status === "error" && (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<div
+										className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay"
+										role="img"
+										aria-label="Upload error"
+									>
+										<AlertTriangleIcon className="h-5 w-5 text-content-warning" />
+									</div>
+								</TooltipTrigger>
+								<TooltipContent side="top">
+									<p className="max-w-xs text-xs">
+										{uploadState.error ?? "Upload failed"}
+									</p>
+								</TooltipContent>
+							</Tooltip>
+						)}
+						<button
+							type="button"
+							onClick={() => onRemove(index)}
+							className="absolute -right-2 -top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border border-border-default bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+							aria-label={`Remove ${file.name}`}
+						>
+							<XIcon className="h-3.5 w-3.5" />
+						</button>
+					</div>
+				);
+			})}
+		</div>
+	);
+});
+AttachmentPreview.displayName = "AttachmentPreview";
+
 export const AgentChatInput = memo<AgentChatInputProps>(
 	({
 		onSend,
@@ -239,9 +350,32 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		isEditingHistoryMessage = false,
 		onCancelHistoryEdit,
 		contextUsage,
-		sticky = false,
+		attachments = [],
+		onAttach,
+		onRemoveAttachment,
+		uploadStates,
+		previewUrls,
 	}) => {
 		const internalRef = useRef<ChatMessageInputRef>(null);
+		const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+		const [hasFileReferences, setHasFileReferences] = useState(false);
+
+		const speech = useSpeechRecognition();
+		const [preRecordingValue, setPreRecordingValue] = useState<string>("");
+
+		useEffect(() => {
+			if (!speech.isRecording) return;
+			const editor = internalRef.current;
+			if (!editor) return;
+			editor.clear();
+			const combined = preRecordingValue
+				? `${preRecordingValue} ${speech.transcript}`
+				: speech.transcript;
+			if (combined) {
+				editor.insertText(combined);
+			}
+		}, [speech.transcript, speech.isRecording, preRecordingValue]);
 
 		// Merge the external inputRef with our internal ref so both
 		// point to the same ChatMessageInputRef instance.
@@ -261,20 +395,96 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			[inputRef],
 		);
 
+		const fileInputRef = useRef<HTMLInputElement>(null);
+
+		const handleFileSelect = useCallback(
+			(e: React.ChangeEvent<HTMLInputElement>) => {
+				if (e.target.files && onAttach) {
+					onAttach(Array.from(e.target.files));
+				}
+				// Reset so the same file can be selected again.
+				e.target.value = "";
+			},
+			[onAttach],
+		);
+
+		const handleFilePaste = useCallback(
+			(file: File) => {
+				onAttach?.([file]);
+			},
+			[onAttach],
+		);
+
+		// Drag-and-drop support for image files.
+		const [isDragging, setIsDragging] = useState(false);
+
+		const handleDragOver = useCallback((e: React.DragEvent) => {
+			e.preventDefault();
+			if (e.dataTransfer.types.includes("Files")) {
+				setIsDragging(true);
+			}
+		}, []);
+
+		const handleDragLeave = useCallback((e: React.DragEvent) => {
+			if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+				setIsDragging(false);
+			}
+		}, []);
+
+		const handleDrop = useCallback(
+			(e: React.DragEvent) => {
+				e.preventDefault();
+				setIsDragging(false);
+				if (!onAttach || !e.dataTransfer.files.length) return;
+				const images = Array.from(e.dataTransfer.files).filter((f) =>
+					f.type.startsWith("image/"),
+				);
+				if (images.length > 0) {
+					onAttach(images);
+				}
+			},
+			[onAttach],
+		);
+
 		// Track whether the editor has content so we can gate the
 		// send button without a controlled value prop.
-		const [hasContent, setHasContent] = useState(() => !!initialValue?.trim());
+		const [hasContent, setHasContent] = useState(() =>
+			Boolean(initialValue?.trim()),
+		);
 
 		const handleContentChange = useCallback(
-			(content: string) => {
-				setHasContent(!!content.trim());
+			(content: string, hasRefs: boolean) => {
+				setHasContent(Boolean(content.trim()));
+				setHasFileReferences(hasRefs);
 				onContentChange?.(content);
 			},
 			[onContentChange],
 		);
 
-		const canSend = !isDisabled && !isLoading && hasModelOptions && hasContent;
+		// Re-focus the editor after a send completes (isLoading goes
+		// from true → false) so the user can immediately type again.
+		// Uses the "store previous value in state" pattern recommended
+		// by React for responding to prop changes during render.
+		const [prevIsLoading, setPrevIsLoading] = useState(isLoading);
+		if (prevIsLoading !== isLoading) {
+			setPrevIsLoading(isLoading);
+			if (prevIsLoading && !isLoading) {
+				internalRef.current?.focus();
+			}
+		}
 
+		const isUploading = attachments.some(
+			(f) => uploadStates?.get(f)?.status === "uploading",
+		);
+		const hasUploadedAttachments = attachments.some(
+			(f) => uploadStates?.get(f)?.status === "uploaded",
+		);
+		const canSend =
+			!isDisabled &&
+			!isLoading &&
+			hasModelOptions &&
+			(hasContent || hasUploadedAttachments || hasFileReferences) &&
+			!isUploading;
 		const handleSubmit = useCallback(() => {
 			const text = internalRef.current?.getValue()?.trim() ?? "";
 
@@ -282,6 +492,8 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			// promote the first one instead of submitting.
 			if (
 				!text &&
+				!hasUploadedAttachments &&
+				!hasFileReferences &&
 				!isDisabled &&
 				!isLoading &&
 				queuedMessages.length > 0 &&
@@ -291,21 +503,47 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				return;
 			}
 
-			if (!text || isDisabled || isLoading || !hasModelOptions) {
+			if (
+				(!text && !hasUploadedAttachments && !hasFileReferences) ||
+				isDisabled ||
+				isLoading ||
+				!hasModelOptions
+			) {
 				return;
 			}
-
 			onSend(text);
-			internalRef.current?.clear();
 			internalRef.current?.focus();
 		}, [
 			isDisabled,
 			isLoading,
 			hasModelOptions,
+			hasUploadedAttachments,
+			hasFileReferences,
 			onSend,
 			queuedMessages,
 			onPromoteQueuedMessage,
 		]);
+		const handleStartRecording = useCallback(() => {
+			setPreRecordingValue(internalRef.current?.getValue()?.trim() ?? "");
+			speech.start();
+		}, [speech]);
+
+		const handleAcceptRecording = useCallback(() => {
+			speech.stop();
+		}, [speech]);
+
+		const handleCancelRecording = useCallback(() => {
+			const original = preRecordingValue;
+			speech.cancel();
+			const editor = internalRef.current;
+			if (editor) {
+				editor.clear();
+				if (original) {
+					editor.insertText(original);
+				}
+			}
+			setPreRecordingValue("");
+		}, [speech, preRecordingValue]);
 
 		const handleKeyDown = (e: React.KeyboardEvent) => {
 			if (e.key === "Escape") {
@@ -322,11 +560,10 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			}
 		};
 
-		const sendButtonLabel =
-			isStreaming && editingQueuedMessageID === null ? "Queue message" : "Send";
+		const sendButtonLabel = editingQueuedMessageID !== null ? "Save" : "Send";
 
 		const content = (
-			<div className="mx-auto w-full max-w-3xl pb-4">
+			<div className="mx-auto w-full max-w-3xl pb-0 sm:pb-4">
 				{queuedMessages.length > 0 && (
 					<QueuedMessagesList
 						messages={queuedMessages}
@@ -348,8 +585,14 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 					/>
 				)}
 				<div
-					className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40"
+					className={cn(
+						"rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+						isDragging && "ring-2 ring-content-link/40",
+					)}
 					onKeyDown={handleKeyDown}
+					onDragOver={onAttach ? handleDragOver : undefined}
+					onDragLeave={onAttach ? handleDragLeave : undefined}
+					onDrop={onAttach ? handleDrop : undefined}
 				>
 					{editingQueuedMessageID !== null && (
 						<div className="flex items-center justify-between border-b border-border-default/70 bg-surface-primary/25 px-3 py-1.5">
@@ -370,9 +613,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 					{isEditingHistoryMessage && editingQueuedMessageID === null && (
 						<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
 							<span className="flex items-center gap-1.5 text-sm text-content-secondary">
-								{isLoading && (
-									<Loader2Icon className="h-3.5 w-3.5 animate-spin" />
-								)}
+								{isLoading && <Spinner className="h-3.5 w-3.5" loading />}
 								{isLoading ? "Saving edit..." : "Editing message"}
 							</span>
 							<Button
@@ -388,16 +629,25 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 							</Button>
 						</div>
 					)}
+					{onRemoveAttachment && (
+						<AttachmentPreview
+							attachments={attachments}
+							onRemove={onRemoveAttachment}
+							uploadStates={uploadStates}
+							previewUrls={previewUrls}
+							onPreview={setPreviewImage}
+						/>
+					)}
 					<ChatMessageInput
 						ref={setRef}
+						onFilePaste={onAttach ? handleFilePaste : undefined}
 						aria-label="Chat message"
-						className="min-h-[120px] w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+						className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 						placeholder={placeholder}
 						initialValue={initialValue}
 						onChange={handleContentChange}
 						onEnter={handleSubmit}
-						disabled={isDisabled}
-						rows={4}
+						disabled={isDisabled || isLoading}
 						autoFocus
 					/>
 					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
@@ -420,6 +670,60 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 							)}
 						</div>
 						<div className="flex items-center gap-2">
+							{onAttach && (
+								<>
+									<input
+										ref={fileInputRef}
+										type="file"
+										multiple
+										accept="image/*"
+										onChange={handleFileSelect}
+										className="hidden"
+									/>
+									<Button
+										type="button"
+										variant="subtle"
+										size="icon"
+										className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+										onClick={() => fileInputRef.current?.click()}
+										disabled={isDisabled}
+										aria-label="Attach files"
+									>
+										<ImageIcon />
+									</Button>
+								</>
+							)}
+							{speech.isSupported && !isStreaming && (
+								<>
+									<Button
+										type="button"
+										variant="subtle"
+										size="icon"
+										className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+										onClick={
+											speech.isRecording
+												? handleCancelRecording
+												: handleStartRecording
+										}
+										disabled={isDisabled}
+										aria-label={
+											speech.isRecording ? "Cancel voice input" : "Voice input"
+										}
+									>
+										{speech.isRecording ? <XIcon /> : <MicIcon />}
+									</Button>
+									{speech.error && !speech.isRecording && (
+										<span
+											className="text-2xs text-content-destructive"
+											role="alert"
+										>
+											{speech.error === "not-allowed"
+												? "Mic access denied"
+												: "Voice input failed"}
+										</span>
+									)}
+								</>
+							)}
 							{contextUsage !== undefined && (
 								<ContextUsageIndicator usage={contextUsage} />
 							)}
@@ -427,30 +731,38 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								<Button
 									size="icon"
 									variant="default"
-									className="size-7 rounded-full transition-colors"
+									className="size-7 rounded-full transition-colors [&>svg]:!size-3 [&>svg]:p-0"
 									onClick={onInterrupt}
 									disabled={isInterruptPending}
 								>
-									<Square className="h-3 w-3 fill-current" />
+									<Square className="fill-current" />
 									<span className="sr-only">Stop</span>
 								</Button>
 							)}
-							<Button
-								size="icon"
-								variant="default"
-								className="size-7 rounded-full transition-colors [&>svg]:!size-6 flex items-center justify-center"
-								onClick={handleSubmit}
-								disabled={!canSend}
-							>
-								{isLoading ? (
-									<Loader2Icon className="animate-spin" />
-								) : isStreaming && editingQueuedMessageID === null ? (
-									<ListPlusIcon />
-								) : (
-									<ArrowUpIcon />
-								)}
-								<span className="sr-only">{sendButtonLabel}</span>
-							</Button>
+							{!(isStreaming && editingQueuedMessageID === null) && (
+								<Button
+									size="icon"
+									variant="default"
+									className="size-7 rounded-full transition-colors [&>svg]:!size-5 [&>svg]:p-0"
+									onClick={
+										speech.isRecording ? handleAcceptRecording : handleSubmit
+									}
+									disabled={speech.isRecording ? false : !canSend}
+								>
+									{isLoading ? (
+										<Spinner size="sm" loading aria-hidden="true" />
+									) : speech.isRecording ? (
+										<CheckIcon />
+									) : (
+										<ArrowUpIcon />
+									)}
+									<span className="sr-only">
+										{speech.isRecording
+											? "Accept voice input"
+											: sendButtonLabel}
+									</span>
+								</Button>
+							)}
 						</div>
 					</div>
 					{inputStatusText && (
@@ -467,13 +779,17 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			</div>
 		);
 
-		if (sticky) {
-			return (
-				<div className="sticky bottom-0 z-50 bg-surface-primary">{content}</div>
-			);
-		}
-
-		return content;
+		return (
+			<>
+				{content}
+				{previewImage && (
+					<ImageLightbox
+						src={previewImage}
+						onClose={() => setPreviewImage(null)}
+					/>
+				)}
+			</>
+		);
 	},
 );
 AgentChatInput.displayName = "AgentChatInput";

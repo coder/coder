@@ -14,44 +14,41 @@ const providerIconMap: Record<string, string> = {
 	gemini: "/icon/gemini.svg",
 };
 
-// Some provider SVGs (e.g. OpenAI) are pure black and need
-// inversion in dark mode to remain visible.
-const darkInvertProviders = new Set(["openai"]);
-
-type ProviderIconProps = {
+interface ProviderIconProps {
 	provider: string;
 	className?: string;
-	active?: boolean;
-};
+}
 
 export const ProviderIcon: FC<ProviderIconProps> = ({
 	provider,
 	className,
-	active,
 }) => {
 	const normalized = normalizeProvider(provider);
 	const iconPath = providerIconMap[normalized];
 	if (iconPath) {
 		return (
-			<ExternalImage
-				src={iconPath}
-				alt={`${formatProviderLabel(provider)} logo`}
+			<div
 				className={cn(
-					"shrink-0",
-					!active && "grayscale opacity-50",
-					darkInvertProviders.has(normalized) && "dark:invert",
+					"flex shrink-0 items-center justify-center rounded-full bg-surface-secondary",
 					className,
 				)}
-			/>
+			>
+				<ExternalImage
+					src={iconPath}
+					alt={`${formatProviderLabel(provider)} logo`}
+					className="h-3/5 w-3/5"
+				/>
+			</div>
 		);
 	}
 	return (
-		<ServerIcon
+		<div
 			className={cn(
-				"shrink-0",
-				active ? "text-content-primary" : "text-content-secondary",
+				"flex shrink-0 items-center justify-center rounded-full bg-surface-secondary",
 				className,
 			)}
-		/>
+		>
+			<ServerIcon className="h-3/5 w-3/5 text-content-secondary" />
+		</div>
 	);
 };

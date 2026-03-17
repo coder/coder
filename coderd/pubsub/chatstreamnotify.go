@@ -34,4 +34,9 @@ type ChatStreamNotifyMessage struct {
 
 	// QueueUpdate is set when the queued messages change.
 	QueueUpdate bool `json:"queue_update,omitempty"`
+
+	// FullRefresh signals that subscribers should re-fetch all
+	// messages from the beginning (e.g. after an edit that
+	// truncates message history).
+	FullRefresh bool `json:"full_refresh,omitempty"`
 }

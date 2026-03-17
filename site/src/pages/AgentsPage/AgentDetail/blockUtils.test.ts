@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	appendTextBlock,
-	asNonEmptyString,
-	mergeThinkingTitles,
-} from "./blockUtils";
+import { appendTextBlock, asNonEmptyString } from "./blockUtils";
 import type { RenderBlock } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -33,61 +29,6 @@ describe("asNonEmptyString", () => {
 		expect(asNonEmptyString(42)).toBeUndefined();
 		expect(asNonEmptyString(true)).toBeUndefined();
 		expect(asNonEmptyString({})).toBeUndefined();
-	});
-});
-
-// ---------------------------------------------------------------------------
-// mergeThinkingTitles
-// ---------------------------------------------------------------------------
-
-describe("mergeThinkingTitles", () => {
-	it("merges when both titles are undefined", () => {
-		expect(mergeThinkingTitles(undefined, undefined)).toEqual({
-			shouldMerge: true,
-			title: undefined,
-		});
-	});
-
-	it("merges and picks nextTitle when current is undefined", () => {
-		expect(mergeThinkingTitles(undefined, "Thinking")).toEqual({
-			shouldMerge: true,
-			title: "Thinking",
-		});
-	});
-
-	it("merges and keeps currentTitle when next is undefined", () => {
-		expect(mergeThinkingTitles("Thinking", undefined)).toEqual({
-			shouldMerge: true,
-			title: "Thinking",
-		});
-	});
-
-	it("merges when titles are identical", () => {
-		expect(mergeThinkingTitles("Thinking", "Thinking")).toEqual({
-			shouldMerge: true,
-			title: "Thinking",
-		});
-	});
-
-	it("merges and uses nextTitle when it extends currentTitle", () => {
-		expect(mergeThinkingTitles("Think", "Thinking deeply")).toEqual({
-			shouldMerge: true,
-			title: "Thinking deeply",
-		});
-	});
-
-	it("merges and keeps currentTitle when it extends nextTitle", () => {
-		expect(mergeThinkingTitles("Thinking deeply", "Think")).toEqual({
-			shouldMerge: true,
-			title: "Thinking deeply",
-		});
-	});
-
-	it("does not merge when titles are completely different", () => {
-		expect(mergeThinkingTitles("Analyzing", "Planning")).toEqual({
-			shouldMerge: false,
-			title: "Planning",
-		});
 	});
 });
 
@@ -135,20 +76,15 @@ describe("appendTextBlock", () => {
 		});
 	});
 
-	it("does not merge thinking blocks with incompatible titles", () => {
+	it("merges thinking blocks with different titles using the new title", () => {
 		const blocks: RenderBlock[] = [
 			{ type: "thinking", text: "part1", title: "Analyzing" },
 		];
 		const result = appendTextBlock(blocks, "thinking", "part2", "Planning");
-		expect(result).toHaveLength(2);
+		expect(result).toHaveLength(1);
 		expect(result[0]).toEqual({
 			type: "thinking",
-			text: "part1",
-			title: "Analyzing",
-		});
-		expect(result[1]).toEqual({
-			type: "thinking",
-			text: "part2",
+			text: "part1part2",
 			title: "Planning",
 		});
 	});
@@ -193,7 +129,7 @@ describe("appendTextBlock", () => {
 		expect(result).not.toBe(blocks);
 	});
 
-	it("merges thinking block when nextTitle extends currentTitle", () => {
+	it("merges thinking block and uses new title", () => {
 		const blocks: RenderBlock[] = [
 			{ type: "thinking", text: "a", title: "Think" },
 		];

@@ -34,14 +34,15 @@ export const ShareButton: FC<ShareButtonProps> = ({
 			</PopoverTrigger>
 			<PopoverContent align="end" className="w-[580px] p-4">
 				<div className="flex items-center gap-2 mb-4">
-					<h3 className="text-lg font-semibold m-0">Workspace Sharing</h3>
+					<h3 className="text-lg font-semibold m-0">
+						{workspace.task_id ? "Task" : "Workspace"} Sharing
+					</h3>
 					<FeatureStageBadge contentType="beta" size="sm" />
 				</div>
 				<WorkspaceSharingForm
 					organizationId={workspace.organization_id}
 					workspaceACL={sharing.workspaceACL}
 					canUpdatePermissions={canUpdatePermissions}
-					isTaskWorkspace={Boolean(workspace.task_id)}
 					error={sharing.error ?? sharing.mutationError}
 					updatingUserId={sharing.updatingUserId}
 					onUpdateUser={sharing.updateUser}
