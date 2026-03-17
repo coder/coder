@@ -263,6 +263,7 @@ curl -X GET http://coder-server:8080/api/v2/connectionlog?limit=0 \
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
           "name": "string",
@@ -402,6 +403,7 @@ curl -X GET http://coder-server:8080/api/v2/groups?organization=string&has_membe
         "created_at": "2019-08-24T14:15:22Z",
         "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "is_service_account": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
         "name": "string",
@@ -443,6 +445,7 @@ Status Code **200**
 | `»» created_at`               | string(date-time)                                      | true     |              |                                                                                                                                                                       |
 | `»» email`                    | string(email)                                          | true     |              |                                                                                                                                                                       |
 | `»» id`                       | string(uuid)                                           | true     |              |                                                                                                                                                                       |
+| `»» is_service_account`       | boolean                                                | false    |              |                                                                                                                                                                       |
 | `»» last_seen_at`             | string(date-time)                                      | false    |              |                                                                                                                                                                       |
 | `»» login_type`               | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
 | `»» name`                     | string                                                 | false    |              |                                                                                                                                                                       |
@@ -502,6 +505,7 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group} \
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -563,6 +567,7 @@ curl -X DELETE http://coder-server:8080/api/v2/groups/{group} \
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -643,6 +648,7 @@ curl -X PATCH http://coder-server:8080/api/v2/groups/{group} \
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -1741,6 +1747,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups 
         "created_at": "2019-08-24T14:15:22Z",
         "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "is_service_account": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
         "name": "string",
@@ -1782,6 +1789,7 @@ Status Code **200**
 | `»» created_at`               | string(date-time)                                      | true     |              |                                                                                                                                                                       |
 | `»» email`                    | string(email)                                          | true     |              |                                                                                                                                                                       |
 | `»» id`                       | string(uuid)                                           | true     |              |                                                                                                                                                                       |
+| `»» is_service_account`       | boolean                                                | false    |              |                                                                                                                                                                       |
 | `»» last_seen_at`             | string(date-time)                                      | false    |              |                                                                                                                                                                       |
 | `»» login_type`               | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
 | `»» name`                     | string                                                 | false    |              |                                                                                                                                                                       |
@@ -1854,6 +1862,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/groups
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -1916,6 +1925,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -3227,6 +3237,7 @@ curl -X PUT http://coder-server:8080/api/v2/scim/v2/Users/{id} \
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
   "name": "string",
@@ -3317,6 +3328,7 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
   "name": "string",
@@ -3686,6 +3698,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
           "name": "string",
@@ -3711,6 +3724,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl \
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",
@@ -3840,6 +3854,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
             "created_at": "2019-08-24T14:15:22Z",
             "email": "user@example.com",
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "is_service_account": true,
             "last_seen_at": "2019-08-24T14:15:22Z",
             "login_type": "",
             "name": "string",
@@ -3864,6 +3879,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/acl/available \
         "created_at": "2019-08-24T14:15:22Z",
         "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "is_service_account": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
         "name": "string",
@@ -3899,6 +3915,7 @@ Status Code **200**
 | `»»» created_at`               | string(date-time)                                      | true     |              |                                                                                                                                                                       |
 | `»»» email`                    | string(email)                                          | true     |              |                                                                                                                                                                       |
 | `»»» id`                       | string(uuid)                                           | true     |              |                                                                                                                                                                       |
+| `»»» is_service_account`       | boolean                                                | false    |              |                                                                                                                                                                       |
 | `»»» last_seen_at`             | string(date-time)                                      | false    |              |                                                                                                                                                                       |
 | `»»» login_type`               | [codersdk.LoginType](schemas.md#codersdklogintype)     | false    |              |                                                                                                                                                                       |
 | `»»» name`                     | string                                                 | false    |              |                                                                                                                                                                       |

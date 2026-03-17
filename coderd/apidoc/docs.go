@@ -18310,6 +18310,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "is_service_account": {
+                    "type": "boolean"
+                },
                 "last_seen_at": {
                     "type": "string",
                     "format": "date-time"
@@ -19618,6 +19621,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "is_service_account": {
+                    "type": "boolean"
+                },
                 "last_seen_at": {
                     "type": "string",
                     "format": "date-time"
@@ -20449,6 +20455,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "is_service_account": {
+                    "type": "boolean"
                 },
                 "last_seen_at": {
                     "type": "string",

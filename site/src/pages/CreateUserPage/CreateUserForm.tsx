@@ -196,6 +196,9 @@ export const CreateUserForm: FC<CreateUserFormProps> = ({
 								await Promise.all([
 									form.setFieldValue("login_type", value),
 									form.setFieldValue("service_account", isServiceAccount),
+									value !== "email"
+										? form.setFieldValue("email", "")
+										: Promise.resolve(),
 									value !== "password"
 										? form.setFieldValue("password", "")
 										: Promise.resolve(),

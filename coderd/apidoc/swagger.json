@@ -16708,6 +16708,9 @@
 					"type": "string",
 					"format": "uuid"
 				},
+				"is_service_account": {
+					"type": "boolean"
+				},
 				"last_seen_at": {
 					"type": "string",
 					"format": "date-time"
@@ -17970,6 +17973,9 @@
 					"type": "string",
 					"format": "uuid"
 				},
+				"is_service_account": {
+					"type": "boolean"
+				},
 				"last_seen_at": {
 					"type": "string",
 					"format": "date-time"
@@ -18748,6 +18754,9 @@
 				"id": {
 					"type": "string",
 					"format": "uuid"
+				},
+				"is_service_account": {
+					"type": "boolean"
 				},
 				"last_seen_at": {
 					"type": "string",
