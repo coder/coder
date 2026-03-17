@@ -368,8 +368,8 @@ export const WithErrorReasons: Story = {
 		],
 		outletContext: {
 			chatErrorReasons: {
-				"chat-1": "Model rate limited",
-				"chat-3": "Context window exceeded",
+				"chat-1": { kind: "generic", message: "Model rate limited" },
+				"chat-3": { kind: "generic", message: "Context window exceeded" },
 			},
 			setChatErrorReason: fn(),
 			clearChatErrorReason: fn(),

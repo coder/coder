@@ -4,7 +4,7 @@ import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { PanelLeftIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useCallback, useMemo, useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
@@ -16,13 +16,14 @@ import {
 	type ConfigureAgentsSection,
 } from "./ConfigureAgentsDialog";
 import { UserAnalyticsDialog } from "./UserAnalyticsDialog";
+import type { ChatDetailError } from "./usageLimitMessage";
 import { WebPushButton } from "./WebPushButton";
 
 type ChatModelOption = ModelSelectorOption;
 
 export interface AgentsOutletContext {
-	chatErrorReasons: Record<string, string>;
-	setChatErrorReason: (chatId: string, reason: string) => void;
+	chatErrorReasons: Record<string, ChatDetailError>;
+	setChatErrorReason: (chatId: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatId: string) => void;
 	requestArchiveAgent: (chatId: string) => void;
 	requestUnarchiveAgent: (chatId: string) => void;
@@ -30,6 +31,7 @@ export interface AgentsOutletContext {
 		chatId: string,
 		workspaceId: string,
 	) => void;
+	onOpenAnalytics?: () => void;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 }
@@ -109,6 +111,24 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	const [isUserAnalyticsDialogOpen, setUserAnalyticsDialogOpen] =
 		useState(false);
 	const [analyticsDialogKey, setAnalyticsDialogKey] = useState(0);
+	const handleOpenAnalytics = useCallback(() => {
+		setAnalyticsDialogKey((key) => key + 1);
+		setUserAnalyticsDialogOpen(true);
+	}, []);
+	const sidebarChatErrorReasons = useMemo(
+		() =>
+			Object.fromEntries(
+				Object.entries(chatErrorReasons).map(([chatId, error]) => [
+					chatId,
+					error.message,
+				]),
+			),
+		[chatErrorReasons],
+	);
+	const outletContextValue = useMemo(
+		() => ({ ...outletContext, onOpenAnalytics: handleOpenAnalytics }),
+		[outletContext, handleOpenAnalytics],
+	);
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
 			<title>{pageTitle("Agents")}</title>
@@ -123,7 +143,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 			>
 				<AgentsSidebar
 					chats={chatList}
-					chatErrorReasons={chatErrorReasons}
+					chatErrorReasons={sidebarChatErrorReasons}
 					modelOptions={catalogModelOptions}
 					modelConfigs={modelConfigs}
 					logoUrl={logoUrl}
@@ -143,10 +163,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					archivedFilter={archivedFilter}
 					onArchivedFilterChange={onArchivedFilterChange}
 					onCollapse={onCollapseSidebar}
-					onOpenAnalytics={() => {
-						setAnalyticsDialogKey((key) => key + 1);
-						setUserAnalyticsDialogOpen(true);
-					}}
+					onOpenAnalytics={handleOpenAnalytics}
 					onOpenSettings={() => {
 						setConfigureAgentsInitialSection("behavior");
 						setConfigDialogKey((key) => key + 1);
@@ -162,7 +179,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 				)}
 			>
 				{agentId ? (
-					<Outlet key={agentId} context={outletContext} />
+					<Outlet key={agentId} context={outletContextValue} />
 				) : (
 					<>
 						<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
@@ -203,6 +220,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 							isModelCatalogLoading={isModelCatalogLoading}
 							isModelConfigsLoading={isModelConfigsLoading}
 							modelCatalogError={modelCatalogError}
+							onOpenAnalytics={handleOpenAnalytics}
 						/>
 					</>
 				)}

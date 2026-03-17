@@ -1198,7 +1198,7 @@ jobs:
           make -j \
             build/coder_linux_{amd64,arm64,armv7} \
             build/coder_"$version"_windows_amd64.zip \
-            build/coder_"$version"_linux_amd64.{tar.gz,deb}
+            build/coder_"$version"_linux_{amd64,arm64,armv7}.{tar.gz,deb}
         env:
           # The Windows and Darwin slim binaries must be signed for Coder
           # Desktop to accept them.
@@ -1216,11 +1216,28 @@ jobs:
           GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
           JSIGN_PATH: /tmp/jsign-6.0.jar
 
+      # Free up disk space before building Docker images. The preceding
+      # Build step produces ~2 GB of binaries and packages, the Go build
+      # cache is ~1.3 GB, and node_modules is ~500 MB. Docker image
+      # builds, pushes, and SBOM generation need headroom that isn't
+      # available without reclaiming some of that space.
+      - name: Clean up build cache
+        run: |
+          set -euxo pipefail
+          # Go caches are no longer needed — binaries are already compiled.
+          go clean -cache -modcache
+          # Remove .apk and .rpm packages that are not uploaded as
+          # artifacts and were only built as make prerequisites.
+          rm -f ./build/*.apk ./build/*.rpm
+
       - name: Build Linux Docker images
         id: build-docker
         env:
           CODER_IMAGE_BASE: ghcr.io/coder/coder-preview
           DOCKER_CLI_EXPERIMENTAL: "enabled"
+          # Skip building .deb/.rpm/.apk/.tar.gz as prerequisites for
+          # the Docker image targets — they were already built above.
+          DOCKER_IMAGE_NO_PREREQUISITES: "true"
         run: |
           set -euxo pipefail
 

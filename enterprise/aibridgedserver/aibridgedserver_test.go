@@ -24,6 +24,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogjson"
+	agplaiseats "github.com/coder/coder/v2/coderd/aiseats"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -176,7 +177,7 @@ func TestAuthorization(t *testing.T) {
 				tc.mocksFn(db, apiKey, user)
 			}
 
-			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments)
+			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
 			require.NoError(t, err)
 			require.NotNil(t, srv)
 
@@ -268,7 +269,7 @@ func TestGetMCPServerConfigs(t *testing.T) {
 			accessURL := "https://my-cool-deployment.com"
 			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, accessURL, codersdk.AIBridgeConfig{
 				InjectCoderMCPTools: serpent.Bool(!tc.disableCoderMCPInjection),
-			}, tc.externalAuthConfigs, tc.experiments)
+			}, tc.externalAuthConfigs, tc.experiments, agplaiseats.Noop{})
 			require.NoError(t, err)
 			require.NotNil(t, srv)
 
@@ -318,7 +319,7 @@ func TestGetMCPServerAccessTokensBatch(t *testing.T) {
 		{
 			ID: "3",
 		},
-	}, requiredExperiments)
+	}, requiredExperiments, agplaiseats.Noop{})
 	require.NoError(t, err)
 	require.NotNil(t, srv)
 
@@ -1014,7 +1015,7 @@ func testRecordMethod[Req any, Resp any](
 			}
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments)
+			srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
 			require.NoError(t, err)
 
 			resp, err := callMethod(srv, ctx, tc.request)
@@ -1309,7 +1310,7 @@ func TestStructuredLogging(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 			srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{
 				StructuredLogging: serpent.Bool(tc.structuredLogging),
-			}, nil, requiredExperiments)
+			}, nil, requiredExperiments, agplaiseats.Noop{})
 			require.NoError(t, err)
 
 			err = tc.recordFn(srv, ctx, interceptionID)
@@ -1351,7 +1352,7 @@ func TestInferredThreadsByToolCalls(t *testing.T) {
 
 	user := dbgen.User(t, db, database.User{})
 
-	srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments)
+	srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
 	require.NoError(t, err)
 
 	aID := uuid.New()

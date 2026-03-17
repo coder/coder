@@ -7,9 +7,13 @@ import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
-import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetail";
-import type { useChatStore } from "./AgentDetail/ChatContext";
+import {
+	selectChatStatus,
+	useChatSelector,
+	type useChatStore,
+} from "./AgentDetail/ChatContext";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
+import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetailContent";
 import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
@@ -17,6 +21,7 @@ import {
 import { GitPanel } from "./GitPanel";
 import { RightPanel } from "./RightPanel";
 import { SidebarTabView } from "./SidebarTabView";
+import type { ChatDetailError } from "./usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -53,7 +58,7 @@ interface AgentDetailViewProps {
 	agentId: string;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
-	chatErrorReasons: Record<string, string>;
+	chatErrorReasons: Record<string, ChatDetailError>;
 	chatRecord: TypesGen.Chat | undefined;
 	isArchived: boolean;
 	hasWorkspace: boolean;
@@ -81,6 +86,7 @@ interface AgentDetailViewProps {
 	// Sidebar / panel state.
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
+	onOpenAnalytics?: () => void;
 
 	// Right panel state (owned by the parent so loading and
 	// loaded views share the same layout).
@@ -155,6 +161,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	isInterruptPending,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
+	onOpenAnalytics,
 	showSidebarPanel,
 	onSetShowSidebarPanel,
 	prNumber,
@@ -186,6 +193,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 		null,
 	);
 	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
+	const chatStatus = useChatSelector(store, selectChatStatus);
 
 	// Compute local diff stats from git watcher unified diffs.
 
@@ -245,7 +253,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 					)}
 					<div
 						aria-hidden
-						className="pointer-events-none absolute inset-x-0 top-full z-10 h-6 bg-surface-primary"
+						className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
 						style={{
 							maskImage:
 								"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
@@ -263,8 +271,12 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							store={store}
 							chatID={agentId}
 							persistedErrorReason={
-								chatErrorReasons[agentId] || chatRecord?.last_error || undefined
+								chatErrorReasons[agentId] ??
+								(chatStatus === "error" && chatRecord?.last_error
+									? { kind: "generic" as const, message: chatRecord.last_error }
+									: undefined)
 							}
+							onOpenAnalytics={onOpenAnalytics}
 							onEditUserMessage={editing.handleEditUserMessage}
 							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}

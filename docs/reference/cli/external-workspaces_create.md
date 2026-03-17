@@ -92,6 +92,15 @@ Specify the source workspace name to copy parameters from.
 
 Automatically accept parameter defaults when no value is provided.
 
+### --no-wait
+
+|             |                                    |
+|-------------|------------------------------------|
+| Type        | <code>bool</code>                  |
+| Environment | <code>$CODER_CREATE_NO_WAIT</code> |
+
+Return immediately after creating the workspace. The build will run in the background.
+
 ### -y, --yes
 
 |      |                   |
