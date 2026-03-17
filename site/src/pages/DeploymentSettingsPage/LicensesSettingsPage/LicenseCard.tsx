@@ -17,11 +17,12 @@ import { Pill } from "components/Pill/Pill";
 import dayjs from "dayjs";
 import { ChevronDownIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
 import { type FC, useState } from "react";
-import { AddOnCard } from "./AddOnCard";
+import { AIGovernanceAddOnCard } from "./AIGovernanceAddOnCard";
 
 type LicenseCardProps = {
 	license: GetLicensesResponse;
-	allLicenses?: GetLicensesResponse[];
+	includedWithPremium: number;
+	additionalPurchased: number;
 	aiGovernanceUserFeature?: Feature;
 	userLimitActual?: number;
 	userLimitLimit?: number;
@@ -31,7 +32,8 @@ type LicenseCardProps = {
 
 export const LicenseCard: FC<LicenseCardProps> = ({
 	license,
-	allLicenses,
+	includedWithPremium,
+	additionalPurchased,
 	aiGovernanceUserFeature,
 	userLimitActual,
 	userLimitLimit,
@@ -57,21 +59,6 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		: isPremium
 			? "Premium"
 			: "Enterprise";
-
-	let includedWithPremium = 0;
-	let additionalPurchased = 0;
-	for (const lic of allLicenses ?? []) {
-		const aiGovernanceSeatLimit = lic.claims.features?.ai_governance_user_limit;
-		if (!aiGovernanceSeatLimit || aiGovernanceSeatLimit <= 0) {
-			continue;
-		}
-
-		if (lic.claims.feature_set?.toLowerCase() === "premium") {
-			includedWithPremium += aiGovernanceSeatLimit;
-		} else {
-			additionalPurchased += aiGovernanceSeatLimit;
-		}
-	}
 
 	const hasAiGovernanceAddOn =
 		(aiGovernanceUserFeature?.enabled ?? false) &&
@@ -192,7 +179,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 								Add-ons
 							</div>
 							<div className="mt-3 flex flex-wrap gap-3">
-								<AddOnCard
+								<AIGovernanceAddOnCard
 									title="AI governance"
 									unit="Seats"
 									actual={aiGovernanceActual}

@@ -7,7 +7,7 @@ import {
 import { InfoIcon } from "lucide-react";
 import type { FC } from "react";
 
-type AddOnCardProps = {
+type AIGovernanceAddOnCardProps = {
 	title: string;
 	unit: string;
 	actual: number;
@@ -16,7 +16,7 @@ type AddOnCardProps = {
 	additionalPurchased: number;
 };
 
-export const AddOnCard: FC<AddOnCardProps> = ({
+export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
 	title,
 	unit,
 	actual,
