@@ -1,6 +1,6 @@
 import type * as TypesGen from "api/typesGenerated";
 import { asRecord, asString } from "components/ai-elements/runtimeTypeUtils";
-import { appendTextBlock, asNonEmptyString } from "./blockUtils";
+import { appendTextBlock } from "./blockUtils";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -17,9 +17,6 @@ const appendText = (current: string, next: string): string => {
 	}
 	return `${current}${next}`;
 };
-
-export const asOptionalTitle = (value: unknown): string | undefined =>
-	asNonEmptyString(value);
 
 const isSubagentToolName = (name: string): boolean =>
 	name === "spawn_agent" || name === "wait_agent" || name === "message_agent";
@@ -71,15 +68,6 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	blocks: [],
 	sources: [],
 });
-
-/** Wraps appendTextBlock using the same direct concatenation as
- *  the streaming path so both produce identical markdown. */
-const appendParsedTextBlock = (
-	blocks: RenderBlock[],
-	type: "response" | "thinking",
-	text: string,
-	title?: string,
-): RenderBlock[] => appendTextBlock(blocks, type, text, title);
 
 export const ensureToolBlock = (
 	blocks: RenderBlock[],
@@ -140,7 +128,7 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 		for (const [index, block] of content.entries()) {
 			if (typeof block === "string") {
 				parsed.markdown = appendText(parsed.markdown, block);
-				parsed.blocks = appendParsedTextBlock(parsed.blocks, "response", block);
+				parsed.blocks = appendTextBlock(parsed.blocks, "response", block);
 				continue;
 			}
 
@@ -153,23 +141,13 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 				case "text": {
 					const text = asString(typedBlock.text);
 					parsed.markdown = appendText(parsed.markdown, text);
-					parsed.blocks = appendParsedTextBlock(
-						parsed.blocks,
-						"response",
-						text,
-					);
+					parsed.blocks = appendTextBlock(parsed.blocks, "response", text);
 					break;
 				}
 				case "reasoning": {
 					const text = asString(typedBlock.text);
-					const title = asOptionalTitle(typedBlock.title);
 					parsed.reasoning = appendText(parsed.reasoning, text);
-					parsed.blocks = appendParsedTextBlock(
-						parsed.blocks,
-						"thinking",
-						text,
-						title,
-					);
+					parsed.blocks = appendTextBlock(parsed.blocks, "thinking", text);
 					break;
 				}
 				case "tool-call": {
@@ -191,18 +169,16 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 					break;
 				}
 				case "file-reference": {
-					const text = asString(typedBlock.text);
 					const fileName = asString(typedBlock.file_name);
 					const startLine = Number(typedBlock.start_line) || 0;
 					const endLine = Number(typedBlock.end_line) || startLine;
-					const contentStr = asString(typedBlock.content);
+					const content = asString(typedBlock.content);
 					parsed.blocks.push({
 						type: "file-reference",
-						fileName,
-						startLine,
-						endLine,
-						content: contentStr,
-						text,
+						file_name: fileName,
+						start_line: startLine,
+						end_line: endLine,
+						content,
 					});
 					break;
 				}
@@ -224,17 +200,18 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 					parsed.blocks = ensureToolBlock(parsed.blocks, id);
 					break;
 				}
-				case "file":
-					if (
-						typedBlock.media_type &&
-						(typedBlock.data || typedBlock.file_id)
-					) {
+				case "file": {
+					const mediaType = asString(typedBlock.media_type);
+					const data = asString(typedBlock.data) || undefined;
+					const fileId = asString(typedBlock.file_id) || undefined;
+					if (mediaType && (data || fileId)) {
 						parsed.blocks = [
 							...parsed.blocks,
-							typedBlock as Extract<RenderBlock, { type: "file" }>,
+							{ type: "file", media_type: mediaType, data, file_id: fileId },
 						];
 					}
 					break;
+				}
 				case "source": {
 					const url = asString(typedBlock.url);
 					const title = asString(typedBlock.title);
@@ -265,11 +242,7 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 				default: {
 					const text = asString(typedBlock.text);
 					parsed.markdown = appendText(parsed.markdown, text);
-					parsed.blocks = appendParsedTextBlock(
-						parsed.blocks,
-						"response",
-						text,
-					);
+					parsed.blocks = appendTextBlock(parsed.blocks, "response", text);
 					break;
 				}
 			}
@@ -287,7 +260,7 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 		return {
 			...emptyParsedMessageContent(),
 			markdown,
-			blocks: appendParsedTextBlock([], "response", markdown),
+			blocks: appendTextBlock([], "response", markdown),
 		};
 	}
 
@@ -300,7 +273,7 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 	return {
 		...emptyParsedMessageContent(),
 		markdown,
-		blocks: appendParsedTextBlock([], "response", markdown),
+		blocks: appendTextBlock([], "response", markdown),
 	};
 };
 

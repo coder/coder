@@ -115,11 +115,11 @@ describe("parseMessageContent", () => {
 
 	it("parses a reasoning block", () => {
 		const result = parseMessageContent([
-			{ type: "reasoning", text: "Let me think...", title: "Reasoning" },
+			{ type: "reasoning", text: "Let me think..." },
 		]);
 		expect(result.reasoning).toBe("Let me think...");
 		expect(result.blocks).toEqual([
-			{ type: "thinking", text: "Let me think...", title: "Reasoning" },
+			{ type: "thinking", text: "Let me think..." },
 		]);
 	});
 
@@ -263,17 +263,15 @@ describe("parseMessageContent", () => {
 				start_line: 10,
 				end_line: 15,
 				content: "some added code lines",
-				text: "Consider using a constant here.",
 			},
 		]);
 		expect(result.blocks).toHaveLength(1);
 		expect(result.blocks[0]).toEqual({
 			type: "file-reference",
-			fileName: "src/main.go",
-			startLine: 10,
-			endLine: 15,
+			file_name: "src/main.go",
+			start_line: 10,
+			end_line: 15,
 			content: "some added code lines",
-			text: "Consider using a constant here.",
 		});
 	});
 
@@ -283,12 +281,11 @@ describe("parseMessageContent", () => {
 				type: "file-reference",
 				file_name: "bare.ts",
 				content: "bare content",
-				text: "No line info.",
 			},
 		]);
-		const ref = result.blocks[0] as { startLine: number; endLine: number };
-		expect(ref.startLine).toBe(0);
-		expect(ref.endLine).toBe(0);
+		const ref = result.blocks[0] as { start_line: number; end_line: number };
+		expect(ref.start_line).toBe(0);
+		expect(ref.end_line).toBe(0);
 	});
 
 	it("does not affect markdown when file-reference blocks are present", () => {
@@ -300,7 +297,6 @@ describe("parseMessageContent", () => {
 				start_line: 1,
 				end_line: 2,
 				content: "nit code content",
-				text: "Nit.",
 			},
 		]);
 		expect(result.markdown).toBe("Hello");
@@ -308,11 +304,10 @@ describe("parseMessageContent", () => {
 		expect(result.blocks[0]).toEqual({ type: "response", text: "Hello" });
 		expect(result.blocks[1]).toEqual({
 			type: "file-reference",
-			fileName: "a.go",
-			startLine: 1,
-			endLine: 2,
+			file_name: "a.go",
+			start_line: 1,
+			end_line: 2,
 			content: "nit code content",
-			text: "Nit.",
 		});
 	});
 

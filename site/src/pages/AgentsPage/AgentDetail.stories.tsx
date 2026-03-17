@@ -653,7 +653,7 @@ export const WithSubagentCards: Story = {
 	},
 };
 
-/** Reasoning part without title renders inline (no disclosure). */
+/** Completed reasoning part renders inline. */
 export const WithReasoningInline: Story = {
 	parameters: {
 		queries: buildQueries(
@@ -687,7 +687,7 @@ export const WithReasoningInline: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// Reasoning text renders inline, not behind a disclosure.
+		// Reasoning text renders inline.
 		expect(canvas.getByText("Reasoning body")).toBeInTheDocument();
 		expect(canvas.queryByRole("button", { name: "Thinking" })).toBeNull();
 	},
@@ -991,10 +991,9 @@ export const SidebarWithSingleRepo: Story = {
 	},
 };
 /**
- * Streaming reasoning part via WebSocket — renders collapsed and
- * can be expanded on click.
+ * Streaming reasoning part via WebSocket — renders inline text.
  */
-export const StreamedReasoningCollapsed: Story = {
+export const StreamedReasoning: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
@@ -1015,7 +1014,6 @@ export const StreamedReasoningCollapsed: Story = {
 						message_part: {
 							part: {
 								type: "reasoning",
-								title: "Plan migration",
 								text: "Streaming reasoning body",
 							},
 						},
@@ -1026,16 +1024,7 @@ export const StreamedReasoningCollapsed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const user = userEvent.setup();
 
-		const reasoningToggle = await canvas.findByRole("button", {
-			name: "Plan migration",
-		});
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "false");
-
-		await user.click(reasoningToggle);
-
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "true");
 		await expect(
 			canvas.findByText("Streaming reasoning body"),
 		).resolves.toBeInTheDocument();
