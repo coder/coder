@@ -1578,10 +1578,10 @@ describe("useChatStore", () => {
 		});
 		expect(result.current.streamError).toBe("Rate limit exceeded");
 		expect(result.current.retryState).toBeNull();
-		expect(setChatErrorReason).toHaveBeenCalledWith(
-			chatID,
-			"Rate limit exceeded",
-		);
+		expect(setChatErrorReason).toHaveBeenCalledWith(chatID, {
+			kind: "generic",
+			message: "Rate limit exceeded",
+		});
 	});
 
 	it("uses fallback message when error event has no message", async () => {

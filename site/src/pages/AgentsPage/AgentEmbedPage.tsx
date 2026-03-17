@@ -17,6 +17,7 @@ import { useMutation, useQueryClient } from "react-query";
 import { Outlet, useParams } from "react-router";
 import type { AgentsOutletContext } from "./AgentsPage";
 import { bootstrapChatEmbedSession, EmbedProvider } from "./EmbedContext";
+import type { ChatDetailError } from "./usageLimitMessage";
 
 type BootstrapMessage = {
 	type: "coder:vscode-auth-bootstrap";
@@ -64,25 +65,33 @@ const AgentEmbedPage: FC = () => {
 	const inFlightBootstrapRef = useRef<Promise<unknown> | null>(null);
 
 	const [chatErrorReasons, setChatErrorReasons] = useState<
-		Record<string, string>
+		Record<string, ChatDetailError>
 	>({});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-	const setChatErrorReason = useCallback((chatId: string, reason: string) => {
-		const trimmedReason = reason.trim();
-		if (!chatId || !trimmedReason) {
-			return;
-		}
-		setChatErrorReasons((current) => {
-			if (current[chatId] === trimmedReason) {
-				return current;
+	const setChatErrorReason = useCallback(
+		(chatId: string, reason: ChatDetailError) => {
+			const trimmedMessage = reason.message.trim();
+			if (!chatId || !trimmedMessage) {
+				return;
 			}
-			return {
-				...current,
-				[chatId]: trimmedReason,
-			};
-		});
-	}, []);
+			setChatErrorReasons((current) => {
+				const existing = current[chatId];
+				if (
+					existing &&
+					existing.kind === reason.kind &&
+					existing.message === trimmedMessage
+				) {
+					return current;
+				}
+				return {
+					...current,
+					[chatId]: { kind: reason.kind, message: trimmedMessage },
+				};
+			});
+		},
+		[],
+	);
 
 	const clearChatErrorReason = useCallback((chatId: string) => {
 		if (!chatId) {

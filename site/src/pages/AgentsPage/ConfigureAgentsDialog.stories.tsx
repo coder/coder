@@ -4,7 +4,9 @@ import {
 	chatModelConfigsKey,
 	chatModelsKey,
 	chatProviderConfigsKey,
+	chatUsageLimitConfigKey,
 } from "api/queries/chats";
+import { groupsQueryKey } from "api/queries/groups";
 import type {
 	ChatCostSummary,
 	ChatCostUserRollup,
@@ -12,6 +14,10 @@ import type {
 	ChatModelConfig,
 	ChatModelsResponse,
 	ChatProviderConfig,
+	ChatUsageLimitConfigResponse,
+	ChatUsageLimitGroupOverride,
+	ChatUsageLimitOverride,
+	Group,
 } from "api/typesGenerated";
 import {
 	expect,
@@ -155,6 +161,65 @@ const mockUsageSummary: ChatCostSummary = {
 	],
 };
 
+const mockGroupOverrides: ChatUsageLimitGroupOverride[] = [
+	{
+		group_id: "grp-1",
+		group_name: "engineering",
+		group_display_name: "Engineering",
+		group_avatar_url: "",
+		member_count: 12,
+		spend_limit_micros: 20_000_000,
+	},
+];
+
+const mockUserOverrides: ChatUsageLimitOverride[] = [
+	{
+		user_id: "user-1",
+		username: "alice",
+		name: "Alice Example",
+		avatar_url: "https://example.com/alice.png",
+		spend_limit_micros: 50_000_000,
+	},
+];
+
+const mockLimitConfig: ChatUsageLimitConfigResponse = {
+	spend_limit_micros: 10_000_000,
+	period: "month",
+	updated_at: "2026-03-01T00:00:00Z",
+	unpriced_model_count: 1,
+	group_overrides: mockGroupOverrides,
+	overrides: mockUserOverrides,
+};
+
+const mockGroups: Group[] = [
+	{
+		id: "grp-1",
+		name: "engineering",
+		display_name: "Engineering",
+		organization_id: "org-1",
+		members: [],
+		total_member_count: 12,
+		avatar_url: "",
+		quota_allowance: 0,
+		source: "user",
+		organization_name: "default",
+		organization_display_name: "Default",
+	},
+	{
+		id: "grp-2",
+		name: "design",
+		display_name: "Design",
+		organization_id: "org-1",
+		members: [],
+		total_member_count: 5,
+		avatar_url: "",
+		quota_allowance: 0,
+		source: "user",
+		organization_name: "default",
+		organization_display_name: "Default",
+	},
+];
+
 const meta: Meta<typeof ConfigureAgentsDialog> = {
 	title: "pages/AgentsPage/ConfigureAgentsDialog",
 	component: ConfigureAgentsDialog,
@@ -249,5 +314,31 @@ export const UsageTab: Story = {
 	beforeEach: () => {
 		spyOn(API, "getChatCostUsers").mockResolvedValue(mockUsageUsers);
 		spyOn(API, "getChatCostSummary").mockResolvedValue(mockUsageSummary);
+	},
+};
+
+/** Admin sees the Limits tab with global, group, and user override data. */
+export const LimitsTab: Story = {
+	args: {
+		initialSection: "limits",
+		canManageChatModelConfigs: true,
+	},
+	parameters: {
+		queries: [
+			...chatQueries,
+			{ key: chatUsageLimitConfigKey, data: mockLimitConfig },
+			{ key: groupsQueryKey, data: mockGroups },
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "updateChatUsageLimitConfig").mockResolvedValue(mockLimitConfig);
+		spyOn(API, "upsertChatUsageLimitGroupOverride").mockResolvedValue(
+			mockGroupOverrides[0]!,
+		);
+		spyOn(API, "deleteChatUsageLimitGroupOverride").mockResolvedValue();
+		spyOn(API, "upsertChatUsageLimitOverride").mockResolvedValue(
+			mockUserOverrides[0]!,
+		);
+		spyOn(API, "deleteChatUsageLimitOverride").mockResolvedValue();
 	},
 };
