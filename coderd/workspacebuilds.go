@@ -989,48 +989,108 @@ type workspaceBuildsData struct {
 
 func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
 	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
-	for _, build := range workspaceBuilds {
-		jobIDs = append(jobIDs, build.JobID)
-	}
-	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
-		IDs:             jobIDs,
-		StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
-	})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs: %w", err)
-	}
-	pendingJobIDs := []uuid.UUID{}
-	for _, job := range jobs {
-		if job.ProvisionerJob.JobStatus == database.ProvisionerJobStatusPending {
-			pendingJobIDs = append(pendingJobIDs, job.ProvisionerJob.ID)
-		}
-	}
-
-	pendingJobProvisioners, err := api.Database.GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, pendingJobIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get provisioner daemons: %w", err)
-	}
-
 	templateVersionIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
+		jobIDs = append(jobIDs, build.JobID)
 		templateVersionIDs = append(templateVersionIDs, build.TemplateVersionID)
 	}
 
-	// nolint:gocritic // Getting template versions by ID is a system function.
-	templateVersions, err := api.Database.GetTemplateVersionsByIDs(dbauthz.AsSystemRestricted(ctx), templateVersionIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get template versions: %w", err)
+	// Phase A: Fetch jobs, template versions, and resources in parallel.
+	// These three queries depend only on the build list and can run
+	// concurrently.
+	var (
+		jobs             []database.ProvisionerJob
+		templateVersions []database.TemplateVersion
+		resources        []database.WorkspaceResource
+	)
+	var eg errgroup.Group
+	eg.Go(func() error {
+		var err error
+		jobs, err = api.Database.GetProvisionerJobsByIDs(ctx, jobIDs)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get provisioner jobs: %w", err)
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		var err error
+		// nolint:gocritic // Getting template versions by ID is a system function.
+		templateVersions, err = api.Database.GetTemplateVersionsByIDs(dbauthz.AsSystemRestricted(ctx), templateVersionIDs)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get template versions: %w", err)
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		var err error
+		// nolint:gocritic // Getting workspace resources by job ID is a system function.
+		resources, err = api.Database.GetWorkspaceResourcesByJobIDs(dbauthz.AsSystemRestricted(ctx), jobIDs)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get workspace resources by job: %w", err)
+		}
+		return nil
+	})
+	if err := eg.Wait(); err != nil {
+		return workspaceBuildsData{}, err
 	}
 
-	// nolint:gocritic // Getting workspace resources by job ID is a system function.
-	resources, err := api.Database.GetWorkspaceResourcesByJobIDs(dbauthz.AsSystemRestricted(ctx), jobIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get workspace resources by job: %w", err)
+	// Phase B: Get queue position and eligible daemons for pending
+	// jobs only. The queue position query is expensive (cross-join
+	// with all pending jobs and active daemons), so we only run it
+	// for the small number of actually-pending jobs.
+	var pendingJobIDs []uuid.UUID
+	for _, job := range jobs {
+		if job.JobStatus == database.ProvisionerJobStatusPending {
+			pendingJobIDs = append(pendingJobIDs, job.ID)
+		}
+	}
+
+	var queuePositionRows []database.GetProvisionerJobsByIDsWithQueuePositionRow
+	if len(pendingJobIDs) > 0 {
+		var err error
+		queuePositionRows, err = api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+			IDs:             pendingJobIDs,
+			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+		})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs queue position: %w", err)
+		}
+	}
+
+	var pendingJobProvisioners []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
+	if len(pendingJobIDs) > 0 {
+		var err error
+		pendingJobProvisioners, err = api.Database.GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, pendingJobIDs)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return workspaceBuildsData{}, xerrors.Errorf("get provisioner daemons: %w", err)
+		}
+	}
+
+	// Merge job rows with queue position information so downstream
+	// consumers see the same type they expect.
+	queuePositionByID := make(map[uuid.UUID]database.GetProvisionerJobsByIDsWithQueuePositionRow, len(queuePositionRows))
+	for _, qpRow := range queuePositionRows {
+		queuePositionByID[qpRow.ID] = qpRow
+	}
+	jobsWithQueuePosition := make([]database.GetProvisionerJobsByIDsWithQueuePositionRow, 0, len(jobs))
+	for _, job := range jobs {
+		row := database.GetProvisionerJobsByIDsWithQueuePositionRow{
+			ID:             job.ID,
+			CreatedAt:      job.CreatedAt,
+			ProvisionerJob: job,
+			QueuePosition:  0,
+			QueueSize:      0,
+		}
+		if qpRow, ok := queuePositionByID[job.ID]; ok {
+			row.QueuePosition = qpRow.QueuePosition
+			row.QueueSize = qpRow.QueueSize
+		}
+		jobsWithQueuePosition = append(jobsWithQueuePosition, row)
 	}
 
 	if len(resources) == 0 {
 		return workspaceBuildsData{
-			jobs:               jobs,
+			jobs:               jobsWithQueuePosition,
 			templateVersions:   templateVersions,
 			provisionerDaemons: pendingJobProvisioners,
 		}, nil
@@ -1041,21 +1101,38 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 		resourceIDs = append(resourceIDs, resource.ID)
 	}
 
-	// nolint:gocritic // Getting workspace resource metadata by resource ID is a system function.
-	metadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("fetching resource metadata: %w", err)
+	// Phase C: Fetch metadata and agents in parallel (both depend
+	// on resourceIDs which we just computed).
+	var (
+		metadata []database.WorkspaceResourceMetadatum
+		agents   []database.WorkspaceAgent
+	)
+	var eg2 errgroup.Group
+	eg2.Go(func() error {
+		var err error
+		// nolint:gocritic // Getting workspace resource metadata by resource ID is a system function.
+		metadata, err = api.Database.GetWorkspaceResourceMetadataByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("fetching resource metadata: %w", err)
+		}
+		return nil
+	})
+	eg2.Go(func() error {
+		var err error
+		// nolint:gocritic // Getting workspace agents by resource IDs is a system function.
+		agents, err = api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get workspace agents: %w", err)
+		}
+		return nil
+	})
+	if err := eg2.Wait(); err != nil {
+		return workspaceBuildsData{}, err
 	}
 
-	// nolint:gocritic // Getting workspace agents by resource IDs is a system function.
-	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("get workspace agents: %w", err)
-	}
-
-	if len(resources) == 0 {
+	if len(agents) == 0 {
 		return workspaceBuildsData{
-			jobs:               jobs,
+			jobs:               jobsWithQueuePosition,
 			templateVersions:   templateVersions,
 			resources:          resources,
 			metadata:           metadata,
@@ -1074,23 +1151,23 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 		logSources []database.WorkspaceAgentLogSource
 	)
 
-	var eg errgroup.Group
-	eg.Go(func() (err error) {
+	var eg3 errgroup.Group
+	eg3.Go(func() (err error) {
 		// nolint:gocritic // Getting workspace apps by agent IDs is a system function.
 		apps, err = api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
 		return err
 	})
-	eg.Go(func() (err error) {
+	eg3.Go(func() (err error) {
 		// nolint:gocritic // Getting workspace scripts by agent IDs is a system function.
 		scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
 		return err
 	})
-	eg.Go(func() error {
+	eg3.Go(func() (err error) {
 		// nolint:gocritic // Getting workspace agent log sources by agent IDs is a system function.
 		logSources, err = api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
 		return err
 	})
-	err = eg.Wait()
+	err := eg3.Wait()
 	if err != nil {
 		return workspaceBuildsData{}, err
 	}
@@ -1107,7 +1184,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 	}
 
 	return workspaceBuildsData{
-		jobs:               jobs,
+		jobs:               jobsWithQueuePosition,
 		templateVersions:   templateVersions,
 		resources:          resources,
 		metadata:           metadata,
