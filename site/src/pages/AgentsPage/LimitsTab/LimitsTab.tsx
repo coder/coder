@@ -169,9 +169,11 @@ export const LimitsTab: FC = () => {
 		: false;
 	const groupAutocompleteNoOptionsText = groupsQuery.isLoading
 		? "Loading groups..."
-		: availableGroups.length === 0
-			? "All groups already have overrides"
-			: "No groups available";
+		: (groupsQuery.data?.length ?? 0) === 0
+			? "No groups configured"
+			: availableGroups.length === 0
+				? "All groups already have overrides"
+				: "No groups available";
 
 	const resetUpdateConfigMutation = () => {
 		if (!updateConfigMutation.isPending) {
