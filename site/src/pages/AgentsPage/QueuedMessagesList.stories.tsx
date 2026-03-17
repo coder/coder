@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ChatQueuedMessage } from "api/typesGenerated";
+import type { ChatQueuedMessage } from "api/chatMessageParts";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 

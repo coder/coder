@@ -1,4 +1,4 @@
-import type { ChatMessagePart, ChatQueuedMessage } from "api/typesGenerated";
+import type { ChatFilePart, ChatQueuedMessage } from "api/chatMessageParts";
 import {
 	ModelSelector,
 	type ModelSelectorOption,
@@ -94,7 +94,7 @@ interface AgentChatInputProps {
 	onStartQueueEdit?: (
 		id: number,
 		text: string,
-		fileBlocks: readonly ChatMessagePart[],
+		fileBlocks: readonly ChatFilePart[],
 	) => void;
 	onCancelQueueEdit?: () => void;
 	// History editing state, owned by the parent.

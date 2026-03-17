@@ -1,3 +1,4 @@
+import type { ChatFilePart } from "api/chatMessageParts";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import {
@@ -291,7 +292,7 @@ const ChatMessageItem = memo<{
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+		fileBlocks?: readonly ChatFilePart[],
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
@@ -379,7 +380,7 @@ const ChatMessageItem = memo<{
 									onEditUserMessage && !isSavingMessage
 										? () => {
 												const fileBlocks = parsed.blocks.filter(
-													(b): b is Extract<RenderBlock, { type: "file" }> =>
+													(b): b is ChatFilePart =>
 														b.type === "file" &&
 														b.media_type.startsWith("image/"),
 												);
@@ -407,7 +408,7 @@ const ChatMessageItem = memo<{
 									</div>
 									{(() => {
 										const imageBlocks = parsed.blocks.filter(
-											(b): b is Extract<RenderBlock, { type: "file" }> =>
+											(b): b is ChatFilePart =>
 												b.type === "file" && b.media_type.startsWith("image/"),
 										);
 										if (imageBlocks.length === 0) return null;
@@ -612,7 +613,7 @@ const StickyUserMessage: FC<{
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+		fileBlocks?: readonly ChatFilePart[],
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
@@ -751,7 +752,7 @@ const StickyUserMessage: FC<{
 		? (
 				messageId: number,
 				text: string,
-				fileBlocks?: readonly TypesGen.ChatMessagePart[],
+				fileBlocks?: readonly ChatFilePart[],
 			) => {
 				onEditUserMessage(messageId, text, fileBlocks);
 				requestAnimationFrame(() => {
@@ -869,7 +870,7 @@ interface ConversationTimelineProps {
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+		fileBlocks?: readonly ChatFilePart[],
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;

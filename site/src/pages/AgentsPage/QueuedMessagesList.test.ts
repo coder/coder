@@ -1,4 +1,4 @@
-import type { ChatQueuedMessage } from "api/typesGenerated";
+import type { ChatQueuedMessage } from "api/chatMessageParts";
 import { describe, expect, it } from "vitest";
 import { getQueuedMessageInfo } from "./QueuedMessagesList";
 

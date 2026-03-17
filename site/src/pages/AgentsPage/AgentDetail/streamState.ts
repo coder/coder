@@ -1,3 +1,4 @@
+import type { ChatFilePart } from "api/chatMessageParts";
 import { asString } from "components/ai-elements/runtimeTypeUtils";
 import { appendTextBlock } from "./blockUtils";
 import {
@@ -147,10 +148,7 @@ export const applyMessagePartToStreamState = (
 			}
 			return {
 				...nextState,
-				blocks: [
-					...nextState.blocks,
-					part as Extract<RenderBlock, { type: "file" }>,
-				],
+				blocks: [...nextState.blocks, part as unknown as ChatFilePart],
 			};
 		case "source": {
 			const url = asString(part.url);

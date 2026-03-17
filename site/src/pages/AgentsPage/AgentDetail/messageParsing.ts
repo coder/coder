@@ -1,3 +1,4 @@
+import type { ChatFilePart } from "api/chatMessageParts";
 import type * as TypesGen from "api/typesGenerated";
 import { asRecord, asString } from "components/ai-elements/runtimeTypeUtils";
 import { appendTextBlock, asNonEmptyString } from "./blockUtils";
@@ -251,7 +252,7 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 					) {
 						parsed.blocks = [
 							...parsed.blocks,
-							typedBlock as Extract<RenderBlock, { type: "file" }>,
+							typedBlock as unknown as ChatFilePart,
 						];
 					}
 					break;

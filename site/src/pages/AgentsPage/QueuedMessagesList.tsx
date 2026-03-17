@@ -1,4 +1,9 @@
-import type { ChatMessagePart, ChatQueuedMessage } from "api/typesGenerated";
+import {
+	type ChatFilePart,
+	type ChatQueuedMessage,
+	isFilePart,
+	isTextPart,
+} from "api/chatMessageParts";
 import { Button } from "components/Button/Button";
 import { Spinner } from "components/Spinner/Spinner";
 import {
@@ -23,7 +28,7 @@ interface QueuedMessagesListProps {
 	onEdit?: (
 		id: number,
 		text: string,
-		fileBlocks: readonly ChatMessagePart[],
+		fileBlocks: readonly ChatFilePart[],
 	) => void;
 	editingMessageID?: number | null;
 	className?: string;
@@ -33,18 +38,18 @@ interface QueuedMessageInfo {
 	displayText: string;
 	rawText: string;
 	attachmentCount: number;
-	fileBlocks: readonly ChatMessagePart[];
+	fileBlocks: readonly ChatFilePart[];
 }
 
 export const getQueuedMessageInfo = (
 	message: ChatQueuedMessage,
 ): QueuedMessageInfo => {
 	const { content } = message;
-	const fileBlocks = content.filter((p) => p.type === "file");
+	const fileBlocks = content.filter(isFilePart);
 	const rawText = content
-		.filter((p) => p.type === "text")
+		.filter(isTextPart)
 		.map((p) => p.text)
-		.filter((t): t is string => Boolean(t?.trim()))
+		.filter((t) => Boolean(t.trim()))
 		.join(" ")
 		.trim();
 

@@ -1,3 +1,4 @@
+import type { ChatFilePart, ChatQueuedMessage } from "api/chatMessageParts";
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -48,7 +49,7 @@ interface AgentDetailTimelineProps {
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+		fileBlocks?: readonly ChatFilePart[],
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
@@ -169,14 +170,14 @@ interface AgentDetailInputProps {
 	onStartQueueEdit: (
 		id: number,
 		text: string,
-		fileBlocks: readonly TypesGen.ChatMessagePart[],
+		fileBlocks: readonly ChatFilePart[],
 	) => void;
 	onCancelQueueEdit: () => void;
 	isEditingHistoryMessage: boolean;
 	onCancelHistoryEdit: () => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
-	editingFileBlocks?: readonly TypesGen.ChatMessagePart[];
+	editingFileBlocks?: readonly ChatFilePart[];
 }
 
 export const AgentDetailInput: FC<AgentDetailInputProps> = ({
@@ -210,7 +211,10 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
-	const queuedMessages = useChatSelector(store, selectQueuedMessages);
+	const queuedMessages = useChatSelector(
+		store,
+		selectQueuedMessages,
+	) as readonly ChatQueuedMessage[];
 
 	const messages = useMemo(
 		() =>
