@@ -5,6 +5,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { PanelLeftIcon } from "lucide-react";
 import { type FC, useCallback, useMemo, useState } from "react";
+import { useIsStandalone } from "hooks/useIsStandalone";
 import { NavLink, Outlet } from "react-router";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
@@ -103,6 +104,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		requestUnarchiveAgent,
 		requestArchiveAndDeleteWorkspace,
 	} = outletContext;
+	const isStandalone = useIsStandalone();
 	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
 		useState(false);
 	const [configDialogKey, setConfigDialogKey] = useState(0);
@@ -184,7 +186,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					<>
 						<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
 							<NavLink
-								to="/workspaces"
+								to={isStandalone ? "/agents" : "/workspaces"}
 								className="inline-flex shrink-0 md:hidden"
 							>
 								{logoUrl ? (
