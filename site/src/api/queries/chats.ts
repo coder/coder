@@ -418,7 +418,7 @@ export const chatModels = () => ({
 	queryFn: (): Promise<TypesGen.ChatModelsResponse> => API.getChatModels(),
 });
 
-export const chatProviderConfigsKey = ["chat-provider-configs"] as const;
+const chatProviderConfigsKey = ["chat-provider-configs"] as const;
 
 export const chatProviderConfigs = () => ({
 	queryKey: chatProviderConfigsKey,
@@ -426,7 +426,7 @@ export const chatProviderConfigs = () => ({
 		API.getChatProviderConfigs(),
 });
 
-export const chatModelConfigsKey = ["chat-model-configs"] as const;
+const chatModelConfigsKey = ["chat-model-configs"] as const;
 
 export const chatModelConfigs = () => ({
 	queryKey: chatModelConfigsKey,
@@ -531,10 +531,7 @@ export const chatCostUsers = (params?: ChatCostUsersParams) => ({
 	staleTime: 60_000,
 });
 
-export const chatUsageLimitConfigKey = [
-	...chatsKey,
-	"usageLimitConfig",
-] as const;
+const chatUsageLimitConfigKey = [...chatsKey, "usageLimitConfig"] as const;
 
 export const chatUsageLimitConfig = () => ({
 	queryKey: chatUsageLimitConfigKey,

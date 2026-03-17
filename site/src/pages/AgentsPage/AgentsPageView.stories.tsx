@@ -117,6 +117,9 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 });
 
 const agentsRouting = [
+	{ path: "/agents/settings/:section", useStoryElement: true },
+	{ path: "/agents/settings", useStoryElement: true },
+	{ path: "/agents/analytics", useStoryElement: true },
 	{ path: "/agents/:agentId", useStoryElement: true },
 	{ path: "/agents", useStoryElement: true },
 ] satisfies [
@@ -382,32 +385,14 @@ export const WithErrorReasons: Story = {
 	},
 };
 
-type ChatCostSummaryCall = [
-	user: string,
-	params?: {
-		start_date?: string;
-		end_date?: string;
-	},
-];
-
-const getChatCostSummaryCalls = (): ChatCostSummaryCall[] => {
-	return (
-		API.getChatCostSummary as typeof API.getChatCostSummary & {
-			mock: { calls: ChatCostSummaryCall[] };
-		}
-	).mock.calls;
+const openAnalyticsView = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	await userEvent.click(canvas.getByRole("link", { name: "Analytics" }));
 };
 
-const openAnalyticsDialog = async (canvasElement: HTMLElement) => {
+const openSettingsView = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
-	await userEvent.click(canvas.getByRole("button", { name: "Analytics" }));
-	return screen.findByRole("dialog", { name: "Analytics" });
-};
-
-const openSettingsDialog = async (canvasElement: HTMLElement) => {
-	const canvas = within(canvasElement);
-	await userEvent.click(canvas.getByRole("button", { name: "Settings" }));
-	return screen.findByRole("dialog", { name: "Settings" });
+	await userEvent.click(canvas.getByRole("link", { name: "Settings" }));
 };
 
 export const OpensAnalyticsForAdmins: Story = {
@@ -415,12 +400,15 @@ export const OpensAnalyticsForAdmins: Story = {
 		isAgentsAdmin: true,
 	},
 	play: async ({ canvasElement }) => {
-		const dialog = await openAnalyticsDialog(canvasElement);
+		await openAnalyticsView(canvasElement);
 
-		await expect(dialog).toBeInTheDocument();
-		expect(
-			screen.queryByRole("dialog", { name: "Settings" }),
-		).not.toBeInTheDocument();
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"Review your personal chat usage and cost breakdowns.",
+				),
+			).toBeInTheDocument();
+		});
 	},
 };
 
@@ -429,12 +417,15 @@ export const OpensAnalyticsForNonAdmins: Story = {
 		isAgentsAdmin: false,
 	},
 	play: async ({ canvasElement }) => {
-		const dialog = await openAnalyticsDialog(canvasElement);
+		await openAnalyticsView(canvasElement);
 
-		await expect(dialog).toBeInTheDocument();
-		expect(
-			screen.queryByRole("dialog", { name: "Settings" }),
-		).not.toBeInTheDocument();
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"Review your personal chat usage and cost breakdowns.",
+				),
+			).toBeInTheDocument();
+		});
 	},
 };
 
@@ -443,17 +434,15 @@ export const OpensSettingsForAdmins: Story = {
 		isAgentsAdmin: true,
 	},
 	play: async ({ canvasElement }) => {
-		const dialog = await openSettingsDialog(canvasElement);
+		await openSettingsView(canvasElement);
 
-		await expect(dialog).toBeInTheDocument();
-		await expect(
-			within(dialog).getByText(
-				"Custom instructions that shape how the agent responds in your chats.",
-			),
-		).toBeInTheDocument();
-		expect(
-			screen.queryByRole("dialog", { name: "Analytics" }),
-		).not.toBeInTheDocument();
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"Custom instructions that shape how the agent responds in your chats.",
+				),
+			).toBeInTheDocument();
+		});
 	},
 };
 
@@ -462,27 +451,36 @@ export const OpensSettingsForNonAdmins: Story = {
 		isAgentsAdmin: false,
 	},
 	play: async ({ canvasElement }) => {
-		const dialog = await openSettingsDialog(canvasElement);
+		await openSettingsView(canvasElement);
 
-		await expect(dialog).toBeInTheDocument();
-		await expect(
-			within(dialog).getByText(
-				"Custom instructions that shape how the agent responds in your chats.",
-			),
-		).toBeInTheDocument();
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"Custom instructions that shape how the agent responds in your chats.",
+				),
+			).toBeInTheDocument();
+		});
 	},
 };
 
-export const RemountsConfigureDialogWhenReopened: Story = {
+export const SettingsViewResets: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},
 	play: async ({ canvasElement }) => {
-		let dialog = await openSettingsDialog(canvasElement);
+		// Open settings
+		await openSettingsView(canvasElement);
 
-		await userEvent.click(
-			within(dialog).getByRole("button", { name: "Usage" }),
-		);
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"Custom instructions that shape how the agent responds in your chats.",
+				),
+			).toBeInTheDocument();
+		});
+
+		// Navigate to Usage section
+		await userEvent.click(screen.getByText("Usage"));
 		await waitFor(() => {
 			expect(
 				screen.getByText(
@@ -491,71 +489,18 @@ export const RemountsConfigureDialogWhenReopened: Story = {
 			).toBeInTheDocument();
 		});
 
-		await userEvent.click(
-			within(dialog).getByRole("button", { name: "Close" }),
-		);
+		// Go back to chats
+		const backButton = screen.getByLabelText("Back to chats from Settings");
+		await userEvent.click(backButton);
+
+		// Re-open settings, should reset to Behavior
+		await openSettingsView(canvasElement);
 		await waitFor(() => {
 			expect(
-				screen.queryByRole("dialog", { name: "Settings" }),
-			).not.toBeInTheDocument();
+				screen.getByText(
+					"Custom instructions that shape how the agent responds in your chats.",
+				),
+			).toBeInTheDocument();
 		});
-
-		dialog = await openSettingsDialog(canvasElement);
-
-		await expect(
-			within(dialog).getByText(
-				"Custom instructions that shape how the agent responds in your chats.",
-			),
-		).toBeInTheDocument();
-		expect(
-			screen.queryByText(
-				"Review deployment chat usage and drill into individual users.",
-			),
-		).not.toBeInTheDocument();
-	},
-};
-
-export const RemountsAnalyticsDialogWhenReopened: Story = {
-	args: {
-		isAgentsAdmin: true,
-	},
-	play: async ({ canvasElement }) => {
-		let dialog = await openAnalyticsDialog(canvasElement);
-
-		await expect(dialog).toBeInTheDocument();
-		await waitFor(() => {
-			expect(getChatCostSummaryCalls().length).toBeGreaterThan(0);
-		});
-		const initialCallCount = getChatCostSummaryCalls().length;
-		const initialEndDates = new Set(
-			getChatCostSummaryCalls()
-				.map(([, params]) => params?.end_date)
-				.filter((endDate): endDate is string => Boolean(endDate)),
-		);
-
-		await userEvent.click(
-			within(dialog).getByRole("button", { name: "Close" }),
-		);
-		await waitFor(() => {
-			expect(
-				screen.queryByRole("dialog", { name: "Analytics" }),
-			).not.toBeInTheDocument();
-		});
-
-		dialog = await openAnalyticsDialog(canvasElement);
-		await expect(dialog).toBeInTheDocument();
-		await waitFor(() => {
-			expect(getChatCostSummaryCalls().length).toBeGreaterThan(
-				initialCallCount,
-			);
-		});
-
-		const reopenedCalls = getChatCostSummaryCalls().slice(initialCallCount);
-		expect(
-			reopenedCalls.some(([, params]) => {
-				const endDate = params?.end_date;
-				return typeof endDate === "string" && !initialEndDates.has(endDate);
-			}),
-		).toBe(true);
 	},
 };
