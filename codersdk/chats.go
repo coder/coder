@@ -1,8 +1,10 @@
 package codersdk
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -242,7 +245,8 @@ type CreateChatRequest struct {
 
 // UpdateChatRequest is the request to update a chat.
 type UpdateChatRequest struct {
-	Title string `json:"title"`
+	Title    *string `json:"title,omitempty"`
+	Archived *bool   `json:"archived,omitempty"`
 }
 
 // CreateChatMessageRequest is the request to add a message to a chat.
@@ -304,25 +308,15 @@ type ChatModelsResponse struct {
 	Providers []ChatModelProvider `json:"providers"`
 }
 
-// ChatSystemPromptResponse is the response for getting the chat system prompt.
-type ChatSystemPromptResponse struct {
+// ChatSystemPrompt is the request and response body for the chat
+// system prompt configuration endpoint.
+type ChatSystemPrompt struct {
 	SystemPrompt string `json:"system_prompt"`
 }
 
-// UpdateChatSystemPromptRequest is the request to update the chat system prompt.
-type UpdateChatSystemPromptRequest struct {
-	SystemPrompt string `json:"system_prompt"`
-}
-
-// UserChatCustomPromptResponse is the response for getting a user's
-// custom chat prompt.
-type UserChatCustomPromptResponse struct {
-	CustomPrompt string `json:"custom_prompt"`
-}
-
-// UpdateUserChatCustomPromptRequest is the request to update a user's
-// custom chat prompt.
-type UpdateUserChatCustomPromptRequest struct {
+// UserChatCustomPrompt is the request and response body for the
+// user chat custom prompt configuration endpoint.
+type UserChatCustomPrompt struct {
 	CustomPrompt string `json:"custom_prompt"`
 }
 
@@ -463,12 +457,13 @@ type ChatModelOpenAICompatProviderOptions struct {
 	ReasoningEffort *string `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
 }
 
-// ChatModelOpenRouterReasoningOptions configures OpenRouter reasoning behavior.
-type ChatModelOpenRouterReasoningOptions struct {
+// ChatModelReasoningOptions configures reasoning behavior for model
+// providers that support it.
+type ChatModelReasoningOptions struct {
 	Enabled   *bool   `json:"enabled,omitempty" description:"Whether reasoning is enabled"`
 	Exclude   *bool   `json:"exclude,omitempty" description:"Whether to exclude reasoning content from the response"`
 	MaxTokens *int64  `json:"max_tokens,omitempty" description:"Maximum number of tokens for reasoning output"`
-	Effort    *string `json:"effort,omitempty" description:"Controls the level of reasoning effort" enum:"low,medium,high"`
+	Effort    *string `json:"effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
 }
 
 // ChatModelOpenRouterProvider configures OpenRouter routing preferences.
@@ -485,22 +480,14 @@ type ChatModelOpenRouterProvider struct {
 
 // ChatModelOpenRouterProviderOptions configures OpenRouter provider behavior.
 type ChatModelOpenRouterProviderOptions struct {
-	Reasoning         *ChatModelOpenRouterReasoningOptions `json:"reasoning,omitempty" description:"Configuration for reasoning behavior"`
-	ExtraBody         map[string]any                       `json:"extra_body,omitempty" description:"Additional fields to include in the request body" hidden:"true"`
-	IncludeUsage      *bool                                `json:"include_usage,omitempty" description:"Whether to include token usage information in the response" hidden:"true"`
-	LogitBias         map[string]int64                     `json:"logit_bias,omitempty" description:"Token IDs mapped to bias values from -100 to 100" hidden:"true"`
-	LogProbs          *bool                                `json:"log_probs,omitempty" description:"Whether to return log probabilities of output tokens" hidden:"true"`
-	ParallelToolCalls *bool                                `json:"parallel_tool_calls,omitempty" description:"Whether the model may make multiple tool calls in parallel"`
-	User              *string                              `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
-	Provider          *ChatModelOpenRouterProvider         `json:"provider,omitempty" description:"Routing preferences for provider selection" hidden:"true"`
-}
-
-// ChatModelVercelReasoningOptions configures Vercel reasoning behavior.
-type ChatModelVercelReasoningOptions struct {
-	Enabled   *bool   `json:"enabled,omitempty" description:"Whether reasoning is enabled"`
-	MaxTokens *int64  `json:"max_tokens,omitempty" description:"Maximum number of tokens for reasoning output"`
-	Effort    *string `json:"effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
-	Exclude   *bool   `json:"exclude,omitempty" description:"Whether to exclude reasoning content from the response"`
+	Reasoning         *ChatModelReasoningOptions   `json:"reasoning,omitempty" description:"Configuration for reasoning behavior"`
+	ExtraBody         map[string]any               `json:"extra_body,omitempty" description:"Additional fields to include in the request body" hidden:"true"`
+	IncludeUsage      *bool                        `json:"include_usage,omitempty" description:"Whether to include token usage information in the response" hidden:"true"`
+	LogitBias         map[string]int64             `json:"logit_bias,omitempty" description:"Token IDs mapped to bias values from -100 to 100" hidden:"true"`
+	LogProbs          *bool                        `json:"log_probs,omitempty" description:"Whether to return log probabilities of output tokens" hidden:"true"`
+	ParallelToolCalls *bool                        `json:"parallel_tool_calls,omitempty" description:"Whether the model may make multiple tool calls in parallel"`
+	User              *string                      `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
+	Provider          *ChatModelOpenRouterProvider `json:"provider,omitempty" description:"Routing preferences for provider selection" hidden:"true"`
 }
 
 // ChatModelVercelGatewayProviderOptions configures Vercel routing behavior.
@@ -511,7 +498,7 @@ type ChatModelVercelGatewayProviderOptions struct {
 
 // ChatModelVercelProviderOptions configures Vercel provider behavior.
 type ChatModelVercelProviderOptions struct {
-	Reasoning         *ChatModelVercelReasoningOptions       `json:"reasoning,omitempty" description:"Configuration for reasoning behavior"`
+	Reasoning         *ChatModelReasoningOptions             `json:"reasoning,omitempty" description:"Configuration for reasoning behavior"`
 	ProviderOptions   *ChatModelVercelGatewayProviderOptions `json:"providerOptions,omitempty" description:"Gateway routing options for provider selection" hidden:"true"`
 	User              *string                                `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
 	LogitBias         map[string]int64                       `json:"logit_bias,omitempty" description:"Token IDs mapped to bias values from -100 to 100" hidden:"true"`
@@ -746,6 +733,7 @@ type ChatCostSummary struct {
 	TotalCacheCreationTokens int64                    `json:"total_cache_creation_tokens"`
 	ByModel                  []ChatCostModelBreakdown `json:"by_model"`
 	ByChat                   []ChatCostChatBreakdown  `json:"by_chat"`
+	UsageLimit               *ChatUsageLimitStatus    `json:"usage_limit,omitempty"`
 }
 
 // ChatCostModelBreakdown contains per-model cost aggregation.
@@ -795,6 +783,223 @@ type ChatCostUsersResponse struct {
 	EndDate   time.Time            `json:"end_date" format:"date-time"`
 	Count     int64                `json:"count"`
 	Users     []ChatCostUserRollup `json:"users"`
+}
+
+// ChatUsageLimitExceededResponse is the 409 response body returned when a
+// chat operation exceeds the caller's usage limit. The structured fields let
+// frontends render user-friendly spend, limit, and reset information without
+// parsing debug text.
+type ChatUsageLimitExceededResponse struct {
+	Response
+	SpentMicros int64     `json:"spent_micros"`
+	LimitMicros int64     `json:"limit_micros"`
+	ResetsAt    time.Time `json:"resets_at" format:"date-time"`
+}
+
+type chatUsageLimitExceededError struct {
+	err      *Error
+	response ChatUsageLimitExceededResponse
+}
+
+func (e *chatUsageLimitExceededError) Error() string {
+	if e.err == nil {
+		return e.response.Message
+	}
+	return e.err.Error()
+}
+
+func (e *chatUsageLimitExceededError) Unwrap() error {
+	return e.err
+}
+
+func readBodyAsChatUsageLimitError(res *http.Response) error {
+	if res == nil || res.StatusCode != http.StatusConflict {
+		return ReadBodyAsError(res)
+	}
+	defer res.Body.Close()
+
+	rawBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return xerrors.Errorf("read body: %w", err)
+	}
+
+	if mimeErr := ExpectJSONMime(res); mimeErr != nil {
+		return readRawBodyAsError(res, rawBody)
+	}
+
+	var payload ChatUsageLimitExceededResponse
+	if err := json.NewDecoder(bytes.NewReader(rawBody)).Decode(&payload); err == nil && isChatUsageLimitExceededResponse(payload) {
+		return &chatUsageLimitExceededError{
+			err:      newResponseError(res, payload.Response),
+			response: payload,
+		}
+	}
+
+	return readRawBodyAsError(res, rawBody)
+}
+
+func isChatUsageLimitExceededResponse(resp ChatUsageLimitExceededResponse) bool {
+	return resp.Message != "" && !resp.ResetsAt.IsZero()
+}
+
+func readRawBodyAsError(res *http.Response, rawBody []byte) error {
+	if mimeErr := ExpectJSONMime(res); mimeErr != nil {
+		if len(rawBody) > 2048 {
+			rawBody = append(rawBody[:2048], []byte("...")...)
+		}
+		if len(rawBody) == 0 {
+			rawBody = []byte("no response body")
+		}
+		return newResponseError(res, Response{
+			Message: mimeErr.Error(),
+			Detail:  string(rawBody),
+		})
+	}
+
+	var response Response
+	if err := json.NewDecoder(bytes.NewReader(rawBody)).Decode(&response); err != nil {
+		if errors.Is(err, io.EOF) {
+			return newResponseError(res, Response{Message: "empty response body"})
+		}
+		return xerrors.Errorf("decode body: %w", err)
+	}
+	if response.Message == "" {
+		if len(rawBody) > 1024 {
+			rawBody = append(rawBody[:1024], []byte("...")...)
+		}
+		response.Message = fmt.Sprintf(
+			"unexpected status code %d, response has no message",
+			res.StatusCode,
+		)
+		response.Detail = string(rawBody)
+	}
+	return newResponseError(res, response)
+}
+
+func newResponseError(res *http.Response, response Response) *Error {
+	if res == nil {
+		return &Error{Response: response}
+	}
+
+	var requestMethod, requestURL string
+	if res.Request != nil {
+		requestMethod = res.Request.Method
+		if res.Request.URL != nil {
+			requestURL = res.Request.URL.String()
+		}
+	}
+
+	var helpMessage string
+	if res.StatusCode == http.StatusUnauthorized {
+		helpMessage = "Try logging in using 'coder login'."
+	}
+
+	return &Error{
+		Response:   response,
+		statusCode: res.StatusCode,
+		method:     requestMethod,
+		url:        requestURL,
+		Helper:     helpMessage,
+	}
+}
+
+// ChatUsageLimitExceededFrom extracts a structured chat usage limit response
+// from an SDK error returned by chat mutation methods.
+func ChatUsageLimitExceededFrom(err error) *ChatUsageLimitExceededResponse {
+	var limitErr *chatUsageLimitExceededError
+	if !errors.As(err, &limitErr) {
+		return nil
+	}
+	return &limitErr.response
+}
+
+// ChatUsageLimitPeriod represents the time window for usage limits.
+type ChatUsageLimitPeriod string
+
+const (
+	ChatUsageLimitPeriodDay   ChatUsageLimitPeriod = "day"
+	ChatUsageLimitPeriodWeek  ChatUsageLimitPeriod = "week"
+	ChatUsageLimitPeriodMonth ChatUsageLimitPeriod = "month"
+)
+
+// Valid reports whether p is a supported chat usage limit period.
+func (p ChatUsageLimitPeriod) Valid() bool {
+	switch p {
+	case ChatUsageLimitPeriodDay, ChatUsageLimitPeriodWeek, ChatUsageLimitPeriodMonth:
+		return true
+	default:
+		return false
+	}
+}
+
+// ChatUsageLimitConfig is the deployment-wide default usage limit config.
+type ChatUsageLimitConfig struct {
+	// Nil in the API means no default limit is set. The DB stores 0 when
+	// limiting is disabled.
+	SpendLimitMicros *int64               `json:"spend_limit_micros"`
+	Period           ChatUsageLimitPeriod `json:"period"`
+	UpdatedAt        time.Time            `json:"updated_at" format:"date-time"`
+}
+
+// ChatUsageLimitOverride is a per-user override of the deployment default.
+type ChatUsageLimitOverride struct {
+	UserID    uuid.UUID `json:"user_id" format:"uuid"`
+	Username  string    `json:"username"`
+	Name      string    `json:"name"`
+	AvatarURL string    `json:"avatar_url"`
+	// Nil in the API means no user override is set. Persisted override rows
+	// store positive values.
+	SpendLimitMicros *int64 `json:"spend_limit_micros"`
+}
+
+// ChatUsageLimitGroupOverride represents a group-scoped spend limit override.
+type ChatUsageLimitGroupOverride struct {
+	GroupID          uuid.UUID `json:"group_id" format:"uuid"`
+	GroupName        string    `json:"group_name"`
+	GroupDisplayName string    `json:"group_display_name"`
+	GroupAvatarURL   string    `json:"group_avatar_url"`
+	MemberCount      int64     `json:"member_count"`
+	// Nil in the API means no group override is set. Persisted override rows
+	// store positive values.
+	SpendLimitMicros *int64 `json:"spend_limit_micros"`
+}
+
+// UpsertChatUsageLimitOverrideRequest is the body for creating/updating a
+// per-user usage limit override.
+type UpsertChatUsageLimitOverrideRequest struct {
+	SpendLimitMicros int64 `json:"spend_limit_micros"` // Must be greater than 0.
+}
+
+// UpdateChatUsageLimitOverrideRequest is kept as a compatibility alias.
+type UpdateChatUsageLimitOverrideRequest = UpsertChatUsageLimitOverrideRequest
+
+// UpsertChatUsageLimitGroupOverrideRequest is the request to create or update
+// a group-level spend limit override.
+type UpsertChatUsageLimitGroupOverrideRequest struct {
+	SpendLimitMicros int64 `json:"spend_limit_micros"` // Must be greater than 0.
+}
+
+// UpdateChatUsageLimitGroupOverrideRequest is kept as a compatibility alias.
+type UpdateChatUsageLimitGroupOverrideRequest = UpsertChatUsageLimitGroupOverrideRequest
+
+// ChatUsageLimitStatus represents the current spend status for a user
+// within their active limit period.
+type ChatUsageLimitStatus struct {
+	IsLimited        bool                 `json:"is_limited"`
+	Period           ChatUsageLimitPeriod `json:"period,omitempty"`
+	SpendLimitMicros *int64               `json:"spend_limit_micros,omitempty"`
+	CurrentSpend     int64                `json:"current_spend"`
+	PeriodStart      time.Time            `json:"period_start,omitempty" format:"date-time"`
+	PeriodEnd        time.Time            `json:"period_end,omitempty" format:"date-time"`
+}
+
+// ChatUsageLimitConfigResponse is returned from the admin config endpoint
+// and includes the config plus a count of models without pricing.
+type ChatUsageLimitConfigResponse struct {
+	ChatUsageLimitConfig
+	UnpricedModelCount int64                         `json:"unpriced_model_count"`
+	Overrides          []ChatUsageLimitOverride      `json:"overrides"`
+	GroupOverrides     []ChatUsageLimitGroupOverride `json:"group_overrides"`
 }
 
 // ListChatsOptions are optional parameters for ListChats.
@@ -1025,21 +1230,21 @@ func (c *Client) GetChatCostUsers(ctx context.Context, opts ChatCostUsersOptions
 }
 
 // GetChatSystemPrompt returns the deployment-wide chat system prompt.
-func (c *Client) GetChatSystemPrompt(ctx context.Context) (ChatSystemPromptResponse, error) {
+func (c *Client) GetChatSystemPrompt(ctx context.Context) (ChatSystemPrompt, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/system-prompt", nil)
 	if err != nil {
-		return ChatSystemPromptResponse{}, err
+		return ChatSystemPrompt{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ChatSystemPromptResponse{}, ReadBodyAsError(res)
+		return ChatSystemPrompt{}, ReadBodyAsError(res)
 	}
-	var resp ChatSystemPromptResponse
+	var resp ChatSystemPrompt
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // UpdateChatSystemPrompt updates the deployment-wide chat system prompt.
-func (c *Client) UpdateChatSystemPrompt(ctx context.Context, req UpdateChatSystemPromptRequest) error {
+func (c *Client) UpdateChatSystemPrompt(ctx context.Context, req ChatSystemPrompt) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/system-prompt", req)
 	if err != nil {
 		return err
@@ -1052,30 +1257,30 @@ func (c *Client) UpdateChatSystemPrompt(ctx context.Context, req UpdateChatSyste
 }
 
 // GetUserChatCustomPrompt fetches the user's custom chat prompt.
-func (c *Client) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPromptResponse, error) {
+func (c *Client) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPrompt, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-prompt", nil)
 	if err != nil {
-		return UserChatCustomPromptResponse{}, err
+		return UserChatCustomPrompt{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return UserChatCustomPromptResponse{}, ReadBodyAsError(res)
+		return UserChatCustomPrompt{}, ReadBodyAsError(res)
 	}
-	var resp UserChatCustomPromptResponse
+	var resp UserChatCustomPrompt
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // UpdateUserChatCustomPrompt updates the user's custom chat prompt.
-func (c *Client) UpdateUserChatCustomPrompt(ctx context.Context, req UpdateUserChatCustomPromptRequest) (UserChatCustomPromptResponse, error) {
+func (c *Client) UpdateUserChatCustomPrompt(ctx context.Context, req UserChatCustomPrompt) (UserChatCustomPrompt, error) {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/user-prompt", req)
 	if err != nil {
-		return UserChatCustomPromptResponse{}, err
+		return UserChatCustomPrompt{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return UserChatCustomPromptResponse{}, ReadBodyAsError(res)
+		return UserChatCustomPrompt{}, ReadBodyAsError(res)
 	}
-	var resp UserChatCustomPromptResponse
+	var resp UserChatCustomPrompt
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
@@ -1085,10 +1290,10 @@ func (c *Client) CreateChat(ctx context.Context, req CreateChatRequest) (Chat, e
 	if err != nil {
 		return Chat{}, err
 	}
-	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return Chat{}, ReadBodyAsError(res)
+		return Chat{}, readBodyAsChatUsageLimitError(res)
 	}
+	defer res.Body.Close()
 	var chat Chat
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
 }
@@ -1278,20 +1483,9 @@ func (c *Client) GetChatMessages(ctx context.Context, chatID uuid.UUID, opts *Ch
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-func (c *Client) ArchiveChat(ctx context.Context, chatID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/archive", chatID), nil)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
-}
-
-func (c *Client) UnarchiveChat(ctx context.Context, chatID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/unarchive", chatID), nil)
+// UpdateChat patches a chat resource.
+func (c *Client) UpdateChat(ctx context.Context, chatID uuid.UUID, req UpdateChatRequest) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/%s", chatID), req)
 	if err != nil {
 		return err
 	}
@@ -1308,10 +1502,10 @@ func (c *Client) CreateChatMessage(ctx context.Context, chatID uuid.UUID, req Cr
 	if err != nil {
 		return CreateChatMessageResponse{}, err
 	}
-	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return CreateChatMessageResponse{}, ReadBodyAsError(res)
+		return CreateChatMessageResponse{}, readBodyAsChatUsageLimitError(res)
 	}
+	defer res.Body.Close()
 	var resp CreateChatMessageResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
@@ -1332,10 +1526,10 @@ func (c *Client) EditChatMessage(
 	if err != nil {
 		return ChatMessage{}, err
 	}
-	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ChatMessage{}, ReadBodyAsError(res)
+		return ChatMessage{}, readBodyAsChatUsageLimitError(res)
 	}
+	defer res.Body.Close()
 	var message ChatMessage
 	return message, json.NewDecoder(res.Body).Decode(&message)
 }
@@ -1416,6 +1610,120 @@ func (c *Client) GetChatFile(ctx context.Context, fileID uuid.UUID) ([]byte, str
 		return nil, "", err
 	}
 	return data, res.Header.Get("Content-Type"), nil
+}
+
+// GetChatUsageLimitConfig returns the deployment-wide chat usage limit config.
+func (c *Client) GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitConfigResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/usage-limits", nil)
+	if err != nil {
+		return ChatUsageLimitConfigResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatUsageLimitConfigResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatUsageLimitConfigResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatUsageLimitConfig updates the deployment-wide usage limit config.
+func (c *Client) UpdateChatUsageLimitConfig(ctx context.Context, req ChatUsageLimitConfig) (ChatUsageLimitConfig, error) {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/usage-limits", req)
+	if err != nil {
+		return ChatUsageLimitConfig{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatUsageLimitConfig{}, ReadBodyAsError(res)
+	}
+	var resp ChatUsageLimitConfig
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpsertChatUsageLimitOverride creates or updates a per-user usage limit override.
+func (c *Client) UpsertChatUsageLimitOverride(ctx context.Context, userID uuid.UUID, req UpsertChatUsageLimitOverrideRequest) (ChatUsageLimitOverride, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/usage-limits/overrides/%s", userID), req)
+	if err != nil {
+		return ChatUsageLimitOverride{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatUsageLimitOverride{}, ReadBodyAsError(res)
+	}
+	var resp ChatUsageLimitOverride
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatUserUsageLimitOverride creates or updates a per-user usage limit override.
+func (c *Client) UpdateChatUserUsageLimitOverride(ctx context.Context, userID uuid.UUID, req UpdateChatUsageLimitOverrideRequest) (ChatUsageLimitOverride, error) {
+	return c.UpsertChatUsageLimitOverride(ctx, userID, req)
+}
+
+// DeleteChatUsageLimitOverride removes a per-user usage limit override.
+func (c *Client) DeleteChatUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/usage-limits/overrides/%s", userID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// DeleteChatUserUsageLimitOverride removes a per-user usage limit override.
+func (c *Client) DeleteChatUserUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
+	return c.DeleteChatUsageLimitOverride(ctx, userID)
+}
+
+// UpsertChatUsageLimitGroupOverride creates or updates a group-level
+// spend limit override. EXPERIMENTAL: This API is subject to change.
+func (c *Client) UpsertChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID, req UpsertChatUsageLimitGroupOverrideRequest) (ChatUsageLimitGroupOverride, error) {
+	res, err := c.Request(ctx, http.MethodPut,
+		fmt.Sprintf("/api/experimental/chats/usage-limits/group-overrides/%s", groupID),
+		req,
+	)
+	if err != nil {
+		return ChatUsageLimitGroupOverride{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatUsageLimitGroupOverride{}, ReadBodyAsError(res)
+	}
+	var override ChatUsageLimitGroupOverride
+	return override, json.NewDecoder(res.Body).Decode(&override)
+}
+
+// DeleteChatUsageLimitGroupOverride removes a group-level spend limit
+// override. EXPERIMENTAL: This API is subject to change.
+func (c *Client) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete,
+		fmt.Sprintf("/api/experimental/chats/usage-limits/group-overrides/%s", groupID),
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetMyChatUsageLimitStatus returns the current user's chat usage limit status.
+func (c *Client) GetMyChatUsageLimitStatus(ctx context.Context) (ChatUsageLimitStatus, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/usage-limits/status", nil)
+	if err != nil {
+		return ChatUsageLimitStatus{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatUsageLimitStatus{}, ReadBodyAsError(res)
+	}
+	var resp ChatUsageLimitStatus
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 func formatChatStreamResponseError(response Response) string {

@@ -235,10 +235,10 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 									role="tab"
 									aria-selected={isActive}
 									onClick={() => setActiveTabId(tab.id)}
-									variant="subtle"
+									variant="outline"
 									size="lg"
 									className={cn(
-										"shrink-0 h-6 border border-solid border-transparent min-w-0 gap-3 px-2 py-0 bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
+										"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
 										isActive &&
 											"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
 										tab.badge && "pr-0",
@@ -268,8 +268,9 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 								variant="outline"
 								size="lg"
 								className={cn(
-									"shrink-0 h-6 px-3 gap-3 py-0 bg-surface-primary",
-									effectiveTabId === "desktop" && "bg-surface-tertiary",
+									"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
+									effectiveTabId === "desktop" &&
+										"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
 								)}
 							>
 								Desktop

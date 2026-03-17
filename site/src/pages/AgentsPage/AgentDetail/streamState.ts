@@ -141,26 +141,17 @@ export const applyMessagePartToStreamState = (
 				},
 			};
 		}
-		case "file": {
-			const mediaType = asString(part.media_type);
-			const data = asString(part.data);
-			const fileId = asString(part.file_id);
-			if (!mediaType || (!data && !fileId)) {
+		case "file":
+			if (!part.media_type || (!part.data && !part.file_id)) {
 				return prev;
 			}
 			return {
 				...nextState,
 				blocks: [
 					...nextState.blocks,
-					{
-						type: "file",
-						mediaType,
-						data: data || undefined,
-						fileId: fileId || undefined,
-					},
+					part as Extract<RenderBlock, { type: "file" }>,
 				],
 			};
-		}
 		case "source": {
 			const url = asString(part.url);
 			const title = asString(part.title);

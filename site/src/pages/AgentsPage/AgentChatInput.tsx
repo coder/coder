@@ -1,4 +1,4 @@
-import type { ChatQueuedMessage } from "api/typesGenerated";
+import type { ChatMessagePart, ChatQueuedMessage } from "api/typesGenerated";
 import {
 	ModelSelector,
 	type ModelSelectorOption,
@@ -34,6 +34,7 @@ import {
 	useState,
 } from "react";
 import { cn } from "utils/cn";
+import { isMobileViewport } from "utils/mobile";
 import { ImageLightbox } from "./ImageLightbox";
 import { formatProviderLabel } from "./modelOptions";
 import { QueuedMessagesList } from "./QueuedMessagesList";
@@ -91,7 +92,11 @@ interface AgentChatInputProps {
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
 	// Queue editing state, owned by the parent.
 	editingQueuedMessageID?: number | null;
-	onStartQueueEdit?: (id: number, text: string) => void;
+	onStartQueueEdit?: (
+		id: number,
+		text: string,
+		fileBlocks: readonly ChatMessagePart[],
+	) => void;
 	onCancelQueueEdit?: () => void;
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
@@ -469,7 +474,9 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		if (prevIsLoading !== isLoading) {
 			setPrevIsLoading(isLoading);
 			if (prevIsLoading && !isLoading) {
-				internalRef.current?.focus();
+				if (!isMobileViewport()) {
+					internalRef.current?.focus();
+				}
 			}
 		}
 
@@ -496,6 +503,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				!hasFileReferences &&
 				!isDisabled &&
 				!isLoading &&
+				!isUploading &&
 				queuedMessages.length > 0 &&
 				onPromoteQueuedMessage
 			) {
@@ -507,15 +515,19 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				(!text && !hasUploadedAttachments && !hasFileReferences) ||
 				isDisabled ||
 				isLoading ||
+				isUploading ||
 				!hasModelOptions
 			) {
 				return;
 			}
 			onSend(text);
-			internalRef.current?.focus();
+			if (!isMobileViewport()) {
+				internalRef.current?.focus();
+			}
 		}, [
 			isDisabled,
 			isLoading,
+			isUploading,
 			hasModelOptions,
 			hasUploadedAttachments,
 			hasFileReferences,
@@ -563,7 +575,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		const sendButtonLabel = editingQueuedMessageID !== null ? "Save" : "Send";
 
 		const content = (
-			<div className="mx-auto w-full max-w-3xl pb-4">
+			<div className="mx-auto w-full max-w-3xl pb-0 sm:pb-4">
 				{queuedMessages.length > 0 && (
 					<QueuedMessagesList
 						messages={queuedMessages}
@@ -642,13 +654,12 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 						ref={setRef}
 						onFilePaste={onAttach ? handleFilePaste : undefined}
 						aria-label="Chat message"
-						className="min-h-[120px] w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+						className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 						placeholder={placeholder}
 						initialValue={initialValue}
 						onChange={handleContentChange}
 						onEnter={handleSubmit}
 						disabled={isDisabled || isLoading}
-						rows={4}
 						autoFocus
 					/>
 					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">

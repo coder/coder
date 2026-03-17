@@ -3,7 +3,7 @@ import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
-import type { ChatDiffStatus } from "api/typesGenerated";
+import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { fn, spyOn } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
@@ -47,11 +47,7 @@ const defaultEditing = {
 	chatInputRef: { current: null },
 	editorInitialValue: "",
 	editingMessageId: null,
-	editingFileBlocks: [] as readonly {
-		mediaType: string;
-		data?: string;
-		fileId?: string;
-	}[],
+	editingFileBlocks: [] as readonly ChatMessagePart[],
 	handleEditUserMessage: fn(),
 	handleCancelHistoryEdit: fn(),
 	editingQueuedMessageID: null,
@@ -174,7 +170,9 @@ export const WithParentChat: Story = {
 /** Persisted error reason shown in the timeline area. */
 export const WithError: Story = {
 	args: {
-		chatErrorReasons: { [AGENT_ID]: "Model rate limited" },
+		chatErrorReasons: {
+			[AGENT_ID]: { kind: "generic", message: "Model rate limited" },
+		},
 	},
 };
 

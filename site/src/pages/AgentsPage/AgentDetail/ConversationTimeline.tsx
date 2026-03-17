@@ -1,4 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import {
 	ConversationItem,
 	Message,
@@ -8,11 +9,13 @@ import {
 	Tool,
 } from "components/ai-elements";
 import { WebSearchSources } from "components/ai-elements/tool";
-import { FileIcon } from "components/FileIcon/FileIcon";
+import { Button } from "components/Button/Button";
+import { FileReferenceChip } from "components/ChatMessageInput/FileReferenceNode";
 import { Spinner } from "components/Spinner/Spinner";
 import { ChevronDownIcon } from "lucide-react";
 import {
 	type FC,
+	Fragment,
 	memo,
 	type ReactNode,
 	type RefObject,
@@ -24,6 +27,7 @@ import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { ImageThumbnail } from "../AgentChatInput";
 import { ImageLightbox } from "../ImageLightbox";
+import type { ChatDetailError } from "../usageLimitMessage";
 import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
@@ -243,10 +247,10 @@ function renderBlockList({
 					);
 				}
 				case "file":
-					if (block.mediaType.startsWith("image/")) {
-						const src = block.fileId
-							? `/api/experimental/chats/files/${block.fileId}`
-							: `data:${block.mediaType};base64,${block.data}`;
+					if (block.media_type.startsWith("image/")) {
+						const src = block.file_id
+							? `/api/experimental/chats/files/${block.file_id}`
+							: `data:${block.media_type};base64,${block.data}`;
 						return (
 							<button
 								key={`${keyPrefix}-file-${index}`}
@@ -288,7 +292,7 @@ const ChatMessageItem = memo<{
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: Array<{ mediaType: string; data?: string; fileId?: string }>,
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
@@ -337,6 +341,19 @@ const ChatMessageItem = memo<{
 			parsed.blocks.length > 0 ||
 			parsed.tools.length > 0 ||
 			parsed.sources.length > 0;
+		// Pre-compute the inline content for user messages so we
+		// avoid a filter + map inside the JSX return path.
+		const userInlineContent = isUser
+			? parsed.blocks.filter(
+					(
+						b,
+					): b is
+						| Extract<RenderBlock, { type: "response" }>
+						| Extract<RenderBlock, { type: "file-reference" }> =>
+						b.type === "response" || b.type === "file-reference",
+				)
+			: [];
+
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
 		};
@@ -378,7 +395,7 @@ const ChatMessageItem = memo<{
 												const fileBlocks = parsed.blocks.filter(
 													(b): b is Extract<RenderBlock, { type: "file" }> =>
 														b.type === "file" &&
-														b.mediaType.startsWith("image/"),
+														b.media_type.startsWith("image/"),
 												);
 												onEditUserMessage(
 													message.id,
@@ -392,7 +409,20 @@ const ChatMessageItem = memo<{
 								<div className="flex flex-col gap-1.5">
 									<div className="flex items-start gap-2">
 										<span className="min-w-0 flex-1">
-											{parsed.markdown || ""}
+											{userInlineContent.length > 0
+												? userInlineContent.map((block, i) =>
+														block.type === "response" ? (
+															<Fragment key={i}>{block.text}</Fragment>
+														) : (
+															<FileReferenceChip
+																key={i}
+																fileName={block.fileName}
+																startLine={block.startLine}
+																endLine={block.endLine}
+															/>
+														),
+													)
+												: parsed.markdown || ""}
 										</span>
 										{isSavingMessage && (
 											<Spinner
@@ -405,15 +435,15 @@ const ChatMessageItem = memo<{
 									{(() => {
 										const imageBlocks = parsed.blocks.filter(
 											(b): b is Extract<RenderBlock, { type: "file" }> =>
-												b.type === "file" && b.mediaType.startsWith("image/"),
+												b.type === "file" && b.media_type.startsWith("image/"),
 										);
 										if (imageBlocks.length === 0) return null;
 										return (
 											<div className="mt-2 flex flex-wrap gap-2">
 												{imageBlocks.map((block, i) => {
-													const src = block.fileId
-														? `/api/experimental/chats/files/${block.fileId}`
-														: `data:${block.mediaType};base64,${block.data}`;
+													const src = block.file_id
+														? `/api/experimental/chats/files/${block.file_id}`
+														: `data:${block.media_type};base64,${block.data}`;
 													return (
 														<button
 															key={`user-file-${i}`}
@@ -435,45 +465,7 @@ const ChatMessageItem = memo<{
 											</div>
 										);
 									})()}
-									{(() => {
-										const fileRefBlocks = parsed.blocks.filter(
-											(
-												b,
-											): b is Extract<
-												RenderBlock,
-												{ type: "file-reference" }
-											> => b.type === "file-reference",
-										);
-										if (fileRefBlocks.length === 0) return null;
-										return (
-											<div className="flex flex-col gap-1 border-t border-border-default pt-1.5">
-												{fileRefBlocks.map((dc, i) => (
-													<div
-														key={i}
-														className="flex items-start gap-2 rounded border border-content-link/20 bg-content-link/5 px-2 py-1"
-													>
-														<FileIcon
-															fileName={
-																dc.fileName.split("/").pop() || dc.fileName
-															}
-															className="shrink-0"
-														/>
-														<span className="shrink-0 text-2xs font-mono font-medium text-content-link">
-															{dc.fileName.split("/").pop()}:
-															{dc.startLine === dc.endLine
-																? dc.startLine
-																: `${dc.startLine}\u2013${dc.endLine}`}
-														</span>
-														{dc.text && (
-															<span className="text-2xs text-content-primary">
-																{dc.text}
-															</span>
-														)}
-													</div>
-												))}
-											</div>
-										);
-									})()} {fadeFromBottom && (
+									{fadeFromBottom && (
 										<div
 											className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
 											style={{
@@ -609,7 +601,7 @@ const StickyUserMessage: FC<{
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: Array<{ mediaType: string; data?: string; fileId?: string }>,
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
@@ -748,11 +740,7 @@ const StickyUserMessage: FC<{
 		? (
 				messageId: number,
 				text: string,
-				fileBlocks?: Array<{
-					mediaType: string;
-					data?: string;
-					fileId?: string;
-				}>,
+				fileBlocks?: readonly TypesGen.ChatMessagePart[],
 			) => {
 				onEditUserMessage(messageId, text, fileBlocks);
 				requestAnimationFrame(() => {
@@ -865,11 +853,12 @@ interface ConversationTimelineProps {
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	retryState?: { attempt: number; error: string } | null;
 	isAwaitingFirstStreamChunk: boolean;
-	detailErrorMessage?: string | null;
+	detailError?: ChatDetailError | null;
+	onOpenAnalytics?: () => void;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
-		fileBlocks?: Array<{ mediaType: string; data?: string; fileId?: string }>,
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
@@ -888,7 +877,8 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	subagentStatusOverrides,
 	retryState,
 	isAwaitingFirstStreamChunk,
-	detailErrorMessage,
+	detailError,
+	onOpenAnalytics,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
@@ -896,6 +886,8 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 }) => {
 	const shouldRenderStreamInLastSection =
 		hasStreamOutput && parsedSections.length > 0;
+	const isUsageLimitError = detailError?.kind === "usage-limit";
+	const showUsageAction = onOpenAnalytics !== undefined && isUsageLimitError;
 
 	return (
 		<div className="mx-auto w-full max-w-3xl py-6">
@@ -971,10 +963,20 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 					)}
 				</div>
 			)}
-			{detailErrorMessage && (
-				<div className="mt-4 rounded-md border border-border-destructive bg-surface-red px-3 py-2 text-xs text-content-destructive">
-					{detailErrorMessage}
-				</div>
+			{detailError && (
+				<Alert
+					severity={isUsageLimitError ? "info" : "error"}
+					className="py-2"
+					actions={
+						showUsageAction && (
+							<Button variant="subtle" size="sm" onClick={onOpenAnalytics}>
+								View Usage
+							</Button>
+						)
+					}
+				>
+					{detailError.message}
+				</Alert>
 			)}
 		</div>
 	);
