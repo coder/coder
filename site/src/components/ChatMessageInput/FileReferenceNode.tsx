@@ -23,7 +23,7 @@ type SerializedFileReferenceNode = Spread<
 	SerializedLexicalNode
 >;
 
-function FileReferenceChip({
+export function FileReferenceChip({
 	fileName,
 	startLine,
 	endLine,
