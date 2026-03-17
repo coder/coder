@@ -679,8 +679,8 @@ const StickyUserMessage: FC<{
 		const scroller = sentinel.closest(".overflow-y-auto") as HTMLElement | null;
 		if (!scroller) return;
 
-			const MIN_HEIGHT = 0;		let scrollerTop = scroller.getBoundingClientRect().top;
-		let scrollerHeight = scroller.clientHeight;
+			const MIN_HEIGHT = 72;
+			let scrollerTop = scroller.getBoundingClientRect().top;		let scrollerHeight = scroller.clientHeight;
 
 		const update = () => {
 			const fullHeight = container.offsetHeight;
@@ -690,33 +690,52 @@ const StickyUserMessage: FC<{
 			// chat input and some breathing room.
 			const tooTall = fullHeight > scrollerHeight * 0.75;
 			setIsTooTall(tooTall);
-			if (tooTall) {
-				container.style.setProperty("--clip-h", `${fullHeight}px`);
-				container.style.setProperty("--fade-opacity", "0");
-				return;
-			}
-
+				if (tooTall) {
+					container.style.setProperty("--clip-h", `${fullHeight}px`);
+					container.style.setProperty("--fade-opacity", "0");
+					container.style.top = "0px";
+					return;
+				}
 			const sentinelTop = sentinel.getBoundingClientRect().top;
 			const scrolledPast = scrollerTop - sentinelTop;
 
-			if (scrolledPast <= 0) {
-				// Always set a valid value so the overlay has the
-				// correct height immediately when isStuck flips.
-				container.style.setProperty("--clip-h", `${fullHeight}px`);
-				container.style.setProperty("--fade-opacity", "0");
-				return;
-			}
+				if (scrolledPast <= 0) {
+					// Always set a valid value so the overlay has the
+					// correct height immediately when isStuck flips.
+					container.style.setProperty("--clip-h", `${fullHeight}px`);
+					container.style.setProperty("--fade-opacity", "0");
+					container.style.top = "0px";
+					return;
+				}
+				const visible = Math.max(fullHeight - scrolledPast, MIN_HEIGHT);
+				container.style.setProperty("--clip-h", `${visible}px`);
+				// Only show the fade gradient once enough content is
+				// clipped to be visually meaningful.
+				container.style.setProperty(
+					"--fade-opacity",
+					visible < fullHeight - 8 ? "1" : "0",
+				);
 
-			const visible = Math.max(fullHeight - scrolledPast, MIN_HEIGHT);
-			container.style.setProperty("--clip-h", `${visible}px`);
-			// Only show the fade gradient once enough content is
-			// clipped to be visually meaningful.
-			container.style.setProperty(
-				"--fade-opacity",
-				visible < fullHeight - 8 ? "1" : "0",
-			);
-		};
-		updateFnRef.current = update;
+				// Push-up effect: when the next user message's sentinel
+				// approaches the bottom of this sticky container, shift
+				// this container upward so it slides out of view — the
+				// same visual as the old section-boundary behavior.
+				let nextSentinel: Element | null =
+					sentinel.nextElementSibling;
+				while (nextSentinel) {
+					if (nextSentinel.hasAttribute("data-user-sentinel")) {
+						break;
+					}
+					nextSentinel = nextSentinel.nextElementSibling;
+				}
+				if (nextSentinel) {
+					const nextY =
+						nextSentinel.getBoundingClientRect().top - scrollerTop;
+					container.style.top = `${Math.min(0, nextY - fullHeight)}px`;
+				} else {
+					container.style.top = "0px";
+				}
+			};		updateFnRef.current = update;
 
 		const onResize = () => {
 			scrollerTop = scroller.getBoundingClientRect().top;
@@ -784,12 +803,12 @@ const StickyUserMessage: FC<{
 
 	return (
 		<>
-			<div ref={sentinelRef} className="h-0" />
+			<div ref={sentinelRef} className="h-0" data-user-sentinel />
 			<div
 				ref={containerRef}
 				className={cn(
 					"relative px-3 -mx-3 pt-2 pb-2",
-					!isTooTall && "sticky top-0 z-10",
+					!isTooTall && "sticky z-10",
 					!isReady && "invisible",
 					isStuck && !isTooTall && "pointer-events-none",
 				)}
