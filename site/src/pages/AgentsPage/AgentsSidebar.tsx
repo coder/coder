@@ -682,7 +682,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							<CoderIcon className="h-6 w-6 fill-content-primary" />
 						)}
 					</NavLink>
-					<div className="flex items-center gap-0.5">
+					<div className="flex items-center gap-0.5 -mr-1.5">
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<Button
