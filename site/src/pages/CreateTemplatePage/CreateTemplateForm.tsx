@@ -260,20 +260,25 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 						<>
 							{showProvisionerWarning && <ProvisionerWarning />}
 
-							<Label htmlFor="organization">Organization</Label>
-							<OrganizationAutocomplete
-								{...getFieldHelpers("organization")}
-								id="organization"
-								required
-								onChange={(newValue) => {
-									setSelectedOrg(newValue);
-									void form.setFieldValue("organization", newValue?.name || "");
-								}}
-								check={{
-									object: { resource_type: "template" },
-									action: "create",
-								}}
-							/>
+							<div className="flex flex-col gap-2">
+								<Label htmlFor="organization">Organization</Label>
+								<OrganizationAutocomplete
+									{...getFieldHelpers("organization")}
+									id="organization"
+									required
+									onChange={(newValue) => {
+										setSelectedOrg(newValue);
+										void form.setFieldValue(
+											"organization",
+											newValue?.name || "",
+										);
+									}}
+									check={{
+										object: { resource_type: "template" },
+										action: "create",
+									}}
+								/>
+							</div>
 						</>
 					)}
 
