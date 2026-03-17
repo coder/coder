@@ -851,7 +851,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								</span>
 							</button>
 						</DropdownMenuTrigger>
-						<DropdownMenuContent align="start" className="min-w-auto w-[260px]">
+						<DropdownMenuContent
+							align="start"
+							alignOffset={4}
+							className="min-w-auto w-[260px]"
+						>
 							<UserDropdownContent
 								user={user}
 								buildInfo={buildInfo}
