@@ -747,8 +747,6 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 									/>
 								</div>
 							))}
-							{/* Spacer so the last file can scroll fully to the top. */}
-							<div className="h-[calc(100vh-100px)]" />{" "}
 						</div>
 					</ScrollArea>
 				</div>
