@@ -89,6 +89,22 @@ func TestCalculateTotalCostMicros(t *testing.T) {
 			want: ptr.Ref[int64](18750),
 		},
 		{
+			name: "anthropic separate buckets unchanged",
+			usage: codersdk.ChatMessageUsage{
+				InputTokens:         ptr.Ref[int64](500),
+				CacheReadTokens:     ptr.Ref[int64](1000),
+				CacheCreationTokens: ptr.Ref[int64](200),
+				OutputTokens:        ptr.Ref[int64](300),
+			},
+			cost: &codersdk.ModelCostConfig{
+				InputPricePerMillionTokens:      ptr.Ref(decimal.RequireFromString("3")),
+				OutputPricePerMillionTokens:     ptr.Ref(decimal.RequireFromString("15")),
+				CacheReadPricePerMillionTokens:  ptr.Ref(decimal.RequireFromString("0.3")),
+				CacheWritePricePerMillionTokens: ptr.Ref(decimal.RequireFromString("3.75")),
+			},
+			want: ptr.Ref[int64](7050),
+		},
+		{
 			name: "full mixed usage totals all components exactly",
 			usage: codersdk.ChatMessageUsage{
 				InputTokens:         ptr.Ref[int64](101),

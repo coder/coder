@@ -1363,14 +1363,48 @@ export const ChatMessageRoles: ChatMessageRole[] = [
 // From codersdk/chats.go
 /**
  * ChatMessageUsage contains token usage information for a chat message.
+ * All pointer fields use nil to indicate "no data reported" versus zero
+ * meaning "the provider explicitly reported zero tokens."
  */
 export interface ChatMessageUsage {
+	/**
+	 * InputTokens is the non-cached, billable input token count. When
+	 * cache metrics are present, this excludes tokens served from cache
+	 * (those are counted separately in CacheReadTokens).
+	 */
 	readonly input_tokens?: number;
+	/**
+	 * OutputTokens is the total output token count, which includes
+	 * reasoning tokens when applicable.
+	 */
 	readonly output_tokens?: number;
+	/**
+	 * TotalTokens is the raw provider-reported total token count. For
+	 * OpenAI and Azure, the provider includes cached tokens in its
+	 * reported total, so TotalTokens may not equal the sum of the
+	 * normalized InputTokens, OutputTokens, and CacheReadTokens.
+	 * It is preserved verbatim for context-accounting and debugging.
+	 */
 	readonly total_tokens?: number;
+	/**
+	 * ReasoningTokens is the subset of output tokens used for
+	 * chain-of-thought reasoning, when reported by the provider.
+	 */
 	readonly reasoning_tokens?: number;
+	/**
+	 * CacheCreationTokens is the number of tokens written to the
+	 * provider's prompt cache during this request.
+	 */
 	readonly cache_creation_tokens?: number;
+	/**
+	 * CacheReadTokens is the number of input tokens served from the
+	 * provider's prompt cache rather than processed fresh.
+	 */
 	readonly cache_read_tokens?: number;
+	/**
+	 * ContextLimit is the model's maximum context window size in
+	 * tokens, when known.
+	 */
 	readonly context_limit?: number;
 }
 

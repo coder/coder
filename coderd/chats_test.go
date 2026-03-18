@@ -4057,17 +4057,22 @@ func seedChatCostFixture(t *testing.T) chatCostTestFixture {
 	})
 	require.NoError(t, err)
 
+	cacheCreationTokensByMessage := []int64{100, 40}
+	cacheReadTokensByMessage := []int64{500, 60}
+
 	var earliestCreatedAt time.Time
 	var latestCreatedAt time.Time
 	for i := 0; i < 2; i++ {
 		message, err := db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
-			ChatID:          chat.ID,
-			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-			Role:            "assistant",
-			Visibility:      database.ChatMessageVisibilityBoth,
-			InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
-			OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-			TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
+			ChatID:              chat.ID,
+			ModelConfigID:       uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:                "assistant",
+			Visibility:          database.ChatMessageVisibilityBoth,
+			InputTokens:         sql.NullInt64{Int64: 100, Valid: true},
+			OutputTokens:        sql.NullInt64{Int64: 50, Valid: true},
+			CacheCreationTokens: sql.NullInt64{Int64: cacheCreationTokensByMessage[i], Valid: true},
+			CacheReadTokens:     sql.NullInt64{Int64: cacheReadTokensByMessage[i], Valid: true},
+			TotalCostMicros:     sql.NullInt64{Int64: 500, Valid: true},
 		})
 		require.NoError(t, err)
 		if i == 0 || message.CreatedAt.Before(earliestCreatedAt) {
@@ -4091,21 +4096,37 @@ func seedChatCostFixture(t *testing.T) chatCostTestFixture {
 func assertChatCostSummary(t *testing.T, summary codersdk.ChatCostSummary, modelConfigID, chatID uuid.UUID) {
 	t.Helper()
 
-	require.Equal(t, int64(1000), summary.TotalCostMicros)
-	require.Equal(t, int64(2), summary.PricedMessageCount)
-	require.Equal(t, int64(0), summary.UnpricedMessageCount)
-	require.Equal(t, int64(200), summary.TotalInputTokens)
-	require.Equal(t, int64(100), summary.TotalOutputTokens)
+	const (
+		expectedTotalCostMicros          int64 = 1000
+		expectedPricedMessageCount       int64 = 2
+		expectedUnpricedMessageCount     int64 = 0
+		expectedTotalInputTokens         int64 = 200
+		expectedTotalOutputTokens        int64 = 100
+		expectedTotalCacheReadTokens     int64 = 560
+		expectedTotalCacheCreationTokens int64 = 140
+	)
+
+	require.Equal(t, expectedTotalCostMicros, summary.TotalCostMicros)
+	require.Equal(t, expectedPricedMessageCount, summary.PricedMessageCount)
+	require.Equal(t, expectedUnpricedMessageCount, summary.UnpricedMessageCount)
+	require.Equal(t, expectedTotalInputTokens, summary.TotalInputTokens)
+	require.Equal(t, expectedTotalOutputTokens, summary.TotalOutputTokens)
+	require.Equal(t, expectedTotalCacheReadTokens, summary.TotalCacheReadTokens)
+	require.Equal(t, expectedTotalCacheCreationTokens, summary.TotalCacheCreationTokens)
 
 	require.Len(t, summary.ByModel, 1)
 	require.Equal(t, modelConfigID, summary.ByModel[0].ModelConfigID)
-	require.Equal(t, int64(1000), summary.ByModel[0].TotalCostMicros)
-	require.Equal(t, int64(2), summary.ByModel[0].MessageCount)
+	require.Equal(t, expectedTotalCostMicros, summary.ByModel[0].TotalCostMicros)
+	require.Equal(t, expectedPricedMessageCount, summary.ByModel[0].MessageCount)
+	require.Equal(t, expectedTotalCacheReadTokens, summary.ByModel[0].TotalCacheReadTokens)
+	require.Equal(t, expectedTotalCacheCreationTokens, summary.ByModel[0].TotalCacheCreationTokens)
 
 	require.Len(t, summary.ByChat, 1)
 	require.Equal(t, chatID, summary.ByChat[0].RootChatID)
-	require.Equal(t, int64(1000), summary.ByChat[0].TotalCostMicros)
-	require.Equal(t, int64(2), summary.ByChat[0].MessageCount)
+	require.Equal(t, expectedTotalCostMicros, summary.ByChat[0].TotalCostMicros)
+	require.Equal(t, expectedPricedMessageCount, summary.ByChat[0].MessageCount)
+	require.Equal(t, expectedTotalCacheReadTokens, summary.ByChat[0].TotalCacheReadTokens)
+	require.Equal(t, expectedTotalCacheCreationTokens, summary.ByChat[0].TotalCacheCreationTokens)
 }
 
 func TestChatCostSummary(t *testing.T) {

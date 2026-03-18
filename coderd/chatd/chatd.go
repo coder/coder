@@ -2640,23 +2640,29 @@ func (p *Server) runChat(
 			}
 		}
 
-		hasUsage := step.Usage != (fantasy.Usage{})
+		normalizedUsage := normalizePersistedUsage(modelConfig.Provider, step.Usage)
+		// hasUsage is true when any token field is non-zero after
+		// normalization. When InputTokens is zeroed by normalization
+		// (e.g., all input was cached), CacheReadTokens keeps the
+		// struct non-empty, ensuring cache tokens are still persisted
+		// and priced.
+		hasUsage := normalizedUsage != (fantasy.Usage{})
 		var usageForCost codersdk.ChatMessageUsage
 		if hasUsage {
-			if step.Usage.InputTokens != 0 {
-				usageForCost.InputTokens = int64Ptr(step.Usage.InputTokens)
+			if normalizedUsage.InputTokens != 0 {
+				usageForCost.InputTokens = int64Ptr(normalizedUsage.InputTokens)
 			}
-			if step.Usage.OutputTokens != 0 {
-				usageForCost.OutputTokens = int64Ptr(step.Usage.OutputTokens)
+			if normalizedUsage.OutputTokens != 0 {
+				usageForCost.OutputTokens = int64Ptr(normalizedUsage.OutputTokens)
 			}
-			if step.Usage.ReasoningTokens != 0 {
-				usageForCost.ReasoningTokens = int64Ptr(step.Usage.ReasoningTokens)
+			if normalizedUsage.ReasoningTokens != 0 {
+				usageForCost.ReasoningTokens = int64Ptr(normalizedUsage.ReasoningTokens)
 			}
-			if step.Usage.CacheCreationTokens != 0 {
-				usageForCost.CacheCreationTokens = int64Ptr(step.Usage.CacheCreationTokens)
+			if normalizedUsage.CacheCreationTokens != 0 {
+				usageForCost.CacheCreationTokens = int64Ptr(normalizedUsage.CacheCreationTokens)
 			}
-			if step.Usage.CacheReadTokens != 0 {
-				usageForCost.CacheReadTokens = int64Ptr(step.Usage.CacheReadTokens)
+			if normalizedUsage.CacheReadTokens != 0 {
+				usageForCost.CacheReadTokens = int64Ptr(normalizedUsage.CacheReadTokens)
 			}
 		}
 		totalCostMicros := chatcost.CalculateTotalCostMicros(usageForCost, callConfig.Cost)
@@ -2699,18 +2705,18 @@ func (p *Server) runChat(
 					ContentVersion: chatprompt.CurrentContentVersion,
 					Content:        assistantContent,
 					Visibility:     database.ChatMessageVisibilityBoth,
-					InputTokens:    usageNullInt64(step.Usage.InputTokens, hasUsage),
-					OutputTokens:   usageNullInt64(step.Usage.OutputTokens, hasUsage),
-					TotalTokens:    usageNullInt64(step.Usage.TotalTokens, hasUsage),
+					InputTokens:    usageNullInt64(normalizedUsage.InputTokens, hasUsage),
+					OutputTokens:   usageNullInt64(normalizedUsage.OutputTokens, hasUsage),
+					TotalTokens:    usageNullInt64(normalizedUsage.TotalTokens, hasUsage),
 					ReasoningTokens: usageNullInt64(
-						step.Usage.ReasoningTokens,
+						normalizedUsage.ReasoningTokens,
 						hasUsage,
 					),
 					CacheCreationTokens: usageNullInt64(
-						step.Usage.CacheCreationTokens,
+						normalizedUsage.CacheCreationTokens,
 						hasUsage,
 					),
-					CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
+					CacheReadTokens: usageNullInt64(normalizedUsage.CacheReadTokens, hasUsage),
 					ContextLimit:    step.ContextLimit,
 					Compressed:      sql.NullBool{},
 					TotalCostMicros: usageNullInt64Ptr(totalCostMicros),

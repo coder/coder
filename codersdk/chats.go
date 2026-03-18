@@ -64,14 +64,34 @@ type ChatMessage struct {
 }
 
 // ChatMessageUsage contains token usage information for a chat message.
+// All pointer fields use nil to indicate "no data reported" versus zero
+// meaning "the provider explicitly reported zero tokens."
 type ChatMessageUsage struct {
-	InputTokens         *int64 `json:"input_tokens,omitempty"`
-	OutputTokens        *int64 `json:"output_tokens,omitempty"`
-	TotalTokens         *int64 `json:"total_tokens,omitempty"`
-	ReasoningTokens     *int64 `json:"reasoning_tokens,omitempty"`
+	// InputTokens is the non-cached, billable input token count. When
+	// cache metrics are present, this excludes tokens served from cache
+	// (those are counted separately in CacheReadTokens).
+	InputTokens *int64 `json:"input_tokens,omitempty"`
+	// OutputTokens is the total output token count, which includes
+	// reasoning tokens when applicable.
+	OutputTokens *int64 `json:"output_tokens,omitempty"`
+	// TotalTokens is the raw provider-reported total token count. For
+	// OpenAI and Azure, the provider includes cached tokens in its
+	// reported total, so TotalTokens may not equal the sum of the
+	// normalized InputTokens, OutputTokens, and CacheReadTokens.
+	// It is preserved verbatim for context-accounting and debugging.
+	TotalTokens *int64 `json:"total_tokens,omitempty"`
+	// ReasoningTokens is the subset of output tokens used for
+	// chain-of-thought reasoning, when reported by the provider.
+	ReasoningTokens *int64 `json:"reasoning_tokens,omitempty"`
+	// CacheCreationTokens is the number of tokens written to the
+	// provider's prompt cache during this request.
 	CacheCreationTokens *int64 `json:"cache_creation_tokens,omitempty"`
-	CacheReadTokens     *int64 `json:"cache_read_tokens,omitempty"`
-	ContextLimit        *int64 `json:"context_limit,omitempty"`
+	// CacheReadTokens is the number of input tokens served from the
+	// provider's prompt cache rather than processed fresh.
+	CacheReadTokens *int64 `json:"cache_read_tokens,omitempty"`
+	// ContextLimit is the model's maximum context window size in
+	// tokens, when known.
+	ContextLimit *int64 `json:"context_limit,omitempty"`
 }
 
 // ChatMessageRole represents the role of a chat message sender.

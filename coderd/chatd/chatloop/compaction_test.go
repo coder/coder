@@ -12,6 +12,68 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+func TestContextTokensFromUsage(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		usage    fantasy.Usage
+		expected int64
+	}{
+		{
+			name: "OpenAILikeWithCachedTokens",
+			usage: fantasy.Usage{
+				InputTokens:     1000,
+				CacheReadTokens: 900,
+				TotalTokens:     1100,
+			},
+			expected: 1900,
+		},
+		{
+			name: "WithCacheCreationToo",
+			usage: fantasy.Usage{
+				InputTokens:         1000,
+				CacheReadTokens:     500,
+				CacheCreationTokens: 200,
+				TotalTokens:         1200,
+			},
+			expected: 1700,
+		},
+		{
+			name: "NoGranularTokensFallsBackToTotal",
+			usage: fantasy.Usage{
+				TotalTokens: 500,
+			},
+			expected: 500,
+		},
+		{
+			name:     "ZeroUsage",
+			usage:    fantasy.Usage{},
+			expected: 0,
+		},
+		{
+			name: "AnthropicLikeInputSeparateFromCache",
+			usage: fantasy.Usage{
+				InputTokens:         100,
+				CacheReadTokens:     900,
+				CacheCreationTokens: 50,
+			},
+			expected: 1050,
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			actual := contextTokensFromUsage(testCase.usage)
+
+			require.Equal(t, testCase.expected, actual)
+		})
+	}
+}
+
 func TestRun_Compaction(t *testing.T) {
 	t.Parallel()
 

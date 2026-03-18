@@ -93,11 +93,17 @@ type OpenAICompletionChoice struct {
 	FinishReason string           `json:"finish_reason"`
 }
 
+// OpenAIPromptTokensDetails represents prompt token details in a completion response.
+type OpenAIPromptTokensDetails struct {
+	CachedTokens int `json:"cached_tokens"`
+}
+
 // OpenAICompletionUsage represents usage information in a completion response.
 type OpenAICompletionUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
+	PromptTokens        int                        `json:"prompt_tokens"`
+	CompletionTokens    int                        `json:"completion_tokens"`
+	TotalTokens         int                        `json:"total_tokens"`
+	PromptTokensDetails *OpenAIPromptTokensDetails `json:"prompt_tokens_details,omitempty"`
 }
 
 // OpenAICompletion represents a non-streaming OpenAI completion response.
@@ -476,6 +482,16 @@ func OpenAIStreamingResponse(chunks ...OpenAIChunk) OpenAIResponse {
 
 // OpenAINonStreamingResponse creates a non-streaming response with the given text.
 func OpenAINonStreamingResponse(text string) OpenAIResponse {
+	return OpenAINonStreamingResponseWithUsage(text, OpenAICompletionUsage{
+		PromptTokens:     10,
+		CompletionTokens: 5,
+		TotalTokens:      15,
+	})
+}
+
+// OpenAINonStreamingResponseWithUsage creates a non-streaming response with the
+// given text and explicit usage values.
+func OpenAINonStreamingResponseWithUsage(text string, usage OpenAICompletionUsage) OpenAIResponse {
 	return OpenAIResponse{
 		Response: &OpenAICompletion{
 			ID:      fmt.Sprintf("chatcmpl-%s", uuid.New().String()[:8]),
@@ -492,11 +508,7 @@ func OpenAINonStreamingResponse(text string) OpenAIResponse {
 					FinishReason: "stop",
 				},
 			},
-			Usage: OpenAICompletionUsage{
-				PromptTokens:     10,
-				CompletionTokens: 5,
-				TotalTokens:      15,
-			},
+			Usage: usage,
 		},
 	}
 }
