@@ -109,16 +109,16 @@ jobs:
       - name: Reconcile Flux
         run: |
           set -euxo pipefail
-          flux --namespace flux-system reconcile source git flux-system
-          flux --namespace flux-system reconcile source git coder-main
-          flux --namespace flux-system reconcile kustomization flux-system
-          flux --namespace flux-system reconcile kustomization coder
-          flux --namespace flux-system reconcile source chart coder-coder
-          flux --namespace flux-system reconcile source chart coder-coder-provisioner
-          flux --namespace coder reconcile helmrelease coder
-          flux --namespace coder reconcile helmrelease coder-provisioner
-          flux --namespace coder reconcile helmrelease coder-provisioner-tagged
-          flux --namespace coder reconcile helmrelease coder-provisioner-tagged-prebuilds
+          flux --namespace flux-system reconcile --verbose --timeout=5m source git flux-system
+          flux --namespace flux-system reconcile --verbose --timeout=5m source git coder-main
+          flux --namespace flux-system reconcile --verbose --timeout=5m kustomization flux-system
+          flux --namespace flux-system reconcile --verbose --timeout=5m kustomization coder
+          flux --namespace flux-system reconcile --verbose --timeout=5m source chart coder-coder
+          flux --namespace flux-system reconcile --verbose --timeout=5m source chart coder-coder-provisioner
+          flux --namespace coder reconcile --verbose --timeout=10m helmrelease coder
+          flux --namespace coder reconcile --verbose --timeout=10m helmrelease coder-provisioner
+          flux --namespace coder reconcile --verbose --timeout=10m helmrelease coder-provisioner-tagged
+          flux --namespace coder reconcile --verbose --timeout=10m helmrelease coder-provisioner-tagged-prebuilds
 
       # Just updating Flux is usually not enough. The Helm release may get
       # redeployed, but unless something causes the Deployment to update the
