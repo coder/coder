@@ -9534,6 +9534,68 @@ func TestInsertChatMessages(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, modelConfigA.ID, gotChat.LastModelConfigID)
 	})
+
+	t.Run("BatchInsertMultipleMessages", func(t *testing.T) {
+		t.Parallel()
+
+		store, ctx, user, chat, _, modelConfigA := setupChat(t)
+
+		msgs, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+			ChatID:              chat.ID,
+			CreatedBy:           []uuid.UUID{user.ID, uuid.Nil, uuid.Nil},
+			ModelConfigID:       []uuid.UUID{modelConfigA.ID, modelConfigA.ID, modelConfigA.ID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleAssistant, database.ChatMessageRoleTool},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
+			Content:             []string{`"hello"`, `"response"`, `"tool result"`},
+			InputTokens:         []int64{10, 0, 0},
+			OutputTokens:        []int64{0, 20, 0},
+			TotalTokens:         []int64{10, 20, 0},
+			ReasoningTokens:     []int64{0, 5, 0},
+			CacheCreationTokens: []int64{0, 0, 0},
+			CacheReadTokens:     []int64{0, 0, 0},
+			ContextLimit:        []int64{0, 0, 0},
+			Compressed:          []bool{false, false, false},
+			TotalCostMicros:     []int64{0, 100, 0},
+			RuntimeMs:           []int64{0, 500, 0},
+		})
+		require.NoError(t, err)
+		require.Len(t, msgs, 3)
+
+		// Verify ordering and roles.
+		require.Equal(t, database.ChatMessageRoleUser, msgs[0].Role)
+		require.Equal(t, database.ChatMessageRoleAssistant, msgs[1].Role)
+		require.Equal(t, database.ChatMessageRoleTool, msgs[2].Role)
+
+		// Verify IDs are sequential.
+		require.Less(t, msgs[0].ID, msgs[1].ID)
+		require.Less(t, msgs[1].ID, msgs[2].ID)
+
+		// Verify nullable fields: user message has CreatedBy set.
+		require.True(t, msgs[0].CreatedBy.Valid)
+		require.Equal(t, user.ID, msgs[0].CreatedBy.UUID)
+		// Assistant and tool messages have NULL CreatedBy.
+		require.False(t, msgs[1].CreatedBy.Valid)
+		require.False(t, msgs[2].CreatedBy.Valid)
+
+		// Verify token fields stored as NULL when zero.
+		require.True(t, msgs[0].InputTokens.Valid)
+		require.Equal(t, int64(10), msgs[0].InputTokens.Int64)
+		require.False(t, msgs[0].OutputTokens.Valid) // 0 → NULL
+		require.True(t, msgs[1].OutputTokens.Valid)
+		require.Equal(t, int64(20), msgs[1].OutputTokens.Int64)
+
+		// Verify cost: assistant has cost, others NULL.
+		require.True(t, msgs[1].TotalCostMicros.Valid)
+		require.Equal(t, int64(100), msgs[1].TotalCostMicros.Int64)
+		require.False(t, msgs[0].TotalCostMicros.Valid)
+		require.False(t, msgs[2].TotalCostMicros.Valid)
+
+		// Verify runtime_ms on assistant message.
+		require.True(t, msgs[1].RuntimeMs.Valid)
+		require.Equal(t, int64(500), msgs[1].RuntimeMs.Int64)
+		require.False(t, msgs[0].RuntimeMs.Valid)
+	})
 }
 
 func TestGetChatMessagesForPromptByChatID(t *testing.T) {

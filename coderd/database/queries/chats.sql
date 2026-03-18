@@ -185,7 +185,7 @@ WITH updated_chat AS (
     SET
         last_model_config_id = (
             SELECT val
-            FROM unnest(@model_config_id::uuid[])
+            FROM UNNEST(@model_config_id::uuid[])
                 WITH ORDINALITY AS t(val, ord)
             WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
             ORDER BY ord DESC
@@ -195,12 +195,12 @@ WITH updated_chat AS (
         id = @chat_id::uuid
         AND EXISTS (
             SELECT 1
-            FROM unnest(@model_config_id::uuid[])
+            FROM UNNEST(@model_config_id::uuid[])
             WHERE unnest != '00000000-0000-0000-0000-000000000000'::uuid
         )
         AND chats.last_model_config_id IS DISTINCT FROM (
             SELECT val
-            FROM unnest(@model_config_id::uuid[])
+            FROM UNNEST(@model_config_id::uuid[])
                 WITH ORDINALITY AS t(val, ord)
             WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
             ORDER BY ord DESC
@@ -228,22 +228,22 @@ INSERT INTO chat_messages (
 )
 SELECT
     @chat_id::uuid,
-    NULLIF(unnest(@created_by::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    NULLIF(unnest(@model_config_id::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    unnest(@role::chat_message_role[]),
-    unnest(@content::text[])::jsonb,
-    unnest(@content_version::smallint[]),
-    unnest(@visibility::chat_message_visibility[]),
-    NULLIF(unnest(@input_tokens::bigint[]), 0),
-    NULLIF(unnest(@output_tokens::bigint[]), 0),
-    NULLIF(unnest(@total_tokens::bigint[]), 0),
-    NULLIF(unnest(@reasoning_tokens::bigint[]), 0),
-    NULLIF(unnest(@cache_creation_tokens::bigint[]), 0),
-    NULLIF(unnest(@cache_read_tokens::bigint[]), 0),
-    NULLIF(unnest(@context_limit::bigint[]), 0),
-    unnest(@compressed::boolean[]),
-    NULLIF(unnest(@total_cost_micros::bigint[]), 0),
-    NULLIF(unnest(@runtime_ms::bigint[]), 0)
+    NULLIF(UNNEST(@created_by::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(UNNEST(@model_config_id::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
+    UNNEST(@role::chat_message_role[]),
+    UNNEST(@content::text[])::jsonb,
+    UNNEST(@content_version::smallint[]),
+    UNNEST(@visibility::chat_message_visibility[]),
+    NULLIF(UNNEST(@input_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@output_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@total_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@reasoning_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@cache_creation_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@cache_read_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@context_limit::bigint[]), 0),
+    UNNEST(@compressed::boolean[]),
+    NULLIF(UNNEST(@total_cost_micros::bigint[]), 0),
+    NULLIF(UNNEST(@runtime_ms::bigint[]), 0)
 RETURNING
     *;
 
