@@ -42,7 +42,7 @@ func TestTar(t *testing.T) {
 		dir := t.TempDir()
 
 		// Create a real .tf file.
-		err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte("# real"), 0o644)
+		err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte("# real"), 0o600)
 		require.NoError(t, err)
 
 		// Create a symlink to a file and a dangling symlink.
