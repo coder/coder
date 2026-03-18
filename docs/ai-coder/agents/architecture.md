@@ -140,25 +140,39 @@ They traverse the same Tailnet tunnel used by web terminals and IDE connections.
 ### Platform tools
 
 These tools run entirely within the control plane. They do not require a
-workspace connection.
+workspace connection. Platform and orchestration tools are only available to
+root chats — sub-agents spawned by `spawn_agent` do not have access to them
+and cannot create workspaces or spawn further sub-agents.
 
-| Tool               | What it does                                                      |
-|--------------------|-------------------------------------------------------------------|
-| `list_templates`   | Browses available workspace templates, sorted by popularity.      |
-| `read_template`    | Gets template details and configurable parameters.                |
-| `create_workspace` | Creates a workspace from a template and waits for it to be ready. |
+| Tool               | What it does                                                                           |
+|--------------------|----------------------------------------------------------------------------------------|
+| `list_templates`   | Browses available workspace templates, sorted by popularity.                           |
+| `read_template`    | Gets template details and configurable parameters.                                     |
+| `create_workspace` | Creates a workspace from a template and waits for it to be ready.                      |
+| `start_workspace`  | Starts the chat's workspace if it is currently stopped. Idempotent if already running. |
 
 ### Orchestration tools
 
 These tools manage sub-agents — child chats that work on independent tasks in
 parallel.
 
-| Tool            | What it does                                                 |
-|-----------------|--------------------------------------------------------------|
-| `spawn_agent`   | Delegates a task to a sub-agent with its own context window. |
-| `wait_agent`    | Waits for a sub-agent to finish and collects its result.     |
-| `message_agent` | Sends a follow-up message to a running sub-agent.            |
-| `close_agent`   | Stops a running sub-agent.                                   |
+| Tool                       | What it does                                                                                                             |
+|----------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| `spawn_agent`              | Delegates a task to a sub-agent with its own context window.                                                             |
+| `spawn_computer_use_agent` | Spawns a sub-agent with desktop interaction capabilities (screenshots, mouse, keyboard). Requires an Anthropic provider. |
+| `wait_agent`               | Waits for a sub-agent to finish and collects its result.                                                                 |
+| `message_agent`            | Sends a follow-up message to a running sub-agent.                                                                        |
+| `close_agent`              | Stops a running sub-agent.                                                                                               |
+
+### Provider tools
+
+These tools are executed server-side by the LLM provider, not by the control
+plane or workspace. They are conditionally available based on the model
+configuration set by an administrator.
+
+| Tool         | What it does                                                                                                                                     |
+|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `web_search` | Searches the internet for up-to-date information. Available when web search is enabled for the configured Anthropic, OpenAI, or Google provider. |
 
 ## What runs where
 
