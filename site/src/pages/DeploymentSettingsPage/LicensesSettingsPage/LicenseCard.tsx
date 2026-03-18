@@ -202,11 +202,6 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 							</div>
 						</div>
 					)}
-					{isExpired && (
-						<div className="border-0 border-t border-solid border-border px-4 py-3">
-							<Pill type="error">Expired</Pill>
-						</div>
-					)}
 				</CollapsibleContent>
 			</div>
 		</Collapsible>
