@@ -2042,7 +2042,7 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 		case <-ctx.Done():
 			return false
 		}
-	}, 200*time.Millisecond,
+	}, testutil.IntervalMedium,
 		"expected usage tracker to flush at least one workspace")
 
 	// Verify the workspace's last_used_at was actually updated.
