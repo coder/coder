@@ -4568,6 +4568,108 @@ func TestChatSystemPrompt(t *testing.T) {
 	})
 }
 
+func TestChatDesktopEnabled(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ReturnsFalseWhenUnset", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient)
+
+		resp, err := adminClient.GetChatDesktopEnabled(ctx)
+		require.NoError(t, err)
+		require.False(t, resp.EnableDesktop)
+	})
+
+	t.Run("AdminCanSetTrue", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient)
+
+		err := adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
+			EnableDesktop: true,
+		})
+		require.NoError(t, err)
+
+		resp, err := adminClient.GetChatDesktopEnabled(ctx)
+		require.NoError(t, err)
+		require.True(t, resp.EnableDesktop)
+	})
+
+	t.Run("AdminCanSetFalse", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient)
+
+		// Set true first, then set false.
+		err := adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
+			EnableDesktop: true,
+		})
+		require.NoError(t, err)
+
+		err = adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
+			EnableDesktop: false,
+		})
+		require.NoError(t, err)
+
+		resp, err := adminClient.GetChatDesktopEnabled(ctx)
+		require.NoError(t, err)
+		require.False(t, resp.EnableDesktop)
+	})
+
+	t.Run("NonAdminCanRead", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		err := adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
+			EnableDesktop: true,
+		})
+		require.NoError(t, err)
+
+		resp, err := memberClient.GetChatDesktopEnabled(ctx)
+		require.NoError(t, err)
+		require.True(t, resp.EnableDesktop)
+	})
+
+	t.Run("NonAdminWriteFails", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		err := memberClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
+			EnableDesktop: true,
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("UnauthenticatedFails", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient)
+
+		anonClient := codersdk.New(adminClient.URL)
+		_, err := anonClient.GetChatDesktopEnabled(ctx)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+	})
+}
+
 func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Error {
 	t.Helper()
 

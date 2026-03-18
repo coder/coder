@@ -84,6 +84,14 @@ func (p *Server) isAnthropicConfigured(ctx context.Context) bool {
 	return false
 }
 
+func (p *Server) isDesktopEnabled(ctx context.Context) bool {
+	enabled, err := p.db.GetChatDesktopEnabled(ctx)
+	if err != nil {
+		return false
+	}
+	return enabled
+}
+
 func (p *Server) subagentTools(ctx context.Context, currentChat func() database.Chat) []fantasy.AgentTool {
 	tools := []fantasy.AgentTool{
 		fantasy.NewAgentTool(
@@ -253,9 +261,8 @@ func (p *Server) subagentTools(ctx context.Context, currentChat func() database.
 	}
 
 	// Only include the computer use tool when an Anthropic
-	// provider is configured, since it requires an Anthropic
-	// model.
-	if p.isAnthropicConfigured(ctx) {
+	// provider is configured and desktop is enabled.
+	if p.isAnthropicConfigured(ctx) && p.isDesktopEnabled(ctx) {
 		tools = append(tools, fantasy.NewAgentTool(
 			"spawn_computer_use_agent",
 			"Spawn a dedicated computer use agent that can see the desktop "+
