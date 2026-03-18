@@ -591,6 +591,97 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	require.False(t, chatFromDB.WorkerID.Valid)
 }
 
+func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("WithWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newTestServer(t, db, ps, uuid.New())
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, model := seedChatDependencies(ctx, t, db)
+
+		org := dbgen.Organization(t, db, database.Organization{})
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		tpl := dbgen.Template(t, db, database.Template{
+			CreatedBy:       user.ID,
+			OrganizationID:  org.ID,
+			ActiveVersionID: tv.ID,
+		})
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     tpl.ID,
+		})
+
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OwnerID:            user.ID,
+			WorkspaceID:        uuid.NullUUID{UUID: workspace.ID, Valid: true},
+			Title:              "test-with-workspace",
+			ModelConfigID:      model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		})
+		require.NoError(t, err)
+
+		messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		var workspaceMsg *database.ChatMessage
+		for _, msg := range messages {
+			if msg.Role == database.ChatMessageRoleSystem {
+				content := string(msg.Content.RawMessage)
+				if strings.Contains(content, "attached to a workspace") {
+					workspaceMsg = &msg
+					break
+				}
+			}
+		}
+		require.NotNil(t, workspaceMsg, "workspace awareness system message should exist")
+		require.Equal(t, database.ChatMessageRoleSystem, workspaceMsg.Role)
+		require.Equal(t, database.ChatMessageVisibilityModel, workspaceMsg.Visibility)
+	})
+
+	t.Run("WithoutWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newTestServer(t, db, ps, uuid.New())
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, model := seedChatDependencies(ctx, t, db)
+
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OwnerID:            user.ID,
+			Title:              "test-without-workspace",
+			ModelConfigID:      model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		})
+		require.NoError(t, err)
+
+		messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		var workspaceMsg *database.ChatMessage
+		for _, msg := range messages {
+			if msg.Role == database.ChatMessageRoleSystem {
+				content := string(msg.Content.RawMessage)
+				if strings.Contains(content, "no workspace associated") {
+					workspaceMsg = &msg
+					break
+				}
+			}
+		}
+		require.NotNil(t, workspaceMsg, "workspace awareness system message should exist")
+		require.Equal(t, database.ChatMessageRoleSystem, workspaceMsg.Role)
+		require.Equal(t, database.ChatMessageVisibilityModel, workspaceMsg.Visibility)
+	})
+}
+
 func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
 	t.Parallel()
 
