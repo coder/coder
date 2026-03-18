@@ -1106,13 +1106,8 @@ const LoadMoreSentinel: FC<{
 	// Keep refs in sync with the latest prop values so the
 	// observer callback always reads current state without
 	// needing to tear down and re-create the observer.
-	useEffect(() => {
-		onLoadMoreRef.current = onLoadMore;
-	}, [onLoadMore]);
-
-	useEffect(() => {
-		isFetchingNextPageRef.current = isFetchingNextPage;
-	}, [isFetchingNextPage]);
+	onLoadMoreRef.current = onLoadMore;
+	isFetchingNextPageRef.current = isFetchingNextPage;
 
 	useEffect(() => {
 		const el = sentinelRef.current;
