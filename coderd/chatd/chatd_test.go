@@ -562,7 +562,9 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
 	})
 	require.NoError(t, err)
-	require.Equal(t, editedMessageID, editResult.Message.ID)
+	// The edited message is soft-deleted and a new message is inserted,
+	// so the returned message ID will differ from the original.
+	require.NotEqual(t, editedMessageID, editResult.Message.ID)
 	require.Equal(t, database.ChatStatusPending, editResult.Chat.Status)
 	require.False(t, editResult.Chat.WorkerID.Valid)
 
@@ -576,7 +578,7 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
-	require.Equal(t, editedMessageID, messages[0].ID)
+	require.Equal(t, editResult.Message.ID, messages[0].ID)
 	onlyMessage := db2sdk.ChatMessage(messages[0])
 	require.Len(t, onlyMessage.Content, 1)
 	require.Equal(t, "edited", onlyMessage.Content[0].Text)

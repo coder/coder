@@ -5,12 +5,22 @@ WHERE id = @id OR root_chat_id = @id;
 -- name: UnarchiveChatByID :exec
 UPDATE chats SET archived = false, updated_at = NOW() WHERE id = @id::uuid;
 
--- name: DeleteChatMessagesAfterID :exec
-DELETE FROM
+-- name: SoftDeleteChatMessagesAfterID :exec
+UPDATE
     chat_messages
+SET
+    deleted = true
 WHERE
     chat_id = @chat_id::uuid
     AND id > @after_id::bigint;
+
+-- name: SoftDeleteChatMessageByID :exec
+UPDATE
+    chat_messages
+SET
+    deleted = true
+WHERE
+    id = @id::bigint;
 
 -- name: GetChatByID :one
 SELECT
@@ -26,7 +36,8 @@ SELECT
 FROM
     chat_messages
 WHERE
-    id = @id::bigint;
+    id = @id::bigint
+    AND deleted = false;
 
 -- name: GetChatMessagesByChatID :many
 SELECT
@@ -37,6 +48,7 @@ WHERE
     chat_id = @chat_id::uuid
     AND id > @after_id::bigint
     AND visibility IN ('user', 'both')
+    AND deleted = false
 ORDER BY
     created_at ASC;
 
@@ -52,6 +64,7 @@ WHERE
         ELSE true
     END
     AND visibility IN ('user', 'both')
+    AND deleted = false
 ORDER BY
     id DESC
 LIMIT
@@ -66,6 +79,7 @@ WITH latest_compressed_summary AS (
     WHERE
         chat_id = @chat_id::uuid
         AND compressed = TRUE
+        AND deleted = false
         AND visibility = 'model'
     ORDER BY
         created_at DESC,
@@ -80,6 +94,7 @@ FROM
 WHERE
     chat_id = @chat_id::uuid
     AND visibility IN ('model', 'both')
+    AND deleted = false
     AND (
         (
             role = 'system'
@@ -496,6 +511,7 @@ FROM
 WHERE
     chat_id = @chat_id::uuid
     AND role = @role::chat_message_role
+    AND deleted = false
 ORDER BY
     created_at DESC, id DESC
 LIMIT

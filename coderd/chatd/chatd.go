@@ -399,7 +399,7 @@ type SendMessageResult struct {
 	Chat          database.Chat
 }
 
-// EditMessageOptions controls in-place user message edits.
+// EditMessageOptions controls user message edits via soft-delete and re-insert.
 type EditMessageOptions struct {
 	ChatID          uuid.UUID
 	CreatedBy       uuid.UUID
@@ -407,7 +407,7 @@ type EditMessageOptions struct {
 	Content         []codersdk.ChatMessagePart
 }
 
-// EditMessageResult contains the updated user message and chat status.
+// EditMessageResult contains the replacement user message and chat status.
 type EditMessageResult struct {
 	Message database.ChatMessage
 	Chat    database.Chat
@@ -710,7 +710,8 @@ func (p *Server) checkUsageLimit(ctx context.Context, store database.Store, owne
 	return nil
 }
 
-// EditMessage updates a user message in-place, truncates all following messages,
+// EditMessage marks the old user message as deleted, soft-deletes all
+// following messages, inserts a new message with the updated content,
 // clears queued messages, and moves the chat into pending status.
 func (p *Server) EditMessage(
 	ctx context.Context,
@@ -756,28 +757,43 @@ func (p *Server) EditMessage(
 			return ErrEditedMessageNotUser
 		}
 
-		updatedMessage, err := tx.UpdateChatMessageByID(ctx, database.UpdateChatMessageByIDParams{
-			ModelConfigID: uuid.NullUUID{},
-			Content:       content,
-			ID:            opts.EditedMessageID,
-		})
+		// Soft-delete the original message instead of updating in place
+		// so that usage/cost data is preserved.
+		err = tx.SoftDeleteChatMessageByID(ctx, opts.EditedMessageID)
 		if err != nil {
-			return xerrors.Errorf("update chat message: %w", err)
+			return xerrors.Errorf("soft-delete edited message: %w", err)
 		}
 
-		err = tx.DeleteChatMessagesAfterID(ctx, database.DeleteChatMessagesAfterIDParams{
+		// Soft-delete all messages that came after the edited one.
+		err = tx.SoftDeleteChatMessagesAfterID(ctx, database.SoftDeleteChatMessagesAfterIDParams{
 			ChatID:  opts.ChatID,
 			AfterID: opts.EditedMessageID,
 		})
 		if err != nil {
-			return xerrors.Errorf("delete later chat messages: %w", err)
+			return xerrors.Errorf("soft-delete later chat messages: %w", err)
 		}
+
+		// Insert a new message with the updated content.
+		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+			ChatID: opts.ChatID,
+		}
+		appendChatMessage(&msgParams, newChatMessage(
+			database.ChatMessageRoleUser,
+			content,
+			existing.Visibility,
+			existing.ModelConfigID.UUID,
+			chatprompt.CurrentContentVersion,
+		).withCreatedBy(opts.CreatedBy))
+		newMessages, err := insertChatMessageWithStore(ctx, tx, msgParams)
+		if err != nil {
+			return xerrors.Errorf("insert replacement message: %w", err)
+		}
+		newMessage := newMessages[0]
 
 		err = tx.DeleteAllChatQueuedMessages(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("delete queued messages: %w", err)
 		}
-
 		updatedChat, err := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 			ID:          opts.ChatID,
 			Status:      database.ChatStatusPending,
@@ -790,7 +806,7 @@ func (p *Server) EditMessage(
 			return xerrors.Errorf("set chat pending: %w", err)
 		}
 
-		result.Message = updatedMessage
+		result.Message = newMessage
 		result.Chat = updatedChat
 		return nil
 	}, nil)
@@ -2709,7 +2725,7 @@ func (p *Server) runChat(
 		err := p.db.InTx(func(tx database.Store) error {
 			// Verify this worker still owns the chat before
 			// inserting messages. This closes the race where
-			// EditMessage truncates history and clears worker_id
+			// EditMessage soft-deletes history and clears worker_id
 			// while persistInterruptedStep (which uses an
 			// uncancelable context) is still running.
 			//
