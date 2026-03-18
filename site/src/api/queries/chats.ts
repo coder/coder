@@ -547,6 +547,18 @@ export const chatCostUsers = (params?: ChatCostUsersParams) => ({
 	staleTime: 60_000,
 });
 
+const prInsightsKey = (params?: { start_date?: string; end_date?: string }) =>
+	[...chatsKey, "prInsights", params] as const;
+
+export const prInsights = (params?: {
+	start_date?: string;
+	end_date?: string;
+}) => ({
+	queryKey: prInsightsKey(params),
+	queryFn: () => API.getPRInsights(params),
+	staleTime: 60_000,
+});
+
 const chatUsageLimitConfigKey = [...chatsKey, "usageLimitConfig"] as const;
 
 export const chatUsageLimitConfig = () => ({
