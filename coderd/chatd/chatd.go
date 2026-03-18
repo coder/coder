@@ -2187,6 +2187,35 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 	return &msg, remainingQueuedMessages, true, nil
 }
 
+// trackWorkspaceUsage bumps the workspace's last_used_at via the
+// usage tracker. If wsID is not yet valid, it re-reads the chat
+// from the DB to pick up late associations (e.g. create_workspace
+// linking a workspace mid-conversation). The caller should store
+// the returned value so that subsequent calls skip the DB lookup
+// once a workspace has been found.
+func (p *Server) trackWorkspaceUsage(
+	ctx context.Context,
+	chatID uuid.UUID,
+	wsID uuid.NullUUID,
+	logger slog.Logger,
+) uuid.NullUUID {
+	if p.usageTracker == nil {
+		return wsID
+	}
+	if !wsID.Valid {
+		latest, err := p.db.GetChatByID(ctx, chatID)
+		if err != nil {
+			logger.Warn(ctx, "failed to re-read chat for workspace association", slog.Error(err))
+			return wsID
+		}
+		wsID = latest.WorkspaceID
+	}
+	if wsID.Valid {
+		p.usageTracker.Add(wsID.UUID)
+	}
+	return wsID
+}
+
 func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
 	logger.Info(ctx, "processing chat request")
@@ -2224,9 +2253,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 					cancel(chatloop.ErrInterrupted)
 					return
 				}
-				if p.usageTracker != nil && chat.WorkspaceID.Valid {
-					p.usageTracker.Add(chat.WorkspaceID.UUID)
-				}
+				chat.WorkspaceID = p.trackWorkspaceUsage(chatCtx, chat.ID, chat.WorkspaceID, logger)
 			}
 		}
 	}()

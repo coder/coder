@@ -1977,7 +1977,9 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 		return chattest.OpenAIResponse{StreamingChunks: chunks}
 	}))
 
-	// Create a workspace so we can link it to the chat.
+	// Create a workspace that will be linked to the chat later,
+	// simulating the normal flow where a chat is created first
+	// and then creates a workspace via create_workspace.
 	org := dbgen.Organization(t, db, database.Organization{})
 	tmpl := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
@@ -2014,36 +2016,59 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 		require.NoError(t, server.Close())
 	})
 
-	// Create a chat with the workspace linked upfront so that
-	// processChat sees the workspace_id when it acquires the chat.
-	_, err := server.CreateChat(ctx, chatd.CreateOptions{
+	// Create a chat WITHOUT a workspace, the normal starting state.
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            user.ID,
 		Title:              "usage-tracking-test",
 		ModelConfigID:      model.ID,
-		WorkspaceID:        uuid.NullUUID{UUID: ws.ID, Valid: true},
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
-	// The short heartbeat interval (100ms) means the tracker
-	// will receive workspace IDs quickly. Wait for the chat to
-	// start processing and for at least one heartbeat to fire.
+	// Wait for the chat to start processing and at least one
+	// heartbeat to fire.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		// Trigger a tracker flush and check if any workspaces
-		// were tracked.
+		fromDB, listErr := db.GetChatByID(ctx, chat.ID)
+		if listErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusRunning &&
+			fromDB.HeartbeatAt.Valid &&
+			fromDB.HeartbeatAt.Time.After(fromDB.CreatedAt)
+	}, testutil.IntervalFast,
+		"chat should be running with at least one heartbeat")
+
+	// Flush the tracker and verify nothing was tracked yet
+	// (no workspace linked).
+	testutil.RequireSend(ctx, t, flushTick, time.Now())
+	count := testutil.RequireReceive(ctx, t, flushDone)
+	require.Equal(t, 0, count,
+		"expected no workspaces to be flushed before association")
+
+	// Link the workspace to the chat in the DB, simulating what
+	// the create_workspace tool does mid-conversation.
+	_, err = db.UpdateChatWorkspace(ctx, database.UpdateChatWorkspaceParams{
+		WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
+		ID:          chat.ID,
+	})
+	require.NoError(t, err)
+
+	// The heartbeat re-reads the workspace association from the DB
+	// on each tick. Wait for the tracker to pick it up.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		select {
 		case flushTick <- time.Now():
 		case <-ctx.Done():
 			return false
 		}
 		select {
-		case count := <-flushDone:
-			return count > 0
+		case c := <-flushDone:
+			return c > 0
 		case <-ctx.Done():
 			return false
 		}
 	}, testutil.IntervalMedium,
-		"expected usage tracker to flush at least one workspace")
+		"expected usage tracker to flush the late-associated workspace")
 
 	// Verify the workspace's last_used_at was actually updated.
 	updatedWs, err := db.GetWorkspaceByID(ctx, ws.ID)
@@ -2099,7 +2124,7 @@ func TestHeartbeatNoWorkspaceNoBump(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "no-workspace-test",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
