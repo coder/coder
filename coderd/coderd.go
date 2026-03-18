@@ -803,32 +803,33 @@ func New(options *Options) *API {
 		quartz.NewReal(),
 		gitSyncLogger,
 	)
-		// nolint:gocritic // chat diff worker needs to be able to CRUD chats.
-		go api.gitSyncWorker.Start(dbauthz.AsChatd(api.ctx))
+	// nolint:gocritic // chat diff worker needs to be able to CRUD chats.
+	go api.gitSyncWorker.Start(dbauthz.AsChatd(api.ctx))
 
-		// Initialize autochat executor and cron.
-		api.autochatExecutor = autochat.NewExecutor(
-			options.Database,
-			func(ctx context.Context, opts autochat.CreateChatOptions) (database.Chat, error) {
-				return api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
-					OwnerID:            opts.OwnerID,
-					Title:              opts.Title,
-					ModelConfigID:      opts.ModelConfigID,
-					SystemPrompt:       opts.SystemPrompt,
-					InitialUserContent: opts.InitialUserContent,
-				})
-			},
-			options.Logger.Named("autochat"),
-		)
-		api.autochatCron = autochat.NewCronExecutor(
-			api.ctx,
-			options.Database,
-			api.autochatExecutor,
-			options.Logger,
-			quartz.NewReal(),
-		)
-			go api.autochatCron.Run()
-		if options.DeploymentValues.Prometheus.Enable {		options.PrometheusRegistry.MustRegister(stn)
+	// Initialize autochat executor and cron.
+	api.autochatExecutor = autochat.NewExecutor(
+		options.Database,
+		func(ctx context.Context, opts autochat.CreateChatOptions) (database.Chat, error) {
+			return api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
+				OwnerID:            opts.OwnerID,
+				Title:              opts.Title,
+				ModelConfigID:      opts.ModelConfigID,
+				SystemPrompt:       opts.SystemPrompt,
+				InitialUserContent: opts.InitialUserContent,
+			})
+		},
+		options.Logger.Named("autochat"),
+	)
+	api.autochatCron = autochat.NewCronExecutor(
+		api.ctx,
+		options.Database,
+		api.autochatExecutor,
+		options.Logger,
+		quartz.NewReal(),
+	)
+	go api.autochatCron.Run()
+	if options.DeploymentValues.Prometheus.Enable {
+		options.PrometheusRegistry.MustRegister(stn)
 		api.lifecycleMetrics = agentapi.NewLifecycleMetrics(options.PrometheusRegistry)
 	}
 	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
@@ -1175,23 +1176,24 @@ func New(options *Options) *API {
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
 			)
 			r.Get("/", api.listChats)
-				r.Post("/", api.postChats)
-				r.Get("/models", api.listChatModels)
-				r.Get("/watch", api.watchChats)
-				r.Route("/automations", func(r chi.Router) {
-					r.Get("/", api.listChatAutomations)
-					r.Post("/", api.createChatAutomation)
-					r.Route("/{chatAutomation}", func(r chi.Router) {
-						r.Use(httpmw.ExtractChatAutomationParam(options.Database))
-						r.Get("/", api.getChatAutomation)
-						r.Put("/", api.updateChatAutomation)
-						r.Delete("/", api.deleteChatAutomation)
-						r.Post("/trigger", api.triggerChatAutomation)
-						r.Post("/rotate-secret", api.rotateChatAutomationSecret)
-						r.Get("/runs", api.listChatAutomationRuns)
-						})
-					})
-					r.Route("/cost", func(r chi.Router) {				r.Get("/users", api.chatCostUsers)
+			r.Post("/", api.postChats)
+			r.Get("/models", api.listChatModels)
+			r.Get("/watch", api.watchChats)
+			r.Route("/automations", func(r chi.Router) {
+				r.Get("/", api.listChatAutomations)
+				r.Post("/", api.createChatAutomation)
+				r.Route("/{chatAutomation}", func(r chi.Router) {
+					r.Use(httpmw.ExtractChatAutomationParam(options.Database))
+					r.Get("/", api.getChatAutomation)
+					r.Put("/", api.updateChatAutomation)
+					r.Delete("/", api.deleteChatAutomation)
+					r.Post("/trigger", api.triggerChatAutomation)
+					r.Post("/rotate-secret", api.rotateChatAutomationSecret)
+					r.Get("/runs", api.listChatAutomationRuns)
+				})
+			})
+			r.Route("/cost", func(r chi.Router) {
+				r.Get("/users", api.chatCostUsers)
 				r.Route("/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Get("/summary", api.chatCostSummary)
@@ -1263,18 +1265,19 @@ func New(options *Options) *API {
 					r.Post("/promote", api.promoteChatQueuedMessage)
 				})
 			})
-			})
+		})
 
-			// Webhook ingress for chat automations — unauthenticated,
-			// secured by HMAC-SHA256 signature verification.
-			r.Route("/chats/automations/{chatAutomation}/webhook", func(r chi.Router) {
-				r.Use(
-					httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
-				)
-				r.Post("/", api.chatAutomationWebhook)
-			})
+		// Webhook ingress for chat automations — unauthenticated,
+		// secured by HMAC-SHA256 signature verification.
+		r.Route("/chats/automations/{chatAutomation}/webhook", func(r chi.Router) {
+			r.Use(
+				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents),
+			)
+			r.Post("/", api.chatAutomationWebhook)
+		})
 
-			r.Route("/mcp", func(r chi.Router) {			r.Use(
+		r.Route("/mcp", func(r chi.Router) {
+			r.Use(
 				apiKeyMiddleware,
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),
 			)

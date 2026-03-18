@@ -119,4 +119,10 @@ func TestMaskSecret(t *testing.T) {
 		masked := autochat.MaskSecret("123456789")
 		require.Equal(t, "12345678****", masked)
 	})
+
+	t.Run("EmptyString", func(t *testing.T) {
+		t.Parallel()
+		masked := autochat.MaskSecret("")
+		require.Equal(t, "****", masked)
+	})
 }

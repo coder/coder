@@ -5,24 +5,17 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// ChatCreator is the interface for creating chats. This is satisfied by
-// chatd.Server, but abstracted for testing.
-type ChatCreator interface {
-	CreateChat(ctx context.Context, opts CreateChatOptions) (database.Chat, error)
-}
-
-// CreateChatOptions mirrors the fields from chatd.CreateOptions that we
-// need.
+// CreateChatOptions holds the parameters for creating an automated chat.
 type CreateChatOptions struct {
 	OwnerID            uuid.UUID
 	AutomationID       *uuid.UUID
@@ -51,7 +44,7 @@ func NewExecutor(
 	return &Executor{
 		db:         db,
 		createChat: createChatFn,
-		log:        log,
+		log:        log.Named("autochat"),
 	}
 }
 
@@ -94,7 +87,7 @@ func (e *Executor) Fire(
 		return database.ChatAutomationRun{}, xerrors.Errorf("insert run: %w", err)
 	}
 
-	// 4. Create chat — enters 'pending', chatd picks it up.
+	// 4. Create chat - enters 'pending', chatd picks it up.
 	chat, err := e.createChat(ctx, CreateChatOptions{
 		OwnerID:       automation.OwnerID,
 		AutomationID:  &automation.ID,
@@ -107,16 +100,22 @@ func (e *Executor) Fire(
 	})
 	if err != nil {
 		// Mark run as failed.
-		_, _ = e.db.UpdateChatAutomationRun(ctx, database.UpdateChatAutomationRunParams{
+		_, dbErr := e.db.UpdateChatAutomationRun(ctx, database.UpdateChatAutomationRunParams{
 			ID:     run.ID,
 			Status: "failed",
 			Error:  sql.NullString{String: err.Error(), Valid: true},
 		})
+		if dbErr != nil {
+			e.log.Error(ctx, "failed to mark automation run as failed",
+				slog.F("run_id", run.ID),
+				slog.Error(dbErr),
+			)
+		}
 		return run, xerrors.Errorf("create chat: %w", err)
 	}
 
 	// 5. Link run to chat, mark running.
-	now := time.Now()
+	now := dbtime.Now()
 	run, err = e.db.UpdateChatAutomationRun(ctx, database.UpdateChatAutomationRunParams{
 		ID:        run.ID,
 		ChatID:    uuid.NullUUID{UUID: chat.ID, Valid: true},

@@ -1,7 +1,6 @@
 package autochat_test
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -130,6 +129,6 @@ func TestRenderPrompt(t *testing.T) {
 		)
 		require.NoError(t, err)
 		// upper is applied first, then trimSpace.
-		require.Equal(t, strings.TrimSpace(strings.ToUpper("  hello  ")), result)
+		require.Equal(t, "HELLO", result)
 	})
 }

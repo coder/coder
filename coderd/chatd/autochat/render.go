@@ -9,13 +9,16 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// promptFuncMap is the restricted set of functions available in prompt
-// templates.
-var promptFuncMap = template.FuncMap{
-	"trimSpace": strings.TrimSpace,
-	"upper":     strings.ToUpper,
-	"lower":     strings.ToLower,
-	"now":       func() string { return time.Now().UTC().Format(time.RFC3339) },
+// promptFuncMap returns the restricted set of functions available in
+// prompt templates. A fresh map is returned each call so callers
+// cannot mutate shared state.
+func promptFuncMap() template.FuncMap {
+	return template.FuncMap{
+		"trimSpace": strings.TrimSpace,
+		"upper":     strings.ToUpper,
+		"lower":     strings.ToLower,
+		"now":       func() string { return time.Now().UTC().Format(time.RFC3339) },
+	}
 }
 
 // RenderPrompt executes a Go text/template against the provided data.
@@ -24,7 +27,7 @@ var promptFuncMap = template.FuncMap{
 func RenderPrompt(tmpl string, data map[string]any) (string, error) {
 	t, err := template.New("prompt").
 		Option("missingkey=error").
-		Funcs(promptFuncMap).
+		Funcs(promptFuncMap()).
 		Parse(tmpl)
 	if err != nil {
 		return "", xerrors.Errorf("parse prompt template: %w", err)

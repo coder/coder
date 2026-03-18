@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/chatd"
+	"github.com/coder/coder/v2/coderd/chatd/autochat"
 	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -42,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -81,30 +83,6 @@ type chatRepositoryRef struct {
 type chatDiffReference struct {
 	PullRequestURL string
 	RepositoryRef  *chatRepositoryRef
-}
-
-func writeChatUsageLimitExceeded(
-	ctx context.Context,
-	rw http.ResponseWriter,
-	limitErr *chatd.UsageLimitExceededError,
-) {
-	httpapi.Write(ctx, rw, http.StatusConflict, codersdk.ChatUsageLimitExceededResponse{
-		Response: codersdk.Response{
-			Message: "Chat usage limit exceeded.",
-		},
-		SpentMicros: limitErr.ConsumedMicros,
-		LimitMicros: limitErr.LimitMicros,
-		ResetsAt:    limitErr.PeriodEnd,
-	})
-}
-
-func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) bool {
-	var limitErr *chatd.UsageLimitExceededError
-	if errors.As(err, &limitErr) {
-		writeChatUsageLimitExceeded(ctx, rw, limitErr)
-		return true
-	}
-	return false
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -190,7 +168,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	params := database.GetChatsParams{
+	params := database.GetChatsByOwnerIDParams{
 		OwnerID:  apiKey.UserID,
 		Archived: searchParams.Archived,
 		AfterID:  paginationParams.AfterID,
@@ -200,7 +178,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		LimitOpt: int32(paginationParams.Limit),
 	}
 
-	chats, err := api.Database.GetChats(ctx, params)
+	chats, err := api.Database.GetChatsByOwnerID(ctx, params)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chats.",
@@ -293,9 +271,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		InitialUserContent: contentBlocks,
 	})
 	if err != nil {
-		if maybeWriteLimitErr(ctx, rw, err) {
-			return
-		}
 		if database.IsForeignKeyViolation(
 			err,
 			database.ForeignKeyChatsLastModelConfigID,
@@ -459,12 +434,7 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		chatBreakdowns = append(chatBreakdowns, convertChatCostChatBreakdown(chat))
 	}
 
-	usageStatus, err := chatd.ResolveUsageLimitStatus(ctx, api.Database, targetUser.ID, time.Now())
-	if err != nil {
-		api.Logger.Warn(ctx, "failed to resolve usage limit status", slog.Error(err))
-	}
-
-	response := codersdk.ChatCostSummary{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCostSummary{
 		StartDate:                startDate,
 		EndDate:                  endDate,
 		TotalCostMicros:          summary.TotalCostMicros,
@@ -476,12 +446,7 @@ func (api *API) chatCostSummary(rw http.ResponseWriter, r *http.Request) {
 		TotalCacheCreationTokens: summary.TotalCacheCreationTokens,
 		ByModel:                  modelBreakdowns,
 		ByChat:                   chatBreakdowns,
-	}
-	if usageStatus != nil {
-		response.UsageLimit = usageStatus
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, response)
+	})
 }
 
 func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
@@ -585,445 +550,6 @@ func (api *API) chatCostUsers(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary Get chat usage limit config
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
-//nolint:revive // HTTP handler writes to ResponseWriter.
-func (api *API) getChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	config, configErr := api.Database.GetChatUsageLimitConfig(ctx)
-	if configErr != nil && !errors.Is(configErr, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat usage limit config.",
-			Detail:  configErr.Error(),
-		})
-		return
-	}
-
-	overrideRows, err := api.Database.ListChatUsageLimitOverrides(ctx)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list chat usage limit overrides.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	groupOverrides, err := api.Database.ListChatUsageLimitGroupOverrides(ctx)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list group usage limit overrides.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	unpricedModelCount, err := api.Database.CountEnabledModelsWithoutPricing(ctx)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to count unpriced chat models.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	response := codersdk.ChatUsageLimitConfigResponse{
-		ChatUsageLimitConfig: codersdk.ChatUsageLimitConfig{},
-		UnpricedModelCount:   unpricedModelCount,
-		Overrides:            make([]codersdk.ChatUsageLimitOverride, 0, len(overrideRows)),
-		GroupOverrides:       make([]codersdk.ChatUsageLimitGroupOverride, 0, len(groupOverrides)),
-	}
-	if configErr == nil {
-		response.Period = codersdk.ChatUsageLimitPeriod(config.Period)
-		response.UpdatedAt = config.UpdatedAt
-		if config.Enabled {
-			response.SpendLimitMicros = ptr.Ref(config.DefaultLimitMicros)
-		}
-	}
-
-	for _, row := range overrideRows {
-		response.Overrides = append(response.Overrides, codersdk.ChatUsageLimitOverride{
-			UserID:           row.UserID,
-			Username:         row.Username,
-			Name:             row.Name,
-			AvatarURL:        row.AvatarURL,
-			SpendLimitMicros: nullInt64Ptr(row.SpendLimitMicros),
-		})
-	}
-
-	for _, glo := range groupOverrides {
-		response.GroupOverrides = append(response.GroupOverrides, codersdk.ChatUsageLimitGroupOverride{
-			GroupID:          glo.GroupID,
-			GroupName:        glo.GroupName,
-			GroupDisplayName: glo.GroupDisplayName,
-			GroupAvatarURL:   glo.GroupAvatarUrl,
-			MemberCount:      glo.MemberCount,
-			SpendLimitMicros: nullInt64Ptr(glo.SpendLimitMicros),
-		})
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, response)
-}
-
-// @Summary Update chat usage limit config
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) updateChatUsageLimitConfig(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	var req codersdk.ChatUsageLimitConfig
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-
-	params := database.UpsertChatUsageLimitConfigParams{
-		Enabled:            false,
-		DefaultLimitMicros: 0,
-		Period:             "",
-	}
-	if req.SpendLimitMicros == nil {
-		if req.Period != "" && !req.Period.Valid() {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid chat usage limit period.",
-				Detail:  "Period must be one of: day, week, month.",
-			})
-			return
-		}
-
-		params.Enabled = false
-		params.DefaultLimitMicros = 0
-		params.Period = string(req.Period)
-		if params.Period == "" {
-			params.Period = string(codersdk.ChatUsageLimitPeriodMonth)
-		}
-	} else {
-		if *req.SpendLimitMicros <= 0 {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid chat usage limit spend limit.",
-				Detail:  "Spend limit must be greater than 0.",
-			})
-			return
-		}
-		if !req.Period.Valid() {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid chat usage limit period.",
-				Detail:  "Period must be one of: day, week, month.",
-			})
-			return
-		}
-
-		params.Enabled = true
-		params.DefaultLimitMicros = *req.SpendLimitMicros
-		params.Period = string(req.Period)
-	}
-
-	config, err := api.Database.UpsertChatUsageLimitConfig(ctx, params)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to update chat usage limit config.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	response := codersdk.ChatUsageLimitConfig{
-		Period:    codersdk.ChatUsageLimitPeriod(config.Period),
-		UpdatedAt: config.UpdatedAt,
-	}
-	if config.Enabled {
-		response.SpendLimitMicros = ptr.Ref(config.DefaultLimitMicros)
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, response)
-}
-
-// @Summary Get my chat usage limit status
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
-// getMyChatUsageLimitStatus returns the current usage-limit status for the
-// authenticated user. No additional RBAC check is required because the
-// endpoint always operates on the requesting user's own data via
-// httpmw.APIKey(r).UserID.
-//
-//nolint:revive // HTTP handler writes to ResponseWriter.
-func (api *API) getMyChatUsageLimitStatus(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	status, err := chatd.ResolveUsageLimitStatus(ctx, api.Database, httpmw.APIKey(r).UserID, time.Now())
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat usage limit status.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if status == nil {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatUsageLimitStatus{IsLimited: false})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, status)
-}
-
-// @Summary Upsert chat usage limit override
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) upsertChatUsageLimitOverride(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	userID, ok := parseChatUsageLimitUserID(rw, r)
-	if !ok {
-		return
-	}
-
-	var req codersdk.UpsertChatUsageLimitOverrideRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-	if req.SpendLimitMicros <= 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid chat usage limit override.",
-			Detail:  "Spend limit must be greater than 0.",
-		})
-		return
-	}
-
-	user, err := api.Database.GetUserByID(ctx, userID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-				Message: "User not found.",
-			})
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to look up chat usage limit user.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	_, err = api.Database.UpsertChatUsageLimitUserOverride(ctx, database.UpsertChatUsageLimitUserOverrideParams{
-		UserID:           userID,
-		SpendLimitMicros: req.SpendLimitMicros,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to upsert chat usage limit override.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatUsageLimitOverride{
-		UserID:           user.ID,
-		Username:         user.Username,
-		Name:             user.Name,
-		AvatarURL:        user.AvatarURL,
-		SpendLimitMicros: nullInt64Ptr(sql.NullInt64{Int64: req.SpendLimitMicros, Valid: true}),
-	})
-}
-
-// @Summary Delete chat usage limit override
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) deleteChatUsageLimitOverride(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	userID, ok := parseChatUsageLimitUserID(rw, r)
-	if !ok {
-		return
-	}
-
-	if _, err := api.Database.GetUserByID(ctx, userID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeChatUsageLimitUserNotFound(ctx, rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to look up chat usage limit user.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if _, err := api.Database.GetChatUsageLimitUserOverride(ctx, userID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeChatUsageLimitOverrideNotFound(ctx, rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to look up chat usage limit override.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if err := api.Database.DeleteChatUsageLimitUserOverride(ctx, userID); err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to delete chat usage limit override.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	rw.WriteHeader(http.StatusNoContent)
-}
-
-// @Summary Upsert chat usage limit group override
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) upsertChatUsageLimitGroupOverride(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	groupIDStr := chi.URLParam(r, "group")
-	groupID, err := uuid.Parse(groupIDStr)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid group ID.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	var req codersdk.UpdateChatUsageLimitGroupOverrideRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-
-	if req.SpendLimitMicros <= 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid chat usage limit group override.",
-			Detail:  "Spend limit (in microdollars) must be greater than 0.",
-		})
-		return
-	}
-
-	group, err := api.Database.GetGroupByID(ctx, groupID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-				Message: "Group not found.",
-			})
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to look up group details.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	_, err = api.Database.UpsertChatUsageLimitGroupOverride(ctx, database.UpsertChatUsageLimitGroupOverrideParams{
-		GroupID:          groupID,
-		SpendLimitMicros: req.SpendLimitMicros,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to upsert group usage limit override.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, database.GetGroupMembersCountByGroupIDParams{
-		GroupID:       groupID,
-		IncludeSystem: false,
-	})
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeChatUsageLimitGroupNotFound(ctx, rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to fetch group member count.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatUsageLimitGroupOverride{
-		GroupID:          group.ID,
-		GroupName:        group.Name,
-		GroupDisplayName: group.DisplayName,
-		GroupAvatarURL:   group.AvatarURL,
-		MemberCount:      memberCount,
-		SpendLimitMicros: nullInt64Ptr(sql.NullInt64{Int64: req.SpendLimitMicros, Valid: true}),
-	})
-}
-
-// @Summary Delete chat usage limit group override
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) deleteChatUsageLimitGroupOverride(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	groupIDStr := chi.URLParam(r, "group")
-	groupID, err := uuid.Parse(groupIDStr)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid group ID.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	if _, err := api.Database.GetGroupByID(ctx, groupID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeChatUsageLimitGroupNotFound(ctx, rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to look up group details.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if _, err := api.Database.GetChatUsageLimitGroupOverride(ctx, groupID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			writeChatUsageLimitGroupOverrideNotFound(ctx, rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to look up group usage limit override.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if err := api.Database.DeleteChatUsageLimitGroupOverride(ctx, groupID); err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to delete group usage limit override.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	rw.WriteHeader(http.StatusNoContent)
-}
-
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -1050,29 +576,9 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
-	// Parse optional cursor-based pagination parameters.
-	queryParams := r.URL.Query()
-	parser := httpapi.NewQueryParamParser()
-	beforeID := parser.PositiveInt64(queryParams, 0, "before_id")
-	limit := parser.PositiveInt32(queryParams, 50, "limit")
-	if len(parser.Errors) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Query parameters have invalid values.",
-			Validations: parser.Errors,
-		})
-		return
-	}
-	if limit < 1 || limit > 200 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid limit parameter (1-200).",
-		})
-		return
-	}
-	// Fetch limit+1 rows to detect whether more pages exist.
-	messages, err := api.Database.GetChatMessagesByChatIDDescPaginated(ctx, database.GetChatMessagesByChatIDDescPaginatedParams{
-		ChatID:   chatID,
-		BeforeID: beforeID,
-		LimitVal: limit + 1,
+	messages, err := api.Database.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chatID,
+		AfterID: 0,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1082,28 +588,18 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hasMore := len(messages) > int(limit)
-	if hasMore {
-		messages = messages[:limit]
-	}
-
-	// Only fetch queued messages on the first page (no cursor).
-	var queuedMessages []database.ChatQueuedMessage
-	if beforeID == 0 {
-		queuedMessages, err = api.Database.GetChatQueuedMessages(ctx, chatID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to get queued messages.",
-				Detail:  err.Error(),
-			})
-			return
-		}
+	queuedMessages, err := api.Database.GetChatQueuedMessages(ctx, chatID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get queued messages.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMessagesResponse{
 		Messages:       convertChatMessages(messages),
 		QueuedMessages: convertChatQueuedMessages(queuedMessages),
-		HasMore:        hasMore,
 	})
 }
 
@@ -1370,58 +866,64 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 	logger.Debug(ctx, "desktop Bicopy finished")
 }
 
-// patchChat updates a chat resource. Currently supports toggling the
-// archived state via the Archived field.
-func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) archiveChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
-	var req codersdk.UpdateChatRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat is already archived.",
+		})
 		return
 	}
 
-	if req.Archived != nil {
-		archived := *req.Archived
-		if archived == chat.Archived {
-			state := "archived"
-			if !archived {
-				state = "not archived"
-			}
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Chat is already %s.", state),
-			})
-			return
-		}
+	var err error
+	// Use chatDaemon when available so it can notify
+	// active subscribers. Fall back to direct DB for the
+	// simple archive flag — no streaming state is involved.
+	if api.chatDaemon != nil {
+		err = api.chatDaemon.ArchiveChat(ctx, chat.ID)
+	} else {
+		err = api.Database.ArchiveChatByID(ctx, chat.ID)
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to archive chat.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
-		var err error
-		// Use chatDaemon when available so it can notify active
-		// subscribers. Fall back to direct DB for the simple
-		// archive flag — no streaming state is involved.
-		if archived {
-			if api.chatDaemon != nil {
-				err = api.chatDaemon.ArchiveChat(ctx, chat)
-			} else {
-				err = api.Database.ArchiveChatByID(ctx, chat.ID)
-			}
-		} else {
-			if api.chatDaemon != nil {
-				err = api.chatDaemon.UnarchiveChat(ctx, chat)
-			} else {
-				err = api.Database.UnarchiveChatByID(ctx, chat.ID)
-			}
-		}
-		if err != nil {
-			action := "archive"
-			if !archived {
-				action = "unarchive"
-			}
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: fmt.Sprintf("Failed to %s chat.", action),
-				Detail:  err.Error(),
-			})
-			return
-		}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (api *API) unarchiveChat(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	if !chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat is not archived.",
+		})
+		return
+	}
+
+	var err error
+	// Use chatDaemon when available so it can notify
+	// active subscribers. Fall back to direct DB for the
+	// simple unarchive flag — no streaming state is involved.
+	if api.chatDaemon != nil {
+		err = api.chatDaemon.UnarchiveChat(ctx, chat.ID)
+	} else {
+		err = api.Database.UnarchiveChatByID(ctx, chat.ID)
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to unarchive chat.",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
@@ -1467,9 +969,6 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if sendErr != nil {
-		if maybeWriteLimitErr(ctx, rw, sendErr) {
-			return
-		}
 		if xerrors.Is(sendErr, chatd.ErrMessageQueueFull) {
 			httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{
 				Message: "Message queue is full.",
@@ -1542,10 +1041,6 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		Content:         contentBlocks,
 	})
 	if editErr != nil {
-		if maybeWriteLimitErr(ctx, rw, editErr) {
-			return
-		}
-
 		switch {
 		case xerrors.Is(editErr, chatd.ErrEditedMessageNotFound):
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
@@ -1636,9 +1131,6 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	})
 
 	if txErr != nil {
-		if maybeWriteLimitErr(ctx, rw, txErr) {
-			return
-		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to promote queued message.",
 			Detail:  txErr.Error(),
@@ -2520,14 +2012,14 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatSystemPrompt{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatSystemPromptResponse{
 		SystemPrompt: prompt,
 	})
 }
 
 func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	var req codersdk.ChatSystemPrompt
+	var req codersdk.UpdateChatSystemPromptRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -2558,49 +2050,6 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
-func (api *API) getChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	enabled, err := api.Database.GetChatDesktopEnabled(ctx)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching desktop setting.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatDesktopEnabledResponse{
-		EnableDesktop: enabled,
-	})
-}
-
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) putChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	var req codersdk.UpdateChatDesktopEnabledRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-	if err := api.Database.UpsertChatDesktopEnabled(ctx, req.EnableDesktop); httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	} else if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating desktop setting.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	rw.WriteHeader(http.StatusNoContent)
-}
-
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
-//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -2620,7 +2069,7 @@ func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		customPrompt = ""
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPrompt{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPromptResponse{
 		CustomPrompt: customPrompt,
 	})
 }
@@ -2632,7 +2081,7 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		apiKey = httpmw.APIKey(r)
 	)
 
-	var params codersdk.UserChatCustomPrompt
+	var params codersdk.UpdateUserChatCustomPromptRequest
 	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
@@ -2659,7 +2108,7 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPrompt{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPromptResponse{
 		CustomPrompt: updatedConfig.Value,
 	})
 }
@@ -3879,49 +3328,6 @@ func chatModelConfigToUpdateParams(
 	}
 }
 
-func nullInt64Ptr(n sql.NullInt64) *int64 {
-	if !n.Valid {
-		return nil
-	}
-	return &n.Int64
-}
-
-func writeChatUsageLimitUserNotFound(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-		Message: "User not found.",
-	})
-}
-
-func writeChatUsageLimitOverrideNotFound(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-		Message: "Chat usage limit override not found.",
-	})
-}
-
-func writeChatUsageLimitGroupOverrideNotFound(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-		Message: "Chat usage limit group override not found.",
-	})
-}
-
-func writeChatUsageLimitGroupNotFound(ctx context.Context, rw http.ResponseWriter) {
-	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-		Message: "Group not found.",
-	})
-}
-
-func parseChatUsageLimitUserID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
-	userID, err := uuid.Parse(chi.URLParam(r, "user"))
-	if err != nil {
-		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid chat usage limit user ID.",
-			Detail:  err.Error(),
-		})
-		return uuid.Nil, false
-	}
-	return userID, true
-}
-
 func parseChatProviderID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	providerID, err := uuid.Parse(chi.URLParam(r, "providerConfig"))
 	if err != nil {
@@ -4397,4 +3803,561 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 		ByModel:    modelEntries,
 		RecentPRs:  prEntries,
 	})
+}
+
+// convertChatAutomation converts a database ChatAutomation to the
+// SDK representation. When maskSecret is true the webhook secret is
+// omitted from the response.
+func convertChatAutomation(
+	automation database.ChatAutomation,
+	accessURL string,
+	maskSecret bool,
+) codersdk.ChatAutomation {
+	result := codersdk.ChatAutomation{
+		ID:                automation.ID,
+		OwnerID:           automation.OwnerID,
+		Name:              automation.Name,
+		Description:       automation.Description,
+		Icon:              automation.Icon,
+		TriggerType:       codersdk.ChatAutomationTriggerType(automation.TriggerType),
+		ModelConfigID:     automation.ModelConfigID,
+		SystemPrompt:      automation.SystemPrompt,
+		PromptTemplate:    automation.PromptTemplate,
+		Enabled:           automation.Enabled,
+		MaxConcurrentRuns: automation.MaxConcurrentRuns,
+		CreatedAt:         automation.CreatedAt,
+		UpdatedAt:         automation.UpdatedAt,
+	}
+	if automation.CronSchedule.Valid {
+		result.CronSchedule = &automation.CronSchedule.String
+	}
+	if automation.TriggerType == string(codersdk.ChatAutomationTriggerWebhook) {
+		result.WebhookURL = fmt.Sprintf(
+			"%s/api/v2/chats/automations/%s/webhook",
+			accessURL, automation.ID,
+		)
+		if !maskSecret && automation.WebhookSecret.Valid {
+			result.WebhookSecret = &automation.WebhookSecret.String
+		}
+	}
+	return result
+}
+
+// convertChatAutomationRun converts a database ChatAutomationRun
+// to the SDK representation.
+func convertChatAutomationRun(
+	run database.ChatAutomationRun,
+) codersdk.ChatAutomationRun {
+	result := codersdk.ChatAutomationRun{
+		ID:             run.ID,
+		AutomationID:   run.AutomationID,
+		TriggerPayload: run.TriggerPayload,
+		RenderedPrompt: run.RenderedPrompt,
+		Status:         run.Status,
+		CreatedAt:      run.CreatedAt,
+	}
+	if run.ChatID.Valid {
+		result.ChatID = &run.ChatID.UUID
+	}
+	if run.Error.Valid {
+		result.Error = &run.Error.String
+	}
+	if run.StartedAt.Valid {
+		result.StartedAt = &run.StartedAt.Time
+	}
+	if run.CompletedAt.Valid {
+		result.CompletedAt = &run.CompletedAt.Time
+	}
+	return result
+}
+
+// EXPERIMENTAL: Chat automations are experimental and subject to change.
+//
+// @Summary List chat automations
+// @ID list-chat-automations
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chat
+// @Success 200 {array} codersdk.ChatAutomation
+// @Router /chats/automations [get]
+// @x-apidocgen {"skip": true}
+func (api *API) listChatAutomations(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	automations, err := api.Database.GetChatAutomationsByOwnerID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list chat automations.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	result := make([]codersdk.ChatAutomation, len(automations))
+	for i, a := range automations {
+		result[i] = convertChatAutomation(a, api.AccessURL.String(), true)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, result)
+}
+
+// EXPERIMENTAL: Chat automations are experimental and subject to change.
+//
+// @Summary Create a chat automation
+// @ID create-chat-automation
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Chat
+// @Param request body codersdk.CreateChatAutomationRequest true "Create chat automation request"
+// @Success 201 {object} codersdk.ChatAutomation
+// @Router /chats/automations [post]
+// @x-apidocgen {"skip": true}
+func (api *API) createChatAutomation(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	var req codersdk.CreateChatAutomationRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if req.Name == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Name is required.",
+		})
+		return
+	}
+
+	triggerType := string(req.TriggerType)
+	if triggerType != string(codersdk.ChatAutomationTriggerWebhook) &&
+		triggerType != string(codersdk.ChatAutomationTriggerCron) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid trigger type.",
+			Detail:  "Must be \"webhook\" or \"cron\".",
+		})
+		return
+	}
+
+	// Validate the cron schedule when the trigger type is cron.
+	if triggerType == string(codersdk.ChatAutomationTriggerCron) {
+		if req.CronSchedule == nil || *req.CronSchedule == "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cron schedule is required for cron-triggered automations.",
+			})
+			return
+		}
+		if _, err := cron.Weekly(*req.CronSchedule); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid cron schedule.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	var webhookSecret sql.NullString
+	if triggerType == string(codersdk.ChatAutomationTriggerWebhook) {
+		secret, err := autochat.GenerateWebhookSecret()
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to generate webhook secret.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		webhookSecret = sql.NullString{String: secret, Valid: true}
+	}
+
+	var cronSchedule sql.NullString
+	if req.CronSchedule != nil {
+		cronSchedule = sql.NullString{String: *req.CronSchedule, Valid: true}
+	}
+
+	maxConcurrent := req.MaxConcurrentRuns
+	if maxConcurrent <= 0 {
+		maxConcurrent = 1
+	}
+
+	automation, err := api.Database.InsertChatAutomation(ctx, database.InsertChatAutomationParams{
+		OwnerID:           apiKey.UserID,
+		Name:              req.Name,
+		Description:       req.Description,
+		Icon:              req.Icon,
+		TriggerType:       triggerType,
+		WebhookSecret:     webhookSecret,
+		CronSchedule:      cronSchedule,
+		ModelConfigID:     req.ModelConfigID,
+		SystemPrompt:      req.SystemPrompt,
+		PromptTemplate:    req.PromptTemplate,
+		Enabled:           true,
+		MaxConcurrentRuns: maxConcurrent,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create chat automation.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Return the secret unmasked on creation — this is the only
+	// time the caller can see it.
+	httpapi.Write(ctx, rw, http.StatusCreated,
+		convertChatAutomation(automation, api.AccessURL.String(), false))
+}
+
+// EXPERIMENTAL: Chat automations are experimental and subject to change.
+//
+// @Summary Get a chat automation
+// @ID get-chat-automation
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chat
+// @Param chatAutomation path string true "Chat automation ID" format(uuid)
+// @Success 200 {object} codersdk.ChatAutomation
+// @Router /chats/automations/{chatAutomation} [get]
+// @x-apidocgen {"skip": true}
+func (api *API) getChatAutomation(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	automation := httpmw.ChatAutomationParam(r)
+	httpapi.Write(ctx, rw, http.StatusOK,
+		convertChatAutomation(automation, api.AccessURL.String(), true))
+}
+
+// EXPERIMENTAL: Chat automations are experimental and subject to change.
+//
+// @Summary Update a chat automation
+// @ID update-chat-automation
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Chat
+// @Param chatAutomation path string true "Chat automation ID" format(uuid)
+// @Param request body codersdk.UpdateChatAutomationRequest true "Update chat automation request"
+// @Success 200 {object} codersdk.ChatAutomation
+// @Router /chats/automations/{chatAutomation} [put]
+// @x-apidocgen {"skip": true}
+func (api *API) updateChatAutomation(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	automation := httpmw.ChatAutomationParam(r)
+
+	var req codersdk.UpdateChatAutomationRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	var cronSchedule sql.NullString
+	if req.CronSchedule != nil {
+		cronSchedule = sql.NullString{String: *req.CronSchedule, Valid: true}
+	}
+
+	maxConcurrent := req.MaxConcurrentRuns
+	if maxConcurrent <= 0 {
+		maxConcurrent = 1
+	}
+
+	updated, err := api.Database.UpdateChatAutomation(ctx, database.UpdateChatAutomationParams{
+		ID:                automation.ID,
+		Name:              req.Name,
+		Description:       req.Description,
+		Icon:              req.Icon,
+		CronSchedule:      cronSchedule,
+		ModelConfigID:     req.ModelConfigID,
+		SystemPrompt:      req.SystemPrompt,
+		PromptTemplate:    req.PromptTemplate,
+		Enabled:           req.Enabled,
+		MaxConcurrentRuns: maxConcurrent,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update chat automation.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK,
+		convertChatAutomation(updated, api.AccessURL.String(), true))
+}
+
+// EXPERIMENTAL: Chat automations are experimental and subject to change.
+//
+// @Summary Delete a chat automation
+// @ID delete-chat-automation
+// @Security CoderSessionToken
+// @Tags Chat
+// @Param chatAutomation path string true "Chat automation ID" format(uuid)
+// @Success 204
+// @Router /chats/automations/{chatAutomation} [delete]
+// @x-apidocgen {"skip": true}
+func (api *API) deleteChatAutomation(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	automation := httpmw.ChatAutomationParam(r)
+
+	err := api.Database.DeleteChatAutomation(ctx, automation.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to delete chat automation.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// EXPERIMENTAL: Chat automations are experimental and subject to change.
+//
+// @Summary Trigger a chat automation
+// @ID trigger-chat-automation
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chat
+// @Param chatAutomation path string true "Chat automation ID" format(uuid)
+// @Success 201 {object} codersdk.ChatAutomationRun
+// @Router /chats/automations/{chatAutomation}/trigger [post]
+// @x-apidocgen {"skip": true}
+func (api *API) triggerChatAutomation(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	automation := httpmw.ChatAutomationParam(r)
+
+	if !automation.Enabled {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Automation is disabled.",
+		})
+		return
+	}
+
+	if api.autochatExecutor == nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Automation executor is not configured.",
+		})
+		return
+	}
+
+	templateData := map[string]any{
+		"Source": "manual",
+	}
+	run, err := api.autochatExecutor.Fire(ctx, automation, json.RawMessage(`{"source":"manual"}`), templateData)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to trigger automation.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, convertChatAutomationRun(run))
+}
+
+// EXPERIMENTAL: Chat automations are experimental and subject to change.
+//
+// @Summary Rotate a chat automation webhook secret
+// @ID rotate-chat-automation-secret
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chat
+// @Param chatAutomation path string true "Chat automation ID" format(uuid)
+// @Success 200 {object} codersdk.ChatAutomation
+// @Router /chats/automations/{chatAutomation}/rotate-secret [post]
+// @x-apidocgen {"skip": true}
+func (api *API) rotateChatAutomationSecret(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	automation := httpmw.ChatAutomationParam(r)
+
+	if automation.TriggerType != string(codersdk.ChatAutomationTriggerWebhook) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Secret rotation is only supported for webhook automations.",
+		})
+		return
+	}
+
+	secret, err := autochat.GenerateWebhookSecret()
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to generate webhook secret.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	updated, err := api.Database.UpdateChatAutomationWebhookSecret(ctx, database.UpdateChatAutomationWebhookSecretParams{
+		ID:            automation.ID,
+		WebhookSecret: sql.NullString{String: secret, Valid: true},
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to rotate webhook secret.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Return the new secret unmasked so the caller can store it.
+	httpapi.Write(ctx, rw, http.StatusOK,
+		convertChatAutomation(updated, api.AccessURL.String(), false))
+}
+
+// EXPERIMENTAL: Chat automations are experimental and subject to change.
+//
+// @Summary List chat automation runs
+// @ID list-chat-automation-runs
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chat
+// @Param chatAutomation path string true "Chat automation ID" format(uuid)
+// @Success 200 {array} codersdk.ChatAutomationRun
+// @Router /chats/automations/{chatAutomation}/runs [get]
+// @x-apidocgen {"skip": true}
+func (api *API) listChatAutomationRuns(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	automation := httpmw.ChatAutomationParam(r)
+
+	runs, err := api.Database.GetChatAutomationRunsByAutomationID(ctx, database.GetChatAutomationRunsByAutomationIDParams{
+		AutomationID: automation.ID,
+		LimitOpt:     50,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list automation runs.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	result := make([]codersdk.ChatAutomationRun, len(runs))
+	for i, run := range runs {
+		result[i] = convertChatAutomationRun(run)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, result)
+}
+
+// EXPERIMENTAL: Chat automations are experimental and subject to change.
+//
+// @Summary Webhook ingress for a chat automation
+// @ID chat-automation-webhook
+// @Accept json
+// @Produce json
+// @Tags Chat
+// @Param chatAutomation path string true "Chat automation ID" format(uuid)
+// @Success 202 {object} codersdk.ChatAutomationRun
+// @Router /chats/automations/{chatAutomation}/webhook [post]
+// @x-apidocgen {"skip": true}
+func (api *API) chatAutomationWebhook(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Look up the automation directly — this endpoint is
+	// unauthenticated so we cannot rely on the middleware that
+	// requires a session.
+	automationID, parsed := httpmw.ParseUUIDParam(rw, r, "chatAutomation")
+	if !parsed {
+		return
+	}
+
+	//nolint:gocritic // Unauthenticated endpoint requires system context to fetch the automation.
+	automation, err := api.Database.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), automationID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat automation.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if automation.TriggerType != string(codersdk.ChatAutomationTriggerWebhook) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Automation is not webhook-triggered.",
+		})
+		return
+	}
+
+	if !automation.Enabled {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Automation is disabled.",
+		})
+		return
+	}
+
+	if !automation.WebhookSecret.Valid {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Automation has no webhook secret configured.",
+		})
+		return
+	}
+
+	// Read the raw body BEFORE any JSON parsing. Parsing changes
+	// whitespace and would break the HMAC signature verification.
+	// Cap at 1 MB to prevent abuse.
+	rawBody, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to read request body.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if err := autochat.VerifyWebhookSignature(rawBody, r.Header, automation.WebhookSecret.String); err != nil {
+		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+			Message: "Webhook signature verification failed.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Validate that the body is well-formed JSON.
+	var payload json.RawMessage
+	if len(rawBody) == 0 {
+		payload = json.RawMessage(`{}`)
+	} else {
+		if !json.Valid(rawBody) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Request body is not valid JSON.",
+			})
+			return
+		}
+		payload = rawBody
+	}
+
+	if api.autochatExecutor == nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Automation executor is not configured.",
+		})
+		return
+	}
+
+	// Parse the body into a map for template rendering.
+	var bodyMap map[string]any
+	if err := json.Unmarshal(payload, &bodyMap); err != nil {
+		bodyMap = map[string]any{"raw": string(payload)}
+	}
+
+	// Flatten headers into a simple map for template access.
+	headerMap := make(map[string]string, len(r.Header))
+	for k, v := range r.Header {
+		headerMap[k] = strings.Join(v, ", ")
+	}
+
+	templateData := map[string]any{
+		"Body":    bodyMap,
+		"Headers": headerMap,
+	}
+
+	run, err := api.autochatExecutor.Fire(ctx, automation, payload, templateData)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to fire automation.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusAccepted, convertChatAutomationRun(run))
 }

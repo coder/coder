@@ -16,6 +16,10 @@ import (
 // headers. The signature must be hex-encoded, optionally prefixed with
 // "sha256=".
 func VerifyWebhookSignature(body []byte, header http.Header, secret string) error {
+	if secret == "" {
+		return xerrors.New("webhook secret must not be empty")
+	}
+
 	sig := header.Get("X-Hub-Signature-256")
 	if sig == "" {
 		sig = header.Get("X-Coder-Signature")
@@ -24,6 +28,7 @@ func VerifyWebhookSignature(body []byte, header http.Header, secret string) erro
 		return xerrors.New("missing webhook signature header (expected X-Hub-Signature-256 or X-Coder-Signature)")
 	}
 	sig = strings.TrimPrefix(sig, "sha256=")
+	sig = strings.ToLower(sig)
 
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(body)
