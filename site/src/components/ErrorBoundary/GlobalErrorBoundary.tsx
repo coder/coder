@@ -2,7 +2,7 @@ import { Button } from "components/Button/Button";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { Link } from "components/Link/Link";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { type FC, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import {
 	type ErrorResponse,
 	isRouteErrorResponse,
@@ -26,6 +26,10 @@ export const GlobalErrorBoundaryInner: FC<GlobalErrorBoundaryInnerProps> = ({
 	const [showErrorMessage, setShowErrorMessage] = useState(false);
 	const { metadata } = useEmbeddedMetadata();
 	const location = useLocation();
+
+	useEffect(() => {
+		console.error("[GlobalErrorBoundary] Uncaught error:", error);
+	}, [error]);
 
 	const coderVersion = metadata["build-info"].value?.version;
 	const isRenderableError =

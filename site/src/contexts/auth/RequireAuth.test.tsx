@@ -4,12 +4,14 @@ import {
 	renderWithAuth,
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import { renderHook, screen } from "@testing-library/react";
+import { render, renderHook, screen } from "@testing-library/react";
 import { useAuthenticated } from "hooks";
 import { HttpResponse, http } from "msw";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { AuthContext, type AuthContextValue } from "./AuthProvider";
+import { RequireAuth } from "./RequireAuth";
 
 describe("RequireAuth", () => {
 	it("redirects to /login if user is not authenticated", async () => {
@@ -31,6 +33,50 @@ describe("RequireAuth", () => {
 
 		await screen.findByText("Login");
 	});
+
+	it("shows a recoverable error screen on non-401 API errors", () => {
+		// Directly mock the auth context with isError=true to simulate
+		// a non-401 failure (e.g. 500, network timeout) without relying
+		// on real query retry timing.
+		const authValue: AuthContextValue = {
+			user: undefined,
+			isLoading: false,
+			isSignedOut: false,
+			isSigningOut: false,
+			isConfiguringTheFirstUser: false,
+			isSignedIn: false,
+			isSigningIn: false,
+			isUpdatingProfile: false,
+			isError: true,
+			permissions: undefined,
+			signInError: undefined,
+			updateProfileError: undefined,
+			signOut: vi.fn(),
+			signIn: vi.fn(),
+			updateProfile: vi.fn(),
+		};
+
+		const queryClient = createTestQueryClient();
+
+		render(
+			<QueryClientProvider client={queryClient}>
+				<AuthContext.Provider value={authValue}>
+					<MemoryRouter>
+						<Routes>
+							<Route element={<RequireAuth />}>
+								<Route path="/" element={<h1>Dashboard</h1>} />
+							</Route>
+						</Routes>
+					</MemoryRouter>
+				</AuthContext.Provider>
+			</QueryClientProvider>,
+		);
+
+		// Should show the connection error screen, not the dashboard
+		// or the global error boundary.
+		expect(screen.getByText("Unable to connect")).toBeDefined();
+		expect(screen.getByTestId("retry-button")).toBeDefined();
+	});
 });
 
 const createAuthWrapper = (override: Partial<AuthContextValue>) => {
@@ -43,6 +89,7 @@ const createAuthWrapper = (override: Partial<AuthContextValue>) => {
 		isSignedIn: false,
 		isSigningIn: false,
 		isUpdatingProfile: false,
+		isError: false,
 		permissions: undefined,
 		authMethods: undefined,
 		organizationIds: undefined,

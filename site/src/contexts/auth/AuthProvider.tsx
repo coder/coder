@@ -28,6 +28,7 @@ export type AuthContextValue = {
 	isSignedIn: boolean;
 	isSigningIn: boolean;
 	isUpdatingProfile: boolean;
+	isError: boolean;
 	user: User | undefined;
 	permissions: Permissions | undefined;
 	signInError: unknown;
@@ -46,7 +47,17 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	const userMetadataState = metadata.user;
 
 	const meOptions = me(userMetadataState);
-	const userQuery = useQuery(meOptions);
+	const userQuery = useQuery({
+		...meOptions,
+		retry: (failureCount, error) => {
+			// Never retry on 401 — the user is simply not authenticated.
+			if (isApiError(error) && error.response.status === 401) {
+				return false;
+			}
+			return failureCount < 3;
+		},
+		retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
+	});
 	const hasFirstUserQuery = useQuery(hasFirstUser(userMetadataState));
 
 	const permissionsQuery = useQuery({
@@ -55,6 +66,13 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 			metadata.permissions,
 		),
 		enabled: userQuery.data !== undefined,
+		retry: (failureCount, error) => {
+			if (isApiError(error) && error.response.status === 401) {
+				return false;
+			}
+			return failureCount < 3;
+		},
+		retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
 	});
 
 	const queryClient = useQueryClient();
@@ -84,6 +102,11 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	const isSignedIn = userQuery.isSuccess && userQuery.data !== undefined;
 	const isSigningIn = loginMutation.isPending;
 	const isUpdatingProfile = updateProfileMutation.isPending;
+	// Non-401 errors from the user query (e.g. network timeout, 500,
+	// 502) represent a transient failure, not a sign-out. Exposing
+	// this lets RequireAuth show a recoverable error screen instead
+	// of crashing through to the error boundary.
+	const isError = userQuery.isError && !isSignedOut;
 
 	const signOut = useCallback(() => {
 		logoutMutation.mutate();
@@ -118,6 +141,7 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 				isSignedIn,
 				isSigningIn,
 				isUpdatingProfile,
+				isError,
 				signOut,
 				signIn,
 				updateProfile,
