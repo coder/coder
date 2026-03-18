@@ -1238,6 +1238,7 @@ func New(options *Options) *API {
 				r.Get("/", api.listMCPServerConfigs)
 				r.Post("/", api.createMCPServerConfig)
 				r.Route("/{mcpServer}", func(r chi.Router) {
+					r.Get("/", api.getMCPServerConfig)
 					r.Patch("/", api.updateMCPServerConfig)
 					r.Delete("/", api.deleteMCPServerConfig)
 					r.Get("/tools", api.getMCPServerTools)

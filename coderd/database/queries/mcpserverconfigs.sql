@@ -96,7 +96,7 @@ INSERT INTO mcp_server_configs (
     @api_key_header::text,
     @api_key_value::text,
     sqlc.narg('api_key_value_key_id')::text,
-    @custom_headers::jsonb,
+    @custom_headers::text,
     sqlc.narg('custom_headers_key_id')::text,
     @tool_allow_list::text[],
     @tool_deny_list::text[],
@@ -128,7 +128,7 @@ SET
     api_key_header = @api_key_header::text,
     api_key_value = @api_key_value::text,
     api_key_value_key_id = sqlc.narg('api_key_value_key_id')::text,
-    custom_headers = @custom_headers::jsonb,
+    custom_headers = @custom_headers::text,
     custom_headers_key_id = sqlc.narg('custom_headers_key_id')::text,
     tool_allow_list = @tool_allow_list::text[],
     tool_deny_list = @tool_deny_list::text[],
@@ -232,3 +232,12 @@ DELETE FROM
 WHERE
     mcp_server_config_id = @mcp_server_config_id::uuid
     AND user_id = @user_id::uuid;
+
+-- name: CleanupDeletedMCPServerIDsFromChats :exec
+UPDATE chats
+SET mcp_server_ids = (
+    SELECT COALESCE(array_agg(sid), '{}')
+    FROM unnest(chats.mcp_server_ids) AS sid
+    WHERE sid IN (SELECT id FROM mcp_server_configs)
+)
+WHERE mcp_server_ids != '{}';

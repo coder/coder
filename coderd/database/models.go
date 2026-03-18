@@ -4454,40 +4454,40 @@ type License struct {
 }
 
 type MCPServerConfig struct {
-	ID                      uuid.UUID       `db:"id" json:"id"`
-	DisplayName             string          `db:"display_name" json:"display_name"`
-	Slug                    string          `db:"slug" json:"slug"`
-	Description             string          `db:"description" json:"description"`
-	IconUrl                 string          `db:"icon_url" json:"icon_url"`
-	Transport               string          `db:"transport" json:"transport"`
-	Url                     string          `db:"url" json:"url"`
-	AuthType                string          `db:"auth_type" json:"auth_type"`
-	Oauth2ClientID          string          `db:"oauth2_client_id" json:"oauth2_client_id"`
-	Oauth2ClientSecret      string          `db:"oauth2_client_secret" json:"oauth2_client_secret"`
-	Oauth2ClientSecretKeyID sql.NullString  `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
-	Oauth2AuthUrl           string          `db:"oauth2_auth_url" json:"oauth2_auth_url"`
-	Oauth2TokenUrl          string          `db:"oauth2_token_url" json:"oauth2_token_url"`
-	Oauth2Scopes            string          `db:"oauth2_scopes" json:"oauth2_scopes"`
-	ApiKeyHeader            string          `db:"api_key_header" json:"api_key_header"`
-	ApiKeyValue             string          `db:"api_key_value" json:"api_key_value"`
-	ApiKeyValueKeyID        sql.NullString  `db:"api_key_value_key_id" json:"api_key_value_key_id"`
-	CustomHeaders           json.RawMessage `db:"custom_headers" json:"custom_headers"`
-	CustomHeadersKeyID      sql.NullString  `db:"custom_headers_key_id" json:"custom_headers_key_id"`
-	ToolAllowList           []string        `db:"tool_allow_list" json:"tool_allow_list"`
-	ToolDenyList            []string        `db:"tool_deny_list" json:"tool_deny_list"`
-	Availability            string          `db:"availability" json:"availability"`
-	Enabled                 bool            `db:"enabled" json:"enabled"`
-	CreatedBy               uuid.UUID       `db:"created_by" json:"created_by"`
-	UpdatedBy               uuid.UUID       `db:"updated_by" json:"updated_by"`
-	CreatedAt               time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt               time.Time       `db:"updated_at" json:"updated_at"`
+	ID                      uuid.UUID      `db:"id" json:"id"`
+	DisplayName             string         `db:"display_name" json:"display_name"`
+	Slug                    string         `db:"slug" json:"slug"`
+	Description             string         `db:"description" json:"description"`
+	IconURL                 string         `db:"icon_url" json:"icon_url"`
+	Transport               string         `db:"transport" json:"transport"`
+	Url                     string         `db:"url" json:"url"`
+	AuthType                string         `db:"auth_type" json:"auth_type"`
+	OAuth2ClientID          string         `db:"oauth2_client_id" json:"oauth2_client_id"`
+	OAuth2ClientSecret      string         `db:"oauth2_client_secret" json:"oauth2_client_secret"`
+	OAuth2ClientSecretKeyID sql.NullString `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
+	OAuth2AuthURL           string         `db:"oauth2_auth_url" json:"oauth2_auth_url"`
+	OAuth2TokenURL          string         `db:"oauth2_token_url" json:"oauth2_token_url"`
+	OAuth2Scopes            string         `db:"oauth2_scopes" json:"oauth2_scopes"`
+	APIKeyHeader            string         `db:"api_key_header" json:"api_key_header"`
+	APIKeyValue             string         `db:"api_key_value" json:"api_key_value"`
+	APIKeyValueKeyID        sql.NullString `db:"api_key_value_key_id" json:"api_key_value_key_id"`
+	CustomHeaders           string         `db:"custom_headers" json:"custom_headers"`
+	CustomHeadersKeyID      sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
+	ToolAllowList           []string       `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList            []string       `db:"tool_deny_list" json:"tool_deny_list"`
+	Availability            string         `db:"availability" json:"availability"`
+	Enabled                 bool           `db:"enabled" json:"enabled"`
+	CreatedBy               uuid.NullUUID  `db:"created_by" json:"created_by"`
+	UpdatedBy               uuid.NullUUID  `db:"updated_by" json:"updated_by"`
+	CreatedAt               time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time      `db:"updated_at" json:"updated_at"`
 }
 
 type MCPServerToolSnapshot struct {
 	ID                uuid.UUID       `db:"id" json:"id"`
 	MCPServerConfigID uuid.UUID       `db:"mcp_server_config_id" json:"mcp_server_config_id"`
-	ToolsJson         json.RawMessage `db:"tools_json" json:"tools_json"`
-	ApprovedBy        uuid.UUID       `db:"approved_by" json:"approved_by"`
+	ToolsJSON         json.RawMessage `db:"tools_json" json:"tools_json"`
+	ApprovedBy        uuid.NullUUID   `db:"approved_by" json:"approved_by"`
 	ApprovedAt        time.Time       `db:"approved_at" json:"approved_at"`
 	IsActive          bool            `db:"is_active" json:"is_active"`
 	CreatedAt         time.Time       `db:"created_at" json:"created_at"`

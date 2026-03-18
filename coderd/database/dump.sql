@@ -1689,14 +1689,14 @@ CREATE TABLE mcp_server_configs (
     api_key_header text DEFAULT 'Authorization'::text NOT NULL,
     api_key_value text DEFAULT ''::text NOT NULL,
     api_key_value_key_id text,
-    custom_headers jsonb DEFAULT '{}'::jsonb NOT NULL,
+    custom_headers text DEFAULT '{}'::text NOT NULL,
     custom_headers_key_id text,
     tool_allow_list text[] DEFAULT '{}'::text[] NOT NULL,
     tool_deny_list text[] DEFAULT '{}'::text[] NOT NULL,
     availability text DEFAULT 'default_off'::text NOT NULL,
     enabled boolean DEFAULT false NOT NULL,
-    created_by uuid NOT NULL,
-    updated_by uuid NOT NULL,
+    created_by uuid,
+    updated_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text]))),
@@ -1708,7 +1708,7 @@ CREATE TABLE mcp_server_tool_snapshots (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     mcp_server_config_id uuid NOT NULL,
     tools_json jsonb DEFAULT '[]'::jsonb NOT NULL,
-    approved_by uuid NOT NULL,
+    approved_by uuid,
     approved_at timestamp with time zone DEFAULT now() NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
@@ -3764,7 +3764,13 @@ CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USIN
 
 CREATE INDEX idx_inbox_notifications_user_id_template_id_targets ON inbox_notifications USING btree (user_id, template_id, targets);
 
+CREATE INDEX idx_mcp_server_configs_enabled ON mcp_server_configs USING btree (enabled) WHERE (enabled = true);
+
+CREATE INDEX idx_mcp_server_configs_forced ON mcp_server_configs USING btree (enabled, availability) WHERE ((enabled = true) AND (availability = 'force_on'::text));
+
 CREATE UNIQUE INDEX idx_mcp_server_tool_snapshots_active ON mcp_server_tool_snapshots USING btree (mcp_server_config_id) WHERE (is_active = true);
+
+CREATE INDEX idx_mcp_server_user_tokens_user_id ON mcp_server_user_tokens USING btree (user_id);
 
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
 
@@ -4094,7 +4100,7 @@ ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_api_key_value_key_id_fkey FOREIGN KEY (api_key_value_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY mcp_server_configs
-    ADD CONSTRAINT mcp_server_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
+    ADD CONSTRAINT mcp_server_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_custom_headers_key_id_fkey FOREIGN KEY (custom_headers_key_id) REFERENCES dbcrypt_keys(active_key_digest);
@@ -4103,10 +4109,10 @@ ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_oauth2_client_secret_key_id_fkey FOREIGN KEY (oauth2_client_secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY mcp_server_configs
-    ADD CONSTRAINT mcp_server_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
+    ADD CONSTRAINT mcp_server_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY mcp_server_tool_snapshots
-    ADD CONSTRAINT mcp_server_tool_snapshots_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES users(id);
+    ADD CONSTRAINT mcp_server_tool_snapshots_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY mcp_server_tool_snapshots
     ADD CONSTRAINT mcp_server_tool_snapshots_mcp_server_config_id_fkey FOREIGN KEY (mcp_server_config_id) REFERENCES mcp_server_configs(id) ON DELETE CASCADE;

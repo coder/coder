@@ -9437,6 +9437,21 @@ func (q *sqlQuerier) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock i
 	return pg_try_advisory_xact_lock, err
 }
 
+const cleanupDeletedMCPServerIDsFromChats = `-- name: CleanupDeletedMCPServerIDsFromChats :exec
+UPDATE chats
+SET mcp_server_ids = (
+    SELECT COALESCE(array_agg(sid), '{}')
+    FROM unnest(chats.mcp_server_ids) AS sid
+    WHERE sid IN (SELECT id FROM mcp_server_configs)
+)
+WHERE mcp_server_ids != '{}'
+`
+
+func (q *sqlQuerier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, cleanupDeletedMCPServerIDsFromChats)
+	return err
+}
+
 const deactivateMCPServerToolSnapshots = `-- name: DeactivateMCPServerToolSnapshots :exec
 UPDATE
     mcp_server_tool_snapshots
@@ -9498,7 +9513,7 @@ func (q *sqlQuerier) GetActiveMCPServerToolSnapshot(ctx context.Context, mcpServ
 	err := row.Scan(
 		&i.ID,
 		&i.MCPServerConfigID,
-		&i.ToolsJson,
+		&i.ToolsJSON,
 		&i.ApprovedBy,
 		&i.ApprovedAt,
 		&i.IsActive,
@@ -9532,19 +9547,19 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServe
 			&i.DisplayName,
 			&i.Slug,
 			&i.Description,
-			&i.IconUrl,
+			&i.IconURL,
 			&i.Transport,
 			&i.Url,
 			&i.AuthType,
-			&i.Oauth2ClientID,
-			&i.Oauth2ClientSecret,
-			&i.Oauth2ClientSecretKeyID,
-			&i.Oauth2AuthUrl,
-			&i.Oauth2TokenUrl,
-			&i.Oauth2Scopes,
-			&i.ApiKeyHeader,
-			&i.ApiKeyValue,
-			&i.ApiKeyValueKeyID,
+			&i.OAuth2ClientID,
+			&i.OAuth2ClientSecret,
+			&i.OAuth2ClientSecretKeyID,
+			&i.OAuth2AuthURL,
+			&i.OAuth2TokenURL,
+			&i.OAuth2Scopes,
+			&i.APIKeyHeader,
+			&i.APIKeyValue,
+			&i.APIKeyValueKeyID,
 			&i.CustomHeaders,
 			&i.CustomHeadersKeyID,
 			pq.Array(&i.ToolAllowList),
@@ -9595,19 +9610,19 @@ func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]MCPServer
 			&i.DisplayName,
 			&i.Slug,
 			&i.Description,
-			&i.IconUrl,
+			&i.IconURL,
 			&i.Transport,
 			&i.Url,
 			&i.AuthType,
-			&i.Oauth2ClientID,
-			&i.Oauth2ClientSecret,
-			&i.Oauth2ClientSecretKeyID,
-			&i.Oauth2AuthUrl,
-			&i.Oauth2TokenUrl,
-			&i.Oauth2Scopes,
-			&i.ApiKeyHeader,
-			&i.ApiKeyValue,
-			&i.ApiKeyValueKeyID,
+			&i.OAuth2ClientID,
+			&i.OAuth2ClientSecret,
+			&i.OAuth2ClientSecretKeyID,
+			&i.OAuth2AuthURL,
+			&i.OAuth2TokenURL,
+			&i.OAuth2Scopes,
+			&i.APIKeyHeader,
+			&i.APIKeyValue,
+			&i.APIKeyValueKeyID,
 			&i.CustomHeaders,
 			&i.CustomHeadersKeyID,
 			pq.Array(&i.ToolAllowList),
@@ -9649,19 +9664,19 @@ func (q *sqlQuerier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.DisplayName,
 		&i.Slug,
 		&i.Description,
-		&i.IconUrl,
+		&i.IconURL,
 		&i.Transport,
 		&i.Url,
 		&i.AuthType,
-		&i.Oauth2ClientID,
-		&i.Oauth2ClientSecret,
-		&i.Oauth2ClientSecretKeyID,
-		&i.Oauth2AuthUrl,
-		&i.Oauth2TokenUrl,
-		&i.Oauth2Scopes,
-		&i.ApiKeyHeader,
-		&i.ApiKeyValue,
-		&i.ApiKeyValueKeyID,
+		&i.OAuth2ClientID,
+		&i.OAuth2ClientSecret,
+		&i.OAuth2ClientSecretKeyID,
+		&i.OAuth2AuthURL,
+		&i.OAuth2TokenURL,
+		&i.OAuth2Scopes,
+		&i.APIKeyHeader,
+		&i.APIKeyValue,
+		&i.APIKeyValueKeyID,
 		&i.CustomHeaders,
 		&i.CustomHeadersKeyID,
 		pq.Array(&i.ToolAllowList),
@@ -9693,19 +9708,19 @@ func (q *sqlQuerier) GetMCPServerConfigBySlug(ctx context.Context, slug string) 
 		&i.DisplayName,
 		&i.Slug,
 		&i.Description,
-		&i.IconUrl,
+		&i.IconURL,
 		&i.Transport,
 		&i.Url,
 		&i.AuthType,
-		&i.Oauth2ClientID,
-		&i.Oauth2ClientSecret,
-		&i.Oauth2ClientSecretKeyID,
-		&i.Oauth2AuthUrl,
-		&i.Oauth2TokenUrl,
-		&i.Oauth2Scopes,
-		&i.ApiKeyHeader,
-		&i.ApiKeyValue,
-		&i.ApiKeyValueKeyID,
+		&i.OAuth2ClientID,
+		&i.OAuth2ClientSecret,
+		&i.OAuth2ClientSecretKeyID,
+		&i.OAuth2AuthURL,
+		&i.OAuth2TokenURL,
+		&i.OAuth2Scopes,
+		&i.APIKeyHeader,
+		&i.APIKeyValue,
+		&i.APIKeyValueKeyID,
 		&i.CustomHeaders,
 		&i.CustomHeadersKeyID,
 		pq.Array(&i.ToolAllowList),
@@ -9743,19 +9758,19 @@ func (q *sqlQuerier) GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig
 			&i.DisplayName,
 			&i.Slug,
 			&i.Description,
-			&i.IconUrl,
+			&i.IconURL,
 			&i.Transport,
 			&i.Url,
 			&i.AuthType,
-			&i.Oauth2ClientID,
-			&i.Oauth2ClientSecret,
-			&i.Oauth2ClientSecretKeyID,
-			&i.Oauth2AuthUrl,
-			&i.Oauth2TokenUrl,
-			&i.Oauth2Scopes,
-			&i.ApiKeyHeader,
-			&i.ApiKeyValue,
-			&i.ApiKeyValueKeyID,
+			&i.OAuth2ClientID,
+			&i.OAuth2ClientSecret,
+			&i.OAuth2ClientSecretKeyID,
+			&i.OAuth2AuthURL,
+			&i.OAuth2TokenURL,
+			&i.OAuth2Scopes,
+			&i.APIKeyHeader,
+			&i.APIKeyValue,
+			&i.APIKeyValueKeyID,
 			&i.CustomHeaders,
 			&i.CustomHeadersKeyID,
 			pq.Array(&i.ToolAllowList),
@@ -9805,19 +9820,19 @@ func (q *sqlQuerier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UU
 			&i.DisplayName,
 			&i.Slug,
 			&i.Description,
-			&i.IconUrl,
+			&i.IconURL,
 			&i.Transport,
 			&i.Url,
 			&i.AuthType,
-			&i.Oauth2ClientID,
-			&i.Oauth2ClientSecret,
-			&i.Oauth2ClientSecretKeyID,
-			&i.Oauth2AuthUrl,
-			&i.Oauth2TokenUrl,
-			&i.Oauth2Scopes,
-			&i.ApiKeyHeader,
-			&i.ApiKeyValue,
-			&i.ApiKeyValueKeyID,
+			&i.OAuth2ClientID,
+			&i.OAuth2ClientSecret,
+			&i.OAuth2ClientSecretKeyID,
+			&i.OAuth2AuthURL,
+			&i.OAuth2TokenURL,
+			&i.OAuth2Scopes,
+			&i.APIKeyHeader,
+			&i.APIKeyValue,
+			&i.APIKeyValueKeyID,
 			&i.CustomHeaders,
 			&i.CustomHeadersKeyID,
 			pq.Array(&i.ToolAllowList),
@@ -9963,7 +9978,7 @@ INSERT INTO mcp_server_configs (
     $14::text,
     $15::text,
     $16::text,
-    $17::jsonb,
+    $17::text,
     $18::text,
     $19::text[],
     $20::text[],
@@ -9977,30 +9992,30 @@ RETURNING
 `
 
 type InsertMCPServerConfigParams struct {
-	DisplayName             string          `db:"display_name" json:"display_name"`
-	Slug                    string          `db:"slug" json:"slug"`
-	Description             string          `db:"description" json:"description"`
-	IconUrl                 string          `db:"icon_url" json:"icon_url"`
-	Transport               string          `db:"transport" json:"transport"`
-	Url                     string          `db:"url" json:"url"`
-	AuthType                string          `db:"auth_type" json:"auth_type"`
-	Oauth2ClientID          string          `db:"oauth2_client_id" json:"oauth2_client_id"`
-	Oauth2ClientSecret      string          `db:"oauth2_client_secret" json:"oauth2_client_secret"`
-	Oauth2ClientSecretKeyID sql.NullString  `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
-	Oauth2AuthUrl           string          `db:"oauth2_auth_url" json:"oauth2_auth_url"`
-	Oauth2TokenUrl          string          `db:"oauth2_token_url" json:"oauth2_token_url"`
-	Oauth2Scopes            string          `db:"oauth2_scopes" json:"oauth2_scopes"`
-	ApiKeyHeader            string          `db:"api_key_header" json:"api_key_header"`
-	ApiKeyValue             string          `db:"api_key_value" json:"api_key_value"`
-	ApiKeyValueKeyID        sql.NullString  `db:"api_key_value_key_id" json:"api_key_value_key_id"`
-	CustomHeaders           json.RawMessage `db:"custom_headers" json:"custom_headers"`
-	CustomHeadersKeyID      sql.NullString  `db:"custom_headers_key_id" json:"custom_headers_key_id"`
-	ToolAllowList           []string        `db:"tool_allow_list" json:"tool_allow_list"`
-	ToolDenyList            []string        `db:"tool_deny_list" json:"tool_deny_list"`
-	Availability            string          `db:"availability" json:"availability"`
-	Enabled                 bool            `db:"enabled" json:"enabled"`
-	CreatedBy               uuid.UUID       `db:"created_by" json:"created_by"`
-	UpdatedBy               uuid.UUID       `db:"updated_by" json:"updated_by"`
+	DisplayName             string         `db:"display_name" json:"display_name"`
+	Slug                    string         `db:"slug" json:"slug"`
+	Description             string         `db:"description" json:"description"`
+	IconURL                 string         `db:"icon_url" json:"icon_url"`
+	Transport               string         `db:"transport" json:"transport"`
+	Url                     string         `db:"url" json:"url"`
+	AuthType                string         `db:"auth_type" json:"auth_type"`
+	OAuth2ClientID          string         `db:"oauth2_client_id" json:"oauth2_client_id"`
+	OAuth2ClientSecret      string         `db:"oauth2_client_secret" json:"oauth2_client_secret"`
+	OAuth2ClientSecretKeyID sql.NullString `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
+	OAuth2AuthURL           string         `db:"oauth2_auth_url" json:"oauth2_auth_url"`
+	OAuth2TokenURL          string         `db:"oauth2_token_url" json:"oauth2_token_url"`
+	OAuth2Scopes            string         `db:"oauth2_scopes" json:"oauth2_scopes"`
+	APIKeyHeader            string         `db:"api_key_header" json:"api_key_header"`
+	APIKeyValue             string         `db:"api_key_value" json:"api_key_value"`
+	APIKeyValueKeyID        sql.NullString `db:"api_key_value_key_id" json:"api_key_value_key_id"`
+	CustomHeaders           string         `db:"custom_headers" json:"custom_headers"`
+	CustomHeadersKeyID      sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
+	ToolAllowList           []string       `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList            []string       `db:"tool_deny_list" json:"tool_deny_list"`
+	Availability            string         `db:"availability" json:"availability"`
+	Enabled                 bool           `db:"enabled" json:"enabled"`
+	CreatedBy               uuid.UUID      `db:"created_by" json:"created_by"`
+	UpdatedBy               uuid.UUID      `db:"updated_by" json:"updated_by"`
 }
 
 func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPServerConfigParams) (MCPServerConfig, error) {
@@ -10008,19 +10023,19 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		arg.DisplayName,
 		arg.Slug,
 		arg.Description,
-		arg.IconUrl,
+		arg.IconURL,
 		arg.Transport,
 		arg.Url,
 		arg.AuthType,
-		arg.Oauth2ClientID,
-		arg.Oauth2ClientSecret,
-		arg.Oauth2ClientSecretKeyID,
-		arg.Oauth2AuthUrl,
-		arg.Oauth2TokenUrl,
-		arg.Oauth2Scopes,
-		arg.ApiKeyHeader,
-		arg.ApiKeyValue,
-		arg.ApiKeyValueKeyID,
+		arg.OAuth2ClientID,
+		arg.OAuth2ClientSecret,
+		arg.OAuth2ClientSecretKeyID,
+		arg.OAuth2AuthURL,
+		arg.OAuth2TokenURL,
+		arg.OAuth2Scopes,
+		arg.APIKeyHeader,
+		arg.APIKeyValue,
+		arg.APIKeyValueKeyID,
 		arg.CustomHeaders,
 		arg.CustomHeadersKeyID,
 		pq.Array(arg.ToolAllowList),
@@ -10036,19 +10051,19 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		&i.DisplayName,
 		&i.Slug,
 		&i.Description,
-		&i.IconUrl,
+		&i.IconURL,
 		&i.Transport,
 		&i.Url,
 		&i.AuthType,
-		&i.Oauth2ClientID,
-		&i.Oauth2ClientSecret,
-		&i.Oauth2ClientSecretKeyID,
-		&i.Oauth2AuthUrl,
-		&i.Oauth2TokenUrl,
-		&i.Oauth2Scopes,
-		&i.ApiKeyHeader,
-		&i.ApiKeyValue,
-		&i.ApiKeyValueKeyID,
+		&i.OAuth2ClientID,
+		&i.OAuth2ClientSecret,
+		&i.OAuth2ClientSecretKeyID,
+		&i.OAuth2AuthURL,
+		&i.OAuth2TokenURL,
+		&i.OAuth2Scopes,
+		&i.APIKeyHeader,
+		&i.APIKeyValue,
+		&i.APIKeyValueKeyID,
 		&i.CustomHeaders,
 		&i.CustomHeadersKeyID,
 		pq.Array(&i.ToolAllowList),
@@ -10079,17 +10094,17 @@ RETURNING
 
 type InsertMCPServerToolSnapshotParams struct {
 	MCPServerConfigID uuid.UUID       `db:"mcp_server_config_id" json:"mcp_server_config_id"`
-	ToolsJson         json.RawMessage `db:"tools_json" json:"tools_json"`
+	ToolsJSON         json.RawMessage `db:"tools_json" json:"tools_json"`
 	ApprovedBy        uuid.UUID       `db:"approved_by" json:"approved_by"`
 }
 
 func (q *sqlQuerier) InsertMCPServerToolSnapshot(ctx context.Context, arg InsertMCPServerToolSnapshotParams) (MCPServerToolSnapshot, error) {
-	row := q.db.QueryRowContext(ctx, insertMCPServerToolSnapshot, arg.MCPServerConfigID, arg.ToolsJson, arg.ApprovedBy)
+	row := q.db.QueryRowContext(ctx, insertMCPServerToolSnapshot, arg.MCPServerConfigID, arg.ToolsJSON, arg.ApprovedBy)
 	var i MCPServerToolSnapshot
 	err := row.Scan(
 		&i.ID,
 		&i.MCPServerConfigID,
-		&i.ToolsJson,
+		&i.ToolsJSON,
 		&i.ApprovedBy,
 		&i.ApprovedAt,
 		&i.IsActive,
@@ -10118,7 +10133,7 @@ SET
     api_key_header = $14::text,
     api_key_value = $15::text,
     api_key_value_key_id = $16::text,
-    custom_headers = $17::jsonb,
+    custom_headers = $17::text,
     custom_headers_key_id = $18::text,
     tool_allow_list = $19::text[],
     tool_deny_list = $20::text[],
@@ -10133,30 +10148,30 @@ RETURNING
 `
 
 type UpdateMCPServerConfigParams struct {
-	DisplayName             string          `db:"display_name" json:"display_name"`
-	Slug                    string          `db:"slug" json:"slug"`
-	Description             string          `db:"description" json:"description"`
-	IconUrl                 string          `db:"icon_url" json:"icon_url"`
-	Transport               string          `db:"transport" json:"transport"`
-	Url                     string          `db:"url" json:"url"`
-	AuthType                string          `db:"auth_type" json:"auth_type"`
-	Oauth2ClientID          string          `db:"oauth2_client_id" json:"oauth2_client_id"`
-	Oauth2ClientSecret      string          `db:"oauth2_client_secret" json:"oauth2_client_secret"`
-	Oauth2ClientSecretKeyID sql.NullString  `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
-	Oauth2AuthUrl           string          `db:"oauth2_auth_url" json:"oauth2_auth_url"`
-	Oauth2TokenUrl          string          `db:"oauth2_token_url" json:"oauth2_token_url"`
-	Oauth2Scopes            string          `db:"oauth2_scopes" json:"oauth2_scopes"`
-	ApiKeyHeader            string          `db:"api_key_header" json:"api_key_header"`
-	ApiKeyValue             string          `db:"api_key_value" json:"api_key_value"`
-	ApiKeyValueKeyID        sql.NullString  `db:"api_key_value_key_id" json:"api_key_value_key_id"`
-	CustomHeaders           json.RawMessage `db:"custom_headers" json:"custom_headers"`
-	CustomHeadersKeyID      sql.NullString  `db:"custom_headers_key_id" json:"custom_headers_key_id"`
-	ToolAllowList           []string        `db:"tool_allow_list" json:"tool_allow_list"`
-	ToolDenyList            []string        `db:"tool_deny_list" json:"tool_deny_list"`
-	Availability            string          `db:"availability" json:"availability"`
-	Enabled                 bool            `db:"enabled" json:"enabled"`
-	UpdatedBy               uuid.UUID       `db:"updated_by" json:"updated_by"`
-	ID                      uuid.UUID       `db:"id" json:"id"`
+	DisplayName             string         `db:"display_name" json:"display_name"`
+	Slug                    string         `db:"slug" json:"slug"`
+	Description             string         `db:"description" json:"description"`
+	IconURL                 string         `db:"icon_url" json:"icon_url"`
+	Transport               string         `db:"transport" json:"transport"`
+	Url                     string         `db:"url" json:"url"`
+	AuthType                string         `db:"auth_type" json:"auth_type"`
+	OAuth2ClientID          string         `db:"oauth2_client_id" json:"oauth2_client_id"`
+	OAuth2ClientSecret      string         `db:"oauth2_client_secret" json:"oauth2_client_secret"`
+	OAuth2ClientSecretKeyID sql.NullString `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
+	OAuth2AuthURL           string         `db:"oauth2_auth_url" json:"oauth2_auth_url"`
+	OAuth2TokenURL          string         `db:"oauth2_token_url" json:"oauth2_token_url"`
+	OAuth2Scopes            string         `db:"oauth2_scopes" json:"oauth2_scopes"`
+	APIKeyHeader            string         `db:"api_key_header" json:"api_key_header"`
+	APIKeyValue             string         `db:"api_key_value" json:"api_key_value"`
+	APIKeyValueKeyID        sql.NullString `db:"api_key_value_key_id" json:"api_key_value_key_id"`
+	CustomHeaders           string         `db:"custom_headers" json:"custom_headers"`
+	CustomHeadersKeyID      sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
+	ToolAllowList           []string       `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList            []string       `db:"tool_deny_list" json:"tool_deny_list"`
+	Availability            string         `db:"availability" json:"availability"`
+	Enabled                 bool           `db:"enabled" json:"enabled"`
+	UpdatedBy               uuid.UUID      `db:"updated_by" json:"updated_by"`
+	ID                      uuid.UUID      `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPServerConfigParams) (MCPServerConfig, error) {
@@ -10164,19 +10179,19 @@ func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPSer
 		arg.DisplayName,
 		arg.Slug,
 		arg.Description,
-		arg.IconUrl,
+		arg.IconURL,
 		arg.Transport,
 		arg.Url,
 		arg.AuthType,
-		arg.Oauth2ClientID,
-		arg.Oauth2ClientSecret,
-		arg.Oauth2ClientSecretKeyID,
-		arg.Oauth2AuthUrl,
-		arg.Oauth2TokenUrl,
-		arg.Oauth2Scopes,
-		arg.ApiKeyHeader,
-		arg.ApiKeyValue,
-		arg.ApiKeyValueKeyID,
+		arg.OAuth2ClientID,
+		arg.OAuth2ClientSecret,
+		arg.OAuth2ClientSecretKeyID,
+		arg.OAuth2AuthURL,
+		arg.OAuth2TokenURL,
+		arg.OAuth2Scopes,
+		arg.APIKeyHeader,
+		arg.APIKeyValue,
+		arg.APIKeyValueKeyID,
 		arg.CustomHeaders,
 		arg.CustomHeadersKeyID,
 		pq.Array(arg.ToolAllowList),
@@ -10192,19 +10207,19 @@ func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPSer
 		&i.DisplayName,
 		&i.Slug,
 		&i.Description,
-		&i.IconUrl,
+		&i.IconURL,
 		&i.Transport,
 		&i.Url,
 		&i.AuthType,
-		&i.Oauth2ClientID,
-		&i.Oauth2ClientSecret,
-		&i.Oauth2ClientSecretKeyID,
-		&i.Oauth2AuthUrl,
-		&i.Oauth2TokenUrl,
-		&i.Oauth2Scopes,
-		&i.ApiKeyHeader,
-		&i.ApiKeyValue,
-		&i.ApiKeyValueKeyID,
+		&i.OAuth2ClientID,
+		&i.OAuth2ClientSecret,
+		&i.OAuth2ClientSecretKeyID,
+		&i.OAuth2AuthURL,
+		&i.OAuth2TokenURL,
+		&i.OAuth2Scopes,
+		&i.APIKeyHeader,
+		&i.APIKeyValue,
+		&i.APIKeyValueKeyID,
 		&i.CustomHeaders,
 		&i.CustomHeadersKeyID,
 		pq.Array(&i.ToolAllowList),
@@ -16905,13 +16920,13 @@ SELECT
 
 type GetDefaultProxyConfigRow struct {
 	DisplayName string `db:"display_name" json:"display_name"`
-	IconUrl     string `db:"icon_url" json:"icon_url"`
+	IconURL     string `db:"icon_url" json:"icon_url"`
 }
 
 func (q *sqlQuerier) GetDefaultProxyConfig(ctx context.Context) (GetDefaultProxyConfigRow, error) {
 	row := q.db.QueryRowContext(ctx, getDefaultProxyConfig)
 	var i GetDefaultProxyConfigRow
-	err := row.Scan(&i.DisplayName, &i.IconUrl)
+	err := row.Scan(&i.DisplayName, &i.IconURL)
 	return i, err
 }
 
@@ -17112,14 +17127,14 @@ DO UPDATE SET value = EXCLUDED.value WHERE site_configs.key = EXCLUDED.key
 
 type UpsertDefaultProxyParams struct {
 	DisplayName string `db:"display_name" json:"display_name"`
-	IconUrl     string `db:"icon_url" json:"icon_url"`
+	IconURL     string `db:"icon_url" json:"icon_url"`
 }
 
 // The default proxy is implied and not actually stored in the database.
 // So we need to store it's configuration here for display purposes.
 // The functional values are immutable and controlled implicitly.
 func (q *sqlQuerier) UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error {
-	_, err := q.db.ExecContext(ctx, upsertDefaultProxy, arg.DisplayName, arg.IconUrl)
+	_, err := q.db.ExecContext(ctx, upsertDefaultProxy, arg.DisplayName, arg.IconURL)
 	return err
 }
 

@@ -30,7 +30,7 @@ CREATE TABLE mcp_server_configs (
     api_key_value_key_id TEXT REFERENCES dbcrypt_keys(active_key_digest),
 
     -- Custom headers (when auth_type = 'custom_headers')
-    custom_headers JSONB NOT NULL DEFAULT '{}',
+    custom_headers TEXT NOT NULL DEFAULT '{}',
     custom_headers_key_id TEXT REFERENCES dbcrypt_keys(active_key_digest),
 
     -- Tool governance
@@ -43,8 +43,8 @@ CREATE TABLE mcp_server_configs (
 
     -- Lifecycle
     enabled BOOLEAN NOT NULL DEFAULT false,
-    created_by UUID NOT NULL REFERENCES users(id),
-    updated_by UUID NOT NULL REFERENCES users(id),
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -73,7 +73,7 @@ CREATE TABLE mcp_server_tool_snapshots (
 
     tools_json JSONB NOT NULL DEFAULT '[]',
 
-    approved_by UUID NOT NULL REFERENCES users(id),
+    approved_by UUID REFERENCES users(id) ON DELETE SET NULL,
     approved_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     is_active BOOLEAN NOT NULL DEFAULT true,
@@ -86,3 +86,7 @@ CREATE UNIQUE INDEX idx_mcp_server_tool_snapshots_active
 
 -- Add MCP server selection to chats (per-chat, like model_config_id)
 ALTER TABLE chats ADD COLUMN mcp_server_ids UUID[] NOT NULL DEFAULT '{}';
+
+CREATE INDEX idx_mcp_server_configs_enabled ON mcp_server_configs(enabled) WHERE enabled = TRUE;
+CREATE INDEX idx_mcp_server_configs_forced ON mcp_server_configs(enabled, availability) WHERE enabled = TRUE AND availability = 'force_on';
+CREATE INDEX idx_mcp_server_user_tokens_user_id ON mcp_server_user_tokens(user_id);

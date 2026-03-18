@@ -2981,6 +2981,10 @@ func truncateRunes(value string, maxLen int) string {
 }
 
 func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
+	mcpServerIDs := c.MCPServerIDs
+	if mcpServerIDs == nil {
+		mcpServerIDs = []uuid.UUID{}
+	}
 	chat := codersdk.Chat{
 		ID:                c.ID,
 		OwnerID:           c.OwnerID,
@@ -2990,7 +2994,7 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 		Archived:          c.Archived,
 		CreatedAt:         c.CreatedAt,
 		UpdatedAt:         c.UpdatedAt,
-		MCPServerIDs:      c.MCPServerIDs,
+		MCPServerIDs:      mcpServerIDs,
 	}
 	if c.LastError.Valid {
 		chat.LastError = &c.LastError.String

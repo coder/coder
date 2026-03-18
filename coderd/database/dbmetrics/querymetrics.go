@@ -264,6 +264,14 @@ func (m queryMetricsStore) CleanTailnetTunnels(ctx context.Context) error {
 	return r0
 }
 
+func (m queryMetricsStore) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.CleanupDeletedMCPServerIDsFromChats(ctx)
+	m.queryLatencies.WithLabelValues("CleanupDeletedMCPServerIDsFromChats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CleanupDeletedMCPServerIDsFromChats").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) CountAIBridgeInterceptions(ctx context.Context, arg database.CountAIBridgeInterceptionsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountAIBridgeInterceptions(ctx, arg)

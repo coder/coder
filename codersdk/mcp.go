@@ -55,6 +55,8 @@ type MCPServerConfig struct {
 	APIKeyHeader string `json:"api_key_header,omitempty"`
 	HasAPIKey    bool   `json:"has_api_key"`
 
+	HasCustomHeaders bool `json:"has_custom_headers"`
+
 	// Tool governance.
 	ToolAllowList []string `json:"tool_allow_list"`
 	ToolDenyList  []string `json:"tool_deny_list"`
@@ -63,7 +65,6 @@ type MCPServerConfig struct {
 	Availability string `json:"availability"` // "force_on", "default_on", "default_off"
 
 	Enabled   bool      `json:"enabled"`
-	ToolCount int       `json:"tool_count"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
 
@@ -123,10 +124,10 @@ type UpdateMCPServerConfigRequest struct {
 	Description *string `json:"description,omitempty"`
 	IconURL     *string `json:"icon_url,omitempty"`
 
-	Transport *string `json:"transport,omitempty"`
-	URL       *string `json:"url,omitempty"`
+	Transport *string `json:"transport,omitempty" validate:"omitempty,oneof=streamable_http sse"`
+	URL       *string `json:"url,omitempty" validate:"omitempty,url"`
 
-	AuthType           *string            `json:"auth_type,omitempty"`
+	AuthType           *string            `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers"`
 	OAuth2ClientID     *string            `json:"oauth2_client_id,omitempty"`
 	OAuth2ClientSecret *string            `json:"oauth2_client_secret,omitempty"`
 	OAuth2AuthURL      *string            `json:"oauth2_auth_url,omitempty"`
@@ -139,7 +140,7 @@ type UpdateMCPServerConfigRequest struct {
 	ToolAllowList *[]string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  *[]string `json:"tool_deny_list,omitempty"`
 
-	Availability *string `json:"availability,omitempty"`
+	Availability *string `json:"availability,omitempty" validate:"omitempty,oneof=force_on default_on default_off"`
 	Enabled      *bool   `json:"enabled,omitempty"`
 }
 

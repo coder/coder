@@ -1653,12 +1653,12 @@ func TestDefaultProxy(t *testing.T) {
 	require.NoError(t, err, "get def proxy")
 
 	require.Equal(t, defProxy.DisplayName, "Default")
-	require.Equal(t, defProxy.IconUrl, "/emojis/1f3e1.png")
+	require.Equal(t, defProxy.IconURL, "/emojis/1f3e1.png")
 
 	// Set the proxy values
 	args := database.UpsertDefaultProxyParams{
 		DisplayName: "displayname",
-		IconUrl:     "/icon.png",
+		IconURL:     "/icon.png",
 	}
 	err = db.UpsertDefaultProxy(ctx, args)
 	require.NoError(t, err, "insert def proxy")
@@ -1666,12 +1666,12 @@ func TestDefaultProxy(t *testing.T) {
 	defProxy, err = db.GetDefaultProxyConfig(ctx)
 	require.NoError(t, err, "get def proxy")
 	require.Equal(t, defProxy.DisplayName, args.DisplayName)
-	require.Equal(t, defProxy.IconUrl, args.IconUrl)
+	require.Equal(t, defProxy.IconURL, args.IconURL)
 
 	// Upsert values
 	args = database.UpsertDefaultProxyParams{
 		DisplayName: "newdisplayname",
-		IconUrl:     "/newicon.png",
+		IconURL:     "/newicon.png",
 	}
 	err = db.UpsertDefaultProxy(ctx, args)
 	require.NoError(t, err, "upsert def proxy")
@@ -1679,7 +1679,7 @@ func TestDefaultProxy(t *testing.T) {
 	defProxy, err = db.GetDefaultProxyConfig(ctx)
 	require.NoError(t, err, "get def proxy")
 	require.Equal(t, defProxy.DisplayName, args.DisplayName)
-	require.Equal(t, defProxy.IconUrl, args.IconUrl)
+	require.Equal(t, defProxy.IconURL, args.IconURL)
 
 	// Ensure other site configs are the same
 	found, err := db.GetDeploymentID(ctx)

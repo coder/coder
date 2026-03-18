@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -70,7 +69,12 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 
 	resp := make([]codersdk.MCPServerConfig, 0, len(configs))
 	for _, config := range configs {
-		sdkConfig := convertMCPServerConfig(config, 0)
+		var sdkConfig codersdk.MCPServerConfig
+		if isAdmin {
+			sdkConfig = convertMCPServerConfig(config)
+		} else {
+			sdkConfig = convertMCPServerConfigRedacted(config)
+		}
 		if config.AuthType == "oauth2" {
 			sdkConfig.AuthConnected = tokenMap[config.ID]
 		} else {
@@ -113,19 +117,19 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		DisplayName:             strings.TrimSpace(req.DisplayName),
 		Slug:                    strings.TrimSpace(req.Slug),
 		Description:             strings.TrimSpace(req.Description),
-		IconUrl:                 strings.TrimSpace(req.IconURL),
+		IconURL:                 strings.TrimSpace(req.IconURL),
 		Transport:               strings.TrimSpace(req.Transport),
 		Url:                     strings.TrimSpace(req.URL),
 		AuthType:                strings.TrimSpace(req.AuthType),
-		Oauth2ClientID:          strings.TrimSpace(req.OAuth2ClientID),
-		Oauth2ClientSecret:      strings.TrimSpace(req.OAuth2ClientSecret),
-		Oauth2ClientSecretKeyID: sql.NullString{},
-		Oauth2AuthUrl:           strings.TrimSpace(req.OAuth2AuthURL),
-		Oauth2TokenUrl:          strings.TrimSpace(req.OAuth2TokenURL),
-		Oauth2Scopes:            strings.TrimSpace(req.OAuth2Scopes),
-		ApiKeyHeader:            strings.TrimSpace(req.APIKeyHeader),
-		ApiKeyValue:             strings.TrimSpace(req.APIKeyValue),
-		ApiKeyValueKeyID:        sql.NullString{},
+		OAuth2ClientID:          strings.TrimSpace(req.OAuth2ClientID),
+		OAuth2ClientSecret:      strings.TrimSpace(req.OAuth2ClientSecret),
+		OAuth2ClientSecretKeyID: sql.NullString{},
+		OAuth2AuthURL:           strings.TrimSpace(req.OAuth2AuthURL),
+		OAuth2TokenURL:          strings.TrimSpace(req.OAuth2TokenURL),
+		OAuth2Scopes:            strings.TrimSpace(req.OAuth2Scopes),
+		APIKeyHeader:            strings.TrimSpace(req.APIKeyHeader),
+		APIKeyValue:             strings.TrimSpace(req.APIKeyValue),
+		APIKeyValueKeyID:        sql.NullString{},
 		CustomHeaders:           customHeadersJSON,
 		CustomHeadersKeyID:      sql.NullString{},
 		ToolAllowList:           coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
@@ -158,7 +162,55 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfig(inserted, 0))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfig(inserted))
+}
+
+// @Summary Get MCP server config
+// @x-apidocgen {"skip": true}
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	mcpServerID, ok := parseMCPServerConfigID(rw, r)
+	if !ok {
+		return
+	}
+
+	isAdmin := api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig)
+
+	var config database.MCPServerConfig
+	var err error
+	if isAdmin {
+		config, err = api.Database.GetMCPServerConfigByID(ctx, mcpServerID)
+	} else {
+		//nolint:gocritic // All authenticated users can view enabled MCP server configs.
+		config, err = api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
+		if err == nil && !config.Enabled {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+	}
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get MCP server config.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var sdkConfig codersdk.MCPServerConfig
+	if isAdmin {
+		sdkConfig = convertMCPServerConfig(config)
+	} else {
+		sdkConfig = convertMCPServerConfigRedacted(config)
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, sdkConfig)
 }
 
 // @Summary Update MCP server config
@@ -212,7 +264,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		description = strings.TrimSpace(*req.Description)
 	}
 
-	iconURL := existing.IconUrl
+	iconURL := existing.IconURL
 	if req.IconURL != nil {
 		iconURL = strings.TrimSpace(*req.IconURL)
 	}
@@ -232,41 +284,41 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		authType = strings.TrimSpace(*req.AuthType)
 	}
 
-	oauth2ClientID := existing.Oauth2ClientID
+	oauth2ClientID := existing.OAuth2ClientID
 	if req.OAuth2ClientID != nil {
 		oauth2ClientID = strings.TrimSpace(*req.OAuth2ClientID)
 	}
 
-	oauth2ClientSecret := existing.Oauth2ClientSecret
-	oauth2ClientSecretKeyID := existing.Oauth2ClientSecretKeyID
+	oauth2ClientSecret := existing.OAuth2ClientSecret
+	oauth2ClientSecretKeyID := existing.OAuth2ClientSecretKeyID
 	if req.OAuth2ClientSecret != nil {
 		oauth2ClientSecret = strings.TrimSpace(*req.OAuth2ClientSecret)
 		// Clear the key ID when the secret is explicitly updated.
 		oauth2ClientSecretKeyID = sql.NullString{}
 	}
 
-	oauth2AuthURL := existing.Oauth2AuthUrl
+	oauth2AuthURL := existing.OAuth2AuthURL
 	if req.OAuth2AuthURL != nil {
 		oauth2AuthURL = strings.TrimSpace(*req.OAuth2AuthURL)
 	}
 
-	oauth2TokenURL := existing.Oauth2TokenUrl
+	oauth2TokenURL := existing.OAuth2TokenURL
 	if req.OAuth2TokenURL != nil {
 		oauth2TokenURL = strings.TrimSpace(*req.OAuth2TokenURL)
 	}
 
-	oauth2Scopes := existing.Oauth2Scopes
+	oauth2Scopes := existing.OAuth2Scopes
 	if req.OAuth2Scopes != nil {
 		oauth2Scopes = strings.TrimSpace(*req.OAuth2Scopes)
 	}
 
-	apiKeyHeader := existing.ApiKeyHeader
+	apiKeyHeader := existing.APIKeyHeader
 	if req.APIKeyHeader != nil {
 		apiKeyHeader = strings.TrimSpace(*req.APIKeyHeader)
 	}
 
-	apiKeyValue := existing.ApiKeyValue
-	apiKeyValueKeyID := existing.ApiKeyValueKeyID
+	apiKeyValue := existing.APIKeyValue
+	apiKeyValueKeyID := existing.APIKeyValueKeyID
 	if req.APIKeyValue != nil {
 		apiKeyValue = strings.TrimSpace(*req.APIKeyValue)
 		// Clear the key ID when the value is explicitly updated.
@@ -290,12 +342,12 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	toolAllowList := existing.ToolAllowList
 	if req.ToolAllowList != nil {
-		toolAllowList = trimStringSlice(*req.ToolAllowList)
+		toolAllowList = coalesceStringSlice(trimStringSlice(*req.ToolAllowList))
 	}
 
 	toolDenyList := existing.ToolDenyList
 	if req.ToolDenyList != nil {
-		toolDenyList = trimStringSlice(*req.ToolDenyList)
+		toolDenyList = coalesceStringSlice(trimStringSlice(*req.ToolDenyList))
 	}
 
 	availability := existing.Availability
@@ -312,19 +364,19 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		DisplayName:             displayName,
 		Slug:                    slug,
 		Description:             description,
-		IconUrl:                 iconURL,
+		IconURL:                 iconURL,
 		Transport:               transport,
 		Url:                     serverURL,
 		AuthType:                authType,
-		Oauth2ClientID:          oauth2ClientID,
-		Oauth2ClientSecret:      oauth2ClientSecret,
-		Oauth2ClientSecretKeyID: oauth2ClientSecretKeyID,
-		Oauth2AuthUrl:           oauth2AuthURL,
-		Oauth2TokenUrl:          oauth2TokenURL,
-		Oauth2Scopes:            oauth2Scopes,
-		ApiKeyHeader:            apiKeyHeader,
-		ApiKeyValue:             apiKeyValue,
-		ApiKeyValueKeyID:        apiKeyValueKeyID,
+		OAuth2ClientID:          oauth2ClientID,
+		OAuth2ClientSecret:      oauth2ClientSecret,
+		OAuth2ClientSecretKeyID: oauth2ClientSecretKeyID,
+		OAuth2AuthURL:           oauth2AuthURL,
+		OAuth2TokenURL:          oauth2TokenURL,
+		OAuth2Scopes:            oauth2Scopes,
+		APIKeyHeader:            apiKeyHeader,
+		APIKeyValue:             apiKeyValue,
+		APIKeyValueKeyID:        apiKeyValueKeyID,
 		CustomHeaders:           customHeaders,
 		CustomHeadersKeyID:      customHeadersKeyID,
 		ToolAllowList:           toolAllowList,
@@ -357,7 +409,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertMCPServerConfig(updated, 0))
+	httpapi.Write(ctx, rw, http.StatusOK, convertMCPServerConfig(updated))
 }
 
 // @Summary Delete MCP server config
@@ -412,7 +464,8 @@ func (api *API) getMCPServerTools(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify the MCP server config exists.
-	if _, err := api.Database.GetMCPServerConfigByID(ctx, mcpServerID); err != nil {
+	//nolint:gocritic // All authenticated users can view tools for enabled MCP servers.
+	if _, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID); err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
@@ -479,12 +532,6 @@ func (api *API) refreshMCPServerTools(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary List user MCP servers
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-// Returns enabled MCP servers with per-user auth status.
-//
-//nolint:revive // HTTP handler writes to ResponseWriter.
 // @Summary Initiate MCP server OAuth2 connect
 // @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -513,6 +560,13 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if !config.Enabled {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "MCP server is not enabled.",
+		})
+		return
+	}
+
 	if config.AuthType != "oauth2" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "MCP server does not use OAuth2 authentication.",
@@ -520,7 +574,7 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if config.Oauth2AuthUrl == "" {
+	if config.OAuth2AuthURL == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "MCP server OAuth2 authorization URL is not configured.",
 		})
@@ -530,21 +584,28 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 	// Build the authorization URL. The frontend opens this in a popup.
 	// The callback URL is on our server; after the exchange we store
 	// the token and close the popup.
-	//
-	// NOTE: The actual token exchange callback is a follow-up. For
-	// now, redirect the user to the authorization URL so we can
-	// validate the flow end-to-end once the callback handler is
-	// implemented.
-	state := uuid.New().String() // TODO: Store state for CSRF verification.
+	state := uuid.New().String()
+	http.SetCookie(rw, &http.Cookie{
+		Name:     "mcp_oauth2_state_" + config.ID.String(),
+		Value:    state,
+		Path:     fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID),
+		MaxAge:   600, // 10 minutes
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   r.TLS != nil,
+	})
 
-	authURL := fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&response_type=code&scope=%s&state=%s",
-		config.Oauth2AuthUrl,
-		url.QueryEscape(config.Oauth2ClientID),
-		url.QueryEscape(fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), config.ID)),
-		url.QueryEscape(config.Oauth2Scopes),
-		url.QueryEscape(state),
-	)
-
+	oauth2Config := &oauth2.Config{
+		ClientID:     config.OAuth2ClientID,
+		ClientSecret: config.OAuth2ClientSecret,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  config.OAuth2AuthURL,
+			TokenURL: config.OAuth2TokenURL,
+		},
+		RedirectURL: fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), config.ID),
+		Scopes:      strings.Split(config.OAuth2Scopes, " "),
+	}
+	authURL := oauth2Config.AuthCodeURL(state)
 	http.Redirect(rw, r, authURL, http.StatusTemporaryRedirect)
 }
 
@@ -577,6 +638,13 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if !config.Enabled {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "MCP server is not enabled.",
+		})
+		return
+	}
+
 	code := r.URL.Query().Get("code")
 	if code == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -585,18 +653,37 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// TODO: Validate state parameter for CSRF protection.
+	// Validate the state parameter for CSRF protection.
+	expectedState := ""
+	if cookie, err := r.Cookie("mcp_oauth2_state_" + config.ID.String()); err == nil {
+		expectedState = cookie.Value
+	}
+	actualState := r.URL.Query().Get("state")
+	if expectedState == "" || actualState != expectedState {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid or missing OAuth2 state parameter.",
+		})
+		return
+	}
+	// Clear the state cookie.
+	http.SetCookie(rw, &http.Cookie{
+		Name:     "mcp_oauth2_state_" + config.ID.String(),
+		Value:    "",
+		Path:     fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID),
+		MaxAge:   -1,
+		HttpOnly: true,
+	})
 
 	// Exchange the authorization code for tokens.
 	oauth2Config := &oauth2.Config{
-		ClientID:     config.Oauth2ClientID,
-		ClientSecret: config.Oauth2ClientSecret,
+		ClientID:     config.OAuth2ClientID,
+		ClientSecret: config.OAuth2ClientSecret,
 		Endpoint: oauth2.Endpoint{
-			AuthURL:  config.Oauth2AuthUrl,
-			TokenURL: config.Oauth2TokenUrl,
+			AuthURL:  config.OAuth2AuthURL,
+			TokenURL: config.OAuth2TokenURL,
 		},
 		RedirectURL: fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), config.ID),
-		Scopes:      strings.Split(config.Oauth2Scopes, " "),
+		Scopes:      strings.Split(config.OAuth2Scopes, " "),
 	}
 
 	token, err := oauth2Config.Exchange(ctx, code)
@@ -643,7 +730,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 	rw.WriteHeader(http.StatusOK)
 	_, _ = rw.Write([]byte(`<!DOCTYPE html><html><body><script>
 		if (window.opener) {
-			window.opener.postMessage({type: "mcp-oauth2-complete", serverID: "` + config.ID.String() + `"}, "*");
+			window.opener.postMessage({type: "mcp-oauth2-complete", serverID: "` + config.ID.String() + `"}, "` + api.AccessURL.String() + `");
 			window.close();
 		} else {
 			document.body.innerText = "Authentication successful. You may close this window.";
@@ -696,37 +783,52 @@ func parseMCPServerConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 
 // convertMCPServerConfig converts a database MCP server config to the
 // SDK type. Secrets are never returned; only has_* booleans are set.
-func convertMCPServerConfig(config database.MCPServerConfig, toolCount int) codersdk.MCPServerConfig {
+// Admin-only fields (OAuth2 client ID, auth URLs, etc.) are included.
+func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerConfig {
 	return codersdk.MCPServerConfig{
 		ID:          config.ID,
 		DisplayName: config.DisplayName,
 		Slug:        config.Slug,
 		Description: config.Description,
-		IconURL:     config.IconUrl,
+		IconURL:     config.IconURL,
 
 		Transport: config.Transport,
 		URL:       config.Url,
 
 		AuthType:        config.AuthType,
-		OAuth2ClientID:  config.Oauth2ClientID,
-		HasOAuth2Secret: config.Oauth2ClientSecret != "",
-		OAuth2AuthURL:   config.Oauth2AuthUrl,
-		OAuth2TokenURL:  config.Oauth2TokenUrl,
-		OAuth2Scopes:    config.Oauth2Scopes,
+		OAuth2ClientID:  config.OAuth2ClientID,
+		HasOAuth2Secret: config.OAuth2ClientSecret != "",
+		OAuth2AuthURL:   config.OAuth2AuthURL,
+		OAuth2TokenURL:  config.OAuth2TokenURL,
+		OAuth2Scopes:    config.OAuth2Scopes,
 
-		APIKeyHeader: config.ApiKeyHeader,
-		HasAPIKey:    config.ApiKeyValue != "",
+		APIKeyHeader: config.APIKeyHeader,
+		HasAPIKey:    config.APIKeyValue != "",
 
-		ToolAllowList: config.ToolAllowList,
-		ToolDenyList:  config.ToolDenyList,
+		HasCustomHeaders: len(config.CustomHeaders) > 0 && config.CustomHeaders != "{}",
+
+		ToolAllowList: coalesceStringSlice(config.ToolAllowList),
+		ToolDenyList:  coalesceStringSlice(config.ToolDenyList),
 
 		Availability: config.Availability,
 
 		Enabled:   config.Enabled,
-		ToolCount: toolCount,
 		CreatedAt: config.CreatedAt,
 		UpdatedAt: config.UpdatedAt,
 	}
+}
+
+// convertMCPServerConfigRedacted is the same as convertMCPServerConfig
+// but strips admin-only fields (OAuth2 details, API key header) for
+// non-admin callers.
+func convertMCPServerConfigRedacted(config database.MCPServerConfig) codersdk.MCPServerConfig {
+	c := convertMCPServerConfig(config)
+	c.OAuth2ClientID = ""
+	c.OAuth2AuthURL = ""
+	c.OAuth2TokenURL = ""
+	c.OAuth2Scopes = ""
+	c.APIKeyHeader = ""
+	return c
 }
 
 // convertMCPServerToolSnapshot converts a database tool snapshot to
@@ -735,7 +837,7 @@ func convertMCPServerToolSnapshot(snapshot database.MCPServerToolSnapshot) coder
 	var tools []codersdk.MCPServerTool
 	// Best-effort parse; if the JSON is malformed we return an empty
 	// slice rather than failing the request.
-	_ = json.Unmarshal(snapshot.ToolsJson, &tools)
+	_ = json.Unmarshal(snapshot.ToolsJSON, &tools)
 	if tools == nil {
 		tools = []codersdk.MCPServerTool{}
 	}
@@ -744,7 +846,7 @@ func convertMCPServerToolSnapshot(snapshot database.MCPServerToolSnapshot) coder
 		ID:                snapshot.ID,
 		MCPServerConfigID: snapshot.MCPServerConfigID,
 		Tools:             tools,
-		ApprovedBy:        snapshot.ApprovedBy,
+		ApprovedBy:        snapshot.ApprovedBy.UUID,
 		ApprovedAt:        snapshot.ApprovedAt,
 		IsActive:          snapshot.IsActive,
 		CreatedAt:         snapshot.CreatedAt,
@@ -753,15 +855,15 @@ func convertMCPServerToolSnapshot(snapshot database.MCPServerToolSnapshot) coder
 
 // marshalCustomHeaders encodes a map of custom headers to JSON for
 // database storage. A nil map produces an empty JSON object.
-func marshalCustomHeaders(headers map[string]string) (json.RawMessage, error) {
+func marshalCustomHeaders(headers map[string]string) (string, error) {
 	if headers == nil {
-		return json.RawMessage("{}"), nil
+		return "{}", nil
 	}
 	encoded, err := json.Marshal(headers)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return encoded, nil
+	return string(encoded), nil
 }
 
 // trimStringSlice trims whitespace from each element and drops empty
