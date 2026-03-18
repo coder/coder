@@ -128,8 +128,8 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		ApiKeyValueKeyID:        sql.NullString{},
 		CustomHeaders:           customHeadersJSON,
 		CustomHeadersKeyID:      sql.NullString{},
-		ToolAllowList:           trimStringSlice(req.ToolAllowList),
-		ToolDenyList:            trimStringSlice(req.ToolDenyList),
+		ToolAllowList:           coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
+		ToolDenyList:            coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
 		Availability:            strings.TrimSpace(req.Availability),
 		Enabled:                 req.Enabled,
 		CreatedBy:               apiKey.UserID,
@@ -777,4 +777,14 @@ func trimStringSlice(ss []string) []string {
 		}
 	}
 	return out
+}
+
+// coalesceStringSlice returns ss if non-nil, otherwise an empty
+// non-nil slice. This prevents pq.Array from sending NULL for
+// NOT NULL text[] columns.
+func coalesceStringSlice(ss []string) []string {
+	if ss == nil {
+		return []string{}
+	}
+	return ss
 }
