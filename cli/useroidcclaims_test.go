@@ -21,18 +21,18 @@ import (
 func TestUserOIDCClaims(t *testing.T) {
 	t.Parallel()
 
+	fake := oidctest.NewFakeIDP(t,
+		oidctest.WithServing(),
+	)
+	cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+		cfg.AllowSignups = true
+	})
+	ownerClient := coderdtest.New(t, &coderdtest.Options{
+		OIDCConfig: cfg,
+	})
+
 	t.Run("OwnClaims", func(t *testing.T) {
 		t.Parallel()
-
-		fake := oidctest.NewFakeIDP(t,
-			oidctest.WithServing(),
-		)
-		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
-			cfg.AllowSignups = true
-		})
-		owner := coderdtest.New(t, &coderdtest.Options{
-			OIDCConfig: cfg,
-		})
 
 		claims := jwt.MapClaims{
 			"email":          "alice@coder.com",
@@ -40,7 +40,7 @@ func TestUserOIDCClaims(t *testing.T) {
 			"sub":            uuid.NewString(),
 			"groups":         []string{"admin", "eng"},
 		}
-		userClient, loginResp := fake.Login(t, owner, claims)
+		userClient, loginResp := fake.Login(t, ownerClient, claims)
 		defer loginResp.Body.Close()
 
 		inv, root := clitest.New(t, "users", "oidc-claims", "-o", "json")
@@ -61,22 +61,12 @@ func TestUserOIDCClaims(t *testing.T) {
 	t.Run("Table", func(t *testing.T) {
 		t.Parallel()
 
-		fake := oidctest.NewFakeIDP(t,
-			oidctest.WithServing(),
-		)
-		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
-			cfg.AllowSignups = true
-		})
-		owner := coderdtest.New(t, &coderdtest.Options{
-			OIDCConfig: cfg,
-		})
-
 		claims := jwt.MapClaims{
 			"email":          "bob@coder.com",
 			"email_verified": true,
 			"sub":            uuid.NewString(),
 		}
-		userClient, loginResp := fake.Login(t, owner, claims)
+		userClient, loginResp := fake.Login(t, ownerClient, claims)
 		defer loginResp.Body.Close()
 
 		inv, root := clitest.New(t, "users", "oidc-claims")
@@ -112,30 +102,20 @@ func TestUserOIDCClaims(t *testing.T) {
 	t.Run("OnlyOwnClaims", func(t *testing.T) {
 		t.Parallel()
 
-		fake := oidctest.NewFakeIDP(t,
-			oidctest.WithServing(),
-		)
-		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
-			cfg.AllowSignups = true
-		})
-		owner := coderdtest.New(t, &coderdtest.Options{
-			OIDCConfig: cfg,
-		})
-
 		aliceClaims := jwt.MapClaims{
-			"email":          "alice@coder.com",
+			"email":          "alice-isolation@coder.com",
 			"email_verified": true,
 			"sub":            uuid.NewString(),
 		}
-		aliceClient, aliceLoginResp := fake.Login(t, owner, aliceClaims)
+		aliceClient, aliceLoginResp := fake.Login(t, ownerClient, aliceClaims)
 		defer aliceLoginResp.Body.Close()
 
 		bobClaims := jwt.MapClaims{
-			"email":          "bob@coder.com",
+			"email":          "bob-isolation@coder.com",
 			"email_verified": true,
 			"sub":            uuid.NewString(),
 		}
-		bobClient, bobLoginResp := fake.Login(t, owner, bobClaims)
+		bobClient, bobLoginResp := fake.Login(t, ownerClient, bobClaims)
 		defer bobLoginResp.Body.Close()
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -143,11 +123,11 @@ func TestUserOIDCClaims(t *testing.T) {
 		// Alice sees her own claims.
 		aliceResp, err := aliceClient.UserOIDCClaims(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, "alice@coder.com", aliceResp.Claims["email"])
+		assert.Equal(t, "alice-isolation@coder.com", aliceResp.Claims["email"])
 
 		// Bob sees his own claims.
 		bobResp, err := bobClient.UserOIDCClaims(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, "bob@coder.com", bobResp.Claims["email"])
+		assert.Equal(t, "bob-isolation@coder.com", bobResp.Claims["email"])
 	})
 }

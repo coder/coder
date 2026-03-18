@@ -321,37 +321,6 @@ curl -X POST http://coder-server:8080/api/v2/users/logout \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get OIDC claims for the authenticated user
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/users/me/oidc-claims \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /users/me/oidc-claims`
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "claims": {}
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                               |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OIDCClaimsResponse](schemas.md#codersdkoidcclaimsresponse) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## OAuth 2.0 GitHub Callback
 
 ### Code samples
@@ -404,6 +373,37 @@ curl -X GET http://coder-server:8080/api/v2/users/oauth2/github/device \
 | Status | Meaning                                                 | Description | Schema                                                               |
 |--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ExternalAuthDevice](schemas.md#codersdkexternalauthdevice) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get OIDC claims for the authenticated user
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/oidc-claims \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/oidc-claims`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "claims": {}
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                               |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OIDCClaimsResponse](schemas.md#codersdkoidcclaimsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

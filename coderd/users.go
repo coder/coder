@@ -80,18 +80,14 @@ func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Users
 // @Success 200 {object} codersdk.OIDCClaimsResponse
-// @Router /users/me/oidc-claims [get]
+// @Router /users/oidc-claims [get]
 func (api *API) userOIDCClaims(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
 		apiKey = httpmw.APIKey(r)
 	)
 
-	//nolint:gocritic // The caller can only access their own claims,
-	// so we use system context for the DB lookups.
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
-
-	user, err := api.Database.GetUserByID(sysCtx, apiKey.UserID)
+	user, err := api.Database.GetUserByID(ctx, apiKey.UserID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get user.",
@@ -107,10 +103,16 @@ func (api *API) userOIDCClaims(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	link, err := api.Database.GetUserLinkByUserIDLoginType(sysCtx, database.GetUserLinkByUserIDLoginTypeParams{
-		UserID:    user.ID,
-		LoginType: database.LoginTypeOIDC,
-	})
+	//nolint:gocritic // GetUserLinkByUserIDLoginType requires reading
+	// rbac.ResourceSystem. The endpoint is scoped to the authenticated
+	// user's own identity via apiKey, so this is safe.
+	link, err := api.Database.GetUserLinkByUserIDLoginType(
+		dbauthz.AsSystemRestricted(ctx),
+		database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeOIDC,
+		},
+	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get user link.",
