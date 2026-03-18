@@ -42,6 +42,15 @@ export const AuthContext = createContext<AuthContextValue | undefined>(
 	undefined,
 );
 
+// Don't retry 401s — the user is genuinely not authenticated.
+const shouldRetryAuth = (failureCount: number, error: unknown): boolean => {
+	if (isApiError(error) && error.response.status === 401) {
+		return false;
+	}
+	return failureCount < 3;
+};
+const authRetryDelay = (attempt: number) => Math.min(1000 * 2 ** attempt, 10000);
+
 export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const userMetadataState = metadata.user;
@@ -49,14 +58,8 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	const meOptions = me(userMetadataState);
 	const userQuery = useQuery({
 		...meOptions,
-		retry: (failureCount, error) => {
-			// Never retry on 401 — the user is simply not authenticated.
-			if (isApiError(error) && error.response.status === 401) {
-				return false;
-			}
-			return failureCount < 3;
-		},
-		retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
+		retry: shouldRetryAuth,
+		retryDelay: authRetryDelay,
 	});
 	const hasFirstUserQuery = useQuery(hasFirstUser(userMetadataState));
 
@@ -66,13 +69,8 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 			metadata.permissions,
 		),
 		enabled: userQuery.data !== undefined,
-		retry: (failureCount, error) => {
-			if (isApiError(error) && error.response.status === 401) {
-				return false;
-			}
-			return failureCount < 3;
-		},
-		retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
+		retry: shouldRetryAuth,
+		retryDelay: authRetryDelay,
 	});
 
 	const queryClient = useQueryClient();
@@ -108,7 +106,8 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	// of crashing through to the error boundary.
 	const isError =
 		(userQuery.isError && !isSignedOut) ||
-		(userQuery.isSuccess && permissionsQuery.isError);
+		(userQuery.isSuccess && permissionsQuery.isError &&
+		 !(isApiError(permissionsQuery.error) && permissionsQuery.error.response.status === 401));
 
 	const signOut = useCallback(() => {
 		logoutMutation.mutate();
