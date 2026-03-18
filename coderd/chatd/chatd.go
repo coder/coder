@@ -3167,7 +3167,7 @@ func (p *Server) persistChatContextSummary(
 			database.ChatMessageVisibilityModel,
 			modelConfigID,
 			chatprompt.CurrentContentVersion,
-		).withCompressed(true))
+		).withCompressed())
 
 		// Assistant tool-call message.
 		appendChatMessage(&summaryParams, newChatMessage(
@@ -3176,7 +3176,7 @@ func (p *Server) persistChatContextSummary(
 			database.ChatMessageVisibilityUser,
 			modelConfigID,
 			chatprompt.CurrentContentVersion,
-		).withCompressed(true))
+		).withCompressed())
 
 		// Tool result message.
 		appendChatMessage(&summaryParams, newChatMessage(
@@ -3185,7 +3185,7 @@ func (p *Server) persistChatContextSummary(
 			database.ChatMessageVisibilityBoth,
 			modelConfigID,
 			chatprompt.CurrentContentVersion,
-		).withCompressed(true))
+		).withCompressed())
 
 		allInserted, txErr := tx.InsertChatMessages(ctx, summaryParams)
 		if txErr != nil {
