@@ -50,6 +50,9 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 	const isExpired = dayjs
 		.unix(license.claims.license_expires)
 		.isBefore(dayjs());
+	const isNotYetValid =
+		license.claims.nbf !== undefined &&
+		dayjs.unix(license.claims.nbf).isAfter(dayjs());
 	const isPremium = license.claims.feature_set?.toLowerCase() === "premium";
 	const aiGovernanceActual = aiGovernanceUserFeature?.actual ?? 0;
 	const aiGovernanceLimit = aiGovernanceUserFeature?.limit ?? 0;
@@ -69,12 +72,16 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 	const statusClassName =
 		isAiGovernanceAddOnExceeded || isExpired
 			? "text-content-destructive"
-			: "text-content-success";
+			: isNotYetValid
+				? "text-content-warning"
+				: "text-content-success";
 	const statusText = isAiGovernanceAddOnExceeded
 		? "Add-on exceeded"
 		: isExpired
 			? "Expired"
-			: "Active";
+			: isNotYetValid
+				? `Starts on ${dayjs.unix(license.claims.nbf ?? 0).format("MMMM D, YYYY")}`
+				: "Active";
 
 	return (
 		<Collapsible defaultOpen>

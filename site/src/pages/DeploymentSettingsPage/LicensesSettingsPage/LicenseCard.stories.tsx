@@ -1,6 +1,7 @@
 import { chromatic } from "testHelpers/chromatic";
 import { MockLicenseResponse } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import dayjs from "dayjs";
 import { expect, fn, within } from "storybook/test";
 
 import { LicenseCard } from "./LicenseCard";
@@ -81,6 +82,22 @@ export const ExceededAIGovernance: Story = {
 		},
 		includedWithPremium: 1000,
 		additionalPurchased: 0,
+	},
+};
+
+export const NotYetValid: Story = {
+	args: {
+		license: {
+			...MockLicenseResponse[1],
+			claims: {
+				...MockLicenseResponse[1].claims,
+				nbf: dayjs().add(7, "day").unix(),
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText(/Starts on/)).toBeInTheDocument();
 	},
 };
 
