@@ -47,7 +47,9 @@ const (
 
 	homeInstructionLookupTimeout = 5 * time.Second
 	instructionCacheTTL          = 5 * time.Minute
-	chatHeartbeatInterval        = 60 * time.Second
+	// DefaultChatHeartbeatInterval is the default time between chat
+	// heartbeat updates while a chat is being processed.
+	DefaultChatHeartbeatInterval = 30 * time.Second
 	maxChatSteps                 = 1200
 	// maxStreamBufferSize caps the number of events buffered
 	// per chat during a single LLM step. When exceeded the
@@ -98,11 +100,13 @@ type Server struct {
 	instructionCache   map[uuid.UUID]cachedInstruction
 
 	usageTracker *workspacestats.UsageTracker
+	clock        quartz.Clock
 
 	// Configuration
 	pendingChatAcquireInterval time.Duration
 	maxChatsPerAcquire         int32
 	inFlightChatStaleAfter     time.Duration
+	chatHeartbeatInterval      time.Duration
 }
 
 type cachedInstruction struct {
@@ -1221,6 +1225,7 @@ type Config struct {
 	PendingChatAcquireInterval time.Duration
 	MaxChatsPerAcquire         int32
 	InFlightChatStaleAfter     time.Duration
+	ChatHeartbeatInterval      time.Duration
 	AgentConn                  AgentConnFunc
 	CreateWorkspace            chattool.CreateWorkspaceFn
 	StartWorkspace             chattool.StartWorkspaceFn
@@ -1228,6 +1233,7 @@ type Config struct {
 	ProviderAPIKeys            chatprovider.ProviderAPIKeys
 	WebpushDispatcher          webpush.Dispatcher
 	UsageTracker               *workspacestats.UsageTracker
+	Clock                      quartz.Clock
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -1249,6 +1255,16 @@ func New(cfg Config) *Server {
 	maxChatsPerAcquire := cfg.MaxChatsPerAcquire
 	if maxChatsPerAcquire <= 0 {
 		maxChatsPerAcquire = DefaultMaxChatsPerAcquire
+	}
+
+	chatHeartbeatInterval := cfg.ChatHeartbeatInterval
+	if chatHeartbeatInterval == 0 {
+		chatHeartbeatInterval = DefaultChatHeartbeatInterval
+	}
+
+	clk := cfg.Clock
+	if clk == nil {
+		clk = quartz.NewReal()
 	}
 
 	workerID := cfg.ReplicaID
@@ -1273,7 +1289,9 @@ func New(cfg Config) *Server {
 		pendingChatAcquireInterval: pendingChatAcquireInterval,
 		maxChatsPerAcquire:         maxChatsPerAcquire,
 		inFlightChatStaleAfter:     inFlightChatStaleAfter,
+		chatHeartbeatInterval:      chatHeartbeatInterval,
 		usageTracker:               cfg.UsageTracker,
+		clock:                      clk,
 	}
 
 	//nolint:gocritic // The chat processor uses a scoped chatd context.
@@ -2187,7 +2205,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	// worker is still alive. The goroutine stops when chatCtx is
 	// canceled (either by completion or interruption).
 	go func() {
-		ticker := time.NewTicker(chatHeartbeatInterval)
+		ticker := p.clock.NewTicker(p.chatHeartbeatInterval, "chatd", "heartbeat")
 		defer ticker.Stop()
 		for {
 			select {
