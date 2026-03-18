@@ -3,6 +3,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"sync"
@@ -19,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/scaletest/chat"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
+	"github.com/coder/coder/v2/scaletest/workspacebuild"
 	"github.com/coder/serpent"
 )
 
@@ -28,16 +30,25 @@ const (
 	scaletestModelDisplayName    = "Scaletest Model"
 )
 
+type chatWorkspaceSelection struct {
+	WorkspaceID          *uuid.UUID
+	TemplateID           *uuid.UUID
+	TemplateName         string
+	WorkspaceBuildConfig *workspacebuild.Config
+}
+
 func (r *RootCmd) scaletestChat() *serpent.Command {
 	var (
 		count              int64
 		workspaceID        string
+		template           string
 		prompt             string
 		turns              int64
 		followUpPrompt     string
 		followUpStartDelay time.Duration
 		llmMockURL         string
 		summaryOutput      string
+		parameterFlags     workspaceParameterFlags
 		tracingFlags       = &scaletestTracingFlags{}
 		prometheusFlags    = &scaletestPrometheusFlags{}
 		timeoutStrategy    = &timeoutFlags{}
@@ -48,7 +59,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "chat",
 		Short: "Run a chat scale test against the Coder API",
-		Long:  "Creates N concurrent chats against a single pre-existing workspace and streams each conversation to completion.",
+		Long:  "Creates N concurrent chats against either one shared pre-existing workspace or one workspace per chat from a template, then streams each conversation to completion.",
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 
@@ -71,10 +82,8 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			if summaryOutput == "-" {
 				return xerrors.Errorf("--summary-output must be a file path, not stdout")
 			}
-
-			wsID, err := uuid.Parse(workspaceID)
-			if err != nil {
-				return xerrors.Errorf("parse workspace-id: %w", err)
+			if err := validateChatWorkspaceSelection(workspaceID, template); err != nil {
+				return err
 			}
 
 			client, err := r.InitClient(inv)
@@ -82,7 +91,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				return err
 			}
 
-			_, err = requireAdmin(ctx, client)
+			me, err := requireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
@@ -92,19 +101,12 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				Header:    BypassHeader,
 			}
 
-			ws, err := client.Workspace(ctx, wsID)
+			testCtx, testCancel := timeoutStrategy.toContext(ctx)
+			defer testCancel()
+
+			workspaceSelection, err := resolveChatWorkspaceSelection(testCtx, inv, client, me.OrganizationIDs, workspaceID, template, parameterFlags)
 			if err != nil {
-				return xerrors.Errorf("fetch workspace: %w", err)
-			}
-			hasAgent := false
-			for _, res := range ws.LatestBuild.Resources {
-				if len(res.Agents) > 0 {
-					hasAgent = true
-					break
-				}
-			}
-			if !hasAgent {
-				return xerrors.Errorf("workspace %s has no agents in its latest build", ws.Name)
+				return err
 			}
 
 			var modelConfigID *uuid.UUID
@@ -114,7 +116,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				// Try to create a DB-backed openai-compat provider. If one
 				// already exists the server returns 409 and we proceed.
 				enabled := true
-				_, err = client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+				_, err = client.CreateChatProvider(testCtx, codersdk.CreateChatProviderConfigRequest{
 					Provider:    "openai-compat",
 					DisplayName: scaletestProviderDisplayName,
 					APIKey:      "scaletest-api-key",
@@ -132,7 +134,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 					_, _ = fmt.Fprintf(inv.Stderr, "Created openai-compat provider pointing at %s\n", llmMockURL)
 				}
 
-				modelConfigs, err := client.ListChatModelConfigs(ctx)
+				modelConfigs, err := client.ListChatModelConfigs(testCtx)
 				if err != nil {
 					return xerrors.Errorf("list chat model configs: %w", err)
 				}
@@ -152,7 +154,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 					enabled := true
 					isDefault := false
 					contextLimit := int64(4096)
-					created, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+					created, err := client.CreateChatModelConfig(testCtx, codersdk.CreateChatModelConfigRequest{
 						Provider:     "openai-compat",
 						Model:        scaletestModelName,
 						DisplayName:  scaletestModelDisplayName,
@@ -216,7 +218,6 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				}
 				cfg := chat.Config{
 					RunID:                  runID,
-					WorkspaceID:            wsID,
 					Prompt:                 prompt,
 					ModelConfigID:          modelConfigID,
 					Turns:                  int(turns),
@@ -228,6 +229,12 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 					StartFollowUpChan:      startFollowUpChan,
 					Metrics:                metrics,
 					MetricLabelValues:      append([]string(nil), metricLabelValues...),
+				}
+				if workspaceSelection.WorkspaceID != nil {
+					cfg.WorkspaceID = *workspaceSelection.WorkspaceID
+				}
+				if workspaceSelection.WorkspaceBuildConfig != nil {
+					cfg.Workspace = *workspaceSelection.WorkspaceBuildConfig
 				}
 				if err := cfg.Validate(); err != nil {
 					return xerrors.Errorf("validate config for runner %d: %w", i, err)
@@ -249,8 +256,6 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			}
 
 			_, _ = fmt.Fprintln(inv.Stderr, "Starting chat scale test...")
-			testCtx, testCancel := timeoutStrategy.toContext(ctx)
-			defer testCancel()
 			done := make(chan error, 1)
 			go func() {
 				done <- th.Run(testCtx)
@@ -266,8 +271,8 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				_, _ = fmt.Fprintf(inv.Stderr, "All %d runners ready, starting chat storm...\n", count)
 			case <-time.After(5 * time.Minute):
 				return xerrors.Errorf("timed out waiting for runners to become ready")
-			case <-ctx.Done():
-				return ctx.Err()
+			case <-testCtx.Done():
+				return testCtx.Err()
 			}
 			loadStartedAt := time.Now().UTC()
 			close(startChan)
@@ -284,13 +289,13 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 					_, _ = fmt.Fprintf(inv.Stderr, "All %d runners finished the initial turn, waiting %s before follow-up turns...\n", count, followUpStartDelay)
 				case <-time.After(10 * time.Minute):
 					return xerrors.Errorf("timed out waiting for runners to finish the initial turn")
-				case <-ctx.Done():
-					return ctx.Err()
+				case <-testCtx.Done():
+					return testCtx.Err()
 				}
 				if followUpStartDelay > 0 {
 					select {
-					case <-ctx.Done():
-						return ctx.Err()
+					case <-testCtx.Done():
+						return testCtx.Err()
 					case <-time.After(followUpStartDelay):
 					}
 				}
@@ -305,9 +310,11 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			loadCompletedAt := time.Now().UTC()
 
 			res := th.Results()
-			summary := chat.NewSummary(chat.SummaryConfig{
+			summaryCfg := chat.SummaryConfig{
 				RunID:              runID,
-				WorkspaceID:        wsID,
+				WorkspaceID:        workspaceSelection.WorkspaceID,
+				TemplateID:         workspaceSelection.TemplateID,
+				TemplateName:       workspaceSelection.TemplateName,
 				ModelConfigID:      modelConfigID,
 				Count:              count,
 				Turns:              int(turns),
@@ -316,7 +323,14 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				FollowUpStartDelay: followUpStartDelay,
 				LLMMockURL:         llmMockURL,
 				OutputSpecs:        scaletestOutputSpecs(outputs),
-			}, res, loadStartedAt, loadCompletedAt, followUpPhaseReleasedAt)
+			}
+			if workspaceSelection.WorkspaceBuildConfig != nil {
+				summaryCfg.WorkspaceMode = chat.WorkspaceModeTemplate
+				summaryCfg.CreatedWorkspaceCount = countCreatedTemplateWorkspaces(res)
+			} else {
+				summaryCfg.WorkspaceMode = chat.WorkspaceModeSharedWorkspace
+			}
+			summary := chat.NewSummary(summaryCfg, res, loadStartedAt, loadCompletedAt, followUpPhaseReleasedAt)
 			summaryJSON, err := summary.CompactJSON()
 			if err != nil {
 				return xerrors.Errorf("marshal chat scaletest summary: %w", err)
@@ -359,9 +373,13 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 		},
 		{
 			Flag:        "workspace-id",
-			Description: "UUID of the pre-existing workspace to create chats against.",
-			Required:    true,
+			Description: "UUID of the pre-existing workspace to create chats against. Mutually exclusive with --template.",
 			Value:       serpent.StringOf(&workspaceID),
+		},
+		{
+			Flag:        "template",
+			Description: "Template name or UUID. When set, each runner creates one workspace and waits at the start barrier before the chat storm begins.",
+			Value:       serpent.StringOf(&template),
 		},
 		{
 			Flag:        "prompt",
@@ -398,12 +416,121 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			Value:       serpent.StringOf(&summaryOutput),
 		},
 	}
+	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
 	output.attach(&cmd.Options)
 	tracingFlags.attach(&cmd.Options)
 	prometheusFlags.attach(&cmd.Options)
 	timeoutStrategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)
 	return cmd
+}
+
+func validateChatWorkspaceSelection(workspaceID string, template string) error {
+	switch {
+	case workspaceID == "" && template == "":
+		return xerrors.Errorf("exactly one of --workspace-id or --template is required")
+	case workspaceID != "" && template != "":
+		return xerrors.Errorf("--workspace-id and --template are mutually exclusive")
+	default:
+		return nil
+	}
+}
+
+func resolveChatWorkspaceSelection(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, organizationIDs []uuid.UUID, workspaceID string, template string, parameterFlags workspaceParameterFlags) (chatWorkspaceSelection, error) {
+	if workspaceID != "" {
+		wsID, err := uuid.Parse(workspaceID)
+		if err != nil {
+			return chatWorkspaceSelection{}, xerrors.Errorf("parse workspace-id: %w", err)
+		}
+		ws, err := client.Workspace(ctx, wsID)
+		if err != nil {
+			return chatWorkspaceSelection{}, xerrors.Errorf("fetch workspace: %w", err)
+		}
+		if !workspaceHasAgents(ws) {
+			return chatWorkspaceSelection{}, xerrors.Errorf("workspace %s has no agents in its latest build", ws.Name)
+		}
+		sharedWorkspaceID := wsID
+		return chatWorkspaceSelection{
+			WorkspaceID: &sharedWorkspaceID,
+		}, nil
+	}
+
+	tpl, err := parseTemplate(ctx, client, organizationIDs, template)
+	if err != nil {
+		return chatWorkspaceSelection{}, xerrors.Errorf("parse template: %w", err)
+	}
+
+	workspaceCfg, err := prepareChatTemplateWorkspaceConfig(inv, client, tpl, parameterFlags)
+	if err != nil {
+		return chatWorkspaceSelection{}, err
+	}
+
+	templateID := tpl.ID
+	return chatWorkspaceSelection{
+		TemplateID:           &templateID,
+		TemplateName:         tpl.Name,
+		WorkspaceBuildConfig: &workspaceCfg,
+	}, nil
+}
+
+func prepareChatTemplateWorkspaceConfig(inv *serpent.Invocation, client *codersdk.Client, template codersdk.Template, parameterFlags workspaceParameterFlags) (workspacebuild.Config, error) {
+	cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
+	if err != nil {
+		return workspacebuild.Config{}, xerrors.Errorf("can't parse given parameter values: %w", err)
+	}
+
+	// Scaletest commands should not stop for interactive parameter prompts.
+	// Accept template defaults unless the caller overrides them explicitly.
+	richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
+		Action:               WorkspaceCreate,
+		TemplateVersionID:    template.ActiveVersionID,
+		NewWorkspaceName:     "scaletest-chat-N",
+		Owner:                codersdk.Me,
+		RichParameterFile:    parameterFlags.richParameterFile,
+		RichParameters:       cliRichParameters,
+		UseParameterDefaults: true,
+	})
+	if err != nil {
+		return workspacebuild.Config{}, xerrors.Errorf("prepare build: %w", err)
+	}
+
+	cfg := workspacebuild.Config{
+		OrganizationID: template.OrganizationID,
+		UserID:         codersdk.Me,
+		Request: codersdk.CreateWorkspaceRequest{
+			TemplateID:          template.ID,
+			RichParameterValues: richParameters,
+		},
+	}
+	if err := cfg.Validate(); err != nil {
+		return workspacebuild.Config{}, xerrors.Errorf("validate workspace config: %w", err)
+	}
+
+	return cfg, nil
+}
+
+func countCreatedTemplateWorkspaces(results harness.Results) int64 {
+	var count int64
+	for _, run := range results.Runs {
+		if run.Metrics == nil {
+			continue
+		}
+		workspaceID, ok := run.Metrics["workspace_id"].(string)
+		if !ok || workspaceID == "" || workspaceID == uuid.Nil.String() {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
+func workspaceHasAgents(workspace codersdk.Workspace) bool {
+	for _, resource := range workspace.LatestBuild.Resources {
+		if len(resource.Agents) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func scaletestOutputSpecs(outputs []scaleTestOutput) []string {

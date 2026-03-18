@@ -12,12 +12,13 @@ const (
 	phaseInitial  = "initial"
 	phaseFollowUp = "follow_up"
 
-	failureStageCreateChat    = "create_chat"
-	failureStageCreateMessage = "create_message"
-	failureStageStreamOpen    = "stream_open"
-	failureStageStreamEvent   = "stream_event"
-	failureStageStreamClosed  = "stream_closed"
-	failureStageStatusError   = "status_error"
+	failureStageCreateWorkspace = "create_workspace"
+	failureStageCreateChat      = "create_chat"
+	failureStageCreateMessage   = "create_message"
+	failureStageStreamOpen      = "stream_open"
+	failureStageStreamEvent     = "stream_event"
+	failureStageStreamClosed    = "stream_closed"
+	failureStageStatusError     = "status_error"
 )
 
 var (
