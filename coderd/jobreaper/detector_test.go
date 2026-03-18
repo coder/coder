@@ -65,11 +65,24 @@ func newDetectorTestEnv(ctx context.Context, t *testing.T) *detectorTestEnv {
 	}
 }
 
-// tick sends a tick with the given time and returns the stats from the detector run.
-func (e *detectorTestEnv) tick(now time.Time) jobreaper.Stats {
+// tick sends a tick with the given time and returns the stats from the
+// detector run. It respects context cancellation to avoid blocking forever
+// if the detector exits unexpectedly.
+func (e *detectorTestEnv) tick(ctx context.Context, now time.Time) jobreaper.Stats {
 	e.t.Helper()
-	e.tickCh <- now
-	return <-e.statsCh
+	select {
+	case <-ctx.Done():
+		require.FailNow(e.t, "tick: context cancelled waiting to send tick")
+		return jobreaper.Stats{}
+	case e.tickCh <- now:
+	}
+	select {
+	case <-ctx.Done():
+		require.FailNow(e.t, "tick: context cancelled waiting for stats")
+		return jobreaper.Stats{}
+	case stats := <-e.statsCh:
+		return stats
+	}
 }
 
 // close stops the detector and waits for it to finish.
@@ -103,7 +116,7 @@ func TestDetectorNoJobs(t *testing.T) {
 	env := newDetectorTestEnv(ctx, t)
 	defer env.close()
 
-	stats := env.tick(time.Now())
+	stats := env.tick(ctx, time.Now())
 	require.NoError(t, stats.Error)
 	require.Empty(t, stats.TerminatedJobIDs)
 }
@@ -139,7 +152,7 @@ func TestDetectorNoHungJobs(t *testing.T) {
 		})
 	}
 
-	stats := env.tick(now)
+	stats := env.tick(ctx, now)
 	require.NoError(t, stats.Error)
 	require.Empty(t, stats.TerminatedJobIDs)
 }
@@ -180,7 +193,7 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 	t.Log("previous job ID: ", previousBuild.Build.JobID)
 	t.Log("current job ID: ", currentBuild.Build.JobID)
 
-	stats := env.tick(now)
+	stats := env.tick(ctx, now)
 	require.NoError(t, stats.Error)
 	require.Len(t, stats.TerminatedJobIDs, 1)
 	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
@@ -235,7 +248,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 	t.Log("previous job ID: ", previousBuild.Build.JobID)
 	t.Log("current job ID: ", currentBuild.Build.JobID)
 
-	stats := env.tick(now)
+	stats := env.tick(ctx, now)
 	require.NoError(t, stats.Error)
 	require.Len(t, stats.TerminatedJobIDs, 1)
 	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
@@ -279,7 +292,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 
 	t.Log("current job ID: ", currentBuild.Build.JobID)
 
-	stats := env.tick(now)
+	stats := env.tick(ctx, now)
 	require.NoError(t, stats.Error)
 	require.Len(t, stats.TerminatedJobIDs, 1)
 	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
@@ -322,7 +335,7 @@ func TestDetectorPendingWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testin
 
 	t.Log("current job ID: ", currentBuild.Build.JobID)
 
-	stats := env.tick(now)
+	stats := env.tick(ctx, now)
 	require.NoError(t, stats.Error)
 	require.Len(t, stats.TerminatedJobIDs, 1)
 	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
@@ -381,7 +394,7 @@ func TestDetectorWorkspaceBuildForDormantWorkspace(t *testing.T) {
 	// thing.
 	require.Equal(t, rbac.ResourceWorkspaceDormant.Type, currentBuild.Workspace.RBACObject().Type)
 
-	stats := env.tick(now)
+	stats := env.tick(ctx, now)
 	require.NoError(t, stats.Error)
 	require.Len(t, stats.TerminatedJobIDs, 1)
 	require.Equal(t, currentBuild.Build.JobID, stats.TerminatedJobIDs[0])
@@ -456,7 +469,7 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 	t.Log("template import job ID: ", templateImportJob.ID)
 	t.Log("template dry-run job ID: ", templateDryRunJob.ID)
 
-	stats := env.tick(now)
+	stats := env.tick(ctx, now)
 	require.NoError(t, stats.Error)
 	require.Len(t, stats.TerminatedJobIDs, 2)
 	require.Contains(t, stats.TerminatedJobIDs, templateImportJob.ID)
@@ -532,7 +545,7 @@ func TestDetectorPendingOtherJobTypes(t *testing.T) {
 	t.Log("template import job ID: ", templateImportJob.ID)
 	t.Log("template dry-run job ID: ", templateDryRunJob.ID)
 
-	stats := env.tick(now)
+	stats := env.tick(ctx, now)
 	require.NoError(t, stats.Error)
 	require.Len(t, stats.TerminatedJobIDs, 2)
 	require.Contains(t, stats.TerminatedJobIDs, templateImportJob.ID)
@@ -587,7 +600,7 @@ func TestDetectorHungCanceledJob(t *testing.T) {
 
 	t.Log("template import job ID: ", templateImportJob.ID)
 
-	stats := env.tick(now)
+	stats := env.tick(ctx, now)
 	require.NoError(t, stats.Error)
 	require.Len(t, stats.TerminatedJobIDs, 1)
 	require.Contains(t, stats.TerminatedJobIDs, templateImportJob.ID)
@@ -698,7 +711,7 @@ func TestDetectorPushesLogs(t *testing.T) {
 			require.NoError(t, err)
 			defer pubsubCancel()
 
-			stats := env.tick(now)
+			stats := env.tick(ctx, now)
 			require.NoError(t, stats.Error)
 			require.Len(t, stats.TerminatedJobIDs, 1)
 			require.Contains(t, stats.TerminatedJobIDs, templateImportJob.ID)
@@ -775,13 +788,13 @@ func TestDetectorMaxJobsPerRun(t *testing.T) {
 	}
 
 	// Make sure that only MaxJobsPerRun jobs are terminated.
-	stats := env.tick(now)
+	stats := env.tick(ctx, now)
 	require.NoError(t, stats.Error)
 	require.Len(t, stats.TerminatedJobIDs, jobreaper.MaxJobsPerRun)
 
 	// Run the detector again and make sure that only the remaining job is
 	// terminated.
-	stats = env.tick(now)
+	stats = env.tick(ctx, now)
 	require.NoError(t, stats.Error)
 	require.Len(t, stats.TerminatedJobIDs, 1)
 }
