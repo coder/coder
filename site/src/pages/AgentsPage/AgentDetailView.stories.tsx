@@ -444,13 +444,15 @@ function generateHugeDiff(fileCount: number, linesPerFile: number): string {
 		const path = `src/components/Module${f}/index.tsx`;
 		chunks.push(
 			`diff --git a/${path} b/${path}`,
-			`index 0000000..1111111 100644`,
+			"index 0000000..1111111 100644",
 			`--- a/${path}`,
 			`+++ b/${path}`,
 			`@@ -1,0 +1,${linesPerFile} @@`,
 		);
 		for (let l = 0; l < linesPerFile; l++) {
-			chunks.push(`+// Line ${l + 1}: ${path} — filler to stress-test rendering performance`);
+			chunks.push(
+				`+// Line ${l + 1}: ${path} — filler to stress-test rendering performance`,
+			);
 		}
 	}
 	return chunks.join("\n");
@@ -464,8 +466,7 @@ const STRESS_TOTAL_ADDITIONS = STRESS_FILE_COUNT * STRESS_LINES_PER_FILE;
 function generateLongChatHistory(messageCount: number): TypesGen.ChatMessage[] {
 	const msgs: TypesGen.ChatMessage[] = [];
 	for (let i = 0; i < messageCount; i++) {
-		const role: TypesGen.ChatMessageRole =
-			i % 2 === 0 ? "user" : "assistant";
+		const role: TypesGen.ChatMessageRole = i % 2 === 0 ? "user" : "assistant";
 		const text =
 			role === "user"
 				? `Request #${Math.floor(i / 2) + 1}: Please refactor the next batch of modules.`
