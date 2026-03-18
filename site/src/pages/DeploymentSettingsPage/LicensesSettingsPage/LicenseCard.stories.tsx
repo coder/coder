@@ -38,14 +38,13 @@ export const PremiumWithAIGovernance: Story = {
 				...MockLicenseResponse[1].claims,
 				features: {
 					...MockLicenseResponse[1].claims.features,
-					ai_governance_user_limit: 500,
+					ai_governance_user_limit: 1000,
 				},
 			},
 		},
 		aiGovernanceUserFeature: {
 			enabled: true,
 			entitlement: "entitled",
-			limit: 1000,
 			actual: 750,
 		},
 	},
@@ -75,13 +74,16 @@ export const ExceededAIGovernance: Story = {
 			...MockLicenseResponse[1],
 			claims: {
 				...MockLicenseResponse[1].claims,
+				features: {
+					...MockLicenseResponse[1].claims.features,
+					ai_governance_user_limit: 1000,
+				},
 				addons: ["ai_governance"],
 			},
 		},
 		aiGovernanceUserFeature: {
 			enabled: true,
 			entitlement: "entitled",
-			limit: 1000,
 			actual: 1200,
 		},
 	},
@@ -109,6 +111,10 @@ export const EnterpriseDoesNotShowAIGovernanceAddOn: Story = {
 			...MockLicenseResponse[1],
 			claims: {
 				...MockLicenseResponse[1].claims,
+				features: {
+					...MockLicenseResponse[1].claims.features,
+					ai_governance_user_limit: 1000,
+				},
 				feature_set: "enterprise",
 				addons: ["ai_governance"],
 			},
@@ -116,7 +122,6 @@ export const EnterpriseDoesNotShowAIGovernanceAddOn: Story = {
 		aiGovernanceUserFeature: {
 			enabled: true,
 			entitlement: "entitled",
-			limit: 1000,
 			actual: 750,
 		},
 	},
