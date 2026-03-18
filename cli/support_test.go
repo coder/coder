@@ -132,12 +132,35 @@ func TestSupportBundle(t *testing.T) {
 		assertBundleContents(t, path, true, false, []string{secretValue})
 	})
 
-	t.Run("NoPrivilege", func(t *testing.T) {
+	t.Run("MemberCanGenerateBundle", func(t *testing.T) {
 		t.Parallel()
-		inv, root := clitest.New(t, "support", "bundle", memberWorkspace.Workspace.Name, "--yes")
+
+		d := t.TempDir()
+		path := filepath.Join(d, "bundle.zip")
+		inv, root := clitest.New(t, "support", "bundle", memberWorkspace.Workspace.Name, "--output-file", path, "--yes")
 		clitest.SetupConfig(t, memberClient, root)
 		err := inv.Run()
-		require.ErrorContains(t, err, "failed authorization check")
+		require.NoError(t, err)
+		r, err := zip.OpenReader(path)
+		require.NoError(t, err, "open zip file")
+		defer r.Close()
+		fileNames := make(map[string]struct{}, len(r.File))
+		for _, f := range r.File {
+			fileNames[f.Name] = struct{}{}
+		}
+		// These should always be present in the zip structure, even if
+		// the content is null/empty for non-admin users.
+		for _, name := range []string{
+			"deployment/buildinfo.json",
+			"deployment/config.json",
+			"workspace/workspace.json",
+			"logs.txt",
+			"cli_logs.txt",
+			"network/netcheck.json",
+			"network/interfaces.json",
+		} {
+			require.Contains(t, fileNames, name)
+		}
 	})
 
 	// This ensures that the CLI does not panic when trying to generate a support bundle
@@ -159,6 +182,10 @@ func TestSupportBundle(t *testing.T) {
 				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					t.Logf("received request: %s %s", r.Method, r.URL)
 					switch r.URL.Path {
+					case "/api/v2/users/me":
+						resp := codersdk.User{}
+						w.WriteHeader(http.StatusOK)
+						assert.NoError(t, json.NewEncoder(w).Encode(resp))
 					case "/api/v2/authcheck":
 						// Fake auth check
 						resp := codersdk.AuthorizationResponse{
