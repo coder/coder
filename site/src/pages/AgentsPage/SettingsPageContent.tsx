@@ -1,4 +1,5 @@
 import { getErrorMessage } from "api/errors";
+import { getStaticBuildInfo } from "utils/buildInfo";
 import {
 	chatCostSummary,
 	chatCostUsers,
@@ -328,6 +329,21 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 const textareaClassName =
 	"max-h-[240px] w-full resize-none overflow-y-auto rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin]";
 
+const defaultPromptUrl = (): string => {
+	const base = "https://github.com/coder/coder/blob";
+	const file = "coderd/chatd/prompt.go";
+	let version = getStaticBuildInfo()?.version;
+	if (!version) {
+		return `${base}/main/${file}`;
+	}
+	// Strip any pre-release or build metadata so we get a clean tag.
+	const i = version.match(/[+-]/)?.index ?? -1;
+	if (i >= 0) {
+		version = version.slice(0, i);
+	}
+	return `${base}/${version}/${file}`;
+};
+
 interface SettingsPageContentProps {
 	activeSection: string;
 	canManageChatModelConfigs: boolean;
@@ -475,7 +491,7 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 									<p className="!mt-0.5 m-0 text-xs text-content-secondary">
 										Applied to all chats for every user. When empty, the{" "}
 										<Link
-											href="https://github.com/coder/coder/blob/main/coderd/chatd/prompt.go"
+											href={defaultPromptUrl()}
 											target="_blank"
 											size="sm"
 										>
