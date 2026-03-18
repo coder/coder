@@ -1206,14 +1206,13 @@ func (q *sqlQuerier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Con
 
 const listAIBridgeModelThoughtsByInterceptionIDs = `-- name: ListAIBridgeModelThoughtsByInterceptionIDs :many
 SELECT
-	id, interception_id, content, metadata, created_at
+	interception_id, content, metadata, created_at
 FROM
 	aibridge_model_thoughts
 WHERE
 	interception_id = ANY($1::uuid[])
 ORDER BY
-	created_at ASC,
-	id ASC
+	created_at ASC
 `
 
 func (q *sqlQuerier) ListAIBridgeModelThoughtsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeModelThought, error) {
@@ -1226,7 +1225,6 @@ func (q *sqlQuerier) ListAIBridgeModelThoughtsByInterceptionIDs(ctx context.Cont
 	for rows.Next() {
 		var i AIBridgeModelThought
 		if err := rows.Scan(
-			&i.ID,
 			&i.InterceptionID,
 			&i.Content,
 			&i.Metadata,

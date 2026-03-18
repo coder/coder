@@ -1119,6 +1119,7 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessionThreadInterceptions(ctx contex
 			&i.AIBridgeInterception.ThreadParentID,
 			&i.AIBridgeInterception.ThreadRootID,
 			&i.AIBridgeInterception.ClientSessionID,
+			&i.AIBridgeInterception.SessionID,
 			&i.VisibleUser.ID,
 			&i.VisibleUser.Username,
 			&i.VisibleUser.Name,

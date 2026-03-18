@@ -730,8 +730,7 @@ FROM
 WHERE
 	interception_id = ANY(@interception_ids::uuid[])
 ORDER BY
-	created_at ASC,
-	id ASC;
+	created_at ASC;
 
 -- name: ListAIBridgeModels :many
 SELECT
