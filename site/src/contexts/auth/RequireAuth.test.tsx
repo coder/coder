@@ -91,8 +91,6 @@ const createAuthWrapper = (override: Partial<AuthContextValue>) => {
 		isUpdatingProfile: false,
 		isError: false,
 		permissions: undefined,
-		authMethods: undefined,
-		organizationIds: undefined,
 		signInError: undefined,
 		updateProfileError: undefined,
 		signOut: vi.fn(),

@@ -106,7 +106,9 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	// 502) represent a transient failure, not a sign-out. Exposing
 	// this lets RequireAuth show a recoverable error screen instead
 	// of crashing through to the error boundary.
-	const isError = userQuery.isError && !isSignedOut;
+	const isError =
+		(userQuery.isError && !isSignedOut) ||
+		(userQuery.isSuccess && permissionsQuery.isError);
 
 	const signOut = useCallback(() => {
 		logoutMutation.mutate();
