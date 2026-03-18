@@ -1,4 +1,4 @@
-import { MockLicenseResponse } from "testHelpers/entities";
+import { MockEntitlements, MockLicenseResponse } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import LicensesSettingsPage from "./LicensesSettingsPage";
 
@@ -19,7 +19,20 @@ type Story = StoryObj<typeof LicensesSettingsPage>;
 export const WithoutUserLimitFeature: Story = {
 	parameters: {
 		queries: [
-			{ key: ["entitlements"], data: { features: {} } },
+			{
+				key: ["entitlements"],
+				data: {
+					...MockEntitlements,
+					features: {
+						...MockEntitlements.features,
+						user_limit: {
+							enabled: false,
+							entitlement: "not_entitled",
+							actual: 4,
+						},
+					},
+				},
+			},
 			{ key: ["licenses"], data: MockLicenseResponse },
 			{ key: ["insights", "userStatusCounts"], data: { active: [] } },
 		],

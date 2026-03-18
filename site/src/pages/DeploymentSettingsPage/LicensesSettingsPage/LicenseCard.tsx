@@ -64,6 +64,17 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		(aiGovernanceUserFeature?.enabled ?? false) &&
 		((license.claims.addons ?? []).includes("ai_governance") ||
 			(license.claims.features?.ai_governance_user_limit ?? 0) > 0);
+	const isAiGovernanceAddOnExceeded =
+		hasAiGovernanceAddOn && aiGovernanceActual > aiGovernanceLimit;
+	const statusClassName =
+		isAiGovernanceAddOnExceeded || isExpired
+			? "text-content-destructive"
+			: "text-content-success";
+	const statusText = isAiGovernanceAddOnExceeded
+		? "Add-on exceeded"
+		: isExpired
+			? "Expired"
+			: "Active";
 
 	return (
 		<Collapsible defaultOpen>
@@ -100,43 +111,37 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 							className="m-0 flex min-w-0 flex-1 appearance-none items-center gap-6 border-0 bg-transparent p-0 text-left"
 						>
 							<div className="flex items-center gap-1.5">
-								<ChevronDownIcon className="license-chevron size-4 text-content-secondary transition-colors transition-transform group-hover:text-content-primary" />
+								{isPremium && hasAiGovernanceAddOn && (
+									<ChevronDownIcon className="license-chevron size-4 text-content-secondary transition-colors transition-transform group-hover:text-content-primary" />
+								)}
 								<span className="text-base font-medium text-content-secondary">
 									#{license.id}
 								</span>
-								<span className="account-type text-base font-medium capitalize">
+								<span className="account-type text-base font-medium text-content-primary capitalize">
 									{licenseType}
 								</span>
 							</div>
 
 							<div className="ml-auto flex items-center gap-12 text-xs font-medium">
-								<div className="flex flex-col items-start">
+								<div className="flex flex-col items-center">
 									<span className="text-content-secondary">Status</span>
-									<span
-										className={
-											isExpired
-												? "text-content-destructive"
-												: "text-content-success"
-										}
-									>
-										{isExpired ? "Expired" : "Active"}
-									</span>
+									<span className={statusClassName}>{statusText}</span>
 								</div>
-								<div className="flex flex-col items-start">
+								<div className="flex flex-col items-center">
 									<span className="text-content-secondary">Users</span>
 									<span className="text-content-primary user-limit">
 										{userLimitActual} {` / ${currentUserLimit || "Unlimited"}`}
 									</span>
 								</div>
 								{license.claims.nbf && (
-									<div className="flex flex-col items-start">
+									<div className="flex flex-col items-center">
 										<span className="text-content-secondary">Valid From</span>
 										<span className="text-content-primary license-valid-from">
 											{dayjs.unix(license.claims.nbf).format("MMMM D, YYYY")}
 										</span>
 									</div>
 								)}
-								<div className="flex flex-col items-start">
+								<div className="flex flex-col items-center">
 									<span className="text-content-secondary">Valid Until</span>
 									<span className="text-content-primary license-expires">
 										{dayjs

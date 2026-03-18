@@ -25,7 +25,11 @@ export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
 	additionalPurchased,
 }) => {
 	return (
-		<div className="min-w-[320px] flex-1 rounded-md border border-solid border-border py-3">
+		<div
+			className={`min-w-[320px] flex-1 rounded-md border border-solid py-3 ${
+				actual > limit ? "border-border-destructive" : "border-border"
+			}`}
+		>
 			<div className="flex items-center gap-1 px-6 py-1.5">
 				<div className="flex flex-1 items-center gap-1">
 					<div className="flex items-center gap-6">
@@ -54,7 +58,16 @@ export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
 							<div className="text-xs">
 								<div className="font-medium text-content-secondary">{unit}</div>
 								<div className="font-normal text-content-primary">
-									{actual.toLocaleString()} / {limit.toLocaleString()}
+									<span
+										className={
+											actual > limit
+												? "text-content-destructive"
+												: "text-content-primary"
+										}
+									>
+										{actual.toLocaleString()}
+									</span>{" "}
+									/ {limit.toLocaleString()}
 								</div>
 							</div>
 
