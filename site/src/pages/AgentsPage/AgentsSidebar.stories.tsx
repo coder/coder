@@ -1,10 +1,11 @@
-import { MockUserOwner } from "testHelpers/entities";
+import { MockUserOwner, MockWorkspace } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { Chat } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { AgentsSidebar } from "./AgentsSidebar";
 
@@ -735,5 +736,103 @@ export const ArchivedAgentUnarchiveOption: Story = {
 		expect(
 			body.queryByText("Archive & delete workspace"),
 		).not.toBeInTheDocument();
+	},
+};
+
+// Chat with a workspace that was autocreated by the chat tool.
+// workspace.created_at >= chat.created_at → show "Archive & delete workspace".
+export const AutocreatedWorkspaceShowsDelete: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-autocreated",
+				title: "Agent with autocreated workspace",
+				workspace_id: "ws-autocreated",
+				created_at: "2026-03-01T00:00:00.000Z",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	beforeEach: () => {
+		// Workspace created AFTER the chat → autocreated.
+		spyOn(API, "getWorkspace").mockResolvedValue({
+			...MockWorkspace,
+			id: "ws-autocreated",
+			name: "autocreated-workspace",
+			created_at: "2026-03-01T00:01:00.000Z",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(
+				canvas.getByText("Agent with autocreated workspace"),
+			).toBeInTheDocument();
+		});
+		const trigger = canvas.getByLabelText(
+			"Open actions for Agent with autocreated workspace",
+		);
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			const body = within(document.body);
+			expect(body.getByText("Archive & delete workspace")).toBeInTheDocument();
+		});
+	},
+};
+
+// Chat linked to a pre-existing workspace at creation time.
+// workspace.created_at < chat.created_at → hide "Archive & delete workspace".
+export const LinkedWorkspaceHidesDelete: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-linked",
+				title: "Agent with linked workspace",
+				workspace_id: "ws-linked",
+				created_at: "2026-03-10T00:00:00.000Z",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	beforeEach: () => {
+		// Workspace created BEFORE the chat → user-linked.
+		spyOn(API, "getWorkspace").mockResolvedValue({
+			...MockWorkspace,
+			id: "ws-linked",
+			name: "linked-workspace",
+			created_at: "2026-03-01T00:00:00.000Z",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(
+				canvas.getByText("Agent with linked workspace"),
+			).toBeInTheDocument();
+		});
+		const trigger = canvas.getByLabelText(
+			"Open actions for Agent with linked workspace",
+		);
+		await userEvent.click(trigger);
+		await waitFor(() => {
+			const body = within(document.body);
+			// "Archive agent" should be present, but not "Archive & delete workspace".
+			expect(body.getByText("Archive agent")).toBeInTheDocument();
+			expect(
+				body.queryByText("Archive & delete workspace"),
+			).not.toBeInTheDocument();
+		});
 	},
 };
