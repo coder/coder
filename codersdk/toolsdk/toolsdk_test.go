@@ -99,6 +99,14 @@ func TestGenericToolMCPAnnotations(t *testing.T) {
 			idempotentHint:  false,
 			openWorldHint:   false,
 		},
+		{
+			name:            "PortForwardIsReadOnly",
+			toolName:        toolsdk.ToolNameWorkspacePortForward,
+			readOnlyHint:    true,
+			destructiveHint: false,
+			idempotentHint:  true,
+			openWorldHint:   false,
+		},
 	}
 
 	for _, tt := range tests {

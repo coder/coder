@@ -1830,7 +1830,7 @@ var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardRe
 			Required: []string{"workspace", "port"},
 		},
 	},
-	MCPAnnotations:     mcpMutationAnnotations,
+	MCPAnnotations:     mcpReadOnlyAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspacePortForwardArgs) (WorkspacePortForwardResponse, error) {
 		workspaceName := NormalizeWorkspaceInput(args.Workspace)
