@@ -32,7 +32,6 @@ jobs:
   should-deploy:
     name: should-deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 5
     outputs:
       verdict: ${{ steps.check.outputs.verdict }} # DEPLOY or NOOP
     steps:
@@ -51,15 +50,8 @@ jobs:
         id: check
         run: |
           set -euo pipefail
-          echo "::group::should-deploy diagnostics"
-          echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Running should_deploy.sh ==="
-          echo "GITHUB_REF=$GITHUB_REF"
-          echo "GITHUB_SHA=$GITHUB_SHA"
-          echo "GITHUB_REF_NAME=$GITHUB_REF_NAME"
           verdict="$(./scripts/should_deploy.sh)"
           echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
-          echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Verdict: $verdict ==="
-          echo "::endgroup::"
 
   deploy:
     name: "deploy"
@@ -77,37 +69,14 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Print deploy parameters
-        run: |
-          echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Deploy job starting ==="
-          echo "Image: $IMAGE"
-          echo "Run ID: $GITHUB_RUN_ID"
-          echo "Run attempt: $GITHUB_RUN_ATTEMPT"
-          echo "Triggered by: $GITHUB_ACTOR"
-          echo "Job timeout: 30 minutes"
-          echo ""
-          echo "Step timeouts:"
-          echo "  Checkout:              5m"
-          echo "  GHCR Login:            2m"
-          echo "  AWS Credentials:       2m"
-          echo "  EKS Cluster Creds:     2m"
-          echo "  Flux CLI Setup:        2m"
-          echo "  Image Retag:           5m"
-          echo "  Flux Reconcile:       10m"
-          echo "  Rollout Deployment:   10m"
-        env:
-          IMAGE: ${{ inputs.image }}
-
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        timeout-minutes: 5
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: GHCR Login
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
-        timeout-minutes: 2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -115,85 +84,41 @@ jobs:
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
-        timeout-minutes: 2
         with:
           role-to-assume: ${{ vars.AWS_DOGFOOD_DEPLOY_ROLE }}
           aws-region: ${{ vars.AWS_DOGFOOD_DEPLOY_REGION }}
 
       - name: Get Cluster Credentials
-        timeout-minutes: 2
-        run: |
-          echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Fetching EKS cluster credentials ==="
-          echo "Cluster: $AWS_DOGFOOD_CLUSTER_NAME"
-          echo "Region:  $AWS_DOGFOOD_DEPLOY_REGION"
-          aws eks update-kubeconfig --name "$AWS_DOGFOOD_CLUSTER_NAME" --region "$AWS_DOGFOOD_DEPLOY_REGION"
-          echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] kubeconfig updated ==="
-          echo "Current context: $(kubectl config current-context)"
+        run: aws eks update-kubeconfig --name "$AWS_DOGFOOD_CLUSTER_NAME" --region "$AWS_DOGFOOD_DEPLOY_REGION"
         env:
           AWS_DOGFOOD_CLUSTER_NAME: ${{ vars.AWS_DOGFOOD_CLUSTER_NAME }}
           AWS_DOGFOOD_DEPLOY_REGION: ${{ vars.AWS_DOGFOOD_DEPLOY_REGION }}
 
       - name: Set up Flux CLI
         uses: fluxcd/flux2/action@8454b02a32e48d775b9f563cb51fdcb1787b5b93 # v2.7.5
-        timeout-minutes: 2
         with:
           # Keep this and the github action up to date with the version of flux installed in dogfood cluster
           version: "2.8.2"
 
-      - name: Verify Flux CLI
-        run: |
-          echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Verifying Flux CLI ==="
-          flux version --client
-          echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Flux CLI ready ==="
-
       # Retag image as dogfood while maintaining the multi-arch manifest
       - name: Tag image as dogfood
-        timeout-minutes: 5
-        run: |
-          echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Retagging image as dogfood ==="
-          echo "Source image: $IMAGE"
-          echo "Target tag:   ghcr.io/coder/coder-preview:dogfood"
-          docker buildx imagetools create --tag "ghcr.io/coder/coder-preview:dogfood" "$IMAGE"
-          echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Image retag complete ==="
+        run: docker buildx imagetools create --tag "ghcr.io/coder/coder-preview:dogfood" "$IMAGE"
         env:
           IMAGE: ${{ inputs.image }}
 
       - name: Reconcile Flux
-        timeout-minutes: 10
         run: |
           set -euxo pipefail
-
-          # reconcile <namespace> <flux-args...>
-          # Passes all args after namespace straight to `flux reconcile`
-          # and `flux get`, so compound subcommands like `source git`
-          # stay as separate positional arguments.
-          reconcile() {
-            local ns="$1"
-            shift
-            local display="$*"
-            echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Reconciling $display (ns: $ns) ==="
-            if ! flux --namespace "$ns" reconcile "$@" 2>&1; then
-              echo "!!! [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] FAILED: $display (ns: $ns) !!!"
-              flux --namespace "$ns" get "$@" 2>&1 || true
-              return 1
-            fi
-            echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Done: $display ==="
-          }
-
-          echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Starting Flux reconciliation ==="
-
-          reconcile flux-system source git flux-system
-          reconcile flux-system source git coder-main
-          reconcile flux-system kustomization flux-system
-          reconcile flux-system kustomization coder
-          reconcile flux-system source chart coder-coder
-          reconcile flux-system source chart coder-coder-provisioner
-          reconcile coder helmrelease coder
-          reconcile coder helmrelease coder-provisioner
-          reconcile coder helmrelease coder-provisioner-tagged
-          reconcile coder helmrelease coder-provisioner-tagged-prebuilds
-
-          echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Flux reconciliation complete ==="
+          flux --namespace flux-system reconcile --verbose --timeout=5m source git flux-system
+          flux --namespace flux-system reconcile --verbose --timeout=5m source git coder-main
+          flux --namespace flux-system reconcile --verbose --timeout=5m kustomization flux-system
+          flux --namespace flux-system reconcile --verbose --timeout=5m kustomization coder
+          flux --namespace flux-system reconcile --verbose --timeout=5m source chart coder-coder
+          flux --namespace flux-system reconcile --verbose --timeout=5m source chart coder-coder-provisioner
+          flux --namespace coder reconcile --verbose --timeout=10m helmrelease coder
+          flux --namespace coder reconcile --verbose --timeout=10m helmrelease coder-provisioner
+          flux --namespace coder reconcile --verbose --timeout=10m helmrelease coder-provisioner-tagged
+          flux --namespace coder reconcile --verbose --timeout=10m helmrelease coder-provisioner-tagged-prebuilds
 
       # Just updating Flux is usually not enough. The Helm release may get
       # redeployed, but unless something causes the Deployment to update the
@@ -201,53 +126,19 @@ jobs:
       # since we use `imagePullPolicy: Always` to ensure we're running the
       # latest image.
       - name: Rollout Deployment
-        timeout-minutes: 10
         run: |
           set -euxo pipefail
-
-          rollout() {
-            local deployment="$1"
-            echo ""
-            echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Rolling out $deployment ==="
-
-            echo "--- Pre-rollout status ---"
-            kubectl --namespace coder get deployment "$deployment" -o wide 2>&1 || true
-            kubectl --namespace coder get pods -l "app.kubernetes.io/instance=$deployment" -o wide 2>&1 || true
-
-            echo "--- [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Restarting $deployment ---"
-            kubectl --namespace coder rollout restart "deployment/$deployment"
-
-            echo "--- [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Waiting for $deployment rollout ---"
-            if ! kubectl --namespace coder rollout status "deployment/$deployment" --timeout=300s 2>&1; then
-              echo "!!! [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] FAILED: $deployment rollout did not complete within 300s !!!"
-              echo "--- Deployment describe ---"
-              kubectl --namespace coder describe "deployment/$deployment" 2>&1 || true
-              echo "--- Pod status ---"
-              kubectl --namespace coder get pods -l "app.kubernetes.io/instance=$deployment" -o wide 2>&1 || true
-              echo "--- Recent deployment events ---"
-              kubectl --namespace coder get events --sort-by=.metadata.creationTimestamp --field-selector "involvedObject.name=$deployment,involvedObject.kind=Deployment" 2>&1 | tail -20 || true
-              echo "--- Recent pod events (all coder namespace) ---"
-              kubectl --namespace coder get events --sort-by=.metadata.creationTimestamp --field-selector "involvedObject.kind=Pod" 2>&1 | grep "$deployment" | tail -20 || true
-              return 1
-            fi
-            echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] $deployment rollout complete ==="
-          }
-
-          echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Starting deployment rollouts ==="
-
-          rollout coder
-          rollout coder-provisioner
-          rollout coder-provisioner-tagged
-          rollout coder-provisioner-tagged-prebuilds
-
-          echo ""
-          echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] All deployment rollouts complete ==="
-          echo "--- Final pod state ---"
-          kubectl --namespace coder get pods -o wide
+          kubectl --namespace coder rollout restart deployment/coder
+          kubectl --namespace coder rollout status deployment/coder
+          kubectl --namespace coder rollout restart deployment/coder-provisioner
+          kubectl --namespace coder rollout status deployment/coder-provisioner
+          kubectl --namespace coder rollout restart deployment/coder-provisioner-tagged
+          kubectl --namespace coder rollout status deployment/coder-provisioner-tagged
+          kubectl --namespace coder rollout restart deployment/coder-provisioner-tagged-prebuilds
+          kubectl --namespace coder rollout status deployment/coder-provisioner-tagged-prebuilds
 
   deploy-wsproxies:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     needs: deploy
     steps:
       - name: Harden Runner
@@ -257,41 +148,18 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        timeout-minutes: 5
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Setup flyctl
         uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # v1.5
-        timeout-minutes: 2
 
       - name: Deploy workspace proxies
-        timeout-minutes: 20
         run: |
-          set -euxo pipefail
-
-          deploy_proxy() {
-            local app="$1" config="$2" token_var="$3"
-            echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Deploying workspace proxy: $app ==="
-            echo "Image:  $IMAGE"
-            echo "Config: $config"
-            if ! flyctl deploy --image "$IMAGE" --app "$app" --config "$config" --env "CODER_PROXY_SESSION_TOKEN=${!token_var}" --yes 2>&1; then
-              echo "!!! [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] FAILED: $app deploy !!!"
-              flyctl status --app "$app" 2>&1 || true
-              return 1
-            fi
-            echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] $app deploy complete ==="
-          }
-
-          echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] Starting workspace proxy deployments ==="
-          echo "Image: $IMAGE"
-
-          deploy_proxy paris-coder ./.github/fly-wsproxies/paris-coder.toml TOKEN_PARIS
-          deploy_proxy sydney-coder ./.github/fly-wsproxies/sydney-coder.toml TOKEN_SYDNEY
-          deploy_proxy jnb-coder ./.github/fly-wsproxies/jnb-coder.toml TOKEN_JNB
-
-          echo "=== [$(date -u '+%Y-%m-%dT%H:%M:%SZ')] All workspace proxy deployments complete ==="
+          flyctl deploy --image "$IMAGE" --app paris-coder --config ./.github/fly-wsproxies/paris-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_PARIS" --yes
+          flyctl deploy --image "$IMAGE" --app sydney-coder --config ./.github/fly-wsproxies/sydney-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_SYDNEY" --yes
+          flyctl deploy --image "$IMAGE" --app jnb-coder --config ./.github/fly-wsproxies/jnb-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_JNB" --yes
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           IMAGE: ${{ inputs.image }}
