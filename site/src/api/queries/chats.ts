@@ -366,9 +366,9 @@ export const promoteChatQueuedMessage = (
 ) => ({
 	mutationFn: (queuedMessageId: number) =>
 		API.promoteChatQueuedMessage(chatId, queuedMessageId),
-	// No onSuccess invalidation needed: the per-chat WebSocket
-	// delivers the promoted message, queue update, and status
-	// change in real-time.
+	// No onSuccess invalidation needed: the caller upserts the
+	// promoted message from the response, and the per-chat
+	// WebSocket delivers queue and status updates in real-time.
 });
 
 export const chatDiffContentsKey = (chatId: string) =>
