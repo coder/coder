@@ -49,6 +49,7 @@ type Chat struct {
 	CreatedAt         time.Time       `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time       `json:"updated_at" format:"date-time"`
 	Archived          bool            `json:"archived"`
+	MCPServerIDs      []uuid.UUID     `json:"mcp_server_ids" format:"uuid"`
 }
 
 // ChatMessage represents a single message in a chat.
@@ -267,6 +268,7 @@ type CreateChatRequest struct {
 	Content       []ChatInputPart `json:"content"`
 	WorkspaceID   *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
 	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  []uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -279,6 +281,7 @@ type UpdateChatRequest struct {
 type CreateChatMessageRequest struct {
 	Content       []ChatInputPart `json:"content"`
 	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  *[]uuid.UUID    `json:"mcp_server_ids,omitempty" format:"uuid"`
 }
 
 // EditChatMessageRequest is the request to edit a user message in a chat.

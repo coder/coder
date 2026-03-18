@@ -1194,6 +1194,16 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatModelConfig)
 				})
 			})
+			r.Route("/mcp-servers", func(r chi.Router) {
+				r.Get("/", api.listMCPServerConfigs)
+				r.Post("/", api.createMCPServerConfig)
+				r.Route("/{mcpServer}", func(r chi.Router) {
+					r.Patch("/", api.updateMCPServerConfig)
+					r.Delete("/", api.deleteMCPServerConfig)
+					r.Get("/tools", api.getMCPServerTools)
+					r.Post("/refresh-tools", api.refreshMCPServerTools)
+				})
+			})
 			r.Route("/usage-limits", func(r chi.Router) {
 				r.Get("/", api.getChatUsageLimitConfig)
 				r.Put("/", api.updateChatUsageLimitConfig)

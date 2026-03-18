@@ -291,6 +291,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		ModelConfigID:      modelConfigID,
 		SystemPrompt:       api.resolvedChatSystemPrompt(ctx),
 		InitialUserContent: contentBlocks,
+		MCPServerIDs:       req.MCPServerIDs,
 	})
 	if err != nil {
 		if maybeWriteLimitErr(ctx, rw, err) {
@@ -1464,6 +1465,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			Content:       contentBlocks,
 			ModelConfigID: req.ModelConfigID,
 			BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+			MCPServerIDs:  req.MCPServerIDs,
 		},
 	)
 	if sendErr != nil {
@@ -2988,6 +2990,7 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 		Archived:          c.Archived,
 		CreatedAt:         c.CreatedAt,
 		UpdatedAt:         c.UpdatedAt,
+		MCPServerIDs:      c.McpServerIds,
 	}
 	if c.LastError.Valid {
 		chat.LastError = &c.LastError.String

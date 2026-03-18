@@ -3523,7 +3523,7 @@ WHERE
             $3::int
     )
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
 `
 
 type AcquireChatsParams struct {
@@ -3560,6 +3560,7 @@ func (q *sqlQuerier) AcquireChats(ctx context.Context, arg AcquireChatsParams) (
 			&i.Archived,
 			&i.LastError,
 			&i.Mode,
+			pq.Array(&i.McpServerIds),
 		); err != nil {
 			return nil, err
 		}
@@ -3787,7 +3788,7 @@ func (q *sqlQuerier) DeleteChatUsageLimitUserOverride(ctx context.Context, userI
 
 const getChatByID = `-- name: GetChatByID :one
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
 FROM
     chats
 WHERE
@@ -3814,12 +3815,13 @@ func (q *sqlQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
+		pq.Array(&i.McpServerIds),
 	)
 	return i, err
 }
 
 const getChatByIDForUpdate = `-- name: GetChatByIDForUpdate :one
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode FROM chats WHERE id = $1::uuid FOR UPDATE
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids FROM chats WHERE id = $1::uuid FOR UPDATE
 `
 
 func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error) {
@@ -3842,6 +3844,7 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
+		pq.Array(&i.McpServerIds),
 	)
 	return i, err
 }
@@ -4681,7 +4684,7 @@ func (q *sqlQuerier) GetChatUsageLimitUserOverride(ctx context.Context, userID u
 
 const getChats = `-- name: GetChats :many
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
 FROM
     chats
 WHERE
@@ -4764,6 +4767,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]Chat, 
 			&i.Archived,
 			&i.LastError,
 			&i.Mode,
+			pq.Array(&i.McpServerIds),
 		); err != nil {
 			return nil, err
 		}
@@ -4828,7 +4832,7 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 
 const getStaleChats = `-- name: GetStaleChats :many
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
 FROM
     chats
 WHERE
@@ -4864,6 +4868,7 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 			&i.Archived,
 			&i.LastError,
 			&i.Mode,
+			pq.Array(&i.McpServerIds),
 		); err != nil {
 			return nil, err
 		}
@@ -4926,7 +4931,8 @@ INSERT INTO chats (
     root_chat_id,
     last_model_config_id,
     title,
-    mode
+    mode,
+    mcp_server_ids
 ) VALUES (
     $1::uuid,
     $2::uuid,
@@ -4934,10 +4940,11 @@ INSERT INTO chats (
     $4::uuid,
     $5::uuid,
     $6::text,
-    $7::chat_mode
+    $7::chat_mode,
+    $8::uuid[]
 )
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
 `
 
 type InsertChatParams struct {
@@ -4948,6 +4955,7 @@ type InsertChatParams struct {
 	LastModelConfigID uuid.UUID     `db:"last_model_config_id" json:"last_model_config_id"`
 	Title             string        `db:"title" json:"title"`
 	Mode              NullChatMode  `db:"mode" json:"mode"`
+	McpServerIds      []uuid.UUID   `db:"mcp_server_ids" json:"mcp_server_ids"`
 }
 
 func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error) {
@@ -4959,6 +4967,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		arg.LastModelConfigID,
 		arg.Title,
 		arg.Mode,
+		pq.Array(arg.McpServerIds),
 	)
 	var i Chat
 	err := row.Scan(
@@ -4978,6 +4987,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
+		pq.Array(&i.McpServerIds),
 	)
 	return i, err
 }
@@ -5368,7 +5378,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
 `
 
 type UpdateChatByIDParams struct {
@@ -5396,6 +5406,7 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
+		pq.Array(&i.McpServerIds),
 	)
 	return i, err
 }
@@ -5424,6 +5435,48 @@ func (q *sqlQuerier) UpdateChatHeartbeat(ctx context.Context, arg UpdateChatHear
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const updateChatMCPServerIDs = `-- name: UpdateChatMCPServerIDs :one
+UPDATE
+    chats
+SET
+    mcp_server_ids = $1::uuid[],
+    updated_at = NOW()
+WHERE
+    id = $2::uuid
+RETURNING
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
+`
+
+type UpdateChatMCPServerIDsParams struct {
+	McpServerIds []uuid.UUID `db:"mcp_server_ids" json:"mcp_server_ids"`
+	ID           uuid.UUID   `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatMCPServerIDsParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, updateChatMCPServerIDs, pq.Array(arg.McpServerIds), arg.ID)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.Archived,
+		&i.LastError,
+		&i.Mode,
+		pq.Array(&i.McpServerIds),
+	)
+	return i, err
 }
 
 const updateChatMessageByID = `-- name: UpdateChatMessageByID :one
@@ -5485,7 +5538,7 @@ SET
 WHERE
     id = $6::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
 `
 
 type UpdateChatStatusParams struct {
@@ -5524,6 +5577,7 @@ func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusP
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
+		pq.Array(&i.McpServerIds),
 	)
 	return i, err
 }
@@ -5537,7 +5591,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
 `
 
 type UpdateChatWorkspaceParams struct {
@@ -5565,6 +5619,7 @@ func (q *sqlQuerier) UpdateChatWorkspace(ctx context.Context, arg UpdateChatWork
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
+		pq.Array(&i.McpServerIds),
 	)
 	return i, err
 }
@@ -9380,6 +9435,859 @@ func (q *sqlQuerier) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock i
 	var pg_try_advisory_xact_lock bool
 	err := row.Scan(&pg_try_advisory_xact_lock)
 	return pg_try_advisory_xact_lock, err
+}
+
+const deactivateMCPServerToolSnapshots = `-- name: DeactivateMCPServerToolSnapshots :exec
+UPDATE
+    mcp_server_tool_snapshots
+SET
+    is_active = FALSE
+WHERE
+    mcp_server_config_id = $1::uuid
+    AND is_active = TRUE
+`
+
+func (q *sqlQuerier) DeactivateMCPServerToolSnapshots(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deactivateMCPServerToolSnapshots, mcpServerConfigID)
+	return err
+}
+
+const deleteMCPServerConfigByID = `-- name: DeleteMCPServerConfigByID :exec
+DELETE FROM
+    mcp_server_configs
+WHERE
+    id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteMCPServerConfigByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteMCPServerConfigByID, id)
+	return err
+}
+
+const deleteMCPServerUserToken = `-- name: DeleteMCPServerUserToken :exec
+DELETE FROM
+    mcp_server_user_tokens
+WHERE
+    mcp_server_config_id = $1::uuid
+    AND user_id = $2::uuid
+`
+
+type DeleteMCPServerUserTokenParams struct {
+	McpServerConfigID uuid.UUID `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) DeleteMCPServerUserToken(ctx context.Context, arg DeleteMCPServerUserTokenParams) error {
+	_, err := q.db.ExecContext(ctx, deleteMCPServerUserToken, arg.McpServerConfigID, arg.UserID)
+	return err
+}
+
+const getActiveMCPServerToolSnapshot = `-- name: GetActiveMCPServerToolSnapshot :one
+SELECT
+    id, mcp_server_config_id, tools_json, approved_by, approved_at, is_active, created_at
+FROM
+    mcp_server_tool_snapshots
+WHERE
+    mcp_server_config_id = $1::uuid
+    AND is_active = TRUE
+`
+
+func (q *sqlQuerier) GetActiveMCPServerToolSnapshot(ctx context.Context, mcpServerConfigID uuid.UUID) (McpServerToolSnapshot, error) {
+	row := q.db.QueryRowContext(ctx, getActiveMCPServerToolSnapshot, mcpServerConfigID)
+	var i McpServerToolSnapshot
+	err := row.Scan(
+		&i.ID,
+		&i.McpServerConfigID,
+		&i.ToolsJson,
+		&i.ApprovedBy,
+		&i.ApprovedAt,
+		&i.IsActive,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getEnabledMCPServerConfigs = `-- name: GetEnabledMCPServerConfigs :many
+SELECT
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+FROM
+    mcp_server_configs
+WHERE
+    enabled = TRUE
+ORDER BY
+    display_name ASC
+`
+
+func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]McpServerConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getEnabledMCPServerConfigs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []McpServerConfig
+	for rows.Next() {
+		var i McpServerConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayName,
+			&i.Slug,
+			&i.Description,
+			&i.IconUrl,
+			&i.Transport,
+			&i.Url,
+			&i.AuthType,
+			&i.Oauth2ClientID,
+			&i.Oauth2ClientSecret,
+			&i.Oauth2ClientSecretKeyID,
+			&i.Oauth2AuthUrl,
+			&i.Oauth2TokenUrl,
+			&i.Oauth2Scopes,
+			&i.ApiKeyHeader,
+			&i.ApiKeyValue,
+			&i.ApiKeyValueKeyID,
+			&i.CustomHeaders,
+			&i.CustomHeadersKeyID,
+			pq.Array(&i.ToolAllowList),
+			pq.Array(&i.ToolDenyList),
+			&i.Availability,
+			&i.Enabled,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getForcedMCPServerConfigs = `-- name: GetForcedMCPServerConfigs :many
+SELECT
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+FROM
+    mcp_server_configs
+WHERE
+    enabled = TRUE
+    AND availability = 'force_on'
+ORDER BY
+    display_name ASC
+`
+
+func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]McpServerConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getForcedMCPServerConfigs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []McpServerConfig
+	for rows.Next() {
+		var i McpServerConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayName,
+			&i.Slug,
+			&i.Description,
+			&i.IconUrl,
+			&i.Transport,
+			&i.Url,
+			&i.AuthType,
+			&i.Oauth2ClientID,
+			&i.Oauth2ClientSecret,
+			&i.Oauth2ClientSecretKeyID,
+			&i.Oauth2AuthUrl,
+			&i.Oauth2TokenUrl,
+			&i.Oauth2Scopes,
+			&i.ApiKeyHeader,
+			&i.ApiKeyValue,
+			&i.ApiKeyValueKeyID,
+			&i.CustomHeaders,
+			&i.CustomHeadersKeyID,
+			pq.Array(&i.ToolAllowList),
+			pq.Array(&i.ToolDenyList),
+			&i.Availability,
+			&i.Enabled,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getMCPServerConfigByID = `-- name: GetMCPServerConfigByID :one
+SELECT
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+FROM
+    mcp_server_configs
+WHERE
+    id = $1::uuid
+`
+
+func (q *sqlQuerier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (McpServerConfig, error) {
+	row := q.db.QueryRowContext(ctx, getMCPServerConfigByID, id)
+	var i McpServerConfig
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayName,
+		&i.Slug,
+		&i.Description,
+		&i.IconUrl,
+		&i.Transport,
+		&i.Url,
+		&i.AuthType,
+		&i.Oauth2ClientID,
+		&i.Oauth2ClientSecret,
+		&i.Oauth2ClientSecretKeyID,
+		&i.Oauth2AuthUrl,
+		&i.Oauth2TokenUrl,
+		&i.Oauth2Scopes,
+		&i.ApiKeyHeader,
+		&i.ApiKeyValue,
+		&i.ApiKeyValueKeyID,
+		&i.CustomHeaders,
+		&i.CustomHeadersKeyID,
+		pq.Array(&i.ToolAllowList),
+		pq.Array(&i.ToolDenyList),
+		&i.Availability,
+		&i.Enabled,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getMCPServerConfigBySlug = `-- name: GetMCPServerConfigBySlug :one
+SELECT
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+FROM
+    mcp_server_configs
+WHERE
+    slug = $1::text
+`
+
+func (q *sqlQuerier) GetMCPServerConfigBySlug(ctx context.Context, slug string) (McpServerConfig, error) {
+	row := q.db.QueryRowContext(ctx, getMCPServerConfigBySlug, slug)
+	var i McpServerConfig
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayName,
+		&i.Slug,
+		&i.Description,
+		&i.IconUrl,
+		&i.Transport,
+		&i.Url,
+		&i.AuthType,
+		&i.Oauth2ClientID,
+		&i.Oauth2ClientSecret,
+		&i.Oauth2ClientSecretKeyID,
+		&i.Oauth2AuthUrl,
+		&i.Oauth2TokenUrl,
+		&i.Oauth2Scopes,
+		&i.ApiKeyHeader,
+		&i.ApiKeyValue,
+		&i.ApiKeyValueKeyID,
+		&i.CustomHeaders,
+		&i.CustomHeadersKeyID,
+		pq.Array(&i.ToolAllowList),
+		pq.Array(&i.ToolDenyList),
+		&i.Availability,
+		&i.Enabled,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getMCPServerConfigs = `-- name: GetMCPServerConfigs :many
+SELECT
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+FROM
+    mcp_server_configs
+ORDER BY
+    display_name ASC
+`
+
+func (q *sqlQuerier) GetMCPServerConfigs(ctx context.Context) ([]McpServerConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getMCPServerConfigs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []McpServerConfig
+	for rows.Next() {
+		var i McpServerConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayName,
+			&i.Slug,
+			&i.Description,
+			&i.IconUrl,
+			&i.Transport,
+			&i.Url,
+			&i.AuthType,
+			&i.Oauth2ClientID,
+			&i.Oauth2ClientSecret,
+			&i.Oauth2ClientSecretKeyID,
+			&i.Oauth2AuthUrl,
+			&i.Oauth2TokenUrl,
+			&i.Oauth2Scopes,
+			&i.ApiKeyHeader,
+			&i.ApiKeyValue,
+			&i.ApiKeyValueKeyID,
+			&i.CustomHeaders,
+			&i.CustomHeadersKeyID,
+			pq.Array(&i.ToolAllowList),
+			pq.Array(&i.ToolDenyList),
+			&i.Availability,
+			&i.Enabled,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getMCPServerConfigsByIDs = `-- name: GetMCPServerConfigsByIDs :many
+SELECT
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+FROM
+    mcp_server_configs
+WHERE
+    id = ANY($1::uuid[])
+ORDER BY
+    display_name ASC
+`
+
+func (q *sqlQuerier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]McpServerConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getMCPServerConfigsByIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []McpServerConfig
+	for rows.Next() {
+		var i McpServerConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayName,
+			&i.Slug,
+			&i.Description,
+			&i.IconUrl,
+			&i.Transport,
+			&i.Url,
+			&i.AuthType,
+			&i.Oauth2ClientID,
+			&i.Oauth2ClientSecret,
+			&i.Oauth2ClientSecretKeyID,
+			&i.Oauth2AuthUrl,
+			&i.Oauth2TokenUrl,
+			&i.Oauth2Scopes,
+			&i.ApiKeyHeader,
+			&i.ApiKeyValue,
+			&i.ApiKeyValueKeyID,
+			&i.CustomHeaders,
+			&i.CustomHeadersKeyID,
+			pq.Array(&i.ToolAllowList),
+			pq.Array(&i.ToolDenyList),
+			&i.Availability,
+			&i.Enabled,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getMCPServerUserToken = `-- name: GetMCPServerUserToken :one
+SELECT
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at
+FROM
+    mcp_server_user_tokens
+WHERE
+    mcp_server_config_id = $1::uuid
+    AND user_id = $2::uuid
+`
+
+type GetMCPServerUserTokenParams struct {
+	McpServerConfigID uuid.UUID `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) GetMCPServerUserToken(ctx context.Context, arg GetMCPServerUserTokenParams) (McpServerUserToken, error) {
+	row := q.db.QueryRowContext(ctx, getMCPServerUserToken, arg.McpServerConfigID, arg.UserID)
+	var i McpServerUserToken
+	err := row.Scan(
+		&i.ID,
+		&i.McpServerConfigID,
+		&i.UserID,
+		&i.AccessToken,
+		&i.AccessTokenKeyID,
+		&i.RefreshToken,
+		&i.RefreshTokenKeyID,
+		&i.TokenType,
+		&i.Expiry,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getMCPServerUserTokensByUserID = `-- name: GetMCPServerUserTokensByUserID :many
+SELECT
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at
+FROM
+    mcp_server_user_tokens
+WHERE
+    user_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]McpServerUserToken, error) {
+	rows, err := q.db.QueryContext(ctx, getMCPServerUserTokensByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []McpServerUserToken
+	for rows.Next() {
+		var i McpServerUserToken
+		if err := rows.Scan(
+			&i.ID,
+			&i.McpServerConfigID,
+			&i.UserID,
+			&i.AccessToken,
+			&i.AccessTokenKeyID,
+			&i.RefreshToken,
+			&i.RefreshTokenKeyID,
+			&i.TokenType,
+			&i.Expiry,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertMCPServerConfig = `-- name: InsertMCPServerConfig :one
+INSERT INTO mcp_server_configs (
+    display_name,
+    slug,
+    description,
+    icon_url,
+    transport,
+    url,
+    auth_type,
+    oauth2_client_id,
+    oauth2_client_secret,
+    oauth2_client_secret_key_id,
+    oauth2_auth_url,
+    oauth2_token_url,
+    oauth2_scopes,
+    api_key_header,
+    api_key_value,
+    api_key_value_key_id,
+    custom_headers,
+    custom_headers_key_id,
+    tool_allow_list,
+    tool_deny_list,
+    availability,
+    enabled,
+    created_by,
+    updated_by
+) VALUES (
+    $1::text,
+    $2::text,
+    $3::text,
+    $4::text,
+    $5::text,
+    $6::text,
+    $7::text,
+    $8::text,
+    $9::text,
+    $10::text,
+    $11::text,
+    $12::text,
+    $13::text,
+    $14::text,
+    $15::text,
+    $16::text,
+    $17::jsonb,
+    $18::text,
+    $19::text[],
+    $20::text[],
+    $21::text,
+    $22::boolean,
+    $23::uuid,
+    $24::uuid
+)
+RETURNING
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+`
+
+type InsertMCPServerConfigParams struct {
+	DisplayName             string          `db:"display_name" json:"display_name"`
+	Slug                    string          `db:"slug" json:"slug"`
+	Description             string          `db:"description" json:"description"`
+	IconUrl                 string          `db:"icon_url" json:"icon_url"`
+	Transport               string          `db:"transport" json:"transport"`
+	Url                     string          `db:"url" json:"url"`
+	AuthType                string          `db:"auth_type" json:"auth_type"`
+	Oauth2ClientID          string          `db:"oauth2_client_id" json:"oauth2_client_id"`
+	Oauth2ClientSecret      string          `db:"oauth2_client_secret" json:"oauth2_client_secret"`
+	Oauth2ClientSecretKeyID sql.NullString  `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
+	Oauth2AuthUrl           string          `db:"oauth2_auth_url" json:"oauth2_auth_url"`
+	Oauth2TokenUrl          string          `db:"oauth2_token_url" json:"oauth2_token_url"`
+	Oauth2Scopes            string          `db:"oauth2_scopes" json:"oauth2_scopes"`
+	ApiKeyHeader            string          `db:"api_key_header" json:"api_key_header"`
+	ApiKeyValue             string          `db:"api_key_value" json:"api_key_value"`
+	ApiKeyValueKeyID        sql.NullString  `db:"api_key_value_key_id" json:"api_key_value_key_id"`
+	CustomHeaders           json.RawMessage `db:"custom_headers" json:"custom_headers"`
+	CustomHeadersKeyID      sql.NullString  `db:"custom_headers_key_id" json:"custom_headers_key_id"`
+	ToolAllowList           []string        `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList            []string        `db:"tool_deny_list" json:"tool_deny_list"`
+	Availability            string          `db:"availability" json:"availability"`
+	Enabled                 bool            `db:"enabled" json:"enabled"`
+	CreatedBy               uuid.UUID       `db:"created_by" json:"created_by"`
+	UpdatedBy               uuid.UUID       `db:"updated_by" json:"updated_by"`
+}
+
+func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPServerConfigParams) (McpServerConfig, error) {
+	row := q.db.QueryRowContext(ctx, insertMCPServerConfig,
+		arg.DisplayName,
+		arg.Slug,
+		arg.Description,
+		arg.IconUrl,
+		arg.Transport,
+		arg.Url,
+		arg.AuthType,
+		arg.Oauth2ClientID,
+		arg.Oauth2ClientSecret,
+		arg.Oauth2ClientSecretKeyID,
+		arg.Oauth2AuthUrl,
+		arg.Oauth2TokenUrl,
+		arg.Oauth2Scopes,
+		arg.ApiKeyHeader,
+		arg.ApiKeyValue,
+		arg.ApiKeyValueKeyID,
+		arg.CustomHeaders,
+		arg.CustomHeadersKeyID,
+		pq.Array(arg.ToolAllowList),
+		pq.Array(arg.ToolDenyList),
+		arg.Availability,
+		arg.Enabled,
+		arg.CreatedBy,
+		arg.UpdatedBy,
+	)
+	var i McpServerConfig
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayName,
+		&i.Slug,
+		&i.Description,
+		&i.IconUrl,
+		&i.Transport,
+		&i.Url,
+		&i.AuthType,
+		&i.Oauth2ClientID,
+		&i.Oauth2ClientSecret,
+		&i.Oauth2ClientSecretKeyID,
+		&i.Oauth2AuthUrl,
+		&i.Oauth2TokenUrl,
+		&i.Oauth2Scopes,
+		&i.ApiKeyHeader,
+		&i.ApiKeyValue,
+		&i.ApiKeyValueKeyID,
+		&i.CustomHeaders,
+		&i.CustomHeadersKeyID,
+		pq.Array(&i.ToolAllowList),
+		pq.Array(&i.ToolDenyList),
+		&i.Availability,
+		&i.Enabled,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertMCPServerToolSnapshot = `-- name: InsertMCPServerToolSnapshot :one
+INSERT INTO mcp_server_tool_snapshots (
+    mcp_server_config_id,
+    tools_json,
+    approved_by
+) VALUES (
+    $1::uuid,
+    $2::jsonb,
+    $3::uuid
+)
+RETURNING
+    id, mcp_server_config_id, tools_json, approved_by, approved_at, is_active, created_at
+`
+
+type InsertMCPServerToolSnapshotParams struct {
+	McpServerConfigID uuid.UUID       `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	ToolsJson         json.RawMessage `db:"tools_json" json:"tools_json"`
+	ApprovedBy        uuid.UUID       `db:"approved_by" json:"approved_by"`
+}
+
+func (q *sqlQuerier) InsertMCPServerToolSnapshot(ctx context.Context, arg InsertMCPServerToolSnapshotParams) (McpServerToolSnapshot, error) {
+	row := q.db.QueryRowContext(ctx, insertMCPServerToolSnapshot, arg.McpServerConfigID, arg.ToolsJson, arg.ApprovedBy)
+	var i McpServerToolSnapshot
+	err := row.Scan(
+		&i.ID,
+		&i.McpServerConfigID,
+		&i.ToolsJson,
+		&i.ApprovedBy,
+		&i.ApprovedAt,
+		&i.IsActive,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateMCPServerConfig = `-- name: UpdateMCPServerConfig :one
+UPDATE
+    mcp_server_configs
+SET
+    display_name = $1::text,
+    slug = $2::text,
+    description = $3::text,
+    icon_url = $4::text,
+    transport = $5::text,
+    url = $6::text,
+    auth_type = $7::text,
+    oauth2_client_id = $8::text,
+    oauth2_client_secret = $9::text,
+    oauth2_client_secret_key_id = $10::text,
+    oauth2_auth_url = $11::text,
+    oauth2_token_url = $12::text,
+    oauth2_scopes = $13::text,
+    api_key_header = $14::text,
+    api_key_value = $15::text,
+    api_key_value_key_id = $16::text,
+    custom_headers = $17::jsonb,
+    custom_headers_key_id = $18::text,
+    tool_allow_list = $19::text[],
+    tool_deny_list = $20::text[],
+    availability = $21::text,
+    enabled = $22::boolean,
+    updated_by = $23::uuid,
+    updated_at = NOW()
+WHERE
+    id = $24::uuid
+RETURNING
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+`
+
+type UpdateMCPServerConfigParams struct {
+	DisplayName             string          `db:"display_name" json:"display_name"`
+	Slug                    string          `db:"slug" json:"slug"`
+	Description             string          `db:"description" json:"description"`
+	IconUrl                 string          `db:"icon_url" json:"icon_url"`
+	Transport               string          `db:"transport" json:"transport"`
+	Url                     string          `db:"url" json:"url"`
+	AuthType                string          `db:"auth_type" json:"auth_type"`
+	Oauth2ClientID          string          `db:"oauth2_client_id" json:"oauth2_client_id"`
+	Oauth2ClientSecret      string          `db:"oauth2_client_secret" json:"oauth2_client_secret"`
+	Oauth2ClientSecretKeyID sql.NullString  `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
+	Oauth2AuthUrl           string          `db:"oauth2_auth_url" json:"oauth2_auth_url"`
+	Oauth2TokenUrl          string          `db:"oauth2_token_url" json:"oauth2_token_url"`
+	Oauth2Scopes            string          `db:"oauth2_scopes" json:"oauth2_scopes"`
+	ApiKeyHeader            string          `db:"api_key_header" json:"api_key_header"`
+	ApiKeyValue             string          `db:"api_key_value" json:"api_key_value"`
+	ApiKeyValueKeyID        sql.NullString  `db:"api_key_value_key_id" json:"api_key_value_key_id"`
+	CustomHeaders           json.RawMessage `db:"custom_headers" json:"custom_headers"`
+	CustomHeadersKeyID      sql.NullString  `db:"custom_headers_key_id" json:"custom_headers_key_id"`
+	ToolAllowList           []string        `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList            []string        `db:"tool_deny_list" json:"tool_deny_list"`
+	Availability            string          `db:"availability" json:"availability"`
+	Enabled                 bool            `db:"enabled" json:"enabled"`
+	UpdatedBy               uuid.UUID       `db:"updated_by" json:"updated_by"`
+	ID                      uuid.UUID       `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPServerConfigParams) (McpServerConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateMCPServerConfig,
+		arg.DisplayName,
+		arg.Slug,
+		arg.Description,
+		arg.IconUrl,
+		arg.Transport,
+		arg.Url,
+		arg.AuthType,
+		arg.Oauth2ClientID,
+		arg.Oauth2ClientSecret,
+		arg.Oauth2ClientSecretKeyID,
+		arg.Oauth2AuthUrl,
+		arg.Oauth2TokenUrl,
+		arg.Oauth2Scopes,
+		arg.ApiKeyHeader,
+		arg.ApiKeyValue,
+		arg.ApiKeyValueKeyID,
+		arg.CustomHeaders,
+		arg.CustomHeadersKeyID,
+		pq.Array(arg.ToolAllowList),
+		pq.Array(arg.ToolDenyList),
+		arg.Availability,
+		arg.Enabled,
+		arg.UpdatedBy,
+		arg.ID,
+	)
+	var i McpServerConfig
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayName,
+		&i.Slug,
+		&i.Description,
+		&i.IconUrl,
+		&i.Transport,
+		&i.Url,
+		&i.AuthType,
+		&i.Oauth2ClientID,
+		&i.Oauth2ClientSecret,
+		&i.Oauth2ClientSecretKeyID,
+		&i.Oauth2AuthUrl,
+		&i.Oauth2TokenUrl,
+		&i.Oauth2Scopes,
+		&i.ApiKeyHeader,
+		&i.ApiKeyValue,
+		&i.ApiKeyValueKeyID,
+		&i.CustomHeaders,
+		&i.CustomHeadersKeyID,
+		pq.Array(&i.ToolAllowList),
+		pq.Array(&i.ToolDenyList),
+		&i.Availability,
+		&i.Enabled,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertMCPServerUserToken = `-- name: UpsertMCPServerUserToken :one
+INSERT INTO mcp_server_user_tokens (
+    mcp_server_config_id,
+    user_id,
+    access_token,
+    access_token_key_id,
+    refresh_token,
+    refresh_token_key_id,
+    token_type,
+    expiry
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::text,
+    $5::text,
+    $6::text,
+    $7::text,
+    $8::timestamptz
+)
+ON CONFLICT (mcp_server_config_id, user_id) DO UPDATE SET
+    access_token = $3::text,
+    access_token_key_id = $4::text,
+    refresh_token = $5::text,
+    refresh_token_key_id = $6::text,
+    token_type = $7::text,
+    expiry = $8::timestamptz,
+    updated_at = NOW()
+RETURNING
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at
+`
+
+type UpsertMCPServerUserTokenParams struct {
+	McpServerConfigID uuid.UUID      `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	UserID            uuid.UUID      `db:"user_id" json:"user_id"`
+	AccessToken       string         `db:"access_token" json:"access_token"`
+	AccessTokenKeyID  sql.NullString `db:"access_token_key_id" json:"access_token_key_id"`
+	RefreshToken      string         `db:"refresh_token" json:"refresh_token"`
+	RefreshTokenKeyID sql.NullString `db:"refresh_token_key_id" json:"refresh_token_key_id"`
+	TokenType         string         `db:"token_type" json:"token_type"`
+	Expiry            sql.NullTime   `db:"expiry" json:"expiry"`
+}
+
+func (q *sqlQuerier) UpsertMCPServerUserToken(ctx context.Context, arg UpsertMCPServerUserTokenParams) (McpServerUserToken, error) {
+	row := q.db.QueryRowContext(ctx, upsertMCPServerUserToken,
+		arg.McpServerConfigID,
+		arg.UserID,
+		arg.AccessToken,
+		arg.AccessTokenKeyID,
+		arg.RefreshToken,
+		arg.RefreshTokenKeyID,
+		arg.TokenType,
+		arg.Expiry,
+	)
+	var i McpServerUserToken
+	err := row.Scan(
+		&i.ID,
+		&i.McpServerConfigID,
+		&i.UserID,
+		&i.AccessToken,
+		&i.AccessTokenKeyID,
+		&i.RefreshToken,
+		&i.RefreshTokenKeyID,
+		&i.TokenType,
+		&i.Expiry,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const acquireNotificationMessages = `-- name: AcquireNotificationMessages :many

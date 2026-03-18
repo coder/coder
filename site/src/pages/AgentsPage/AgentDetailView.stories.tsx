@@ -36,6 +36,7 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	title: "Help me refactor",
 	status: "completed",
 	last_model_config_id: "model-config-1",
+	mcp_server_ids: [],
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
