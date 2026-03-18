@@ -55,6 +55,12 @@ interface RightPanelProps {
  * Encapsulates all drag/resize logic for the right panel:
  * refs, pointer handlers, snap state, and visual state
  * derivation.
+ *
+ * During a drag the panel width is applied directly to the DOM
+ * via the panelRef, bypassing React state. This avoids
+ * re-rendering the entire diff subtree on every pointermove.
+ * React state is only committed on pointerup so localStorage
+ * persistence and non-drag renders stay correct.
  */
 function useResizableDrag({
 	isExpanded,
@@ -79,6 +85,19 @@ function useResizableDrag({
 	const startX = useRef(0);
 	const startWidth = useRef(0);
 	const sidebarCollapsedByDrag = useRef(false);
+
+	// Live width tracked in a ref so we can read/write it during
+	// drag without triggering React re-renders. Synced from React
+	// state when not dragging (e.g. after window-resize clamp).
+	const liveWidthRef = useRef(width);
+	if (!isDraggingRef.current) {
+		liveWidthRef.current = width;
+	}
+
+	// Ref to the panel DOM element for direct style mutations
+	// during drag, avoiding React re-renders.
+	const panelRef = useRef<HTMLDivElement>(null);
+
 	// Track snap state during a drag. This is state (not a ref) so
 	// the panel visually updates as the user drags across thresholds.
 	const [dragSnap, setDragSnap] = useState<
@@ -96,10 +115,10 @@ function useResizableDrag({
 				? ((e.target as HTMLElement).closest(
 						"[data-testid='agents-right-panel']",
 					)?.parentElement?.clientWidth ?? getMaxWidth())
-				: width;
+				: liveWidthRef.current;
 			(e.target as HTMLElement).setPointerCapture(e.pointerId);
 		},
-		[width, isExpanded],
+		[isExpanded],
 	);
 
 	const handlePointerMove = useCallback(
@@ -135,7 +154,12 @@ function useResizableDrag({
 				nextSnap = "closed";
 			} else {
 				nextSnap = "normal";
-				setWidth(Math.min(maxWidth, Math.max(MIN_WIDTH, raw)));
+				const clamped = Math.min(maxWidth, Math.max(MIN_WIDTH, raw));
+				liveWidthRef.current = clamped;
+				// Mutate the DOM directly instead of calling
+				// setWidth() — this skips React reconciliation
+				// for the entire panel subtree on every frame.
+				panelRef.current?.style.setProperty("--panel-width", `${clamped}px`);
 			}
 			setDragSnap(nextSnap);
 
@@ -147,7 +171,6 @@ function useResizableDrag({
 			onVisualExpandedChange?.(nextVisualExpanded);
 		},
 		[
-			setWidth,
 			isExpanded,
 			onVisualExpandedChange,
 			isSidebarCollapsed,
@@ -169,11 +192,15 @@ function useResizableDrag({
 			// own committed expanded state.
 			onVisualExpandedChange?.(null);
 
+			// Commit the final width to React state so it persists
+			// to localStorage and is used for the next render.
+			setWidth(liveWidthRef.current);
+
 			if (snap) {
 				onSnapCommit(snap);
 			}
 		},
-		[dragSnap, onSnapCommit, onVisualExpandedChange],
+		[dragSnap, onSnapCommit, onVisualExpandedChange, setWidth],
 	);
 
 	// Derive visual state: during a drag the snap overrides the
@@ -192,6 +219,7 @@ function useResizableDrag({
 		visualExpanded,
 		visualOpen,
 		isDragging,
+		panelRef,
 		handlePointerDown,
 		handlePointerMove,
 		handlePointerUp,
@@ -241,6 +269,7 @@ export const RightPanel = ({
 		visualExpanded,
 		visualOpen,
 		isDragging,
+		panelRef,
 		handlePointerDown,
 		handlePointerMove,
 		handlePointerUp,
@@ -263,6 +292,7 @@ export const RightPanel = ({
 
 	return (
 		<div
+			ref={panelRef}
 			data-testid="agents-right-panel"
 			style={
 				visualOpen && !visualExpanded
