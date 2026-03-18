@@ -1682,7 +1682,7 @@ export interface ChatQueuedMessage {
 // From codersdk/chats.go
 export interface ChatReasoningPart {
 	readonly type: "reasoning";
-	readonly text: string;
+	readonly text?: string;
 }
 
 // From codersdk/chats.go
