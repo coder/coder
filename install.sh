@@ -267,6 +267,9 @@ To run a Coder server:
   $ sudo rc-service coder start
   $ sudo rc-update add coder default
 
+  # View logs
+  $ tail -f /var/log/coder.log
+
   # Or just run the server directly
   $ coder server
 

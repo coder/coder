@@ -6,9 +6,11 @@ description="Coder - external workspace proxy server"
 command="/usr/bin/coder"
 command_args="workspace-proxy server"
 command_user="coder:coder"
-command_background=true
+supervisor="supervise-daemon"
+respawn_delay=5
+respawn_max=10
+respawn_period=60
 
-pidfile="/run/${RC_SVCNAME}.pid"
 output_log="/var/log/${RC_SVCNAME}.log"
 error_log="/var/log/${RC_SVCNAME}.log"
 
@@ -18,8 +20,8 @@ start_pre() {
         eerror "Config file /etc/coder.d/coder-workspace-proxy.env not found"
         return 1
     fi
-    # Export all variables from the env file, skipping comments
-    # and blank lines.
+    # Source the env file. The shell naturally ignores comments
+    # and blank lines. set -a auto-exports all assignments.
     set -a
     . /etc/coder.d/coder-workspace-proxy.env
     set +a
@@ -30,4 +32,13 @@ depend() {
     after firewall
 }
 
-retry="SIGINT/30/SIGINT/30/SIGKILL/10"
+# NOTE: The systemd unit includes sandboxing (ProtectSystem,
+# PrivateTmp, NoNewPrivileges, etc.) that OpenRC does not
+# natively support. Consider additional hardening if running
+# in a security-sensitive environment.
+
+# Logs are written to /var/log/coder-workspace-proxy.log.
+# Unlike systemd's journald, OpenRC does not rotate logs
+# automatically. Consider configuring logrotate for this file.
+
+retry="SIGINT/90/SIGKILL/10"
