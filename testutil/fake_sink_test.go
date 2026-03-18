@@ -104,7 +104,7 @@ func TestFakeSink(t *testing.T) {
 
 		sink := testutil.NewFakeSink(t)
 		entries := sink.Entries()
-		assert.Nil(t, entries)
+		assert.Empty(t, entries)
 	})
 
 	t.Run("ThreadSafety", func(t *testing.T) {
