@@ -44,6 +44,15 @@ describe("appendTextBlock", () => {
 		expect(appendTextBlock(blocks, "thinking", "\n\t")).toBe(blocks);
 	});
 
+	it("returns the same blocks when text is undefined", () => {
+		const blocks: RenderBlock[] = [{ type: "response", text: "hello" }];
+		// Go's omitempty drops empty text fields, so the frontend
+		// can receive a part with type "reasoning" but no text.
+		expect(
+			appendTextBlock(blocks, "thinking", undefined as unknown as string),
+		).toBe(blocks);
+	});
+
 	it("appends a new response block to an empty list", () => {
 		const result = appendTextBlock([], "response", "hello");
 		expect(result).toEqual([{ type: "response", text: "hello" }]);

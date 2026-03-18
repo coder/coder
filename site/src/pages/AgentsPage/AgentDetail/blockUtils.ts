@@ -15,7 +15,7 @@ export const appendTextBlock = (
 	type: "response" | "thinking",
 	text: string,
 ): RenderBlock[] => {
-	if (!text.trim()) {
+	if (!text?.trim()) {
 		return blocks;
 	}
 	const nextBlocks = [...blocks];

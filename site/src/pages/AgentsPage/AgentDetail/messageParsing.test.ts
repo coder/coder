@@ -109,6 +109,18 @@ describe("parseMessageContent", () => {
 		]);
 	});
 
+	it("handles a reasoning part with undefined text (omitempty)", () => {
+		// Go's omitempty drops the text field when it is empty,
+		// so the frontend receives {type: "reasoning"} with no
+		// text property.
+		const part = { type: "reasoning" } as unknown as Parameters<
+			typeof parseMessageContent
+		>[0][number];
+		const result = parseMessageContent([part]);
+		expect(result.reasoning).toBe("");
+		expect(result.blocks).toEqual([]);
+	});
+
 	it("parses a tool_use / tool-call block", () => {
 		const result = parseMessageContent([
 			{

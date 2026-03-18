@@ -12,7 +12,7 @@ import type {
 
 /** Concatenate text chunks, skipping whitespace-only values. */
 const appendText = (current: string, next: string): string => {
-	if (!next.trim()) {
+	if (!next?.trim()) {
 		return current;
 	}
 	return `${current}${next}`;
