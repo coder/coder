@@ -25,5 +25,23 @@ contents:
     type: "config|noreplace"
   - src: coder.service
     dst: /usr/lib/systemd/system/coder.service
+    packager: deb
+  - src: coder.service
+    dst: /usr/lib/systemd/system/coder.service
+    packager: rpm
   - src: coder-workspace-proxy.service
     dst: /usr/lib/systemd/system/coder-workspace-proxy.service
+    packager: deb
+  - src: coder-workspace-proxy.service
+    dst: /usr/lib/systemd/system/coder-workspace-proxy.service
+    packager: rpm
+  - src: coder.openrc
+    dst: /etc/init.d/coder
+    file_info:
+      mode: 0755
+    packager: apk
+  - src: coder-workspace-proxy.openrc
+    dst: /etc/init.d/coder-workspace-proxy
+    file_info:
+      mode: 0755
+    packager: apk

@@ -248,6 +248,37 @@ To connect to a Coder deployment:
 EOF
 }
 
+echo_openrc_postinstall() {
+	if [ "${DRY_RUN-}" ]; then
+		echo_dryrun_postinstall
+		return
+	fi
+
+	echoh
+	cath <<EOF
+$1 package has been installed.
+
+To run a Coder server:
+
+  # Edit the configuration!
+  $ sudo vi /etc/coder.d/coder.env
+
+  # Start Coder now and on reboot
+  $ sudo rc-service coder start
+  $ sudo rc-update add coder default
+
+  # Or just run the server directly
+  $ coder server
+
+  Configuring Coder: https://coder.com/docs/admin/setup
+
+To connect to a Coder deployment:
+
+  $ coder login <deployment url>
+
+EOF
+}
+
 echo_dryrun_postinstall() {
 	cath <<EOF
 Dry-run complete.
@@ -645,7 +676,7 @@ install_apk() {
 		"$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.apk"
 	sudo_sh_c apk add --allow-untrusted "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.apk"
 
-	echo_systemd_postinstall apk
+	echo_openrc_postinstall apk
 }
 
 install_standalone() {

@@ -1,0 +1,33 @@
+#!/sbin/openrc-run
+
+name="coder-workspace-proxy"
+description="Coder - external workspace proxy server"
+
+command="/usr/bin/coder"
+command_args="workspace-proxy server"
+command_user="coder:coder"
+command_background=true
+
+pidfile="/run/${RC_SVCNAME}.pid"
+output_log="/var/log/${RC_SVCNAME}.log"
+error_log="/var/log/${RC_SVCNAME}.log"
+
+# Load environment variables from the same file as the systemd service.
+start_pre() {
+    if [ ! -f /etc/coder.d/coder-workspace-proxy.env ]; then
+        eerror "Config file /etc/coder.d/coder-workspace-proxy.env not found"
+        return 1
+    fi
+    # Export all variables from the env file, skipping comments
+    # and blank lines.
+    set -a
+    . /etc/coder.d/coder-workspace-proxy.env
+    set +a
+}
+
+depend() {
+    need net
+    after firewall
+}
+
+retry="SIGINT/30 SIGINT/30 SIGKILL/10"
