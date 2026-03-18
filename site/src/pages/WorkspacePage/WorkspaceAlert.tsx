@@ -70,10 +70,12 @@ export const WorkspaceAlert: FC<WorkspaceAlertProps> = ({
 			"The workspace is running but a startup script exited with an error. Check the agent logs for details.";
 	} else {
 		title = plural
-			? `${failingAgentCount} workspace agents are not connected`
-			: "Workspace agent is not connected";
+			? `${failingAgentCount} workspace agents are still connecting`
+			: "Workspace agent is still connecting";
 		message =
-			"The workspace is not usable until an agent connects. Check the log output for errors.";
+			"The workspace agent is still connecting. Check the log output if the connection does not complete.";
+		severity = "info";
+		prominent = false;
 	}
 
 	return (
