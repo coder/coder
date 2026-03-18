@@ -75,7 +75,7 @@ func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
 // Returns the merged OIDC claims for the authenticated user.
 //
 // @Summary Get OIDC claims for the authenticated user
-// @ID get-oidc-claims-for-authenticated-user
+// @ID get-oidc-claims-for-the-authenticated-user
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users

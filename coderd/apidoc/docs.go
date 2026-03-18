@@ -7879,7 +7879,7 @@ const docTemplate = `{
                     "Users"
                 ],
                 "summary": "Get OIDC claims for the authenticated user",
-                "operationId": "get-oidc-claims-for-authenticated-user",
+                "operationId": "get-oidc-claims-for-the-authenticated-user",
                 "responses": {
                     "200": {
                         "description": "OK",
