@@ -72,24 +72,6 @@ type MCPServerConfig struct {
 	AuthConnected bool `json:"auth_connected"`
 }
 
-// MCPServerTool represents a single tool from an MCP server's snapshot.
-type MCPServerTool struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	InputSchema json.RawMessage `json:"input_schema"`
-}
-
-// MCPServerToolSnapshot represents an admin-approved snapshot of tools.
-type MCPServerToolSnapshot struct {
-	ID                uuid.UUID       `json:"id" format:"uuid"`
-	MCPServerConfigID uuid.UUID       `json:"mcp_server_config_id" format:"uuid"`
-	Tools             []MCPServerTool `json:"tools"`
-	ApprovedBy        uuid.UUID       `json:"approved_by" format:"uuid"`
-	ApprovedAt        time.Time       `json:"approved_at" format:"date-time"`
-	IsActive          bool            `json:"is_active"`
-	CreatedAt         time.Time       `json:"created_at" format:"date-time"`
-}
-
 // CreateMCPServerConfigRequest is the request to create a new MCP server config.
 type CreateMCPServerConfigRequest struct {
 	DisplayName string `json:"display_name" validate:"required"`
@@ -208,15 +190,3 @@ func (c *Client) DeleteMCPServerConfig(ctx context.Context, id uuid.UUID) error 
 	return nil
 }
 
-func (c *Client) MCPServerTools(ctx context.Context, id uuid.UUID) (MCPServerToolSnapshot, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/mcp/servers/%s/tools", id), nil)
-	if err != nil {
-		return MCPServerToolSnapshot{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return MCPServerToolSnapshot{}, ReadBodyAsError(res)
-	}
-	var snapshot MCPServerToolSnapshot
-	return snapshot, json.NewDecoder(res.Body).Decode(&snapshot)
-}

@@ -3766,30 +3766,6 @@ export interface MCPServerConfig {
 	readonly auth_connected: boolean;
 }
 
-// From codersdk/mcp.go
-/**
- * MCPServerTool represents a single tool from an MCP server's snapshot.
- */
-export interface MCPServerTool {
-	readonly name: string;
-	readonly description: string;
-	readonly input_schema: Record<string, string>;
-}
-
-// From codersdk/mcp.go
-/**
- * MCPServerToolSnapshot represents an admin-approved snapshot of tools.
- */
-export interface MCPServerToolSnapshot {
-	readonly id: string;
-	readonly mcp_server_config_id: string;
-	readonly tools: readonly MCPServerTool[];
-	readonly approved_by: string;
-	readonly approved_at: string;
-	readonly is_active: boolean;
-	readonly created_at: string;
-}
-
 // From codersdk/provisionerdaemons.go
 /**
  * MatchedProvisioners represents the number of provisioner daemons

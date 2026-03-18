@@ -104,6 +104,9 @@ func (m queryMetricsStore) DeleteOrganization(ctx context.Context, id uuid.UUID)
 	return r0
 }
 
+
+
+
 func (m queryMetricsStore) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.AcquireChats(ctx, arg)
@@ -342,14 +345,6 @@ func (m queryMetricsStore) CustomRoles(ctx context.Context, arg database.CustomR
 	m.queryLatencies.WithLabelValues("CustomRoles").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CustomRoles").Inc()
 	return r0, r1
-}
-
-func (m queryMetricsStore) DeactivateMCPServerToolSnapshots(ctx context.Context, mcpServerConfigID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.DeactivateMCPServerToolSnapshots(ctx, mcpServerConfigID)
-	m.queryLatencies.WithLabelValues("DeactivateMCPServerToolSnapshots").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeactivateMCPServerToolSnapshots").Inc()
-	return r0
 }
 
 func (m queryMetricsStore) DeleteAPIKeyByID(ctx context.Context, id string) error {
@@ -925,14 +920,6 @@ func (m queryMetricsStore) GetActiveAISeatCount(ctx context.Context) (int64, err
 	r0, r1 := m.s.GetActiveAISeatCount(ctx)
 	m.queryLatencies.WithLabelValues("GetActiveAISeatCount").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveAISeatCount").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetActiveMCPServerToolSnapshot(ctx context.Context, mcpServerConfigID uuid.UUID) (database.MCPServerToolSnapshot, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetActiveMCPServerToolSnapshot(ctx, mcpServerConfigID)
-	m.queryLatencies.WithLabelValues("GetActiveMCPServerToolSnapshot").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveMCPServerToolSnapshot").Inc()
 	return r0, r1
 }
 
@@ -3293,14 +3280,6 @@ func (m queryMetricsStore) InsertMCPServerConfig(ctx context.Context, arg databa
 	r0, r1 := m.s.InsertMCPServerConfig(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertMCPServerConfig").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertMCPServerConfig").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) InsertMCPServerToolSnapshot(ctx context.Context, arg database.InsertMCPServerToolSnapshotParams) (database.MCPServerToolSnapshot, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertMCPServerToolSnapshot(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertMCPServerToolSnapshot").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertMCPServerToolSnapshot").Inc()
 	return r0, r1
 }
 

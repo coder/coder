@@ -9453,21 +9453,6 @@ func (q *sqlQuerier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) er
 	return err
 }
 
-const deactivateMCPServerToolSnapshots = `-- name: DeactivateMCPServerToolSnapshots :exec
-UPDATE
-    mcp_server_tool_snapshots
-SET
-    is_active = FALSE
-WHERE
-    mcp_server_config_id = $1::uuid
-    AND is_active = TRUE
-`
-
-func (q *sqlQuerier) DeactivateMCPServerToolSnapshots(ctx context.Context, mcpServerConfigID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deactivateMCPServerToolSnapshots, mcpServerConfigID)
-	return err
-}
-
 const deleteMCPServerConfigByID = `-- name: DeleteMCPServerConfigByID :exec
 DELETE FROM
     mcp_server_configs
@@ -9496,31 +9481,6 @@ type DeleteMCPServerUserTokenParams struct {
 func (q *sqlQuerier) DeleteMCPServerUserToken(ctx context.Context, arg DeleteMCPServerUserTokenParams) error {
 	_, err := q.db.ExecContext(ctx, deleteMCPServerUserToken, arg.MCPServerConfigID, arg.UserID)
 	return err
-}
-
-const getActiveMCPServerToolSnapshot = `-- name: GetActiveMCPServerToolSnapshot :one
-SELECT
-    id, mcp_server_config_id, tools_json, approved_by, approved_at, is_active, created_at
-FROM
-    mcp_server_tool_snapshots
-WHERE
-    mcp_server_config_id = $1::uuid
-    AND is_active = TRUE
-`
-
-func (q *sqlQuerier) GetActiveMCPServerToolSnapshot(ctx context.Context, mcpServerConfigID uuid.UUID) (MCPServerToolSnapshot, error) {
-	row := q.db.QueryRowContext(ctx, getActiveMCPServerToolSnapshot, mcpServerConfigID)
-	var i MCPServerToolSnapshot
-	err := row.Scan(
-		&i.ID,
-		&i.MCPServerConfigID,
-		&i.ToolsJSON,
-		&i.ApprovedBy,
-		&i.ApprovedAt,
-		&i.IsActive,
-		&i.CreatedAt,
-	)
-	return i, err
 }
 
 const getEnabledMCPServerConfigs = `-- name: GetEnabledMCPServerConfigs :many
@@ -10075,41 +10035,6 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		&i.UpdatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const insertMCPServerToolSnapshot = `-- name: InsertMCPServerToolSnapshot :one
-INSERT INTO mcp_server_tool_snapshots (
-    mcp_server_config_id,
-    tools_json,
-    approved_by
-) VALUES (
-    $1::uuid,
-    $2::jsonb,
-    $3::uuid
-)
-RETURNING
-    id, mcp_server_config_id, tools_json, approved_by, approved_at, is_active, created_at
-`
-
-type InsertMCPServerToolSnapshotParams struct {
-	MCPServerConfigID uuid.UUID       `db:"mcp_server_config_id" json:"mcp_server_config_id"`
-	ToolsJSON         json.RawMessage `db:"tools_json" json:"tools_json"`
-	ApprovedBy        uuid.UUID       `db:"approved_by" json:"approved_by"`
-}
-
-func (q *sqlQuerier) InsertMCPServerToolSnapshot(ctx context.Context, arg InsertMCPServerToolSnapshotParams) (MCPServerToolSnapshot, error) {
-	row := q.db.QueryRowContext(ctx, insertMCPServerToolSnapshot, arg.MCPServerConfigID, arg.ToolsJSON, arg.ApprovedBy)
-	var i MCPServerToolSnapshot
-	err := row.Scan(
-		&i.ID,
-		&i.MCPServerConfigID,
-		&i.ToolsJSON,
-		&i.ApprovedBy,
-		&i.ApprovedAt,
-		&i.IsActive,
-		&i.CreatedAt,
 	)
 	return i, err
 }

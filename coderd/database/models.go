@@ -4483,16 +4483,6 @@ type MCPServerConfig struct {
 	UpdatedAt               time.Time      `db:"updated_at" json:"updated_at"`
 }
 
-type MCPServerToolSnapshot struct {
-	ID                uuid.UUID       `db:"id" json:"id"`
-	MCPServerConfigID uuid.UUID       `db:"mcp_server_config_id" json:"mcp_server_config_id"`
-	ToolsJSON         json.RawMessage `db:"tools_json" json:"tools_json"`
-	ApprovedBy        uuid.NullUUID   `db:"approved_by" json:"approved_by"`
-	ApprovedAt        time.Time       `db:"approved_at" json:"approved_at"`
-	IsActive          bool            `db:"is_active" json:"is_active"`
-	CreatedAt         time.Time       `db:"created_at" json:"created_at"`
-}
-
 type MCPServerUserToken struct {
 	ID                uuid.UUID      `db:"id" json:"id"`
 	MCPServerConfigID uuid.UUID      `db:"mcp_server_config_id" json:"mcp_server_config_id"`

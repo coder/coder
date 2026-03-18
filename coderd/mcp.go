@@ -3,7 +3,6 @@ package coderd
 import (
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -468,98 +467,6 @@ func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary Get MCP server tools
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
-//nolint:revive // HTTP handler writes to ResponseWriter.
-func (api *API) getMCPServerTools(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	mcpServerID, ok := parseMCPServerConfigID(rw, r)
-	if !ok {
-		return
-	}
-
-	isAdmin := api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig)
-
-	// Verify the MCP server config exists.
-	//nolint:gocritic // All authenticated users can view tools for enabled MCP servers.
-	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get MCP server config.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// Non-admin users should not see tools for disabled servers.
-	if !isAdmin && !config.Enabled {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	//nolint:gocritic // All authenticated users can view tools for enabled MCP servers.
-	snapshot, err := api.Database.GetActiveMCPServerToolSnapshot(dbauthz.AsSystemRestricted(ctx), mcpServerID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// No active snapshot yet — return an empty snapshot.
-			httpapi.Write(ctx, rw, http.StatusOK, codersdk.MCPServerToolSnapshot{
-				MCPServerConfigID: mcpServerID,
-				Tools:             []codersdk.MCPServerTool{},
-			})
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get MCP server tool snapshot.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, convertMCPServerToolSnapshot(snapshot))
-}
-
-// @Summary Refresh MCP server tools
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-func (api *API) refreshMCPServerTools(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	mcpServerID, ok := parseMCPServerConfigID(rw, r)
-	if !ok {
-		return
-	}
-
-	if _, err := api.Database.GetMCPServerConfigByID(ctx, mcpServerID); err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get MCP server config.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// Connecting to MCP servers and fetching tool lists is a future
-	// step. Return 501 so callers know the endpoint exists but the
-	// backend logic is not yet wired up.
-	httpapi.Write(ctx, rw, http.StatusNotImplemented, codersdk.Response{
-		Message: "Refreshing MCP server tools is not yet implemented.",
-	})
-}
-
 // @Summary Initiate MCP server OAuth2 connect
 // @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -865,28 +772,6 @@ func convertMCPServerConfigRedacted(config database.MCPServerConfig) codersdk.MC
 	c.OAuth2Scopes = ""
 	c.APIKeyHeader = ""
 	return c
-}
-
-// convertMCPServerToolSnapshot converts a database tool snapshot to
-// the SDK type, parsing the JSON tools array.
-func convertMCPServerToolSnapshot(snapshot database.MCPServerToolSnapshot) codersdk.MCPServerToolSnapshot {
-	var tools []codersdk.MCPServerTool
-	// Best-effort parse; if the JSON is malformed we return an empty
-	// slice rather than failing the request.
-	_ = json.Unmarshal(snapshot.ToolsJSON, &tools)
-	if tools == nil {
-		tools = []codersdk.MCPServerTool{}
-	}
-
-	return codersdk.MCPServerToolSnapshot{
-		ID:                snapshot.ID,
-		MCPServerConfigID: snapshot.MCPServerConfigID,
-		Tools:             tools,
-		ApprovedBy:        snapshot.ApprovedBy.UUID,
-		ApprovedAt:        snapshot.ApprovedAt,
-		IsActive:          snapshot.IsActive,
-		CreatedAt:         snapshot.CreatedAt,
-	}
 }
 
 // marshalCustomHeaders encodes a map of custom headers to JSON for

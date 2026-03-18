@@ -1782,13 +1782,6 @@ func (q *querier) CustomRoles(ctx context.Context, arg database.CustomRolesParam
 	return q.db.CustomRoles(ctx, arg)
 }
 
-func (q *querier) DeactivateMCPServerToolSnapshots(ctx context.Context, mcpServerConfigID uuid.UUID) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return err
-	}
-	return q.db.DeactivateMCPServerToolSnapshots(ctx, mcpServerConfigID)
-}
-
 func (q *querier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return deleteQ(q.log, q.auth, q.db.GetAPIKeyByID, q.db.DeleteAPIKeyByID)(ctx, id)
 }
@@ -2369,13 +2362,6 @@ func (q *querier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return q.db.GetActiveAISeatCount(ctx)
-}
-
-func (q *querier) GetActiveMCPServerToolSnapshot(ctx context.Context, mcpServerConfigID uuid.UUID) (database.MCPServerToolSnapshot, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.MCPServerToolSnapshot{}, err
-	}
-	return q.db.GetActiveMCPServerToolSnapshot(ctx, mcpServerConfigID)
 }
 
 func (q *querier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
@@ -4823,13 +4809,6 @@ func (q *querier) InsertMCPServerConfig(ctx context.Context, arg database.Insert
 		return database.MCPServerConfig{}, err
 	}
 	return q.db.InsertMCPServerConfig(ctx, arg)
-}
-
-func (q *querier) InsertMCPServerToolSnapshot(ctx context.Context, arg database.InsertMCPServerToolSnapshotParams) (database.MCPServerToolSnapshot, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.MCPServerToolSnapshot{}, err
-	}
-	return q.db.InsertMCPServerToolSnapshot(ctx, arg)
 }
 
 func (q *querier) InsertMemoryResourceMonitor(ctx context.Context, arg database.InsertMemoryResourceMonitorParams) (database.WorkspaceAgentMemoryResourceMonitor, error) {

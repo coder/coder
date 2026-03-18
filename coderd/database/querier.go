@@ -89,7 +89,6 @@ type sqlcQuerier interface {
 	CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error)
 	CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error)
-	DeactivateMCPServerToolSnapshots(ctx context.Context, mcpServerConfigID uuid.UUID) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.UUID) error
@@ -196,7 +195,6 @@ type sqlcQuerier interface {
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveAISeatCount(ctx context.Context) (int64, error)
-	GetActiveMCPServerToolSnapshot(ctx context.Context, mcpServerConfigID uuid.UUID) (MCPServerToolSnapshot, error)
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
 	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
@@ -689,7 +687,6 @@ type sqlcQuerier interface {
 	InsertInboxNotification(ctx context.Context, arg InsertInboxNotificationParams) (InboxNotification, error)
 	InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error)
 	InsertMCPServerConfig(ctx context.Context, arg InsertMCPServerConfigParams) (MCPServerConfig, error)
-	InsertMCPServerToolSnapshot(ctx context.Context, arg InsertMCPServerToolSnapshotParams) (MCPServerToolSnapshot, error)
 	InsertMemoryResourceMonitor(ctx context.Context, arg InsertMemoryResourceMonitorParams) (WorkspaceAgentMemoryResourceMonitor, error)
 	// Inserts any group by name that does not exist. All new groups are given
 	// a random uuid, are inserted into the same organization. They have the default

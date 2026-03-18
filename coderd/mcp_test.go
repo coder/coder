@@ -295,23 +295,6 @@ func TestMCPServerConfigsUniqueSlug(t *testing.T) {
 	require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
 }
 
-func TestMCPServerConfigsToolSnapshot(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newMCPClient(t)
-	_ = coderdtest.CreateFirstUser(t, client)
-
-	created := createMCPServerConfig(t, client, "tools-server", true)
-
-	// GET tools — no active snapshot yet, so an empty snapshot is
-	// returned.
-	snapshot, err := client.MCPServerTools(ctx, created.ID)
-	require.NoError(t, err)
-	require.Equal(t, created.ID, snapshot.MCPServerConfigID)
-	require.Empty(t, snapshot.Tools)
-}
-
 func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 	t.Parallel()
 

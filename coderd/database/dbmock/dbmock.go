@@ -528,20 +528,6 @@ func (mr *MockStoreMockRecorder) CustomRoles(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CustomRoles", reflect.TypeOf((*MockStore)(nil).CustomRoles), ctx, arg)
 }
 
-// DeactivateMCPServerToolSnapshots mocks base method.
-func (m *MockStore) DeactivateMCPServerToolSnapshots(ctx context.Context, mcpServerConfigID uuid.UUID) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeactivateMCPServerToolSnapshots", ctx, mcpServerConfigID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeactivateMCPServerToolSnapshots indicates an expected call of DeactivateMCPServerToolSnapshots.
-func (mr *MockStoreMockRecorder) DeactivateMCPServerToolSnapshots(ctx, mcpServerConfigID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeactivateMCPServerToolSnapshots", reflect.TypeOf((*MockStore)(nil).DeactivateMCPServerToolSnapshots), ctx, mcpServerConfigID)
-}
-
 // DeleteAPIKeyByID mocks base method.
 func (m *MockStore) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	m.ctrl.T.Helper()
@@ -1576,21 +1562,6 @@ func (m *MockStore) GetActiveAISeatCount(ctx context.Context) (int64, error) {
 func (mr *MockStoreMockRecorder) GetActiveAISeatCount(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveAISeatCount", reflect.TypeOf((*MockStore)(nil).GetActiveAISeatCount), ctx)
-}
-
-// GetActiveMCPServerToolSnapshot mocks base method.
-func (m *MockStore) GetActiveMCPServerToolSnapshot(ctx context.Context, mcpServerConfigID uuid.UUID) (database.MCPServerToolSnapshot, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetActiveMCPServerToolSnapshot", ctx, mcpServerConfigID)
-	ret0, _ := ret[0].(database.MCPServerToolSnapshot)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetActiveMCPServerToolSnapshot indicates an expected call of GetActiveMCPServerToolSnapshot.
-func (mr *MockStoreMockRecorder) GetActiveMCPServerToolSnapshot(ctx, mcpServerConfigID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveMCPServerToolSnapshot", reflect.TypeOf((*MockStore)(nil).GetActiveMCPServerToolSnapshot), ctx, mcpServerConfigID)
 }
 
 // GetActivePresetPrebuildSchedules mocks base method.
@@ -6161,21 +6132,6 @@ func (m *MockStore) InsertMCPServerConfig(ctx context.Context, arg database.Inse
 func (mr *MockStoreMockRecorder) InsertMCPServerConfig(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertMCPServerConfig", reflect.TypeOf((*MockStore)(nil).InsertMCPServerConfig), ctx, arg)
-}
-
-// InsertMCPServerToolSnapshot mocks base method.
-func (m *MockStore) InsertMCPServerToolSnapshot(ctx context.Context, arg database.InsertMCPServerToolSnapshotParams) (database.MCPServerToolSnapshot, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertMCPServerToolSnapshot", ctx, arg)
-	ret0, _ := ret[0].(database.MCPServerToolSnapshot)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertMCPServerToolSnapshot indicates an expected call of InsertMCPServerToolSnapshot.
-func (mr *MockStoreMockRecorder) InsertMCPServerToolSnapshot(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertMCPServerToolSnapshot", reflect.TypeOf((*MockStore)(nil).InsertMCPServerToolSnapshot), ctx, arg)
 }
 
 // InsertMemoryResourceMonitor mocks base method.

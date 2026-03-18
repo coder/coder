@@ -147,37 +147,6 @@ DELETE FROM
 WHERE
     id = @id::uuid;
 
--- name: GetActiveMCPServerToolSnapshot :one
-SELECT
-    *
-FROM
-    mcp_server_tool_snapshots
-WHERE
-    mcp_server_config_id = @mcp_server_config_id::uuid
-    AND is_active = TRUE;
-
--- name: InsertMCPServerToolSnapshot :one
-INSERT INTO mcp_server_tool_snapshots (
-    mcp_server_config_id,
-    tools_json,
-    approved_by
-) VALUES (
-    @mcp_server_config_id::uuid,
-    @tools_json::jsonb,
-    @approved_by::uuid
-)
-RETURNING
-    *;
-
--- name: DeactivateMCPServerToolSnapshots :exec
-UPDATE
-    mcp_server_tool_snapshots
-SET
-    is_active = FALSE
-WHERE
-    mcp_server_config_id = @mcp_server_config_id::uuid
-    AND is_active = TRUE;
-
 -- name: GetMCPServerUserToken :one
 SELECT
     *

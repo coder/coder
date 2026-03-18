@@ -1704,16 +1704,6 @@ CREATE TABLE mcp_server_configs (
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
 );
 
-CREATE TABLE mcp_server_tool_snapshots (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    mcp_server_config_id uuid NOT NULL,
-    tools_json jsonb DEFAULT '[]'::jsonb NOT NULL,
-    approved_by uuid,
-    approved_at timestamp with time zone DEFAULT now() NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
 CREATE TABLE mcp_server_user_tokens (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     mcp_server_config_id uuid NOT NULL,
@@ -3407,9 +3397,6 @@ ALTER TABLE ONLY mcp_server_configs
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_slug_key UNIQUE (slug);
 
-ALTER TABLE ONLY mcp_server_tool_snapshots
-    ADD CONSTRAINT mcp_server_tool_snapshots_pkey PRIMARY KEY (id);
-
 ALTER TABLE ONLY mcp_server_user_tokens
     ADD CONSTRAINT mcp_server_user_tokens_mcp_server_config_id_user_id_key UNIQUE (mcp_server_config_id, user_id);
 
@@ -3768,8 +3755,6 @@ CREATE INDEX idx_mcp_server_configs_enabled ON mcp_server_configs USING btree (e
 
 CREATE INDEX idx_mcp_server_configs_forced ON mcp_server_configs USING btree (enabled, availability) WHERE ((enabled = true) AND (availability = 'force_on'::text));
 
-CREATE UNIQUE INDEX idx_mcp_server_tool_snapshots_active ON mcp_server_tool_snapshots USING btree (mcp_server_config_id) WHERE (is_active = true);
-
 CREATE INDEX idx_mcp_server_user_tokens_user_id ON mcp_server_user_tokens USING btree (user_id);
 
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
@@ -4110,12 +4095,6 @@ ALTER TABLE ONLY mcp_server_configs
 
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
-
-ALTER TABLE ONLY mcp_server_tool_snapshots
-    ADD CONSTRAINT mcp_server_tool_snapshots_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL;
-
-ALTER TABLE ONLY mcp_server_tool_snapshots
-    ADD CONSTRAINT mcp_server_tool_snapshots_mcp_server_config_id_fkey FOREIGN KEY (mcp_server_config_id) REFERENCES mcp_server_configs(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY mcp_server_user_tokens
     ADD CONSTRAINT mcp_server_user_tokens_access_token_key_id_fkey FOREIGN KEY (access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);

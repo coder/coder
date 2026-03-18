@@ -67,23 +67,6 @@ CREATE TABLE mcp_server_user_tokens (
     UNIQUE (mcp_server_config_id, user_id)
 );
 
-CREATE TABLE mcp_server_tool_snapshots (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    mcp_server_config_id UUID NOT NULL REFERENCES mcp_server_configs(id) ON DELETE CASCADE,
-
-    tools_json JSONB NOT NULL DEFAULT '[]',
-
-    approved_by UUID REFERENCES users(id) ON DELETE SET NULL,
-    approved_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE UNIQUE INDEX idx_mcp_server_tool_snapshots_active
-    ON mcp_server_tool_snapshots (mcp_server_config_id)
-    WHERE is_active = true;
-
 -- Add MCP server selection to chats (per-chat, like model_config_id)
 ALTER TABLE chats ADD COLUMN mcp_server_ids UUID[] NOT NULL DEFAULT '{}';
 
