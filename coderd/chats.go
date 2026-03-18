@@ -22,6 +22,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -4178,4 +4179,222 @@ func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider databas
 		enabledConfiguredProviders,
 	)
 	return effectiveKeys.APIKey(provider.Provider) != ""
+}
+
+// @Summary Get PR insights
+// @ID get-pr-insights
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param start_date query string true "Start date (RFC3339)"
+// @Param end_date query string true "End date (RFC3339)"
+// @Success 200 {object} codersdk.PRInsightsResponse
+// @Router /chats/insights/pull-requests [get]
+// @x-apidocgen {"skip": true}
+func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Admin-only endpoint.
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	// Parse date range.
+	now := time.Now()
+	defaultStart := now.AddDate(0, 0, -30)
+
+	qp := r.URL.Query()
+	p := httpapi.NewQueryParamParser()
+	startDate := p.Time(qp, defaultStart, "start_date", time.RFC3339)
+	endDate := p.Time(qp, now, "end_date", time.RFC3339)
+	p.ErrorExcessParams(qp)
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
+	// Calculate previous period of equal length for trend comparison.
+	duration := endDate.Sub(startDate)
+	prevStart := startDate.Add(-duration)
+
+	// No owner filter — admin sees all data.
+	ownerID := uuid.NullUUID{}
+
+	// Run all queries in parallel.
+	var (
+		currentSummary  database.GetPRInsightsSummaryRow
+		previousSummary database.GetPRInsightsSummaryRow
+		timeSeries      []database.GetPRInsightsTimeSeriesRow
+		byModel         []database.GetPRInsightsPerModelRow
+		recentPRs       []database.GetPRInsightsRecentPRsRow
+	)
+
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.SetLimit(5)
+
+	eg.Go(func() error {
+		var err error
+		currentSummary, err = api.Database.GetPRInsightsSummary(egCtx, database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   ownerID,
+		})
+		return err
+	})
+
+	eg.Go(func() error {
+		var err error
+		previousSummary, err = api.Database.GetPRInsightsSummary(egCtx, database.GetPRInsightsSummaryParams{
+			StartDate: prevStart,
+			EndDate:   startDate,
+			OwnerID:   ownerID,
+		})
+		return err
+	})
+
+	eg.Go(func() error {
+		var err error
+		timeSeries, err = api.Database.GetPRInsightsTimeSeries(egCtx, database.GetPRInsightsTimeSeriesParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   ownerID,
+		})
+		return err
+	})
+
+	eg.Go(func() error {
+		var err error
+		byModel, err = api.Database.GetPRInsightsPerModel(egCtx, database.GetPRInsightsPerModelParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   ownerID,
+		})
+		return err
+	})
+
+	eg.Go(func() error {
+		var err error
+		recentPRs, err = api.Database.GetPRInsightsRecentPRs(egCtx, database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   ownerID,
+			LimitVal:  20,
+		})
+		return err
+	})
+
+	if err := eg.Wait(); err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	// Build summary with computed fields.
+	summary := codersdk.PRInsightsSummary{
+		TotalPRsCreated:     currentSummary.TotalPrsCreated,
+		TotalPRsMerged:      currentSummary.TotalPrsMerged,
+		TotalAdditions:      currentSummary.TotalAdditions,
+		TotalDeletions:      currentSummary.TotalDeletions,
+		TotalCostMicros:     currentSummary.TotalCostMicros,
+		PrevTotalPRsCreated: previousSummary.TotalPrsCreated,
+		PrevTotalPRsMerged:  previousSummary.TotalPrsMerged,
+	}
+	if summary.TotalPRsCreated > 0 {
+		summary.MergeRate = float64(summary.TotalPRsMerged) / float64(summary.TotalPRsCreated)
+	}
+	if summary.TotalPRsMerged > 0 {
+		summary.CostPerMergedPRMicros = currentSummary.MergedCostMicros / summary.TotalPRsMerged
+	}
+	if summary.PrevTotalPRsCreated > 0 {
+		summary.PrevMergeRate = float64(summary.PrevTotalPRsMerged) / float64(summary.PrevTotalPRsCreated)
+	}
+	if summary.PrevTotalPRsMerged > 0 {
+		summary.PrevCostPerMergedPRMicros = previousSummary.MergedCostMicros / summary.PrevTotalPRsMerged
+	}
+
+	// Convert time series.
+	tsEntries := make([]codersdk.PRInsightsTimeSeriesEntry, 0, len(timeSeries))
+	for _, ts := range timeSeries {
+		tsEntries = append(tsEntries, codersdk.PRInsightsTimeSeriesEntry{
+			Date:       ts.Date,
+			PRsCreated: ts.PrsCreated,
+			PRsMerged:  ts.PrsMerged,
+			PRsClosed:  ts.PrsClosed,
+		})
+	}
+
+	// Convert model breakdown.
+	modelEntries := make([]codersdk.PRInsightsModelBreakdown, 0, len(byModel))
+	for _, m := range byModel {
+		entry := codersdk.PRInsightsModelBreakdown{
+			ModelConfigID:   m.ModelConfigID,
+			DisplayName:     m.DisplayName,
+			Provider:        m.Provider,
+			TotalPRs:        m.TotalPrs,
+			MergedPRs:       m.MergedPrs,
+			TotalAdditions:  m.TotalAdditions,
+			TotalDeletions:  m.TotalDeletions,
+			TotalCostMicros: m.TotalCostMicros,
+		}
+		if entry.TotalPRs > 0 {
+			entry.MergeRate = float64(entry.MergedPRs) / float64(entry.TotalPRs)
+		}
+		if entry.MergedPRs > 0 {
+			entry.CostPerMergedPRMicros = m.MergedCostMicros / entry.MergedPRs
+		}
+		modelEntries = append(modelEntries, entry)
+	}
+
+	// Convert recent PRs.
+	prEntries := make([]codersdk.PRInsightsPullRequest, 0, len(recentPRs))
+	for _, pr := range recentPRs {
+		entry := codersdk.PRInsightsPullRequest{
+			ChatID:           pr.ChatID,
+			PRTitle:          pr.PrTitle,
+			Draft:            pr.Draft,
+			Additions:        pr.Additions,
+			Deletions:        pr.Deletions,
+			ChangedFiles:     pr.ChangedFiles,
+			ChangesRequested: pr.ChangesRequested,
+			BaseBranch:       pr.BaseBranch,
+			ModelDisplayName: pr.ModelDisplayName,
+			CostMicros:       pr.CostMicros,
+			CreatedAt:        pr.CreatedAt,
+		}
+		if pr.PrUrl.Valid {
+			entry.PRURL = &pr.PrUrl.String
+		}
+		if pr.PrNumber.Valid {
+			entry.PRNumber = &pr.PrNumber.Int32
+		}
+		if pr.State.Valid {
+			entry.State = pr.State.String
+		}
+		if pr.Commits.Valid {
+			entry.Commits = &pr.Commits.Int32
+		}
+		if pr.Approved.Valid {
+			entry.Approved = &pr.Approved.Bool
+		}
+		if pr.ReviewerCount.Valid {
+			entry.ReviewerCount = &pr.ReviewerCount.Int32
+		}
+		if pr.AuthorLogin.Valid {
+			entry.AuthorLogin = &pr.AuthorLogin.String
+		}
+		if pr.AuthorAvatarUrl.Valid {
+			entry.AuthorAvatarURL = &pr.AuthorAvatarUrl.String
+		}
+		prEntries = append(prEntries, entry)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.PRInsightsResponse{
+		Summary:    summary,
+		TimeSeries: tsEntries,
+		ByModel:    modelEntries,
+		RecentPRs:  prEntries,
+	})
 }

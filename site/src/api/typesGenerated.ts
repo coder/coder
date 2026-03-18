@@ -4470,6 +4470,93 @@ export interface OrganizationSyncSettings {
 	readonly organization_assign_default: boolean;
 }
 
+// From codersdk/chats.go
+/**
+ * PRInsightsModelBreakdown contains PR metrics for a single model.
+ */
+export interface PRInsightsModelBreakdown {
+	readonly model_config_id: string;
+	readonly display_name: string;
+	readonly provider: string;
+	readonly total_prs: number;
+	readonly merged_prs: number;
+	readonly merge_rate: number;
+	readonly total_additions: number;
+	readonly total_deletions: number;
+	readonly total_cost_micros: number;
+	readonly cost_per_merged_pr_micros: number;
+}
+
+// From codersdk/chats.go
+/**
+ * PRInsightsPullRequest represents a single PR in the recent PRs
+ * table.
+ */
+export interface PRInsightsPullRequest {
+	readonly chat_id: string;
+	readonly pr_title: string;
+	readonly pr_url?: string;
+	readonly pr_number?: number;
+	readonly state: string;
+	readonly draft: boolean;
+	readonly additions: number;
+	readonly deletions: number;
+	readonly changed_files: number;
+	readonly commits?: number;
+	readonly approved?: boolean;
+	readonly changes_requested: boolean;
+	readonly reviewer_count?: number;
+	readonly author_login?: string;
+	readonly author_avatar_url?: string;
+	readonly base_branch: string;
+	readonly model_display_name: string;
+	readonly cost_micros: number;
+	readonly created_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * PRInsightsResponse is the response from the PR insights endpoint.
+ */
+export interface PRInsightsResponse {
+	readonly summary: PRInsightsSummary;
+	readonly time_series: readonly PRInsightsTimeSeriesEntry[];
+	readonly by_model: readonly PRInsightsModelBreakdown[];
+	readonly recent_prs: readonly PRInsightsPullRequest[];
+}
+
+// From codersdk/chats.go
+/**
+ * PRInsightsSummary contains aggregate PR metrics for a time period,
+ * plus the previous period's metrics for trend calculation.
+ */
+export interface PRInsightsSummary {
+	readonly total_prs_created: number;
+	readonly total_prs_merged: number;
+	readonly merge_rate: number;
+	readonly total_additions: number;
+	readonly total_deletions: number;
+	readonly total_cost_micros: number;
+	readonly cost_per_merged_pr_micros: number;
+	readonly approval_rate: number;
+	readonly prev_total_prs_created: number;
+	readonly prev_total_prs_merged: number;
+	readonly prev_merge_rate: number;
+	readonly prev_cost_per_merged_pr_micros: number;
+}
+
+// From codersdk/chats.go
+/**
+ * PRInsightsTimeSeriesEntry is a single data point in the PR
+ * activity time series chart.
+ */
+export interface PRInsightsTimeSeriesEntry {
+	readonly date: string;
+	readonly prs_created: number;
+	readonly prs_merged: number;
+	readonly prs_closed: number;
+}
+
 // From codersdk/organizations.go
 export interface PaginatedMembersRequest {
 	readonly limit?: number;
