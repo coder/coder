@@ -4,6 +4,13 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LicenseCard } from "./LicenseCard";
 
+const openRemoveDialog = async (user: ReturnType<typeof userEvent.setup>) => {
+	await user.click(
+		screen.getByRole("button", { name: /show license actions/i }),
+	);
+	await user.click(await screen.findByRole("menuitem", { name: /remove/i }));
+};
+
 describe("LicenseCard", () => {
 	it("renders (smoke test)", async () => {
 		// When
@@ -59,8 +66,7 @@ describe("LicenseCard", () => {
 			/>,
 		);
 
-		const removeButton = await screen.findByRole("button", { name: /remove/i });
-		await user.click(removeButton);
+		await openRemoveDialog(user);
 
 		const dialog = await screen.findByTestId("dialog");
 		expect(dialog).toHaveTextContent(/This license has already expired/);
@@ -80,8 +86,7 @@ describe("LicenseCard", () => {
 			/>,
 		);
 
-		const removeButton = await screen.findByRole("button", { name: /remove/i });
-		await user.click(removeButton);
+		await openRemoveDialog(user);
 
 		await screen.findByText(
 			/Removing this license will disable all Premium features/,
@@ -135,7 +140,7 @@ describe("LicenseCard", () => {
 			/>,
 		);
 
-		await user.click(screen.getByRole("button", { name: /remove/i }));
+		await openRemoveDialog(user);
 
 		const dialog = await screen.findByTestId("dialog");
 		const dialogScope = within(dialog);
