@@ -325,6 +325,11 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					effectiveTabId ? `${tabIdPrefix}-tab-${effectiveTabId}` : undefined
 				}
 				className="min-h-0 flex-1"
+				style={{
+					// Isolate this subtree so the browser doesn't need to
+					// re-check external layout when the panel resizes.
+					contain: "layout style paint",
+				}}
 			>
 				{effectiveTabId === "desktop" && desktopChatId ? (
 					<DesktopPanel

@@ -75,7 +75,7 @@ function useResizableDrag({
 	isSidebarCollapsed?: boolean;
 	onToggleSidebarCollapsed?: () => void;
 }) {
-	const isDragging = useRef(false);
+	const isDraggingRef = useRef(false);
 	const startX = useRef(0);
 	const startWidth = useRef(0);
 	const sidebarCollapsedByDrag = useRef(false);
@@ -88,7 +88,7 @@ function useResizableDrag({
 	const handlePointerDown = useCallback(
 		(e: ReactPointerEvent<HTMLDivElement>) => {
 			e.preventDefault();
-			isDragging.current = true;
+			isDraggingRef.current = true;
 			setDragSnap(null);
 			sidebarCollapsedByDrag.current = false;
 			startX.current = e.clientX;
@@ -104,7 +104,7 @@ function useResizableDrag({
 
 	const handlePointerMove = useCallback(
 		(e: ReactPointerEvent<HTMLDivElement>) => {
-			if (!isDragging.current) {
+			if (!isDraggingRef.current) {
 				return;
 			}
 			const delta = startX.current - e.clientX;
@@ -157,11 +157,11 @@ function useResizableDrag({
 
 	const handlePointerUp = useCallback(
 		(e: ReactPointerEvent<HTMLDivElement>) => {
-			if (!isDragging.current) {
+			if (!isDraggingRef.current) {
 				return;
 			}
 			const snap = dragSnap;
-			isDragging.current = false;
+			isDraggingRef.current = false;
 			setDragSnap(null);
 			(e.target as HTMLElement).releasePointerCapture(e.pointerId);
 
@@ -185,9 +185,13 @@ function useResizableDrag({
 		dragSnap !== "closed" &&
 		(dragSnap === "expanded" || dragSnap === "normal" || isOpen);
 
+	// Dragging is active whenever a snap override is in effect.
+	const isDragging = dragSnap !== null;
+
 	return {
 		visualExpanded,
 		visualOpen,
+		isDragging,
 		handlePointerDown,
 		handlePointerMove,
 		handlePointerUp,
@@ -236,6 +240,7 @@ export const RightPanel = ({
 	const {
 		visualExpanded,
 		visualOpen,
+		isDragging,
 		handlePointerDown,
 		handlePointerMove,
 		handlePointerUp,
@@ -285,7 +290,18 @@ export const RightPanel = ({
 					visualExpanded && "-left-1",
 				)}
 			/>
-			<div className="flex min-h-0 flex-1 flex-col">{children}</div>
+			<div
+				className="flex min-h-0 flex-1 flex-col"
+				style={{
+					// During drag-resize, disable pointer events on children
+					// to skip expensive hit-testing on Shadow DOM diff
+					// elements, and isolate this subtree from layout recalc.
+					contain: "layout style paint",
+					pointerEvents: isDragging ? "none" : undefined,
+				}}
+			>
+				{children}
+			</div>
 		</div>
 	);
 };

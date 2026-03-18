@@ -727,6 +727,13 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 								<div
 									key={fileDiff.name}
 									ref={(el) => setFileRef(fileDiff.name, el)}
+									style={{
+										// Allow the browser to skip layout/paint for
+										// off-screen file diffs, dramatically reducing
+										// the work during panel resize or scroll.
+										contentVisibility: "auto",
+										containIntrinsicSize: `auto ${estimateDiffHeight(fileDiff)}px`,
+									}}
 								>
 									<LazyFileDiff
 										fileDiff={fileDiff}
@@ -741,7 +748,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 								</div>
 							))}
 							{/* Spacer so the last file can scroll fully to the top. */}
-							<div className="h-[calc(100vh-100px)]" />
+							<div className="h-[calc(100vh-100px)]" />{" "}
 						</div>
 					</ScrollArea>
 				</div>
