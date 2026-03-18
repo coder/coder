@@ -351,12 +351,27 @@ export const DeleteConfirmationDialog: Story = {
 			isLoading: false,
 		},
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ args }) => {
 		const dialog = await screen.findByRole("dialog");
 		await expect(dialog).toBeInTheDocument();
 		await expect(
 			within(dialog).getByText("Archive agent & delete workspace"),
 		).toBeInTheDocument();
+
+		// Confirm button should be disabled before typing the workspace name.
+		const confirmButton = within(dialog).getByRole("button", {
+			name: /delete/i,
+		});
+		await expect(confirmButton).toBeDisabled();
+
+		// Type the workspace name to satisfy the confirmation guard.
+		const input = within(dialog).getByLabelText(/name of the workspace/i);
+		await userEvent.type(input, "my-workspace");
+		await expect(confirmButton).toBeEnabled();
+
+		// Click confirm and verify the callback fires.
+		await userEvent.click(confirmButton);
+		await expect(args.deleteDialog.onConfirm).toHaveBeenCalled();
 	},
 };
 

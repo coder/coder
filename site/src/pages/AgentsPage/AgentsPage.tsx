@@ -449,6 +449,10 @@ const AgentsPage: FC = () => {
 									...(isDiffStatusEvent && {
 										diff_status: updatedChat.diff_status,
 									}),
+									// workspace_id can arrive on any event kind once
+									// the workspace is associated with the chat.
+									workspace_id:
+										updatedChat.workspace_id ?? c.workspace_id,
 									updated_at:
 										c.updated_at > updatedChat.updated_at
 											? c.updated_at
@@ -471,15 +475,16 @@ const AgentsPage: FC = () => {
 								...(isDiffStatusEvent && {
 									diff_status: updatedChat.diff_status,
 								}),
+								workspace_id:
+									updatedChat.workspace_id ?? previousChat.workspace_id,
 								updated_at:
 									previousChat.updated_at > updatedChat.updated_at
 										? previousChat.updated_at
 										: updatedChat.updated_at,
 							};
 						},
-					);
-				});
-
+						);
+					});
 				return ws;
 			},
 			onOpen() {
