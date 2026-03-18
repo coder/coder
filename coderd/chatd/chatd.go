@@ -379,6 +379,7 @@ type CreateOptions struct {
 	ChatMode           database.NullChatMode
 	SystemPrompt       string
 	InitialUserContent []codersdk.ChatMessagePart
+	AutomationID       uuid.NullUUID
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -465,6 +466,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			LastModelConfigID: opts.ModelConfigID,
 			Title:             opts.Title,
 			Mode:              opts.ChatMode,
+			AutomationID:      opts.AutomationID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)

@@ -1264,7 +1264,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID uuid.UUID, added, re
 			// System roles are stored in the database but have a fixed, code-defined
 			// meaning. Do not rewrite the name for them so the static "who can assign
 			// what" mapping applies.
-			if !rbac.SystemRoleName(roleName.Name) {
+			if !rolestore.IsSystemRoleName(roleName.Name) {
 				// To support a dynamic mapping of what roles can assign what, we need
 				// to store this in the database. For now, just use a static role so
 				// owners and org admins can assign roles.
@@ -1700,7 +1700,14 @@ func (q *querier) CountAIBridgeInterceptions(ctx context.Context, arg database.C
 }
 
 func (q *querier) CountActiveChatAutomationRuns(ctx context.Context, automationID uuid.UUID) (int64, error) {
-	panic("not implemented")
+	automation, err := q.db.GetChatAutomationByID(ctx, automationID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(automation.OwnerID.String())); err != nil {
+		return 0, err
+	}
+	return q.db.CountActiveChatAutomationRuns(ctx, automationID)
 }
 
 func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
@@ -1728,6 +1735,10 @@ func (q *querier) CountConnectionLogs(ctx context.Context, arg database.CountCon
 		return 0, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
 	return q.db.CountAuthorizedConnectionLogs(ctx, arg, prep)
+}
+
+func (q *querier) CountEnabledModelsWithoutPricing(ctx context.Context) (int64, error) {
+	panic("not implemented")
 }
 
 func (q *querier) CountInProgressPrebuilds(ctx context.Context) ([]database.CountInProgressPrebuildsRow, error) {
@@ -1822,19 +1833,14 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 }
 
 func (q *querier) DeleteChatAutomation(ctx context.Context, id uuid.UUID) error {
-	panic("not implemented")
-}
-
-func (q *querier) DeleteChatMessagesAfterID(ctx context.Context, arg database.DeleteChatMessagesAfterIDParams) error {
-	// Authorize update on the parent chat.
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	automation, err := q.db.GetChatAutomationByID(ctx, id)
 	if err != nil {
 		return err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceChat.WithOwner(automation.OwnerID.String())); err != nil {
 		return err
 	}
-	return q.db.DeleteChatMessagesAfterID(ctx, arg)
+	return q.db.DeleteChatAutomation(ctx, id)
 }
 
 func (q *querier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
@@ -1860,6 +1866,14 @@ func (q *querier) DeleteChatQueuedMessage(ctx context.Context, arg database.Dele
 		return err
 	}
 	return q.db.DeleteChatQueuedMessage(ctx, arg)
+}
+
+func (q *querier) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error {
+	panic("not implemented")
+}
+
+func (q *querier) DeleteChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) error {
+	panic("not implemented")
 }
 
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
@@ -2132,7 +2146,7 @@ func (q *querier) DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) erro
 	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.DeleteWorkspaceACLByID)(ctx, id)
 }
 
-func (q *querier) DeleteWorkspaceACLsByOrganization(ctx context.Context, organizationID uuid.UUID) error {
+func (q *querier) DeleteWorkspaceACLsByOrganization(ctx context.Context, organizationID database.DeleteWorkspaceACLsByOrganizationParams) error {
 	// This is a system-only function.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
@@ -2335,6 +2349,10 @@ func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Tim
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysLastUsedAfter)(ctx, lastUsed)
 }
 
+func (q *querier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate.All()); err != nil {
 		return nil, err
@@ -2427,15 +2445,32 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 }
 
 func (q *querier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (database.ChatAutomation, error) {
-	panic("not implemented")
+	automation, err := q.db.GetChatAutomationByID(ctx, id)
+	if err != nil {
+		return database.ChatAutomation{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(automation.OwnerID.String())); err != nil {
+		return database.ChatAutomation{}, err
+	}
+	return automation, nil
 }
 
 func (q *querier) GetChatAutomationRunsByAutomationID(ctx context.Context, arg database.GetChatAutomationRunsByAutomationIDParams) ([]database.ChatAutomationRun, error) {
-	panic("not implemented")
+	automation, err := q.db.GetChatAutomationByID(ctx, arg.AutomationID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(automation.OwnerID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatAutomationRunsByAutomationID(ctx, arg)
 }
 
 func (q *querier) GetChatAutomationsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatAutomation, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat.WithOwner(ownerID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatAutomationsByOwnerID(ctx, ownerID)
 }
 
 func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
@@ -2472,6 +2507,10 @@ func (q *querier) GetChatCostSummary(ctx context.Context, arg database.GetChatCo
 		return database.GetChatCostSummaryRow{}, err
 	}
 	return q.db.GetChatCostSummary(ctx, arg)
+}
+
+func (q *querier) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
+	panic("not implemented")
 }
 
 func (q *querier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (database.ChatDiffStatus, error) {
@@ -2552,6 +2591,10 @@ func (q *querier) GetChatMessagesByChatID(ctx context.Context, arg database.GetC
 	return q.db.GetChatMessagesByChatID(ctx, arg)
 }
 
+func (q *querier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg database.GetChatMessagesByChatIDDescPaginatedParams) ([]database.ChatMessage, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
 	// Authorize read on the parent chat.
 	_, err := q.GetChatByID(ctx, chatID)
@@ -2616,8 +2659,20 @@ func (q *querier) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	return q.db.GetChatSystemPrompt(ctx)
 }
 
-func (q *querier) GetChatsByOwnerID(ctx context.Context, ownerID database.GetChatsByOwnerIDParams) ([]database.Chat, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByOwnerID)(ctx, ownerID)
+func (q *querier) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
+	panic("not implemented")
+}
+
+func (q *querier) GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (database.GetChatUsageLimitGroupOverrideRow, error) {
+	panic("not implemented")
+}
+
+func (q *querier) GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (database.GetChatUsageLimitUserOverrideRow, error) {
+	panic("not implemented")
+}
+
+func (q *querier) GetChats(ctx context.Context, arg database.GetChatsParams) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChats)(ctx, arg)
 }
 
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
@@ -2724,7 +2779,11 @@ func (q *querier) GetEnabledChatProviders(ctx context.Context) ([]database.ChatP
 }
 
 func (q *querier) GetEnabledCronChatAutomations(ctx context.Context) ([]database.ChatAutomation, error) {
-	panic("not implemented")
+	// Called from the autochat cron executor, which runs as a system process.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetEnabledCronChatAutomations(ctx)
 }
 
 func (q *querier) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
@@ -3109,6 +3168,22 @@ func (q *querier) GetOrganizationsWithPrebuildStatus(ctx context.Context, arg da
 		return nil, err
 	}
 	return q.db.GetOrganizationsWithPrebuildStatus(ctx, arg)
+}
+
+func (q *querier) GetPRInsightsPerModel(ctx context.Context, arg database.GetPRInsightsPerModelParams) ([]database.GetPRInsightsPerModelRow, error) {
+	panic("not implemented")
+}
+
+func (q *querier) GetPRInsightsRecentPRs(ctx context.Context, arg database.GetPRInsightsRecentPRsParams) ([]database.GetPRInsightsRecentPRsRow, error) {
+	panic("not implemented")
+}
+
+func (q *querier) GetPRInsightsSummary(ctx context.Context, arg database.GetPRInsightsSummaryParams) (database.GetPRInsightsSummaryRow, error) {
+	panic("not implemented")
+}
+
+func (q *querier) GetPRInsightsTimeSeries(ctx context.Context, arg database.GetPRInsightsTimeSeriesParams) ([]database.GetPRInsightsTimeSeriesRow, error) {
+	panic("not implemented")
 }
 
 func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
@@ -3774,11 +3849,19 @@ func (q *querier) GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID)
 	return q.db.GetUserChatCustomPrompt(ctx, userID)
 }
 
+func (q *querier) GetUserChatSpendInPeriod(ctx context.Context, arg database.GetUserChatSpendInPeriodParams) (int64, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetUserCount(ctx context.Context, includeSystem bool) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return 0, err
 	}
 	return q.db.GetUserCount(ctx, includeSystem)
+}
+
+func (q *querier) GetUserGroupSpendLimit(ctx context.Context, userID uuid.UUID) (int64, error) {
+	panic("not implemented")
 }
 
 func (q *querier) GetUserLatencyInsights(ctx context.Context, arg database.GetUserLatencyInsightsParams) ([]database.GetUserLatencyInsightsRow, error) {
@@ -4450,6 +4533,10 @@ func (q *querier) InsertAIBridgeInterception(ctx context.Context, arg database.I
 	return insert(q.log, q.auth, rbac.ResourceAibridgeInterception.WithOwner(arg.InitiatorID.String()), q.db.InsertAIBridgeInterception)(ctx, arg)
 }
 
+func (q *querier) InsertAIBridgeModelThought(ctx context.Context, arg database.InsertAIBridgeModelThoughtParams) (database.AIBridgeModelThought, error) {
+	panic("not implemented")
+}
+
 func (q *querier) InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) (database.AIBridgeTokenUsage, error) {
 	// All aibridge_token_usages records belong to the initiator of their associated interception.
 	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionUpdate, arg.InterceptionID); err != nil {
@@ -4502,11 +4589,21 @@ func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams)
 }
 
 func (q *querier) InsertChatAutomation(ctx context.Context, arg database.InsertChatAutomationParams) (database.ChatAutomation, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceChat.WithOwner(arg.OwnerID.String())); err != nil {
+		return database.ChatAutomation{}, err
+	}
+	return q.db.InsertChatAutomation(ctx, arg)
 }
 
 func (q *querier) InsertChatAutomationRun(ctx context.Context, arg database.InsertChatAutomationRunParams) (database.ChatAutomationRun, error) {
-	panic("not implemented")
+	automation, err := q.db.GetChatAutomationByID(ctx, arg.AutomationID)
+	if err != nil {
+		return database.ChatAutomationRun{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat.WithOwner(automation.OwnerID.String())); err != nil {
+		return database.ChatAutomationRun{}, err
+	}
+	return q.db.InsertChatAutomationRun(ctx, arg)
 }
 
 func (q *querier) InsertChatFile(ctx context.Context, arg database.InsertChatFileParams) (database.InsertChatFileRow, error) {
@@ -4514,16 +4611,16 @@ func (q *querier) InsertChatFile(ctx context.Context, arg database.InsertChatFil
 	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertChatFile)(ctx, arg)
 }
 
-func (q *querier) InsertChatMessage(ctx context.Context, arg database.InsertChatMessageParams) (database.ChatMessage, error) {
+func (q *querier) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
 	// Authorize create on the parent chat (using update permission).
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
-		return database.ChatMessage{}, err
+		return nil, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.ChatMessage{}, err
+		return nil, err
 	}
-	return q.db.InsertChatMessage(ctx, arg)
+	return q.db.InsertChatMessages(ctx, arg)
 }
 
 func (q *querier) InsertChatModelConfig(ctx context.Context, arg database.InsertChatModelConfigParams) (database.ChatModelConfig, error) {
@@ -5147,6 +5244,14 @@ func (q *querier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, 
 	return q.db.ListAIBridgeUserPromptsByInterceptionIDs(ctx, interceptionIDs)
 }
 
+func (q *querier) ListChatUsageLimitGroupOverrides(ctx context.Context) ([]database.ListChatUsageLimitGroupOverridesRow, error) {
+	panic("not implemented")
+}
+
+func (q *querier) ListChatUsageLimitOverrides(ctx context.Context) ([]database.ListChatUsageLimitOverridesRow, error) {
+	panic("not implemented")
+}
+
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListProvisionerKeysByOrganization)(ctx, organizationID)
 }
@@ -5266,6 +5371,10 @@ func (q *querier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveU
 	return q.db.RemoveUserFromGroups(ctx, arg)
 }
 
+func (q *querier) ResolveUserChatSpendLimit(ctx context.Context, userID uuid.UUID) (int64, error) {
+	panic("not implemented")
+}
+
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
@@ -5279,6 +5388,22 @@ func (q *querier) SelectUsageEventsForPublishing(ctx context.Context, arg time.T
 		return nil, err
 	}
 	return q.db.SelectUsageEventsForPublishing(ctx, arg)
+}
+
+func (q *querier) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
+	panic("not implemented")
+}
+
+func (q *querier) SoftDeleteChatMessagesAfterID(ctx context.Context, arg database.SoftDeleteChatMessagesAfterIDParams) error {
+	// Authorize update on the parent chat.
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.SoftDeleteChatMessagesAfterID(ctx, arg)
 }
 
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
@@ -5341,15 +5466,35 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 }
 
 func (q *querier) UpdateChatAutomation(ctx context.Context, arg database.UpdateChatAutomationParams) (database.ChatAutomation, error) {
-	panic("not implemented")
+	automation, err := q.db.GetChatAutomationByID(ctx, arg.ID)
+	if err != nil {
+		return database.ChatAutomation{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat.WithOwner(automation.OwnerID.String())); err != nil {
+		return database.ChatAutomation{}, err
+	}
+	return q.db.UpdateChatAutomation(ctx, arg)
 }
 
 func (q *querier) UpdateChatAutomationRun(ctx context.Context, arg database.UpdateChatAutomationRunParams) (database.ChatAutomationRun, error) {
-	panic("not implemented")
+	// Called from the autochat executor, which runs as a system process.
+	// There is no GetChatAutomationRunByID method, so we authorize
+	// against the unscoped ResourceChat which requires system access.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return database.ChatAutomationRun{}, err
+	}
+	return q.db.UpdateChatAutomationRun(ctx, arg)
 }
 
 func (q *querier) UpdateChatAutomationWebhookSecret(ctx context.Context, arg database.UpdateChatAutomationWebhookSecretParams) (database.ChatAutomation, error) {
-	panic("not implemented")
+	automation, err := q.db.GetChatAutomationByID(ctx, arg.ID)
+	if err != nil {
+		return database.ChatAutomation{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat.WithOwner(automation.OwnerID.String())); err != nil {
+		return database.ChatAutomation{}, err
+	}
+	return q.db.UpdateChatAutomationWebhookSecret(ctx, arg)
 }
 
 func (q *querier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) (database.Chat, error) {
@@ -6461,6 +6606,10 @@ func (q *querier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg datab
 	return q.db.UpdateWorkspacesTTLByTemplateID(ctx, arg)
 }
 
+func (q *querier) UpsertAISeatState(ctx context.Context, arg database.UpsertAISeatStateParams) (bool, error) {
+	panic("not implemented")
+}
+
 func (q *querier) UpsertAnnouncementBanners(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
@@ -6480,6 +6629,10 @@ func (q *querier) UpsertBoundaryUsageStats(ctx context.Context, arg database.Ups
 		return false, err
 	}
 	return q.db.UpsertBoundaryUsageStats(ctx, arg)
+}
+
+func (q *querier) UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bool) error {
+	panic("not implemented")
 }
 
 func (q *querier) UpsertChatDiffStatus(ctx context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
@@ -6511,6 +6664,18 @@ func (q *querier) UpsertChatSystemPrompt(ctx context.Context, value string) erro
 		return err
 	}
 	return q.db.UpsertChatSystemPrompt(ctx, value)
+}
+
+func (q *querier) UpsertChatUsageLimitConfig(ctx context.Context, arg database.UpsertChatUsageLimitConfigParams) (database.ChatUsageLimitConfig, error) {
+	panic("not implemented")
+}
+
+func (q *querier) UpsertChatUsageLimitGroupOverride(ctx context.Context, arg database.UpsertChatUsageLimitGroupOverrideParams) (database.UpsertChatUsageLimitGroupOverrideRow, error) {
+	panic("not implemented")
+}
+
+func (q *querier) UpsertChatUsageLimitUserOverride(ctx context.Context, arg database.UpsertChatUsageLimitUserOverrideParams) (database.UpsertChatUsageLimitUserOverrideRow, error) {
+	panic("not implemented")
 }
 
 func (q *querier) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
@@ -6700,6 +6865,10 @@ func (q *querier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg databa
 	return q.db.UpsertWorkspaceAppAuditSession(ctx, arg)
 }
 
+func (q *querier) UsageEventExistsByID(ctx context.Context, id string) (bool, error) {
+	panic("not implemented")
+}
+
 func (q *querier) ValidateGroupIDs(ctx context.Context, groupIDs []uuid.UUID) (database.ValidateGroupIDsRow, error) {
 	// This check is probably overly restrictive, but the "correct" check isn't
 	// necessarily obvious. It's only used as a verification check for ACLs right
@@ -6794,4 +6963,8 @@ func (q *querier) ListAuthorizedAIBridgeModels(ctx context.Context, arg database
 	// This cannot be deleted for now because it's included in the
 	// database.Store interface, so dbauthz needs to implement it.
 	return q.ListAIBridgeModels(ctx, arg)
+}
+
+func (q *querier) GetAuthorizedChats(ctx context.Context, arg database.GetChatsParams, prepared rbac.PreparedAuthorized) ([]database.Chat, error) {
+	panic("not implemented")
 }

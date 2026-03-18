@@ -807,15 +807,21 @@ func New(options *Options) *API {
 	go api.gitSyncWorker.Start(dbauthz.AsChatd(api.ctx))
 
 	// Initialize autochat executor and cron.
-	api.autochatExecutor = autochat.NewExecutor(
-		options.Database,
-		func(ctx context.Context, opts autochat.CreateChatOptions) (database.Chat, error) {
-			return api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
+api.autochatExecutor = autochat.NewExecutor(
+			options.Database,
+			api.Pubsub,
+			func(ctx context.Context, opts autochat.CreateChatOptions) (database.Chat, error) {			return api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 				OwnerID:            opts.OwnerID,
 				Title:              opts.Title,
 				ModelConfigID:      opts.ModelConfigID,
 				SystemPrompt:       opts.SystemPrompt,
 				InitialUserContent: opts.InitialUserContent,
+				AutomationID: func() uuid.NullUUID {
+					if opts.AutomationID != nil {
+						return uuid.NullUUID{UUID: *opts.AutomationID, Valid: true}
+					}
+					return uuid.NullUUID{}
+				}(),
 			})
 		},
 		options.Logger.Named("autochat"),

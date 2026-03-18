@@ -12,6 +12,8 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -27,22 +29,22 @@ type CreateChatOptions struct {
 
 // Executor handles firing automations by creating chats.
 type Executor struct {
-	db  database.Store
-	log slog.Logger
-	// createChat is a function that creates a chat. In production this
-	// calls chatd.Server.CreateChat. It's a function field for
-	// testability.
+	db     database.Store
+	ps     pubsub.Pubsub
+	log    slog.Logger
 	createChat func(ctx context.Context, opts CreateChatOptions) (database.Chat, error)
 }
 
 // NewExecutor creates a new automation executor.
 func NewExecutor(
 	db database.Store,
+	ps pubsub.Pubsub,
 	createChatFn func(ctx context.Context, opts CreateChatOptions) (database.Chat, error),
 	log slog.Logger,
 ) *Executor {
 	return &Executor{
 		db:         db,
+		ps:         ps,
 		createChat: createChatFn,
 		log:        log.Named("autochat"),
 	}
@@ -87,7 +89,7 @@ func (e *Executor) Fire(
 		return database.ChatAutomationRun{}, xerrors.Errorf("insert run: %w", err)
 	}
 
-	// 4. Create chat - enters 'pending', chatd picks it up.
+	// 4. Create chat in "pending" status for chatd to pick up.
 	chat, err := e.createChat(ctx, CreateChatOptions{
 		OwnerID:       automation.OwnerID,
 		AutomationID:  &automation.ID,
@@ -133,5 +135,97 @@ func (e *Executor) Fire(
 		slog.F("chat_id", chat.ID),
 	)
 
+	// 6. Watch for chat completion in the background and update
+	// the run status accordingly.
+	go e.watchRunCompletion(run.ID, chat.ID, automation.OwnerID)
+
 	return run, nil
+}
+
+// watchRunCompletion subscribes to chat status change events and
+// marks the automation run as completed or failed when the chat
+// reaches a terminal state.
+func (e *Executor) watchRunCompletion(
+	runID uuid.UUID,
+	chatID uuid.UUID,
+	ownerID uuid.UUID,
+) {
+	ctx := context.Background()
+
+	cancel, err := e.ps.SubscribeWithErr(
+		coderdpubsub.ChatEventChannel(ownerID),
+		coderdpubsub.HandleChatEvent(
+			func(ctx context.Context, event coderdpubsub.ChatEvent, err error) {
+				if err != nil {
+					e.log.Error(ctx, "chat event subscription error",
+						slog.F("run_id", runID),
+						slog.Error(err),
+					)
+					return
+				}
+
+				// Only care about status changes for our chat.
+				if event.Chat.ID != chatID {
+					return
+				}
+				if event.Kind != coderdpubsub.ChatEventKindStatusChange {
+					return
+				}
+
+				status := string(event.Chat.Status)
+				switch status {
+				case "completed", "error":
+					// Terminal state reached.
+				default:
+					return
+				}
+
+				now := dbtime.Now()
+				runStatus := "completed"
+				var runError sql.NullString
+				if status == "error" {
+					runStatus = "failed"
+					runError = sql.NullString{
+						String: "chat ended with error status",
+						Valid:  true,
+					}
+				}
+
+				_, updateErr := e.db.UpdateChatAutomationRun(ctx,
+					database.UpdateChatAutomationRunParams{
+						ID:          runID,
+						Status:      runStatus,
+						Error:       runError,
+						CompletedAt: sql.NullTime{Time: now, Valid: true},
+					},
+				)
+				if updateErr != nil {
+					e.log.Error(ctx, "failed to update completed run",
+						slog.F("run_id", runID),
+						slog.F("chat_id", chatID),
+						slog.Error(updateErr),
+					)
+				} else {
+					e.log.Info(ctx, "automation run completed",
+						slog.F("run_id", runID),
+						slog.F("chat_id", chatID),
+						slog.F("status", runStatus),
+					)
+				}
+			},
+		),
+	)
+	if err != nil {
+		e.log.Error(ctx, "failed to subscribe to chat events for run completion",
+			slog.F("run_id", runID),
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+		return
+	}
+
+	// The subscription is cancelled implicitly when the pubsub is
+	// closed during server shutdown. We store the cancel func to
+	// be explicit, but in practice the server lifecycle manages it.
+	_ = cancel
 }

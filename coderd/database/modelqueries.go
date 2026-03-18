@@ -759,6 +759,7 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.OwnerID,
 		arg.Archived,
+		arg.AutomationID,
 		arg.AfterID,
 		arg.OffsetOpt,
 		arg.LimitOpt,
@@ -787,6 +788,7 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Archived,
 			&i.LastError,
 			&i.Mode,
+			&i.AutomationID,
 		); err != nil {
 			return nil, err
 		}
