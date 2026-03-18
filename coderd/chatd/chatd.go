@@ -486,6 +486,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 				ContextLimit:        sql.NullInt64{},
 				Compressed:          sql.NullBool{},
 				TotalCostMicros:     sql.NullInt64{},
+				RuntimeMs:           sql.NullInt64{},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert system message: %w", err)
@@ -524,6 +525,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			ContextLimit:        sql.NullInt64{},
 			Compressed:          sql.NullBool{},
 			TotalCostMicros:     sql.NullInt64{},
+			RuntimeMs:           sql.NullInt64{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace awareness message: %w", err)
@@ -552,6 +554,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
 			TotalCostMicros:     sql.NullInt64{},
+			RuntimeMs:           sql.NullInt64{},
 			Compressed:          sql.NullBool{},
 		})
 		if err != nil {
@@ -1170,6 +1173,7 @@ func insertUserMessageAndSetPending(
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
 		TotalCostMicros:     sql.NullInt64{},
+		RuntimeMs:           sql.NullInt64{},
 		Compressed:          sql.NullBool{},
 	})
 	if err != nil {
@@ -2147,6 +2151,7 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
 		TotalCostMicros:     sql.NullInt64{},
+		RuntimeMs:           sql.NullInt64{},
 		Compressed:          sql.NullBool{},
 	})
 	if err != nil {
@@ -2709,6 +2714,10 @@ func (p *Server) runChat(
 					ContextLimit:    step.ContextLimit,
 					Compressed:      sql.NullBool{},
 					TotalCostMicros: usageNullInt64Ptr(totalCostMicros),
+					RuntimeMs: sql.NullInt64{
+						Int64: step.Runtime.Milliseconds(),
+						Valid: step.Runtime > 0,
+					},
 				})
 				if insertErr != nil {
 					return xerrors.Errorf("insert assistant message: %w", insertErr)
@@ -2733,6 +2742,7 @@ func (p *Server) runChat(
 					CacheReadTokens:     sql.NullInt64{},
 					ContextLimit:        sql.NullInt64{},
 					TotalCostMicros:     sql.NullInt64{},
+					RuntimeMs:           sql.NullInt64{},
 					Compressed:          sql.NullBool{},
 				})
 				if insertErr != nil {
@@ -3117,6 +3127,7 @@ func (p *Server) persistChatContextSummary(
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
 			TotalCostMicros:     sql.NullInt64{},
+			RuntimeMs:           sql.NullInt64{},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert hidden summary message: %w", txErr)
@@ -3142,6 +3153,7 @@ func (p *Server) persistChatContextSummary(
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
 			TotalCostMicros:     sql.NullInt64{},
+			RuntimeMs:           sql.NullInt64{},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert summary tool call message: %w", txErr)
@@ -3168,6 +3180,7 @@ func (p *Server) persistChatContextSummary(
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
 			TotalCostMicros:     sql.NullInt64{},
+			RuntimeMs:           sql.NullInt64{},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert summary tool result message: %w", txErr)
