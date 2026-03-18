@@ -415,10 +415,9 @@ func AIBridgeSessions(ctx context.Context, db database.Store, query string, page
 		return filter, nil
 	}
 
-	values, errors := searchTerms(query, func(term string, values url.Values) error {
-		// Default to the initiating user.
-		values.Add("initiator", term)
-		return nil
+	values, errors := searchTerms(query, func(string, url.Values) error {
+		// Do not specify a default search key; let's be explicit to prevent user confusion.
+		return xerrors.New("no search key specified")
 	})
 	if len(errors) > 0 {
 		return filter, errors

@@ -1053,8 +1053,8 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 	if !row.EndedAt.IsZero() {
 		session.EndedAt = &row.EndedAt
 	}
-	if row.LastPrompt.Valid {
-		session.LastPrompt = &row.LastPrompt.String
+	if row.LastPrompt != "" {
+		session.LastPrompt = &row.LastPrompt
 	}
 	return session
 }
