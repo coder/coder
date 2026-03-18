@@ -3752,11 +3752,11 @@ func (m queryMetricsStore) ListAIBridgeModels(ctx context.Context, arg database.
 	return r0, r1
 }
 
-func (m queryMetricsStore) ListAIBridgeSessionThreadInterceptions(ctx context.Context, arg database.ListAIBridgeSessionThreadInterceptionsParams) ([]database.ListAIBridgeSessionThreadInterceptionsRow, error) {
+func (m queryMetricsStore) ListAIBridgeSessionThreads(ctx context.Context, arg database.ListAIBridgeSessionThreadsParams) ([]database.ListAIBridgeSessionThreadsRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.ListAIBridgeSessionThreadInterceptions(ctx, arg)
-	m.queryLatencies.WithLabelValues("ListAIBridgeSessionThreadInterceptions").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeSessionThreadInterceptions").Inc()
+	r0, r1 := m.s.ListAIBridgeSessionThreads(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeSessionThreads").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeSessionThreads").Inc()
 	return r0, r1
 }
 
@@ -5232,11 +5232,11 @@ func (m queryMetricsStore) GetAuthorizedAIBridgeSessionByID(ctx context.Context,
 	return r0, r1
 }
 
-func (m queryMetricsStore) ListAuthorizedAIBridgeSessionThreadInterceptions(ctx context.Context, arg database.ListAIBridgeSessionThreadInterceptionsParams, prepared rbac.PreparedAuthorized) ([]database.ListAIBridgeSessionThreadInterceptionsRow, error) {
+func (m queryMetricsStore) ListAuthorizedAIBridgeSessionThreads(ctx context.Context, arg database.ListAIBridgeSessionThreadsParams, prepared rbac.PreparedAuthorized) ([]database.ListAIBridgeSessionThreadsRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.ListAuthorizedAIBridgeSessionThreadInterceptions(ctx, arg, prepared)
-	m.queryLatencies.WithLabelValues("ListAuthorizedAIBridgeSessionThreadInterceptions").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAuthorizedAIBridgeSessionThreadInterceptions").Inc()
+	r0, r1 := m.s.ListAuthorizedAIBridgeSessionThreads(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("ListAuthorizedAIBridgeSessionThreads").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAuthorizedAIBridgeSessionThreads").Inc()
 	return r0, r1
 }
 

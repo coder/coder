@@ -593,8 +593,7 @@ OFFSET @offset_
 ;
 
 -- name: GetAIBridgeSessionByID :one
--- Returns session-level metadata for a single session identified by its
--- session_id string (which is COALESCE(client_session_id, thread_root_id::text, id::text)).
+-- Returns session-level metadata for a single session identified by its ID.
 WITH filtered_interceptions AS (
 	SELECT
 		aibridge_interceptions.*
@@ -660,17 +659,12 @@ LEFT JOIN
 	session_tokens st ON st.session_id = sb.session_id
 ;
 
--- name: ListAIBridgeSessionThreadInterceptions :many
+-- name: ListAIBridgeSessionThreads :many
 -- Returns all interceptions belonging to paginated threads within a session.
 -- Threads are paginated by (started_at, thread_id) cursor.
 WITH session_interceptions AS (
 	SELECT
 		aibridge_interceptions.*,
-		COALESCE(
-			aibridge_interceptions.client_session_id,
-			aibridge_interceptions.thread_root_id::text,
-			aibridge_interceptions.id::text
-		) AS session_id,
 		COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id
 	FROM
 		aibridge_interceptions
