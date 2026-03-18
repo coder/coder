@@ -370,6 +370,47 @@ func TestUntar(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("ZeroModeDirFallback", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a tar with a directory that has zero mode bits
+		// and a regular file inside it.
+		var buf bytes.Buffer
+		tw := tar.NewWriter(&buf)
+		err := tw.WriteHeader(&tar.Header{
+			Name:     "zerodir/",
+			Mode:     0,
+			Typeflag: tar.TypeDir,
+		})
+		require.NoError(t, err)
+		err = tw.WriteHeader(&tar.Header{
+			Name:     "zerodir/hello.txt",
+			Mode:     0o644,
+			Size:     5,
+			Typeflag: tar.TypeReg,
+		})
+		require.NoError(t, err)
+		_, err = tw.Write([]byte("world"))
+		require.NoError(t, err)
+		require.NoError(t, tw.Close())
+
+		dir := t.TempDir()
+		err = provisionersdk.Untar(dir, &buf)
+		require.NoError(t, err)
+
+		// The directory should have 0o755 permissions.
+		info, err := os.Stat(filepath.Join(dir, "zerodir"))
+		require.NoError(t, err)
+		require.True(t, info.IsDir())
+		require.Equal(t, os.FileMode(0o755), info.Mode().Perm(),
+			"zero-mode directory should get 0o755 fallback permissions")
+
+		// The file inside should be extracted successfully.
+		content, err := os.ReadFile(filepath.Join(dir, "zerodir", "hello.txt"))
+		require.NoError(t, err)
+		require.Equal(t, "world", string(content))
+	})
+
 	t.Run("ZeroModeFallback", func(t *testing.T) {
 		t.Parallel()
 

@@ -175,8 +175,12 @@ func Untar(directory string, r io.Reader) error {
 		}
 
 		mode := header.FileInfo().Mode()
-		if mode == 0 {
-			mode = defaultFileMode
+		if mode.Perm() == 0 {
+			if header.Typeflag == tar.TypeDir {
+				mode = os.ModeDir | 0o755
+			} else {
+				mode = defaultFileMode
+			}
 		}
 
 		// nolint: gosec // filepath.IsLocal check above prevents traversal.
