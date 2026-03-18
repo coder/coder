@@ -17,6 +17,9 @@ import (
 const (
 	// TemplateArchiveLimit represents the maximum size of a template in bytes.
 	TemplateArchiveLimit = 1 << 20
+
+	// defaultFileMode is used when a tar entry has no mode set.
+	defaultFileMode = 0o600
 )
 
 func dirHasExt(dir string, exts ...string) (bool, error) {
@@ -69,14 +72,17 @@ func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 		if err != nil {
 			return err
 		}
-		var link string
-		if fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink {
-			link, err = os.Readlink(file)
-			if err != nil {
-				return err
+		// Skip symlinks entirely. Neither Untar nor extractArchive
+		// restores symlinks, so including them is pointless and can
+		// be a security concern.
+		// See: https://github.com/coder/coder/issues/16163
+		if fileInfo.Mode()&os.ModeSymlink != 0 {
+			if fileInfo.IsDir() {
+				return filepath.SkipDir
 			}
+			return nil
 		}
-		header, err := tar.FileInfoHeader(fileInfo, link)
+		header, err := tar.FileInfoHeader(fileInfo, "")
 		if err != nil {
 			return err
 		}
@@ -155,40 +161,57 @@ func Untar(directory string, r io.Reader) error {
 			return nil
 		}
 		if err != nil {
-			return err
+			return xerrors.Errorf("read tar archive: %w", err)
 		}
-		if header.Name == "." || strings.Contains(header.Name, "..") {
+
+		// Use filepath.IsLocal for robust path traversal protection.
+		// This rejects absolute paths, paths containing "..", and
+		// other non-local path constructs.
+		if !filepath.IsLocal(header.Name) {
 			continue
 		}
-		// #nosec
+
+		// Skip symlinks explicitly. Neither Tar nor extractArchive
+		// handles restoring symlinks, and they can be a security
+		// concern (e.g. symlink-following attacks).
+		// See: https://github.com/coder/coder/issues/16163
+		if header.Typeflag == tar.TypeSymlink || header.Typeflag == tar.TypeLink {
+			continue
+		}
+
+		mode := header.FileInfo().Mode()
+		if mode == 0 {
+			mode = defaultFileMode
+		}
+
+		// nolint: gosec // filepath.IsLocal check above prevents traversal.
 		target := filepath.Join(directory, filepath.FromSlash(header.Name))
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if _, err := os.Stat(target); err != nil {
-				if err := os.MkdirAll(target, 0o755); err != nil {
-					return err
-				}
+			if err := os.MkdirAll(target, mode|os.ModeDir); err != nil {
+				return xerrors.Errorf("mkdir %q: %w", target, err)
 			}
 		case tar.TypeReg:
-			// #nosec G115 - Safe conversion as tar header mode fits within uint32
-			err := os.MkdirAll(filepath.Dir(target), os.FileMode(header.Mode)|os.ModeDir|100)
+			err := os.MkdirAll(filepath.Dir(target), 0o755)
 			if err != nil {
-				return err
+				return xerrors.Errorf("mkdir parent of %q: %w", target, err)
 			}
-			// #nosec G115 - Safe conversion as tar header mode fits within uint32
-			file, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR|os.O_TRUNC, os.FileMode(header.Mode))
+			file, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR|os.O_TRUNC, mode)
 			if err != nil {
-				return err
+				return xerrors.Errorf("create file %q: %w", target, err)
 			}
-			// Max file size of 10MB.
-			_, err = io.CopyN(file, tarReader, (1<<20)*10)
+			// Max file size of 10 MiB.
+			_, err = io.CopyN(file, tarReader, 10<<20)
 			if xerrors.Is(err, io.EOF) {
 				err = nil
 			}
 			if err != nil {
-				return err
+				_ = file.Close()
+				return xerrors.Errorf("copy file %q: %w", target, err)
 			}
-			_ = file.Close()
+			if err = file.Close(); err != nil {
+				return xerrors.Errorf("close file %q: %w", target, err)
+			}
 		}
 	}
 }

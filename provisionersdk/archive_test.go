@@ -1,6 +1,7 @@
 package provisionersdk_test
 
 import (
+	"archive/tar"
 	"bytes"
 	"io"
 	"os"
@@ -35,6 +36,38 @@ func TestTar(t *testing.T) {
 		err = provisionersdk.Tar(io.Discard, log, dir, 1024*1024)
 		require.NoError(t, err)
 	})
+
+	t.Run("SkipsSymlinks", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		// Create a real .tf file.
+		err := os.WriteFile(filepath.Join(dir, "main.tf"), []byte("# real"), 0o644)
+		require.NoError(t, err)
+
+		// Create a symlink to a file and a dangling symlink.
+		err = os.Symlink(filepath.Join(dir, "main.tf"), filepath.Join(dir, "linked.tf"))
+		require.NoError(t, err)
+		err = os.Symlink("no-target", filepath.Join(dir, "dangling"))
+		require.NoError(t, err)
+
+		var buf bytes.Buffer
+		err = provisionersdk.Tar(&buf, log, dir, 1024*1024)
+		require.NoError(t, err)
+
+		// Read the archive and verify no symlink entries exist.
+		tr := tar.NewReader(&buf)
+		for {
+			hdr, err := tr.Next()
+			if err == io.EOF {
+				break
+			}
+			require.NoError(t, err)
+			require.NotEqual(t, tar.TypeSymlink, hdr.Typeflag,
+				"symlink entry %q should not be in archive", hdr.Name)
+		}
+	})
+
 	t.Run("HeaderBreakLimit", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
@@ -248,5 +281,124 @@ func TestUntar(t *testing.T) {
 		content, err := os.ReadFile(filepath.Join(dir2, filepath.Base(file.Name())))
 		require.NoError(t, err)
 		require.Equal(t, "# c", string(content))
+	})
+
+	t.Run("PathTraversal", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a tar archive with a path traversal entry.
+		var buf bytes.Buffer
+		tw := tar.NewWriter(&buf)
+		// Write a file with a "../" prefix to attempt traversal.
+		err := tw.WriteHeader(&tar.Header{
+			Name:     "../etc/passwd",
+			Mode:     0o644,
+			Size:     4,
+			Typeflag: tar.TypeReg,
+		})
+		require.NoError(t, err)
+		_, err = tw.Write([]byte("evil"))
+		require.NoError(t, err)
+		// Also write a valid file to confirm extraction still works.
+		err = tw.WriteHeader(&tar.Header{
+			Name:     "safe.txt",
+			Mode:     0o644,
+			Size:     4,
+			Typeflag: tar.TypeReg,
+		})
+		require.NoError(t, err)
+		_, err = tw.Write([]byte("good"))
+		require.NoError(t, err)
+		require.NoError(t, tw.Close())
+
+		dir := t.TempDir()
+		err = provisionersdk.Untar(dir, &buf)
+		require.NoError(t, err)
+
+		// The traversal file must not exist anywhere.
+		_, err = os.Stat(filepath.Join(dir, "..", "etc", "passwd"))
+		require.ErrorIs(t, err, os.ErrNotExist)
+
+		// The safe file should exist.
+		_, err = os.Stat(filepath.Join(dir, "safe.txt"))
+		require.NoError(t, err)
+	})
+
+	t.Run("SkipsSymlinks", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a tar archive containing a symlink entry.
+		var buf bytes.Buffer
+		tw := tar.NewWriter(&buf)
+		err := tw.WriteHeader(&tar.Header{
+			Name:     "link",
+			Linkname: "/etc/passwd",
+			Typeflag: tar.TypeSymlink,
+		})
+		require.NoError(t, err)
+		// Also add a hard link entry.
+		err = tw.WriteHeader(&tar.Header{
+			Name:     "hardlink",
+			Linkname: "link",
+			Typeflag: tar.TypeLink,
+		})
+		require.NoError(t, err)
+		// Add a regular file so the archive is not empty.
+		err = tw.WriteHeader(&tar.Header{
+			Name:     "real.txt",
+			Mode:     0o644,
+			Size:     5,
+			Typeflag: tar.TypeReg,
+		})
+		require.NoError(t, err)
+		_, err = tw.Write([]byte("hello"))
+		require.NoError(t, err)
+		require.NoError(t, tw.Close())
+
+		dir := t.TempDir()
+		err = provisionersdk.Untar(dir, &buf)
+		require.NoError(t, err)
+
+		// Symlink and hardlink must not exist.
+		_, err = os.Lstat(filepath.Join(dir, "link"))
+		require.ErrorIs(t, err, os.ErrNotExist)
+		_, err = os.Lstat(filepath.Join(dir, "hardlink"))
+		require.ErrorIs(t, err, os.ErrNotExist)
+
+		// Regular file should be extracted.
+		_, err = os.Stat(filepath.Join(dir, "real.txt"))
+		require.NoError(t, err)
+	})
+
+	t.Run("ZeroModeFallback", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a tar with a file that has zero mode bits.
+		var buf bytes.Buffer
+		tw := tar.NewWriter(&buf)
+		err := tw.WriteHeader(&tar.Header{
+			Name:     "nomode.txt",
+			Mode:     0,
+			Size:     3,
+			Typeflag: tar.TypeReg,
+		})
+		require.NoError(t, err)
+		_, err = tw.Write([]byte("abc"))
+		require.NoError(t, err)
+		require.NoError(t, tw.Close())
+
+		dir := t.TempDir()
+		err = provisionersdk.Untar(dir, &buf)
+		require.NoError(t, err)
+
+		// The file should exist and be readable.
+		content, err := os.ReadFile(filepath.Join(dir, "nomode.txt"))
+		require.NoError(t, err)
+		require.Equal(t, "abc", string(content))
+
+		// The file mode should be the fallback (0o600).
+		info, err := os.Stat(filepath.Join(dir, "nomode.txt"))
+		require.NoError(t, err)
+		require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 	})
 }
