@@ -17,6 +17,7 @@ import (
 	"charm.land/fantasy"
 	"charm.land/fantasy/providers/anthropic"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
@@ -114,6 +115,7 @@ type Server struct {
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	configCache                    *chatConfigCache
 	configCacheUnsubscribe         func()
+	metrics           *chatStreamMetrics
 
 	// chatStreams stores per-chat stream state. Using sync.Map
 	// gives each chat independent locking — concurrent chats
@@ -1051,7 +1053,7 @@ func (p *Server) SendMessage(
 		})
 		p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
 			QueueUpdate: true,
-		})
+		}, chatStreamNotifyReasonQueueUpdate)
 
 		// For interrupt behavior, signal the running loop to
 		// stop. setChatWaiting publishes a status notification
@@ -1221,7 +1223,7 @@ func (p *Server) EditMessage(
 	})
 	p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
 		QueueUpdate: true,
-	})
+	}, chatStreamNotifyReasonQueueUpdate)
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
 	p.publishChatPubsubEvent(result.Chat, coderdpubsub.ChatEventKindStatusChange, nil)
 	p.signalWake()
@@ -1315,7 +1317,7 @@ func (p *Server) DeleteQueued(
 	// failed to load the updated queue payload above.
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
 		QueueUpdate: true,
-	})
+	}, chatStreamNotifyReasonQueueUpdate)
 	return nil
 }
 
@@ -1406,7 +1408,7 @@ func (p *Server) PromoteQueued(
 	})
 	p.publishChatStreamNotify(opts.ChatID, coderdpubsub.ChatStreamNotifyMessage{
 		QueueUpdate: true,
-	})
+	}, chatStreamNotifyReasonQueueUpdate)
 	p.publishMessage(opts.ChatID, promoted)
 	p.publishStatus(opts.ChatID, updatedChat.Status, updatedChat.WorkerID)
 	p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
@@ -2267,6 +2269,7 @@ type Config struct {
 	WebpushDispatcher              webpush.Dispatcher
 	UsageTracker                   *workspacestats.UsageTracker
 	Clock                          quartz.Clock
+	PrometheusRegisterer       prometheus.Registerer
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -2856,6 +2859,8 @@ func (p *Server) Subscribe(
 				return
 			case notify := <-notifications:
 				if notify.AfterMessageID > 0 || notify.FullRefresh {
+					reason := chatStreamCatchupReason(notify)
+					p.metrics.observeDBCatchupQuery(reason)
 					if notify.FullRefresh {
 						lastMessageID = 0
 					}
@@ -2878,6 +2883,7 @@ func (p *Server) Subscribe(
 							slog.Error(msgErr),
 						)
 					} else {
+						p.metrics.observeDBCatchupMessages(reason, len(newMessages))
 						for _, msg := range newMessages {
 							if msg.ID <= lastMessageID {
 								continue
@@ -2957,6 +2963,7 @@ func (p *Server) Subscribe(
 					}
 				}
 				if notify.QueueUpdate {
+					p.metrics.observeQueueRefreshQuery()
 					queuedMsgs, queueErr := p.db.GetChatQueuedMessages(mergedCtx, chatID)
 					if queueErr != nil {
 						p.logger.Warn(mergedCtx, "failed to get queued messages after pubsub notification",
@@ -3058,16 +3065,17 @@ func (p *Server) publishStatus(chatID uuid.UUID, status database.ChatStatus, wor
 	if workerID.Valid {
 		notify.WorkerID = workerID.UUID.String()
 	}
-	p.publishChatStreamNotify(chatID, notify)
+	p.publishChatStreamNotify(chatID, notify, chatStreamNotifyReasonStatusChange)
 }
 
 // publishChatStreamNotify broadcasts a per-chat stream notification via
 // PostgreSQL pubsub so that all replicas can merge durable database updates
 // with transient control events.
-func (p *Server) publishChatStreamNotify(chatID uuid.UUID, notify coderdpubsub.ChatStreamNotifyMessage) {
+func (p *Server) publishChatStreamNotify(chatID uuid.UUID, notify coderdpubsub.ChatStreamNotifyMessage, reason string) {
 	if p.pubsub == nil {
 		return
 	}
+	p.metrics.observeNotifyPublished(reason)
 	payload, err := json.Marshal(notify)
 	if err != nil {
 		p.logger.Error(context.Background(), "failed to marshal chat stream notify",
@@ -3149,7 +3157,7 @@ func (p *Server) publishRetry(chatID uuid.UUID, payload *codersdk.ChatStreamRetr
 	})
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
 		Retry: payload,
-	})
+	}, chatStreamNotifyReasonRetry)
 }
 
 func (p *Server) publishError(chatID uuid.UUID, classified chaterror.ClassifiedError) {
@@ -3162,9 +3170,9 @@ func (p *Server) publishError(chatID uuid.UUID, classified chaterror.ClassifiedE
 		Error: payload,
 	})
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
-		ErrorPayload: payload,
+	ErrorPayload: payload,
 		Error:        payload.Message,
-	})
+	}, chatStreamNotifyReasonError)
 }
 
 func processingFailure(err error) (chaterror.ClassifiedError, bool) {
@@ -3207,7 +3215,7 @@ func (p *Server) publishMessage(chatID uuid.UUID, message database.ChatMessage) 
 	p.publishEvent(chatID, event)
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
 		AfterMessageID: message.ID - 1,
-	})
+	}, chatStreamNotifyReasonMessagePersisted)
 }
 
 // publishEditedMessage is like publishMessage but uses FullRefresh
@@ -3229,7 +3237,7 @@ func (p *Server) publishEditedMessage(chatID uuid.UUID, message database.ChatMes
 	p.publishEvent(chatID, event)
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
 		FullRefresh: true,
-	})
+	}, chatStreamNotifyReasonFullRefresh)
 }
 
 func (p *Server) publishMessagePart(chatID uuid.UUID, role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
@@ -3592,7 +3600,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			})
 			p.publishChatStreamNotify(chat.ID, coderdpubsub.ChatStreamNotifyMessage{
 				QueueUpdate: true,
-			})
+			}, chatStreamNotifyReasonQueueUpdate)
 		}
 
 		p.publishStatus(chat.ID, status, uuid.NullUUID{})

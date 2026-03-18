@@ -220,6 +220,33 @@ coderd_authz_authorize_duration_seconds{allowed=""} 0
 # HELP coderd_authz_prepare_authorize_duration_seconds Duration of the 'PrepareAuthorize' call in seconds.
 # TYPE coderd_authz_prepare_authorize_duration_seconds histogram
 coderd_authz_prepare_authorize_duration_seconds 0
+# HELP coderd_chat_stream_db_catchup_messages_total Total number of messages returned by chat stream catch-up queries, partitioned by reason.
+# TYPE coderd_chat_stream_db_catchup_messages_total counter
+coderd_chat_stream_db_catchup_messages_total{reason=""} 0
+# HELP coderd_chat_stream_db_catchup_queries_total Total number of chat stream message catch-up queries triggered by pubsub notifications, partitioned by reason.
+# TYPE coderd_chat_stream_db_catchup_queries_total counter
+coderd_chat_stream_db_catchup_queries_total{reason=""} 0
+# HELP coderd_chat_stream_notify_published_total Total number of chat stream notifications published, partitioned by reason.
+# TYPE coderd_chat_stream_notify_published_total counter
+coderd_chat_stream_notify_published_total{reason=""} 0
+# HELP coderd_chat_stream_queue_refresh_queries_total Total number of queued-message refresh queries triggered by chat stream notifications.
+# TYPE coderd_chat_stream_queue_refresh_queries_total counter
+coderd_chat_stream_queue_refresh_queries_total 0
+# HELP coderd_chat_stream_relay_active Current number of active chat stream relay connections.
+# TYPE coderd_chat_stream_relay_active gauge
+coderd_chat_stream_relay_active 0
+# HELP coderd_chat_stream_relay_close_total Total number of chat stream relay closes, partitioned by reason.
+# TYPE coderd_chat_stream_relay_close_total counter
+coderd_chat_stream_relay_close_total{reason=""} 0
+# HELP coderd_chat_stream_relay_open_total Total number of chat stream relay open attempts, partitioned by source and result.
+# TYPE coderd_chat_stream_relay_open_total counter
+coderd_chat_stream_relay_open_total{source="",result=""} 0
+# HELP coderd_chat_stream_relay_reconnect_poll_total Total number of chat stream relay reconnect polls, partitioned by result.
+# TYPE coderd_chat_stream_relay_reconnect_poll_total counter
+coderd_chat_stream_relay_reconnect_poll_total{result=""} 0
+# HELP coderd_chat_stream_relay_reconnect_scheduled_total Total number of chat stream relay reconnect attempts scheduled, partitioned by reason.
+# TYPE coderd_chat_stream_relay_reconnect_scheduled_total counter
+coderd_chat_stream_relay_reconnect_scheduled_total{reason=""} 0
 # HELP coderd_db_query_counts_total Total number of queries labelled by HTTP route, method, and query name.
 # TYPE coderd_db_query_counts_total counter
 coderd_db_query_counts_total{route="",method="",query=""} 0
