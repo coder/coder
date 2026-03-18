@@ -72,14 +72,9 @@ func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 		if err != nil {
 			return err
 		}
-		// Skip symlinks entirely. Neither Untar nor extractArchive
-		// restores symlinks, so including them is pointless and can
-		// be a security concern.
-		// See: https://github.com/coder/coder/issues/16163
+		// Symlinks are skipped because neither Untar nor extractArchive
+		// restore them. See #16163.
 		if fileInfo.Mode()&os.ModeSymlink != 0 {
-			if fileInfo.IsDir() {
-				return filepath.SkipDir
-			}
 			return nil
 		}
 		header, err := tar.FileInfoHeader(fileInfo, "")
