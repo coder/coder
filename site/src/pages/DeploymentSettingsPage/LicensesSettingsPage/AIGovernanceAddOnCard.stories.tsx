@@ -10,6 +10,7 @@ const meta: Meta<typeof AIGovernanceAddOnCard> = {
 		unit: "Seats",
 		actual: 750,
 		limit: 1000,
+		isExceeded: false,
 	},
 };
 
@@ -22,5 +23,6 @@ export const Exceeded: Story = {
 	args: {
 		actual: 1200,
 		limit: 1000,
+		isExceeded: true,
 	},
 };

@@ -12,6 +12,7 @@ type AIGovernanceAddOnCardProps = {
 	unit: string;
 	actual: number;
 	limit: number;
+	isExceeded: boolean;
 };
 
 export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
@@ -19,11 +20,12 @@ export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
 	unit,
 	actual,
 	limit,
+	isExceeded,
 }) => {
 	return (
 		<div
 			className={`min-w-[320px] flex-1 rounded-sm border border-solid py-3 ${
-				actual > limit ? "border-border-destructive" : "border-border"
+				isExceeded ? "border-border-destructive" : "border-border"
 			}`}
 		>
 			<div className="flex items-center gap-1 px-6 py-1.5">
@@ -55,7 +57,7 @@ export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
 							<div className="font-normal text-content-primary">
 								<span
 									className={
-										actual > limit
+										isExceeded
 											? "text-content-destructive"
 											: "text-content-primary"
 									}

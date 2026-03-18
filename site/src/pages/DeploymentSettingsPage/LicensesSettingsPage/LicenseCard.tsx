@@ -51,6 +51,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 	const isLicenseCurrentlyValid = !isExpired && !isNotYetValid;
 	const isPremium = license.claims.feature_set?.toLowerCase() === "premium";
 	const aiGovernanceActual = aiGovernanceUserFeature?.actual ?? 0;
+	const aiGovernanceMergedLimit = aiGovernanceUserFeature?.limit;
 	const aiGovernanceLimit =
 		license.claims.features?.ai_governance_user_limit ?? 0;
 
@@ -66,9 +67,14 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 	const hasAiGovernanceAddOn =
 		hasExplicitAiGovernanceAddOn ||
 		(license.claims.features?.ai_governance_user_limit ?? 0) > 0;
+	const isActiveAiGovernanceEntitlement =
+		aiGovernanceMergedLimit !== undefined &&
+		aiGovernanceLimit > 0 &&
+		aiGovernanceLimit === aiGovernanceMergedLimit;
 	const isAiGovernanceAddOnExceeded =
 		isLicenseCurrentlyValid &&
 		hasAiGovernanceAddOn &&
+		isActiveAiGovernanceEntitlement &&
 		aiGovernanceActual > aiGovernanceLimit;
 	const statusClassName =
 		isAiGovernanceAddOnExceeded || isExpired
@@ -197,6 +203,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 									unit="Seats"
 									actual={aiGovernanceActual}
 									limit={aiGovernanceLimit}
+									isExceeded={isAiGovernanceAddOnExceeded}
 								/>
 							</div>
 						</div>

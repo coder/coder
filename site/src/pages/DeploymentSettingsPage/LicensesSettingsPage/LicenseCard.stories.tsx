@@ -159,6 +159,32 @@ export const FutureAIGovernanceOverageShowsStartsOn: Story = {
 	},
 };
 
+export const LowerLimitCardUsesMergedEntitlement: Story = {
+	args: {
+		license: {
+			...MockLicenseResponse[1],
+			claims: {
+				...MockLicenseResponse[1].claims,
+				features: {
+					...MockLicenseResponse[1].claims.features,
+					ai_governance_user_limit: 500,
+				},
+				addons: ["ai_governance"],
+			},
+		},
+		aiGovernanceUserFeature: {
+			enabled: true,
+			entitlement: "entitled",
+			actual: 750,
+			limit: 1000,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.queryByText("Add-on exceeded")).not.toBeInTheDocument();
+	},
+};
+
 export const EnterpriseDoesNotShowAIGovernanceAddOn: Story = {
 	args: {
 		license: {
