@@ -781,6 +781,7 @@ const AgentDetail: FC = () => {
 					token: key,
 					agent: workspaceAgent.name,
 					folder: workspaceAgent.expanded_directory,
+					chatId: agentId,
 				});
 			},
 			onError: () => {
