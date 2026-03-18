@@ -91,7 +91,10 @@ alphabetically.
 
 The `env` block inside a `coder_agent` resource always takes final precedence
 over any `coder_env` resources. If both define the same variable, the
-`coder_agent` value wins:
+`coder_agent` value wins regardless of `merge_strategy`. This override happens
+after `coder_env` resources are merged, so `merge_strategy = "error"` does not
+trigger when the conflict is with the agent's `env` block — only when two
+`coder_env` resources define the same key:
 
 ```tf
 resource "coder_agent" "dev" {
