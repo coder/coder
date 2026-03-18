@@ -13,7 +13,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { Pill } from "components/Pill/Pill";
 import dayjs from "dayjs";
 import { ChevronDownIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
 import { type FC, useState } from "react";
