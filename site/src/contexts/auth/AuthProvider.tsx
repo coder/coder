@@ -49,7 +49,8 @@ const shouldRetryAuth = (failureCount: number, error: unknown): boolean => {
 	}
 	return failureCount < 3;
 };
-const authRetryDelay = (attempt: number) => Math.min(1000 * 2 ** attempt, 10000);
+const authRetryDelay = (attempt: number) =>
+	Math.min(1000 * 2 ** attempt, 10000);
 
 export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
@@ -106,8 +107,12 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	// of crashing through to the error boundary.
 	const isError =
 		(userQuery.isError && !isSignedOut) ||
-		(userQuery.isSuccess && permissionsQuery.isError &&
-		 !(isApiError(permissionsQuery.error) && permissionsQuery.error.response.status === 401));
+		(userQuery.isSuccess &&
+			permissionsQuery.isError &&
+			!(
+				isApiError(permissionsQuery.error) &&
+				permissionsQuery.error.response.status === 401
+			));
 
 	const signOut = useCallback(() => {
 		logoutMutation.mutate();
