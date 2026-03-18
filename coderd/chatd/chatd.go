@@ -1151,8 +1151,8 @@ func (m chatMessage) withCreatedBy(id uuid.UUID) chatMessage {
 	return m
 }
 
-func (m chatMessage) withCompressed(compressed bool) chatMessage {
-	m.compressed = compressed
+func (m chatMessage) withCompressed() chatMessage {
+	m.compressed = true
 	return m
 }
 
