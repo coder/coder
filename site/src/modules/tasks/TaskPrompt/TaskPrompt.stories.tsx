@@ -528,9 +528,10 @@ export const IconContrast: Story = {
 		queries: [
 			{
 				key: templateVersionPresetsKey(MockTemplateVersion.id),
-				data: MockPresets.map((preset, i) => ({
+				data: MockPresets.map((preset) => ({
 					...preset,
-					Icon: i === 0 ? "/icon/github.svg" : "/icon/tasks.svg",
+					Icon:
+						preset.ID === "preset-1" ? "/icon/github.svg" : "/icon/tasks.svg",
 				})),
 			},
 		],
