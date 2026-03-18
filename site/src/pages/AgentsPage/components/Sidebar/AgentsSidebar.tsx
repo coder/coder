@@ -22,6 +22,7 @@ import {
 	GitPullRequestClosedIcon,
 	GitPullRequestDraftIcon,
 	KeyRoundIcon,
+	LayoutTemplateIcon,
 	Loader2Icon,
 	PanelLeftCloseIcon,
 	PauseIcon,
@@ -987,6 +988,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						/>
 						{isAdmin && (
 							<>
+								<SettingsNavItem
+									icon={LayoutTemplateIcon}
+									label="Templates"
+									active={sidebarView.section === "templates"}
+									to="/agents/settings/templates"
+									replace
+									state={location.state}
+									adminOnly
+								/>
 								<SettingsNavItem
 									icon={KeyRoundIcon}
 									label="Providers"

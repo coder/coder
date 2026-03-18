@@ -1,4 +1,4 @@
-import { MockUserOwner } from "testHelpers/entities";
+import { MockTemplate, MockUserOwner } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
@@ -170,6 +170,30 @@ const meta = {
 			workspace_ttl_ms: 0,
 		});
 		spyOn(API.experimental, "updateChatWorkspaceTTL").mockResolvedValue();
+		spyOn(API.experimental, "getChatTemplateAllowlist").mockResolvedValue({
+			template_ids: [],
+		});
+		spyOn(API.experimental, "updateChatTemplateAllowlist").mockResolvedValue();
+		spyOn(API, "getTemplates").mockResolvedValue([
+			{
+				...MockTemplate,
+				id: "abc-123",
+				name: "docker-dev",
+				display_name: "Docker Development",
+			},
+			{
+				...MockTemplate,
+				id: "def-456",
+				name: "kubernetes-prod",
+				display_name: "Kubernetes Production",
+			},
+			{
+				...MockTemplate,
+				id: "ghi-789",
+				name: "aws-windows",
+				display_name: "AWS Windows Desktop",
+			},
+		]);
 	},
 } satisfies Meta<typeof AgentSettingsPageView>;
 
@@ -835,5 +859,13 @@ export const NoWarningForCleanPrompt: Story = {
 
 		// No invisible Unicode warning should be present.
 		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
+
+// ── Templates tab stories ──────────────────────────────────────
+
+export const TemplatesSection: Story = {
+	args: {
+		activeSection: "templates",
+		canManageChatModelConfigs: true,
+		canSetSystemPrompt: true,
 	},
 };

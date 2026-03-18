@@ -3213,10 +3213,27 @@ class ExperimentalApiMethods {
 			return response.data;
 		};
 
+	getChatTemplateAllowlist =
+		async (): Promise<TypesGen.ChatTemplateAllowlist> => {
+			const response = await this.axios.get<TypesGen.ChatTemplateAllowlist>(
+				"/api/experimental/chats/config/template-allowlist",
+			);
+			return response.data;
+		};
+
 	updateChatWorkspaceTTL = async (
 		req: TypesGen.UpdateChatWorkspaceTTLRequest,
 	): Promise<void> => {
 		await this.axios.put("/api/experimental/chats/config/workspace-ttl", req);
+	};
+
+	updateChatTemplateAllowlist = async (
+		req: TypesGen.ChatTemplateAllowlist,
+	): Promise<void> => {
+		await this.axios.put(
+			"/api/experimental/chats/config/template-allowlist",
+			req,
+		);
 	};
 
 	getUserChatCustomPrompt =

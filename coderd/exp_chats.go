@@ -2780,6 +2780,88 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	raw, err := api.Database.GetChatTemplateAllowlist(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching chat template allowlist.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	resp := codersdk.ChatTemplateAllowlist{
+		TemplateIDs: parseChatTemplateAllowlist(raw),
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.ChatTemplateAllowlist
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Validate all entries are valid UUIDs.
+	for _, id := range req.TemplateIDs {
+		if _, err := uuid.Parse(id); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid template ID in allowlist.",
+				Detail:  fmt.Sprintf("%q is not a valid UUID.", id),
+			})
+			return
+		}
+	}
+
+	raw, err := json.Marshal(req.TemplateIDs)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error encoding template allowlist.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if err := api.Database.UpsertChatTemplateAllowlist(ctx, string(raw)); httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	} else if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating chat template allowlist.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// parseChatTemplateAllowlist parses the raw JSON string from the
+// database into a list of template ID strings. Returns an empty
+// slice if the value is empty or invalid.
+func parseChatTemplateAllowlist(raw string) []string {
+	if raw == "" {
+		return []string{}
+	}
+	var ids []string
+	if err := json.Unmarshal([]byte(raw), &ids); err != nil {
+		return []string{}
+	}
+	if ids == nil {
+		return []string{}
+	}
+	return ids
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()

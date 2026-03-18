@@ -254,6 +254,7 @@ type sqlcQuerier interface {
 	GetChatProviders(ctx context.Context) ([]ChatProvider, error)
 	GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
 	GetChatSystemPrompt(ctx context.Context) (string, error)
+	GetChatTemplateAllowlist(ctx context.Context) (string, error)
 	GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitConfig, error)
 	GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (GetChatUsageLimitGroupOverrideRow, error)
 	GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (GetChatUsageLimitUserOverrideRow, error)
@@ -933,6 +934,7 @@ type sqlcQuerier interface {
 	UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDiffStatusParams) (ChatDiffStatus, error)
 	UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error)
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
+	UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error
 	UpsertChatUsageLimitConfig(ctx context.Context, arg UpsertChatUsageLimitConfigParams) (ChatUsageLimitConfig, error)
 	UpsertChatUsageLimitGroupOverride(ctx context.Context, arg UpsertChatUsageLimitGroupOverrideParams) (UpsertChatUsageLimitGroupOverrideRow, error)
 	UpsertChatUsageLimitUserOverride(ctx context.Context, arg UpsertChatUsageLimitUserOverrideParams) (UpsertChatUsageLimitUserOverrideRow, error)

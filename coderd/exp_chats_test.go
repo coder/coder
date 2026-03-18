@@ -5161,6 +5161,92 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	})
 }
 
+func TestChatTemplateAllowlist(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ReturnsEmptyWhenUnset", func(t *testing.T) {
+		t.Parallel()
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		resp, err := client.GetChatTemplateAllowlist(ctx)
+		require.NoError(t, err)
+		require.Empty(t, resp.TemplateIDs)
+	})
+
+	t.Run("AdminCanSet", func(t *testing.T) {
+		t.Parallel()
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ids := []string{uuid.NewString(), uuid.NewString()}
+		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: ids})
+		require.NoError(t, err)
+		resp, err := client.GetChatTemplateAllowlist(ctx)
+		require.NoError(t, err)
+		require.ElementsMatch(t, ids, resp.TemplateIDs)
+	})
+
+	t.Run("AdminCanClear", func(t *testing.T) {
+		t.Parallel()
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Set first.
+		ids := []string{uuid.NewString()}
+		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: ids})
+		require.NoError(t, err)
+		// Clear.
+		err = client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: []string{}})
+		require.NoError(t, err)
+		resp, err := client.GetChatTemplateAllowlist(ctx)
+		require.NoError(t, err)
+		require.Empty(t, resp.TemplateIDs)
+	})
+
+	t.Run("NonAdminCanRead", func(t *testing.T) {
+		t.Parallel()
+		client := newChatClient(t)
+		admin := coderdtest.CreateFirstUser(t, client.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, admin.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		resp, err := memberClient.GetChatTemplateAllowlist(ctx)
+		require.NoError(t, err)
+		require.Empty(t, resp.TemplateIDs)
+	})
+
+	t.Run("NonAdminWriteFails", func(t *testing.T) {
+		t.Parallel()
+		client := newChatClient(t)
+		admin := coderdtest.CreateFirstUser(t, client.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, admin.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := memberClient.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: []string{uuid.NewString()}})
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("UnauthenticatedFails", func(t *testing.T) {
+		t.Parallel()
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		anonClient := codersdk.NewExperimentalClient(codersdk.New(client.URL))
+		err := anonClient.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: []string{uuid.NewString()}})
+		requireSDKError(t, err, http.StatusUnauthorized)
+	})
+
+	t.Run("InvalidUUIDRejected", func(t *testing.T) {
+		t.Parallel()
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: []string{"not-a-uuid"}})
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+}
+
 func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Error {
 	t.Helper()
 

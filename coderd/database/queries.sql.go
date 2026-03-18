@@ -17512,6 +17512,18 @@ func (q *sqlQuerier) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	return chat_system_prompt, err
 }
 
+const getChatTemplateAllowlist = `-- name: GetChatTemplateAllowlist :one
+SELECT
+	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_template_allowlist'), '') :: text AS template_allowlist
+`
+
+func (q *sqlQuerier) GetChatTemplateAllowlist(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatTemplateAllowlist)
+	var template_allowlist string
+	err := row.Scan(&template_allowlist)
+	return template_allowlist, err
+}
+
 const getChatWorkspaceTTL = `-- name: GetChatWorkspaceTTL :one
 SELECT
     COALESCE(
@@ -17740,6 +17752,16 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat
 
 func (q *sqlQuerier) UpsertChatSystemPrompt(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatSystemPrompt, value)
+	return err
+}
+
+const upsertChatTemplateAllowlist = `-- name: UpsertChatTemplateAllowlist :exec
+INSERT INTO site_configs (key, value) VALUES ('agents_template_allowlist', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_template_allowlist'
+`
+
+func (q *sqlQuerier) UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatTemplateAllowlist, templateAllowlist)
 	return err
 }
 

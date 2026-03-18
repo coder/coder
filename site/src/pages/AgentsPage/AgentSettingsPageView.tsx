@@ -1,3 +1,4 @@
+import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import {
 	chatCostSummary,
@@ -5,10 +6,12 @@ import {
 	chatDesktopEnabled,
 	chatModelConfigs,
 	chatSystemPrompt,
+	chatTemplateAllowlist,
 	chatUserCustomPrompt,
 	chatWorkspaceTTL,
 	updateChatDesktopEnabled,
 	updateChatSystemPrompt,
+	updateChatTemplateAllowlist,
 	updateChatWorkspaceTTL,
 	updateUserChatCustomPrompt,
 } from "api/queries/chats";
@@ -931,7 +934,182 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 				{activeSection === "insights" && canManageChatModelConfigs && (
 					<InsightsContent />
 				)}
+				{activeSection === "templates" && canManageChatModelConfigs && (
+					<TemplateAllowlistSection />
+				)}
 			</div>
+		</div>
+	);
+};
+
+const TemplateAllowlistSection: FC = () => {
+	const queryClient = useQueryClient();
+
+	// Fetch all available templates.
+	const templatesQuery = useQuery({
+		queryKey: ["templates"],
+		queryFn: () => API.getTemplates(),
+	});
+
+	// Fetch current allowlist.
+	const allowlistQuery = useQuery(chatTemplateAllowlist());
+
+	const {
+		mutate: saveAllowlist,
+		isPending: isSaving,
+		isError: isSaveError,
+	} = useMutation(updateChatTemplateAllowlist(queryClient));
+
+	const [searchFilter, setSearchFilter] = useState("");
+	const [localAllowlist, setLocalAllowlist] = useState<Set<string> | null>(
+		null,
+	);
+
+	// Initialize local state from server data.
+	const serverAllowlist = useMemo(
+		() => new Set(allowlistQuery.data?.template_ids ?? []),
+		[allowlistQuery.data],
+	);
+	const currentAllowlist = localAllowlist ?? serverAllowlist;
+
+	const isDirty =
+		localAllowlist !== null &&
+		(localAllowlist.size !== serverAllowlist.size ||
+			[...localAllowlist].some((id) => !serverAllowlist.has(id)));
+
+	const filteredTemplates = useMemo(() => {
+		const all = templatesQuery.data ?? [];
+		if (!searchFilter) return all;
+		const lower = searchFilter.toLowerCase();
+		return all.filter(
+			(t) =>
+				t.name.toLowerCase().includes(lower) ||
+				t.display_name?.toLowerCase().includes(lower),
+		);
+	}, [templatesQuery.data, searchFilter]);
+
+	const toggleTemplate = (id: string) => {
+		const next = new Set(currentAllowlist);
+		if (next.has(id)) {
+			next.delete(id);
+		} else {
+			next.add(id);
+		}
+		setLocalAllowlist(next);
+	};
+
+	const handleSave = (event: FormEvent) => {
+		event.preventDefault();
+		saveAllowlist(
+			{ template_ids: [...currentAllowlist] },
+			{ onSuccess: () => setLocalAllowlist(null) },
+		);
+	};
+
+	const handleClear = () => {
+		setLocalAllowlist(new Set());
+	};
+
+	const isLoading = templatesQuery.isLoading || allowlistQuery.isLoading;
+
+	return (
+		<div className="space-y-6">
+			<SectionHeader
+				label="Templates"
+				description="Restrict which templates agents can use to create workspaces. When no templates are selected, all templates are available."
+				badge={<AdminBadge />}
+			/>
+
+			{isLoading && (
+				<div
+					role="status"
+					aria-label="Loading templates"
+					className="flex min-h-[120px] items-center justify-center"
+				>
+					<Spinner size="lg" loading className="text-content-secondary" />
+				</div>
+			)}
+
+			{!isLoading && (
+				<form
+					className="space-y-3"
+					onSubmit={(event) => void handleSave(event)}
+				>
+					{currentAllowlist.size === 0 && (
+						<p className="m-0 rounded-lg border border-border bg-surface-secondary px-4 py-3 text-xs text-content-secondary">
+							No restrictions — agents can use any template the user has access
+							to.
+						</p>
+					)}
+
+					<SearchField
+						value={searchFilter}
+						onChange={setSearchFilter}
+						placeholder="Filter templates"
+						aria-label="Filter templates"
+					/>
+
+					<div className="max-h-[320px] overflow-y-auto rounded-lg border border-border [scrollbar-width:thin]">
+						{filteredTemplates.length === 0 ? (
+							<p className="py-8 text-center text-xs text-content-secondary">
+								No templates found.
+							</p>
+						) : (
+							filteredTemplates.map((t) => (
+								<label
+									key={t.id}
+									className="flex cursor-pointer items-center gap-3 border-b border-border px-4 py-2.5 last:border-b-0 hover:bg-surface-secondary"
+								>
+									<input
+										type="checkbox"
+										checked={currentAllowlist.has(t.id)}
+										onChange={() => toggleTemplate(t.id)}
+										className="h-4 w-4 rounded border-border accent-content-link"
+									/>
+									<div className="min-w-0 flex-1">
+										<div className="truncate text-sm font-medium text-content-primary">
+											{t.display_name || t.name}
+										</div>
+										{t.display_name && (
+											<div className="truncate text-xs text-content-secondary">
+												{t.name}
+											</div>
+										)}
+									</div>
+								</label>
+							))
+						)}
+					</div>
+
+					{currentAllowlist.size > 0 && (
+						<p className="m-0 text-xs text-content-secondary">
+							{currentAllowlist.size} template
+							{currentAllowlist.size !== 1 ? "s" : ""} selected
+						</p>
+					)}
+
+					<div className="flex justify-end gap-2">
+						<Button
+							size="sm"
+							variant="outline"
+							type="button"
+							onClick={handleClear}
+							disabled={isSaving || currentAllowlist.size === 0}
+						>
+							Clear
+						</Button>
+						<Button size="sm" type="submit" disabled={isSaving || !isDirty}>
+							Save
+						</Button>
+					</div>
+
+					{isSaveError && (
+						<p className="m-0 text-xs text-content-destructive">
+							Failed to save template allowlist.
+						</p>
+					)}
+				</form>
+			)}
 		</div>
 	);
 };

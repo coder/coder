@@ -2674,6 +2674,16 @@ func (q *querier) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	return q.db.GetChatSystemPrompt(ctx)
 }
 
+func (q *querier) GetChatTemplateAllowlist(ctx context.Context) (string, error) {
+	// The template allowlist is a deployment-wide setting read by chatd
+	// when constructing tool options. Any authenticated user can read it
+	// so the admin UI can display the current state.
+	if _, ok := ActorFromContext(ctx); !ok {
+		return "", ErrNoActor
+	}
+	return q.db.GetChatTemplateAllowlist(ctx)
+}
+
 func (q *querier) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return database.ChatUsageLimitConfig{}, err
@@ -6810,6 +6820,13 @@ func (q *querier) UpsertChatSystemPrompt(ctx context.Context, value string) erro
 		return err
 	}
 	return q.db.UpsertChatSystemPrompt(ctx, value)
+}
+
+func (q *querier) UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatTemplateAllowlist(ctx, templateAllowlist)
 }
 
 func (q *querier) UpsertChatUsageLimitConfig(ctx context.Context, arg database.UpsertChatUsageLimitConfigParams) (database.ChatUsageLimitConfig, error) {

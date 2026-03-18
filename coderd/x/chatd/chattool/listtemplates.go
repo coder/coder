@@ -20,8 +20,9 @@ const listTemplatesPageSize = 10
 
 // ListTemplatesOptions configures the list_templates tool.
 type ListTemplatesOptions struct {
-	DB      database.Store
-	OwnerID uuid.UUID
+	DB                 database.Store
+	OwnerID            uuid.UUID
+	AllowedTemplateIDs []uuid.UUID
 }
 
 type listTemplatesArgs struct {
@@ -61,6 +62,10 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 			query := strings.TrimSpace(args.Query)
 			if query != "" {
 				filterParams.FuzzyName = query
+			}
+
+			if len(options.AllowedTemplateIDs) > 0 {
+				filterParams.IDs = options.AllowedTemplateIDs
 			}
 
 			templates, err := options.DB.GetTemplatesWithFilter(ctx, filterParams)

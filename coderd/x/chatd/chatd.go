@@ -3371,6 +3371,22 @@ func (p *Server) runChat(
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 	}
+	// Load the deployment-wide template allowlist so chat tools
+	// only expose permitted templates.
+	var allowedTemplateIDs []uuid.UUID
+	//nolint:gocritic // System context needed to read a deployment-wide
+	// setting that is not scoped to the chat owner.
+	if raw, err := p.db.GetChatTemplateAllowlist(dbauthz.AsSystemRestricted(ctx)); err == nil && raw != "" {
+		var ids []string
+		if jsonErr := json.Unmarshal([]byte(raw), &ids); jsonErr == nil {
+			for _, s := range ids {
+				if id, parseErr := uuid.Parse(s); parseErr == nil {
+					allowedTemplateIDs = append(allowedTemplateIDs, id)
+				}
+			}
+		}
+	}
+
 	// Only root chats (not delegated subagents) get workspace
 	// provisioning and subagent tools. Child agents must not
 	// create workspaces or spawn further subagents — they should
@@ -3379,12 +3395,14 @@ func (p *Server) runChat(
 		// Workspace provisioning tools.
 		tools = append(tools,
 			chattool.ListTemplates(chattool.ListTemplatesOptions{
-				DB:      p.db,
-				OwnerID: chat.OwnerID,
+				DB:                 p.db,
+				OwnerID:            chat.OwnerID,
+				AllowedTemplateIDs: allowedTemplateIDs,
 			}),
 			chattool.ReadTemplate(chattool.ReadTemplateOptions{
-				DB:      p.db,
-				OwnerID: chat.OwnerID,
+				DB:                 p.db,
+				OwnerID:            chat.OwnerID,
+				AllowedTemplateIDs: allowedTemplateIDs,
 			}),
 			chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
 				DB:                             p.db,
@@ -3395,6 +3413,7 @@ func (p *Server) runChat(
 				AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
 				WorkspaceMu:                    &workspaceMu,
 				Logger:                         p.logger,
+				AllowedTemplateIDs:             allowedTemplateIDs,
 			}),
 			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 				DB:          p.db,

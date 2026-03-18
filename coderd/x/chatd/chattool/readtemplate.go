@@ -14,8 +14,9 @@ import (
 
 // ReadTemplateOptions configures the read_template tool.
 type ReadTemplateOptions struct {
-	DB      database.Store
-	OwnerID uuid.UUID
+	DB                 database.Store
+	OwnerID            uuid.UUID
+	AllowedTemplateIDs []uuid.UUID
 }
 
 type readTemplateArgs struct {
@@ -46,6 +47,10 @@ func ReadTemplate(options ReadTemplateOptions) fantasy.AgentTool {
 				return fantasy.NewTextErrorResponse(
 					xerrors.Errorf("invalid template_id: %w", err).Error(),
 				), nil
+			}
+
+			if !isTemplateAllowed(options.AllowedTemplateIDs, templateID) {
+				return fantasy.NewTextErrorResponse("template not available for chat workspaces"), nil
 			}
 
 			ctx, err = asOwner(ctx, options.DB, options.OwnerID)
