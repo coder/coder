@@ -29,6 +29,7 @@ import (
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
 
 	// Admin users can see all MCP server configs (including disabled
 	// ones) for management purposes. Non-admin users see only enabled
@@ -51,9 +52,31 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Look up the calling user's OAuth2 tokens so we can populate
+	// auth_connected per server.
+	//nolint:gocritic // Need to check user tokens across all servers.
+	userTokens, err := api.Database.GetMCPServerUserTokensByUserID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get user tokens.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	tokenMap := make(map[uuid.UUID]bool, len(userTokens))
+	for _, t := range userTokens {
+		tokenMap[t.McpServerConfigID] = true
+	}
+
 	resp := make([]codersdk.MCPServerConfig, 0, len(configs))
 	for _, config := range configs {
-		resp = append(resp, convertMCPServerConfig(config, 0))
+		sdkConfig := convertMCPServerConfig(config, 0)
+		if config.AuthType == "oauth2" {
+			sdkConfig.AuthConnected = tokenMap[config.ID]
+		} else {
+			sdkConfig.AuthConnected = true
+		}
+		resp = append(resp, sdkConfig)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -462,52 +485,6 @@ func (api *API) refreshMCPServerTools(rw http.ResponseWriter, r *http.Request) {
 // Returns enabled MCP servers with per-user auth status.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
-func (api *API) listUserMCPServers(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
-
-	//nolint:gocritic // All authenticated users need to read enabled MCP server configs.
-	configs, err := api.Database.GetEnabledMCPServerConfigs(dbauthz.AsSystemRestricted(ctx))
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list MCP server configs.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	//nolint:gocritic // Need to check user tokens across all servers.
-	userTokens, err := api.Database.GetMCPServerUserTokensByUserID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get user tokens.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	tokenMap := make(map[uuid.UUID]bool, len(userTokens))
-	for _, t := range userTokens {
-		tokenMap[t.McpServerConfigID] = true
-	}
-
-	resp := make([]codersdk.MCPServerConfig, 0, len(configs))
-	for _, config := range configs {
-		sdkConfig := convertMCPServerConfig(config, 0)
-		// Set per-user auth status.
-		if config.AuthType == "oauth2" {
-			sdkConfig.AuthConnected = tokenMap[config.ID]
-		} else {
-			// Non-OAuth servers are always "connected" from auth
-			// perspective.
-			sdkConfig.AuthConnected = true
-		}
-		resp = append(resp, sdkConfig)
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
-}
-
 // @Summary Initiate MCP server OAuth2 connect
 // @x-apidocgen {"skip": true}
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.

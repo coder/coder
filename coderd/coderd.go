@@ -1237,8 +1237,6 @@ func New(options *Options) *API {
 				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents))
 				r.Get("/", api.listMCPServerConfigs)
 				r.Post("/", api.createMCPServerConfig)
-				// User-facing: list with auth status
-				r.Get("/user", api.listUserMCPServers)
 				r.Route("/{mcpServer}", func(r chi.Router) {
 					r.Patch("/", api.updateMCPServerConfig)
 					r.Delete("/", api.deleteMCPServerConfig)
