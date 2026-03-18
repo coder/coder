@@ -118,9 +118,10 @@ type agentAppAttributes struct {
 }
 
 type agentEnvAttributes struct {
-	AgentID string `mapstructure:"agent_id"`
-	Name    string `mapstructure:"name"`
-	Value   string `mapstructure:"value"`
+	AgentID       string `mapstructure:"agent_id"`
+	Name          string `mapstructure:"name"`
+	Value         string `mapstructure:"value"`
+	MergeStrategy string `mapstructure:"merge_strategy"`
 }
 
 type agentScriptAttributes struct {
@@ -648,8 +649,9 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		}
 
 		env := &proto.Env{
-			Name:  attrs.Name,
-			Value: attrs.Value,
+			Name:          attrs.Name,
+			Value:         attrs.Value,
+			MergeStrategy: attrs.MergeStrategy,
 		}
 
 	envAgentLoop:
