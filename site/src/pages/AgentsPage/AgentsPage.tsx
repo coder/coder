@@ -275,10 +275,11 @@ const AgentsPage: FC = () => {
 			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete, {
 				onSettled: () => {
 					setPendingArchiveAndDelete(null);
+					navigate("/agents");
 				},
 			});
 		}
-	}, [pendingArchiveAndDelete, isArchiving, archiveAndDeleteMutation]);
+	}, [pendingArchiveAndDelete, isArchiving, archiveAndDeleteMutation, navigate]);
 	const requestUnarchiveAgent = useCallback(
 		(chatId: string) => {
 			unarchiveAgentMutation.mutate(chatId);
@@ -494,6 +495,13 @@ const AgentsPage: FC = () => {
 		enabled: Boolean(pendingArchiveAndDelete?.workspaceId),
 	});
 	const pendingWorkspaceName = pendingWorkspaceQuery.data?.name ?? "";
+
+	useEffect(() => {
+		if (pendingWorkspaceQuery.isError && pendingArchiveAndDelete) {
+			toast.error("Failed to look up workspace for deletion.");
+			setPendingArchiveAndDelete(null);
+		}
+	}, [pendingWorkspaceQuery.isError, pendingArchiveAndDelete]);
 
 	return (
 		<AgentsPageView
