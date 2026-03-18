@@ -89,6 +89,33 @@ export const ExceededAIGovernance: Story = {
 	},
 };
 
+export const ExpiredAIGovernanceOverageShowsExpired: Story = {
+	args: {
+		license: {
+			...MockLicenseResponse[1],
+			claims: {
+				...MockLicenseResponse[1].claims,
+				license_expires: dayjs().subtract(1, "day").unix(),
+				features: {
+					...MockLicenseResponse[1].claims.features,
+					ai_governance_user_limit: 1000,
+				},
+				addons: ["ai_governance"],
+			},
+		},
+		aiGovernanceUserFeature: {
+			enabled: true,
+			entitlement: "entitled",
+			actual: 1200,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Expired")).toBeInTheDocument();
+		await expect(canvas.queryByText("Add-on exceeded")).not.toBeInTheDocument();
+	},
+};
+
 export const NotYetValid: Story = {
 	args: {
 		license: {
@@ -102,6 +129,33 @@ export const NotYetValid: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText(/Starts on/)).toBeInTheDocument();
+	},
+};
+
+export const FutureAIGovernanceOverageShowsStartsOn: Story = {
+	args: {
+		license: {
+			...MockLicenseResponse[1],
+			claims: {
+				...MockLicenseResponse[1].claims,
+				nbf: dayjs().add(7, "day").unix(),
+				features: {
+					...MockLicenseResponse[1].claims.features,
+					ai_governance_user_limit: 1000,
+				},
+				addons: ["ai_governance"],
+			},
+		},
+		aiGovernanceUserFeature: {
+			enabled: true,
+			entitlement: "entitled",
+			actual: 1200,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText(/Starts on/)).toBeInTheDocument();
+		await expect(canvas.queryByText("Add-on exceeded")).not.toBeInTheDocument();
 	},
 };
 

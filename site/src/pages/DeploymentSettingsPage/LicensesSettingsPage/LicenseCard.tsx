@@ -48,6 +48,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 	const isNotYetValid =
 		license.claims.nbf !== undefined &&
 		dayjs.unix(license.claims.nbf).isAfter(dayjs());
+	const isLicenseCurrentlyValid = !isExpired && !isNotYetValid;
 	const isPremium = license.claims.feature_set?.toLowerCase() === "premium";
 	const aiGovernanceActual = aiGovernanceUserFeature?.actual ?? 0;
 	const aiGovernanceLimit =
@@ -66,7 +67,9 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		hasExplicitAiGovernanceAddOn ||
 		(license.claims.features?.ai_governance_user_limit ?? 0) > 0;
 	const isAiGovernanceAddOnExceeded =
-		hasAiGovernanceAddOn && aiGovernanceActual > aiGovernanceLimit;
+		isLicenseCurrentlyValid &&
+		hasAiGovernanceAddOn &&
+		aiGovernanceActual > aiGovernanceLimit;
 	const statusClassName =
 		isAiGovernanceAddOnExceeded || isExpired
 			? "text-content-destructive"
