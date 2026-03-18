@@ -7022,19 +7022,19 @@ func (mr *MockStoreMockRecorder) ListAIBridgeModels(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeModels", reflect.TypeOf((*MockStore)(nil).ListAIBridgeModels), ctx, arg)
 }
 
-// ListAIBridgeSessionThreadInterceptions mocks base method.
-func (m *MockStore) ListAIBridgeSessionThreadInterceptions(ctx context.Context, arg database.ListAIBridgeSessionThreadInterceptionsParams) ([]database.ListAIBridgeSessionThreadInterceptionsRow, error) {
+// ListAIBridgeSessionThreads mocks base method.
+func (m *MockStore) ListAIBridgeSessionThreads(ctx context.Context, arg database.ListAIBridgeSessionThreadsParams) ([]database.ListAIBridgeSessionThreadsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAIBridgeSessionThreadInterceptions", ctx, arg)
-	ret0, _ := ret[0].([]database.ListAIBridgeSessionThreadInterceptionsRow)
+	ret := m.ctrl.Call(m, "ListAIBridgeSessionThreads", ctx, arg)
+	ret0, _ := ret[0].([]database.ListAIBridgeSessionThreadsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ListAIBridgeSessionThreadInterceptions indicates an expected call of ListAIBridgeSessionThreadInterceptions.
-func (mr *MockStoreMockRecorder) ListAIBridgeSessionThreadInterceptions(ctx, arg any) *gomock.Call {
+// ListAIBridgeSessionThreads indicates an expected call of ListAIBridgeSessionThreads.
+func (mr *MockStoreMockRecorder) ListAIBridgeSessionThreads(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeSessionThreadInterceptions", reflect.TypeOf((*MockStore)(nil).ListAIBridgeSessionThreadInterceptions), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeSessionThreads", reflect.TypeOf((*MockStore)(nil).ListAIBridgeSessionThreads), ctx, arg)
 }
 
 // ListAIBridgeSessions mocks base method.
@@ -7127,19 +7127,19 @@ func (mr *MockStoreMockRecorder) ListAuthorizedAIBridgeModels(ctx, arg, prepared
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAuthorizedAIBridgeModels", reflect.TypeOf((*MockStore)(nil).ListAuthorizedAIBridgeModels), ctx, arg, prepared)
 }
 
-// ListAuthorizedAIBridgeSessionThreadInterceptions mocks base method.
-func (m *MockStore) ListAuthorizedAIBridgeSessionThreadInterceptions(ctx context.Context, arg database.ListAIBridgeSessionThreadInterceptionsParams, prepared rbac.PreparedAuthorized) ([]database.ListAIBridgeSessionThreadInterceptionsRow, error) {
+// ListAuthorizedAIBridgeSessionThreads mocks base method.
+func (m *MockStore) ListAuthorizedAIBridgeSessionThreads(ctx context.Context, arg database.ListAIBridgeSessionThreadsParams, prepared rbac.PreparedAuthorized) ([]database.ListAIBridgeSessionThreadsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListAuthorizedAIBridgeSessionThreadInterceptions", ctx, arg, prepared)
-	ret0, _ := ret[0].([]database.ListAIBridgeSessionThreadInterceptionsRow)
+	ret := m.ctrl.Call(m, "ListAuthorizedAIBridgeSessionThreads", ctx, arg, prepared)
+	ret0, _ := ret[0].([]database.ListAIBridgeSessionThreadsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ListAuthorizedAIBridgeSessionThreadInterceptions indicates an expected call of ListAuthorizedAIBridgeSessionThreadInterceptions.
-func (mr *MockStoreMockRecorder) ListAuthorizedAIBridgeSessionThreadInterceptions(ctx, arg, prepared any) *gomock.Call {
+// ListAuthorizedAIBridgeSessionThreads indicates an expected call of ListAuthorizedAIBridgeSessionThreads.
+func (mr *MockStoreMockRecorder) ListAuthorizedAIBridgeSessionThreads(ctx, arg, prepared any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAuthorizedAIBridgeSessionThreadInterceptions", reflect.TypeOf((*MockStore)(nil).ListAuthorizedAIBridgeSessionThreadInterceptions), ctx, arg, prepared)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAuthorizedAIBridgeSessionThreads", reflect.TypeOf((*MockStore)(nil).ListAuthorizedAIBridgeSessionThreads), ctx, arg, prepared)
 }
 
 // ListAuthorizedAIBridgeSessions mocks base method.
