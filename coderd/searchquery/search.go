@@ -471,8 +471,8 @@ func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UU
 //
 // Supported query parameters:
 //   - archived: boolean (default: false, excludes archived chats unless explicitly set)
-func Chats(query string) (database.GetChatsByOwnerIDParams, []codersdk.ValidationError) {
-	filter := database.GetChatsByOwnerIDParams{
+func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
+	filter := database.GetChatsParams{
 		// Default to hiding archived chats.
 		Archived: sql.NullBool{Bool: false, Valid: true},
 	}

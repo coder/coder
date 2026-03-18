@@ -1194,6 +1194,12 @@
 					"state": ["early access"],
 					"children": [
 						{
+							"title": "Early Access",
+							"description": "About the Coder Agents Early Access program",
+							"path": "./ai-coder/agents/early-access.md",
+							"state": ["early access"]
+						},
+						{
 							"title": "Architecture",
 							"description": "How the agent in the control plane communicates with workspaces",
 							"path": "./ai-coder/agents/architecture.md",
@@ -1208,19 +1214,21 @@
 						{
 							"title": "Platform Controls",
 							"description": "How platform teams control agent behavior, models, and policies",
-							"path": "./ai-coder/agents/platform-controls.md",
-							"state": ["early access"]
+							"path": "./ai-coder/agents/platform-controls/index.md",
+							"state": ["early access"],
+							"children": [
+								{
+									"title": "Template Optimization",
+									"description": "Best practices for creating templates that are discoverable and useful to Coder Agents",
+									"path": "./ai-coder/agents/platform-controls/template-optimization.md",
+									"state": ["early access"]
+								}
+							]
 						},
 						{
 							"title": "Chats API",
 							"description": "Programmatic access to Coder Agents via the experimental Chats API",
 							"path": "./ai-coder/agents/chats-api.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "Early Access",
-							"description": "About the Coder Agents Early Access program",
-							"path": "./ai-coder/agents/early-access.md",
 							"state": ["early access"]
 						}
 					]

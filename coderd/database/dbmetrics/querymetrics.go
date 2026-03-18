@@ -696,10 +696,11 @@ func (m queryMetricsStore) DeleteWorkspaceACLByID(ctx context.Context, id uuid.U
 	return r0
 }
 
-func (m queryMetricsStore) DeleteWorkspaceACLsByOrganization(ctx context.Context, organizationID uuid.UUID) error {
+func (m queryMetricsStore) DeleteWorkspaceACLsByOrganization(ctx context.Context, arg database.DeleteWorkspaceACLsByOrganizationParams) error {
 	start := time.Now()
-	r0 := m.s.DeleteWorkspaceACLsByOrganization(ctx, organizationID)
+	r0 := m.s.DeleteWorkspaceACLsByOrganization(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteWorkspaceACLsByOrganization").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteWorkspaceACLsByOrganization").Inc()
 	return r0
 }
 
@@ -1191,11 +1192,11 @@ func (m queryMetricsStore) GetChatUsageLimitUserOverride(ctx context.Context, us
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatsByOwnerID(ctx context.Context, ownerID database.GetChatsByOwnerIDParams) ([]database.Chat, error) {
+func (m queryMetricsStore) GetChats(ctx context.Context, arg database.GetChatsParams) ([]database.Chat, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetChatsByOwnerID(ctx, ownerID)
-	m.queryLatencies.WithLabelValues("GetChatsByOwnerID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByOwnerID").Inc()
+	r0, r1 := m.s.GetChats(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChats").Inc()
 	return r0, r1
 }
 
@@ -3971,6 +3972,7 @@ func (m queryMetricsStore) UpdateOrganizationWorkspaceSharingSettings(ctx contex
 	start := time.Now()
 	r0, r1 := m.s.UpdateOrganizationWorkspaceSharingSettings(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateOrganizationWorkspaceSharingSettings").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateOrganizationWorkspaceSharingSettings").Inc()
 	return r0, r1
 }
 
@@ -4891,5 +4893,13 @@ func (m queryMetricsStore) ListAuthorizedAIBridgeModels(ctx context.Context, arg
 	r0, r1 := m.s.ListAuthorizedAIBridgeModels(ctx, arg, prepared)
 	m.queryLatencies.WithLabelValues("ListAuthorizedAIBridgeModels").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAuthorizedAIBridgeModels").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAuthorizedChats(ctx context.Context, arg database.GetChatsParams, prepared rbac.PreparedAuthorized) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizedChats(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("GetAuthorizedChats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedChats").Inc()
 	return r0, r1
 }

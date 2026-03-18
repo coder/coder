@@ -512,6 +512,12 @@ CREATE TYPE resource_type AS ENUM (
     'ai_seat'
 );
 
+CREATE TYPE shareable_workspace_owners AS ENUM (
+    'none',
+    'everyone',
+    'service_accounts'
+);
+
 CREATE TYPE startup_script_behavior AS ENUM (
     'blocking',
     'non-blocking'
@@ -792,7 +798,7 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION insert_org_member_system_role() RETURNS trigger
+CREATE FUNCTION insert_organization_system_roles() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -807,8 +813,21 @@ BEGIN
         is_system,
         created_at,
         updated_at
-    ) VALUES (
+    ) VALUES
+    (
         'organization-member',
+        '',
+        NEW.id,
+        '[]'::jsonb,
+        '[]'::jsonb,
+        '[]'::jsonb,
+        '[]'::jsonb,
+        true,
+        NOW(),
+        NOW()
+    ),
+    (
+        'organization-service-account',
         '',
         NEW.id,
         '[]'::jsonb,
@@ -1832,8 +1851,10 @@ CREATE TABLE organizations (
     display_name text NOT NULL,
     icon text DEFAULT ''::text NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
-    workspace_sharing_disabled boolean DEFAULT false NOT NULL
+    shareable_workspace_owners shareable_workspace_owners DEFAULT 'everyone'::shareable_workspace_owners NOT NULL
 );
+
+COMMENT ON COLUMN organizations.shareable_workspace_owners IS 'Controls whose workspaces can be shared: none, everyone, or service_accounts.';
 
 CREATE TABLE parameter_schemas (
     id uuid NOT NULL,
@@ -3863,7 +3884,7 @@ CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_p
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
 
-CREATE TRIGGER trigger_insert_org_member_system_role AFTER INSERT ON organizations FOR EACH ROW EXECUTE FUNCTION insert_org_member_system_role();
+CREATE TRIGGER trigger_insert_organization_system_roles AFTER INSERT ON organizations FOR EACH ROW EXECUTE FUNCTION insert_organization_system_roles();
 
 CREATE TRIGGER trigger_nullify_next_start_at_on_workspace_autostart_modificati AFTER UPDATE ON workspaces FOR EACH ROW EXECUTE FUNCTION nullify_next_start_at_on_workspace_autostart_modification();
 

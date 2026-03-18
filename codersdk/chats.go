@@ -404,7 +404,7 @@ type ChatModelOpenAIProviderOptions struct {
 	Prediction          map[string]any   `json:"prediction,omitempty" description:"Predicted output content to speed up responses" hidden:"true"`
 	Store               *bool            `json:"store,omitempty" description:"Whether to store the output for model distillation or evals" hidden:"true"`
 	Metadata            map[string]any   `json:"metadata,omitempty" description:"Arbitrary metadata to attach to the request" hidden:"true"`
-	PromptCacheKey      *string          `json:"prompt_cache_key,omitempty" description:"Key for enabling cross-request prompt caching" hidden:"true"`
+	PromptCacheKey      *string          `json:"prompt_cache_key,omitempty" description:"Key for enabling cross-request prompt caching"`
 	SafetyIdentifier    *string          `json:"safety_identifier,omitempty" description:"Developer-specific safety identifier for the request" hidden:"true"`
 	ServiceTier         *string          `json:"service_tier,omitempty" description:"Latency tier to use for processing the request"`
 	StructuredOutputs   *bool            `json:"structured_outputs,omitempty" description:"Whether to enable structured JSON output mode" hidden:"true"`

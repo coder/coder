@@ -478,6 +478,13 @@ export const useChatStore = (
 			? chatMessages[chatMessages.length - 1].id
 			: undefined;
 
+	// True once the initial REST page has resolved for the current
+	// chat. The WebSocket effect gates on this so that
+	// lastMessageIdRef is populated before the socket opens;
+	// otherwise the server replays the entire message history as
+	// its snapshot, defeating pagination.
+	const initialDataLoaded = chatMessages !== undefined;
+
 	const updateSidebarChat = useCallback(
 		(updater: (chat: TypesGen.Chat) => TypesGen.Chat) => {
 			if (!chatID) {
@@ -559,9 +566,22 @@ export const useChatStore = (
 		// of replacing the entire map. This preserves any messages the
 		// WebSocket delivered via upsertDurableMessage that haven't
 		// appeared in a REST page yet.
+		//
+		// However, if the fetched set is missing message IDs the store
+		// already has (e.g. after an edit truncation), a full replace
+		// is needed because upsert can only add/update, not remove.
 		if (chatMessages) {
-			for (const message of chatMessages) {
-				store.upsertDurableMessage(message);
+			const fetchedIDs = new Set(chatMessages.map((m) => m.id));
+			const storeSnap = store.getSnapshot();
+			const hasStaleEntries = storeSnap.orderedMessageIDs.some(
+				(id) => !fetchedIDs.has(id),
+			);
+			if (hasStaleEntries) {
+				store.replaceMessages(chatMessages);
+			} else {
+				for (const message of chatMessages) {
+					store.upsertDurableMessage(message);
+				}
 			}
 		}
 	}, [chatID, chatMessages, store]);
@@ -603,7 +623,7 @@ export const useChatStore = (
 		store.resetTransientState();
 		activeChatIDRef.current = chatID ?? null;
 
-		if (!chatID) {
+		if (!chatID || !initialDataLoaded) {
 			return;
 		}
 
@@ -836,6 +856,7 @@ export const useChatStore = (
 		cancelScheduledStreamReset,
 		chatID,
 		clearChatErrorReason,
+		initialDataLoaded,
 		scheduleStreamReset,
 		setChatErrorReason,
 		store,

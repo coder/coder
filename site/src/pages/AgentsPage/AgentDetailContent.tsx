@@ -25,12 +25,10 @@ import {
 import { ConversationTimeline } from "./AgentDetail/ConversationTimeline";
 import { getLatestContextUsage } from "./AgentDetail/chatHelpers";
 import {
-	buildParsedMessageSections,
 	buildSubagentTitles,
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
 import { buildStreamTools } from "./AgentDetail/streamState";
-import { useMessageWindow } from "./AgentDetail/useMessageWindow";
 import type { ChatDetailError } from "./usageLimitMessage";
 import { useFileAttachments } from "./useFileAttachments";
 
@@ -42,7 +40,6 @@ const isChatMessage = (
 
 interface AgentDetailTimelineProps {
 	store: ChatStoreHandle;
-	chatID: string;
 	persistedErrorReason: ChatDetailError | undefined;
 	onOpenAnalytics?: () => void;
 	onEditUserMessage?: (
@@ -57,7 +54,6 @@ interface AgentDetailTimelineProps {
 
 export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	store,
-	chatID,
 	persistedErrorReason,
 	onOpenAnalytics,
 	onEditUserMessage,
@@ -87,21 +83,12 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 		() => buildStreamTools(streamState),
 		[streamState],
 	);
-	const { hasMoreMessages, windowedMessages, loadMoreSentinelRef } =
-		useMessageWindow({
-			messages,
-			resetKey: chatID,
-		});
 	const parsedMessages = useMemo(
-		() => parseMessagesWithMergedTools(windowedMessages),
-		[windowedMessages],
+		() => parseMessagesWithMergedTools(messages),
+		[messages],
 	);
 	const subagentTitles = useMemo(
 		() => buildSubagentTitles(parsedMessages),
-		[parsedMessages],
-	);
-	const parsedSections = useMemo(
-		() => buildParsedMessageSections(parsedMessages),
 		[parsedMessages],
 	);
 	const detailError: ChatDetailError | undefined =
@@ -123,9 +110,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	return (
 		<ConversationTimeline
 			isEmpty={messages.length === 0}
-			hasMoreMessages={hasMoreMessages}
-			loadMoreSentinelRef={loadMoreSentinelRef}
-			parsedSections={parsedSections}
+			parsedMessages={parsedMessages}
 			hasStreamOutput={hasStreamOutput}
 			streamState={streamState}
 			streamTools={streamTools}

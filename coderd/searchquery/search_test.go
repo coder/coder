@@ -1222,27 +1222,27 @@ func TestSearchChats(t *testing.T) {
 	testCases := []struct {
 		Name                  string
 		Query                 string
-		Expected              database.GetChatsByOwnerIDParams
+		Expected              database.GetChatsParams
 		ExpectedErrorContains string
 	}{
 		{
 			Name:  "Empty",
 			Query: "",
-			Expected: database.GetChatsByOwnerIDParams{
+			Expected: database.GetChatsParams{
 				Archived: sql.NullBool{Bool: false, Valid: true},
 			},
 		},
 		{
 			Name:  "ArchivedTrue",
 			Query: "archived:true",
-			Expected: database.GetChatsByOwnerIDParams{
+			Expected: database.GetChatsParams{
 				Archived: sql.NullBool{Bool: true, Valid: true},
 			},
 		},
 		{
 			Name:  "ArchivedFalse",
 			Query: "archived:false",
-			Expected: database.GetChatsByOwnerIDParams{
+			Expected: database.GetChatsParams{
 				Archived: sql.NullBool{Bool: false, Valid: true},
 			},
 		},

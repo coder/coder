@@ -10,14 +10,19 @@ import {
 } from "components/ai-elements";
 import { WebSearchSources } from "components/ai-elements/tool";
 import { Button } from "components/Button/Button";
-import { FileIcon } from "components/FileIcon/FileIcon";
+import { FileReferenceChip } from "components/ChatMessageInput/FileReferenceNode";
 import { Spinner } from "components/Spinner/Spinner";
-import { ChevronDownIcon } from "lucide-react";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { ChevronDownIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
+	Fragment,
 	memo,
 	type ReactNode,
-	type RefObject,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -31,7 +36,7 @@ import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
 	ParsedMessageContent,
-	ParsedMessageSection,
+	ParsedMessageEntry,
 	RenderBlock,
 	StreamState,
 } from "./types";
@@ -295,6 +300,7 @@ const ChatMessageItem = memo<{
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
+	isAfterEditingMessage?: boolean;
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
 	// overlay to indicate truncated content.
@@ -307,6 +313,7 @@ const ChatMessageItem = memo<{
 		onEditUserMessage,
 		editingMessageId,
 		savingMessageId,
+		isAfterEditingMessage = false,
 		fadeFromBottom = false,
 		urlTransform,
 	}) => {
@@ -340,6 +347,19 @@ const ChatMessageItem = memo<{
 			parsed.blocks.length > 0 ||
 			parsed.tools.length > 0 ||
 			parsed.sources.length > 0;
+		// Pre-compute the inline content for user messages so we
+		// avoid a filter + map inside the JSX return path.
+		const userInlineContent = isUser
+			? parsed.blocks.filter(
+					(
+						b,
+					): b is
+						| Extract<RenderBlock, { type: "response" }>
+						| Extract<RenderBlock, { type: "file-reference" }> =>
+						b.type === "response" || b.type === "file-reference",
+				)
+			: [];
+
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
 		};
@@ -355,18 +375,20 @@ const ChatMessageItem = memo<{
 		);
 
 		return (
-			<>
+			<div
+				className={cn(
+					isAfterEditingMessage && "opacity-40 pointer-events-none",
+					"transition-opacity duration-200",
+				)}
+			>
 				<ConversationItem {...conversationItemProps}>
 					{isUser ? (
 						<Message className="my-2 w-full max-w-none">
 							<MessageContent
 								className={cn(
-									"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
-									onEditUserMessage &&
-										!isSavingMessage &&
-										"cursor-pointer [&:hover:not(:has(button:hover))]:bg-surface-tertiary",
+									"group/msg rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
 									editingMessageId === message.id &&
-										"ring-2 ring-content-link/40",
+										"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 									isSavingMessage && "ring-2 ring-content-secondary/40",
 									fadeFromBottom && "relative overflow-hidden",
 								)}
@@ -375,27 +397,24 @@ const ChatMessageItem = memo<{
 										? { maxHeight: "var(--clip-h, none)" }
 										: undefined
 								}
-								onClick={
-									onEditUserMessage && !isSavingMessage
-										? () => {
-												const fileBlocks = parsed.blocks.filter(
-													(b): b is Extract<RenderBlock, { type: "file" }> =>
-														b.type === "file" &&
-														b.media_type.startsWith("image/"),
-												);
-												onEditUserMessage(
-													message.id,
-													parsed.markdown || "",
-													fileBlocks.length > 0 ? fileBlocks : undefined,
-												);
-											}
-										: undefined
-								}
 							>
 								<div className="flex flex-col gap-1.5">
 									<div className="flex items-start gap-2">
 										<span className="min-w-0 flex-1">
-											{parsed.markdown || ""}
+											{userInlineContent.length > 0
+												? userInlineContent.map((block, i) =>
+														block.type === "response" ? (
+															<Fragment key={i}>{block.text}</Fragment>
+														) : (
+															<FileReferenceChip
+																key={i}
+																fileName={block.fileName}
+																startLine={block.startLine}
+																endLine={block.endLine}
+															/>
+														),
+													)
+												: parsed.markdown || ""}
 										</span>
 										{isSavingMessage && (
 											<Spinner
@@ -403,6 +422,37 @@ const ChatMessageItem = memo<{
 												aria-label="Saving message edit"
 												loading
 											/>
+										)}
+										{onEditUserMessage && !isSavingMessage && (
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<button
+														type="button"
+														className="mt-0.5 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-content-secondary opacity-0 transition-opacity hover:bg-surface-tertiary hover:text-content-primary focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link group-hover/msg:opacity-100"
+														aria-label="Edit message"
+														onClick={() => {
+															const fileBlocks = parsed.blocks.filter(
+																(
+																	b,
+																): b is Extract<
+																	RenderBlock,
+																	{ type: "file" }
+																> =>
+																	b.type === "file" &&
+																	b.media_type.startsWith("image/"),
+															);
+															onEditUserMessage(
+																message.id,
+																parsed.markdown || "",
+																fileBlocks.length > 0 ? fileBlocks : undefined,
+															);
+														}}
+													>
+														<PencilIcon className="size-3.5" />
+													</button>
+												</TooltipTrigger>
+												<TooltipContent side="top">Edit message</TooltipContent>
+											</Tooltip>
 										)}
 									</div>
 									{(() => {
@@ -438,45 +488,7 @@ const ChatMessageItem = memo<{
 											</div>
 										);
 									})()}
-									{(() => {
-										const fileRefBlocks = parsed.blocks.filter(
-											(
-												b,
-											): b is Extract<
-												RenderBlock,
-												{ type: "file-reference" }
-											> => b.type === "file-reference",
-										);
-										if (fileRefBlocks.length === 0) return null;
-										return (
-											<div className="flex flex-col gap-1 border-t border-border-default pt-1.5">
-												{fileRefBlocks.map((dc, i) => (
-													<div
-														key={i}
-														className="flex items-start gap-2 rounded border border-content-link/20 bg-content-link/5 px-2 py-1"
-													>
-														<FileIcon
-															fileName={
-																dc.fileName.split("/").pop() || dc.fileName
-															}
-															className="shrink-0"
-														/>
-														<span className="shrink-0 text-2xs font-mono font-medium text-content-link">
-															{dc.fileName.split("/").pop()}:
-															{dc.startLine === dc.endLine
-																? dc.startLine
-																: `${dc.startLine}\u2013${dc.endLine}`}
-														</span>
-														{dc.text && (
-															<span className="text-2xs text-content-primary">
-																{dc.text}
-															</span>
-														)}
-													</div>
-												))}
-											</div>
-										);
-									})()} {fadeFromBottom && (
+									{fadeFromBottom && (
 										<div
 											className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
 											style={{
@@ -519,7 +531,7 @@ const ChatMessageItem = memo<{
 						onClose={() => setPreviewImage(null)}
 					/>
 				)}
-			</>
+			</div>
 		);
 	},
 );
@@ -616,12 +628,14 @@ const StickyUserMessage: FC<{
 	) => void;
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
+	isAfterEditingMessage?: boolean;
 }> = ({
 	message,
 	parsed,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
+	isAfterEditingMessage = false,
 }) => {
 	const [isStuck, setIsStuck] = useState(false);
 	const [isReady, setIsReady] = useState(false);
@@ -680,9 +694,9 @@ const StickyUserMessage: FC<{
 			if (tooTall) {
 				container.style.setProperty("--clip-h", `${fullHeight}px`);
 				container.style.setProperty("--fade-opacity", "0");
+				container.style.top = "0px";
 				return;
 			}
-
 			const sentinelTop = sentinel.getBoundingClientRect().top;
 			const scrolledPast = scrollerTop - sentinelTop;
 
@@ -691,10 +705,10 @@ const StickyUserMessage: FC<{
 				// correct height immediately when isStuck flips.
 				container.style.setProperty("--clip-h", `${fullHeight}px`);
 				container.style.setProperty("--fade-opacity", "0");
+				container.style.top = "0px";
 				return;
 			}
-
-			const visible = Math.max(fullHeight - scrolledPast, MIN_HEIGHT);
+			const visible = Math.max(fullHeight - scrolledPast - 48, MIN_HEIGHT);
 			container.style.setProperty("--clip-h", `${visible}px`);
 			// Only show the fade gradient once enough content is
 			// clipped to be visually meaningful.
@@ -702,6 +716,24 @@ const StickyUserMessage: FC<{
 				"--fade-opacity",
 				visible < fullHeight - 8 ? "1" : "0",
 			);
+
+			// Push-up effect: when the next user message's sentinel
+			// approaches the bottom of this sticky container, shift
+			// this container upward so it slides out of view — the
+			// same visual as the old section-boundary behavior.
+			let nextSentinel: Element | null = sentinel.nextElementSibling;
+			while (nextSentinel) {
+				if (nextSentinel.hasAttribute("data-user-sentinel")) {
+					break;
+				}
+				nextSentinel = nextSentinel.nextElementSibling;
+			}
+			if (nextSentinel) {
+				const nextY = nextSentinel.getBoundingClientRect().top - scrollerTop;
+				container.style.top = `${Math.min(0, nextY - visible)}px`;
+			} else {
+				container.style.top = "0px";
+			}
 		};
 		updateFnRef.current = update;
 
@@ -771,12 +803,12 @@ const StickyUserMessage: FC<{
 
 	return (
 		<>
-			<div ref={sentinelRef} className="h-0" />
+			<div ref={sentinelRef} className="h-0" data-user-sentinel />
 			<div
 				ref={containerRef}
 				className={cn(
 					"relative px-3 -mx-3 pt-2 pb-2",
-					!isTooTall && "sticky top-0 z-10",
+					!isTooTall && "sticky z-10",
 					!isReady && "invisible",
 					isStuck && !isTooTall && "pointer-events-none",
 				)}
@@ -798,6 +830,7 @@ const StickyUserMessage: FC<{
 						onEditUserMessage={handleEditUserMessage}
 						editingMessageId={editingMessageId}
 						savingMessageId={savingMessageId}
+						isAfterEditingMessage={isAfterEditingMessage}
 					/>
 				</div>
 
@@ -842,6 +875,7 @@ const StickyUserMessage: FC<{
 								onEditUserMessage={handleEditUserMessage}
 								editingMessageId={editingMessageId}
 								savingMessageId={savingMessageId}
+								isAfterEditingMessage={isAfterEditingMessage}
 								fadeFromBottom
 							/>
 						</div>
@@ -854,9 +888,7 @@ const StickyUserMessage: FC<{
 
 interface ConversationTimelineProps {
 	isEmpty: boolean;
-	hasMoreMessages: boolean;
-	loadMoreSentinelRef: RefObject<HTMLDivElement | null>;
-	parsedSections: readonly ParsedMessageSection[];
+	parsedMessages: readonly ParsedMessageEntry[];
 	hasStreamOutput: boolean;
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
@@ -878,9 +910,7 @@ interface ConversationTimelineProps {
 
 export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	isEmpty,
-	hasMoreMessages,
-	loadMoreSentinelRef,
-	parsedSections,
+	parsedMessages,
 	hasStreamOutput,
 	streamState,
 	streamTools,
@@ -895,10 +925,26 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	savingMessageId,
 	urlTransform,
 }) => {
-	const shouldRenderStreamInLastSection =
-		hasStreamOutput && parsedSections.length > 0;
+	const shouldRenderStreamAfterMessages =
+		hasStreamOutput && parsedMessages.length > 0;
 	const isUsageLimitError = detailError?.kind === "usage-limit";
 	const showUsageAction = onOpenAnalytics !== undefined && isUsageLimitError;
+
+	// Build a set of message IDs that appear after the message
+	// currently being edited so they can be visually faded.
+	const afterEditingMessageIds = new Set<number>();
+	if (editingMessageId != null) {
+		let found = false;
+		for (const entry of parsedMessages) {
+			if (entry.message.id === editingMessageId) {
+				found = true;
+				continue;
+			}
+			if (found) {
+				afterEditingMessageIds.add(entry.message.id);
+			}
+		}
+	}
 
 	return (
 		<div className="mx-auto w-full max-w-3xl py-6">
@@ -907,61 +953,41 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 					<p className="text-sm">Start a conversation with your agent.</p>
 				</div>
 			) : (
-				<div className="flex flex-col">
-					{hasMoreMessages && (
-						<div
-							ref={loadMoreSentinelRef}
-							className="flex items-center justify-center py-4 text-xs text-content-secondary"
-						>
-							Loading earlier messages…
-						</div>
+				<div className="flex flex-col gap-3">
+					{parsedMessages.map(({ message, parsed }) =>
+						message.role === "user" ? (
+							<StickyUserMessage
+								key={message.id}
+								message={message}
+								parsed={parsed}
+								onEditUserMessage={onEditUserMessage}
+								editingMessageId={editingMessageId}
+								savingMessageId={savingMessageId}
+								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+							/>
+						) : (
+							<ChatMessageItem
+								key={message.id}
+								message={message}
+								parsed={parsed}
+								savingMessageId={savingMessageId}
+								urlTransform={urlTransform}
+								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+							/>
+						),
 					)}
-					{parsedSections.map((section, sectionIdx) => (
-						<div
-							key={section.userEntry?.message.id ?? `section-${sectionIdx}`}
-							className="-mx-1 px-1"
-							style={{
-								contentVisibility: "auto",
-								containIntrinsicSize: "1px 600px",
-							}}
-						>
-							<div className="flex flex-col gap-3">
-								{section.entries.map(({ message, parsed }) =>
-									message.role === "user" ? (
-										<StickyUserMessage
-											key={message.id}
-											message={message}
-											parsed={parsed}
-											onEditUserMessage={onEditUserMessage}
-											editingMessageId={editingMessageId}
-											savingMessageId={savingMessageId}
-										/>
-									) : (
-										<ChatMessageItem
-											key={message.id}
-											message={message}
-											parsed={parsed}
-											savingMessageId={savingMessageId}
-											urlTransform={urlTransform}
-										/>
-									),
-								)}
-								{shouldRenderStreamInLastSection &&
-									sectionIdx === parsedSections.length - 1 && (
-										<StreamingOutput
-											streamState={streamState}
-											streamTools={streamTools}
-											subagentTitles={subagentTitles}
-											subagentStatusOverrides={subagentStatusOverrides}
-											showInitialPlaceholder={isAwaitingFirstStreamChunk}
-											retryState={retryState}
-											urlTransform={urlTransform}
-										/>
-									)}
-							</div>
-						</div>
-					))}
-					{hasStreamOutput && parsedSections.length === 0 && (
+					{shouldRenderStreamAfterMessages && (
+						<StreamingOutput
+							streamState={streamState}
+							streamTools={streamTools}
+							subagentTitles={subagentTitles}
+							subagentStatusOverrides={subagentStatusOverrides}
+							showInitialPlaceholder={isAwaitingFirstStreamChunk}
+							retryState={retryState}
+							urlTransform={urlTransform}
+						/>
+					)}
+					{hasStreamOutput && parsedMessages.length === 0 && (
 						<StreamingOutput
 							streamState={streamState}
 							streamTools={streamTools}

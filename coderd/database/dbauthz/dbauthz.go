@@ -1264,7 +1264,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID uuid.UUID, added, re
 			// System roles are stored in the database but have a fixed, code-defined
 			// meaning. Do not rewrite the name for them so the static "who can assign
 			// what" mapping applies.
-			if !rbac.SystemRoleName(roleName.Name) {
+			if !rolestore.IsSystemRoleName(roleName.Name) {
 				// To support a dynamic mapping of what roles can assign what, we need
 				// to store this in the database. For now, just use a static role so
 				// owners and org admins can assign roles.
@@ -2145,12 +2145,12 @@ func (q *querier) DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) erro
 	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.DeleteWorkspaceACLByID)(ctx, id)
 }
 
-func (q *querier) DeleteWorkspaceACLsByOrganization(ctx context.Context, organizationID uuid.UUID) error {
+func (q *querier) DeleteWorkspaceACLsByOrganization(ctx context.Context, params database.DeleteWorkspaceACLsByOrganizationParams) error {
 	// This is a system-only function.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.DeleteWorkspaceACLsByOrganization(ctx, organizationID)
+	return q.db.DeleteWorkspaceACLsByOrganization(ctx, params)
 }
 
 func (q *querier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
@@ -2653,8 +2653,12 @@ func (q *querier) GetChatUsageLimitUserOverride(ctx context.Context, userID uuid
 	return q.db.GetChatUsageLimitUserOverride(ctx, userID)
 }
 
-func (q *querier) GetChatsByOwnerID(ctx context.Context, ownerID database.GetChatsByOwnerIDParams) ([]database.Chat, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByOwnerID)(ctx, ownerID)
+func (q *querier) GetChats(ctx context.Context, arg database.GetChatsParams) ([]database.Chat, error) {
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceChat.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.db.GetAuthorizedChats(ctx, arg, prep)
 }
 
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
@@ -6877,4 +6881,8 @@ func (q *querier) ListAuthorizedAIBridgeModels(ctx context.Context, arg database
 	// This cannot be deleted for now because it's included in the
 	// database.Store interface, so dbauthz needs to implement it.
 	return q.ListAIBridgeModels(ctx, arg)
+}
+
+func (q *querier) GetAuthorizedChats(ctx context.Context, arg database.GetChatsParams, _ rbac.PreparedAuthorized) ([]database.Chat, error) {
+	return q.GetChats(ctx, arg)
 }

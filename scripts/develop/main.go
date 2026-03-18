@@ -1,3 +1,5 @@
+//go:build !windows
+
 // Command develop orchestrates the Coder development environment. It
 // builds the binary, starts the API server and frontend dev server,
 // sets up a first user, and handles graceful shutdown on signals.
@@ -40,6 +42,7 @@ const (
 	defaultAPIPort         = "3000"
 	defaultWebPort         = "8080"
 	defaultProxyPort       = "3010"
+	defaultAccessURL       = "http://127.0.0.1:%d"
 	defaultPassword        = "SomeSecurePassword!"
 	defaultStarterTemplate = "docker"
 	healthTimeout          = 60 * time.Second
@@ -83,7 +86,8 @@ func main() {
 			{
 				Flag:        "access-url",
 				Env:         "CODER_DEV_ACCESS_URL",
-				Description: "Override access URL.",
+				Default:     defaultAccessURL,
+				Description: "Override access URL. The %d placeholder will be replaced with the API port. Set to empty to enable devtunnel (pit-1.try.coder.app).",
 				Value:       serpent.StringOf(&cfg.accessURL),
 			},
 			{
@@ -190,8 +194,8 @@ func (c *devConfig) validate() error {
 // resolveEnv sets defaults, unsets leaked credentials, resolves
 // filesystem paths, and computes the child process environment.
 func (c *devConfig) resolveEnv() error {
-	if c.accessURL == "" {
-		c.accessURL = fmt.Sprintf("http://127.0.0.1:%d", c.apiPort)
+	if strings.Contains(c.accessURL, "%d") {
+		c.accessURL = fmt.Sprintf(c.accessURL, c.apiPort)
 	}
 
 	// Prevent inherited credentials from leaking into child

@@ -412,7 +412,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 			<div
 				data-testid={`agents-tree-node-${chat.id}`}
 				className={cn(
-					"group relative flex min-w-0 items-start gap-1.5 rounded-md pr-1 text-content-secondary",
+					"group relative flex min-w-0 items-start gap-1.5 rounded-md px-1 text-content-secondary",
 					"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
 					"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 					isChildNode &&
@@ -504,7 +504,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 						</>
 					)}
 				</NavLink>
-				<div className="relative mr-1 mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
+				<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
 					{isArchivingThisChat ? (
 						<Spinner className="h-3.5 w-3.5 text-content-secondary" loading />
 					) : (

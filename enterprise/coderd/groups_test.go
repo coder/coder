@@ -737,19 +737,19 @@ func TestGroup(t *testing.T) {
 				},
 			})
 			ctx := testutil.Context(t, testutil.WaitLong)
-			_, err := sqlDB.ExecContext(ctx, "UPDATE organizations SET workspace_sharing_disabled = true WHERE id = $1", user.OrganizationID)
+			_, err := sqlDB.ExecContext(ctx, "UPDATE organizations SET shareable_workspace_owners = 'none' WHERE id = $1", user.OrganizationID)
 			require.NoError(t, err)
 
 			//nolint:gocritic // ReconcileOrgMemberRole needs the system:update
 			// permission that the test context doesn't have.
 			sysCtx := dbauthz.AsSystemRestricted(ctx)
-			_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, api.Database, database.CustomRole{
+			_, _, err = rolestore.ReconcileSystemRole(sysCtx, api.Database, database.CustomRole{
 				Name: rbac.RoleOrgMember(),
 				OrganizationID: uuid.NullUUID{
 					UUID:  user.OrganizationID,
 					Valid: true,
 				},
-			}, true)
+			}, database.Organization{ShareableWorkspaceOwners: database.ShareableWorkspaceOwnersNone})
 			require.NoError(t, err)
 
 			client1, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
