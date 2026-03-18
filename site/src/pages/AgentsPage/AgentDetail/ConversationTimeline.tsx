@@ -338,7 +338,7 @@ const ChatMessageItem = memo<{
 			>
 				<ConversationItem {...conversationItemProps}>
 					{isUser ? (
-						<Message className="my-2 w-full max-w-none">
+						<Message className="w-full max-w-none">
 							<MessageContent
 								className={cn(
 									"group/msg rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
@@ -762,7 +762,7 @@ const StickyUserMessage: FC<{
 			<div
 				ref={containerRef}
 				className={cn(
-					"relative px-3 -mx-3 pt-2 pb-2",
+					"relative px-3 -mx-3 -mt-3",
 					!isTooTall && "sticky z-10",
 					!isReady && "invisible",
 					isStuck && !isTooTall && "pointer-events-none",
@@ -816,14 +816,11 @@ const StickyUserMessage: FC<{
 									"linear-gradient(to bottom, black calc(var(--clip-h, 100%) + 24px), transparent calc(var(--clip-h, 100%) + 48px))",
 							}}
 						/>
-						{/* Content layer: px-3 pt-2 matches the
-						    sticky container's padding so the
-						    overlay aligns with the flow element.
-						    will-change promotes to GPU layer. */}
-						<div
-							className="relative px-3 pt-2 pointer-events-auto"
-							style={{ willChange: "max-height" }}
-						>
+						{/* Content layer: px-3 matches the sticky
+							    container's padding so the overlay aligns
+							    with the flow element. will-change promotes
+							    to GPU layer. */}
+						<div className="relative px-3 pointer-events-auto will-change-[max-height]">
 							<ChatMessageItem
 								message={message}
 								parsed={parsed}
