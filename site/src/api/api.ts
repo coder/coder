@@ -3209,15 +3209,15 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getPRInsights = async (
-		params?: { start_date?: string; end_date?: string },
-	): Promise<TypesGen.PRInsightsResponse> => {
+	getPRInsights = async (params?: {
+		start_date?: string;
+		end_date?: string;
+	}): Promise<TypesGen.PRInsightsResponse> => {
 		const url = getURLWithSearchParams(
 			"/api/experimental/chats/insights/pull-requests",
 			params,
 		);
-		const response =
-			await this.axios.get<TypesGen.PRInsightsResponse>(url);
+		const response = await this.axios.get<TypesGen.PRInsightsResponse>(url);
 		return response.data;
 	};
 
