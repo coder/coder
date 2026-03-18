@@ -2613,12 +2613,31 @@ func (p *Server) runChat(
 
 		var insertedMessages []database.ChatMessage
 		err := p.db.InTx(func(tx database.Store) error {
+			// Verify this worker still owns the chat before
+			// inserting messages. This closes the race where
+			// EditMessage truncates history and clears worker_id
+			// while persistInterruptedStep (which uses an
+			// uncancelable context) is still running.
+			//
+			// When the chat is in "waiting" status (set by
+			// InterruptChat / setChatWaiting), the worker_id has
+			// already been cleared but we still want to persist
+			// the partial assistant response. We allow the write
+			// because the history has NOT been truncated — the
+			// user simply asked to stop. In contrast, EditMessage
+			// sets the chat to "pending" after truncating, so the
+			// pending check still correctly blocks stale writes.
 			lockedChat, lockErr := tx.GetChatByIDForUpdate(persistCtx, chat.ID)
 			if lockErr != nil {
 				return xerrors.Errorf("lock chat for persist: %w", lockErr)
 			}
 			if !lockedChat.WorkerID.Valid || lockedChat.WorkerID.UUID != p.workerID {
-				return chatloop.ErrInterrupted
+				// The worker_id was cleared. Only allow the persist
+				// if the chat transitioned to "waiting" (interrupt),
+				// not "pending" (edit) or any other status.
+				if lockedChat.Status != database.ChatStatusWaiting {
+					return chatloop.ErrInterrupted
+				}
 			}
 
 			if assistantContent.Valid {
