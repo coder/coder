@@ -20,10 +20,12 @@ if "$REAL_GH" auth status >/dev/null 2>&1; then
   exec "$REAL_GH" "$@"
 fi
 
-# Fall back to Coder's external auth for a fresh token.
-TOKEN=$(coder external-auth access-token github 2>/dev/null)
-if [ -n "$TOKEN" ]; then
-  GITHUB_TOKEN="$TOKEN" exec "$REAL_GH" "$@"
+# Fall back to Coder's external auth for a fresh token (only in a workspace).
+if [ "${CODER:-}" = "true" ]; then
+  TOKEN=$(coder external-auth access-token github 2>/dev/null)
+  if [ -n "$TOKEN" ]; then
+    GITHUB_TOKEN="$TOKEN" exec "$REAL_GH" "$@"
+  fi
 fi
 
 # Nothing worked; run gh anyway and let it show its own auth error.
