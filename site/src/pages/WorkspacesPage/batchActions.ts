@@ -15,7 +15,7 @@ type UpdateAllPayload = Readonly<{
 
 type UseBatchActionsResult = Readonly<{
 	isProcessing: boolean;
-	start: (workspaces: readonly Workspace[]) => Promise<unknown[]>;
+	start: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
 	stop: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
 	delete: (workspaces: readonly Workspace[]) => Promise<WorkspaceBuild[]>;
 	updateTemplateVersions: (
@@ -34,7 +34,7 @@ export function useBatchActions(
 		mutationFn: (workspaces: readonly Workspace[]) => {
 			return Promise.all(
 				workspaces.map((w) =>
-					API.retryWorkspace(w, w.latest_build.template_version_id),
+					API.startWorkspace(w.id, w.latest_build.template_version_id),
 				),
 			);
 		},

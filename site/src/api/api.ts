@@ -2365,7 +2365,7 @@ class ApiMethods {
 		workspace: TypesGen.Workspace,
 	): Promise<TypesGen.WorkspaceBuild> => {
 		const template = await this.getTemplate(workspace.template_id);
-		return this.retryWorkspace(workspace, template.active_version_id);
+		return this.startWorkspace(workspace.id, template.active_version_id);
 	};
 
 	getWorkspaceBuildParameters = async (

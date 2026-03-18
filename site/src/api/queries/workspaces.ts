@@ -322,8 +322,8 @@ export const startWorkspace = (
 			buildParameters?: WorkspaceBuildParameter[];
 			logLevel?: ProvisionerLogLevel;
 		}) => {
-			return API.retryWorkspace(
-				workspace,
+			return API.startWorkspace(
+				workspace.id,
 				workspace.latest_build.template_version_id,
 				logLevel,
 				buildParameters,
