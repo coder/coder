@@ -1289,7 +1289,8 @@ CREATE TABLE chat_messages (
     compressed boolean DEFAULT false NOT NULL,
     created_by uuid,
     content_version smallint NOT NULL,
-    total_cost_micros bigint
+    total_cost_micros bigint,
+    runtime_ms bigint
 );
 
 CREATE SEQUENCE chat_messages_id_seq

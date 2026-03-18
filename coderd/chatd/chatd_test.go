@@ -726,6 +726,7 @@ func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
 		TotalCostMicros:     sql.NullInt64{Int64: 100, Valid: true},
+		RuntimeMs:           sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -824,6 +825,7 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
 		TotalCostMicros:     sql.NullInt64{Int64: 100, Valid: true},
+		RuntimeMs:           sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -1012,6 +1014,7 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
 		TotalCostMicros:     sql.NullInt64{Int64: 100, Valid: true},
+		RuntimeMs:           sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -1107,6 +1110,7 @@ func TestEditMessageRejectsWhenUsageLimitReached(t *testing.T) {
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
 		TotalCostMicros:     sql.NullInt64{Int64: 100, Valid: true},
+		RuntimeMs:           sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -1196,6 +1200,7 @@ func TestEditMessageRejectsNonUserMessage(t *testing.T) {
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
+		RuntimeMs:           sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -1544,6 +1549,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
+		RuntimeMs:           sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -1567,6 +1573,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
+		RuntimeMs:           sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
