@@ -1,7 +1,7 @@
 import { chromatic } from "testHelpers/chromatic";
 import { MockLicenseResponse } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 
 import { LicenseCard } from "./LicenseCard";
 
@@ -81,5 +81,29 @@ export const ExceededAIGovernance: Story = {
 		},
 		includedWithPremium: 1000,
 		additionalPurchased: 0,
+	},
+};
+
+export const EnterpriseDoesNotShowAIGovernanceAddOn: Story = {
+	args: {
+		license: {
+			...MockLicenseResponse[1],
+			claims: {
+				...MockLicenseResponse[1].claims,
+				feature_set: "enterprise",
+				addons: ["ai_governance"],
+			},
+		},
+		aiGovernanceUserFeature: {
+			enabled: true,
+			entitlement: "entitled",
+			limit: 1000,
+			actual: 750,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.queryByText("Add-ons")).not.toBeInTheDocument();
+		await expect(canvas.queryByText("AI add-on")).not.toBeInTheDocument();
 	},
 };
