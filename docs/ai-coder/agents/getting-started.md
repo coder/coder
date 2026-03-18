@@ -66,10 +66,22 @@ Detailed instructions for each provider and model option are in the
 [Models](./models.md) documentation.
 
 > [!TIP]
-> Start with a single, well-supported model (e.g., Claude Sonnet 4 or
-> GPT-4.1) to validate your setup before adding additional providers.
+> Start with a single frontier model to validate your setup before adding
+> additional providers.
 
-## Step 3: Prepare your templates
+## Step 3: Start your first chat
+
+1. Go to the **Agents** page in the Coder dashboard.
+1. Select a model from the dropdown (your default will be pre-selected).
+1. Type a prompt and send it.
+
+The agent processes the prompt in the control plane. If the task requires
+a workspace — reading files, running commands, editing code — the agent
+selects a template and provisions one automatically. Conversations that
+don't require compute (planning, Q&A, architecture discussions) start
+immediately with no provisioning delay.
+
+## Optimize your templates
 
 The agent selects templates based on their **name and description** — it does
 not read Terraform. Clear, specific descriptions are the most important factor
@@ -100,18 +112,6 @@ Update your template descriptions to include:
 See [Template Optimization](./platform-controls/template-optimization.md) for
 the full guide, including dedicated agent templates, network boundaries,
 credential scoping, and pre-installing dependencies.
-
-## Step 4: Run your first chat
-
-1. Go to the **Agents** page in the Coder dashboard.
-1. Select a model from the dropdown (your default will be pre-selected).
-1. Type a prompt and send it.
-
-The agent processes the prompt in the control plane. If the task requires
-a workspace — reading files, running commands, editing code — the agent
-selects a template and provisions one automatically. Conversations that
-don't require compute (planning, Q&A, architecture discussions) start
-immediately with no provisioning delay.
 
 ## Things to know before you start
 
