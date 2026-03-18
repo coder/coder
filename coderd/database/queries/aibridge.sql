@@ -406,71 +406,49 @@ SELECT (
 
 -- name: CountAIBridgeSessions :one
 SELECT
-	COUNT(DISTINCT session_id)
+	COUNT(DISTINCT aibridge_interceptions.session_id)
 FROM
-	(
-		-- NOTE: KEEP THESE CLAUSES IN SYNC WITH ListAIBridgeSessions.
-		SELECT
-			-- If a client does not supply a session ID, defer to the
-			-- root of the thread. If no thread is detected, defer to
-			-- the interception's own ID.
-			COALESCE(
-				aibridge_interceptions.client_session_id,
-				aibridge_interceptions.thread_root_id::text,
-				aibridge_interceptions.id::text
-			) AS session_id
-		FROM
-			aibridge_interceptions
-		WHERE
-			-- Remove inflight interceptions (ones which lack an ended_at value).
-			aibridge_interceptions.ended_at IS NOT NULL
-			-- Filter by time frame
-			AND CASE
-				WHEN @started_after::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= @started_after::timestamptz
-				ELSE true
-			END
-			AND CASE
-				WHEN @started_before::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at <= @started_before::timestamptz
-				ELSE true
-			END
-			-- Filter initiator_id
-			AND CASE
-				WHEN @initiator_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = @initiator_id::uuid
-				ELSE true
-			END
-			-- Filter provider
-			AND CASE
-				WHEN @provider::text != '' THEN aibridge_interceptions.provider = @provider::text
-				ELSE true
-			END
-			-- Filter model
-			AND CASE
-				WHEN @model::text != '' THEN aibridge_interceptions.model = @model::text
-				ELSE true
-			END
-			-- Filter client
-			AND CASE
-				WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = @client::text
-				ELSE true
-			END
-			-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
-			-- @authorize_filter
-	) sub
+	aibridge_interceptions
+WHERE
+	-- Remove inflight interceptions (ones which lack an ended_at value).
+	aibridge_interceptions.ended_at IS NOT NULL
+	-- Filter by time frame
+	AND CASE
+		WHEN @started_after::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= @started_after::timestamptz
+		ELSE true
+	END
+	AND CASE
+		WHEN @started_before::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at <= @started_before::timestamptz
+		ELSE true
+	END
+	-- Filter initiator_id
+	AND CASE
+		WHEN @initiator_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = @initiator_id::uuid
+		ELSE true
+	END
+	-- Filter provider
+	AND CASE
+		WHEN @provider::text != '' THEN aibridge_interceptions.provider = @provider::text
+		ELSE true
+	END
+	-- Filter model
+	AND CASE
+		WHEN @model::text != '' THEN aibridge_interceptions.model = @model::text
+		ELSE true
+	END
+	-- Filter client
+	AND CASE
+		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = @client::text
+		ELSE true
+	END
+	-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
+	-- @authorize_filter
 ;
 
 -- name: ListAIBridgeSessions :many
 WITH filtered_interceptions AS (
-	-- NOTE: KEEP THESE CLAUSES IN SYNC WITH CountAIBridgeSessions.
 	SELECT
-		aibridge_interceptions.*,
-		-- If a client does not supply a session ID, defer to the root
-		-- of the thread. If no thread is detected, defer to the
-		-- interception's own ID.
-		COALESCE(
-			aibridge_interceptions.client_session_id,
-			aibridge_interceptions.thread_root_id::text,
-			aibridge_interceptions.id::text
-		) AS session_id
+		aibridge_interceptions.*
 	FROM
 		aibridge_interceptions
 	WHERE
