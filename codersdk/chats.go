@@ -98,6 +98,19 @@ const (
 	ChatMessagePartTypeFileReference ChatMessagePartType = "file-reference"
 )
 
+// AllChatMessagePartTypes returns all known ChatMessagePartType values.
+func AllChatMessagePartTypes() []ChatMessagePartType {
+	return []ChatMessagePartType{
+		ChatMessagePartTypeText,
+		ChatMessagePartTypeReasoning,
+		ChatMessagePartTypeToolCall,
+		ChatMessagePartTypeToolResult,
+		ChatMessagePartTypeSource,
+		ChatMessagePartTypeFile,
+		ChatMessagePartTypeFileReference,
+	}
+}
+
 // ChatMessagePart is a structured chunk of a chat message.
 //
 // WARNING: This type is both an API wire type and a database
@@ -106,37 +119,41 @@ const (
 // changes, and omitempty behavior all affect backward-compatible
 // deserialization of stored rows. Treat changes to this struct
 // with the same care as a database migration.
+//
+// The variants struct tag declares which discriminated-union
+// variants include each field in the generated TypeScript. Bare
+// name = required, ? suffix = optional. Fields without a variants
+// tag are excluded from the generated union. See
+// scripts/apitypings/main.go for the codegen that reads these.
 type ChatMessagePart struct {
 	Type        ChatMessagePartType `json:"type"`
-	Text        string              `json:"text,omitempty"`
+	Text        string              `json:"text,omitempty" variants:"text,reasoning"`
 	Signature   string              `json:"signature,omitempty"`
-	ToolCallID  string              `json:"tool_call_id,omitempty"`
-	ToolName    string              `json:"tool_name,omitempty"`
-	Args        json.RawMessage     `json:"args,omitempty"`
-	ArgsDelta   string              `json:"args_delta,omitempty"`
-	Result      json.RawMessage     `json:"result,omitempty"`
+	ToolCallID  string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
+	ToolName    string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
+	Args        json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
+	ArgsDelta   string              `json:"args_delta,omitempty" variants:"tool-call?"`
+	Result      json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
 	ResultDelta string              `json:"result_delta,omitempty"`
-	IsError     bool                `json:"is_error,omitempty"`
-	SourceID    string              `json:"source_id,omitempty"`
-	URL         string              `json:"url,omitempty"`
-	Title       string              `json:"title,omitempty"`
-	MediaType   string              `json:"media_type,omitempty"`
-	Data        []byte              `json:"data,omitempty"`
-	FileID      uuid.NullUUID       `json:"file_id,omitempty" format:"uuid"`
-	// The following fields are only set when Type is
-	// ChatInputPartTypeFileReference.
-	FileName  string `json:"file_name,omitempty"`
-	StartLine int    `json:"start_line,omitempty"`
-	EndLine   int    `json:"end_line,omitempty"`
+	IsError     bool                `json:"is_error,omitempty" variants:"tool-result?"`
+	SourceID    string              `json:"source_id,omitempty" variants:"source?"`
+	URL         string              `json:"url,omitempty" variants:"source"`
+	Title       string              `json:"title,omitempty" variants:"source?"`
+	MediaType   string              `json:"media_type,omitempty" variants:"file"`
+	Data        []byte              `json:"data,omitempty" variants:"file?"`
+	FileID      uuid.NullUUID       `json:"file_id,omitempty" format:"uuid" variants:"file?"`
+	FileName    string              `json:"file_name,omitempty" variants:"file-reference"`
+	StartLine   int                 `json:"start_line,omitempty" variants:"file-reference"`
+	EndLine     int                 `json:"end_line,omitempty" variants:"file-reference"`
 	// The code content from the diff that was commented on.
-	Content string `json:"content,omitempty"`
+	Content string `json:"content,omitempty" variants:"file-reference"`
 	// ProviderMetadata holds provider-specific response metadata
 	// (e.g. Anthropic cache control hints) as raw JSON. Internal
 	// only: stripped by db2sdk before API responses.
 	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-"`
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
-	ProviderExecuted bool `json:"provider_executed,omitempty"`
+	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
 }
 
 // StripInternal removes internal-only fields that must not be
@@ -318,6 +335,16 @@ type ChatSystemPrompt struct {
 // user chat custom prompt configuration endpoint.
 type UserChatCustomPrompt struct {
 	CustomPrompt string `json:"custom_prompt"`
+}
+
+// ChatDesktopEnabledResponse is the response for getting the desktop setting.
+type ChatDesktopEnabledResponse struct {
+	EnableDesktop bool `json:"enable_desktop"`
+}
+
+// UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
+type UpdateChatDesktopEnabledRequest struct {
+	EnableDesktop bool `json:"enable_desktop"`
 }
 
 // ChatProviderConfigSource describes how a provider entry is sourced.
@@ -1268,6 +1295,33 @@ func (c *Client) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPro
 	}
 	var resp UserChatCustomPrompt
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetChatDesktopEnabled returns the deployment-wide desktop setting.
+func (c *Client) GetChatDesktopEnabled(ctx context.Context) (ChatDesktopEnabledResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/desktop-enabled", nil)
+	if err != nil {
+		return ChatDesktopEnabledResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatDesktopEnabledResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatDesktopEnabledResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatDesktopEnabled updates the deployment-wide desktop setting.
+func (c *Client) UpdateChatDesktopEnabled(ctx context.Context, req UpdateChatDesktopEnabledRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/desktop-enabled", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // UpdateUserChatCustomPrompt updates the user's custom chat prompt.

@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	httppprof "net/http/pprof"
 	"net/url"
@@ -766,17 +767,26 @@ func New(options *Options) *API {
 	}
 	api.agentProvider = stn
 
+	maxChatsPerAcquire := options.DeploymentValues.AI.Chat.AcquireBatchSize.Value()
+	if maxChatsPerAcquire > math.MaxInt32 {
+		maxChatsPerAcquire = math.MaxInt32
+	}
+	if maxChatsPerAcquire < math.MinInt32 {
+		maxChatsPerAcquire = math.MinInt32
+	}
+
 	api.chatDaemon = chatd.New(chatd.Config{
-		Logger:            options.Logger.Named("chats"),
-		Database:          options.Database,
-		ReplicaID:         api.ID,
-		SubscribeFn:       options.ChatSubscribeFn,
-		ProviderAPIKeys:   chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
-		AgentConn:         api.agentProvider.AgentConn,
-		CreateWorkspace:   api.chatCreateWorkspace,
-		StartWorkspace:    api.chatStartWorkspace,
-		Pubsub:            options.Pubsub,
-		WebpushDispatcher: options.WebPushDispatcher,
+		Logger:             options.Logger.Named("chats"),
+		Database:           options.Database,
+		ReplicaID:          api.ID,
+		SubscribeFn:        options.ChatSubscribeFn,
+		MaxChatsPerAcquire: int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
+		ProviderAPIKeys:    chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
+		AgentConn:          api.agentProvider.AgentConn,
+		CreateWorkspace:    api.chatCreateWorkspace,
+		StartWorkspace:     api.chatStartWorkspace,
+		Pubsub:             options.Pubsub,
+		WebpushDispatcher:  options.WebPushDispatcher,
 	})
 	gitSyncLogger := options.Logger.Named("gitsync")
 	refresher := gitsync.NewRefresher(
@@ -1157,6 +1167,8 @@ func New(options *Options) *API {
 			r.Route("/config", func(r chi.Router) {
 				r.Get("/system-prompt", api.getChatSystemPrompt)
 				r.Put("/system-prompt", api.putChatSystemPrompt)
+				r.Get("/desktop-enabled", api.getChatDesktopEnabled)
+				r.Put("/desktop-enabled", api.putChatDesktopEnabled)
 				r.Get("/user-prompt", api.getUserChatCustomPrompt)
 				r.Put("/user-prompt", api.putUserChatCustomPrompt)
 			})

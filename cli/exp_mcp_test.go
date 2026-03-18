@@ -81,7 +81,13 @@ func TestExpMcpServer(t *testing.T) {
 		var toolsResponse struct {
 			Result struct {
 				Tools []struct {
-					Name string `json:"name"`
+					Name        string `json:"name"`
+					Annotations struct {
+						ReadOnlyHint    *bool `json:"readOnlyHint"`
+						DestructiveHint *bool `json:"destructiveHint"`
+						IdempotentHint  *bool `json:"idempotentHint"`
+						OpenWorldHint   *bool `json:"openWorldHint"`
+					} `json:"annotations"`
 				} `json:"tools"`
 			} `json:"result"`
 		}
@@ -94,6 +100,15 @@ func TestExpMcpServer(t *testing.T) {
 		}
 		slices.Sort(foundTools)
 		require.Equal(t, []string{"coder_get_authenticated_user"}, foundTools)
+		annotations := toolsResponse.Result.Tools[0].Annotations
+		require.NotNil(t, annotations.ReadOnlyHint)
+		require.NotNil(t, annotations.DestructiveHint)
+		require.NotNil(t, annotations.IdempotentHint)
+		require.NotNil(t, annotations.OpenWorldHint)
+		assert.True(t, *annotations.ReadOnlyHint)
+		assert.False(t, *annotations.DestructiveHint)
+		assert.True(t, *annotations.IdempotentHint)
+		assert.False(t, *annotations.OpenWorldHint)
 
 		// Call the tool and ensure it works.
 		toolPayload := `{"jsonrpc":"2.0","id":3,"method":"tools/call", "params": {"name": "coder_get_authenticated_user", "arguments": {}}}`

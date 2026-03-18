@@ -225,7 +225,7 @@ export const UserMessageWithImagesAndFileRefs: Story = {
 						file_name: "src/main.go",
 						start_line: 10,
 						end_line: 25,
-						text: "main function",
+						content: 'func main() {\n\tfmt.Println("hello")\n}',
 					},
 				],
 			},

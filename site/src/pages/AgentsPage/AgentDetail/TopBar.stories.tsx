@@ -80,6 +80,68 @@ export const NoTitle: Story = {
 	},
 };
 
+export const WithOpenPR: Story = {
+	args: {
+		diffStatusData: {
+			chat_id: "chat-1",
+			url: "https://github.com/coder/coder/pull/123",
+			pull_request_title: "fix: resolve race condition in workspace builds",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 42,
+			deletions: 7,
+			changed_files: 5,
+		},
+	},
+};
+
+export const WithDraftPR: Story = {
+	args: {
+		diffStatusData: {
+			chat_id: "chat-1",
+			url: "https://github.com/coder/coder/pull/456",
+			pull_request_title: "feat: add new notification system",
+			pull_request_draft: true,
+			changes_requested: false,
+			additions: 120,
+			deletions: 30,
+			changed_files: 8,
+		},
+	},
+};
+
+export const WithMergedPR: Story = {
+	args: {
+		diffStatusData: {
+			chat_id: "chat-1",
+			url: "https://github.com/coder/coder/pull/789",
+			pull_request_title: "chore: update dependencies",
+			pull_request_state: "merged",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 5,
+			deletions: 3,
+			changed_files: 1,
+		},
+	},
+};
+
+export const WithClosedPR: Story = {
+	args: {
+		diffStatusData: {
+			chat_id: "chat-1",
+			url: "https://github.com/coder/coder/pull/101",
+			pull_request_title: "fix: deprecated API cleanup",
+			pull_request_state: "closed",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: 0,
+			deletions: 50,
+			changed_files: 3,
+		},
+	},
+};
+
 export const ArchivedWithUnarchive: Story = {
 	args: {
 		isArchived: true,

@@ -112,6 +112,14 @@ for more detail on the security model.
 
 ## Scope permissions and credentials
 
+> [!WARNING]
+> By default, agent workspaces inherit the same network access and
+> permissions as any workspace the user creates manually. If your templates
+> do not explicitly restrict outbound network access, the agent has full
+> internet access from the workspace. Review the guidance below and in
+> [Configure network boundaries](#configure-network-boundaries) to lock
+> down agent workloads appropriately.
+
 The agent operates with the same identity and permissions as the user who
 submitted the prompt. There is no privilege escalation — if a developer cannot
 access a resource through the Coder dashboard, the agent cannot access it

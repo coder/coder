@@ -12714,6 +12714,9 @@ const docTemplate = `{
                 },
                 "bridge": {
                     "$ref": "#/definitions/codersdk.AIBridgeConfig"
+                },
+                "chat": {
+                    "$ref": "#/definitions/codersdk.ChatConfig"
                 }
             }
         },
@@ -13768,6 +13771,14 @@ const docTemplate = `{
                 },
                 "password": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatConfig": {
+            "type": "object",
+            "properties": {
+                "acquire_batch_size": {
+                    "type": "integer"
                 }
             }
         },

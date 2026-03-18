@@ -139,6 +139,17 @@ resource "coder_app" "zed" {
 Check out our [module registry](https://registry.coder.com/modules) for
 additional Coder apps from the team and our OSS community.
 
+## Environment variables
+
+Use the
+[`coder_env`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env)
+resource to inject environment variables into workspace agents. Multiple
+resources can target the same variable using
+[merge strategies](./environment-variables.md) like `append` and `prepend`,
+which is useful for building up `PATH`-style variables across modules.
+
+See [Environment variables](./environment-variables.md) for details.
+
 ## Running scripts on workspace lifecycle
 
 The

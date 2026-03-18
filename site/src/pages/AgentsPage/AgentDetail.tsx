@@ -2,6 +2,7 @@ import { API, watchWorkspace } from "api/api";
 import { isApiError } from "api/errors";
 import {
 	chat,
+	chatDesktopEnabled,
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
@@ -58,6 +59,7 @@ import {
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
+import { parsePullRequestUrl } from "./pullRequest";
 import { formatUsageLimitMessage, isUsageLimitData } from "./usageLimitMessage";
 import { useGitWatcher } from "./useGitWatcher";
 
@@ -317,6 +319,7 @@ const AgentDetail: FC = () => {
 	}, [workspaceId, queryClient]);
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspace = workspaceQuery.data;
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
@@ -468,9 +471,13 @@ const AgentDetail: FC = () => {
 		chatInputRef.current?.focus();
 	}, []);
 
-	// Extract PR number from diff status URL.
-	const prMatch = chatQuery.data?.diff_status?.url?.match(/\/pull\/(\d+)/)?.[1];
-	const prNumber = prMatch ? Number(prMatch) : undefined;
+	// Prefer the explicit PR number from the API, and only fall back to URL
+	// parsing when older metadata does not provide it.
+	const parsedPrNumber = Number(
+		parsePullRequestUrl(chatQuery.data?.diff_status?.url)?.number,
+	);
+	const prNumber =
+		chatQuery.data?.diff_status?.pr_number ?? (parsedPrNumber || undefined);
 	// Compute an effective selected model by validating the user's
 	// explicit choice against the current model options, falling
 	// back to the chat's last model or the first available option.
@@ -774,6 +781,7 @@ const AgentDetail: FC = () => {
 					token: key,
 					agent: workspaceAgent.name,
 					folder: workspaceAgent.expanded_directory,
+					chatId: agentId,
 				});
 			},
 			onError: () => {
@@ -901,7 +909,9 @@ const AgentDetail: FC = () => {
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
-			desktopChatId={agentId}
+			desktopChatId={
+				desktopEnabledQuery.data?.enable_desktop ? agentId : undefined
+			}
 		/>
 	);
 };

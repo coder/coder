@@ -65,4 +65,15 @@ func TestParseEventWithType(t *testing.T) {
 		require.Equal(t, eventType, event.EventType())
 		require.Equal(t, map[string]any{"count": uint64(1)}, event.Fields())
 	})
+
+	t.Run("HBAISeatsV1", func(t *testing.T) {
+		t.Parallel()
+
+		eventType := usagetypes.UsageEventTypeHBAISeatsV1
+		event, err := usagetypes.ParseEventWithType(eventType, []byte(`{"count": 1}`))
+		require.NoError(t, err)
+		require.Equal(t, usagetypes.HBAISeats{Count: 1}, event)
+		require.Equal(t, eventType, event.EventType())
+		require.Equal(t, map[string]any{"count": int64(1)}, event.Fields())
+	})
 }

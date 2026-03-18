@@ -591,6 +591,97 @@ func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
 	require.False(t, chatFromDB.WorkerID.Valid)
 }
 
+func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("WithWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newTestServer(t, db, ps, uuid.New())
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, model := seedChatDependencies(ctx, t, db)
+
+		org := dbgen.Organization(t, db, database.Organization{})
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		tpl := dbgen.Template(t, db, database.Template{
+			CreatedBy:       user.ID,
+			OrganizationID:  org.ID,
+			ActiveVersionID: tv.ID,
+		})
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     tpl.ID,
+		})
+
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OwnerID:            user.ID,
+			WorkspaceID:        uuid.NullUUID{UUID: workspace.ID, Valid: true},
+			Title:              "test-with-workspace",
+			ModelConfigID:      model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		})
+		require.NoError(t, err)
+
+		messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		var workspaceMsg *database.ChatMessage
+		for _, msg := range messages {
+			if msg.Role == database.ChatMessageRoleSystem {
+				content := string(msg.Content.RawMessage)
+				if strings.Contains(content, "attached to a workspace") {
+					workspaceMsg = &msg
+					break
+				}
+			}
+		}
+		require.NotNil(t, workspaceMsg, "workspace awareness system message should exist")
+		require.Equal(t, database.ChatMessageRoleSystem, workspaceMsg.Role)
+		require.Equal(t, database.ChatMessageVisibilityModel, workspaceMsg.Visibility)
+	})
+
+	t.Run("WithoutWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newTestServer(t, db, ps, uuid.New())
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, model := seedChatDependencies(ctx, t, db)
+
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OwnerID:            user.ID,
+			Title:              "test-without-workspace",
+			ModelConfigID:      model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		})
+		require.NoError(t, err)
+
+		messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		var workspaceMsg *database.ChatMessage
+		for _, msg := range messages {
+			if msg.Role == database.ChatMessageRoleSystem {
+				content := string(msg.Content.RawMessage)
+				if strings.Contains(content, "no workspace associated") {
+					workspaceMsg = &msg
+					break
+				}
+			}
+		}
+		require.NotNil(t, workspaceMsg, "workspace awareness system message should exist")
+		require.Equal(t, database.ChatMessageRoleSystem, workspaceMsg.Role)
+		require.Equal(t, database.ChatMessageVisibilityModel, workspaceMsg.Visibility)
+	})
+}
+
 func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
 	t.Parallel()
 
@@ -635,6 +726,7 @@ func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
 		TotalCostMicros:     sql.NullInt64{Int64: 100, Valid: true},
+		RuntimeMs:           sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -733,6 +825,7 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
 		TotalCostMicros:     sql.NullInt64{Int64: 100, Valid: true},
+		RuntimeMs:           sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -921,6 +1014,7 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
 		TotalCostMicros:     sql.NullInt64{Int64: 100, Valid: true},
+		RuntimeMs:           sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -1016,6 +1110,7 @@ func TestEditMessageRejectsWhenUsageLimitReached(t *testing.T) {
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
 		TotalCostMicros:     sql.NullInt64{Int64: 100, Valid: true},
+		RuntimeMs:           sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -1105,6 +1200,7 @@ func TestEditMessageRejectsNonUserMessage(t *testing.T) {
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
+		RuntimeMs:           sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -1453,6 +1549,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
+		RuntimeMs:           sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -1476,6 +1573,7 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
 		Compressed:          sql.NullBool{},
+		RuntimeMs:           sql.NullInt64{},
 	})
 	require.NoError(t, err)
 
@@ -2517,6 +2615,9 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	err = db.UpsertChatDesktopEnabled(ctx, true)
+	require.NoError(t, err)
+
 	// Build workspace + agent records so getWorkspaceConn can
 	// resolve the agent for the computer use child.
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -2692,4 +2793,140 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	require.True(t, children[0].Mode.Valid)
 	require.Equal(t, database.ChatModeComputerUse,
 		children[0].Mode.ChatMode)
+}
+
+func TestInterruptChatPersistsPartialResponse(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Set up a mock OpenAI that streams a partial response and then
+	// blocks until the request context is canceled (simulating an
+	// interrupt mid-stream).
+	chunksDelivered := make(chan struct{})
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		chunks := make(chan chattest.OpenAIChunk, 1)
+		go func() {
+			defer close(chunks)
+			// Send two partial text chunks so there is meaningful
+			// content to persist.
+			for _, c := range chattest.OpenAITextChunks("hello world") {
+				chunks <- c
+			}
+			// Signal that chunks have been written to the HTTP response.
+			select {
+			case <-chunksDelivered:
+			default:
+				close(chunksDelivered)
+			}
+			// Block until interrupt cancels the context.
+			<-req.Context().Done()
+		}()
+		return chattest.OpenAIResponse{StreamingChunks: chunks}
+	})
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := chatd.New(chatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  uuid.New(),
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "interrupt-persist-test",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	// Subscribe to the chat's event stream so we can observe
+	// message_part events — proof the chatloop has actually
+	// processed the streamed chunks.
+	_, events, subCancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	defer subCancel()
+
+	// Wait for the mock to finish sending chunks.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		select {
+		case <-chunksDelivered:
+			return true
+		default:
+			return false
+		}
+	}, testutil.IntervalFast)
+
+	// Drain the event channel until we see a message_part event,
+	// which means the chatloop has consumed and published the chunk.
+	gotMessagePart := false
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		for {
+			select {
+			case ev := <-events:
+				if ev.Type == codersdk.ChatStreamEventTypeMessagePart {
+					gotMessagePart = true
+					return true
+				}
+			default:
+				return gotMessagePart
+			}
+		}
+	}, testutil.IntervalFast)
+	require.True(t, gotMessagePart, "should have received at least one message_part event")
+
+	// Now interrupt the chat — the chatloop has processed content.
+	updated := server.InterruptChat(ctx, chat)
+	require.Equal(t, database.ChatStatusWaiting, updated.Status)
+
+	// Wait for the partial assistant message to be persisted.
+	// After the interrupt, the chatloop runs persistInterruptedStep
+	// which inserts the message and publishes a "message" event.
+	// We poll the DB directly for the assistant message rather than
+	// relying on the chat status (which transitions to "waiting"
+	// before the persist completes).
+	var assistantMsg *database.ChatMessage
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		msgs, dbErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		if dbErr != nil {
+			return false
+		}
+		for i := range msgs {
+			if msgs[i].Role == database.ChatMessageRoleAssistant {
+				assistantMsg = &msgs[i]
+				return true
+			}
+		}
+		return false
+	}, testutil.IntervalFast)
+	require.NotNilf(t, assistantMsg, "expected a persisted assistant message after interrupt")
+
+	// Parse the content and verify it contains the partial text.
+	parts, err := chatprompt.ParseContent(*assistantMsg)
+	require.NoError(t, err)
+
+	var foundText string
+	for _, part := range parts {
+		if part.Type == codersdk.ChatMessagePartTypeText {
+			foundText += part.Text
+		}
+	}
+	require.Contains(t, foundText, "hello world",
+		"partial assistant response should contain the streamed text")
 }
