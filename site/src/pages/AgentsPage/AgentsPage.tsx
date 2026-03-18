@@ -41,7 +41,10 @@ import {
 import { maybePlayChime } from "./AgentDetail/useAgentChime";
 import type { AgentsOutletContext } from "./AgentsPageView";
 import { AgentsPageView } from "./AgentsPageView";
-import { getModelOptionsFromCatalog } from "./modelOptions";
+import {
+	getModelOptionsFromCatalog,
+	getNormalizedModelRef,
+} from "./modelOptions";
 import type { ChatDetailError } from "./usageLimitMessage";
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 import { useAgentsPWA } from "./useAgentsPWA";
@@ -187,8 +190,7 @@ const AgentsPage: FC = () => {
 	const modelConfigIDByModelID = useMemo(() => {
 		const byModelID = new Map<string, string>();
 		for (const config of chatModelConfigsQuery.data ?? []) {
-			const provider = config.provider.trim().toLowerCase();
-			const model = config.model.trim();
+			const { provider, model } = getNormalizedModelRef(config);
 			if (!provider || !model) {
 				continue;
 			}

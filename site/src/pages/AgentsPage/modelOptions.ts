@@ -1,7 +1,22 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { asString } from "components/ai-elements/runtimeTypeUtils";
 
 type CatalogProvider = TypesGen.ChatModelsResponse["providers"][number];
+type ModelRefLike =
+	| {
+			readonly provider?: unknown;
+			readonly model?: unknown;
+	  }
+	| null
+	| undefined;
+
+export const getNormalizedModelRef = (
+	value: ModelRefLike,
+): { readonly provider: string; readonly model: string } => ({
+	provider: asString(value?.provider).trim().toLowerCase(),
+	model: asString(value?.model).trim(),
+});
 
 const getCatalogProviders = (
 	catalog: TypesGen.ChatModelsResponse | null | undefined,
@@ -48,7 +63,11 @@ export const getModelOptionsFromCatalog = (
 	if (configs) {
 		for (const config of configs) {
 			if (config.context_limit > 0) {
-				const key = `${config.provider.trim().toLowerCase()}:${config.model.trim()}`;
+				const { provider, model } = getNormalizedModelRef(config);
+				if (!provider || !model) {
+					continue;
+				}
+				const key = `${provider}:${model}`;
 				if (!contextLimitByKey.has(key)) {
 					contextLimitByKey.set(key, config.context_limit);
 				}
@@ -66,9 +85,9 @@ export const getModelOptionsFromCatalog = (
 				continue;
 			}
 
-			const modelID = model.id.trim();
-			const modelProvider = model.provider.trim();
-			const modelRef = model.model.trim();
+			const modelID = asString(model.id).trim();
+			const { provider: modelProvider, model: modelRef } =
+				getNormalizedModelRef(model);
 			if (!modelID || !modelProvider || !modelRef) {
 				continue;
 			}
@@ -82,10 +101,7 @@ export const getModelOptionsFromCatalog = (
 				id: modelID,
 				provider: modelProvider,
 				model: modelRef,
-				displayName:
-					(typeof model.display_name === "string" &&
-						model.display_name.trim()) ||
-					modelRef,
+				displayName: asString(model.display_name).trim() || modelRef,
 				contextLimit: contextLimitByKey.get(configKey),
 			});
 		}
