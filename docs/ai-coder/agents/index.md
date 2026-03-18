@@ -195,7 +195,7 @@ entirely:
 > By default, agent workspaces have the same network access and permissions
 > as any workspace the user creates manually. If your templates do not
 > restrict outbound network access, the agent has full internet access from
-> the workspace. See [Template Routing](./platform-controls/template-optimization.md)
+> the workspace. See [Template Optimization](./platform-controls/template-optimization.md)
 > for guidance on configuring network boundaries and scoping credentials for
 > agent workloads.
 

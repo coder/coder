@@ -1,4 +1,4 @@
-# Template Routing
+# Template Optimization
 
 Not every chat with Coder Agents requires a workspace. A workspace is only provisioned when the
 agent decides it needs compute — to read files, write code, run commands, or
