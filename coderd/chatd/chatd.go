@@ -2640,7 +2640,8 @@ func (p *Server) runChat(
 				}
 			}
 
-			if assistantContent.Valid {				assistantMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
+			if assistantContent.Valid {
+				assistantMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
 					ChatID:         chat.ID,
 					CreatedBy:      uuid.NullUUID{},
 					ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},

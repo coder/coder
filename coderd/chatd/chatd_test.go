@@ -2711,12 +2711,12 @@ func TestInterruptChatPersistsPartialResponse(t *testing.T) {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
 		}
-		chunks := make(chan chattest.OpenAIChunk, 2)
+		chunks := make(chan chattest.OpenAIChunk, 1)
 		go func() {
 			defer close(chunks)
 			// Send two partial text chunks so there is meaningful
 			// content to persist.
-			for _, c := range chattest.OpenAITextChunks("hello ", "world") {
+			for _, c := range chattest.OpenAITextChunks("hello world") {
 				chunks <- c
 			}
 			// Signal that chunks have been written to the HTTP response.
