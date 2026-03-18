@@ -35,7 +35,7 @@ import {
 import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { ChevronLeftIcon, FlaskConicalIcon, ShieldIcon } from "lucide-react";
+import { ChevronLeftIcon, ShieldIcon } from "lucide-react";
 import { type FC, type FormEvent, useCallback, useMemo, useState } from "react";
 import {
 	keepPreviousData,
@@ -63,20 +63,6 @@ const AdminBadge: FC = () => (
 			<TooltipContent side="right">
 				Only visible to deployment administrators.
 			</TooltipContent>
-		</Tooltip>
-	</TooltipProvider>
-);
-
-const ExperimentBadge: FC = () => (
-	<TooltipProvider delayDuration={0}>
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<span className="inline-flex cursor-default items-center gap-1 rounded bg-surface-tertiary/60 px-1.5 py-px text-[11px] font-medium text-content-secondary">
-					<FlaskConicalIcon className="h-3 w-3" />
-					Experiment
-				</span>
-			</TooltipTrigger>
-			<TooltipContent side="right">Experimental feature.</TooltipContent>
 		</Tooltip>
 	</TooltipProvider>
 );
@@ -528,7 +514,6 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 											Virtual Desktop
 										</h3>
 										<AdminBadge />
-										<ExperimentBadge />
 									</div>
 									<div className="flex items-center justify-between gap-4">
 										<div className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
@@ -546,8 +531,8 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 												provider to be configured.
 											</p>
 											<p className="mt-2 mb-0 font-semibold text-content-secondary">
-												Warning: This is an experimental, in-progress feature,
-												and you’re likely to encounter bugs if you enable it.
+												Warning: This is a work-in-progress feature, and you’re
+												likely to encounter bugs if you enable it.
 											</p>
 										</div>
 										<Switch
