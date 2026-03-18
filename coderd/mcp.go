@@ -4,11 +4,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -451,6 +454,253 @@ func (api *API) refreshMCPServerTools(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusNotImplemented, codersdk.Response{
 		Message: "Refreshing MCP server tools is not yet implemented.",
 	})
+}
+
+// @Summary List user MCP servers
+// @x-apidocgen {"skip": true}
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// Returns enabled MCP servers with per-user auth status.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) listUserMCPServers(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	//nolint:gocritic // All authenticated users need to read enabled MCP server configs.
+	configs, err := api.Database.GetEnabledMCPServerConfigs(dbauthz.AsSystemRestricted(ctx))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list MCP server configs.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	//nolint:gocritic // Need to check user tokens across all servers.
+	userTokens, err := api.Database.GetMCPServerUserTokensByUserID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get user tokens.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	tokenMap := make(map[uuid.UUID]bool, len(userTokens))
+	for _, t := range userTokens {
+		tokenMap[t.McpServerConfigID] = true
+	}
+
+	resp := make([]codersdk.MCPServerConfig, 0, len(configs))
+	for _, config := range configs {
+		sdkConfig := convertMCPServerConfig(config, 0)
+		// Set per-user auth status.
+		if config.AuthType == "oauth2" {
+			sdkConfig.AuthConnected = tokenMap[config.ID]
+		} else {
+			// Non-OAuth servers are always "connected" from auth
+			// perspective.
+			sdkConfig.AuthConnected = true
+		}
+		resp = append(resp, sdkConfig)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// @Summary Initiate MCP server OAuth2 connect
+// @x-apidocgen {"skip": true}
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// Redirects the user to the MCP server's OAuth2 authorization URL.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	mcpServerID, ok := parseMCPServerConfigID(rw, r)
+	if !ok {
+		return
+	}
+
+	//nolint:gocritic // Any authenticated user can initiate OAuth2 for an enabled MCP server.
+	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get MCP server config.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if config.AuthType != "oauth2" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "MCP server does not use OAuth2 authentication.",
+		})
+		return
+	}
+
+	if config.Oauth2AuthUrl == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "MCP server OAuth2 authorization URL is not configured.",
+		})
+		return
+	}
+
+	// Build the authorization URL. The frontend opens this in a popup.
+	// The callback URL is on our server; after the exchange we store
+	// the token and close the popup.
+	//
+	// NOTE: The actual token exchange callback is a follow-up. For
+	// now, redirect the user to the authorization URL so we can
+	// validate the flow end-to-end once the callback handler is
+	// implemented.
+	state := uuid.New().String() // TODO: Store state for CSRF verification.
+
+	authURL := fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&response_type=code&scope=%s&state=%s",
+		config.Oauth2AuthUrl,
+		url.QueryEscape(config.Oauth2ClientID),
+		url.QueryEscape(fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), config.ID)),
+		url.QueryEscape(config.Oauth2Scopes),
+		url.QueryEscape(state),
+	)
+
+	http.Redirect(rw, r, authURL, http.StatusTemporaryRedirect)
+}
+
+// @Summary Handle MCP server OAuth2 callback
+// @x-apidocgen {"skip": true}
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// Exchanges the authorization code for tokens and stores them.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	mcpServerID, ok := parseMCPServerConfigID(rw, r)
+	if !ok {
+		return
+	}
+
+	//nolint:gocritic // Any authenticated user can complete OAuth2 for an enabled MCP server.
+	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get MCP server config.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing authorization code.",
+		})
+		return
+	}
+
+	// TODO: Validate state parameter for CSRF protection.
+
+	// Exchange the authorization code for tokens.
+	oauth2Config := &oauth2.Config{
+		ClientID:     config.Oauth2ClientID,
+		ClientSecret: config.Oauth2ClientSecret,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  config.Oauth2AuthUrl,
+			TokenURL: config.Oauth2TokenUrl,
+		},
+		RedirectURL: fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), config.ID),
+		Scopes:      strings.Split(config.Oauth2Scopes, " "),
+	}
+
+	token, err := oauth2Config.Exchange(ctx, code)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+			Message: "Failed to exchange authorization code for token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Store the token for the user.
+	refreshToken := ""
+	if token.RefreshToken != "" {
+		refreshToken = token.RefreshToken
+	}
+
+	var expiry sql.NullTime
+	if !token.Expiry.IsZero() {
+		expiry = sql.NullTime{Time: token.Expiry, Valid: true}
+	}
+
+	//nolint:gocritic // Users store their own tokens.
+	_, err = api.Database.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
+		McpServerConfigID: mcpServerID,
+		UserID:            apiKey.UserID,
+		AccessToken:       token.AccessToken,
+		AccessTokenKeyID:  sql.NullString{},
+		RefreshToken:      refreshToken,
+		RefreshTokenKeyID: sql.NullString{},
+		TokenType:         token.TokenType,
+		Expiry:            expiry,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to store OAuth2 token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Respond with a simple HTML page that closes the popup window.
+	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+	rw.WriteHeader(http.StatusOK)
+	_, _ = rw.Write([]byte(`<!DOCTYPE html><html><body><script>
+		if (window.opener) {
+			window.opener.postMessage({type: "mcp-oauth2-complete", serverID: "` + config.ID.String() + `"}, "*");
+			window.close();
+		} else {
+			document.body.innerText = "Authentication successful. You may close this window.";
+		}
+	</script></body></html>`))
+}
+
+// @Summary Disconnect MCP server OAuth2 token
+// @x-apidocgen {"skip": true}
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// Removes the user's stored OAuth2 token for an MCP server.
+func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	mcpServerID, ok := parseMCPServerConfigID(rw, r)
+	if !ok {
+		return
+	}
+
+	//nolint:gocritic // Users manage their own tokens.
+	err := api.Database.DeleteMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.DeleteMCPServerUserTokenParams{
+		McpServerConfigID: mcpServerID,
+		UserID:            apiKey.UserID,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to disconnect OAuth2 token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // parseMCPServerConfigID extracts the MCP server config UUID from the
