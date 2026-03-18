@@ -29,6 +29,7 @@ export interface AgentsOutletContext {
 	requestArchiveAndDeleteWorkspace: (
 		chatId: string,
 		workspaceId: string,
+		needsConfirmation: boolean,
 	) => void;
 	onOpenAnalytics?: () => void;
 	isSidebarCollapsed: boolean;

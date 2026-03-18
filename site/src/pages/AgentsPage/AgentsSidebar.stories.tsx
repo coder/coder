@@ -739,7 +739,7 @@ export const ArchivedAgentUnarchiveOption: Story = {
 };
 
 // Chat with a workspace that was autocreated by the chat tool.
-// workspace.created_at >= chat.created_at → show "Archive & delete workspace".
+// workspace.created_at >= chat.created_at → show "Archive & delete workspace" without confirmation.
 export const AutocreatedWorkspaceShowsDelete: Story = {
 	args: {
 		chats: [
@@ -786,8 +786,8 @@ export const AutocreatedWorkspaceShowsDelete: Story = {
 };
 
 // Chat linked to a pre-existing workspace at creation time.
-// workspace.created_at < chat.created_at → hide "Archive & delete workspace".
-export const LinkedWorkspaceHidesDelete: Story = {
+// workspace.created_at < chat.created_at → show "Archive & delete workspace" with confirmation.
+export const LinkedWorkspaceShowsDelete: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -827,11 +827,9 @@ export const LinkedWorkspaceHidesDelete: Story = {
 		await userEvent.click(trigger);
 		await waitFor(() => {
 			const body = within(document.body);
-			// "Archive agent" should be present, but not "Archive & delete workspace".
+			// Both "Archive agent" and "Archive & delete workspace" should be present.
 			expect(body.getByText("Archive agent")).toBeInTheDocument();
-			expect(
-				body.queryByText("Archive & delete workspace"),
-			).not.toBeInTheDocument();
+			expect(body.getByText("Archive & delete workspace")).toBeInTheDocument();
 		});
 	},
 };

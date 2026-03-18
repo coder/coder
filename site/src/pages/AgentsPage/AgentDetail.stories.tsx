@@ -44,7 +44,7 @@ const AgentDetailLayout: FC = () => {
 							setChatErrorReason: () => {},
 							clearChatErrorReason: () => {},
 							requestArchiveAgent: () => {},
-							requestArchiveAndDeleteWorkspace: () => {},
+							requestArchiveAndDeleteWorkspace: (_chatId: string, _workspaceId: string, _needsConfirmation: boolean) => {},
 							requestUnarchiveAgent: () => {},
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},

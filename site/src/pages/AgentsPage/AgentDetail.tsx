@@ -819,7 +819,11 @@ const AgentDetail: FC = () => {
 		if (!agentId || isArchived || !workspaceId) {
 			return;
 		}
-		requestArchiveAndDeleteWorkspace(agentId, workspaceId);
+		const isAutoCreated =
+			workspace &&
+			chatQuery.data &&
+			new Date(workspace.created_at) >= new Date(chatQuery.data.created_at);
+		requestArchiveAndDeleteWorkspace(agentId, workspaceId, !isAutoCreated);
 	};
 
 	const handleUnarchiveAgentAction = () => {
@@ -865,11 +869,7 @@ const AgentDetail: FC = () => {
 			chatErrorReasons={chatErrorReasons}
 			chatRecord={chatRecord}
 			isArchived={isArchived}
-			canDeleteWorkspace={Boolean(
-				workspace &&
-					chatQuery.data &&
-					new Date(workspace.created_at) >= new Date(chatQuery.data.created_at),
-			)}
+			canDeleteWorkspace={Boolean(workspace)}
 			store={store}
 			editing={editing}
 			pendingEditMessageId={pendingEditMessageId}

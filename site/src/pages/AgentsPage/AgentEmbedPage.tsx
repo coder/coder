@@ -112,7 +112,7 @@ const AgentEmbedPage: FC = () => {
 	const requestUnarchiveAgent = useCallback((_chatId: string) => {}, []);
 
 	const requestArchiveAndDeleteWorkspace = useCallback(
-		(_chatId: string, _workspaceId: string) => {},
+		(_chatId: string, _workspaceId: string, _needsConfirmation: boolean) => {},
 		[],
 	);
 

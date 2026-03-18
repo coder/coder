@@ -263,12 +263,23 @@ const AgentsPage: FC = () => {
 		[isArchiving, archiveAgentMutation],
 	);
 	const requestArchiveAndDeleteWorkspace = useCallback(
-		(chatId: string, workspaceId: string) => {
+		(chatId: string, workspaceId: string, needsConfirmation: boolean) => {
 			if (!isArchiving) {
-				setPendingArchiveAndDelete({ chatId, workspaceId });
+				if (needsConfirmation) {
+					setPendingArchiveAndDelete({ chatId, workspaceId });
+				} else {
+					archiveAndDeleteMutation.mutate(
+						{ chatId, workspaceId },
+						{
+							onSettled: () => {
+								navigate("/agents");
+							},
+						},
+					);
+				}
 			}
 		},
-		[isArchiving],
+		[isArchiving, archiveAndDeleteMutation, navigate],
 	);
 	const handleConfirmArchiveAndDelete = useCallback(() => {
 		if (pendingArchiveAndDelete && !isArchiving) {
