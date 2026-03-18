@@ -119,21 +119,26 @@ export const GitPanel: FC<GitPanelProps> = ({
 		return { type: "remote" };
 	});
 
-	// If the active tab gets hidden, switch to the first available.
-	useEffect(() => {
+	// Derive the effective view during render so the UI never
+	// flashes a stale tab. The raw `view` state stores the user's
+	// intent; `effectiveView` corrects it when the selected tab is
+	// no longer available.
+	const effectiveView = useMemo<GitView>(() => {
 		if (view.type === "remote" && !showRemoteTab) {
 			if (localRepos.length > 0) {
-				setView({ type: "local", repoRoot: localRepos[0] });
+				return { type: "local", repoRoot: localRepos[0] };
 			}
 		} else if (view.type === "local") {
 			if (!repoStats.has(view.repoRoot)) {
 				if (showRemoteTab) {
-					setView({ type: "remote" });
-				} else if (localRepos.length > 0) {
-					setView({ type: "local", repoRoot: localRepos[0] });
+					return { type: "remote" };
+				}
+				if (localRepos.length > 0) {
+					return { type: "local", repoRoot: localRepos[0] };
 				}
 			}
 		}
+		return view;
 	}, [view, showRemoteTab, localRepos, repoStats]);
 
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
@@ -171,7 +176,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 								onClick={() => setView({ type: "remote" })}
 								className={cn(
 									"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
-									view.type === "remote" &&
+									effectiveView.type === "remote" &&
 										"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
 								)}
 							>
@@ -196,7 +201,8 @@ export const GitPanel: FC<GitPanelProps> = ({
 						)}
 						{localRepos.map((repoRoot) => {
 							const isActive =
-								view.type === "local" && view.repoRoot === repoRoot;
+								effectiveView.type === "local" &&
+								effectiveView.repoRoot === repoRoot;
 							return (
 								<Button
 									key={repoRoot}
@@ -272,7 +278,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 			</div>
 			{/* Content */}
 			<div className="min-h-0 flex-1">
-				{view.type === "remote" ? (
+				{effectiveView.type === "remote" ? (
 					<RemoteContent
 						prTab={prTab}
 						isExpanded={isExpanded}
@@ -282,10 +288,13 @@ export const GitPanel: FC<GitPanelProps> = ({
 					/>
 				) : (
 					<LocalRepoContent
-						repoRoot={view.repoRoot}
-						repo={repositories.get(view.repoRoot)}
+						repoRoot={effectiveView.repoRoot}
+						repo={repositories.get(effectiveView.repoRoot)}
 						diffStats={
-							repoStats.get(view.repoRoot) ?? { additions: 0, deletions: 0 }
+							repoStats.get(effectiveView.repoRoot) ?? {
+								additions: 0,
+								deletions: 0,
+							}
 						}
 						onCommit={onCommit}
 						isExpanded={isExpanded}

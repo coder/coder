@@ -34,6 +34,9 @@ export function useFileAttachments(
 
 	// Revoke blob URLs on unmount to prevent memory leaks.
 	const previewUrlsRef = useRef(previewUrls);
+	// This render-time ref write is intentional. Moving it to a
+	// useEffect would risk the unmount cleanup (below) reading a
+	// stale ref if the component unmounts before effects run.
 	previewUrlsRef.current = previewUrls;
 	useEffect(() => {
 		return () => {

@@ -13,7 +13,7 @@ import {
 	PencilIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { type FC, useCallback, useEffect, useMemo, useState } from "react";
+import { type FC, useCallback, useMemo, useState } from "react";
 import { cn } from "utils/cn";
 
 interface QueuedMessagesListProps {
@@ -98,6 +98,27 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 		ReadonlySet<number>
 	>(new Set());
 
+	const [prevMessages, setPrevMessages] = useState(messages);
+	if (prevMessages !== messages) {
+		setPrevMessages(messages);
+		const liveIDs = new Set(messages.map((message) => message.id));
+		setOptimisticallyHiddenIDs((current) => {
+			if (current.size === 0) {
+				return current;
+			}
+			let didChange = false;
+			const next = new Set<number>();
+			for (const id of current) {
+				if (liveIDs.has(id)) {
+					next.add(id);
+					continue;
+				}
+				didChange = true;
+			}
+			return didChange ? next : current;
+		});
+	}
+
 	const hideItemOptimistically = useCallback((id: number) => {
 		setOptimisticallyHiddenIDs((current) => {
 			if (current.has(id)) {
@@ -119,25 +140,6 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 			return next;
 		});
 	}, []);
-
-	useEffect(() => {
-		const liveIDs = new Set(messages.map((message) => message.id));
-		setOptimisticallyHiddenIDs((current) => {
-			if (current.size === 0) {
-				return current;
-			}
-			let didChange = false;
-			const next = new Set<number>();
-			for (const id of current) {
-				if (liveIDs.has(id)) {
-					next.add(id);
-					continue;
-				}
-				didChange = true;
-			}
-			return didChange ? next : current;
-		});
-	}, [messages]);
 
 	const handleDelete = useCallback(
 		async (id: number) => {

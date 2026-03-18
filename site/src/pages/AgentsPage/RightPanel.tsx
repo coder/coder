@@ -250,6 +250,10 @@ export const RightPanel = ({
 		onToggleSidebarCollapsed,
 	});
 
+	// Persist panel width to localStorage. This fires on every pixel
+	// during a drag which is frequent but harmless — localStorage
+	// writes are fast for small values. A debounce or persisting
+	// only in handlePointerUp would reduce writes but adds complexity.
 	useEffect(() => {
 		if (typeof window !== "undefined") {
 			localStorage.setItem(STORAGE_KEY, String(width));

@@ -555,6 +555,11 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	// header would be showing.
 	const diffViewportRef = useRef<HTMLElement | null>(null);
 
+	// NOTE: This effect captures diffViewportRef.current at setup
+	// time. The dep array re-runs the effect when showTree changes
+	// (which remounts the ScrollArea) or when the file count changes.
+	// If the ScrollArea ever remounts for other reasons, the listener
+	// would be attached to a stale DOM node.
 	useEffect(() => {
 		if (!showTree || sortedFiles.length === 0) {
 			return;
@@ -635,8 +640,8 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			if (el) {
 				el.scrollIntoView({ block: "start", behavior: "smooth" });
 				setActiveFile(scrollToFile);
+				onScrollToFileComplete?.();
 			}
-			onScrollToFileComplete?.();
 		}
 	}, [scrollToFile, onScrollToFileComplete]);
 

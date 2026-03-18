@@ -164,9 +164,10 @@ const InlinePromptInput: FC<{
 	// rather than autoFocus because the component renders inside
 	// Shadow DOM where autoFocus is unreliable.
 	useEffect(() => {
-		requestAnimationFrame(() => {
+		const id = requestAnimationFrame(() => {
 			textareaRef.current?.focus();
 		});
+		return () => cancelAnimationFrame(id);
 	}, []);
 
 	return (

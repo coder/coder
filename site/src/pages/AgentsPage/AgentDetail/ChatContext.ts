@@ -446,6 +446,7 @@ export const useChatStore = (
 	// messages are corrected when switching back to a chat whose
 	// queue was drained while the user was away.
 	const wsQueueUpdateReceivedRef = useRef(false);
+	const wsStatusReceivedRef = useRef(false);
 	const activeChatIDRef = useRef<string | null>(null);
 	const prevChatIDRef = useRef<string | undefined>(chatID);
 
@@ -571,16 +572,22 @@ export const useChatStore = (
 	}, [chatID, chatMessages, store]);
 
 	useEffect(() => {
+		// Allow REST to seed the chat status as long as the WebSocket
+		// hasn't delivered a status event yet (which would be fresher).
+		// This mirrors the wsQueueUpdateReceivedRef guard used for
+		// queued messages.
+		if (wsStatusReceivedRef.current) {
+			return;
+		}
 		store.setChatStatus(chatRecord?.status ?? null);
 	}, [chatRecord?.status, store]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: chatID is an intentional trigger to reset refs on chat change
 	useEffect(() => {
 		queuedMessagesHydratedChatIDRef.current = null;
 		wsQueueUpdateReceivedRef.current = false;
+		wsStatusReceivedRef.current = false;
 		store.setQueuedMessages([]);
-		if (!chatID) {
-			return;
-		}
 	}, [chatID, store]);
 
 	useEffect(() => {
@@ -730,6 +737,7 @@ export const useChatStore = (
 							continue;
 						}
 
+						wsStatusReceivedRef.current = true;
 						store.setChatStatus(nextStatus);
 						if (nextStatus === "pending" || nextStatus === "waiting") {
 							store.clearStreamState();

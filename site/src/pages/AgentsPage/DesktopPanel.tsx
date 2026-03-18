@@ -48,13 +48,6 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({
 		};
 	}, [connect, disconnect]);
 
-	// Re-attach when status changes to connected (e.g., after reconnect).
-	useEffect(() => {
-		if (status === "connected" && containerRef.current) {
-			attach(containerRef.current);
-		}
-	}, [status, attach]);
-
 	if (status === "connecting") {
 		return (
 			<div className="flex h-full flex-col items-center justify-center gap-2 text-content-secondary">
