@@ -53,7 +53,7 @@ export const DisconnectedMultipleAgents: Story = {
 	},
 };
 
-export const TimeoutInformational: Story = {
+export const TimeoutWarning: Story = {
 	args: {
 		workspace: createUnhealthyWorkspace({ status: "timeout" }),
 		troubleshootingURL: "https://coder.com/docs/troubleshoot",

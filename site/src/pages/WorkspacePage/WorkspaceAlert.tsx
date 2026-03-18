@@ -53,7 +53,7 @@ export const WorkspaceAlert: FC<WorkspaceAlertProps> = ({
 			: "Agent is taking longer than expected to connect";
 		message =
 			"Continue to wait and check the log output for errors. If the agent does not connect, try restarting the workspace.";
-		severity = "info";
+		severity = "warning";
 		prominent = false;
 	} else if (hasShuttingDown) {
 		title = plural
