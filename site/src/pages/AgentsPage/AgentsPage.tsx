@@ -279,7 +279,12 @@ const AgentsPage: FC = () => {
 				},
 			});
 		}
-	}, [pendingArchiveAndDelete, isArchiving, archiveAndDeleteMutation, navigate]);
+	}, [
+		pendingArchiveAndDelete,
+		isArchiving,
+		archiveAndDeleteMutation,
+		navigate,
+	]);
 	const requestUnarchiveAgent = useCallback(
 		(chatId: string) => {
 			unarchiveAgentMutation.mutate(chatId);
@@ -449,8 +454,7 @@ const AgentsPage: FC = () => {
 									}),
 									// workspace_id can arrive on any event kind once
 									// the workspace is associated with the chat.
-									workspace_id:
-										updatedChat.workspace_id ?? c.workspace_id,
+									workspace_id: updatedChat.workspace_id ?? c.workspace_id,
 									updated_at:
 										c.updated_at > updatedChat.updated_at
 											? c.updated_at
@@ -481,8 +485,8 @@ const AgentsPage: FC = () => {
 										: updatedChat.updated_at,
 							};
 						},
-						);
-					});
+					);
+				});
 				return ws;
 			},
 			onOpen() {

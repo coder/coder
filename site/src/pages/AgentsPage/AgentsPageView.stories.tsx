@@ -6,6 +6,7 @@ import type * as TypesGen from "api/typesGenerated";
 import type { Chat } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import dayjs from "dayjs";
+import { useState } from "react";
 import {
 	expect,
 	fn,
@@ -350,6 +351,22 @@ export const DeleteConfirmationDialog: Story = {
 			isLoading: false,
 		},
 	},
+	render: function Render(args) {
+		const [isLoading, setIsLoading] = useState(false);
+		return (
+			<AgentsPageView
+				{...args}
+				deleteDialog={{
+					...args.deleteDialog,
+					isLoading,
+					onConfirm: () => {
+						args.deleteDialog.onConfirm();
+						setIsLoading(true);
+					},
+				}}
+			/>
+		);
+	},
 	play: async ({ args }) => {
 		const dialog = await screen.findByRole("dialog");
 		await expect(dialog).toBeInTheDocument();
@@ -368,28 +385,12 @@ export const DeleteConfirmationDialog: Story = {
 		await userEvent.type(input, "my-workspace");
 		await expect(confirmButton).toBeEnabled();
 
-		// Click confirm and verify the callback fires.
+		// Click confirm and verify the callback fires, then enters loading state.
 		await userEvent.click(confirmButton);
 		await expect(args.deleteDialog.onConfirm).toHaveBeenCalled();
-	},
-};
-
-export const DeleteConfirmationDialogLoading: Story = {
-	args: {
-		chatList: [
-			buildChat({
-				id: "chat-1",
-				title: "Agent being deleted",
-				updated_at: todayTimestamp,
-			}),
-		],
-		deleteDialog: {
-			isOpen: true,
-			onConfirm: fn(),
-			onCancel: fn(),
-			workspaceName: "my-workspace",
-			isLoading: true,
-		},
+		await waitFor(() => {
+			expect(confirmButton).toBeDisabled();
+		});
 	},
 };
 
