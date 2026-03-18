@@ -528,9 +528,13 @@ export const ModelForm: FC<ModelFormProps> = ({
 									size="lg"
 									type="button"
 									disabled={isDeleting}
-									onClick={() =>
-										void onDeleteModel(editingModel.id).catch(() => {})
-									}
+									onClick={async () => {
+										try {
+											await onDeleteModel(editingModel.id);
+										} catch {
+											// Error is surfaced via mutation state in the parent.
+										}
+									}}
 								>
 									{isDeleting && <Spinner className="h-4 w-4" loading />}
 									Delete model

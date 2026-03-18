@@ -1,6 +1,6 @@
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
-import type { QueryClient, UseInfiniteQueryOptions } from "react-query";
+import type { QueryClient } from "react-query";
 
 export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
@@ -146,23 +146,23 @@ export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 		getNextPageParam: (
 			lastPage: TypesGen.Chat[],
 			_allPages: TypesGen.Chat[][],
-			lastPageParam: unknown,
+			lastPageParam: number,
 		) => {
 			if (lastPage.length < limit) {
 				return undefined;
 			}
-			return (lastPageParam as number) + limit;
+			return lastPageParam + limit;
 		},
 		initialPageParam: 0,
-		queryFn: ({ pageParam }: { pageParam: unknown }) => {
+		queryFn: ({ pageParam }: { pageParam: number }) => {
 			return API.getChats({
 				limit,
-				offset: pageParam as number,
+				offset: pageParam,
 				q,
 			});
 		},
 		refetchOnWindowFocus: true as const,
-	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
+	};
 };
 
 export const chats = () => ({

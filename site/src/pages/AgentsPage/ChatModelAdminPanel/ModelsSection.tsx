@@ -159,9 +159,13 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 		</DropdownMenu>
 	);
 
-	const handleSetDefault = (modelConfig: TypesGen.ChatModelConfig) => {
+	const handleSetDefault = async (modelConfig: TypesGen.ChatModelConfig) => {
 		if (modelConfig.is_default) return;
-		void onUpdateModel(modelConfig.id, { is_default: true }).catch(() => {});
+		try {
+			await onUpdateModel(modelConfig.id, { is_default: true });
+		} catch {
+			// Error is surfaced via mutation state in the parent.
+		}
 	};
 
 	return (

@@ -273,9 +273,13 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 										size="lg"
 										type="button"
 										disabled={isProviderMutationPending}
-										onClick={() =>
-											void onDeleteProvider(providerConfig.id).catch(() => {})
-										}
+										onClick={async () => {
+											try {
+												await onDeleteProvider(providerConfig.id);
+											} catch {
+												// Error is surfaced via mutation state in the parent.
+											}
+										}}
 									>
 										{isProviderMutationPending && (
 											<Spinner className="h-4 w-4" loading />
