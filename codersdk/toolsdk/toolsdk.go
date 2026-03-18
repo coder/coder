@@ -97,7 +97,10 @@ type Tool[Arg, Ret any] struct {
 	aisdk.Tool
 	Handler HandlerFunc[Arg, Ret]
 
-	// MCPAnnotations are host hints used when this tool is exposed over MCP.
+	// MCPAnnotations is the shared source of truth for MCP tool
+	// classification. Both the coderd-hosted MCP server and the CLI MCP
+	// server translate these hints into mcp.Tool.Annotations so hosts can
+	// consistently group tools.
 	MCPAnnotations MCPToolAnnotations
 
 	// UserClientOptional indicates whether this tool can function without a valid
