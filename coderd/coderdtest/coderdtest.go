@@ -33,11 +33,11 @@ import (
 	"unicode"
 
 	"cloud.google.com/go/compute/metadata"
+	"github.com/coder/coder/v2/coderd/coderdtest/namesgenerator"
 	"github.com/fullsailor/pkcs7"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

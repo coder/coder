@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/coder/coder/v2/coderd/coderdtest/namesgenerator"
 )
 
 var n atomic.Int64

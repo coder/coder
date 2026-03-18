@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
@@ -21,6 +20,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/websocket"
 
+	"github.com/coder/coder/v2/coderd/coderdtest/namesgenerator"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"

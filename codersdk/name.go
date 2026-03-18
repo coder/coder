@@ -5,7 +5,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/coder/coder/v2/coderd/coderdtest/namesgenerator"
+
 	"golang.org/x/xerrors"
 )
 
