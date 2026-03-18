@@ -604,8 +604,7 @@ const ScrollAnchoredContainer: FC<{
 		<div className="relative flex min-h-0 flex-1 flex-col">
 			<div
 				ref={scrollContainerRef}
-				className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
-				style={{ overflowAnchor: "none" }}
+				className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [overflow-anchor:none] [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
 			>
 				{children}
 				{hasMoreMessages && <div ref={sentinelRef} className="h-px shrink-0" />}
@@ -614,7 +613,7 @@ const ScrollAnchoredContainer: FC<{
 				variant="outline"
 				size="icon"
 				className={cn(
-					"absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full shadow-md transition-all duration-200",
+					"absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-surface-primary shadow-md transition-all duration-200",
 					showScrollToBottom
 						? "translate-y-0 opacity-100"
 						: "pointer-events-none translate-y-2 opacity-0",
