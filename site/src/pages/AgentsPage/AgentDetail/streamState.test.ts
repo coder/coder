@@ -56,29 +56,18 @@ describe("applyMessagePartToStreamState", () => {
 		const result = applyMessagePartToStreamState(null, {
 			type: "reasoning",
 			text: "Let me reason...",
-			title: "Analysis",
 		});
 		expect(result).not.toBeNull();
 		expect(result!.blocks).toEqual([
-			{ type: "thinking", text: "Let me reason...", title: "Analysis" },
+			{ type: "thinking", text: "Let me reason..." },
 		]);
 	});
 
-	it("returns prev for reasoning part with no text and no title", () => {
+	it("returns prev for reasoning part with empty text", () => {
 		const prev = createEmptyStreamState();
 		const result = applyMessagePartToStreamState(prev, {
 			type: "reasoning",
 			text: "",
-		});
-		expect(result).toBe(prev);
-	});
-
-	it("returns prev for reasoning part with only title and no text", () => {
-		const prev = createEmptyStreamState();
-		const result = applyMessagePartToStreamState(prev, {
-			type: "reasoning",
-			text: "",
-			title: "Some Title",
 		});
 		expect(result).toBe(prev);
 	});
@@ -329,6 +318,40 @@ describe("applyMessagePartToStreamState", () => {
 		// Second application returns prev unchanged.
 		expect(state).toBe(afterFirst);
 		expect(state!.sources).toHaveLength(1);
+	});
+
+	it("produces correct tool-result shape with is_error through buildStreamTools", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "bash",
+			tool_call_id: "tc-1",
+			args: { command: "rm -rf /" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "bash",
+			tool_call_id: "tc-1",
+			result: { error: "permission denied" },
+			is_error: true,
+		});
+		expect(state).not.toBeNull();
+		expect(state!.toolResults["tc-1"]).toMatchObject({
+			id: "tc-1",
+			name: "bash",
+			result: { error: "permission denied" },
+			isError: true,
+		});
+		const tools = buildStreamTools(state);
+		expect(tools).toHaveLength(1);
+		expect(tools[0]).toEqual({
+			id: "tc-1",
+			name: "bash",
+			args: { command: "rm -rf /" },
+			result: { error: "permission denied" },
+			isError: true,
+			status: "error",
+		});
 	});
 });
 

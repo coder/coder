@@ -50,10 +50,8 @@ describe("appendTextBlock", () => {
 	});
 
 	it("appends a new thinking block to an empty list", () => {
-		const result = appendTextBlock([], "thinking", "pondering", "Deep thought");
-		expect(result).toEqual([
-			{ type: "thinking", text: "pondering", title: "Deep thought" },
-		]);
+		const result = appendTextBlock([], "thinking", "pondering");
+		expect(result).toEqual([{ type: "thinking", text: "pondering" }]);
 	});
 
 	it("merges consecutive response blocks", () => {
@@ -63,29 +61,13 @@ describe("appendTextBlock", () => {
 		expect(result[0]).toEqual({ type: "response", text: "aaabbb" });
 	});
 
-	it("merges consecutive thinking blocks with compatible titles", () => {
-		const blocks: RenderBlock[] = [
-			{ type: "thinking", text: "part1", title: "Reasoning" },
-		];
-		const result = appendTextBlock(blocks, "thinking", "part2", "Reasoning");
+	it("merges consecutive thinking blocks", () => {
+		const blocks: RenderBlock[] = [{ type: "thinking", text: "part1" }];
+		const result = appendTextBlock(blocks, "thinking", "part2");
 		expect(result).toHaveLength(1);
 		expect(result[0]).toEqual({
 			type: "thinking",
 			text: "part1part2",
-			title: "Reasoning",
-		});
-	});
-
-	it("merges thinking blocks with different titles using the new title", () => {
-		const blocks: RenderBlock[] = [
-			{ type: "thinking", text: "part1", title: "Analyzing" },
-		];
-		const result = appendTextBlock(blocks, "thinking", "part2", "Planning");
-		expect(result).toHaveLength(1);
-		expect(result[0]).toEqual({
-			type: "thinking",
-			text: "part1part2",
-			title: "Planning",
 		});
 	});
 
@@ -96,7 +78,6 @@ describe("appendTextBlock", () => {
 		expect(result[1]).toEqual({
 			type: "thinking",
 			text: "hmm",
-			title: undefined,
 		});
 	});
 
@@ -107,49 +88,11 @@ describe("appendTextBlock", () => {
 		expect(result[1]).toEqual({ type: "response", text: "after tool" });
 	});
 
-	it("uses the custom joinText function when merging", () => {
-		const blocks: RenderBlock[] = [{ type: "response", text: "line1" }];
-		const join = (a: string, b: string) => `${a}\n${b}`;
-		const result = appendTextBlock(
-			blocks,
-			"response",
-			"line2",
-			undefined,
-			join,
-		);
-		expect(result).toHaveLength(1);
-		expect(result[0]).toEqual({ type: "response", text: "line1\nline2" });
-	});
-
 	it("does not mutate the original blocks array", () => {
 		const blocks: RenderBlock[] = [{ type: "response", text: "original" }];
 		const result = appendTextBlock(blocks, "response", " added");
 		expect(blocks).toHaveLength(1);
 		expect((blocks[0] as { text: string }).text).toBe("original");
 		expect(result).not.toBe(blocks);
-	});
-
-	it("merges thinking block and uses new title", () => {
-		const blocks: RenderBlock[] = [
-			{ type: "thinking", text: "a", title: "Think" },
-		];
-		const result = appendTextBlock(blocks, "thinking", "b", "Thinking deeply");
-		expect(result).toHaveLength(1);
-		expect(result[0]).toEqual({
-			type: "thinking",
-			text: "ab",
-			title: "Thinking deeply",
-		});
-	});
-
-	it("merges thinking blocks when both have no title", () => {
-		const blocks: RenderBlock[] = [{ type: "thinking", text: "a" }];
-		const result = appendTextBlock(blocks, "thinking", "b");
-		expect(result).toHaveLength(1);
-		expect(result[0]).toEqual({
-			type: "thinking",
-			text: "ab",
-			title: undefined,
-		});
 	});
 });

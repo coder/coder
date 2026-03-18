@@ -1,10 +1,6 @@
 import { asString } from "components/ai-elements/runtimeTypeUtils";
 import { appendTextBlock } from "./blockUtils";
-import {
-	asOptionalTitle,
-	ensureToolBlock,
-	parseToolResultIsError,
-} from "./messageParsing";
+import { ensureToolBlock, parseToolResultIsError } from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
 import type { MergedTool, RenderBlock, StreamState } from "./types";
 
@@ -16,9 +12,6 @@ export const createEmptyStreamState = (): StreamState => ({
 	toolResults: {},
 	sources: [],
 });
-
-/** Streaming variant — uses direct concatenation (the default joinText). */
-const appendStreamTextBlock = appendTextBlock;
 
 export const applyMessagePartToStreamState = (
 	prev: StreamState | null,
@@ -35,7 +28,7 @@ export const applyMessagePartToStreamState = (
 			}
 			return {
 				...nextState,
-				blocks: appendStreamTextBlock(nextState.blocks, "response", text),
+				blocks: appendTextBlock(nextState.blocks, "response", text),
 			};
 		}
 		case "reasoning": {
@@ -43,15 +36,9 @@ export const applyMessagePartToStreamState = (
 			if (!text) {
 				return prev;
 			}
-			const title = asOptionalTitle(part.title);
 			return {
 				...nextState,
-				blocks: appendStreamTextBlock(
-					nextState.blocks,
-					"thinking",
-					text,
-					title,
-				),
+				blocks: appendTextBlock(nextState.blocks, "thinking", text),
 			};
 		}
 		case "tool-call": {
@@ -137,17 +124,21 @@ export const applyMessagePartToStreamState = (
 				},
 			};
 		}
-		case "file":
-			if (!part.media_type || (!part.data && !part.file_id)) {
+		case "file": {
+			const mediaType = asString(part.media_type);
+			const data = asString(part.data) || undefined;
+			const fileId = asString(part.file_id) || undefined;
+			if (!mediaType || (!data && !fileId)) {
 				return prev;
 			}
 			return {
 				...nextState,
 				blocks: [
 					...nextState.blocks,
-					part as Extract<RenderBlock, { type: "file" }>,
+					{ type: "file", media_type: mediaType, data, file_id: fileId },
 				],
 			};
+		}
 		case "source": {
 			const url = asString(part.url);
 			const title = asString(part.title);
