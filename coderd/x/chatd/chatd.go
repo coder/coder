@@ -3373,15 +3373,14 @@ func (p *Server) runChat(
 	}
 	// Load the deployment-wide template allowlist so chat tools
 	// only expose permitted templates.
-	var allowedTemplateIDs []uuid.UUID
-	//nolint:gocritic // System context needed to read a deployment-wide
-	// setting that is not scoped to the chat owner.
-	if raw, err := p.db.GetChatTemplateAllowlist(dbauthz.AsSystemRestricted(ctx)); err == nil && raw != "" {
+	var allowedTemplateIDs map[uuid.UUID]bool
+	if raw, err := p.db.GetChatTemplateAllowlist(ctx); err == nil && raw != "" {
 		var ids []string
 		if jsonErr := json.Unmarshal([]byte(raw), &ids); jsonErr == nil {
+			allowedTemplateIDs = make(map[uuid.UUID]bool, len(ids))
 			for _, s := range ids {
 				if id, parseErr := uuid.Parse(s); parseErr == nil {
-					allowedTemplateIDs = append(allowedTemplateIDs, id)
+					allowedTemplateIDs[id] = true
 				}
 			}
 		}

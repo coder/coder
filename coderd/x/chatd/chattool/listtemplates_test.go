@@ -17,251 +17,110 @@ import (
 
 func TestListTemplates(t *testing.T) {
 	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
 
-	t.Run("ReturnsAllWhenNoAllowlist", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		db, _ := dbtestutil.NewDB(t)
-
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-		})
-
-		t1 := dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-			Name:           "template-one",
-		})
-		t2 := dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-			Name:           "template-two",
-		})
-
-		tool := chattool.ListTemplates(chattool.ListTemplatesOptions{
-			DB:      db,
-			OwnerID: user.ID,
-		})
-
-		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "list_templates", Input: "{}"})
-		require.NoError(t, err)
-
-		var result map[string]any
-		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-		templates := result["templates"].([]any)
-		require.Len(t, templates, 2)
-
-		// Collect returned IDs.
-		returnedIDs := make(map[string]bool)
-		for _, tmpl := range templates {
-			m := tmpl.(map[string]any)
-			returnedIDs[m["id"].(string)] = true
-		}
-		require.True(t, returnedIDs[t1.ID.String()])
-		require.True(t, returnedIDs[t2.ID.String()])
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
 	})
 
-	t.Run("FiltersToAllowlist", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		db, _ := dbtestutil.NewDB(t)
-
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-		})
-
-		t1 := dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-			Name:           "allowed-template",
-		})
-		_ = dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-			Name:           "blocked-template",
-		})
-
-		tool := chattool.ListTemplates(chattool.ListTemplatesOptions{
-			DB:                 db,
-			OwnerID:            user.ID,
-			AllowedTemplateIDs: []uuid.UUID{t1.ID},
-		})
-
-		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "list_templates", Input: "{}"})
-		require.NoError(t, err)
-
-		var result map[string]any
-		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-		templates := result["templates"].([]any)
-		require.Len(t, templates, 1)
-		m := templates[0].(map[string]any)
-		require.Equal(t, t1.ID.String(), m["id"].(string))
+	t1 := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "template-alpha",
+	})
+	t2 := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "template-beta",
 	})
 
-	t.Run("EmptyAllowlistReturnsAll", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		db, _ := dbtestutil.NewDB(t)
-
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-		})
-		_ = dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-			Name:           "any-template",
-		})
-
-		tool := chattool.ListTemplates(chattool.ListTemplatesOptions{
-			DB:                 db,
-			OwnerID:            user.ID,
-			AllowedTemplateIDs: []uuid.UUID{}, // empty = all allowed
-		})
-
-		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "list_templates", Input: "{}"})
-		require.NoError(t, err)
-
-		var result map[string]any
-		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-		templates := result["templates"].([]any)
-		require.Len(t, templates, 1)
+	// No allowlist — returns all templates.
+	tool := chattool.ListTemplates(chattool.ListTemplatesOptions{
+		DB:      db,
+		OwnerID: user.ID,
 	})
+	resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c1", Name: "list_templates", Input: "{}"})
+	require.NoError(t, err)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	templates := result["templates"].([]any)
+	require.Len(t, templates, 2)
 
-	t.Run("AllowlistWithNoMatchesReturnsEmpty", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		db, _ := dbtestutil.NewDB(t)
-
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-		})
-		_ = dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-			Name:           "some-template",
-		})
-
-		tool := chattool.ListTemplates(chattool.ListTemplatesOptions{
-			DB:                 db,
-			OwnerID:            user.ID,
-			AllowedTemplateIDs: []uuid.UUID{uuid.New()}, // no match
-		})
-
-		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "list_templates", Input: "{}"})
-		require.NoError(t, err)
-
-		var result map[string]any
-		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-		templates := result["templates"].([]any)
-		require.Empty(t, templates)
+	// Empty allowlist — same as no allowlist.
+	tool = chattool.ListTemplates(chattool.ListTemplatesOptions{
+		DB:                 db,
+		OwnerID:            user.ID,
+		AllowedTemplateIDs: map[uuid.UUID]bool{},
 	})
-}
+	resp, err = tool.Run(ctx, fantasy.ToolCall{ID: "c2", Name: "list_templates", Input: "{}"})
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	templates = result["templates"].([]any)
+	require.Len(t, templates, 2)
 
-func TestReadTemplateAllowlist(t *testing.T) {
-	t.Parallel()
-
-	t.Run("AllowedTemplateSucceeds", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		db, _ := dbtestutil.NewDB(t)
-
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-		})
-		tmpl := dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-			Name:           "allowed",
-		})
-
-		tool := chattool.ReadTemplate(chattool.ReadTemplateOptions{
-			DB:                 db,
-			OwnerID:            user.ID,
-			AllowedTemplateIDs: []uuid.UUID{tmpl.ID},
-		})
-
-		input := `{"template_id":"` + tmpl.ID.String() + `"}`
-		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "read_template", Input: input})
-		require.NoError(t, err)
-		require.False(t, resp.IsError)
-
-		var result map[string]any
-		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-		tmplInfo := result["template"].(map[string]any)
-		require.Equal(t, tmpl.ID.String(), tmplInfo["id"].(string))
+	// Allowlist with one match — returns only that template.
+	tool = chattool.ListTemplates(chattool.ListTemplatesOptions{
+		DB:                 db,
+		OwnerID:            user.ID,
+		AllowedTemplateIDs: map[uuid.UUID]bool{t1.ID: true},
 	})
+	resp, err = tool.Run(ctx, fantasy.ToolCall{ID: "c3", Name: "list_templates", Input: "{}"})
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	templates = result["templates"].([]any)
+	require.Len(t, templates, 1)
+	m := templates[0].(map[string]any)
+	require.Equal(t, t1.ID.String(), m["id"].(string))
 
-	t.Run("DisallowedTemplateBlocked", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		db, _ := dbtestutil.NewDB(t)
-
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-		})
-		tmpl := dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-			Name:           "blocked",
-		})
-
-		tool := chattool.ReadTemplate(chattool.ReadTemplateOptions{
-			DB:                 db,
-			OwnerID:            user.ID,
-			AllowedTemplateIDs: []uuid.UUID{uuid.New()}, // different ID
-		})
-
-		input := `{"template_id":"` + tmpl.ID.String() + `"}`
-		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "read_template", Input: input})
-		require.NoError(t, err)
-		require.True(t, resp.IsError)
-		require.Contains(t, resp.Content, "not available")
+	// Allowlist with no matches — returns empty.
+	tool = chattool.ListTemplates(chattool.ListTemplatesOptions{
+		DB:                 db,
+		OwnerID:            user.ID,
+		AllowedTemplateIDs: map[uuid.UUID]bool{uuid.New(): true},
 	})
+	resp, err = tool.Run(ctx, fantasy.ToolCall{ID: "c4", Name: "list_templates", Input: "{}"})
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	templates = result["templates"].([]any)
+	require.Empty(t, templates)
 
-	t.Run("NoAllowlistAllowsAny", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		db, _ := dbtestutil.NewDB(t)
-
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-		})
-		tmpl := dbgen.Template(t, db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-			Name:           "any",
-		})
-
-		tool := chattool.ReadTemplate(chattool.ReadTemplateOptions{
-			DB:      db,
-			OwnerID: user.ID,
-			// AllowedTemplateIDs not set = nil = all allowed
-		})
-
-		input := `{"template_id":"` + tmpl.ID.String() + `"}`
-		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "read_template", Input: input})
-		require.NoError(t, err)
-		require.False(t, resp.IsError)
+	// ReadTemplate: allowed template succeeds.
+	readTool := chattool.ReadTemplate(chattool.ReadTemplateOptions{
+		DB:                 db,
+		OwnerID:            user.ID,
+		AllowedTemplateIDs: map[uuid.UUID]bool{t1.ID: true},
 	})
+	input := `{"template_id":"` + t1.ID.String() + `"}`
+	resp, err = readTool.Run(ctx, fantasy.ToolCall{ID: "c5", Name: "read_template", Input: input})
+	require.NoError(t, err)
+	require.False(t, resp.IsError)
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	tmplInfo := result["template"].(map[string]any)
+	require.Equal(t, t1.ID.String(), tmplInfo["id"].(string))
+
+	// ReadTemplate: disallowed template returns "not found".
+	readTool = chattool.ReadTemplate(chattool.ReadTemplateOptions{
+		DB:                 db,
+		OwnerID:            user.ID,
+		AllowedTemplateIDs: map[uuid.UUID]bool{uuid.New(): true},
+	})
+	input = `{"template_id":"` + t2.ID.String() + `"}`
+	resp, err = readTool.Run(ctx, fantasy.ToolCall{ID: "c6", Name: "read_template", Input: input})
+	require.NoError(t, err)
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, "not found")
+
+	// ReadTemplate: no allowlist allows any template.
+	readTool = chattool.ReadTemplate(chattool.ReadTemplateOptions{
+		DB:      db,
+		OwnerID: user.ID,
+	})
+	input = `{"template_id":"` + t2.ID.String() + `"}`
+	resp, err = readTool.Run(ctx, fantasy.ToolCall{ID: "c7", Name: "read_template", Input: input})
+	require.NoError(t, err)
+	require.False(t, resp.IsError)
 }

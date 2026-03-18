@@ -22,7 +22,7 @@ const listTemplatesPageSize = 10
 type ListTemplatesOptions struct {
 	DB                 database.Store
 	OwnerID            uuid.UUID
-	AllowedTemplateIDs []uuid.UUID
+	AllowedTemplateIDs map[uuid.UUID]bool
 }
 
 type listTemplatesArgs struct {
@@ -65,7 +65,10 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 			}
 
 			if len(options.AllowedTemplateIDs) > 0 {
-				filterParams.IDs = options.AllowedTemplateIDs
+				filterParams.IDs = make([]uuid.UUID, 0, len(options.AllowedTemplateIDs))
+				for id := range options.AllowedTemplateIDs {
+					filterParams.IDs = append(filterParams.IDs, id)
+				}
 			}
 
 			templates, err := options.DB.GetTemplatesWithFilter(ctx, filterParams)

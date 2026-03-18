@@ -16,7 +16,7 @@ import (
 type ReadTemplateOptions struct {
 	DB                 database.Store
 	OwnerID            uuid.UUID
-	AllowedTemplateIDs []uuid.UUID
+	AllowedTemplateIDs map[uuid.UUID]bool
 }
 
 type readTemplateArgs struct {
@@ -50,7 +50,7 @@ func ReadTemplate(options ReadTemplateOptions) fantasy.AgentTool {
 			}
 
 			if !isTemplateAllowed(options.AllowedTemplateIDs, templateID) {
-				return fantasy.NewTextErrorResponse("template not available for chat workspaces"), nil
+				return fantasy.NewTextErrorResponse("template not found"), nil
 			}
 
 			ctx, err = asOwner(ctx, options.DB, options.OwnerID)

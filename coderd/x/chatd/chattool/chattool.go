@@ -36,14 +36,9 @@ func truncateRunes(value string, maxLen int) string {
 // isTemplateAllowed checks whether a template ID is permitted by the
 // configured allowlist. An empty allowlist means all templates are
 // allowed.
-func isTemplateAllowed(allowlist []uuid.UUID, id uuid.UUID) bool {
+func isTemplateAllowed(allowlist map[uuid.UUID]bool, id uuid.UUID) bool {
 	if len(allowlist) == 0 {
 		return true
 	}
-	for _, a := range allowlist {
-		if a == id {
-			return true
-		}
-	}
-	return false
+	return allowlist[id]
 }
