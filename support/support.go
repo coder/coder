@@ -1021,12 +1021,12 @@ func CanGenerateFull(ctx context.Context, client *codersdk.Client) (bool, error)
 		return false, xerrors.Errorf("check authorization: %w", err)
 	}
 	for _, v := range authResp {
-		if v {
-			return true, nil
+		if !v { // all checks must pass
+			return false, nil
 		}
 	}
 
-	return false, nil
+	return true, nil
 }
 
 // Run generates a support bundle with the given dependencies.
