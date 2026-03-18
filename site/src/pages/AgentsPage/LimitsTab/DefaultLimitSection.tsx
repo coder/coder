@@ -28,7 +28,6 @@ interface DefaultLimitSectionProps {
 	onAmountDollarsChange: (amount: string) => void;
 	unpricedModelCount: number;
 	adminBadge: ReactNode;
-	panelClassName: string;
 }
 
 export const DefaultLimitSection: FC<DefaultLimitSectionProps> = ({
@@ -40,20 +39,19 @@ export const DefaultLimitSection: FC<DefaultLimitSectionProps> = ({
 	onAmountDollarsChange,
 	unpricedModelCount,
 	adminBadge,
-	panelClassName,
 }) => {
 	const periodId = useId();
 	const amountId = useId();
 
 	return (
-		<>
+		<section className="space-y-4">
 			<SectionHeader
 				label="Default Spend Limit"
 				description="Set a deployment-wide spend cap that applies to all users by default."
 				badge={adminBadge}
 			/>
 
-			<div className={panelClassName}>
+			<div className="space-y-4">
 				<div className="flex items-center justify-between gap-4">
 					<div>
 						<p className="m-0 text-sm font-medium text-content-primary">
@@ -134,6 +132,6 @@ export const DefaultLimitSection: FC<DefaultLimitSectionProps> = ({
 					</div>
 				</div>
 			)}
-		</>
+		</section>
 	);
 };

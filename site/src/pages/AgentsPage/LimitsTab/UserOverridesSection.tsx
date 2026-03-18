@@ -26,7 +26,6 @@ interface UserOverridesSectionProps {
 		avatar_url: string;
 		spend_limit_micros: number | null;
 	}>;
-	panelClassName: string;
 	showUserForm: boolean;
 	onShowUserFormChange: (show: boolean) => void;
 	selectedUser: User | null;
@@ -44,7 +43,6 @@ interface UserOverridesSectionProps {
 
 export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 	overrides,
-	panelClassName,
 	showUserForm,
 	onShowUserFormChange,
 	selectedUser,
@@ -68,7 +66,7 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 				description="Override the deployment default spend limit for specific users. User overrides take highest priority, followed by group limits, then the deployment default."
 			/>
 
-			<div className={panelClassName}>
+			<div className="space-y-4">
 				{overrides.length > 0 ? (
 					<Table>
 						<TableHeader>

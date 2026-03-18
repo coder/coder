@@ -29,7 +29,6 @@ interface GroupLimitsSectionProps {
 		member_count: number;
 		spend_limit_micros: number | null;
 	}>;
-	panelClassName: string;
 	showGroupForm: boolean;
 	onShowGroupFormChange: (show: boolean) => void;
 	selectedGroup: Group | null;
@@ -50,7 +49,6 @@ interface GroupLimitsSectionProps {
 
 export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 	groupOverrides,
-	panelClassName,
 	showGroupForm,
 	onShowGroupFormChange,
 	selectedGroup,
@@ -78,7 +76,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 				description="Override the default limit for specific groups. When a user belongs to multiple groups, the lowest group limit applies."
 			/>
 
-			<div className={panelClassName}>
+			<div className="space-y-4">
 				{groupOverrides.length > 0 ? (
 					<Table>
 						<TableHeader>

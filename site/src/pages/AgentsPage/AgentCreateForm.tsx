@@ -7,15 +7,19 @@ import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import {
-	Combobox,
-	ComboboxContent,
-	ComboboxEmpty,
-	ComboboxInput,
-	ComboboxItem,
-	ComboboxList,
-	ComboboxTrigger,
-} from "components/Combobox/Combobox";
-import { MonitorIcon } from "lucide-react";
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "components/Command/Command";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
+import { Check, MonitorIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	type FC,
@@ -191,6 +195,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
 			? userSelectedModel
 			: preferredModelID;
+	const [workspacePopoverOpen, setWorkspacePopoverOpen] = useState(false);
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
@@ -377,19 +382,17 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					uploadStates={uploadStates}
 					previewUrls={previewUrls}
 					leftActions={
-						<Combobox
-							value={selectedWorkspaceId ?? autoCreateWorkspaceValue}
-							onValueChange={(value) =>
-								handleWorkspaceChange(value ?? autoCreateWorkspaceValue)
-							}
+						<Popover
+							open={workspacePopoverOpen}
+							onOpenChange={setWorkspacePopoverOpen}
 						>
 							{/* pointer-events-auto overrides the pointer-events:none
-								   that Radix Select's DismissableLayer sets on
-								   document.body when the Model Selector is open.
-								   Without it the first click only dismisses the
-								   Select and a second click is needed to open
-								   the Combobox. */}
-							<ComboboxTrigger asChild>
+									   that Radix Select's DismissableLayer sets on
+									   document.body when the Model Selector is open.
+									   Without it the first click only dismisses the
+									   Select and a second click is needed to open
+									   the popover. */}
+							<PopoverTrigger asChild>
 								<button
 									type="button"
 									disabled={isCreating || workspacesQuery.isLoading}
@@ -399,30 +402,45 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 									<span>{selectedWorkspaceLabel ?? "Workspace"}</span>
 									<ChevronDownIcon className="size-icon-sm text-content-secondary transition-colors group-hover:text-content-primary" />
 								</button>
-							</ComboboxTrigger>
-							<ComboboxContent
-								side="top"
-								align="start"
-								className="w-72 bg-surface-primary border-border [&_[cmdk-root]]:bg-surface-primary [&_[cmdk-item]]:text-xs [&_[cmdk-item]>svg:last-child]:ml-auto"
-							>
-								<ComboboxInput placeholder="Search workspaces..." />
-								<ComboboxList>
-									<ComboboxItem value={autoCreateWorkspaceValue}>
-										Auto-create Workspace
-									</ComboboxItem>
-									{workspaceOptions.map((workspace) => (
-										<ComboboxItem
-											key={workspace.id}
-											value={workspace.id}
-											keywords={[workspace.owner_name, workspace.name]}
-										>
-											{workspace.owner_name}/{workspace.name}
-										</ComboboxItem>
-									))}
-								</ComboboxList>
-								<ComboboxEmpty>No workspaces found</ComboboxEmpty>
-							</ComboboxContent>
-						</Combobox>
+							</PopoverTrigger>
+							<PopoverContent side="top" align="start" className="w-72 p-0">
+								<Command loop>
+									<CommandInput placeholder="Search workspaces..." />
+									<CommandList>
+										<CommandEmpty>No workspaces found</CommandEmpty>
+										<CommandGroup>
+											<CommandItem
+												value="Auto-create Workspace"
+												onSelect={() => {
+													handleWorkspaceChange(autoCreateWorkspaceValue);
+													setWorkspacePopoverOpen(false);
+												}}
+											>
+												Auto-create Workspace
+												{selectedWorkspaceId == null && (
+													<Check className="ml-auto size-icon-sm shrink-0" />
+												)}
+											</CommandItem>
+											{workspaceOptions.map((workspace) => (
+												<CommandItem
+													key={workspace.id}
+													value={`${workspace.owner_name}/${workspace.name}`}
+													onSelect={() => {
+														handleWorkspaceChange(workspace.id);
+														setWorkspacePopoverOpen(false);
+													}}
+												>
+													{workspace.owner_name}/{workspace.name}
+													{selectedWorkspaceId === workspace.id && (
+														<Check className="ml-auto size-icon-sm shrink-0" />
+													)}
+												</CommandItem>
+											))}
+										</CommandGroup>
+									</CommandList>
+								</Command>
+							</PopoverContent>
+						</Popover>
 					}
 				/>
 				<p className="mt-1 text-center text-xs text-content-secondary/50">
