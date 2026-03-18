@@ -199,6 +199,7 @@ func TestRequestLogger_HTTPRouteParams(t *testing.T) {
 	wrappedHandler.ServeHTTP(sw, req)
 
 	entries := sink.Entries()
+	require.Len(t, entries, 1, "expected exactly one log entry")
 	fieldsMap := make(map[string]any)
 	for _, field := range entries[0].Fields {
 		fieldsMap[field.Name] = field.Value
