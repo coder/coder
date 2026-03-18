@@ -402,6 +402,24 @@ const LazyFileDiff = memo<{
 			/>
 		);
 	},
+	(prev, next) => {
+		if (
+			prev.fileDiff !== next.fileDiff ||
+			prev.options !== next.options ||
+			prev.lineAnnotations !== next.lineAnnotations
+		) {
+			return false;
+		}
+		// When neither the previous nor next props include line
+		// annotations, a new `renderAnnotation` reference is
+		// irrelevant because there is nothing to render. Skip the
+		// re-render so that unrelated state changes (e.g.
+		// activeCommentBox) don't bust memo for every file.
+		if (prev.renderAnnotation !== next.renderAnnotation) {
+			return !prev.lineAnnotations && !next.lineAnnotations;
+		}
+		return true;
+	},
 );
 
 // -------------------------------------------------------------------
