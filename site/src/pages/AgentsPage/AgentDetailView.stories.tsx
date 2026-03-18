@@ -428,3 +428,84 @@ export const NotFoundSidebarCollapsed: Story = {
 		/>
 	),
 };
+
+// ---------------------------------------------------------------------------
+// Stress-test story: large chat + huge diff
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a unified diff string with the given number of changed
+ * files, each containing `linesPerFile` added lines. Repeats a
+ * simple pattern so the story code stays small.
+ */
+function generateHugeDiff(fileCount: number, linesPerFile: number): string {
+	const chunks: string[] = [];
+	for (let f = 0; f < fileCount; f++) {
+		const path = `src/components/Module${f}/index.tsx`;
+		chunks.push(
+			`diff --git a/${path} b/${path}`,
+			`index 0000000..1111111 100644`,
+			`--- a/${path}`,
+			`+++ b/${path}`,
+			`@@ -1,0 +1,${linesPerFile} @@`,
+		);
+		for (let l = 0; l < linesPerFile; l++) {
+			chunks.push(`+// Line ${l + 1}: ${path} — filler to stress-test rendering performance`);
+		}
+	}
+	return chunks.join("\n");
+}
+
+const STRESS_FILE_COUNT = 50;
+const STRESS_LINES_PER_FILE = 200; // 50 × 200 = 10 000 changed lines
+const STRESS_TOTAL_ADDITIONS = STRESS_FILE_COUNT * STRESS_LINES_PER_FILE;
+
+/** Build a long chat history with alternating user/assistant messages. */
+function generateLongChatHistory(messageCount: number): TypesGen.ChatMessage[] {
+	const msgs: TypesGen.ChatMessage[] = [];
+	for (let i = 0; i < messageCount; i++) {
+		const role: TypesGen.ChatMessageRole =
+			i % 2 === 0 ? "user" : "assistant";
+		const text =
+			role === "user"
+				? `Request #${Math.floor(i / 2) + 1}: Please refactor the next batch of modules.`
+				: `Done! I've updated modules ${Math.floor(i / 2) * 5}-${Math.floor(i / 2) * 5 + 4} with the new patterns. Here's a summary of the changes:\n\n- Extracted shared hooks\n- Replaced class components with functional components\n- Added proper TypeScript types\n- Cleaned up unused imports\n- Added unit tests for critical paths`;
+		msgs.push(buildMessage(i + 1, role, text));
+	}
+	return msgs;
+}
+
+/**
+ * Stress-test story: 100 chat messages + 10 000-line diff with
+ * the sidebar panel open. Use this to manually verify that
+ * drag-resizing and scrolling feel smooth.
+ */
+export const StressLargeDiff: Story = {
+	args: {
+		store: buildStoreWithMessages(generateLongChatHistory(100)),
+		showSidebarPanel: true,
+		prNumber: 456,
+		hasMoreMessages: false,
+		isFetchingMoreMessages: false,
+		onFetchMoreMessages: fn(),
+		diffStatusData: {
+			chat_id: AGENT_ID,
+			url: "https://github.com/coder/coder/pull/456",
+			pull_request_title: "refactor: massive module extraction",
+			pull_request_state: "open",
+			pull_request_draft: false,
+			changes_requested: false,
+			additions: STRESS_TOTAL_ADDITIONS,
+			deletions: 0,
+			changed_files: STRESS_FILE_COUNT,
+			base_branch: "main",
+			head_branch: "refactor/module-extraction",
+		} satisfies ChatDiffStatus,
+	},
+	beforeEach: () => {
+		spyOn(API, "getChatDiffContents").mockResolvedValue({
+			chat_id: AGENT_ID,
+			diff: generateHugeDiff(STRESS_FILE_COUNT, STRESS_LINES_PER_FILE),
+		});
+	},
+};
