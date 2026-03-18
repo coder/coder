@@ -2663,7 +2663,9 @@ func TestPatchChatMessage(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Equal(t, userMessageID, edited.ID)
+		// The edited message is soft-deleted and a new one is inserted,
+		// so the returned ID will differ from the original.
+		require.NotEqual(t, userMessageID, edited.ID)
 		require.Equal(t, codersdk.ChatMessageRoleUser, edited.Role)
 
 		foundEditedText := false
@@ -2753,7 +2755,9 @@ func TestPatchChatMessage(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Equal(t, userMessageID, edited.ID)
+		// The edited message is soft-deleted and a new one is inserted,
+		// so the returned ID will differ from the original.
+		require.NotEqual(t, userMessageID, edited.ID)
 
 		// Assert the edit response preserves the file_id.
 		var foundText, foundFile bool
