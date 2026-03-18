@@ -1,8 +1,6 @@
 import type * as TypesGen from "api/typesGenerated";
-import type { WorkspaceAgentStatus } from "api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
-import { Link } from "components/Link/Link";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { BlocksIcon, HistoryIcon } from "lucide-react";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
@@ -15,6 +13,7 @@ import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
+import { WorkspaceAlert } from "./WorkspaceAlert";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import {
 	getActiveTransitionStats,
@@ -193,7 +192,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 						)}
 
 						{!workspace.health.healthy && (
-							<UnhealthyWorkspaceAlert
+							<WorkspaceAlert
 								workspace={workspace}
 								troubleshootingURL={troubleshootingURL}
 							/>
@@ -253,65 +252,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 				</div>
 			</div>
 		</div>
-	);
-};
-
-interface UnhealthyWorkspaceAlertProps {
-	workspace: TypesGen.Workspace;
-	troubleshootingURL: string | undefined;
-}
-
-const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
-	workspace,
-	troubleshootingURL,
-}) => {
-	const failingAgentCount = workspace.health.failing_agents.length;
-	const failureSet = new Set<WorkspaceAgentStatus>();
-
-	workspace.latest_build.resources.forEach((resource) => {
-		resource.agents?.forEach((agent) => {
-			failureSet.add(agent.status);
-		});
-	});
-
-	var title = "Workspace agents are not connected";
-	var message =
-		"Your workspace cannot be used until an agent connects. Continue to wait and check the log output of your workspace for any errors.";
-
-	// Disconnected is a more serious failure than timeout, so we can
-	// prioritize handling it first.
-	if (failureSet.has("disconnected")) {
-		title = "Workspace agents have disconnected";
-		message =
-			"Continue to wait and check the log output of your workspace for any errors. If the agent does not reconnect, restarting the workspace can be used to try again.";
-	} else if (failureSet.has("timeout")) {
-		// Handle timeout case
-		title = "Your workspace is starting, but the agent has not yet connected.";
-		message =
-			"The agent is taking longer than expected to connect. Continue to wait and check the log output of your workspace for any errors. If the agent does not connect, restarting the workspace can be used to try again.";
-	}
-
-	return (
-		<Alert severity="warning" prominent>
-			<AlertTitle>{title}</AlertTitle>
-			<AlertDescription>
-				<p>
-					Your workspace is running but{" "}
-					{failingAgentCount > 1
-						? `${failingAgentCount} agents have not connected yet.`
-						: "the agent has not connected yet."}
-					.{" "}
-				</p>
-				<p>{message}</p>
-				<p>
-					{troubleshootingURL && (
-						<Link href={troubleshootingURL} target="_blank">
-							View docs to troubleshoot
-						</Link>
-					)}
-				</p>
-			</AlertDescription>
-		</Alert>
 	);
 };
 
