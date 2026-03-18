@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
@@ -2197,30 +2198,65 @@ func (p *Server) publishRetry(chatID uuid.UUID, payload *codersdk.ChatStreamRetr
 	})
 }
 
-func (p *Server) publishError(chatID uuid.UUID, message string) {
-	message = strings.TrimSpace(message)
-	if message == "" {
+func chatStreamErrorPayload(classified chatretry.ClassifiedError) *codersdk.ChatStreamError {
+	classified.Message = strings.TrimSpace(classified.Message)
+	if classified.Message == "" {
+		return nil
+	}
+	return &codersdk.ChatStreamError{
+		Message:    classified.Message,
+		Kind:       classified.Kind,
+		Provider:   classified.Provider,
+		Retryable:  classified.Retryable,
+		StatusCode: classified.StatusCode,
+	}
+}
+
+func chatStreamRetryPayload(
+	attempt int,
+	delay time.Duration,
+	classified chatretry.ClassifiedError,
+) *codersdk.ChatStreamRetry {
+	classified.Message = strings.TrimSpace(classified.Message)
+	if classified.Message == "" {
+		return nil
+	}
+	return &codersdk.ChatStreamRetry{
+		Attempt:    attempt,
+		DelayMs:    delay.Milliseconds(),
+		Error:      classified.Message,
+		Kind:       classified.Kind,
+		Provider:   classified.Provider,
+		Retryable:  classified.Retryable,
+		StatusCode: classified.StatusCode,
+		RetryingAt: time.Now().Add(delay),
+	}
+}
+
+func (p *Server) publishError(chatID uuid.UUID, classified chatretry.ClassifiedError) {
+	payload := chatStreamErrorPayload(classified)
+	if payload == nil {
 		return
 	}
 	p.publishEvent(chatID, codersdk.ChatStreamEvent{
 		Type:  codersdk.ChatStreamEventTypeError,
-		Error: &codersdk.ChatStreamError{Message: message},
+		Error: payload,
 	})
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
-		Error: message,
+		Error: payload.Message,
 	})
 }
 
-func processingFailureReason(err error) (string, bool) {
+func processingFailure(err error) (chatretry.ClassifiedError, bool) {
 	if err == nil {
-		return "", false
+		return chatretry.ClassifiedError{}, false
 	}
 
-	reason := strings.TrimSpace(err.Error())
-	if reason == "" {
-		return "", false
+	classified := chatretry.ClassifyError(err)
+	if strings.TrimSpace(classified.Message) == "" {
+		return chatretry.ClassifiedError{}, false
 	}
-	return reason, true
+	return classified, true
 }
 
 func panicFailureReason(recovered any) string {
@@ -2556,7 +2592,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		if r := recover(); r != nil {
 			logger.Error(cleanupCtx, "panic during chat processing", slog.F("panic", r))
 			lastError = panicFailureReason(r)
-			p.publishError(chat.ID, lastError)
+			p.publishError(chat.ID, chatretry.ClassifiedError{Message: lastError})
 			status = database.ChatStatusError
 		}
 
@@ -2665,9 +2701,9 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			return
 		}
 		logger.Error(ctx, "failed to process chat", slog.Error(err))
-		if reason, ok := processingFailureReason(err); ok {
-			lastError = reason
-			p.publishError(chat.ID, lastError)
+		if classified, ok := processingFailure(err); ok {
+			lastError = classified.Message
+			p.publishError(chat.ID, classified)
 		}
 		status = database.ChatStatusError
 		return
@@ -3351,7 +3387,12 @@ func (p *Server) runChat(
 			return reloadedPrompt, nil
 		},
 
-		OnRetry: func(attempt int, retryErr error, delay time.Duration) {
+		OnRetry: func(
+			attempt int,
+			retryErr error,
+			classified chatretry.ClassifiedError,
+			delay time.Duration,
+		) {
 			if val, ok := p.chatStreams.Load(chat.ID); ok {
 				if rs, ok := val.(*chatStreamState); ok {
 					rs.mu.Lock()
@@ -3365,12 +3406,8 @@ func (p *Server) runChat(
 				slog.F("delay", delay.String()),
 				slog.Error(retryErr),
 			)
-			p.publishRetry(chat.ID, &codersdk.ChatStreamRetry{
-				Attempt:    attempt,
-				DelayMs:    delay.Milliseconds(),
-				Error:      retryErr.Error(),
-				RetryingAt: time.Now().Add(delay),
-			})
+			payload := chatStreamRetryPayload(attempt, delay, classified)
+			p.publishRetry(chat.ID, payload)
 		},
 
 		OnInterruptedPersistError: func(err error) {
@@ -3378,7 +3415,8 @@ func (p *Server) runChat(
 		},
 	})
 	if err != nil {
-		return result, err
+		classified := chatretry.ClassifyError(err).WithProvider(model.Provider())
+		return result, chatretry.WithClassification(err, classified)
 	}
 	result.FinalAssistantText = finalAssistantText
 	return result, nil

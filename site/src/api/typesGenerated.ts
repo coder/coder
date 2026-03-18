@@ -1763,7 +1763,26 @@ export const ChatStatuses: ChatStatus[] = [
  * ChatStreamError represents an error event in the stream.
  */
 export interface ChatStreamError {
+	/**
+	 * Message is the normalized, user-facing error message.
+	 */
 	readonly message: string;
+	/**
+	 * Kind classifies the error for consistent client rendering.
+	 */
+	readonly kind?: string;
+	/**
+	 * Provider identifies the upstream model provider when known.
+	 */
+	readonly provider?: string;
+	/**
+	 * Retryable reports whether the underlying error is transient.
+	 */
+	readonly retryable?: boolean;
+	/**
+	 * StatusCode is the best-effort upstream HTTP status code.
+	 */
+	readonly status_code?: number;
 }
 
 // From codersdk/chats.go
@@ -1823,9 +1842,25 @@ export interface ChatStreamRetry {
 	 */
 	readonly delay_ms: number;
 	/**
-	 * Error is the error message from the failed attempt.
+	 * Error is the normalized error message from the failed attempt.
 	 */
 	readonly error: string;
+	/**
+	 * Kind classifies the retry reason for consistent client rendering.
+	 */
+	readonly kind?: string;
+	/**
+	 * Provider identifies the upstream model provider when known.
+	 */
+	readonly provider?: string;
+	/**
+	 * Retryable reports whether the underlying error is transient.
+	 */
+	readonly retryable?: boolean;
+	/**
+	 * StatusCode is the best-effort upstream HTTP status code.
+	 */
+	readonly status_code?: number;
 	/**
 	 * RetryingAt is the timestamp when the retry will be attempted.
 	 */

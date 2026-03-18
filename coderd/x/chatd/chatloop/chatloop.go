@@ -85,10 +85,11 @@ type RunOptions struct {
 
 	// OnRetry is called before each retry attempt when the LLM
 	// stream fails with a retryable error. It provides the attempt
-	// number, error, and backoff delay so callers can publish status
-	// events to connected clients. Callers should also clear any
-	// buffered stream state from the failed attempt in this callback
-	// to avoid sending duplicated content.
+	// number, raw error, normalized classification, and backoff
+	// delay so callers can publish status events to connected
+	// clients. Callers should also clear any buffered stream state
+	// from the failed attempt in this callback to avoid sending
+	// duplicated content.
 	OnRetry chatretry.OnRetryFn
 
 	OnInterruptedPersistError func(error)
@@ -298,12 +299,18 @@ func Run(ctx context.Context, opts RunOptions) error {
 				var processErr error
 				result, processErr = processStepStream(retryCtx, stream, publishMessagePart)
 				return processErr
-			}, func(attempt int, retryErr error, delay time.Duration) {
+			}, func(
+				attempt int,
+				retryErr error,
+				classified chatretry.ClassifiedError,
+				delay time.Duration,
+			) {
 				// Reset result from the failed attempt so the next
 				// attempt starts clean.
 				result = stepResult{}
 				if opts.OnRetry != nil {
-					opts.OnRetry(attempt, retryErr, delay)
+					classified = classified.WithProvider(opts.Model.Provider())
+					opts.OnRetry(attempt, retryErr, classified, delay)
 				}
 			})
 			if err != nil {

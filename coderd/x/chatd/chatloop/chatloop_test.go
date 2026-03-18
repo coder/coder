@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/chatd/chatretry"
 )
 
 const activeToolName = "read_file"
@@ -79,6 +81,69 @@ func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 	require.False(t, hasAnthropicEphemeralCacheControl(capturedCall.Prompt[2]))
 	require.True(t, hasAnthropicEphemeralCacheControl(capturedCall.Prompt[3]))
 	require.True(t, hasAnthropicEphemeralCacheControl(capturedCall.Prompt[4]))
+}
+
+func TestRun_OnRetryEnrichesProvider(t *testing.T) {
+	t.Parallel()
+
+	type retryRecord struct {
+		attempt    int
+		errMsg     string
+		classified chatretry.ClassifiedError
+		delay      time.Duration
+	}
+
+	var records []retryRecord
+	calls := 0
+	model := &loopTestModel{
+		provider: "openai",
+		streamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			calls++
+			if calls == 1 {
+				return nil, xerrors.New("received status 429 from upstream")
+			}
+			return streamFromParts([]fantasy.StreamPart{{
+				Type:         fantasy.StreamPartTypeFinish,
+				FinishReason: fantasy.FinishReasonStop,
+			}}), nil
+		},
+	}
+
+	err := Run(context.Background(), RunOptions{
+		Model:                model,
+		MaxSteps:             1,
+		ContextLimitFallback: 4096,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		OnRetry: func(
+			attempt int,
+			retryErr error,
+			classified chatretry.ClassifiedError,
+			delay time.Duration,
+		) {
+			records = append(records, retryRecord{
+				attempt:    attempt,
+				errMsg:     retryErr.Error(),
+				classified: classified,
+				delay:      delay,
+			})
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	require.Equal(t, 1, records[0].attempt)
+	require.Equal(t, "received status 429 from upstream", records[0].errMsg)
+	require.Equal(t, chatretry.Delay(0), records[0].delay)
+	require.Equal(t, "openai", records[0].classified.Provider)
+	require.Equal(t, "rate_limit", records[0].classified.Kind)
+	require.True(t, records[0].classified.Retryable)
+	require.Equal(t, 429, records[0].classified.StatusCode)
+	require.Equal(
+		t,
+		"OpenAI is rate limiting requests (HTTP 429). Please try again later.",
+		records[0].classified.Message,
+	)
 }
 
 func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
