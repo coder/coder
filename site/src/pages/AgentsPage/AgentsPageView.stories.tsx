@@ -5,6 +5,7 @@ import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { Chat } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import dayjs from "dayjs";
 import { useState } from "react";
 import {
@@ -184,13 +185,6 @@ const meta: Meta<typeof AgentsPageView> = {
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
 		modelCatalogError: undefined,
-		deleteDialog: {
-			isOpen: false,
-			onConfirm: fn(),
-			onCancel: fn(),
-			workspaceName: "",
-			isLoading: false,
-		},
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaces").mockResolvedValue({
@@ -335,40 +329,36 @@ export const ArchivingAgent: Story = {
 	},
 };
 
+/**
+ * Standalone story for the delete-confirmation dialog with
+ * agents-specific copy (title, verb, info). The dialog now lives in
+ * AgentsPage (the container) rather than AgentsPageView, so we
+ * render it directly here to preserve interaction-test coverage.
+ */
 export const DeleteConfirmationDialog: Story = {
-	args: {
-		chatList: [
-			buildChat({
-				id: "chat-1",
-				title: "Agent to delete",
-				updated_at: todayTimestamp,
-			}),
-		],
-		deleteDialog: {
-			isOpen: true,
-			onConfirm: fn(),
-			onCancel: fn(),
-			workspaceName: "my-workspace",
-			isLoading: false,
-		},
-	},
-	render: function Render(args) {
+	render: function Render() {
+		const [isOpen, setIsOpen] = useState(true);
 		const [isLoading, setIsLoading] = useState(false);
+		const onConfirm = fn();
 		return (
-			<AgentsPageView
-				{...args}
-				deleteDialog={{
-					...args.deleteDialog,
-					isLoading,
-					onConfirm: () => {
-						args.deleteDialog.onConfirm();
-						setIsLoading(true);
-					},
+			<DeleteDialog
+				key="my-workspace"
+				isOpen={isOpen}
+				onConfirm={() => {
+					onConfirm();
+					setIsLoading(true);
 				}}
+				onCancel={() => setIsOpen(false)}
+				entity="workspace"
+				name="my-workspace"
+				confirmLoading={isLoading}
+				title="Archive agent & delete workspace"
+				verb="Archiving and deleting"
+				info="This will archive the agent and permanently delete the associated workspace and all its resources."
 			/>
 		);
 	},
-	play: async ({ args }) => {
+	play: async () => {
 		const dialog = await screen.findByRole("dialog");
 		await expect(dialog).toBeInTheDocument();
 		await expect(
@@ -388,7 +378,6 @@ export const DeleteConfirmationDialog: Story = {
 
 		// Click confirm and verify the callback fires, then enters loading state.
 		await userEvent.click(confirmButton);
-		await expect(args.deleteDialog.onConfirm).toHaveBeenCalled();
 		await waitFor(() => {
 			expect(confirmButton).toBeDisabled();
 		});

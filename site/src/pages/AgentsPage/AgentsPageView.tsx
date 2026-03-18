@@ -1,7 +1,6 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import type { Dayjs } from "dayjs";
@@ -65,13 +64,6 @@ interface AgentsPageViewProps {
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange: (filter: "active" | "archived") => void;
 	analyticsNow?: Dayjs;
-	deleteDialog: {
-		isOpen: boolean;
-		onConfirm: () => void;
-		onCancel: () => void;
-		workspaceName: string;
-		isLoading: boolean;
-	};
 }
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
@@ -104,7 +96,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	archivedFilter,
 	onArchivedFilterChange,
 	analyticsNow,
-	deleteDialog,
 }) => {
 	const {
 		chatErrorReasons,
@@ -175,19 +166,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					isAdmin={isAgentsAdmin}
 				/>
 			</div>
-
-			<DeleteDialog
-				key={deleteDialog.workspaceName}
-				isOpen={deleteDialog.isOpen}
-				onConfirm={deleteDialog.onConfirm}
-				onCancel={deleteDialog.onCancel}
-				entity="workspace"
-				name={deleteDialog.workspaceName}
-				confirmLoading={deleteDialog.isLoading}
-				title="Archive agent & delete workspace"
-				verb="Archiving and deleting"
-				info="This will archive the agent and permanently delete the associated workspace and all its resources."
-			/>
 
 			<div
 				className={cn(

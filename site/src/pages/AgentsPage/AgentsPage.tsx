@@ -16,6 +16,7 @@ import {
 } from "api/queries/chats";
 import { workspaceById } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
@@ -42,6 +43,7 @@ import {
 import { maybePlayChime } from "./AgentDetail/useAgentChime";
 import type { AgentsOutletContext } from "./AgentsPageView";
 import { AgentsPageView } from "./AgentsPageView";
+import { resolveArchiveAndDeleteAction } from "./agentWorkspaceUtils";
 import {
 	getModelOptionsFromCatalog,
 	getNormalizedModelRef,
@@ -265,12 +267,32 @@ const AgentsPage: FC = () => {
 		[isArchiving, archiveAgentMutation],
 	);
 	const requestArchiveAndDeleteWorkspace = useCallback(
-		(chatId: string, workspaceId: string) => {
-			if (!isArchiving) {
-				setPendingArchiveAndDelete({ chatId, workspaceId });
+		async (chatId: string, workspaceId: string) => {
+			if (isArchiving) {
+				return;
+			}
+			try {
+				const action = await resolveArchiveAndDeleteAction(
+					() => queryClient.fetchQuery(workspaceById(workspaceId)),
+					() =>
+						readInfiniteChatsCache(queryClient)?.find((c) => c.id === chatId)
+							?.created_at,
+				);
+				if (action === "proceed") {
+					archiveAndDeleteMutation.mutate(
+						{ chatId, workspaceId },
+						{
+							onSettled: () => navigate("/agents"),
+						},
+					);
+				} else {
+					setPendingArchiveAndDelete({ chatId, workspaceId });
+				}
+			} catch {
+				toast.error("Failed to look up workspace for deletion.");
 			}
 		},
-		[isArchiving],
+		[isArchiving, queryClient, archiveAndDeleteMutation, navigate],
 	);
 	const handleConfirmArchiveAndDelete = useCallback(() => {
 		if (pendingArchiveAndDelete && !isArchiving) {
@@ -501,58 +523,65 @@ const AgentsPage: FC = () => {
 		onNewAgent: handleNewAgent,
 	});
 
+	// Fetch workspace name for the confirmation dialog. Only
+	// enabled when pendingArchiveAndDelete is set (i.e. the
+	// resolve step determined confirmation is needed). The
+	// workspace data is usually already cached from the
+	// fetchQuery in requestArchiveAndDeleteWorkspace.
 	const pendingWorkspaceQuery = useQuery({
 		...workspaceById(pendingArchiveAndDelete?.workspaceId ?? ""),
 		enabled: Boolean(pendingArchiveAndDelete?.workspaceId),
 	});
 	const pendingWorkspaceName = pendingWorkspaceQuery.data?.name ?? "";
 
-	useEffect(() => {
-		if (pendingWorkspaceQuery.isError && pendingArchiveAndDelete) {
-			toast.error("Failed to look up workspace for deletion.");
-			setPendingArchiveAndDelete(null);
-		}
-	}, [pendingWorkspaceQuery.isError, pendingArchiveAndDelete]);
+	const deleteDialogOpen =
+		pendingArchiveAndDelete !== null && Boolean(pendingWorkspaceName);
 
 	return (
-		<AgentsPageView
-			agentId={agentId}
-			chatList={chatList}
-			catalogModelOptions={catalogModelOptions}
-			modelConfigs={chatModelConfigsQuery.data ?? []}
-			logoUrl={appearance.logo_url}
-			handleNewAgent={handleNewAgent}
-			isCreating={createMutation.isPending}
-			isArchiving={isArchiving}
-			archivingChatId={archivingChatId}
-			isChatsLoading={chatsQuery.isLoading}
-			chatsLoadError={chatsQuery.error}
-			onRetryChatsLoad={() => void chatsQuery.refetch()}
-			onCollapseSidebar={() => setIsSidebarCollapsed(true)}
-			isSidebarCollapsed={isSidebarCollapsed}
-			onExpandSidebar={() => setIsSidebarCollapsed(false)}
-			outletContext={outletContext}
-			onCreateChat={handleCreateChat}
-			createError={createMutation.error}
-			modelCatalog={chatModelsQuery.data}
-			isModelCatalogLoading={chatModelsQuery.isLoading}
-			isModelConfigsLoading={chatModelConfigsQuery.isLoading}
-			modelCatalogError={chatModelsQuery.error}
-			isAgentsAdmin={isAgentsAdmin}
-			hasNextPage={chatsQuery.hasNextPage}
-			onLoadMore={() => void chatsQuery.fetchNextPage()}
-			isFetchingNextPage={chatsQuery.isFetchingNextPage}
-			archivedFilter={archivedFilter}
-			onArchivedFilterChange={setArchivedFilter}
-			deleteDialog={{
-				isOpen:
-					pendingArchiveAndDelete !== null && Boolean(pendingWorkspaceName),
-				onConfirm: handleConfirmArchiveAndDelete,
-				onCancel: () => setPendingArchiveAndDelete(null),
-				workspaceName: pendingWorkspaceName,
-				isLoading: archiveAndDeleteMutation.isPending,
-			}}
-		/>
+		<>
+			<AgentsPageView
+				agentId={agentId}
+				chatList={chatList}
+				catalogModelOptions={catalogModelOptions}
+				modelConfigs={chatModelConfigsQuery.data ?? []}
+				logoUrl={appearance.logo_url}
+				handleNewAgent={handleNewAgent}
+				isCreating={createMutation.isPending}
+				isArchiving={isArchiving}
+				archivingChatId={archivingChatId}
+				isChatsLoading={chatsQuery.isLoading}
+				chatsLoadError={chatsQuery.error}
+				onRetryChatsLoad={() => void chatsQuery.refetch()}
+				onCollapseSidebar={() => setIsSidebarCollapsed(true)}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onExpandSidebar={() => setIsSidebarCollapsed(false)}
+				outletContext={outletContext}
+				onCreateChat={handleCreateChat}
+				createError={createMutation.error}
+				modelCatalog={chatModelsQuery.data}
+				isModelCatalogLoading={chatModelsQuery.isLoading}
+				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
+				modelCatalogError={chatModelsQuery.error}
+				isAgentsAdmin={isAgentsAdmin}
+				hasNextPage={chatsQuery.hasNextPage}
+				onLoadMore={() => void chatsQuery.fetchNextPage()}
+				isFetchingNextPage={chatsQuery.isFetchingNextPage}
+				archivedFilter={archivedFilter}
+				onArchivedFilterChange={setArchivedFilter}
+			/>
+			<DeleteDialog
+				key={pendingWorkspaceName}
+				isOpen={deleteDialogOpen}
+				onConfirm={handleConfirmArchiveAndDelete}
+				onCancel={() => setPendingArchiveAndDelete(null)}
+				entity="workspace"
+				name={pendingWorkspaceName}
+				confirmLoading={archiveAndDeleteMutation.isPending}
+				title="Archive agent & delete workspace"
+				verb="Archiving and deleting"
+				info="This will archive the agent and permanently delete the associated workspace and all its resources."
+			/>
+		</>
 	);
 };
 

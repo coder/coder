@@ -65,7 +65,7 @@ interface AgentDetailViewProps {
 	chatErrorReasons: Record<string, ChatDetailError>;
 	chatRecord: TypesGen.Chat | undefined;
 	isArchived: boolean;
-	canDeleteWorkspace: boolean;
+	hasWorkspace: boolean;
 
 	// Store handle.
 	store: ChatStoreHandle;
@@ -148,7 +148,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	chatErrorReasons,
 	chatRecord,
 	isArchived,
-	canDeleteWorkspace,
+	hasWorkspace,
 	store,
 	editing,
 	pendingEditMessageId,
@@ -244,7 +244,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 						onArchiveAgent={handleArchiveAgentAction}
 						onUnarchiveAgent={handleUnarchiveAgentAction}
 						onArchiveAndDeleteWorkspace={handleArchiveAndDeleteWorkspaceAction}
-						canDeleteWorkspace={canDeleteWorkspace}
+						hasWorkspace={hasWorkspace}
 						isArchived={isArchived}
 						diffStatusData={diffStatusData}
 						isSidebarCollapsed={isSidebarCollapsed}
@@ -419,7 +419,7 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 					onArchiveAgent={() => {}}
 					onUnarchiveAgent={() => {}}
 					onArchiveAndDeleteWorkspace={() => {}}
-					canDeleteWorkspace={false}
+					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				/>
@@ -493,7 +493,7 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
 				onArchiveAgent={() => {}}
 				onUnarchiveAgent={() => {}}
 				onArchiveAndDeleteWorkspace={() => {}}
-				canDeleteWorkspace={false}
+				hasWorkspace={false}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 			/>

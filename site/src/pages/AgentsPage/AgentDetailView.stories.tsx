@@ -99,7 +99,7 @@ const meta: Meta<typeof AgentDetailView> = {
 		chatErrorReasons: {},
 		chatRecord: buildChat(),
 		isArchived: false,
-		canDeleteWorkspace: true,
+		hasWorkspace: true,
 		store: createChatStore(),
 		editing: defaultEditing,
 		pendingEditMessageId: null,
