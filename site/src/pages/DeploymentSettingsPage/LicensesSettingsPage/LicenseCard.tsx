@@ -20,8 +20,6 @@ import { AIGovernanceAddOnCard } from "./AIGovernanceAddOnCard";
 
 type LicenseCardProps = {
 	license: GetLicensesResponse;
-	includedWithPremium: number;
-	additionalPurchased: number;
 	aiGovernanceUserFeature?: Feature;
 	userLimitActual?: number;
 	userLimitLimit?: number;
@@ -31,8 +29,6 @@ type LicenseCardProps = {
 
 export const LicenseCard: FC<LicenseCardProps> = ({
 	license,
-	includedWithPremium,
-	additionalPurchased,
 	aiGovernanceUserFeature,
 	userLimitActual,
 	userLimitLimit,
@@ -62,8 +58,11 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 			? "Premium"
 			: "Enterprise";
 
+	const hasExplicitAiGovernanceAddOn = (license.claims.addons ?? []).includes(
+		"ai_governance",
+	);
 	const hasAiGovernanceAddOn =
-		(license.claims.addons ?? []).includes("ai_governance") ||
+		hasExplicitAiGovernanceAddOn ||
 		(license.claims.features?.ai_governance_user_limit ?? 0) > 0;
 	const isAiGovernanceAddOnExceeded =
 		hasAiGovernanceAddOn && aiGovernanceActual > aiGovernanceLimit;
@@ -194,8 +193,6 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 									unit="Seats"
 									actual={aiGovernanceActual}
 									limit={aiGovernanceLimit}
-									includedWithPremium={includedWithPremium}
-									additionalPurchased={additionalPurchased}
 								/>
 							</div>
 						</div>

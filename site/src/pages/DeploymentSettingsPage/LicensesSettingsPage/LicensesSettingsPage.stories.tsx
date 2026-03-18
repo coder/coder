@@ -107,21 +107,6 @@ const createLicense = ({
 	},
 });
 
-const normalizedTextMatcher =
-	(pattern: RegExp) => (_: string, element: Element | null) => {
-		const normalize = (text?: string | null) =>
-			text?.replace(/\s+/g, " ").trim() ?? "";
-
-		const text = normalize(element?.textContent);
-		if (!pattern.test(text)) {
-			return false;
-		}
-
-		return !Array.from(element?.children ?? []).some((child) =>
-			pattern.test(normalize(child.textContent)),
-		);
-	};
-
 export const WithoutUserLimitFeature: Story = {
 	parameters: {
 		...withBaseQueries({
@@ -137,65 +122,6 @@ export const WithoutUserLimitFeature: Story = {
 				},
 			},
 		}),
-	},
-};
-
-export const IncludesExpiredPremiumAddonSeatsInBreakdown: Story = {
-	parameters: {
-		...withBaseQueries({
-			entitlements: createEntitlements({
-				userLimit: {
-					enabled: true,
-					entitlement: "entitled",
-					actual: 3,
-					limit: 10,
-				},
-				aiGovernanceUserLimit: {
-					enabled: true,
-					entitlement: "grace_period",
-					actual: 50,
-					limit: 125,
-				},
-			}),
-			licenses: [
-				createLicense({
-					id: 42,
-					uuid: "premium-expired-license",
-					featureSet: "PREMIUM",
-					uploadedDaysAgo: 45,
-					expiresInDays: 14,
-					licenseExpiresInDays: -1,
-					nbfOffsetDays: -90,
-					aiGovernanceUserLimit: 100,
-					userLimit: 10,
-					addons: ["ai_governance"],
-				}),
-				createLicense({
-					id: 43,
-					uuid: "enterprise-addon-license",
-					featureSet: "enterprise",
-					uploadedDaysAgo: 15,
-					expiresInDays: 30,
-					licenseExpiresInDays: 30,
-					nbfOffsetDays: -90,
-					aiGovernanceUserLimit: 25,
-					userLimit: 10,
-				}),
-			],
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText(/100 Included with premium/i),
-		).toBeInTheDocument();
-		await expect(
-			canvas.getByText(/25 additional seats purchased/i),
-		).toBeInTheDocument();
-		const usageValues = canvas.getAllByText(
-			normalizedTextMatcher(/50\s*\/\s*125/),
-		);
-		await expect(usageValues.length).toBeGreaterThan(0);
 	},
 };
 

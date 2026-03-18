@@ -57,21 +57,6 @@ const LicensesSettingsPageView: FC<Props> = ({
 }) => {
 	const theme = useTheme();
 	const { width, height } = useWindowSize();
-	let includedWithPremium = 0;
-	let additionalPurchased = 0;
-	for (const license of licenses ?? []) {
-		const aiGovernanceSeatLimit =
-			license.claims.features?.ai_governance_user_limit;
-		if (!aiGovernanceSeatLimit || aiGovernanceSeatLimit <= 0) {
-			continue;
-		}
-
-		if (license.claims.feature_set?.toLowerCase() === "premium") {
-			includedWithPremium += aiGovernanceSeatLimit;
-		} else {
-			additionalPurchased += aiGovernanceSeatLimit;
-		}
-	}
 
 	return (
 		<>
@@ -142,8 +127,6 @@ const LicensesSettingsPageView: FC<Props> = ({
 									license={license}
 									userLimitActual={userLimitActual}
 									userLimitLimit={userLimitLimit}
-									includedWithPremium={includedWithPremium}
-									additionalPurchased={additionalPurchased}
 									aiGovernanceUserFeature={aiGovernanceUserFeature}
 									isRemoving={isRemovingLicense}
 									onRemove={removeLicense}

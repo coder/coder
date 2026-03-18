@@ -12,8 +12,6 @@ type AIGovernanceAddOnCardProps = {
 	unit: string;
 	actual: number;
 	limit: number;
-	includedWithPremium: number;
-	additionalPurchased: number;
 };
 
 export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
@@ -21,8 +19,6 @@ export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
 	unit,
 	actual,
 	limit,
-	includedWithPremium,
-	additionalPurchased,
 }) => {
 	return (
 		<div
@@ -54,37 +50,19 @@ export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
 					</div>
 
 					<div className="min-w-[100px] flex-1 pl-8 pr-3">
-						<div className="flex items-center gap-8">
-							<div className="text-xs">
-								<div className="font-medium text-content-secondary">{unit}</div>
-								<div className="font-normal text-content-primary">
-									<span
-										className={
-											actual > limit
-												? "text-content-destructive"
-												: "text-content-primary"
-										}
-									>
-										{actual.toLocaleString()}
-									</span>{" "}
-									/ {limit.toLocaleString()}
-								</div>
-							</div>
-
-							<div className="text-xs font-normal">
-								<div className="text-content-secondary">
-									{includedWithPremium.toLocaleString()} Included with premium
-								</div>
-								{additionalPurchased > 0 ? (
-									<div className="text-content-secondary">
-										{additionalPurchased.toLocaleString()} additional seats
-										purchased
-									</div>
-								) : (
-									<div className="text-content-disabled">
-										No additional seats purchased
-									</div>
-								)}
+						<div className="text-xs">
+							<div className="font-medium text-content-secondary">{unit}</div>
+							<div className="font-normal text-content-primary">
+								<span
+									className={
+										actual > limit
+											? "text-content-destructive"
+											: "text-content-primary"
+									}
+								>
+									{actual.toLocaleString()}
+								</span>{" "}
+								/ {limit.toLocaleString()}
 							</div>
 						</div>
 					</div>

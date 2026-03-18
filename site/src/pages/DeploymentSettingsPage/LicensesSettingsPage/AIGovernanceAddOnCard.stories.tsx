@@ -10,8 +10,6 @@ const meta: Meta<typeof AIGovernanceAddOnCard> = {
 		unit: "Seats",
 		actual: 750,
 		limit: 1000,
-		includedWithPremium: 1000,
-		additionalPurchased: 0,
 	},
 };
 
@@ -20,20 +18,9 @@ type Story = StoryObj<typeof AIGovernanceAddOnCard>;
 
 export const Default: Story = {};
 
-export const WithAdditionalSeats: Story = {
-	args: {
-		actual: 850,
-		limit: 1200,
-		includedWithPremium: 1000,
-		additionalPurchased: 200,
-	},
-};
-
 export const Exceeded: Story = {
 	args: {
 		actual: 1200,
 		limit: 1000,
-		includedWithPremium: 1000,
-		additionalPurchased: 0,
 	},
 };

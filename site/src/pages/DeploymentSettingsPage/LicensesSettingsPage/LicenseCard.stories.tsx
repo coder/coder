@@ -12,8 +12,6 @@ const meta: Meta<typeof LicenseCard> = {
 	parameters: { chromatic },
 	args: {
 		license: MockLicenseResponse[0],
-		includedWithPremium: 1000,
-		additionalPurchased: 0,
 		userLimitActual: 4,
 		userLimitLimit: 10,
 		onRemove: fn(),
@@ -38,7 +36,10 @@ export const PremiumWithAIGovernance: Story = {
 			...MockLicenseResponse[1],
 			claims: {
 				...MockLicenseResponse[1].claims,
-				addons: ["ai_governance"],
+				features: {
+					...MockLicenseResponse[1].claims.features,
+					ai_governance_user_limit: 500,
+				},
 			},
 		},
 		aiGovernanceUserFeature: {
@@ -47,8 +48,11 @@ export const PremiumWithAIGovernance: Story = {
 			limit: 1000,
 			actual: 750,
 		},
-		includedWithPremium: 1000,
-		additionalPurchased: 0,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText(/add-ons/i)).toBeInTheDocument();
+		await expect(canvas.getByText(/ai governance/i)).toBeInTheDocument();
 	},
 };
 
@@ -80,8 +84,6 @@ export const ExceededAIGovernance: Story = {
 			limit: 1000,
 			actual: 1200,
 		},
-		includedWithPremium: 1000,
-		additionalPurchased: 0,
 	},
 };
 
