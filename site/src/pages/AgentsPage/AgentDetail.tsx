@@ -59,6 +59,7 @@ import {
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
+import { parsePullRequestUrl } from "./pullRequest";
 import { formatUsageLimitMessage, isUsageLimitData } from "./usageLimitMessage";
 import { useGitWatcher } from "./useGitWatcher";
 
@@ -470,9 +471,13 @@ const AgentDetail: FC = () => {
 		chatInputRef.current?.focus();
 	}, []);
 
-	// Extract PR number from diff status URL.
-	const prMatch = chatQuery.data?.diff_status?.url?.match(/\/pull\/(\d+)/)?.[1];
-	const prNumber = prMatch ? Number(prMatch) : undefined;
+	// Prefer the explicit PR number from the API, and only fall back to URL
+	// parsing when older metadata does not provide it.
+	const parsedPrNumber = Number(
+		parsePullRequestUrl(chatQuery.data?.diff_status?.url)?.number,
+	);
+	const prNumber =
+		chatQuery.data?.diff_status?.pr_number ?? (parsedPrNumber || undefined);
 	// Compute an effective selected model by validating the user's
 	// explicit choice against the current model options, falling
 	// back to the chat's last model or the first available option.
@@ -776,6 +781,7 @@ const AgentDetail: FC = () => {
 					token: key,
 					agent: workspaceAgent.name,
 					folder: workspaceAgent.expanded_directory,
+					chatId: agentId,
 				});
 			},
 			onError: () => {

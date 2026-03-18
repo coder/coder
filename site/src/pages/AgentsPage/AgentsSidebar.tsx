@@ -412,7 +412,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 			<div
 				data-testid={`agents-tree-node-${chat.id}`}
 				className={cn(
-					"group relative flex min-w-0 items-start gap-1.5 rounded-md px-1 text-content-secondary",
+					"group relative flex min-w-0 items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
 					"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
 					"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 					isChildNode &&
@@ -709,7 +709,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				aria-hidden={sidebarView.panel === "settings"}
 				inert={sidebarView.panel === "settings" ? true : undefined}
 			>
-				<div className="hidden border-b border-border-default px-3 pb-3 pt-1.5 md:block md:px-3.5">
+				<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 md:block">
 					<div className="mb-2.5 flex items-center justify-between">
 						<NavLink to="/workspaces" className="inline-flex">
 							{logoUrl ? (

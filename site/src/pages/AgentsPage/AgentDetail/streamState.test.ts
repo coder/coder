@@ -56,29 +56,18 @@ describe("applyMessagePartToStreamState", () => {
 		const result = applyMessagePartToStreamState(null, {
 			type: "reasoning",
 			text: "Let me reason...",
-			title: "Analysis",
 		});
 		expect(result).not.toBeNull();
 		expect(result!.blocks).toEqual([
-			{ type: "thinking", text: "Let me reason...", title: "Analysis" },
+			{ type: "thinking", text: "Let me reason..." },
 		]);
 	});
 
-	it("returns prev for reasoning part with no text and no title", () => {
+	it("returns prev for reasoning part with empty text", () => {
 		const prev = createEmptyStreamState();
 		const result = applyMessagePartToStreamState(prev, {
 			type: "reasoning",
 			text: "",
-		});
-		expect(result).toBe(prev);
-	});
-
-	it("returns prev for reasoning part with only title and no text", () => {
-		const prev = createEmptyStreamState();
-		const result = applyMessagePartToStreamState(prev, {
-			type: "reasoning",
-			text: "",
-			title: "Some Title",
 		});
 		expect(result).toBe(prev);
 	});
@@ -150,13 +139,13 @@ describe("applyMessagePartToStreamState", () => {
 		const callIds = Object.keys(state!.toolCalls);
 		expect(callIds).toHaveLength(2);
 
-		// First result arrives without an explicit tool_call_id.
+		// First result arrives without a tool_call_id.
 		state = applyMessagePartToStreamState(state, {
 			type: "tool-result",
 			tool_name: "bash",
 			result: { output: "file.txt" },
 		});
-		// Second result arrives without an explicit tool_call_id.
+		// Second result arrives without a tool_call_id.
 		state = applyMessagePartToStreamState(state, {
 			type: "tool-result",
 			tool_name: "bash",
@@ -188,21 +177,6 @@ describe("applyMessagePartToStreamState", () => {
 			result: { output: "file.txt" },
 			isError: false,
 		});
-	});
-
-	it("returns prev for unknown part type", () => {
-		const prev = createEmptyStreamState();
-		const result = applyMessagePartToStreamState(prev, {
-			type: "banana",
-		});
-		expect(result).toBe(prev);
-	});
-
-	it("returns null for unknown part type when prev is null", () => {
-		const result = applyMessagePartToStreamState(null, {
-			type: "banana",
-		});
-		expect(result).toBeNull();
 	});
 
 	it("accumulates multiple tool calls in sequence", () => {
@@ -279,6 +253,57 @@ describe("applyMessagePartToStreamState", () => {
 		expect(prev.toolResults).toEqual({});
 	});
 
+	it("adds a file block from a file part with data", () => {
+		const result = applyMessagePartToStreamState(null, {
+			type: "file",
+			media_type: "image/png",
+			data: "iVBORw0KGgo=",
+		});
+		expect(result).not.toBeNull();
+		expect(result!.blocks).toHaveLength(1);
+		expect(result!.blocks[0]).toMatchObject({
+			type: "file",
+			media_type: "image/png",
+			data: "iVBORw0KGgo=",
+		});
+	});
+
+	it("adds a file block from a file part with file_id", () => {
+		const result = applyMessagePartToStreamState(null, {
+			type: "file",
+			media_type: "image/png",
+			file_id: "abc-123",
+		});
+		expect(result).not.toBeNull();
+		expect(result!.blocks).toHaveLength(1);
+		expect(result!.blocks[0]).toMatchObject({
+			type: "file",
+			media_type: "image/png",
+			file_id: "abc-123",
+		});
+	});
+
+	it("returns prev for file part without data or file_id", () => {
+		const prev = createEmptyStreamState();
+		const result = applyMessagePartToStreamState(prev, {
+			type: "file",
+			media_type: "image/png",
+		});
+		expect(result).toBe(prev);
+	});
+
+	it("returns prev for file-reference part (not a streaming type)", () => {
+		const prev = createEmptyStreamState();
+		const result = applyMessagePartToStreamState(prev, {
+			type: "file-reference",
+			file_name: "main.go",
+			start_line: 1,
+			end_line: 10,
+			content: "package main",
+		});
+		expect(result).toBe(prev);
+	});
+
 	it("adds a sources block from a source part", () => {
 		let state: StreamState | null = null;
 		state = applyMessagePartToStreamState(state, {
@@ -329,6 +354,40 @@ describe("applyMessagePartToStreamState", () => {
 		// Second application returns prev unchanged.
 		expect(state).toBe(afterFirst);
 		expect(state!.sources).toHaveLength(1);
+	});
+
+	it("produces correct tool-result shape with is_error through buildStreamTools", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "bash",
+			tool_call_id: "tc-1",
+			args: { command: "rm -rf /" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "bash",
+			tool_call_id: "tc-1",
+			result: { error: "permission denied" },
+			is_error: true,
+		});
+		expect(state).not.toBeNull();
+		expect(state!.toolResults["tc-1"]).toMatchObject({
+			id: "tc-1",
+			name: "bash",
+			result: { error: "permission denied" },
+			isError: true,
+		});
+		const tools = buildStreamTools(state);
+		expect(tools).toHaveLength(1);
+		expect(tools[0]).toEqual({
+			id: "tc-1",
+			name: "bash",
+			args: { command: "rm -rf /" },
+			result: { error: "permission denied" },
+			isError: true,
+			status: "error",
+		});
 	});
 });
 

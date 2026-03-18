@@ -58,11 +58,11 @@ const (
 	// of 5 means recovery runs at 1/5 of the stale-after duration.
 	staleRecoveryIntervalDivisor = 5
 
-	// maxChatsPerAcquire is the maximum number of chats to
+	// DefaultMaxChatsPerAcquire is the maximum number of chats to
 	// acquire in a single processOnce call. Batching avoids
 	// waiting a full polling interval between acquisitions
 	// when many chats are pending.
-	maxChatsPerAcquire int32 = 10
+	DefaultMaxChatsPerAcquire int32 = 10
 
 	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
 )
@@ -98,6 +98,7 @@ type Server struct {
 
 	// Configuration
 	pendingChatAcquireInterval time.Duration
+	maxChatsPerAcquire         int32
 	inFlightChatStaleAfter     time.Duration
 }
 
@@ -1174,6 +1175,7 @@ type Config struct {
 	ReplicaID                  uuid.UUID
 	SubscribeFn                SubscribeFn
 	PendingChatAcquireInterval time.Duration
+	MaxChatsPerAcquire         int32
 	InFlightChatStaleAfter     time.Duration
 	AgentConn                  AgentConnFunc
 	CreateWorkspace            chattool.CreateWorkspaceFn
@@ -1199,6 +1201,11 @@ func New(cfg Config) *Server {
 		inFlightChatStaleAfter = DefaultInFlightChatStaleAfter
 	}
 
+	maxChatsPerAcquire := cfg.MaxChatsPerAcquire
+	if maxChatsPerAcquire <= 0 {
+		maxChatsPerAcquire = DefaultMaxChatsPerAcquire
+	}
+
 	workerID := cfg.ReplicaID
 	if workerID == uuid.Nil {
 		workerID = uuid.New()
@@ -1219,6 +1226,7 @@ func New(cfg Config) *Server {
 		providerAPIKeys:            cfg.ProviderAPIKeys,
 		instructionCache:           make(map[uuid.UUID]cachedInstruction),
 		pendingChatAcquireInterval: pendingChatAcquireInterval,
+		maxChatsPerAcquire:         maxChatsPerAcquire,
 		inFlightChatStaleAfter:     inFlightChatStaleAfter,
 	}
 
@@ -1272,7 +1280,7 @@ func (p *Server) processOnce(ctx context.Context) {
 	chats, err := p.db.AcquireChats(acquireCtx, database.AcquireChatsParams{
 		StartedAt: time.Now(),
 		WorkerID:  p.workerID,
-		NumChats:  maxChatsPerAcquire,
+		NumChats:  p.maxChatsPerAcquire,
 	})
 	acquireCancel()
 	if err != nil {
@@ -2613,12 +2621,31 @@ func (p *Server) runChat(
 
 		var insertedMessages []database.ChatMessage
 		err := p.db.InTx(func(tx database.Store) error {
+			// Verify this worker still owns the chat before
+			// inserting messages. This closes the race where
+			// EditMessage truncates history and clears worker_id
+			// while persistInterruptedStep (which uses an
+			// uncancelable context) is still running.
+			//
+			// When the chat is in "waiting" status (set by
+			// InterruptChat / setChatWaiting), the worker_id has
+			// already been cleared but we still want to persist
+			// the partial assistant response. We allow the write
+			// because the history has NOT been truncated — the
+			// user simply asked to stop. In contrast, EditMessage
+			// sets the chat to "pending" after truncating, so the
+			// pending check still correctly blocks stale writes.
 			lockedChat, lockErr := tx.GetChatByIDForUpdate(persistCtx, chat.ID)
 			if lockErr != nil {
 				return xerrors.Errorf("lock chat for persist: %w", lockErr)
 			}
 			if !lockedChat.WorkerID.Valid || lockedChat.WorkerID.UUID != p.workerID {
-				return chatloop.ErrInterrupted
+				// The worker_id was cleared. Only allow the persist
+				// if the chat transitioned to "waiting" (interrupt),
+				// not "pending" (edit) or any other status.
+				if lockedChat.Status != database.ChatStatusWaiting {
+					return chatloop.ErrInterrupted
+				}
 			}
 
 			if assistantContent.Valid {

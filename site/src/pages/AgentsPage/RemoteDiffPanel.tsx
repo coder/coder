@@ -28,6 +28,7 @@ import type { ChatMessageInputRef } from "./AgentChatInput";
 import { DiffStatBadge } from "./DiffStats";
 import type { DiffStyle } from "./DiffViewer";
 import { DiffViewer } from "./DiffViewer";
+import { parsePullRequestUrl } from "./pullRequest";
 
 // -------------------------------------------------------------------
 // Diff content extraction
@@ -104,10 +105,6 @@ function extractDiffContent(
 	return collected.join("\n");
 }
 
-/**
- * Parses a GitHub PR URL into its components.
- * Returns null if parsing fails.
- */
 // -------------------------------------------------------------------
 // PR state badge
 // -------------------------------------------------------------------
@@ -146,22 +143,6 @@ const PullRequestStateBadge: FC<{
 		</span>
 	);
 };
-
-function parsePullRequestUrl(url: string): {
-	owner: string;
-	repo: string;
-	number: string;
-} | null {
-	try {
-		const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
-		if (match) {
-			return { owner: match[1], repo: match[2], number: match[3] };
-		}
-	} catch {
-		// Fall through.
-	}
-	return null;
-}
 
 // -------------------------------------------------------------------
 // Inline prompt input

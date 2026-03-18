@@ -30,8 +30,6 @@ import { GroupLimitsSection } from "./GroupLimitsSection";
 import { normalizeChatUsageLimitPeriod } from "./limitsFormLogic";
 import { UserOverridesSection } from "./UserOverridesSection";
 
-const sectionPanelClassName = "space-y-4 rounded-lg border border-border p-4";
-
 interface DefaultLimitFormValues {
 	enabled: boolean;
 	period: ChatUsageLimitPeriod;
@@ -305,8 +303,8 @@ export const LimitsTab: FC = () => {
 					saveDefault,
 				}) => (
 					<>
-						<div className="flex-1 overflow-y-auto px-6 py-5 pb-24 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
-							<div className="space-y-6">
+						<div className="flex-1 overflow-y-auto pb-24 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+							<div className="space-y-10">
 								<DefaultLimitSection
 									adminBadge={<AdminBadge />}
 									enabled={enabled}
@@ -325,12 +323,9 @@ export const LimitsTab: FC = () => {
 										onAmountDollarsChange(nextAmountDollars);
 									}}
 									unpricedModelCount={unpricedModelCount}
-									panelClassName={sectionPanelClassName}
 								/>
-
 								<GroupLimitsSection
 									groupOverrides={groupOverrides}
-									panelClassName={sectionPanelClassName}
 									showGroupForm={showGroupForm}
 									onShowGroupFormChange={setShowGroupForm}
 									selectedGroup={selectedGroup}
@@ -358,10 +353,8 @@ export const LimitsTab: FC = () => {
 									}
 									groupsError={groupsQuery.isError ? groupsQuery.error : null}
 								/>
-
 								<UserOverridesSection
 									overrides={overrides}
-									panelClassName={sectionPanelClassName}
 									showUserForm={showUserForm}
 									onShowUserFormChange={setShowUserForm}
 									selectedUser={selectedUser}
@@ -387,7 +380,7 @@ export const LimitsTab: FC = () => {
 							</div>
 						</div>
 
-						<div className="sticky bottom-0 flex shrink-0 flex-col gap-2 border-t border-border bg-surface-primary px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
+						<div className="sticky bottom-0 flex shrink-0 flex-col gap-2 border-t border-border bg-surface-primary py-3 sm:flex-row sm:items-center sm:justify-between">
 							<div className="min-h-4 text-xs">
 								{updateConfigMutation.isError && (
 									<p className="m-0 text-content-destructive">

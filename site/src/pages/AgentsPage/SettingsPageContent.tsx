@@ -35,7 +35,7 @@ import {
 import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { FlaskConicalIcon, ShieldIcon } from "lucide-react";
+import { ChevronLeftIcon, ShieldIcon } from "lucide-react";
 import { type FC, type FormEvent, useCallback, useMemo, useState } from "react";
 import {
 	keepPreviousData,
@@ -63,20 +63,6 @@ const AdminBadge: FC = () => (
 			<TooltipContent side="right">
 				Only visible to deployment administrators.
 			</TooltipContent>
-		</Tooltip>
-	</TooltipProvider>
-);
-
-const ExperimentBadge: FC = () => (
-	<TooltipProvider delayDuration={0}>
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<span className="inline-flex cursor-default items-center gap-1 rounded bg-surface-tertiary/60 px-1.5 py-px text-[11px] font-medium text-content-secondary">
-					<FlaskConicalIcon className="h-3 w-3" />
-					Experiment
-				</span>
-			</TooltipTrigger>
-			<TooltipContent side="right">Experimental feature.</TooltipContent>
 		</Tooltip>
 	</TooltipProvider>
 );
@@ -182,20 +168,9 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 			}
 			badge={<AdminBadge />}
 			action={
-				selectedUser ? (
-					<Button
-						variant="outline"
-						size="sm"
-						type="button"
-						onClick={() => setSelectedUser(null)}
-					>
-						← Back to all users
-					</Button>
-				) : (
-					<span className="text-xs text-content-secondary">
-						{dateRange.rangeLabel}
-					</span>
-				)
+				<span className="text-xs text-content-secondary">
+					{dateRange.rangeLabel}
+				</span>
 			}
 		/>
 	);
@@ -203,7 +178,17 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 	if (selectedUser) {
 		return (
 			<div className="space-y-6">
-				{header}
+				<div>
+					<button
+						type="button"
+						onClick={() => setSelectedUser(null)}
+						className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
+					>
+						<ChevronLeftIcon className="h-4 w-4" />
+						Back
+					</button>
+					{header}
+				</div>
 				<div className="flex flex-wrap items-center gap-3 rounded-lg border border-border-default bg-surface-secondary px-4 py-3">
 					<AvatarData
 						title={selectedUser.name || selectedUser.username}
@@ -529,7 +514,6 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 											Virtual Desktop
 										</h3>
 										<AdminBadge />
-										<ExperimentBadge />
 									</div>
 									<div className="flex items-center justify-between gap-4">
 										<div className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
@@ -547,8 +531,8 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 												provider to be configured.
 											</p>
 											<p className="mt-2 mb-0 font-semibold text-content-secondary">
-												Warning: This is an experimental, in-progress feature,
-												and you’re likely to encounter bugs if you enable it.
+												Warning: This is a work-in-progress feature, and you’re
+												likely to encounter bugs if you enable it.
 											</p>
 										</div>
 										<Switch

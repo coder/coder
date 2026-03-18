@@ -17,7 +17,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { ChevronDownIcon, PencilIcon } from "lucide-react";
+import { PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -43,12 +43,10 @@ import type {
 
 const ReasoningDisclosure: FC<{
 	id: string;
-	title?: string;
 	text: string;
 	isStreaming?: boolean;
 	urlTransform?: UrlTransform;
-}> = ({ id, title, text, isStreaming = false, urlTransform }) => {
-	const [isOpen, setIsOpen] = useState(false);
+}> = ({ id, text, isStreaming = false, urlTransform }) => {
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
 		isStreaming,
@@ -57,10 +55,8 @@ const ReasoningDisclosure: FC<{
 	});
 	const displayText = isStreaming ? visibleText : text;
 	const hasText = displayText.trim().length > 0;
-	const label = title ?? "Thinking";
-	const showStreamingPlaceholder = isStreaming && !hasText;
 
-	if (!title && hasText) {
+	if (hasText) {
 		return (
 			<div className="w-full">
 				<Response
@@ -72,49 +68,14 @@ const ReasoningDisclosure: FC<{
 			</div>
 		);
 	}
-	const labelContent = (
-		<span className="text-sm">
-			{showStreamingPlaceholder ? (
-				<Shimmer as="span">Thinking...</Shimmer>
-			) : (
-				label
-			)}
-		</span>
-	);
 
 	return (
 		<div className="w-full">
-			{hasText ? (
-				<button
-					type="button"
-					aria-expanded={isOpen}
-					aria-controls={id}
-					className="flex items-center gap-2 bg-transparent border-0 p-0 text-content-secondary transition-colors hover:text-content-primary cursor-pointer"
-					onClick={() => setIsOpen((prev) => !prev)}
-				>
-					{labelContent}
-					<ChevronDownIcon
-						className={cn(
-							"h-3 w-3 shrink-0 text-content-secondary transition-transform",
-							isOpen ? "rotate-0" : "-rotate-90",
-						)}
-					/>
-				</button>
-			) : (
-				<div className="flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary">
-					{labelContent}
-				</div>
-			)}
-			{isOpen && hasText ? (
-				<div id={id} className="mt-1.5">
-					<Response
-						className="text-[11px] text-content-secondary"
-						urlTransform={urlTransform}
-					>
-						{displayText}
-					</Response>
-				</div>
-			) : null}
+			<div className="flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary">
+				<span className="text-sm">
+					{isStreaming ? <Shimmer as="span">Thinking...</Shimmer> : "Thinking"}
+				</span>
+			</div>
 		</div>
 	);
 };
@@ -190,7 +151,6 @@ function renderBlockList({
 						<ReasoningDisclosure
 							key={`${keyPrefix}-thinking-${index}`}
 							id={`${keyPrefix}-thinking-${index}`}
-							title={block.title}
 							text={block.text}
 							isStreaming={isStreaming}
 							urlTransform={urlTransform}
@@ -203,16 +163,11 @@ function renderBlockList({
 							className="my-1 flex items-start gap-2 rounded-md border border-content-link/20 bg-content-link/5 px-2.5 py-1.5"
 						>
 							<span className="shrink-0 text-xs font-medium text-content-link">
-								{block.fileName}:
-								{block.startLine === block.endLine
-									? block.startLine
-									: `${block.startLine}\u2013${block.endLine}`}
+								{block.file_name}:
+								{block.start_line === block.end_line
+									? block.start_line
+									: `${block.start_line}\u2013${block.end_line}`}
 							</span>
-							{block.text && (
-								<span className="text-sm text-content-primary">
-									{block.text}
-								</span>
-							)}
 						</div>
 					);
 				case "tool": {
@@ -408,9 +363,9 @@ const ChatMessageItem = memo<{
 														) : (
 															<FileReferenceChip
 																key={i}
-																fileName={block.fileName}
-																startLine={block.startLine}
-																endLine={block.endLine}
+																fileName={block.file_name}
+																startLine={block.start_line}
+																endLine={block.end_line}
 															/>
 														),
 													)

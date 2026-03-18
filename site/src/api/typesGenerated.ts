@@ -136,6 +136,7 @@ export interface AIBridgeUserPrompt {
 export interface AIConfig {
 	readonly bridge?: AIBridgeConfig;
 	readonly aibridge_proxy?: AIBridgeProxyConfig;
+	readonly chat?: ChatConfig;
 }
 
 // From codersdk/allowlist.go
@@ -1071,6 +1072,11 @@ export interface Chat {
 	readonly archived: boolean;
 }
 
+// From codersdk/deployment.go
+export interface ChatConfig {
+	readonly acquire_batch_size: number;
+}
+
 // From codersdk/chats.go
 /**
  * ChatCostChatBreakdown contains per-root-chat cost aggregation.
@@ -1805,8 +1811,8 @@ export interface ChatTextPart {
 // From codersdk/chats.go
 export interface ChatToolCallPart {
 	readonly type: "tool-call";
-	readonly tool_call_id: string;
-	readonly tool_name: string;
+	readonly tool_call_id?: string;
+	readonly tool_name?: string;
 	readonly args?: Record<string, string>;
 	readonly args_delta?: string;
 	/**
@@ -1819,8 +1825,8 @@ export interface ChatToolCallPart {
 // From codersdk/chats.go
 export interface ChatToolResultPart {
 	readonly type: "tool-result";
-	readonly tool_call_id: string;
-	readonly tool_name: string;
+	readonly tool_call_id?: string;
+	readonly tool_name?: string;
 	readonly result?: Record<string, string>;
 	readonly is_error?: boolean;
 	/**
