@@ -4,12 +4,12 @@ import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { Link } from "components/Link/Link";
 import type { FC } from "react";
 
-interface UnhealthyWorkspaceAlertProps {
+interface WorkspaceAlertProps {
 	workspace: TypesGen.Workspace;
 	troubleshootingURL: string | undefined;
 }
 
-export const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
+export const WorkspaceAlert: FC<WorkspaceAlertProps> = ({
 	workspace,
 	troubleshootingURL,
 }) => {
@@ -38,6 +38,8 @@ export const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 
 	let title: string;
 	let message: string;
+	let severity: "info" | "warning" = "warning";
+	let prominent = true;
 
 	if (statusSet.has("disconnected")) {
 		title = plural
@@ -51,11 +53,15 @@ export const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 			: "Agent is taking longer than expected to connect";
 		message =
 			"Continue to wait and check the log output for errors. If the agent does not connect, try restarting the workspace.";
+		severity = "info";
+		prominent = false;
 	} else if (hasShuttingDown) {
 		title = plural
 			? `${failingAgentCount} workspace agents are shutting down`
 			: "Workspace agent is shutting down";
 		message = "The workspace is not available while the agent shuts down.";
+		severity = "info";
+		prominent = false;
 	} else if (hasStartError) {
 		title = plural
 			? `Startup scripts failed on ${failingAgentCount} agents`
@@ -71,7 +77,7 @@ export const UnhealthyWorkspaceAlert: FC<UnhealthyWorkspaceAlertProps> = ({
 	}
 
 	return (
-		<Alert severity="warning" prominent>
+		<Alert severity={severity} prominent={prominent}>
 			<AlertTitle>{title}</AlertTitle>
 			<AlertDescription>
 				<p>{message}</p>

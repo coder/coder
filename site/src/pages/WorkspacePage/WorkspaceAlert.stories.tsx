@@ -5,7 +5,7 @@ import {
 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { Workspace, WorkspaceAgent } from "api/typesGenerated";
-import { UnhealthyWorkspaceAlert } from "./UnhealthyWorkspaceAlert";
+import { WorkspaceAlert } from "./WorkspaceAlert";
 
 const createUnhealthyWorkspace = (
 	agentOverrides: Partial<WorkspaceAgent>,
@@ -31,13 +31,13 @@ const createUnhealthyWorkspace = (
 	};
 };
 
-const meta: Meta<typeof UnhealthyWorkspaceAlert> = {
-	title: "pages/WorkspacePage/UnhealthyWorkspaceAlert",
-	component: UnhealthyWorkspaceAlert,
+const meta: Meta<typeof WorkspaceAlert> = {
+	title: "pages/WorkspacePage/WorkspaceAlert",
+	component: WorkspaceAlert,
 };
 
 export default meta;
-type Story = StoryObj<typeof UnhealthyWorkspaceAlert>;
+type Story = StoryObj<typeof WorkspaceAlert>;
 
 export const Disconnected: Story = {
 	args: {
@@ -53,7 +53,7 @@ export const DisconnectedMultipleAgents: Story = {
 	},
 };
 
-export const Timeout: Story = {
+export const TimeoutInformational: Story = {
 	args: {
 		workspace: createUnhealthyWorkspace({ status: "timeout" }),
 		troubleshootingURL: "https://coder.com/docs/troubleshoot",
@@ -83,7 +83,7 @@ export const StartupScriptFailedMultipleAgents: Story = {
 	},
 };
 
-export const ShuttingDown: Story = {
+export const ShuttingDownInformational: Story = {
 	args: {
 		workspace: createUnhealthyWorkspace({
 			status: "connected",

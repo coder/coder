@@ -12,8 +12,8 @@ import type { WorkspacePermissions } from "../../modules/workspaces/permissions"
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
-import { UnhealthyWorkspaceAlert } from "./UnhealthyWorkspaceAlert";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
+import { WorkspaceAlert } from "./WorkspaceAlert";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import {
 	getActiveTransitionStats,
@@ -192,7 +192,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 						)}
 
 						{!workspace.health.healthy && (
-							<UnhealthyWorkspaceAlert
+							<WorkspaceAlert
 								workspace={workspace}
 								troubleshootingURL={troubleshootingURL}
 							/>
