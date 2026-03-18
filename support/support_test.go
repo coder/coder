@@ -162,11 +162,9 @@ func TestRun(t *testing.T) {
 			Log:    slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("bundle").Leveled(slog.LevelDebug),
 		})
 		var sdkErr *codersdk.Error
-		require.NotNil(t, bun)
+		require.Nil(t, bun)
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
-		require.NotEmpty(t, bun)
-		require.NotEmpty(t, bun.Logs)
 	})
 
 	t.Run("MemberNoWorkspace", func(t *testing.T) {

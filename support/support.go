@@ -998,11 +998,11 @@ func PprofInfoFromAgent(ctx context.Context, conn workspacesdk.AgentConn, log sl
 	return &p
 }
 
-// Run generates a support bundle with the given dependencies.
-func Run(ctx context.Context, d *Deps) (*Bundle, error) {
-	var b Bundle
-	if d.Client == nil {
-		return nil, xerrors.Errorf("developer error: missing client!")
+// CanGenerateFull checks if the user can generate a 'full' support bundle or
+// only has permissions to generate a 'partial' bundle.
+func CanGenerateFull(ctx context.Context, client *codersdk.Client) (bool, error) {
+	if client == nil {
+		return false, xerrors.Errorf("developer error: missing client!")
 	}
 
 	authChecks := map[string]codersdk.AuthorizationCheck{
@@ -1014,6 +1014,28 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		},
 	}
 
+	authResp, err := client.AuthCheck(ctx, codersdk.AuthorizationRequest{Checks: authChecks})
+	if err != nil {
+		// If the auth check itself fails (e.g., 401 Unauthorized
+		// because there is no valid session), this is a hard error.
+		return false, xerrors.Errorf("check authorization: %w", err)
+	}
+	for _, v := range authResp {
+		if v {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// Run generates a support bundle with the given dependencies.
+func Run(ctx context.Context, d *Deps) (*Bundle, error) {
+	var b Bundle
+	if d.Client == nil {
+		return nil, xerrors.Errorf("developer error: missing client!")
+	}
+
 	// Ensure we capture logs from the client.
 	var logw strings.Builder
 	d.Log = d.Log.AppendSinks(sloghuman.Sink(&logw))
@@ -1022,20 +1044,12 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		b.Logs = strings.Split(logw.String(), "\n")
 	}()
 
-	authResp, err := d.Client.AuthCheck(ctx, codersdk.AuthorizationRequest{Checks: authChecks})
+	// No point running without auth as minimal information available.
+	me, err := d.Client.User(ctx, codersdk.Me)
 	if err != nil {
-		// If the auth check itself fails (e.g., 401 Unauthorized
-		// because there is no valid session), this is a hard error.
-		return &b, xerrors.Errorf("check authorization: %w", err)
+		return nil, err
 	}
-	for k, v := range authResp {
-		if !v {
-			// Authenticated but lacking specific permissions is not
-			// fatal — we degrade gracefully and collect what we can.
-			d.Log.Warn(ctx, "missing permission, some items may be unavailable",
-				slog.F("check", k))
-		}
-	}
+	d.Log.Info(ctx, "running as user", slog.F("me", me))
 
 	totalCap := d.WorkspacesTotalCap
 

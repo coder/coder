@@ -115,7 +115,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 
 			// Bypass rate limiting for support bundle collection since it makes many API calls.
 			// Note: this can only be done by the owner user.
-			if ok, err := hasOwnerRole(inv.Context(), client); err == nil && ok {
+			if ok, err := support.CanGenerateFull(inv.Context(), client); err == nil && ok {
 				cliLog.Debug(inv.Context(), "running as owner")
 				client.HTTPClient.Transport = &codersdk.HeaderTransport{
 					Transport: client.HTTPClient.Transport,
@@ -279,24 +279,6 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 	}
 
 	return cmd
-}
-
-func hasOwnerRole(ctx context.Context, client *codersdk.Client) (bool, error) {
-	resp, err := client.User(ctx, codersdk.Me)
-	if err != nil {
-		return false, err
-	}
-	for _, role := range resp.Roles {
-		if len(role.OrganizationID) != 0 {
-			continue
-		}
-		if role.Name != "owner" {
-			continue
-		}
-		return true, nil
-	}
-
-	return false, nil
 }
 
 // Resolve a template to its ID, supporting:

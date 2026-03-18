@@ -182,6 +182,10 @@ func TestSupportBundle(t *testing.T) {
 				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					t.Logf("received request: %s %s", r.Method, r.URL)
 					switch r.URL.Path {
+					case "/api/v2/users/me":
+						resp := codersdk.User{}
+						w.WriteHeader(http.StatusOK)
+						assert.NoError(t, json.NewEncoder(w).Encode(resp))
 					case "/api/v2/authcheck":
 						// Fake auth check
 						resp := codersdk.AuthorizationResponse{
