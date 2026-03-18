@@ -2668,6 +2668,83 @@ func (api *API) putChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	raw, err := api.Database.GetChatWorkspaceTTL(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace TTL setting.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	// Validate/default the stored value so callers always receive a
+	// well-formed duration string.
+	d, err := codersdk.ParseChatWorkspaceTTL(raw)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Stored workspace TTL is invalid.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatWorkspaceTTLResponse{
+		WorkspaceTTL: d.String(),
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.UpdateChatWorkspaceTTLRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if strings.TrimSpace(req.WorkspaceTTL) == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "workspace_ttl must not be empty; use \"0s\" to use the template's default TTL.",
+		})
+		return
+	}
+
+	d, err := codersdk.ParseChatWorkspaceTTL(req.WorkspaceTTL)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid workspace TTL.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if d > 30*24*time.Hour {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Workspace TTL must not exceed 30 days.",
+		})
+		return
+	}
+
+	// Store the canonicalized duration string.
+	if err := api.Database.UpsertChatWorkspaceTTL(ctx, d.String()); httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	} else if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating workspace TTL setting.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()

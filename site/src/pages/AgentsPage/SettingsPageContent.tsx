@@ -5,14 +5,17 @@ import {
 	chatDesktopEnabled,
 	chatSystemPrompt,
 	chatUserCustomPrompt,
+	chatWorkspaceTTL,
 	updateChatDesktopEnabled,
 	updateChatSystemPrompt,
+	updateChatWorkspaceTTL,
 	updateUserChatCustomPrompt,
 } from "api/queries/chats";
 import { userByName } from "api/queries/users";
 import type * as TypesGen from "api/typesGenerated";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
+import { DurationField } from "components/DurationField/DurationField";
 import { Link } from "components/Link/Link";
 import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
@@ -48,6 +51,7 @@ import { useSearchParams } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatTokenCount } from "utils/analytics";
 import { formatCostMicros } from "utils/currency";
+import { goDurationToMs, humanDuration } from "utils/time";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { InsightsContent } from "./InsightsContent";
@@ -430,6 +434,13 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 		isError: isSaveDesktopEnabledError,
 	} = useMutation(updateChatDesktopEnabled(queryClient));
 
+	const workspaceTTLQuery = useQuery(chatWorkspaceTTL());
+	const {
+		mutate: saveWorkspaceTTL,
+		isPending: isSavingWorkspaceTTL,
+		isError: isSaveWorkspaceTTLError,
+	} = useMutation(updateChatWorkspaceTTL(queryClient));
+
 	const serverPrompt = systemPromptQuery.data?.system_prompt ?? "";
 	const [localEdit, setLocalEdit] = useState<string | null>(null);
 	const systemPromptDraft = localEdit ?? serverPrompt;
@@ -442,8 +453,20 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 	const isUserPromptDirty =
 		localUserEdit !== null && localUserEdit !== serverUserPrompt;
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
+	// Parse Go duration string (e.g. "1h30m0s") into milliseconds.
+	const serverTTL = workspaceTTLQuery.data?.workspace_ttl ?? "0s";
+	const serverTTLMs = goDurationToMs(serverTTL);
+	const [localTTLMs, setLocalTTLMs] = useState<number | null>(null);
+	const ttlMs = localTTLMs ?? serverTTLMs;
+	const isTTLDirty = localTTLMs !== null && localTTLMs !== serverTTLMs;
+	const maxTTLMs = 30 * 24 * 60 * 60_000; // 30 days
+	const isTTLOverMax = ttlMs > maxTTLMs;
 	const isDisabled =
-		isSavingSystemPrompt || isSavingUserPrompt || isSavingDesktopEnabled;
+		isSavingSystemPrompt ||
+		isSavingUserPrompt ||
+		isSavingDesktopEnabled ||
+		isSavingWorkspaceTTL;
+	const isTTLLoading = workspaceTTLQuery.isLoading;
 
 	const handleSaveSystemPrompt = useCallback(
 		(event: FormEvent) => {
@@ -467,6 +490,23 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 			);
 		},
 		[isUserPromptDirty, userPromptDraft, saveUserPrompt],
+	);
+
+	const handleSaveChatWorkspaceTTL = useCallback(
+		(event: FormEvent) => {
+			event.preventDefault();
+			if (!isTTLDirty) return;
+			const totalMs = localTTLMs ?? 0;
+			const totalMinutes = Math.round(totalMs / 60_000);
+			const h = Math.floor(totalMinutes / 60);
+			const m = totalMinutes % 60;
+			const durationStr = totalMinutes === 0 ? "0s" : `${h}h${m}m`;
+			saveWorkspaceTTL(
+				{ workspace_ttl: durationStr },
+				{ onSuccess: () => setLocalTTLMs(null) },
+			);
+		},
+		[isTTLDirty, localTTLMs, saveWorkspaceTTL],
 	);
 
 	return (
@@ -615,6 +655,54 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 										</p>
 									)}
 								</div>
+								<hr className="my-5 border-0 border-t border-solid border-border" />
+								<form
+									className="space-y-2"
+									onSubmit={(event) => void handleSaveChatWorkspaceTTL(event)}
+								>
+									<div className="flex items-center gap-2">
+										<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+											Default Autostop
+										</h3>
+										<AdminBadge />
+									</div>
+									<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+										{ttlMs === 0
+											? "Workspaces linked to chats will be stopped as configured by their templates. Active chats continuously extend the deadline."
+											: `Workspaces linked to chats will be stopped after ${humanDuration(ttlMs)} of inactivity. Active chats continuously extend the deadline.`}
+									</p>
+									<DurationField
+										label="Default autostop"
+										valueMs={ttlMs}
+										onChange={(v) => setLocalTTLMs(v)}
+										disabled={isDisabled || isTTLLoading}
+										error={isTTLOverMax}
+										helperText={
+											isTTLOverMax
+												? "Must not exceed 30 days (720 hours)."
+												: undefined
+										}
+									/>
+									<div className="flex justify-end">
+										<Button
+											size="sm"
+											type="submit"
+											disabled={isDisabled || !isTTLDirty || isTTLOverMax}
+										>
+											Save
+										</Button>
+									</div>
+									{isSaveWorkspaceTTLError && (
+										<p className="m-0 text-xs text-content-destructive">
+											Failed to save autostop setting.
+										</p>
+									)}
+									{workspaceTTLQuery.isError && (
+										<p className="m-0 text-xs text-content-destructive">
+											Failed to load autostop setting.
+										</p>
+									)}
+								</form>
 							</>
 						)}
 					</>

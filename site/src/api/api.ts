@@ -3137,6 +3137,20 @@ class ApiMethods {
 		await this.axios.put("/api/experimental/chats/config/desktop-enabled", req);
 	};
 
+	getChatWorkspaceTTL =
+		async (): Promise<TypesGen.ChatWorkspaceTTLResponse> => {
+			const response = await this.axios.get<TypesGen.ChatWorkspaceTTLResponse>(
+				"/api/experimental/chats/config/workspace-ttl",
+			);
+			return response.data;
+		};
+
+	updateChatWorkspaceTTL = async (
+		req: TypesGen.UpdateChatWorkspaceTTLRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/workspace-ttl", req);
+	};
+
 	getUserChatCustomPrompt =
 		async (): Promise<TypesGen.UserChatCustomPrompt> => {
 			const response = await this.axios.get<TypesGen.UserChatCustomPrompt>(

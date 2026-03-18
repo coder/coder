@@ -145,6 +145,10 @@ const meta = {
 		spyOn(API, "updateUserChatCustomPrompt").mockResolvedValue({
 			custom_prompt: "",
 		});
+		spyOn(API, "getChatWorkspaceTTL").mockResolvedValue({
+			workspace_ttl: "0s",
+		});
+		spyOn(API, "updateChatWorkspaceTTL").mockResolvedValue();
 	},
 } satisfies Meta<typeof SettingsPageContent>;
 
@@ -178,6 +182,114 @@ export const TogglesDesktop: Story = {
 				enable_desktop: true,
 			});
 		});
+	},
+};
+
+export const DefaultAutostopDefault: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await canvas.findByText("Default Autostop");
+		// When disabled (0s), shows template-default copy.
+		await canvas.findByText(/stopped as configured by their templates/i);
+
+		// DurationField renders a text input labeled "Default autostop".
+		const durationInput = await canvas.findByLabelText("Default autostop");
+
+		// Default is "0s" → 0 hours (disabled).
+		expect(durationInput).toHaveValue("0");
+
+		// Save button should be disabled (no local change).
+		const ttlForm = durationInput.closest("form")!;
+		const saveButton = within(ttlForm).getByRole("button", { name: "Save" });
+		expect(saveButton).toBeDisabled();
+	},
+};
+
+export const DefaultAutostopCustomValue: Story = {
+	beforeEach: () => {
+		// 2h = 2 hours exactly, shows cleanly in DurationField.
+		spyOn(API, "getChatWorkspaceTTL").mockResolvedValue({
+			workspace_ttl: "2h0m0s",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const durationInput = await canvas.findByLabelText("Default autostop");
+
+		// Shows 2 hours from the mock.
+		expect(durationInput).toHaveValue("2");
+
+		// When non-zero, shows the duration in the description.
+		await canvas.findByText(/stopped after 2 hours of inactivity/i);
+	},
+};
+
+export const DefaultAutostopSave: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const durationInput = await canvas.findByLabelText("Default autostop");
+		const ttlForm = durationInput.closest("form")!;
+		const saveButton = within(ttlForm).getByRole("button", { name: "Save" });
+
+		// Change to 3 hours.
+		await userEvent.clear(durationInput);
+		await userEvent.type(durationInput, "3");
+
+		// Save button should now be enabled.
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+
+		await userEvent.click(saveButton);
+		await waitFor(() => {
+			expect(API.updateChatWorkspaceTTL).toHaveBeenCalledWith({
+				workspace_ttl: "3h0m",
+			});
+		});
+	},
+};
+
+export const DefaultAutostopExceedsMax: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const durationInput = await canvas.findByLabelText("Default autostop");
+		const ttlForm = durationInput.closest("form")!;
+		const saveButton = within(ttlForm).getByRole("button", { name: "Save" });
+
+		// Enter 721 hours (exceeds 30-day / 720h limit).
+		await userEvent.clear(durationInput);
+		await userEvent.type(durationInput, "721");
+
+		// Error helper text should appear.
+		await waitFor(() => {
+			expect(canvas.getByText(/must not exceed 30 days/i)).toBeInTheDocument();
+		});
+
+		// Save button should be disabled despite the field being dirty.
+		expect(saveButton).toBeDisabled();
+	},
+};
+
+export const DefaultAutostopNotVisibleToNonAdmin: Story = {
+	args: {
+		canSetSystemPrompt: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Personal Instructions should be visible.
+		await canvas.findByText("Personal Instructions");
+
+		// Admin-only sections should not be present.
+		const ttlHeading = canvas.queryByText("Default Autostop");
+		expect(ttlHeading).toBeNull();
+
+		const desktopHeading = canvas.queryByText("Virtual Desktop");
+		expect(desktopHeading).toBeNull();
 	},
 };
 

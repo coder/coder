@@ -1216,6 +1216,14 @@ func (m queryMetricsStore) GetChatUsageLimitUserOverride(ctx context.Context, us
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatWorkspaceTTL(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatWorkspaceTTL(ctx)
+	m.queryLatencies.WithLabelValues("GetChatWorkspaceTTL").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatWorkspaceTTL").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChats(ctx context.Context, arg database.GetChatsParams) ([]database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChats(ctx, arg)
@@ -4766,6 +4774,14 @@ func (m queryMetricsStore) UpsertChatUsageLimitUserOverride(ctx context.Context,
 	m.queryLatencies.WithLabelValues("UpsertChatUsageLimitUserOverride").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatUsageLimitUserOverride").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatWorkspaceTTL(ctx, workspaceTtl)
+	m.queryLatencies.WithLabelValues("UpsertChatWorkspaceTTL").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatWorkspaceTTL").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
