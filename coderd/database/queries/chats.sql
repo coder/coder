@@ -178,16 +178,34 @@ INSERT INTO chats (
 RETURNING
     *;
 
--- name: InsertChatMessage :one
+-- name: InsertChatMessages :many
 WITH updated_chat AS (
     UPDATE
         chats
     SET
-        last_model_config_id = sqlc.narg('model_config_id')::uuid
+        last_model_config_id = (
+            SELECT val
+            FROM unnest(@model_config_id::uuid[])
+                WITH ORDINALITY AS t(val, ord)
+            WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
+            ORDER BY ord DESC
+            LIMIT 1
+        )
     WHERE
         id = @chat_id::uuid
-        AND sqlc.narg('model_config_id')::uuid IS NOT NULL
-        AND chats.last_model_config_id IS DISTINCT FROM sqlc.narg('model_config_id')::uuid
+        AND EXISTS (
+            SELECT 1
+            FROM unnest(@model_config_id::uuid[])
+            WHERE unnest != '00000000-0000-0000-0000-000000000000'::uuid
+        )
+        AND chats.last_model_config_id IS DISTINCT FROM (
+            SELECT val
+            FROM unnest(@model_config_id::uuid[])
+                WITH ORDINALITY AS t(val, ord)
+            WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
+            ORDER BY ord DESC
+            LIMIT 1
+        )
 )
 INSERT INTO chat_messages (
     chat_id,
@@ -207,25 +225,25 @@ INSERT INTO chat_messages (
     compressed,
     total_cost_micros,
     runtime_ms
-) VALUES (
-    @chat_id::uuid,
-    sqlc.narg('created_by')::uuid,
-    sqlc.narg('model_config_id')::uuid,
-    @role::chat_message_role,
-    sqlc.narg('content')::jsonb,
-    @content_version::smallint,
-    @visibility::chat_message_visibility,
-    sqlc.narg('input_tokens')::bigint,
-    sqlc.narg('output_tokens')::bigint,
-    sqlc.narg('total_tokens')::bigint,
-    sqlc.narg('reasoning_tokens')::bigint,
-    sqlc.narg('cache_creation_tokens')::bigint,
-    sqlc.narg('cache_read_tokens')::bigint,
-    sqlc.narg('context_limit')::bigint,
-    COALESCE(sqlc.narg('compressed')::boolean, FALSE),
-    sqlc.narg('total_cost_micros')::bigint,
-    sqlc.narg('runtime_ms')::bigint
 )
+SELECT
+    @chat_id::uuid,
+    NULLIF(unnest(@created_by::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(unnest(@model_config_id::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
+    unnest(@role::chat_message_role[]),
+    unnest(@content::text[])::jsonb,
+    unnest(@content_version::smallint[]),
+    unnest(@visibility::chat_message_visibility[]),
+    NULLIF(unnest(@input_tokens::bigint[]), 0),
+    NULLIF(unnest(@output_tokens::bigint[]), 0),
+    NULLIF(unnest(@total_tokens::bigint[]), 0),
+    NULLIF(unnest(@reasoning_tokens::bigint[]), 0),
+    NULLIF(unnest(@cache_creation_tokens::bigint[]), 0),
+    NULLIF(unnest(@cache_read_tokens::bigint[]), 0),
+    NULLIF(unnest(@context_limit::bigint[]), 0),
+    unnest(@compressed::boolean[]),
+    NULLIF(unnest(@total_cost_micros::bigint[]), 0),
+    NULLIF(unnest(@runtime_ms::bigint[]), 0)
 RETURNING
     *;
 

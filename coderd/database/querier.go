@@ -637,7 +637,7 @@ type sqlcQuerier interface {
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
 	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
 	InsertChatFile(ctx context.Context, arg InsertChatFileParams) (InsertChatFileRow, error)
-	InsertChatMessage(ctx context.Context, arg InsertChatMessageParams) (ChatMessage, error)
+	InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]ChatMessage, error)
 	InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error)
 	InsertChatProvider(ctx context.Context, arg InsertChatProviderParams) (ChatProvider, error)
 	InsertChatQueuedMessage(ctx context.Context, arg InsertChatQueuedMessageParams) (ChatQueuedMessage, error)
