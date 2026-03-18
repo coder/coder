@@ -1,0 +1,32 @@
+#!/bin/sh
+#
+# Wrapper for the GitHub CLI (`gh`) that ensures authentication via
+# `coder external-auth` when no other credentials are available.
+#
+# Precedence:
+#   1. GH_TOKEN / GITHUB_TOKEN already set in environment
+#   2. Existing `gh auth` login (e.g. `gh auth login`)
+#   3. Fresh token from `coder external-auth access-token github`
+
+REAL_GH="/usr/bin/gh"
+
+# If GH_TOKEN or GITHUB_TOKEN is already set, defer to the real gh.
+if [ -n "${GH_TOKEN:-}" ] || [ -n "${GITHUB_TOKEN:-}" ]; then
+  exec "$REAL_GH" "$@"
+fi
+
+# If the user has manually logged in via `gh auth login`, use that.
+if "$REAL_GH" auth status >/dev/null 2>&1; then
+  exec "$REAL_GH" "$@"
+fi
+
+# Fall back to Coder's external auth for a fresh token (only in a workspace).
+if [ "${CODER:-}" = "true" ]; then
+  TOKEN=$(coder external-auth access-token github 2>/dev/null)
+  if [ -n "$TOKEN" ]; then
+    GITHUB_TOKEN="$TOKEN" exec "$REAL_GH" "$@"
+  fi
+fi
+
+# Nothing worked; run gh anyway and let it show its own auth error.
+exec "$REAL_GH" "$@"
