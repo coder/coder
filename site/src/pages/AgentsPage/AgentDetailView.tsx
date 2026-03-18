@@ -512,6 +512,7 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
  * containers.
  */
 const SCROLL_THRESHOLD = 100;
+const SCROLL_DEBOUNCE_MS = 150;
 
 const ScrollAnchoredContainer: FC<{
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
@@ -581,17 +582,36 @@ const ScrollAnchoredContainer: FC<{
 	// In a flex-col-reverse container, scrollTop = 0 means the user
 	// is at the bottom (most recent content). Scrolling up to see
 	// older messages makes scrollTop negative.
+	//
+	// We debounce the check so momentum scrolling and iOS
+	// rubber-band overscroll can settle before we decide whether
+	// to show the button. Without this, the bounce-back from an
+	// iOS overscroll can look like an upward scroll and briefly
+	// flash the button.
 	useEffect(() => {
 		const container = scrollContainerRef.current;
 		if (!container) return;
 
+		let timer: ReturnType<typeof setTimeout> | null = null;
+
 		const handleScroll = () => {
-			const isAtBottom = Math.abs(container.scrollTop) < SCROLL_THRESHOLD;
-			setShowScrollToBottom(!isAtBottom);
+			if (timer !== null) {
+				clearTimeout(timer);
+			}
+			timer = setTimeout(() => {
+				const isAtBottom = Math.abs(container.scrollTop) < SCROLL_THRESHOLD;
+				setShowScrollToBottom(!isAtBottom);
+				timer = null;
+			}, SCROLL_DEBOUNCE_MS);
 		};
 
 		container.addEventListener("scroll", handleScroll, { passive: true });
-		return () => container.removeEventListener("scroll", handleScroll);
+		return () => {
+			container.removeEventListener("scroll", handleScroll);
+			if (timer !== null) {
+				clearTimeout(timer);
+			}
+		};
 	}, [scrollContainerRef]);
 
 	const handleScrollToBottom = useCallback(() => {
