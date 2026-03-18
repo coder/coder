@@ -180,6 +180,149 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get authenticated workspace agent
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/me`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "api_version": "string",
+  "apps": [
+    {
+      "command": "string",
+      "display_name": "string",
+      "external": true,
+      "group": "string",
+      "health": "disabled",
+      "healthcheck": {
+        "interval": 0,
+        "threshold": 0,
+        "url": "string"
+      },
+      "hidden": true,
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "open_in": "slim-window",
+      "sharing_level": "owner",
+      "slug": "string",
+      "statuses": [
+        {
+          "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+          "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
+          "created_at": "2019-08-24T14:15:22Z",
+          "icon": "string",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "message": "string",
+          "needs_user_attention": true,
+          "state": "working",
+          "uri": "string",
+          "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+        }
+      ],
+      "subdomain": true,
+      "subdomain_name": "string",
+      "tooltip": "string",
+      "url": "string"
+    }
+  ],
+  "architecture": "string",
+  "connection_timeout_seconds": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "directory": "string",
+  "disconnected_at": "2019-08-24T14:15:22Z",
+  "display_apps": [
+    "vscode"
+  ],
+  "environment_variables": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "expanded_directory": "string",
+  "first_connected_at": "2019-08-24T14:15:22Z",
+  "health": {
+    "healthy": false,
+    "reason": "agent has lost connection"
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "instance_id": "string",
+  "last_connected_at": "2019-08-24T14:15:22Z",
+  "latency": {
+    "property1": {
+      "latency_ms": 0,
+      "preferred": true
+    },
+    "property2": {
+      "latency_ms": 0,
+      "preferred": true
+    }
+  },
+  "lifecycle_state": "created",
+  "log_sources": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+    }
+  ],
+  "logs_length": 0,
+  "logs_overflowed": true,
+  "name": "string",
+  "operating_system": "string",
+  "parent_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "ready_at": "2019-08-24T14:15:22Z",
+  "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+  "scripts": [
+    {
+      "cron": "string",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "log_path": "string",
+      "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+      "run_on_start": true,
+      "run_on_stop": true,
+      "script": "string",
+      "start_blocks_login": true,
+      "timeout": 0
+    }
+  ],
+  "started_at": "2019-08-24T14:15:22Z",
+  "startup_script_behavior": "blocking",
+  "status": "connecting",
+  "subsystems": [
+    "envbox"
+  ],
+  "troubleshooting_url": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                       |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgent](schemas.md#codersdkworkspaceagent) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Patch workspace agent app status
 
 ### Code samples
