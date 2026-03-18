@@ -9,8 +9,8 @@ import (
 )
 
 // FakeSink is a thread-safe slog.Sink that captures log entries so
-// tests can assert on what was logged. It requires a testing.TB,
-// which also prevents accidental use outside of tests.
+// tests can assert on what was logged. It requires a testing.TB
+// as it is only meant for use in tests.
 type FakeSink struct {
 	mu      sync.RWMutex
 	entries []slog.SinkEntry
