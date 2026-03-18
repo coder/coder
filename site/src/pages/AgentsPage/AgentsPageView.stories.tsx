@@ -5,6 +5,7 @@ import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { Chat } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
+import dayjs from "dayjs";
 import {
 	expect,
 	fn,
@@ -100,6 +101,9 @@ const mockUsageUsers: TypesGen.ChatCostUsersResponse = {
 	],
 };
 
+// Use local noon so the rendered range label stays stable across timezones.
+const fixedAnalyticsNow = dayjs("2026-03-12T12:00:00");
+
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const todayTimestamp = new Date().toISOString();
 
@@ -166,6 +170,7 @@ const meta: Meta<typeof AgentsPageView> = {
 			onToggleSidebarCollapsed: fn(),
 		},
 		isAgentsAdmin: false,
+		analyticsNow: fixedAnalyticsNow,
 		archivedFilter: "active" as const,
 		onArchivedFilterChange: fn(),
 		isFetchingNextPage: false,

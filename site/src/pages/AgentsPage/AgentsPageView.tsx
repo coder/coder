@@ -3,6 +3,7 @@ import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
+import type { Dayjs } from "dayjs";
 import { PanelLeftIcon } from "lucide-react";
 import { type FC, useCallback, useMemo } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
@@ -62,6 +63,7 @@ interface AgentsPageViewProps {
 	isFetchingNextPage: boolean;
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange: (filter: "active" | "archived") => void;
+	analyticsNow?: Dayjs;
 }
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
@@ -93,6 +95,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	isFetchingNextPage,
 	archivedFilter,
 	onArchivedFilterChange,
+	analyticsNow,
 }) => {
 	const {
 		chatErrorReasons,
@@ -179,7 +182,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 						canSetSystemPrompt={isAgentsAdmin}
 					/>
 				) : sidebarView.panel === "analytics" ? (
-					<AnalyticsPageContent />
+					<AnalyticsPageContent now={analyticsNow} />
 				) : agentId ? (
 					<Outlet key={agentId} context={outletContextValue} />
 				) : (
