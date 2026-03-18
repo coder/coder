@@ -1209,13 +1209,15 @@ func New(options *Options) *API {
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Use(httpmw.ExtractChatParam(options.Database))
 				r.Get("/", api.getChat)
-				r.Get("/git/watch", api.watchChatGit)
-				r.Get("/desktop", api.watchChatDesktop)
 				r.Patch("/", api.patchChat)
 				r.Get("/messages", api.getChatMessages)
 				r.Post("/messages", api.postChatMessages)
 				r.Patch("/messages/{message}", api.patchChatMessage)
-				r.Get("/stream", api.streamChat)
+				r.Route("/stream", func(r chi.Router) {
+					r.Get("/", api.streamChat)
+					r.Get("/desktop", api.watchChatDesktop)
+					r.Get("/git", api.watchChatGit)
+				})
 				r.Post("/interrupt", api.interruptChat)
 				r.Get("/diff", api.getChatDiffContents)
 				r.Route("/queue/{queuedMessage}", func(r chi.Router) {

@@ -4538,7 +4538,7 @@ func TestWatchChatDesktop(t *testing.T) {
 		res, err := client.Request(
 			ctx,
 			http.MethodGet,
-			fmt.Sprintf("/api/experimental/chats/%s/desktop", createdChat.ID),
+			fmt.Sprintf("/api/experimental/chats/%s/stream/desktop", createdChat.ID),
 			nil,
 		)
 		require.NoError(t, err)

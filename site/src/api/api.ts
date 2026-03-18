@@ -160,11 +160,13 @@ export const watchChats = (): OneWayWebSocket<TypesGen.ServerSentEvent> => {
 };
 
 export const watchChatGit = (chatId: string): WebSocket => {
-	return createWebSocket(`/api/experimental/chats/${chatId}/git/watch`);
+	return createWebSocket(`/api/experimental/chats/${chatId}/stream/git`);
 };
 
 export const watchChatDesktop = (chatId: string): WebSocket => {
-	const socket = createWebSocket(`/api/experimental/chats/${chatId}/desktop`);
+	const socket = createWebSocket(
+		`/api/experimental/chats/${chatId}/stream/desktop`,
+	);
 	// RFB is a binary protocol — noVNC expects arraybuffer, not blob.
 	socket.binaryType = "arraybuffer";
 	return socket;
