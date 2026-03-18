@@ -1073,7 +1073,7 @@ func AIBridgeToolUsage(usage database.AIBridgeToolUsage) codersdk.AIBridgeToolUs
 // token usage with metadata.
 func AIBridgeSessionThreads(
 	session database.GetAIBridgeSessionByIDRow,
-	interceptions []database.ListAIBridgeSessionThreadInterceptionsRow,
+	interceptions []database.ListAIBridgeSessionThreadsRow,
 	tokenUsages []database.AIBridgeTokenUsage,
 	toolUsages []database.AIBridgeToolUsage,
 	userPrompts []database.AIBridgeUserPrompt,
@@ -1172,7 +1172,7 @@ func AIBridgeSessionThreads(
 	sessionTokenMeta := aggregateTokenMetadata(tokenUsages)
 
 	resp := codersdk.AIBridgeSessionThreadsResponse{
-		ID: session.SessionID.String,
+		ID: session.SessionID,
 		Initiator: MinimalUserFromVisibleUser(database.VisibleUser{
 			ID:        session.UserID,
 			Username:  session.UserUsername,
