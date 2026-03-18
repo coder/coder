@@ -232,22 +232,21 @@ model. Developers select from enabled models when starting a chat.
 The agent has access to a set of workspace tools that it uses to accomplish
 tasks:
 
-| Tool                       | Description                                             |
-|----------------------------|---------------------------------------------------------|
-| `list_templates`           | Browse available workspace templates                    |
-| `read_template`            | Get template details and configurable parameters        |
-| `create_workspace`         | Create a workspace from a template                      |
-| `start_workspace`          | Start a stopped workspace for the current chat          |
-| `read_file`                | Read file contents from the workspace                   |
-| `write_file`               | Write a file to the workspace                           |
-| `edit_files`               | Perform search-and-replace edits across files           |
-| `execute`                  | Run shell commands in the workspace                     |
-| `spawn_agent`              | Delegate a task to a sub-agent running in parallel      |
-| `spawn_computer_use_agent` | Spawn a sub-agent with desktop interaction capabilities |
-| `wait_agent`               | Wait for a sub-agent to complete and collect its result |
-| `message_agent`            | Send a follow-up message to a running sub-agent         |
-| `close_agent`              | Stop a running sub-agent                                |
-| `web_search`               | Search the internet (provider-native, when enabled)     |
+| Tool               | Description                                             |
+|--------------------|---------------------------------------------------------|
+| `list_templates`   | Browse available workspace templates                    |
+| `read_template`    | Get template details and configurable parameters        |
+| `create_workspace` | Create a workspace from a template                      |
+| `start_workspace`  | Start a stopped workspace for the current chat          |
+| `read_file`        | Read file contents from the workspace                   |
+| `write_file`       | Write a file to the workspace                           |
+| `edit_files`       | Perform search-and-replace edits across files           |
+| `execute`          | Run shell commands in the workspace                     |
+| `spawn_agent`      | Delegate a task to a sub-agent running in parallel      |
+| `wait_agent`       | Wait for a sub-agent to complete and collect its result |
+| `message_agent`    | Send a follow-up message to a running sub-agent         |
+| `close_agent`      | Stop a running sub-agent                                |
+| `web_search`       | Search the internet (provider-native, when enabled)     |
 
 These tools connect to the workspace over the same secure connection used for
 web terminals and IDE access. No additional ports or services are required in
@@ -255,7 +254,7 @@ the workspace.
 
 Platform tools (`list_templates`, `read_template`, `create_workspace`,
 `start_workspace`) and orchestration tools (`spawn_agent`,
-`spawn_computer_use_agent`) are only available to root chats. Sub-agents do
+`spawn_agent`) are only available to root chats. Sub-agents do
 not have access to these tools and cannot create workspaces or spawn further
 sub-agents.
 

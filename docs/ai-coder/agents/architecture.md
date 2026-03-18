@@ -156,13 +156,12 @@ and cannot create workspaces or spawn further sub-agents.
 These tools manage sub-agents — child chats that work on independent tasks in
 parallel.
 
-| Tool                       | What it does                                                                                                             |
-|----------------------------|--------------------------------------------------------------------------------------------------------------------------|
-| `spawn_agent`              | Delegates a task to a sub-agent with its own context window.                                                             |
-| `spawn_computer_use_agent` | Spawns a sub-agent with desktop interaction capabilities (screenshots, mouse, keyboard). Requires an Anthropic provider. |
-| `wait_agent`               | Waits for a sub-agent to finish and collects its result.                                                                 |
-| `message_agent`            | Sends a follow-up message to a running sub-agent.                                                                        |
-| `close_agent`              | Stops a running sub-agent.                                                                                               |
+| Tool            | What it does                                                 |
+|-----------------|--------------------------------------------------------------|
+| `spawn_agent`   | Delegates a task to a sub-agent with its own context window. |
+| `wait_agent`    | Waits for a sub-agent to finish and collects its result.     |
+| `message_agent` | Sends a follow-up message to a running sub-agent.            |
+| `close_agent`   | Stops a running sub-agent.                                   |
 
 ### Provider tools
 
