@@ -1308,7 +1308,7 @@ func New(cfg Config) *Server {
 		closed:                     make(chan struct{}),
 		db:                         cfg.Database,
 		workerID:                   workerID,
-		logger:                     cfg.Logger.Named("chat-processor"),
+		logger:                     cfg.Logger.Named("processor"),
 		subscribeFn:                cfg.SubscribeFn,
 		agentConnFn:                cfg.AgentConn,
 		createWorkspaceFn:          cfg.CreateWorkspace,

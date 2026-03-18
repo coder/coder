@@ -776,7 +776,7 @@ func New(options *Options) *API {
 	}
 
 	api.chatDaemon = chatd.New(chatd.Config{
-		Logger:             options.Logger.Named("chats"),
+		Logger:             options.Logger.Named("chatd"),
 		Database:           options.Database,
 		ReplicaID:          api.ID,
 		SubscribeFn:        options.ChatSubscribeFn,
