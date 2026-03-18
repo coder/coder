@@ -1805,8 +1805,8 @@ export interface ChatTextPart {
 // From codersdk/chats.go
 export interface ChatToolCallPart {
 	readonly type: "tool-call";
-	readonly tool_call_id: string;
-	readonly tool_name: string;
+	readonly tool_call_id?: string;
+	readonly tool_name?: string;
 	readonly args?: Record<string, string>;
 	readonly args_delta?: string;
 	/**
@@ -1819,8 +1819,8 @@ export interface ChatToolCallPart {
 // From codersdk/chats.go
 export interface ChatToolResultPart {
 	readonly type: "tool-result";
-	readonly tool_call_id: string;
-	readonly tool_name: string;
+	readonly tool_call_id?: string;
+	readonly tool_name?: string;
 	readonly result?: Record<string, string>;
 	readonly is_error?: boolean;
 	/**

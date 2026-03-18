@@ -129,8 +129,8 @@ type ChatMessagePart struct {
 	Type        ChatMessagePartType `json:"type"`
 	Text        string              `json:"text,omitempty" variants:"text,reasoning"`
 	Signature   string              `json:"signature,omitempty"`
-	ToolCallID  string              `json:"tool_call_id,omitempty" variants:"tool-call,tool-result"`
-	ToolName    string              `json:"tool_name,omitempty" variants:"tool-call,tool-result"`
+	ToolCallID  string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
+	ToolName    string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
 	Args        json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
 	ArgsDelta   string              `json:"args_delta,omitempty" variants:"tool-call?"`
 	Result      json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
