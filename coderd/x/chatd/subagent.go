@@ -72,7 +72,7 @@ func (p *Server) isAnthropicConfigured(ctx context.Context) bool {
 	if p.providerAPIKeys.APIKey("anthropic") != "" {
 		return true
 	}
-	dbProviders, err := p.db.GetEnabledChatProviders(ctx)
+	dbProviders, err := p.configCache.EnabledProviders(ctx)
 	if err != nil {
 		return false
 	}
