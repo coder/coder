@@ -2310,7 +2310,11 @@ class ApiMethods {
 			{
 				headers: {
 					"Content-Type": file.type || "application/octet-stream",
-					"Content-Disposition": `attachment; filename="${file.name}"`,
+					// Use RFC 5987 encoding for the filename to support
+					// non-ASCII characters. Placing the raw name directly in
+					// the header causes XMLHttpRequest to throw because HTTP
+					// headers only allow ISO-8859-1 code points.
+					"Content-Disposition": `attachment; filename="file"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
 				},
 			},
 		);
