@@ -44,7 +44,7 @@ func Test_absoluteBinaryPath(t *testing.T) {
 		{
 			name:             "TestMalformedVersion",
 			terraformVersion: "version",
-			expectedErr:      xerrors.Errorf("Terraform binary get version failed: Malformed version: version"),
+			expectedErr:      xerrors.Errorf("Terraform binary get version failed: malformed version: version"),
 		},
 	}
 	// nolint:paralleltest
