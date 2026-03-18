@@ -4,9 +4,6 @@ Codex CLI can be configured to use AI Bridge by setting up a custom model provid
 
 ## Configuration
 
-> [!NOTE]
-> When running Codex CLI inside a Coder workspace, use the configuration below to route requests through AI Bridge.
-
 To configure Codex CLI to use AI Bridge, set the following configuration options in your Codex configuration file (e.g., `~/.codex/config.toml`):
 
 ```toml
