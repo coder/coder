@@ -103,7 +103,7 @@ const defaultProps: React.ComponentProps<typeof AgentsSidebar> = {
 	onArchiveAgent: vi.fn(),
 	onUnarchiveAgent: vi.fn(),
 	onArchiveAndDeleteWorkspace: vi.fn(),
-	onNewAgent: vi.fn(),
+	onBeforeNewAgent: vi.fn(),
 	isCreating: false,
 	archivedFilter: "active" as const,
 };

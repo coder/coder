@@ -1,11 +1,10 @@
 import type * as TypesGen from "api/typesGenerated";
 import { asRecord, asString } from "components/ai-elements/runtimeTypeUtils";
-import { appendTextBlock, asNonEmptyString } from "./blockUtils";
+import { appendTextBlock } from "./blockUtils";
 import type {
 	MergedTool,
 	ParsedMessageContent,
 	ParsedMessageEntry,
-	ParsedMessageSection,
 	ParsedToolCall,
 	ParsedToolResult,
 	RenderBlock,
@@ -18,12 +17,6 @@ const appendText = (current: string, next: string): string => {
 	}
 	return `${current}${next}`;
 };
-
-export const asOptionalTitle = (value: unknown): string | undefined =>
-	asNonEmptyString(value);
-
-export const normalizeBlockType = (value: unknown): string =>
-	asString(value).toLowerCase().replace(/_/g, "-");
 
 const isSubagentToolName = (name: string): boolean =>
 	name === "spawn_agent" || name === "wait_agent" || name === "message_agent";
@@ -75,15 +68,6 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	blocks: [],
 	sources: [],
 });
-
-/** Wraps appendTextBlock using the same direct concatenation as
- *  the streaming path so both produce identical markdown. */
-const appendParsedTextBlock = (
-	blocks: RenderBlock[],
-	type: "response" | "thinking",
-	text: string,
-	title?: string,
-): RenderBlock[] => appendTextBlock(blocks, type, text, title);
 
 export const ensureToolBlock = (
 	blocks: RenderBlock[],
@@ -144,7 +128,7 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 		for (const [index, block] of content.entries()) {
 			if (typeof block === "string") {
 				parsed.markdown = appendText(parsed.markdown, block);
-				parsed.blocks = appendParsedTextBlock(parsed.blocks, "response", block);
+				parsed.blocks = appendTextBlock(parsed.blocks, "response", block);
 				continue;
 			}
 
@@ -153,32 +137,20 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 				continue;
 			}
 
-			switch (normalizeBlockType(typedBlock.type)) {
+			switch (asString(typedBlock.type)) {
 				case "text": {
 					const text = asString(typedBlock.text);
 					parsed.markdown = appendText(parsed.markdown, text);
-					parsed.blocks = appendParsedTextBlock(
-						parsed.blocks,
-						"response",
-						text,
-					);
+					parsed.blocks = appendTextBlock(parsed.blocks, "response", text);
 					break;
 				}
-				case "reasoning":
-				case "thinking": {
+				case "reasoning": {
 					const text = asString(typedBlock.text);
-					const title = asOptionalTitle(typedBlock.title);
 					parsed.reasoning = appendText(parsed.reasoning, text);
-					parsed.blocks = appendParsedTextBlock(
-						parsed.blocks,
-						"thinking",
-						text,
-						title,
-					);
+					parsed.blocks = appendTextBlock(parsed.blocks, "thinking", text);
 					break;
 				}
-				case "tool-call":
-				case "toolcall": {
+				case "tool-call": {
 					// Provider-executed tool calls (e.g. web_search) are
 					// handled by the provider itself — hide them from the
 					// tool card UI and let the sources component render
@@ -186,55 +158,39 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 					if (typedBlock.provider_executed) {
 						break;
 					}
-					const name =
-						asString(typedBlock.tool_name) || asString(typedBlock.name);
-					const id =
-						asString(typedBlock.tool_call_id) ||
-						asString(typedBlock.id) ||
-						`tool-call-${index}`;
+					const name = asString(typedBlock.tool_name);
+					const id = asString(typedBlock.tool_call_id) || `tool-call-${index}`;
 					parsed.toolCalls.push({
 						id,
 						name: name || "Tool",
-						args: typedBlock.args ?? typedBlock.input ?? typedBlock.arguments,
+						args: typedBlock.args,
 					});
 					parsed.blocks = ensureToolBlock(parsed.blocks, id);
 					break;
 				}
 				case "file-reference": {
-					const text = asString(typedBlock.text);
 					const fileName = asString(typedBlock.file_name);
-					const startLine =
-						Number(typedBlock.start_line ?? typedBlock.line_number) || 0;
-					const endLine =
-						Number(typedBlock.end_line ?? typedBlock.line_number) || startLine;
-					const contentStr = asString(typedBlock.content);
+					const startLine = Number(typedBlock.start_line) || 0;
+					const endLine = Number(typedBlock.end_line) || startLine;
+					const content = asString(typedBlock.content);
 					parsed.blocks.push({
 						type: "file-reference",
-						fileName,
-						startLine,
-						endLine,
-						content: contentStr,
-						text,
+						file_name: fileName,
+						start_line: startLine,
+						end_line: endLine,
+						content,
 					});
 					break;
 				}
-				case "tool-result":
-				case "toolresult": {
+				case "tool-result": {
 					// Skip synthetic results for provider-executed tools.
 					if (typedBlock.provider_executed) {
 						break;
 					}
-					const name =
-						asString(typedBlock.tool_name) || asString(typedBlock.name);
+					const name = asString(typedBlock.tool_name);
 					const id =
-						asString(typedBlock.tool_call_id) ||
-						asString(typedBlock.id) ||
-						`tool-result-${index}`;
-					const result =
-						typedBlock.result ??
-						typedBlock.output ??
-						typedBlock.content ??
-						typedBlock.data;
+						asString(typedBlock.tool_call_id) || `tool-result-${index}`;
+					const result = typedBlock.result;
 					parsed.toolResults.push({
 						id,
 						name: name || "Tool",
@@ -246,17 +202,12 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 				}
 				case "file": {
 					const mediaType = asString(typedBlock.media_type);
-					const data = asString(typedBlock.data);
-					const fileId = asString(typedBlock.file_id);
+					const data = asString(typedBlock.data) || undefined;
+					const fileId = asString(typedBlock.file_id) || undefined;
 					if (mediaType && (data || fileId)) {
 						parsed.blocks = [
 							...parsed.blocks,
-							{
-								type: "file",
-								mediaType,
-								data: data || undefined,
-								fileId: fileId || undefined,
-							},
+							{ type: "file", media_type: mediaType, data, file_id: fileId },
 						];
 					}
 					break;
@@ -291,11 +242,7 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 				default: {
 					const text = asString(typedBlock.text);
 					parsed.markdown = appendText(parsed.markdown, text);
-					parsed.blocks = appendParsedTextBlock(
-						parsed.blocks,
-						"response",
-						text,
-					);
+					parsed.blocks = appendTextBlock(parsed.blocks, "response", text);
 					break;
 				}
 			}
@@ -313,7 +260,7 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 		return {
 			...emptyParsedMessageContent(),
 			markdown,
-			blocks: appendParsedTextBlock([], "response", markdown),
+			blocks: appendTextBlock([], "response", markdown),
 		};
 	}
 
@@ -326,7 +273,7 @@ export const parseMessageContent = (content: unknown): ParsedMessageContent => {
 	return {
 		...emptyParsedMessageContent(),
 		markdown,
-		blocks: appendParsedTextBlock([], "response", markdown),
+		blocks: appendTextBlock([], "response", markdown),
 	};
 };
 
@@ -388,24 +335,4 @@ export const buildSubagentTitles = (
 		}
 	}
 	return map;
-};
-
-export const buildParsedMessageSections = (
-	parsedMessages: readonly ParsedMessageEntry[],
-): ParsedMessageSection[] => {
-	const sections: ParsedMessageSection[] = [];
-
-	for (const entry of parsedMessages) {
-		if (entry.message.role === "user") {
-			sections.push({ userEntry: entry, entries: [entry] });
-			continue;
-		}
-		if (sections.length === 0) {
-			sections.push({ userEntry: null, entries: [entry] });
-			continue;
-		}
-		sections[sections.length - 1].entries.push(entry);
-	}
-
-	return sections;
 };

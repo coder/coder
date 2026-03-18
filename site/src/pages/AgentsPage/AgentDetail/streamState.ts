@@ -1,11 +1,6 @@
 import { asString } from "components/ai-elements/runtimeTypeUtils";
 import { appendTextBlock } from "./blockUtils";
-import {
-	asOptionalTitle,
-	ensureToolBlock,
-	normalizeBlockType,
-	parseToolResultIsError,
-} from "./messageParsing";
+import { ensureToolBlock, parseToolResultIsError } from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
 import type { MergedTool, RenderBlock, StreamState } from "./types";
 
@@ -18,14 +13,11 @@ export const createEmptyStreamState = (): StreamState => ({
 	sources: [],
 });
 
-/** Streaming variant — uses direct concatenation (the default joinText). */
-const appendStreamTextBlock = appendTextBlock;
-
 export const applyMessagePartToStreamState = (
 	prev: StreamState | null,
 	part: Record<string, unknown>,
 ): StreamState | null => {
-	const partType = normalizeBlockType(part.type);
+	const partType = asString(part.type);
 	const nextState: StreamState = prev ?? createEmptyStreamState();
 
 	switch (partType) {
@@ -36,28 +28,20 @@ export const applyMessagePartToStreamState = (
 			}
 			return {
 				...nextState,
-				blocks: appendStreamTextBlock(nextState.blocks, "response", text),
+				blocks: appendTextBlock(nextState.blocks, "response", text),
 			};
 		}
-		case "reasoning":
-		case "thinking": {
+		case "reasoning": {
 			const text = asString(part.text);
 			if (!text) {
 				return prev;
 			}
-			const title = asOptionalTitle(part.title);
 			return {
 				...nextState,
-				blocks: appendStreamTextBlock(
-					nextState.blocks,
-					"thinking",
-					text,
-					title,
-				),
+				blocks: appendTextBlock(nextState.blocks, "thinking", text),
 			};
 		}
-		case "tool-call":
-		case "toolcall": {
+		case "tool-call": {
 			// Provider-executed tool calls (e.g. web_search) are
 			// handled natively by the provider — skip rendering them
 			// as tool cards.
@@ -94,8 +78,7 @@ export const applyMessagePartToStreamState = (
 				},
 			};
 		}
-		case "tool-result":
-		case "toolresult": {
+		case "tool-result": {
 			// Skip synthetic results for provider-executed tools.
 			if (part.provider_executed) {
 				return prev;
@@ -119,7 +102,7 @@ export const applyMessagePartToStreamState = (
 				existing?.result,
 				existing?.resultRaw,
 				part.result,
-				part.result_delta,
+				undefined, // no delta: tool results arrive complete, not streamed incrementally
 			);
 			const nextToolName = toolName || existing?.name || "Tool";
 			const nextIsError =
@@ -143,8 +126,8 @@ export const applyMessagePartToStreamState = (
 		}
 		case "file": {
 			const mediaType = asString(part.media_type);
-			const data = asString(part.data);
-			const fileId = asString(part.file_id);
+			const data = asString(part.data) || undefined;
+			const fileId = asString(part.file_id) || undefined;
 			if (!mediaType || (!data && !fileId)) {
 				return prev;
 			}
@@ -152,12 +135,7 @@ export const applyMessagePartToStreamState = (
 				...nextState,
 				blocks: [
 					...nextState.blocks,
-					{
-						type: "file",
-						mediaType,
-						data: data || undefined,
-						fileId: fileId || undefined,
-					},
+					{ type: "file", media_type: mediaType, data, file_id: fileId },
 				],
 			};
 		}

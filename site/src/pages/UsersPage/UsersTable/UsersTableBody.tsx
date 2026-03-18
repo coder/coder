@@ -149,7 +149,9 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 						<TableCell>
 							<AvatarData
 								title={user.username}
-								subtitle={user.email}
+								subtitle={
+									user.is_service_account ? "Service Account" : user.email
+								}
 								src={user.avatar_url}
 							/>
 						</TableCell>

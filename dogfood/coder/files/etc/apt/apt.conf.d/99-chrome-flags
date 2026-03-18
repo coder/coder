@@ -1,0 +1,3 @@
+// Re-apply Chrome desktop-file flags after any package operation so
+// that a google-chrome-stable upgrade does not silently drop them.
+DPkg::Post-Invoke { "/usr/local/bin/configure-chrome-flags.sh 2>/dev/null || true"; };

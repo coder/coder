@@ -3,10 +3,10 @@ const CHIME_PREFERENCE_KEY = "agents.chime-on-completion";
 export function getChimeEnabled(): boolean {
 	try {
 		const stored = localStorage.getItem(CHIME_PREFERENCE_KEY);
-		// Default to enabled when no preference has been saved.
-		return stored === null ? true : stored === "true";
+		// Default to disabled when no preference has been saved.
+		return stored === null ? false : stored === "true";
 	} catch {
-		return true;
+		return false;
 	}
 }
 

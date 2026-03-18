@@ -1,19 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type * as TypesGen from "api/typesGenerated";
-import { createRef } from "react";
-import { expect, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { ConversationTimeline } from "./ConversationTimeline";
-import {
-	buildParsedMessageSections,
-	parseMessagesWithMergedTools,
-} from "./messageParsing";
+import { parseMessagesWithMergedTools } from "./messageParsing";
 
 // 1×1 solid coral (#FF6B6B) PNG encoded as base64.
 const TEST_PNG_B64 =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4n539HwAHFwLVF8kc1wAAAABJRU5ErkJggg==";
 
-const buildSections = (messages: TypesGen.ChatMessage[]) =>
-	buildParsedMessageSections(parseMessagesWithMergedTools(messages));
+const buildMessages = (messages: TypesGen.ChatMessage[]) =>
+	parseMessagesWithMergedTools(messages);
 
 const baseMessage = {
 	chat_id: "story-chat",
@@ -22,11 +18,9 @@ const baseMessage = {
 
 const defaultArgs: Omit<
 	React.ComponentProps<typeof ConversationTimeline>,
-	"parsedSections"
+	"parsedMessages"
 > = {
 	isEmpty: false,
-	hasMoreMessages: false,
-	loadMoreSentinelRef: createRef<HTMLDivElement>(),
 	hasStreamOutput: false,
 	streamState: null,
 	streamTools: [],
@@ -53,7 +47,7 @@ type Story = StoryObj<typeof ConversationTimeline>;
 export const UserMessageWithSingleImage: Story = {
 	args: {
 		...defaultArgs,
-		parsedSections: buildSections([
+		parsedMessages: buildMessages([
 			{
 				...baseMessage,
 				id: 1,
@@ -91,7 +85,7 @@ export const UserMessageWithSingleImage: Story = {
 export const UserMessageWithMultipleImages: Story = {
 	args: {
 		...defaultArgs,
-		parsedSections: buildSections([
+		parsedMessages: buildMessages([
 			{
 				...baseMessage,
 				id: 1,
@@ -128,7 +122,7 @@ export const UserMessageWithMultipleImages: Story = {
 export const UserMessageWithFileIdImage: Story = {
 	args: {
 		...defaultArgs,
-		parsedSections: buildSections([
+		parsedMessages: buildMessages([
 			{
 				...baseMessage,
 				id: 1,
@@ -160,7 +154,7 @@ export const UserMessageWithFileIdImage: Story = {
 export const UserMessageTextOnly: Story = {
 	args: {
 		...defaultArgs,
-		parsedSections: buildSections([
+		parsedMessages: buildMessages([
 			{
 				...baseMessage,
 				id: 1,
@@ -181,7 +175,7 @@ export const UserMessageTextOnly: Story = {
 export const AssistantMessageWithImage: Story = {
 	args: {
 		...defaultArgs,
-		parsedSections: buildSections([
+		parsedMessages: buildMessages([
 			{
 				...baseMessage,
 				id: 1,
@@ -214,7 +208,7 @@ export const AssistantMessageWithImage: Story = {
 export const UserMessageWithImagesAndFileRefs: Story = {
 	args: {
 		...defaultArgs,
-		parsedSections: buildSections([
+		parsedMessages: buildMessages([
 			{
 				...baseMessage,
 				id: 1,
@@ -231,7 +225,7 @@ export const UserMessageWithImagesAndFileRefs: Story = {
 						file_name: "src/main.go",
 						start_line: 10,
 						end_line: 25,
-						text: "main function",
+						content: 'func main() {\n\tfmt.Println("hello")\n}',
 					},
 				],
 			},
@@ -242,5 +236,201 @@ export const UserMessageWithImagesAndFileRefs: Story = {
 		const images = canvas.getAllByRole("img", { name: "Attached image" });
 		expect(images).toHaveLength(1);
 		expect(canvas.getByText(/main\.go/)).toBeInTheDocument();
+	},
+};
+
+/** Usage-limit errors render as an info alert with analytics access. */
+export const UsageLimitExceeded: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [],
+		detailError: {
+			kind: "usage-limit",
+			message:
+				"You've used $50.00 of your $50.00 spend limit. Your limit resets on July 1, 2025.",
+		},
+		onOpenAnalytics: fn(),
+		subagentTitles: new Map(),
+		subagentStatusOverrides: new Map(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/spend limit/i)).toBeVisible();
+		const btn = canvas.getByRole("button", { name: /view usage/i });
+		expect(btn).toBeVisible();
+		await userEvent.click(btn);
+		expect(args.onOpenAnalytics).toHaveBeenCalled();
+	},
+};
+
+/** Non-usage errors must not show the usage CTA. */
+export const GenericErrorDoesNotShowUsageAction: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [],
+		detailError: { kind: "generic", message: "Provider request failed." },
+		onOpenAnalytics: fn(),
+		subagentTitles: new Map(),
+		subagentStatusOverrides: new Map(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/provider request failed/i)).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: /view usage/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+/** File references render inline with text, matching the chat input style. */
+export const UserMessageWithInlineFileRef: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Can you refactor " },
+					{
+						type: "file-reference",
+						file_name: "site/src/components/Button.tsx",
+						start_line: 42,
+						end_line: 42,
+						content: "export const Button = ...",
+					},
+					{ type: "text", text: " to use the new API?" },
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "text",
+						text: "Sure, I'll update that component.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Button\.tsx/)).toBeInTheDocument();
+		expect(canvas.getByText(/Can you refactor/)).toBeInTheDocument();
+		expect(canvas.getByText(/to use the new API/)).toBeInTheDocument();
+	},
+};
+
+/** Multiple file references render inline, no separate section. */
+export const UserMessageWithMultipleInlineFileRefs: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Compare " },
+					{
+						type: "file-reference",
+						file_name: "api/handler.go",
+						start_line: 1,
+						end_line: 50,
+						content: "...",
+					},
+					{ type: "text", text: " with " },
+					{
+						type: "file-reference",
+						file_name: "api/handler_test.go",
+						start_line: 10,
+						end_line: 30,
+						content: "...",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/handler\.go/)).toBeInTheDocument();
+		expect(canvas.getByText(/handler_test\.go/)).toBeInTheDocument();
+	},
+};
+
+/**
+ * Verifies the structural requirements for sticky user messages
+ * in the flat (section-less) message list:
+ * - Each user message renders a data-user-sentinel marker so
+ *   the push-up logic can find the next user message via DOM
+ *   traversal.
+ * - The user message container gets position:sticky.
+ * - Sentinels appear in the correct order (matching user
+ *   message order).
+ */
+export const StickyUserMessageStructure: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "First prompt" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [{ type: "text", text: "First response" }],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "user",
+				content: [{ type: "text", text: "Second prompt" }],
+			},
+			{
+				...baseMessage,
+				id: 4,
+				role: "assistant",
+				content: [{ type: "text", text: "Second response" }],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		// Each user message should produce a data-user-sentinel
+		// marker that the push-up scroll logic relies on.
+		const sentinels = canvasElement.querySelectorAll("[data-user-sentinel]");
+		expect(sentinels.length).toBe(2);
+
+		// Each sentinel should be immediately followed by a sticky
+		// container (the user message itself).
+		for (const sentinel of sentinels) {
+			const container = sentinel.nextElementSibling;
+			expect(container).not.toBeNull();
+			const style = window.getComputedStyle(container!);
+			expect(style.position).toBe("sticky");
+		}
+
+		// Sentinels must appear in DOM order matching the message
+		// order so nextElementSibling traversal finds the correct
+		// next user message.
+		const allElements = Array.from(
+			canvasElement.querySelectorAll("[data-user-sentinel], [class*='sticky']"),
+		);
+		const sentinelIndices = Array.from(sentinels).map((s) =>
+			allElements.indexOf(s),
+		);
+		// Sentinels should be in ascending DOM order.
+		expect(sentinelIndices[0]).toBeLessThan(sentinelIndices[1]);
+
+		// Both user messages should be visible.
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("First prompt")).toBeVisible();
+		expect(canvas.getByText("Second prompt")).toBeVisible();
 	},
 };

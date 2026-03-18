@@ -3,7 +3,50 @@ import {
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 } from "testHelpers/entities";
-import { getAppHref, SESSION_TOKEN_PLACEHOLDER } from "./apps";
+import { getAppHref, getVSCodeHref, SESSION_TOKEN_PLACEHOLDER } from "./apps";
+
+describe("getVSCodeHref", () => {
+	it("includes the chat ID when provided", () => {
+		const folder = "/workspace/test";
+		const href = getVSCodeHref("vscode", {
+			owner: MockWorkspace.owner_name,
+			workspace: MockWorkspace.name,
+			token: "user-session-token",
+			agent: MockWorkspaceAgent.name,
+			folder,
+			chatId: "chat-123",
+		});
+		const query = new URLSearchParams({
+			owner: MockWorkspace.owner_name,
+			workspace: MockWorkspace.name,
+			url: location.origin,
+			token: "user-session-token",
+			openRecent: "true",
+			agent: MockWorkspaceAgent.name,
+			folder,
+			chatId: "chat-123",
+		});
+
+		expect(href).toBe(`vscode://coder.coder-remote/open?${query}`);
+	});
+
+	it("omits the chat ID when none is provided", () => {
+		const href = getVSCodeHref("cursor", {
+			owner: MockWorkspace.owner_name,
+			workspace: MockWorkspace.name,
+			token: "user-session-token",
+		});
+		const query = new URLSearchParams({
+			owner: MockWorkspace.owner_name,
+			workspace: MockWorkspace.name,
+			url: location.origin,
+			token: "user-session-token",
+			openRecent: "true",
+		});
+
+		expect(href).toBe(`cursor://coder.coder-remote/open?${query}`);
+	});
+});
 
 describe("getAppHref", () => {
 	it("returns the URL without changes when external app has regular URL", () => {

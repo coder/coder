@@ -136,18 +136,10 @@ endif
 # the search path so that these exclusions match.
 FIND_EXCLUSIONS= \
 	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path '*/out/*' -o -path './coderd/apidoc/*' -o -path '*/.next/*' -o -path '*/.terraform/*' -o -path './_gen/*' \) -prune \)
+
 # Source files used for make targets, evaluated on use.
 GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -not -name '*_test.go')
-# Same as GO_SRC_FILES but excluding certain files that have problematic
-# Makefile dependencies (e.g. pnpm).
-MOST_GO_SRC_FILES := $(shell \
-	find . \
-		$(FIND_EXCLUSIONS) \
-		-type f \
-		-name '*.go' \
-		-not -name '*_test.go' \
-		-not -wholename './agent/agentcontainers/dcspec/dcspec_gen.go' \
-)
+
 # All the shell files in the repo, excluding ignored files.
 SHELL_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.sh')
 
@@ -513,6 +505,12 @@ install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 	mkdir -p "$$install_dir"
 	cp "$<" "$$output_file"
 .PHONY: install
+
+# Only wildcard the go files in the develop directory to avoid rebuilds
+# when project files are changd. Technically changes to some imports may
+# not be detected, but it's unlikely to cause any issues.
+build/.bin/develop: go.mod go.sum $(wildcard scripts/develop/*.go)
+	CGO_ENABLED=0 go build -o $@ ./scripts/develop
 
 BOLD := $(shell tput bold 2>/dev/null)
 GREEN := $(shell tput setaf 2 2>/dev/null)

@@ -60,6 +60,7 @@
             "agent_id": "eb1fa705-34c6-405b-a2ec-70e4efd1614e",
             "config_path": null,
             "id": "eb9b7f18-c277-48af-af7c-2a8e5fb42bab",
+            "subagent_id": "56eb6c04-83bf-4daa-85d0-dd4ad3983632",
             "workspace_folder": "/workspace1"
           },
           "sensitive_values": {},
@@ -78,6 +79,7 @@
             "agent_id": "eb1fa705-34c6-405b-a2ec-70e4efd1614e",
             "config_path": "/workspace2/.devcontainer/devcontainer.json",
             "id": "964430ff-f0d9-4fcb-b645-6333cf6ba9f2",
+            "subagent_id": "19f7ba01-87bd-46f3-99dd-bb9ff5448e3d",
             "workspace_folder": "/workspace2"
           },
           "sensitive_values": {},

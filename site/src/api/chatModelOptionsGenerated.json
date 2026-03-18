@@ -338,8 +338,7 @@
 					"type": "string",
 					"description": "Key for enabling cross-request prompt caching",
 					"required": false,
-					"input_type": "input",
-					"hidden": true
+					"input_type": "input"
 				},
 				{
 					"json_name": "safety_identifier",
@@ -457,7 +456,7 @@
 					"type": "string",
 					"description": "Controls the level of reasoning effort",
 					"required": false,
-					"enum": ["low", "medium", "high"],
+					"enum": ["none", "minimal", "low", "medium", "high", "xhigh"],
 					"input_type": "select"
 				},
 				{
@@ -535,6 +534,14 @@
 					"input_type": "select"
 				},
 				{
+					"json_name": "reasoning.exclude",
+					"go_name": "Reasoning.Exclude",
+					"type": "boolean",
+					"description": "Whether to exclude reasoning content from the response",
+					"required": false,
+					"input_type": "select"
+				},
+				{
 					"json_name": "reasoning.max_tokens",
 					"go_name": "Reasoning.MaxTokens",
 					"type": "integer",
@@ -549,14 +556,6 @@
 					"description": "Controls the level of reasoning effort",
 					"required": false,
 					"enum": ["none", "minimal", "low", "medium", "high", "xhigh"],
-					"input_type": "select"
-				},
-				{
-					"json_name": "reasoning.exclude",
-					"go_name": "Reasoning.Exclude",
-					"type": "boolean",
-					"description": "Whether to exclude reasoning content from the response",
-					"required": false,
 					"input_type": "select"
 				},
 				{

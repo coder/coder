@@ -52,42 +52,22 @@ describe("applyMessagePartToStreamState", () => {
 		expect(result).toBe(prev);
 	});
 
-	it("creates thinking block from thinking part", () => {
+	it("creates thinking block from reasoning part", () => {
 		const result = applyMessagePartToStreamState(null, {
-			type: "thinking",
+			type: "reasoning",
 			text: "Let me reason...",
-			title: "Analysis",
 		});
 		expect(result).not.toBeNull();
 		expect(result!.blocks).toEqual([
-			{ type: "thinking", text: "Let me reason...", title: "Analysis" },
+			{ type: "thinking", text: "Let me reason..." },
 		]);
 	});
 
-	it("handles reasoning type alias the same as thinking", () => {
-		const result = applyMessagePartToStreamState(null, {
+	it("returns prev for reasoning part with empty text", () => {
+		const prev = createEmptyStreamState();
+		const result = applyMessagePartToStreamState(prev, {
 			type: "reasoning",
-			text: "hmm",
-		});
-		expect(result).not.toBeNull();
-		expect(result!.blocks[0].type).toBe("thinking");
-	});
-
-	it("returns prev for thinking part with no text and no title", () => {
-		const prev = createEmptyStreamState();
-		const result = applyMessagePartToStreamState(prev, {
-			type: "thinking",
 			text: "",
-		});
-		expect(result).toBe(prev);
-	});
-
-	it("returns prev for thinking part with only title and no text", () => {
-		const prev = createEmptyStreamState();
-		const result = applyMessagePartToStreamState(prev, {
-			type: "thinking",
-			text: "",
-			title: "Some Title",
 		});
 		expect(result).toBe(prev);
 	});
@@ -199,16 +179,6 @@ describe("applyMessagePartToStreamState", () => {
 		});
 	});
 
-	it("handles tool_call underscore type alias", () => {
-		const result = applyMessagePartToStreamState(null, {
-			type: "tool_call",
-			tool_name: "test",
-			tool_call_id: "t1",
-		});
-		expect(result).not.toBeNull();
-		expect(result!.toolCalls.t1).toBeDefined();
-	});
-
 	it("returns prev for unknown part type", () => {
 		const prev = createEmptyStreamState();
 		const result = applyMessagePartToStreamState(prev, {
@@ -240,6 +210,148 @@ describe("applyMessagePartToStreamState", () => {
 		});
 		expect(Object.keys(state!.toolCalls)).toHaveLength(2);
 		expect(state!.blocks).toHaveLength(2);
+	});
+
+	it("accumulates args via args_delta across multiple tool-call parts", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_call_id: "tc-1",
+			tool_name: "bash",
+			args_delta: '{"com',
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_call_id: "tc-1",
+			tool_name: "bash",
+			args_delta: 'mand":"ls"}',
+		});
+		expect(state).not.toBeNull();
+		expect(state!.toolCalls["tc-1"].args).toEqual({ command: "ls" });
+		expect(state!.toolCalls["tc-1"].argsRaw).toBe('{"command":"ls"}');
+	});
+
+	it("accepts complete args without args_delta", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_call_id: "tc-1",
+			tool_name: "bash",
+			args: { command: "ls" },
+		});
+		expect(state).not.toBeNull();
+		expect(state!.toolCalls["tc-1"].args).toEqual({ command: "ls" });
+	});
+
+	it("skips provider_executed tool-call parts", () => {
+		const prev = createEmptyStreamState();
+		const result = applyMessagePartToStreamState(prev, {
+			type: "tool-call",
+			tool_name: "web_search",
+			tool_call_id: "tc-1",
+			provider_executed: true,
+		});
+		expect(result).toBe(prev);
+		expect(prev.toolCalls).toEqual({});
+	});
+
+	it("skips provider_executed tool-result parts", () => {
+		const prev = createEmptyStreamState();
+		const result = applyMessagePartToStreamState(prev, {
+			type: "tool-result",
+			tool_name: "web_search",
+			tool_call_id: "tc-1",
+			provider_executed: true,
+			result: { output: "search results" },
+		});
+		expect(result).toBe(prev);
+		expect(prev.toolResults).toEqual({});
+	});
+
+	it("adds a sources block from a source part", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "source",
+			url: "https://example.com",
+			title: "Example",
+		});
+		expect(state).not.toBeNull();
+		expect(state!.sources).toEqual([
+			{ url: "https://example.com", title: "Example" },
+		]);
+		expect(state!.blocks).toHaveLength(1);
+		expect(state!.blocks[0]).toEqual({
+			type: "sources",
+			sources: [{ url: "https://example.com", title: "Example" }],
+		});
+
+		// A second source with a different URL groups into the same block.
+		state = applyMessagePartToStreamState(state, {
+			type: "source",
+			url: "https://other.com",
+			title: "Other",
+		});
+		expect(state!.sources).toHaveLength(2);
+		expect(state!.blocks).toHaveLength(1);
+		expect(state!.blocks[0]).toEqual({
+			type: "sources",
+			sources: [
+				{ url: "https://example.com", title: "Example" },
+				{ url: "https://other.com", title: "Other" },
+			],
+		});
+	});
+
+	it("deduplicates sources with the same URL", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "source",
+			url: "https://example.com",
+			title: "Example",
+		});
+		const afterFirst = state;
+		state = applyMessagePartToStreamState(state, {
+			type: "source",
+			url: "https://example.com",
+			title: "Example",
+		});
+		// Second application returns prev unchanged.
+		expect(state).toBe(afterFirst);
+		expect(state!.sources).toHaveLength(1);
+	});
+
+	it("produces correct tool-result shape with is_error through buildStreamTools", () => {
+		let state: StreamState | null = null;
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-call",
+			tool_name: "bash",
+			tool_call_id: "tc-1",
+			args: { command: "rm -rf /" },
+		});
+		state = applyMessagePartToStreamState(state, {
+			type: "tool-result",
+			tool_name: "bash",
+			tool_call_id: "tc-1",
+			result: { error: "permission denied" },
+			is_error: true,
+		});
+		expect(state).not.toBeNull();
+		expect(state!.toolResults["tc-1"]).toMatchObject({
+			id: "tc-1",
+			name: "bash",
+			result: { error: "permission denied" },
+			isError: true,
+		});
+		const tools = buildStreamTools(state);
+		expect(tools).toHaveLength(1);
+		expect(tools[0]).toEqual({
+			id: "tc-1",
+			name: "bash",
+			args: { command: "rm -rf /" },
+			result: { error: "permission denied" },
+			isError: true,
+			status: "error",
+		});
 	});
 });
 

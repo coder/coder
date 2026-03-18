@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
 import { API } from "api/api";
-import { Language } from "pages/CreateUserPage/Language";
 import { coderPort, license, premiumTestsRequired, users } from "../constants";
 import { expectUrl } from "../expectUrl";
 import { createUser } from "../helpers";
@@ -16,8 +15,8 @@ test("setup deployment", async ({ page }) => {
 	}
 
 	// Setup first user
-	await page.getByLabel(Language.emailLabel).fill(users.owner.email);
-	await page.getByLabel(Language.passwordLabel).fill(users.owner.password);
+	await page.getByLabel("Email").fill(users.owner.email);
+	await page.getByLabel("Password").fill(users.owner.password);
 	await page.getByTestId("create").click();
 
 	await expectUrl(page).toHavePathName("/templates");

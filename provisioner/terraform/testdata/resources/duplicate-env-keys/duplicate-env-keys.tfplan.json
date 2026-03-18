@@ -17,18 +17,7 @@
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
-            "display_apps": [
-              {
-                "port_forwarding_helper": true,
-                "ssh_helper": true,
-                "vscode": true,
-                "vscode_insiders": false,
-                "web_terminal": true
-              }
-            ],
             "env": null,
-            "id": "aaaaaaaa-1111-2222-3333-444444444444",
-            "init_script": "",
             "metadata": [],
             "motd_file": null,
             "order": null,
@@ -37,13 +26,10 @@
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "11111111-2222-3333-4444-555555555555",
             "troubleshooting_url": null
           },
           "sensitive_values": {
-            "display_apps": [
-              {}
-            ],
+            "display_apps": [],
             "metadata": [],
             "resources_monitoring": [],
             "token": true
@@ -57,15 +43,10 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "agent_id": "aaaaaaaa-1111-2222-3333-444444444444",
-            "id": "bbbbbbbb-1111-2222-3333-444444444444",
             "name": "PATH",
             "value": "/a/bin"
           },
-          "sensitive_values": {},
-          "depends_on": [
-            "coder_agent.dev"
-          ]
+          "sensitive_values": {}
         },
         {
           "address": "coder_env.path_b",
@@ -75,15 +56,10 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "agent_id": "aaaaaaaa-1111-2222-3333-444444444444",
-            "id": "cccccccc-1111-2222-3333-444444444444",
             "name": "PATH",
             "value": "/b/bin"
           },
-          "sensitive_values": {},
-          "depends_on": [
-            "coder_agent.dev"
-          ]
+          "sensitive_values": {}
         },
         {
           "address": "coder_env.unique_env",
@@ -93,15 +69,10 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "agent_id": "aaaaaaaa-1111-2222-3333-444444444444",
-            "id": "dddddddd-1111-2222-3333-444444444444",
             "name": "UNIQUE",
             "value": "unique_value"
           },
-          "sensitive_values": {},
-          "depends_on": [
-            "coder_agent.dev"
-          ]
+          "sensitive_values": {}
         },
         {
           "address": "null_resource.dev",
@@ -111,15 +82,270 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "1234567890123456789",
             "triggers": null
           },
-          "sensitive_values": {},
+          "sensitive_values": {}
+        }
+      ]
+    }
+  },
+  "resource_changes": [
+    {
+      "address": "coder_agent.dev",
+      "mode": "managed",
+      "type": "coder_agent",
+      "name": "dev",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "api_key_scope": "all",
+          "arch": "amd64",
+          "auth": "token",
+          "connection_timeout": 120,
+          "dir": null,
+          "env": null,
+          "metadata": [],
+          "motd_file": null,
+          "order": null,
+          "os": "linux",
+          "resources_monitoring": [],
+          "shutdown_script": null,
+          "startup_script": null,
+          "startup_script_behavior": "non-blocking",
+          "troubleshooting_url": null
+        },
+        "after_unknown": {
+          "display_apps": true,
+          "id": true,
+          "init_script": true,
+          "metadata": [],
+          "resources_monitoring": [],
+          "token": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "display_apps": [],
+          "metadata": [],
+          "resources_monitoring": [],
+          "token": true
+        }
+      }
+    },
+    {
+      "address": "coder_env.path_a",
+      "mode": "managed",
+      "type": "coder_env",
+      "name": "path_a",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "name": "PATH",
+          "value": "/a/bin"
+        },
+        "after_unknown": {
+          "agent_id": true,
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "coder_env.path_b",
+      "mode": "managed",
+      "type": "coder_env",
+      "name": "path_b",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "name": "PATH",
+          "value": "/b/bin"
+        },
+        "after_unknown": {
+          "agent_id": true,
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "coder_env.unique_env",
+      "mode": "managed",
+      "type": "coder_env",
+      "name": "unique_env",
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "name": "UNIQUE",
+          "value": "unique_value"
+        },
+        "after_unknown": {
+          "agent_id": true,
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "null_resource.dev",
+      "mode": "managed",
+      "type": "null_resource",
+      "name": "dev",
+      "provider_name": "registry.terraform.io/hashicorp/null",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "triggers": null
+        },
+        "after_unknown": {
+          "id": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    }
+  ],
+  "configuration": {
+    "provider_config": {
+      "coder": {
+        "name": "coder",
+        "full_name": "registry.terraform.io/coder/coder",
+        "version_constraint": ">= 2.0.0"
+      },
+      "null": {
+        "name": "null",
+        "full_name": "registry.terraform.io/hashicorp/null"
+      }
+    },
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_agent.dev",
+          "mode": "managed",
+          "type": "coder_agent",
+          "name": "dev",
+          "provider_config_key": "coder",
+          "expressions": {
+            "arch": {
+              "constant_value": "amd64"
+            },
+            "os": {
+              "constant_value": "linux"
+            }
+          },
+          "schema_version": 1
+        },
+        {
+          "address": "coder_env.path_a",
+          "mode": "managed",
+          "type": "coder_env",
+          "name": "path_a",
+          "provider_config_key": "coder",
+          "expressions": {
+            "agent_id": {
+              "references": [
+                "coder_agent.dev.id",
+                "coder_agent.dev"
+              ]
+            },
+            "name": {
+              "constant_value": "PATH"
+            },
+            "value": {
+              "constant_value": "/a/bin"
+            }
+          },
+          "schema_version": 1
+        },
+        {
+          "address": "coder_env.path_b",
+          "mode": "managed",
+          "type": "coder_env",
+          "name": "path_b",
+          "provider_config_key": "coder",
+          "expressions": {
+            "agent_id": {
+              "references": [
+                "coder_agent.dev.id",
+                "coder_agent.dev"
+              ]
+            },
+            "name": {
+              "constant_value": "PATH"
+            },
+            "value": {
+              "constant_value": "/b/bin"
+            }
+          },
+          "schema_version": 1
+        },
+        {
+          "address": "coder_env.unique_env",
+          "mode": "managed",
+          "type": "coder_env",
+          "name": "unique_env",
+          "provider_config_key": "coder",
+          "expressions": {
+            "agent_id": {
+              "references": [
+                "coder_agent.dev.id",
+                "coder_agent.dev"
+              ]
+            },
+            "name": {
+              "constant_value": "UNIQUE"
+            },
+            "value": {
+              "constant_value": "unique_value"
+            }
+          },
+          "schema_version": 1
+        },
+        {
+          "address": "null_resource.dev",
+          "mode": "managed",
+          "type": "null_resource",
+          "name": "dev",
+          "provider_config_key": "null",
+          "schema_version": 0,
           "depends_on": [
             "coder_agent.dev"
           ]
         }
       ]
     }
-  }
+  },
+  "relevant_attributes": [
+    {
+      "resource": "coder_agent.dev",
+      "attribute": [
+        "id"
+      ]
+    }
+  ],
+  "timestamp": "2026-03-16T15:54:16Z",
+  "applyable": true,
+  "complete": true,
+  "errored": false
 }

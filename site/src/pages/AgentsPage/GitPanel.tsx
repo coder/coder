@@ -278,6 +278,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						isExpanded={isExpanded}
 						chatInputRef={chatInputRef}
 						diffStyle={diffStyle}
+						diffStatus={remoteDiffStats}
 					/>
 				) : (
 					<LocalRepoContent
@@ -295,7 +296,6 @@ export const GitPanel: FC<GitPanelProps> = ({
 		</div>
 	);
 };
-
 // ---------------------------------------------------------------
 // Remote view (branch/PR diff)
 // ---------------------------------------------------------------
@@ -305,7 +305,8 @@ const RemoteContent: FC<{
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
-}> = ({ prTab, isExpanded, chatInputRef, diffStyle }) => {
+	diffStatus?: ChatDiffStatus;
+}> = ({ prTab, isExpanded, chatInputRef, diffStyle, diffStatus }) => {
 	if (!prTab) {
 		return (
 			<div className="flex h-full flex-col items-center justify-center p-8 text-center">
@@ -328,6 +329,7 @@ const RemoteContent: FC<{
 			isExpanded={isExpanded}
 			chatInputRef={chatInputRef}
 			diffStyle={diffStyle}
+			diffStatus={diffStatus}
 		/>
 	);
 };
@@ -413,11 +415,13 @@ const PrStateIcon: FC<{
 	className?: string;
 }> = ({ state, draft, className }) => {
 	if (state === "merged") {
-		return <GitMergeIcon className={cn("text-purple-400", className)} />;
+		return <GitMergeIcon className={cn("text-git-merged-bright", className)} />;
 	}
 	if (state === "closed") {
 		return (
-			<GitPullRequestClosedIcon className={cn("text-red-400", className)} />
+			<GitPullRequestClosedIcon
+				className={cn("text-git-deleted-bright", className)}
+			/>
 		);
 	}
 	if (draft) {
@@ -427,5 +431,7 @@ const PrStateIcon: FC<{
 			/>
 		);
 	}
-	return <GitPullRequestIcon className={cn("text-green-400", className)} />;
+	return (
+		<GitPullRequestIcon className={cn("text-git-added-bright", className)} />
+	);
 };

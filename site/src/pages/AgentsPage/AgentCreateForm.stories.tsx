@@ -41,6 +41,8 @@ const meta: Meta<typeof AgentCreateForm> = {
 export default meta;
 type Story = StoryObj<typeof AgentCreateForm>;
 
+const defaultArgs = meta.args;
+
 export const Default: Story = {};
 
 const mockWorkspaces = [
@@ -155,5 +157,31 @@ export const SelectWorkspaceViaSearch: Story = {
 		await waitFor(() => {
 			expect(canvas.getByText("janedoe/my-project")).toBeInTheDocument();
 		});
+	},
+};
+
+export const UsageLimitExceeded: Story = {
+	args: {
+		...defaultArgs,
+		createError: Object.assign(
+			new Error("Request failed with status code 409"),
+			{
+				isAxiosError: true,
+				response: {
+					status: 409,
+					statusText: "Conflict",
+					data: {
+						message: "Chat usage limit exceeded.",
+						spent_micros: 900_000,
+						limit_micros: 500_000,
+						resets_at: "2026-03-16T00:00:00Z",
+					},
+					headers: {},
+					config: {},
+				},
+				config: {},
+				toJSON: () => ({}),
+			},
+		),
 	},
 };

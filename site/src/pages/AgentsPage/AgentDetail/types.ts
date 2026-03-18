@@ -30,26 +30,13 @@ export type RenderBlock =
 	| {
 			type: "thinking";
 			text: string;
-			title?: string;
 	  }
 	| {
 			type: "tool";
 			id: string;
 	  }
-	| {
-			type: "file";
-			mediaType: string;
-			data?: string; // base64, absent when file_id is available
-			fileId?: string;
-	  }
-	| {
-			type: "file-reference";
-			fileName: string;
-			startLine: number;
-			endLine: number;
-			content: string;
-			text: string;
-	  }
+	| TypesGen.ChatFilePart
+	| TypesGen.ChatFileReferencePart
 	| {
 			type: "sources";
 			sources: Array<{ url: string; title: string }>;
@@ -68,11 +55,6 @@ export type ParsedMessageContent = {
 export type ParsedMessageEntry = {
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
-};
-
-export type ParsedMessageSection = {
-	userEntry: ParsedMessageEntry | null;
-	entries: ParsedMessageEntry[];
 };
 
 type StreamToolCall = {

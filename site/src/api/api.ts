@@ -2960,10 +2960,18 @@ class ApiMethods {
 	};
 	getChatMessages = async (
 		chatId: string,
+		opts?: { before_id?: number; limit?: number },
 	): Promise<TypesGen.ChatMessagesResponse> => {
-		const response = await this.axios.get<TypesGen.ChatMessagesResponse>(
-			`/api/experimental/chats/${chatId}/messages`,
-		);
+		const params = new URLSearchParams();
+		if (opts?.before_id) {
+			params.set("before_id", opts.before_id.toString());
+		}
+		if (opts?.limit) {
+			params.set("limit", opts.limit.toString());
+		}
+		const query = params.toString();
+		const url = `/api/experimental/chats/${chatId}/messages${query ? `?${query}` : ""}`;
+		const response = await this.axios.get<TypesGen.ChatMessagesResponse>(url);
 		return response.data;
 	};
 
@@ -2977,12 +2985,11 @@ class ApiMethods {
 		return response.data;
 	};
 
-	archiveChat = async (chatId: string): Promise<void> => {
-		await this.axios.post(`/api/experimental/chats/${chatId}/archive`);
-	};
-
-	unarchiveChat = async (chatId: string): Promise<void> => {
-		await this.axios.post(`/api/experimental/chats/${chatId}/unarchive`);
+	updateChat = async (
+		chatId: string,
+		req: TypesGen.UpdateChatRequest,
+	): Promise<void> => {
+		await this.axios.patch(`/api/experimental/chats/${chatId}`, req);
 	};
 
 	createChatMessage = async (
@@ -3043,15 +3050,6 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getChatDiffStatus = async (
-		chatId: string,
-	): Promise<TypesGen.ChatDiffStatus> => {
-		const response = await this.axios.get<TypesGen.ChatDiffStatus>(
-			`/api/experimental/chats/${chatId}/diff-status`,
-		);
-		return response.data;
-	};
-
 	getChatDiffContents = async (
 		chatId: string,
 	): Promise<TypesGen.ChatDiffContents> => {
@@ -3068,37 +3066,48 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getChatSystemPrompt =
-		async (): Promise<TypesGen.ChatSystemPromptResponse> => {
-			const response = await this.axios.get<TypesGen.ChatSystemPromptResponse>(
-				"/api/experimental/chats/config/system-prompt",
-			);
-			return response.data;
-		};
+	getChatSystemPrompt = async (): Promise<TypesGen.ChatSystemPrompt> => {
+		const response = await this.axios.get<TypesGen.ChatSystemPrompt>(
+			"/api/experimental/chats/config/system-prompt",
+		);
+		return response.data;
+	};
 
 	updateChatSystemPrompt = async (
-		req: TypesGen.UpdateChatSystemPromptRequest,
+		req: TypesGen.ChatSystemPrompt,
 	): Promise<void> => {
 		await this.axios.put("/api/experimental/chats/config/system-prompt", req);
 	};
 
-	getUserChatCustomPrompt =
-		async (): Promise<TypesGen.UserChatCustomPromptResponse> => {
+	getChatDesktopEnabled =
+		async (): Promise<TypesGen.ChatDesktopEnabledResponse> => {
 			const response =
-				await this.axios.get<TypesGen.UserChatCustomPromptResponse>(
-					"/api/experimental/chats/config/user-prompt",
+				await this.axios.get<TypesGen.ChatDesktopEnabledResponse>(
+					"/api/experimental/chats/config/desktop-enabled",
 				);
 			return response.data;
 		};
 
-	updateUserChatCustomPrompt = async (
-		req: TypesGen.UpdateUserChatCustomPromptRequest,
-	): Promise<TypesGen.UserChatCustomPromptResponse> => {
-		const response =
-			await this.axios.put<TypesGen.UserChatCustomPromptResponse>(
+	updateChatDesktopEnabled = async (
+		req: TypesGen.UpdateChatDesktopEnabledRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/desktop-enabled", req);
+	};
+
+	getUserChatCustomPrompt =
+		async (): Promise<TypesGen.UserChatCustomPrompt> => {
+			const response = await this.axios.get<TypesGen.UserChatCustomPrompt>(
 				"/api/experimental/chats/config/user-prompt",
-				req,
 			);
+			return response.data;
+		};
+	updateUserChatCustomPrompt = async (
+		req: TypesGen.UserChatCustomPrompt,
+	): Promise<TypesGen.UserChatCustomPrompt> => {
+		const response = await this.axios.put<TypesGen.UserChatCustomPrompt>(
+			"/api/experimental/chats/config/user-prompt",
+			req,
+		);
 		return response.data;
 	};
 
@@ -3197,6 +3206,63 @@ class ApiMethods {
 			params,
 		);
 		const response = await this.axios.get<TypesGen.ChatCostUsersResponse>(url);
+		return response.data;
+	};
+
+	getChatUsageLimitConfig =
+		async (): Promise<TypesGen.ChatUsageLimitConfigResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatUsageLimitConfigResponse>(
+					"/api/experimental/chats/usage-limits",
+				);
+			return response.data;
+		};
+
+	updateChatUsageLimitConfig = async (
+		req: TypesGen.ChatUsageLimitConfig,
+	): Promise<TypesGen.ChatUsageLimitConfig> => {
+		const response = await this.axios.put<TypesGen.ChatUsageLimitConfig>(
+			"/api/experimental/chats/usage-limits",
+			req,
+		);
+		return response.data;
+	};
+
+	upsertChatUsageLimitOverride = async (
+		userID: string,
+		req: TypesGen.UpsertChatUsageLimitOverrideRequest,
+	): Promise<TypesGen.ChatUsageLimitOverride> => {
+		const response = await this.axios.put<TypesGen.ChatUsageLimitOverride>(
+			`/api/experimental/chats/usage-limits/overrides/${encodeURIComponent(userID)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatUsageLimitOverride = async (userID: string): Promise<void> => {
+		const response = await this.axios.delete(
+			`/api/experimental/chats/usage-limits/overrides/${encodeURIComponent(userID)}`,
+		);
+		return response.data;
+	};
+
+	upsertChatUsageLimitGroupOverride = async (
+		groupID: string,
+		req: TypesGen.UpsertChatUsageLimitGroupOverrideRequest,
+	): Promise<TypesGen.ChatUsageLimitGroupOverride> => {
+		const response = await this.axios.put<TypesGen.ChatUsageLimitGroupOverride>(
+			`/api/experimental/chats/usage-limits/group-overrides/${encodeURIComponent(groupID)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatUsageLimitGroupOverride = async (
+		groupID: string,
+	): Promise<void> => {
+		const response = await this.axios.delete(
+			`/api/experimental/chats/usage-limits/group-overrides/${encodeURIComponent(groupID)}`,
+		);
 		return response.data;
 	};
 }

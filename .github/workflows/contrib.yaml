@@ -23,6 +23,44 @@ permissions:
 concurrency: pr-${{ github.ref }}
 
 jobs:
+  community-label:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    if: >-
+      ${{
+        github.event_name == 'pull_request_target' &&
+        github.event.action == 'opened' &&
+        github.event.pull_request.author_association != 'MEMBER' &&
+        github.event.pull_request.author_association != 'COLLABORATOR' &&
+        github.event.pull_request.author_association != 'OWNER'
+      }}
+    steps:
+      - name: Add community label
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const params = {
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            }
+
+            const labels = context.payload.pull_request.labels.map((label) => label.name)
+            if (labels.includes("community")) {
+              console.log('PR already has "community" label.')
+              return
+            }
+
+            console.log(
+              'Adding "community" label for author association "%s".',
+              context.payload.pull_request.author_association,
+            )
+            await github.rest.issues.addLabels({
+              ...params,
+              labels: ["community"],
+            })
+
   cla:
     runs-on: ubuntu-latest
     permissions:
@@ -44,6 +82,109 @@ jobs:
           branch: "main"
           # Some users have signed a corporate CLA with Coder so are exempt from signing our community one.
           allowlist: "coryb,aaronlehmann,dependabot*,blink-so*,blinkagent*"
+
+  title:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request_target' }}
+    steps:
+      - name: Validate PR title
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const { pull_request } = context.payload;
+            const title = pull_request.title;
+            const repo = { owner: context.repo.owner, repo: context.repo.repo };
+
+            const allowedTypes = [
+              "feat", "fix", "docs", "style", "refactor",
+              "perf", "test", "build", "ci", "chore", "revert",
+            ];
+            const expectedFormat = `"type(scope): description" or "type: description"`;
+            const guidelinesLink = `See: https://github.com/coder/coder/blob/main/docs/about/contributing/CONTRIBUTING.md#commit-messages`;
+            const scopeHint = (type) =>
+              `Use a broader scope or no scope (e.g., "${type}: ...") for cross-cutting changes.\n` +
+              guidelinesLink;
+
+            console.log("Title: %s", title);
+
+            // Parse conventional commit format: type(scope)!: description
+            const match = title.match(/^(\w+)(\(([^)]*)\))?(!)?\s*:\s*.+/);
+            if (!match) {
+              core.setFailed(
+                `PR title does not match conventional commit format.\n` +
+                `Expected: ${expectedFormat}\n` +
+                `Allowed types: ${allowedTypes.join(", ")}\n` +
+                guidelinesLink
+              );
+              return;
+            }
+
+            const type = match[1];
+            const scope = match[3]; // undefined if no parentheses
+
+            // Validate type.
+            if (!allowedTypes.includes(type)) {
+              core.setFailed(
+                `PR title has invalid type "${type}".\n` +
+                `Expected: ${expectedFormat}\n` +
+                `Allowed types: ${allowedTypes.join(", ")}\n` +
+                guidelinesLink
+              );
+              return;
+            }
+
+            // If no scope, we're done.
+            if (!scope) {
+              console.log("No scope provided, title is valid.");
+              return;
+            }
+
+            console.log("Scope: %s", scope);
+
+            // Fetch changed files.
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              ...repo,
+              pull_number: pull_request.number,
+              per_page: 100,
+            });
+            const changedPaths = files.map(f => f.filename);
+            console.log("Changed files: %d", changedPaths.length);
+
+            // Derive scope type from the changed files. The diff is the
+            // source of truth: if files exist under the scope, the path
+            // exists on the PR branch. No need for Contents API calls.
+            const isDir = changedPaths.some(f => f.startsWith(scope + "/"));
+            const isFile = changedPaths.some(f => f === scope);
+            const isStem = changedPaths.some(f => f.startsWith(scope + "."));
+
+            if (!isDir && !isFile && !isStem) {
+              core.setFailed(
+                `PR title scope "${scope}" does not match any files changed in this PR.\n` +
+                `Scopes must reference a path (directory or file stem) that contains changed files.\n` +
+                scopeHint(type)
+              );
+              return;
+            }
+
+            // Verify all changed files fall under the scope.
+            const outsideFiles = changedPaths.filter(f => {
+              if (isDir && f.startsWith(scope + "/")) return false;
+              if (f === scope) return false;
+              if (isStem && f.startsWith(scope + ".")) return false;
+              return true;
+            });
+
+            if (outsideFiles.length > 0) {
+              const listed = outsideFiles.map(f => "  - " + f).join("\n");
+              core.setFailed(
+                `PR title scope "${scope}" does not contain all changed files.\n` +
+                `Files outside scope:\n${listed}\n\n` +
+                scopeHint(type)
+              );
+              return;
+            }
+
+            console.log("PR title is valid.");
 
   release-labels:
     runs-on: ubuntu-latest

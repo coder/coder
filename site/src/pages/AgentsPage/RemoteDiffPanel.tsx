@@ -1,6 +1,7 @@
 import type { DiffLineAnnotation, FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
-import { chatDiffContents, chatDiffStatus } from "api/queries/chats";
+import { chatDiffContents } from "api/queries/chats";
+import type * as TypesGen from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	ArrowLeftIcon,
@@ -27,6 +28,7 @@ import type { ChatMessageInputRef } from "./AgentChatInput";
 import { DiffStatBadge } from "./DiffStats";
 import type { DiffStyle } from "./DiffViewer";
 import { DiffViewer } from "./DiffViewer";
+import { parsePullRequestUrl } from "./pullRequest";
 
 // -------------------------------------------------------------------
 // Diff content extraction
@@ -103,10 +105,6 @@ function extractDiffContent(
 	return collected.join("\n");
 }
 
-/**
- * Parses a GitHub PR URL into its components.
- * Returns null if parsing fails.
- */
 // -------------------------------------------------------------------
 // PR state badge
 // -------------------------------------------------------------------
@@ -117,27 +115,26 @@ const PullRequestStateBadge: FC<{
 }> = ({ state, draft }) => {
 	let Icon = GitPullRequestIcon;
 	let label = "Open";
-	let colorClasses = "border-border-default bg-green-500/10 text-green-400";
+	let colorClasses = "bg-surface-git-added text-git-added-bright";
 
 	if (state === "merged") {
 		Icon = GitMergeIcon;
 		label = "Merged";
-		colorClasses = "border-border-default bg-purple-500/10 text-purple-400";
+		colorClasses = "bg-surface-git-merged text-git-merged-bright";
 	} else if (state === "closed") {
 		Icon = GitPullRequestClosedIcon;
 		label = "Closed";
-		colorClasses = "border-border-default bg-red-500/10 text-red-400";
+		colorClasses = "bg-surface-git-deleted text-git-deleted-bright";
 	} else if (draft) {
 		Icon = GitPullRequestDraftIcon;
 		label = "Draft";
-		colorClasses =
-			"border-border-default bg-surface-secondary text-content-secondary";
+		colorClasses = "text-content-secondary";
 	}
 
 	return (
 		<span
 			className={cn(
-				"inline-flex shrink-0 items-center gap-1 rounded-sm border border-solid px-2 text-[13px] font-medium leading-5",
+				"inline-flex shrink-0 items-center gap-1 rounded-sm border border-solid border-border-default px-2 text-[13px] font-medium leading-5",
 				colorClasses,
 			)}
 		>
@@ -146,22 +143,6 @@ const PullRequestStateBadge: FC<{
 		</span>
 	);
 };
-
-function parsePullRequestUrl(url: string): {
-	owner: string;
-	repo: string;
-	number: string;
-} | null {
-	try {
-		const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
-		if (match) {
-			return { owner: match[1], repo: match[2], number: match[3] };
-		}
-	} catch {
-		// Fall through.
-	}
-	return null;
-}
 
 // -------------------------------------------------------------------
 // Inline prompt input
@@ -247,6 +228,7 @@ interface RemoteDiffPanelProps {
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
+	diffStatus?: TypesGen.ChatDiffStatus;
 }
 
 export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
@@ -254,6 +236,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	isExpanded,
 	chatInputRef,
 	diffStyle,
+	diffStatus,
 }) => {
 	// ---------------------------------------------------------------
 	// Comment / annotation state
@@ -268,10 +251,9 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	// ---------------------------------------------------------------
 	// Data fetching
 	// ---------------------------------------------------------------
-	const diffStatusQuery = useQuery(chatDiffStatus(chatId));
 	const diffContentsQuery = useQuery({
 		...chatDiffContents(chatId),
-		enabled: Boolean(diffStatusQuery.data?.url),
+		enabled: Boolean(diffStatus?.url),
 	});
 
 	const parsedFiles = useMemo(() => {
@@ -426,12 +408,12 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	// ---------------------------------------------------------------
 	// Header content
 	// ---------------------------------------------------------------
-	const pullRequestUrl = diffStatusQuery.data?.url;
+	const pullRequestUrl = diffStatus?.url;
 	const parsedPr = pullRequestUrl ? parsePullRequestUrl(pullRequestUrl) : null;
-	const prState = diffStatusQuery.data?.pull_request_state;
-	const prDraft = diffStatusQuery.data?.pull_request_draft;
-	const baseBranch = diffStatusQuery.data?.base_branch;
-	const headBranch = diffStatusQuery.data?.head_branch;
+	const prState = diffStatus?.pull_request_state;
+	const prDraft = diffStatus?.pull_request_draft;
+	const baseBranch = diffStatus?.base_branch;
+	const headBranch = diffStatus?.head_branch;
 
 	// ---------------------------------------------------------------
 	// Render
@@ -449,9 +431,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 								{headBranch && baseBranch && (
 									<ArrowLeftIcon className="size-3 shrink-0 opacity-50" />
 								)}
-								{headBranch && (
-									<span className="truncate"> {headBranch}</span>
-								)}{" "}
+								{headBranch && <span className="truncate"> {headBranch}</span>}
 							</>
 						) : parsedPr ? (
 							<span className="truncate">
@@ -460,14 +440,13 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 						) : (
 							<span className="truncate">{pullRequestUrl}</span>
 						)}
-					</div>{" "}
+					</div>
 					<div className="ml-auto flex shrink-0 items-center gap-1.5">
 						<PullRequestStateBadge state={prState} draft={prDraft} />
-						{diffStatusQuery.data?.additions ||
-						diffStatusQuery.data?.deletions ? (
+						{diffStatus?.additions || diffStatus?.deletions ? (
 							<DiffStatBadge
-								additions={diffStatusQuery.data.additions}
-								deletions={diffStatusQuery.data.deletions}
+								additions={diffStatus.additions}
+								deletions={diffStatus.deletions}
 							/>
 						) : null}
 						<a
@@ -481,12 +460,12 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 						</a>
 					</div>
 				</div>
-			)}{" "}
+			)}
 			<DiffViewer
 				parsedFiles={parsedFiles}
 				isExpanded={isExpanded}
 				diffStyle={diffStyle}
-				isLoading={diffContentsQuery.isLoading || diffStatusQuery.isLoading}
+				isLoading={diffContentsQuery.isLoading}
 				error={diffContentsQuery.isError ? diffContentsQuery.error : undefined}
 				onLineNumberClick={handleLineNumberClick}
 				onLineSelected={handleLineSelected}

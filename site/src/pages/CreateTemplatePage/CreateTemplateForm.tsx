@@ -20,6 +20,7 @@ import {
 	HorizontalForm,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
+import { Label } from "components/Label/Label";
 import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
@@ -258,20 +259,26 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 					{showOrganizationPicker && (
 						<>
 							{showProvisionerWarning && <ProvisionerWarning />}
-							<OrganizationAutocomplete
-								{...getFieldHelpers("organization")}
-								required
-								label="Belongs to"
-								onChange={(newValue) => {
-									setSelectedOrg(newValue);
-									void form.setFieldValue("organization", newValue?.name || "");
-								}}
-								size="medium"
-								check={{
-									object: { resource_type: "template" },
-									action: "create",
-								}}
-							/>
+
+							<div className="flex flex-col gap-2">
+								<Label htmlFor="organization">Organization</Label>
+								<OrganizationAutocomplete
+									{...getFieldHelpers("organization")}
+									id="organization"
+									required
+									onChange={(newValue) => {
+										setSelectedOrg(newValue);
+										void form.setFieldValue(
+											"organization",
+											newValue?.name || "",
+										);
+									}}
+									check={{
+										object: { resource_type: "template" },
+										action: "create",
+									}}
+								/>
+							</div>
 						</>
 					)}
 

@@ -278,7 +278,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 										{isProviderMutationPending && (
 											<Spinner className="h-4 w-4" loading />
 										)}
-										Delete provider{" "}
+										Delete provider
 									</Button>
 								</div>
 							</div>
@@ -302,9 +302,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 									{isProviderMutationPending && (
 										<Spinner className="h-4 w-4" loading />
 									)}
-									{providerConfig
-										? "Save changes"
-										: "Create provider config"}{" "}
+									{providerConfig ? "Save changes" : "Create provider config"}
 								</Button>
 							</div>
 						)}

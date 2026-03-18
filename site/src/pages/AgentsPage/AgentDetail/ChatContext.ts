@@ -9,9 +9,10 @@ import {
 	useRef,
 	useSyncExternalStore,
 } from "react";
-import { useQueryClient } from "react-query";
+import { type InfiniteData, useQueryClient } from "react-query";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
+import type { ChatDetailError } from "../usageLimitMessage";
 import { applyMessagePartToStreamState } from "./streamState";
 import type { StreamState } from "./types";
 
@@ -419,7 +420,7 @@ interface UseChatStoreOptions {
 	chatRecord: TypesGen.Chat | undefined;
 	chatMessagesData: TypesGen.ChatMessagesResponse | undefined;
 	chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
-	setChatErrorReason: (chatID: string, reason: string) => void;
+	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatID: string) => void;
 }
 
@@ -477,6 +478,13 @@ export const useChatStore = (
 			? chatMessages[chatMessages.length - 1].id
 			: undefined;
 
+	// True once the initial REST page has resolved for the current
+	// chat. The WebSocket effect gates on this so that
+	// lastMessageIdRef is populated before the socket opens;
+	// otherwise the server replays the entire message history as
+	// its snapshot, defeating pagination.
+	const initialDataLoaded = chatMessages !== undefined;
+
 	const updateSidebarChat = useCallback(
 		(updater: (chat: TypesGen.Chat) => TypesGen.Chat) => {
 			if (!chatID) {
@@ -519,26 +527,29 @@ export const useChatStore = (
 				return;
 			}
 			const nextQueuedMessages = queuedMessages ?? [];
-			queryClient.setQueryData<TypesGen.ChatMessagesResponse | undefined>(
-				chatMessagesKey(chatID),
-				(currentData) => {
-					if (!currentData) {
-						return currentData;
-					}
-					if (
-						chatQueuedMessagesEqualByID(
-							currentData.queued_messages,
-							nextQueuedMessages,
-						)
-					) {
-						return currentData;
-					}
-					return {
-						...currentData,
-						queued_messages: nextQueuedMessages,
-					};
-				},
-			);
+			queryClient.setQueryData<
+				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+			>(chatMessagesKey(chatID), (currentData) => {
+				if (!currentData?.pages?.length) {
+					return currentData;
+				}
+				const firstPage = currentData.pages[0];
+				if (
+					chatQueuedMessagesEqualByID(
+						firstPage.queued_messages,
+						nextQueuedMessages,
+					)
+				) {
+					return currentData;
+				}
+				return {
+					...currentData,
+					pages: [
+						{ ...firstPage, queued_messages: nextQueuedMessages },
+						...currentData.pages.slice(1),
+					],
+				};
+			});
 		},
 		[chatID, queryClient],
 	);
@@ -551,7 +562,28 @@ export const useChatStore = (
 			prevChatIDRef.current = chatID;
 			store.replaceMessages([]);
 		}
-		store.replaceMessages(chatMessages);
+		// Merge REST-fetched messages into the store one-by-one instead
+		// of replacing the entire map. This preserves any messages the
+		// WebSocket delivered via upsertDurableMessage that haven't
+		// appeared in a REST page yet.
+		//
+		// However, if the fetched set is missing message IDs the store
+		// already has (e.g. after an edit truncation), a full replace
+		// is needed because upsert can only add/update, not remove.
+		if (chatMessages) {
+			const fetchedIDs = new Set(chatMessages.map((m) => m.id));
+			const storeSnap = store.getSnapshot();
+			const hasStaleEntries = storeSnap.orderedMessageIDs.some(
+				(id) => !fetchedIDs.has(id),
+			);
+			if (hasStaleEntries) {
+				store.replaceMessages(chatMessages);
+			} else {
+				for (const message of chatMessages) {
+					store.upsertDurableMessage(message);
+				}
+			}
+		}
 	}, [chatID, chatMessages, store]);
 
 	useEffect(() => {
@@ -591,7 +623,7 @@ export const useChatStore = (
 		store.resetTransientState();
 		activeChatIDRef.current = chatID ?? null;
 
-		if (!chatID) {
+		if (!chatID || !initialDataLoaded) {
 			return;
 		}
 
@@ -749,7 +781,10 @@ export const useChatStore = (
 						store.setChatStatus("error");
 						store.setStreamError(reason);
 						store.clearRetryState();
-						setChatErrorReason(chatID, reason);
+						setChatErrorReason(chatID, {
+							kind: "generic",
+							message: reason,
+						});
 						updateSidebarChat((chat) => ({
 							...chat,
 							status: "error",
@@ -821,6 +856,7 @@ export const useChatStore = (
 		cancelScheduledStreamReset,
 		chatID,
 		clearChatErrorReason,
+		initialDataLoaded,
 		scheduleStreamReset,
 		setChatErrorReason,
 		store,
