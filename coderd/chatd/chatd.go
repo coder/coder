@@ -1426,7 +1426,8 @@ func (p *Server) Subscribe(
 		ctx = context.Background()
 	}
 
-	// Subscribe to local stream for message_parts (ephemeral).
+	// Subscribe to the local stream for message_parts and same-replica
+	// persisted messages.
 	localSnapshot, localParts, localCancel := p.subscribeToStream(chatID)
 
 	// Merge all event sources.
@@ -1576,14 +1577,16 @@ func (p *Server) Subscribe(
 		initialSnapshot = append([]codersdk.ChatStreamEvent{statusEvent}, initialSnapshot...)
 	}
 
-	// Track the last message ID we've seen for DB queries.
-	// Initialize from afterMessageID so that when the caller passes
-	// afterMessageID > 0 but no new messages exist yet, the first
-	// pubsub catch-up doesn't re-fetch already-seen messages.
-	lastMessageID := afterMessageID
+	// Track the highest message ID this subscriber has definitely
+	// reconciled, either from the initial DB snapshot, a later DB catch-up,
+	// or a local delivery that was confirmed by the matching pubsub notify.
+	// Local fast-path deliveries stay in locallyDeliveredMessageIDs until
+	// that notify arrives.
+	lastDatabaseMessageID := afterMessageID
 	if len(messages) > 0 {
-		lastMessageID = messages[len(messages)-1].ID
+		lastDatabaseMessageID = messages[len(messages)-1].ID
 	}
+	locallyDeliveredMessageIDs := make(map[int64]struct{})
 
 	// When an enterprise SubscribeFn is provided and the chat
 	// lookup succeeded, call it to get relay events (message_parts
@@ -1640,32 +1643,67 @@ func (p *Server) Subscribe(
 				return
 			case notify := <-notifications:
 				if notify.AfterMessageID > 0 || notify.FullRefresh {
-					afterID := lastMessageID
+					shouldFetchMessages := true
+					afterID := lastDatabaseMessageID
 					if notify.FullRefresh {
 						afterID = 0
-					}
-					newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
-						ChatID:  chatID,
-						AfterID: afterID,
-					})
-					if msgErr != nil {
-						p.logger.Warn(mergedCtx, "failed to get chat messages after pubsub notification",
-							slog.F("chat_id", chatID),
-							slog.Error(msgErr),
-						)
 					} else {
-						for _, msg := range newMessages {
-							sdkMsg := db2sdk.ChatMessage(msg)
-							select {
-							case <-mergedCtx.Done():
-								return
-							case mergedEvents <- codersdk.ChatStreamEvent{
-								Type:    codersdk.ChatStreamEventTypeMessage,
-								ChatID:  chatID,
-								Message: &sdkMsg,
-							}:
+						messageID := notify.AfterMessageID + 1
+						if messageID <= lastDatabaseMessageID {
+							delete(locallyDeliveredMessageIDs, messageID)
+							shouldFetchMessages = false
+						} else if _, ok := locallyDeliveredMessageIDs[messageID]; ok {
+							// This subscriber already received the exact persisted
+							// message via the local stream, so it can skip the
+							// same-replica DB catch-up.
+							delete(locallyDeliveredMessageIDs, messageID)
+							lastDatabaseMessageID = messageID
+							shouldFetchMessages = false
+						}
+					}
+					if shouldFetchMessages {
+						newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
+							ChatID:  chatID,
+							AfterID: afterID,
+						})
+						if msgErr != nil {
+							p.logger.Warn(mergedCtx, "failed to get chat messages after pubsub notification",
+								slog.F("chat_id", chatID),
+								slog.Error(msgErr),
+							)
+						} else {
+							for _, msg := range newMessages {
+								if !notify.FullRefresh && msg.ID <= lastDatabaseMessageID {
+									continue
+								}
+								if !notify.FullRefresh {
+									if _, ok := locallyDeliveredMessageIDs[msg.ID]; ok {
+										delete(locallyDeliveredMessageIDs, msg.ID)
+										if msg.ID > lastDatabaseMessageID {
+											lastDatabaseMessageID = msg.ID
+										}
+										continue
+									}
+								}
+								sdkMsg := db2sdk.ChatMessage(msg)
+								select {
+								case <-mergedCtx.Done():
+									return
+								case mergedEvents <- codersdk.ChatStreamEvent{
+									Type:    codersdk.ChatStreamEventTypeMessage,
+									ChatID:  chatID,
+									Message: &sdkMsg,
+								}:
+								}
+								if msg.ID > lastDatabaseMessageID {
+									lastDatabaseMessageID = msg.ID
+								}
 							}
-							lastMessageID = msg.ID
+							for messageID := range locallyDeliveredMessageIDs {
+								if messageID <= lastDatabaseMessageID {
+									delete(locallyDeliveredMessageIDs, messageID)
+								}
+							}
 						}
 					}
 				}
@@ -1739,13 +1777,22 @@ func (p *Server) Subscribe(
 					continue
 				}
 				if hasPubsub {
-					// Only forward message_part events from local
-					// (durable events come via pubsub).
-					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
+					switch event.Type {
+					case codersdk.ChatStreamEventTypeMessagePart:
 						select {
 						case <-mergedCtx.Done():
 							return
 						case mergedEvents <- event:
+						}
+					case codersdk.ChatStreamEventTypeMessage:
+						if event.Message == nil || event.Message.ID <= lastDatabaseMessageID {
+							continue
+						}
+						select {
+						case <-mergedCtx.Done():
+							return
+						case mergedEvents <- event:
+							locallyDeliveredMessageIDs[event.Message.ID] = struct{}{}
 						}
 					}
 				} else {
