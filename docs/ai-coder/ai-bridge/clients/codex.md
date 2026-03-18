@@ -20,9 +20,6 @@ wire_api = "responses"
 ```
 
 Run Codex as usual. It will automatically use the `aibridge` model provider from your configuration:
-```bash
-codex
-```
 
 If configuring within a Coder workspace, you can also use the [Codex CLI](https://registry.coder.com/modules/coder-labs/codex) module and set the following variables:
 
