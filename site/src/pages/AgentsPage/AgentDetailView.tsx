@@ -1,8 +1,16 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { ArchiveIcon } from "lucide-react";
-import { type FC, type RefObject, useEffect, useRef, useState } from "react";
+import { Button } from "components/Button/Button";
+import { ArchiveIcon, ArrowDownIcon } from "lucide-react";
+import {
+	type FC,
+	type RefObject,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
@@ -503,6 +511,8 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
  * renders — CSS scroll anchoring is unreliable in flex-col-reverse
  * containers.
  */
+const SCROLL_THRESHOLD = 100;
+
 const ScrollAnchoredContainer: FC<{
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
 	isFetchingMoreMessages: boolean;
@@ -522,6 +532,7 @@ const ScrollAnchoredContainer: FC<{
 	isFetchingRef.current = isFetchingMoreMessages;
 	const onFetchRef = useRef(onFetchMoreMessages);
 	onFetchRef.current = onFetchMoreMessages;
+	const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
 	// Sentinel observer — triggers loading older messages.
 	// All changing values are read from refs so the observer
@@ -566,14 +577,76 @@ const ScrollAnchoredContainer: FC<{
 		observer.observe(sentinel);
 	}, [isFetchingMoreMessages]);
 
+	// Track scroll position to show/hide the scroll-to-bottom button.
+	// In a flex-col-reverse container, scrollTop = 0 means the user
+	// is at the bottom (most recent content). Scrolling up to see
+	// older messages makes scrollTop negative.
+	//
+	// Throttled to once per animation frame so we avoid calling
+	// setState on every high-frequency scroll event.
+	useEffect(() => {
+		const container = scrollContainerRef.current;
+		if (!container) return;
+
+		let rafId: number | null = null;
+
+		const handleScroll = () => {
+			if (rafId !== null) return;
+			rafId = requestAnimationFrame(() => {
+				const isAtBottom = Math.abs(container.scrollTop) < SCROLL_THRESHOLD;
+				setShowScrollToBottom(!isAtBottom);
+				rafId = null;
+			});
+		};
+
+		container.addEventListener("scroll", handleScroll, { passive: true });
+		return () => {
+			container.removeEventListener("scroll", handleScroll);
+			if (rafId !== null) {
+				cancelAnimationFrame(rafId);
+			}
+		};
+	}, [scrollContainerRef]);
+
+	const handleScrollToBottom = useCallback(() => {
+		const container = scrollContainerRef.current;
+		if (!container) return;
+		container.scrollTo({ top: 0, behavior: "smooth" });
+		// Hide immediately so the button doesn't linger while the
+		// smooth scroll animates.  If the user interrupts the scroll
+		// before it reaches the bottom, the scroll handler will
+		// re-show the button.
+		setShowScrollToBottom(false);
+	}, [scrollContainerRef]);
+
 	return (
-		<div
-			ref={scrollContainerRef}
-			className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
-			style={{ overflowAnchor: "none" }}
-		>
-			{children}
-			{hasMoreMessages && <div ref={sentinelRef} className="h-px shrink-0" />}
+		<div className="relative flex min-h-0 flex-1 flex-col">
+			<div
+				ref={scrollContainerRef}
+				data-testid="scroll-container"
+				className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [overflow-anchor:none] [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+			>
+				{children}
+				{hasMoreMessages && <div ref={sentinelRef} className="h-px shrink-0" />}
+			</div>
+			<div className="pointer-events-none absolute inset-x-0 bottom-2 z-10 flex justify-center overflow-y-auto py-2 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+				<Button
+					variant="outline"
+					size="icon"
+					className={cn(
+						"rounded-full bg-surface-primary shadow-md transition-all duration-200",
+						showScrollToBottom
+							? "pointer-events-auto translate-y-0 opacity-100"
+							: "translate-y-2 opacity-0",
+					)}
+					onClick={handleScrollToBottom}
+					aria-label="Scroll to bottom"
+					aria-hidden={!showScrollToBottom || undefined}
+					tabIndex={showScrollToBottom ? undefined : -1}
+				>
+					<ArrowDownIcon />
+				</Button>
+			</div>
 		</div>
 	);
 };
