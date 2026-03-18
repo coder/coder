@@ -1,3 +1,4 @@
+import { workspaceById } from "api/queries/workspaces";
 import type {
 	Chat,
 	ChatDiffStatus,
@@ -67,6 +68,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useQuery } from "react-query";
 import { Link, NavLink, useLocation, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { shortRelativeTime } from "utils/time";
@@ -407,6 +409,13 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 		changedFiles === 1 ? "file" : "files"
 	}`;
 	const workspaceId = chat.workspace_id;
+	const workspaceQuery = useQuery({
+		...workspaceById(workspaceId ?? ""),
+		enabled: Boolean(workspaceId),
+	});
+	const canDeleteWorkspace =
+		workspaceQuery.data != null &&
+		new Date(workspaceQuery.data.created_at) >= new Date(chat.created_at);
 	const isArchivingThisChat = isArchiving && archivingChatId === chat.id;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
@@ -545,7 +554,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 												<ArchiveIcon className="h-3.5 w-3.5" />
 												Archive agent
 											</DropdownMenuItem>
-											{workspaceId && (
+											{canDeleteWorkspace && workspaceId && (
 												<DropdownMenuItem
 													className="text-content-destructive focus:text-content-destructive"
 													disabled={isArchiving}
