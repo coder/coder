@@ -471,15 +471,14 @@ export const ScrollToBottomButton: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// The button should be hidden initially (user starts at bottom).
-		const button = canvas.getByRole("button", { name: "Scroll to bottom" });
-		expect(button).toHaveClass("opacity-0");
+		// The button should be hidden initially — it has aria-hidden="true"
+		// when not shown, so queryByRole correctly returns null.
+		expect(
+			canvas.queryByRole("button", { name: "Scroll to bottom" }),
+		).toBeNull();
 
-		// Find the scroll container (the flex-col-reverse element).
-		const scrollContainer = canvasElement.querySelector(
-			"[class*='flex-col-reverse']",
-		) as HTMLElement;
-		expect(scrollContainer).toBeTruthy();
+		// Find the scroll container via data-testid.
+		const scrollContainer = canvas.getByTestId("scroll-container");
 
 		// Wait for content to render and create overflow.
 		await waitFor(() => {
@@ -500,17 +499,22 @@ export const ScrollToBottomButton: Story = {
 		}
 		scrollContainer.dispatchEvent(new Event("scroll"));
 
-		// Button should become visible.
-		await waitFor(() => {
-			expect(button).toHaveClass("opacity-100");
+		// Button should become visible (enters the accessibility tree).
+		const button = await waitFor(() => {
+			const btn = canvas.getByRole("button", { name: "Scroll to bottom" });
+			expect(btn).toBeVisible();
+			return btn;
 		});
 
 		// Click the button to scroll back to the bottom.
 		await userEvent.click(button);
 
-		// Button should fade out once we're back at the bottom.
+		// Button should be hidden again. The click handler immediately
+		// hides it, so this doesn't depend on smooth scroll completing.
 		await waitFor(() => {
-			expect(button).toHaveClass("opacity-0");
+			expect(
+				canvas.queryByRole("button", { name: "Scroll to bottom" }),
+			).toBeNull();
 		});
 	},
 };
