@@ -177,12 +177,15 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 			</div>
 
 			<DeleteDialog
+				key={deleteDialog.workspaceName}
 				isOpen={deleteDialog.isOpen}
 				onConfirm={deleteDialog.onConfirm}
 				onCancel={deleteDialog.onCancel}
 				entity="workspace"
 				name={deleteDialog.workspaceName}
 				confirmLoading={deleteDialog.isLoading}
+				title="Archive agent & delete workspace"
+				verb="Archiving and deleting"
 				info="This will archive the agent and permanently delete the associated workspace and all its resources."
 			/>
 

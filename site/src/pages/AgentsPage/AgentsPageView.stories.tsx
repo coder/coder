@@ -334,6 +334,51 @@ export const ArchivingAgent: Story = {
 	},
 };
 
+export const DeleteConfirmationDialog: Story = {
+	args: {
+		chatList: [
+			buildChat({
+				id: "chat-1",
+				title: "Agent to delete",
+				updated_at: todayTimestamp,
+			}),
+		],
+		deleteDialog: {
+			isOpen: true,
+			onConfirm: fn(),
+			onCancel: fn(),
+			workspaceName: "my-workspace",
+			isLoading: false,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const dialog = await screen.findByRole("dialog");
+		await expect(dialog).toBeInTheDocument();
+		await expect(
+			within(dialog).getByText("Archive agent & delete workspace"),
+		).toBeInTheDocument();
+	},
+};
+
+export const DeleteConfirmationDialogLoading: Story = {
+	args: {
+		chatList: [
+			buildChat({
+				id: "chat-1",
+				title: "Agent being deleted",
+				updated_at: todayTimestamp,
+			}),
+		],
+		deleteDialog: {
+			isOpen: true,
+			onConfirm: fn(),
+			onCancel: fn(),
+			workspaceName: "my-workspace",
+			isLoading: true,
+		},
+	},
+};
+
 export const WithAgentSelected: Story = {
 	args: {
 		agentId: "chat-1",
