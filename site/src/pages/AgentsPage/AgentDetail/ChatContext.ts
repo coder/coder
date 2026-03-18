@@ -540,12 +540,16 @@ export const useChatStore = (
 	);
 
 	useEffect(() => {
-		// When the active chat changes, clear stale messages immediately
-		// so the previous chat's messages aren't briefly visible while
-		// the new chat's query resolves.
+		// When the active chat changes, clear stale messages and reset
+		// all per-chat hydration tracking so the previous chat's state
+		// doesn't leak into the new one.
 		if (prevChatIDRef.current !== chatID) {
 			prevChatIDRef.current = chatID;
 			store.replaceMessages([]);
+			queuedMessagesHydratedChatIDRef.current = null;
+			wsQueueUpdateReceivedRef.current = false;
+			wsStatusReceivedRef.current = false;
+			store.setQueuedMessages([]);
 		}
 		// Merge REST-fetched messages into the store one-by-one instead
 		// of replacing the entire map. This preserves any messages the
@@ -581,14 +585,6 @@ export const useChatStore = (
 		}
 		store.setChatStatus(chatRecord?.status ?? null);
 	}, [chatRecord?.status, store]);
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: chatID is an intentional trigger to reset refs on chat change
-	useEffect(() => {
-		queuedMessagesHydratedChatIDRef.current = null;
-		wsQueueUpdateReceivedRef.current = false;
-		wsStatusReceivedRef.current = false;
-		store.setQueuedMessages([]);
-	}, [chatID, store]);
 
 	useEffect(() => {
 		if (!chatID || !chatMessagesData) {

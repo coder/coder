@@ -341,9 +341,12 @@ const AgentsPage: FC = () => {
 	// WebSocket handler can read it without re-subscribing on
 	// every navigation.
 	const activeChatIDRef = useRef(agentId);
-	useEffect(() => {
-		activeChatIDRef.current = agentId;
-	}, [agentId]);
+	// This render-time ref write is intentional. The ref is read
+	// inside the WebSocket message handler (async), so it must
+	// always reflect the latest agentId without re-subscribing
+	// the socket. A useEffect would introduce a timing gap where
+	// the ref holds a stale value between render and commit.
+	activeChatIDRef.current = agentId;
 
 	useEffect(() => {
 		return createReconnectingWebSocket({
