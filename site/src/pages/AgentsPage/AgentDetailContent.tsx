@@ -234,7 +234,10 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			setPreviewUrls(new Map());
 			return;
 		}
-		const files = editingFileBlocks.map((block, i) => {
+		const fileBlocks = editingFileBlocks.filter(
+			(b): b is TypesGen.ChatFilePart => b.type === "file",
+		);
+		const files = fileBlocks.map((block, i) => {
 			const mt = block.media_type ?? "application/octet-stream";
 			const ext = mt.split("/")[1] ?? "png";
 			// Empty File used as a Map key only, its content is never
@@ -246,13 +249,13 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			new Map(
 				files.map((f, i) => [
 					f,
-					`/api/experimental/chats/files/${editingFileBlocks[i].file_id}`,
+					`/api/experimental/chats/files/${fileBlocks[i].file_id}`,
 				]),
 			),
 		);
 		const newUploadStates = new Map<File, UploadState>();
 		for (const [i, file] of files.entries()) {
-			const block = editingFileBlocks[i];
+			const block = fileBlocks[i];
 			if (block.file_id) {
 				newUploadStates.set(file, {
 					status: "uploaded",
