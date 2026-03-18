@@ -239,7 +239,6 @@ describe("archiveChat optimistic update", () => {
 		const initialChats = [makeChat(chatId)];
 		seedInfiniteChats(queryClient, initialChats);
 		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
-		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
 		const mutation = archiveChat(queryClient);
 		const context = await mutation.onMutate(chatId);
@@ -247,13 +246,12 @@ describe("archiveChat optimistic update", () => {
 		// Verify the optimistic update took effect.
 		expect(readInfiniteChats(queryClient)?.[0].archived).toBe(true);
 
-		// Simulate an error — the onError handler invalidates the
-		// cache so a re-fetch restores the correct state.
+		// Simulate an error — the onError handler restores the
+		// previous cache state synchronously.
 		mutation.onError(new Error("server error"), chatId, context);
 
-		expect(invalidateSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ queryKey: chatsKey }),
-		);
+		// The infinite cache should be restored to the pre-mutation state.
+		expect(readInfiniteChats(queryClient)?.[0].archived).toBe(false);
 	});
 
 	it("rolls back the individual chat cache on error", async () => {
@@ -279,7 +277,6 @@ describe("archiveChat optimistic update", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
 		seedInfiniteChats(queryClient, [makeChat(chatId, { archived: true })]);
-		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
 		const mutation = archiveChat(queryClient);
 
@@ -287,11 +284,6 @@ describe("archiveChat optimistic update", () => {
 		expect(() => {
 			mutation.onError(new Error("fail"), chatId, undefined);
 		}).not.toThrow();
-
-		// The handler should still invalidate to trigger a refetch.
-		expect(invalidateSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ queryKey: chatsKey }),
-		);
 	});
 
 	it("handles onMutate when no individual chat cache exists", async () => {
@@ -364,7 +356,6 @@ describe("unarchiveChat optimistic update", () => {
 			chatKey(chatId),
 			makeChat(chatId, { archived: true }),
 		);
-		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
 		const mutation = unarchiveChat(queryClient);
 		const context = await mutation.onMutate(chatId);
@@ -378,10 +369,8 @@ describe("unarchiveChat optimistic update", () => {
 		// Roll back.
 		mutation.onError(new Error("server error"), chatId, context);
 
-		// The chats list is rolled back via invalidation.
-		expect(invalidateSpy).toHaveBeenCalledWith(
-			expect.objectContaining({ queryKey: chatsKey }),
-		);
+		// The infinite cache is restored synchronously.
+		expect(readInfiniteChats(queryClient)?.[0].archived).toBe(true);
 		// The individual chat cache is restored directly.
 		expect(
 			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.archived,
@@ -694,16 +683,16 @@ describe("infiniteChats", () => {
 			const lastPage = Array.from({ length: PAGE_LIMIT - 1 }, (_, i) =>
 				makeChat(`chat-${i}`),
 			);
-			expect(getNextPageParam(lastPage, [lastPage])).toBeUndefined();
+			expect(getNextPageParam(lastPage, [lastPage], 0)).toBeUndefined();
 		});
 
-		it("returns pages.length + 1 when lastPage has exactly the limit", () => {
+		it("returns lastPageParam + limit when lastPage has exactly the limit", () => {
 			const { getNextPageParam } = infiniteChats();
 			const lastPage = Array.from({ length: PAGE_LIMIT }, (_, i) =>
 				makeChat(`chat-${i}`),
 			);
 			const pages = [lastPage];
-			expect(getNextPageParam(lastPage, pages)).toBe(pages.length + 1);
+			expect(getNextPageParam(lastPage, pages, 0)).toBe(PAGE_LIMIT);
 		});
 	});
 
@@ -718,38 +707,21 @@ describe("infiniteChats", () => {
 			});
 		});
 
-		it("computes offset 0 for pageParam <= 0", async () => {
-			vi.mocked(API.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats();
-			await queryFn({ pageParam: -1 });
-			expect(API.getChats).toHaveBeenCalledWith({
-				limit: PAGE_LIMIT,
-				offset: 0,
-			});
-		});
-
 		it("computes correct offset for subsequent pages", async () => {
 			vi.mocked(API.getChats).mockResolvedValue([]);
 			const { queryFn } = infiniteChats();
 
-			await queryFn({ pageParam: 2 });
+			await queryFn({ pageParam: PAGE_LIMIT });
 			expect(API.getChats).toHaveBeenCalledWith({
 				limit: PAGE_LIMIT,
 				offset: PAGE_LIMIT,
 			});
 
-			await queryFn({ pageParam: 3 });
+			await queryFn({ pageParam: PAGE_LIMIT * 2 });
 			expect(API.getChats).toHaveBeenCalledWith({
 				limit: PAGE_LIMIT,
 				offset: PAGE_LIMIT * 2,
 			});
-		});
-
-		it("throws when pageParam is not a number", () => {
-			const { queryFn } = infiniteChats();
-			expect(() => queryFn({ pageParam: "bad" })).toThrow(
-				"pageParam must be a number",
-			);
 		});
 	});
 });

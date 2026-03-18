@@ -20,7 +20,7 @@ export const updateInfiniteChatsCache = (
 	queryClient.setQueriesData<{
 		pages: TypesGen.Chat[][];
 		pageParams: unknown[];
-	}>({ queryKey: chatsKey, predicate: isChatListQuery }, (prev) => {
+	}>({ queryKey: chatsKey, predicate: isInfiniteChatListQuery }, (prev) => {
 		if (!prev) return prev;
 		if (!prev.pages) return prev;
 		const nextPages = prev.pages.map((page) => updater(page));
@@ -44,7 +44,7 @@ export const prependToInfiniteChatsCache = (
 	queryClient.setQueriesData<{
 		pages: TypesGen.Chat[][];
 		pageParams: unknown[];
-	}>({ queryKey: chatsKey, predicate: isChatListQuery }, (prev) => {
+	}>({ queryKey: chatsKey, predicate: isInfiniteChatListQuery }, (prev) => {
 		if (!prev?.pages) return prev;
 		// Check across ALL pages to avoid duplicates.
 		const exists = prev.pages.some((page) =>
@@ -69,7 +69,7 @@ export const readInfiniteChatsCache = (
 	const queries = queryClient.getQueriesData<{
 		pages: TypesGen.Chat[][];
 		pageParams: unknown[];
-	}>({ queryKey: chatsKey, predicate: isChatListQuery });
+	}>({ queryKey: chatsKey, predicate: isInfiniteChatListQuery });
 	for (const [, data] of queries) {
 		if (data?.pages) {
 			return data.pages.flat();
@@ -79,23 +79,45 @@ export const readInfiniteChatsCache = (
 };
 
 /**
- * Invalidate only the sidebar chat-list queries (flat + infinite)
-/**
- * Predicate that matches only chat-list queries (the sidebar), not
- * per-chat queries (detail, messages, diffs, cost).
+ * Predicate that matches only infinite chat-list queries, excluding
+ * the flat ["chats"] query. Used for direct cache manipulation
+ * (setQueriesData) where the data structure must be { pages,
+ * pageParams }.
  *
- * Sidebar keys look like ["chats"] or ["chats", <object|undefined>].
+ * Infinite keys look like ["chats", <object | undefined>].
  * Per-chat keys look like ["chats", <string-id>, ...].
+ */
+const isInfiniteChatListQuery = (query: {
+	queryKey: readonly unknown[];
+}): boolean => {
+	const key = query.queryKey;
+	// Exclude: ["chats"] (flat list) — its data is Chat[], not
+	// { pages, pageParams }, so cache helpers must not touch it.
+	if (key.length <= 1) return false;
+	// Match: ["chats", <object | undefined>] (infinite query
+	// with optional filter opts like {archived, q}).
+	const segment = key[1];
+	return (
+		segment === undefined || (segment !== null && typeof segment === "object")
+	);
+};
+
+/**
+ * Predicate that matches both flat and infinite chat-list queries
+ * (the sidebar). Used for invalidation where we want to refresh
+ * all list views.
  */
 const isChatListQuery = (query: { queryKey: readonly unknown[] }): boolean => {
 	const key = query.queryKey;
 	// Match: ["chats"] (flat list).
 	if (key.length <= 1) return true;
-	// Match: ["chats", <object | undefined>] (infinite query
-	// with optional filter opts like {archived, q}).
-	const segment = key[1];
-	return segment === undefined || typeof segment === "object";
+	// Delegate to the infinite predicate for longer keys.
+	return isInfiniteChatListQuery(query);
 };
+
+/**
+ * Invalidate only the sidebar chat-list queries (flat + infinite).
+ */
 
 export const invalidateChatListQueries = (queryClient: QueryClient) => {
 	return queryClient.invalidateQueries({
@@ -121,20 +143,21 @@ export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 
 	return {
 		queryKey: [...chatsKey, opts],
-		getNextPageParam: (lastPage: TypesGen.Chat[], pages: TypesGen.Chat[][]) => {
+		getNextPageParam: (
+			lastPage: TypesGen.Chat[],
+			_allPages: TypesGen.Chat[][],
+			lastPageParam: unknown,
+		) => {
 			if (lastPage.length < limit) {
 				return undefined;
 			}
-			return pages.length + 1;
+			return (lastPageParam as number) + limit;
 		},
 		initialPageParam: 0,
 		queryFn: ({ pageParam }: { pageParam: unknown }) => {
-			if (typeof pageParam !== "number") {
-				throw new Error("pageParam must be a number");
-			}
 			return API.getChats({
 				limit,
-				offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
+				offset: pageParam as number,
 				q,
 			});
 		},
@@ -179,12 +202,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
-			predicate: (query) => {
-				const key = query.queryKey;
-				if (key.length <= 1) return true;
-				const segment = key[1];
-				return segment === undefined || typeof segment === "object";
-			},
+			predicate: isChatListQuery,
 		});
 		await queryClient.cancelQueries({
 			queryKey: chatKey(chatId),
@@ -193,6 +211,12 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatKey(chatId),
 		);
+		// Snapshot infinite cache before optimistic update so we
+		// can restore it on error without a flash of stale data.
+		const previousInfiniteData = queryClient.getQueriesData<{
+			pages: TypesGen.Chat[][];
+			pageParams: unknown[];
+		}>({ queryKey: chatsKey, predicate: isInfiniteChatListQuery });
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
 				chat.id === chatId ? { ...chat, archived: true } : chat,
@@ -204,7 +228,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 				archived: true,
 			});
 		}
-		return { previousChat };
+		return { previousChat, previousInfiniteData };
 	},
 	onError: (
 		_error: unknown,
@@ -212,11 +236,18 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		context:
 			| {
 					previousChat?: TypesGen.Chat;
+					previousInfiniteData?: [
+						readonly unknown[],
+						{ pages: TypesGen.Chat[][]; pageParams: unknown[] } | undefined,
+					][];
 			  }
 			| undefined,
 	) => {
-		// Rollback: invalidate to re-fetch the correct state.
-		void invalidateChatListQueries(queryClient);
+		// Rollback: restore both caches synchronously. The
+		// onSettled handler will refetch for server consistency.
+		for (const [key, data] of context?.previousInfiniteData ?? []) {
+			queryClient.setQueryData(key, data);
+		}
 		if (context?.previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(
 				chatKey(chatId),
@@ -238,12 +269,7 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
-			predicate: (query) => {
-				const key = query.queryKey;
-				if (key.length <= 1) return true;
-				const segment = key[1];
-				return segment === undefined || typeof segment === "object";
-			},
+			predicate: isChatListQuery,
 		});
 		await queryClient.cancelQueries({
 			queryKey: chatKey(chatId),
@@ -252,6 +278,12 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatKey(chatId),
 		);
+		// Snapshot infinite cache before optimistic update so we
+		// can restore it on error without a flash of stale data.
+		const previousInfiniteData = queryClient.getQueriesData<{
+			pages: TypesGen.Chat[][];
+			pageParams: unknown[];
+		}>({ queryKey: chatsKey, predicate: isInfiniteChatListQuery });
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
 				chat.id === chatId ? { ...chat, archived: false } : chat,
@@ -263,7 +295,7 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 				archived: false,
 			});
 		}
-		return { previousChat };
+		return { previousChat, previousInfiniteData };
 	},
 	onError: (
 		_error: unknown,
@@ -271,11 +303,18 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 		context:
 			| {
 					previousChat?: TypesGen.Chat;
+					previousInfiniteData?: [
+						readonly unknown[],
+						{ pages: TypesGen.Chat[][]; pageParams: unknown[] } | undefined,
+					][];
 			  }
 			| undefined,
 	) => {
-		// Rollback: invalidate to re-fetch the correct state.
-		void invalidateChatListQueries(queryClient);
+		// Rollback: restore both caches synchronously. The
+		// onSettled handler will refetch for server consistency.
+		for (const [key, data] of context?.previousInfiniteData ?? []) {
+			queryClient.setQueryData(key, data);
+		}
 		if (context?.previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(
 				chatKey(chatId),
@@ -294,8 +333,8 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 
 export const createChat = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatRequest) => API.createChat(req),
-	onSuccess: () => {
-		void invalidateChatListQueries(queryClient);
+	onSuccess: async () => {
+		await invalidateChatListQueries(queryClient);
 	},
 });
 
@@ -318,17 +357,17 @@ type EditChatMessageMutationArgs = {
 export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
 		API.editChatMessage(chatId, messageId, req),
-	onSuccess: () => {
+	onSuccess: async () => {
 		// Editing truncates all messages after the edited one on the
 		// server. The WebSocket can insert/update messages but cannot
 		// remove stale ones, so a full messages refetch is required.
 		// Use exact matching to avoid cascading to unrelated queries
 		// (diff-status, diff-contents, cost summaries, etc.).
-		void queryClient.invalidateQueries({
+		await queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
-		void queryClient.invalidateQueries({
+		await queryClient.invalidateQueries({
 			queryKey: chatMessagesKey(chatId),
 			exact: true,
 		});

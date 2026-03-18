@@ -273,7 +273,9 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 										size="lg"
 										type="button"
 										disabled={isProviderMutationPending}
-										onClick={() => void onDeleteProvider(providerConfig.id)}
+										onClick={() =>
+											void onDeleteProvider(providerConfig.id).catch(() => {})
+										}
 									>
 										{isProviderMutationPending && (
 											<Spinner className="h-4 w-4" loading />

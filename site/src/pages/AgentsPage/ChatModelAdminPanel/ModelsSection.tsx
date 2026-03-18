@@ -161,7 +161,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 
 	const handleSetDefault = (modelConfig: TypesGen.ChatModelConfig) => {
 		if (modelConfig.is_default) return;
-		void onUpdateModel(modelConfig.id, { is_default: true });
+		void onUpdateModel(modelConfig.id, { is_default: true }).catch(() => {});
 	};
 
 	return (

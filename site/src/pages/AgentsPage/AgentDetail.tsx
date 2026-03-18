@@ -675,7 +675,7 @@ const AgentDetail: FC = () => {
 		if (!agentId || interruptMutation.isPending) {
 			return;
 		}
-		void interruptMutation.mutateAsync();
+		interruptMutation.mutate();
 	};
 
 	const handleDeleteQueuedMessage = useCallback(

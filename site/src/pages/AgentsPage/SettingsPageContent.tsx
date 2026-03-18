@@ -148,7 +148,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 		placeholderData: keepPreviousData,
 	});
 	const summaryQuery = useQuery({
-		...chatCostSummary(selectedUser?.user_id ?? "me", {
+		...chatCostSummary(selectedUser?.user_id ?? "", {
 			start_date: dateRange.startDate,
 			end_date: dateRange.endDate,
 		}),
