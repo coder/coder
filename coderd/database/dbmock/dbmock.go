@@ -1565,10 +1565,10 @@ func (mr *MockStoreMockRecorder) GetActiveAISeatCount(ctx any) *gomock.Call {
 }
 
 // GetActiveMCPServerToolSnapshot mocks base method.
-func (m *MockStore) GetActiveMCPServerToolSnapshot(ctx context.Context, mcpServerConfigID uuid.UUID) (database.McpServerToolSnapshot, error) {
+func (m *MockStore) GetActiveMCPServerToolSnapshot(ctx context.Context, mcpServerConfigID uuid.UUID) (database.MCPServerToolSnapshot, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetActiveMCPServerToolSnapshot", ctx, mcpServerConfigID)
-	ret0, _ := ret[0].(database.McpServerToolSnapshot)
+	ret0, _ := ret[0].(database.MCPServerToolSnapshot)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -2495,10 +2495,10 @@ func (mr *MockStoreMockRecorder) GetEnabledChatProviders(ctx any) *gomock.Call {
 }
 
 // GetEnabledMCPServerConfigs mocks base method.
-func (m *MockStore) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.McpServerConfig, error) {
+func (m *MockStore) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetEnabledMCPServerConfigs", ctx)
-	ret0, _ := ret[0].([]database.McpServerConfig)
+	ret0, _ := ret[0].([]database.MCPServerConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -2615,10 +2615,10 @@ func (mr *MockStoreMockRecorder) GetFilteredInboxNotificationsByUserID(ctx, arg 
 }
 
 // GetForcedMCPServerConfigs mocks base method.
-func (m *MockStore) GetForcedMCPServerConfigs(ctx context.Context) ([]database.McpServerConfig, error) {
+func (m *MockStore) GetForcedMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetForcedMCPServerConfigs", ctx)
-	ret0, _ := ret[0].([]database.McpServerConfig)
+	ret0, _ := ret[0].([]database.MCPServerConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -2930,10 +2930,10 @@ func (mr *MockStoreMockRecorder) GetLogoURL(ctx any) *gomock.Call {
 }
 
 // GetMCPServerConfigByID mocks base method.
-func (m *MockStore) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.McpServerConfig, error) {
+func (m *MockStore) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMCPServerConfigByID", ctx, id)
-	ret0, _ := ret[0].(database.McpServerConfig)
+	ret0, _ := ret[0].(database.MCPServerConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -2945,10 +2945,10 @@ func (mr *MockStoreMockRecorder) GetMCPServerConfigByID(ctx, id any) *gomock.Cal
 }
 
 // GetMCPServerConfigBySlug mocks base method.
-func (m *MockStore) GetMCPServerConfigBySlug(ctx context.Context, slug string) (database.McpServerConfig, error) {
+func (m *MockStore) GetMCPServerConfigBySlug(ctx context.Context, slug string) (database.MCPServerConfig, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMCPServerConfigBySlug", ctx, slug)
-	ret0, _ := ret[0].(database.McpServerConfig)
+	ret0, _ := ret[0].(database.MCPServerConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -2960,10 +2960,10 @@ func (mr *MockStoreMockRecorder) GetMCPServerConfigBySlug(ctx, slug any) *gomock
 }
 
 // GetMCPServerConfigs mocks base method.
-func (m *MockStore) GetMCPServerConfigs(ctx context.Context) ([]database.McpServerConfig, error) {
+func (m *MockStore) GetMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMCPServerConfigs", ctx)
-	ret0, _ := ret[0].([]database.McpServerConfig)
+	ret0, _ := ret[0].([]database.MCPServerConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -2975,10 +2975,10 @@ func (mr *MockStoreMockRecorder) GetMCPServerConfigs(ctx any) *gomock.Call {
 }
 
 // GetMCPServerConfigsByIDs mocks base method.
-func (m *MockStore) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.McpServerConfig, error) {
+func (m *MockStore) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.MCPServerConfig, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMCPServerConfigsByIDs", ctx, ids)
-	ret0, _ := ret[0].([]database.McpServerConfig)
+	ret0, _ := ret[0].([]database.MCPServerConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -2990,10 +2990,10 @@ func (mr *MockStoreMockRecorder) GetMCPServerConfigsByIDs(ctx, ids any) *gomock.
 }
 
 // GetMCPServerUserToken mocks base method.
-func (m *MockStore) GetMCPServerUserToken(ctx context.Context, arg database.GetMCPServerUserTokenParams) (database.McpServerUserToken, error) {
+func (m *MockStore) GetMCPServerUserToken(ctx context.Context, arg database.GetMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMCPServerUserToken", ctx, arg)
-	ret0, _ := ret[0].(database.McpServerUserToken)
+	ret0, _ := ret[0].(database.MCPServerUserToken)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -3005,10 +3005,10 @@ func (mr *MockStoreMockRecorder) GetMCPServerUserToken(ctx, arg any) *gomock.Cal
 }
 
 // GetMCPServerUserTokensByUserID mocks base method.
-func (m *MockStore) GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]database.McpServerUserToken, error) {
+func (m *MockStore) GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]database.MCPServerUserToken, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetMCPServerUserTokensByUserID", ctx, userID)
-	ret0, _ := ret[0].([]database.McpServerUserToken)
+	ret0, _ := ret[0].([]database.MCPServerUserToken)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -6135,10 +6135,10 @@ func (mr *MockStoreMockRecorder) InsertLicense(ctx, arg any) *gomock.Call {
 }
 
 // InsertMCPServerConfig mocks base method.
-func (m *MockStore) InsertMCPServerConfig(ctx context.Context, arg database.InsertMCPServerConfigParams) (database.McpServerConfig, error) {
+func (m *MockStore) InsertMCPServerConfig(ctx context.Context, arg database.InsertMCPServerConfigParams) (database.MCPServerConfig, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertMCPServerConfig", ctx, arg)
-	ret0, _ := ret[0].(database.McpServerConfig)
+	ret0, _ := ret[0].(database.MCPServerConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -6150,10 +6150,10 @@ func (mr *MockStoreMockRecorder) InsertMCPServerConfig(ctx, arg any) *gomock.Cal
 }
 
 // InsertMCPServerToolSnapshot mocks base method.
-func (m *MockStore) InsertMCPServerToolSnapshot(ctx context.Context, arg database.InsertMCPServerToolSnapshotParams) (database.McpServerToolSnapshot, error) {
+func (m *MockStore) InsertMCPServerToolSnapshot(ctx context.Context, arg database.InsertMCPServerToolSnapshotParams) (database.MCPServerToolSnapshot, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertMCPServerToolSnapshot", ctx, arg)
-	ret0, _ := ret[0].(database.McpServerToolSnapshot)
+	ret0, _ := ret[0].(database.MCPServerToolSnapshot)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -7672,10 +7672,10 @@ func (mr *MockStoreMockRecorder) UpdateInboxNotificationReadStatus(ctx, arg any)
 }
 
 // UpdateMCPServerConfig mocks base method.
-func (m *MockStore) UpdateMCPServerConfig(ctx context.Context, arg database.UpdateMCPServerConfigParams) (database.McpServerConfig, error) {
+func (m *MockStore) UpdateMCPServerConfig(ctx context.Context, arg database.UpdateMCPServerConfigParams) (database.MCPServerConfig, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateMCPServerConfig", ctx, arg)
-	ret0, _ := ret[0].(database.McpServerConfig)
+	ret0, _ := ret[0].(database.MCPServerConfig)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -9011,10 +9011,10 @@ func (mr *MockStoreMockRecorder) UpsertLogoURL(ctx, value any) *gomock.Call {
 }
 
 // UpsertMCPServerUserToken mocks base method.
-func (m *MockStore) UpsertMCPServerUserToken(ctx context.Context, arg database.UpsertMCPServerUserTokenParams) (database.McpServerUserToken, error) {
+func (m *MockStore) UpsertMCPServerUserToken(ctx context.Context, arg database.UpsertMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertMCPServerUserToken", ctx, arg)
-	ret0, _ := ret[0].(database.McpServerUserToken)
+	ret0, _ := ret[0].(database.MCPServerUserToken)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

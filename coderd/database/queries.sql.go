@@ -3560,7 +3560,7 @@ func (q *sqlQuerier) AcquireChats(ctx context.Context, arg AcquireChatsParams) (
 			&i.Archived,
 			&i.LastError,
 			&i.Mode,
-			pq.Array(&i.McpServerIds),
+			pq.Array(&i.MCPServerIDs),
 		); err != nil {
 			return nil, err
 		}
@@ -3815,7 +3815,7 @@ func (q *sqlQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
-		pq.Array(&i.McpServerIds),
+		pq.Array(&i.MCPServerIDs),
 	)
 	return i, err
 }
@@ -3844,7 +3844,7 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
-		pq.Array(&i.McpServerIds),
+		pq.Array(&i.MCPServerIDs),
 	)
 	return i, err
 }
@@ -4767,7 +4767,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]Chat, 
 			&i.Archived,
 			&i.LastError,
 			&i.Mode,
-			pq.Array(&i.McpServerIds),
+			pq.Array(&i.MCPServerIDs),
 		); err != nil {
 			return nil, err
 		}
@@ -4868,7 +4868,7 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 			&i.Archived,
 			&i.LastError,
 			&i.Mode,
-			pq.Array(&i.McpServerIds),
+			pq.Array(&i.MCPServerIDs),
 		); err != nil {
 			return nil, err
 		}
@@ -4955,7 +4955,7 @@ type InsertChatParams struct {
 	LastModelConfigID uuid.UUID     `db:"last_model_config_id" json:"last_model_config_id"`
 	Title             string        `db:"title" json:"title"`
 	Mode              NullChatMode  `db:"mode" json:"mode"`
-	McpServerIds      []uuid.UUID   `db:"mcp_server_ids" json:"mcp_server_ids"`
+	MCPServerIDs      []uuid.UUID   `db:"mcp_server_ids" json:"mcp_server_ids"`
 }
 
 func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error) {
@@ -4967,7 +4967,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		arg.LastModelConfigID,
 		arg.Title,
 		arg.Mode,
-		pq.Array(arg.McpServerIds),
+		pq.Array(arg.MCPServerIDs),
 	)
 	var i Chat
 	err := row.Scan(
@@ -4987,7 +4987,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
-		pq.Array(&i.McpServerIds),
+		pq.Array(&i.MCPServerIDs),
 	)
 	return i, err
 }
@@ -5406,7 +5406,7 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
-		pq.Array(&i.McpServerIds),
+		pq.Array(&i.MCPServerIDs),
 	)
 	return i, err
 }
@@ -5450,12 +5450,12 @@ RETURNING
 `
 
 type UpdateChatMCPServerIDsParams struct {
-	McpServerIds []uuid.UUID `db:"mcp_server_ids" json:"mcp_server_ids"`
+	MCPServerIDs []uuid.UUID `db:"mcp_server_ids" json:"mcp_server_ids"`
 	ID           uuid.UUID   `db:"id" json:"id"`
 }
 
 func (q *sqlQuerier) UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatMCPServerIDsParams) (Chat, error) {
-	row := q.db.QueryRowContext(ctx, updateChatMCPServerIDs, pq.Array(arg.McpServerIds), arg.ID)
+	row := q.db.QueryRowContext(ctx, updateChatMCPServerIDs, pq.Array(arg.MCPServerIDs), arg.ID)
 	var i Chat
 	err := row.Scan(
 		&i.ID,
@@ -5474,7 +5474,7 @@ func (q *sqlQuerier) UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatM
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
-		pq.Array(&i.McpServerIds),
+		pq.Array(&i.MCPServerIDs),
 	)
 	return i, err
 }
@@ -5577,7 +5577,7 @@ func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusP
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
-		pq.Array(&i.McpServerIds),
+		pq.Array(&i.MCPServerIDs),
 	)
 	return i, err
 }
@@ -5619,7 +5619,7 @@ func (q *sqlQuerier) UpdateChatWorkspace(ctx context.Context, arg UpdateChatWork
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
-		pq.Array(&i.McpServerIds),
+		pq.Array(&i.MCPServerIDs),
 	)
 	return i, err
 }
@@ -9473,12 +9473,12 @@ WHERE
 `
 
 type DeleteMCPServerUserTokenParams struct {
-	McpServerConfigID uuid.UUID `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	MCPServerConfigID uuid.UUID `db:"mcp_server_config_id" json:"mcp_server_config_id"`
 	UserID            uuid.UUID `db:"user_id" json:"user_id"`
 }
 
 func (q *sqlQuerier) DeleteMCPServerUserToken(ctx context.Context, arg DeleteMCPServerUserTokenParams) error {
-	_, err := q.db.ExecContext(ctx, deleteMCPServerUserToken, arg.McpServerConfigID, arg.UserID)
+	_, err := q.db.ExecContext(ctx, deleteMCPServerUserToken, arg.MCPServerConfigID, arg.UserID)
 	return err
 }
 
@@ -9492,12 +9492,12 @@ WHERE
     AND is_active = TRUE
 `
 
-func (q *sqlQuerier) GetActiveMCPServerToolSnapshot(ctx context.Context, mcpServerConfigID uuid.UUID) (McpServerToolSnapshot, error) {
+func (q *sqlQuerier) GetActiveMCPServerToolSnapshot(ctx context.Context, mcpServerConfigID uuid.UUID) (MCPServerToolSnapshot, error) {
 	row := q.db.QueryRowContext(ctx, getActiveMCPServerToolSnapshot, mcpServerConfigID)
-	var i McpServerToolSnapshot
+	var i MCPServerToolSnapshot
 	err := row.Scan(
 		&i.ID,
-		&i.McpServerConfigID,
+		&i.MCPServerConfigID,
 		&i.ToolsJson,
 		&i.ApprovedBy,
 		&i.ApprovedAt,
@@ -9518,15 +9518,15 @@ ORDER BY
     display_name ASC
 `
 
-func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]McpServerConfig, error) {
+func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {
 	rows, err := q.db.QueryContext(ctx, getEnabledMCPServerConfigs)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []McpServerConfig
+	var items []MCPServerConfig
 	for rows.Next() {
-		var i McpServerConfig
+		var i MCPServerConfig
 		if err := rows.Scan(
 			&i.ID,
 			&i.DisplayName,
@@ -9581,15 +9581,15 @@ ORDER BY
     display_name ASC
 `
 
-func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]McpServerConfig, error) {
+func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {
 	rows, err := q.db.QueryContext(ctx, getForcedMCPServerConfigs)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []McpServerConfig
+	var items []MCPServerConfig
 	for rows.Next() {
-		var i McpServerConfig
+		var i MCPServerConfig
 		if err := rows.Scan(
 			&i.ID,
 			&i.DisplayName,
@@ -9641,9 +9641,9 @@ WHERE
     id = $1::uuid
 `
 
-func (q *sqlQuerier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (McpServerConfig, error) {
+func (q *sqlQuerier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (MCPServerConfig, error) {
 	row := q.db.QueryRowContext(ctx, getMCPServerConfigByID, id)
-	var i McpServerConfig
+	var i MCPServerConfig
 	err := row.Scan(
 		&i.ID,
 		&i.DisplayName,
@@ -9685,9 +9685,9 @@ WHERE
     slug = $1::text
 `
 
-func (q *sqlQuerier) GetMCPServerConfigBySlug(ctx context.Context, slug string) (McpServerConfig, error) {
+func (q *sqlQuerier) GetMCPServerConfigBySlug(ctx context.Context, slug string) (MCPServerConfig, error) {
 	row := q.db.QueryRowContext(ctx, getMCPServerConfigBySlug, slug)
-	var i McpServerConfig
+	var i MCPServerConfig
 	err := row.Scan(
 		&i.ID,
 		&i.DisplayName,
@@ -9729,15 +9729,15 @@ ORDER BY
     display_name ASC
 `
 
-func (q *sqlQuerier) GetMCPServerConfigs(ctx context.Context) ([]McpServerConfig, error) {
+func (q *sqlQuerier) GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {
 	rows, err := q.db.QueryContext(ctx, getMCPServerConfigs)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []McpServerConfig
+	var items []MCPServerConfig
 	for rows.Next() {
-		var i McpServerConfig
+		var i MCPServerConfig
 		if err := rows.Scan(
 			&i.ID,
 			&i.DisplayName,
@@ -9791,15 +9791,15 @@ ORDER BY
     display_name ASC
 `
 
-func (q *sqlQuerier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]McpServerConfig, error) {
+func (q *sqlQuerier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]MCPServerConfig, error) {
 	rows, err := q.db.QueryContext(ctx, getMCPServerConfigsByIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []McpServerConfig
+	var items []MCPServerConfig
 	for rows.Next() {
-		var i McpServerConfig
+		var i MCPServerConfig
 		if err := rows.Scan(
 			&i.ID,
 			&i.DisplayName,
@@ -9853,16 +9853,16 @@ WHERE
 `
 
 type GetMCPServerUserTokenParams struct {
-	McpServerConfigID uuid.UUID `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	MCPServerConfigID uuid.UUID `db:"mcp_server_config_id" json:"mcp_server_config_id"`
 	UserID            uuid.UUID `db:"user_id" json:"user_id"`
 }
 
-func (q *sqlQuerier) GetMCPServerUserToken(ctx context.Context, arg GetMCPServerUserTokenParams) (McpServerUserToken, error) {
-	row := q.db.QueryRowContext(ctx, getMCPServerUserToken, arg.McpServerConfigID, arg.UserID)
-	var i McpServerUserToken
+func (q *sqlQuerier) GetMCPServerUserToken(ctx context.Context, arg GetMCPServerUserTokenParams) (MCPServerUserToken, error) {
+	row := q.db.QueryRowContext(ctx, getMCPServerUserToken, arg.MCPServerConfigID, arg.UserID)
+	var i MCPServerUserToken
 	err := row.Scan(
 		&i.ID,
-		&i.McpServerConfigID,
+		&i.MCPServerConfigID,
 		&i.UserID,
 		&i.AccessToken,
 		&i.AccessTokenKeyID,
@@ -9885,18 +9885,18 @@ WHERE
     user_id = $1::uuid
 `
 
-func (q *sqlQuerier) GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]McpServerUserToken, error) {
+func (q *sqlQuerier) GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]MCPServerUserToken, error) {
 	rows, err := q.db.QueryContext(ctx, getMCPServerUserTokensByUserID, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []McpServerUserToken
+	var items []MCPServerUserToken
 	for rows.Next() {
-		var i McpServerUserToken
+		var i MCPServerUserToken
 		if err := rows.Scan(
 			&i.ID,
-			&i.McpServerConfigID,
+			&i.MCPServerConfigID,
 			&i.UserID,
 			&i.AccessToken,
 			&i.AccessTokenKeyID,
@@ -10003,7 +10003,7 @@ type InsertMCPServerConfigParams struct {
 	UpdatedBy               uuid.UUID       `db:"updated_by" json:"updated_by"`
 }
 
-func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPServerConfigParams) (McpServerConfig, error) {
+func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPServerConfigParams) (MCPServerConfig, error) {
 	row := q.db.QueryRowContext(ctx, insertMCPServerConfig,
 		arg.DisplayName,
 		arg.Slug,
@@ -10030,7 +10030,7 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		arg.CreatedBy,
 		arg.UpdatedBy,
 	)
-	var i McpServerConfig
+	var i MCPServerConfig
 	err := row.Scan(
 		&i.ID,
 		&i.DisplayName,
@@ -10078,17 +10078,17 @@ RETURNING
 `
 
 type InsertMCPServerToolSnapshotParams struct {
-	McpServerConfigID uuid.UUID       `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	MCPServerConfigID uuid.UUID       `db:"mcp_server_config_id" json:"mcp_server_config_id"`
 	ToolsJson         json.RawMessage `db:"tools_json" json:"tools_json"`
 	ApprovedBy        uuid.UUID       `db:"approved_by" json:"approved_by"`
 }
 
-func (q *sqlQuerier) InsertMCPServerToolSnapshot(ctx context.Context, arg InsertMCPServerToolSnapshotParams) (McpServerToolSnapshot, error) {
-	row := q.db.QueryRowContext(ctx, insertMCPServerToolSnapshot, arg.McpServerConfigID, arg.ToolsJson, arg.ApprovedBy)
-	var i McpServerToolSnapshot
+func (q *sqlQuerier) InsertMCPServerToolSnapshot(ctx context.Context, arg InsertMCPServerToolSnapshotParams) (MCPServerToolSnapshot, error) {
+	row := q.db.QueryRowContext(ctx, insertMCPServerToolSnapshot, arg.MCPServerConfigID, arg.ToolsJson, arg.ApprovedBy)
+	var i MCPServerToolSnapshot
 	err := row.Scan(
 		&i.ID,
-		&i.McpServerConfigID,
+		&i.MCPServerConfigID,
 		&i.ToolsJson,
 		&i.ApprovedBy,
 		&i.ApprovedAt,
@@ -10159,7 +10159,7 @@ type UpdateMCPServerConfigParams struct {
 	ID                      uuid.UUID       `db:"id" json:"id"`
 }
 
-func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPServerConfigParams) (McpServerConfig, error) {
+func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPServerConfigParams) (MCPServerConfig, error) {
 	row := q.db.QueryRowContext(ctx, updateMCPServerConfig,
 		arg.DisplayName,
 		arg.Slug,
@@ -10186,7 +10186,7 @@ func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPSer
 		arg.UpdatedBy,
 		arg.ID,
 	)
-	var i McpServerConfig
+	var i MCPServerConfig
 	err := row.Scan(
 		&i.ID,
 		&i.DisplayName,
@@ -10252,7 +10252,7 @@ RETURNING
 `
 
 type UpsertMCPServerUserTokenParams struct {
-	McpServerConfigID uuid.UUID      `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	MCPServerConfigID uuid.UUID      `db:"mcp_server_config_id" json:"mcp_server_config_id"`
 	UserID            uuid.UUID      `db:"user_id" json:"user_id"`
 	AccessToken       string         `db:"access_token" json:"access_token"`
 	AccessTokenKeyID  sql.NullString `db:"access_token_key_id" json:"access_token_key_id"`
@@ -10262,9 +10262,9 @@ type UpsertMCPServerUserTokenParams struct {
 	Expiry            sql.NullTime   `db:"expiry" json:"expiry"`
 }
 
-func (q *sqlQuerier) UpsertMCPServerUserToken(ctx context.Context, arg UpsertMCPServerUserTokenParams) (McpServerUserToken, error) {
+func (q *sqlQuerier) UpsertMCPServerUserToken(ctx context.Context, arg UpsertMCPServerUserTokenParams) (MCPServerUserToken, error) {
 	row := q.db.QueryRowContext(ctx, upsertMCPServerUserToken,
-		arg.McpServerConfigID,
+		arg.MCPServerConfigID,
 		arg.UserID,
 		arg.AccessToken,
 		arg.AccessTokenKeyID,
@@ -10273,10 +10273,10 @@ func (q *sqlQuerier) UpsertMCPServerUserToken(ctx context.Context, arg UpsertMCP
 		arg.TokenType,
 		arg.Expiry,
 	)
-	var i McpServerUserToken
+	var i MCPServerUserToken
 	err := row.Scan(
 		&i.ID,
-		&i.McpServerConfigID,
+		&i.MCPServerConfigID,
 		&i.UserID,
 		&i.AccessToken,
 		&i.AccessTokenKeyID,

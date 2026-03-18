@@ -236,6 +236,14 @@ sql:
           aibridge_token_usage: AIBridgeTokenUsage
           aibridge_user_prompt: AIBridgeUserPrompt
           aibridge_model_thought: AIBridgeModelThought
+          mcp_server_config: MCPServerConfig
+          mcp_server_configs: MCPServerConfigs
+          mcp_server_user_token: MCPServerUserToken
+          mcp_server_user_tokens: MCPServerUserTokens
+          mcp_server_tool_snapshot: MCPServerToolSnapshot
+          mcp_server_tool_snapshots: MCPServerToolSnapshots
+          mcp_server_config_id: MCPServerConfigID
+          mcp_server_ids: MCPServerIDs
 rules:
   - name: do-not-use-public-schema-in-queries
     message: "do not use public schema in queries"

@@ -4167,7 +4167,7 @@ type Chat struct {
 	Archived          bool           `db:"archived" json:"archived"`
 	LastError         sql.NullString `db:"last_error" json:"last_error"`
 	Mode              NullChatMode   `db:"mode" json:"mode"`
-	McpServerIds      []uuid.UUID    `db:"mcp_server_ids" json:"mcp_server_ids"`
+	MCPServerIDs      []uuid.UUID    `db:"mcp_server_ids" json:"mcp_server_ids"`
 }
 
 type ChatDiffStatus struct {
@@ -4453,7 +4453,7 @@ type License struct {
 	UUID uuid.UUID `db:"uuid" json:"uuid"`
 }
 
-type McpServerConfig struct {
+type MCPServerConfig struct {
 	ID                      uuid.UUID       `db:"id" json:"id"`
 	DisplayName             string          `db:"display_name" json:"display_name"`
 	Slug                    string          `db:"slug" json:"slug"`
@@ -4483,9 +4483,9 @@ type McpServerConfig struct {
 	UpdatedAt               time.Time       `db:"updated_at" json:"updated_at"`
 }
 
-type McpServerToolSnapshot struct {
+type MCPServerToolSnapshot struct {
 	ID                uuid.UUID       `db:"id" json:"id"`
-	McpServerConfigID uuid.UUID       `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	MCPServerConfigID uuid.UUID       `db:"mcp_server_config_id" json:"mcp_server_config_id"`
 	ToolsJson         json.RawMessage `db:"tools_json" json:"tools_json"`
 	ApprovedBy        uuid.UUID       `db:"approved_by" json:"approved_by"`
 	ApprovedAt        time.Time       `db:"approved_at" json:"approved_at"`
@@ -4493,9 +4493,9 @@ type McpServerToolSnapshot struct {
 	CreatedAt         time.Time       `db:"created_at" json:"created_at"`
 }
 
-type McpServerUserToken struct {
+type MCPServerUserToken struct {
 	ID                uuid.UUID      `db:"id" json:"id"`
-	McpServerConfigID uuid.UUID      `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	MCPServerConfigID uuid.UUID      `db:"mcp_server_config_id" json:"mcp_server_config_id"`
 	UserID            uuid.UUID      `db:"user_id" json:"user_id"`
 	AccessToken       string         `db:"access_token" json:"access_token"`
 	AccessTokenKeyID  sql.NullString `db:"access_token_key_id" json:"access_token_key_id"`

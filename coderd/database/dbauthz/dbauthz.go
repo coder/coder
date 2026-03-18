@@ -2364,9 +2364,9 @@ func (q *querier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
 	return q.db.GetActiveAISeatCount(ctx)
 }
 
-func (q *querier) GetActiveMCPServerToolSnapshot(ctx context.Context, mcpServerConfigID uuid.UUID) (database.McpServerToolSnapshot, error) {
+func (q *querier) GetActiveMCPServerToolSnapshot(ctx context.Context, mcpServerConfigID uuid.UUID) (database.MCPServerToolSnapshot, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.McpServerToolSnapshot{}, err
+		return database.MCPServerToolSnapshot{}, err
 	}
 	return q.db.GetActiveMCPServerToolSnapshot(ctx, mcpServerConfigID)
 }
@@ -2791,7 +2791,7 @@ func (q *querier) GetEnabledChatProviders(ctx context.Context) ([]database.ChatP
 	return q.db.GetEnabledChatProviders(ctx)
 }
 
-func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.McpServerConfig, error) {
+func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}
@@ -2856,7 +2856,7 @@ func (q *querier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetFilteredInboxNotificationsByUserID)(ctx, arg)
 }
 
-func (q *querier) GetForcedMCPServerConfigs(ctx context.Context) ([]database.McpServerConfig, error) {
+func (q *querier) GetForcedMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}
@@ -3003,42 +3003,42 @@ func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	return q.db.GetLogoURL(ctx)
 }
 
-func (q *querier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.McpServerConfig, error) {
+func (q *querier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.McpServerConfig{}, err
+		return database.MCPServerConfig{}, err
 	}
 	return q.db.GetMCPServerConfigByID(ctx, id)
 }
 
-func (q *querier) GetMCPServerConfigBySlug(ctx context.Context, slug string) (database.McpServerConfig, error) {
+func (q *querier) GetMCPServerConfigBySlug(ctx context.Context, slug string) (database.MCPServerConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.McpServerConfig{}, err
+		return database.MCPServerConfig{}, err
 	}
 	return q.db.GetMCPServerConfigBySlug(ctx, slug)
 }
 
-func (q *querier) GetMCPServerConfigs(ctx context.Context) ([]database.McpServerConfig, error) {
+func (q *querier) GetMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}
 	return q.db.GetMCPServerConfigs(ctx)
 }
 
-func (q *querier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.McpServerConfig, error) {
+func (q *querier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.MCPServerConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}
 	return q.db.GetMCPServerConfigsByIDs(ctx, ids)
 }
 
-func (q *querier) GetMCPServerUserToken(ctx context.Context, arg database.GetMCPServerUserTokenParams) (database.McpServerUserToken, error) {
+func (q *querier) GetMCPServerUserToken(ctx context.Context, arg database.GetMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.McpServerUserToken{}, err
+		return database.MCPServerUserToken{}, err
 	}
 	return q.db.GetMCPServerUserToken(ctx, arg)
 }
 
-func (q *querier) GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]database.McpServerUserToken, error) {
+func (q *querier) GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]database.MCPServerUserToken, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return nil, err
 	}
@@ -4811,16 +4811,16 @@ func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseP
 	return q.db.InsertLicense(ctx, arg)
 }
 
-func (q *querier) InsertMCPServerConfig(ctx context.Context, arg database.InsertMCPServerConfigParams) (database.McpServerConfig, error) {
+func (q *querier) InsertMCPServerConfig(ctx context.Context, arg database.InsertMCPServerConfigParams) (database.MCPServerConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.McpServerConfig{}, err
+		return database.MCPServerConfig{}, err
 	}
 	return q.db.InsertMCPServerConfig(ctx, arg)
 }
 
-func (q *querier) InsertMCPServerToolSnapshot(ctx context.Context, arg database.InsertMCPServerToolSnapshotParams) (database.McpServerToolSnapshot, error) {
+func (q *querier) InsertMCPServerToolSnapshot(ctx context.Context, arg database.InsertMCPServerToolSnapshotParams) (database.MCPServerToolSnapshot, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.McpServerToolSnapshot{}, err
+		return database.MCPServerToolSnapshot{}, err
 	}
 	return q.db.InsertMCPServerToolSnapshot(ctx, arg)
 }
@@ -5759,9 +5759,9 @@ func (q *querier) UpdateInboxNotificationReadStatus(ctx context.Context, args da
 	return update(q.log, q.auth, fetchFunc, q.db.UpdateInboxNotificationReadStatus)(ctx, args)
 }
 
-func (q *querier) UpdateMCPServerConfig(ctx context.Context, arg database.UpdateMCPServerConfigParams) (database.McpServerConfig, error) {
+func (q *querier) UpdateMCPServerConfig(ctx context.Context, arg database.UpdateMCPServerConfigParams) (database.MCPServerConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.McpServerConfig{}, err
+		return database.MCPServerConfig{}, err
 	}
 	return q.db.UpdateMCPServerConfig(ctx, arg)
 }
@@ -6811,9 +6811,9 @@ func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 	return q.db.UpsertLogoURL(ctx, value)
 }
 
-func (q *querier) UpsertMCPServerUserToken(ctx context.Context, arg database.UpsertMCPServerUserTokenParams) (database.McpServerUserToken, error) {
+func (q *querier) UpsertMCPServerUserToken(ctx context.Context, arg database.UpsertMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.McpServerUserToken{}, err
+		return database.MCPServerUserToken{}, err
 	}
 	return q.db.UpsertMCPServerUserToken(ctx, arg)
 }

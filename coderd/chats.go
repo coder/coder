@@ -2990,7 +2990,7 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 		Archived:          c.Archived,
 		CreatedAt:         c.CreatedAt,
 		UpdatedAt:         c.UpdatedAt,
-		MCPServerIDs:      c.McpServerIds,
+		MCPServerIDs:      c.MCPServerIDs,
 	}
 	if c.LastError.Valid {
 		chat.LastError = &c.LastError.String

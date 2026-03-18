@@ -36,7 +36,7 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	// configs, which is sufficient for using the chat feature.
 	isAdmin := api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig)
 
-	var configs []database.McpServerConfig
+	var configs []database.MCPServerConfig
 	var err error
 	if isAdmin {
 		configs, err = api.Database.GetMCPServerConfigs(ctx)
@@ -65,7 +65,7 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	}
 	tokenMap := make(map[uuid.UUID]bool, len(userTokens))
 	for _, t := range userTokens {
-		tokenMap[t.McpServerConfigID] = true
+		tokenMap[t.MCPServerConfigID] = true
 	}
 
 	resp := make([]codersdk.MCPServerConfig, 0, len(configs))
@@ -621,7 +621,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 
 	//nolint:gocritic // Users store their own tokens.
 	_, err = api.Database.UpsertMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.UpsertMCPServerUserTokenParams{
-		McpServerConfigID: mcpServerID,
+		MCPServerConfigID: mcpServerID,
 		UserID:            apiKey.UserID,
 		AccessToken:       token.AccessToken,
 		AccessTokenKeyID:  sql.NullString{},
@@ -666,7 +666,7 @@ func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Reques
 
 	//nolint:gocritic // Users manage their own tokens.
 	err := api.Database.DeleteMCPServerUserToken(dbauthz.AsSystemRestricted(ctx), database.DeleteMCPServerUserTokenParams{
-		McpServerConfigID: mcpServerID,
+		MCPServerConfigID: mcpServerID,
 		UserID:            apiKey.UserID,
 	})
 	if err != nil {
@@ -696,7 +696,7 @@ func parseMCPServerConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 
 // convertMCPServerConfig converts a database MCP server config to the
 // SDK type. Secrets are never returned; only has_* booleans are set.
-func convertMCPServerConfig(config database.McpServerConfig, toolCount int) codersdk.MCPServerConfig {
+func convertMCPServerConfig(config database.MCPServerConfig, toolCount int) codersdk.MCPServerConfig {
 	return codersdk.MCPServerConfig{
 		ID:          config.ID,
 		DisplayName: config.DisplayName,
@@ -731,7 +731,7 @@ func convertMCPServerConfig(config database.McpServerConfig, toolCount int) code
 
 // convertMCPServerToolSnapshot converts a database tool snapshot to
 // the SDK type, parsing the JSON tools array.
-func convertMCPServerToolSnapshot(snapshot database.McpServerToolSnapshot) codersdk.MCPServerToolSnapshot {
+func convertMCPServerToolSnapshot(snapshot database.MCPServerToolSnapshot) codersdk.MCPServerToolSnapshot {
 	var tools []codersdk.MCPServerTool
 	// Best-effort parse; if the JSON is malformed we return an empty
 	// slice rather than failing the request.
@@ -742,7 +742,7 @@ func convertMCPServerToolSnapshot(snapshot database.McpServerToolSnapshot) coder
 
 	return codersdk.MCPServerToolSnapshot{
 		ID:                snapshot.ID,
-		MCPServerConfigID: snapshot.McpServerConfigID,
+		MCPServerConfigID: snapshot.MCPServerConfigID,
 		Tools:             tools,
 		ApprovedBy:        snapshot.ApprovedBy,
 		ApprovedAt:        snapshot.ApprovedAt,

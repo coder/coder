@@ -467,7 +467,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			LastModelConfigID: opts.ModelConfigID,
 			Title:             opts.Title,
 			Mode:              opts.ChatMode,
-			McpServerIds:      opts.MCPServerIDs,
+			MCPServerIDs:      opts.MCPServerIDs,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)
@@ -603,7 +603,7 @@ func (p *Server) SendMessage(
 		if opts.MCPServerIDs != nil {
 			lockedChat, err = tx.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{
 				ID:           opts.ChatID,
-				McpServerIds: *opts.MCPServerIDs,
+				MCPServerIDs: *opts.MCPServerIDs,
 			})
 			if err != nil {
 				return xerrors.Errorf("update chat mcp server ids: %w", err)
