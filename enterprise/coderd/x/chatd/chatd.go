@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -53,7 +54,8 @@ type MultiReplicaSubscribeConfig struct {
 	// Clock is used for creating timers. In production use
 	// quartz.NewReal(); in tests use quartz.NewMock(t) to
 	// control reconnect timing deterministically.
-	Clock quartz.Clock
+	Clock                quartz.Clock
+	PrometheusRegisterer prometheus.Registerer
 }
 
 // dial returns the dialer function to use for relay connections.
@@ -111,6 +113,7 @@ func (c MultiReplicaSubscribeConfig) clock() quartz.Clock {
 func NewMultiReplicaSubscribeFn(
 	cfg MultiReplicaSubscribeConfig,
 ) osschatd.SubscribeFn {
+	metrics := newRelayMetrics(cfg.PrometheusRegisterer)
 	return func(ctx context.Context, params osschatd.SubscribeFnParams) <-chan codersdk.ChatStreamEvent {
 		chatID := params.ChatID
 		requestHeader := params.RequestHeader
@@ -118,6 +121,18 @@ func NewMultiReplicaSubscribeFn(
 
 		var relayCancel func()
 		var relayParts <-chan codersdk.ChatStreamEvent
+		relayActive := false
+		setRelayActive := func(active bool) {
+			if relayActive == active {
+				return
+			}
+			relayActive = active
+			if active {
+				metrics.observeRelayActivated()
+				return
+			}
+			metrics.observeRelayDeactivated()
+		}
 
 		// If the chat is currently running on a different worker
 		// and we have a remote parts provider, open an initial
@@ -130,8 +145,10 @@ func NewMultiReplicaSubscribeFn(
 			cfg.dial() != nil {
 			snapshot, parts, cancel, err := cfg.dial()(ctx, chatID, params.Chat.WorkerID.UUID, requestHeader)
 			if err == nil {
+				metrics.observeRelayOpen(relayOpenSourceInitial, relayOpenResultSuccess)
 				relayCancel = cancel
 				relayParts = parts
+				setRelayActive(true)
 				// Collect relay message_parts to forward at the
 				// start of the merge goroutine.
 				for _, event := range snapshot {
@@ -140,6 +157,11 @@ func NewMultiReplicaSubscribeFn(
 					}
 				}
 			} else {
+				result := relayOpenResultDialError
+				if ctx.Err() != nil {
+					result = relayOpenResultCanceled
+				}
+				metrics.observeRelayOpen(relayOpenSourceInitial, result)
 				logger.Warn(ctx, "failed to open initial relay for chat stream",
 					slog.F("chat_id", chatID),
 					slog.Error(err),
@@ -154,6 +176,7 @@ func NewMultiReplicaSubscribeFn(
 			parts    <-chan codersdk.ChatStreamEvent
 			cancel   func()
 			workerID uuid.UUID // the worker this dial targeted
+			source   string
 		}
 		relayReadyCh := make(chan relayResult, 4)
 
@@ -171,7 +194,11 @@ func NewMultiReplicaSubscribeFn(
 
 		// Helper to close relay and stop any pending reconnect
 		// timer.
-		closeRelay := func() {
+		closeRelay := func(reason string) {
+			hadState := dialCancel != nil || expectedWorkerID != uuid.Nil || relayCancel != nil || relayParts != nil || reconnectTimer != nil || reconnectCh != nil || relayActive
+			if !hadState {
+				return
+			}
 			// Cancel any in-flight dial goroutine first.
 			if dialCancel != nil {
 				dialCancel()
@@ -181,6 +208,9 @@ func NewMultiReplicaSubscribeFn(
 			for {
 				select {
 				case result := <-relayReadyCh:
+					if result.parts != nil {
+						metrics.observeRelayOpen(result.source, relayOpenResultStaleResultDropped)
+					}
 					if result.cancel != nil {
 						result.cancel()
 					}
@@ -200,18 +230,22 @@ func NewMultiReplicaSubscribeFn(
 				reconnectTimer = nil
 				reconnectCh = nil
 			}
+			if relayActive {
+				setRelayActive(false)
+			}
+			metrics.observeRelayClose(reason)
 		}
 
 		// openRelayAsync dials the remote replica in a background
 		// goroutine and delivers the result on relayReadyCh so the
 		// main select loop is never blocked by network I/O.
-		openRelayAsync := func(workerID uuid.UUID) {
+		openRelayAsync := func(workerID uuid.UUID, source string) {
 			if cfg.dial() == nil {
 				return
 			}
-			closeRelay()
+			closeRelay(relayCloseReasonSuperseded)
 			// Create a per-dial context so this goroutine is
-			// canceled if closeRelay() or openRelayAsync() is
+			// canceled if closeRelay(reason) or openRelayAsync() is
 			// called again before the dial completes.
 			var dialCtx context.Context
 			dialCtx, dialCancel = context.WithCancel(ctx)
@@ -222,25 +256,30 @@ func NewMultiReplicaSubscribeFn(
 					// Don't log context-canceled errors
 					// since they are expected when a dial is
 					// superseded by a newer one.
-					if dialCtx.Err() == nil {
-						logger.Warn(ctx, "failed to open relay for message parts",
-							slog.F("chat_id", chatID),
-							slog.F("worker_id", workerID),
-							slog.Error(err),
-						)
+					if dialCtx.Err() != nil {
+						metrics.observeRelayOpen(source, relayOpenResultCanceled)
+						return
 					}
+					logger.Warn(ctx, "failed to open relay for message parts",
+						slog.F("chat_id", chatID),
+						slog.F("worker_id", workerID),
+						slog.Error(err),
+					)
+					metrics.observeRelayOpen(source, relayOpenResultDialError)
 					// Send an empty result so the merge loop
 					// can schedule a reconnect attempt.
 					select {
-					case relayReadyCh <- relayResult{workerID: workerID}:
+					case relayReadyCh <- relayResult{workerID: workerID, source: source}:
 					case <-dialCtx.Done():
 					}
 					return
-				} // If the dial context was canceled while the
+				}
+				// If the dial context was canceled while the
 				// dial was in progress, discard the result to
 				// avoid starting a wrappedParts goroutine for
 				// a stale connection.
 				if dialCtx.Err() != nil {
+					metrics.observeRelayOpen(source, relayOpenResultCanceled)
 					cancel()
 					return
 				}
@@ -282,8 +321,9 @@ func NewMultiReplicaSubscribeFn(
 					}
 				}()
 				select {
-				case relayReadyCh <- relayResult{parts: wrappedParts, cancel: cancel, workerID: workerID}:
+				case relayReadyCh <- relayResult{parts: wrappedParts, cancel: cancel, workerID: workerID, source: source}:
 				case <-dialCtx.Done():
+					metrics.observeRelayOpen(source, relayOpenResultCanceled)
 					cancel()
 				}
 			}()
@@ -292,10 +332,11 @@ func NewMultiReplicaSubscribeFn(
 		// scheduleRelayReconnect arms a short timer so the select
 		// loop can re-check chat status and reopen the relay
 		// without spinning in a tight loop.
-		scheduleRelayReconnect := func() {
+		scheduleRelayReconnect := func(reason string) {
 			if cfg.dial() == nil {
 				return
 			}
+			metrics.observeRelayReconnectScheduled(reason)
 			if reconnectTimer != nil {
 				reconnectTimer.Stop()
 			}
@@ -306,7 +347,7 @@ func NewMultiReplicaSubscribeFn(
 		statusNotifications := params.StatusNotifications
 		go func() {
 			defer close(mergedEvents)
-			defer closeRelay()
+			defer closeRelay(relayCloseReasonContextDone)
 
 			// Forward any initial relay snapshot parts
 			// collected synchronously above.
@@ -327,6 +368,9 @@ func NewMultiReplicaSubscribeFn(
 					// Discard stale relay results from a
 					// previous dial that was superseded.
 					if result.workerID != expectedWorkerID {
+						if result.parts != nil {
+							metrics.observeRelayOpen(result.source, relayOpenResultStaleResultDropped)
+						}
 						if result.cancel != nil {
 							result.cancel()
 						}
@@ -335,7 +379,7 @@ func NewMultiReplicaSubscribeFn(
 					// A nil parts channel signals the dial
 					// failed — schedule a retry.
 					if result.parts == nil {
-						scheduleRelayReconnect()
+						scheduleRelayReconnect(relayReconnectReasonDialFailed)
 						continue
 					}
 					// An async relay dial completed; swap
@@ -345,6 +389,8 @@ func NewMultiReplicaSubscribeFn(
 					}
 					relayParts = result.parts
 					relayCancel = result.cancel
+					metrics.observeRelayOpen(result.source, relayOpenResultSuccess)
+					setRelayActive(true)
 				case <-reconnectCh:
 					reconnectCh = nil
 					// Re-check whether the chat is still
@@ -352,6 +398,7 @@ func NewMultiReplicaSubscribeFn(
 					// reconnecting.
 					currentChat, chatErr := params.DB.GetChatByID(ctx, chatID)
 					if chatErr != nil {
+						metrics.observeRelayReconnectPoll(relayReconnectPollResultDBError)
 						logger.Warn(ctx, "failed to get chat for relay reconnect",
 							slog.F("chat_id", chatID),
 							slog.Error(chatErr),
@@ -359,12 +406,15 @@ func NewMultiReplicaSubscribeFn(
 						// Retry on transient DB errors to
 						// avoid permanently stalling the
 						// stream.
-						scheduleRelayReconnect()
+						scheduleRelayReconnect(relayReconnectReasonDBGetChatFailed)
 						continue
 					}
 					if currentChat.Status == database.ChatStatusRunning &&
 						currentChat.WorkerID.Valid && currentChat.WorkerID.UUID != params.WorkerID {
-						openRelayAsync(currentChat.WorkerID.UUID)
+						metrics.observeRelayReconnectPoll(relayReconnectPollResultStillRemoteRunning)
+						openRelayAsync(currentChat.WorkerID.UUID, relayOpenSourceReconnect)
+					} else {
+						metrics.observeRelayReconnectPoll(relayReconnectPollResultNotRemoteRunning)
 					}
 				case sn, ok := <-statusNotifications:
 					if !ok {
@@ -372,20 +422,16 @@ func NewMultiReplicaSubscribeFn(
 						continue
 					}
 					if sn.Status == database.ChatStatusRunning && sn.WorkerID != uuid.Nil && sn.WorkerID != params.WorkerID {
-						openRelayAsync(sn.WorkerID)
+						openRelayAsync(sn.WorkerID, relayOpenSourceStatusNotification)
 					} else {
-						closeRelay()
+						closeRelay(relayCloseReasonStatusNotRemoteRunning)
 					}
 				case event, ok := <-relayPartsCh:
 					if !ok {
-						if relayCancel != nil {
-							relayCancel()
-							relayCancel = nil
-						}
-						relayParts = nil
+						closeRelay(relayCloseReasonRelayPartsClosed)
 						// Schedule reconnection instead of
 						// giving up.
-						scheduleRelayReconnect()
+						scheduleRelayReconnect(relayReconnectReasonRelayPartsClosed)
 						continue
 					}
 					// Only forward message_part events from

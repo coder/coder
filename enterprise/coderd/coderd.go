@@ -209,6 +209,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	options.Options.ChatSubscribeFn = entchatd.NewMultiReplicaSubscribeFn(entchatd.MultiReplicaSubscribeConfig{
 		ResolveReplicaAddress: resolveReplicaAddress,
 		ReplicaHTTPClient:     replicaHTTPClient,
+		PrometheusRegisterer:  options.PrometheusRegistry,
 		ReplicaIDFn: func() uuid.UUID {
 			id := api.AGPL.ID
 			if id == uuid.Nil {
