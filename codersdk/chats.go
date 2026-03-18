@@ -419,6 +419,7 @@ type ChatModelProviderOptions struct {
 	Anthropic    *ChatModelAnthropicProviderOptions    `json:"anthropic,omitempty"`
 	Google       *ChatModelGoogleProviderOptions       `json:"google,omitempty"`
 	OpenAICompat *ChatModelOpenAICompatProviderOptions `json:"openaicompat,omitempty"`
+	LiteLLM      *ChatModelLiteLLMProviderOptions      `json:"litellm,omitempty"`
 	OpenRouter   *ChatModelOpenRouterProviderOptions   `json:"openrouter,omitempty"`
 	Vercel       *ChatModelVercelProviderOptions       `json:"vercel,omitempty"`
 }
@@ -489,6 +490,17 @@ type ChatModelGoogleProviderOptions struct {
 
 // ChatModelOpenAICompatProviderOptions configures OpenAI-compatible behavior.
 type ChatModelOpenAICompatProviderOptions struct {
+	User            *string `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
+	ReasoningEffort *string `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
+}
+
+// ChatModelLiteLLMProviderOptions configures LiteLLM proxy provider
+// behavior. LiteLLM (https://github.com/BerriAI/litellm) is an
+// OpenAI-compatible gateway that provides access to 100+ LLM
+// providers through a unified API. Configure with a base URL
+// pointing to your LiteLLM proxy instance and an API key for
+// authentication.
+type ChatModelLiteLLMProviderOptions struct {
 	User            *string `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
 	ReasoningEffort *string `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
 }

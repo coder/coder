@@ -19,11 +19,14 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+const litellmProviderName = "litellm"
+
 var supportedProviderNames = []string{
 	fantasyanthropic.Name,
 	fantasyazure.Name,
 	fantasybedrock.Name,
 	fantasygoogle.Name,
+	litellmProviderName,
 	fantasyopenai.Name,
 	fantasyopenaicompat.Name,
 	fantasyopenrouter.Name,
@@ -40,6 +43,7 @@ var providerDisplayNameByName = map[string]string{
 	fantasyazure.Name:        "Azure OpenAI",
 	fantasybedrock.Name:      "AWS Bedrock",
 	fantasygoogle.Name:       "Google",
+	litellmProviderName:      "LiteLLM",
 	fantasyopenai.Name:       "OpenAI",
 	fantasyopenaicompat.Name: "OpenAI Compatible",
 	fantasyopenrouter.Name:   "OpenRouter",
@@ -360,6 +364,8 @@ func NormalizeProvider(provider string) string {
 		return fantasyopenai.Name
 	case fantasyopenaicompat.Name:
 		return fantasyopenaicompat.Name
+	case litellmProviderName:
+		return litellmProviderName
 	case fantasyopenrouter.Name:
 		return fantasyopenrouter.Name
 	case fantasyvercel.Name:
@@ -503,6 +509,16 @@ func ReasoningEffortFromChat(provider string, value *string) *string {
 			string(fantasyopenrouter.ReasoningEffortMedium),
 			string(fantasyopenrouter.ReasoningEffortHigh),
 		)
+	case litellmProviderName, fantasyopenaicompat.Name:
+		// LiteLLM and generic OpenAI-compat providers accept the
+		// same reasoning-effort values as the OpenAI provider.
+		return normalizedEnumValue(
+			normalized,
+			string(fantasyopenai.ReasoningEffortMinimal),
+			string(fantasyopenai.ReasoningEffortLow),
+			string(fantasyopenai.ReasoningEffortMedium),
+			string(fantasyopenai.ReasoningEffortHigh),
+		)
 	case fantasyvercel.Name:
 		return normalizedEnumValue(
 			normalized,
@@ -602,6 +618,7 @@ func MergeMissingProviderOptions(
 		fantasyanthropic.Name,
 		fantasygoogle.Name,
 		fantasyopenaicompat.Name,
+		litellmProviderName,
 		fantasyopenrouter.Name,
 		fantasyvercel.Name,
 	} {
@@ -752,6 +769,24 @@ func MergeMissingProviderOptions(
 			}
 			if dstCompat.ReasoningEffort == nil {
 				dstCompat.ReasoningEffort = defaultCompat.ReasoningEffort
+			}
+
+		case litellmProviderName:
+			if defaults.LiteLLM == nil {
+				continue
+			}
+			if current.LiteLLM == nil {
+				copied := *defaults.LiteLLM
+				current.LiteLLM = &copied
+				continue
+			}
+			dstLiteLLM := current.LiteLLM
+			defaultLiteLLM := defaults.LiteLLM
+			if dstLiteLLM.User == nil {
+				dstLiteLLM.User = defaultLiteLLM.User
+			}
+			if dstLiteLLM.ReasoningEffort == nil {
+				dstLiteLLM.ReasoningEffort = defaultLiteLLM.ReasoningEffort
 			}
 
 		case fantasyopenrouter.Name:
@@ -962,6 +997,16 @@ func ModelFromConfig(
 			options = append(options, fantasyopenaicompat.WithBaseURL(baseURL))
 		}
 		providerClient, err = fantasyopenaicompat.New(options...)
+	case litellmProviderName:
+		options := []fantasyopenaicompat.Option{
+			fantasyopenaicompat.WithName(litellmProviderName),
+			fantasyopenaicompat.WithAPIKey(apiKey),
+			fantasyopenaicompat.WithUserAgent(userAgent),
+		}
+		if baseURL != "" {
+			options = append(options, fantasyopenaicompat.WithBaseURL(baseURL))
+		}
+		providerClient, err = fantasyopenaicompat.New(options...)
 	case fantasyopenrouter.Name:
 		providerClient, err = fantasyopenrouter.New(
 			fantasyopenrouter.WithAPIKey(apiKey),
@@ -1004,6 +1049,8 @@ func missingProviderAPIKeyError(provider string) error {
 		return xerrors.New("OPENAI_API_KEY is not set")
 	case fantasyopenaicompat.Name:
 		return xerrors.New("OPENAI_COMPAT_API_KEY is not set")
+	case litellmProviderName:
+		return xerrors.New("LITELLM_API_KEY is not set")
 	case fantasyopenrouter.Name:
 		return xerrors.New("OPENROUTER_API_KEY is not set")
 	case fantasyvercel.Name:
@@ -1044,6 +1091,13 @@ func ProviderOptionsFromChatModelConfig(
 	if options.OpenAICompat != nil {
 		result[fantasyopenaicompat.Name] = openAICompatProviderOptionsFromChatConfig(
 			options.OpenAICompat,
+		)
+	}
+	if options.LiteLLM != nil {
+		// LiteLLM uses the openaicompat fantasy provider under the
+		// hood, so its options are stored under that provider key.
+		result[fantasyopenaicompat.Name] = liteLLMProviderOptionsFromChatConfig(
+			options.LiteLLM,
 		)
 	}
 	if options.OpenRouter != nil {
@@ -1155,6 +1209,15 @@ func googleProviderOptionsFromChatConfig(
 
 func openAICompatProviderOptionsFromChatConfig(
 	options *codersdk.ChatModelOpenAICompatProviderOptions,
+) *fantasyopenaicompat.ProviderOptions {
+	return &fantasyopenaicompat.ProviderOptions{
+		User:            normalizedStringPointer(options.User),
+		ReasoningEffort: openAIReasoningEffortFromChat(options.ReasoningEffort),
+	}
+}
+
+func liteLLMProviderOptionsFromChatConfig(
+	options *codersdk.ChatModelLiteLLMProviderOptions,
 ) *fantasyopenaicompat.ProviderOptions {
 	return &fantasyopenaicompat.ProviderOptions{
 		User:            normalizedStringPointer(options.User),

@@ -12,6 +12,7 @@ const providerIconMap: Record<string, string> = {
 	bedrock: "/icon/aws.svg",
 	google: "/icon/google.svg",
 	gemini: "/icon/gemini.svg",
+	litellm: "/icon/litellm.svg",
 };
 
 interface ProviderIconProps {

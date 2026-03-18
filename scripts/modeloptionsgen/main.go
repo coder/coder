@@ -63,6 +63,7 @@ func main() {
 		{"anthropic", reflect.TypeOf(codersdk.ChatModelAnthropicProviderOptions{})},
 		{"google", reflect.TypeOf(codersdk.ChatModelGoogleProviderOptions{})},
 		{"openaicompat", reflect.TypeOf(codersdk.ChatModelOpenAICompatProviderOptions{})},
+		{"litellm", reflect.TypeOf(codersdk.ChatModelLiteLLMProviderOptions{})},
 		{"openrouter", reflect.TypeOf(codersdk.ChatModelOpenRouterProviderOptions{})},
 		{"vercel", reflect.TypeOf(codersdk.ChatModelVercelProviderOptions{})},
 	}
