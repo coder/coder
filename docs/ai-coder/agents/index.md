@@ -253,8 +253,8 @@ web terminals and IDE access. No additional ports or services are required in
 the workspace.
 
 Platform tools (`list_templates`, `read_template`, `create_workspace`,
-`start_workspace`) and orchestration tools (`spawn_agent`,
-`spawn_agent`) are only available to root chats. Sub-agents do
+`start_workspace`) and orchestration tools (`spawn_agent`)
+are only available to root chats. Sub-agents do
 not have access to these tools and cannot create workspaces or spawn further
 sub-agents.
 
