@@ -6,14 +6,21 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/scaletest/workspacebuild"
 )
 
 type Config struct {
 	// RunID identifies a single CLI invocation across all chat runners.
 	RunID string `json:"run_id"`
 
-	// WorkspaceID is the pre-existing workspace to create chats against.
-	WorkspaceID uuid.UUID `json:"workspace_id"`
+	// WorkspaceID is the pre-existing workspace to use when the runner should not
+	// create its own workspace.
+	WorkspaceID uuid.UUID `json:"workspace_id,omitempty"`
+
+	// Workspace is the per-runner workspace configuration used when the runner
+	// should create its own workspace before entering the chat start barrier.
+	Workspace workspacebuild.Config `json:"workspace,omitempty"`
 
 	// Prompt is the text content for the initial chat message.
 	Prompt string `json:"prompt"`
@@ -38,7 +45,7 @@ type Config struct {
 	ReadyWaitGroup *sync.WaitGroup `json:"-"`
 
 	// StartChan blocks runners before creating chats. The CLI layer closes it
-	// once all runners are ready.
+	// once all runners have reached the start barrier.
 	StartChan chan struct{} `json:"-"`
 
 	// FollowUpReadyWaitGroup coordinates the delayed follow-up phase. Each
@@ -62,13 +69,42 @@ func (c Config) ShouldGateFollowUps() bool {
 	return c.HasFollowUps() && c.FollowUpStartDelay > 0
 }
 
+func (c Config) UsesExistingWorkspace() bool {
+	return c.WorkspaceID != uuid.Nil
+}
+
+func (c Config) CreatesWorkspace() bool {
+	return c.hasWorkspaceConfig()
+}
+
+func (c Config) hasWorkspaceConfig() bool {
+	return c.Workspace.OrganizationID != uuid.Nil ||
+		c.Workspace.UserID != "" ||
+		c.Workspace.Request.TemplateID != uuid.Nil ||
+		c.Workspace.Request.TemplateVersionID != uuid.Nil ||
+		c.Workspace.Request.Name != "" ||
+		len(c.Workspace.Request.RichParameterValues) > 0 ||
+		c.Workspace.NoWaitForAgents ||
+		c.Workspace.NoWaitForBuild ||
+		c.Workspace.Retry != 0
+}
+
 func (c *Config) Validate() error {
 	if c.RunID == "" {
 		return xerrors.Errorf("validate run_id: must not be empty")
 	}
 
-	if c.WorkspaceID == uuid.Nil {
-		return xerrors.Errorf("validate workspace_id: must not be nil")
+	switch {
+	case c.UsesExistingWorkspace() && c.CreatesWorkspace():
+		return xerrors.Errorf("validate workspace selection: exactly one of workspace_id or workspace config must be set")
+	case c.UsesExistingWorkspace():
+		// Shared-workspace mode is valid as-is.
+	case c.CreatesWorkspace():
+		if err := c.Workspace.Validate(); err != nil {
+			return xerrors.Errorf("validate workspace: %w", err)
+		}
+	default:
+		return xerrors.Errorf("validate workspace selection: exactly one of workspace_id or workspace config must be set")
 	}
 
 	if c.Prompt == "" {

@@ -15,17 +15,28 @@ import (
 	"github.com/coder/coder/v2/scaletest/harness"
 )
 
+type WorkspaceMode string
+
+const (
+	WorkspaceModeSharedWorkspace WorkspaceMode = "shared_workspace"
+	WorkspaceModeTemplate        WorkspaceMode = "template"
+)
+
 type SummaryConfig struct {
-	RunID              string
-	WorkspaceID        uuid.UUID
-	ModelConfigID      *uuid.UUID
-	Count              int64
-	Turns              int
-	Prompt             string
-	FollowUpPrompt     string
-	FollowUpStartDelay time.Duration
-	LLMMockURL         string
-	OutputSpecs        []string
+	RunID                 string
+	WorkspaceMode         WorkspaceMode
+	WorkspaceID           *uuid.UUID
+	TemplateID            *uuid.UUID
+	TemplateName          string
+	CreatedWorkspaceCount int64
+	ModelConfigID         *uuid.UUID
+	Count                 int64
+	Turns                 int
+	Prompt                string
+	FollowUpPrompt        string
+	FollowUpStartDelay    time.Duration
+	LLMMockURL            string
+	OutputSpecs           []string
 }
 
 type Summary struct {
@@ -33,7 +44,11 @@ type Summary struct {
 	StartedAt                 time.Time      `json:"started_at"`
 	CompletedAt               time.Time      `json:"completed_at"`
 	FollowUpPhaseReleasedAt   *time.Time     `json:"follow_up_phase_released_at,omitempty"`
-	WorkspaceID               uuid.UUID      `json:"workspace_id"`
+	WorkspaceMode             WorkspaceMode  `json:"workspace_mode"`
+	WorkspaceID               *uuid.UUID     `json:"workspace_id,omitempty"`
+	TemplateID                *uuid.UUID     `json:"template_id,omitempty"`
+	TemplateName              string         `json:"template_name,omitempty"`
+	CreatedWorkspaceCount     int64          `json:"created_workspace_count,omitempty"`
 	ModelConfigID             *uuid.UUID     `json:"model_config_id,omitempty"`
 	Count                     int64          `json:"count"`
 	Turns                     int            `json:"turns"`
@@ -67,20 +82,22 @@ type BuildSummary struct {
 
 func NewSummary(cfg SummaryConfig, results harness.Results, startedAt, completedAt time.Time, followUpPhaseReleasedAt *time.Time) Summary {
 	summary := Summary{
-		RunID:                cfg.RunID,
-		StartedAt:            startedAt.UTC(),
-		CompletedAt:          completedAt.UTC(),
-		WorkspaceID:          cfg.WorkspaceID,
-		ModelConfigID:        cfg.ModelConfigID,
-		Count:                cfg.Count,
-		Turns:                cfg.Turns,
-		PromptFingerprint:    promptFingerprint(cfg.Prompt),
-		PromptLength:         len(cfg.Prompt),
-		LLMMockURL:           cfg.LLMMockURL,
-		FollowUpDelayEnabled: cfg.FollowUpStartDelay > 0,
-		FollowUpStartDelay:   cfg.FollowUpStartDelay.String(),
-		FollowUpStartDelayMS: cfg.FollowUpStartDelay.Milliseconds(),
-		RawOutputSpecs:       append([]string(nil), cfg.OutputSpecs...),
+		RunID:                 cfg.RunID,
+		StartedAt:             startedAt.UTC(),
+		CompletedAt:           completedAt.UTC(),
+		WorkspaceMode:         cfg.WorkspaceMode,
+		TemplateName:          cfg.TemplateName,
+		CreatedWorkspaceCount: cfg.CreatedWorkspaceCount,
+		ModelConfigID:         cfg.ModelConfigID,
+		Count:                 cfg.Count,
+		Turns:                 cfg.Turns,
+		PromptFingerprint:     promptFingerprint(cfg.Prompt),
+		PromptLength:          len(cfg.Prompt),
+		LLMMockURL:            cfg.LLMMockURL,
+		FollowUpDelayEnabled:  cfg.FollowUpStartDelay > 0,
+		FollowUpStartDelay:    cfg.FollowUpStartDelay.String(),
+		FollowUpStartDelayMS:  cfg.FollowUpStartDelay.Milliseconds(),
+		RawOutputSpecs:        append([]string(nil), cfg.OutputSpecs...),
 		Results: ResultsSummary{
 			TotalRuns: results.TotalRuns,
 			TotalPass: results.TotalPass,
@@ -89,6 +106,15 @@ func NewSummary(cfg SummaryConfig, results harness.Results, startedAt, completed
 			ElapsedMS: results.ElapsedMS,
 		},
 		Build: buildSummary(),
+	}
+
+	if cfg.WorkspaceID != nil {
+		workspaceID := *cfg.WorkspaceID
+		summary.WorkspaceID = &workspaceID
+	}
+	if cfg.TemplateID != nil {
+		templateID := *cfg.TemplateID
+		summary.TemplateID = &templateID
 	}
 
 	if cfg.Turns > 1 {

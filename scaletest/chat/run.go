@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -12,14 +13,26 @@ import (
 
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/harness"
+	"github.com/coder/coder/v2/scaletest/workspacebuild"
 )
+
+type workspaceBuildRunner interface {
+	RunReturningWorkspace(ctx context.Context, id string, logs io.Writer) (workspacebuild.SlimWorkspace, error)
+	Cleanup(ctx context.Context, id string, logs io.Writer) error
+}
 
 type Runner struct {
 	client *codersdk.Client
 	cfg    Config
 
+	archiveChat             func(ctx context.Context, chatID uuid.UUID) error
+	newWorkspaceBuildRunner func(client *codersdk.Client, cfg workspacebuild.Config) workspaceBuildRunner
+
+	workspacebuildRunner workspaceBuildRunner
+
 	// Set during Run, used in Cleanup and GetMetrics.
 	mu             sync.Mutex
+	workspaceID    uuid.UUID
 	chatID         uuid.UUID
 	finalStatus    string
 	failureStage   string
@@ -37,11 +50,45 @@ var (
 )
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
-	return &Runner{client: client, cfg: cfg}
+	return &Runner{
+		client: client,
+		cfg:    cfg,
+		archiveChat: func(ctx context.Context, chatID uuid.UUID) error {
+			archived := true
+			return client.UpdateChat(ctx, chatID, codersdk.UpdateChatRequest{Archived: &archived})
+		},
+		newWorkspaceBuildRunner: func(client *codersdk.Client, cfg workspacebuild.Config) workspaceBuildRunner {
+			return workspacebuild.NewRunner(client, cfg)
+		},
+	}
 }
 
 func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error) {
+	readySignaled := false
+	followUpGateSignaled := false
+	defer func() {
+		if !readySignaled && r.cfg.ReadyWaitGroup != nil {
+			r.cfg.ReadyWaitGroup.Done()
+		}
+		r.signalFollowUpGateReady(&followUpGateSignaled)
+	}()
+
+	workspaceID := r.cfg.WorkspaceID
+	if r.cfg.CreatesWorkspace() {
+		_, _ = fmt.Fprintln(logs, "Creating workspace...")
+		r.workspacebuildRunner = r.newWorkspaceBuildRunner(r.client, r.cfg.Workspace)
+		workspace, err := r.workspacebuildRunner.RunReturningWorkspace(ctx, id, logs)
+		if err != nil {
+			r.recordStageFailure(failureStageCreateWorkspace)
+			r.storeResults("", failureStageCreateWorkspace, 0, false, 0, 0, 0)
+			return xerrors.Errorf("create workspace: %w", err)
+		}
+		workspaceID = workspace.ID
+	}
+	r.setWorkspaceID(workspaceID)
+
 	r.cfg.ReadyWaitGroup.Done()
+	readySignaled = true
 
 	select {
 	case <-ctx.Done():
@@ -49,22 +96,21 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error)
 	case <-r.cfg.StartChan:
 	}
 
-	_, _ = fmt.Fprintf(logs, "starting chat runner %s for workspace %s\n", id, r.cfg.WorkspaceID)
+	_, _ = fmt.Fprintf(logs, "starting chat runner %s for workspace %s\n", id, workspaceID)
 
 	conversationStart := time.Now()
 	turnStartTime := conversationStart
 	currentPhase := phaseInitial
 	var (
-		sawRunning           bool
-		sawTurnFirstOutput   bool
-		sawAnyFirstOutput    bool
-		retryCount           int
-		eventCount           int
-		lastStreamError      string
-		turnsCompleted       int
-		finalStatus          string
-		failureStage         string
-		followUpGateSignaled bool
+		sawRunning         bool
+		sawTurnFirstOutput bool
+		sawAnyFirstOutput  bool
+		retryCount         int
+		eventCount         int
+		lastStreamError    string
+		turnsCompleted     int
+		finalStatus        string
+		failureStage       string
 	)
 	defer func() {
 		totalDuration := time.Since(conversationStart)
@@ -74,7 +120,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error)
 	}()
 
 	chat, err := r.client.CreateChat(ctx, codersdk.CreateChatRequest{
-		WorkspaceID:   &r.cfg.WorkspaceID,
+		WorkspaceID:   &workspaceID,
 		ModelConfigID: r.cfg.ModelConfigID,
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
@@ -229,17 +275,28 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error)
 
 func (r *Runner) Cleanup(ctx context.Context, id string, logs io.Writer) error {
 	chatID := r.getChatID()
-	if chatID == uuid.Nil {
-		return nil
+	var resultErr error
+
+	if chatID != uuid.Nil {
+		_, _ = fmt.Fprintf(logs, "archiving chat %s for runner %s\n", chatID, id)
+		if err := r.archiveChat(ctx, chatID); err != nil {
+			_, _ = fmt.Fprintf(logs, "failed to archive chat %s: %v\n", chatID, err)
+			resultErr = errors.Join(resultErr, xerrors.Errorf("archive chat: %w", err))
+		} else {
+			_, _ = fmt.Fprintf(logs, "archived chat %s\n", chatID)
+		}
 	}
 
-	_, _ = fmt.Fprintf(logs, "archiving chat %s for runner %s\n", chatID, id)
-	if err := r.client.ArchiveChat(ctx, chatID); err != nil {
-		_, _ = fmt.Fprintf(logs, "failed to archive chat %s: %v\n", chatID, err)
-		return xerrors.Errorf("archive chat: %w", err)
+	if r.workspacebuildRunner == nil {
+		return resultErr
 	}
-	_, _ = fmt.Fprintf(logs, "archived chat %s\n", chatID)
-	return nil
+
+	_, _ = fmt.Fprintln(logs, "Cleaning up workspace...")
+	if err := r.workspacebuildRunner.Cleanup(ctx, id, logs); err != nil {
+		resultErr = errors.Join(resultErr, xerrors.Errorf("cleanup workspace: %w", err))
+	}
+
+	return resultErr
 }
 
 func (r *Runner) GetMetrics() map[string]any {
@@ -248,6 +305,7 @@ func (r *Runner) GetMetrics() map[string]any {
 
 	return map[string]any{
 		"run_id":                   r.cfg.RunID,
+		"workspace_id":             r.workspaceID.String(),
 		"follow_up_delay_enabled":  r.cfg.ShouldGateFollowUps(),
 		"follow_up_start_delay_ms": r.cfg.FollowUpStartDelay.Milliseconds(),
 		"chat_id":                  r.chatID.String(),
@@ -260,6 +318,12 @@ func (r *Runner) GetMetrics() map[string]any {
 		"turns_requested":          r.cfg.Turns,
 		"turns_completed":          r.turnsCompleted,
 	}
+}
+
+func (r *Runner) setWorkspaceID(workspaceID uuid.UUID) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.workspaceID = workspaceID
 }
 
 func (r *Runner) setChatID(chatID uuid.UUID) {

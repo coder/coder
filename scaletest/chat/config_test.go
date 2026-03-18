@@ -9,7 +9,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/chat"
+	"github.com/coder/coder/v2/scaletest/workspacebuild"
 )
 
 func TestConfigValidate(t *testing.T) {
@@ -30,10 +32,37 @@ func TestConfigValidate(t *testing.T) {
 		}
 	}
 
-	t.Run("ValidImmediateFollowUps", func(t *testing.T) {
+	t.Run("ValidSharedWorkspace", func(t *testing.T) {
 		t.Parallel()
 		cfg := newConfig()
 		require.NoError(t, cfg.Validate())
+	})
+
+	t.Run("ValidTemplateWorkspace", func(t *testing.T) {
+		t.Parallel()
+		cfg := newConfig()
+		cfg.WorkspaceID = uuid.Nil
+		cfg.Workspace = workspacebuild.Config{
+			OrganizationID: uuid.MustParse("33333333-3333-3333-3333-333333333333"),
+			UserID:         codersdk.Me,
+			Request: codersdk.CreateWorkspaceRequest{
+				TemplateID: uuid.MustParse("44444444-4444-4444-4444-444444444444"),
+			},
+		}
+		require.NoError(t, cfg.Validate())
+	})
+
+	t.Run("WorkspaceSelectionIsMutuallyExclusive", func(t *testing.T) {
+		t.Parallel()
+		cfg := newConfig()
+		cfg.Workspace = workspacebuild.Config{
+			OrganizationID: uuid.MustParse("33333333-3333-3333-3333-333333333333"),
+			UserID:         codersdk.Me,
+			Request: codersdk.CreateWorkspaceRequest{
+				TemplateID: uuid.MustParse("44444444-4444-4444-4444-444444444444"),
+			},
+		}
+		require.ErrorContains(t, cfg.Validate(), "exactly one of workspace_id or workspace config")
 	})
 
 	t.Run("DelayedFollowUpsRequireBarrier", func(t *testing.T) {
