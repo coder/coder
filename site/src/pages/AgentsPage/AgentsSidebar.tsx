@@ -962,7 +962,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							label="Behavior"
 							active={sidebarView.section === "behavior"}
 							to="/agents/settings/behavior"
-							replace
 							state={location.state}
 						/>
 						{isAdmin && (
@@ -972,7 +971,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Providers"
 									active={sidebarView.section === "providers"}
 									to="/agents/settings/providers"
-									replace
 									state={location.state}
 									adminOnly
 								/>
@@ -981,7 +979,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Models"
 									active={sidebarView.section === "models"}
 									to="/agents/settings/models"
-									replace
 									state={location.state}
 									adminOnly
 								/>
@@ -990,7 +987,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Limits"
 									active={sidebarView.section === "limits"}
 									to="/agents/settings/limits"
-									replace
 									state={location.state}
 									adminOnly
 								/>
@@ -999,7 +995,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Usage"
 									active={sidebarView.section === "usage"}
 									to="/agents/settings/usage"
-									replace
 									state={location.state}
 									adminOnly
 								/>
@@ -1008,7 +1003,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Analytics"
 									active={sidebarView.section === "insights"}
 									to="/agents/settings/insights"
-									replace
 									state={location.state}
 									adminOnly
 								/>{" "}
