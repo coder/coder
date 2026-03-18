@@ -68,17 +68,20 @@ func newDetectorTestEnv(ctx context.Context, t *testing.T) *detectorTestEnv {
 // tick sends a tick with the given time and returns the stats from the
 // detector run. It respects context cancellation to avoid blocking forever
 // if the detector exits unexpectedly.
+//
+// tick must not be called from a separate goroutine, as it calls
+// require.FailNow which uses runtime.Goexit under the hood.
 func (e *detectorTestEnv) tick(ctx context.Context, now time.Time) jobreaper.Stats {
 	e.t.Helper()
 	select {
 	case <-ctx.Done():
-		require.FailNow(e.t, "tick: context cancelled waiting to send tick")
+		require.FailNow(e.t, "tick: context canceled waiting to send tick")
 		return jobreaper.Stats{}
 	case e.tickCh <- now:
 	}
 	select {
 	case <-ctx.Done():
-		require.FailNow(e.t, "tick: context cancelled waiting for stats")
+		require.FailNow(e.t, "tick: context canceled waiting for stats")
 		return jobreaper.Stats{}
 	case stats := <-e.statsCh:
 		return stats
