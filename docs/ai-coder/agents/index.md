@@ -83,9 +83,9 @@ This means:
 - **Lower infrastructure cost** — workspaces are only created when the agent
   needs to do real development work.
 
-When a workspace _is_ needed, the agent reads the available templates —
+When a workspace _is_ needed, the agent reads the templates available to that user —
 including their descriptions and parameters — selects the appropriate one, and
-creates a workspace automatically. Users can also manually choose which workspace is used when starting a new chat.
+creates a workspace automatically. Template visibility is scoped to the user's role and permissions, so the agent can only select templates the user is authorized to use. Users can also manually choose which workspace is used when starting a new chat.
 
 Platform teams control template routing by writing clear template descriptions.
 For example, a description like "Use this template for Python backend services
@@ -174,12 +174,30 @@ entirely:
 - **User identity is always attached.** Every action the agent takes — PRs
   opened, code pushed, commands run — is tied to the user who submitted the
   prompt. There is no shared bot identity or anonymous execution.
+- **No privilege escalation.** The agent operates with the exact same
+  permissions as the user who submitted the prompt. If a developer cannot
+  access a template, workspace, or resource through the Coder dashboard,
+  the agent cannot access it either. There is no escalation of privileges
+  and no shared service account.
+- **Workspace isolation is preserved.** The agent can only access workspaces
+  owned by the user who submitted the prompt. There is no cross-user
+  workspace access — an agent running on behalf of one developer cannot
+  read files, execute commands, or interact with another developer's
+  workspaces.
 
 > [!TIP]
 > For highly sensitive environments, create a dedicated set of templates for
 > agent workloads with stricter network policies than your standard developer
 > templates. Because the AI comes from the control plane, these templates don't
 > need any outbound access to LLM providers.
+
+> [!WARNING]
+> By default, agent workspaces have the same network access and permissions
+> as any workspace the user creates manually. If your templates do not
+> restrict outbound network access, the agent has full internet access from
+> the workspace. See [Template Routing](./platform-controls/template-optimization.md)
+> for guidance on configuring network boundaries and scoping credentials for
+> agent workloads.
 
 ## LLM provider support
 

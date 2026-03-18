@@ -106,6 +106,11 @@ Tools are how the agent takes action. Each tool call from the LLM translates to
 a concrete operation — either inside a workspace or within the control plane
 itself.
 
+The agent is restricted to the tool set defined in this section. It has no
+direct access to the Coder API beyond what these tools expose and cannot
+execute arbitrary operations against the control plane. If a capability is
+not represented by a tool, the agent cannot perform it.
+
 ### Workspace connection lifecycle
 
 The connection to a workspace is **lazy**. It is not established when a chat
@@ -243,6 +248,22 @@ is tied to the user who submitted the prompt. There is no shared bot account or
 anonymous identity. If a developer submits a prompt that results in a pull
 request, that pull request is attributed to them via the git authentication
 already configured in your Coder deployment.
+
+### Permission boundaries
+
+The agent operates with the exact same permissions as the user who submitted
+the prompt. If a user cannot access a template, workspace, or API endpoint
+through the Coder dashboard or CLI, the agent cannot access it either. There
+is no privilege escalation.
+
+This extends to workspace isolation: the agent can only interact with
+workspaces owned by the user who started the chat. It cannot read files,
+execute commands, or connect to workspaces belonging to other users.
+
+Template visibility follows the same rule. When the agent lists available
+templates, it sees only the templates the user is authorized to access.
+The agent cannot provision a workspace from a template the user does not
+have permission to use.
 
 ## Scaling and resource impact
 
