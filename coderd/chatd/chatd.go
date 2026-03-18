@@ -491,6 +491,43 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			}
 		}
 
+		var workspaceAwareness string
+		if opts.WorkspaceID.Valid {
+			workspaceAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
+		} else {
+			workspaceAwareness = "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
+		}
+		workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(workspaceAwareness),
+		})
+		if err != nil {
+			return xerrors.Errorf("marshal workspace awareness: %w", err)
+		}
+		_, err = tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
+			ChatID:    insertedChat.ID,
+			CreatedBy: uuid.NullUUID{},
+			ModelConfigID: uuid.NullUUID{
+				UUID:  opts.ModelConfigID,
+				Valid: true,
+			},
+			Role:                database.ChatMessageRoleSystem,
+			ContentVersion:      chatprompt.CurrentContentVersion,
+			Content:             workspaceAwarenessContent,
+			Visibility:          database.ChatMessageVisibilityModel,
+			InputTokens:         sql.NullInt64{},
+			OutputTokens:        sql.NullInt64{},
+			TotalTokens:         sql.NullInt64{},
+			ReasoningTokens:     sql.NullInt64{},
+			CacheCreationTokens: sql.NullInt64{},
+			CacheReadTokens:     sql.NullInt64{},
+			ContextLimit:        sql.NullInt64{},
+			Compressed:          sql.NullBool{},
+			TotalCostMicros:     sql.NullInt64{},
+		})
+		if err != nil {
+			return xerrors.Errorf("insert workspace awareness message: %w", err)
+		}
+
 		userContent, err := chatprompt.MarshalParts(opts.InitialUserContent)
 		if err != nil {
 			return xerrors.Errorf("marshal initial user content: %w", err)
