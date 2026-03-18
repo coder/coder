@@ -82,21 +82,21 @@ type WorkspaceBuild struct {
 	// WorkspaceOwnerName is the username of the owner of the workspace.
 	WorkspaceOwnerName      string               `json:"workspace_owner_name"`
 	WorkspaceOwnerAvatarURL string               `json:"workspace_owner_avatar_url,omitempty"`
-	TemplateVersionID       uuid.UUID            `json:"template_version_id"                  format:"uuid"`
+	TemplateVersionID       uuid.UUID            `json:"template_version_id"                                                                                                                           format:"uuid"`
 	TemplateVersionName     string               `json:"template_version_name"`
 	BuildNumber             int32                `json:"build_number"`
-	Transition              WorkspaceTransition  `json:"transition"                           enums:"start,stop,delete"`
-	InitiatorID             uuid.UUID            `json:"initiator_id"                         format:"uuid"`
+	Transition              WorkspaceTransition  `json:"transition"                                       enums:"start,stop,delete"`
+	InitiatorID             uuid.UUID            `json:"initiator_id"                                                                                                                                  format:"uuid"`
 	InitiatorUsername       string               `json:"initiator_name"`
 	Job                     ProvisionerJob       `json:"job"`
-	Reason                  BuildReason          `db:"reason"                                 json:"reason"                                                                                enums:"initiator,autostart,autostop"`
+	Reason                  BuildReason          `json:"reason"                               db:"reason" enums:"initiator,autostart,autostop"`
 	Resources               []WorkspaceResource  `json:"resources"`
-	Deadline                NullTime             `json:"deadline,omitempty"                   format:"date-time"`
-	MaxDeadline             NullTime             `json:"max_deadline,omitempty"               format:"date-time"`
-	Status                  WorkspaceStatus      `json:"status"                               enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
+	Deadline                NullTime             `json:"deadline,omitempty"                                                                                                                            format:"date-time"`
+	MaxDeadline             NullTime             `json:"max_deadline,omitempty"                                                                                                                        format:"date-time"`
+	Status                  WorkspaceStatus      `json:"status"                                           enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
 	DailyCost               int32                `json:"daily_cost"`
 	MatchedProvisioners     *MatchedProvisioners `json:"matched_provisioners,omitempty"`
-	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id"           format:"uuid"`
+	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id"                                                                                                                    format:"uuid"`
 	// Deprecated: This field has been deprecated in favor of Task WorkspaceID.
 	HasAITask        *bool `json:"has_ai_task,omitempty"`
 	HasExternalAgent *bool `json:"has_external_agent,omitempty"`
@@ -105,9 +105,9 @@ type WorkspaceBuild struct {
 // WorkspaceResource describes resources used to create a workspace, for instance:
 // containers, images, volumes.
 type WorkspaceResource struct {
-	ID         uuid.UUID                   `json:"id"                   format:"uuid"`
-	CreatedAt  time.Time                   `json:"created_at"           format:"date-time"`
-	JobID      uuid.UUID                   `json:"job_id"               format:"uuid"`
+	ID         uuid.UUID                   `json:"id"                                             format:"uuid"`
+	CreatedAt  time.Time                   `json:"created_at"                                     format:"date-time"`
+	JobID      uuid.UUID                   `json:"job_id"                                         format:"uuid"`
 	Transition WorkspaceTransition         `json:"workspace_transition" enums:"start,stop,delete"`
 	Type       string                      `json:"type"`
 	Name       string                      `json:"name"`

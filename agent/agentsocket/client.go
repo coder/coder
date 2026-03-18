@@ -140,16 +140,16 @@ func (c *Client) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateAppS
 
 // SyncStatusResponse contains the status information for a unit.
 type SyncStatusResponse struct {
-	UnitName     unit.ID          `table:"unit,default_sort" json:"unit_name"`
-	Status       unit.Status      `table:"status"            json:"status"`
-	IsReady      bool             `table:"ready"             json:"is_ready"`
-	Dependencies []DependencyInfo `table:"dependencies"      json:"dependencies"`
+	UnitName     unit.ID          `json:"unit_name"    table:"unit,default_sort"`
+	Status       unit.Status      `json:"status"       table:"status"`
+	IsReady      bool             `json:"is_ready"     table:"ready"`
+	Dependencies []DependencyInfo `json:"dependencies" table:"dependencies"`
 }
 
 // DependencyInfo contains information about a unit dependency.
 type DependencyInfo struct {
-	DependsOn      unit.ID     `table:"depends on,default_sort" json:"depends_on"`
-	RequiredStatus unit.Status `table:"required status"         json:"required_status"`
-	CurrentStatus  unit.Status `table:"current status"          json:"current_status"`
-	IsSatisfied    bool        `table:"satisfied"               json:"is_satisfied"`
+	DependsOn      unit.ID     `json:"depends_on"      table:"depends on,default_sort"`
+	RequiredStatus unit.Status `json:"required_status" table:"required status"`
+	CurrentStatus  unit.Status `json:"current_status"  table:"current status"`
+	IsSatisfied    bool        `json:"is_satisfied"    table:"satisfied"`
 }

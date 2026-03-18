@@ -138,7 +138,7 @@ func (r *RootCmd) templateVersionsList() *serpent.Command {
 
 type templateVersionRow struct {
 	// For json format:
-	TemplateVersion codersdk.TemplateVersion `table:"-"`
+	TemplateVersion codersdk.TemplateVersion `              table:"-"`
 	ActiveJSON      bool                     `json:"active" table:"-"`
 
 	// For table format:

@@ -362,8 +362,8 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 
 type IssueReconnectingPTYSignedTokenRequest struct {
 	// URL is the URL of the reconnecting-pty endpoint you are connecting to.
-	URL     string    `json:"url"     validate:"required"`
-	AgentID uuid.UUID `json:"agentID" format:"uuid"       validate:"required"`
+	URL     string    `json:"url"                   validate:"required"`
+	AgentID uuid.UUID `json:"agentID" format:"uuid" validate:"required"`
 }
 
 type IssueReconnectingPTYSignedTokenResponse struct {

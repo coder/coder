@@ -15,17 +15,17 @@ import (
 // Template is the JSON representation of a Coder template. This type matches the
 // database object for now, but is abstracted for ease of change later on.
 type Template struct {
-	ID                      uuid.UUID       `json:"id"                        format:"uuid"`
-	CreatedAt               time.Time       `json:"created_at"                format:"date-time"`
-	UpdatedAt               time.Time       `json:"updated_at"                format:"date-time"`
-	OrganizationID          uuid.UUID       `json:"organization_id"           format:"uuid"`
-	OrganizationName        string          `json:"organization_name"         format:"url"`
+	ID                      uuid.UUID       `json:"id"                                          format:"uuid"`
+	CreatedAt               time.Time       `json:"created_at"                                  format:"date-time"`
+	UpdatedAt               time.Time       `json:"updated_at"                                  format:"date-time"`
+	OrganizationID          uuid.UUID       `json:"organization_id"                             format:"uuid"`
+	OrganizationName        string          `json:"organization_name"                           format:"url"`
 	OrganizationDisplayName string          `json:"organization_display_name"`
 	OrganizationIcon        string          `json:"organization_icon"`
 	Name                    string          `json:"name"`
 	DisplayName             string          `json:"display_name"`
 	Provisioner             ProvisionerType `json:"provisioner"               enums:"terraform"`
-	ActiveVersionID         uuid.UUID       `json:"active_version_id"         format:"uuid"`
+	ActiveVersionID         uuid.UUID       `json:"active_version_id"                           format:"uuid"`
 	// ActiveUserCount is set to -1 when loading.
 	ActiveUserCount    int                    `json:"active_user_count"`
 	BuildTimeStats     TemplateBuildTimeStats `json:"build_time_stats"`
@@ -159,7 +159,7 @@ type TransitionStats struct {
 type (
 	TemplateBuildTimeStats      map[WorkspaceTransition]TransitionStats
 	UpdateActiveTemplateVersion struct {
-		ID uuid.UUID `json:"id" validate:"required" format:"uuid"`
+		ID uuid.UUID `json:"id" format:"uuid" validate:"required"`
 	}
 )
 
@@ -419,7 +419,7 @@ func (c *Client) UpdateActiveTemplateVersion(ctx context.Context, template uuid.
 // TemplateVersionsByTemplateRequest defines the request parameters for
 // TemplateVersionsByTemplate.
 type TemplateVersionsByTemplateRequest struct {
-	TemplateID      uuid.UUID `json:"template_id"      validate:"required" format:"uuid"`
+	TemplateID      uuid.UUID `json:"template_id"      format:"uuid" validate:"required"`
 	IncludeArchived bool      `json:"include_archived"`
 	Pagination
 }

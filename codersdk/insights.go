@@ -89,10 +89,10 @@ type UserActivityInsightsReport struct {
 
 // UserActivity shows the session time for a user.
 type UserActivity struct {
-	TemplateIDs []uuid.UUID `json:"template_ids" format:"uuid"`
-	UserID      uuid.UUID   `json:"user_id"      format:"uuid"`
+	TemplateIDs []uuid.UUID `json:"template_ids"                 format:"uuid"`
+	UserID      uuid.UUID   `json:"user_id"                      format:"uuid"`
 	Username    string      `json:"username"`
-	AvatarURL   string      `json:"avatar_url"   format:"uri"`
+	AvatarURL   string      `json:"avatar_url"                   format:"uri"`
 	Seconds     int64       `json:"seconds"      example:"80500"`
 }
 
@@ -174,9 +174,9 @@ type TemplateInsightsResponse struct {
 
 // TemplateInsightsReport is the report from the template insights endpoint.
 type TemplateInsightsReport struct {
-	StartTime       time.Time                `json:"start_time"       format:"date-time"`
-	EndTime         time.Time                `json:"end_time"         format:"date-time"`
-	TemplateIDs     []uuid.UUID              `json:"template_ids"     format:"uuid"`
+	StartTime       time.Time                `json:"start_time"                    format:"date-time"`
+	EndTime         time.Time                `json:"end_time"                      format:"date-time"`
+	TemplateIDs     []uuid.UUID              `json:"template_ids"                  format:"uuid"`
 	ActiveUsers     int64                    `json:"active_users"     example:"22"`
 	AppsUsage       []TemplateAppUsage       `json:"apps_usage"`
 	ParametersUsage []TemplateParameterUsage `json:"parameters_usage"`
@@ -185,9 +185,9 @@ type TemplateInsightsReport struct {
 // TemplateInsightsIntervalReport is the report from the template insights
 // endpoint for a specific interval.
 type TemplateInsightsIntervalReport struct {
-	StartTime   time.Time              `json:"start_time"   format:"date-time"`
-	EndTime     time.Time              `json:"end_time"     format:"date-time"`
-	TemplateIDs []uuid.UUID            `json:"template_ids" format:"uuid"`
+	StartTime   time.Time              `json:"start_time"                  format:"date-time"`
+	EndTime     time.Time              `json:"end_time"                    format:"date-time"`
+	TemplateIDs []uuid.UUID            `json:"template_ids"                format:"uuid"`
 	Interval    InsightsReportInterval `json:"interval"     example:"week"`
 	ActiveUsers int64                  `json:"active_users" example:"14"`
 }
@@ -212,7 +212,7 @@ const (
 
 // TemplateAppUsage shows the usage of an app for one or more templates.
 type TemplateAppUsage struct {
-	TemplateIDs []uuid.UUID      `json:"template_ids" format:"uuid"`
+	TemplateIDs []uuid.UUID      `json:"template_ids"                              format:"uuid"`
 	Type        TemplateAppsType `json:"type"         example:"builtin"`
 	DisplayName string           `json:"display_name" example:"Visual Studio Code"`
 	Slug        string           `json:"slug"         example:"vscode"`
@@ -241,9 +241,9 @@ type TemplateParameterValue struct {
 }
 
 type TemplateInsightsRequest struct {
-	StartTime   time.Time                 `json:"start_time"   format:"date-time"`
-	EndTime     time.Time                 `json:"end_time"     format:"date-time"`
-	TemplateIDs []uuid.UUID               `json:"template_ids" format:"uuid"`
+	StartTime   time.Time                 `json:"start_time"                    format:"date-time"`
+	EndTime     time.Time                 `json:"end_time"                      format:"date-time"`
+	TemplateIDs []uuid.UUID               `json:"template_ids"                  format:"uuid"`
 	Interval    InsightsReportInterval    `json:"interval"     example:"day"`
 	Sections    []TemplateInsightsSection `json:"sections"     example:"report"`
 }
@@ -289,7 +289,7 @@ type GetUserStatusCountsResponse struct {
 }
 
 type UserStatusChangeCount struct {
-	Date  time.Time `json:"date"  format:"date-time"`
+	Date  time.Time `json:"date"               format:"date-time"`
 	Count int64     `json:"count" example:"10"`
 }
 

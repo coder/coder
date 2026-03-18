@@ -46,17 +46,17 @@ type ProxyHealthReport struct {
 
 type WorkspaceProxy struct {
 	// Extends Region with extra information
-	Region      `table:"region,recursive_inline"`
-	DerpEnabled bool `json:"derp_enabled"             table:"derp enabled"`
-	DerpOnly    bool `json:"derp_only"                table:"derp only"`
+	Region      `                    table:"region,recursive_inline"`
+	DerpEnabled bool `json:"derp_enabled" table:"derp enabled"`
+	DerpOnly    bool `json:"derp_only"    table:"derp only"`
 
 	// Status is the latest status check of the proxy. This will be empty for deleted
 	// proxies. This value can be used to determine if a workspace proxy is healthy
 	// and ready to use.
 	Status WorkspaceProxyStatus `json:"status,omitempty" table:"proxy,recursive"`
 
-	CreatedAt time.Time `json:"created_at" format:"date-time" table:"created at"`
-	UpdatedAt time.Time `json:"updated_at" format:"date-time" table:"updated at"`
+	CreatedAt time.Time `json:"created_at" table:"created at" format:"date-time"`
+	UpdatedAt time.Time `json:"updated_at" table:"updated at" format:"date-time"`
 	Deleted   bool      `json:"deleted"    table:"deleted"`
 	Version   string    `json:"version"    table:"version"`
 }
@@ -108,10 +108,10 @@ func (c *Client) WorkspaceProxies(ctx context.Context) (RegionsResponse[Workspac
 }
 
 type PatchWorkspaceProxy struct {
-	ID              uuid.UUID `json:"id"               format:"uuid"       validate:"required"`
-	Name            string    `json:"name"             validate:"required"`
-	DisplayName     string    `json:"display_name"     validate:"required"`
-	Icon            string    `json:"icon"             validate:"required"`
+	ID              uuid.UUID `json:"id"               format:"uuid" validate:"required"`
+	Name            string    `json:"name"                           validate:"required"`
+	DisplayName     string    `json:"display_name"                   validate:"required"`
+	Icon            string    `json:"icon"                           validate:"required"`
 	RegenerateToken bool      `json:"regenerate_token"`
 }
 
@@ -184,7 +184,7 @@ type RegionsResponse[R RegionTypes] struct {
 }
 
 type Region struct {
-	ID          uuid.UUID `json:"id"           format:"uuid"             table:"id"`
+	ID          uuid.UUID `json:"id"           table:"id"                format:"uuid"`
 	Name        string    `json:"name"         table:"name,default_sort"`
 	DisplayName string    `json:"display_name" table:"display name"`
 	IconURL     string    `json:"icon_url"     table:"icon url"`

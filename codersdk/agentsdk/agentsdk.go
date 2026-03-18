@@ -517,9 +517,9 @@ const (
 )
 
 type AgentMetric struct {
-	Name   string             `json:"name"             validate:"required"`
-	Type   AgentMetricType    `json:"type"             validate:"required" enums:"counter,gauge"`
-	Value  float64            `json:"value"            validate:"required"`
+	Name   string             `json:"name"                                   validate:"required"`
+	Type   AgentMetricType    `json:"type"             enums:"counter,gauge" validate:"required"`
+	Value  float64            `json:"value"                                  validate:"required"`
 	Labels []AgentMetricLabel `json:"labels,omitempty"`
 }
 

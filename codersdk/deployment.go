@@ -4062,11 +4062,11 @@ type SupportConfig struct {
 }
 
 type LinkConfig struct {
-	Name   string `json:"name"   yaml:"name"`
-	Target string `json:"target" yaml:"target"`
-	Icon   string `json:"icon"   yaml:"icon"   enums:"bug,chat,docs,star"`
+	Name   string `json:"name"                              yaml:"name"`
+	Target string `json:"target"                            yaml:"target"`
+	Icon   string `json:"icon"   enums:"bug,chat,docs,star" yaml:"icon"`
 
-	Location string `json:"location,omitempty" yaml:"location,omitempty" enums:"navbar,dropdown"`
+	Location string `json:"location,omitempty" enums:"navbar,dropdown" yaml:"location,omitempty"`
 }
 
 // Validate checks cross-field constraints for deployment values.

@@ -20,28 +20,28 @@ import (
 // AuditOAuthConvertState is never stored in the database. It is stored in a cookie
 // clientside as a JWT. This type is provided for audit logging purposes.
 type AuditOAuthConvertState struct {
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
 	// The time at which the state string expires, a merge request times out if the user does not perform it quick enough.
-	ExpiresAt     time.Time `db:"expires_at"      json:"expires_at"`
-	FromLoginType LoginType `db:"from_login_type" json:"from_login_type"`
+	ExpiresAt     time.Time `json:"expires_at"      db:"expires_at"`
+	FromLoginType LoginType `json:"from_login_type" db:"from_login_type"`
 	// The login type the user is converting to. Should be github or oidc.
-	ToLoginType LoginType `db:"to_login_type" json:"to_login_type"`
-	UserID      uuid.UUID `db:"user_id"       json:"user_id"`
+	ToLoginType LoginType `json:"to_login_type" db:"to_login_type"`
+	UserID      uuid.UUID `json:"user_id"       db:"user_id"`
 }
 
 type HealthSettings struct {
-	ID                    uuid.UUID `db:"id"                     json:"id"`
-	DismissedHealthchecks []string  `db:"dismissed_healthchecks" json:"dismissed_healthchecks"`
+	ID                    uuid.UUID `json:"id"                     db:"id"`
+	DismissedHealthchecks []string  `json:"dismissed_healthchecks" db:"dismissed_healthchecks"`
 }
 
 type NotificationsSettings struct {
-	ID             uuid.UUID `db:"id"              json:"id"`
-	NotifierPaused bool      `db:"notifier_paused" json:"notifier_paused"`
+	ID             uuid.UUID `json:"id"              db:"id"`
+	NotifierPaused bool      `json:"notifier_paused" db:"notifier_paused"`
 }
 
 type PrebuildsSettings struct {
-	ID                   uuid.UUID `db:"id"                    json:"id"`
-	ReconciliationPaused bool      `db:"reconciliation_paused" json:"reconciliation_paused"`
+	ID                   uuid.UUID `json:"id"                    db:"id"`
+	ReconciliationPaused bool      `json:"reconciliation_paused" db:"reconciliation_paused"`
 }
 
 type Actions []policy.Action
@@ -237,9 +237,9 @@ func (a CustomRolePermission) String() string {
 
 // NameOrganizationPair is used as a lookup tuple for custom role rows.
 type NameOrganizationPair struct {
-	Name string `db:"name" json:"name"`
+	Name string `json:"name" db:"name"`
 	// OrganizationID if unset will assume a null column value
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	OrganizationID uuid.UUID `json:"organization_id" db:"organization_id"`
 }
 
 func (*NameOrganizationPair) Scan(_ interface{}) error {
@@ -264,8 +264,8 @@ func (a NameOrganizationPair) Value() (driver.Value, error) {
 
 // AgentIDNamePair is used as a result tuple for workspace and agent rows.
 type AgentIDNamePair struct {
-	ID   uuid.UUID `db:"id"   json:"id"`
-	Name string    `db:"name" json:"name"`
+	ID   uuid.UUID `json:"id"   db:"id"`
+	Name string    `json:"name" db:"name"`
 }
 
 func (p *AgentIDNamePair) Scan(src interface{}) error {

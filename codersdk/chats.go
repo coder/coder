@@ -98,6 +98,19 @@ const (
 	ChatMessagePartTypeFileReference ChatMessagePartType = "file-reference"
 )
 
+// AllChatMessagePartTypes returns all known ChatMessagePartType values.
+func AllChatMessagePartTypes() []ChatMessagePartType {
+	return []ChatMessagePartType{
+		ChatMessagePartTypeText,
+		ChatMessagePartTypeReasoning,
+		ChatMessagePartTypeToolCall,
+		ChatMessagePartTypeToolResult,
+		ChatMessagePartTypeSource,
+		ChatMessagePartTypeFile,
+		ChatMessagePartTypeFileReference,
+	}
+}
+
 // ChatMessagePart is a structured chunk of a chat message.
 //
 // WARNING: This type is both an API wire type and a database
@@ -106,37 +119,41 @@ const (
 // changes, and omitempty behavior all affect backward-compatible
 // deserialization of stored rows. Treat changes to this struct
 // with the same care as a database migration.
+//
+// The variants struct tag declares which discriminated-union
+// variants include each field in the generated TypeScript. Bare
+// name = required, ? suffix = optional. Fields without a variants
+// tag are excluded from the generated union. See
+// scripts/apitypings/main.go for the codegen that reads these.
 type ChatMessagePart struct {
 	Type        ChatMessagePartType `json:"type"`
-	Text        string              `json:"text,omitempty"`
+	Text        string              `json:"text,omitempty"                       variants:"text,reasoning"`
 	Signature   string              `json:"signature,omitempty"`
-	ToolCallID  string              `json:"tool_call_id,omitempty"`
-	ToolName    string              `json:"tool_name,omitempty"`
-	Args        json.RawMessage     `json:"args,omitempty"`
-	ArgsDelta   string              `json:"args_delta,omitempty"`
-	Result      json.RawMessage     `json:"result,omitempty"`
+	ToolCallID  string              `json:"tool_call_id,omitempty"               variants:"tool-call,tool-result"`
+	ToolName    string              `json:"tool_name,omitempty"                  variants:"tool-call,tool-result"`
+	Args        json.RawMessage     `json:"args,omitempty"                       variants:"tool-call?"`
+	ArgsDelta   string              `json:"args_delta,omitempty"                 variants:"tool-call?"`
+	Result      json.RawMessage     `json:"result,omitempty"                     variants:"tool-result?"`
 	ResultDelta string              `json:"result_delta,omitempty"`
-	IsError     bool                `json:"is_error,omitempty"`
-	SourceID    string              `json:"source_id,omitempty"`
-	URL         string              `json:"url,omitempty"`
-	Title       string              `json:"title,omitempty"`
-	MediaType   string              `json:"media_type,omitempty"`
-	Data        []byte              `json:"data,omitempty"`
-	FileID      uuid.NullUUID       `json:"file_id,omitempty"      format:"uuid"`
-	// The following fields are only set when Type is
-	// ChatInputPartTypeFileReference.
-	FileName  string `json:"file_name,omitempty"`
-	StartLine int    `json:"start_line,omitempty"`
-	EndLine   int    `json:"end_line,omitempty"`
+	IsError     bool                `json:"is_error,omitempty"                   variants:"tool-result?"`
+	SourceID    string              `json:"source_id,omitempty"                  variants:"source?"`
+	URL         string              `json:"url,omitempty"                        variants:"source"`
+	Title       string              `json:"title,omitempty"                      variants:"source?"`
+	MediaType   string              `json:"media_type,omitempty"                 variants:"file"`
+	Data        []byte              `json:"data,omitempty"                       variants:"file?"`
+	FileID      uuid.NullUUID       `json:"file_id,omitempty"      format:"uuid" variants:"file?"`
+	FileName    string              `json:"file_name,omitempty"                  variants:"file-reference"`
+	StartLine   int                 `json:"start_line,omitempty"                 variants:"file-reference"`
+	EndLine     int                 `json:"end_line,omitempty"                   variants:"file-reference"`
 	// The code content from the diff that was commented on.
-	Content string `json:"content,omitempty"`
+	Content string `json:"content,omitempty" variants:"file-reference"`
 	// ProviderMetadata holds provider-specific response metadata
 	// (e.g. Anthropic cache control hints) as raw JSON. Internal
 	// only: stripped by db2sdk before API responses.
 	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-"`
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
-	ProviderExecuted bool `json:"provider_executed,omitempty"`
+	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
 }
 
 // StripInternal removes internal-only fields that must not be
@@ -399,26 +416,26 @@ type ChatModelProviderOptions struct {
 
 // ChatModelOpenAIProviderOptions configures OpenAI provider behavior.
 type ChatModelOpenAIProviderOptions struct {
-	Include             []string         `json:"include,omitempty"               description:"Model names to include in discovery"                                              hidden:"true"`
-	Instructions        *string          `json:"instructions,omitempty"          description:"System-level instructions prepended to the conversation"                          hidden:"true"`
-	LogitBias           map[string]int64 `json:"logit_bias,omitempty"            description:"Token IDs mapped to bias values from -100 to 100"                                 hidden:"true"`
-	LogProbs            *bool            `json:"log_probs,omitempty"             description:"Whether to return log probabilities of output tokens"                             hidden:"true"`
-	TopLogProbs         *int64           `json:"top_log_probs,omitempty"         description:"Number of most likely tokens to return log probabilities for"                     hidden:"true"`
+	Include             []string         `json:"include,omitempty"               description:"Model names to include in discovery"                                                                                        hidden:"true"`
+	Instructions        *string          `json:"instructions,omitempty"          description:"System-level instructions prepended to the conversation"                                                                    hidden:"true"`
+	LogitBias           map[string]int64 `json:"logit_bias,omitempty"            description:"Token IDs mapped to bias values from -100 to 100"                                                                           hidden:"true"`
+	LogProbs            *bool            `json:"log_probs,omitempty"             description:"Whether to return log probabilities of output tokens"                                                                       hidden:"true"`
+	TopLogProbs         *int64           `json:"top_log_probs,omitempty"         description:"Number of most likely tokens to return log probabilities for"                                                               hidden:"true"`
 	MaxToolCalls        *int64           `json:"max_tool_calls,omitempty"        description:"Maximum number of tool calls per response"`
 	ParallelToolCalls   *bool            `json:"parallel_tool_calls,omitempty"   description:"Whether the model may make multiple tool calls in parallel"`
-	User                *string          `json:"user,omitempty"                  description:"Unique identifier for the end user for abuse monitoring"                          hidden:"true"`
+	User                *string          `json:"user,omitempty"                  description:"Unique identifier for the end user for abuse monitoring"                                                                    hidden:"true"`
 	ReasoningEffort     *string          `json:"reasoning_effort,omitempty"      description:"Controls the level of reasoning effort"                                           enum:"none,minimal,low,medium,high,xhigh"`
 	ReasoningSummary    *string          `json:"reasoning_summary,omitempty"     description:"Controls whether reasoning tokens are summarized in the response"`
 	MaxCompletionTokens *int64           `json:"max_completion_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
 	TextVerbosity       *string          `json:"text_verbosity,omitempty"        description:"Controls the verbosity of the text response"                                      enum:"low,medium,high"`
-	Prediction          map[string]any   `json:"prediction,omitempty"            description:"Predicted output content to speed up responses"                                   hidden:"true"`
-	Store               *bool            `json:"store,omitempty"                 description:"Whether to store the output for model distillation or evals"                      hidden:"true"`
-	Metadata            map[string]any   `json:"metadata,omitempty"              description:"Arbitrary metadata to attach to the request"                                      hidden:"true"`
+	Prediction          map[string]any   `json:"prediction,omitempty"            description:"Predicted output content to speed up responses"                                                                             hidden:"true"`
+	Store               *bool            `json:"store,omitempty"                 description:"Whether to store the output for model distillation or evals"                                                                hidden:"true"`
+	Metadata            map[string]any   `json:"metadata,omitempty"              description:"Arbitrary metadata to attach to the request"                                                                                hidden:"true"`
 	PromptCacheKey      *string          `json:"prompt_cache_key,omitempty"      description:"Key for enabling cross-request prompt caching"`
-	SafetyIdentifier    *string          `json:"safety_identifier,omitempty"     description:"Developer-specific safety identifier for the request"                             hidden:"true"`
+	SafetyIdentifier    *string          `json:"safety_identifier,omitempty"     description:"Developer-specific safety identifier for the request"                                                                       hidden:"true"`
 	ServiceTier         *string          `json:"service_tier,omitempty"          description:"Latency tier to use for processing the request"`
-	StructuredOutputs   *bool            `json:"structured_outputs,omitempty"    description:"Whether to enable structured JSON output mode"                                    hidden:"true"`
-	StrictJSONSchema    *bool            `json:"strict_json_schema,omitempty"    description:"Whether to enforce strict adherence to the JSON schema"                           hidden:"true"`
+	StructuredOutputs   *bool            `json:"structured_outputs,omitempty"    description:"Whether to enable structured JSON output mode"                                                                              hidden:"true"`
+	StrictJSONSchema    *bool            `json:"strict_json_schema,omitempty"    description:"Whether to enforce strict adherence to the JSON schema"                                                                     hidden:"true"`
 	WebSearchEnabled    *bool            `json:"web_search_enabled,omitempty"    description:"Enable OpenAI web search tool for grounding responses with real-time information"`
 	SearchContextSize   *string          `json:"search_context_size,omitempty"   description:"Amount of search context to use"                                                  enum:"low,medium,high"`
 	AllowedDomains      []string         `json:"allowed_domains,omitempty"       description:"Restrict web search to these domains"`
@@ -457,13 +474,13 @@ type ChatModelGoogleProviderOptions struct {
 	ThinkingConfig   *ChatModelGoogleThinkingConfig `json:"thinking_config,omitempty"    description:"Configuration for extended thinking"`
 	CachedContent    string                         `json:"cached_content,omitempty"     description:"Resource name of a cached content object"                 hidden:"true"`
 	SafetySettings   []ChatModelGoogleSafetySetting `json:"safety_settings,omitempty"    description:"Safety filtering settings for harmful content categories" hidden:"true"`
-	Threshold        string                         `json:"threshold,omitempty"          hidden:"true"`
+	Threshold        string                         `json:"threshold,omitempty"                                                                                 hidden:"true"`
 	WebSearchEnabled *bool                          `json:"web_search_enabled,omitempty" description:"Enable Google Search grounding for real-time information"`
 }
 
 // ChatModelOpenAICompatProviderOptions configures OpenAI-compatible behavior.
 type ChatModelOpenAICompatProviderOptions struct {
-	User            *string `json:"user,omitempty"             description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
+	User            *string `json:"user,omitempty"             description:"Unique identifier for the end user for abuse monitoring"                                           hidden:"true"`
 	ReasoningEffort *string `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort"                  enum:"none,minimal,low,medium,high,xhigh"`
 }
 

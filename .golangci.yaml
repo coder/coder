@@ -100,8 +100,12 @@ linters-settings:
 
   tagalign:
     align: true
-    sort: false
-    strict: false
+    sort: true
+    strict: true
+    order:
+      - json
+      - db
+      - table
 
   goimports:
     local-prefixes: coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder

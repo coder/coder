@@ -36,8 +36,8 @@ func (s SlimRole) UniqueName() string {
 }
 
 type AssignableRoles struct {
-	Role       `table:"r,recursive_inline"`
-	Assignable bool `json:"assignable"          table:"assignable"`
+	Role       `                  table:"r,recursive_inline"`
+	Assignable bool `json:"assignable" table:"assignable"`
 	// BuiltIn roles are immutable
 	BuiltIn bool `json:"built_in" table:"built_in"`
 }
@@ -52,7 +52,7 @@ type Permission struct {
 
 // Role is a longer form of SlimRole that includes permissions details.
 type Role struct {
-	Name            string       `json:"name"                      table:"name,default_sort" validate:"username"`
+	Name            string       `json:"name"                      table:"name,default_sort"               validate:"username"`
 	OrganizationID  string       `json:"organization_id,omitempty" table:"organization id"   format:"uuid"`
 	DisplayName     string       `json:"display_name"              table:"display name"`
 	SitePermissions []Permission `json:"site_permissions"          table:"site permissions"`

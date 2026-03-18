@@ -40,10 +40,10 @@ type UsersRequest struct {
 // MinimalUser is the minimal information needed to identify a user and show
 // them on the UI.
 type MinimalUser struct {
-	ID        uuid.UUID `json:"id"                   validate:"required" table:"id"                    format:"uuid"`
-	Username  string    `json:"username"             validate:"required" table:"username,default_sort"`
+	ID        uuid.UUID `json:"id"                   table:"id"                    format:"uuid" validate:"required"`
+	Username  string    `json:"username"             table:"username,default_sort"               validate:"required"`
 	Name      string    `json:"name,omitempty"       table:"name"`
-	AvatarURL string    `json:"avatar_url,omitempty" format:"uri"`
+	AvatarURL string    `json:"avatar_url,omitempty"                               format:"uri"`
 }
 
 // ReducedUser omits role and organization information. Roles are deduced from
@@ -51,11 +51,11 @@ type MinimalUser struct {
 // organizational memberships. Fetching that is more expensive, and not usually
 // required by the frontend.
 type ReducedUser struct {
-	MinimalUser `table:"m,recursive_inline"`
-	Email       string    `json:"email"                  validate:"required" table:"email"      format:"email"`
-	CreatedAt   time.Time `json:"created_at"             validate:"required" table:"created at" format:"date-time"`
-	UpdatedAt   time.Time `json:"updated_at"             table:"updated at"  format:"date-time"`
-	LastSeenAt  time.Time `json:"last_seen_at,omitempty" format:"date-time"`
+	MinimalUser `                              table:"m,recursive_inline"`
+	Email       string    `json:"email"                  table:"email"              format:"email"     validate:"required"`
+	CreatedAt   time.Time `json:"created_at"             table:"created at"         format:"date-time" validate:"required"`
+	UpdatedAt   time.Time `json:"updated_at"             table:"updated at"         format:"date-time"`
+	LastSeenAt  time.Time `json:"last_seen_at,omitempty"                            format:"date-time"`
 
 	Status           UserStatus `json:"status"                       table:"status" enums:"active,suspended"`
 	LoginType        LoginType  `json:"login_type"`
@@ -125,9 +125,9 @@ type CreateFirstUserResponse struct {
 // Then alias CreateUserRequestWithOrgs to CreateUserRequest.
 // @typescript-ignore CreateUserRequest
 type CreateUserRequest struct {
-	Email    string `json:"email"    validate:"required,email"    format:"email"`
-	Username string `json:"username" validate:"required,username"`
-	Name     string `json:"name"     validate:"user_real_name"`
+	Email    string `json:"email"    format:"email" validate:"required,email"`
+	Username string `json:"username"                validate:"required,username"`
+	Name     string `json:"name"                    validate:"user_real_name"`
 	Password string `json:"password"`
 	// UserLoginType defaults to LoginTypePassword.
 	UserLoginType LoginType `json:"login_type"`
@@ -135,20 +135,20 @@ type CreateUserRequest struct {
 	// from being able to use a password or any other authentication method to login.
 	// Deprecated: Set UserLoginType=LoginTypeDisabled instead.
 	DisableLogin   bool      `json:"disable_login"`
-	OrganizationID uuid.UUID `json:"organization_id" validate:"" format:"uuid"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid" validate:""`
 }
 
 type CreateUserRequestWithOrgs struct {
-	Email    string `json:"email"    validate:"required_unless=ServiceAccount true,omitempty,email" format:"email"`
-	Username string `json:"username" validate:"required,username"`
-	Name     string `json:"name"     validate:"user_real_name"`
+	Email    string `json:"email"    format:"email" validate:"required_unless=ServiceAccount true,omitempty,email"`
+	Username string `json:"username"                validate:"required,username"`
+	Name     string `json:"name"                    validate:"user_real_name"`
 	Password string `json:"password"`
 	// UserLoginType defaults to LoginTypePassword.
 	UserLoginType LoginType `json:"login_type"`
 	// UserStatus defaults to UserStatusDormant.
 	UserStatus *UserStatus `json:"user_status"`
 	// OrganizationIDs is a list of organization IDs that the user should be a member of.
-	OrganizationIDs []uuid.UUID `json:"organization_ids" validate:"" format:"uuid"`
+	OrganizationIDs []uuid.UUID `json:"organization_ids" format:"uuid" validate:""`
 	// Service accounts are admin-managed accounts that cannot login.
 	ServiceAccount bool `json:"service_account,omitempty"`
 }
@@ -284,8 +284,8 @@ type ConvertLoginRequest struct {
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
 type LoginWithPasswordRequest struct {
-	Email    string `json:"email"    validate:"required,email" format:"email"`
-	Password string `json:"password" validate:"required"`
+	Email    string `json:"email"    format:"email" validate:"required,email"`
+	Password string `json:"password"                validate:"required"`
 }
 
 // LoginWithPasswordResponse contains a session token for the newly authenticated user.
@@ -295,14 +295,14 @@ type LoginWithPasswordResponse struct {
 
 // RequestOneTimePasscodeRequest enables callers to request a one-time-passcode to change their password.
 type RequestOneTimePasscodeRequest struct {
-	Email string `json:"email" validate:"required,email" format:"email"`
+	Email string `json:"email" format:"email" validate:"required,email"`
 }
 
 // ChangePasswordWithOneTimePasscodeRequest enables callers to change their password when they've forgotten it.
 type ChangePasswordWithOneTimePasscodeRequest struct {
-	Email           string `json:"email"             validate:"required,email" format:"email"`
-	Password        string `json:"password"          validate:"required"`
-	OneTimePasscode string `json:"one_time_passcode" validate:"required"`
+	Email           string `json:"email"             format:"email" validate:"required,email"`
+	Password        string `json:"password"                         validate:"required"`
+	OneTimePasscode string `json:"one_time_passcode"                validate:"required"`
 }
 
 type OAuthConversionResponse struct {

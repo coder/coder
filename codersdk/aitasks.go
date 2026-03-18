@@ -98,37 +98,37 @@ const (
 
 // Task represents a task.
 type Task struct {
-	ID                      uuid.UUID                `json:"id"                               format:"uuid"                                                                                table:"id"`
-	OrganizationID          uuid.UUID                `json:"organization_id"                  format:"uuid"                                                                                table:"organization id"`
-	OwnerID                 uuid.UUID                `json:"owner_id"                         format:"uuid"                                                                                table:"owner id"`
+	ID                      uuid.UUID                `json:"id"                               table:"id"                                                                                                                         format:"uuid"`
+	OrganizationID          uuid.UUID                `json:"organization_id"                  table:"organization id"                                                                                                            format:"uuid"`
+	OwnerID                 uuid.UUID                `json:"owner_id"                         table:"owner id"                                                                                                                   format:"uuid"`
 	OwnerName               string                   `json:"owner_name"                       table:"owner name"`
 	OwnerAvatarURL          string                   `json:"owner_avatar_url,omitempty"       table:"owner avatar url"`
 	Name                    string                   `json:"name"                             table:"name,default_sort"`
 	DisplayName             string                   `json:"display_name"                     table:"display_name"`
-	TemplateID              uuid.UUID                `json:"template_id"                      format:"uuid"                                                                                table:"template id"`
-	TemplateVersionID       uuid.UUID                `json:"template_version_id"              format:"uuid"                                                                                table:"template version id"`
+	TemplateID              uuid.UUID                `json:"template_id"                      table:"template id"                                                                                                                format:"uuid"`
+	TemplateVersionID       uuid.UUID                `json:"template_version_id"              table:"template version id"                                                                                                        format:"uuid"`
 	TemplateName            string                   `json:"template_name"                    table:"template name"`
 	TemplateDisplayName     string                   `json:"template_display_name"            table:"template display name"`
 	TemplateIcon            string                   `json:"template_icon"                    table:"template icon"`
-	WorkspaceID             uuid.NullUUID            `json:"workspace_id"                     format:"uuid"                                                                                table:"workspace id"`
+	WorkspaceID             uuid.NullUUID            `json:"workspace_id"                     table:"workspace id"                                                                                                               format:"uuid"`
 	WorkspaceName           string                   `json:"workspace_name"                   table:"workspace name"`
-	WorkspaceStatus         WorkspaceStatus          `json:"workspace_status,omitempty"       enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted" table:"workspace status"`
+	WorkspaceStatus         WorkspaceStatus          `json:"workspace_status,omitempty"       table:"workspace status"              enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
 	WorkspaceBuildNumber    int32                    `json:"workspace_build_number,omitempty" table:"workspace build number"`
-	WorkspaceAgentID        uuid.NullUUID            `json:"workspace_agent_id"               format:"uuid"                                                                                table:"workspace agent id"`
+	WorkspaceAgentID        uuid.NullUUID            `json:"workspace_agent_id"               table:"workspace agent id"                                                                                                         format:"uuid"`
 	WorkspaceAgentLifecycle *WorkspaceAgentLifecycle `json:"workspace_agent_lifecycle"        table:"workspace agent lifecycle"`
 	WorkspaceAgentHealth    *WorkspaceAgentHealth    `json:"workspace_agent_health"           table:"workspace agent health"`
-	WorkspaceAppID          uuid.NullUUID            `json:"workspace_app_id"                 format:"uuid"                                                                                table:"workspace app id"`
+	WorkspaceAppID          uuid.NullUUID            `json:"workspace_app_id"                 table:"workspace app id"                                                                                                           format:"uuid"`
 	InitialPrompt           string                   `json:"initial_prompt"                   table:"initial prompt"`
-	Status                  TaskStatus               `json:"status"                           enums:"pending,initializing,active,paused,unknown,error"                                     table:"status"`
+	Status                  TaskStatus               `json:"status"                           table:"status"                        enums:"pending,initializing,active,paused,unknown,error"`
 	CurrentState            *TaskStateEntry          `json:"current_state"                    table:"cs,recursive_inline,empty_nil"`
-	CreatedAt               time.Time                `json:"created_at"                       format:"date-time"                                                                           table:"created at"`
-	UpdatedAt               time.Time                `json:"updated_at"                       format:"date-time"                                                                           table:"updated at"`
+	CreatedAt               time.Time                `json:"created_at"                       table:"created at"                                                                                                                 format:"date-time"`
+	UpdatedAt               time.Time                `json:"updated_at"                       table:"updated at"                                                                                                                 format:"date-time"`
 }
 
 // TaskStateEntry represents a single entry in the task's state history.
 type TaskStateEntry struct {
-	Timestamp time.Time `json:"timestamp" format:"date-time"                   table:"-"`
-	State     TaskState `json:"state"     enum:"working,idle,completed,failed" table:"state"`
+	Timestamp time.Time `json:"timestamp" table:"-"                                            format:"date-time"`
+	State     TaskState `json:"state"     table:"state"   enum:"working,idle,completed,failed"`
 	Message   string    `json:"message"   table:"message"`
 	URI       string    `json:"uri"       table:"-"`
 }
@@ -389,8 +389,8 @@ const (
 type TaskLogEntry struct {
 	ID      int         `json:"id"      table:"id"`
 	Content string      `json:"content" table:"content"`
-	Type    TaskLogType `json:"type"    enum:"input,output" table:"type"`
-	Time    time.Time   `json:"time"    format:"date-time"  table:"time,default_sort"`
+	Type    TaskLogType `json:"type"    table:"type"              enum:"input,output"`
+	Time    time.Time   `json:"time"    table:"time,default_sort"                     format:"date-time"`
 }
 
 // TaskLogsResponse contains task logs and metadata. When snapshot is false,

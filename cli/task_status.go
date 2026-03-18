@@ -155,9 +155,9 @@ func taskWatchIsEnded(task codersdk.Task) bool {
 }
 
 type taskStatusRow struct {
-	codersdk.Task `table:"r,recursive_inline"`
-	ChangedAgo    string `json:"-"                   table:"state changed"`
-	Healthy       bool   `json:"-"                   table:"healthy"`
+	codersdk.Task `         table:"r,recursive_inline"`
+	ChangedAgo    string `json:"-" table:"state changed"`
+	Healthy       bool   `json:"-" table:"healthy"`
 }
 
 func taskStatusRowEqual(r1, r2 taskStatusRow) bool {
