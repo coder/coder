@@ -709,7 +709,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				aria-hidden={sidebarView.panel === "settings"}
 				inert={sidebarView.panel === "settings" ? true : undefined}
 			>
-				<div className="hidden border-b border-border-default px-3 pb-3 pt-1.5 md:block md:px-3.5">
+				<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 md:block">
 					<div className="mb-2.5 flex items-center justify-between">
 						<NavLink to="/workspaces" className="inline-flex">
 							{logoUrl ? (
