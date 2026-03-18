@@ -4337,8 +4337,8 @@ export interface OIDCAuthMethod extends AuthMethod {
 export interface OIDCClaimsResponse {
 	/**
 	 * Claims are the merged claims from the OIDC provider. These
-	 * are the intersection of the ID token claims and the userinfo
-	 * claims, where userinfo claims take precedence.
+	 * are the union of the ID token claims and the userinfo claims,
+	 * where userinfo claims take precedence on conflict.
 	 */
 	// empty interface{} type, falling back to unknown
 	readonly claims: Record<string, unknown>;

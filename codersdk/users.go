@@ -342,8 +342,8 @@ type OIDCAuthMethod struct {
 // OIDCClaimsResponse represents the merged OIDC claims for a user.
 type OIDCClaimsResponse struct {
 	// Claims are the merged claims from the OIDC provider. These
-	// are the intersection of the ID token claims and the userinfo
-	// claims, where userinfo claims take precedence.
+	// are the union of the ID token claims and the userinfo claims,
+	// where userinfo claims take precedence on conflict.
 	Claims map[string]interface{} `json:"claims"`
 }
 

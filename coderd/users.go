@@ -121,8 +121,12 @@ func (api *API) userOIDCClaims(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	claims := link.Claims.MergedClaims
+	if claims == nil {
+		claims = map[string]interface{}{}
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OIDCClaimsResponse{
-		Claims: link.Claims.MergedClaims,
+		Claims: claims,
 	})
 }
 

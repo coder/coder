@@ -37,11 +37,11 @@ func (r *RootCmd) userOIDCClaims() *serpent.Command {
 		Short: "Display the OIDC claims for the authenticated user.",
 		Long: FormatExamples(
 			Example{
-				Description: "Display your OIDC claims:",
+				Description: "Display your OIDC claims",
 				Command:     "coder users oidc-claims",
 			},
 			Example{
-				Description: "Display your OIDC claims as JSON:",
+				Description: "Display your OIDC claims as JSON",
 				Command:     "coder users oidc-claims -o json",
 			},
 		),

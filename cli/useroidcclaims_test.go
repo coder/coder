@@ -130,4 +130,23 @@ func TestUserOIDCClaims(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "bob-isolation@coder.com", bobResp.Claims["email"])
 	})
+
+
+	t.Run("ClaimsNeverNull", func(t *testing.T) {
+		t.Parallel()
+
+		// Use minimal claims — just enough for OIDC login.
+		claims := jwt.MapClaims{
+			"email":          "minimal@coder.com",
+			"email_verified": true,
+			"sub":            uuid.NewString(),
+		}
+		userClient, loginResp := fake.Login(t, ownerClient, claims)
+		defer loginResp.Body.Close()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := userClient.UserOIDCClaims(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, resp.Claims, "claims should never be nil, expected empty map")
+	})
 }

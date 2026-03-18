@@ -15362,7 +15362,7 @@
 			"type": "object",
 			"properties": {
 				"claims": {
-					"description": "Claims are the merged claims from the OIDC provider. These\nare the intersection of the ID token claims and the userinfo\nclaims, where userinfo claims take precedence.",
+					"description": "Claims are the merged claims from the OIDC provider. These\nare the union of the ID token claims and the userinfo claims,\nwhere userinfo claims take precedence on conflict.",
 					"type": "object",
 					"additionalProperties": true
 				}

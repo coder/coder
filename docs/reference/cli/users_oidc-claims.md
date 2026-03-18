@@ -12,11 +12,11 @@ coder users oidc-claims [flags]
 ## Description
 
 ```console
-  - Display your OIDC claims::
+  - Display your OIDC claims:
 
      $ coder users oidc-claims
 
-  - Display your OIDC claims as JSON::
+  - Display your OIDC claims as JSON:
 
      $ coder users oidc-claims -o json
 ```
