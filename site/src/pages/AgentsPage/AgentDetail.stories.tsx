@@ -653,8 +653,8 @@ export const WithSubagentCards: Story = {
 	},
 };
 
-/** Reasoning part renders collapsed and can be expanded on click. */
-export const WithReasoningCollapsed: Story = {
+/** Reasoning part without title renders inline (no disclosure). */
+export const WithReasoningInline: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
@@ -673,7 +673,6 @@ export const WithReasoningCollapsed: Story = {
 						content: [
 							{
 								type: "reasoning",
-								title: "Plan migration",
 								text: "Reasoning body",
 							},
 						],
@@ -687,17 +686,10 @@ export const WithReasoningCollapsed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const user = userEvent.setup();
 
-		const reasoningToggle = await canvas.findByRole("button", {
-			name: "Plan migration",
-		});
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "false");
-
-		await user.click(reasoningToggle);
-
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "true");
+		// Reasoning text renders inline, not behind a disclosure.
 		expect(canvas.getByText("Reasoning body")).toBeInTheDocument();
+		expect(canvas.queryByRole("button", { name: "Thinking" })).toBeNull();
 	},
 };
 
