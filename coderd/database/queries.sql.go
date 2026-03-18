@@ -334,56 +334,43 @@ func (q *sqlQuerier) CountAIBridgeInterceptions(ctx context.Context, arg CountAI
 
 const countAIBridgeSessions = `-- name: CountAIBridgeSessions :one
 SELECT
-	COUNT(DISTINCT session_id)
+	COUNT(DISTINCT aibridge_interceptions.session_id)
 FROM
-	(
-		-- NOTE: KEEP THESE CLAUSES IN SYNC WITH ListAIBridgeSessions.
-		SELECT
-			-- If a client does not supply a session ID, defer to the
-			-- root of the thread. If no thread is detected, defer to
-			-- the interception's own ID.
-			COALESCE(
-				aibridge_interceptions.client_session_id,
-				aibridge_interceptions.thread_root_id::text,
-				aibridge_interceptions.id::text
-			) AS session_id
-		FROM
-			aibridge_interceptions
-		WHERE
-			-- Remove inflight interceptions (ones which lack an ended_at value).
-			aibridge_interceptions.ended_at IS NOT NULL
-			-- Filter by time frame
-			AND CASE
-				WHEN $1::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= $1::timestamptz
-				ELSE true
-			END
-			AND CASE
-				WHEN $2::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at <= $2::timestamptz
-				ELSE true
-			END
-			-- Filter initiator_id
-			AND CASE
-				WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = $3::uuid
-				ELSE true
-			END
-			-- Filter provider
-			AND CASE
-				WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
-				ELSE true
-			END
-			-- Filter model
-			AND CASE
-				WHEN $5::text != '' THEN aibridge_interceptions.model = $5::text
-				ELSE true
-			END
-			-- Filter client
-			AND CASE
-				WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $6::text
-				ELSE true
-			END
-			-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
-			-- @authorize_filter
-	) sub
+	aibridge_interceptions
+WHERE
+	-- Remove inflight interceptions (ones which lack an ended_at value).
+	aibridge_interceptions.ended_at IS NOT NULL
+	-- Filter by time frame
+	AND CASE
+		WHEN $1::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= $1::timestamptz
+		ELSE true
+	END
+	AND CASE
+		WHEN $2::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at <= $2::timestamptz
+		ELSE true
+	END
+	-- Filter initiator_id
+	AND CASE
+		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = $3::uuid
+		ELSE true
+	END
+	-- Filter provider
+	AND CASE
+		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
+		ELSE true
+	END
+	-- Filter model
+	AND CASE
+		WHEN $5::text != '' THEN aibridge_interceptions.model = $5::text
+		ELSE true
+	END
+	-- Filter client
+	AND CASE
+		WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $6::text
+		ELSE true
+	END
+	-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
+	-- @authorize_filter
 `
 
 type CountAIBridgeSessionsParams struct {
@@ -461,7 +448,7 @@ func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime ti
 
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id
 FROM
 	aibridge_interceptions
 WHERE
@@ -484,6 +471,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 		&i.ThreadParentID,
 		&i.ThreadRootID,
 		&i.ClientSessionID,
+		&i.SessionID,
 	)
 	return i, err
 }
@@ -518,7 +506,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptionLineageByToolCallID(ctx context.Cont
 
 const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id
 FROM
 	aibridge_interceptions
 `
@@ -545,6 +533,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 			&i.ThreadParentID,
 			&i.ThreadRootID,
 			&i.ClientSessionID,
+			&i.SessionID,
 		); err != nil {
 			return nil, err
 		}
@@ -695,7 +684,7 @@ INSERT INTO aibridge_interceptions (
 ) VALUES (
 	$1, $2, $3, $4, $5, COALESCE($6::jsonb, '{}'::jsonb), $7, $8, $9, $10::uuid, $11::uuid
 )
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id
 `
 
 type InsertAIBridgeInterceptionParams struct {
@@ -740,6 +729,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		&i.ThreadParentID,
 		&i.ThreadRootID,
 		&i.ClientSessionID,
+		&i.SessionID,
 	)
 	return i, err
 }
@@ -914,7 +904,7 @@ func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIB
 
 const listAIBridgeInterceptions = `-- name: ListAIBridgeInterceptions :many
 SELECT
-	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id,
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id,
 	visible_users.id, visible_users.username, visible_users.name, visible_users.avatar_url
 FROM
 	aibridge_interceptions
@@ -1026,6 +1016,7 @@ func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBr
 			&i.AIBridgeInterception.ThreadParentID,
 			&i.AIBridgeInterception.ThreadRootID,
 			&i.AIBridgeInterception.ClientSessionID,
+			&i.AIBridgeInterception.SessionID,
 			&i.VisibleUser.ID,
 			&i.VisibleUser.Username,
 			&i.VisibleUser.Name,
@@ -1150,17 +1141,8 @@ func (q *sqlQuerier) ListAIBridgeModels(ctx context.Context, arg ListAIBridgeMod
 
 const listAIBridgeSessions = `-- name: ListAIBridgeSessions :many
 WITH filtered_interceptions AS (
-	-- NOTE: KEEP THESE CLAUSES IN SYNC WITH CountAIBridgeSessions.
 	SELECT
-		aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id,
-		-- If a client does not supply a session ID, defer to the root
-		-- of the thread. If no thread is detected, defer to the
-		-- interception's own ID.
-		COALESCE(
-			aibridge_interceptions.client_session_id,
-			aibridge_interceptions.thread_root_id::text,
-			aibridge_interceptions.id::text
-		) AS session_id
+		aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id
 	FROM
 		aibridge_interceptions
 	WHERE
@@ -1493,7 +1475,7 @@ UPDATE aibridge_interceptions
 WHERE
 	id = $2::uuid
 	AND ended_at IS NULL
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id
 `
 
 type UpdateAIBridgeInterceptionEndedParams struct {
@@ -1517,6 +1499,7 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 		&i.ThreadParentID,
 		&i.ThreadRootID,
 		&i.ClientSessionID,
+		&i.SessionID,
 	)
 	return i, err
 }
