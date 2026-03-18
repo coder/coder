@@ -1590,6 +1590,7 @@ func New(options *Options) *API {
 			).Get("/connection", api.workspaceAgentConnectionGeneric)
 			r.Route("/me", func(r chi.Router) {
 				r.Use(workspaceAgentInfo)
+				r.Get("/", api.workspaceAgentMe)
 				r.Group(func(r chi.Router) {
 					r.Use(
 						// Override the request_type for agent rpc traffic.

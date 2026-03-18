@@ -66,6 +66,23 @@ type Client struct {
 	SDK *codersdk.Client
 }
 
+// Me returns the workspace agent metadata for the agent authenticated
+// by the session token.
+func (c *Client) Me(ctx context.Context) (codersdk.WorkspaceAgent, error) {
+	res, err := c.SDK.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me", nil)
+	if err != nil {
+		return codersdk.WorkspaceAgent{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return codersdk.WorkspaceAgent{}, codersdk.ReadBodyAsError(res)
+	}
+
+	var agent codersdk.WorkspaceAgent
+	return agent, json.NewDecoder(res.Body).Decode(&agent)
+}
+
 type GitSSHKey struct {
 	PublicKey  string `json:"public_key"`
 	PrivateKey string `json:"private_key"`

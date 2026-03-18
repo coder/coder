@@ -60,9 +60,43 @@ import (
 // @Success 200 {object} codersdk.WorkspaceAgent
 // @Router /workspaceagents/{workspaceagent} [get]
 func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
+	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
+	api.writeWorkspaceAgentResponse(rw, r, waws)
+}
+
+// @Summary Get authenticated workspace agent
+// @ID get-authenticated-workspace-agent
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Success 200 {object} codersdk.WorkspaceAgent
+// @Router /workspaceagents/me [get]
+func (api *API) workspaceAgentMe(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	agent := httpmw.WorkspaceAgent(r)
+
+	// The /me middleware only provides the agent and build, but the
+	// response also needs the workspace and owner username. Fetch them
+	// using the authenticated agent's ID.
+	//nolint:gocritic // The agent RBAC scope may not cover this cross-table query.
+	waws, err := api.Database.GetWorkspaceAgentAndWorkspaceByID(dbauthz.AsSystemRestricted(ctx), agent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	api.writeWorkspaceAgentResponse(rw, r, waws)
+}
+
+// writeWorkspaceAgentResponse fetches apps, scripts, log sources, and
+// statuses for the given agent and writes a codersdk.WorkspaceAgent
+// JSON response.
+func (api *API) writeWorkspaceAgentResponse(rw http.ResponseWriter, r *http.Request, waws database.GetWorkspaceAgentAndWorkspaceByIDRow) {
 	var (
 		ctx        = r.Context()
-		waws       = httpmw.WorkspaceAgentAndWorkspaceParam(r)
 		dbApps     []database.WorkspaceApp
 		scripts    []database.WorkspaceAgentScript
 		logSources []database.WorkspaceAgentLogSource

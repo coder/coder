@@ -92,6 +92,29 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, workspace.LatestBuild.Resources[0].Agents[0].Health.Healthy)
 	})
+	t.Run("Me", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		tmpDir := t.TempDir()
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Directory = tmpDir
+			return agents
+		}).Do()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+		me, err := agentClient.Me(ctx)
+		require.NoError(t, err)
+		require.Equal(t, r.Agents[0].ID, me.ID)
+		require.Equal(t, tmpDir, me.Directory)
+	})
 	t.Run("HasFallbackTroubleshootingURL", func(t *testing.T) {
 		t.Parallel()
 		client, db := coderdtest.NewWithDatabase(t, nil)
