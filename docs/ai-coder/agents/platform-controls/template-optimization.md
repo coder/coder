@@ -1,4 +1,4 @@
-# Template Routing
+# Template Optimization
 
 Not every chat with Coder Agents requires a workspace. A workspace is only provisioned when the
 agent decides it needs compute — to read files, write code, run commands, or
@@ -247,12 +247,12 @@ provisioning from scratch. The agent can begin working immediately.
 Use this as a quick reference when creating or updating templates for Coder
 Agents:
 
-- [ ] Template has a specific, natural-language description that includes
-      language, framework, and target project or service.
-- [ ] Display name is readable and descriptive.
-- [ ] Network egress is restricted to the control plane and git provider.
-- [ ] External service credentials use minimal-scope tokens.
-- [ ] Template parameters have sensible defaults and descriptive metadata.
-- [ ] Language runtimes, build tools, and git are pre-installed.
-- [ ] Prebuilt workspaces are configured for high-traffic presets (Premium).
-- [ ] Working directory is set to the target repository (if applicable).
+- Template has a specific, natural-language description that includes
+  language, framework, and target project or service.
+- Display name is readable and descriptive.
+- Network egress is restricted to the control plane and git provider.
+- External service credentials use minimal-scope tokens.
+- Template parameters have sensible defaults and descriptive metadata.
+- Language runtimes, build tools, and git are pre-installed.
+- Prebuilt workspaces are configured for high-traffic presets (Premium).
+- Working directory is set to the target repository (if applicable).
