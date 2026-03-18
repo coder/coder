@@ -5768,6 +5768,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `iconUrl`    | string  | false    |              |             |
 | `signInText` | string  | false    |              |             |
 
+## codersdk.OIDCClaimsResponse
+
+```json
+{
+  "claims": {}
+}
+```
+
+### Properties
+
+| Name     | Type   | Required | Restrictions | Description                                                                                                                                                                 |
+|----------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `claims` | object | false    |              | Claims are the merged claims from the OIDC provider. These are the union of the ID token claims and the userinfo claims, where userinfo claims take precedence on conflict. |
+
 ## codersdk.OIDCConfig
 
 ```json

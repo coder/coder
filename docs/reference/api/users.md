@@ -376,6 +376,37 @@ curl -X GET http://coder-server:8080/api/v2/users/oauth2/github/device \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get OIDC claims for the authenticated user
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/oidc-claims \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /users/oidc-claims`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "claims": {}
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                               |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OIDCClaimsResponse](schemas.md#codersdkoidcclaimsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## OpenID Connect Callback
 
 ### Code samples

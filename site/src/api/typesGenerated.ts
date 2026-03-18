@@ -4339,6 +4339,20 @@ export interface OIDCAuthMethod extends AuthMethod {
 	readonly iconUrl: string;
 }
 
+// From codersdk/users.go
+/**
+ * OIDCClaimsResponse represents the merged OIDC claims for a user.
+ */
+export interface OIDCClaimsResponse {
+	/**
+	 * Claims are the merged claims from the OIDC provider. These
+	 * are the union of the ID token claims and the userinfo claims,
+	 * where userinfo claims take precedence on conflict.
+	 */
+	// empty interface{} type, falling back to unknown
+	readonly claims: Record<string, unknown>;
+}
+
 // From codersdk/deployment.go
 export interface OIDCConfig {
 	readonly allow_signups: boolean;
