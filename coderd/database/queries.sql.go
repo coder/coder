@@ -638,8 +638,7 @@ type GetAIBridgeSessionByIDRow struct {
 	OutputTokens  int64           `db:"output_tokens" json:"output_tokens"`
 }
 
-// Returns session-level metadata for a single session identified by its
-// session_id string (which is COALESCE(client_session_id, thread_root_id::text, id::text)).
+// Returns session-level metadata for a single session identified by its ID.
 func (q *sqlQuerier) GetAIBridgeSessionByID(ctx context.Context, sessionID string) (GetAIBridgeSessionByIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getAIBridgeSessionByID, sessionID)
 	var i GetAIBridgeSessionByIDRow
@@ -1292,15 +1291,10 @@ func (q *sqlQuerier) ListAIBridgeModels(ctx context.Context, arg ListAIBridgeMod
 	return items, nil
 }
 
-const listAIBridgeSessionThreadInterceptions = `-- name: ListAIBridgeSessionThreadInterceptions :many
+const listAIBridgeSessionThreads = `-- name: ListAIBridgeSessionThreads :many
 WITH session_interceptions AS (
 	SELECT
 		aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id,
-		COALESCE(
-			aibridge_interceptions.client_session_id,
-			aibridge_interceptions.thread_root_id::text,
-			aibridge_interceptions.id::text
-		) AS session_id,
 		COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id
 	FROM
 		aibridge_interceptions
@@ -1365,22 +1359,22 @@ ORDER BY
 	aibridge_interceptions.id ASC
 `
 
-type ListAIBridgeSessionThreadInterceptionsParams struct {
+type ListAIBridgeSessionThreadsParams struct {
 	SessionID string    `db:"session_id" json:"session_id"`
 	AfterID   uuid.UUID `db:"after_id" json:"after_id"`
 	BeforeID  uuid.UUID `db:"before_id" json:"before_id"`
 	Limit     int32     `db:"limit_" json:"limit_"`
 }
 
-type ListAIBridgeSessionThreadInterceptionsRow struct {
+type ListAIBridgeSessionThreadsRow struct {
 	AIBridgeInterception AIBridgeInterception `db:"aibridge_interception" json:"aibridge_interception"`
 	VisibleUser          VisibleUser          `db:"visible_user" json:"visible_user"`
 }
 
 // Returns all interceptions belonging to paginated threads within a session.
 // Threads are paginated by (started_at, thread_id) cursor.
-func (q *sqlQuerier) ListAIBridgeSessionThreadInterceptions(ctx context.Context, arg ListAIBridgeSessionThreadInterceptionsParams) ([]ListAIBridgeSessionThreadInterceptionsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAIBridgeSessionThreadInterceptions,
+func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIBridgeSessionThreadsParams) ([]ListAIBridgeSessionThreadsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeSessionThreads,
 		arg.SessionID,
 		arg.AfterID,
 		arg.BeforeID,
@@ -1390,9 +1384,9 @@ func (q *sqlQuerier) ListAIBridgeSessionThreadInterceptions(ctx context.Context,
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListAIBridgeSessionThreadInterceptionsRow
+	var items []ListAIBridgeSessionThreadsRow
 	for rows.Next() {
-		var i ListAIBridgeSessionThreadInterceptionsRow
+		var i ListAIBridgeSessionThreadsRow
 		if err := rows.Scan(
 			&i.AIBridgeInterception.ID,
 			&i.AIBridgeInterception.InitiatorID,

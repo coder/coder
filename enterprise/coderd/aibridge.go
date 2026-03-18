@@ -404,8 +404,8 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Fetch paginated thread interceptions.
-	threadRows, err := api.Database.ListAIBridgeSessionThreadInterceptions(ctx, database.ListAIBridgeSessionThreadInterceptionsParams{
+	// Fetch paginated session threads.
+	threadRows, err := api.Database.ListAIBridgeSessionThreads(ctx, database.ListAIBridgeSessionThreadsParams{
 		SessionID: sessionID,
 		AfterID:   afterID,
 		BeforeID:  beforeID,
@@ -413,7 +413,7 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error listing session thread interceptions.",
+			Message: "Internal error listing session threads.",
 			Detail:  err.Error(),
 		})
 		return

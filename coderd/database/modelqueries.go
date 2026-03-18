@@ -809,7 +809,7 @@ type aibridgeQuerier interface {
 	ListAuthorizedAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeSessionsRow, error)
 	CountAuthorizedAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams, prepared rbac.PreparedAuthorized) (int64, error)
 	GetAuthorizedAIBridgeSessionByID(ctx context.Context, sessionID string, prepared rbac.PreparedAuthorized) (GetAIBridgeSessionByIDRow, error)
-	ListAuthorizedAIBridgeSessionThreadInterceptions(ctx context.Context, arg ListAIBridgeSessionThreadInterceptionsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeSessionThreadInterceptionsRow, error)
+	ListAuthorizedAIBridgeSessionThreads(ctx context.Context, arg ListAIBridgeSessionThreadsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeSessionThreadsRow, error)
 }
 
 func (q *sqlQuerier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeInterceptionsRow, error) {
@@ -1081,19 +1081,19 @@ func (q *sqlQuerier) GetAuthorizedAIBridgeSessionByID(ctx context.Context, sessi
 	return i, err
 }
 
-func (q *sqlQuerier) ListAuthorizedAIBridgeSessionThreadInterceptions(ctx context.Context, arg ListAIBridgeSessionThreadInterceptionsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeSessionThreadInterceptionsRow, error) {
+func (q *sqlQuerier) ListAuthorizedAIBridgeSessionThreads(ctx context.Context, arg ListAIBridgeSessionThreadsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeSessionThreadsRow, error) {
 	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
 		VariableConverter: regosql.AIBridgeInterceptionConverter(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
 	}
-	filtered, err := insertAuthorizedFilter(listAIBridgeSessionThreadInterceptions, fmt.Sprintf(" AND %s", authorizedFilter))
+	filtered, err := insertAuthorizedFilter(listAIBridgeSessionThreads, fmt.Sprintf(" AND %s", authorizedFilter))
 	if err != nil {
 		return nil, xerrors.Errorf("insert authorized filter: %w", err)
 	}
 
-	query := fmt.Sprintf("-- name: ListAuthorizedAIBridgeSessionThreadInterceptions :many\n%s", filtered)
+	query := fmt.Sprintf("-- name: ListAuthorizedAIBridgeSessionThreads :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
 		arg.SessionID,
 		arg.AfterID,
@@ -1104,9 +1104,9 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessionThreadInterceptions(ctx contex
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListAIBridgeSessionThreadInterceptionsRow
+	var items []ListAIBridgeSessionThreadsRow
 	for rows.Next() {
-		var i ListAIBridgeSessionThreadInterceptionsRow
+		var i ListAIBridgeSessionThreadsRow
 		if err := rows.Scan(
 			&i.AIBridgeInterception.ID,
 			&i.AIBridgeInterception.InitiatorID,
