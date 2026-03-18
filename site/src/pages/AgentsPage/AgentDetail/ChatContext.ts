@@ -436,7 +436,10 @@ export const useChatStore = (
 	} = options;
 
 	const queryClient = useQueryClient();
-	const storeRef = useRef<ChatStore>(createChatStore());
+	const storeRef = useRef<ChatStore | null>(null);
+	if (storeRef.current === null) {
+		storeRef.current = createChatStore();
+	}
 	const streamResetFrameRef = useRef<number | null>(null);
 	const queuedMessagesHydratedChatIDRef = useRef<string | null>(null);
 	// Tracks whether the WebSocket has delivered a queue_update for the
@@ -449,7 +452,7 @@ export const useChatStore = (
 	const activeChatIDRef = useRef<string | null>(null);
 	const prevChatIDRef = useRef<string | undefined>(chatID);
 
-	const store = storeRef.current;
+	const store = storeRef.current!;
 
 	// Compute the last REST-fetched message ID so the stream can
 	// skip messages the client already has. We use a ref so the
@@ -457,10 +460,12 @@ export const useChatStore = (
 	// chatMessages in its dependency array (which would cause
 	// unnecessary reconnections).
 	const lastMessageIdRef = useRef<number | undefined>(undefined);
-	lastMessageIdRef.current =
-		chatMessages && chatMessages.length > 0
-			? chatMessages[chatMessages.length - 1].id
-			: undefined;
+	useEffect(() => {
+		lastMessageIdRef.current =
+			chatMessages && chatMessages.length > 0
+				? chatMessages[chatMessages.length - 1].id
+				: undefined;
+	}, [chatMessages]);
 
 	// True once the initial REST page has resolved for the current
 	// chat. The WebSocket effect gates on this so that

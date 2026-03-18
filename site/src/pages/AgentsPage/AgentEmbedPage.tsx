@@ -61,7 +61,9 @@ const AgentEmbedPage: FC = () => {
 		bootstrapChatEmbedSession({ checks: permissionChecks }, queryClient),
 	);
 	const latestEmbedSessionMutationRef = useRef(embedSessionMutation);
-	latestEmbedSessionMutationRef.current = embedSessionMutation;
+	useEffect(() => {
+		latestEmbedSessionMutationRef.current = embedSessionMutation;
+	}, [embedSessionMutation]);
 	const inFlightBootstrapRef = useRef<Promise<unknown> | null>(null);
 
 	const [chatErrorReasons, setChatErrorReasons] = useState<

@@ -31,13 +31,15 @@ export function useWorkspaceCreationWatcher({
 	const streamState = useChatSelector(store, selectStreamState);
 	const processedToolCallIdsRef = useRef<Set<string>>(new Set());
 
-	// Reset processed IDs when chatID changes during render,
-	// before effects run.
+	// Reset processed IDs when chatID changes.
 	const [previousChatID, setPreviousChatID] = useState(chatID);
 	if (previousChatID !== chatID) {
 		setPreviousChatID(chatID);
-		processedToolCallIdsRef.current = new Set();
 	}
+
+	useEffect(() => {
+		processedToolCallIdsRef.current = new Set();
+	}, [chatID]);
 
 	// Watch stream tool results for create_workspace completions.
 	useEffect(() => {

@@ -34,7 +34,9 @@ export function useFileAttachments(
 
 	// Revoke blob URLs on unmount to prevent memory leaks.
 	const previewUrlsRef = useRef(previewUrls);
-	previewUrlsRef.current = previewUrls;
+	useEffect(() => {
+		previewUrlsRef.current = previewUrls;
+	}, [previewUrls]);
 	useEffect(() => {
 		return () => {
 			for (const [, url] of previewUrlsRef.current) {

@@ -519,9 +519,13 @@ const ScrollAnchoredContainer: FC<{
 	const sentinelRef = useRef<HTMLDivElement>(null);
 	const observerRef = useRef<IntersectionObserver | null>(null);
 	const isFetchingRef = useRef(isFetchingMoreMessages);
-	isFetchingRef.current = isFetchingMoreMessages;
+	useEffect(() => {
+		isFetchingRef.current = isFetchingMoreMessages;
+	}, [isFetchingMoreMessages]);
 	const onFetchRef = useRef(onFetchMoreMessages);
-	onFetchRef.current = onFetchMoreMessages;
+	useEffect(() => {
+		onFetchRef.current = onFetchMoreMessages;
+	}, [onFetchMoreMessages]);
 
 	// Sentinel observer — triggers loading older messages.
 	// All changing values are read from refs so the observer

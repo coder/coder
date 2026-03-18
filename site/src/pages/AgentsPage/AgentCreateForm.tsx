@@ -245,14 +245,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		lastUsedModelID,
 	]);
 
-	// Keep a mutable ref to selectedWorkspaceId and selectedModel so
-	// that the onSend callback always sees the latest values without
-	// the shared input component re-rendering on every change.
-	const selectedWorkspaceIdRef = useRef(selectedWorkspaceId);
-	selectedWorkspaceIdRef.current = selectedWorkspaceId;
-	const selectedModelRef = useRef(selectedModel);
-	selectedModelRef.current = selectedModel;
-
 	const handleWorkspaceChange = (value: string) => {
 		if (value === autoCreateWorkspaceValue) {
 			setSelectedWorkspaceId(null);
@@ -278,15 +270,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			await onCreateChat({
 				message,
 				fileIDs,
-				workspaceId: selectedWorkspaceIdRef.current ?? undefined,
-				model: selectedModelRef.current || undefined,
+				workspaceId: selectedWorkspaceId ?? undefined,
+				model: selectedModel || undefined,
 			}).catch(() => {
 				// Re-enable draft persistence so the user can edit
 				// and retry after a failed send attempt.
 				resetDraft();
 			});
 		},
-		[submitDraft, resetDraft, onCreateChat],
+		[submitDraft, resetDraft, onCreateChat, selectedWorkspaceId, selectedModel],
 	);
 
 	const selectedWorkspace = selectedWorkspaceId

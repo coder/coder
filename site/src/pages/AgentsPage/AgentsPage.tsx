@@ -341,7 +341,9 @@ const AgentsPage: FC = () => {
 	// WebSocket handler can read it without re-subscribing on
 	// every navigation.
 	const activeChatIDRef = useRef(agentId);
-	activeChatIDRef.current = agentId;
+	useEffect(() => {
+		activeChatIDRef.current = agentId;
+	}, [agentId]);
 
 	useEffect(() => {
 		return createReconnectingWebSocket({

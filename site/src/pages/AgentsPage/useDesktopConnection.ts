@@ -46,6 +46,7 @@ export function useDesktopConnection({
 }: UseDesktopConnectionOptions): UseDesktopConnectionResult {
 	const [status, setStatus] = useState<DesktopConnectionStatus>("idle");
 	const [hasConnected, setHasConnected] = useState(false);
+	const [rfb, setRfb] = useState<RFB | null>(null);
 
 	const rfbRef = useRef<RFB | null>(null);
 	const offscreenContainerRef = useRef<HTMLElement | null>(null);
@@ -66,6 +67,9 @@ export function useDesktopConnection({
 				// Ignore errors during disconnect.
 			}
 			rfbRef.current = null;
+			if (!disposedRef.current) {
+				setRfb(null);
+			}
 		}
 	}, []);
 
@@ -109,6 +113,7 @@ export function useDesktopConnection({
 			rfb.addEventListener("disconnect", () => {
 				if (disposedRef.current) return;
 				rfbRef.current = null;
+				setRfb(null);
 
 				if (!sessionConnected && !hasConnectedRef.current) {
 					// The VNC handshake never completed and the desktop
@@ -140,10 +145,12 @@ export function useDesktopConnection({
 			rfb.addEventListener("securityfailure", () => {
 				if (disposedRef.current) return;
 				rfbRef.current = null;
+				setRfb(null);
 				setStatus("error");
 			});
 
 			rfbRef.current = rfb;
+			setRfb(rfb);
 		} catch {
 			setStatus("error");
 		}
@@ -203,6 +210,6 @@ export function useDesktopConnection({
 		connect,
 		disconnect,
 		attach,
-		rfb: rfbRef.current,
+		rfb,
 	};
 }

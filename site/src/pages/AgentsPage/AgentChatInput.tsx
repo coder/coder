@@ -469,17 +469,13 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 
 		// Re-focus the editor after a send completes (isLoading goes
 		// from true → false) so the user can immediately type again.
-		// Uses the "store previous value in state" pattern recommended
-		// by React for responding to prop changes during render.
-		const [prevIsLoading, setPrevIsLoading] = useState(isLoading);
-		if (prevIsLoading !== isLoading) {
-			setPrevIsLoading(isLoading);
-			if (prevIsLoading && !isLoading) {
-				if (!isMobileViewport()) {
-					internalRef.current?.focus();
-				}
+		const prevIsLoadingRef = useRef(isLoading);
+		useEffect(() => {
+			if (prevIsLoadingRef.current && !isLoading && !isMobileViewport()) {
+				internalRef.current?.focus();
 			}
-		}
+			prevIsLoadingRef.current = isLoading;
+		}, [isLoading]);
 
 		const isUploading = attachments.some(
 			(f) => uploadStates?.get(f)?.status === "uploading",
