@@ -98,6 +98,11 @@ linters-settings:
     # stdlib port.
     checks: ["all", "-SA1019"]
 
+  tagalign:
+    align: true
+    sort: false
+    strict: false
+
   goimports:
     local-prefixes: coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder
 
@@ -262,6 +267,7 @@ linters:
     # - wastedassign
 
     - staticcheck
+    - tagalign
     # In Go, it's possible for a package to test it's internal functionality
     # without testing any exported functions. This is enabled to promote
     # decomposing a package before testing it's internals. A function caller

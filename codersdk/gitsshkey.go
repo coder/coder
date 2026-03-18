@@ -12,7 +12,7 @@ import (
 )
 
 type GitSSHKey struct {
-	UserID    uuid.UUID `json:"user_id" format:"uuid"`
+	UserID    uuid.UUID `json:"user_id"    format:"uuid"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
 	// PublicKey is the SSH public key in OpenSSH format.

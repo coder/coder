@@ -32,7 +32,7 @@ func (r *RootCmd) Provisioners() *serpent.Command {
 func (r *RootCmd) provisionerList() *serpent.Command {
 	type provisionerDaemonRow struct {
 		codersdk.ProvisionerDaemon `table:"provisioner_daemon,recursive_inline"`
-		OrganizationName           string `json:"organization_name" table:"organization"`
+		OrganizationName           string `json:"organization_name"                    table:"organization"`
 	}
 	var (
 		orgContext = NewOrganizationContext()

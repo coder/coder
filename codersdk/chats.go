@@ -36,28 +36,28 @@ const (
 
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID                uuid.UUID       `json:"id" format:"uuid"`
-	OwnerID           uuid.UUID       `json:"owner_id" format:"uuid"`
-	WorkspaceID       *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
+	ID                uuid.UUID       `json:"id"                       format:"uuid"`
+	OwnerID           uuid.UUID       `json:"owner_id"                 format:"uuid"`
+	WorkspaceID       *uuid.UUID      `json:"workspace_id,omitempty"   format:"uuid"`
 	ParentChatID      *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID        *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
-	LastModelConfigID uuid.UUID       `json:"last_model_config_id" format:"uuid"`
+	RootChatID        *uuid.UUID      `json:"root_chat_id,omitempty"   format:"uuid"`
+	LastModelConfigID uuid.UUID       `json:"last_model_config_id"     format:"uuid"`
 	Title             string          `json:"title"`
 	Status            ChatStatus      `json:"status"`
 	LastError         *string         `json:"last_error"`
 	DiffStatus        *ChatDiffStatus `json:"diff_status,omitempty"`
-	CreatedAt         time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt         time.Time       `json:"updated_at" format:"date-time"`
+	CreatedAt         time.Time       `json:"created_at"               format:"date-time"`
+	UpdatedAt         time.Time       `json:"updated_at"               format:"date-time"`
 	Archived          bool            `json:"archived"`
 }
 
 // ChatMessage represents a single message in a chat.
 type ChatMessage struct {
 	ID            int64             `json:"id"`
-	ChatID        uuid.UUID         `json:"chat_id" format:"uuid"`
-	CreatedBy     *uuid.UUID        `json:"created_by,omitempty" format:"uuid"`
+	ChatID        uuid.UUID         `json:"chat_id"                   format:"uuid"`
+	CreatedBy     *uuid.UUID        `json:"created_by,omitempty"      format:"uuid"`
 	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
-	CreatedAt     time.Time         `json:"created_at" format:"date-time"`
+	CreatedAt     time.Time         `json:"created_at"                format:"date-time"`
 	Role          ChatMessageRole   `json:"role"`
 	Content       []ChatMessagePart `json:"content,omitempty"`
 	Usage         *ChatMessageUsage `json:"usage,omitempty"`
@@ -98,19 +98,6 @@ const (
 	ChatMessagePartTypeFileReference ChatMessagePartType = "file-reference"
 )
 
-// AllChatMessagePartTypes returns all known ChatMessagePartType values.
-func AllChatMessagePartTypes() []ChatMessagePartType {
-	return []ChatMessagePartType{
-		ChatMessagePartTypeText,
-		ChatMessagePartTypeReasoning,
-		ChatMessagePartTypeToolCall,
-		ChatMessagePartTypeToolResult,
-		ChatMessagePartTypeSource,
-		ChatMessagePartTypeFile,
-		ChatMessagePartTypeFileReference,
-	}
-}
-
 // ChatMessagePart is a structured chunk of a chat message.
 //
 // WARNING: This type is both an API wire type and a database
@@ -119,41 +106,37 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 // changes, and omitempty behavior all affect backward-compatible
 // deserialization of stored rows. Treat changes to this struct
 // with the same care as a database migration.
-//
-// The variants struct tag declares which discriminated-union
-// variants include each field in the generated TypeScript. Bare
-// name = required, ? suffix = optional. Fields without a variants
-// tag are excluded from the generated union. See
-// scripts/apitypings/main.go for the codegen that reads these.
 type ChatMessagePart struct {
 	Type        ChatMessagePartType `json:"type"`
-	Text        string              `json:"text,omitempty" variants:"text,reasoning"`
+	Text        string              `json:"text,omitempty"`
 	Signature   string              `json:"signature,omitempty"`
-	ToolCallID  string              `json:"tool_call_id,omitempty" variants:"tool-call,tool-result"`
-	ToolName    string              `json:"tool_name,omitempty" variants:"tool-call,tool-result"`
-	Args        json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
-	ArgsDelta   string              `json:"args_delta,omitempty" variants:"tool-call?"`
-	Result      json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
+	ToolCallID  string              `json:"tool_call_id,omitempty"`
+	ToolName    string              `json:"tool_name,omitempty"`
+	Args        json.RawMessage     `json:"args,omitempty"`
+	ArgsDelta   string              `json:"args_delta,omitempty"`
+	Result      json.RawMessage     `json:"result,omitempty"`
 	ResultDelta string              `json:"result_delta,omitempty"`
-	IsError     bool                `json:"is_error,omitempty" variants:"tool-result?"`
-	SourceID    string              `json:"source_id,omitempty" variants:"source?"`
-	URL         string              `json:"url,omitempty" variants:"source"`
-	Title       string              `json:"title,omitempty" variants:"source?"`
-	MediaType   string              `json:"media_type,omitempty" variants:"file"`
-	Data        []byte              `json:"data,omitempty" variants:"file?"`
-	FileID      uuid.NullUUID       `json:"file_id,omitempty" format:"uuid" variants:"file?"`
-	FileName    string              `json:"file_name,omitempty" variants:"file-reference"`
-	StartLine   int                 `json:"start_line,omitempty" variants:"file-reference"`
-	EndLine     int                 `json:"end_line,omitempty" variants:"file-reference"`
+	IsError     bool                `json:"is_error,omitempty"`
+	SourceID    string              `json:"source_id,omitempty"`
+	URL         string              `json:"url,omitempty"`
+	Title       string              `json:"title,omitempty"`
+	MediaType   string              `json:"media_type,omitempty"`
+	Data        []byte              `json:"data,omitempty"`
+	FileID      uuid.NullUUID       `json:"file_id,omitempty"      format:"uuid"`
+	// The following fields are only set when Type is
+	// ChatInputPartTypeFileReference.
+	FileName  string `json:"file_name,omitempty"`
+	StartLine int    `json:"start_line,omitempty"`
+	EndLine   int    `json:"end_line,omitempty"`
 	// The code content from the diff that was commented on.
-	Content string `json:"content,omitempty" variants:"file-reference"`
+	Content string `json:"content,omitempty"`
 	// ProviderMetadata holds provider-specific response metadata
 	// (e.g. Anthropic cache control hints) as raw JSON. Internal
 	// only: stripped by db2sdk before API responses.
 	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-"`
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
-	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
+	ProviderExecuted bool `json:"provider_executed,omitempty"`
 }
 
 // StripInternal removes internal-only fields that must not be
@@ -256,7 +239,7 @@ type ChatInputPart struct {
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
 	Content       []ChatInputPart `json:"content"`
-	WorkspaceID   *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
+	WorkspaceID   *uuid.UUID      `json:"workspace_id,omitempty"    format:"uuid"`
 	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
 }
 
@@ -358,7 +341,7 @@ const (
 
 // ChatProviderConfig is an admin-managed provider configuration.
 type ChatProviderConfig struct {
-	ID          uuid.UUID                `json:"id" format:"uuid"`
+	ID          uuid.UUID                `json:"id"                   format:"uuid"`
 	Provider    string                   `json:"provider"`
 	DisplayName string                   `json:"display_name"`
 	Enabled     bool                     `json:"enabled"`
@@ -388,7 +371,7 @@ type UpdateChatProviderConfigRequest struct {
 
 // ChatModelConfig is an admin-managed model configuration.
 type ChatModelConfig struct {
-	ID                   uuid.UUID            `json:"id" format:"uuid"`
+	ID                   uuid.UUID            `json:"id"                     format:"uuid"`
 	Provider             string               `json:"provider"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name"`
@@ -397,8 +380,8 @@ type ChatModelConfig struct {
 	ContextLimit         int64                `json:"context_limit"`
 	CompressionThreshold int32                `json:"compression_threshold"`
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
-	CreatedAt            time.Time            `json:"created_at" format:"date-time"`
-	UpdatedAt            time.Time            `json:"updated_at" format:"date-time"`
+	CreatedAt            time.Time            `json:"created_at"             format:"date-time"`
+	UpdatedAt            time.Time            `json:"updated_at"             format:"date-time"`
 }
 
 // ChatModelProviderOptions contains typed provider-specific options.
@@ -416,29 +399,29 @@ type ChatModelProviderOptions struct {
 
 // ChatModelOpenAIProviderOptions configures OpenAI provider behavior.
 type ChatModelOpenAIProviderOptions struct {
-	Include             []string         `json:"include,omitempty" description:"Model names to include in discovery" hidden:"true"`
-	Instructions        *string          `json:"instructions,omitempty" description:"System-level instructions prepended to the conversation" hidden:"true"`
-	LogitBias           map[string]int64 `json:"logit_bias,omitempty" description:"Token IDs mapped to bias values from -100 to 100" hidden:"true"`
-	LogProbs            *bool            `json:"log_probs,omitempty" description:"Whether to return log probabilities of output tokens" hidden:"true"`
-	TopLogProbs         *int64           `json:"top_log_probs,omitempty" description:"Number of most likely tokens to return log probabilities for" hidden:"true"`
-	MaxToolCalls        *int64           `json:"max_tool_calls,omitempty" description:"Maximum number of tool calls per response"`
-	ParallelToolCalls   *bool            `json:"parallel_tool_calls,omitempty" description:"Whether the model may make multiple tool calls in parallel"`
-	User                *string          `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
-	ReasoningEffort     *string          `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
-	ReasoningSummary    *string          `json:"reasoning_summary,omitempty" description:"Controls whether reasoning tokens are summarized in the response"`
+	Include             []string         `json:"include,omitempty"               description:"Model names to include in discovery"                                              hidden:"true"`
+	Instructions        *string          `json:"instructions,omitempty"          description:"System-level instructions prepended to the conversation"                          hidden:"true"`
+	LogitBias           map[string]int64 `json:"logit_bias,omitempty"            description:"Token IDs mapped to bias values from -100 to 100"                                 hidden:"true"`
+	LogProbs            *bool            `json:"log_probs,omitempty"             description:"Whether to return log probabilities of output tokens"                             hidden:"true"`
+	TopLogProbs         *int64           `json:"top_log_probs,omitempty"         description:"Number of most likely tokens to return log probabilities for"                     hidden:"true"`
+	MaxToolCalls        *int64           `json:"max_tool_calls,omitempty"        description:"Maximum number of tool calls per response"`
+	ParallelToolCalls   *bool            `json:"parallel_tool_calls,omitempty"   description:"Whether the model may make multiple tool calls in parallel"`
+	User                *string          `json:"user,omitempty"                  description:"Unique identifier for the end user for abuse monitoring"                          hidden:"true"`
+	ReasoningEffort     *string          `json:"reasoning_effort,omitempty"      description:"Controls the level of reasoning effort"                                           enum:"none,minimal,low,medium,high,xhigh"`
+	ReasoningSummary    *string          `json:"reasoning_summary,omitempty"     description:"Controls whether reasoning tokens are summarized in the response"`
 	MaxCompletionTokens *int64           `json:"max_completion_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
-	TextVerbosity       *string          `json:"text_verbosity,omitempty" description:"Controls the verbosity of the text response" enum:"low,medium,high"`
-	Prediction          map[string]any   `json:"prediction,omitempty" description:"Predicted output content to speed up responses" hidden:"true"`
-	Store               *bool            `json:"store,omitempty" description:"Whether to store the output for model distillation or evals" hidden:"true"`
-	Metadata            map[string]any   `json:"metadata,omitempty" description:"Arbitrary metadata to attach to the request" hidden:"true"`
-	PromptCacheKey      *string          `json:"prompt_cache_key,omitempty" description:"Key for enabling cross-request prompt caching"`
-	SafetyIdentifier    *string          `json:"safety_identifier,omitempty" description:"Developer-specific safety identifier for the request" hidden:"true"`
-	ServiceTier         *string          `json:"service_tier,omitempty" description:"Latency tier to use for processing the request"`
-	StructuredOutputs   *bool            `json:"structured_outputs,omitempty" description:"Whether to enable structured JSON output mode" hidden:"true"`
-	StrictJSONSchema    *bool            `json:"strict_json_schema,omitempty" description:"Whether to enforce strict adherence to the JSON schema" hidden:"true"`
-	WebSearchEnabled    *bool            `json:"web_search_enabled,omitempty" description:"Enable OpenAI web search tool for grounding responses with real-time information"`
-	SearchContextSize   *string          `json:"search_context_size,omitempty" description:"Amount of search context to use" enum:"low,medium,high"`
-	AllowedDomains      []string         `json:"allowed_domains,omitempty" description:"Restrict web search to these domains"`
+	TextVerbosity       *string          `json:"text_verbosity,omitempty"        description:"Controls the verbosity of the text response"                                      enum:"low,medium,high"`
+	Prediction          map[string]any   `json:"prediction,omitempty"            description:"Predicted output content to speed up responses"                                   hidden:"true"`
+	Store               *bool            `json:"store,omitempty"                 description:"Whether to store the output for model distillation or evals"                      hidden:"true"`
+	Metadata            map[string]any   `json:"metadata,omitempty"              description:"Arbitrary metadata to attach to the request"                                      hidden:"true"`
+	PromptCacheKey      *string          `json:"prompt_cache_key,omitempty"      description:"Key for enabling cross-request prompt caching"`
+	SafetyIdentifier    *string          `json:"safety_identifier,omitempty"     description:"Developer-specific safety identifier for the request"                             hidden:"true"`
+	ServiceTier         *string          `json:"service_tier,omitempty"          description:"Latency tier to use for processing the request"`
+	StructuredOutputs   *bool            `json:"structured_outputs,omitempty"    description:"Whether to enable structured JSON output mode"                                    hidden:"true"`
+	StrictJSONSchema    *bool            `json:"strict_json_schema,omitempty"    description:"Whether to enforce strict adherence to the JSON schema"                           hidden:"true"`
+	WebSearchEnabled    *bool            `json:"web_search_enabled,omitempty"    description:"Enable OpenAI web search tool for grounding responses with real-time information"`
+	SearchContextSize   *string          `json:"search_context_size,omitempty"   description:"Amount of search context to use"                                                  enum:"low,medium,high"`
+	AllowedDomains      []string         `json:"allowed_domains,omitempty"       description:"Restrict web search to these domains"`
 }
 
 // ChatModelAnthropicThinkingOptions configures Anthropic thinking budget.
@@ -448,111 +431,111 @@ type ChatModelAnthropicThinkingOptions struct {
 
 // ChatModelAnthropicProviderOptions configures Anthropic provider behavior.
 type ChatModelAnthropicProviderOptions struct {
-	SendReasoning          *bool                              `json:"send_reasoning,omitempty" description:"Whether to include reasoning content in the response"`
-	Thinking               *ChatModelAnthropicThinkingOptions `json:"thinking,omitempty" description:"Configuration for extended thinking"`
-	Effort                 *string                            `json:"effort,omitempty" description:"Controls the level of reasoning effort" enum:"low,medium,high,max"`
+	SendReasoning          *bool                              `json:"send_reasoning,omitempty"            description:"Whether to include reasoning content in the response"`
+	Thinking               *ChatModelAnthropicThinkingOptions `json:"thinking,omitempty"                  description:"Configuration for extended thinking"`
+	Effort                 *string                            `json:"effort,omitempty"                    description:"Controls the level of reasoning effort"                                              enum:"low,medium,high,max"`
 	DisableParallelToolUse *bool                              `json:"disable_parallel_tool_use,omitempty" description:"Whether to disable parallel tool execution"`
-	WebSearchEnabled       *bool                              `json:"web_search_enabled,omitempty" description:"Enable Anthropic web search tool for grounding responses with real-time information"`
-	AllowedDomains         []string                           `json:"allowed_domains,omitempty" description:"Restrict web search to these domains (cannot be used with blocked_domains)"`
-	BlockedDomains         []string                           `json:"blocked_domains,omitempty" description:"Block web search on these domains (cannot be used with allowed_domains)"`
+	WebSearchEnabled       *bool                              `json:"web_search_enabled,omitempty"        description:"Enable Anthropic web search tool for grounding responses with real-time information"`
+	AllowedDomains         []string                           `json:"allowed_domains,omitempty"           description:"Restrict web search to these domains (cannot be used with blocked_domains)"`
+	BlockedDomains         []string                           `json:"blocked_domains,omitempty"           description:"Block web search on these domains (cannot be used with allowed_domains)"`
 }
 
 // ChatModelGoogleThinkingConfig configures Google thinking behavior.
 type ChatModelGoogleThinkingConfig struct {
-	ThinkingBudget  *int64 `json:"thinking_budget,omitempty" description:"Maximum number of tokens the model may use for thinking"`
+	ThinkingBudget  *int64 `json:"thinking_budget,omitempty"  description:"Maximum number of tokens the model may use for thinking"`
 	IncludeThoughts *bool  `json:"include_thoughts,omitempty" description:"Whether to include thinking content in the response"`
 }
 
 // ChatModelGoogleSafetySetting configures Google safety filtering.
 type ChatModelGoogleSafetySetting struct {
-	Category  string `json:"category,omitempty" description:"The harm category to configure"`
+	Category  string `json:"category,omitempty"  description:"The harm category to configure"`
 	Threshold string `json:"threshold,omitempty" description:"The blocking threshold for the harm category"`
 }
 
 // ChatModelGoogleProviderOptions configures Google provider behavior.
 type ChatModelGoogleProviderOptions struct {
-	ThinkingConfig   *ChatModelGoogleThinkingConfig `json:"thinking_config,omitempty" description:"Configuration for extended thinking"`
-	CachedContent    string                         `json:"cached_content,omitempty" description:"Resource name of a cached content object" hidden:"true"`
-	SafetySettings   []ChatModelGoogleSafetySetting `json:"safety_settings,omitempty" description:"Safety filtering settings for harmful content categories" hidden:"true"`
-	Threshold        string                         `json:"threshold,omitempty" hidden:"true"`
+	ThinkingConfig   *ChatModelGoogleThinkingConfig `json:"thinking_config,omitempty"    description:"Configuration for extended thinking"`
+	CachedContent    string                         `json:"cached_content,omitempty"     description:"Resource name of a cached content object"                 hidden:"true"`
+	SafetySettings   []ChatModelGoogleSafetySetting `json:"safety_settings,omitempty"    description:"Safety filtering settings for harmful content categories" hidden:"true"`
+	Threshold        string                         `json:"threshold,omitempty"          hidden:"true"`
 	WebSearchEnabled *bool                          `json:"web_search_enabled,omitempty" description:"Enable Google Search grounding for real-time information"`
 }
 
 // ChatModelOpenAICompatProviderOptions configures OpenAI-compatible behavior.
 type ChatModelOpenAICompatProviderOptions struct {
-	User            *string `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
-	ReasoningEffort *string `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
+	User            *string `json:"user,omitempty"             description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
+	ReasoningEffort *string `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort"                  enum:"none,minimal,low,medium,high,xhigh"`
 }
 
 // ChatModelReasoningOptions configures reasoning behavior for model
 // providers that support it.
 type ChatModelReasoningOptions struct {
-	Enabled   *bool   `json:"enabled,omitempty" description:"Whether reasoning is enabled"`
-	Exclude   *bool   `json:"exclude,omitempty" description:"Whether to exclude reasoning content from the response"`
+	Enabled   *bool   `json:"enabled,omitempty"    description:"Whether reasoning is enabled"`
+	Exclude   *bool   `json:"exclude,omitempty"    description:"Whether to exclude reasoning content from the response"`
 	MaxTokens *int64  `json:"max_tokens,omitempty" description:"Maximum number of tokens for reasoning output"`
-	Effort    *string `json:"effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
+	Effort    *string `json:"effort,omitempty"     description:"Controls the level of reasoning effort"                 enum:"none,minimal,low,medium,high,xhigh"`
 }
 
 // ChatModelOpenRouterProvider configures OpenRouter routing preferences.
 type ChatModelOpenRouterProvider struct {
-	Order             []string `json:"order,omitempty" description:"Ordered list of preferred provider names"`
-	AllowFallbacks    *bool    `json:"allow_fallbacks,omitempty" description:"Whether to allow fallback to other providers"`
+	Order             []string `json:"order,omitempty"              description:"Ordered list of preferred provider names"`
+	AllowFallbacks    *bool    `json:"allow_fallbacks,omitempty"    description:"Whether to allow fallback to other providers"`
 	RequireParameters *bool    `json:"require_parameters,omitempty" description:"Whether to require all parameters to be supported by the provider"`
-	DataCollection    *string  `json:"data_collection,omitempty" description:"Data collection policy preference"`
-	Only              []string `json:"only,omitempty" description:"Restrict to only these provider names"`
-	Ignore            []string `json:"ignore,omitempty" description:"Provider names to exclude from routing"`
-	Quantizations     []string `json:"quantizations,omitempty" description:"Allowed model quantization levels"`
-	Sort              *string  `json:"sort,omitempty" description:"Sort order for provider selection"`
+	DataCollection    *string  `json:"data_collection,omitempty"    description:"Data collection policy preference"`
+	Only              []string `json:"only,omitempty"               description:"Restrict to only these provider names"`
+	Ignore            []string `json:"ignore,omitempty"             description:"Provider names to exclude from routing"`
+	Quantizations     []string `json:"quantizations,omitempty"      description:"Allowed model quantization levels"`
+	Sort              *string  `json:"sort,omitempty"               description:"Sort order for provider selection"`
 }
 
 // ChatModelOpenRouterProviderOptions configures OpenRouter provider behavior.
 type ChatModelOpenRouterProviderOptions struct {
-	Reasoning         *ChatModelReasoningOptions   `json:"reasoning,omitempty" description:"Configuration for reasoning behavior"`
-	ExtraBody         map[string]any               `json:"extra_body,omitempty" description:"Additional fields to include in the request body" hidden:"true"`
-	IncludeUsage      *bool                        `json:"include_usage,omitempty" description:"Whether to include token usage information in the response" hidden:"true"`
-	LogitBias         map[string]int64             `json:"logit_bias,omitempty" description:"Token IDs mapped to bias values from -100 to 100" hidden:"true"`
-	LogProbs          *bool                        `json:"log_probs,omitempty" description:"Whether to return log probabilities of output tokens" hidden:"true"`
+	Reasoning         *ChatModelReasoningOptions   `json:"reasoning,omitempty"           description:"Configuration for reasoning behavior"`
+	ExtraBody         map[string]any               `json:"extra_body,omitempty"          description:"Additional fields to include in the request body"           hidden:"true"`
+	IncludeUsage      *bool                        `json:"include_usage,omitempty"       description:"Whether to include token usage information in the response" hidden:"true"`
+	LogitBias         map[string]int64             `json:"logit_bias,omitempty"          description:"Token IDs mapped to bias values from -100 to 100"           hidden:"true"`
+	LogProbs          *bool                        `json:"log_probs,omitempty"           description:"Whether to return log probabilities of output tokens"       hidden:"true"`
 	ParallelToolCalls *bool                        `json:"parallel_tool_calls,omitempty" description:"Whether the model may make multiple tool calls in parallel"`
-	User              *string                      `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
-	Provider          *ChatModelOpenRouterProvider `json:"provider,omitempty" description:"Routing preferences for provider selection" hidden:"true"`
+	User              *string                      `json:"user,omitempty"                description:"Unique identifier for the end user for abuse monitoring"    hidden:"true"`
+	Provider          *ChatModelOpenRouterProvider `json:"provider,omitempty"            description:"Routing preferences for provider selection"                 hidden:"true"`
 }
 
 // ChatModelVercelGatewayProviderOptions configures Vercel routing behavior.
 type ChatModelVercelGatewayProviderOptions struct {
-	Order  []string `json:"order,omitempty" description:"Ordered list of preferred provider names"`
+	Order  []string `json:"order,omitempty"  description:"Ordered list of preferred provider names"`
 	Models []string `json:"models,omitempty" description:"Model identifiers to route across"`
 }
 
 // ChatModelVercelProviderOptions configures Vercel provider behavior.
 type ChatModelVercelProviderOptions struct {
-	Reasoning         *ChatModelReasoningOptions             `json:"reasoning,omitempty" description:"Configuration for reasoning behavior"`
-	ProviderOptions   *ChatModelVercelGatewayProviderOptions `json:"providerOptions,omitempty" description:"Gateway routing options for provider selection" hidden:"true"`
-	User              *string                                `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
-	LogitBias         map[string]int64                       `json:"logit_bias,omitempty" description:"Token IDs mapped to bias values from -100 to 100" hidden:"true"`
-	LogProbs          *bool                                  `json:"logprobs,omitempty" description:"Whether to return log probabilities of output tokens" hidden:"true"`
-	TopLogProbs       *int64                                 `json:"top_logprobs,omitempty" description:"Number of most likely tokens to return log probabilities for" hidden:"true"`
+	Reasoning         *ChatModelReasoningOptions             `json:"reasoning,omitempty"           description:"Configuration for reasoning behavior"`
+	ProviderOptions   *ChatModelVercelGatewayProviderOptions `json:"providerOptions,omitempty"     description:"Gateway routing options for provider selection"               hidden:"true"`
+	User              *string                                `json:"user,omitempty"                description:"Unique identifier for the end user for abuse monitoring"      hidden:"true"`
+	LogitBias         map[string]int64                       `json:"logit_bias,omitempty"          description:"Token IDs mapped to bias values from -100 to 100"             hidden:"true"`
+	LogProbs          *bool                                  `json:"logprobs,omitempty"            description:"Whether to return log probabilities of output tokens"         hidden:"true"`
+	TopLogProbs       *int64                                 `json:"top_logprobs,omitempty"        description:"Number of most likely tokens to return log probabilities for" hidden:"true"`
 	ParallelToolCalls *bool                                  `json:"parallel_tool_calls,omitempty" description:"Whether the model may make multiple tool calls in parallel"`
-	ExtraBody         map[string]any                         `json:"extra_body,omitempty" description:"Additional fields to include in the request body" hidden:"true"`
+	ExtraBody         map[string]any                         `json:"extra_body,omitempty"          description:"Additional fields to include in the request body"             hidden:"true"`
 }
 
 // ModelCostConfig stores pricing metadata for a chat model.
 type ModelCostConfig struct {
-	InputPricePerMillionTokens      *decimal.Decimal `json:"input_price_per_million_tokens,omitempty" description:"Input token price in USD per 1M tokens"`
-	OutputPricePerMillionTokens     *decimal.Decimal `json:"output_price_per_million_tokens,omitempty" description:"Output token price in USD per 1M tokens"`
-	CacheReadPricePerMillionTokens  *decimal.Decimal `json:"cache_read_price_per_million_tokens,omitempty" description:"Cache read token price in USD per 1M tokens"`
+	InputPricePerMillionTokens      *decimal.Decimal `json:"input_price_per_million_tokens,omitempty"       description:"Input token price in USD per 1M tokens"`
+	OutputPricePerMillionTokens     *decimal.Decimal `json:"output_price_per_million_tokens,omitempty"      description:"Output token price in USD per 1M tokens"`
+	CacheReadPricePerMillionTokens  *decimal.Decimal `json:"cache_read_price_per_million_tokens,omitempty"  description:"Cache read token price in USD per 1M tokens"`
 	CacheWritePricePerMillionTokens *decimal.Decimal `json:"cache_write_price_per_million_tokens,omitempty" description:"Cache write or cache creation token price in USD per 1M tokens"`
 }
 
 // ChatModelCallConfig configures per-call model behavior defaults.
 type ChatModelCallConfig struct {
 	MaxOutputTokens  *int64                    `json:"max_output_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
-	Temperature      *float64                  `json:"temperature,omitempty" description:"Sampling temperature between 0 and 2"`
-	TopP             *float64                  `json:"top_p,omitempty" description:"Nucleus sampling probability cutoff"`
-	TopK             *int64                    `json:"top_k,omitempty" description:"Number of highest-probability tokens to keep for sampling"`
-	PresencePenalty  *float64                  `json:"presence_penalty,omitempty" description:"Penalty for tokens that have already appeared in the output"`
+	Temperature      *float64                  `json:"temperature,omitempty"       description:"Sampling temperature between 0 and 2"`
+	TopP             *float64                  `json:"top_p,omitempty"             description:"Nucleus sampling probability cutoff"`
+	TopK             *int64                    `json:"top_k,omitempty"             description:"Number of highest-probability tokens to keep for sampling"`
+	PresencePenalty  *float64                  `json:"presence_penalty,omitempty"  description:"Penalty for tokens that have already appeared in the output"`
 	FrequencyPenalty *float64                  `json:"frequency_penalty,omitempty" description:"Penalty for tokens based on their frequency in the output"`
-	Cost             *ModelCostConfig          `json:"cost,omitempty" description:"Optional pricing metadata for this model"`
-	ProviderOptions  *ChatModelProviderOptions `json:"provider_options,omitempty" description:"Provider-specific option overrides"`
+	Cost             *ModelCostConfig          `json:"cost,omitempty"              description:"Optional pricing metadata for this model"`
+	ProviderOptions  *ChatModelProviderOptions `json:"provider_options,omitempty"  description:"Provider-specific option overrides"`
 }
 
 // UnmarshalJSON accepts both the current nested cost object and the previous
@@ -623,20 +606,20 @@ type UpdateChatModelConfigRequest struct {
 
 // ChatGitChange represents a git file change detected during a chat session.
 type ChatGitChange struct {
-	ID          uuid.UUID `json:"id" format:"uuid"`
-	ChatID      uuid.UUID `json:"chat_id" format:"uuid"`
+	ID          uuid.UUID `json:"id"                     format:"uuid"`
+	ChatID      uuid.UUID `json:"chat_id"                format:"uuid"`
 	FilePath    string    `json:"file_path"`
 	ChangeType  string    `json:"change_type"` // added, modified, deleted, renamed
 	OldPath     *string   `json:"old_path,omitempty"`
 	DiffSummary *string   `json:"diff_summary,omitempty"`
-	DetectedAt  time.Time `json:"detected_at" format:"date-time"`
+	DetectedAt  time.Time `json:"detected_at"            format:"date-time"`
 }
 
 // ChatDiffStatus represents cached diff status for a chat. The URL
 // may point to a pull request or a branch page depending on whether
 // a PR has been opened.
 type ChatDiffStatus struct {
-	ChatID           uuid.UUID  `json:"chat_id" format:"uuid"`
+	ChatID           uuid.UUID  `json:"chat_id"                      format:"uuid"`
 	URL              *string    `json:"url,omitempty"`
 	PullRequestState *string    `json:"pull_request_state,omitempty"`
 	PullRequestTitle string     `json:"pull_request_title"`
@@ -653,13 +636,13 @@ type ChatDiffStatus struct {
 	Commits          *int32     `json:"commits,omitempty"`
 	Approved         *bool      `json:"approved,omitempty"`
 	ReviewerCount    *int32     `json:"reviewer_count,omitempty"`
-	RefreshedAt      *time.Time `json:"refreshed_at,omitempty" format:"date-time"`
-	StaleAt          *time.Time `json:"stale_at,omitempty" format:"date-time"`
+	RefreshedAt      *time.Time `json:"refreshed_at,omitempty"       format:"date-time"`
+	StaleAt          *time.Time `json:"stale_at,omitempty"           format:"date-time"`
 }
 
 // ChatDiffContents represents the resolved diff text for a chat.
 type ChatDiffContents struct {
-	ChatID         uuid.UUID `json:"chat_id" format:"uuid"`
+	ChatID         uuid.UUID `json:"chat_id"                    format:"uuid"`
 	Provider       *string   `json:"provider,omitempty"`
 	RemoteOrigin   *string   `json:"remote_origin,omitempty"`
 	Branch         *string   `json:"branch,omitempty"`
@@ -682,7 +665,7 @@ const (
 // ChatQueuedMessage represents a queued message waiting to be processed.
 type ChatQueuedMessage struct {
 	ID        int64             `json:"id"`
-	ChatID    uuid.UUID         `json:"chat_id" format:"uuid"`
+	ChatID    uuid.UUID         `json:"chat_id"    format:"uuid"`
 	Content   []ChatMessagePart `json:"content"`
 	CreatedAt time.Time         `json:"created_at" format:"date-time"`
 }
@@ -719,7 +702,7 @@ type ChatStreamRetry struct {
 // ChatStreamEvent represents a real-time update for chat streaming.
 type ChatStreamEvent struct {
 	Type           ChatStreamEventType    `json:"type"`
-	ChatID         uuid.UUID              `json:"chat_id" format:"uuid"`
+	ChatID         uuid.UUID              `json:"chat_id"                   format:"uuid"`
 	Message        *ChatMessage           `json:"message,omitempty"`
 	MessagePart    *ChatStreamMessagePart `json:"message_part,omitempty"`
 	Status         *ChatStreamStatus      `json:"status,omitempty"`
@@ -749,8 +732,8 @@ type ChatCostUsersOptions struct {
 
 // ChatCostSummary is the response from the chat cost summary endpoint.
 type ChatCostSummary struct {
-	StartDate                time.Time                `json:"start_date" format:"date-time"`
-	EndDate                  time.Time                `json:"end_date" format:"date-time"`
+	StartDate                time.Time                `json:"start_date"                  format:"date-time"`
+	EndDate                  time.Time                `json:"end_date"                    format:"date-time"`
 	TotalCostMicros          int64                    `json:"total_cost_micros"`
 	PricedMessageCount       int64                    `json:"priced_message_count"`
 	UnpricedMessageCount     int64                    `json:"unpriced_message_count"`
@@ -765,7 +748,7 @@ type ChatCostSummary struct {
 
 // ChatCostModelBreakdown contains per-model cost aggregation.
 type ChatCostModelBreakdown struct {
-	ModelConfigID            uuid.UUID `json:"model_config_id" format:"uuid"`
+	ModelConfigID            uuid.UUID `json:"model_config_id"             format:"uuid"`
 	DisplayName              string    `json:"display_name"`
 	Provider                 string    `json:"provider"`
 	Model                    string    `json:"model"`
@@ -779,7 +762,7 @@ type ChatCostModelBreakdown struct {
 
 // ChatCostChatBreakdown contains per-root-chat cost aggregation.
 type ChatCostChatBreakdown struct {
-	RootChatID               uuid.UUID `json:"root_chat_id" format:"uuid"`
+	RootChatID               uuid.UUID `json:"root_chat_id"                format:"uuid"`
 	ChatTitle                string    `json:"chat_title"`
 	TotalCostMicros          int64     `json:"total_cost_micros"`
 	MessageCount             int64     `json:"message_count"`
@@ -791,7 +774,7 @@ type ChatCostChatBreakdown struct {
 
 // ChatCostUserRollup contains per-user cost aggregation for admin views.
 type ChatCostUserRollup struct {
-	UserID                   uuid.UUID `json:"user_id" format:"uuid"`
+	UserID                   uuid.UUID `json:"user_id"                     format:"uuid"`
 	Username                 string    `json:"username"`
 	Name                     string    `json:"name"`
 	AvatarURL                string    `json:"avatar_url"`
@@ -807,7 +790,7 @@ type ChatCostUserRollup struct {
 // ChatCostUsersResponse is the response from the admin chat cost users endpoint.
 type ChatCostUsersResponse struct {
 	StartDate time.Time            `json:"start_date" format:"date-time"`
-	EndDate   time.Time            `json:"end_date" format:"date-time"`
+	EndDate   time.Time            `json:"end_date"   format:"date-time"`
 	Count     int64                `json:"count"`
 	Users     []ChatCostUserRollup `json:"users"`
 }
@@ -820,7 +803,7 @@ type ChatUsageLimitExceededResponse struct {
 	Response
 	SpentMicros int64     `json:"spent_micros"`
 	LimitMicros int64     `json:"limit_micros"`
-	ResetsAt    time.Time `json:"resets_at" format:"date-time"`
+	ResetsAt    time.Time `json:"resets_at"    format:"date-time"`
 }
 
 type chatUsageLimitExceededError struct {
@@ -965,12 +948,12 @@ type ChatUsageLimitConfig struct {
 	// limiting is disabled.
 	SpendLimitMicros *int64               `json:"spend_limit_micros"`
 	Period           ChatUsageLimitPeriod `json:"period"`
-	UpdatedAt        time.Time            `json:"updated_at" format:"date-time"`
+	UpdatedAt        time.Time            `json:"updated_at"         format:"date-time"`
 }
 
 // ChatUsageLimitOverride is a per-user override of the deployment default.
 type ChatUsageLimitOverride struct {
-	UserID    uuid.UUID `json:"user_id" format:"uuid"`
+	UserID    uuid.UUID `json:"user_id"    format:"uuid"`
 	Username  string    `json:"username"`
 	Name      string    `json:"name"`
 	AvatarURL string    `json:"avatar_url"`
@@ -981,7 +964,7 @@ type ChatUsageLimitOverride struct {
 
 // ChatUsageLimitGroupOverride represents a group-scoped spend limit override.
 type ChatUsageLimitGroupOverride struct {
-	GroupID          uuid.UUID `json:"group_id" format:"uuid"`
+	GroupID          uuid.UUID `json:"group_id"           format:"uuid"`
 	GroupName        string    `json:"group_name"`
 	GroupDisplayName string    `json:"group_display_name"`
 	GroupAvatarURL   string    `json:"group_avatar_url"`
@@ -1016,8 +999,8 @@ type ChatUsageLimitStatus struct {
 	Period           ChatUsageLimitPeriod `json:"period,omitempty"`
 	SpendLimitMicros *int64               `json:"spend_limit_micros,omitempty"`
 	CurrentSpend     int64                `json:"current_spend"`
-	PeriodStart      time.Time            `json:"period_start,omitempty" format:"date-time"`
-	PeriodEnd        time.Time            `json:"period_end,omitempty" format:"date-time"`
+	PeriodStart      time.Time            `json:"period_start,omitempty"       format:"date-time"`
+	PeriodEnd        time.Time            `json:"period_end,omitempty"         format:"date-time"`
 }
 
 // ChatUsageLimitConfigResponse is returned from the admin config endpoint

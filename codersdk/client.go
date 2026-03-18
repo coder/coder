@@ -587,7 +587,7 @@ type Response struct {
 
 // ValidationError represents a scoped error to a user input.
 type ValidationError struct {
-	Field  string `json:"field" validate:"required"`
+	Field  string `json:"field"  validate:"required"`
 	Detail string `json:"detail" validate:"required"`
 }
 

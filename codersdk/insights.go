@@ -57,8 +57,8 @@ type UserLatencyInsightsResponse struct {
 // UserLatencyInsightsReport is the report from the user latency insights
 // endpoint.
 type UserLatencyInsightsReport struct {
-	StartTime   time.Time     `json:"start_time" format:"date-time"`
-	EndTime     time.Time     `json:"end_time" format:"date-time"`
+	StartTime   time.Time     `json:"start_time"   format:"date-time"`
+	EndTime     time.Time     `json:"end_time"     format:"date-time"`
 	TemplateIDs []uuid.UUID   `json:"template_ids" format:"uuid"`
 	Users       []UserLatency `json:"users"`
 }
@@ -66,9 +66,9 @@ type UserLatencyInsightsReport struct {
 // UserLatency shows the connection latency for a user.
 type UserLatency struct {
 	TemplateIDs []uuid.UUID       `json:"template_ids" format:"uuid"`
-	UserID      uuid.UUID         `json:"user_id" format:"uuid"`
+	UserID      uuid.UUID         `json:"user_id"      format:"uuid"`
 	Username    string            `json:"username"`
-	AvatarURL   string            `json:"avatar_url" format:"uri"`
+	AvatarURL   string            `json:"avatar_url"   format:"uri"`
 	LatencyMS   ConnectionLatency `json:"latency_ms"`
 }
 
@@ -81,8 +81,8 @@ type UserActivityInsightsResponse struct {
 // UserActivityInsightsReport is the report from the user activity insights
 // endpoint.
 type UserActivityInsightsReport struct {
-	StartTime   time.Time      `json:"start_time" format:"date-time"`
-	EndTime     time.Time      `json:"end_time" format:"date-time"`
+	StartTime   time.Time      `json:"start_time"   format:"date-time"`
+	EndTime     time.Time      `json:"end_time"     format:"date-time"`
 	TemplateIDs []uuid.UUID    `json:"template_ids" format:"uuid"`
 	Users       []UserActivity `json:"users"`
 }
@@ -90,10 +90,10 @@ type UserActivityInsightsReport struct {
 // UserActivity shows the session time for a user.
 type UserActivity struct {
 	TemplateIDs []uuid.UUID `json:"template_ids" format:"uuid"`
-	UserID      uuid.UUID   `json:"user_id" format:"uuid"`
+	UserID      uuid.UUID   `json:"user_id"      format:"uuid"`
 	Username    string      `json:"username"`
-	AvatarURL   string      `json:"avatar_url" format:"uri"`
-	Seconds     int64       `json:"seconds" example:"80500"`
+	AvatarURL   string      `json:"avatar_url"   format:"uri"`
+	Seconds     int64       `json:"seconds"      example:"80500"`
 }
 
 // ConnectionLatency shows the latency for a connection.
@@ -103,8 +103,8 @@ type ConnectionLatency struct {
 }
 
 type UserLatencyInsightsRequest struct {
-	StartTime   time.Time   `json:"start_time" format:"date-time"`
-	EndTime     time.Time   `json:"end_time" format:"date-time"`
+	StartTime   time.Time   `json:"start_time"   format:"date-time"`
+	EndTime     time.Time   `json:"end_time"     format:"date-time"`
 	TemplateIDs []uuid.UUID `json:"template_ids" format:"uuid"`
 }
 
@@ -135,8 +135,8 @@ func (c *Client) UserLatencyInsights(ctx context.Context, req UserLatencyInsight
 }
 
 type UserActivityInsightsRequest struct {
-	StartTime   time.Time   `json:"start_time" format:"date-time"`
-	EndTime     time.Time   `json:"end_time" format:"date-time"`
+	StartTime   time.Time   `json:"start_time"   format:"date-time"`
+	EndTime     time.Time   `json:"end_time"     format:"date-time"`
 	TemplateIDs []uuid.UUID `json:"template_ids" format:"uuid"`
 }
 
@@ -174,10 +174,10 @@ type TemplateInsightsResponse struct {
 
 // TemplateInsightsReport is the report from the template insights endpoint.
 type TemplateInsightsReport struct {
-	StartTime       time.Time                `json:"start_time" format:"date-time"`
-	EndTime         time.Time                `json:"end_time" format:"date-time"`
-	TemplateIDs     []uuid.UUID              `json:"template_ids" format:"uuid"`
-	ActiveUsers     int64                    `json:"active_users" example:"22"`
+	StartTime       time.Time                `json:"start_time"       format:"date-time"`
+	EndTime         time.Time                `json:"end_time"         format:"date-time"`
+	TemplateIDs     []uuid.UUID              `json:"template_ids"     format:"uuid"`
+	ActiveUsers     int64                    `json:"active_users"     example:"22"`
 	AppsUsage       []TemplateAppUsage       `json:"apps_usage"`
 	ParametersUsage []TemplateParameterUsage `json:"parameters_usage"`
 }
@@ -185,10 +185,10 @@ type TemplateInsightsReport struct {
 // TemplateInsightsIntervalReport is the report from the template insights
 // endpoint for a specific interval.
 type TemplateInsightsIntervalReport struct {
-	StartTime   time.Time              `json:"start_time" format:"date-time"`
-	EndTime     time.Time              `json:"end_time" format:"date-time"`
+	StartTime   time.Time              `json:"start_time"   format:"date-time"`
+	EndTime     time.Time              `json:"end_time"     format:"date-time"`
 	TemplateIDs []uuid.UUID            `json:"template_ids" format:"uuid"`
-	Interval    InsightsReportInterval `json:"interval" example:"week"`
+	Interval    InsightsReportInterval `json:"interval"     example:"week"`
 	ActiveUsers int64                  `json:"active_users" example:"14"`
 }
 
@@ -213,18 +213,18 @@ const (
 // TemplateAppUsage shows the usage of an app for one or more templates.
 type TemplateAppUsage struct {
 	TemplateIDs []uuid.UUID      `json:"template_ids" format:"uuid"`
-	Type        TemplateAppsType `json:"type" example:"builtin"`
+	Type        TemplateAppsType `json:"type"         example:"builtin"`
 	DisplayName string           `json:"display_name" example:"Visual Studio Code"`
-	Slug        string           `json:"slug" example:"vscode"`
+	Slug        string           `json:"slug"         example:"vscode"`
 	Icon        string           `json:"icon"`
-	Seconds     int64            `json:"seconds" example:"80500"`
-	TimesUsed   int64            `json:"times_used" example:"2"`
+	Seconds     int64            `json:"seconds"      example:"80500"`
+	TimesUsed   int64            `json:"times_used"   example:"2"`
 }
 
 // TemplateParameterUsage shows the usage of a parameter for one or more
 // templates.
 type TemplateParameterUsage struct {
-	TemplateIDs []uuid.UUID                      `json:"template_ids" format:"uuid"`
+	TemplateIDs []uuid.UUID                      `json:"template_ids"      format:"uuid"`
 	DisplayName string                           `json:"display_name"`
 	Name        string                           `json:"name"`
 	Type        string                           `json:"type"`
@@ -241,11 +241,11 @@ type TemplateParameterValue struct {
 }
 
 type TemplateInsightsRequest struct {
-	StartTime   time.Time                 `json:"start_time" format:"date-time"`
-	EndTime     time.Time                 `json:"end_time" format:"date-time"`
+	StartTime   time.Time                 `json:"start_time"   format:"date-time"`
+	EndTime     time.Time                 `json:"end_time"     format:"date-time"`
 	TemplateIDs []uuid.UUID               `json:"template_ids" format:"uuid"`
-	Interval    InsightsReportInterval    `json:"interval" example:"day"`
-	Sections    []TemplateInsightsSection `json:"sections" example:"report"`
+	Interval    InsightsReportInterval    `json:"interval"     example:"day"`
+	Sections    []TemplateInsightsSection `json:"sections"     example:"report"`
 }
 
 func (c *Client) TemplateInsights(ctx context.Context, req TemplateInsightsRequest) (TemplateInsightsResponse, error) {
@@ -289,7 +289,7 @@ type GetUserStatusCountsResponse struct {
 }
 
 type UserStatusChangeCount struct {
-	Date  time.Time `json:"date" format:"date-time"`
+	Date  time.Time `json:"date"  format:"date-time"`
 	Count int64     `json:"count" example:"10"`
 }
 

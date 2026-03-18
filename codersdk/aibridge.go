@@ -12,42 +12,42 @@ import (
 )
 
 type AIBridgeInterception struct {
-	ID          uuid.UUID            `json:"id" format:"uuid"`
+	ID          uuid.UUID            `json:"id"           format:"uuid"`
 	APIKeyID    *string              `json:"api_key_id"`
 	Initiator   MinimalUser          `json:"initiator"`
 	Provider    string               `json:"provider"`
 	Model       string               `json:"model"`
 	Client      *string              `json:"client"`
 	Metadata    map[string]any       `json:"metadata"`
-	StartedAt   time.Time            `json:"started_at" format:"date-time"`
-	EndedAt     *time.Time           `json:"ended_at" format:"date-time"`
+	StartedAt   time.Time            `json:"started_at"   format:"date-time"`
+	EndedAt     *time.Time           `json:"ended_at"     format:"date-time"`
 	TokenUsages []AIBridgeTokenUsage `json:"token_usages"`
 	UserPrompts []AIBridgeUserPrompt `json:"user_prompts"`
 	ToolUsages  []AIBridgeToolUsage  `json:"tool_usages"`
 }
 
 type AIBridgeTokenUsage struct {
-	ID                 uuid.UUID      `json:"id" format:"uuid"`
-	InterceptionID     uuid.UUID      `json:"interception_id" format:"uuid"`
+	ID                 uuid.UUID      `json:"id"                   format:"uuid"`
+	InterceptionID     uuid.UUID      `json:"interception_id"      format:"uuid"`
 	ProviderResponseID string         `json:"provider_response_id"`
 	InputTokens        int64          `json:"input_tokens"`
 	OutputTokens       int64          `json:"output_tokens"`
 	Metadata           map[string]any `json:"metadata"`
-	CreatedAt          time.Time      `json:"created_at" format:"date-time"`
+	CreatedAt          time.Time      `json:"created_at"           format:"date-time"`
 }
 
 type AIBridgeUserPrompt struct {
-	ID                 uuid.UUID      `json:"id" format:"uuid"`
-	InterceptionID     uuid.UUID      `json:"interception_id" format:"uuid"`
+	ID                 uuid.UUID      `json:"id"                   format:"uuid"`
+	InterceptionID     uuid.UUID      `json:"interception_id"      format:"uuid"`
 	ProviderResponseID string         `json:"provider_response_id"`
 	Prompt             string         `json:"prompt"`
 	Metadata           map[string]any `json:"metadata"`
-	CreatedAt          time.Time      `json:"created_at" format:"date-time"`
+	CreatedAt          time.Time      `json:"created_at"           format:"date-time"`
 }
 
 type AIBridgeToolUsage struct {
-	ID                 uuid.UUID      `json:"id" format:"uuid"`
-	InterceptionID     uuid.UUID      `json:"interception_id" format:"uuid"`
+	ID                 uuid.UUID      `json:"id"                   format:"uuid"`
+	InterceptionID     uuid.UUID      `json:"interception_id"      format:"uuid"`
 	ProviderResponseID string         `json:"provider_response_id"`
 	ServerURL          string         `json:"server_url"`
 	Tool               string         `json:"tool"`
@@ -55,7 +55,7 @@ type AIBridgeToolUsage struct {
 	Injected           bool           `json:"injected"`
 	InvocationError    string         `json:"invocation_error"`
 	Metadata           map[string]any `json:"metadata"`
-	CreatedAt          time.Time      `json:"created_at" format:"date-time"`
+	CreatedAt          time.Time      `json:"created_at"           format:"date-time"`
 }
 
 type AIBridgeListInterceptionsResponse struct {
@@ -73,7 +73,7 @@ type AIBridgeListInterceptionsFilter struct {
 	// Initiator is a user ID, username, or "me".
 	Initiator     string    `json:"initiator,omitempty"`
 	StartedBefore time.Time `json:"started_before,omitempty" format:"date-time"`
-	StartedAfter  time.Time `json:"started_after,omitempty" format:"date-time"`
+	StartedAfter  time.Time `json:"started_after,omitempty"  format:"date-time"`
 	Provider      string    `json:"provider,omitempty"`
 	Model         string    `json:"model,omitempty"`
 	Client        string    `json:"client,omitempty"`

@@ -78,9 +78,9 @@ type ProcessToolOptions struct {
 
 // ExecuteArgs are the parameters accepted by the execute tool.
 type ExecuteArgs struct {
-	Command         string  `json:"command" description:"The shell command to execute."`
-	Timeout         *string `json:"timeout,omitempty" description:"Timeout duration (e.g. '30s', '5m'). Default is 10s. Only applies to foreground commands."`
-	WorkDir         *string `json:"workdir,omitempty" description:"Working directory for the command."`
+	Command         string  `json:"command"                     description:"The shell command to execute."`
+	Timeout         *string `json:"timeout,omitempty"           description:"Timeout duration (e.g. '30s', '5m'). Default is 10s. Only applies to foreground commands."`
+	WorkDir         *string `json:"workdir,omitempty"           description:"Working directory for the command."`
 	RunInBackground *bool   `json:"run_in_background,omitempty" description:"Run this command in the background without blocking. Use for long-running processes like dev servers, file watchers, or builds that run longer than 5 seconds. Do NOT use shell & to background processes — it will not work correctly. Always use this parameter instead."`
 }
 

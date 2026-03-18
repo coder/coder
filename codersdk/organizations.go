@@ -42,19 +42,19 @@ func ProvisionerTypeValid[T ProvisionerType | string](pt T) error {
 }
 
 type MinimalOrganization struct {
-	ID          uuid.UUID `table:"id" json:"id" validate:"required" format:"uuid"`
+	ID          uuid.UUID `table:"id"                json:"id"           validate:"required" format:"uuid"`
 	Name        string    `table:"name,default_sort" json:"name"`
-	DisplayName string    `table:"display name" json:"display_name"`
-	Icon        string    `table:"icon" json:"icon"`
+	DisplayName string    `table:"display name"      json:"display_name"`
+	Icon        string    `table:"icon"              json:"icon"`
 }
 
 // Organization is the JSON representation of a Coder organization.
 type Organization struct {
 	MinimalOrganization `table:"m,recursive_inline"`
-	Description         string    `table:"description" json:"description"`
-	CreatedAt           time.Time `table:"created at" json:"created_at" validate:"required" format:"date-time"`
-	UpdatedAt           time.Time `table:"updated at" json:"updated_at" validate:"required" format:"date-time"`
-	IsDefault           bool      `table:"default" json:"is_default" validate:"required"`
+	Description         string    `table:"description"        json:"description"`
+	CreatedAt           time.Time `table:"created at"         json:"created_at"  validate:"required" format:"date-time"`
+	UpdatedAt           time.Time `table:"updated at"         json:"updated_at"  validate:"required" format:"date-time"`
+	IsDefault           bool      `table:"default"            json:"is_default"  validate:"required"`
 }
 
 func (o Organization) HumanName() string {
@@ -65,16 +65,16 @@ func (o Organization) HumanName() string {
 }
 
 type OrganizationMember struct {
-	UserID         uuid.UUID  `table:"user id" json:"user_id" format:"uuid"`
-	OrganizationID uuid.UUID  `table:"organization id" json:"organization_id" format:"uuid"`
-	CreatedAt      time.Time  `table:"created at" json:"created_at" format:"date-time"`
-	UpdatedAt      time.Time  `table:"updated at" json:"updated_at" format:"date-time"`
+	UserID         uuid.UUID  `table:"user id"            json:"user_id"         format:"uuid"`
+	OrganizationID uuid.UUID  `table:"organization id"    json:"organization_id" format:"uuid"`
+	CreatedAt      time.Time  `table:"created at"         json:"created_at"      format:"date-time"`
+	UpdatedAt      time.Time  `table:"updated at"         json:"updated_at"      format:"date-time"`
 	Roles          []SlimRole `table:"organization roles" json:"roles"`
 }
 
 type OrganizationMemberWithUserData struct {
 	Username           string     `table:"username,default_sort" json:"username"`
-	Name               string     `table:"name" json:"name,omitempty"`
+	Name               string     `table:"name"                  json:"name,omitempty"`
 	AvatarURL          string     `json:"avatar_url,omitempty"`
 	Email              string     `json:"email"`
 	GlobalRoles        []SlimRole `json:"global_roles"`
@@ -100,7 +100,7 @@ type CreateOrganizationRequest struct {
 }
 
 type UpdateOrganizationRequest struct {
-	Name        string  `json:"name,omitempty" validate:"omitempty,organization_name"`
+	Name        string  `json:"name,omitempty"         validate:"omitempty,organization_name"`
 	DisplayName string  `json:"display_name,omitempty" validate:"omitempty,organization_display_name"`
 	Description *string `json:"description,omitempty"`
 	Icon        *string `json:"icon,omitempty"`
@@ -108,14 +108,14 @@ type UpdateOrganizationRequest struct {
 
 // CreateTemplateVersionRequest enables callers to create a new Template Version.
 type CreateTemplateVersionRequest struct {
-	Name    string `json:"name,omitempty" validate:"omitempty,template_version_name"`
+	Name    string `json:"name,omitempty"    validate:"omitempty,template_version_name"`
 	Message string `json:"message,omitempty" validate:"lt=1048577"`
 	// TemplateID optionally associates a version with a template.
 	TemplateID      uuid.UUID                `json:"template_id,omitempty" format:"uuid"`
-	StorageMethod   ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required" enums:"file"`
-	FileID          uuid.UUID                `json:"file_id,omitempty" validate:"required_without=ExampleID" format:"uuid"`
-	ExampleID       string                   `json:"example_id,omitempty" validate:"required_without=FileID"`
-	Provisioner     ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
+	StorageMethod   ProvisionerStorageMethod `json:"storage_method"        validate:"oneof=file,required"           enums:"file"`
+	FileID          uuid.UUID                `json:"file_id,omitempty"     validate:"required_without=ExampleID"    format:"uuid"`
+	ExampleID       string                   `json:"example_id,omitempty"  validate:"required_without=FileID"`
+	Provisioner     ProvisionerType          `json:"provisioner"           validate:"oneof=terraform echo,required"`
 	ProvisionerTags map[string]string        `json:"tags"`
 
 	UserVariableValues []VariableValue `json:"user_variable_values,omitempty"`
@@ -228,7 +228,7 @@ type CreateWorkspaceRequest struct {
 	TemplateID uuid.UUID `json:"template_id,omitempty" validate:"required_without=TemplateVersionID,excluded_with=TemplateVersionID" format:"uuid"`
 	// TemplateVersionID can be used to specify a specific version of a template for creating the workspace.
 	TemplateVersionID uuid.UUID `json:"template_version_id,omitempty" validate:"required_without=TemplateID,excluded_with=TemplateID" format:"uuid"`
-	Name              string    `json:"name" validate:"workspace_name,required"`
+	Name              string    `json:"name"                          validate:"workspace_name,required"`
 	AutostartSchedule *string   `json:"autostart_schedule,omitempty"`
 	TTLMillis         *int64    `json:"ttl_ms,omitempty"`
 	// RichParameterValues allows for additional parameters to be provided

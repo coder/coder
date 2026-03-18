@@ -26,11 +26,11 @@ const (
 
 type UsersRequest struct {
 	Search string `json:"search,omitempty" typescript:"-"`
-	Name   string `json:"name,omitempty" typescript:"-"`
+	Name   string `json:"name,omitempty"   typescript:"-"`
 	// Filter users by status.
 	Status UserStatus `json:"status,omitempty" typescript:"-"`
 	// Filter users that have the given role.
-	Role      string      `json:"role,omitempty" typescript:"-"`
+	Role      string      `json:"role,omitempty"       typescript:"-"`
 	LoginType []LoginType `json:"login_type,omitempty" typescript:"-"`
 
 	SearchQuery string `json:"q,omitempty"`
@@ -40,9 +40,9 @@ type UsersRequest struct {
 // MinimalUser is the minimal information needed to identify a user and show
 // them on the UI.
 type MinimalUser struct {
-	ID        uuid.UUID `json:"id" validate:"required" table:"id" format:"uuid"`
-	Username  string    `json:"username" validate:"required" table:"username,default_sort"`
-	Name      string    `json:"name,omitempty" table:"name"`
+	ID        uuid.UUID `json:"id"                   validate:"required" table:"id"                    format:"uuid"`
+	Username  string    `json:"username"             validate:"required" table:"username,default_sort"`
+	Name      string    `json:"name,omitempty"       table:"name"`
 	AvatarURL string    `json:"avatar_url,omitempty" format:"uri"`
 }
 
@@ -52,12 +52,12 @@ type MinimalUser struct {
 // required by the frontend.
 type ReducedUser struct {
 	MinimalUser `table:"m,recursive_inline"`
-	Email       string    `json:"email" validate:"required" table:"email" format:"email"`
-	CreatedAt   time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
-	UpdatedAt   time.Time `json:"updated_at" table:"updated at" format:"date-time"`
+	Email       string    `json:"email"                  validate:"required" table:"email"      format:"email"`
+	CreatedAt   time.Time `json:"created_at"             validate:"required" table:"created at" format:"date-time"`
+	UpdatedAt   time.Time `json:"updated_at"             table:"updated at"  format:"date-time"`
 	LastSeenAt  time.Time `json:"last_seen_at,omitempty" format:"date-time"`
 
-	Status           UserStatus `json:"status" table:"status" enums:"active,suspended"`
+	Status           UserStatus `json:"status"                       table:"status" enums:"active,suspended"`
 	LoginType        LoginType  `json:"login_type"`
 	IsServiceAccount bool       `json:"is_service_account,omitempty"`
 	// Deprecated: this value should be retrieved from
@@ -95,10 +95,10 @@ type LicensorTrialRequest struct {
 }
 
 type CreateFirstUserRequest struct {
-	Email     string                   `json:"email" validate:"required,email"`
-	Username  string                   `json:"username" validate:"required,username"`
-	Name      string                   `json:"name" validate:"user_real_name"`
-	Password  string                   `json:"password" validate:"required"`
+	Email     string                   `json:"email"      validate:"required,email"`
+	Username  string                   `json:"username"   validate:"required,username"`
+	Name      string                   `json:"name"       validate:"user_real_name"`
+	Password  string                   `json:"password"   validate:"required"`
 	Trial     bool                     `json:"trial"`
 	TrialInfo CreateFirstUserTrialInfo `json:"trial_info"`
 }
@@ -115,7 +115,7 @@ type CreateFirstUserTrialInfo struct {
 
 // CreateFirstUserResponse contains IDs for newly created user info.
 type CreateFirstUserResponse struct {
-	UserID         uuid.UUID `json:"user_id" format:"uuid"`
+	UserID         uuid.UUID `json:"user_id"         format:"uuid"`
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
 }
 
@@ -125,9 +125,9 @@ type CreateFirstUserResponse struct {
 // Then alias CreateUserRequestWithOrgs to CreateUserRequest.
 // @typescript-ignore CreateUserRequest
 type CreateUserRequest struct {
-	Email    string `json:"email" validate:"required,email" format:"email"`
+	Email    string `json:"email"    validate:"required,email"    format:"email"`
 	Username string `json:"username" validate:"required,username"`
-	Name     string `json:"name" validate:"user_real_name"`
+	Name     string `json:"name"     validate:"user_real_name"`
 	Password string `json:"password"`
 	// UserLoginType defaults to LoginTypePassword.
 	UserLoginType LoginType `json:"login_type"`
@@ -139,9 +139,9 @@ type CreateUserRequest struct {
 }
 
 type CreateUserRequestWithOrgs struct {
-	Email    string `json:"email" validate:"required_unless=ServiceAccount true,omitempty,email" format:"email"`
+	Email    string `json:"email"    validate:"required_unless=ServiceAccount true,omitempty,email" format:"email"`
 	Username string `json:"username" validate:"required,username"`
-	Name     string `json:"name" validate:"user_real_name"`
+	Name     string `json:"name"     validate:"user_real_name"`
 	Password string `json:"password"`
 	// UserLoginType defaults to LoginTypePassword.
 	UserLoginType LoginType `json:"login_type"`
@@ -183,7 +183,7 @@ func (r *CreateUserRequestWithOrgs) UnmarshalJSON(data []byte) error {
 
 type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
-	Name     string `json:"name" validate:"user_real_name"`
+	Name     string `json:"name"     validate:"user_real_name"`
 }
 
 type ValidateUserPasswordRequest struct {
@@ -219,7 +219,7 @@ type UserAppearanceSettings struct {
 
 type UpdateUserAppearanceSettingsRequest struct {
 	ThemePreference string           `json:"theme_preference" validate:"required"`
-	TerminalFont    TerminalFontName `json:"terminal_font" validate:"required"`
+	TerminalFont    TerminalFontName `json:"terminal_font"    validate:"required"`
 }
 
 type UserPreferenceSettings struct {
@@ -232,7 +232,7 @@ type UpdateUserPreferenceSettingsRequest struct {
 
 type UpdateUserPasswordRequest struct {
 	OldPassword string `json:"old_password" validate:""`
-	Password    string `json:"password" validate:"required"`
+	Password    string `json:"password"     validate:"required"`
 }
 
 type UserQuietHoursScheduleResponse struct {
@@ -278,13 +278,13 @@ type UserRoles struct {
 
 type ConvertLoginRequest struct {
 	// ToType is the login type to convert to.
-	ToType   LoginType `json:"to_type" validate:"required"`
+	ToType   LoginType `json:"to_type"  validate:"required"`
 	Password string    `json:"password" validate:"required"`
 }
 
 // LoginWithPasswordRequest enables callers to authenticate with email and password.
 type LoginWithPasswordRequest struct {
-	Email    string `json:"email" validate:"required,email" format:"email"`
+	Email    string `json:"email"    validate:"required,email" format:"email"`
 	Password string `json:"password" validate:"required"`
 }
 
@@ -300,16 +300,16 @@ type RequestOneTimePasscodeRequest struct {
 
 // ChangePasswordWithOneTimePasscodeRequest enables callers to change their password when they've forgotten it.
 type ChangePasswordWithOneTimePasscodeRequest struct {
-	Email           string `json:"email" validate:"required,email" format:"email"`
-	Password        string `json:"password" validate:"required"`
+	Email           string `json:"email"             validate:"required,email" format:"email"`
+	Password        string `json:"password"          validate:"required"`
 	OneTimePasscode string `json:"one_time_passcode" validate:"required"`
 }
 
 type OAuthConversionResponse struct {
 	StateString string    `json:"state_string"`
-	ExpiresAt   time.Time `json:"expires_at" format:"date-time"`
+	ExpiresAt   time.Time `json:"expires_at"   format:"date-time"`
 	ToType      LoginType `json:"to_type"`
-	UserID      uuid.UUID `json:"user_id" format:"uuid"`
+	UserID      uuid.UUID `json:"user_id"      format:"uuid"`
 }
 
 // AuthMethods contains authentication method information like whether they are enabled or not or custom text, etc.

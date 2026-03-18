@@ -19,11 +19,11 @@ const (
 
 // TemplateVersion represents a single version of a template.
 type TemplateVersion struct {
-	ID             uuid.UUID      `json:"id" format:"uuid"`
-	TemplateID     *uuid.UUID     `json:"template_id,omitempty" format:"uuid"`
+	ID             uuid.UUID      `json:"id"                        format:"uuid"`
+	TemplateID     *uuid.UUID     `json:"template_id,omitempty"     format:"uuid"`
 	OrganizationID uuid.UUID      `json:"organization_id,omitempty" format:"uuid"`
-	CreatedAt      time.Time      `json:"created_at" format:"date-time"`
-	UpdatedAt      time.Time      `json:"updated_at" format:"date-time"`
+	CreatedAt      time.Time      `json:"created_at"                format:"date-time"`
+	UpdatedAt      time.Time      `json:"updated_at"                format:"date-time"`
 	Name           string         `json:"name"`
 	Message        string         `json:"message"`
 	Job            ProvisionerJob `json:"job"`
@@ -31,7 +31,7 @@ type TemplateVersion struct {
 	CreatedBy      MinimalUser    `json:"created_by"`
 	Archived       bool           `json:"archived"`
 
-	Warnings            []TemplateVersionWarning `json:"warnings,omitempty" enums:"DEPRECATED_PARAMETERS"`
+	Warnings            []TemplateVersionWarning `json:"warnings,omitempty"             enums:"DEPRECATED_PARAMETERS"`
 	MatchedProvisioners *MatchedProvisioners     `json:"matched_provisioners,omitempty"`
 
 	HasExternalAgent bool `json:"has_external_agent"`
@@ -60,10 +60,10 @@ type TemplateVersionParameter struct {
 	DisplayName          string `json:"display_name,omitempty"`
 	Description          string `json:"description"`
 	DescriptionPlaintext string `json:"description_plaintext"`
-	Type                 string `json:"type" enums:"string,number,bool,list(string)"`
+	Type                 string `json:"type"                   enums:"string,number,bool,list(string)"`
 	// FormType has an enum value of empty string, `""`.
 	// Keep the leading comma in the enums struct tag.
-	FormType            string                           `json:"form_type" enums:",radio,dropdown,input,textarea,slider,checkbox,switch,tag-select,multi-select,error"`
+	FormType            string                           `json:"form_type"                      enums:",radio,dropdown,input,textarea,slider,checkbox,switch,tag-select,multi-select,error"`
 	Mutable             bool                             `json:"mutable"`
 	DefaultValue        string                           `json:"default_value"`
 	Icon                string                           `json:"icon"`
@@ -89,7 +89,7 @@ type TemplateVersionParameterOption struct {
 type TemplateVersionVariable struct {
 	Name         string `json:"name"`
 	Description  string `json:"description"`
-	Type         string `json:"type" enums:"string,number,bool"`
+	Type         string `json:"type"          enums:"string,number,bool"`
 	Value        string `json:"value"`
 	DefaultValue string `json:"default_value"`
 	Required     bool   `json:"required"`
@@ -97,7 +97,7 @@ type TemplateVersionVariable struct {
 }
 
 type PatchTemplateVersionRequest struct {
-	Name    string  `json:"name" validate:"omitempty,template_version_name"`
+	Name    string  `json:"name"              validate:"omitempty,template_version_name"`
 	Message *string `json:"message,omitempty" validate:"omitempty,lt=1048577"`
 }
 

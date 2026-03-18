@@ -350,11 +350,11 @@ func displaySchedule(ws codersdk.Workspace, out io.Writer) error {
 // scheduleListRow is a row in the schedule list.
 // this is required for proper JSON output.
 type scheduleListRow struct {
-	WorkspaceName string `json:"workspace" table:"workspace,default_sort"`
-	StartsAt      string `json:"starts_at" table:"starts at"`
+	WorkspaceName string `json:"workspace"   table:"workspace,default_sort"`
+	StartsAt      string `json:"starts_at"   table:"starts at"`
 	StartsNext    string `json:"starts_next" table:"starts next"`
 	StopsAfter    string `json:"stops_after" table:"stops after"`
-	StopsNext     string `json:"stops_next" table:"stops next"`
+	StopsNext     string `json:"stops_next"  table:"stops next"`
 }
 
 func scheduleListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) scheduleListRow {

@@ -169,7 +169,7 @@ type SCIMUser struct {
 	} `json:"name"`
 	Emails []struct {
 		Primary bool   `json:"primary"`
-		Value   string `json:"value" format:"email"`
+		Value   string `json:"value"   format:"email"`
 		Type    string `json:"type"`
 		Display string `json:"display"`
 	} `json:"emails"`

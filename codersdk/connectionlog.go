@@ -12,12 +12,12 @@ import (
 )
 
 type ConnectionLog struct {
-	ID                     uuid.UUID           `json:"id" format:"uuid"`
-	ConnectTime            time.Time           `json:"connect_time" format:"date-time"`
+	ID                     uuid.UUID           `json:"id"                       format:"uuid"`
+	ConnectTime            time.Time           `json:"connect_time"             format:"date-time"`
 	Organization           MinimalOrganization `json:"organization"`
-	WorkspaceOwnerID       uuid.UUID           `json:"workspace_owner_id" format:"uuid"`
+	WorkspaceOwnerID       uuid.UUID           `json:"workspace_owner_id"       format:"uuid"`
 	WorkspaceOwnerUsername string              `json:"workspace_owner_username"`
-	WorkspaceID            uuid.UUID           `json:"workspace_id" format:"uuid"`
+	WorkspaceID            uuid.UUID           `json:"workspace_id"             format:"uuid"`
 	WorkspaceName          string              `json:"workspace_name"`
 	AgentName              string              `json:"agent_name"`
 	IP                     *netip.Addr         `json:"ip,omitempty"`

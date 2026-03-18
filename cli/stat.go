@@ -284,9 +284,9 @@ func (*RootCmd) statDisk(fs afero.Fs) *serpent.Command {
 }
 
 type statsRow struct {
-	HostCPU         *clistat.Result `json:"host_cpu" table:"host cpu,default_sort"`
-	HostMemory      *clistat.Result `json:"host_memory" table:"host memory"`
-	Disk            *clistat.Result `json:"home_disk" table:"home disk"`
-	ContainerCPU    *clistat.Result `json:"container_cpu" table:"container cpu"`
+	HostCPU         *clistat.Result `json:"host_cpu"         table:"host cpu,default_sort"`
+	HostMemory      *clistat.Result `json:"host_memory"      table:"host memory"`
+	Disk            *clistat.Result `json:"home_disk"        table:"home disk"`
+	ContainerCPU    *clistat.Result `json:"container_cpu"    table:"container cpu"`
 	ContainerMemory *clistat.Result `json:"container_memory" table:"container memory"`
 }

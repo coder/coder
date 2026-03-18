@@ -17,8 +17,8 @@ import (
 func NewLicenseFormatter() *cliui.OutputFormatter {
 	type tableLicense struct {
 		ID         int32     `table:"id,default_sort"`
-		UUID       uuid.UUID `table:"uuid" format:"uuid"`
-		UploadedAt time.Time `table:"uploaded at" format:"date-time"`
+		UUID       uuid.UUID `table:"uuid"            format:"uuid"`
+		UploadedAt time.Time `table:"uploaded at"     format:"date-time"`
 		// Features is the formatted string for the license claims.
 		// Used for the table view.
 		Features  string    `table:"features"`

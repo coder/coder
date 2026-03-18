@@ -28,21 +28,21 @@ const (
 // Workspace is a deployment of a template. It references a specific
 // version and can be updated.
 type Workspace struct {
-	ID        uuid.UUID `json:"id" format:"uuid"`
+	ID        uuid.UUID `json:"id"         format:"uuid"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
-	OwnerID   uuid.UUID `json:"owner_id" format:"uuid"`
+	OwnerID   uuid.UUID `json:"owner_id"   format:"uuid"`
 	// OwnerName is the username of the owner of the workspace.
 	OwnerName                            string              `json:"owner_name"`
 	OwnerAvatarURL                       string              `json:"owner_avatar_url"`
-	OrganizationID                       uuid.UUID           `json:"organization_id" format:"uuid"`
+	OrganizationID                       uuid.UUID           `json:"organization_id"                           format:"uuid"`
 	OrganizationName                     string              `json:"organization_name"`
-	TemplateID                           uuid.UUID           `json:"template_id" format:"uuid"`
+	TemplateID                           uuid.UUID           `json:"template_id"                               format:"uuid"`
 	TemplateName                         string              `json:"template_name"`
 	TemplateDisplayName                  string              `json:"template_display_name"`
 	TemplateIcon                         string              `json:"template_icon"`
 	TemplateAllowUserCancelWorkspaceJobs bool                `json:"template_allow_user_cancel_workspace_jobs"`
-	TemplateActiveVersionID              uuid.UUID           `json:"template_active_version_id" format:"uuid"`
+	TemplateActiveVersionID              uuid.UUID           `json:"template_active_version_id"                format:"uuid"`
 	TemplateRequireActiveVersion         bool                `json:"template_require_active_version"`
 	TemplateUseClassicParameterFlow      bool                `json:"template_use_classic_parameter_flow"`
 	LatestBuild                          WorkspaceBuild      `json:"latest_build"`
@@ -51,7 +51,7 @@ type Workspace struct {
 	Name                                 string              `json:"name"`
 	AutostartSchedule                    *string             `json:"autostart_schedule,omitempty"`
 	TTLMillis                            *int64              `json:"ttl_ms,omitempty"`
-	LastUsedAt                           time.Time           `json:"last_used_at" format:"date-time"`
+	LastUsedAt                           time.Time           `json:"last_used_at"                              format:"date-time"`
 	// DeletingAt indicates the time at which the workspace will be permanently deleted.
 	// A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value)
 	// and a value has been specified for time_til_dormant_autodelete on its template.
@@ -67,7 +67,7 @@ type Workspace struct {
 	AutomaticUpdates AutomaticUpdates `json:"automatic_updates" enums:"always,never"`
 	AllowRenames     bool             `json:"allow_renames"`
 	Favorite         bool             `json:"favorite"`
-	NextStartAt      *time.Time       `json:"next_start_at" format:"date-time"`
+	NextStartAt      *time.Time       `json:"next_start_at"     format:"date-time"`
 	// IsPrebuild indicates whether the workspace is a prebuilt workspace.
 	// Prebuilt workspaces are owned by the prebuilds system user and have specific behavior,
 	// such as being managed differently from regular workspaces.
@@ -84,8 +84,8 @@ func (w Workspace) FullName() string {
 }
 
 type WorkspaceHealth struct {
-	Healthy       bool        `json:"healthy" example:"false"`      // Healthy is true if the workspace is healthy.
-	FailingAgents []uuid.UUID `json:"failing_agents" format:"uuid"` // FailingAgents lists the IDs of the agents that are failing, if any.
+	Healthy       bool        `json:"healthy"        example:"false"` // Healthy is true if the workspace is healthy.
+	FailingAgents []uuid.UUID `json:"failing_agents" format:"uuid"`   // FailingAgents lists the IDs of the agents that are failing, if any.
 }
 
 type WorkspacesRequest struct {
@@ -119,7 +119,7 @@ const (
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
 	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty" format:"uuid"`
-	Transition        WorkspaceTransition `json:"transition" validate:"oneof=start stop delete,required"`
+	Transition        WorkspaceTransition `json:"transition"                    validate:"oneof=start stop delete,required"`
 	DryRun            bool                `json:"dry_run,omitempty"`
 	ProvisionerState  []byte              `json:"state,omitempty"`
 	// Orphan may be set for the Destroy transition.
@@ -701,8 +701,8 @@ type WorkspaceUser struct {
 }
 
 type SharedWorkspaceActor struct {
-	ID        uuid.UUID                `json:"id" format:"uuid"`
-	ActorType SharedWorkspaceActorType `json:"actor_type" enums:"group,user"`
+	ID        uuid.UUID                `json:"id"                   format:"uuid"`
+	ActorType SharedWorkspaceActorType `json:"actor_type"           enums:"group,user"`
 	Name      string                   `json:"name"`
 	AvatarURL string                   `json:"avatar_url,omitempty" format:"uri"`
 	Roles     []WorkspaceRole          `json:"roles"`
@@ -795,9 +795,9 @@ func (c *Client) WorkspaceExternalAgentCredentials(ctx context.Context, workspac
 // This is published via the /watch-all-workspacebuilds SSE endpoint when the
 // workspace-build-updates experiment is enabled.
 type WorkspaceBuildUpdate struct {
-	WorkspaceID   uuid.UUID `json:"workspace_id" format:"uuid"`
+	WorkspaceID   uuid.UUID `json:"workspace_id"   format:"uuid"`
 	WorkspaceName string    `json:"workspace_name"`
-	BuildID       uuid.UUID `json:"build_id" format:"uuid"`
+	BuildID       uuid.UUID `json:"build_id"       format:"uuid"`
 	// Transition is the workspace transition type: "start", "stop", or "delete".
 	Transition string `json:"transition"`
 	// JobStatus is the provisioner job status: "pending", "running",

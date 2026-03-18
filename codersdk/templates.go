@@ -15,17 +15,17 @@ import (
 // Template is the JSON representation of a Coder template. This type matches the
 // database object for now, but is abstracted for ease of change later on.
 type Template struct {
-	ID                      uuid.UUID       `json:"id" format:"uuid"`
-	CreatedAt               time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt               time.Time       `json:"updated_at" format:"date-time"`
-	OrganizationID          uuid.UUID       `json:"organization_id" format:"uuid"`
-	OrganizationName        string          `json:"organization_name" format:"url"`
+	ID                      uuid.UUID       `json:"id"                        format:"uuid"`
+	CreatedAt               time.Time       `json:"created_at"                format:"date-time"`
+	UpdatedAt               time.Time       `json:"updated_at"                format:"date-time"`
+	OrganizationID          uuid.UUID       `json:"organization_id"           format:"uuid"`
+	OrganizationName        string          `json:"organization_name"         format:"url"`
 	OrganizationDisplayName string          `json:"organization_display_name"`
 	OrganizationIcon        string          `json:"organization_icon"`
 	Name                    string          `json:"name"`
 	DisplayName             string          `json:"display_name"`
-	Provisioner             ProvisionerType `json:"provisioner" enums:"terraform"`
-	ActiveVersionID         uuid.UUID       `json:"active_version_id" format:"uuid"`
+	Provisioner             ProvisionerType `json:"provisioner"               enums:"terraform"`
+	ActiveVersionID         uuid.UUID       `json:"active_version_id"         format:"uuid"`
 	// ActiveUserCount is set to -1 when loading.
 	ActiveUserCount    int                    `json:"active_user_count"`
 	BuildTimeStats     TemplateBuildTimeStats `json:"build_time_stats"`
@@ -41,7 +41,7 @@ type Template struct {
 	// scheduling feature.
 	AutostopRequirement  TemplateAutostopRequirement  `json:"autostop_requirement"`
 	AutostartRequirement TemplateAutostartRequirement `json:"autostart_requirement"`
-	CreatedByID          uuid.UUID                    `json:"created_by_id" format:"uuid"`
+	CreatedByID          uuid.UUID                    `json:"created_by_id"         format:"uuid"`
 	CreatedByName        string                       `json:"created_by_name"`
 
 	// AllowUserAutostart and AllowUserAutostop are enterprise-only. Their
@@ -170,7 +170,7 @@ type ArchiveTemplateVersionsRequest struct {
 }
 
 type ArchiveTemplateVersionsResponse struct {
-	TemplateID  uuid.UUID   `json:"template_id" format:"uuid"`
+	TemplateID  uuid.UUID   `json:"template_id"  format:"uuid"`
 	ArchivedIDs []uuid.UUID `json:"archived_ids"`
 }
 
@@ -216,8 +216,8 @@ type ACLAvailable struct {
 }
 
 type UpdateTemplateMeta struct {
-	Name             string  `json:"name,omitempty" validate:"omitempty,template_name"`
-	DisplayName      *string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
+	Name             string  `json:"name,omitempty"           validate:"omitempty,template_name"`
+	DisplayName      *string `json:"display_name,omitempty"   validate:"omitempty,template_display_name"`
 	Description      *string `json:"description,omitempty"`
 	Icon             *string `json:"icon,omitempty"`
 	DefaultTTLMillis int64   `json:"default_ttl_ms,omitempty"`
@@ -274,7 +274,7 @@ type UpdateTemplateMeta struct {
 }
 
 type TemplateExample struct {
-	ID          string   `json:"id" format:"uuid"`
+	ID          string   `json:"id"          format:"uuid"`
 	URL         string   `json:"url"`
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
@@ -419,7 +419,7 @@ func (c *Client) UpdateActiveTemplateVersion(ctx context.Context, template uuid.
 // TemplateVersionsByTemplateRequest defines the request parameters for
 // TemplateVersionsByTemplate.
 type TemplateVersionsByTemplateRequest struct {
-	TemplateID      uuid.UUID `json:"template_id" validate:"required" format:"uuid"`
+	TemplateID      uuid.UUID `json:"template_id"      validate:"required" format:"uuid"`
 	IncludeArchived bool      `json:"include_archived"`
 	Pagination
 }

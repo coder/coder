@@ -178,13 +178,13 @@ type AuditDiffField struct {
 }
 
 type AuditLog struct {
-	ID           uuid.UUID    `json:"id" format:"uuid"`
-	RequestID    uuid.UUID    `json:"request_id" format:"uuid"`
-	Time         time.Time    `json:"time" format:"date-time"`
+	ID           uuid.UUID    `json:"id"            format:"uuid"`
+	RequestID    uuid.UUID    `json:"request_id"    format:"uuid"`
+	Time         time.Time    `json:"time"          format:"date-time"`
 	IP           netip.Addr   `json:"ip"`
 	UserAgent    string       `json:"user_agent"`
 	ResourceType ResourceType `json:"resource_type"`
-	ResourceID   uuid.UUID    `json:"resource_id" format:"uuid"`
+	ResourceID   uuid.UUID    `json:"resource_id"   format:"uuid"`
 	// ResourceTarget is the name of the resource.
 	ResourceTarget   string          `json:"resource_target"`
 	ResourceIcon     string          `json:"resource_icon"`
@@ -215,14 +215,14 @@ type AuditLogResponse struct {
 }
 
 type CreateTestAuditLogRequest struct {
-	Action           AuditAction     `json:"action,omitempty" enums:"create,write,delete,start,stop"`
-	ResourceType     ResourceType    `json:"resource_type,omitempty" enums:"template,template_version,user,workspace,workspace_build,git_ssh_key,auditable_group"`
-	ResourceID       uuid.UUID       `json:"resource_id,omitempty" format:"uuid"`
+	Action           AuditAction     `json:"action,omitempty"            enums:"create,write,delete,start,stop"`
+	ResourceType     ResourceType    `json:"resource_type,omitempty"     enums:"template,template_version,user,workspace,workspace_build,git_ssh_key,auditable_group"`
+	ResourceID       uuid.UUID       `json:"resource_id,omitempty"       format:"uuid"`
 	AdditionalFields json.RawMessage `json:"additional_fields,omitempty"`
-	Time             time.Time       `json:"time,omitempty" format:"date-time"`
-	BuildReason      BuildReason     `json:"build_reason,omitempty" enums:"autostart,autostop,initiator"`
-	OrganizationID   uuid.UUID       `json:"organization_id,omitempty" format:"uuid"`
-	RequestID        uuid.UUID       `json:"request_id,omitempty" format:"uuid"`
+	Time             time.Time       `json:"time,omitempty"              format:"date-time"`
+	BuildReason      BuildReason     `json:"build_reason,omitempty"      enums:"autostart,autostop,initiator"`
+	OrganizationID   uuid.UUID       `json:"organization_id,omitempty"   format:"uuid"`
+	RequestID        uuid.UUID       `json:"request_id,omitempty"        format:"uuid"`
 }
 
 // AuditLogs retrieves audit logs from the given page.
