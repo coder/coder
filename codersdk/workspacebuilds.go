@@ -73,30 +73,30 @@ const (
 // WorkspaceBuild is an at-point representation of a workspace state.
 // BuildNumbers start at 1 and increase by 1 for each subsequent build
 type WorkspaceBuild struct {
-	ID               uuid.UUID `json:"id" format:"uuid"`
-	CreatedAt        time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
-	WorkspaceID      uuid.UUID `json:"workspace_id" format:"uuid"`
+	ID               uuid.UUID `json:"id"                 format:"uuid"`
+	CreatedAt        time.Time `json:"created_at"         format:"date-time"`
+	UpdatedAt        time.Time `json:"updated_at"         format:"date-time"`
+	WorkspaceID      uuid.UUID `json:"workspace_id"       format:"uuid"`
 	WorkspaceName    string    `json:"workspace_name"`
 	WorkspaceOwnerID uuid.UUID `json:"workspace_owner_id" format:"uuid"`
 	// WorkspaceOwnerName is the username of the owner of the workspace.
 	WorkspaceOwnerName      string               `json:"workspace_owner_name"`
 	WorkspaceOwnerAvatarURL string               `json:"workspace_owner_avatar_url,omitempty"`
-	TemplateVersionID       uuid.UUID            `json:"template_version_id" format:"uuid"`
+	TemplateVersionID       uuid.UUID            `json:"template_version_id"                                                                                                                           format:"uuid"`
 	TemplateVersionName     string               `json:"template_version_name"`
 	BuildNumber             int32                `json:"build_number"`
-	Transition              WorkspaceTransition  `json:"transition" enums:"start,stop,delete"`
-	InitiatorID             uuid.UUID            `json:"initiator_id" format:"uuid"`
+	Transition              WorkspaceTransition  `json:"transition"                                       enums:"start,stop,delete"`
+	InitiatorID             uuid.UUID            `json:"initiator_id"                                                                                                                                  format:"uuid"`
 	InitiatorUsername       string               `json:"initiator_name"`
 	Job                     ProvisionerJob       `json:"job"`
-	Reason                  BuildReason          `db:"reason" json:"reason" enums:"initiator,autostart,autostop"`
+	Reason                  BuildReason          `json:"reason"                               db:"reason" enums:"initiator,autostart,autostop"`
 	Resources               []WorkspaceResource  `json:"resources"`
-	Deadline                NullTime             `json:"deadline,omitempty" format:"date-time"`
-	MaxDeadline             NullTime             `json:"max_deadline,omitempty" format:"date-time"`
-	Status                  WorkspaceStatus      `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
+	Deadline                NullTime             `json:"deadline,omitempty"                                                                                                                            format:"date-time"`
+	MaxDeadline             NullTime             `json:"max_deadline,omitempty"                                                                                                                        format:"date-time"`
+	Status                  WorkspaceStatus      `json:"status"                                           enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
 	DailyCost               int32                `json:"daily_cost"`
 	MatchedProvisioners     *MatchedProvisioners `json:"matched_provisioners,omitempty"`
-	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id" format:"uuid"`
+	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id"                                                                                                                    format:"uuid"`
 	// Deprecated: This field has been deprecated in favor of Task WorkspaceID.
 	HasAITask        *bool `json:"has_ai_task,omitempty"`
 	HasExternalAgent *bool `json:"has_external_agent,omitempty"`
@@ -105,9 +105,9 @@ type WorkspaceBuild struct {
 // WorkspaceResource describes resources used to create a workspace, for instance:
 // containers, images, volumes.
 type WorkspaceResource struct {
-	ID         uuid.UUID                   `json:"id" format:"uuid"`
-	CreatedAt  time.Time                   `json:"created_at" format:"date-time"`
-	JobID      uuid.UUID                   `json:"job_id" format:"uuid"`
+	ID         uuid.UUID                   `json:"id"                                             format:"uuid"`
+	CreatedAt  time.Time                   `json:"created_at"                                     format:"date-time"`
+	JobID      uuid.UUID                   `json:"job_id"                                         format:"uuid"`
 	Transition WorkspaceTransition         `json:"workspace_transition" enums:"start,stop,delete"`
 	Type       string                      `json:"type"`
 	Name       string                      `json:"name"`
@@ -262,9 +262,9 @@ const (
 )
 
 type ProvisionerTiming struct {
-	JobID     uuid.UUID   `json:"job_id" format:"uuid"`
+	JobID     uuid.UUID   `json:"job_id"     format:"uuid"`
 	StartedAt time.Time   `json:"started_at" format:"date-time"`
-	EndedAt   time.Time   `json:"ended_at" format:"date-time"`
+	EndedAt   time.Time   `json:"ended_at"   format:"date-time"`
 	Stage     TimingStage `json:"stage"`
 	Source    string      `json:"source"`
 	Action    string      `json:"action"`
@@ -272,8 +272,8 @@ type ProvisionerTiming struct {
 }
 
 type AgentScriptTiming struct {
-	StartedAt          time.Time   `json:"started_at" format:"date-time"`
-	EndedAt            time.Time   `json:"ended_at" format:"date-time"`
+	StartedAt          time.Time   `json:"started_at"           format:"date-time"`
+	EndedAt            time.Time   `json:"ended_at"             format:"date-time"`
 	ExitCode           int32       `json:"exit_code"`
 	Stage              TimingStage `json:"stage"`
 	Status             string      `json:"status"`
@@ -283,8 +283,8 @@ type AgentScriptTiming struct {
 }
 
 type AgentConnectionTiming struct {
-	StartedAt          time.Time   `json:"started_at" format:"date-time"`
-	EndedAt            time.Time   `json:"ended_at" format:"date-time"`
+	StartedAt          time.Time   `json:"started_at"           format:"date-time"`
+	EndedAt            time.Time   `json:"ended_at"             format:"date-time"`
 	Stage              TimingStage `json:"stage"`
 	WorkspaceAgentID   string      `json:"workspace_agent_id"`
 	WorkspaceAgentName string      `json:"workspace_agent_name"`

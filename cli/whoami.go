@@ -11,13 +11,13 @@ import (
 )
 
 type whoamiRow struct {
-	URL                 string              `json:"url" table:"URL,default_sort"`
-	Username            string              `json:"username" table:"Username"`
-	UserID              string              `json:"user_id" table:"ID"`
-	OrganizationIDs     string              `json:"-" table:"Orgs"`
+	URL                 string              `json:"url"              table:"URL,default_sort"`
+	Username            string              `json:"username"         table:"Username"`
+	UserID              string              `json:"user_id"          table:"ID"`
+	OrganizationIDs     string              `json:"-"                table:"Orgs"`
 	OrganizationIDsJSON []string            `json:"organization_ids" table:"-"`
-	Roles               string              `json:"-" table:"Roles"`
-	RolesJSON           map[string][]string `json:"roles" table:"-"`
+	Roles               string              `json:"-"                table:"Roles"`
+	RolesJSON           map[string][]string `json:"roles"            table:"-"`
 }
 
 func (r whoamiRow) String() string {

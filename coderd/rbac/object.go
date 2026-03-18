@@ -38,8 +38,8 @@ type Object struct {
 	// Type is "workspace", "project", "app", etc
 	Type string `json:"type"`
 
-	ACLUserList  map[string][]policy.Action ` json:"acl_user_list"`
-	ACLGroupList map[string][]policy.Action ` json:"acl_group_list"`
+	ACLUserList  map[string][]policy.Action `json:"acl_user_list"`
+	ACLGroupList map[string][]policy.Action `json:"acl_group_list"`
 }
 
 // String is not perfect, but decent enough for human display

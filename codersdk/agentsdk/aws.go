@@ -13,7 +13,7 @@ import (
 
 type AWSInstanceIdentityToken struct {
 	Signature string `json:"signature" validate:"required"`
-	Document  string `json:"document" validate:"required"`
+	Document  string `json:"document"  validate:"required"`
 }
 
 // AWSSessionTokenExchanger exchanges AWS instance metadata for a Coder session token.

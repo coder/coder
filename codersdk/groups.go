@@ -20,14 +20,14 @@ const (
 )
 
 type CreateGroupRequest struct {
-	Name           string `json:"name" validate:"required,group_name"`
-	DisplayName    string `json:"display_name" validate:"omitempty,group_display_name"`
+	Name           string `json:"name"            validate:"required,group_name"`
+	DisplayName    string `json:"display_name"    validate:"omitempty,group_display_name"`
 	AvatarURL      string `json:"avatar_url"`
 	QuotaAllowance int    `json:"quota_allowance"`
 }
 
 type Group struct {
-	ID             uuid.UUID     `json:"id" format:"uuid"`
+	ID             uuid.UUID     `json:"id"              format:"uuid"`
 	Name           string        `json:"name"`
 	DisplayName    string        `json:"display_name"`
 	OrganizationID uuid.UUID     `json:"organization_id" format:"uuid"`
@@ -36,7 +36,7 @@ type Group struct {
 	// even if the user is not authorized to read group member details.
 	// May be greater than `len(Group.Members)`.
 	TotalMemberCount        int         `json:"total_member_count"`
-	AvatarURL               string      `json:"avatar_url" format:"uri"`
+	AvatarURL               string      `json:"avatar_url"                format:"uri"`
 	QuotaAllowance          int         `json:"quota_allowance"`
 	Source                  GroupSource `json:"source"`
 	OrganizationName        string      `json:"organization_name"`
@@ -150,8 +150,8 @@ func (c *Client) Group(ctx context.Context, group uuid.UUID) (Group, error) {
 type PatchGroupRequest struct {
 	AddUsers       []string `json:"add_users"`
 	RemoveUsers    []string `json:"remove_users"`
-	Name           string   `json:"name" validate:"omitempty,group_name"`
-	DisplayName    *string  `json:"display_name" validate:"omitempty,group_display_name"`
+	Name           string   `json:"name"            validate:"omitempty,group_name"`
+	DisplayName    *string  `json:"display_name"    validate:"omitempty,group_display_name"`
 	AvatarURL      *string  `json:"avatar_url"`
 	QuotaAllowance *int     `json:"quota_allowance"`
 }

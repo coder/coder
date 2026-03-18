@@ -161,14 +161,14 @@ type tokenListRow struct {
 	codersdk.APIKey `table:"-"`
 
 	// For table format:
-	ID        string    `json:"-" table:"id,default_sort"`
+	ID        string    `json:"-"          table:"id,default_sort"`
 	TokenName string    `json:"token_name" table:"name"`
-	Scopes    string    `json:"-" table:"scopes"`
-	Allow     string    `json:"-" table:"allow list"`
-	LastUsed  time.Time `json:"-" table:"last used"`
-	ExpiresAt time.Time `json:"-" table:"expires at"`
-	CreatedAt time.Time `json:"-" table:"created at"`
-	Owner     string    `json:"-" table:"owner"`
+	Scopes    string    `json:"-"          table:"scopes"`
+	Allow     string    `json:"-"          table:"allow list"`
+	LastUsed  time.Time `json:"-"          table:"last used"`
+	ExpiresAt time.Time `json:"-"          table:"expires at"`
+	CreatedAt time.Time `json:"-"          table:"created at"`
+	Owner     string    `json:"-"          table:"owner"`
 }
 
 func tokenListRowFromToken(token codersdk.APIKeyWithOwner) tokenListRow {

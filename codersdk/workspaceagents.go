@@ -137,19 +137,19 @@ const (
 )
 
 type WorkspaceAgent struct {
-	ID                   uuid.UUID               `json:"id" format:"uuid"`
-	ParentID             uuid.NullUUID           `json:"parent_id" format:"uuid"`
-	CreatedAt            time.Time               `json:"created_at" format:"date-time"`
-	UpdatedAt            time.Time               `json:"updated_at" format:"date-time"`
+	ID                   uuid.UUID               `json:"id"                           format:"uuid"`
+	ParentID             uuid.NullUUID           `json:"parent_id"                    format:"uuid"`
+	CreatedAt            time.Time               `json:"created_at"                   format:"date-time"`
+	UpdatedAt            time.Time               `json:"updated_at"                   format:"date-time"`
 	FirstConnectedAt     *time.Time              `json:"first_connected_at,omitempty" format:"date-time"`
-	LastConnectedAt      *time.Time              `json:"last_connected_at,omitempty" format:"date-time"`
-	DisconnectedAt       *time.Time              `json:"disconnected_at,omitempty" format:"date-time"`
-	StartedAt            *time.Time              `json:"started_at,omitempty" format:"date-time"`
-	ReadyAt              *time.Time              `json:"ready_at,omitempty" format:"date-time"`
+	LastConnectedAt      *time.Time              `json:"last_connected_at,omitempty"  format:"date-time"`
+	DisconnectedAt       *time.Time              `json:"disconnected_at,omitempty"    format:"date-time"`
+	StartedAt            *time.Time              `json:"started_at,omitempty"         format:"date-time"`
+	ReadyAt              *time.Time              `json:"ready_at,omitempty"           format:"date-time"`
 	Status               WorkspaceAgentStatus    `json:"status"`
 	LifecycleState       WorkspaceAgentLifecycle `json:"lifecycle_state"`
 	Name                 string                  `json:"name"`
-	ResourceID           uuid.UUID               `json:"resource_id" format:"uuid"`
+	ResourceID           uuid.UUID               `json:"resource_id"                  format:"uuid"`
 	InstanceID           string                  `json:"instance_id,omitempty"`
 	Architecture         string                  `json:"architecture"`
 	EnvironmentVariables map[string]string       `json:"environment_variables"`
@@ -179,15 +179,15 @@ type WorkspaceAgent struct {
 
 type WorkspaceAgentLogSource struct {
 	WorkspaceAgentID uuid.UUID `json:"workspace_agent_id" format:"uuid"`
-	ID               uuid.UUID `json:"id" format:"uuid"`
-	CreatedAt        time.Time `json:"created_at" format:"date-time"`
+	ID               uuid.UUID `json:"id"                 format:"uuid"`
+	CreatedAt        time.Time `json:"created_at"         format:"date-time"`
 	DisplayName      string    `json:"display_name"`
 	Icon             string    `json:"icon"`
 }
 
 type WorkspaceAgentScript struct {
-	ID               uuid.UUID     `json:"id" format:"uuid"`
-	LogSourceID      uuid.UUID     `json:"log_source_id" format:"uuid"`
+	ID               uuid.UUID     `json:"id"                 format:"uuid"`
+	LogSourceID      uuid.UUID     `json:"log_source_id"      format:"uuid"`
 	LogPath          string        `json:"log_path"`
 	Script           string        `json:"script"`
 	Cron             string        `json:"cron"`
@@ -199,7 +199,7 @@ type WorkspaceAgentScript struct {
 }
 
 type WorkspaceAgentHealth struct {
-	Healthy bool   `json:"healthy" example:"false"`                              // Healthy is true if the agent is healthy.
+	Healthy bool   `json:"healthy"          example:"false"`                     // Healthy is true if the agent is healthy.
 	Reason  string `json:"reason,omitempty" example:"agent has lost connection"` // Reason is a human-readable explanation of the agent's health. It is empty if Healthy is true.
 }
 
@@ -213,7 +213,7 @@ type WorkspaceAgentLog struct {
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	Output    string    `json:"output"`
 	Level     LogLevel  `json:"level"`
-	SourceID  uuid.UUID `json:"source_id" format:"uuid"`
+	SourceID  uuid.UUID `json:"source_id"  format:"uuid"`
 }
 
 // Text formats the log entry as human-readable text.
@@ -362,7 +362,7 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 
 type IssueReconnectingPTYSignedTokenRequest struct {
 	// URL is the URL of the reconnecting-pty endpoint you are connecting to.
-	URL     string    `json:"url" validate:"required"`
+	URL     string    `json:"url"                   validate:"required"`
 	AgentID uuid.UUID `json:"agentID" format:"uuid" validate:"required"`
 }
 
@@ -439,7 +439,7 @@ func (s WorkspaceAgentDevcontainerStatus) Transitioning() bool {
 // WorkspaceAgentDevcontainer defines the location of a devcontainer
 // configuration in a workspace that is visible to the workspace agent.
 type WorkspaceAgentDevcontainer struct {
-	ID              uuid.UUID     `json:"id" format:"uuid"`
+	ID              uuid.UUID     `json:"id"                    format:"uuid"`
 	Name            string        `json:"name"`
 	WorkspaceFolder string        `json:"workspace_folder"`
 	ConfigPath      string        `json:"config_path,omitempty"`
@@ -477,7 +477,7 @@ func (d WorkspaceAgentDevcontainer) IsTerraformDefined() bool {
 // WorkspaceAgentDevcontainerAgent represents the sub agent for a
 // devcontainer.
 type WorkspaceAgentDevcontainerAgent struct {
-	ID        uuid.UUID `json:"id" format:"uuid"`
+	ID        uuid.UUID `json:"id"        format:"uuid"`
 	Name      string    `json:"name"`
 	Directory string    `json:"directory"`
 }
@@ -731,7 +731,7 @@ const (
 // the client over the git watch WebSocket.
 type WorkspaceAgentGitServerMessage struct {
 	Type         WorkspaceAgentGitServerMessageType `json:"type"`
-	ScannedAt    *time.Time                         `json:"scanned_at,omitempty" format:"date-time"`
+	ScannedAt    *time.Time                         `json:"scanned_at,omitempty"   format:"date-time"`
 	Repositories []WorkspaceAgentRepoChanges        `json:"repositories,omitempty"`
 	Message      string                             `json:"message,omitempty"`
 }

@@ -10,7 +10,7 @@ import (
 
 type AzureInstanceIdentityToken struct {
 	Signature string `json:"signature" validate:"required"`
-	Encoding  string `json:"encoding" validate:"required"`
+	Encoding  string `json:"encoding"  validate:"required"`
 }
 
 // AzureSessionTokenExchanger exchanges Azure attested metadata for a Coder session token.

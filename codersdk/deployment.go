@@ -386,8 +386,8 @@ type Feature struct {
 
 type UsagePeriod struct {
 	IssuedAt time.Time `json:"issued_at" format:"date-time"`
-	Start    time.Time `json:"start" format:"date-time"`
-	End      time.Time `json:"end" format:"date-time"`
+	Start    time.Time `json:"start"     format:"date-time"`
+	End      time.Time `json:"end"       format:"date-time"`
 }
 
 // Compare compares two features and returns an integer representing
@@ -499,7 +499,7 @@ type Entitlements struct {
 	HasLicense       bool                    `json:"has_license"`
 	Trial            bool                    `json:"trial"`
 	RequireTelemetry bool                    `json:"require_telemetry"`
-	RefreshedAt      time.Time               `json:"refreshed_at" format:"date-time"`
+	RefreshedAt      time.Time               `json:"refreshed_at"      format:"date-time"`
 }
 
 // AddFeature will add the feature to the entitlements iff it expands
@@ -579,71 +579,71 @@ type DeploymentValues struct {
 	DocsURL             serpent.URL    `json:"docs_url,omitempty"`
 	RedirectToAccessURL serpent.Bool   `json:"redirect_to_access_url,omitempty"`
 	// HTTPAddress is a string because it may be set to zero to disable.
-	HTTPAddress                             serpent.String                       `json:"http_address,omitempty" typescript:",notnull"`
+	HTTPAddress                             serpent.String                       `json:"http_address,omitempty"                                 typescript:",notnull"`
 	AutobuildPollInterval                   serpent.Duration                     `json:"autobuild_poll_interval,omitempty"`
 	JobReaperDetectorInterval               serpent.Duration                     `json:"job_hang_detector_interval,omitempty"`
-	DERP                                    DERP                                 `json:"derp,omitempty" typescript:",notnull"`
-	Prometheus                              PrometheusConfig                     `json:"prometheus,omitempty" typescript:",notnull"`
-	Pprof                                   PprofConfig                          `json:"pprof,omitempty" typescript:",notnull"`
-	ProxyTrustedHeaders                     serpent.StringArray                  `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
-	ProxyTrustedOrigins                     serpent.StringArray                  `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
-	CacheDir                                serpent.String                       `json:"cache_directory,omitempty" typescript:",notnull"`
-	EphemeralDeployment                     serpent.Bool                         `json:"ephemeral_deployment,omitempty" typescript:",notnull"`
-	PostgresURL                             serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
-	PostgresAuth                            string                               `json:"pg_auth,omitempty" typescript:",notnull"`
-	PostgresConnMaxOpen                     serpent.Int64                        `json:"pg_conn_max_open,omitempty" typescript:",notnull"`
-	PostgresConnMaxIdle                     serpent.String                       `json:"pg_conn_max_idle,omitempty" typescript:",notnull"`
-	OAuth2                                  OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
-	OIDC                                    OIDCConfig                           `json:"oidc,omitempty" typescript:",notnull"`
-	Telemetry                               TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
-	TLS                                     TLSConfig                            `json:"tls,omitempty" typescript:",notnull"`
-	Trace                                   TraceConfig                          `json:"trace,omitempty" typescript:",notnull"`
-	HTTPCookies                             HTTPCookieConfig                     `json:"http_cookies,omitempty" typescript:",notnull"`
-	StrictTransportSecurity                 serpent.Int64                        `json:"strict_transport_security,omitempty" typescript:",notnull"`
-	StrictTransportSecurityOptions          serpent.StringArray                  `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
-	SSHKeygenAlgorithm                      serpent.String                       `json:"ssh_keygen_algorithm,omitempty" typescript:",notnull"`
-	MetricsCacheRefreshInterval             serpent.Duration                     `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
-	AgentStatRefreshInterval                serpent.Duration                     `json:"agent_stat_refresh_interval,omitempty" typescript:",notnull"`
-	AgentFallbackTroubleshootingURL         serpent.URL                          `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
-	BrowserOnly                             serpent.Bool                         `json:"browser_only,omitempty" typescript:",notnull"`
-	SCIMAPIKey                              serpent.String                       `json:"scim_api_key,omitempty" typescript:",notnull"`
-	ExternalTokenEncryptionKeys             serpent.StringArray                  `json:"external_token_encryption_keys,omitempty" typescript:",notnull"`
-	Provisioner                             ProvisionerConfig                    `json:"provisioner,omitempty" typescript:",notnull"`
-	RateLimit                               RateLimitConfig                      `json:"rate_limit,omitempty" typescript:",notnull"`
-	Experiments                             serpent.StringArray                  `json:"experiments,omitempty" typescript:",notnull"`
-	UpdateCheck                             serpent.Bool                         `json:"update_check,omitempty" typescript:",notnull"`
-	Swagger                                 SwaggerConfig                        `json:"swagger,omitempty" typescript:",notnull"`
-	Logging                                 LoggingConfig                        `json:"logging,omitempty" typescript:",notnull"`
-	Dangerous                               DangerousConfig                      `json:"dangerous,omitempty" typescript:",notnull"`
-	DisablePathApps                         serpent.Bool                         `json:"disable_path_apps,omitempty" typescript:",notnull"`
-	Sessions                                SessionLifetime                      `json:"session_lifetime,omitempty" typescript:",notnull"`
-	DisablePasswordAuth                     serpent.Bool                         `json:"disable_password_auth,omitempty" typescript:",notnull"`
-	Support                                 SupportConfig                        `json:"support,omitempty" typescript:",notnull"`
-	EnableAuthzRecording                    serpent.Bool                         `json:"enable_authz_recording,omitempty" typescript:",notnull"`
-	ExternalAuthConfigs                     serpent.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty" typescript:",notnull"`
+	DERP                                    DERP                                 `json:"derp,omitempty"                                         typescript:",notnull"`
+	Prometheus                              PrometheusConfig                     `json:"prometheus,omitempty"                                   typescript:",notnull"`
+	Pprof                                   PprofConfig                          `json:"pprof,omitempty"                                        typescript:",notnull"`
+	ProxyTrustedHeaders                     serpent.StringArray                  `json:"proxy_trusted_headers,omitempty"                        typescript:",notnull"`
+	ProxyTrustedOrigins                     serpent.StringArray                  `json:"proxy_trusted_origins,omitempty"                        typescript:",notnull"`
+	CacheDir                                serpent.String                       `json:"cache_directory,omitempty"                              typescript:",notnull"`
+	EphemeralDeployment                     serpent.Bool                         `json:"ephemeral_deployment,omitempty"                         typescript:",notnull"`
+	PostgresURL                             serpent.String                       `json:"pg_connection_url,omitempty"                            typescript:",notnull"`
+	PostgresAuth                            string                               `json:"pg_auth,omitempty"                                      typescript:",notnull"`
+	PostgresConnMaxOpen                     serpent.Int64                        `json:"pg_conn_max_open,omitempty"                             typescript:",notnull"`
+	PostgresConnMaxIdle                     serpent.String                       `json:"pg_conn_max_idle,omitempty"                             typescript:",notnull"`
+	OAuth2                                  OAuth2Config                         `json:"oauth2,omitempty"                                       typescript:",notnull"`
+	OIDC                                    OIDCConfig                           `json:"oidc,omitempty"                                         typescript:",notnull"`
+	Telemetry                               TelemetryConfig                      `json:"telemetry,omitempty"                                    typescript:",notnull"`
+	TLS                                     TLSConfig                            `json:"tls,omitempty"                                          typescript:",notnull"`
+	Trace                                   TraceConfig                          `json:"trace,omitempty"                                        typescript:",notnull"`
+	HTTPCookies                             HTTPCookieConfig                     `json:"http_cookies,omitempty"                                 typescript:",notnull"`
+	StrictTransportSecurity                 serpent.Int64                        `json:"strict_transport_security,omitempty"                    typescript:",notnull"`
+	StrictTransportSecurityOptions          serpent.StringArray                  `json:"strict_transport_security_options,omitempty"            typescript:",notnull"`
+	SSHKeygenAlgorithm                      serpent.String                       `json:"ssh_keygen_algorithm,omitempty"                         typescript:",notnull"`
+	MetricsCacheRefreshInterval             serpent.Duration                     `json:"metrics_cache_refresh_interval,omitempty"               typescript:",notnull"`
+	AgentStatRefreshInterval                serpent.Duration                     `json:"agent_stat_refresh_interval,omitempty"                  typescript:",notnull"`
+	AgentFallbackTroubleshootingURL         serpent.URL                          `json:"agent_fallback_troubleshooting_url,omitempty"           typescript:",notnull"`
+	BrowserOnly                             serpent.Bool                         `json:"browser_only,omitempty"                                 typescript:",notnull"`
+	SCIMAPIKey                              serpent.String                       `json:"scim_api_key,omitempty"                                 typescript:",notnull"`
+	ExternalTokenEncryptionKeys             serpent.StringArray                  `json:"external_token_encryption_keys,omitempty"               typescript:",notnull"`
+	Provisioner                             ProvisionerConfig                    `json:"provisioner,omitempty"                                  typescript:",notnull"`
+	RateLimit                               RateLimitConfig                      `json:"rate_limit,omitempty"                                   typescript:",notnull"`
+	Experiments                             serpent.StringArray                  `json:"experiments,omitempty"                                  typescript:",notnull"`
+	UpdateCheck                             serpent.Bool                         `json:"update_check,omitempty"                                 typescript:",notnull"`
+	Swagger                                 SwaggerConfig                        `json:"swagger,omitempty"                                      typescript:",notnull"`
+	Logging                                 LoggingConfig                        `json:"logging,omitempty"                                      typescript:",notnull"`
+	Dangerous                               DangerousConfig                      `json:"dangerous,omitempty"                                    typescript:",notnull"`
+	DisablePathApps                         serpent.Bool                         `json:"disable_path_apps,omitempty"                            typescript:",notnull"`
+	Sessions                                SessionLifetime                      `json:"session_lifetime,omitempty"                             typescript:",notnull"`
+	DisablePasswordAuth                     serpent.Bool                         `json:"disable_password_auth,omitempty"                        typescript:",notnull"`
+	Support                                 SupportConfig                        `json:"support,omitempty"                                      typescript:",notnull"`
+	EnableAuthzRecording                    serpent.Bool                         `json:"enable_authz_recording,omitempty"                       typescript:",notnull"`
+	ExternalAuthConfigs                     serpent.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty"                                typescript:",notnull"`
 	ExternalAuthGithubDefaultProviderEnable serpent.Bool                         `json:"external_auth_github_default_provider_enable,omitempty" typescript:",notnull"`
-	SSHConfig                               SSHConfig                            `json:"config_ssh,omitempty" typescript:",notnull"`
-	WgtunnelHost                            serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
-	DisableOwnerWorkspaceExec               serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
-	DisableWorkspaceSharing                 serpent.Bool                         `json:"disable_workspace_sharing,omitempty" typescript:",notnull"`
-	ProxyHealthStatusInterval               serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
-	EnableTerraformDebugMode                serpent.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
-	UserQuietHoursSchedule                  UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
-	WebTerminalRenderer                     serpent.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
-	AllowWorkspaceRenames                   serpent.Bool                         `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
-	Healthcheck                             HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
-	Retention                               RetentionConfig                      `json:"retention,omitempty" typescript:",notnull"`
-	CLIUpgradeMessage                       serpent.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
-	TermsOfServiceURL                       serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
-	Notifications                           NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
-	AdditionalCSPPolicy                     serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
-	WorkspaceHostnameSuffix                 serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
-	Prebuilds                               PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
-	HideAITasks                             serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
+	SSHConfig                               SSHConfig                            `json:"config_ssh,omitempty"                                   typescript:",notnull"`
+	WgtunnelHost                            serpent.String                       `json:"wgtunnel_host,omitempty"                                typescript:",notnull"`
+	DisableOwnerWorkspaceExec               serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty"                 typescript:",notnull"`
+	DisableWorkspaceSharing                 serpent.Bool                         `json:"disable_workspace_sharing,omitempty"                    typescript:",notnull"`
+	ProxyHealthStatusInterval               serpent.Duration                     `json:"proxy_health_status_interval,omitempty"                 typescript:",notnull"`
+	EnableTerraformDebugMode                serpent.Bool                         `json:"enable_terraform_debug_mode,omitempty"                  typescript:",notnull"`
+	UserQuietHoursSchedule                  UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty"                    typescript:",notnull"`
+	WebTerminalRenderer                     serpent.String                       `json:"web_terminal_renderer,omitempty"                        typescript:",notnull"`
+	AllowWorkspaceRenames                   serpent.Bool                         `json:"allow_workspace_renames,omitempty"                      typescript:",notnull"`
+	Healthcheck                             HealthcheckConfig                    `json:"healthcheck,omitempty"                                  typescript:",notnull"`
+	Retention                               RetentionConfig                      `json:"retention,omitempty"                                    typescript:",notnull"`
+	CLIUpgradeMessage                       serpent.String                       `json:"cli_upgrade_message,omitempty"                          typescript:",notnull"`
+	TermsOfServiceURL                       serpent.String                       `json:"terms_of_service_url,omitempty"                         typescript:",notnull"`
+	Notifications                           NotificationsConfig                  `json:"notifications,omitempty"                                typescript:",notnull"`
+	AdditionalCSPPolicy                     serpent.StringArray                  `json:"additional_csp_policy,omitempty"                        typescript:",notnull"`
+	WorkspaceHostnameSuffix                 serpent.String                       `json:"workspace_hostname_suffix,omitempty"                    typescript:",notnull"`
+	Prebuilds                               PrebuildsConfig                      `json:"workspace_prebuilds,omitempty"                          typescript:",notnull"`
+	HideAITasks                             serpent.Bool                         `json:"hide_ai_tasks,omitempty"                                typescript:",notnull"`
 	AI                                      AIConfig                             `json:"ai,omitempty"`
-	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
+	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty"                             typescript:",notnull"`
 
-	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
+	Config      serpent.YAMLConfigPath `json:"config,omitempty"       typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
 
 	// Deprecated: Use HTTPAddress or TLS.Address instead.
@@ -726,19 +726,19 @@ type DERP struct {
 }
 
 type DERPServerConfig struct {
-	Enable        serpent.Bool        `json:"enable" typescript:",notnull"`
-	RegionID      serpent.Int64       `json:"region_id" typescript:",notnull"`
-	RegionCode    serpent.String      `json:"region_code" typescript:",notnull"`
-	RegionName    serpent.String      `json:"region_name" typescript:",notnull"`
+	Enable        serpent.Bool        `json:"enable"         typescript:",notnull"`
+	RegionID      serpent.Int64       `json:"region_id"      typescript:",notnull"`
+	RegionCode    serpent.String      `json:"region_code"    typescript:",notnull"`
+	RegionName    serpent.String      `json:"region_name"    typescript:",notnull"`
 	STUNAddresses serpent.StringArray `json:"stun_addresses" typescript:",notnull"`
-	RelayURL      serpent.URL         `json:"relay_url" typescript:",notnull"`
+	RelayURL      serpent.URL         `json:"relay_url"      typescript:",notnull"`
 }
 
 type DERPConfig struct {
-	BlockDirect     serpent.Bool   `json:"block_direct" typescript:",notnull"`
+	BlockDirect     serpent.Bool   `json:"block_direct"     typescript:",notnull"`
 	ForceWebSockets serpent.Bool   `json:"force_websockets" typescript:",notnull"`
-	URL             serpent.String `json:"url" typescript:",notnull"`
-	Path            serpent.String `json:"path" typescript:",notnull"`
+	URL             serpent.String `json:"url"              typescript:",notnull"`
+	Path            serpent.String `json:"path"             typescript:",notnull"`
 }
 
 type UsageStatsConfig struct {
@@ -750,15 +750,15 @@ type StatsCollectionConfig struct {
 }
 
 type PrometheusConfig struct {
-	Enable                serpent.Bool        `json:"enable" typescript:",notnull"`
-	Address               serpent.HostPort    `json:"address" typescript:",notnull"`
-	CollectAgentStats     serpent.Bool        `json:"collect_agent_stats" typescript:",notnull"`
-	CollectDBMetrics      serpent.Bool        `json:"collect_db_metrics" typescript:",notnull"`
+	Enable                serpent.Bool        `json:"enable"                   typescript:",notnull"`
+	Address               serpent.HostPort    `json:"address"                  typescript:",notnull"`
+	CollectAgentStats     serpent.Bool        `json:"collect_agent_stats"      typescript:",notnull"`
+	CollectDBMetrics      serpent.Bool        `json:"collect_db_metrics"       typescript:",notnull"`
 	AggregateAgentStatsBy serpent.StringArray `json:"aggregate_agent_stats_by" typescript:",notnull"`
 }
 
 type PprofConfig struct {
-	Enable  serpent.Bool     `json:"enable" typescript:",notnull"`
+	Enable  serpent.Bool     `json:"enable"  typescript:",notnull"`
 	Address serpent.HostPort `json:"address" typescript:",notnull"`
 }
 
@@ -767,32 +767,32 @@ type OAuth2Config struct {
 }
 
 type OAuth2GithubConfig struct {
-	ClientID              serpent.String      `json:"client_id" typescript:",notnull"`
-	ClientSecret          serpent.String      `json:"client_secret" typescript:",notnull"`
-	DeviceFlow            serpent.Bool        `json:"device_flow" typescript:",notnull"`
+	ClientID              serpent.String      `json:"client_id"               typescript:",notnull"`
+	ClientSecret          serpent.String      `json:"client_secret"           typescript:",notnull"`
+	DeviceFlow            serpent.Bool        `json:"device_flow"             typescript:",notnull"`
 	DefaultProviderEnable serpent.Bool        `json:"default_provider_enable" typescript:",notnull"`
-	AllowedOrgs           serpent.StringArray `json:"allowed_orgs" typescript:",notnull"`
-	AllowedTeams          serpent.StringArray `json:"allowed_teams" typescript:",notnull"`
-	AllowSignups          serpent.Bool        `json:"allow_signups" typescript:",notnull"`
-	AllowEveryone         serpent.Bool        `json:"allow_everyone" typescript:",notnull"`
-	EnterpriseBaseURL     serpent.String      `json:"enterprise_base_url" typescript:",notnull"`
+	AllowedOrgs           serpent.StringArray `json:"allowed_orgs"            typescript:",notnull"`
+	AllowedTeams          serpent.StringArray `json:"allowed_teams"           typescript:",notnull"`
+	AllowSignups          serpent.Bool        `json:"allow_signups"           typescript:",notnull"`
+	AllowEveryone         serpent.Bool        `json:"allow_everyone"          typescript:",notnull"`
+	EnterpriseBaseURL     serpent.String      `json:"enterprise_base_url"     typescript:",notnull"`
 }
 
 type OIDCConfig struct {
 	AllowSignups serpent.Bool   `json:"allow_signups" typescript:",notnull"`
-	ClientID     serpent.String `json:"client_id" typescript:",notnull"`
+	ClientID     serpent.String `json:"client_id"     typescript:",notnull"`
 	ClientSecret serpent.String `json:"client_secret" typescript:",notnull"`
 	// ClientKeyFile & ClientCertFile are used in place of ClientSecret for PKI auth.
-	ClientKeyFile       serpent.String                    `json:"client_key_file" typescript:",notnull"`
-	ClientCertFile      serpent.String                    `json:"client_cert_file" typescript:",notnull"`
-	EmailDomain         serpent.StringArray               `json:"email_domain" typescript:",notnull"`
-	IssuerURL           serpent.String                    `json:"issuer_url" typescript:",notnull"`
-	Scopes              serpent.StringArray               `json:"scopes" typescript:",notnull"`
+	ClientKeyFile       serpent.String                    `json:"client_key_file"       typescript:",notnull"`
+	ClientCertFile      serpent.String                    `json:"client_cert_file"      typescript:",notnull"`
+	EmailDomain         serpent.StringArray               `json:"email_domain"          typescript:",notnull"`
+	IssuerURL           serpent.String                    `json:"issuer_url"            typescript:",notnull"`
+	Scopes              serpent.StringArray               `json:"scopes"                typescript:",notnull"`
 	IgnoreEmailVerified serpent.Bool                      `json:"ignore_email_verified" typescript:",notnull"`
-	UsernameField       serpent.String                    `json:"username_field" typescript:",notnull"`
-	NameField           serpent.String                    `json:"name_field" typescript:",notnull"`
-	EmailField          serpent.String                    `json:"email_field" typescript:",notnull"`
-	AuthURLParams       serpent.Struct[map[string]string] `json:"auth_url_params" typescript:",notnull"`
+	UsernameField       serpent.String                    `json:"username_field"        typescript:",notnull"`
+	NameField           serpent.String                    `json:"name_field"            typescript:",notnull"`
+	EmailField          serpent.String                    `json:"email_field"           typescript:",notnull"`
+	AuthURLParams       serpent.Struct[map[string]string] `json:"auth_url_params"       typescript:",notnull"`
 	// IgnoreUserInfo & UserInfoFromAccessToken are mutually exclusive. Only 1
 	// can be set to true. Ideally this would be an enum with 3 states, ['none',
 	// 'userinfo', 'access_token']. However, for backward compatibility,
@@ -804,21 +804,21 @@ type OIDCConfig struct {
 	// endpoint. This assumes the access token is a valid JWT with a set of claims to
 	// be merged with the id_token.
 	UserInfoFromAccessToken   serpent.Bool                           `json:"source_user_info_from_access_token" typescript:",notnull"`
-	OrganizationField         serpent.String                         `json:"organization_field" typescript:",notnull"`
-	OrganizationMapping       serpent.Struct[map[string][]uuid.UUID] `json:"organization_mapping" typescript:",notnull"`
-	OrganizationAssignDefault serpent.Bool                           `json:"organization_assign_default" typescript:",notnull"`
-	GroupAutoCreate           serpent.Bool                           `json:"group_auto_create" typescript:",notnull"`
-	GroupRegexFilter          serpent.Regexp                         `json:"group_regex_filter" typescript:",notnull"`
-	GroupAllowList            serpent.StringArray                    `json:"group_allow_list" typescript:",notnull"`
-	GroupField                serpent.String                         `json:"groups_field" typescript:",notnull"`
-	GroupMapping              serpent.Struct[map[string]string]      `json:"group_mapping" typescript:",notnull"`
-	UserRoleField             serpent.String                         `json:"user_role_field" typescript:",notnull"`
-	UserRoleMapping           serpent.Struct[map[string][]string]    `json:"user_role_mapping" typescript:",notnull"`
-	UserRolesDefault          serpent.StringArray                    `json:"user_roles_default" typescript:",notnull"`
-	SignInText                serpent.String                         `json:"sign_in_text" typescript:",notnull"`
-	IconURL                   serpent.URL                            `json:"icon_url" typescript:",notnull"`
-	SignupsDisabledText       serpent.String                         `json:"signups_disabled_text" typescript:",notnull"`
-	SkipIssuerChecks          serpent.Bool                           `json:"skip_issuer_checks" typescript:",notnull"`
+	OrganizationField         serpent.String                         `json:"organization_field"                 typescript:",notnull"`
+	OrganizationMapping       serpent.Struct[map[string][]uuid.UUID] `json:"organization_mapping"               typescript:",notnull"`
+	OrganizationAssignDefault serpent.Bool                           `json:"organization_assign_default"        typescript:",notnull"`
+	GroupAutoCreate           serpent.Bool                           `json:"group_auto_create"                  typescript:",notnull"`
+	GroupRegexFilter          serpent.Regexp                         `json:"group_regex_filter"                 typescript:",notnull"`
+	GroupAllowList            serpent.StringArray                    `json:"group_allow_list"                   typescript:",notnull"`
+	GroupField                serpent.String                         `json:"groups_field"                       typescript:",notnull"`
+	GroupMapping              serpent.Struct[map[string]string]      `json:"group_mapping"                      typescript:",notnull"`
+	UserRoleField             serpent.String                         `json:"user_role_field"                    typescript:",notnull"`
+	UserRoleMapping           serpent.Struct[map[string][]string]    `json:"user_role_mapping"                  typescript:",notnull"`
+	UserRolesDefault          serpent.StringArray                    `json:"user_roles_default"                 typescript:",notnull"`
+	SignInText                serpent.String                         `json:"sign_in_text"                       typescript:",notnull"`
+	IconURL                   serpent.URL                            `json:"icon_url"                           typescript:",notnull"`
+	SignupsDisabledText       serpent.String                         `json:"signups_disabled_text"              typescript:",notnull"`
+	SkipIssuerChecks          serpent.Bool                           `json:"skip_issuer_checks"                 typescript:",notnull"`
 
 	// RedirectURL is optional, defaulting to 'ACCESS_URL'. Only useful in niche
 	// situations where the OIDC callback domain is different from the ACCESS_URL
@@ -828,38 +828,38 @@ type OIDCConfig struct {
 
 type TelemetryConfig struct {
 	Enable serpent.Bool `json:"enable" typescript:",notnull"`
-	Trace  serpent.Bool `json:"trace" typescript:",notnull"`
-	URL    serpent.URL  `json:"url" typescript:",notnull"`
+	Trace  serpent.Bool `json:"trace"  typescript:",notnull"`
+	URL    serpent.URL  `json:"url"    typescript:",notnull"`
 }
 
 type TLSConfig struct {
-	Enable               serpent.Bool        `json:"enable" typescript:",notnull"`
-	Address              serpent.HostPort    `json:"address" typescript:",notnull"`
-	RedirectHTTP         serpent.Bool        `json:"redirect_http" typescript:",notnull"`
-	CertFiles            serpent.StringArray `json:"cert_file" typescript:",notnull"`
-	ClientAuth           serpent.String      `json:"client_auth" typescript:",notnull"`
-	ClientCAFile         serpent.String      `json:"client_ca_file" typescript:",notnull"`
-	KeyFiles             serpent.StringArray `json:"key_file" typescript:",notnull"`
-	MinVersion           serpent.String      `json:"min_version" typescript:",notnull"`
-	ClientCertFile       serpent.String      `json:"client_cert_file" typescript:",notnull"`
-	ClientKeyFile        serpent.String      `json:"client_key_file" typescript:",notnull"`
-	SupportedCiphers     serpent.StringArray `json:"supported_ciphers" typescript:",notnull"`
+	Enable               serpent.Bool        `json:"enable"                 typescript:",notnull"`
+	Address              serpent.HostPort    `json:"address"                typescript:",notnull"`
+	RedirectHTTP         serpent.Bool        `json:"redirect_http"          typescript:",notnull"`
+	CertFiles            serpent.StringArray `json:"cert_file"              typescript:",notnull"`
+	ClientAuth           serpent.String      `json:"client_auth"            typescript:",notnull"`
+	ClientCAFile         serpent.String      `json:"client_ca_file"         typescript:",notnull"`
+	KeyFiles             serpent.StringArray `json:"key_file"               typescript:",notnull"`
+	MinVersion           serpent.String      `json:"min_version"            typescript:",notnull"`
+	ClientCertFile       serpent.String      `json:"client_cert_file"       typescript:",notnull"`
+	ClientKeyFile        serpent.String      `json:"client_key_file"        typescript:",notnull"`
+	SupportedCiphers     serpent.StringArray `json:"supported_ciphers"      typescript:",notnull"`
 	AllowInsecureCiphers serpent.Bool        `json:"allow_insecure_ciphers" typescript:",notnull"`
 }
 
 type TraceConfig struct {
-	Enable          serpent.Bool   `json:"enable" typescript:",notnull"`
+	Enable          serpent.Bool   `json:"enable"            typescript:",notnull"`
 	HoneycombAPIKey serpent.String `json:"honeycomb_api_key" typescript:",notnull"`
-	CaptureLogs     serpent.Bool   `json:"capture_logs" typescript:",notnull"`
-	DataDog         serpent.Bool   `json:"data_dog" typescript:",notnull"`
+	CaptureLogs     serpent.Bool   `json:"capture_logs"      typescript:",notnull"`
+	DataDog         serpent.Bool   `json:"data_dog"          typescript:",notnull"`
 }
 
 const cookieHostPrefix = "__Host-"
 
 type HTTPCookieConfig struct {
 	Secure           serpent.Bool `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
-	SameSite         string       `json:"same_site,omitempty" typescript:",notnull"`
-	EnableHostPrefix bool         `json:"host_prefix,omitempty" typescript:",notnull"`
+	SameSite         string       `json:"same_site,omitempty"          typescript:",notnull"`
+	EnableHostPrefix bool         `json:"host_prefix,omitempty"        typescript:",notnull"`
 }
 
 // cookiesToPrefix is the set of cookies that should be prefixed with the host prefix if EnableHostPrefix is true.
@@ -953,23 +953,23 @@ func (cfg HTTPCookieConfig) HTTPSameSite() http.SameSite {
 
 type ExternalAuthConfig struct {
 	// Type is the type of external auth config.
-	Type         string `json:"type" yaml:"type"`
+	Type         string `json:"type"      yaml:"type"`
 	ClientID     string `json:"client_id" yaml:"client_id"`
-	ClientSecret string `json:"-" yaml:"client_secret"`
+	ClientSecret string `json:"-"         yaml:"client_secret"`
 	// ID is a unique identifier for the auth config.
 	// It defaults to `type` when not provided.
-	ID                  string   `json:"id" yaml:"id"`
-	AuthURL             string   `json:"auth_url" yaml:"auth_url"`
-	TokenURL            string   `json:"token_url" yaml:"token_url"`
-	ValidateURL         string   `json:"validate_url" yaml:"validate_url"`
-	RevokeURL           string   `json:"revoke_url" yaml:"revoke_url"`
-	AppInstallURL       string   `json:"app_install_url" yaml:"app_install_url"`
+	ID                  string   `json:"id"                    yaml:"id"`
+	AuthURL             string   `json:"auth_url"              yaml:"auth_url"`
+	TokenURL            string   `json:"token_url"             yaml:"token_url"`
+	ValidateURL         string   `json:"validate_url"          yaml:"validate_url"`
+	RevokeURL           string   `json:"revoke_url"            yaml:"revoke_url"`
+	AppInstallURL       string   `json:"app_install_url"       yaml:"app_install_url"`
 	AppInstallationsURL string   `json:"app_installations_url" yaml:"app_installations_url"`
-	NoRefresh           bool     `json:"no_refresh" yaml:"no_refresh"`
-	Scopes              []string `json:"scopes" yaml:"scopes"`
-	ExtraTokenKeys      []string `json:"-" yaml:"extra_token_keys"`
-	DeviceFlow          bool     `json:"device_flow" yaml:"device_flow"`
-	DeviceCodeURL       string   `json:"device_code_url" yaml:"device_code_url"`
+	NoRefresh           bool     `json:"no_refresh"            yaml:"no_refresh"`
+	Scopes              []string `json:"scopes"                yaml:"scopes"`
+	ExtraTokenKeys      []string `json:"-"                     yaml:"extra_token_keys"`
+	DeviceFlow          bool     `json:"device_flow"           yaml:"device_flow"`
+	DeviceCodeURL       string   `json:"device_code_url"       yaml:"device_code_url"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	MCPURL string `json:"mcp_url" yaml:"mcp_url"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
@@ -998,17 +998,17 @@ type ExternalAuthConfig struct {
 
 type ProvisionerConfig struct {
 	// Daemons is the number of built-in terraform provisioners.
-	Daemons             serpent.Int64       `json:"daemons" typescript:",notnull"`
-	DaemonTypes         serpent.StringArray `json:"daemon_types" typescript:",notnull"`
-	DaemonPollInterval  serpent.Duration    `json:"daemon_poll_interval" typescript:",notnull"`
-	DaemonPollJitter    serpent.Duration    `json:"daemon_poll_jitter" typescript:",notnull"`
+	Daemons             serpent.Int64       `json:"daemons"               typescript:",notnull"`
+	DaemonTypes         serpent.StringArray `json:"daemon_types"          typescript:",notnull"`
+	DaemonPollInterval  serpent.Duration    `json:"daemon_poll_interval"  typescript:",notnull"`
+	DaemonPollJitter    serpent.Duration    `json:"daemon_poll_jitter"    typescript:",notnull"`
 	ForceCancelInterval serpent.Duration    `json:"force_cancel_interval" typescript:",notnull"`
-	DaemonPSK           serpent.String      `json:"daemon_psk" typescript:",notnull"`
+	DaemonPSK           serpent.String      `json:"daemon_psk"            typescript:",notnull"`
 }
 
 type RateLimitConfig struct {
 	DisableAll serpent.Bool  `json:"disable_all" typescript:",notnull"`
-	API        serpent.Int64 `json:"api" typescript:",notnull"`
+	API        serpent.Int64 `json:"api"         typescript:",notnull"`
 }
 
 type SwaggerConfig struct {
@@ -1016,20 +1016,20 @@ type SwaggerConfig struct {
 }
 
 type LoggingConfig struct {
-	Filter      serpent.StringArray `json:"log_filter" typescript:",notnull"`
-	Human       serpent.String      `json:"human" typescript:",notnull"`
-	JSON        serpent.String      `json:"json" typescript:",notnull"`
+	Filter      serpent.StringArray `json:"log_filter"  typescript:",notnull"`
+	Human       serpent.String      `json:"human"       typescript:",notnull"`
+	JSON        serpent.String      `json:"json"        typescript:",notnull"`
 	Stackdriver serpent.String      `json:"stackdriver" typescript:",notnull"`
 }
 
 type DangerousConfig struct {
-	AllowPathAppSharing         serpent.Bool `json:"allow_path_app_sharing" typescript:",notnull"`
+	AllowPathAppSharing         serpent.Bool `json:"allow_path_app_sharing"           typescript:",notnull"`
 	AllowPathAppSiteOwnerAccess serpent.Bool `json:"allow_path_app_site_owner_access" typescript:",notnull"`
-	AllowAllCors                serpent.Bool `json:"allow_all_cors" typescript:",notnull"`
+	AllowAllCors                serpent.Bool `json:"allow_all_cors"                   typescript:",notnull"`
 }
 
 type UserQuietHoursScheduleConfig struct {
-	DefaultSchedule serpent.String `json:"default_schedule" typescript:",notnull"`
+	DefaultSchedule serpent.String `json:"default_schedule"  typescript:",notnull"`
 	AllowUserCustom serpent.Bool   `json:"allow_user_custom" typescript:",notnull"`
 	// TODO: add WindowDuration and the ability to postpone max_deadline by this
 	// amount
@@ -1038,7 +1038,7 @@ type UserQuietHoursScheduleConfig struct {
 
 // HealthcheckConfig contains configuration for healthchecks.
 type HealthcheckConfig struct {
-	Refresh           serpent.Duration `json:"refresh" typescript:",notnull"`
+	Refresh           serpent.Duration `json:"refresh"            typescript:",notnull"`
 	ThresholdDatabase serpent.Duration `json:"threshold_database" typescript:",notnull"`
 }
 
@@ -4001,54 +4001,54 @@ Write out the current server config as YAML to stdout.`,
 }
 
 type AIBridgeConfig struct {
-	Enabled   serpent.Bool            `json:"enabled" typescript:",notnull"`
-	OpenAI    AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
+	Enabled   serpent.Bool            `json:"enabled"   typescript:",notnull"`
+	OpenAI    AIBridgeOpenAIConfig    `json:"openai"    typescript:",notnull"`
 	Anthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
-	Bedrock   AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
+	Bedrock   AIBridgeBedrockConfig   `json:"bedrock"   typescript:",notnull"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	InjectCoderMCPTools serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
-	Retention           serpent.Duration `json:"retention" typescript:",notnull"`
-	MaxConcurrency      serpent.Int64    `json:"max_concurrency" typescript:",notnull"`
-	RateLimit           serpent.Int64    `json:"rate_limit" typescript:",notnull"`
-	StructuredLogging   serpent.Bool     `json:"structured_logging" typescript:",notnull"`
-	SendActorHeaders    serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
+	Retention           serpent.Duration `json:"retention"              typescript:",notnull"`
+	MaxConcurrency      serpent.Int64    `json:"max_concurrency"        typescript:",notnull"`
+	RateLimit           serpent.Int64    `json:"rate_limit"             typescript:",notnull"`
+	StructuredLogging   serpent.Bool     `json:"structured_logging"     typescript:",notnull"`
+	SendActorHeaders    serpent.Bool     `json:"send_actor_headers"     typescript:",notnull"`
 	// Circuit breaker protects against cascading failures from upstream AI
 	// provider rate limits (429, 503, 529 overloaded).
-	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled" typescript:",notnull"`
+	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled"           typescript:",notnull"`
 	CircuitBreakerFailureThreshold serpent.Int64    `json:"circuit_breaker_failure_threshold" typescript:",notnull"`
-	CircuitBreakerInterval         serpent.Duration `json:"circuit_breaker_interval" typescript:",notnull"`
-	CircuitBreakerTimeout          serpent.Duration `json:"circuit_breaker_timeout" typescript:",notnull"`
-	CircuitBreakerMaxRequests      serpent.Int64    `json:"circuit_breaker_max_requests" typescript:",notnull"`
+	CircuitBreakerInterval         serpent.Duration `json:"circuit_breaker_interval"          typescript:",notnull"`
+	CircuitBreakerTimeout          serpent.Duration `json:"circuit_breaker_timeout"           typescript:",notnull"`
+	CircuitBreakerMaxRequests      serpent.Int64    `json:"circuit_breaker_max_requests"      typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {
 	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
-	Key     serpent.String `json:"key" typescript:",notnull"`
+	Key     serpent.String `json:"key"      typescript:",notnull"`
 }
 
 type AIBridgeAnthropicConfig struct {
 	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
-	Key     serpent.String `json:"key" typescript:",notnull"`
+	Key     serpent.String `json:"key"      typescript:",notnull"`
 }
 
 type AIBridgeBedrockConfig struct {
-	BaseURL         serpent.String `json:"base_url" typescript:",notnull"`
-	Region          serpent.String `json:"region" typescript:",notnull"`
-	AccessKey       serpent.String `json:"access_key" typescript:",notnull"`
+	BaseURL         serpent.String `json:"base_url"          typescript:",notnull"`
+	Region          serpent.String `json:"region"            typescript:",notnull"`
+	AccessKey       serpent.String `json:"access_key"        typescript:",notnull"`
 	AccessKeySecret serpent.String `json:"access_key_secret" typescript:",notnull"`
-	Model           serpent.String `json:"model" typescript:",notnull"`
-	SmallFastModel  serpent.String `json:"small_fast_model" typescript:",notnull"`
+	Model           serpent.String `json:"model"             typescript:",notnull"`
+	SmallFastModel  serpent.String `json:"small_fast_model"  typescript:",notnull"`
 }
 
 type AIBridgeProxyConfig struct {
-	Enabled         serpent.Bool        `json:"enabled" typescript:",notnull"`
-	ListenAddr      serpent.String      `json:"listen_addr" typescript:",notnull"`
-	TLSCertFile     serpent.String      `json:"tls_cert_file" typescript:",notnull"`
-	TLSKeyFile      serpent.String      `json:"tls_key_file" typescript:",notnull"`
-	MITMCertFile    serpent.String      `json:"cert_file" typescript:",notnull"`
-	MITMKeyFile     serpent.String      `json:"key_file" typescript:",notnull"`
-	DomainAllowlist serpent.StringArray `json:"domain_allowlist" typescript:",notnull"`
-	UpstreamProxy   serpent.String      `json:"upstream_proxy" typescript:",notnull"`
+	Enabled         serpent.Bool        `json:"enabled"           typescript:",notnull"`
+	ListenAddr      serpent.String      `json:"listen_addr"       typescript:",notnull"`
+	TLSCertFile     serpent.String      `json:"tls_cert_file"     typescript:",notnull"`
+	TLSKeyFile      serpent.String      `json:"tls_key_file"      typescript:",notnull"`
+	MITMCertFile    serpent.String      `json:"cert_file"         typescript:",notnull"`
+	MITMKeyFile     serpent.String      `json:"key_file"          typescript:",notnull"`
+	DomainAllowlist serpent.StringArray `json:"domain_allowlist"  typescript:",notnull"`
+	UpstreamProxy   serpent.String      `json:"upstream_proxy"    typescript:",notnull"`
 	UpstreamProxyCA serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
 }
 
@@ -4062,11 +4062,11 @@ type SupportConfig struct {
 }
 
 type LinkConfig struct {
-	Name   string `json:"name" yaml:"name"`
-	Target string `json:"target" yaml:"target"`
-	Icon   string `json:"icon" yaml:"icon" enums:"bug,chat,docs,star"`
+	Name   string `json:"name"                              yaml:"name"`
+	Target string `json:"target"                            yaml:"target"`
+	Icon   string `json:"icon"   enums:"bug,chat,docs,star" yaml:"icon"`
 
-	Location string `json:"location,omitempty" yaml:"location,omitempty" enums:"navbar,dropdown"`
+	Location string `json:"location,omitempty" enums:"navbar,dropdown" yaml:"location,omitempty"`
 }
 
 // Validate checks cross-field constraints for deployment values.
@@ -4574,7 +4574,7 @@ type CryptoKey struct {
 	Secret    string           `json:"secret"`
 	DeletesAt time.Time        `json:"deletes_at" format:"date-time"`
 	Sequence  int32            `json:"sequence"`
-	StartsAt  time.Time        `json:"starts_at" format:"date-time"`
+	StartsAt  time.Time        `json:"starts_at"  format:"date-time"`
 }
 
 func (c CryptoKey) CanSign(now time.Time) bool {

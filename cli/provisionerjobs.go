@@ -32,9 +32,9 @@ func (r *RootCmd) provisionerJobs() *serpent.Command {
 
 func (r *RootCmd) provisionerJobsList() *serpent.Command {
 	type provisionerJobRow struct {
-		codersdk.ProvisionerJob `table:"provisioner_job,recursive_inline,nosort"`
+		codersdk.ProvisionerJob `                         table:"provisioner_job,recursive_inline,nosort"`
 		OrganizationName        string `json:"organization_name" table:"organization"`
-		Queue                   string `json:"-" table:"queue"`
+		Queue                   string `json:"-"                 table:"queue"`
 	}
 
 	var (

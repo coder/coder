@@ -82,7 +82,7 @@ type WorkspaceApp struct {
 	Subdomain bool `json:"subdomain"`
 	// SubdomainName is the application domain exposed on the `coder server`.
 	SubdomainName string                   `json:"subdomain_name,omitempty"`
-	SharingLevel  WorkspaceAppSharingLevel `json:"sharing_level" enums:"owner,authenticated,organization,public"`
+	SharingLevel  WorkspaceAppSharingLevel `json:"sharing_level"            enums:"owner,authenticated,organization,public"`
 	// Healthcheck specifies the configuration for checking app health.
 	Healthcheck Healthcheck        `json:"healthcheck,omitempty"`
 	Health      WorkspaceAppHealth `json:"health"`
@@ -107,11 +107,11 @@ type Healthcheck struct {
 }
 
 type WorkspaceAppStatus struct {
-	ID          uuid.UUID               `json:"id" format:"uuid"`
-	CreatedAt   time.Time               `json:"created_at" format:"date-time"`
+	ID          uuid.UUID               `json:"id"           format:"uuid"`
+	CreatedAt   time.Time               `json:"created_at"   format:"date-time"`
 	WorkspaceID uuid.UUID               `json:"workspace_id" format:"uuid"`
-	AgentID     uuid.UUID               `json:"agent_id" format:"uuid"`
-	AppID       uuid.UUID               `json:"app_id" format:"uuid"`
+	AgentID     uuid.UUID               `json:"agent_id"     format:"uuid"`
+	AppID       uuid.UUID               `json:"app_id"       format:"uuid"`
 	State       WorkspaceAppStatusState `json:"state"`
 	Message     string                  `json:"message"`
 	// URI is the URI of the resource that the status is for.

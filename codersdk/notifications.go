@@ -18,11 +18,11 @@ type NotificationsSettings struct {
 }
 
 type NotificationTemplate struct {
-	ID               uuid.UUID `json:"id" format:"uuid"`
+	ID               uuid.UUID `json:"id"                 format:"uuid"`
 	Name             string    `json:"name"`
 	TitleTemplate    string    `json:"title_template"`
 	BodyTemplate     string    `json:"body_template"`
-	Actions          string    `json:"actions" format:""`
+	Actions          string    `json:"actions"            format:""`
 	Group            string    `json:"group"`
 	Method           string    `json:"method"`
 	Kind             string    `json:"kind"`
@@ -35,7 +35,7 @@ type NotificationMethodsResponse struct {
 }
 
 type NotificationPreference struct {
-	NotificationTemplateID uuid.UUID `json:"id" format:"uuid"`
+	NotificationTemplateID uuid.UUID `json:"id"         format:"uuid"`
 	Disabled               bool      `json:"disabled"`
 	UpdatedAt              time.Time `json:"updated_at" format:"date-time"`
 }

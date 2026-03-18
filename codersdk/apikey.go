@@ -12,17 +12,17 @@ import (
 
 // APIKey: do not ever return the HashedSecret
 type APIKey struct {
-	ID              string               `json:"id" validate:"required"`
-	UserID          uuid.UUID            `json:"user_id" validate:"required" format:"uuid"`
-	LastUsed        time.Time            `json:"last_used" validate:"required" format:"date-time"`
-	ExpiresAt       time.Time            `json:"expires_at" validate:"required" format:"date-time"`
-	CreatedAt       time.Time            `json:"created_at" validate:"required" format:"date-time"`
-	UpdatedAt       time.Time            `json:"updated_at" validate:"required" format:"date-time"`
-	LoginType       LoginType            `json:"login_type" validate:"required" enums:"password,github,oidc,token"`
-	Scope           APIKeyScope          `json:"scope" enums:"all,application_connect"` // Deprecated: use Scopes instead.
+	ID              string               `json:"id"                                                                     validate:"required"`
+	UserID          uuid.UUID            `json:"user_id"                                             format:"uuid"      validate:"required"`
+	LastUsed        time.Time            `json:"last_used"                                           format:"date-time" validate:"required"`
+	ExpiresAt       time.Time            `json:"expires_at"                                          format:"date-time" validate:"required"`
+	CreatedAt       time.Time            `json:"created_at"                                          format:"date-time" validate:"required"`
+	UpdatedAt       time.Time            `json:"updated_at"                                          format:"date-time" validate:"required"`
+	LoginType       LoginType            `json:"login_type"       enums:"password,github,oidc,token"                    validate:"required"`
+	Scope           APIKeyScope          `json:"scope"            enums:"all,application_connect"` // Deprecated: use Scopes instead.
 	Scopes          []APIKeyScope        `json:"scopes"`
-	TokenName       string               `json:"token_name" validate:"required"`
-	LifetimeSeconds int64                `json:"lifetime_seconds" validate:"required"`
+	TokenName       string               `json:"token_name"                                                             validate:"required"`
+	LifetimeSeconds int64                `json:"lifetime_seconds"                                                       validate:"required"`
 	AllowList       []APIAllowListTarget `json:"allow_list"`
 }
 

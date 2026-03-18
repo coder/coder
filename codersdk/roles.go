@@ -36,7 +36,7 @@ func (s SlimRole) UniqueName() string {
 }
 
 type AssignableRoles struct {
-	Role       `table:"r,recursive_inline"`
+	Role       `                  table:"r,recursive_inline"`
 	Assignable bool `json:"assignable" table:"assignable"`
 	// BuiltIn roles are immutable
 	BuiltIn bool `json:"built_in" table:"built_in"`
@@ -52,11 +52,11 @@ type Permission struct {
 
 // Role is a longer form of SlimRole that includes permissions details.
 type Role struct {
-	Name            string       `json:"name" table:"name,default_sort" validate:"username"`
-	OrganizationID  string       `json:"organization_id,omitempty" table:"organization id" format:"uuid"`
-	DisplayName     string       `json:"display_name" table:"display name"`
-	SitePermissions []Permission `json:"site_permissions" table:"site permissions"`
-	UserPermissions []Permission `json:"user_permissions" table:"user permissions"`
+	Name            string       `json:"name"                      table:"name,default_sort"               validate:"username"`
+	OrganizationID  string       `json:"organization_id,omitempty" table:"organization id"   format:"uuid"`
+	DisplayName     string       `json:"display_name"              table:"display name"`
+	SitePermissions []Permission `json:"site_permissions"          table:"site permissions"`
+	UserPermissions []Permission `json:"user_permissions"          table:"user permissions"`
 	// OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.
 	OrganizationPermissions []Permission `json:"organization_permissions" table:"organization permissions"`
 	// OrganizationMemberPermissions are specific for the organization in the field 'OrganizationID' above.
@@ -65,8 +65,8 @@ type Role struct {
 
 // CustomRoleRequest is used to edit custom roles.
 type CustomRoleRequest struct {
-	Name            string       `json:"name" table:"name,default_sort" validate:"username"`
-	DisplayName     string       `json:"display_name" table:"display name"`
+	Name            string       `json:"name"             table:"name,default_sort" validate:"username"`
+	DisplayName     string       `json:"display_name"     table:"display name"`
 	SitePermissions []Permission `json:"site_permissions" table:"site permissions"`
 	UserPermissions []Permission `json:"user_permissions" table:"user permissions"`
 	// OrganizationPermissions are specific to the organization the role belongs to.

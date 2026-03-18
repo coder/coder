@@ -14,7 +14,7 @@ import (
 )
 
 type OAuth2ProviderApp struct {
-	ID          uuid.UUID `json:"id" format:"uuid"`
+	ID          uuid.UUID `json:"id"           format:"uuid"`
 	Name        string    `json:"name"`
 	CallbackURL string    `json:"callback_url"`
 	Icon        string    `json:"icon"`
@@ -75,9 +75,9 @@ func (c *Client) OAuth2ProviderApp(ctx context.Context, id uuid.UUID) (OAuth2Pro
 }
 
 type PostOAuth2ProviderAppRequest struct {
-	Name        string `json:"name" validate:"required,oauth2_app_name"`
+	Name        string `json:"name"         validate:"required,oauth2_app_name"`
 	CallbackURL string `json:"callback_url" validate:"required,http_url"`
-	Icon        string `json:"icon" validate:"omitempty"`
+	Icon        string `json:"icon"         validate:"omitempty"`
 }
 
 // PostOAuth2ProviderApp adds an application that can authenticate using Coder
@@ -96,9 +96,9 @@ func (c *Client) PostOAuth2ProviderApp(ctx context.Context, app PostOAuth2Provid
 }
 
 type PutOAuth2ProviderAppRequest struct {
-	Name        string `json:"name" validate:"required,oauth2_app_name"`
+	Name        string `json:"name"         validate:"required,oauth2_app_name"`
 	CallbackURL string `json:"callback_url" validate:"required,http_url"`
-	Icon        string `json:"icon" validate:"omitempty"`
+	Icon        string `json:"icon"         validate:"omitempty"`
 }
 
 // PutOAuth2ProviderApp updates an application that can authenticate using Coder
@@ -131,12 +131,12 @@ func (c *Client) DeleteOAuth2ProviderApp(ctx context.Context, id uuid.UUID) erro
 }
 
 type OAuth2ProviderAppSecretFull struct {
-	ID               uuid.UUID `json:"id" format:"uuid"`
+	ID               uuid.UUID `json:"id"                 format:"uuid"`
 	ClientSecretFull string    `json:"client_secret_full"`
 }
 
 type OAuth2ProviderAppSecret struct {
-	ID                    uuid.UUID `json:"id" format:"uuid"`
+	ID                    uuid.UUID `json:"id"                      format:"uuid"`
 	LastUsedAt            NullTime  `json:"last_used_at"`
 	ClientSecretTruncated string    `json:"client_secret_truncated"`
 }
@@ -444,7 +444,7 @@ type OAuth2ClientRegistrationRequest struct {
 	TOSURI                  string                        `json:"tos_uri,omitempty"`
 	PolicyURI               string                        `json:"policy_uri,omitempty"`
 	JWKSURI                 string                        `json:"jwks_uri,omitempty"`
-	JWKS                    json.RawMessage               `json:"jwks,omitempty" swaggertype:"object"`
+	JWKS                    json.RawMessage               `json:"jwks,omitempty"                       swaggertype:"object"`
 	SoftwareID              string                        `json:"software_id,omitempty"`
 	SoftwareVersion         string                        `json:"software_version,omitempty"`
 	SoftwareStatement       string                        `json:"software_statement,omitempty"`
@@ -547,7 +547,7 @@ type OAuth2ClientRegistrationResponse struct {
 	TOSURI                  string                        `json:"tos_uri,omitempty"`
 	PolicyURI               string                        `json:"policy_uri,omitempty"`
 	JWKSURI                 string                        `json:"jwks_uri,omitempty"`
-	JWKS                    json.RawMessage               `json:"jwks,omitempty" swaggertype:"object"`
+	JWKS                    json.RawMessage               `json:"jwks,omitempty"                     swaggertype:"object"`
 	SoftwareID              string                        `json:"software_id,omitempty"`
 	SoftwareVersion         string                        `json:"software_version,omitempty"`
 	GrantTypes              []OAuth2ProviderGrantType     `json:"grant_types"`
@@ -635,7 +635,7 @@ type OAuth2ClientConfiguration struct {
 	TOSURI                  string                        `json:"tos_uri,omitempty"`
 	PolicyURI               string                        `json:"policy_uri,omitempty"`
 	JWKSURI                 string                        `json:"jwks_uri,omitempty"`
-	JWKS                    json.RawMessage               `json:"jwks,omitempty" swaggertype:"object"`
+	JWKS                    json.RawMessage               `json:"jwks,omitempty"                      swaggertype:"object"`
 	SoftwareID              string                        `json:"software_id,omitempty"`
 	SoftwareVersion         string                        `json:"software_version,omitempty"`
 	GrantTypes              []OAuth2ProviderGrantType     `json:"grant_types"`

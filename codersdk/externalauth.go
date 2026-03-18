@@ -84,10 +84,10 @@ type DeleteExternalAuthByIDResponse struct {
 // built from the database and configs.
 type ExternalAuthLink struct {
 	ProviderID      string    `json:"provider_id"`
-	CreatedAt       time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt       time.Time `json:"updated_at" format:"date-time"`
+	CreatedAt       time.Time `json:"created_at"        format:"date-time"`
+	UpdatedAt       time.Time `json:"updated_at"        format:"date-time"`
 	HasRefreshToken bool      `json:"has_refresh_token"`
-	Expires         time.Time `json:"expires" format:"date-time"`
+	Expires         time.Time `json:"expires"           format:"date-time"`
 	Authenticated   bool      `json:"authenticated"`
 	ValidateError   string    `json:"validate_error"`
 }
