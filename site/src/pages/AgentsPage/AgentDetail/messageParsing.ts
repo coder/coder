@@ -131,8 +131,9 @@ export const parseMessageContent = (
 				break;
 			}
 			case "reasoning": {
-				parsed.reasoning = appendText(parsed.reasoning, part.text);
-				parsed.blocks = appendTextBlock(parsed.blocks, "thinking", part.text);
+				const text = part.text ?? "";
+				parsed.reasoning = appendText(parsed.reasoning, text);
+				parsed.blocks = appendTextBlock(parsed.blocks, "thinking", text);
 				break;
 			}
 			case "tool-call": {

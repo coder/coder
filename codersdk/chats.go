@@ -127,7 +127,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 // scripts/apitypings/main.go for the codegen that reads these.
 type ChatMessagePart struct {
 	Type        ChatMessagePartType `json:"type"`
-	Text        string              `json:"text,omitempty" variants:"text,reasoning"`
+	Text        string              `json:"text,omitempty" variants:"text,reasoning?"`
 	Signature   string              `json:"signature,omitempty"`
 	ToolCallID  string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
 	ToolName    string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
