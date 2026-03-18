@@ -69,7 +69,7 @@ type MCPServerConfig struct {
 	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
 
 	// Per-user state (populated for non-admin requests).
-	AuthConnected bool `json:"auth_connected,omitempty"`
+	AuthConnected bool `json:"auth_connected"`
 }
 
 // MCPServerTool represents a single tool from an MCP server's snapshot.

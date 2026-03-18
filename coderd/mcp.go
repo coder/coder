@@ -172,6 +172,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
 
 	mcpServerID, ok := parseMCPServerConfigID(rw, r)
 	if !ok {
@@ -210,6 +211,23 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	} else {
 		sdkConfig = convertMCPServerConfigRedacted(config)
 	}
+
+	// Populate AuthConnected for the calling user.
+	if config.AuthType == "oauth2" {
+		//nolint:gocritic // Need to check user token for this server.
+		userTokens, tokenErr := api.Database.GetMCPServerUserTokensByUserID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		if tokenErr == nil {
+			for _, t := range userTokens {
+				if t.MCPServerConfigID == config.ID {
+					sdkConfig.AuthConnected = true
+					break
+				}
+			}
+		}
+	} else {
+		sdkConfig.AuthConnected = true
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, sdkConfig)
 }
 
@@ -463,9 +481,12 @@ func (api *API) getMCPServerTools(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	isAdmin := api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig)
+
 	// Verify the MCP server config exists.
 	//nolint:gocritic // All authenticated users can view tools for enabled MCP servers.
-	if _, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID); err != nil {
+	config, err := api.Database.GetMCPServerConfigByID(dbauthz.AsSystemRestricted(ctx), mcpServerID)
+	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
@@ -477,7 +498,14 @@ func (api *API) getMCPServerTools(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	snapshot, err := api.Database.GetActiveMCPServerToolSnapshot(ctx, mcpServerID)
+	// Non-admin users should not see tools for disabled servers.
+	if !isAdmin && !config.Enabled {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	//nolint:gocritic // All authenticated users can view tools for enabled MCP servers.
+	snapshot, err := api.Database.GetActiveMCPServerToolSnapshot(dbauthz.AsSystemRestricted(ctx), mcpServerID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// No active snapshot yet — return an empty snapshot.
@@ -585,15 +613,14 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 	// The callback URL is on our server; after the exchange we store
 	// the token and close the popup.
 	state := uuid.New().String()
-	http.SetCookie(rw, &http.Cookie{
+	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     "mcp_oauth2_state_" + config.ID.String(),
 		Value:    state,
 		Path:     fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID),
 		MaxAge:   600, // 10 minutes
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   r.TLS != nil,
-	})
+	}))
 
 	oauth2Config := &oauth2.Config{
 		ClientID:     config.OAuth2ClientID,
@@ -603,8 +630,12 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 			TokenURL: config.OAuth2TokenURL,
 		},
 		RedirectURL: fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), config.ID),
-		Scopes:      strings.Split(config.OAuth2Scopes, " "),
 	}
+	var scopes []string
+	if config.OAuth2Scopes != "" {
+		scopes = strings.Split(config.OAuth2Scopes, " ")
+	}
+	oauth2Config.Scopes = scopes
 	authURL := oauth2Config.AuthCodeURL(state)
 	http.Redirect(rw, r, authURL, http.StatusTemporaryRedirect)
 }
@@ -666,13 +697,14 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	// Clear the state cookie.
-	http.SetCookie(rw, &http.Cookie{
+	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     "mcp_oauth2_state_" + config.ID.String(),
 		Value:    "",
 		Path:     fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID),
 		MaxAge:   -1,
 		HttpOnly: true,
-	})
+		SameSite: http.SameSiteLaxMode,
+	}))
 
 	// Exchange the authorization code for tokens.
 	oauth2Config := &oauth2.Config{
@@ -683,8 +715,12 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 			TokenURL: config.OAuth2TokenURL,
 		},
 		RedirectURL: fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), config.ID),
-		Scopes:      strings.Split(config.OAuth2Scopes, " "),
 	}
+	var scopes []string
+	if config.OAuth2Scopes != "" {
+		scopes = strings.Split(config.OAuth2Scopes, " ")
+	}
+	oauth2Config.Scopes = scopes
 
 	token, err := oauth2Config.Exchange(ctx, code)
 	if err != nil {

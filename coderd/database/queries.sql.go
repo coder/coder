@@ -9445,6 +9445,7 @@ SET mcp_server_ids = (
     WHERE sid IN (SELECT id FROM mcp_server_configs)
 )
 WHERE mcp_server_ids != '{}'
+  AND NOT (mcp_server_ids <@ (SELECT array_agg(id) FROM mcp_server_configs))
 `
 
 func (q *sqlQuerier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error {

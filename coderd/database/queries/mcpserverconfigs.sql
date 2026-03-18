@@ -240,4 +240,5 @@ SET mcp_server_ids = (
     FROM unnest(chats.mcp_server_ids) AS sid
     WHERE sid IN (SELECT id FROM mcp_server_configs)
 )
-WHERE mcp_server_ids != '{}';
+WHERE mcp_server_ids != '{}'
+  AND NOT (mcp_server_ids <@ (SELECT array_agg(id) FROM mcp_server_configs));
