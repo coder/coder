@@ -455,6 +455,19 @@ export const ScrollToBottomButton: Story = {
 	args: {
 		store: buildStoreWithMessages(buildLongConversation(40)),
 	},
+	decorators: [
+		(Story) => (
+			<div
+				style={{
+					height: "600px",
+					display: "flex",
+					flexDirection: "column",
+				}}
+			>
+				<Story />
+			</div>
+		),
+	],
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
@@ -463,21 +476,36 @@ export const ScrollToBottomButton: Story = {
 		expect(button).toHaveClass("opacity-0");
 
 		// Find the scroll container (the flex-col-reverse element).
-		const scrollContainer = button.parentElement?.querySelector(
+		const scrollContainer = canvasElement.querySelector(
 			"[class*='flex-col-reverse']",
 		) as HTMLElement;
 		expect(scrollContainer).toBeTruthy();
 
-		// Scroll up — in flex-col-reverse, negative scrollTop = scrolled up.
-		scrollContainer.scrollTop = -800;
-		scrollContainer.dispatchEvent(new Event("scroll", { bubbles: false }));
+		// Wait for content to render and create overflow.
+		await waitFor(() => {
+			expect(scrollContainer.scrollHeight).toBeGreaterThan(
+				scrollContainer.clientHeight,
+			);
+		});
+
+		// Scroll up. In flex-col-reverse containers, Chrome uses
+		// negative scrollTop values when scrolled away from the
+		// bottom. Try negative first, fall back to positive for
+		// other engines.
+		const maxScroll =
+			scrollContainer.scrollHeight - scrollContainer.clientHeight;
+		scrollContainer.scrollTop = -maxScroll;
+		if (Math.abs(scrollContainer.scrollTop) < 100) {
+			scrollContainer.scrollTop = maxScroll;
+		}
+		scrollContainer.dispatchEvent(new Event("scroll"));
 
 		// Button should become visible.
 		await waitFor(() => {
 			expect(button).toHaveClass("opacity-100");
 		});
 
-		// Click the button.
+		// Click the button to scroll back to the bottom.
 		await userEvent.click(button);
 
 		// Button should fade out once we're back at the bottom.
