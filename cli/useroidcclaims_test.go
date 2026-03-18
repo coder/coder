@@ -131,7 +131,6 @@ func TestUserOIDCClaims(t *testing.T) {
 		assert.Equal(t, "bob-isolation@coder.com", bobResp.Claims["email"])
 	})
 
-
 	t.Run("ClaimsNeverNull", func(t *testing.T) {
 		t.Parallel()
 
