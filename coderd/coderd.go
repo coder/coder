@@ -1159,6 +1159,9 @@ func New(options *Options) *API {
 					r.Get("/summary", api.chatCostSummary)
 				})
 			})
+			r.Route("/insights", func(r chi.Router) {
+				r.Get("/pull-requests", api.prInsights)
+			})
 			r.Route("/files", func(r chi.Router) {
 				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
 				r.Post("/", api.postChatFile)

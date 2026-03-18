@@ -51,6 +51,7 @@ import {
 	SquarePenIcon,
 	Trash2Icon,
 	UserIcon,
+	WandSparklesIcon,
 } from "lucide-react";
 import { UserDropdownContent } from "modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -1002,6 +1003,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									state={location.state}
 									adminOnly
 								/>
+								<SettingsNavItem
+									icon={WandSparklesIcon}
+									label="Analytics"
+									active={sidebarView.section === "insights"}
+									to="/agents/settings/insights"
+									replace
+									state={location.state}
+									adminOnly
+								/>{" "}
 							</>
 						)}
 					</nav>
