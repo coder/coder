@@ -4848,7 +4848,7 @@ WITH updated_chat AS (
     SET
         last_model_config_id = (
             SELECT val
-            FROM unnest($3::uuid[])
+            FROM UNNEST($3::uuid[])
                 WITH ORDINALITY AS t(val, ord)
             WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
             ORDER BY ord DESC
@@ -4858,12 +4858,12 @@ WITH updated_chat AS (
         id = $1::uuid
         AND EXISTS (
             SELECT 1
-            FROM unnest($3::uuid[])
+            FROM UNNEST($3::uuid[])
             WHERE unnest != '00000000-0000-0000-0000-000000000000'::uuid
         )
         AND chats.last_model_config_id IS DISTINCT FROM (
             SELECT val
-            FROM unnest($3::uuid[])
+            FROM UNNEST($3::uuid[])
                 WITH ORDINALITY AS t(val, ord)
             WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
             ORDER BY ord DESC
@@ -4891,22 +4891,22 @@ INSERT INTO chat_messages (
 )
 SELECT
     $1::uuid,
-    NULLIF(unnest($2::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    NULLIF(unnest($3::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
-    unnest($4::chat_message_role[]),
-    unnest($5::text[])::jsonb,
-    unnest($6::smallint[]),
-    unnest($7::chat_message_visibility[]),
-    NULLIF(unnest($8::bigint[]), 0),
-    NULLIF(unnest($9::bigint[]), 0),
-    NULLIF(unnest($10::bigint[]), 0),
-    NULLIF(unnest($11::bigint[]), 0),
-    NULLIF(unnest($12::bigint[]), 0),
-    NULLIF(unnest($13::bigint[]), 0),
-    NULLIF(unnest($14::bigint[]), 0),
-    unnest($15::boolean[]),
-    NULLIF(unnest($16::bigint[]), 0),
-    NULLIF(unnest($17::bigint[]), 0)
+    NULLIF(UNNEST($2::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(UNNEST($3::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
+    UNNEST($4::chat_message_role[]),
+    UNNEST($5::text[])::jsonb,
+    UNNEST($6::smallint[]),
+    UNNEST($7::chat_message_visibility[]),
+    NULLIF(UNNEST($8::bigint[]), 0),
+    NULLIF(UNNEST($9::bigint[]), 0),
+    NULLIF(UNNEST($10::bigint[]), 0),
+    NULLIF(UNNEST($11::bigint[]), 0),
+    NULLIF(UNNEST($12::bigint[]), 0),
+    NULLIF(UNNEST($13::bigint[]), 0),
+    NULLIF(UNNEST($14::bigint[]), 0),
+    UNNEST($15::boolean[]),
+    NULLIF(UNNEST($16::bigint[]), 0),
+    NULLIF(UNNEST($17::bigint[]), 0)
 RETURNING
     id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms
 `

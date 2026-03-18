@@ -4059,35 +4059,35 @@ func seedChatCostFixture(t *testing.T) chatCostTestFixture {
 	})
 	require.NoError(t, err)
 
-	var earliestCreatedAt time.Time
-	var latestCreatedAt time.Time
-	for i := 0; i < 2; i++ {
-		results, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
-			ChatID:              chat.ID,
-			CreatedBy:           []uuid.UUID{uuid.Nil},
-			ModelConfigID:       []uuid.UUID{modelConfig.ID},
-			Role:                []database.ChatMessageRole{"assistant"},
-			Content:             []string{"null"},
-			ContentVersion:      []int16{0},
-			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-			InputTokens:         []int64{100},
-			OutputTokens:        []int64{50},
-			TotalTokens:         []int64{0},
-			ReasoningTokens:     []int64{0},
-			CacheCreationTokens: []int64{0},
-			CacheReadTokens:     []int64{0},
-			ContextLimit:        []int64{0},
-			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{500},
-			RuntimeMs:           []int64{0},
-		})
-		require.NoError(t, err)
-		message := results[0]
-		if i == 0 || message.CreatedAt.Before(earliestCreatedAt) {
-			earliestCreatedAt = message.CreatedAt
+	results, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil, uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfig.ID, modelConfig.ID},
+		Role:                []database.ChatMessageRole{"assistant", "assistant"},
+		Content:             []string{"null", "null"},
+		ContentVersion:      []int16{0, 0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{100, 100},
+		OutputTokens:        []int64{50, 50},
+		TotalTokens:         []int64{0, 0},
+		ReasoningTokens:     []int64{0, 0},
+		CacheCreationTokens: []int64{0, 0},
+		CacheReadTokens:     []int64{0, 0},
+		ContextLimit:        []int64{0, 0},
+		Compressed:          []bool{false, false},
+		TotalCostMicros:     []int64{500, 500},
+		RuntimeMs:           []int64{0, 0},
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+	earliestCreatedAt := results[0].CreatedAt
+	latestCreatedAt := results[0].CreatedAt
+	for _, msg := range results {
+		if msg.CreatedAt.Before(earliestCreatedAt) {
+			earliestCreatedAt = msg.CreatedAt
 		}
-		if i == 0 || message.CreatedAt.After(latestCreatedAt) {
-			latestCreatedAt = message.CreatedAt
+		if msg.CreatedAt.After(latestCreatedAt) {
+			latestCreatedAt = msg.CreatedAt
 		}
 	}
 
