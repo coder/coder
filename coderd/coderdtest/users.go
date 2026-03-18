@@ -21,7 +21,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// UsersPagination creates a set of users for testing paginaton.  It can be
+// UsersPagination creates a set of users for testing pagination.  It can be
 // used to test paginating both users and group members.
 func UsersPagination(
 	ctx context.Context,
