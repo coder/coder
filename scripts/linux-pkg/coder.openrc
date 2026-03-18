@@ -30,4 +30,4 @@ depend() {
     after firewall
 }
 
-retry="SIGINT/30 SIGINT/30 SIGKILL/10"
+retry="SIGINT/30/SIGINT/30/SIGKILL/10"
