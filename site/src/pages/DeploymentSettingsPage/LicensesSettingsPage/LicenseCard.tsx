@@ -50,7 +50,8 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		dayjs.unix(license.claims.nbf).isAfter(dayjs());
 	const isPremium = license.claims.feature_set?.toLowerCase() === "premium";
 	const aiGovernanceActual = aiGovernanceUserFeature?.actual ?? 0;
-	const aiGovernanceLimit = aiGovernanceUserFeature?.limit ?? 0;
+	const aiGovernanceLimit =
+		license.claims.features?.ai_governance_user_limit ?? 0;
 
 	const licenseType = license.claims.trial
 		? "Trial"
