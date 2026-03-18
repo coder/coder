@@ -63,9 +63,8 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 			: "Enterprise";
 
 	const hasAiGovernanceAddOn =
-		(aiGovernanceUserFeature?.enabled ?? false) &&
-		((license.claims.addons ?? []).includes("ai_governance") ||
-			(license.claims.features?.ai_governance_user_limit ?? 0) > 0);
+		(license.claims.addons ?? []).includes("ai_governance") ||
+		(license.claims.features?.ai_governance_user_limit ?? 0) > 0;
 	const isAiGovernanceAddOnExceeded =
 		hasAiGovernanceAddOn && aiGovernanceActual > aiGovernanceLimit;
 	const statusClassName =

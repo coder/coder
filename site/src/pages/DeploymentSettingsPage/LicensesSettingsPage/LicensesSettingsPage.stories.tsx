@@ -1,5 +1,7 @@
 import { MockEntitlements, MockLicenseResponse } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import dayjs from "dayjs";
+import { expect, within } from "storybook/test";
 import LicensesSettingsPage from "./LicensesSettingsPage";
 
 const meta: Meta<typeof LicensesSettingsPage> = {
@@ -16,25 +18,225 @@ const meta: Meta<typeof LicensesSettingsPage> = {
 export default meta;
 type Story = StoryObj<typeof LicensesSettingsPage>;
 
+const USER_STATUS_COUNTS_QUERY = {
+	key: ["insights", "userStatusCounts"],
+	data: { active: [] },
+};
+
+const withBaseQueries = ({
+	entitlements = MockEntitlements,
+	licenses = MockLicenseResponse,
+}: {
+	entitlements?: typeof MockEntitlements;
+	licenses?: typeof MockLicenseResponse | unknown[];
+}) => ({
+	queries: [
+		{ key: ["entitlements"], data: entitlements },
+		{ key: ["licenses"], data: licenses },
+		USER_STATUS_COUNTS_QUERY,
+	],
+});
+
+const createEntitlements = ({
+	userLimit,
+	aiGovernanceUserLimit,
+}: {
+	userLimit: {
+		enabled: boolean;
+		entitlement: "entitled" | "not_entitled";
+		actual: number;
+		limit?: number;
+	};
+	aiGovernanceUserLimit?: {
+		enabled: boolean;
+		entitlement: "entitled" | "not_entitled" | "grace_period";
+		actual: number;
+		limit: number;
+	};
+}) => ({
+	...MockEntitlements,
+	has_license: true,
+	features: {
+		...MockEntitlements.features,
+		user_limit: userLimit,
+		ai_governance_user_limit:
+			aiGovernanceUserLimit ??
+			MockEntitlements.features.ai_governance_user_limit,
+	},
+});
+
+const createLicense = ({
+	id,
+	uuid,
+	featureSet,
+	uploadedDaysAgo,
+	expiresInDays,
+	licenseExpiresInDays,
+	nbfOffsetDays,
+	aiGovernanceUserLimit,
+	userLimit,
+	addons,
+}: {
+	id: number;
+	uuid: string;
+	featureSet: "PREMIUM" | "enterprise";
+	uploadedDaysAgo: number;
+	expiresInDays: number;
+	licenseExpiresInDays: number;
+	nbfOffsetDays: number;
+	aiGovernanceUserLimit: number;
+	userLimit: number;
+	addons?: string[];
+}) => ({
+	id,
+	uploaded_at: String(dayjs().subtract(uploadedDaysAgo, "day").unix()),
+	expires_at: String(dayjs().add(expiresInDays, "day").unix()),
+	uuid,
+	claims: {
+		trial: false,
+		all_features: true,
+		feature_set: featureSet,
+		version: 1,
+		features: {
+			ai_governance_user_limit: aiGovernanceUserLimit,
+			user_limit: userLimit,
+		},
+		addons,
+		license_expires: dayjs().add(licenseExpiresInDays, "day").unix(),
+		nbf: dayjs().add(nbfOffsetDays, "day").unix(),
+	},
+});
+
+const normalizedTextMatcher =
+	(pattern: RegExp) => (_: string, element: Element | null) => {
+		const normalize = (text?: string | null) =>
+			text?.replace(/\s+/g, " ").trim() ?? "";
+
+		const text = normalize(element?.textContent);
+		if (!pattern.test(text)) {
+			return false;
+		}
+
+		return !Array.from(element?.children ?? []).some((child) =>
+			pattern.test(normalize(child.textContent)),
+		);
+	};
+
 export const WithoutUserLimitFeature: Story = {
 	parameters: {
-		queries: [
-			{
-				key: ["entitlements"],
-				data: {
-					...MockEntitlements,
-					features: {
-						...MockEntitlements.features,
-						user_limit: {
-							enabled: false,
-							entitlement: "not_entitled",
-							actual: 4,
-						},
+		...withBaseQueries({
+			entitlements: {
+				...MockEntitlements,
+				features: {
+					...MockEntitlements.features,
+					user_limit: {
+						enabled: false,
+						entitlement: "not_entitled",
+						actual: 4,
 					},
 				},
 			},
-			{ key: ["licenses"], data: MockLicenseResponse },
-			{ key: ["insights", "userStatusCounts"], data: { active: [] } },
-		],
+		}),
+	},
+};
+
+export const IncludesExpiredPremiumAddonSeatsInBreakdown: Story = {
+	parameters: {
+		...withBaseQueries({
+			entitlements: createEntitlements({
+				userLimit: {
+					enabled: true,
+					entitlement: "entitled",
+					actual: 3,
+					limit: 10,
+				},
+				aiGovernanceUserLimit: {
+					enabled: true,
+					entitlement: "grace_period",
+					actual: 50,
+					limit: 125,
+				},
+			}),
+			licenses: [
+				createLicense({
+					id: 42,
+					uuid: "premium-expired-license",
+					featureSet: "PREMIUM",
+					uploadedDaysAgo: 45,
+					expiresInDays: 14,
+					licenseExpiresInDays: -1,
+					nbfOffsetDays: -90,
+					aiGovernanceUserLimit: 100,
+					userLimit: 10,
+					addons: ["ai_governance"],
+				}),
+				createLicense({
+					id: 43,
+					uuid: "enterprise-addon-license",
+					featureSet: "enterprise",
+					uploadedDaysAgo: 15,
+					expiresInDays: 30,
+					licenseExpiresInDays: 30,
+					nbfOffsetDays: -90,
+					aiGovernanceUserLimit: 25,
+					userLimit: 10,
+				}),
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/100 Included with premium/i),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByText(/25 additional seats purchased/i),
+		).toBeInTheDocument();
+		const usageValues = canvas.getAllByText(
+			normalizedTextMatcher(/50\s*\/\s*125/),
+		);
+		await expect(usageValues.length).toBeGreaterThan(0);
+	},
+};
+
+export const ShowsAddonUiForFutureLicenseBeforeNbf: Story = {
+	parameters: {
+		...withBaseQueries({
+			entitlements: createEntitlements({
+				userLimit: {
+					enabled: true,
+					entitlement: "entitled",
+					actual: 3,
+					limit: 10,
+				},
+				aiGovernanceUserLimit: {
+					enabled: false,
+					entitlement: "not_entitled",
+					actual: 0,
+					limit: 0,
+				},
+			}),
+			licenses: [
+				createLicense({
+					id: 44,
+					uuid: "future-premium-addon-license",
+					featureSet: "PREMIUM",
+					uploadedDaysAgo: 0,
+					expiresInDays: 365,
+					licenseExpiresInDays: 365,
+					nbfOffsetDays: 7,
+					aiGovernanceUserLimit: 100,
+					userLimit: 10,
+					addons: ["ai_governance"],
+				}),
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText(/add-ons/i)).toBeInTheDocument();
+		const aiGovernanceTitles = canvas.getAllByText(/^ai governance$/i);
+		await expect(aiGovernanceTitles.length).toBeGreaterThan(0);
+		await expect(canvas.getByText(/starts on/i)).toBeInTheDocument();
 	},
 };
