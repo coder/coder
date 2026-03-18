@@ -12,43 +12,21 @@ import (
 // tests can assert on what was logged. It requires a testing.TB,
 // which also prevents accidental use outside of tests.
 type FakeSink struct {
-	t       testing.TB
 	mu      sync.RWMutex
 	entries []slog.SinkEntry
-	notify  chan<- slog.SinkEntry
 }
 
 // NewFakeSink returns a FakeSink ready for use.
-func NewFakeSink(t testing.TB) *FakeSink {
-	return &FakeSink{t: t}
-}
-
-// SetNotifyChannel configures a send-only channel that receives a
-// copy of every entry as it is logged. This is useful for tests
-// that need to block until a specific log line arrives instead of
-// polling. If the channel's buffer is full, the test is failed
-// rather than silently dropping the entry.
-func (s *FakeSink) SetNotifyChannel(ch chan<- slog.SinkEntry) *FakeSink {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.notify = ch
-	return s
+func NewFakeSink(_ testing.TB) *FakeSink {
+	return &FakeSink{}
 }
 
 // LogEntry implements slog.Sink. It appends the entry to the
-// internal slice and, if a notify channel is set, sends a copy.
+// internal slice.
 func (s *FakeSink) LogEntry(_ context.Context, e slog.SinkEntry) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.entries = append(s.entries, e)
-	if s.notify != nil {
-		select {
-		case s.notify <- e:
-		default:
-			// Errorf is goroutine-safe unlike Fatalf.
-			s.t.Errorf("FakeSink: notify channel is full, could not deliver log entry: %s", e.Message)
-		}
-	}
 }
 
 // Sync implements slog.Sink.

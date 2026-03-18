@@ -133,25 +133,6 @@ func TestFakeSink(t *testing.T) {
 		require.Len(t, entries, goroutines*entriesPerGoroutine)
 	})
 
-	t.Run("NotifyChannel", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		sink := testutil.NewFakeSink(t)
-		ch := make(chan slog.SinkEntry, 1)
-		sink.SetNotifyChannel(ch)
-		logger := sink.Logger()
-
-		logger.Info(ctx, "notify channel ping")
-
-		select {
-		case got := <-ch:
-			assert.Equal(t, "notify channel ping", got.Message)
-		case <-ctx.Done():
-			t.Fatal("timed out waiting for notify channel")
-		}
-	})
-
 	t.Run("LoggerConvenience", func(t *testing.T) {
 		t.Parallel()
 

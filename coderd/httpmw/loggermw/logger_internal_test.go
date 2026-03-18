@@ -108,10 +108,10 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
-	notifyCh := make(chan slog.SinkEntry, 2)
-	sink := testutil.NewFakeSink(t).SetNotifyChannel(notifyCh)
+	sink := testutil.NewFakeSink(t)
 	logger := sink.Logger()
 	done := make(chan struct{})
+	logged := make(chan struct{})
 	wg := sync.WaitGroup{}
 	// Create a test handler to simulate a WebSocket connection
 	testHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -123,6 +123,7 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 
 		requestLgr := RequestLoggerFromContext(r.Context())
 		requestLgr.WriteLog(r.Context(), http.StatusSwitchingProtocols)
+		close(logged)
 		// Block so we can be sure the end of the middleware isn't being called.
 		wg.Wait()
 	})
@@ -146,9 +147,11 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 	require.NoError(t, err, "failed to dial WebSocket")
 	defer conn.Close(websocket.StatusNormalClosure, "")
 
-	// Wait for the log from within the handler
-	newEntry := testutil.TryReceive(ctx, t, notifyCh)
-	require.Equal(t, newEntry.Message, "GET")
+	// Wait for the log from within the handler.
+	_ = testutil.TryReceive(ctx, t, logged)
+	entries := sink.Entries()
+	require.Len(t, entries, 1, "expected exactly one log entry after WriteLog")
+	require.Equal(t, entries[0].Message, "GET")
 
 	// Signal the websocket handler to return (and read to handle the close frame)
 	wg.Done()
@@ -157,7 +160,7 @@ func TestLoggerMiddleware_WebSocket(t *testing.T) {
 
 	// Wait for the request to finish completely and verify we only logged once
 	_ = testutil.TryReceive(ctx, t, done)
-	entries := sink.Entries()
+	entries = sink.Entries()
 	require.Len(t, entries, 1, "log was written twice")
 }
 
