@@ -175,7 +175,7 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 });
 
 export const archiveChat = (queryClient: QueryClient) => ({
-	mutationFn: (chatId: string) => API.archiveChat(chatId),
+	mutationFn: (chatId: string) => API.updateChat(chatId, { archived: true }),
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
@@ -234,7 +234,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 });
 
 export const unarchiveChat = (queryClient: QueryClient) => ({
-	mutationFn: (chatId: string) => API.unarchiveChat(chatId),
+	mutationFn: (chatId: string) => API.updateChat(chatId, { archived: false }),
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
@@ -395,6 +395,22 @@ export const updateChatSystemPrompt = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatDesktopEnabledKey = ["chat-desktop-enabled"] as const;
+
+export const chatDesktopEnabled = () => ({
+	queryKey: chatDesktopEnabledKey,
+	queryFn: () => API.getChatDesktopEnabled(),
+});
+
+export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
+	mutationFn: API.updateChatDesktopEnabled,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatDesktopEnabledKey,
+		});
+	},
+});
+
 const chatUserCustomPromptKey = ["chat-user-custom-prompt"] as const;
 
 export const chatUserCustomPrompt = () => ({
@@ -418,7 +434,7 @@ export const chatModels = () => ({
 	queryFn: (): Promise<TypesGen.ChatModelsResponse> => API.getChatModels(),
 });
 
-export const chatProviderConfigsKey = ["chat-provider-configs"] as const;
+const chatProviderConfigsKey = ["chat-provider-configs"] as const;
 
 export const chatProviderConfigs = () => ({
 	queryKey: chatProviderConfigsKey,
@@ -426,7 +442,7 @@ export const chatProviderConfigs = () => ({
 		API.getChatProviderConfigs(),
 });
 
-export const chatModelConfigsKey = ["chat-model-configs"] as const;
+const chatModelConfigsKey = ["chat-model-configs"] as const;
 
 export const chatModelConfigs = () => ({
 	queryKey: chatModelConfigsKey,
@@ -531,10 +547,7 @@ export const chatCostUsers = (params?: ChatCostUsersParams) => ({
 	staleTime: 60_000,
 });
 
-export const chatUsageLimitConfigKey = [
-	...chatsKey,
-	"usageLimitConfig",
-] as const;
+const chatUsageLimitConfigKey = [...chatsKey, "usageLimitConfig"] as const;
 
 export const chatUsageLimitConfig = () => ({
 	queryKey: chatUsageLimitConfigKey,

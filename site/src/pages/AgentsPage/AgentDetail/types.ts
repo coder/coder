@@ -70,11 +70,6 @@ export type ParsedMessageEntry = {
 	parsed: ParsedMessageContent;
 };
 
-export type ParsedMessageSection = {
-	userEntry: ParsedMessageEntry | null;
-	entries: ParsedMessageEntry[];
-};
-
 type StreamToolCall = {
 	id: string;
 	name: string;

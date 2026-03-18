@@ -66,6 +66,7 @@ module.exports = {
 					magenta: "hsl(var(--surface-magenta))",
 					"git-added": "hsl(var(--surface-git-added))",
 					"git-deleted": "hsl(var(--surface-git-deleted))",
+					"git-merged": "hsl(var(--surface-git-merged))",
 				},
 				border: {
 					DEFAULT: "hsl(var(--border-default))",
@@ -97,6 +98,7 @@ module.exports = {
 					merged: "hsl(var(--git-merged))",
 					"added-bright": "hsl(var(--git-added-bright))",
 					"deleted-bright": "hsl(var(--git-deleted-bright))",
+					"merged-bright": "hsl(var(--git-merged-bright))",
 				},
 			},
 			keyframes: {

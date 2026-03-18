@@ -391,9 +391,21 @@ SELECT
 				array_agg(org_roles || ':' || organization_members.organization_id::text)
 			FROM
 				organization_members,
-				-- All org_members get the organization-member role for their orgs
+				-- All org members get an implied role for their orgs. Most members
+				-- get organization-member, but service accounts will get
+				-- organization-service-account instead. They're largely the same,
+				-- but having them be distinct means we can allow configuring
+				-- service-accounts to have slightly broader permissions–such as
+				-- for workspace sharing.
 				unnest(
-					array_append(roles, 'organization-member')
+					array_append(
+						roles,
+						CASE WHEN users.is_service_account THEN
+							'organization-service-account'
+						ELSE
+							'organization-member'
+						END
+					)
 				) AS org_roles
 			WHERE
 				user_id = users.id

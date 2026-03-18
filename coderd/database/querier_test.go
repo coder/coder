@@ -1235,6 +1235,230 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 	})
 }
 
+func TestGetAuthorizedChats(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	// Create users with different roles.
+	owner := dbgen.User(t, db, database.User{
+		RBACRoles: []string{rbac.RoleOwner().String()},
+	})
+	member := dbgen.User(t, db, database.User{})
+	secondMember := dbgen.User(t, db, database.User{})
+
+	// Create FK dependencies: a chat provider and model config.
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+		APIKey:      "test-key",
+		Enabled:     true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "test-model",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	// Create 3 chats owned by owner.
+	for i := range 3 {
+		_, err := db.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             fmt.Sprintf("owner chat %d", i+1),
+		})
+		require.NoError(t, err)
+	}
+
+	// Create 2 chats owned by member.
+	for i := range 2 {
+		_, err := db.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           member.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             fmt.Sprintf("member chat %d", i+1),
+		})
+		require.NoError(t, err)
+	}
+
+	t.Run("sqlQuerier", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Member should only see their own 2 chats.
+		memberSubject, _, err := httpmw.UserRBACSubject(ctx, db, member.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedMember, err := authorizer.Prepare(ctx, memberSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+		memberRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedMember)
+		require.NoError(t, err)
+		require.Len(t, memberRows, 2)
+		for _, row := range memberRows {
+			require.Equal(t, member.ID, row.OwnerID, "member should only see own chats")
+		}
+
+		// Owner should see at least the 5 pre-created chats (site-wide
+		// access). Parallel subtests may add more, so use GreaterOrEqual.
+		ownerSubject, _, err := httpmw.UserRBACSubject(ctx, db, owner.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedOwner, err := authorizer.Prepare(ctx, ownerSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+		ownerRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedOwner)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(ownerRows), 5)
+
+		// secondMember has no chats and should see 0.
+		secondSubject, _, err := httpmw.UserRBACSubject(ctx, db, secondMember.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedSecond, err := authorizer.Prepare(ctx, secondSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+		secondRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedSecond)
+		require.NoError(t, err)
+		require.Len(t, secondRows, 0)
+
+		// Org admin should NOT see other users' chats — chats are
+		// not org-scoped resources.
+		orgs, err := db.GetOrganizations(ctx, database.GetOrganizationsParams{})
+		require.NoError(t, err)
+		require.NotEmpty(t, orgs)
+		orgAdmin := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         orgAdmin.ID,
+			OrganizationID: orgs[0].ID,
+			Roles:          []string{rbac.RoleOrgAdmin()},
+		})
+		orgAdminSubject, _, err := httpmw.UserRBACSubject(ctx, db, orgAdmin.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedOrgAdmin, err := authorizer.Prepare(ctx, orgAdminSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+		orgAdminRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedOrgAdmin)
+		require.NoError(t, err)
+		require.Len(t, orgAdminRows, 0, "org admin with no chats should see 0 chats")
+
+		// OwnerID filter: member queries their own chats.
+		memberFilterSelf, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+			OwnerID: member.ID,
+		}, preparedMember)
+		require.NoError(t, err)
+		require.Len(t, memberFilterSelf, 2)
+
+		// OwnerID filter: member queries owner's chats → sees 0.
+		memberFilterOwner, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+			OwnerID: owner.ID,
+		}, preparedMember)
+		require.NoError(t, err)
+		require.Len(t, memberFilterOwner, 0)
+	})
+
+	t.Run("dbauthz", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+
+		// As member: should see only own 2 chats.
+		memberSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, member.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		memberCtx := dbauthz.As(ctx, memberSubject)
+		memberRows, err := authzdb.GetChats(memberCtx, database.GetChatsParams{})
+		require.NoError(t, err)
+		require.Len(t, memberRows, 2)
+		for _, row := range memberRows {
+			require.Equal(t, member.ID, row.OwnerID, "member should only see own chats")
+		}
+
+		// As owner: should see at least the 5 pre-created chats.
+		ownerSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, owner.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		ownerCtx := dbauthz.As(ctx, ownerSubject)
+		ownerRows, err := authzdb.GetChats(ownerCtx, database.GetChatsParams{})
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(ownerRows), 5)
+
+		// As secondMember: should see 0 chats.
+		secondSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, secondMember.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		secondCtx := dbauthz.As(ctx, secondSubject)
+		secondRows, err := authzdb.GetChats(secondCtx, database.GetChatsParams{})
+		require.NoError(t, err)
+		require.Len(t, secondRows, 0)
+	})
+
+	t.Run("pagination", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Use a dedicated user for pagination to avoid interference
+		// with the other parallel subtests.
+		paginationUser := dbgen.User(t, db, database.User{})
+		for i := range 7 {
+			_, err := db.InsertChat(ctx, database.InsertChatParams{
+				OwnerID:           paginationUser.ID,
+				LastModelConfigID: modelCfg.ID,
+				Title:             fmt.Sprintf("pagination chat %d", i+1),
+			})
+			require.NoError(t, err)
+		}
+
+		pagUserSubject, _, err := httpmw.UserRBACSubject(ctx, db, paginationUser.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedMember, err := authorizer.Prepare(ctx, pagUserSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+
+		// Fetch first page with limit=2.
+		page1, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+			LimitOpt: 2,
+		}, preparedMember)
+		require.NoError(t, err)
+		require.Len(t, page1, 2)
+		for _, row := range page1 {
+			require.Equal(t, paginationUser.ID, row.OwnerID, "paginated results must belong to pagination user")
+		}
+
+		// Fetch remaining pages and collect all chat IDs.
+		allIDs := make(map[uuid.UUID]struct{})
+		for _, row := range page1 {
+			allIDs[row.ID] = struct{}{}
+		}
+		offset := int32(2)
+		for {
+			page, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+				LimitOpt:  2,
+				OffsetOpt: offset,
+			}, preparedMember)
+			require.NoError(t, err)
+			for _, row := range page {
+				require.Equal(t, paginationUser.ID, row.OwnerID, "paginated results must belong to pagination user")
+				allIDs[row.ID] = struct{}{}
+			}
+			if len(page) < 2 {
+				break
+			}
+			offset += int32(len(page)) //nolint:gosec // Test code, pagination values are small.
+		}
+
+		// All 7 member chats should be accounted for with no leakage.
+		require.Len(t, allIDs, 7, "pagination should return all member chats exactly once")
+	})
+}
+
 func TestInsertWorkspaceAgentLogs(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2431,6 +2655,42 @@ func TestDeleteCustomRoleDoesNotDeleteSystemRole(t *testing.T) {
 	require.True(t, roles[0].IsSystem)
 }
 
+func TestGetAuthorizationUserRolesImpliedOrgRole(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+
+	regularUser := dbgen.User(t, db, database.User{})
+	saUser := dbgen.User(t, db, database.User{IsServiceAccount: true})
+
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         regularUser.ID,
+	})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         saUser.ID,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	wantMember := rbac.RoleOrgMember() + ":" + org.ID.String()
+	wantSA := rbac.RoleOrgServiceAccount() + ":" + org.ID.String()
+
+	// Regular users get the implied organization-member role.
+	regularRoles, err := db.GetAuthorizationUserRoles(ctx, regularUser.ID)
+	require.NoError(t, err)
+	require.Contains(t, regularRoles.Roles, wantMember)
+	require.NotContains(t, regularRoles.Roles, wantSA)
+
+	// Service accounts get the implied organization-service-account role.
+	saRoles, err := db.GetAuthorizationUserRoles(ctx, saUser.ID)
+	require.NoError(t, err)
+	require.Contains(t, saRoles.Roles, wantSA)
+	require.NotContains(t, saRoles.Roles, wantMember)
+}
+
 func TestUpdateOrganizationWorkspaceSharingSettings(t *testing.T) {
 	t.Parallel()
 
@@ -2441,82 +2701,155 @@ func TestUpdateOrganizationWorkspaceSharingSettings(t *testing.T) {
 
 	updated, err := db.UpdateOrganizationWorkspaceSharingSettings(ctx, database.UpdateOrganizationWorkspaceSharingSettingsParams{
 		ID:                       org.ID,
-		WorkspaceSharingDisabled: true,
+		ShareableWorkspaceOwners: database.ShareableWorkspaceOwnersNone,
 		UpdatedAt:                dbtime.Now(),
 	})
 	require.NoError(t, err)
-	require.True(t, updated.WorkspaceSharingDisabled)
+	require.Equal(t, database.ShareableWorkspaceOwnersNone, updated.ShareableWorkspaceOwners)
 
 	got, err := db.GetOrganizationByID(ctx, org.ID)
 	require.NoError(t, err)
-	require.True(t, got.WorkspaceSharingDisabled)
+	require.Equal(t, database.ShareableWorkspaceOwnersNone, got.ShareableWorkspaceOwners)
 }
 
 func TestDeleteWorkspaceACLsByOrganization(t *testing.T) {
 	t.Parallel()
 
-	db, _ := dbtestutil.NewDB(t)
-	org1 := dbgen.Organization(t, db, database.Organization{})
-	org2 := dbgen.Organization(t, db, database.Organization{})
+	t.Run("DeletesAll", func(t *testing.T) {
+		t.Parallel()
 
-	owner1 := dbgen.User(t, db, database.User{})
-	owner2 := dbgen.User(t, db, database.User{})
-	sharedUser := dbgen.User(t, db, database.User{})
-	sharedGroup := dbgen.Group(t, db, database.Group{
-		OrganizationID: org1.ID,
+		db, _ := dbtestutil.NewDB(t)
+		org1 := dbgen.Organization(t, db, database.Organization{})
+		org2 := dbgen.Organization(t, db, database.Organization{})
+
+		owner1 := dbgen.User(t, db, database.User{})
+		owner2 := dbgen.User(t, db, database.User{})
+		sharedUser := dbgen.User(t, db, database.User{})
+		sharedGroup := dbgen.Group(t, db, database.Group{
+			OrganizationID: org1.ID,
+		})
+
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org1.ID,
+			UserID:         owner1.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org2.ID,
+			UserID:         owner2.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org1.ID,
+			UserID:         sharedUser.ID,
+		})
+
+		ws1 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        owner1.ID,
+			OrganizationID: org1.ID,
+			UserACL: database.WorkspaceACL{
+				sharedUser.ID.String(): {
+					Permissions: []policy.Action{policy.ActionRead},
+				},
+			},
+			GroupACL: database.WorkspaceACL{
+				sharedGroup.ID.String(): {
+					Permissions: []policy.Action{policy.ActionRead},
+				},
+			},
+		}).Do().Workspace
+
+		ws2 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        owner2.ID,
+			OrganizationID: org2.ID,
+			UserACL: database.WorkspaceACL{
+				uuid.NewString(): {
+					Permissions: []policy.Action{policy.ActionRead},
+				},
+			},
+		}).Do().Workspace
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		err := db.DeleteWorkspaceACLsByOrganization(ctx, database.DeleteWorkspaceACLsByOrganizationParams{
+			OrganizationID:         org1.ID,
+			ExcludeServiceAccounts: false,
+		})
+		require.NoError(t, err)
+
+		got1, err := db.GetWorkspaceByID(ctx, ws1.ID)
+		require.NoError(t, err)
+		require.Empty(t, got1.UserACL)
+		require.Empty(t, got1.GroupACL)
+
+		got2, err := db.GetWorkspaceByID(ctx, ws2.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, got2.UserACL)
 	})
 
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: org1.ID,
-		UserID:         owner1.ID,
-	})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: org2.ID,
-		UserID:         owner2.ID,
-	})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: org1.ID,
-		UserID:         sharedUser.ID,
-	})
+	t.Run("ExcludesServiceAccounts", func(t *testing.T) {
+		t.Parallel()
 
-	ws1 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OwnerID:        owner1.ID,
-		OrganizationID: org1.ID,
-		UserACL: database.WorkspaceACL{
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		regularUser := dbgen.User(t, db, database.User{})
+		saUser := dbgen.User(t, db, database.User{IsServiceAccount: true})
+		sharedUser := dbgen.User(t, db, database.User{})
+
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org.ID,
+			UserID:         regularUser.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org.ID,
+			UserID:         saUser.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org.ID,
+			UserID:         sharedUser.ID,
+		})
+
+		regularWS := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        regularUser.ID,
+			OrganizationID: org.ID,
+			UserACL: database.WorkspaceACL{
+				sharedUser.ID.String(): {
+					Permissions: []policy.Action{policy.ActionRead},
+				},
+			},
+		}).Do().Workspace
+
+		saWS := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        saUser.ID,
+			OrganizationID: org.ID,
+			UserACL: database.WorkspaceACL{
+				sharedUser.ID.String(): {
+					Permissions: []policy.Action{policy.ActionRead},
+				},
+			},
+		}).Do().Workspace
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		err := db.DeleteWorkspaceACLsByOrganization(ctx, database.DeleteWorkspaceACLsByOrganizationParams{
+			OrganizationID:         org.ID,
+			ExcludeServiceAccounts: true,
+		})
+		require.NoError(t, err)
+
+		// Regular user workspace ACLs should be cleared.
+		gotRegular, err := db.GetWorkspaceByID(ctx, regularWS.ID)
+		require.NoError(t, err)
+		require.Empty(t, gotRegular.UserACL)
+
+		// Service account workspace ACLs should be preserved.
+		gotSA, err := db.GetWorkspaceByID(ctx, saWS.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.WorkspaceACL{
 			sharedUser.ID.String(): {
 				Permissions: []policy.Action{policy.ActionRead},
 			},
-		},
-		GroupACL: database.WorkspaceACL{
-			sharedGroup.ID.String(): {
-				Permissions: []policy.Action{policy.ActionRead},
-			},
-		},
-	}).Do().Workspace
-
-	ws2 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OwnerID:        owner2.ID,
-		OrganizationID: org2.ID,
-		UserACL: database.WorkspaceACL{
-			uuid.NewString(): {
-				Permissions: []policy.Action{policy.ActionRead},
-			},
-		},
-	}).Do().Workspace
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	err := db.DeleteWorkspaceACLsByOrganization(ctx, org1.ID)
-	require.NoError(t, err)
-
-	got1, err := db.GetWorkspaceByID(ctx, ws1.ID)
-	require.NoError(t, err)
-	require.Empty(t, got1.UserACL)
-	require.Empty(t, got1.GroupACL)
-
-	got2, err := db.GetWorkspaceByID(ctx, ws2.ID)
-	require.NoError(t, err)
-	require.NotEmpty(t, got2.UserACL)
+		}, gotSA.UserACL)
+	})
 }
 
 func TestAuthorizedAuditLogs(t *testing.T) {

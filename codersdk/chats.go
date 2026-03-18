@@ -98,6 +98,19 @@ const (
 	ChatMessagePartTypeFileReference ChatMessagePartType = "file-reference"
 )
 
+// AllChatMessagePartTypes returns all known ChatMessagePartType values.
+func AllChatMessagePartTypes() []ChatMessagePartType {
+	return []ChatMessagePartType{
+		ChatMessagePartTypeText,
+		ChatMessagePartTypeReasoning,
+		ChatMessagePartTypeToolCall,
+		ChatMessagePartTypeToolResult,
+		ChatMessagePartTypeSource,
+		ChatMessagePartTypeFile,
+		ChatMessagePartTypeFileReference,
+	}
+}
+
 // ChatMessagePart is a structured chunk of a chat message.
 //
 // WARNING: This type is both an API wire type and a database
@@ -106,37 +119,41 @@ const (
 // changes, and omitempty behavior all affect backward-compatible
 // deserialization of stored rows. Treat changes to this struct
 // with the same care as a database migration.
+//
+// The variants struct tag declares which discriminated-union
+// variants include each field in the generated TypeScript. Bare
+// name = required, ? suffix = optional. Fields without a variants
+// tag are excluded from the generated union. See
+// scripts/apitypings/main.go for the codegen that reads these.
 type ChatMessagePart struct {
 	Type        ChatMessagePartType `json:"type"`
-	Text        string              `json:"text,omitempty"`
+	Text        string              `json:"text,omitempty" variants:"text,reasoning"`
 	Signature   string              `json:"signature,omitempty"`
-	ToolCallID  string              `json:"tool_call_id,omitempty"`
-	ToolName    string              `json:"tool_name,omitempty"`
-	Args        json.RawMessage     `json:"args,omitempty"`
-	ArgsDelta   string              `json:"args_delta,omitempty"`
-	Result      json.RawMessage     `json:"result,omitempty"`
+	ToolCallID  string              `json:"tool_call_id,omitempty" variants:"tool-call,tool-result"`
+	ToolName    string              `json:"tool_name,omitempty" variants:"tool-call,tool-result"`
+	Args        json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
+	ArgsDelta   string              `json:"args_delta,omitempty" variants:"tool-call?"`
+	Result      json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
 	ResultDelta string              `json:"result_delta,omitempty"`
-	IsError     bool                `json:"is_error,omitempty"`
-	SourceID    string              `json:"source_id,omitempty"`
-	URL         string              `json:"url,omitempty"`
-	Title       string              `json:"title,omitempty"`
-	MediaType   string              `json:"media_type,omitempty"`
-	Data        []byte              `json:"data,omitempty"`
-	FileID      uuid.NullUUID       `json:"file_id,omitempty" format:"uuid"`
-	// The following fields are only set when Type is
-	// ChatInputPartTypeFileReference.
-	FileName  string `json:"file_name,omitempty"`
-	StartLine int    `json:"start_line,omitempty"`
-	EndLine   int    `json:"end_line,omitempty"`
+	IsError     bool                `json:"is_error,omitempty" variants:"tool-result?"`
+	SourceID    string              `json:"source_id,omitempty" variants:"source?"`
+	URL         string              `json:"url,omitempty" variants:"source"`
+	Title       string              `json:"title,omitempty" variants:"source?"`
+	MediaType   string              `json:"media_type,omitempty" variants:"file"`
+	Data        []byte              `json:"data,omitempty" variants:"file?"`
+	FileID      uuid.NullUUID       `json:"file_id,omitempty" format:"uuid" variants:"file?"`
+	FileName    string              `json:"file_name,omitempty" variants:"file-reference"`
+	StartLine   int                 `json:"start_line,omitempty" variants:"file-reference"`
+	EndLine     int                 `json:"end_line,omitempty" variants:"file-reference"`
 	// The code content from the diff that was commented on.
-	Content string `json:"content,omitempty"`
+	Content string `json:"content,omitempty" variants:"file-reference"`
 	// ProviderMetadata holds provider-specific response metadata
 	// (e.g. Anthropic cache control hints) as raw JSON. Internal
 	// only: stripped by db2sdk before API responses.
 	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-"`
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
-	ProviderExecuted bool `json:"provider_executed,omitempty"`
+	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
 }
 
 // StripInternal removes internal-only fields that must not be
@@ -245,7 +262,8 @@ type CreateChatRequest struct {
 
 // UpdateChatRequest is the request to update a chat.
 type UpdateChatRequest struct {
-	Title string `json:"title"`
+	Title    *string `json:"title,omitempty"`
+	Archived *bool   `json:"archived,omitempty"`
 }
 
 // CreateChatMessageRequest is the request to add a message to a chat.
@@ -307,26 +325,26 @@ type ChatModelsResponse struct {
 	Providers []ChatModelProvider `json:"providers"`
 }
 
-// ChatSystemPromptResponse is the response for getting the chat system prompt.
-type ChatSystemPromptResponse struct {
+// ChatSystemPrompt is the request and response body for the chat
+// system prompt configuration endpoint.
+type ChatSystemPrompt struct {
 	SystemPrompt string `json:"system_prompt"`
 }
 
-// UpdateChatSystemPromptRequest is the request to update the chat system prompt.
-type UpdateChatSystemPromptRequest struct {
-	SystemPrompt string `json:"system_prompt"`
-}
-
-// UserChatCustomPromptResponse is the response for getting a user's
-// custom chat prompt.
-type UserChatCustomPromptResponse struct {
+// UserChatCustomPrompt is the request and response body for the
+// user chat custom prompt configuration endpoint.
+type UserChatCustomPrompt struct {
 	CustomPrompt string `json:"custom_prompt"`
 }
 
-// UpdateUserChatCustomPromptRequest is the request to update a user's
-// custom chat prompt.
-type UpdateUserChatCustomPromptRequest struct {
-	CustomPrompt string `json:"custom_prompt"`
+// ChatDesktopEnabledResponse is the response for getting the desktop setting.
+type ChatDesktopEnabledResponse struct {
+	EnableDesktop bool `json:"enable_desktop"`
+}
+
+// UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
+type UpdateChatDesktopEnabledRequest struct {
+	EnableDesktop bool `json:"enable_desktop"`
 }
 
 // ChatProviderConfigSource describes how a provider entry is sourced.
@@ -413,7 +431,7 @@ type ChatModelOpenAIProviderOptions struct {
 	Prediction          map[string]any   `json:"prediction,omitempty" description:"Predicted output content to speed up responses" hidden:"true"`
 	Store               *bool            `json:"store,omitempty" description:"Whether to store the output for model distillation or evals" hidden:"true"`
 	Metadata            map[string]any   `json:"metadata,omitempty" description:"Arbitrary metadata to attach to the request" hidden:"true"`
-	PromptCacheKey      *string          `json:"prompt_cache_key,omitempty" description:"Key for enabling cross-request prompt caching" hidden:"true"`
+	PromptCacheKey      *string          `json:"prompt_cache_key,omitempty" description:"Key for enabling cross-request prompt caching"`
 	SafetyIdentifier    *string          `json:"safety_identifier,omitempty" description:"Developer-specific safety identifier for the request" hidden:"true"`
 	ServiceTier         *string          `json:"service_tier,omitempty" description:"Latency tier to use for processing the request"`
 	StructuredOutputs   *bool            `json:"structured_outputs,omitempty" description:"Whether to enable structured JSON output mode" hidden:"true"`
@@ -466,12 +484,13 @@ type ChatModelOpenAICompatProviderOptions struct {
 	ReasoningEffort *string `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
 }
 
-// ChatModelOpenRouterReasoningOptions configures OpenRouter reasoning behavior.
-type ChatModelOpenRouterReasoningOptions struct {
+// ChatModelReasoningOptions configures reasoning behavior for model
+// providers that support it.
+type ChatModelReasoningOptions struct {
 	Enabled   *bool   `json:"enabled,omitempty" description:"Whether reasoning is enabled"`
 	Exclude   *bool   `json:"exclude,omitempty" description:"Whether to exclude reasoning content from the response"`
 	MaxTokens *int64  `json:"max_tokens,omitempty" description:"Maximum number of tokens for reasoning output"`
-	Effort    *string `json:"effort,omitempty" description:"Controls the level of reasoning effort" enum:"low,medium,high"`
+	Effort    *string `json:"effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
 }
 
 // ChatModelOpenRouterProvider configures OpenRouter routing preferences.
@@ -488,22 +507,14 @@ type ChatModelOpenRouterProvider struct {
 
 // ChatModelOpenRouterProviderOptions configures OpenRouter provider behavior.
 type ChatModelOpenRouterProviderOptions struct {
-	Reasoning         *ChatModelOpenRouterReasoningOptions `json:"reasoning,omitempty" description:"Configuration for reasoning behavior"`
-	ExtraBody         map[string]any                       `json:"extra_body,omitempty" description:"Additional fields to include in the request body" hidden:"true"`
-	IncludeUsage      *bool                                `json:"include_usage,omitempty" description:"Whether to include token usage information in the response" hidden:"true"`
-	LogitBias         map[string]int64                     `json:"logit_bias,omitempty" description:"Token IDs mapped to bias values from -100 to 100" hidden:"true"`
-	LogProbs          *bool                                `json:"log_probs,omitempty" description:"Whether to return log probabilities of output tokens" hidden:"true"`
-	ParallelToolCalls *bool                                `json:"parallel_tool_calls,omitempty" description:"Whether the model may make multiple tool calls in parallel"`
-	User              *string                              `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
-	Provider          *ChatModelOpenRouterProvider         `json:"provider,omitempty" description:"Routing preferences for provider selection" hidden:"true"`
-}
-
-// ChatModelVercelReasoningOptions configures Vercel reasoning behavior.
-type ChatModelVercelReasoningOptions struct {
-	Enabled   *bool   `json:"enabled,omitempty" description:"Whether reasoning is enabled"`
-	MaxTokens *int64  `json:"max_tokens,omitempty" description:"Maximum number of tokens for reasoning output"`
-	Effort    *string `json:"effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
-	Exclude   *bool   `json:"exclude,omitempty" description:"Whether to exclude reasoning content from the response"`
+	Reasoning         *ChatModelReasoningOptions   `json:"reasoning,omitempty" description:"Configuration for reasoning behavior"`
+	ExtraBody         map[string]any               `json:"extra_body,omitempty" description:"Additional fields to include in the request body" hidden:"true"`
+	IncludeUsage      *bool                        `json:"include_usage,omitempty" description:"Whether to include token usage information in the response" hidden:"true"`
+	LogitBias         map[string]int64             `json:"logit_bias,omitempty" description:"Token IDs mapped to bias values from -100 to 100" hidden:"true"`
+	LogProbs          *bool                        `json:"log_probs,omitempty" description:"Whether to return log probabilities of output tokens" hidden:"true"`
+	ParallelToolCalls *bool                        `json:"parallel_tool_calls,omitempty" description:"Whether the model may make multiple tool calls in parallel"`
+	User              *string                      `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
+	Provider          *ChatModelOpenRouterProvider `json:"provider,omitempty" description:"Routing preferences for provider selection" hidden:"true"`
 }
 
 // ChatModelVercelGatewayProviderOptions configures Vercel routing behavior.
@@ -514,7 +525,7 @@ type ChatModelVercelGatewayProviderOptions struct {
 
 // ChatModelVercelProviderOptions configures Vercel provider behavior.
 type ChatModelVercelProviderOptions struct {
-	Reasoning         *ChatModelVercelReasoningOptions       `json:"reasoning,omitempty" description:"Configuration for reasoning behavior"`
+	Reasoning         *ChatModelReasoningOptions             `json:"reasoning,omitempty" description:"Configuration for reasoning behavior"`
 	ProviderOptions   *ChatModelVercelGatewayProviderOptions `json:"providerOptions,omitempty" description:"Gateway routing options for provider selection" hidden:"true"`
 	User              *string                                `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
 	LogitBias         map[string]int64                       `json:"logit_bias,omitempty" description:"Token IDs mapped to bias values from -100 to 100" hidden:"true"`
@@ -1246,21 +1257,21 @@ func (c *Client) GetChatCostUsers(ctx context.Context, opts ChatCostUsersOptions
 }
 
 // GetChatSystemPrompt returns the deployment-wide chat system prompt.
-func (c *Client) GetChatSystemPrompt(ctx context.Context) (ChatSystemPromptResponse, error) {
+func (c *Client) GetChatSystemPrompt(ctx context.Context) (ChatSystemPrompt, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/system-prompt", nil)
 	if err != nil {
-		return ChatSystemPromptResponse{}, err
+		return ChatSystemPrompt{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ChatSystemPromptResponse{}, ReadBodyAsError(res)
+		return ChatSystemPrompt{}, ReadBodyAsError(res)
 	}
-	var resp ChatSystemPromptResponse
+	var resp ChatSystemPrompt
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // UpdateChatSystemPrompt updates the deployment-wide chat system prompt.
-func (c *Client) UpdateChatSystemPrompt(ctx context.Context, req UpdateChatSystemPromptRequest) error {
+func (c *Client) UpdateChatSystemPrompt(ctx context.Context, req ChatSystemPrompt) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/system-prompt", req)
 	if err != nil {
 		return err
@@ -1273,30 +1284,57 @@ func (c *Client) UpdateChatSystemPrompt(ctx context.Context, req UpdateChatSyste
 }
 
 // GetUserChatCustomPrompt fetches the user's custom chat prompt.
-func (c *Client) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPromptResponse, error) {
+func (c *Client) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPrompt, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-prompt", nil)
 	if err != nil {
-		return UserChatCustomPromptResponse{}, err
+		return UserChatCustomPrompt{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return UserChatCustomPromptResponse{}, ReadBodyAsError(res)
+		return UserChatCustomPrompt{}, ReadBodyAsError(res)
 	}
-	var resp UserChatCustomPromptResponse
+	var resp UserChatCustomPrompt
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// UpdateUserChatCustomPrompt updates the user's custom chat prompt.
-func (c *Client) UpdateUserChatCustomPrompt(ctx context.Context, req UpdateUserChatCustomPromptRequest) (UserChatCustomPromptResponse, error) {
-	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/user-prompt", req)
+// GetChatDesktopEnabled returns the deployment-wide desktop setting.
+func (c *Client) GetChatDesktopEnabled(ctx context.Context) (ChatDesktopEnabledResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/desktop-enabled", nil)
 	if err != nil {
-		return UserChatCustomPromptResponse{}, err
+		return ChatDesktopEnabledResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return UserChatCustomPromptResponse{}, ReadBodyAsError(res)
+		return ChatDesktopEnabledResponse{}, ReadBodyAsError(res)
 	}
-	var resp UserChatCustomPromptResponse
+	var resp ChatDesktopEnabledResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatDesktopEnabled updates the deployment-wide desktop setting.
+func (c *Client) UpdateChatDesktopEnabled(ctx context.Context, req UpdateChatDesktopEnabledRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/desktop-enabled", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// UpdateUserChatCustomPrompt updates the user's custom chat prompt.
+func (c *Client) UpdateUserChatCustomPrompt(ctx context.Context, req UserChatCustomPrompt) (UserChatCustomPrompt, error) {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/user-prompt", req)
+	if err != nil {
+		return UserChatCustomPrompt{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatCustomPrompt{}, ReadBodyAsError(res)
+	}
+	var resp UserChatCustomPrompt
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
@@ -1499,20 +1537,9 @@ func (c *Client) GetChatMessages(ctx context.Context, chatID uuid.UUID, opts *Ch
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-func (c *Client) ArchiveChat(ctx context.Context, chatID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/archive", chatID), nil)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
-}
-
-func (c *Client) UnarchiveChat(ctx context.Context, chatID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/unarchive", chatID), nil)
+// UpdateChat patches a chat resource.
+func (c *Client) UpdateChat(ctx context.Context, chatID uuid.UUID, req UpdateChatRequest) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/%s", chatID), req)
 	if err != nil {
 		return err
 	}

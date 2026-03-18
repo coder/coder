@@ -243,6 +243,7 @@ describe("extractModelConfigFormState", () => {
 						service_tier: "auto",
 						reasoning_summary: "concise",
 						user: "test-user",
+						prompt_cache_key: "my-cache-key",
 					},
 				},
 			},
@@ -255,6 +256,7 @@ describe("extractModelConfigFormState", () => {
 		expect(openai.serviceTier).toBe("auto");
 		expect(openai.reasoningSummary).toBe("concise");
 		expect(openai.user).toBe("test-user");
+		expect(openai.promptCacheKey).toBe("my-cache-key");
 	});
 
 	it("extracts Anthropic provider options with thinking", () => {
@@ -606,6 +608,7 @@ describe("buildModelConfigFromForm", () => {
 						serviceTier: "auto",
 						reasoningSummary: "concise",
 						user: "user-123",
+						promptCacheKey: "cache-key-1",
 					},
 				}),
 			);
@@ -620,6 +623,7 @@ describe("buildModelConfigFromForm", () => {
 			expect(openai.service_tier).toBe("auto");
 			expect(openai.reasoning_summary).toBe("concise");
 			expect(openai.user).toBe("user-123");
+			expect(openai.prompt_cache_key).toBe("cache-key-1");
 		});
 
 		it("reports error for invalid reasoning effort option", () => {

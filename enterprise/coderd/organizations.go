@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -298,16 +297,15 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		//nolint:gocritic // ReconcileOrgMemberRole needs the system:update
 		// permission that user doesn't have.
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
-		_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, tx, database.CustomRole{
-			Name: rbac.RoleOrgMember(),
-			OrganizationID: uuid.NullUUID{
-				UUID:  organizationID,
-				Valid: true,
-			},
-		}, organization.WorkspaceSharingDisabled)
-		if err != nil {
-			return xerrors.Errorf("reconcile organization-member role for organization %s: %w",
-				organizationID, err)
+		for roleName := range rolestore.SystemRoleNames {
+			_, _, err = rolestore.ReconcileSystemRole(sysCtx, tx, database.CustomRole{
+				Name:           roleName,
+				OrganizationID: uuid.NullUUID{UUID: organizationID, Valid: true},
+			}, organization)
+			if err != nil {
+				return xerrors.Errorf("reconcile %s role for organization %s: %w",
+					roleName, organizationID, err)
+			}
 		}
 
 		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{

@@ -48,8 +48,8 @@ type Store interface {
 	UpsertChatDiffStatusReference(
 		ctx context.Context, arg database.UpsertChatDiffStatusReferenceParams,
 	) (database.ChatDiffStatus, error)
-	GetChatsByOwnerID(
-		ctx context.Context, arg database.GetChatsByOwnerIDParams,
+	GetChats(
+		ctx context.Context, arg database.GetChatsParams,
 	) ([]database.Chat, error)
 }
 
@@ -250,7 +250,7 @@ func (w *Worker) MarkStale(
 		return
 	}
 
-	chats, err := w.store.GetChatsByOwnerID(ctx, database.GetChatsByOwnerIDParams{
+	chats, err := w.store.GetChats(ctx, database.GetChatsParams{
 		OwnerID: ownerID,
 	})
 	if err != nil {

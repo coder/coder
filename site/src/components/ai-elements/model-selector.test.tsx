@@ -10,7 +10,7 @@ const mockModelOptions: readonly ModelSelectorOption[] = [
 	},
 ];
 
-test("does not suppress focus ring styles on the model selector trigger", () => {
+test("suppresses mouse-focus ring but keeps keyboard-focus ring on model selector trigger", () => {
 	render(
 		<ModelSelector
 			options={mockModelOptions}
@@ -21,6 +21,9 @@ test("does not suppress focus ring styles on the model selector trigger", () => 
 
 	const trigger = screen.getByRole("combobox");
 
-	expect(trigger.className).not.toContain("focus:ring-0");
+	// Mouse-focus ring should be suppressed.
+	expect(trigger.className).toContain("focus:ring-0");
+	// Keyboard-focus ring should remain.
+	expect(trigger.className).toContain("focus-visible:ring-2");
 	expect(trigger.className).not.toContain("focus-visible:ring-0");
 });

@@ -93,7 +93,7 @@ type Server struct {
 
 	// instructionCache caches home instruction file contents by
 	// workspace agent ID so we don't re-dial on every chat turn.
-	instructionCacheMu sync.Mutex
+	instructionCacheMu sync.RWMutex
 	instructionCache   map[uuid.UUID]cachedInstruction
 
 	// Configuration
@@ -104,6 +104,167 @@ type Server struct {
 type cachedInstruction struct {
 	instruction string
 	fetchedAt   time.Time
+}
+
+type turnWorkspaceContext struct {
+	server           *Server
+	chatStateMu      *sync.Mutex
+	currentChat      *database.Chat
+	loadChatSnapshot func(context.Context, uuid.UUID) (database.Chat, error)
+
+	mu          sync.Mutex
+	agent       database.WorkspaceAgent
+	agentLoaded bool
+	conn        workspacesdk.AgentConn
+	releaseConn func()
+}
+
+func (c *turnWorkspaceContext) close() {
+	c.mu.Lock()
+	releaseConn := c.releaseConn
+	c.conn = nil
+	c.releaseConn = nil
+	c.mu.Unlock()
+
+	if releaseConn != nil {
+		releaseConn()
+	}
+}
+
+func (c *turnWorkspaceContext) getWorkspaceAgent(ctx context.Context) (database.WorkspaceAgent, error) {
+	_, agent, err := c.ensureWorkspaceAgent(ctx)
+	return agent, err
+}
+
+func (c *turnWorkspaceContext) ensureWorkspaceAgent(
+	ctx context.Context,
+) (database.Chat, database.WorkspaceAgent, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.agentLoaded {
+		c.chatStateMu.Lock()
+		chatSnapshot := *c.currentChat
+		c.chatStateMu.Unlock()
+		return chatSnapshot, c.agent, nil
+	}
+
+	return c.loadWorkspaceAgentLocked(ctx)
+}
+
+func (c *turnWorkspaceContext) refreshWorkspaceAgent(
+	ctx context.Context,
+) (database.Chat, database.WorkspaceAgent, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.agent = database.WorkspaceAgent{}
+	c.agentLoaded = false
+	return c.loadWorkspaceAgentLocked(ctx)
+}
+
+func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
+	ctx context.Context,
+) (database.Chat, database.WorkspaceAgent, error) {
+	c.chatStateMu.Lock()
+	chatSnapshot := *c.currentChat
+	c.chatStateMu.Unlock()
+
+	if !chatSnapshot.WorkspaceID.Valid {
+		refreshedChat, refreshErr := refreshChatWorkspaceSnapshot(
+			ctx,
+			chatSnapshot,
+			c.loadChatSnapshot,
+		)
+		if refreshErr != nil {
+			return chatSnapshot, database.WorkspaceAgent{}, refreshErr
+		}
+		if refreshedChat.WorkspaceID.Valid {
+			c.chatStateMu.Lock()
+			*c.currentChat = refreshedChat
+			c.chatStateMu.Unlock()
+			chatSnapshot = refreshedChat
+		}
+	}
+
+	if !chatSnapshot.WorkspaceID.Valid {
+		return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("chat has no workspace")
+	}
+
+	agents, err := c.server.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
+		ctx,
+		chatSnapshot.WorkspaceID.UUID,
+	)
+	if err != nil || len(agents) == 0 {
+		return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("chat has no workspace agent")
+	}
+
+	c.agent = agents[0]
+	c.agentLoaded = true
+	return chatSnapshot, c.agent, nil
+}
+
+func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspacesdk.AgentConn, error) {
+	c.mu.Lock()
+	if c.conn != nil {
+		currentConn := c.conn
+		c.mu.Unlock()
+		return currentConn, nil
+	}
+	c.mu.Unlock()
+
+	if c.server.agentConnFn == nil {
+		return nil, xerrors.New("workspace agent connector is not configured")
+	}
+
+	chatSnapshot, agent, err := c.ensureWorkspaceAgent(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	agentConn, agentRelease, err := c.server.agentConnFn(ctx, agent.ID)
+	if err != nil {
+		refreshedChat, refreshedAgent, refreshErr := c.refreshWorkspaceAgent(ctx)
+		if refreshErr != nil {
+			return nil, xerrors.Errorf("connect to workspace agent: %w", err)
+		}
+
+		retryConn, retryRelease, retryErr := c.server.agentConnFn(ctx, refreshedAgent.ID)
+		if retryErr != nil {
+			return nil, xerrors.Errorf("connect to workspace agent after refresh: %w", retryErr)
+		}
+
+		chatSnapshot = refreshedChat
+		agentConn = retryConn
+		agentRelease = retryRelease
+	}
+
+	c.mu.Lock()
+	if c.conn == nil {
+		c.conn = agentConn
+		c.releaseConn = agentRelease
+
+		var ancestorIDs []string
+		if chatSnapshot.ParentChatID.Valid {
+			ancestorIDs = append(ancestorIDs, chatSnapshot.ParentChatID.UUID.String())
+		}
+		ancestorJSON, marshalErr := json.Marshal(ancestorIDs)
+		if marshalErr != nil {
+			ancestorJSON = []byte("[]")
+		}
+		agentConn.SetExtraHeaders(http.Header{
+			workspacesdk.CoderChatIDHeader:          {chatSnapshot.ID.String()},
+			workspacesdk.CoderAncestorChatIDsHeader: {string(ancestorJSON)},
+		})
+
+		c.mu.Unlock()
+		return agentConn, nil
+	}
+	currentConn := c.conn
+	c.mu.Unlock()
+
+	agentRelease()
+	return currentConn, nil
 }
 
 // AgentConnFunc provides access to workspace agent connections.
@@ -655,17 +816,12 @@ func (p *Server) EditMessage(
 }
 
 // ArchiveChat archives a chat and all descendants, then broadcasts a deleted event.
-func (p *Server) ArchiveChat(ctx context.Context, chatID uuid.UUID) error {
-	if chatID == uuid.Nil {
+func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
+	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
 
-	chat, err := p.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return xerrors.Errorf("get chat: %w", err)
-	}
-
-	if err := p.db.ArchiveChatByID(ctx, chatID); err != nil {
+	if err := p.db.ArchiveChatByID(ctx, chat.ID); err != nil {
 		return xerrors.Errorf("archive chat: %w", err)
 	}
 
@@ -675,17 +831,12 @@ func (p *Server) ArchiveChat(ctx context.Context, chatID uuid.UUID) error {
 
 // UnarchiveChat unarchives a chat and publishes a created event so sidebar
 // clients are notified that the chat has reappeared.
-func (p *Server) UnarchiveChat(ctx context.Context, chatID uuid.UUID) error {
-	if chatID == uuid.Nil {
+func (p *Server) UnarchiveChat(ctx context.Context, chat database.Chat) error {
+	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
 
-	chat, err := p.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return xerrors.Errorf("get chat: %w", err)
-	}
-
-	if err := p.db.UnarchiveChatByID(ctx, chatID); err != nil {
+	if err := p.db.UnarchiveChatByID(ctx, chat.ID); err != nil {
 		return xerrors.Errorf("unarchive chat: %w", err)
 	}
 
@@ -2038,6 +2189,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	status := database.ChatStatusWaiting
 	wasInterrupted := false
 	lastError := ""
+	generatedTitle := &generatedChatTitle{}
 	runResult := runChatResult{}
 	remainingQueuedMessages := []database.ChatQueuedMessage{}
 	shouldPublishQueueUpdate := false
@@ -2062,6 +2214,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		// races with the promote endpoint (which also sets status to
 		// pending). We use a transaction with FOR UPDATE to ensure we
 		// don't overwrite a status change made by another caller.
+		var updatedChat database.Chat
 		err := p.db.InTx(func(tx database.Store) error {
 			// Re-read the chat status under lock — another caller
 			// (e.g. promote) may have already set it to pending.
@@ -2096,7 +2249,8 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 				}
 			}
 
-			_, updateErr := tx.UpdateChatStatus(cleanupCtx, database.UpdateChatStatusParams{
+			var updateErr error
+			updatedChat, updateErr = tx.UpdateChatStatus(cleanupCtx, database.UpdateChatStatusParams{
 				ID:          chat.ID,
 				Status:      status,
 				WorkerID:    uuid.NullUUID{},
@@ -2131,25 +2285,21 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		}
 
 		p.publishStatus(chat.ID, status, uuid.NullUUID{})
-		// Re-read the chat from the database to pick up any title
-		// changes made during processing (e.g. AI-generated titles
-		// from maybeGenerateChatTitle). The local `chat` variable
-		// is a value copy and won't reflect updates made in runChat.
-		if freshChat, readErr := p.db.GetChatByID(cleanupCtx, chat.ID); readErr == nil {
-			chat = freshChat
-		} else {
-			logger.Warn(cleanupCtx, "failed to re-read chat for status event",
-				slog.F("chat_id", chat.ID), slog.Error(readErr))
+		// Best-effort: use any generated title captured during
+		// processing so push notifications and the status snapshot
+		// can reflect it without another DB read. The dedicated
+		// title_change event remains the source of truth.
+		if title, ok := generatedTitle.Load(); ok {
+			updatedChat.Title = title
 		}
-		chat.Status = status
-		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindStatusChange, nil)
+		p.publishChatPubsubEvent(updatedChat, coderdpubsub.ChatEventKindStatusChange, nil)
 
 		if !wasInterrupted {
-			p.maybeSendPushNotification(cleanupCtx, chat, status, lastError, runResult, logger)
+			p.maybeSendPushNotification(cleanupCtx, updatedChat, status, lastError, runResult, logger)
 		}
 	}()
 
-	runResult, err := p.runChat(chatCtx, chat, logger)
+	runResult, err := p.runChat(chatCtx, chat, generatedTitle, logger)
 	if err != nil {
 		if errors.Is(err, chatloop.ErrInterrupted) || errors.Is(context.Cause(chatCtx), chatloop.ErrInterrupted) {
 			logger.Info(ctx, "chat interrupted")
@@ -2207,6 +2357,36 @@ func isShutdownCancellation(
 	return errors.Is(context.Cause(chatCtx), context.Canceled)
 }
 
+// generatedChatTitle shares an asynchronously generated title between the
+// detached title-generation goroutine and the deferred cleanup path.
+type generatedChatTitle struct {
+	mu    sync.RWMutex
+	title string
+}
+
+func (t *generatedChatTitle) Store(title string) {
+	if t == nil || title == "" {
+		return
+	}
+
+	t.mu.Lock()
+	t.title = title
+	t.mu.Unlock()
+}
+
+func (t *generatedChatTitle) Load() (string, bool) {
+	if t == nil {
+		return "", false
+	}
+
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if t.title == "" {
+		return "", false
+	}
+	return t.title, true
+}
+
 type runChatResult struct {
 	FinalAssistantText string
 	PushSummaryModel   fantasy.LanguageModel
@@ -2216,6 +2396,7 @@ type runChatResult struct {
 func (p *Server) runChat(
 	ctx context.Context,
 	chat database.Chat,
+	generatedTitle *generatedChatTitle,
 	logger slog.Logger,
 ) (runChatResult, error) {
 	result := runChatResult{}
@@ -2263,7 +2444,15 @@ func (p *Server) runChat(
 	p.inflight.Add(1)
 	go func() {
 		defer p.inflight.Done()
-		p.maybeGenerateChatTitle(context.WithoutCancel(ctx), chat, messages, titleModel, providerKeys, logger)
+		p.maybeGenerateChatTitle(
+			context.WithoutCancel(ctx),
+			chat,
+			messages,
+			titleModel,
+			providerKeys,
+			generatedTitle,
+			logger,
+		)
 	}()
 
 	prompt, err := chatprompt.ConvertMessagesWithFiles(ctx, messages, p.chatFileResolver(), logger)
@@ -2293,98 +2482,24 @@ func (p *Server) runChat(
 	var (
 		chatStateMu sync.Mutex
 		workspaceMu sync.Mutex
-		conn        workspacesdk.AgentConn
-		releaseConn func()
 	)
-	closeConn := func() {
-		if releaseConn != nil {
-			releaseConn()
-			releaseConn = nil
-		}
+	workspaceCtx := turnWorkspaceContext{
+		server:           p,
+		chatStateMu:      &chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: loadChatSnapshot,
 	}
-	defer closeConn()
-
-	getWorkspaceConn := func(ctx context.Context) (workspacesdk.AgentConn, error) {
-		chatStateMu.Lock()
-		if conn != nil {
-			currentConn := conn
-			chatStateMu.Unlock()
-			return currentConn, nil
-		}
-		chatSnapshot := currentChat
-		chatStateMu.Unlock()
-
-		if p.agentConnFn == nil {
-			return nil, xerrors.New("workspace agent connector is not configured")
-		}
-
-		if !chatSnapshot.WorkspaceID.Valid {
-			refreshedChat, refreshErr := refreshChatWorkspaceSnapshot(
-				ctx,
-				chatSnapshot,
-				loadChatSnapshot,
-			)
-			if refreshErr != nil {
-				return nil, refreshErr
-			}
-			if refreshedChat.WorkspaceID.Valid {
-				chatStateMu.Lock()
-				currentChat = refreshedChat
-				chatSnapshot = refreshedChat
-				chatStateMu.Unlock()
-			}
-		}
-
-		if !chatSnapshot.WorkspaceID.Valid {
-			return nil, xerrors.New("chat has no workspace")
-		}
-
-		agents, err := p.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
-			ctx,
-			chatSnapshot.WorkspaceID.UUID,
-		)
-		if err != nil || len(agents) == 0 {
-			return nil, xerrors.New("chat has no workspace agent")
-		}
-
-		agentConn, agentRelease, err := p.agentConnFn(ctx, agents[0].ID)
-		if err != nil {
-			return nil, xerrors.Errorf("connect to workspace agent: %w", err)
-		}
-
-		chatStateMu.Lock()
-		if conn == nil {
-			conn = agentConn
-			releaseConn = agentRelease
-
-			var ancestorIDs []string
-			if chatSnapshot.ParentChatID.Valid {
-				ancestorIDs = append(ancestorIDs, chatSnapshot.ParentChatID.UUID.String())
-			}
-			ancestorJSON, err := json.Marshal(ancestorIDs)
-			if err != nil {
-				logger.Warn(ctx, "failed to marshal ancestor chat IDs", slog.Error(err))
-				ancestorJSON = []byte("[]")
-			}
-			agentConn.SetExtraHeaders(http.Header{
-				workspacesdk.CoderChatIDHeader:          {chatSnapshot.ID.String()},
-				workspacesdk.CoderAncestorChatIDsHeader: {string(ancestorJSON)},
-			})
-
-			chatStateMu.Unlock()
-			return agentConn, nil
-		}
-		currentConn := conn
-		chatStateMu.Unlock()
-
-		agentRelease()
-		return currentConn, nil
-	}
+	defer workspaceCtx.close()
 
 	var instruction, resolvedUserPrompt string
 	var g2 errgroup.Group
 	g2.Go(func() error {
-		instruction = p.resolveInstructions(ctx, chat, getWorkspaceConn)
+		instruction = p.resolveInstructions(
+			ctx,
+			chat,
+			workspaceCtx.getWorkspaceAgent,
+			workspaceCtx.getWorkspaceConn,
+		)
 		return nil
 	})
 	g2.Go(func() error {
@@ -2448,13 +2563,56 @@ func (p *Server) runChat(
 			assistantBlocks = append(assistantBlocks, block)
 		}
 
+		// Pre-marshal all content outside the transaction so the
+		// FOR UPDATE lock is held only for the INSERT statements.
+		// Marshaling is pure CPU work with no database dependency.
+		var assistantContent pqtype.NullRawMessage
+		if len(assistantBlocks) > 0 {
+			sdkParts := make([]codersdk.ChatMessagePart, 0, len(assistantBlocks))
+			for _, block := range assistantBlocks {
+				sdkParts = append(sdkParts, chatprompt.PartFromContent(block))
+			}
+			finalAssistantText = strings.TrimSpace(contentBlocksToText(sdkParts))
+			var marshalErr error
+			assistantContent, marshalErr = chatprompt.MarshalParts(sdkParts)
+			if marshalErr != nil {
+				return xerrors.Errorf("marshal assistant content: %w", marshalErr)
+			}
+		}
+
+		toolResultContents := make([]pqtype.NullRawMessage, len(toolResults))
+		for i, tr := range toolResults {
+			trPart := chatprompt.PartFromContent(tr)
+			var marshalErr error
+			toolResultContents[i], marshalErr = chatprompt.MarshalParts([]codersdk.ChatMessagePart{trPart})
+			if marshalErr != nil {
+				return xerrors.Errorf("marshal tool result %d: %w", i, marshalErr)
+			}
+		}
+
+		hasUsage := step.Usage != (fantasy.Usage{})
+		var usageForCost codersdk.ChatMessageUsage
+		if hasUsage {
+			if step.Usage.InputTokens != 0 {
+				usageForCost.InputTokens = int64Ptr(step.Usage.InputTokens)
+			}
+			if step.Usage.OutputTokens != 0 {
+				usageForCost.OutputTokens = int64Ptr(step.Usage.OutputTokens)
+			}
+			if step.Usage.ReasoningTokens != 0 {
+				usageForCost.ReasoningTokens = int64Ptr(step.Usage.ReasoningTokens)
+			}
+			if step.Usage.CacheCreationTokens != 0 {
+				usageForCost.CacheCreationTokens = int64Ptr(step.Usage.CacheCreationTokens)
+			}
+			if step.Usage.CacheReadTokens != 0 {
+				usageForCost.CacheReadTokens = int64Ptr(step.Usage.CacheReadTokens)
+			}
+		}
+		totalCostMicros := chatcost.CalculateTotalCostMicros(usageForCost, callConfig.Cost)
+
 		var insertedMessages []database.ChatMessage
 		err := p.db.InTx(func(tx database.Store) error {
-			// Verify this worker still owns the chat before
-			// inserting messages. This closes the race where
-			// EditMessage truncates history and clears worker_id
-			// while persistInterruptedStep (which uses an
-			// uncancelable context) is still running.
 			lockedChat, lockErr := tx.GetChatByIDForUpdate(persistCtx, chat.ID)
 			if lockErr != nil {
 				return xerrors.Errorf("lock chat for persist: %w", lockErr)
@@ -2463,42 +2621,7 @@ func (p *Server) runChat(
 				return chatloop.ErrInterrupted
 			}
 
-			if len(assistantBlocks) > 0 {
-				sdkParts := make([]codersdk.ChatMessagePart, 0, len(assistantBlocks))
-				for _, block := range assistantBlocks {
-					sdkParts = append(sdkParts, chatprompt.PartFromContent(block))
-				}
-				finalAssistantText = strings.TrimSpace(contentBlocksToText(sdkParts))
-				assistantContent, marshalErr := chatprompt.MarshalParts(sdkParts)
-				if marshalErr != nil {
-					return marshalErr
-				}
-
-				hasUsage := step.Usage != (fantasy.Usage{})
-				var usageForCost codersdk.ChatMessageUsage
-				if hasUsage {
-					// Only populate fields that the provider explicitly
-					// reported. Nil fields tell the calculator "no data"
-					// vs zero meaning "reported as zero tokens."
-					if step.Usage.InputTokens != 0 {
-						usageForCost.InputTokens = int64Ptr(step.Usage.InputTokens)
-					}
-					if step.Usage.OutputTokens != 0 {
-						usageForCost.OutputTokens = int64Ptr(step.Usage.OutputTokens)
-					}
-					if step.Usage.ReasoningTokens != 0 {
-						usageForCost.ReasoningTokens = int64Ptr(step.Usage.ReasoningTokens)
-					}
-					if step.Usage.CacheCreationTokens != 0 {
-						usageForCost.CacheCreationTokens = int64Ptr(step.Usage.CacheCreationTokens)
-					}
-					if step.Usage.CacheReadTokens != 0 {
-						usageForCost.CacheReadTokens = int64Ptr(step.Usage.CacheReadTokens)
-					}
-				}
-
-				totalCostMicros := chatcost.CalculateTotalCostMicros(usageForCost, callConfig.Cost)
-
+			if assistantContent.Valid {
 				assistantMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
 					ChatID:         chat.ID,
 					CreatedBy:      uuid.NullUUID{},
@@ -2521,10 +2644,6 @@ func (p *Server) runChat(
 					CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
 					ContextLimit:    step.ContextLimit,
 					Compressed:      sql.NullBool{},
-					// TotalCostMicros is nullable: NULL means "unpriced"
-					// (pricing config was missing or no priced token
-					// breakdown available), while 0 means "priced at
-					// zero cost" (e.g., a free model).
 					TotalCostMicros: usageNullInt64Ptr(totalCostMicros),
 				})
 				if insertErr != nil {
@@ -2533,13 +2652,7 @@ func (p *Server) runChat(
 				insertedMessages = append(insertedMessages, assistantMessage)
 			}
 
-			for _, tr := range toolResults {
-				trPart := chatprompt.PartFromContent(tr)
-				resultContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{trPart})
-				if marshalErr != nil {
-					return marshalErr
-				}
-
+			for i, resultContent := range toolResultContents {
 				toolMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
 					ChatID:              chat.ID,
 					CreatedBy:           uuid.NullUUID{},
@@ -2559,7 +2672,7 @@ func (p *Server) runChat(
 					Compressed:          sql.NullBool{},
 				})
 				if insertErr != nil {
-					return xerrors.Errorf("insert tool result: %w", insertErr)
+					return xerrors.Errorf("insert tool result %d: %w", i, insertErr)
 				}
 				insertedMessages = append(insertedMessages, toolMessage)
 			}
@@ -2652,25 +2765,25 @@ func (p *Server) runChat(
 	// Here are all the tools we have for the chat.
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{
-			GetWorkspaceConn: getWorkspaceConn,
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 		chattool.WriteFile(chattool.WriteFileOptions{
-			GetWorkspaceConn: getWorkspaceConn,
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 		chattool.EditFiles(chattool.EditFilesOptions{
-			GetWorkspaceConn: getWorkspaceConn,
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 		chattool.Execute(chattool.ExecuteOptions{
-			GetWorkspaceConn: getWorkspaceConn,
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 		chattool.ProcessOutput(chattool.ProcessToolOptions{
-			GetWorkspaceConn: getWorkspaceConn,
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 		chattool.ProcessList(chattool.ProcessToolOptions{
-			GetWorkspaceConn: getWorkspaceConn,
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 		chattool.ProcessSignal(chattool.ProcessToolOptions{
-			GetWorkspaceConn: getWorkspaceConn,
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 	}
 	// Only root chats (not delegated subagents) get workspace
@@ -2725,7 +2838,7 @@ func (p *Server) runChat(
 			Runner: chattool.NewComputerUseTool(
 				workspacesdk.DesktopDisplayWidth,
 				workspacesdk.DesktopDisplayHeight,
-				getWorkspaceConn, quartz.NewReal(),
+				workspaceCtx.getWorkspaceConn, quartz.NewReal(),
 			),
 		})
 	}
@@ -2763,7 +2876,12 @@ func (p *Server) runChat(
 			var reloadInstruction, reloadUserPrompt string
 			var rg errgroup.Group
 			rg.Go(func() error {
-				reloadInstruction = p.resolveInstructions(reloadCtx, chat, getWorkspaceConn)
+				reloadInstruction = p.resolveInstructions(
+					reloadCtx,
+					chat,
+					workspaceCtx.getWorkspaceAgent,
+					workspaceCtx.getWorkspaceConn,
+				)
 				return nil
 			})
 			rg.Go(func() error {
@@ -3144,37 +3262,27 @@ func refreshChatWorkspaceSnapshot(
 func (p *Server) resolveInstructions(
 	ctx context.Context,
 	chat database.Chat,
+	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
 ) string {
-	if !chat.WorkspaceID.Valid {
+	if !chat.WorkspaceID.Valid || getWorkspaceAgent == nil {
 		return ""
 	}
 
-	agents, agentsErr := p.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
-		ctx,
-		chat.WorkspaceID.UUID,
-	)
-	if agentsErr != nil || len(agents) == 0 {
+	agent, agentErr := getWorkspaceAgent(ctx)
+	if agentErr != nil {
 		return ""
 	}
-	agentID := agents[0].ID
+	agentID := agent.ID
 
-	p.instructionCacheMu.Lock()
+	p.instructionCacheMu.RLock()
 	cached, ok := p.instructionCache[agentID]
-	p.instructionCacheMu.Unlock()
+	p.instructionCacheMu.RUnlock()
 
 	if ok && time.Since(cached.fetchedAt) < instructionCacheTTL {
 		return cached.instruction
 	}
 
-	// Look up the agent's OS and working directory.
-	agent, err := p.db.GetWorkspaceAgentByID(ctx, agentID)
-	if err != nil {
-		p.logger.Debug(ctx, "failed to look up workspace agent for instruction context",
-			slog.F("agent_id", agentID),
-			slog.Error(err),
-		)
-	}
 	directory := agent.ExpandedDirectory
 	if directory == "" {
 		directory = agent.Directory

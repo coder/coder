@@ -2,6 +2,7 @@ import { API, watchWorkspace } from "api/api";
 import { isApiError } from "api/errors";
 import {
 	chat,
+	chatDesktopEnabled,
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
@@ -130,7 +131,11 @@ export function useConversationEditingState(deps: {
 		setEditingMessageId(null);
 		setDraftBeforeHistoryEdit(null);
 		setEditingFileBlocks([]);
-	}, [draftBeforeHistoryEdit, inputValueRef]);
+		chatInputRef.current?.clear();
+		if (draftBeforeHistoryEdit) {
+			chatInputRef.current?.insertText(draftBeforeHistoryEdit);
+		}
+	}, [draftBeforeHistoryEdit, inputValueRef, chatInputRef]);
 
 	// -- Queue editing state --
 	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
@@ -313,6 +318,7 @@ const AgentDetail: FC = () => {
 	}, [workspaceId, queryClient]);
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspace = workspaceQuery.data;
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
@@ -897,7 +903,9 @@ const AgentDetail: FC = () => {
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
-			desktopChatId={agentId}
+			desktopChatId={
+				desktopEnabledQuery.data?.enable_desktop ? agentId : undefined
+			}
 		/>
 	);
 };

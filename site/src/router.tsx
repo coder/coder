@@ -645,6 +645,9 @@ export const router = createBrowserRouter(
 						</Suspense>
 					}
 				>
+					<Route path="settings" />
+					<Route path="settings/:section" />
+					<Route path="analytics" />
 					<Route
 						path=":agentId"
 						element={

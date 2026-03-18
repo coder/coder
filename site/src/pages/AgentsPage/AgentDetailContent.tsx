@@ -25,12 +25,10 @@ import {
 import { ConversationTimeline } from "./AgentDetail/ConversationTimeline";
 import { getLatestContextUsage } from "./AgentDetail/chatHelpers";
 import {
-	buildParsedMessageSections,
 	buildSubagentTitles,
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
 import { buildStreamTools } from "./AgentDetail/streamState";
-import { useMessageWindow } from "./AgentDetail/useMessageWindow";
 import type { ChatDetailError } from "./usageLimitMessage";
 import { useFileAttachments } from "./useFileAttachments";
 
@@ -42,7 +40,6 @@ const isChatMessage = (
 
 interface AgentDetailTimelineProps {
 	store: ChatStoreHandle;
-	chatID: string;
 	persistedErrorReason: ChatDetailError | undefined;
 	onOpenAnalytics?: () => void;
 	onEditUserMessage?: (
@@ -57,7 +54,6 @@ interface AgentDetailTimelineProps {
 
 export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	store,
-	chatID,
 	persistedErrorReason,
 	onOpenAnalytics,
 	onEditUserMessage,
@@ -87,21 +83,12 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 		() => buildStreamTools(streamState),
 		[streamState],
 	);
-	const { hasMoreMessages, windowedMessages, loadMoreSentinelRef } =
-		useMessageWindow({
-			messages,
-			resetKey: chatID,
-		});
 	const parsedMessages = useMemo(
-		() => parseMessagesWithMergedTools(windowedMessages),
-		[windowedMessages],
+		() => parseMessagesWithMergedTools(messages),
+		[messages],
 	);
 	const subagentTitles = useMemo(
 		() => buildSubagentTitles(parsedMessages),
-		[parsedMessages],
-	);
-	const parsedSections = useMemo(
-		() => buildParsedMessageSections(parsedMessages),
 		[parsedMessages],
 	);
 	const detailError: ChatDetailError | undefined =
@@ -123,9 +110,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	return (
 		<ConversationTimeline
 			isEmpty={messages.length === 0}
-			hasMoreMessages={hasMoreMessages}
-			loadMoreSentinelRef={loadMoreSentinelRef}
-			parsedSections={parsedSections}
+			parsedMessages={parsedMessages}
 			hasStreamOutput={hasStreamOutput}
 			streamState={streamState}
 			streamTools={streamTools}
@@ -249,7 +234,10 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			setPreviewUrls(new Map());
 			return;
 		}
-		const files = editingFileBlocks.map((block, i) => {
+		const fileBlocks = editingFileBlocks.filter(
+			(b): b is TypesGen.ChatFilePart => b.type === "file",
+		);
+		const files = fileBlocks.map((block, i) => {
 			const mt = block.media_type ?? "application/octet-stream";
 			const ext = mt.split("/")[1] ?? "png";
 			// Empty File used as a Map key only, its content is never
@@ -261,13 +249,13 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			new Map(
 				files.map((f, i) => [
 					f,
-					`/api/experimental/chats/files/${editingFileBlocks[i].file_id}`,
+					`/api/experimental/chats/files/${fileBlocks[i].file_id}`,
 				]),
 			),
 		);
 		const newUploadStates = new Map<File, UploadState>();
 		for (const [i, file] of files.entries()) {
-			const block = editingFileBlocks[i];
+			const block = fileBlocks[i];
 			if (block.file_id) {
 				newUploadStates.set(file, {
 					status: "uploaded",

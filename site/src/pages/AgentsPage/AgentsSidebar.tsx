@@ -30,8 +30,10 @@ import {
 	ArchiveIcon,
 	ArchiveRestoreIcon,
 	BarChart3Icon,
+	BoxesIcon,
 	CheckIcon,
 	ChevronDownIcon,
+	ChevronLeftIcon,
 	ChevronRightIcon,
 	EllipsisIcon,
 	FilterIcon,
@@ -39,12 +41,16 @@ import {
 	GitPullRequestArrowIcon,
 	GitPullRequestClosedIcon,
 	GitPullRequestDraftIcon,
+	KeyRoundIcon,
 	Loader2Icon,
 	PanelLeftCloseIcon,
 	PauseIcon,
 	SettingsIcon,
+	ShieldAlertIcon,
+	ShieldIcon,
 	SquarePenIcon,
 	Trash2Icon,
+	UserIcon,
 } from "lucide-react";
 import { UserDropdownContent } from "modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -59,10 +65,29 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { NavLink, useParams } from "react-router";
+import { Link, NavLink, useLocation, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { shortRelativeTime } from "utils/time";
 import { getTimeGroup, TIME_GROUPS } from "./timeGroups";
+
+type SidebarView =
+	| { panel: "chats" }
+	| { panel: "settings"; section: string }
+	| { panel: "analytics" };
+
+/**
+ * Derive the current sidebar view from the URL pathname.
+ */
+export function sidebarViewFromPath(pathname: string): SidebarView {
+	if (pathname.startsWith("/agents/analytics")) {
+		return { panel: "analytics" };
+	}
+	const settingsMatch = pathname.match(/^\/agents\/settings(?:\/([^/]+))?/);
+	if (settingsMatch) {
+		return { panel: "settings", section: settingsMatch[1] || "behavior" };
+	}
+	return { panel: "chats" };
+}
 
 interface AgentsSidebarProps {
 	chats: readonly Chat[];
@@ -73,7 +98,7 @@ interface AgentsSidebarProps {
 	onArchiveAgent: (chatId: string) => void;
 	onUnarchiveAgent: (chatId: string) => void;
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
-	onNewAgent: () => void;
+	onBeforeNewAgent?: () => void;
 	isCreating: boolean;
 	isArchiving?: boolean;
 	archivingChatId?: string | null;
@@ -86,8 +111,7 @@ interface AgentsSidebarProps {
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange?: (filter: "active" | "archived") => void;
 	onCollapse?: () => void;
-	onOpenAnalytics?: () => void;
-	onOpenSettings?: () => void;
+	isAdmin?: boolean;
 }
 
 const statusConfig = {
@@ -122,7 +146,7 @@ const getPRIconConfig = (
 		return undefined;
 	}
 	if (state === "merged") {
-		return { icon: GitMergeIcon, className: "text-git-merged" };
+		return { icon: GitMergeIcon, className: "text-git-merged-bright" };
 	}
 	if (state === "closed") {
 		return {
@@ -388,7 +412,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 			<div
 				data-testid={`agents-tree-node-${chat.id}`}
 				className={cn(
-					"group relative flex min-w-0 items-start gap-1.5 rounded-md pr-1 text-content-secondary",
+					"group relative flex min-w-0 items-start gap-1.5 rounded-md px-1 text-content-secondary",
 					"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
 					"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 					isChildNode &&
@@ -480,7 +504,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 						</>
 					)}
 				</NavLink>
-				<div className="relative mr-1 mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
+				<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
 					{isArchivingThisChat ? (
 						<Spinner className="h-3.5 w-3.5 text-content-secondary" loading />
 					) : (
@@ -565,7 +589,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
-		onNewAgent,
+		onBeforeNewAgent,
 		isCreating,
 		isArchiving = false,
 		archivingChatId = null,
@@ -578,8 +602,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		archivedFilter,
 		onArchivedFilterChange,
 		onCollapse,
-		onOpenAnalytics,
-		onOpenSettings,
+		isAdmin = false,
 	} = props;
 	const { agentId, chatId } = useParams<{
 		agentId?: string;
@@ -588,6 +611,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const activeChatId = agentId ?? chatId;
 	const { user, signOut } = useAuthenticated();
 	const { appearance, buildInfo } = useDashboard();
+	const location = useLocation();
+	const sidebarView = sidebarViewFromPath(location.pathname);
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 
@@ -671,228 +696,398 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		],
 	);
 
+	const subNavTitle = "Settings";
+
 	return (
-		<div className="flex h-full w-full min-h-0 flex-col border-0 border-r border-solid">
-			<div className="hidden border-b border-border-default px-3 pb-3 pt-1.5 md:block md:px-3.5">
-				<div className="mb-2.5 flex items-center justify-between">
-					<NavLink to="/workspaces" className="inline-flex">
-						{logoUrl ? (
-							<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
-						) : (
-							<CoderIcon className="h-6 w-6 fill-content-primary" />
-						)}
-					</NavLink>
-					<div className="flex items-center gap-0.5">
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
+		<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
+			{/* ── Panel 1: Chats ── */}
+			<div
+				className={cn(
+					"absolute inset-0 flex flex-col transition-transform duration-200 ease-in-out",
+					sidebarView.panel === "settings" && "-translate-x-full",
+				)}
+				aria-hidden={sidebarView.panel === "settings"}
+				inert={sidebarView.panel === "settings" ? true : undefined}
+			>
+				<div className="hidden border-b border-border-default px-3 pb-3 pt-1.5 md:block md:px-3.5">
+					<div className="mb-2.5 flex items-center justify-between">
+						<NavLink to="/workspaces" className="inline-flex">
+							{logoUrl ? (
+								<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
+							) : (
+								<CoderIcon className="h-6 w-6 fill-content-primary" />
+							)}
+						</NavLink>
+						<div className="flex items-center gap-0.5 -mr-1.5">
+							<Button
+								asChild
+								variant="subtle"
+								size="icon"
+								aria-label="Settings"
+								className={cn(
+									"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
+									sidebarView.panel === "settings" && "text-content-primary",
+								)}
+							>
+								<Link to="/agents/settings" state={{ from: location.pathname }}>
+									<SettingsIcon />
+								</Link>
+							</Button>
+							<Button
+								asChild
+								variant="subtle"
+								size="icon"
+								aria-label="Analytics"
+								className={cn(
+									"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
+									sidebarView.panel === "analytics" && "text-content-primary",
+								)}
+							>
+								<Link to="/agents/analytics">
+									<BarChart3Icon />
+								</Link>
+							</Button>{" "}
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										variant="subtle"
+										size="icon"
+										aria-label="Filter agents"
+										className={cn(
+											"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
+											archivedFilter === "archived" && "text-content-primary",
+										)}
+									>
+										<FilterIcon />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end">
+									<DropdownMenuItem
+										onSelect={() => onArchivedFilterChange?.("active")}
+									>
+										Active
+										{archivedFilter === "active" && (
+											<CheckIcon className="ml-auto h-3.5 w-3.5" />
+										)}
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										onSelect={() => onArchivedFilterChange?.("archived")}
+									>
+										Archived
+										{archivedFilter === "archived" && (
+											<CheckIcon className="ml-auto h-3.5 w-3.5" />
+										)}
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
+							{onCollapse && (
 								<Button
 									variant="subtle"
 									size="icon"
-									aria-label="Filter agents"
-									className={cn(
-										"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-										archivedFilter === "archived" && "text-content-primary",
-									)}
+									onClick={onCollapse}
+									aria-label="Collapse sidebar"
+									className="h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
 								>
-									<FilterIcon />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								<DropdownMenuItem
-									onSelect={() => onArchivedFilterChange?.("active")}
-								>
-									Active
-									{archivedFilter === "active" && (
-										<CheckIcon className="ml-auto h-3.5 w-3.5" />
-									)}
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									onSelect={() => onArchivedFilterChange?.("archived")}
-								>
-									Archived
-									{archivedFilter === "archived" && (
-										<CheckIcon className="ml-auto h-3.5 w-3.5" />
-									)}
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
-						{onCollapse && (
-							<Button
-								variant="subtle"
-								size="icon"
-								onClick={onCollapse}
-								aria-label="Collapse sidebar"
-								className="h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
-							>
-								<PanelLeftCloseIcon />
-							</Button>
-						)}
-					</div>
-				</div>
-				<Button
-					size="sm"
-					variant="subtle"
-					onClick={onNewAgent}
-					disabled={isCreating}
-					className="-mx-1 w-[calc(100%+0.5rem)] justify-start gap-1.5 rounded-md py-1 pl-1 pr-2 text-sm text-content-secondary hover:bg-surface-tertiary/50 md:-mx-1.5 md:w-[calc(100%+0.75rem)]"
-				>
-					<SquarePenIcon className="!h-[18px] !w-[18px] shrink-0" />
-					New Agent
-				</Button>
-			</div>
-			<ScrollArea
-				className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
-				scrollBarClassName="w-1.5"
-			>
-				<div className="flex flex-col gap-2 px-2 py-3 md:px-2">
-					{loadError ? (
-						<div className="space-y-3 px-1">
-							<ErrorAlert error={loadError} />
-							{onRetryLoad && (
-								<Button size="sm" variant="outline" onClick={onRetryLoad}>
-									Retry
+									<PanelLeftCloseIcon />
 								</Button>
 							)}
 						</div>
-					) : isLoading ? (
-						<>
-							<Skeleton className="ml-2.5 h-3.5 w-16" />
-							<div className="flex flex-col gap-0.5">
-								{Array.from({ length: 6 }, (_, i) => (
-									<div
-										key={i}
-										className="flex items-start gap-2 rounded-md px-2 py-1"
-									>
-										<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
-										<div className="min-w-0 flex-1 space-y-1.5">
-											<Skeleton
-												className="h-3.5"
-												style={{ width: `${55 + ((i * 17) % 35)}%` }}
-											/>
-											<Skeleton className="h-3 w-20" />
-										</div>
-									</div>
-								))}
-							</div>
-						</>
-					) : (
-						<ChatTreeContext.Provider value={chatTreeCtx}>
-							{visibleRootIDs.length === 0 ? (
-								<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-									{normalizedSearch
-										? "No matching agents"
-										: archivedFilter === "archived"
-											? "No archived agents"
-											: "No agents yet"}
-								</div>
-							) : (
-								<div>
-									{visibleRootIDs.length > 0 && (
-										<div className="pb-2">
-											{TIME_GROUPS.map((group) => {
-												const groupChats = visibleRootIDs
-													.map((id) => chatById.get(id))
-													.filter(
-														(chat): chat is Chat =>
-															chat !== undefined &&
-															getTimeGroup(chat.updated_at) === group,
-													);
-												if (groupChats.length === 0) return null;
-												return (
-													<div
-														key={group}
-														className="[&:not(:first-child)]:mt-3"
-													>
-														<div className="mb-1 ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-															<span>{group}</span>
-														</div>
-														<div className="flex flex-col gap-0.5">
-															{groupChats.map((chat) => (
-																<ChatTreeNode
-																	key={chat.id}
-																	chat={chat}
-																	isChildNode={false}
-																/>
-															))}
-														</div>
-													</div>
-												);
-											})}
-										</div>
-									)}
-								</div>
-							)}
-							{(hasNextPage || isFetchingNextPage) && (
-								<LoadMoreSentinel
-									onLoadMore={onLoadMore}
-									isFetchingNextPage={isFetchingNextPage}
-								/>
-							)}
-						</ChatTreeContext.Provider>
-					)}
+					</div>
+					<SettingsNavItem
+						icon={SquarePenIcon}
+						label="New Agent"
+						active={!activeChatId && sidebarView.panel === "chats"}
+						to="/agents"
+						onClick={onBeforeNewAgent}
+						disabled={isCreating}
+					/>
 				</div>
-			</ScrollArea>
-			<div className="hidden border-0 border-t border-solid md:block">
-				<div className="flex items-center">
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<button
-								type="button"
-								className="flex min-w-0 flex-1 items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors"
-							>
-								<Avatar
-									fallback={user.username}
-									src={user.avatar_url}
-									size="sm"
-									className="rounded-full"
-								/>
-								<span className="truncate text-sm text-content-secondary">
-									{user.name || user.username}
-								</span>
-							</button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="start" className="min-w-auto w-[260px]">
-							<UserDropdownContent
-								user={user}
-								buildInfo={buildInfo}
-								supportLinks={
-									appearance.support_links?.filter(
-										(link) => link.location !== "navbar",
-									) ?? []
-								}
-								onSignOut={signOut}
-							/>
-						</DropdownMenuContent>
-					</DropdownMenu>
-					{onOpenAnalytics && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									variant="subtle"
-									size="icon"
-									onClick={onOpenAnalytics}
-									aria-label="Analytics"
-									className="mr-1"
+				<ScrollArea
+					className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
+					scrollBarClassName="w-1.5"
+				>
+					<div className="flex flex-col gap-2 px-2 py-3 md:px-2">
+						{loadError ? (
+							<div className="space-y-3 px-1">
+								<ErrorAlert error={loadError} />
+								{onRetryLoad && (
+									<Button size="sm" variant="outline" onClick={onRetryLoad}>
+										Retry
+									</Button>
+								)}
+							</div>
+						) : isLoading ? (
+							<>
+								<Skeleton className="ml-2.5 h-3.5 w-16" />
+								<div className="flex flex-col gap-0.5">
+									{Array.from({ length: 6 }, (_, i) => (
+										<div
+											key={i}
+											className="flex items-start gap-2 rounded-md px-2 py-1"
+										>
+											<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
+											<div className="min-w-0 flex-1 space-y-1.5">
+												<Skeleton
+													className="h-3.5"
+													style={{ width: `${55 + ((i * 17) % 35)}%` }}
+												/>
+												<Skeleton className="h-3 w-20" />
+											</div>
+										</div>
+									))}
+								</div>
+							</>
+						) : (
+							<ChatTreeContext.Provider value={chatTreeCtx}>
+								{visibleRootIDs.length === 0 ? (
+									<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+										{normalizedSearch
+											? "No matching agents"
+											: archivedFilter === "archived"
+												? "No archived agents"
+												: "No agents yet"}
+									</div>
+								) : (
+									<div>
+										{visibleRootIDs.length > 0 && (
+											<div className="pb-2">
+												{TIME_GROUPS.map((group) => {
+													const groupChats = visibleRootIDs
+														.map((id) => chatById.get(id))
+														.filter(
+															(chat): chat is Chat =>
+																chat !== undefined &&
+																getTimeGroup(chat.updated_at) === group,
+														);
+													if (groupChats.length === 0) return null;
+													return (
+														<div
+															key={group}
+															className="[&:not(:first-child)]:mt-3"
+														>
+															<div className="mb-1 ml-2.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+																<span>{group}</span>
+															</div>
+															<div className="flex flex-col gap-0.5">
+																{groupChats.map((chat) => (
+																	<ChatTreeNode
+																		key={chat.id}
+																		chat={chat}
+																		isChildNode={false}
+																	/>
+																))}
+															</div>
+														</div>
+													);
+												})}
+											</div>
+										)}
+									</div>
+								)}
+								{(hasNextPage || isFetchingNextPage) && (
+									<LoadMoreSentinel
+										onLoadMore={onLoadMore}
+										isFetchingNextPage={isFetchingNextPage}
+									/>
+								)}
+							</ChatTreeContext.Provider>
+						)}
+					</div>
+				</ScrollArea>
+				<div className="hidden border-0 border-t border-solid md:block">
+					<div className="flex items-center">
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<button
+									type="button"
+									className="flex min-w-0 flex-1 items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors"
 								>
-									<BarChart3Icon className="h-4 w-4" />
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>Analytics</TooltipContent>
-						</Tooltip>
-					)}
-					{onOpenSettings && (
-						<button
-							type="button"
-							onClick={onOpenSettings}
-							className="flex shrink-0 items-center justify-center bg-transparent border-0 cursor-pointer p-2 mr-1 rounded-md text-content-secondary hover:text-content-primary hover:bg-surface-tertiary/50 transition-colors"
-							aria-label="Settings"
-						>
-							<SettingsIcon className="h-4 w-4" />
-						</button>
-					)}
+									<Avatar
+										fallback={user.username}
+										src={user.avatar_url}
+										size="sm"
+										className="rounded-full"
+									/>
+									<span className="truncate text-sm text-content-secondary">
+										{user.name || user.username}
+									</span>
+								</button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent
+								align="start"
+								className="min-w-auto w-[260px]"
+							>
+								<UserDropdownContent
+									user={user}
+									buildInfo={buildInfo}
+									supportLinks={
+										appearance.support_links?.filter(
+											(link) => link.location !== "navbar",
+										) ?? []
+									}
+									onSignOut={signOut}
+								/>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					</div>
 				</div>
 			</div>
+
+			{/* ── Panel 2: Sub-navigation (Settings) ── */}
+			<div
+				className={cn(
+					"absolute inset-0 flex flex-col transition-transform duration-200 ease-in-out",
+					sidebarView.panel !== "settings" && "translate-x-full",
+				)}
+				aria-hidden={sidebarView.panel !== "settings"}
+				inert={sidebarView.panel !== "settings" ? true : undefined}
+			>
+				{/* Back header */}
+				<div className="hidden border-b border-border-default px-3 py-2.5 md:block">
+					<Link
+						to={(location.state as { from?: string })?.from || "/agents"}
+						className="flex items-center gap-1.5 rounded-md bg-transparent px-0 py-1 text-sm font-medium text-content-secondary no-underline cursor-pointer hover:text-content-primary transition-colors"
+						aria-label={`Back to chats from ${subNavTitle}`}
+					>
+						<ChevronLeftIcon className="h-4 w-4 shrink-0" />
+						{subNavTitle}
+					</Link>
+				</div>
+				{/* Sub-navigation items */}
+				{sidebarView.panel === "settings" && (
+					<nav className="flex flex-col gap-0.5 px-2 py-2">
+						<SettingsNavItem
+							icon={UserIcon}
+							label="Behavior"
+							active={sidebarView.section === "behavior"}
+							to="/agents/settings/behavior"
+							replace
+							state={location.state}
+						/>
+						{isAdmin && (
+							<>
+								<SettingsNavItem
+									icon={KeyRoundIcon}
+									label="Providers"
+									active={sidebarView.section === "providers"}
+									to="/agents/settings/providers"
+									replace
+									state={location.state}
+									adminOnly
+								/>
+								<SettingsNavItem
+									icon={BoxesIcon}
+									label="Models"
+									active={sidebarView.section === "models"}
+									to="/agents/settings/models"
+									replace
+									state={location.state}
+									adminOnly
+								/>
+								<SettingsNavItem
+									icon={ShieldAlertIcon}
+									label="Limits"
+									active={sidebarView.section === "limits"}
+									to="/agents/settings/limits"
+									replace
+									state={location.state}
+									adminOnly
+								/>
+								<SettingsNavItem
+									icon={BarChart3Icon}
+									label="Usage"
+									active={sidebarView.section === "usage"}
+									to="/agents/settings/usage"
+									replace
+									state={location.state}
+									adminOnly
+								/>
+							</>
+						)}
+					</nav>
+				)}
+			</div>
 		</div>
+	);
+};
+
+type SettingsNavItemProps = {
+	icon: FC<{ className?: string }>;
+	label: string;
+	active: boolean;
+	adminOnly?: boolean;
+	disabled?: boolean;
+} & (
+	| { to: string; replace?: boolean; state?: unknown; onClick?: () => void }
+	| { to?: never; replace?: never; state?: never; onClick: () => void }
+);
+
+const navItemClassName = (active: boolean, disabled: boolean | undefined) =>
+	cn(
+		"flex w-full items-center gap-2.5 rounded-md border-0 px-2.5 py-2 text-left text-sm cursor-pointer transition-colors no-underline",
+		active
+			? "bg-surface-quaternary/25 text-content-primary font-medium"
+			: "bg-transparent text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
+		disabled && "opacity-50 pointer-events-none",
+	);
+
+const NavItemContent: FC<{
+	icon: FC<{ className?: string }>;
+	label: string;
+	adminOnly?: boolean;
+}> = ({ icon: Icon, label, adminOnly }) => (
+	<>
+		<Icon className="h-4 w-4 shrink-0" />
+		<span className="flex flex-1 items-center gap-2">
+			{label}
+			{adminOnly && (
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<span className="ml-auto inline-flex">
+							<ShieldIcon className="h-3 w-3 shrink-0 opacity-50" />
+						</span>
+					</TooltipTrigger>
+					<TooltipContent side="right">Admin only</TooltipContent>
+				</Tooltip>
+			)}
+		</span>
+	</>
+);
+
+const SettingsNavItem: FC<SettingsNavItemProps> = ({
+	icon,
+	label,
+	active,
+	adminOnly,
+	disabled,
+	...rest
+}) => {
+	if (rest.to != null) {
+		return (
+			<Link
+				to={rest.to}
+				replace={rest.replace}
+				state={rest.state}
+				onClick={rest.onClick}
+				className={navItemClassName(active, disabled)}
+				aria-current={active ? "page" : undefined}
+				tabIndex={disabled ? -1 : undefined}
+			>
+				<NavItemContent icon={icon} label={label} adminOnly={adminOnly} />
+			</Link>
+		);
+	}
+
+	return (
+		<button
+			type="button"
+			onClick={rest.onClick}
+			disabled={disabled}
+			className={navItemClassName(active, disabled)}
+			aria-current={active ? "page" : undefined}
+		>
+			<NavItemContent icon={icon} label={label} adminOnly={adminOnly} />
+		</button>
 	);
 };
 

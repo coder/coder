@@ -39,7 +39,7 @@ Developers select from the set of models an administrator has enabled. They
 cannot add their own providers, supply their own API keys, or access models that
 have not been explicitly configured.
 
-See [Models](./models.md) for setup instructions.
+See [Models](../models.md) for setup instructions.
 
 ### System prompt
 
@@ -60,6 +60,10 @@ By writing clear template descriptions — for example, "Use this template for
 Python backend services in the payments repo" — platform teams can guide the
 agent toward the correct infrastructure without requiring developers to
 understand template selection at all.
+
+See [Template Optimization](./template-optimization.md) for best practices on writing
+discoverable descriptions, configuring network boundaries, scoping credentials,
+and designing template parameters for agent use.
 
 ## Where we are headed
 

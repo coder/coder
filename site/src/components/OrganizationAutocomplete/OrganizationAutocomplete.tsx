@@ -1,35 +1,44 @@
-import { css } from "@emotion/css";
-import Autocomplete from "@mui/material/Autocomplete";
-import CircularProgress from "@mui/material/CircularProgress";
-import TextField from "@mui/material/TextField";
 import { checkAuthorization } from "api/queries/authCheck";
 import { organizations } from "api/queries/organizations";
 import type { AuthorizationCheck, Organization } from "api/typesGenerated";
+import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { type ComponentProps, type FC, useEffect, useState } from "react";
+import { Button } from "components/Button/Button";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "components/Command/Command";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
+import { Check } from "lucide-react";
+import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 
 type OrganizationAutocompleteProps = {
 	onChange: (organization: Organization | null) => void;
-	label?: string;
-	className?: string;
-	size?: ComponentProps<typeof TextField>["size"];
+	id?: string;
 	required?: boolean;
 	check?: AuthorizationCheck;
 };
 
 export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	onChange,
-	label,
-	className,
-	size = "small",
+	id,
 	required,
 	check,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [selected, setSelected] = useState<Organization | null>(null);
+
 	const organizationsQuery = useQuery(organizations());
+
 	const checks =
 		check &&
 		organizationsQuery.data &&
@@ -44,9 +53,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 		);
 
 	const permissionsQuery = useQuery({
-		...checkAuthorization({
-			checks: checks ?? {},
-		}),
+		...checkAuthorization({ checks: checks ?? {} }),
 		enabled: Boolean(check && organizationsQuery.data),
 	});
 
@@ -73,74 +80,69 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	}, [options, selected, onChange]);
 
 	return (
-		<Autocomplete
-			noOptionsText="No organizations found"
-			className={className}
-			options={options}
-			disabled={options.length === 1}
-			value={selected}
-			loading={organizationsQuery.isLoading}
-			data-testid="organization-autocomplete"
-			open={open}
-			isOptionEqualToValue={(a, b) => a.id === b.id}
-			getOptionLabel={(option) => option.display_name}
-			onOpen={() => {
-				setOpen(true);
-			}}
-			onClose={() => {
-				setOpen(false);
-			}}
-			onChange={(_, newValue) => {
-				setSelected(newValue);
-				onChange(newValue);
-			}}
-			renderOption={({ key, ...props }, option) => (
-				<li key={key} {...props}>
-					<AvatarData
-						title={option.display_name}
-						subtitle={option.name}
-						src={option.icon}
-					/>
-				</li>
-			)}
-			renderInput={(params) => (
-				<TextField
-					{...params}
-					required={required}
-					fullWidth
-					size={size}
-					label={label}
-					placeholder="Organization name"
-					css={{
-						"&:not(:has(label))": {
-							margin: 0,
-						},
-					}}
-					InputProps={{
-						...params.InputProps,
-						startAdornment: selected && (
-							<Avatar size="sm" src={selected.icon} fallback={selected.name} />
-						),
-						endAdornment: (
-							<>
-								{organizationsQuery.isFetching && open && (
-									<CircularProgress size={16} />
-								)}
-								{params.InputProps.endAdornment}
-							</>
-						),
-						classes: { root },
-					}}
-					InputLabelProps={{
-						shrink: true,
-					}}
-				/>
-			)}
-		/>
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger asChild>
+				<Button
+					id={id}
+					variant="outline"
+					aria-expanded={open}
+					aria-required={required}
+					data-testid="organization-autocomplete"
+					className="w-full justify-start gap-2 font-normal"
+				>
+					{selected ? (
+						<>
+							<Avatar
+								size="sm"
+								src={selected.icon}
+								fallback={selected.display_name}
+							/>
+							<span className="truncate">{selected.display_name}</span>
+						</>
+					) : (
+						<span className="text-content-secondary">
+							Select an organization{required ? "…" : " (optional)"}
+						</span>
+					)}
+					<ChevronDownIcon className="ml-auto !size-icon-sm shrink-0 text-content-secondary" />
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent
+				align="start"
+				className="w-[var(--radix-popover-trigger-width)] p-0"
+			>
+				<Command loop>
+					<CommandInput placeholder="Find organization…" />
+					<CommandList>
+						<CommandEmpty>No organizations found.</CommandEmpty>
+						<CommandGroup>
+							{options.map((org) => (
+								<CommandItem
+									key={org.id}
+									value={`${org.display_name} ${org.name}`}
+									onSelect={() => {
+										setSelected(org);
+										onChange(org);
+										setOpen(false);
+									}}
+								>
+									<Avatar
+										size="sm"
+										src={org.icon}
+										fallback={org.display_name}
+									/>
+									<span className="truncate">
+										{org.display_name || org.name}
+									</span>
+									{selected?.id === org.id && (
+										<Check className="ml-auto size-icon-sm shrink-0" />
+									)}
+								</CommandItem>
+							))}
+						</CommandGroup>
+					</CommandList>
+				</Command>
+			</PopoverContent>
+		</Popover>
 	);
 };
-
-const root = css`
-	padding-left: 14px !important; // Same padding left as input
-	gap: 4px;
-`;
