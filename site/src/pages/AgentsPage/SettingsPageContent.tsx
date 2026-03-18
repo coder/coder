@@ -48,6 +48,7 @@ import { formatTokenCount } from "utils/analytics";
 import { formatCostMicros } from "utils/currency";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
+import { InsightsContent } from "./InsightsContent";
 import { LimitsTab } from "./LimitsTab";
 import { SectionHeader } from "./SectionHeader";
 
@@ -575,6 +576,9 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 				)}
 				{activeSection === "usage" && canManageChatModelConfigs && (
 					<UsageContent now={now} />
+				)}
+				{activeSection === "insights" && canManageChatModelConfigs && (
+					<InsightsContent />
 				)}
 			</div>
 		</div>
