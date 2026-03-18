@@ -5,7 +5,7 @@ import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { fn, spyOn } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { createChatStore } from "./AgentDetail/ChatContext";
 import {
@@ -427,4 +427,62 @@ export const NotFoundSidebarCollapsed: Story = {
 			onToggleSidebarCollapsed={fn()}
 		/>
 	),
+};
+
+// ---------------------------------------------------------------------------
+// Scroll-to-bottom button stories
+// ---------------------------------------------------------------------------
+
+/** Generate a long conversation so the scroll container overflows. */
+const buildLongConversation = (count: number): TypesGen.ChatMessage[] => {
+	const messages: TypesGen.ChatMessage[] = [];
+	for (let i = 1; i <= count; i++) {
+		const role: TypesGen.ChatMessageRole = i % 2 === 1 ? "user" : "assistant";
+		const text =
+			role === "user"
+				? `Question ${Math.ceil(i / 2)}: Can you explain concept ${Math.ceil(i / 2)} in detail?`
+				: `Sure! Here is a detailed explanation of concept ${Math.floor(i / 2)}. `.repeat(
+						4,
+					);
+		messages.push(buildMessage(i, role, text));
+	}
+	return messages;
+};
+
+/** Scroll-to-bottom button appears after scrolling up in a long
+ *  conversation, and clicking it returns to the bottom. */
+export const ScrollToBottomButton: Story = {
+	args: {
+		store: buildStoreWithMessages(buildLongConversation(40)),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The button should be hidden initially (user starts at bottom).
+		const button = canvas.getByRole("button", { name: "Scroll to bottom" });
+		expect(button).toHaveClass("opacity-0");
+
+		// Find the scroll container (the flex-col-reverse element).
+		const scrollContainer = button.parentElement?.querySelector(
+			"[class*='flex-col-reverse']",
+		) as HTMLElement;
+		expect(scrollContainer).toBeTruthy();
+
+		// Scroll up — in flex-col-reverse, negative scrollTop = scrolled up.
+		scrollContainer.scrollTop = -800;
+		scrollContainer.dispatchEvent(new Event("scroll", { bubbles: false }));
+
+		// Button should become visible.
+		await waitFor(() => {
+			expect(button).toHaveClass("opacity-100");
+		});
+
+		// Click the button.
+		await userEvent.click(button);
+
+		// Button should fade out once we're back at the bottom.
+		await waitFor(() => {
+			expect(button).toHaveClass("opacity-0");
+		});
+	},
 };
