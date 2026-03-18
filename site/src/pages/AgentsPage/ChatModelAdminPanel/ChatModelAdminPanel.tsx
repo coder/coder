@@ -327,7 +327,9 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 								req,
 							})
 						}
-						onDeleteProvider={(id) => deleteProviderMut.mutateAsync(id)}
+						onDeleteProvider={(id, onSuccess) =>
+							deleteProviderMut.mutate(id, { onSuccess })
+						}
 						onSelectedProviderChange={setRequestedProvider}
 					/>
 				) : (
@@ -351,7 +353,15 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 								req,
 							})
 						}
-						onDeleteModel={(id) => deleteModelMut.mutateAsync(id)}
+						onDeleteModel={(id, onSuccess) =>
+							deleteModelMut.mutate(id, { onSuccess })
+						}
+						onSetDefaultModel={(modelConfigId) =>
+							updateModelMut.mutate({
+								modelConfigId,
+								req: { is_default: true },
+							})
+						}
 					/>
 				)}
 			</div>
