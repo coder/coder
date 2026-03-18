@@ -191,6 +191,8 @@ entirely:
 > templates. Because the AI comes from the control plane, these templates don't
 > need any outbound access to LLM providers.
 
+<!-- break between callouts -->
+
 > [!WARNING]
 > By default, agent workspaces have the same network access and permissions
 > as any workspace the user creates manually. If your templates do not
