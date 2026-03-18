@@ -354,6 +354,121 @@ export const CreateAndUpdateProvider: Story = {
 	},
 };
 
+// ── Provider "Test connection" stories ──────────────────────────
+
+export const ProviderTestConnectionSuccess: Story = {
+	args: { section: "providers" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: { providers: [] },
+		});
+		spyOn(API, "listProviderModels").mockResolvedValue({
+			models: [
+				{ model_id: "gpt-4o" },
+				{ model_id: "gpt-4o-mini" },
+				{ model_id: "o3" },
+			],
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Navigate to the OpenAI provider detail view.
+		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
+
+		// Click the "Test connection" button.
+		await userEvent.click(
+			await body.findByRole("button", { name: "Test connection" }),
+		);
+
+		// Wait for the success banner to appear.
+		await waitFor(() => {
+			expect(body.getByText(/Connected.*3 models/)).toBeInTheDocument();
+		});
+	},
+};
+
+export const ProviderTestConnectionError: Story = {
+	args: { section: "providers" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: { providers: [] },
+		});
+		spyOn(API, "listProviderModels").mockRejectedValue(
+			new Error("authentication failed: invalid API key"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Navigate to the OpenAI provider detail view.
+		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
+
+		// Click the "Test connection" button.
+		await userEvent.click(
+			await body.findByRole("button", { name: "Test connection" }),
+		);
+
+		// Wait for the error banner to appear.
+		await waitFor(() => {
+			expect(body.getByText(/authentication failed/)).toBeInTheDocument();
+		});
+	},
+};
+
+export const ProviderTestConnectionDisabledWithoutKey: Story = {
+	args: { section: "providers" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: nilProviderConfigID,
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "supported",
+					has_api_key: false,
+				}),
+			],
+			modelConfigs: [],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		// Navigate to the OpenAI provider detail view.
+		await userEvent.click(await body.findByRole("button", { name: /OpenAI/i }));
+
+		// The "Test connection" button should be disabled because there
+		// is no saved API key and the user hasn't entered one.
+		await waitFor(() => {
+			expect(
+				body.getByRole("button", { name: "Test connection" }),
+			).toBeDisabled();
+		});
+	},
+};
+
 // ── Models section stories ─────────────────────────────────────
 
 /**

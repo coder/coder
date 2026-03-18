@@ -3627,6 +3627,34 @@ export interface ListInboxNotificationsResponse {
 	readonly unread_count: number;
 }
 
+// From codersdk/chats.go
+/**
+ * ListProviderModelsRequest lists the models available from a chat
+ * provider. Either supply credentials directly (provider + api_key)
+ * or reference an existing saved config via provider_config_id.
+ */
+export interface ListProviderModelsRequest {
+	/**
+	 * ProviderConfigID references an existing saved provider config
+	 * whose credentials should be used. When set, the provider,
+	 * api_key, and base_url fields are ignored.
+	 */
+	readonly provider_config_id?: string;
+	readonly provider?: string;
+	readonly api_key?: string;
+	readonly base_url?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ListProviderModelsResponse is the result of listing models from a
+ * provider. A non-empty Models slice implies that authentication and
+ * connectivity both succeeded.
+ */
+export interface ListProviderModelsResponse {
+	readonly models: readonly ProviderModel[];
+}
+
 // From codersdk/externalauth.go
 export interface ListUserExternalAuthResponse {
 	readonly providers: readonly ExternalAuthLinkProvider[];
@@ -4873,6 +4901,18 @@ export interface PrometheusConfig {
 	readonly collect_agent_stats: boolean;
 	readonly collect_db_metrics: boolean;
 	readonly aggregate_agent_stats_by: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ProviderModel is a model discovered from a provider's API.
+ */
+export interface ProviderModel {
+	/**
+	 * ModelID is the identifier to use when configuring this model
+	 * (e.g. "gpt-4o", "claude-sonnet-4-20250514").
+	 */
+	readonly model_id: string;
 }
 
 // From codersdk/deployment.go

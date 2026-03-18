@@ -3153,6 +3153,16 @@ class ApiMethods {
 		);
 	};
 
+	listProviderModels = async (
+		req: TypesGen.ListProviderModelsRequest,
+	): Promise<TypesGen.ListProviderModelsResponse> => {
+		const response = await this.axios.post<TypesGen.ListProviderModelsResponse>(
+			`${chatProviderConfigsPath}/models`,
+			req,
+		);
+		return response.data;
+	};
+
 	getChatModelConfigs = async (): Promise<TypesGen.ChatModelConfig[]> => {
 		const response =
 			await this.axios.get<TypesGen.ChatModelConfig[]>(chatModelConfigsPath);

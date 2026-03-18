@@ -395,6 +395,33 @@ type UpdateChatProviderConfigRequest struct {
 	Enabled     *bool   `json:"enabled,omitempty"`
 }
 
+// ListProviderModelsRequest lists the models available from a chat
+// provider. Either supply credentials directly (provider + api_key)
+// or reference an existing saved config via provider_config_id.
+type ListProviderModelsRequest struct {
+	// ProviderConfigID references an existing saved provider config
+	// whose credentials should be used. When set, the provider,
+	// api_key, and base_url fields are ignored.
+	ProviderConfigID *uuid.UUID `json:"provider_config_id,omitempty" format:"uuid"`
+	Provider         string     `json:"provider,omitempty"`
+	APIKey           string     `json:"api_key,omitempty"`
+	BaseURL          string     `json:"base_url,omitempty"`
+}
+
+// ListProviderModelsResponse is the result of listing models from a
+// provider. A non-empty Models slice implies that authentication and
+// connectivity both succeeded.
+type ListProviderModelsResponse struct {
+	Models []ProviderModel `json:"models"`
+}
+
+// ProviderModel is a model discovered from a provider's API.
+type ProviderModel struct {
+	// ModelID is the identifier to use when configuring this model
+	// (e.g. "gpt-4o", "claude-sonnet-4-20250514").
+	ModelID string `json:"model_id"`
+}
+
 // ChatModelConfig is an admin-managed model configuration.
 type ChatModelConfig struct {
 	ID                   uuid.UUID            `json:"id" format:"uuid"`
@@ -1140,6 +1167,22 @@ func (c *Client) DeleteChatProvider(ctx context.Context, providerID uuid.UUID) e
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// ListProviderModels lists the models available from a chat provider,
+// validating connectivity and credentials in the process.
+func (c *Client) ListProviderModels(ctx context.Context, req ListProviderModelsRequest) (ListProviderModelsResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/providers/models", req)
+	if err != nil {
+		return ListProviderModelsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ListProviderModelsResponse{}, ReadBodyAsError(res)
+	}
+
+	var resp ListProviderModelsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // ListChatModelConfigs returns admin-managed chat model configs.

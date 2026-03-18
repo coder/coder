@@ -3423,6 +3423,92 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+func (api *API) listProviderModels(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.ListProviderModelsRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	var provider, apiKey, baseURL string
+
+	if req.ProviderConfigID != nil {
+		// Use credentials from an existing saved provider config.
+		//nolint:gocritic // System context required to read the decrypted API key.
+		existing, err := api.Database.GetChatProviderByID(dbauthz.AsSystemRestricted(ctx), *req.ProviderConfigID)
+		if err != nil {
+			if httpapi.Is404Error(err) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to get chat provider.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		provider = existing.Provider
+		apiKey = existing.APIKey
+		baseURL = existing.BaseUrl
+
+		// Allow the request to override the base URL so an admin
+		// can test a new URL against saved credentials.
+		if req.BaseURL != "" {
+			baseURL = req.BaseURL
+		}
+	} else {
+		provider = normalizeChatProvider(req.Provider)
+		if provider == "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid provider.",
+				Detail:  chatProviderValidationDetail(),
+			})
+			return
+		}
+		apiKey = strings.TrimSpace(req.APIKey)
+		if apiKey == "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "API key is required when provider_config_id is not set.",
+			})
+			return
+		}
+		var err error
+		baseURL, err = normalizeChatProviderBaseURL(req.BaseURL)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid provider base URL.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
+	listCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	modelIDs, err := chatprovider.ListProviderModels(listCtx, provider, apiKey, baseURL)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+			Message: fmt.Sprintf("Failed to list models from %s.", provider),
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	models := make([]codersdk.ProviderModel, 0, len(modelIDs))
+	for _, id := range modelIDs {
+		models = append(models, codersdk.ProviderModel{ModelID: id})
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ListProviderModelsResponse{
+		Models: models,
+	})
+}
+
 func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

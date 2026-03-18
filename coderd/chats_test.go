@@ -1158,6 +1158,79 @@ func TestDeleteChatProvider(t *testing.T) {
 	})
 }
 
+func TestListProviderModels(t *testing.T) {
+	t.Parallel()
+
+	t.Run("InvalidProvider", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.ListProviderModels(ctx, codersdk.ListProviderModelsRequest{
+			Provider: "not-a-provider",
+			APIKey:   "test-key",
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid provider.", sdkErr.Message)
+	})
+
+	t.Run("MissingAPIKey", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.ListProviderModels(ctx, codersdk.ListProviderModelsRequest{
+			Provider: "openai",
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "API key is required when provider_config_id is not set.", sdkErr.Message)
+	})
+
+	t.Run("InvalidBaseURL", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.ListProviderModels(ctx, codersdk.ListProviderModelsRequest{
+			Provider: "openai",
+			APIKey:   "test-key",
+			BaseURL:  "not://valid",
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid provider base URL.", sdkErr.Message)
+	})
+
+	t.Run("ProviderConfigNotFound", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		missingID := uuid.New()
+		_, err := client.ListProviderModels(ctx, codersdk.ListProviderModelsRequest{
+			ProviderConfigID: &missingID,
+		})
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("ForbiddenForNonAdmin", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		_, err := memberClient.ListProviderModels(ctx, codersdk.ListProviderModelsRequest{
+			Provider: "openai",
+			APIKey:   "test-key",
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+}
+
 func TestListChatModelConfigs(t *testing.T) {
 	t.Parallel()
 

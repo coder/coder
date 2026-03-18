@@ -457,6 +457,11 @@ const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
 	]);
 };
 
+export const listProviderModels = () => ({
+	mutationFn: (req: TypesGen.ListProviderModelsRequest) =>
+		API.listProviderModels(req),
+});
+
 export const createChatProviderConfig = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatProviderConfigRequest) =>
 		API.createChatProviderConfig(req),

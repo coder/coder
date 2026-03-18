@@ -1,3 +1,4 @@
+import { listProviderModels } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
@@ -8,8 +9,14 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { ChevronLeftIcon, InfoIcon } from "lucide-react";
+import {
+	CheckCircleIcon,
+	ChevronLeftIcon,
+	InfoIcon,
+	XCircleIcon,
+} from "lucide-react";
 import { type FC, type FormEvent, useId, useState } from "react";
+import { useMutation } from "react-query";
 import { formatProviderLabel } from "../modelOptions";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { readOptionalString } from "./helpers";
@@ -83,6 +90,37 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		!isAPIKeyEnvManaged &&
 		isDirty &&
 		(!requiresAPIKey || effectiveApiKey);
+
+	// ── Test connection (list models) ────────────────────────────
+	const testMutation = useMutation(listProviderModels());
+
+	// The test button is available when there is a usable API key —
+	// either the user typed one in, or an existing config has one saved.
+	const canTest =
+		!providerConfigsUnavailable &&
+		!isAPIKeyEnvManaged &&
+		(effectiveApiKey !== "" || providerState.hasManagedAPIKey);
+
+	const handleTest = () => {
+		const trimmedBaseURL = baseURLValue.trim();
+		if (providerConfig && !effectiveApiKey) {
+			// Test an existing saved config — let the backend read
+			// the decrypted key from the database.
+			testMutation.mutate({
+				provider_config_id: providerConfig.id,
+				...(trimmedBaseURL !== baseURL.trim() && {
+					base_url: trimmedBaseURL,
+				}),
+			});
+		} else {
+			// Test with the API key the user typed in.
+			testMutation.mutate({
+				provider,
+				api_key: effectiveApiKey,
+				...(trimmedBaseURL && { base_url: trimmedBaseURL }),
+			});
+		}
+	};
 
 	const handleSubmit = async (event: FormEvent) => {
 		event.preventDefault();
@@ -250,6 +288,28 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						</ProviderField>
 					</div>
 
+					{/* Test connection result */}
+					{testMutation.isSuccess && (
+						<div className="mt-4">
+							<div className="flex items-center gap-2 rounded-md border border-border-success bg-surface-primary px-3 py-2 text-sm text-content-success">
+								<CheckCircleIcon className="h-4 w-4 shrink-0" />
+								Connected — {testMutation.data.models.length}{" "}
+								{testMutation.data.models.length === 1 ? "model" : "models"}{" "}
+								available
+							</div>
+						</div>
+					)}
+					{testMutation.isError && (
+						<div className="mt-4">
+							<div className="flex items-center gap-2 rounded-md border border-border-destructive bg-surface-primary px-3 py-2 text-sm text-content-destructive">
+								<XCircleIcon className="h-4 w-4 shrink-0" />
+								{testMutation.error instanceof Error
+									? testMutation.error.message
+									: "Failed to connect to provider"}
+							</div>
+						</div>
+					)}
+
 					{/* Footer — pushed to bottom */}
 					<div className="mt-auto pt-6">
 						<hr className="mb-4 border-0 border-t border-solid border-border" />
@@ -298,12 +358,26 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								) : (
 									<div />
 								)}
-								<Button size="lg" type="submit" disabled={!canSave}>
-									{isProviderMutationPending && (
-										<Spinner className="h-4 w-4" loading />
-									)}
-									{providerConfig ? "Save changes" : "Create provider config"}
-								</Button>
+								<div className="flex items-center gap-2">
+									<Button
+										variant="outline"
+										size="lg"
+										type="button"
+										disabled={!canTest || testMutation.isPending}
+										onClick={handleTest}
+									>
+										{testMutation.isPending && (
+											<Spinner className="h-4 w-4" loading />
+										)}
+										Test connection
+									</Button>
+									<Button size="lg" type="submit" disabled={!canSave}>
+										{isProviderMutationPending && (
+											<Spinner className="h-4 w-4" loading />
+										)}
+										{providerConfig ? "Save changes" : "Create provider config"}
+									</Button>
+								</div>
 							</div>
 						)}
 					</div>

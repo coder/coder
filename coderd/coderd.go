@@ -1179,6 +1179,7 @@ func New(options *Options) *API {
 			r.Route("/providers", func(r chi.Router) {
 				r.Get("/", api.listChatProviders)
 				r.Post("/", api.createChatProvider)
+				r.Post("/models", api.listProviderModels)
 				r.Route("/{providerConfig}", func(r chi.Router) {
 					r.Patch("/", api.updateChatProvider)
 					r.Delete("/", api.deleteChatProvider)
