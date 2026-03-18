@@ -473,8 +473,15 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 										<AdminBadge />
 									</div>
 									<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-										Applied to all chats for every user. When empty, the
-										built-in default is used.
+										Applied to all chats for every user. When empty, the{" "}
+										<Link
+											href="https://github.com/coder/coder/blob/main/coderd/chatd/prompt.go"
+											target="_blank"
+											size="sm"
+										>
+											built-in default
+										</Link>{" "}
+										is used.
 									</p>
 									<TextareaAutosize
 										className={textareaClassName}
