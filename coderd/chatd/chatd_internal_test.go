@@ -243,10 +243,10 @@ func TestSubscribeSkipsDatabaseCatchupForLocallyDeliveredMessage(t *testing.T) {
 		ChatID: chatID,
 		Role:   database.ChatMessageRoleUser,
 	}
-	localMessage := codersdk.ChatMessage{
+	localMessage := database.ChatMessage{
 		ID:     2,
 		ChatID: chatID,
-		Role:   codersdk.ChatMessageRoleAssistant,
+		Role:   database.ChatMessageRoleAssistant,
 	}
 
 	gomock.InOrder(
@@ -263,22 +263,65 @@ func TestSubscribeSkipsDatabaseCatchupForLocallyDeliveredMessage(t *testing.T) {
 	require.True(t, ok)
 	defer cancel()
 
-	server.publishEvent(chatID, codersdk.ChatStreamEvent{
-		Type:    codersdk.ChatStreamEventTypeMessage,
-		Message: &localMessage,
-	})
+	server.publishMessage(chatID, localMessage)
 
 	event := requireStreamMessageEvent(t, events)
 	require.Equal(t, int64(2), event.Message.ID)
+	requireNoStreamEvent(t, events, 200*time.Millisecond)
+}
+
+func TestSubscribeUsesDurableCacheWhenLocalMessageWasNotDelivered(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusPending}
+	initialMessage := database.ChatMessage{
+		ID:     1,
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleUser,
+	}
+	cachedMessage := codersdk.ChatMessage{
+		ID:     2,
+		ChatID: chatID,
+		Role:   codersdk.ChatMessageRoleAssistant,
+	}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return([]database.ChatMessage{initialMessage}, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+	)
+
+	server := newSubscribeTestServer(t, db)
+	server.cacheDurableMessage(chatID, codersdk.ChatStreamEvent{
+		Type:    codersdk.ChatStreamEventTypeMessage,
+		ChatID:  chatID,
+		Message: &cachedMessage,
+	})
+
+	_, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
 
 	server.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
 		AfterMessageID: 1,
 	})
 
+	event := requireStreamMessageEvent(t, events)
+	require.Equal(t, int64(2), event.Message.ID)
 	requireNoStreamEvent(t, events, 200*time.Millisecond)
 }
 
-func TestSubscribeQueriesDatabaseWhenLocalMessageWasNotDelivered(t *testing.T) {
+func TestSubscribeQueriesDatabaseWhenDurableCacheMisses(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancelCtx := context.WithCancel(context.Background())
