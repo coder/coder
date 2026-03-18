@@ -787,6 +787,7 @@ func New(options *Options) *API {
 		StartWorkspace:     api.chatStartWorkspace,
 		Pubsub:             options.Pubsub,
 		WebpushDispatcher:  options.WebPushDispatcher,
+		UsageTracker:       options.WorkspaceUsageTracker,
 	})
 	gitSyncLogger := options.Logger.Named("gitsync")
 	refresher := gitsync.NewRefresher(

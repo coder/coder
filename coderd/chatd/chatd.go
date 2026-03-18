@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/webpush"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
@@ -46,7 +47,9 @@ const (
 
 	homeInstructionLookupTimeout = 5 * time.Second
 	instructionCacheTTL          = 5 * time.Minute
-	chatHeartbeatInterval        = 60 * time.Second
+	// DefaultChatHeartbeatInterval is the default time between chat
+	// heartbeat updates while a chat is being processed.
+	DefaultChatHeartbeatInterval = 30 * time.Second
 	maxChatSteps                 = 1200
 	// maxStreamBufferSize caps the number of events buffered
 	// per chat during a single LLM step. When exceeded the
@@ -96,10 +99,14 @@ type Server struct {
 	instructionCacheMu sync.RWMutex
 	instructionCache   map[uuid.UUID]cachedInstruction
 
+	usageTracker *workspacestats.UsageTracker
+	clock        quartz.Clock
+
 	// Configuration
 	pendingChatAcquireInterval time.Duration
 	maxChatsPerAcquire         int32
 	inFlightChatStaleAfter     time.Duration
+	chatHeartbeatInterval      time.Duration
 }
 
 type cachedInstruction struct {
@@ -1285,12 +1292,15 @@ type Config struct {
 	PendingChatAcquireInterval time.Duration
 	MaxChatsPerAcquire         int32
 	InFlightChatStaleAfter     time.Duration
+	ChatHeartbeatInterval      time.Duration
 	AgentConn                  AgentConnFunc
 	CreateWorkspace            chattool.CreateWorkspaceFn
 	StartWorkspace             chattool.StartWorkspaceFn
 	Pubsub                     pubsub.Pubsub
 	ProviderAPIKeys            chatprovider.ProviderAPIKeys
 	WebpushDispatcher          webpush.Dispatcher
+	UsageTracker               *workspacestats.UsageTracker
+	Clock                      quartz.Clock
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -1312,6 +1322,16 @@ func New(cfg Config) *Server {
 	maxChatsPerAcquire := cfg.MaxChatsPerAcquire
 	if maxChatsPerAcquire <= 0 {
 		maxChatsPerAcquire = DefaultMaxChatsPerAcquire
+	}
+
+	chatHeartbeatInterval := cfg.ChatHeartbeatInterval
+	if chatHeartbeatInterval == 0 {
+		chatHeartbeatInterval = DefaultChatHeartbeatInterval
+	}
+
+	clk := cfg.Clock
+	if clk == nil {
+		clk = quartz.NewReal()
 	}
 
 	workerID := cfg.ReplicaID
@@ -1336,6 +1356,9 @@ func New(cfg Config) *Server {
 		pendingChatAcquireInterval: pendingChatAcquireInterval,
 		maxChatsPerAcquire:         maxChatsPerAcquire,
 		inFlightChatStaleAfter:     inFlightChatStaleAfter,
+		chatHeartbeatInterval:      chatHeartbeatInterval,
+		usageTracker:               cfg.UsageTracker,
+		clock:                      clk,
 	}
 
 	//nolint:gocritic // The chat processor uses a scoped chatd context.
@@ -2230,6 +2253,35 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 	return &msg, remainingQueuedMessages, true, nil
 }
 
+// trackWorkspaceUsage bumps the workspace's last_used_at via the
+// usage tracker. If wsID is not yet valid, it re-reads the chat
+// from the DB to pick up late associations (e.g. create_workspace
+// linking a workspace mid-conversation). The caller should store
+// the returned value so that subsequent calls skip the DB lookup
+// once a workspace has been found.
+func (p *Server) trackWorkspaceUsage(
+	ctx context.Context,
+	chatID uuid.UUID,
+	wsID uuid.NullUUID,
+	logger slog.Logger,
+) uuid.NullUUID {
+	if p.usageTracker == nil {
+		return wsID
+	}
+	if !wsID.Valid {
+		latest, err := p.db.GetChatByID(ctx, chatID)
+		if err != nil {
+			logger.Warn(ctx, "failed to re-read chat for workspace association", slog.Error(err))
+			return wsID
+		}
+		wsID = latest.WorkspaceID
+	}
+	if wsID.Valid {
+		p.usageTracker.Add(wsID.UUID)
+	}
+	return wsID
+}
+
 func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
 	logger.Info(ctx, "processing chat request")
@@ -2248,7 +2300,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	// worker is still alive. The goroutine stops when chatCtx is
 	// canceled (either by completion or interruption).
 	go func() {
-		ticker := time.NewTicker(chatHeartbeatInterval)
+		ticker := p.clock.NewTicker(p.chatHeartbeatInterval, "chatd", "heartbeat")
 		defer ticker.Stop()
 		for {
 			select {
@@ -2267,6 +2319,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 					cancel(chatloop.ErrInterrupted)
 					return
 				}
+				chat.WorkspaceID = p.trackWorkspaceUsage(chatCtx, chat.ID, chat.WorkspaceID, logger)
 			}
 		}
 	}()
