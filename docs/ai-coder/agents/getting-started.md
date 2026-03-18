@@ -47,6 +47,11 @@ details.
 
 ## Step 2: Configure an LLM provider and model
 
+> [!IMPORTANT]
+> Configuring providers, models, and system prompts requires the
+> **Owner** role (Coder administrator). Non-admin users cannot access the
+> Admin panel or modify deployment-level Agents configuration.
+
 Once the server restarts with the experiment enabled:
 
 1. Navigate to the **Agents** page in the Coder dashboard.
