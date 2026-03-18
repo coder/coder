@@ -136,6 +136,7 @@ export interface AIBridgeUserPrompt {
 export interface AIConfig {
 	readonly bridge?: AIBridgeConfig;
 	readonly aibridge_proxy?: AIBridgeProxyConfig;
+	readonly chat?: ChatConfig;
 }
 
 // From codersdk/allowlist.go
@@ -1069,6 +1070,11 @@ export interface Chat {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly archived: boolean;
+}
+
+// From codersdk/deployment.go
+export interface ChatConfig {
+	readonly acquire_batch_size: number;
 }
 
 // From codersdk/chats.go
