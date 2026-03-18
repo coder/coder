@@ -42,6 +42,11 @@ type PersistedStep struct {
 	Content      []fantasy.Content
 	Usage        fantasy.Usage
 	ContextLimit sql.NullInt64
+	// Runtime is the wall-clock duration of this step,
+	// covering LLM streaming, tool execution, and retries.
+	// Zero indicates the duration was not measured (e.g.
+	// interrupted steps).
+	Runtime time.Duration
 }
 
 // RunOptions configures a single streaming chat loop run.
@@ -260,6 +265,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 
 		for step := 0; totalSteps < opts.MaxSteps; step++ {
 			totalSteps++
+			stepStart := time.Now()
 			// Copy messages so that provider-specific caching
 			// mutations don't leak back to the caller's slice.
 			// copy copies Message structs by value, so field
@@ -365,6 +371,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				Content:      result.content,
 				Usage:        result.usage,
 				ContextLimit: contextLimit,
+				Runtime:      time.Since(stepStart),
 			}); err != nil {
 				if errors.Is(err, ErrInterrupted) {
 					persistInterruptedStep(ctx, opts, &result)

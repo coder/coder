@@ -409,7 +409,7 @@ const RepoHeader: FC<{
 // PR state icon (compact, for the tab bar)
 // ---------------------------------------------------------------
 
-const PrStateIcon: FC<{
+export const PrStateIcon: FC<{
 	state?: string;
 	draft?: boolean;
 	className?: string;

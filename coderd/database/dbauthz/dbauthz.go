@@ -3159,6 +3159,34 @@ func (q *querier) GetOrganizationsWithPrebuildStatus(ctx context.Context, arg da
 	return q.db.GetOrganizationsWithPrebuildStatus(ctx, arg)
 }
 
+func (q *querier) GetPRInsightsPerModel(ctx context.Context, arg database.GetPRInsightsPerModelParams) ([]database.GetPRInsightsPerModelRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetPRInsightsPerModel(ctx, arg)
+}
+
+func (q *querier) GetPRInsightsRecentPRs(ctx context.Context, arg database.GetPRInsightsRecentPRsParams) ([]database.GetPRInsightsRecentPRsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetPRInsightsRecentPRs(ctx, arg)
+}
+
+func (q *querier) GetPRInsightsSummary(ctx context.Context, arg database.GetPRInsightsSummaryParams) (database.GetPRInsightsSummaryRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return database.GetPRInsightsSummaryRow{}, err
+	}
+	return q.db.GetPRInsightsSummary(ctx, arg)
+}
+
+func (q *querier) GetPRInsightsTimeSeries(ctx context.Context, arg database.GetPRInsightsTimeSeriesParams) ([]database.GetPRInsightsTimeSeriesRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetPRInsightsTimeSeries(ctx, arg)
+}
+
 func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
 	version, err := q.db.GetTemplateVersionByJobID(ctx, jobID)
 	if err != nil {
@@ -6803,6 +6831,13 @@ func (q *querier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg databa
 		return false, err
 	}
 	return q.db.UpsertWorkspaceAppAuditSession(ctx, arg)
+}
+
+func (q *querier) UsageEventExistsByID(ctx context.Context, id string) (bool, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUsageEvent); err != nil {
+		return false, err
+	}
+	return q.db.UsageEventExistsByID(ctx, id)
 }
 
 func (q *querier) ValidateGroupIDs(ctx context.Context, groupIDs []uuid.UUID) (database.ValidateGroupIDsRow, error) {

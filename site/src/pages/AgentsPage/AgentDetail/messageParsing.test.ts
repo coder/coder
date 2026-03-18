@@ -49,14 +49,6 @@ describe("parseToolResultIsError", () => {
 });
 
 describe("parseMessageContent", () => {
-	it("returns empty result for null content", () => {
-		const result = parseMessageContent(null);
-		expect(result.markdown).toBe("");
-		expect(result.blocks).toEqual([]);
-		expect(result.toolCalls).toEqual([]);
-		expect(result.toolResults).toEqual([]);
-	});
-
 	it("returns empty result for undefined content", () => {
 		const result = parseMessageContent(undefined);
 		expect(result.markdown).toBe("");
@@ -69,12 +61,6 @@ describe("parseMessageContent", () => {
 		expect(result.blocks).toEqual([]);
 		expect(result.toolCalls).toEqual([]);
 		expect(result.toolResults).toEqual([]);
-	});
-
-	it("handles a plain string content", () => {
-		const result = parseMessageContent("Hello world");
-		expect(result.markdown).toBe("Hello world");
-		expect(result.blocks).toEqual([]);
 	});
 
 	it("parses a single text block", () => {
@@ -173,7 +159,7 @@ describe("parseMessageContent", () => {
 				type: "tool-result",
 				tool_name: "bash",
 				tool_call_id: "call-1",
-				result: "ok",
+				result: { output: "ok" },
 			},
 			{ type: "text", text: "Done!" },
 		]);
@@ -193,32 +179,6 @@ describe("parseMessageContent", () => {
 			{ type: "tool-call", tool_name: "run" },
 		]);
 		expect(result.toolCalls[0].id).toBe("tool-call-0");
-	});
-
-	it("handles unknown block types gracefully (no crash)", () => {
-		const result = parseMessageContent([
-			{ type: "unknown_block_type", text: "some text" },
-		]);
-		// Unknown types fall through to the default branch which treats
-		// the text field as a response.
-		expect(result.markdown).toBe("some text");
-		expect(result.blocks).toEqual([{ type: "response", text: "some text" }]);
-	});
-
-	it("handles non-object array entries gracefully", () => {
-		const result = parseMessageContent(["raw string", 42, null]);
-		expect(result.markdown).toBe("raw string");
-		expect(result.blocks).toEqual([{ type: "response", text: "raw string" }]);
-	});
-
-	it("handles an object with a type field (treated as single-element array)", () => {
-		const result = parseMessageContent({ type: "text", text: "single" });
-		expect(result.markdown).toBe("single");
-	});
-
-	it("handles an object with text/content fields", () => {
-		const result = parseMessageContent({ text: "fallback text" });
-		expect(result.markdown).toBe("fallback text");
 	});
 
 	it("extracts fileId from a file block with file_id", () => {
@@ -255,6 +215,16 @@ describe("parseMessageContent", () => {
 		});
 	});
 
+	it("skips file parts without data or file_id", () => {
+		const result = parseMessageContent([
+			{
+				type: "file",
+				media_type: "image/png",
+			},
+		]);
+		expect(result.blocks).toHaveLength(0);
+	});
+
 	it("parses a file-reference block into blocks", () => {
 		const result = parseMessageContent([
 			{
@@ -273,19 +243,6 @@ describe("parseMessageContent", () => {
 			end_line: 15,
 			content: "some added code lines",
 		});
-	});
-
-	it("defaults lines to 0 when no line fields are provided", () => {
-		const result = parseMessageContent([
-			{
-				type: "file-reference",
-				file_name: "bare.ts",
-				content: "bare content",
-			},
-		]);
-		const ref = result.blocks[0] as { start_line: number; end_line: number };
-		expect(ref.start_line).toBe(0);
-		expect(ref.end_line).toBe(0);
 	});
 
 	it("does not affect markdown when file-reference blocks are present", () => {

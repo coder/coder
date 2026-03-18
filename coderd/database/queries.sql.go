@@ -2414,6 +2414,329 @@ func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParam
 	return i, err
 }
 
+const getPRInsightsPerModel = `-- name: GetPRInsightsPerModel :many
+SELECT
+    cmc.id AS model_config_id,
+    cmc.display_name,
+    cmc.provider,
+    COUNT(*)::bigint AS total_prs,
+    COUNT(*) FILTER (WHERE cds.pull_request_state = 'merged')::bigint AS merged_prs,
+    COALESCE(SUM(cds.additions), 0)::bigint AS total_additions,
+    COALESCE(SUM(cds.deletions), 0)::bigint AS total_deletions,
+    COALESCE(SUM(cc.cost_micros), 0)::bigint AS total_cost_micros,
+    COALESCE(SUM(cc.cost_micros) FILTER (WHERE cds.pull_request_state = 'merged'), 0)::bigint AS merged_cost_micros
+FROM chat_diff_statuses cds
+JOIN chats c ON c.id = cds.chat_id
+JOIN chat_model_configs cmc ON cmc.id = c.last_model_config_id
+LEFT JOIN (
+    SELECT
+        COALESCE(ch.root_chat_id, ch.id) AS root_id,
+        COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
+    FROM chat_messages cm
+    JOIN chats ch ON ch.id = cm.chat_id
+    WHERE cm.total_cost_micros IS NOT NULL
+    GROUP BY COALESCE(ch.root_chat_id, ch.id)
+) cc ON cc.root_id = COALESCE(c.root_chat_id, c.id)
+WHERE cds.pull_request_state IS NOT NULL
+  AND c.created_at >= $1::timestamptz
+  AND c.created_at < $2::timestamptz
+  AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
+GROUP BY cmc.id, cmc.display_name, cmc.provider
+ORDER BY total_prs DESC
+`
+
+type GetPRInsightsPerModelParams struct {
+	StartDate time.Time     `db:"start_date" json:"start_date"`
+	EndDate   time.Time     `db:"end_date" json:"end_date"`
+	OwnerID   uuid.NullUUID `db:"owner_id" json:"owner_id"`
+}
+
+type GetPRInsightsPerModelRow struct {
+	ModelConfigID    uuid.UUID `db:"model_config_id" json:"model_config_id"`
+	DisplayName      string    `db:"display_name" json:"display_name"`
+	Provider         string    `db:"provider" json:"provider"`
+	TotalPrs         int64     `db:"total_prs" json:"total_prs"`
+	MergedPrs        int64     `db:"merged_prs" json:"merged_prs"`
+	TotalAdditions   int64     `db:"total_additions" json:"total_additions"`
+	TotalDeletions   int64     `db:"total_deletions" json:"total_deletions"`
+	TotalCostMicros  int64     `db:"total_cost_micros" json:"total_cost_micros"`
+	MergedCostMicros int64     `db:"merged_cost_micros" json:"merged_cost_micros"`
+}
+
+// Returns PR metrics grouped by the model used for each chat.
+func (q *sqlQuerier) GetPRInsightsPerModel(ctx context.Context, arg GetPRInsightsPerModelParams) ([]GetPRInsightsPerModelRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPRInsightsPerModel, arg.StartDate, arg.EndDate, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPRInsightsPerModelRow
+	for rows.Next() {
+		var i GetPRInsightsPerModelRow
+		if err := rows.Scan(
+			&i.ModelConfigID,
+			&i.DisplayName,
+			&i.Provider,
+			&i.TotalPrs,
+			&i.MergedPrs,
+			&i.TotalAdditions,
+			&i.TotalDeletions,
+			&i.TotalCostMicros,
+			&i.MergedCostMicros,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPRInsightsRecentPRs = `-- name: GetPRInsightsRecentPRs :many
+SELECT
+    c.id AS chat_id,
+    cds.pull_request_title AS pr_title,
+    cds.url AS pr_url,
+    cds.pr_number,
+    cds.pull_request_state AS state,
+    cds.pull_request_draft AS draft,
+    cds.additions,
+    cds.deletions,
+    cds.changed_files,
+    cds.commits,
+    cds.approved,
+    cds.changes_requested,
+    cds.reviewer_count,
+    cds.author_login,
+    cds.author_avatar_url,
+    COALESCE(cds.base_branch, '')::text AS base_branch,
+    COALESCE(cmc.display_name, cmc.model)::text AS model_display_name,
+    COALESCE(cc.cost_micros, 0)::bigint AS cost_micros,
+    c.created_at
+FROM chat_diff_statuses cds
+JOIN chats c ON c.id = cds.chat_id
+JOIN chat_model_configs cmc ON cmc.id = c.last_model_config_id
+LEFT JOIN (
+    SELECT
+        COALESCE(ch.root_chat_id, ch.id) AS root_id,
+        COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
+    FROM chat_messages cm
+    JOIN chats ch ON ch.id = cm.chat_id
+    WHERE cm.total_cost_micros IS NOT NULL
+    GROUP BY COALESCE(ch.root_chat_id, ch.id)
+) cc ON cc.root_id = COALESCE(c.root_chat_id, c.id)
+WHERE cds.pull_request_state IS NOT NULL
+  AND c.created_at >= $1::timestamptz
+  AND c.created_at < $2::timestamptz
+  AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
+ORDER BY c.created_at DESC
+LIMIT $4::int
+`
+
+type GetPRInsightsRecentPRsParams struct {
+	StartDate time.Time     `db:"start_date" json:"start_date"`
+	EndDate   time.Time     `db:"end_date" json:"end_date"`
+	OwnerID   uuid.NullUUID `db:"owner_id" json:"owner_id"`
+	LimitVal  int32         `db:"limit_val" json:"limit_val"`
+}
+
+type GetPRInsightsRecentPRsRow struct {
+	ChatID           uuid.UUID      `db:"chat_id" json:"chat_id"`
+	PrTitle          string         `db:"pr_title" json:"pr_title"`
+	PrUrl            sql.NullString `db:"pr_url" json:"pr_url"`
+	PrNumber         sql.NullInt32  `db:"pr_number" json:"pr_number"`
+	State            sql.NullString `db:"state" json:"state"`
+	Draft            bool           `db:"draft" json:"draft"`
+	Additions        int32          `db:"additions" json:"additions"`
+	Deletions        int32          `db:"deletions" json:"deletions"`
+	ChangedFiles     int32          `db:"changed_files" json:"changed_files"`
+	Commits          sql.NullInt32  `db:"commits" json:"commits"`
+	Approved         sql.NullBool   `db:"approved" json:"approved"`
+	ChangesRequested bool           `db:"changes_requested" json:"changes_requested"`
+	ReviewerCount    sql.NullInt32  `db:"reviewer_count" json:"reviewer_count"`
+	AuthorLogin      sql.NullString `db:"author_login" json:"author_login"`
+	AuthorAvatarUrl  sql.NullString `db:"author_avatar_url" json:"author_avatar_url"`
+	BaseBranch       string         `db:"base_branch" json:"base_branch"`
+	ModelDisplayName string         `db:"model_display_name" json:"model_display_name"`
+	CostMicros       int64          `db:"cost_micros" json:"cost_micros"`
+	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
+}
+
+// Returns individual PR rows with cost for the recent PRs table.
+func (q *sqlQuerier) GetPRInsightsRecentPRs(ctx context.Context, arg GetPRInsightsRecentPRsParams) ([]GetPRInsightsRecentPRsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPRInsightsRecentPRs,
+		arg.StartDate,
+		arg.EndDate,
+		arg.OwnerID,
+		arg.LimitVal,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPRInsightsRecentPRsRow
+	for rows.Next() {
+		var i GetPRInsightsRecentPRsRow
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.PrTitle,
+			&i.PrUrl,
+			&i.PrNumber,
+			&i.State,
+			&i.Draft,
+			&i.Additions,
+			&i.Deletions,
+			&i.ChangedFiles,
+			&i.Commits,
+			&i.Approved,
+			&i.ChangesRequested,
+			&i.ReviewerCount,
+			&i.AuthorLogin,
+			&i.AuthorAvatarUrl,
+			&i.BaseBranch,
+			&i.ModelDisplayName,
+			&i.CostMicros,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPRInsightsSummary = `-- name: GetPRInsightsSummary :one
+
+SELECT
+    COUNT(*)::bigint AS total_prs_created,
+    COUNT(*) FILTER (WHERE cds.pull_request_state = 'merged')::bigint AS total_prs_merged,
+    COUNT(*) FILTER (WHERE cds.pull_request_state = 'closed')::bigint AS total_prs_closed,
+    COALESCE(SUM(cds.additions), 0)::bigint AS total_additions,
+    COALESCE(SUM(cds.deletions), 0)::bigint AS total_deletions,
+    COALESCE(SUM(cc.cost_micros), 0)::bigint AS total_cost_micros,
+    COALESCE(SUM(cc.cost_micros) FILTER (WHERE cds.pull_request_state = 'merged'), 0)::bigint AS merged_cost_micros
+FROM chat_diff_statuses cds
+JOIN chats c ON c.id = cds.chat_id
+LEFT JOIN (
+    SELECT
+        COALESCE(ch.root_chat_id, ch.id) AS root_id,
+        COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
+    FROM chat_messages cm
+    JOIN chats ch ON ch.id = cm.chat_id
+    WHERE cm.total_cost_micros IS NOT NULL
+    GROUP BY COALESCE(ch.root_chat_id, ch.id)
+) cc ON cc.root_id = COALESCE(c.root_chat_id, c.id)
+WHERE cds.pull_request_state IS NOT NULL
+  AND c.created_at >= $1::timestamptz
+  AND c.created_at < $2::timestamptz
+  AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
+`
+
+type GetPRInsightsSummaryParams struct {
+	StartDate time.Time     `db:"start_date" json:"start_date"`
+	EndDate   time.Time     `db:"end_date" json:"end_date"`
+	OwnerID   uuid.NullUUID `db:"owner_id" json:"owner_id"`
+}
+
+type GetPRInsightsSummaryRow struct {
+	TotalPrsCreated  int64 `db:"total_prs_created" json:"total_prs_created"`
+	TotalPrsMerged   int64 `db:"total_prs_merged" json:"total_prs_merged"`
+	TotalPrsClosed   int64 `db:"total_prs_closed" json:"total_prs_closed"`
+	TotalAdditions   int64 `db:"total_additions" json:"total_additions"`
+	TotalDeletions   int64 `db:"total_deletions" json:"total_deletions"`
+	TotalCostMicros  int64 `db:"total_cost_micros" json:"total_cost_micros"`
+	MergedCostMicros int64 `db:"merged_cost_micros" json:"merged_cost_micros"`
+}
+
+// PR Insights queries for the /agents analytics dashboard.
+// These aggregate data from chat_diff_statuses (PR metadata) joined
+// with chats and chat_messages (cost) to power the PR Insights view.
+// Returns aggregate PR metrics for the given date range.
+// The handler calls this twice (current + previous period) for trends.
+func (q *sqlQuerier) GetPRInsightsSummary(ctx context.Context, arg GetPRInsightsSummaryParams) (GetPRInsightsSummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, getPRInsightsSummary, arg.StartDate, arg.EndDate, arg.OwnerID)
+	var i GetPRInsightsSummaryRow
+	err := row.Scan(
+		&i.TotalPrsCreated,
+		&i.TotalPrsMerged,
+		&i.TotalPrsClosed,
+		&i.TotalAdditions,
+		&i.TotalDeletions,
+		&i.TotalCostMicros,
+		&i.MergedCostMicros,
+	)
+	return i, err
+}
+
+const getPRInsightsTimeSeries = `-- name: GetPRInsightsTimeSeries :many
+SELECT
+    date_trunc('day', c.created_at)::timestamptz AS date,
+    COUNT(*)::bigint AS prs_created,
+    COUNT(*) FILTER (WHERE cds.pull_request_state = 'merged')::bigint AS prs_merged,
+    COUNT(*) FILTER (WHERE cds.pull_request_state = 'closed')::bigint AS prs_closed
+FROM chat_diff_statuses cds
+JOIN chats c ON c.id = cds.chat_id
+WHERE cds.pull_request_state IS NOT NULL
+  AND c.created_at >= $1::timestamptz
+  AND c.created_at < $2::timestamptz
+  AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
+GROUP BY date_trunc('day', c.created_at)
+ORDER BY date_trunc('day', c.created_at)
+`
+
+type GetPRInsightsTimeSeriesParams struct {
+	StartDate time.Time     `db:"start_date" json:"start_date"`
+	EndDate   time.Time     `db:"end_date" json:"end_date"`
+	OwnerID   uuid.NullUUID `db:"owner_id" json:"owner_id"`
+}
+
+type GetPRInsightsTimeSeriesRow struct {
+	Date       time.Time `db:"date" json:"date"`
+	PrsCreated int64     `db:"prs_created" json:"prs_created"`
+	PrsMerged  int64     `db:"prs_merged" json:"prs_merged"`
+	PrsClosed  int64     `db:"prs_closed" json:"prs_closed"`
+}
+
+// Returns daily PR counts grouped by state for the chart.
+func (q *sqlQuerier) GetPRInsightsTimeSeries(ctx context.Context, arg GetPRInsightsTimeSeriesParams) ([]GetPRInsightsTimeSeriesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPRInsightsTimeSeries, arg.StartDate, arg.EndDate, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPRInsightsTimeSeriesRow
+	for rows.Next() {
+		var i GetPRInsightsTimeSeriesRow
+		if err := rows.Scan(
+			&i.Date,
+			&i.PrsCreated,
+			&i.PrsMerged,
+			&i.PrsClosed,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteChatModelConfigByID = `-- name: DeleteChatModelConfigByID :exec
 UPDATE
     chat_model_configs
@@ -3866,7 +4189,7 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds [
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms
 FROM
     chat_messages
 WHERE
@@ -3895,13 +4218,14 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 		&i.CreatedBy,
 		&i.ContentVersion,
 		&i.TotalCostMicros,
+		&i.RuntimeMs,
 	)
 	return i, err
 }
 
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms
 FROM
     chat_messages
 WHERE
@@ -3945,6 +4269,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 			&i.CreatedBy,
 			&i.ContentVersion,
 			&i.TotalCostMicros,
+			&i.RuntimeMs,
 		); err != nil {
 			return nil, err
 		}
@@ -3961,7 +4286,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 
 const getChatMessagesByChatIDDescPaginated = `-- name: GetChatMessagesByChatIDDescPaginated :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms
 FROM
     chat_messages
 WHERE
@@ -4011,6 +4336,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, a
 			&i.CreatedBy,
 			&i.ContentVersion,
 			&i.TotalCostMicros,
+			&i.RuntimeMs,
 		); err != nil {
 			return nil, err
 		}
@@ -4042,7 +4368,7 @@ WITH latest_compressed_summary AS (
         1
 )
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms
 FROM
     chat_messages
 WHERE
@@ -4110,6 +4436,7 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 			&i.CreatedBy,
 			&i.ContentVersion,
 			&i.TotalCostMicros,
+			&i.RuntimeMs,
 		); err != nil {
 			return nil, err
 		}
@@ -4314,7 +4641,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]Chat, 
 
 const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms
 FROM
     chat_messages
 WHERE
@@ -4353,6 +4680,7 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 		&i.CreatedBy,
 		&i.ContentVersion,
 		&i.TotalCostMicros,
+		&i.RuntimeMs,
 	)
 	return i, err
 }
@@ -4540,7 +4868,8 @@ INSERT INTO chat_messages (
     cache_read_tokens,
     context_limit,
     compressed,
-    total_cost_micros
+    total_cost_micros,
+    runtime_ms
 ) VALUES (
     $1::uuid,
     $2::uuid,
@@ -4557,10 +4886,11 @@ INSERT INTO chat_messages (
     $13::bigint,
     $14::bigint,
     COALESCE($15::boolean, FALSE),
-    $16::bigint
+    $16::bigint,
+    $17::bigint
 )
 RETURNING
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms
 `
 
 type InsertChatMessageParams struct {
@@ -4580,6 +4910,7 @@ type InsertChatMessageParams struct {
 	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
 	Compressed          sql.NullBool          `db:"compressed" json:"compressed"`
 	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
+	RuntimeMs           sql.NullInt64         `db:"runtime_ms" json:"runtime_ms"`
 }
 
 func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessageParams) (ChatMessage, error) {
@@ -4600,6 +4931,7 @@ func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessag
 		arg.ContextLimit,
 		arg.Compressed,
 		arg.TotalCostMicros,
+		arg.RuntimeMs,
 	)
 	var i ChatMessage
 	err := row.Scan(
@@ -4621,6 +4953,7 @@ func (q *sqlQuerier) InsertChatMessage(ctx context.Context, arg InsertChatMessag
 		&i.CreatedBy,
 		&i.ContentVersion,
 		&i.TotalCostMicros,
+		&i.RuntimeMs,
 	)
 	return i, err
 }
@@ -4892,7 +5225,7 @@ SET
 WHERE
     id = $3::bigint
 RETURNING
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms
 `
 
 type UpdateChatMessageByIDParams struct {
@@ -4923,6 +5256,7 @@ func (q *sqlQuerier) UpdateChatMessageByID(ctx context.Context, arg UpdateChatMe
 		&i.CreatedBy,
 		&i.ContentVersion,
 		&i.TotalCostMicros,
+		&i.RuntimeMs,
 	)
 	return i, err
 }
@@ -18843,6 +19177,19 @@ func (q *sqlQuerier) UpdateUsageEventsPostPublish(ctx context.Context, arg Updat
 		pq.Array(arg.SetPublishedAts),
 	)
 	return err
+}
+
+const usageEventExistsByID = `-- name: UsageEventExistsByID :one
+SELECT EXISTS(
+    SELECT 1 FROM usage_events WHERE id = $1
+)::bool
+`
+
+func (q *sqlQuerier) UsageEventExistsByID(ctx context.Context, id string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, usageEventExistsByID, id)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one

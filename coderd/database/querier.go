@@ -341,6 +341,18 @@ type sqlcQuerier interface {
 	// GetOrganizationsWithPrebuildStatus returns organizations with prebuilds configured and their
 	// membership status for the prebuilds system user (org membership, group existence, group membership).
 	GetOrganizationsWithPrebuildStatus(ctx context.Context, arg GetOrganizationsWithPrebuildStatusParams) ([]GetOrganizationsWithPrebuildStatusRow, error)
+	// Returns PR metrics grouped by the model used for each chat.
+	GetPRInsightsPerModel(ctx context.Context, arg GetPRInsightsPerModelParams) ([]GetPRInsightsPerModelRow, error)
+	// Returns individual PR rows with cost for the recent PRs table.
+	GetPRInsightsRecentPRs(ctx context.Context, arg GetPRInsightsRecentPRsParams) ([]GetPRInsightsRecentPRsRow, error)
+	// PR Insights queries for the /agents analytics dashboard.
+	// These aggregate data from chat_diff_statuses (PR metadata) joined
+	// with chats and chat_messages (cost) to power the PR Insights view.
+	// Returns aggregate PR metrics for the given date range.
+	// The handler calls this twice (current + previous period) for trends.
+	GetPRInsightsSummary(ctx context.Context, arg GetPRInsightsSummaryParams) (GetPRInsightsSummaryRow, error)
+	// Returns daily PR counts grouped by state for the chart.
+	GetPRInsightsTimeSeries(ctx context.Context, arg GetPRInsightsTimeSeriesParams) ([]GetPRInsightsTimeSeriesRow, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
 	GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error)
 	GetPrebuildsSettings(ctx context.Context) (string, error)
@@ -907,6 +919,7 @@ type sqlcQuerier interface {
 	// was started. This means that a new row was inserted (no previous session) or
 	// the updated_at is older than stale interval.
 	UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (bool, error)
+	UsageEventExistsByID(ctx context.Context, id string) (bool, error)
 	ValidateGroupIDs(ctx context.Context, groupIds []uuid.UUID) (ValidateGroupIDsRow, error)
 	ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (ValidateUserIDsRow, error)
 }

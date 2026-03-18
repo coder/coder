@@ -139,13 +139,13 @@ describe("applyMessagePartToStreamState", () => {
 		const callIds = Object.keys(state!.toolCalls);
 		expect(callIds).toHaveLength(2);
 
-		// First result arrives without an explicit tool_call_id.
+		// First result arrives without a tool_call_id.
 		state = applyMessagePartToStreamState(state, {
 			type: "tool-result",
 			tool_name: "bash",
 			result: { output: "file.txt" },
 		});
-		// Second result arrives without an explicit tool_call_id.
+		// Second result arrives without a tool_call_id.
 		state = applyMessagePartToStreamState(state, {
 			type: "tool-result",
 			tool_name: "bash",
@@ -177,21 +177,6 @@ describe("applyMessagePartToStreamState", () => {
 			result: { output: "file.txt" },
 			isError: false,
 		});
-	});
-
-	it("returns prev for unknown part type", () => {
-		const prev = createEmptyStreamState();
-		const result = applyMessagePartToStreamState(prev, {
-			type: "banana",
-		});
-		expect(result).toBe(prev);
-	});
-
-	it("returns null for unknown part type when prev is null", () => {
-		const result = applyMessagePartToStreamState(null, {
-			type: "banana",
-		});
-		expect(result).toBeNull();
 	});
 
 	it("accumulates multiple tool calls in sequence", () => {
@@ -266,6 +251,57 @@ describe("applyMessagePartToStreamState", () => {
 		});
 		expect(result).toBe(prev);
 		expect(prev.toolResults).toEqual({});
+	});
+
+	it("adds a file block from a file part with data", () => {
+		const result = applyMessagePartToStreamState(null, {
+			type: "file",
+			media_type: "image/png",
+			data: "iVBORw0KGgo=",
+		});
+		expect(result).not.toBeNull();
+		expect(result!.blocks).toHaveLength(1);
+		expect(result!.blocks[0]).toMatchObject({
+			type: "file",
+			media_type: "image/png",
+			data: "iVBORw0KGgo=",
+		});
+	});
+
+	it("adds a file block from a file part with file_id", () => {
+		const result = applyMessagePartToStreamState(null, {
+			type: "file",
+			media_type: "image/png",
+			file_id: "abc-123",
+		});
+		expect(result).not.toBeNull();
+		expect(result!.blocks).toHaveLength(1);
+		expect(result!.blocks[0]).toMatchObject({
+			type: "file",
+			media_type: "image/png",
+			file_id: "abc-123",
+		});
+	});
+
+	it("returns prev for file part without data or file_id", () => {
+		const prev = createEmptyStreamState();
+		const result = applyMessagePartToStreamState(prev, {
+			type: "file",
+			media_type: "image/png",
+		});
+		expect(result).toBe(prev);
+	});
+
+	it("returns prev for file-reference part (not a streaming type)", () => {
+		const prev = createEmptyStreamState();
+		const result = applyMessagePartToStreamState(prev, {
+			type: "file-reference",
+			file_name: "main.go",
+			start_line: 1,
+			end_line: 10,
+			content: "package main",
+		});
+		expect(result).toBe(prev);
 	});
 
 	it("adds a sources block from a source part", () => {

@@ -1744,6 +1744,38 @@ func (m queryMetricsStore) GetOrganizationsWithPrebuildStatus(ctx context.Contex
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetPRInsightsPerModel(ctx context.Context, arg database.GetPRInsightsPerModelParams) ([]database.GetPRInsightsPerModelRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPRInsightsPerModel(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetPRInsightsPerModel").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetPRInsightsPerModel").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetPRInsightsRecentPRs(ctx context.Context, arg database.GetPRInsightsRecentPRsParams) ([]database.GetPRInsightsRecentPRsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPRInsightsRecentPRs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetPRInsightsRecentPRs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetPRInsightsRecentPRs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetPRInsightsSummary(ctx context.Context, arg database.GetPRInsightsSummaryParams) (database.GetPRInsightsSummaryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPRInsightsSummary(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetPRInsightsSummary").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetPRInsightsSummary").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetPRInsightsTimeSeries(ctx context.Context, arg database.GetPRInsightsTimeSeriesParams) ([]database.GetPRInsightsTimeSeriesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPRInsightsTimeSeries(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetPRInsightsTimeSeries").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetPRInsightsTimeSeries").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetParameterSchemasByJobID(ctx, jobID)
@@ -4789,6 +4821,14 @@ func (m queryMetricsStore) UpsertWorkspaceAppAuditSession(ctx context.Context, a
 	r0, r1 := m.s.UpsertWorkspaceAppAuditSession(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertWorkspaceAppAuditSession").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertWorkspaceAppAuditSession").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UsageEventExistsByID(ctx context.Context, id string) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.UsageEventExistsByID(ctx, id)
+	m.queryLatencies.WithLabelValues("UsageEventExistsByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UsageEventExistsByID").Inc()
 	return r0, r1
 }
 

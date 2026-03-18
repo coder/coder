@@ -58,11 +58,11 @@ const (
 	// of 5 means recovery runs at 1/5 of the stale-after duration.
 	staleRecoveryIntervalDivisor = 5
 
-	// maxChatsPerAcquire is the maximum number of chats to
+	// DefaultMaxChatsPerAcquire is the maximum number of chats to
 	// acquire in a single processOnce call. Batching avoids
 	// waiting a full polling interval between acquisitions
 	// when many chats are pending.
-	maxChatsPerAcquire int32 = 10
+	DefaultMaxChatsPerAcquire int32 = 10
 
 	defaultSubagentInstruction = "You are running as a delegated sub-agent chat. Complete the delegated task and provide clear, concise assistant responses for the parent agent."
 )
@@ -98,6 +98,7 @@ type Server struct {
 
 	// Configuration
 	pendingChatAcquireInterval time.Duration
+	maxChatsPerAcquire         int32
 	inFlightChatStaleAfter     time.Duration
 }
 
@@ -485,10 +486,49 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 				ContextLimit:        sql.NullInt64{},
 				Compressed:          sql.NullBool{},
 				TotalCostMicros:     sql.NullInt64{},
+				RuntimeMs:           sql.NullInt64{},
 			})
 			if err != nil {
 				return xerrors.Errorf("insert system message: %w", err)
 			}
+		}
+
+		var workspaceAwareness string
+		if opts.WorkspaceID.Valid {
+			workspaceAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
+		} else {
+			workspaceAwareness = "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
+		}
+		workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(workspaceAwareness),
+		})
+		if err != nil {
+			return xerrors.Errorf("marshal workspace awareness: %w", err)
+		}
+		_, err = tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
+			ChatID:    insertedChat.ID,
+			CreatedBy: uuid.NullUUID{},
+			ModelConfigID: uuid.NullUUID{
+				UUID:  opts.ModelConfigID,
+				Valid: true,
+			},
+			Role:                database.ChatMessageRoleSystem,
+			ContentVersion:      chatprompt.CurrentContentVersion,
+			Content:             workspaceAwarenessContent,
+			Visibility:          database.ChatMessageVisibilityModel,
+			InputTokens:         sql.NullInt64{},
+			OutputTokens:        sql.NullInt64{},
+			TotalTokens:         sql.NullInt64{},
+			ReasoningTokens:     sql.NullInt64{},
+			CacheCreationTokens: sql.NullInt64{},
+			CacheReadTokens:     sql.NullInt64{},
+			ContextLimit:        sql.NullInt64{},
+			Compressed:          sql.NullBool{},
+			TotalCostMicros:     sql.NullInt64{},
+			RuntimeMs:           sql.NullInt64{},
+		})
+		if err != nil {
+			return xerrors.Errorf("insert workspace awareness message: %w", err)
 		}
 
 		userContent, err := chatprompt.MarshalParts(opts.InitialUserContent)
@@ -514,6 +554,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
 			TotalCostMicros:     sql.NullInt64{},
+			RuntimeMs:           sql.NullInt64{},
 			Compressed:          sql.NullBool{},
 		})
 		if err != nil {
@@ -1132,6 +1173,7 @@ func insertUserMessageAndSetPending(
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
 		TotalCostMicros:     sql.NullInt64{},
+		RuntimeMs:           sql.NullInt64{},
 		Compressed:          sql.NullBool{},
 	})
 	if err != nil {
@@ -1174,6 +1216,7 @@ type Config struct {
 	ReplicaID                  uuid.UUID
 	SubscribeFn                SubscribeFn
 	PendingChatAcquireInterval time.Duration
+	MaxChatsPerAcquire         int32
 	InFlightChatStaleAfter     time.Duration
 	AgentConn                  AgentConnFunc
 	CreateWorkspace            chattool.CreateWorkspaceFn
@@ -1199,6 +1242,11 @@ func New(cfg Config) *Server {
 		inFlightChatStaleAfter = DefaultInFlightChatStaleAfter
 	}
 
+	maxChatsPerAcquire := cfg.MaxChatsPerAcquire
+	if maxChatsPerAcquire <= 0 {
+		maxChatsPerAcquire = DefaultMaxChatsPerAcquire
+	}
+
 	workerID := cfg.ReplicaID
 	if workerID == uuid.Nil {
 		workerID = uuid.New()
@@ -1219,6 +1267,7 @@ func New(cfg Config) *Server {
 		providerAPIKeys:            cfg.ProviderAPIKeys,
 		instructionCache:           make(map[uuid.UUID]cachedInstruction),
 		pendingChatAcquireInterval: pendingChatAcquireInterval,
+		maxChatsPerAcquire:         maxChatsPerAcquire,
 		inFlightChatStaleAfter:     inFlightChatStaleAfter,
 	}
 
@@ -1272,7 +1321,7 @@ func (p *Server) processOnce(ctx context.Context) {
 	chats, err := p.db.AcquireChats(acquireCtx, database.AcquireChatsParams{
 		StartedAt: time.Now(),
 		WorkerID:  p.workerID,
-		NumChats:  maxChatsPerAcquire,
+		NumChats:  p.maxChatsPerAcquire,
 	})
 	acquireCancel()
 	if err != nil {
@@ -2102,6 +2151,7 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 		CacheReadTokens:     sql.NullInt64{},
 		ContextLimit:        sql.NullInt64{},
 		TotalCostMicros:     sql.NullInt64{},
+		RuntimeMs:           sql.NullInt64{},
 		Compressed:          sql.NullBool{},
 	})
 	if err != nil {
@@ -2664,6 +2714,10 @@ func (p *Server) runChat(
 					ContextLimit:    step.ContextLimit,
 					Compressed:      sql.NullBool{},
 					TotalCostMicros: usageNullInt64Ptr(totalCostMicros),
+					RuntimeMs: sql.NullInt64{
+						Int64: step.Runtime.Milliseconds(),
+						Valid: step.Runtime > 0,
+					},
 				})
 				if insertErr != nil {
 					return xerrors.Errorf("insert assistant message: %w", insertErr)
@@ -2688,6 +2742,7 @@ func (p *Server) runChat(
 					CacheReadTokens:     sql.NullInt64{},
 					ContextLimit:        sql.NullInt64{},
 					TotalCostMicros:     sql.NullInt64{},
+					RuntimeMs:           sql.NullInt64{},
 					Compressed:          sql.NullBool{},
 				})
 				if insertErr != nil {
@@ -3072,6 +3127,7 @@ func (p *Server) persistChatContextSummary(
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
 			TotalCostMicros:     sql.NullInt64{},
+			RuntimeMs:           sql.NullInt64{},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert hidden summary message: %w", txErr)
@@ -3097,6 +3153,7 @@ func (p *Server) persistChatContextSummary(
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
 			TotalCostMicros:     sql.NullInt64{},
+			RuntimeMs:           sql.NullInt64{},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert summary tool call message: %w", txErr)
@@ -3123,6 +3180,7 @@ func (p *Server) persistChatContextSummary(
 			CacheReadTokens:     sql.NullInt64{},
 			ContextLimit:        sql.NullInt64{},
 			TotalCostMicros:     sql.NullInt64{},
+			RuntimeMs:           sql.NullInt64{},
 		})
 		if txErr != nil {
 			return xerrors.Errorf("insert summary tool result message: %w", txErr)

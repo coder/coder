@@ -129,8 +129,8 @@ type ChatMessagePart struct {
 	Type        ChatMessagePartType `json:"type"`
 	Text        string              `json:"text,omitempty" variants:"text,reasoning"`
 	Signature   string              `json:"signature,omitempty"`
-	ToolCallID  string              `json:"tool_call_id,omitempty" variants:"tool-call,tool-result"`
-	ToolName    string              `json:"tool_name,omitempty" variants:"tool-call,tool-result"`
+	ToolCallID  string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
+	ToolName    string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
 	Args        json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
 	ArgsDelta   string              `json:"args_delta,omitempty" variants:"tool-call?"`
 	Result      json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
@@ -1793,4 +1793,76 @@ func formatChatStreamResponseError(response Response) string {
 	default:
 		return fmt.Sprintf("%s: %s", message, detail)
 	}
+}
+
+// PRInsightsResponse is the response from the PR insights endpoint.
+type PRInsightsResponse struct {
+	Summary    PRInsightsSummary           `json:"summary"`
+	TimeSeries []PRInsightsTimeSeriesEntry `json:"time_series"`
+	ByModel    []PRInsightsModelBreakdown  `json:"by_model"`
+	RecentPRs  []PRInsightsPullRequest     `json:"recent_prs"`
+}
+
+// PRInsightsSummary contains aggregate PR metrics for a time period,
+// plus the previous period's metrics for trend calculation.
+type PRInsightsSummary struct {
+	TotalPRsCreated           int64   `json:"total_prs_created"`
+	TotalPRsMerged            int64   `json:"total_prs_merged"`
+	MergeRate                 float64 `json:"merge_rate"`
+	TotalAdditions            int64   `json:"total_additions"`
+	TotalDeletions            int64   `json:"total_deletions"`
+	TotalCostMicros           int64   `json:"total_cost_micros"`
+	CostPerMergedPRMicros     int64   `json:"cost_per_merged_pr_micros"`
+	ApprovalRate              float64 `json:"approval_rate"`
+	PrevTotalPRsCreated       int64   `json:"prev_total_prs_created"`
+	PrevTotalPRsMerged        int64   `json:"prev_total_prs_merged"`
+	PrevMergeRate             float64 `json:"prev_merge_rate"`
+	PrevCostPerMergedPRMicros int64   `json:"prev_cost_per_merged_pr_micros"`
+}
+
+// PRInsightsTimeSeriesEntry is a single data point in the PR
+// activity time series chart.
+type PRInsightsTimeSeriesEntry struct {
+	Date       time.Time `json:"date" format:"date-time"`
+	PRsCreated int64     `json:"prs_created"`
+	PRsMerged  int64     `json:"prs_merged"`
+	PRsClosed  int64     `json:"prs_closed"`
+}
+
+// PRInsightsModelBreakdown contains PR metrics for a single model.
+type PRInsightsModelBreakdown struct {
+	ModelConfigID         uuid.UUID `json:"model_config_id" format:"uuid"`
+	DisplayName           string    `json:"display_name"`
+	Provider              string    `json:"provider"`
+	TotalPRs              int64     `json:"total_prs"`
+	MergedPRs             int64     `json:"merged_prs"`
+	MergeRate             float64   `json:"merge_rate"`
+	TotalAdditions        int64     `json:"total_additions"`
+	TotalDeletions        int64     `json:"total_deletions"`
+	TotalCostMicros       int64     `json:"total_cost_micros"`
+	CostPerMergedPRMicros int64     `json:"cost_per_merged_pr_micros"`
+}
+
+// PRInsightsPullRequest represents a single PR in the recent PRs
+// table.
+type PRInsightsPullRequest struct {
+	ChatID           uuid.UUID `json:"chat_id" format:"uuid"`
+	PRTitle          string    `json:"pr_title"`
+	PRURL            *string   `json:"pr_url,omitempty"`
+	PRNumber         *int32    `json:"pr_number,omitempty"`
+	State            string    `json:"state"`
+	Draft            bool      `json:"draft"`
+	Additions        int32     `json:"additions"`
+	Deletions        int32     `json:"deletions"`
+	ChangedFiles     int32     `json:"changed_files"`
+	Commits          *int32    `json:"commits,omitempty"`
+	Approved         *bool     `json:"approved,omitempty"`
+	ChangesRequested bool      `json:"changes_requested"`
+	ReviewerCount    *int32    `json:"reviewer_count,omitempty"`
+	AuthorLogin      *string   `json:"author_login,omitempty"`
+	AuthorAvatarURL  *string   `json:"author_avatar_url,omitempty"`
+	BaseBranch       string    `json:"base_branch"`
+	ModelDisplayName string    `json:"model_display_name"`
+	CostMicros       int64     `json:"cost_micros"`
+	CreatedAt        time.Time `json:"created_at" format:"date-time"`
 }

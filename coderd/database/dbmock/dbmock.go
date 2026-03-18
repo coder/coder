@@ -3216,6 +3216,66 @@ func (mr *MockStoreMockRecorder) GetOrganizationsWithPrebuildStatus(ctx, arg any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationsWithPrebuildStatus", reflect.TypeOf((*MockStore)(nil).GetOrganizationsWithPrebuildStatus), ctx, arg)
 }
 
+// GetPRInsightsPerModel mocks base method.
+func (m *MockStore) GetPRInsightsPerModel(ctx context.Context, arg database.GetPRInsightsPerModelParams) ([]database.GetPRInsightsPerModelRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPRInsightsPerModel", ctx, arg)
+	ret0, _ := ret[0].([]database.GetPRInsightsPerModelRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPRInsightsPerModel indicates an expected call of GetPRInsightsPerModel.
+func (mr *MockStoreMockRecorder) GetPRInsightsPerModel(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPRInsightsPerModel", reflect.TypeOf((*MockStore)(nil).GetPRInsightsPerModel), ctx, arg)
+}
+
+// GetPRInsightsRecentPRs mocks base method.
+func (m *MockStore) GetPRInsightsRecentPRs(ctx context.Context, arg database.GetPRInsightsRecentPRsParams) ([]database.GetPRInsightsRecentPRsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPRInsightsRecentPRs", ctx, arg)
+	ret0, _ := ret[0].([]database.GetPRInsightsRecentPRsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPRInsightsRecentPRs indicates an expected call of GetPRInsightsRecentPRs.
+func (mr *MockStoreMockRecorder) GetPRInsightsRecentPRs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPRInsightsRecentPRs", reflect.TypeOf((*MockStore)(nil).GetPRInsightsRecentPRs), ctx, arg)
+}
+
+// GetPRInsightsSummary mocks base method.
+func (m *MockStore) GetPRInsightsSummary(ctx context.Context, arg database.GetPRInsightsSummaryParams) (database.GetPRInsightsSummaryRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPRInsightsSummary", ctx, arg)
+	ret0, _ := ret[0].(database.GetPRInsightsSummaryRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPRInsightsSummary indicates an expected call of GetPRInsightsSummary.
+func (mr *MockStoreMockRecorder) GetPRInsightsSummary(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPRInsightsSummary", reflect.TypeOf((*MockStore)(nil).GetPRInsightsSummary), ctx, arg)
+}
+
+// GetPRInsightsTimeSeries mocks base method.
+func (m *MockStore) GetPRInsightsTimeSeries(ctx context.Context, arg database.GetPRInsightsTimeSeriesParams) ([]database.GetPRInsightsTimeSeriesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPRInsightsTimeSeries", ctx, arg)
+	ret0, _ := ret[0].([]database.GetPRInsightsTimeSeriesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPRInsightsTimeSeries indicates an expected call of GetPRInsightsTimeSeries.
+func (mr *MockStoreMockRecorder) GetPRInsightsTimeSeries(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPRInsightsTimeSeries", reflect.TypeOf((*MockStore)(nil).GetPRInsightsTimeSeries), ctx, arg)
+}
+
 // GetParameterSchemasByJobID mocks base method.
 func (m *MockStore) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
 	m.ctrl.T.Helper()
@@ -8943,6 +9003,21 @@ func (m *MockStore) UpsertWorkspaceAppAuditSession(ctx context.Context, arg data
 func (mr *MockStoreMockRecorder) UpsertWorkspaceAppAuditSession(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertWorkspaceAppAuditSession", reflect.TypeOf((*MockStore)(nil).UpsertWorkspaceAppAuditSession), ctx, arg)
+}
+
+// UsageEventExistsByID mocks base method.
+func (m *MockStore) UsageEventExistsByID(ctx context.Context, id string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UsageEventExistsByID", ctx, id)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UsageEventExistsByID indicates an expected call of UsageEventExistsByID.
+func (mr *MockStoreMockRecorder) UsageEventExistsByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UsageEventExistsByID", reflect.TypeOf((*MockStore)(nil).UsageEventExistsByID), ctx, id)
 }
 
 // ValidateGroupIDs mocks base method.

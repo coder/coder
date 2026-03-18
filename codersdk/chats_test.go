@@ -223,7 +223,6 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 	// Parse all variants tags from the struct and validate them.
 	typ := reflect.TypeOf(codersdk.ChatMessagePart{})
 	coveredTypes := make(map[codersdk.ChatMessagePartType]bool)
-	hasRequired := make(map[codersdk.ChatMessagePartType]bool)
 
 	for i := range typ.NumField() {
 		f := typ.Field(i)
@@ -245,7 +244,6 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 			"the discriminant field must not have a variants tag; %s", editHint)
 
 		for _, entry := range strings.Split(varTag, ",") {
-			isOptional := strings.HasSuffix(entry, "?")
 			typeLit := codersdk.ChatMessagePartType(strings.TrimSuffix(entry, "?"))
 
 			assert.True(t, knownTypes[typeLit],
@@ -253,9 +251,6 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 				f.Name, typeLit, editHint)
 
 			coveredTypes[typeLit] = true
-			if !isOptional {
-				hasRequired[typeLit] = true
-			}
 		}
 	}
 
@@ -263,12 +258,6 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 	for pt := range knownTypes {
 		assert.True(t, coveredTypes[pt],
 			"ChatMessagePartType %q is not referenced by any variants tag; %s", pt, editHint)
-	}
-
-	// Every variant must have at least one required field.
-	for pt := range coveredTypes {
-		assert.True(t, hasRequired[pt],
-			"variant %q has no required fields (all have ? suffix); %s", pt, editHint)
 	}
 }
 

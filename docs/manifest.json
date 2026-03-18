@@ -630,6 +630,11 @@
 									"path": "./admin/templates/extending-templates/resource-persistence.md"
 								},
 								{
+									"title": "Environment Variables",
+									"description": "Inject environment variables into workspaces using coder_env",
+									"path": "./admin/templates/extending-templates/environment-variables.md"
+								},
+								{
 									"title": "Terraform Variables",
 									"description": "Use variables to manage template state",
 									"path": "./admin/templates/extending-templates/variables.md"
@@ -1423,6 +1428,10 @@
 						{
 							"title": "Builds",
 							"path": "./reference/api/builds.md"
+						},
+						{
+							"title": "Chats",
+							"path": "./reference/api/chats.md"
 						},
 						{
 							"title": "Debug",
