@@ -769,11 +769,12 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	}, [scrollToFile, onScrollToFileComplete]);
 
 	// ---------------------------------------------------------------
-	// Dynamic end-spacer: measure viewport and last file so the
-	// spacer is only as tall as needed to scroll the last file's
-	// header to the top — no more. Uses ref callbacks (same
-	// pattern as containerRef above) so measurements land during
-	// commit — before any useEffect-based scroll logic runs.
+	// Viewport height for the last-file min-height trick: setting
+	// min-height on the last file wrapper lets CSS handle the
+	// "be at least viewport-tall" logic, removing the need for a
+	// separate spacer div and a second ResizeObserver. Uses a ref
+	// callback (same pattern as containerRef) so the measurement
+	// lands during commit — before useEffect-based scroll logic.
 	// ---------------------------------------------------------------
 	const [viewportHeight, setViewportHeight] = useState(0);
 	const viewportRoRef = useRef<ResizeObserver | null>(null);
@@ -796,28 +797,6 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			viewportRoRef.current = ro;
 		}
 	}, []);
-
-	const [lastFileHeight, setLastFileHeight] = useState(0);
-	const lastFileRoRef = useRef<ResizeObserver | null>(null);
-	const lastFileRef = useCallback((el: HTMLDivElement | null) => {
-		if (lastFileRoRef.current) {
-			lastFileRoRef.current.disconnect();
-			lastFileRoRef.current = null;
-		}
-		if (!el) {
-			return;
-		}
-		setLastFileHeight(el.getBoundingClientRect().height);
-		const ro = new ResizeObserver(([entry]) => {
-			setLastFileHeight(entry.contentRect.height);
-		});
-		ro.observe(el);
-		lastFileRoRef.current = ro;
-	}, []);
-
-	// Only as tall as needed to let the last file's header reach
-	// the top of the scroll viewport — no larger.
-	const endSpacerHeight = Math.max(0, viewportHeight - lastFileHeight);
 
 	// ---------------------------------------------------------------
 	// Loading state
@@ -900,12 +879,12 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 							{sortedFiles.map((fileDiff, i) => (
 								<div
 									key={fileDiff.name}
-									ref={(el) => {
-										setFileRef(fileDiff.name, el);
-										if (i === sortedFiles.length - 1) {
-											lastFileRef(el);
-										}
-									}}
+									ref={(el) => setFileRef(fileDiff.name, el)}
+									style={
+										i === sortedFiles.length - 1
+											? { minHeight: viewportHeight }
+											: undefined
+									}
 								>
 									<LazyFileDiff
 										fileDiff={fileDiff}
@@ -916,12 +895,6 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 									/>
 								</div>
 							))}
-							{/* Spacer so the last file can scroll fully to the top,
-								   sized dynamically so tall diffs don't create a huge
-								   empty zone at the bottom. */}
-							{endSpacerHeight > 0 && (
-								<div style={{ height: endSpacerHeight }} />
-							)}
 						</div>
 					</ScrollArea>
 				</div>
