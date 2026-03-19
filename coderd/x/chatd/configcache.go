@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"time"
@@ -36,6 +37,11 @@ type cachedUserPrompt struct {
 	expiresAt time.Time
 }
 
+type modelConfigSnapshot struct {
+	epoch      uint64
+	generation uint64
+}
+
 // cloneModelConfig returns a shallow copy of cfg with Options
 // deep-cloned so the cache owns its own backing array.
 func cloneModelConfig(cfg database.ChatModelConfig) database.ChatModelConfig {
@@ -64,6 +70,7 @@ type chatConfigCache struct {
 	providerFetches    singleflight.Group[string, []database.ChatProvider]
 
 	// Model configs (keyed by ID).
+	modelTopologyEpoch     uint64
 	modelConfigs           map[uuid.UUID]cachedModelConfig
 	modelConfigGenerations map[uuid.UUID]uint64
 	modelConfigFetches     singleflight.Group[string, database.ChatModelConfig]
@@ -180,10 +187,18 @@ func (c *chatConfigCache) storeProviders(generation uint64, providers []database
 
 func (c *chatConfigCache) InvalidateProviders() {
 	c.mu.Lock()
+	defaultFetchKey := fmt.Sprintf("%d:default", c.modelTopologyEpoch)
 	c.providers = nil
 	c.providerGeneration++
+	// Provider topology changed — model selections depend on
+	// provider existence, so flush all model-config state.
+	clear(c.modelConfigs)
+	c.modelTopologyEpoch++
+	c.defaultModelConfig = nil
+	c.defaultModelConfigGeneration++
 	c.mu.Unlock()
 	c.providerFetches.Forget("providers")
+	c.defaultModelConfigFetches.Forget(defaultFetchKey)
 }
 
 func (c *chatConfigCache) ModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
@@ -191,17 +206,17 @@ func (c *chatConfigCache) ModelConfigByID(ctx context.Context, id uuid.UUID) (da
 		return config, nil
 	}
 
-	config, err := singleflightDoChan(ctx, &c.modelConfigFetches, id.String(), func() (database.ChatModelConfig, error) {
+	snap := c.modelConfigSnapshot(id)
+	config, err := singleflightDoChan(ctx, &c.modelConfigFetches, fmt.Sprintf("%d:%s", snap.epoch, id), func() (database.ChatModelConfig, error) {
 		if cached, ok := c.cachedModelConfig(id); ok {
 			return cached, nil
 		}
 
-		generation := c.modelConfigGeneration(id)
 		fetched, err := c.db.GetChatModelConfigByID(c.ctx, id)
 		if err != nil {
 			return database.ChatModelConfig{}, err
 		}
-		c.storeModelConfig(id, generation, fetched)
+		c.storeModelConfig(id, snap, fetched)
 		return cloneModelConfig(fetched), nil
 	})
 	if err != nil {
@@ -231,18 +246,24 @@ func (c *chatConfigCache) cachedModelConfig(id uuid.UUID) (database.ChatModelCon
 	return database.ChatModelConfig{}, false
 }
 
-func (c *chatConfigCache) modelConfigGeneration(id uuid.UUID) uint64 {
+func (c *chatConfigCache) modelConfigSnapshot(id uuid.UUID) modelConfigSnapshot {
 	c.mu.RLock()
-	generation := c.modelConfigGenerations[id]
+	snap := modelConfigSnapshot{
+		epoch:      c.modelTopologyEpoch,
+		generation: c.modelConfigGenerations[id],
+	}
 	c.mu.RUnlock()
-	return generation
+	return snap
 }
 
-func (c *chatConfigCache) storeModelConfig(id uuid.UUID, generation uint64, config database.ChatModelConfig) {
+func (c *chatConfigCache) storeModelConfig(id uuid.UUID, snap modelConfigSnapshot, config database.ChatModelConfig) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.modelConfigGenerations[id] != generation {
+	if c.modelTopologyEpoch != snap.epoch {
+		return
+	}
+	if c.modelConfigGenerations[id] != snap.generation {
 		return
 	}
 
@@ -257,17 +278,17 @@ func (c *chatConfigCache) DefaultModelConfig(ctx context.Context) (database.Chat
 		return config, nil
 	}
 
-	config, err := singleflightDoChan(ctx, &c.defaultModelConfigFetches, "default", func() (database.ChatModelConfig, error) {
+	snap := c.defaultModelConfigSnapshot()
+	config, err := singleflightDoChan(ctx, &c.defaultModelConfigFetches, fmt.Sprintf("%d:default", snap.epoch), func() (database.ChatModelConfig, error) {
 		if cached, ok := c.cachedDefaultModelConfig(); ok {
 			return cached, nil
 		}
 
-		generation := c.defaultConfigGeneration()
 		fetched, err := c.db.GetDefaultChatModelConfig(c.ctx)
 		if err != nil {
 			return database.ChatModelConfig{}, err
 		}
-		c.storeDefaultModelConfig(generation, fetched)
+		c.storeDefaultModelConfig(snap, fetched)
 		return cloneModelConfig(fetched), nil
 	})
 	if err != nil {
@@ -297,18 +318,24 @@ func (c *chatConfigCache) cachedDefaultModelConfig() (database.ChatModelConfig, 
 	return database.ChatModelConfig{}, false
 }
 
-func (c *chatConfigCache) defaultConfigGeneration() uint64 {
+func (c *chatConfigCache) defaultModelConfigSnapshot() modelConfigSnapshot {
 	c.mu.RLock()
-	generation := c.defaultModelConfigGeneration
+	snap := modelConfigSnapshot{
+		epoch:      c.modelTopologyEpoch,
+		generation: c.defaultModelConfigGeneration,
+	}
 	c.mu.RUnlock()
-	return generation
+	return snap
 }
 
-func (c *chatConfigCache) storeDefaultModelConfig(generation uint64, config database.ChatModelConfig) {
+func (c *chatConfigCache) storeDefaultModelConfig(snap modelConfigSnapshot, config database.ChatModelConfig) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.defaultModelConfigGeneration != generation {
+	if c.modelTopologyEpoch != snap.epoch {
+		return
+	}
+	if c.defaultModelConfigGeneration != snap.generation {
 		return
 	}
 
@@ -392,11 +419,10 @@ func (c *chatConfigCache) InvalidateModelConfig(id uuid.UUID) {
 	c.mu.Lock()
 	delete(c.modelConfigs, id)
 	c.modelConfigGenerations[id]++
+	c.modelTopologyEpoch++
 	c.defaultModelConfig = nil
 	c.defaultModelConfigGeneration++
 	c.mu.Unlock()
-	c.modelConfigFetches.Forget(id.String())
-	c.defaultModelConfigFetches.Forget("default")
 }
 
 func (c *chatConfigCache) InvalidateUserPrompt(userID uuid.UUID) {

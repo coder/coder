@@ -384,6 +384,187 @@ func TestConfigCache_GenerationPreventsStaleWrite(t *testing.T) {
 	require.Equal(t, int32(2), store.enabledProvidersCalls.Load())
 }
 
+func TestConfigCache_InvalidateProviders_CascadesToModelConfigs(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	configID := uuid.New()
+	store := &stubChatConfigStore{}
+	store.getChatModelConfigByID = func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+		call := store.modelConfigByIDCalls.Load()
+		return testChatModelConfig(configID, fmt.Sprintf("model-%d", call)), nil
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	first, err := cache.ModelConfigByID(ctx, configID)
+	require.NoError(t, err)
+	cache.InvalidateProviders()
+	second, err := cache.ModelConfigByID(ctx, configID)
+	require.NoError(t, err)
+
+	require.NotEqual(t, first, second)
+	require.Equal(t, int32(2), store.modelConfigByIDCalls.Load())
+}
+
+func TestConfigCache_InvalidateProviders_CascadesToDefaultModelConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	store := &stubChatConfigStore{}
+	store.getDefaultChatModelConfig = func(context.Context) (database.ChatModelConfig, error) {
+		call := store.defaultModelConfigCall.Load()
+		return testChatModelConfig(uuid.New(), fmt.Sprintf("default-model-%d", call)), nil
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	first, err := cache.DefaultModelConfig(ctx)
+	require.NoError(t, err)
+	cache.InvalidateProviders()
+	second, err := cache.DefaultModelConfig(ctx)
+	require.NoError(t, err)
+
+	require.NotEqual(t, first, second)
+	require.Equal(t, int32(2), store.defaultModelConfigCall.Load())
+}
+
+func TestConfigCache_InvalidateProviders_BlocksStaleInFlightModelConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	clock := quartz.NewMock(t)
+	configID := uuid.New()
+	staleConfig := testChatModelConfig(configID, "stale-model")
+	freshConfig := testChatModelConfig(configID, "fresh-model")
+	firstStarted := make(chan struct{})
+	secondStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	releaseSecond := make(chan struct{})
+	store := &stubChatConfigStore{}
+	store.getChatModelConfigByID = func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+		switch call := store.modelConfigByIDCalls.Load(); call {
+		case 1:
+			close(firstStarted)
+			<-releaseFirst
+			return staleConfig, nil
+		case 2:
+			close(secondStarted)
+			<-releaseSecond
+			return freshConfig, nil
+		default:
+			return database.ChatModelConfig{}, fmt.Errorf("unexpected model config call %d", call)
+		}
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	type result struct {
+		config database.ChatModelConfig
+		err    error
+	}
+
+	firstResult := make(chan result, 1)
+	go func() {
+		config, err := cache.ModelConfigByID(ctx, configID)
+		firstResult <- result{config: config, err: err}
+	}()
+
+	waitForSignal(t, firstStarted)
+	cache.InvalidateProviders()
+
+	secondResult := make(chan result, 1)
+	go func() {
+		config, err := cache.ModelConfigByID(ctx, configID)
+		secondResult <- result{config: config, err: err}
+	}()
+
+	waitForSignal(t, secondStarted)
+	close(releaseFirst)
+	first := <-firstResult
+	require.NoError(t, first.err)
+	require.Equal(t, staleConfig, first.config)
+	_, ok := cache.modelConfigs[configID]
+	require.False(t, ok)
+
+	close(releaseSecond)
+	second := <-secondResult
+	require.NoError(t, second.err)
+	require.Equal(t, freshConfig, second.config)
+	require.Equal(t, int32(2), store.modelConfigByIDCalls.Load())
+
+	third, err := cache.ModelConfigByID(ctx, configID)
+	require.NoError(t, err)
+	require.Equal(t, freshConfig, third)
+	require.Equal(t, int32(2), store.modelConfigByIDCalls.Load())
+}
+
+func TestConfigCache_InvalidateProviders_BlocksStaleInFlightDefaultModelConfig(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	clock := quartz.NewMock(t)
+	staleConfig := testChatModelConfig(uuid.New(), "stale-default")
+	freshConfig := testChatModelConfig(uuid.New(), "fresh-default")
+	firstStarted := make(chan struct{})
+	secondStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	releaseSecond := make(chan struct{})
+	store := &stubChatConfigStore{}
+	store.getDefaultChatModelConfig = func(context.Context) (database.ChatModelConfig, error) {
+		switch call := store.defaultModelConfigCall.Load(); call {
+		case 1:
+			close(firstStarted)
+			<-releaseFirst
+			return staleConfig, nil
+		case 2:
+			close(secondStarted)
+			<-releaseSecond
+			return freshConfig, nil
+		default:
+			return database.ChatModelConfig{}, fmt.Errorf("unexpected default model config call %d", call)
+		}
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	type result struct {
+		config database.ChatModelConfig
+		err    error
+	}
+
+	firstResult := make(chan result, 1)
+	go func() {
+		config, err := cache.DefaultModelConfig(ctx)
+		firstResult <- result{config: config, err: err}
+	}()
+
+	waitForSignal(t, firstStarted)
+	cache.InvalidateProviders()
+
+	secondResult := make(chan result, 1)
+	go func() {
+		config, err := cache.DefaultModelConfig(ctx)
+		secondResult <- result{config: config, err: err}
+	}()
+
+	waitForSignal(t, secondStarted)
+	close(releaseFirst)
+	first := <-firstResult
+	require.NoError(t, first.err)
+	require.Equal(t, staleConfig, first.config)
+	require.Nil(t, cache.defaultModelConfig)
+
+	close(releaseSecond)
+	second := <-secondResult
+	require.NoError(t, second.err)
+	require.Equal(t, freshConfig, second.config)
+	require.Equal(t, int32(2), store.defaultModelConfigCall.Load())
+
+	third, err := cache.DefaultModelConfig(ctx)
+	require.NoError(t, err)
+	require.Equal(t, freshConfig, third)
+	require.Equal(t, int32(2), store.defaultModelConfigCall.Load())
+}
+
 func testChatProvider(name string) database.ChatProvider {
 	return database.ChatProvider{
 		ID:          uuid.New(),
