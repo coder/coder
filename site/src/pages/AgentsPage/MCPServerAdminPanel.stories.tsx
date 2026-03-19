@@ -646,7 +646,10 @@ export const CustomHeadersAuthType: Story = {
 			await body.findByRole("button", { name: /Add Server/i }),
 		);
 
-		await userEvent.type(await body.findByLabelText(/Display Name/i), "Custom API");
+		await userEvent.type(
+			await body.findByLabelText(/Display Name/i),
+			"Custom API",
+		);
 		await userEvent.type(
 			body.getByLabelText(/Server URL/i),
 			"https://mcp.example.com/v1",
