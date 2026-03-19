@@ -190,7 +190,7 @@ INSERT INTO chats (
     @last_model_config_id::uuid,
     @title::text,
     sqlc.narg('mode')::chat_mode,
-    @mcp_server_ids::uuid[]
+    COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[])
 )
 RETURNING
     *;

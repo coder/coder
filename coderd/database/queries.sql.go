@@ -4941,7 +4941,7 @@ INSERT INTO chats (
     $5::uuid,
     $6::text,
     $7::chat_mode,
-    $8::uuid[]
+    COALESCE($8::uuid[], '{}'::uuid[])
 )
 RETURNING
     id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
