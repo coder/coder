@@ -21,6 +21,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/chatd/chatcost"
+	"github.com/coder/coder/v2/coderd/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
@@ -3111,6 +3112,46 @@ func (p *Server) runChat(
 		model = cuModel
 	}
 
+	// Connect to any external MCP servers selected for this
+	// chat and discover their tools. Failures are logged but
+	// do not block the chat — the LLM simply won't have those
+	// tools available.
+	var mcpTools []fantasy.AgentTool
+	if len(chat.MCPServerIDs) > 0 {
+		configs, mcpErr := p.db.GetMCPServerConfigsByIDs(
+			ctx, chat.MCPServerIDs,
+		)
+		if mcpErr != nil {
+			logger.Warn(ctx,
+				"failed to load MCP server configs",
+				slog.Error(mcpErr),
+			)
+		} else {
+			tokens, tokErr := p.db.GetMCPServerUserTokensByUserID(
+				ctx, chat.OwnerID,
+			)
+			if tokErr != nil {
+				logger.Warn(ctx,
+					"failed to load MCP user tokens",
+					slog.Error(tokErr),
+				)
+			}
+			var mcpCleanup func()
+			mcpTools, mcpCleanup, mcpErr = mcpclient.ConnectAll(
+				ctx, logger, configs, tokens,
+			)
+			if mcpErr != nil {
+				logger.Warn(ctx,
+					"failed to connect to MCP servers",
+					slog.Error(mcpErr),
+				)
+			}
+			if mcpCleanup != nil {
+				defer mcpCleanup()
+			}
+		}
+	}
+
 	// Here are all the tools we have for the chat.
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{
@@ -3171,6 +3212,11 @@ func (p *Server) runChat(
 			return chat
 		})...)
 	}
+
+	// Append tools from external MCP servers. These appear
+	// after the built-in tools so the LLM sees them as
+	// additional capabilities.
+	tools = append(tools, mcpTools...)
 
 	// Build provider-native tools (e.g., web search) based on
 	// the model configuration.
