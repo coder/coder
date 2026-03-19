@@ -12429,7 +12429,9 @@ func (q *sqlQuerier) InsertOrganizationMember(ctx context.Context, arg InsertOrg
 const organizationMembers = `-- name: OrganizationMembers :many
 SELECT
 	organization_members.user_id, organization_members.organization_id, organization_members.created_at, organization_members.updated_at, organization_members.roles,
-	users.username, users.avatar_url, users.name, users.email, users.rbac_roles as "global_roles"
+	users.username, users.avatar_url, users.name, users.email, users.rbac_roles as "global_roles",
+	users.last_seen_at, users.status, users.login_type,
+	users.created_at as user_created_at, users.updated_at as user_updated_at
 FROM
 	organization_members
 		INNER JOIN
@@ -12475,6 +12477,11 @@ type OrganizationMembersRow struct {
 	Name               string             `db:"name" json:"name"`
 	Email              string             `db:"email" json:"email"`
 	GlobalRoles        pq.StringArray     `db:"global_roles" json:"global_roles"`
+	LastSeenAt         time.Time          `db:"last_seen_at" json:"last_seen_at"`
+	Status             UserStatus         `db:"status" json:"status"`
+	LoginType          LoginType          `db:"login_type" json:"login_type"`
+	UserCreatedAt      time.Time          `db:"user_created_at" json:"user_created_at"`
+	UserUpdatedAt      time.Time          `db:"user_updated_at" json:"user_updated_at"`
 }
 
 // Arguments are optional with uuid.Nil to ignore.
@@ -12506,6 +12513,11 @@ func (q *sqlQuerier) OrganizationMembers(ctx context.Context, arg OrganizationMe
 			&i.Name,
 			&i.Email,
 			&i.GlobalRoles,
+			&i.LastSeenAt,
+			&i.Status,
+			&i.LoginType,
+			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -12524,33 +12536,136 @@ const paginatedOrganizationMembers = `-- name: PaginatedOrganizationMembers :man
 SELECT
 	organization_members.user_id, organization_members.organization_id, organization_members.created_at, organization_members.updated_at, organization_members.roles,
 	users.username, users.avatar_url, users.name, users.email, users.rbac_roles as "global_roles",
+	users.last_seen_at, users.status, users.login_type,
+	users.created_at as user_created_at, users.updated_at as user_updated_at,
 	COUNT(*) OVER() AS count
 FROM
 	organization_members
-		INNER JOIN
+INNER JOIN
 	users ON organization_members.user_id = users.id AND users.deleted = false
 WHERE
-	-- Filter by organization id
 	CASE
-		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
-			organization_id = $1
+		-- This allows using the last element on a page as effectively a cursor.
+		-- This is an important option for scripts that need to paginate without
+		-- duplicating or missing data.
+		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			-- The pagination cursor is the last ID of the previous page.
+			-- The query is ordered by the username field, so select all
+			-- rows after the cursor.
+			(LOWER(users.username)) > (
+				SELECT
+					LOWER(users.username)
+				FROM
+					organization_members
+				INNER JOIN
+					users ON organization_members.user_id = users.id
+				WHERE
+					organization_members.user_id = $1
+			)
+		)
 		ELSE true
 	END
-  -- Filter by system type
-	AND CASE WHEN $2::bool THEN TRUE ELSE is_system = false END
+	-- Start filters
+	-- Filter by organization id
+	AND CASE
+		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			organization_id = $2
+		ELSE true
+	END
+	-- Filter by email or username
+	AND CASE
+		WHEN $3 :: text != '' THEN (
+			users.email ILIKE concat('%', $3, '%')
+			OR users.username ILIKE concat('%', $3, '%')
+		)
+		ELSE true
+	END
+	-- Filter by name (display name)
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			users.name ILIKE concat('%', $4, '%')
+		ELSE true
+	END
+	-- Filter by status
+	AND CASE
+		-- @status needs to be a text because it can be empty, If it was
+		-- user_status enum, it would not.
+		WHEN cardinality($5 :: user_status[]) > 0 THEN
+			users.status = ANY($5 :: user_status[])
+		ELSE true
+	END
+	-- Filter by global rbac_roles
+	AND CASE
+		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
+		-- everyone is a member.
+		WHEN cardinality($6 :: text[]) > 0 AND 'member' != ANY($6 :: text[]) THEN
+			users.rbac_roles && $6 :: text[]
+		ELSE true
+	END
+	-- Filter by last_seen
+	AND CASE
+		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			users.last_seen_at <= $7
+		ELSE true
+	END
+	AND CASE
+		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			users.last_seen_at >= $8
+		ELSE true
+	END
+	-- Filter by created_at (user creation date, not date added to org)
+	AND CASE
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			users.created_at <= $9
+		ELSE true
+	END
+	AND CASE
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			users.created_at >= $10
+		ELSE true
+	END
+	 -- Filter by system type
+	AND CASE
+		WHEN $11::bool THEN TRUE
+		ELSE users.is_system = false
+	END
+	 -- Filter by github.com user ID
+	AND CASE
+		WHEN $12 :: bigint != 0 THEN
+			users.github_com_user_id = $12
+		ELSE true
+	END
+	-- Filter by login_type
+	AND CASE
+		WHEN cardinality($13 :: login_type[]) > 0 THEN
+			users.login_type = ANY($13 :: login_type[])
+		ELSE true
+	END
+	-- End of filters
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $3
+	LOWER(users.username) ASC OFFSET $14
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($4 :: int, 0)
+	NULLIF($15 :: int, 0)
 `
 
 type PaginatedOrganizationMembersParams struct {
-	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	IncludeSystem  bool      `db:"include_system" json:"include_system"`
-	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
-	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
+	AfterID         uuid.UUID    `db:"after_id" json:"after_id"`
+	OrganizationID  uuid.UUID    `db:"organization_id" json:"organization_id"`
+	Search          string       `db:"search" json:"search"`
+	Name            string       `db:"name" json:"name"`
+	Status          []UserStatus `db:"status" json:"status"`
+	RbacRole        []string     `db:"rbac_role" json:"rbac_role"`
+	LastSeenBefore  time.Time    `db:"last_seen_before" json:"last_seen_before"`
+	LastSeenAfter   time.Time    `db:"last_seen_after" json:"last_seen_after"`
+	CreatedBefore   time.Time    `db:"created_before" json:"created_before"`
+	CreatedAfter    time.Time    `db:"created_after" json:"created_after"`
+	IncludeSystem   bool         `db:"include_system" json:"include_system"`
+	GithubComUserID int64        `db:"github_com_user_id" json:"github_com_user_id"`
+	LoginType       []LoginType  `db:"login_type" json:"login_type"`
+	OffsetOpt       int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt        int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 type PaginatedOrganizationMembersRow struct {
@@ -12560,13 +12675,29 @@ type PaginatedOrganizationMembersRow struct {
 	Name               string             `db:"name" json:"name"`
 	Email              string             `db:"email" json:"email"`
 	GlobalRoles        pq.StringArray     `db:"global_roles" json:"global_roles"`
+	LastSeenAt         time.Time          `db:"last_seen_at" json:"last_seen_at"`
+	Status             UserStatus         `db:"status" json:"status"`
+	LoginType          LoginType          `db:"login_type" json:"login_type"`
+	UserCreatedAt      time.Time          `db:"user_created_at" json:"user_created_at"`
+	UserUpdatedAt      time.Time          `db:"user_updated_at" json:"user_updated_at"`
 	Count              int64              `db:"count" json:"count"`
 }
 
 func (q *sqlQuerier) PaginatedOrganizationMembers(ctx context.Context, arg PaginatedOrganizationMembersParams) ([]PaginatedOrganizationMembersRow, error) {
 	rows, err := q.db.QueryContext(ctx, paginatedOrganizationMembers,
+		arg.AfterID,
 		arg.OrganizationID,
+		arg.Search,
+		arg.Name,
+		pq.Array(arg.Status),
+		pq.Array(arg.RbacRole),
+		arg.LastSeenBefore,
+		arg.LastSeenAfter,
+		arg.CreatedBefore,
+		arg.CreatedAfter,
 		arg.IncludeSystem,
+		arg.GithubComUserID,
+		pq.Array(arg.LoginType),
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -12588,6 +12719,11 @@ func (q *sqlQuerier) PaginatedOrganizationMembers(ctx context.Context, arg Pagin
 			&i.Name,
 			&i.Email,
 			&i.GlobalRoles,
+			&i.LastSeenAt,
+			&i.Status,
+			&i.LoginType,
+			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
 			&i.Count,
 		); err != nil {
 			return nil, err
