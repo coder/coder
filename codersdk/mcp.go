@@ -189,4 +189,3 @@ func (c *Client) DeleteMCPServerConfig(ctx context.Context, id uuid.UUID) error 
 	}
 	return nil
 }
-
