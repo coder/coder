@@ -536,6 +536,60 @@ func TestNew(t *testing.T) {
 		require.Contains(t, err.Error(), "invalid coder access URL")
 	})
 
+	t.Run("CoderAccessURLDefaultHTTPPort", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost",
+			MITMCertFile:    mitmCertFile,
+			MITMKeyFile:     mitmKeyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "localhost", srv.CoderAccessURL().Hostname())
+		require.Equal(t, "80", srv.CoderAccessURL().Port())
+	})
+
+	t.Run("CoderAccessURLDefaultHTTPSPort", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "https://localhost",
+			MITMCertFile:    mitmCertFile,
+			MITMKeyFile:     mitmKeyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "localhost", srv.CoderAccessURL().Hostname())
+		require.Equal(t, "443", srv.CoderAccessURL().Port())
+	})
+
+	t.Run("CoderAccessURLExplicitPort", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			MITMCertFile:    mitmCertFile,
+			MITMKeyFile:     mitmKeyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "localhost", srv.CoderAccessURL().Hostname())
+		require.Equal(t, "3000", srv.CoderAccessURL().Port())
+	})
+
 	t.Run("MissingCertFile", func(t *testing.T) {
 		t.Parallel()
 

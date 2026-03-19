@@ -203,6 +203,17 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	if err != nil {
 		return nil, xerrors.Errorf("invalid coder access URL %q: %w", opts.CoderAccessURL, err)
 	}
+	// Resolve the default port when not explicitly specified in the URL.
+	coderAccessPort := coderAccessURL.Port()
+	if coderAccessPort == "" {
+		switch coderAccessURL.Scheme {
+		case "https":
+			coderAccessPort = "443"
+		default:
+			coderAccessPort = "80"
+		}
+	}
+	coderAccessURL.Host = net.JoinHostPort(coderAccessURL.Hostname(), coderAccessPort)
 
 	// MITM cert and key are required to intercept and decrypt HTTPS traffic.
 	if opts.MITMCertFile == "" || opts.MITMKeyFile == "" {
@@ -444,6 +455,11 @@ func (s *Server) Addr() string {
 // IsTLSListener reports whether the proxy listener is serving TLS.
 func (s *Server) IsTLSListener() bool {
 	return s.tlsEnabled
+}
+
+// CoderAccessURL returns the parsed Coder access URL with a normalized port.
+func (s *Server) CoderAccessURL() *url.URL {
+	return s.coderAccessURL
 }
 
 // Close gracefully shuts down the proxy server.
@@ -749,9 +765,10 @@ func (s *Server) tunneledMiddleware(host string, _ *goproxy.ProxyCtx) (*goproxy.
 // isBlockedIP reports whether the given IP is in a blocked private/reserved range
 // and not exempted by AllowedPrivateCIDRs or the Coder access URL hostname.
 func (s *Server) isBlockedIP(ip net.IP, hostname string, port string) bool {
-	// Always allow the Coder access URL hostname so the proxy doesn't block
-	// connections to its own deployment. Hostname-based (not IP-based) to
-	// handle dynamic IPs (DNS changes, load balancers, k8s rescheduling).
+	// Always allow the Coder access URL hostname+port so the proxy doesn't
+	// block connections to its own deployment. Hostname-based (not IP-based)
+	// to handle dynamic IPs (DNS changes, load balancers, k8s rescheduling).
+	// The port is normalized at startup to handle URLs without explicit ports.
 	if strings.EqualFold(hostname, s.coderAccessURL.Hostname()) && port == s.coderAccessURL.Port() {
 		return false
 	}
