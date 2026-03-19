@@ -1002,7 +1002,6 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 		}),
 		Providers: row.Providers,
 		Models:    row.Models,
-		Client:    row.Client,
 		Metadata:  jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: row.Metadata, Valid: len(row.Metadata) > 0}),
 		StartedAt: row.StartedAt,
 		Threads:   row.Threads,
@@ -1017,6 +1016,9 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 	}
 	if session.Models == nil {
 		session.Models = []string{}
+	}
+	if row.Client != "" {
+		session.Client = &row.Client
 	}
 	if !row.EndedAt.IsZero() {
 		session.EndedAt = &row.EndedAt

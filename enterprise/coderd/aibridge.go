@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"time"
@@ -254,7 +255,11 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		return nil
-	}, nil)
+	}, &database.TxOptions{
+		Isolation:    sql.LevelRepeatableRead, // Consistency across queries tables while writes may be occurring.
+		ReadOnly:     true,
+		TxIdentifier: "aibridge_list_sessions",
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error getting AI Bridge sessions.",
