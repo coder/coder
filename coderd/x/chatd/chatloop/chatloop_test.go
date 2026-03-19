@@ -6,6 +6,7 @@ import (
 	"iter"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -159,6 +160,44 @@ func TestRun_OnRetryEnrichesProvider(t *testing.T) {
 		"OpenAI is rate limiting requests (HTTP 429). Please try again later.",
 		records[0].classified.Message,
 	)
+}
+
+func TestFirstChunkGuard_DisarmAndFireRace(t *testing.T) {
+	t.Parallel()
+
+	for range 128 {
+		var cancels atomic.Int32
+		guard := newFirstChunkGuard(time.Hour, func(err error) {
+			if errors.Is(err, errFirstChunkTimeout) {
+				cancels.Add(1)
+			}
+		})
+
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+			<-start
+			guard.onTimeout()
+		}()
+
+		go func() {
+			defer wg.Done()
+			<-start
+			guard.Disarm()
+		}()
+
+		close(start)
+		wg.Wait()
+
+		guard.onTimeout()
+		guard.Disarm()
+		guard.Stop()
+
+		require.LessOrEqual(t, cancels.Load(), int32(1))
+	}
 }
 
 func TestRun_RetriesStartupTimeoutBeforeFirstChunk(t *testing.T) {

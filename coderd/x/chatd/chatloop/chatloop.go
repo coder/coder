@@ -504,6 +504,40 @@ type guardedAttempt struct {
 	cleanup func(error) error
 }
 
+// firstChunkGuard arbitrates whether an attempt times out before its
+// first stream part arrives. Exactly one outcome wins: the timer
+// cancels the attempt, or the first-part path disarms the timer.
+type firstChunkGuard struct {
+	timer  *time.Timer
+	cancel context.CancelCauseFunc
+	once   sync.Once
+}
+
+func newFirstChunkGuard(
+	timeout time.Duration,
+	cancel context.CancelCauseFunc,
+) *firstChunkGuard {
+	guard := &firstChunkGuard{cancel: cancel}
+	guard.timer = time.AfterFunc(timeout, guard.onTimeout)
+	return guard
+}
+
+func (g *firstChunkGuard) onTimeout() {
+	g.once.Do(func() {
+		g.cancel(errFirstChunkTimeout)
+	})
+}
+
+func (g *firstChunkGuard) Disarm() {
+	g.once.Do(func() {
+		g.timer.Stop()
+	})
+}
+
+func (g *firstChunkGuard) Stop() {
+	g.timer.Stop()
+}
+
 func guardedStream(
 	parent context.Context,
 	provider string,
@@ -517,31 +551,20 @@ func guardedStream(
 		return guardedAttempt{}, err
 	}
 
-	firstPartSeen := false
-	firstChunkTimer := time.AfterFunc(firstChunkTimeout, func() {
-		cancelAttempt(errFirstChunkTimeout)
-	})
-
-	stopFirstChunkTimer := func() {
-		if firstPartSeen {
-			return
-		}
-		firstPartSeen = true
-		firstChunkTimer.Stop()
-	}
+	guard := newFirstChunkGuard(firstChunkTimeout, cancelAttempt)
 
 	return guardedAttempt{
 		ctx: attemptCtx,
 		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 			for part := range stream {
-				stopFirstChunkTimer()
+				guard.Disarm()
 				if !yield(part) {
 					return
 				}
 			}
 		}),
 		cleanup: func(err error) error {
-			firstChunkTimer.Stop()
+			guard.Stop()
 			if errors.Is(context.Cause(attemptCtx), errFirstChunkTimeout) {
 				if err == nil {
 					err = errFirstChunkTimeout
