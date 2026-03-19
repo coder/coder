@@ -692,10 +692,13 @@ curl -X GET http://coder-server:8080/api/v2/groups/{group}/members \
 
 ### Parameters
 
-| Name    | In    | Type   | Required | Description         |
-|---------|-------|--------|----------|---------------------|
-| `group` | path  | string | true     | Group id            |
-| `q`     | query | string | false    | Member search query |
+| Name       | In    | Type         | Required | Description         |
+|------------|-------|--------------|----------|---------------------|
+| `group`    | path  | string       | true     | Group id            |
+| `q`        | query | string       | false    | Member search query |
+| `after_id` | query | string(uuid) | false    | After ID            |
+| `limit`    | query | integer      | false    | Page limit          |
+| `offset`   | query | integer      | false    | Page offset         |
 
 ### Example responses
 
@@ -2028,6 +2031,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 | `organization` | path  | string(uuid) | true     | Organization ID     |
 | `groupName`    | path  | string       | true     | Group name          |
 | `q`            | query | string       | false    | Member search query |
+| `after_id`     | query | string(uuid) | false    | After ID            |
+| `limit`        | query | integer      | false    | Page limit          |
+| `offset`       | query | integer      | false    | Page offset         |
 
 ### Example responses
 
@@ -2035,10 +2041,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
 
 ```json
 {
-  "avatar_url": "http://example.com",
-  "display_name": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "members": [
+  "count": 0,
+  "users": [
     {
       "avatar_url": "http://example.com",
       "created_at": "2019-08-24T14:15:22Z",
@@ -2053,22 +2057,15 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/groups/
       "updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
-  ],
-  "name": "string",
-  "organization_display_name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "organization_name": "string",
-  "quota_allowance": 0,
-  "source": "user",
-  "total_member_count": 0
+  ]
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                     |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Group](schemas.md#codersdkgroup) |
+| Status | Meaning                                                 | Description | Schema                                                                   |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupMembersResponse](schemas.md#codersdkgroupmembersresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
