@@ -379,6 +379,7 @@ type CreateOptions struct {
 	ChatMode           database.NullChatMode
 	SystemPrompt       string
 	InitialUserContent []codersdk.ChatMessagePart
+	MCPServerIDs       []uuid.UUID
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -401,6 +402,7 @@ type SendMessageOptions struct {
 	Content       []codersdk.ChatMessagePart
 	ModelConfigID *uuid.UUID
 	BusyBehavior  SendMessageBusyBehavior
+	MCPServerIDs  *[]uuid.UUID
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -450,6 +452,12 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if len(opts.InitialUserContent) == 0 {
 		return database.Chat{}, xerrors.New("initial user content is required")
 	}
+	// Ensure MCPServerIDs is non-nil so pq.Array produces '{}'
+	// instead of SQL NULL, which violates the NOT NULL column
+	// constraint.
+	if opts.MCPServerIDs == nil {
+		opts.MCPServerIDs = []uuid.UUID{}
+	}
 
 	var chat database.Chat
 	txErr := p.db.InTx(func(tx database.Store) error {
@@ -465,6 +473,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			LastModelConfigID: opts.ModelConfigID,
 			Title:             opts.Title,
 			Mode:              opts.ChatMode,
+			MCPServerIDs:      opts.MCPServerIDs,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)
@@ -594,6 +603,17 @@ func (p *Server) SendMessage(
 		modelConfigID := lockedChat.LastModelConfigID
 		if opts.ModelConfigID != nil {
 			modelConfigID = *opts.ModelConfigID
+		}
+
+		// Update MCP server IDs on the chat when explicitly provided.
+		if opts.MCPServerIDs != nil {
+			lockedChat, err = tx.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{
+				ID:           opts.ChatID,
+				MCPServerIDs: *opts.MCPServerIDs,
+			})
+			if err != nil {
+				return xerrors.Errorf("update chat mcp server ids: %w", err)
+			}
 		}
 
 		existingQueued, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)

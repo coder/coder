@@ -20,6 +20,9 @@ const (
 	CheckUsersEmailNotEmpty                          CheckConstraint = "users_email_not_empty"                              // users
 	CheckUsersServiceAccountLoginType                CheckConstraint = "users_service_account_login_type"                   // users
 	CheckUsersUsernameMinLength                      CheckConstraint = "users_username_min_length"                          // users
+	CheckMcpServerConfigsAuthTypeCheck               CheckConstraint = "mcp_server_configs_auth_type_check"                 // mcp_server_configs
+	CheckMcpServerConfigsAvailabilityCheck           CheckConstraint = "mcp_server_configs_availability_check"              // mcp_server_configs
+	CheckMcpServerConfigsTransportCheck              CheckConstraint = "mcp_server_configs_transport_check"                 // mcp_server_configs
 	CheckMaxProvisionerLogsLength                    CheckConstraint = "max_provisioner_logs_length"                        // provisioner_jobs
 	CheckMaxLogsLength                               CheckConstraint = "max_logs_length"                                    // workspace_agents
 	CheckSubsystemsNotNone                           CheckConstraint = "subsystems_not_none"                                // workspace_agents
