@@ -7,6 +7,19 @@ import type {
 } from "api/typesGenerated";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+// Compile-time guard: ensures the bailout comparison in setRepositories
+// covers every data field. If WorkspaceAgentRepoChanges gains a new
+// field, this will error until the comparison is updated.
+type _ComparedRepoFields = Omit<
+	WorkspaceAgentRepoChanges,
+	"repo_root" | "removed"
+>;
+const _repoFieldGuard: Record<keyof _ComparedRepoFields, true> = {
+	branch: true,
+	remote_origin: true,
+	unified_diff: true,
+};
+
 interface UseGitWatcherOptions {
 	chatId: string | undefined;
 	agentStatus: WorkspaceAgentStatus | undefined;
@@ -65,11 +78,19 @@ export function useGitWatcher({
 			socketRef.current = socket;
 
 			socket.addEventListener("open", () => {
+				// Ignore open events from superseded connections.
+				if (socketRef.current !== socket) {
+					return;
+				}
 				setIsConnected(true);
 				reconnectAttemptRef.current = 0;
 			});
 
 			socket.addEventListener("message", (event) => {
+				// Ignore messages from superseded connections.
+				if (socketRef.current !== socket) {
+					return;
+				}
 				try {
 					const data = JSON.parse(
 						String(event.data),
@@ -111,6 +132,10 @@ export function useGitWatcher({
 			// Note: WebSocket "error" events are always followed by a "close"
 			// event, so reconnection is handled here.
 			socket.addEventListener("close", () => {
+				// Ignore close events from superseded connections.
+				if (socketRef.current !== socket) {
+					return;
+				}
 				setIsConnected(false);
 				socketRef.current = null;
 
