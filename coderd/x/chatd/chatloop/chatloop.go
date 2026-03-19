@@ -23,6 +23,7 @@ import (
 
 const (
 	interruptedToolResultErrorMessage = "tool call was interrupted before it produced a result"
+	startupTimeoutErrorKind           = "startup_timeout"
 
 	// maxCompactionRetries limits how many times the post-run
 	// compaction safety net can re-enter the step loop. This
@@ -31,7 +32,18 @@ const (
 	maxCompactionRetries = 3
 )
 
-var ErrInterrupted = xerrors.New("chat interrupted")
+var (
+	// firstChunkTimeout bounds how long an individual model
+	// attempt may wait for its first stream part before the
+	// attempt is canceled and retried.
+	firstChunkTimeout = 60 * time.Second
+
+	ErrInterrupted = xerrors.New("chat interrupted")
+
+	errFirstChunkTimeout = xerrors.New(
+		"chat response did not start before the first chunk timeout",
+	)
+)
 
 // PersistedStep contains the full content of a completed or
 // interrupted agent step. Content includes both assistant blocks
@@ -292,13 +304,25 @@ func Run(ctx context.Context, opts RunOptions) error {
 
 			var result stepResult
 			err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
-				stream, streamErr := opts.Model.Stream(retryCtx, call)
+				attemptCtx, cancelAttempt := context.WithCancelCause(retryCtx)
+				defer cancelAttempt(nil)
+
+				stream, streamErr := opts.Model.Stream(attemptCtx, call)
 				if streamErr != nil {
 					return streamErr
 				}
 				var processErr error
-				result, processErr = processStepStream(retryCtx, stream, publishMessagePart)
-				return processErr
+				result, processErr = processStepStream(
+					attemptCtx,
+					cancelAttempt,
+					stream,
+					publishMessagePart,
+				)
+				return wrapStartupTimeoutError(
+					attemptCtx,
+					opts.Model.Provider(),
+					processErr,
+				)
 			}, func(
 				attempt int,
 				retryErr error,
@@ -474,15 +498,45 @@ func Run(ctx context.Context, opts RunOptions) error {
 	return nil
 }
 
+func wrapStartupTimeoutError(
+	ctx context.Context,
+	provider string,
+	err error,
+) error {
+	if err == nil || !errors.Is(context.Cause(ctx), errFirstChunkTimeout) {
+		return err
+	}
+	return chatretry.WithClassification(err, chatretry.ClassifiedError{
+		Kind:      startupTimeoutErrorKind,
+		Provider:  provider,
+		Retryable: true,
+	})
+}
+
 // processStepStream consumes a fantasy StreamResponse and
 // accumulates all content into a stepResult. Callbacks fire
 // inline and their errors propagate directly.
 func processStepStream(
 	ctx context.Context,
+	cancel context.CancelCauseFunc,
 	stream fantasy.StreamResponse,
 	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
 ) (stepResult, error) {
 	var result stepResult
+
+	firstPartSeen := false
+	firstChunkTimer := time.AfterFunc(firstChunkTimeout, func() {
+		cancel(errFirstChunkTimeout)
+	})
+	defer firstChunkTimer.Stop()
+
+	stopFirstChunkTimer := func() {
+		if firstPartSeen {
+			return
+		}
+		firstPartSeen = true
+		firstChunkTimer.Stop()
+	}
 
 	activeToolCalls := make(map[string]*fantasy.ToolCallContent)
 	activeTextContent := make(map[string]string)
@@ -491,6 +545,7 @@ func processStepStream(
 	toolNames := make(map[string]string)
 
 	for part := range stream {
+		stopFirstChunkTimer()
 		switch part.Type {
 		case fantasy.StreamPartTypeTextStart:
 			activeTextContent[part.ID] = ""
@@ -662,6 +717,10 @@ func processStepStream(
 			toolNames,
 		)
 		return result, ErrInterrupted
+	}
+	if ctx.Err() != nil &&
+		errors.Is(context.Cause(ctx), errFirstChunkTimeout) {
+		return result, context.Cause(ctx)
 	}
 
 	hasLocalToolCalls := false
