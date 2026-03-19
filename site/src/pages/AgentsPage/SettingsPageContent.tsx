@@ -124,8 +124,8 @@ interface UsageContentProps {
 
 const UsageContent: FC<UsageContentProps> = ({ now }) => {
 	const [searchParams, setSearchParams] = useSearchParams();
-	const [usernameFilter, setUsernameFilter] = useState("");
-	const debouncedUsername = useDebouncedValue(usernameFilter, 300);
+	const [searchFilter, setSearchFilter] = useState("");
+	const debouncedSearch = useDebouncedValue(searchFilter, 300);
 	const [page, setPage] = useState(1);
 	const dateRange = useMemo(() => {
 		const end = now ?? dayjs();
@@ -142,7 +142,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 		...chatCostUsers({
 			start_date: dateRange.startDate,
 			end_date: dateRange.endDate,
-			username: debouncedUsername || undefined,
+			username: debouncedSearch || undefined,
 			limit: pageSize,
 			offset,
 		}),
@@ -282,13 +282,13 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 			<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
 				<div className="w-full md:max-w-sm">
 					<SearchField
-						value={usernameFilter}
+						value={searchFilter}
 						onChange={(value) => {
-							setUsernameFilter(value);
+							setSearchFilter(value);
 							setPage(1);
 						}}
-						placeholder="Filter by username"
-						aria-label="Filter usage by username"
+						placeholder="Search by name or username"
+						aria-label="Search usage by name or username"
 					/>
 				</div>
 				{usersQuery.data && (

@@ -4062,6 +4062,7 @@ WITH chat_cost_users AS (
         AND (
             $5::text = ''
             OR u.username ILIKE '%' || $5::text || '%'
+            OR u.name ILIKE '%' || $5::text || '%'
         )
     GROUP BY
         c.owner_id,
