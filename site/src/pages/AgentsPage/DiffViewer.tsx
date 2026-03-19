@@ -111,12 +111,9 @@ const STICKY_HEADER_CSS = [
 	"  position: sticky; top: 0; z-index: 10;",
 	"  font-size: 13px;",
 	"  border-bottom: 1px solid hsl(var(--border-default));",
-	"  background-color: hsl(var(--surface-quaternary)) !important;",
+	"  background-color: hsl(var(--surface-secondary)) !important;",
 	"}",
 	"[data-diffs-header] [data-metadata] { flex-direction: row-reverse; }",
-	"@media (prefers-color-scheme: dark) {",
-	"  [data-diffs-header] { background-color: hsl(var(--surface-secondary)) !important; }",
-	"}",
 ].join(" ");
 
 export type DiffStyle = "unified" | "split";

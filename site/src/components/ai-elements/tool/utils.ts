@@ -176,12 +176,48 @@ const SELECTION_OVERRIDE_CSS = [
 	"  background-color: hsl(var(--content-link) / 0.13) !important;",
 	"  color: hsl(var(--content-link)) !important;",
 	"}",
+	// Clear the selection tint from annotation rows so the inline
+	// prompt input stands out clearly against the selected lines.
+	"[data-line-annotation][data-selected-line] [data-annotation-content] {",
+	"  background-color: transparent !important;",
+	"}",
+	"[data-line-annotation][data-selected-line]::before {",
+	"  background-color: transparent !important;",
+	"}",
+	"[data-selected-line][data-gutter-buffer='annotation'] {",
+	"  background-color: transparent !important;",
+	"}",
+].join(" ");
+
+// Restyled separators: flat, full-width dividers instead of
+// the library's rounded, inset pill design.
+const SEPARATOR_CSS = [
+	":host {",
+	"  --diffs-bg-separator-override: hsl(var(--surface-secondary));",
+	"}",
+	"[data-separator-content] {",
+	"  border-radius: 0 !important;",
+	"}",
+	"[data-separator-wrapper] {",
+	"  border-radius: 0 !important;",
+	"}",
+	// Remove the inline padding that creates the inset pill look
+	// so separators span the full width of the diff.
+	"[data-unified] [data-separator='line-info'] [data-separator-wrapper] {",
+	"  padding-inline: 0 !important;",
+	"}",
+	// Add subtle borders for a clean divider feel.
+	"[data-separator='line-info'] {",
+	"  border-top: 1px solid hsl(var(--border-default));",
+	"  border-bottom: 1px solid hsl(var(--border-default));",
+	"}",
 ].join(" ");
 
 export const diffViewerCSS = [
 	"pre, [data-line]:not([data-selected-line]), [data-diffs-header] { background-color: transparent !important; }",
 	"[data-diffs-header] { border-left: 1px solid var(--border); }",
 	SELECTION_OVERRIDE_CSS,
+	SEPARATOR_CSS,
 ].join(" ");
 
 // Theme-aware option factories shared across tool renderers.
