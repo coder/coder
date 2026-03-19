@@ -10,7 +10,7 @@
           "operating_system": "linux",
           "architecture": "amd64",
           "Auth": {
-            "Token": "2b4471d9-1281-45bf-8be2-9b182beb9285"
+            "Token": "2c69a0fb-4eec-4596-bd46-af4fc9dcef87"
           },
           "connection_timeout_seconds": 120,
           "metadata": [

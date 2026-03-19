@@ -3636,8 +3636,9 @@ export interface ListInboxNotificationsResponse {
 export interface ListProviderModelsRequest {
 	/**
 	 * ProviderConfigID references an existing saved provider config
-	 * whose credentials should be used. When set, the provider,
-	 * api_key, and base_url fields are ignored.
+	 * whose credentials should be used. When set, the provider and
+	 * api_key fields are ignored. The base_url field, if provided,
+	 * overrides the saved config's base URL.
 	 */
 	readonly provider_config_id?: string;
 	readonly provider?: string;
@@ -3653,6 +3654,12 @@ export interface ListProviderModelsRequest {
  */
 export interface ListProviderModelsResponse {
 	readonly models: readonly ProviderModel[];
+	/**
+	 * ModelListNotSupported is true when the provider does not
+	 * support listing models via its API. The admin can still
+	 * configure models manually.
+	 */
+	readonly model_list_not_supported?: boolean;
 }
 
 // From codersdk/externalauth.go

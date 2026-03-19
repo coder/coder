@@ -265,6 +265,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								onChange={(e) => {
 									setApiKey(e.target.value);
 									setApiKeyTouched(true);
+									testMutation.reset();
 								}}
 								disabled={isDisabled}
 							/>
@@ -282,7 +283,10 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								placeholder="https://api.example.com/v1"
 								autoComplete="off"
 								value={baseURLValue}
-								onChange={(e) => setBaseURLValue(e.target.value)}
+								onChange={(e) => {
+									setBaseURLValue(e.target.value);
+									testMutation.reset();
+								}}
 								disabled={isDisabled}
 							/>
 						</ProviderField>
@@ -291,12 +295,20 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					{/* Test connection result */}
 					{testMutation.isSuccess && (
 						<div className="mt-4">
-							<div className="flex items-center gap-2 rounded-md border border-border-success bg-surface-primary px-3 py-2 text-sm text-content-success">
-								<CheckCircleIcon className="h-4 w-4 shrink-0" />
-								Connected — {testMutation.data.models.length}{" "}
-								{testMutation.data.models.length === 1 ? "model" : "models"}{" "}
-								available
-							</div>
+							{testMutation.data.model_list_not_supported ? (
+								<div className="flex items-center gap-2 rounded-md border border-border bg-surface-primary px-3 py-2 text-sm text-content-secondary">
+									<InfoIcon className="h-4 w-4 shrink-0" />
+									Model listing is not supported for this provider. You can
+									still configure models manually.
+								</div>
+							) : (
+								<div className="flex items-center gap-2 rounded-md border border-border-success bg-surface-primary px-3 py-2 text-sm text-content-success">
+									<CheckCircleIcon className="h-4 w-4 shrink-0" />
+									Connected — {testMutation.data.models.length}{" "}
+									{testMutation.data.models.length === 1 ? "model" : "models"}{" "}
+									available
+								</div>
+							)}
 						</div>
 					)}
 					{testMutation.isError && (

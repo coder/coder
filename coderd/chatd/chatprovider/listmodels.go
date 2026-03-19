@@ -21,6 +21,21 @@ import (
 	"google.golang.org/genai"
 )
 
+// This file uses provider SDK clients directly (openai-go,
+// anthropic-sdk-go, genai) rather than the fantasy abstraction
+// because fantasy.Provider does not expose a model listing API.
+// The auth/URL conventions are kept consistent with how
+// ModelFromConfig constructs fantasy providers.
+
+// ErrModelListingNotSupported is returned by ListProviderModels for
+// providers whose upstream API does not support listing models (or
+// where the listing mechanism is not yet implemented).
+var ErrModelListingNotSupported = xerrors.New("model listing is not supported for this provider")
+
+// maxListedModels is a safety cap to prevent unbounded memory
+// allocation when a provider returns an unexpectedly large model list.
+const maxListedModels = 10_000
+
 // ListProviderModels lists the models available from the given
 // provider. It uses the same SDK clients as the rest of the system
 // so that auth mechanisms, base URLs, and header conventions stay
@@ -40,13 +55,10 @@ func ListProviderModels(ctx context.Context, provider, apiKey, baseURL string) (
 	case fantasyopenai.Name:
 		return listOpenAIModels(ctx, apiKey, cmp.Or(baseURL, fantasyopenai.DefaultURL))
 	case fantasyazure.Name:
-		if baseURL == "" {
-			return nil, xerrors.New("base URL is required for Azure OpenAI")
-		}
-		// Azure uses the "api-key" header instead of the standard
-		// Authorization header for authentication.
-		return listOpenAIModels(ctx, apiKey, baseURL,
-			openaioption.WithHeader("api-key", apiKey))
+		// TODO(cian): Azure OpenAI uses a different URL scheme
+		// (/openai/models?api-version=...) and auth header (Api-Key)
+		// that requires the azure-specific SDK client. Skip for now.
+		return nil, ErrModelListingNotSupported
 	case fantasyopenaicompat.Name:
 		if baseURL == "" {
 			return nil, xerrors.New("base URL is required for OpenAI-compatible providers")
@@ -59,11 +71,9 @@ func ListProviderModels(ctx context.Context, provider, apiKey, baseURL string) (
 	case fantasyanthropic.Name:
 		return listAnthropicModels(ctx, apiKey, cmp.Or(baseURL, fantasyanthropic.DefaultURL))
 	case fantasybedrock.Name:
-		// Bedrock wraps the Anthropic SDK with WithBedrock(). Listing
-		// models via the Anthropic SDK against Bedrock may not work
-		// the same way. For now, return an empty list — the provider
-		// construction itself validates credentials.
-		return nil, nil
+		// TODO(cian): Bedrock uses IAM-based auth and a different
+		// API surface for model listing. Skip for now.
+		return nil, ErrModelListingNotSupported
 	case fantasygoogle.Name:
 		return listGoogleModels(ctx, apiKey, baseURL)
 	default:
@@ -72,21 +82,19 @@ func ListProviderModels(ctx context.Context, provider, apiKey, baseURL string) (
 }
 
 // listOpenAIModels lists models from any OpenAI-compatible endpoint.
-// Extra request options (e.g. Azure auth headers) can be appended
-// via extraOpts.
-func listOpenAIModels(ctx context.Context, apiKey, baseURL string, extraOpts ...openaioption.RequestOption) ([]string, error) {
-	opts := []openaioption.RequestOption{
+func listOpenAIModels(ctx context.Context, apiKey, baseURL string) ([]string, error) {
+	client := openai.NewClient(
 		openaioption.WithAPIKey(apiKey),
 		openaioption.WithBaseURL(baseURL),
-	}
-	opts = append(opts, extraOpts...)
-
-	client := openai.NewClient(opts...)
+	)
 	pager := client.Models.ListAutoPaging(ctx)
 
 	var ids []string
 	for pager.Next() {
 		ids = append(ids, pager.Current().ID)
+		if len(ids) >= maxListedModels {
+			break
+		}
 	}
 	if err := pager.Err(); err != nil {
 		return nil, xerrors.Errorf("list openai models: %w", err)
@@ -108,6 +116,9 @@ func listAnthropicModels(ctx context.Context, apiKey, baseURL string) ([]string,
 	var ids []string
 	for pager.Next() {
 		ids = append(ids, pager.Current().ID)
+		if len(ids) >= maxListedModels {
+			break
+		}
 	}
 	if err := pager.Err(); err != nil {
 		return nil, xerrors.Errorf("list anthropic models: %w", err)
@@ -140,6 +151,9 @@ func listGoogleModels(ctx context.Context, apiKey, baseURL string) ([]string, er
 			return nil, xerrors.Errorf("list google models: %w", err)
 		}
 		ids = append(ids, model.Name)
+		if len(ids) >= maxListedModels {
+			break
+		}
 	}
 
 	sort.Strings(ids)

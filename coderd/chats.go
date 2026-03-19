@@ -3459,7 +3459,15 @@ func (api *API) listProviderModels(rw http.ResponseWriter, r *http.Request) {
 		// Allow the request to override the base URL so an admin
 		// can test a new URL against saved credentials.
 		if req.BaseURL != "" {
-			baseURL = req.BaseURL
+			var err error
+			baseURL, err = normalizeChatProviderBaseURL(req.BaseURL)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid provider base URL.",
+					Detail:  err.Error(),
+				})
+				return
+			}
 		}
 	} else {
 		provider = normalizeChatProvider(req.Provider)
@@ -3492,6 +3500,12 @@ func (api *API) listProviderModels(rw http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	modelIDs, err := chatprovider.ListProviderModels(listCtx, provider, apiKey, baseURL)
+	if errors.Is(err, chatprovider.ErrModelListingNotSupported) {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.ListProviderModelsResponse{
+			ModelListNotSupported: true,
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
 			Message: fmt.Sprintf("Failed to list models from %s.", provider),

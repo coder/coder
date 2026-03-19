@@ -5,12 +5,12 @@
       "type": "null_resource",
       "agents": [
         {
-          "id": "9c8368da-924c-4df4-a049-940a9a035051",
+          "id": "64dd1236-60db-4be3-9387-b8c709e9d30c",
           "name": "dev",
           "operating_system": "windows",
           "architecture": "arm64",
           "Auth": {
-            "Token": "e09a4d7d-8341-4adf-b93b-21f3724d76d7"
+            "Token": "b09f5a19-9e83-4455-9f5c-b3e25cb37520"
           },
           "connection_timeout_seconds": 120,
           "display_apps": {

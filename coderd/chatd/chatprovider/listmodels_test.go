@@ -196,22 +196,20 @@ func TestListProviderModels(t *testing.T) {
 		require.Contains(t, err.Error(), "base URL is required")
 	})
 
-	t.Run("Azure_RequiresBaseURL", func(t *testing.T) {
+	t.Run("Azure_NotSupported", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := chatprovider.ListProviderModels(ctx, "azure", "test-key", "")
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "base URL is required")
+		require.ErrorIs(t, err, chatprovider.ErrModelListingNotSupported)
 	})
 
-	t.Run("Bedrock_ReturnsNil", func(t *testing.T) {
+	t.Run("Bedrock_NotSupported", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		models, err := chatprovider.ListProviderModels(ctx, "bedrock", "", "")
-		require.NoError(t, err)
-		require.Nil(t, models)
+		_, err := chatprovider.ListProviderModels(ctx, "bedrock", "", "")
+		require.ErrorIs(t, err, chatprovider.ErrModelListingNotSupported)
 	})
 
 	t.Run("UnsupportedProvider", func(t *testing.T) {

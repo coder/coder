@@ -30,7 +30,7 @@
             }
           ],
           "Auth": {
-            "Token": "91e41276-344e-4664-a560-85f0ceb71a7e"
+            "Token": "06a682ce-a87d-4602-a4b6-8aa6892ecd20"
           },
           "connection_timeout_seconds": 120,
           "display_apps": {
@@ -48,12 +48,12 @@
           "api_key_scope": "all"
         },
         {
-          "id": "e3ce0177-ce0c-4136-af81-90d0751bf3de",
+          "id": "d25457f2-567b-4479-974e-7e82addcdc78",
           "name": "dev2",
           "operating_system": "linux",
           "architecture": "amd64",
           "Auth": {
-            "Token": "2ce64d1c-c57f-4b6b-af87-b693c5998182"
+            "Token": "658d4ac6-35e5-48b1-a8d8-f595a28c2bba"
           },
           "connection_timeout_seconds": 120,
           "display_apps": {

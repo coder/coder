@@ -14,7 +14,7 @@
           "operating_system": "linux",
           "architecture": "amd64",
           "Auth": {
-            "Token": "723b283e-7b61-4f42-b0af-eb86560343f5"
+            "Token": "a43f3008-f820-4f8a-8922-59a57310cc30"
           },
           "connection_timeout_seconds": 120,
           "display_apps": {
@@ -28,8 +28,8 @@
             {
               "workspace_folder": "/workspace",
               "name": "dev",
-              "id": "829a2bfb-3af9-4451-bfd9-04f1c5940bd2",
-              "subagent_id": "b4db82a1-1cba-4d97-8893-cf2ca9a9fe1a",
+              "id": "d70805aa-4f2a-4a73-a995-870554ce8c04",
+              "subagent_id": "047702fe-83f3-4505-a5ad-268b00ea4f8e",
               "apps": [
                 {
                   "slug": "devcontainer-app",

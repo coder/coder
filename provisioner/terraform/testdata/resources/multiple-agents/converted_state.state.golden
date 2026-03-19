@@ -10,7 +10,7 @@
           "operating_system": "linux",
           "architecture": "amd64",
           "Auth": {
-            "Token": "ecd3c234-6923-4066-9c49-a4ab05f8b25b"
+            "Token": "94241659-541f-4fd4-a7ad-3647840c7f96"
           },
           "connection_timeout_seconds": 120,
           "display_apps": {
@@ -23,12 +23,12 @@
           "api_key_scope": "all"
         },
         {
-          "id": "65036667-6670-4ae9-b081-9e47a659b2a3",
+          "id": "ba8df9c9-8b04-4972-8250-db823f9828d2",
           "name": "dev2",
           "operating_system": "darwin",
           "architecture": "amd64",
           "Auth": {
-            "Token": "d18a13a0-bb95-4500-b789-b341be481710"
+            "Token": "69891346-f017-4682-903e-1aecbd3b5533"
           },
           "connection_timeout_seconds": 1,
           "motd_file": "/etc/motd",
@@ -51,12 +51,12 @@
           "api_key_scope": "all"
         },
         {
-          "id": "ca951672-300e-4d31-859f-72ea307ef692",
+          "id": "e82b6521-c5a2-4f02-8005-cd1012522891",
           "name": "dev3",
           "operating_system": "windows",
           "architecture": "arm64",
           "Auth": {
-            "Token": "4df063e4-150e-447d-b7fb-8de08f19feca"
+            "Token": "a5b3b78a-5084-46d8-a371-feb0b5cc8499"
           },
           "connection_timeout_seconds": 120,
           "troubleshooting_url": "https://coder.com/troubleshoot",
@@ -70,12 +70,12 @@
           "api_key_scope": "all"
         },
         {
-          "id": "40b28bed-7b37-4f70-8209-114f26eb09d8",
+          "id": "d2e56146-ccab-4e23-8f03-2177dda56608",
           "name": "dev4",
           "operating_system": "linux",
           "architecture": "amd64",
           "Auth": {
-            "Token": "d8694897-083f-4a0c-8633-70107a9d45fb"
+            "Token": "010a84bb-592e-4b4c-94b9-150fc9861c43"
           },
           "connection_timeout_seconds": 120,
           "display_apps": {

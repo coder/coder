@@ -10,7 +10,7 @@
           "operating_system": "linux",
           "architecture": "amd64",
           "Auth": {
-            "Token": "2054bc44-b3d1-44e3-8f28-4ce327081ddb"
+            "Token": "91cfbbde-7d8e-43a4-94ad-37b191a6416e"
           },
           "connection_timeout_seconds": 120,
           "display_apps": {
@@ -41,12 +41,12 @@
       "type": "null_resource",
       "agents": [
         {
-          "id": "69cb645c-7a6a-4ad6-be86-dcaab810e7c1",
+          "id": "12c85b27-756c-4242-93bd-2bb5c6f5566f",
           "name": "dev2",
           "operating_system": "linux",
           "architecture": "amd64",
           "Auth": {
-            "Token": "c3e73db7-a589-4364-bcf7-0224a9be5c70"
+            "Token": "37033c0c-ae64-4814-8d9b-ab73de8421ad"
           },
           "connection_timeout_seconds": 120,
           "display_apps": {

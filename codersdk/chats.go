@@ -400,8 +400,9 @@ type UpdateChatProviderConfigRequest struct {
 // or reference an existing saved config via provider_config_id.
 type ListProviderModelsRequest struct {
 	// ProviderConfigID references an existing saved provider config
-	// whose credentials should be used. When set, the provider,
-	// api_key, and base_url fields are ignored.
+	// whose credentials should be used. When set, the provider and
+	// api_key fields are ignored. The base_url field, if provided,
+	// overrides the saved config's base URL.
 	ProviderConfigID *uuid.UUID `json:"provider_config_id,omitempty" format:"uuid"`
 	Provider         string     `json:"provider,omitempty"`
 	APIKey           string     `json:"api_key,omitempty"`
@@ -413,6 +414,10 @@ type ListProviderModelsRequest struct {
 // connectivity both succeeded.
 type ListProviderModelsResponse struct {
 	Models []ProviderModel `json:"models"`
+	// ModelListNotSupported is true when the provider does not
+	// support listing models via its API. The admin can still
+	// configure models manually.
+	ModelListNotSupported bool `json:"model_list_not_supported,omitempty"`
 }
 
 // ProviderModel is a model discovered from a provider's API.
