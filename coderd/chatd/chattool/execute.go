@@ -127,7 +127,7 @@ func executeTool(
 	// run_in_background parameter, which causes the shell to fork
 	// and exit immediately, leaving an untracked orphan process.
 	trimmed := strings.TrimSpace(args.Command)
-	if !background && strings.HasSuffix(trimmed, "&") && !strings.HasSuffix(trimmed, "&&") {
+	if !background && strings.HasSuffix(trimmed, "&") && !strings.HasSuffix(trimmed, "&&") && !strings.HasSuffix(trimmed, "|&") {
 		background = true
 		args.Command = strings.TrimSpace(strings.TrimSuffix(trimmed, "&"))
 	}
