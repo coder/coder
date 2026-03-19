@@ -52,6 +52,7 @@ import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { InsightsContent } from "./InsightsContent";
 import { LimitsTab } from "./LimitsTab";
+import { MCPServerAdminPanel } from "./MCPServerAdminPanel";
 import { SectionHeader } from "./SectionHeader";
 
 const AdminBadge: FC = () => (
@@ -631,6 +632,13 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 						section="models"
 						sectionLabel="Models"
 						sectionDescription="Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
+						sectionBadge={<AdminBadge />}
+					/>
+				)}
+				{activeSection === "mcp-servers" && canManageChatModelConfigs && (
+					<MCPServerAdminPanel
+						sectionLabel="MCP Servers"
+						sectionDescription="Configure external MCP servers that provide additional tools for AI chat sessions."
 						sectionBadge={<AdminBadge />}
 					/>
 				)}
