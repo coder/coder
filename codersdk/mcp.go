@@ -85,8 +85,8 @@ type CreateMCPServerConfigRequest struct {
 	AuthType           string            `json:"auth_type" validate:"required,oneof=none oauth2 api_key custom_headers"`
 	OAuth2ClientID     string            `json:"oauth2_client_id,omitempty"`
 	OAuth2ClientSecret string            `json:"oauth2_client_secret,omitempty"`
-	OAuth2AuthURL      string            `json:"oauth2_auth_url,omitempty"`
-	OAuth2TokenURL     string            `json:"oauth2_token_url,omitempty"`
+	OAuth2AuthURL      string            `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
+	OAuth2TokenURL     string            `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
 	OAuth2Scopes       string            `json:"oauth2_scopes,omitempty"`
 	APIKeyHeader       string            `json:"api_key_header,omitempty"`
 	APIKeyValue        string            `json:"api_key_value,omitempty"`
@@ -112,8 +112,8 @@ type UpdateMCPServerConfigRequest struct {
 	AuthType           *string            `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers"`
 	OAuth2ClientID     *string            `json:"oauth2_client_id,omitempty"`
 	OAuth2ClientSecret *string            `json:"oauth2_client_secret,omitempty"`
-	OAuth2AuthURL      *string            `json:"oauth2_auth_url,omitempty"`
-	OAuth2TokenURL     *string            `json:"oauth2_token_url,omitempty"`
+	OAuth2AuthURL      *string            `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
+	OAuth2TokenURL     *string            `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
 	OAuth2Scopes       *string            `json:"oauth2_scopes,omitempty"`
 	APIKeyHeader       *string            `json:"api_key_header,omitempty"`
 	APIKeyValue        *string            `json:"api_key_value,omitempty"`

@@ -284,6 +284,25 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate MCP server IDs exist.
+	if len(req.MCPServerIDs) > 0 {
+		//nolint:gocritic // Need to validate MCP server IDs exist.
+		existingConfigs, err := api.Database.GetMCPServerConfigsByIDs(dbauthz.AsSystemRestricted(ctx), req.MCPServerIDs)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to validate MCP server IDs.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if len(existingConfigs) != len(req.MCPServerIDs) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "One or more MCP server IDs are invalid.",
+			})
+			return
+		}
+	}
+
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
@@ -1455,6 +1474,25 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			Detail:  inputError.Detail,
 		})
 		return
+	}
+
+	// Validate MCP server IDs exist.
+	if req.MCPServerIDs != nil && len(*req.MCPServerIDs) > 0 {
+		//nolint:gocritic // Need to validate MCP server IDs exist.
+		existingConfigs, err := api.Database.GetMCPServerConfigsByIDs(dbauthz.AsSystemRestricted(ctx), *req.MCPServerIDs)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to validate MCP server IDs.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if len(existingConfigs) != len(*req.MCPServerIDs) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "One or more MCP server IDs are invalid.",
+			})
+			return
+		}
 	}
 
 	sendResult, sendErr := api.chatDaemon.SendMessage(

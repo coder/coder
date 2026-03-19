@@ -103,6 +103,31 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate auth-type-dependent fields.
+	switch req.AuthType {
+	case "oauth2":
+		if req.OAuth2ClientID == "" || req.OAuth2AuthURL == "" || req.OAuth2TokenURL == "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "OAuth2 auth type requires oauth2_client_id, oauth2_auth_url, and oauth2_token_url.",
+			})
+			return
+		}
+	case "api_key":
+		if req.APIKeyHeader == "" || req.APIKeyValue == "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "API key auth type requires api_key_header and api_key_value.",
+			})
+			return
+		}
+	case "custom_headers":
+		if len(req.CustomHeaders) == 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Custom headers auth type requires at least one custom header.",
+			})
+			return
+		}
+	}
+
 	customHeadersJSON, err := marshalCustomHeaders(req.CustomHeaders)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -214,13 +239,18 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	// Populate AuthConnected for the calling user.
 	if config.AuthType == "oauth2" {
 		//nolint:gocritic // Need to check user token for this server.
-		userTokens, tokenErr := api.Database.GetMCPServerUserTokensByUserID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
-		if tokenErr == nil {
-			for _, t := range userTokens {
-				if t.MCPServerConfigID == config.ID {
-					sdkConfig.AuthConnected = true
-					break
-				}
+		userTokens, err := api.Database.GetMCPServerUserTokensByUserID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to get user tokens.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		for _, t := range userTokens {
+			if t.MCPServerConfigID == config.ID {
+				sdkConfig.AuthConnected = true
+				break
 			}
 		}
 	} else {
@@ -375,6 +405,50 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	enabled := existing.Enabled
 	if req.Enabled != nil {
 		enabled = *req.Enabled
+	}
+
+	// When auth_type changes, clear fields belonging to the
+	// previous auth type so stale secrets don't persist.
+	if authType != existing.AuthType {
+		switch authType {
+		case "none":
+			oauth2ClientID = ""
+			oauth2ClientSecret = ""
+			oauth2ClientSecretKeyID = sql.NullString{}
+			oauth2AuthURL = ""
+			oauth2TokenURL = ""
+			oauth2Scopes = ""
+			apiKeyHeader = ""
+			apiKeyValue = ""
+			apiKeyValueKeyID = sql.NullString{}
+			customHeaders = "{}"
+			customHeadersKeyID = sql.NullString{}
+		case "oauth2":
+			apiKeyHeader = ""
+			apiKeyValue = ""
+			apiKeyValueKeyID = sql.NullString{}
+			customHeaders = "{}"
+			customHeadersKeyID = sql.NullString{}
+		case "api_key":
+			oauth2ClientID = ""
+			oauth2ClientSecret = ""
+			oauth2ClientSecretKeyID = sql.NullString{}
+			oauth2AuthURL = ""
+			oauth2TokenURL = ""
+			oauth2Scopes = ""
+			customHeaders = "{}"
+			customHeadersKeyID = sql.NullString{}
+		case "custom_headers":
+			oauth2ClientID = ""
+			oauth2ClientSecret = ""
+			oauth2ClientSecretKeyID = sql.NullString{}
+			oauth2AuthURL = ""
+			oauth2TokenURL = ""
+			oauth2Scopes = ""
+			apiKeyHeader = ""
+			apiKeyValue = ""
+			apiKeyValueKeyID = sql.NullString{}
+		}
 	}
 
 	updated, err := api.Database.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
@@ -583,6 +657,27 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if config.AuthType != "oauth2" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "MCP server does not use OAuth2 authentication.",
+		})
+		return
+	}
+
+	// Check if the OAuth2 provider returned an error (e.g., user
+	// denied consent).
+	if oauthError := r.URL.Query().Get("error"); oauthError != "" {
+		desc := r.URL.Query().Get("error_description")
+		if desc == "" {
+			desc = oauthError
+		}
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "OAuth2 provider returned an error.",
+			Detail:  desc,
+		})
+		return
+	}
+
 	code := r.URL.Query().Get("code")
 	if code == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -633,7 +728,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
 			Message: "Failed to exchange authorization code for token.",
-			Detail:  err.Error(),
+			Detail:  "The OAuth2 token exchange with the upstream provider failed.",
 		})
 		return
 	}
@@ -669,6 +764,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 	}
 
 	// Respond with a simple HTML page that closes the popup window.
+	rw.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'")
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 	rw.WriteHeader(http.StatusOK)
 	_, _ = rw.Write([]byte(`<!DOCTYPE html><html><body><script>
@@ -766,6 +862,8 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 // non-admin callers.
 func convertMCPServerConfigRedacted(config database.MCPServerConfig) codersdk.MCPServerConfig {
 	c := convertMCPServerConfig(config)
+	c.URL = ""
+	c.Transport = ""
 	c.OAuth2ClientID = ""
 	c.OAuth2AuthURL = ""
 	c.OAuth2TokenURL = ""
