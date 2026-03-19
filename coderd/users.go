@@ -334,11 +334,8 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		err = nil
 	}
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching AI seat states.",
-			Detail:  err.Error(),
-		})
-		return
+		api.Logger.Warn(ctx, "failed to fetch AI seat states", slog.Error(err))
+		aiSeatUserIDs = nil
 	}
 	aiSeatSet := make(map[uuid.UUID]struct{}, len(aiSeatUserIDs))
 	for _, uid := range aiSeatUserIDs {
