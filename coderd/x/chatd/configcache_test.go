@@ -418,3 +418,286 @@ func waitForSignal(t *testing.T, ch <-chan struct{}) {
 		t.Fatal("timed out waiting for signal")
 	}
 }
+
+// TestConfigCache_CallerCancellation verifies the DoChan-based
+// cancellation semantics across all four cache methods:
+//   - A canceled caller returns immediately without waiting for the
+//     shared fill to complete.
+//   - One canceled waiter does not poison other coalesced waiters.
+//   - Server context cancellation propagates through the fill.
+func TestConfigCache_CallerCancellation(t *testing.T) {
+	t.Parallel()
+
+	type cacheMethod struct {
+		name string
+		// setupBlocked configures the store to block on release.
+		// The started channel is closed when the fill enters the
+		// store. The release channel unblocks the store.
+		setupBlocked func(store *stubChatConfigStore, started, release chan struct{})
+		// setupCtxSensitive configures the store to block until
+		// its context is canceled (for server-shutdown testing).
+		setupCtxSensitive func(store *stubChatConfigStore, started chan struct{})
+		// call invokes the cache method under test.
+		call func(ctx context.Context, cache *chatConfigCache) error
+		// storeCalls returns the number of underlying store calls.
+		storeCalls func(store *stubChatConfigStore) int32
+	}
+
+	configID := uuid.New()
+	userID := uuid.New()
+
+	methods := []cacheMethod{
+		{
+			name: "EnabledProviders",
+			setupBlocked: func(store *stubChatConfigStore, started, release chan struct{}) {
+				var once sync.Once
+				store.getEnabledChatProviders = func(ctx context.Context) ([]database.ChatProvider, error) {
+					once.Do(func() { close(started) })
+					select {
+					case <-ctx.Done():
+						return nil, ctx.Err()
+					case <-release:
+						return []database.ChatProvider{testChatProvider("p")}, nil
+					}
+				}
+			},
+			setupCtxSensitive: func(store *stubChatConfigStore, started chan struct{}) {
+				var once sync.Once
+				store.getEnabledChatProviders = func(ctx context.Context) ([]database.ChatProvider, error) {
+					once.Do(func() { close(started) })
+					<-ctx.Done()
+					return nil, ctx.Err()
+				}
+			},
+			call: func(ctx context.Context, cache *chatConfigCache) error {
+				_, err := cache.EnabledProviders(ctx)
+				return err
+			},
+			storeCalls: func(store *stubChatConfigStore) int32 {
+				return store.enabledProvidersCalls.Load()
+			},
+		},
+		{
+			name: "ModelConfigByID",
+			setupBlocked: func(store *stubChatConfigStore, started, release chan struct{}) {
+				var once sync.Once
+				store.getChatModelConfigByID = func(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
+					once.Do(func() { close(started) })
+					select {
+					case <-ctx.Done():
+						return database.ChatModelConfig{}, ctx.Err()
+					case <-release:
+						return testChatModelConfig(id, "model"), nil
+					}
+				}
+			},
+			setupCtxSensitive: func(store *stubChatConfigStore, started chan struct{}) {
+				var once sync.Once
+				store.getChatModelConfigByID = func(ctx context.Context, _ uuid.UUID) (database.ChatModelConfig, error) {
+					once.Do(func() { close(started) })
+					<-ctx.Done()
+					return database.ChatModelConfig{}, ctx.Err()
+				}
+			},
+			call: func(ctx context.Context, cache *chatConfigCache) error {
+				_, err := cache.ModelConfigByID(ctx, configID)
+				return err
+			},
+			storeCalls: func(store *stubChatConfigStore) int32 {
+				return store.modelConfigByIDCalls.Load()
+			},
+		},
+		{
+			name: "DefaultModelConfig",
+			setupBlocked: func(store *stubChatConfigStore, started, release chan struct{}) {
+				var once sync.Once
+				store.getDefaultChatModelConfig = func(ctx context.Context) (database.ChatModelConfig, error) {
+					once.Do(func() { close(started) })
+					select {
+					case <-ctx.Done():
+						return database.ChatModelConfig{}, ctx.Err()
+					case <-release:
+						return testChatModelConfig(uuid.New(), "default"), nil
+					}
+				}
+			},
+			setupCtxSensitive: func(store *stubChatConfigStore, started chan struct{}) {
+				var once sync.Once
+				store.getDefaultChatModelConfig = func(ctx context.Context) (database.ChatModelConfig, error) {
+					once.Do(func() { close(started) })
+					<-ctx.Done()
+					return database.ChatModelConfig{}, ctx.Err()
+				}
+			},
+			call: func(ctx context.Context, cache *chatConfigCache) error {
+				_, err := cache.DefaultModelConfig(ctx)
+				return err
+			},
+			storeCalls: func(store *stubChatConfigStore) int32 {
+				return store.defaultModelConfigCall.Load()
+			},
+		},
+		{
+			name: "UserPrompt",
+			setupBlocked: func(store *stubChatConfigStore, started, release chan struct{}) {
+				var once sync.Once
+				store.getUserChatCustomPrompt = func(ctx context.Context, _ uuid.UUID) (string, error) {
+					once.Do(func() { close(started) })
+					select {
+					case <-ctx.Done():
+						return "", ctx.Err()
+					case <-release:
+						return "custom prompt", nil
+					}
+				}
+			},
+			setupCtxSensitive: func(store *stubChatConfigStore, started chan struct{}) {
+				var once sync.Once
+				store.getUserChatCustomPrompt = func(ctx context.Context, _ uuid.UUID) (string, error) {
+					once.Do(func() { close(started) })
+					<-ctx.Done()
+					return "", ctx.Err()
+				}
+			},
+			call: func(ctx context.Context, cache *chatConfigCache) error {
+				_, err := cache.UserPrompt(ctx, userID)
+				return err
+			},
+			storeCalls: func(store *stubChatConfigStore) int32 {
+				return store.userPromptCalls.Load()
+			},
+		},
+	}
+
+	// Test A: A canceled caller stops waiting immediately; the
+	// shared fill still completes and populates the cache.
+	t.Run("CanceledCallerStopsWaiting", func(t *testing.T) {
+		t.Parallel()
+		for _, m := range methods {
+			t.Run(m.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				clock := quartz.NewMock(t)
+				store := &stubChatConfigStore{}
+				started := make(chan struct{})
+				release := make(chan struct{})
+				m.setupBlocked(store, started, release)
+				cache := newChatConfigCache(ctx, store, clock)
+
+				callerCtx, callerCancel := context.WithCancel(ctx)
+				errCh := make(chan error, 1)
+				go func() {
+					errCh <- m.call(callerCtx, cache)
+				}()
+
+				// Wait for the fill to enter the store, then
+				// cancel the caller's context.
+				waitForSignal(t, started)
+				callerCancel()
+
+				select {
+				case err := <-errCh:
+					require.ErrorIs(t, err, context.Canceled)
+				case <-time.After(testutil.WaitShort):
+					t.Fatal("canceled caller did not return promptly")
+				}
+
+				// Release the store so the fill can complete.
+				close(release)
+
+				// A fresh call must succeed — either a cache
+				// hit or by joining the still-in-flight fill.
+				// Only one store call should have occurred.
+				require.NoError(t, m.call(ctx, cache))
+				require.Equal(t, int32(1), m.storeCalls(store))
+			})
+		}
+	})
+
+	// Test B: One canceled waiter does not poison other coalesced
+	// waiters sharing the same singleflight entry.
+	t.Run("CanceledWaiterDoesNotPoisonOthers", func(t *testing.T) {
+		t.Parallel()
+		for _, m := range methods {
+			t.Run(m.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				clock := quartz.NewMock(t)
+				store := &stubChatConfigStore{}
+				started := make(chan struct{})
+				release := make(chan struct{})
+				m.setupBlocked(store, started, release)
+				cache := newChatConfigCache(ctx, store, clock)
+
+				cancelCtx, cancel := context.WithCancel(ctx)
+				cancelErrCh := make(chan error, 1)
+				survivorErrCh := make(chan error, 1)
+
+				go func() {
+					cancelErrCh <- m.call(cancelCtx, cache)
+				}()
+				go func() {
+					survivorErrCh <- m.call(ctx, cache)
+				}()
+
+				waitForSignal(t, started)
+				cancel()
+
+				select {
+				case err := <-cancelErrCh:
+					require.ErrorIs(t, err, context.Canceled)
+				case <-time.After(testutil.WaitShort):
+					t.Fatal("canceled caller did not return promptly")
+				}
+
+				// Release the store; the surviving waiter
+				// must receive the successful result.
+				close(release)
+
+				select {
+				case err := <-survivorErrCh:
+					require.NoError(t, err)
+				case <-time.After(testutil.WaitShort):
+					t.Fatal("survivor caller did not return")
+				}
+
+				require.Equal(t, int32(1), m.storeCalls(store))
+			})
+		}
+	})
+
+	// Test C: Server context cancellation propagates through the
+	// fill, ensuring graceful shutdown behavior is preserved.
+	t.Run("ServerCancellation", func(t *testing.T) {
+		t.Parallel()
+		for _, m := range methods {
+			t.Run(m.name, func(t *testing.T) {
+				t.Parallel()
+				clock := quartz.NewMock(t)
+				store := &stubChatConfigStore{}
+				started := make(chan struct{})
+				m.setupCtxSensitive(store, started)
+
+				serverCtx, serverCancel := context.WithCancel(context.Background())
+				defer serverCancel()
+				cache := newChatConfigCache(serverCtx, store, clock)
+
+				callerCtx := testutil.Context(t, testutil.WaitMedium)
+				errCh := make(chan error, 1)
+				go func() {
+					errCh <- m.call(callerCtx, cache)
+				}()
+
+				waitForSignal(t, started)
+				serverCancel()
+
+				select {
+				case err := <-errCh:
+					require.ErrorIs(t, err, context.Canceled)
+				case <-time.After(testutil.WaitShort):
+					t.Fatal("caller did not return after server cancel")
+				}
+			})
+		}
+	})
+}

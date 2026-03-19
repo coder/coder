@@ -91,12 +91,33 @@ func newChatConfigCache(ctx context.Context, db database.Store, clock quartz.Clo
 	}
 }
 
+// singleflightDoChan wraps a singleflight group's DoChan method,
+// allowing the caller to abandon the wait if their context is
+// canceled while the shared fill continues running to completion.
+// This separates two lifetimes: the fill runs under the server-scoped
+// context, while each caller waits under its own request-scoped context.
+func singleflightDoChan[K comparable, V any](
+	ctx context.Context,
+	group *singleflight.Group[K, V],
+	key K,
+	fn func() (V, error),
+) (V, error) {
+	ch := group.DoChan(key, fn)
+	select {
+	case <-ctx.Done():
+		var zero V
+		return zero, ctx.Err()
+	case res := <-ch:
+		return res.Val, res.Err
+	}
+}
+
 func (c *chatConfigCache) EnabledProviders(ctx context.Context) ([]database.ChatProvider, error) {
 	if providers, ok := c.cachedProviders(); ok {
 		return providers, nil
 	}
 
-	providers, err, _ := c.providerFetches.Do("providers", func() ([]database.ChatProvider, error) {
+	providers, err := singleflightDoChan(ctx, &c.providerFetches, "providers", func() ([]database.ChatProvider, error) {
 		if cached, ok := c.cachedProviders(); ok {
 			return cached, nil
 		}
@@ -170,7 +191,7 @@ func (c *chatConfigCache) ModelConfigByID(ctx context.Context, id uuid.UUID) (da
 		return config, nil
 	}
 
-	config, err, _ := c.modelConfigFetches.Do(id.String(), func() (database.ChatModelConfig, error) {
+	config, err := singleflightDoChan(ctx, &c.modelConfigFetches, id.String(), func() (database.ChatModelConfig, error) {
 		if cached, ok := c.cachedModelConfig(id); ok {
 			return cached, nil
 		}
@@ -236,7 +257,7 @@ func (c *chatConfigCache) DefaultModelConfig(ctx context.Context) (database.Chat
 		return config, nil
 	}
 
-	config, err, _ := c.defaultModelConfigFetches.Do("default", func() (database.ChatModelConfig, error) {
+	config, err := singleflightDoChan(ctx, &c.defaultModelConfigFetches, "default", func() (database.ChatModelConfig, error) {
 		if cached, ok := c.cachedDefaultModelConfig(); ok {
 			return cached, nil
 		}
@@ -302,7 +323,7 @@ func (c *chatConfigCache) UserPrompt(ctx context.Context, userID uuid.UUID) (str
 		return prompt, nil
 	}
 
-	prompt, err, _ := c.userPromptFetches.Do(userID.String(), func() (string, error) {
+	prompt, err := singleflightDoChan(ctx, &c.userPromptFetches, userID.String(), func() (string, error) {
 		if cached, ok := c.cachedUserPrompt(userID); ok {
 			return cached, nil
 		}
