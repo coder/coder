@@ -182,6 +182,8 @@ const meta: Meta<typeof AgentsPageView> = {
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
 		modelCatalogError: undefined,
+		modelConfigIDByModelID: new Map(),
+		desktopEnabled: false,
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaces").mockResolvedValue({
