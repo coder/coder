@@ -52,7 +52,7 @@ interface ModelsSectionProps {
 		modelConfigId: string,
 		req: TypesGen.UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
-	onDeleteModel: (modelConfigId: string, onSuccess?: () => void) => void;
+	onDeleteModel: (modelConfigId: string) => void;
 	onSetDefaultModel: (modelConfigId: string) => void;
 }
 
@@ -118,7 +118,8 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				onDeleteModel={
 					editingModel
 						? (id) => {
-								onDeleteModel(id, () => setView({ mode: "list" }));
+								onDeleteModel(id);
+								setView({ mode: "list" });
 							}
 						: undefined
 				}

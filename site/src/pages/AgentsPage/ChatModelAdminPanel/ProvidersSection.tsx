@@ -23,7 +23,7 @@ interface ProvidersSectionProps {
 		providerConfigId: string,
 		req: TypesGen.UpdateChatProviderConfigRequest,
 	) => Promise<unknown>;
-	onDeleteProvider: (providerConfigId: string, onSuccess?: () => void) => void;
+	onDeleteProvider: (providerConfigId: string) => void;
 	onSelectedProviderChange: (provider: string) => void;
 }
 
@@ -61,7 +61,8 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 				onCreateProvider={onCreateProvider}
 				onUpdateProvider={onUpdateProvider}
 				onDeleteProvider={(id) => {
-					onDeleteProvider(id, () => setView({ mode: "list" }));
+					onDeleteProvider(id);
+					setView({ mode: "list" });
 				}}
 				onBack={() => setView({ mode: "list" })}
 			/>
