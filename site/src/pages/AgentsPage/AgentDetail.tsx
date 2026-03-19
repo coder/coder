@@ -709,7 +709,11 @@ const AgentDetail: FC = () => {
 			store.clearStreamError();
 			store.setChatStatus("pending");
 			try {
-				await promoteQueuedMutation.mutateAsync(id);
+				const promotedMessage = await promoteQueuedMutation.mutateAsync(id);
+				// Insert the promoted message into the store immediately
+				// so it appears in the timeline without waiting for the
+				// WebSocket to deliver it.
+				store.upsertDurableMessage(promotedMessage);
 			} catch (error) {
 				store.setQueuedMessages(previousQueuedMessages);
 				store.setChatStatus(previousChatStatus);
