@@ -315,7 +315,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 
 // ── Field wrapper ──────────────────────────────────────────────
 
-export interface ProviderFieldProps {
+interface ProviderFieldProps {
 	label: string;
 	htmlFor?: string;
 	required?: boolean;
