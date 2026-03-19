@@ -993,7 +993,7 @@ func AIBridgeInterception(interception database.AIBridgeInterception, initiator 
 
 func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSession {
 	session := codersdk.AIBridgeSession{
-		ID: row.SessionID.String,
+		ID: row.SessionID,
 		Initiator: MinimalUserFromVisibleUser(database.VisibleUser{
 			ID:        row.UserID,
 			Username:  row.UserUsername,
