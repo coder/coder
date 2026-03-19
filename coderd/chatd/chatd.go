@@ -64,6 +64,11 @@ const (
 	// of 5 means recovery runs at 1/5 of the stale-after duration.
 	staleRecoveryIntervalDivisor = 5
 
+	// streamDropWarnInterval controls how often WARN-level logs are
+	// emitted when stream events are dropped. Between intervals the
+	// drop is logged at DEBUG to avoid log spam.
+	streamDropWarnInterval = 10 * time.Second
+
 	// DefaultMaxChatsPerAcquire is the maximum number of chats to
 	// acquire in a single processOnce call. Batching avoids
 	// waiting a full polling interval between acquisitions
@@ -326,6 +331,10 @@ type chatStreamState struct {
 	durableMessages      []codersdk.ChatStreamEvent
 	durableEvictedBefore int64 // highest message ID evicted from durable cache
 	subscribers          map[uuid.UUID]chan codersdk.ChatStreamEvent
+	bufferDropCount      int64
+	bufferLastWarnAt     time.Time
+	subscriberDropCount  int64
+	subscriberLastWarnAt time.Time
 }
 
 // MaxQueueSize is the maximum number of queued user messages per chat.
@@ -1498,8 +1507,20 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 			return
 		}
 		if len(state.buffer) >= maxStreamBufferSize {
-			p.logger.Warn(context.Background(), "chat stream buffer full, dropping oldest event",
-				slog.F("chat_id", chatID), slog.F("buffer_size", len(state.buffer)))
+			state.bufferDropCount++
+			fields := []slog.Field{
+				slog.F("chat_id", chatID),
+				slog.F("buffer_size", len(state.buffer)),
+			}
+			now := p.clock.Now()
+			if now.Sub(state.bufferLastWarnAt) >= streamDropWarnInterval {
+				fields = append(fields, slog.F("dropped_count", state.bufferDropCount))
+				p.logger.Warn(context.Background(), "chat stream buffer full, dropping oldest event", fields...)
+				state.bufferDropCount = 0
+				state.bufferLastWarnAt = now
+			} else {
+				p.logger.Debug(context.Background(), "chat stream buffer full, dropping oldest event", fields...)
+			}
 			state.buffer = state.buffer[1:]
 		}
 		state.buffer = append(state.buffer, event)
@@ -1510,13 +1531,31 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 	}
 	state.mu.Unlock()
 
+	var subDropped int64
 	for _, ch := range subscribers {
 		select {
 		case ch <- event:
 		default:
-			p.logger.Warn(context.Background(), "dropping chat stream event",
-				slog.F("chat_id", chatID), slog.F("type", event.Type))
+			subDropped++
 		}
+	}
+	if subDropped > 0 {
+		state.mu.Lock()
+		state.subscriberDropCount += subDropped
+		fields := []slog.Field{
+			slog.F("chat_id", chatID),
+			slog.F("type", event.Type),
+		}
+		now := p.clock.Now()
+		if now.Sub(state.subscriberLastWarnAt) >= streamDropWarnInterval {
+			fields = append(fields, slog.F("dropped_count", state.subscriberDropCount))
+			p.logger.Warn(context.Background(), "dropping chat stream event", fields...)
+			state.subscriberDropCount = 0
+			state.subscriberLastWarnAt = now
+		} else {
+			p.logger.Debug(context.Background(), "dropping chat stream event", fields...)
+		}
+		state.mu.Unlock()
 	}
 
 	// Clean up the stream entry if it was created by
@@ -2430,11 +2469,15 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	streamState := p.getOrCreateStreamState(chat.ID)
 	streamState.mu.Lock()
 	streamState.buffer = nil
+	streamState.bufferDropCount = 0
+	streamState.bufferLastWarnAt = time.Time{}
 	streamState.buffering = true
 	streamState.mu.Unlock()
 	defer func() {
 		streamState.mu.Lock()
 		streamState.buffer = nil
+		streamState.bufferDropCount = 0
+		streamState.bufferLastWarnAt = time.Time{}
 		streamState.buffering = false
 		p.cleanupStreamIfIdle(chat.ID, streamState)
 		streamState.mu.Unlock()
@@ -2980,6 +3023,8 @@ func (p *Server) runChat(
 			if ss, ok := val.(*chatStreamState); ok {
 				ss.mu.Lock()
 				ss.buffer = nil
+				ss.bufferDropCount = 0
+				ss.bufferLastWarnAt = time.Time{}
 				ss.mu.Unlock()
 			}
 		}
@@ -3190,6 +3235,8 @@ func (p *Server) runChat(
 				if rs, ok := val.(*chatStreamState); ok {
 					rs.mu.Lock()
 					rs.buffer = nil
+					rs.bufferDropCount = 0
+					rs.bufferLastWarnAt = time.Time{}
 					rs.mu.Unlock()
 				}
 			}

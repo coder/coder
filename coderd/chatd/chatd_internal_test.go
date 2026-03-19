@@ -11,6 +11,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -19,6 +20,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestRefreshChatWorkspaceSnapshot_NoReloadWhenWorkspacePresent(t *testing.T) {
@@ -453,4 +456,124 @@ func requireNoStreamEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent, 
 		t.Fatalf("unexpected chat stream event: %+v", event)
 	case <-time.After(wait):
 	}
+}
+
+func TestPublishToStream_BufferFullRateLimitsWarn(t *testing.T) {
+	t.Parallel()
+
+	sink := testutil.NewFakeSink(t)
+	mClock := quartz.NewMock(t)
+
+	server := &Server{
+		logger: sink.Logger(),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+	// Pre-fill the buffer to capacity with buffering enabled.
+	state := &chatStreamState{
+		buffering:   true,
+		buffer:      make([]codersdk.ChatStreamEvent, maxStreamBufferSize),
+		subscribers: make(map[uuid.UUID]chan codersdk.ChatStreamEvent),
+	}
+	server.chatStreams.Store(chatID, state)
+
+	event := codersdk.ChatStreamEvent{
+		Type:        codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{},
+	}
+
+	// First publish triggers WARN because lastWarnAt is zero.
+	server.publishToStream(chatID, event)
+
+	// Next 49 publishes should all be DEBUG (within the 10s window).
+	for i := 0; i < 49; i++ {
+		server.publishToStream(chatID, event)
+	}
+
+	warnEntries := sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Level == slog.LevelWarn && e.Message == "chat stream buffer full, dropping oldest event"
+	})
+	debugEntries := sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Level == slog.LevelDebug && e.Message == "chat stream buffer full, dropping oldest event"
+	})
+
+	require.Len(t, warnEntries, 1, "expected exactly 1 WARN in first batch")
+	require.Len(t, debugEntries, 49, "expected 49 DEBUG in first batch")
+
+	// Verify the WARN entry has a dropped_count field.
+	hasDroppedCount := false
+	for _, f := range warnEntries[0].Fields {
+		if f.Name == "dropped_count" {
+			hasDroppedCount = true
+			break
+		}
+	}
+	require.True(t, hasDroppedCount, "WARN entry should include dropped_count field")
+
+	// Advance clock past the warn interval and publish again.
+	mClock.Advance(11 * time.Second)
+	server.publishToStream(chatID, event)
+
+	warnEntries = sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Level == slog.LevelWarn && e.Message == "chat stream buffer full, dropping oldest event"
+	})
+	require.Len(t, warnEntries, 2, "expected 2 total WARNs after clock advance")
+}
+
+func TestPublishToStream_SubscriberFullRateLimitsWarn(t *testing.T) {
+	t.Parallel()
+
+	sink := testutil.NewFakeSink(t)
+	mClock := quartz.NewMock(t)
+
+	server := &Server{
+		logger: sink.Logger(),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+	// Create a subscriber channel that's already full.
+	subCh := make(chan codersdk.ChatStreamEvent, 1)
+	subCh <- codersdk.ChatStreamEvent{} // fill it
+
+	state := &chatStreamState{
+		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{
+			uuid.New(): subCh,
+		},
+	}
+	server.chatStreams.Store(chatID, state)
+
+	// Use a non-message_part event so it skips the buffer path
+	// but still hits the subscriber send path.
+	event := codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeStatus,
+	}
+
+	// First publish triggers WARN.
+	server.publishToStream(chatID, event)
+
+	// Next 9 should be DEBUG.
+	for i := 0; i < 9; i++ {
+		server.publishToStream(chatID, event)
+	}
+
+	warnEntries := sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Level == slog.LevelWarn && e.Message == "dropping chat stream event"
+	})
+	debugEntries := sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Level == slog.LevelDebug && e.Message == "dropping chat stream event"
+	})
+
+	require.Len(t, warnEntries, 1, "expected exactly 1 WARN for subscriber drops")
+	require.Len(t, debugEntries, 9, "expected 9 DEBUG for subscriber drops")
+
+	// Advance clock and publish again — should get another WARN.
+	mClock.Advance(11 * time.Second)
+	server.publishToStream(chatID, event)
+
+	warnEntries = sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Level == slog.LevelWarn && e.Message == "dropping chat stream event"
+	})
+	require.Len(t, warnEntries, 2, "expected 2 total WARNs after clock advance")
 }
