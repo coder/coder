@@ -203,7 +203,7 @@ export const UsageUserList: Story = {
 
 		// Verify the search field is present.
 		await expect(
-			canvas.getByPlaceholderText("Filter by username"),
+			canvas.getByPlaceholderText("Search by name or username"),
 		).toBeInTheDocument();
 	},
 };
@@ -302,7 +302,7 @@ export const UsageUserDrillInAndBack: Story = {
 		// The search field should be present, confirming we're
 		// back on the list view.
 		await expect(
-			body.getByPlaceholderText("Filter by username"),
+			body.getByPlaceholderText("Search by name or username"),
 		).toBeInTheDocument();
 	},
 };
