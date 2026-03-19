@@ -1303,6 +1303,7 @@ export interface ChatMessage {
 	readonly role: ChatMessageRole;
 	readonly content?: readonly ChatMessagePart[];
 	readonly usage?: ChatMessageUsage;
+	readonly queued?: boolean;
 }
 
 // From codersdk/chats.go
@@ -1401,7 +1402,6 @@ export interface ChatMessagesPaginationOptions {
  */
 export interface ChatMessagesResponse {
 	readonly messages: readonly ChatMessage[];
-	readonly queued_messages: readonly ChatQueuedMessage[];
 	readonly has_more: boolean;
 }
 
@@ -1679,17 +1679,6 @@ export const ChatProviderConfigSources: ChatProviderConfigSource[] = [
 ];
 
 // From codersdk/chats.go
-/**
- * ChatQueuedMessage represents a queued message waiting to be processed.
- */
-export interface ChatQueuedMessage {
-	readonly id: number;
-	readonly chat_id: string;
-	readonly content: readonly ChatMessagePart[];
-	readonly created_at: string;
-}
-
-// From codersdk/chats.go
 export interface ChatReasoningPart {
 	readonly type: "reasoning";
 	readonly text: string;
@@ -1741,7 +1730,7 @@ export interface ChatStreamEvent {
 	readonly status?: ChatStreamStatus;
 	readonly error?: ChatStreamError;
 	readonly retry?: ChatStreamRetry;
-	readonly queued_messages?: readonly ChatQueuedMessage[];
+	readonly queued_messages?: readonly ChatMessage[];
 }
 
 // From codersdk/chats.go
@@ -2086,8 +2075,7 @@ export interface CreateChatMessageRequest {
  */
 export interface CreateChatMessageResponse {
 	readonly message?: ChatMessage;
-	readonly queued_message?: ChatQueuedMessage;
-	readonly queued: boolean;
+	readonly queued?: boolean;
 }
 
 // From codersdk/chats.go

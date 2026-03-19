@@ -107,8 +107,8 @@ const chatMessagesEqualByValue = (
 	jsonValuesEqual(left.usage, right.usage);
 
 const chatQueuedMessagesEqualByID = (
-	left: readonly TypesGen.ChatQueuedMessage[],
-	right: readonly TypesGen.ChatQueuedMessage[],
+	left: readonly TypesGen.ChatMessage[],
+	right: readonly TypesGen.ChatMessage[],
 ): boolean => {
 	if (left.length !== right.length) {
 		return false;
@@ -128,7 +128,7 @@ type ChatStoreState = {
 	chatStatus: TypesGen.ChatStatus | null;
 	streamError: string | null;
 	retryState: { attempt: number; error: string } | null;
-	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
+	queuedMessages: readonly TypesGen.ChatMessage[];
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 };
 
@@ -145,7 +145,7 @@ type ChatStore = {
 	applyMessagePart: (part: TypesGen.ChatMessagePart) => void;
 	applyMessageParts: (parts: readonly TypesGen.ChatMessagePart[]) => void;
 	setQueuedMessages: (
-		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+		queuedMessages: readonly TypesGen.ChatMessage[] | undefined,
 	) => void;
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
 	setStreamError: (reason: string | null) => void;
@@ -403,7 +403,7 @@ interface UseChatStoreOptions {
 	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	chatRecord: TypesGen.Chat | undefined;
 	chatMessagesData: TypesGen.ChatMessagesResponse | undefined;
-	chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
+	chatQueuedMessages: readonly TypesGen.ChatMessage[] | undefined;
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatID: string) => void;
 }
@@ -516,7 +516,7 @@ export const useChatStore = (
 	}, [cancelScheduledStreamReset, store]);
 
 	const updateChatQueuedMessages = useCallback(
-		(queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined) => {
+		(queuedMessages: readonly TypesGen.ChatMessage[] | undefined) => {
 			if (!chatID) {
 				return;
 			}
@@ -528,9 +528,17 @@ export const useChatStore = (
 					return currentData;
 				}
 				const firstPage = currentData.pages[0];
+				// Extract non-queued messages and append new queued set.
+				const nonQueuedMessages = firstPage.messages.filter(
+					(m) => !m.queued,
+				);
+				const updatedMessages = [
+					...nonQueuedMessages,
+					...nextQueuedMessages,
+				];
 				if (
 					chatQueuedMessagesEqualByID(
-						firstPage.queued_messages,
+						firstPage.messages.filter((m) => m.queued),
 						nextQueuedMessages,
 					)
 				) {
@@ -539,7 +547,7 @@ export const useChatStore = (
 				return {
 					...currentData,
 					pages: [
-						{ ...firstPage, queued_messages: nextQueuedMessages },
+						{ ...firstPage, messages: updatedMessages },
 						...currentData.pages.slice(1),
 					],
 				};

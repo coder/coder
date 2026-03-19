@@ -360,11 +360,11 @@ func (m queryMetricsStore) DeleteAPIKeysByUserID(ctx context.Context, userID uui
 	return r0
 }
 
-func (m queryMetricsStore) DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.UUID) error {
+func (m queryMetricsStore) DeleteAllQueuedChatMessages(ctx context.Context, chatID uuid.UUID) error {
 	start := time.Now()
-	r0 := m.s.DeleteAllChatQueuedMessages(ctx, chatID)
-	m.queryLatencies.WithLabelValues("DeleteAllChatQueuedMessages").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAllChatQueuedMessages").Inc()
+	r0 := m.s.DeleteAllQueuedChatMessages(ctx, chatID)
+	m.queryLatencies.WithLabelValues("DeleteAllQueuedChatMessages").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAllQueuedChatMessages").Inc()
 	return r0
 }
 
@@ -405,14 +405,6 @@ func (m queryMetricsStore) DeleteChatProviderByID(ctx context.Context, id uuid.U
 	r0 := m.s.DeleteChatProviderByID(ctx, id)
 	m.queryLatencies.WithLabelValues("DeleteChatProviderByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatProviderByID").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) DeleteChatQueuedMessage(ctx context.Context, arg database.DeleteChatQueuedMessageParams) error {
-	start := time.Now()
-	r0 := m.s.DeleteChatQueuedMessage(ctx, arg)
-	m.queryLatencies.WithLabelValues("DeleteChatQueuedMessage").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatQueuedMessage").Inc()
 	return r0
 }
 
@@ -638,6 +630,14 @@ func (m queryMetricsStore) DeleteProvisionerKey(ctx context.Context, id uuid.UUI
 	m.queryLatencies.WithLabelValues("DeleteProvisionerKey").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteProvisionerKey").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) DeleteQueuedChatMessage(ctx context.Context, arg database.DeleteQueuedChatMessageParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteQueuedChatMessage(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteQueuedChatMessage").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteQueuedChatMessage").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error {
@@ -1173,14 +1173,6 @@ func (m queryMetricsStore) GetChatProviders(ctx context.Context) ([]database.Cha
 	r0, r1 := m.s.GetChatProviders(ctx)
 	m.queryLatencies.WithLabelValues("GetChatProviders").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProviders").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]database.ChatQueuedMessage, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatQueuedMessages(ctx, chatID)
-	m.queryLatencies.WithLabelValues("GetChatQueuedMessages").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatQueuedMessages").Inc()
 	return r0, r1
 }
 
@@ -2061,6 +2053,14 @@ func (m queryMetricsStore) GetProvisionerLogsAfterID(ctx context.Context, arg da
 	r0, r1 := m.s.GetProvisionerLogsAfterID(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetProvisionerLogsAfterID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetProvisionerLogsAfterID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetQueuedChatMessages(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetQueuedChatMessages(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetQueuedChatMessages").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetQueuedChatMessages").Inc()
 	return r0, r1
 }
 
@@ -3168,14 +3168,6 @@ func (m queryMetricsStore) InsertChatProvider(ctx context.Context, arg database.
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertChatQueuedMessage(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertChatQueuedMessage").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatQueuedMessage").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertCryptoKey(ctx, arg)
@@ -3397,6 +3389,14 @@ func (m queryMetricsStore) InsertProvisionerKey(ctx context.Context, arg databas
 	r0, r1 := m.s.InsertProvisionerKey(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertProvisionerKey").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertProvisionerKey").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertQueuedChatMessage(ctx context.Context, arg database.InsertQueuedChatMessageParams) (database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertQueuedChatMessage(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertQueuedChatMessage").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertQueuedChatMessage").Inc()
 	return r0, r1
 }
 
@@ -3808,11 +3808,19 @@ func (m queryMetricsStore) PaginatedOrganizationMembers(ctx context.Context, arg
 	return r0, r1
 }
 
-func (m queryMetricsStore) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (database.ChatQueuedMessage, error) {
+func (m queryMetricsStore) PromoteNextQueuedChatMessage(ctx context.Context, arg database.PromoteNextQueuedChatMessageParams) (database.ChatMessage, error) {
 	start := time.Now()
-	r0, r1 := m.s.PopNextQueuedMessage(ctx, chatID)
-	m.queryLatencies.WithLabelValues("PopNextQueuedMessage").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PopNextQueuedMessage").Inc()
+	r0, r1 := m.s.PromoteNextQueuedChatMessage(ctx, arg)
+	m.queryLatencies.WithLabelValues("PromoteNextQueuedChatMessage").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PromoteNextQueuedChatMessage").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) PromoteQueuedChatMessageByID(ctx context.Context, arg database.PromoteQueuedChatMessageByIDParams) (database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.PromoteQueuedChatMessageByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("PromoteQueuedChatMessageByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PromoteQueuedChatMessageByID").Inc()
 	return r0, r1
 }
 

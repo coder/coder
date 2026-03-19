@@ -1223,11 +1223,10 @@ func New(options *Options) *API {
 				})
 				r.Post("/interrupt", api.interruptChat)
 				r.Get("/diff", api.getChatDiffContents)
-				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
-					r.Delete("/", api.deleteChatQueuedMessage)
-					r.Post("/promote", api.promoteChatQueuedMessage)
-				})
-			})
+					r.Route("/messages/{message}", func(r chi.Router) {
+						r.Delete("/", api.deleteChatQueuedMessage)
+						r.Post("/promote", api.promoteChatQueuedMessage)
+					})			})
 		})
 
 		r.Route("/mcp", func(r chi.Router) {

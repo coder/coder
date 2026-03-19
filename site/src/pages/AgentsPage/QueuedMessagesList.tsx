@@ -1,4 +1,4 @@
-import type { ChatMessagePart, ChatQueuedMessage } from "api/typesGenerated";
+import type { ChatMessage, ChatMessagePart } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Spinner } from "components/Spinner/Spinner";
 import {
@@ -17,7 +17,7 @@ import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import { cn } from "utils/cn";
 
 interface QueuedMessagesListProps {
-	messages: readonly ChatQueuedMessage[];
+	messages: readonly ChatMessage[];
 	onDelete: (id: number) => Promise<void> | void;
 	onPromote: (id: number) => Promise<void> | void;
 	onEdit?: (
@@ -37,9 +37,9 @@ interface QueuedMessageInfo {
 }
 
 export const getQueuedMessageInfo = (
-	message: ChatQueuedMessage,
+	message: ChatMessage,
 ): QueuedMessageInfo => {
-	const { content } = message;
+	const { content = [] } = message;
 	const fileBlocks = content.filter((p) => p.type === "file");
 	const rawText = content
 		.filter((p) => p.type === "text")

@@ -1,16 +1,18 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ChatQueuedMessage } from "api/typesGenerated";
+import type { ChatMessage } from "api/typesGenerated";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 
-// Helper to build a ChatQueuedMessage with minimal boilerplate.
+// Helper to build a ChatMessage with minimal boilerplate.
 function makeMessage(
 	id: number,
-	content: ChatQueuedMessage["content"],
-): ChatQueuedMessage {
+	content: ChatMessage["content"],
+): ChatMessage {
 	return {
 		id,
 		chat_id: "test-chat-id",
+		role: "user" as const,
+		queued: true,
 		content,
 		created_at: new Date().toISOString(),
 	};
@@ -35,13 +37,13 @@ export const Empty: Story = {
 	},
 };
 
-const textContent = (text: string): ChatQueuedMessage["content"] =>
+const textContent = (text: string): ChatMessage["content"] =>
 	[
 		{
 			type: "text",
 			text,
 		},
-	] as ChatQueuedMessage["content"];
+	] as ChatMessage["content"];
 
 // A single queued message with text-part content.
 export const SingleMessage: Story = {
@@ -70,9 +72,9 @@ export const MixedContentTypes: Story = {
 			// Attachment-only message falls back to the generic label.
 			makeMessage(2, [
 				{ type: "file", file_id: "img-1", media_type: "image/png" },
-			] as ChatQueuedMessage["content"]),
+			] as ChatMessage["content"]),
 			// Empty content falls back to the generic label.
-			makeMessage(3, [] as ChatQueuedMessage["content"]),
+			makeMessage(3, [] as ChatMessage["content"]),
 		],
 	},
 };
@@ -130,7 +132,7 @@ export const WithAttachments: Story = {
 			makeMessage(1, [
 				{ type: "text", text: "Check this screenshot" },
 				{ type: "file", file_id: "abc-123", media_type: "image/png" },
-			] as ChatQueuedMessage["content"]),
+			] as ChatMessage["content"]),
 		],
 	},
 };
@@ -142,7 +144,7 @@ export const AttachmentsOnly: Story = {
 			makeMessage(1, [
 				{ type: "file", file_id: "img-1", media_type: "image/png" },
 				{ type: "file", file_id: "img-2", media_type: "image/jpeg" },
-			] as ChatQueuedMessage["content"]),
+			] as ChatMessage["content"]),
 		],
 	},
 };
@@ -155,7 +157,7 @@ export const EditPassesFileBlocks: Story = {
 			makeMessage(1, [
 				{ type: "text", text: "Check this screenshot" },
 				{ type: "file", file_id: "abc-123", media_type: "image/png" },
-			] as ChatQueuedMessage["content"]),
+			] as ChatMessage["content"]),
 		],
 	},
 	play: async ({ canvasElement, args }) => {
@@ -176,7 +178,7 @@ export const EditAttachmentOnlyMessage: Story = {
 			makeMessage(1, [
 				{ type: "file", file_id: "img-1", media_type: "image/png" },
 				{ type: "file", file_id: "img-2", media_type: "image/jpeg" },
-			] as ChatQueuedMessage["content"]),
+			] as ChatMessage["content"]),
 		],
 	},
 	play: async ({ canvasElement, args }) => {
@@ -198,10 +200,10 @@ export const MixedQueueWithAttachments: Story = {
 			makeMessage(2, [
 				{ type: "text", text: "Fix this layout bug" },
 				{ type: "file", file_id: "img-a", media_type: "image/png" },
-			] as ChatQueuedMessage["content"]),
+			] as ChatMessage["content"]),
 			makeMessage(3, [
 				{ type: "file", file_id: "img-b", media_type: "image/png" },
-			] as ChatQueuedMessage["content"]),
+			] as ChatMessage["content"]),
 		],
 	},
 };

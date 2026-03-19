@@ -1124,22 +1124,21 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Only fetch queued messages on the first page (no cursor).
-	var queuedMessages []database.ChatQueuedMessage
 	if beforeID == 0 {
-		queuedMessages, err = api.Database.GetChatQueuedMessages(ctx, chatID)
-		if err != nil {
+		queuedMsgs, queueErr := api.Database.GetQueuedChatMessages(ctx, chatID)
+		if queueErr != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to get queued messages.",
-				Detail:  err.Error(),
+				Detail:  queueErr.Error(),
 			})
 			return
 		}
+		messages = append(messages, queuedMsgs...)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatMessagesResponse{
-		Messages:       convertChatMessages(messages),
-		QueuedMessages: convertChatQueuedMessages(queuedMessages),
-		HasMore:        hasMore,
+		Messages: convertChatMessages(messages),
+		HasMore:  hasMore,
 	})
 }
 
@@ -1552,14 +1551,8 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
-	if sendResult.Queued {
-		if sendResult.QueuedMessage != nil {
-			response.QueuedMessage = convertChatQueuedMessagePtr(*sendResult.QueuedMessage)
-		}
-	} else {
-		message := convertChatMessage(sendResult.Message)
-		response.Message = &message
-	}
+	message := convertChatMessage(sendResult.Message)
+	response.Message = &message
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
@@ -1642,11 +1635,11 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
-	queuedMessageIDStr := chi.URLParam(r, "queuedMessage")
+	queuedMessageIDStr := chi.URLParam(r, "message")
 	queuedMessageID, err := strconv.ParseInt(queuedMessageIDStr, 10, 64)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid queued message ID.",
+			Message: "Invalid message ID.",
 			Detail:  err.Error(),
 		})
 		return
@@ -1655,12 +1648,18 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 	if api.chatDaemon != nil {
 		err = api.chatDaemon.DeleteQueued(ctx, chatID, queuedMessageID)
 	} else {
-		err = api.Database.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
+		_, err = api.Database.DeleteQueuedChatMessage(ctx, database.DeleteQueuedChatMessageParams{
 			ID:     queuedMessageID,
 			ChatID: chatID,
 		})
 	}
 	if err != nil {
+		if xerrors.Is(err, chatd.ErrQueuedMessageNotFound) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Queued message not found.",
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete queued message.",
 			Detail:  err.Error(),
@@ -1678,11 +1677,11 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 
-	queuedMessageIDStr := chi.URLParam(r, "queuedMessage")
+	queuedMessageIDStr := chi.URLParam(r, "message")
 	queuedMessageID, err := strconv.ParseInt(queuedMessageIDStr, 10, 64)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid queued message ID.",
+			Message: "Invalid message ID.",
 			Detail:  err.Error(),
 		})
 		return
@@ -3153,23 +3152,6 @@ func convertChatCostUserRollup(user database.GetChatCostPerUserRow) codersdk.Cha
 		TotalCacheReadTokens:     user.TotalCacheReadTokens,
 		TotalCacheCreationTokens: user.TotalCacheCreationTokens,
 	}
-}
-
-func convertChatQueuedMessage(m database.ChatQueuedMessage) codersdk.ChatQueuedMessage {
-	return db2sdk.ChatQueuedMessage(m)
-}
-
-func convertChatQueuedMessagePtr(m database.ChatQueuedMessage) *codersdk.ChatQueuedMessage {
-	qm := convertChatQueuedMessage(m)
-	return &qm
-}
-
-func convertChatQueuedMessages(msgs []database.ChatQueuedMessage) []codersdk.ChatQueuedMessage {
-	result := make([]codersdk.ChatQueuedMessage, 0, len(msgs))
-	for _, m := range msgs {
-		result = append(result, convertChatQueuedMessage(m))
-	}
-	return result
 }
 
 func convertChatMessage(m database.ChatMessage) codersdk.ChatMessage {

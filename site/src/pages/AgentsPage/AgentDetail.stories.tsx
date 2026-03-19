@@ -242,6 +242,7 @@ export const WithMessageHistory: Story = {
 						chat_id: CHAT_ID,
 						created_at: "2026-02-18T00:01:00.000Z",
 						role: "user",
+						queued: false,
 						content: [
 							{
 								type: "text",
@@ -255,6 +256,7 @@ export const WithMessageHistory: Story = {
 						chat_id: CHAT_ID,
 						created_at: "2026-02-18T00:01:30.000Z",
 						role: "assistant",
+						queued: false,
 						content: [
 							{
 								type: "text",
@@ -331,6 +333,7 @@ export const WithMessageHistory: Story = {
 						chat_id: CHAT_ID,
 						created_at: "2026-02-18T00:02:00.000Z",
 						role: "user",
+						queued: false,
 						content: [
 							{
 								type: "text",
@@ -344,6 +347,7 @@ export const WithMessageHistory: Story = {
 						chat_id: CHAT_ID,
 						created_at: "2026-02-18T00:02:30.000Z",
 						role: "assistant",
+						queued: false,
 						content: [
 							{
 								type: "text",
@@ -418,6 +422,7 @@ export const WithMessageHistory: Story = {
 						chat_id: CHAT_ID,
 						created_at: "2026-02-18T00:03:00.000Z",
 						role: "user",
+						queued: false,
 						content: [
 							{
 								type: "text",
@@ -431,6 +436,7 @@ export const WithMessageHistory: Story = {
 						chat_id: CHAT_ID,
 						created_at: "2026-02-18T00:03:30.000Z",
 						role: "assistant",
+						queued: false,
 						content: [
 							{
 								type: "text",
@@ -538,7 +544,6 @@ export const WithMessageHistory: Story = {
 						],
 					},
 				],
-				queued_messages: [],
 				has_more: false,
 			},
 			{ diffUrl: undefined },
@@ -563,7 +568,7 @@ export const CompletedWithDiffPanel: Story = {
 				title: "Build a feature",
 				status: "completed",
 			},
-			{ messages: [], queued_messages: [], has_more: false },
+			{ messages: [], has_more: false },
 			{ diffUrl: "https://github.com/coder/coder/pull/123" },
 		),
 	},
@@ -598,7 +603,7 @@ export const NoDiffUrl: Story = {
 				title: "No diff yet",
 				status: "completed",
 			},
-			{ messages: [], queued_messages: [], has_more: false },
+			{ messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
 	},
@@ -621,6 +626,7 @@ export const WithSubagentCards: Story = {
 						chat_id: CHAT_ID,
 						created_at: "2026-02-18T00:00:01.000Z",
 						role: "assistant",
+						queued: false,
 						content: [
 							{
 								type: "tool-call",
@@ -641,7 +647,6 @@ export const WithSubagentCards: Story = {
 						],
 					},
 				],
-				queued_messages: [],
 				has_more: false,
 			},
 			{ diffUrl: undefined },
@@ -674,6 +679,7 @@ export const WithReasoningInline: Story = {
 						chat_id: CHAT_ID,
 						created_at: "2026-02-18T00:00:01.000Z",
 						role: "assistant",
+						queued: false,
 						content: [
 							{
 								type: "reasoning",
@@ -682,7 +688,6 @@ export const WithReasoningInline: Story = {
 						],
 					},
 				],
-				queued_messages: [],
 				has_more: false,
 			},
 			{ diffUrl: undefined },
@@ -712,7 +717,7 @@ export const StreamedSubagentTitle: Story = {
 				title: "Streaming title",
 				status: "running",
 			},
-			{ messages: [], queued_messages: [], has_more: false },
+			{ messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
 		webSocket: {
@@ -764,7 +769,7 @@ export const SidebarWithPRAndRepos: Story = {
 				title: "Full sidebar demo",
 				status: "completed",
 			},
-			{ messages: [], queued_messages: [], has_more: false },
+			{ messages: [], has_more: false },
 			{ diffUrl: "https://github.com/coder/coder/pull/456" },
 		),
 		webSocket: {
@@ -945,7 +950,7 @@ export const SidebarWithSingleRepo: Story = {
 				title: "Single repo sidebar",
 				status: "completed",
 			},
-			{ messages: [], queued_messages: [], has_more: false },
+			{ messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
 		webSocket: {
@@ -1006,7 +1011,7 @@ export const StreamedReasoning: Story = {
 				title: "Streaming reasoning title",
 				status: "running",
 			},
-			{ messages: [], queued_messages: [], has_more: false },
+			{ messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
 		webSocket: {

@@ -1071,6 +1071,7 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		ModelConfigID: modelConfigID,
 		CreatedAt:     m.CreatedAt,
 		Role:          codersdk.ChatMessageRole(m.Role),
+		Queued:        m.Queued,
 	}
 	if m.Content.Valid {
 		parts, err := chatMessageParts(m)
@@ -1083,6 +1084,15 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		msg.Usage = usage
 	}
 	return msg
+}
+
+// ChatMessages converts a slice of database chat messages to their SDK representation.
+func ChatMessages(messages []database.ChatMessage) []codersdk.ChatMessage {
+	out := make([]codersdk.ChatMessage, 0, len(messages))
+	for _, m := range messages {
+		out = append(out, ChatMessage(m))
+	}
+	return out
 }
 
 // chatMessageUsage builds a ChatMessageUsage from the database row,
@@ -1111,40 +1121,6 @@ func chatMessageUsage(m database.ChatMessage) *codersdk.ChatMessageUsage {
 		CacheReadTokens:     cacheReadTokens,
 		ContextLimit:        contextLimit,
 	}
-}
-
-// ChatQueuedMessage converts a queued message to its SDK representation.
-func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMessage {
-	// Queued messages are always written by current code via
-	// MarshalParts, so they are always current content version.
-	parts, err := chatMessageParts(database.ChatMessage{
-		Role: database.ChatMessageRoleUser,
-		Content: pqtype.NullRawMessage{
-			RawMessage: message.Content,
-			Valid:      len(message.Content) > 0,
-		},
-		ContentVersion: chatprompt.CurrentContentVersion,
-	})
-	if err != nil {
-		parts = nil
-	}
-
-	return codersdk.ChatQueuedMessage{
-		ID:        message.ID,
-		ChatID:    message.ChatID,
-		Content:   parts,
-		CreatedAt: message.CreatedAt,
-	}
-}
-
-// ChatQueuedMessages converts a slice of database queued messages
-// to their SDK representation.
-func ChatQueuedMessages(messages []database.ChatQueuedMessage) []codersdk.ChatQueuedMessage {
-	out := make([]codersdk.ChatQueuedMessage, 0, len(messages))
-	for _, message := range messages {
-		out = append(out, ChatQueuedMessage(message))
-	}
-	return out
 }
 
 func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error) {

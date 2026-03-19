@@ -4227,6 +4227,7 @@ type ChatMessage struct {
 	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
 	RuntimeMs           sql.NullInt64         `db:"runtime_ms" json:"runtime_ms"`
 	Deleted             bool                  `db:"deleted" json:"deleted"`
+	Queued              bool                  `db:"queued" json:"queued"`
 }
 
 type ChatModelConfig struct {
@@ -4259,13 +4260,6 @@ type ChatProvider struct {
 	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 	BaseUrl     string         `db:"base_url" json:"base_url"`
-}
-
-type ChatQueuedMessage struct {
-	ID        int64           `db:"id" json:"id"`
-	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
-	Content   json.RawMessage `db:"content" json:"content"`
-	CreatedAt time.Time       `db:"created_at" json:"created_at"`
 }
 
 type ChatUsageLimitConfig struct {

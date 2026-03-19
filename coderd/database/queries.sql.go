@@ -3745,26 +3745,12 @@ func (q *sqlQuerier) CountEnabledModelsWithoutPricing(ctx context.Context) (int6
 	return count, err
 }
 
-const deleteAllChatQueuedMessages = `-- name: DeleteAllChatQueuedMessages :exec
-DELETE FROM chat_queued_messages WHERE chat_id = $1
+const deleteAllQueuedChatMessages = `-- name: DeleteAllQueuedChatMessages :exec
+DELETE FROM chat_messages WHERE chat_id = $1 AND queued = true
 `
 
-func (q *sqlQuerier) DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteAllChatQueuedMessages, chatID)
-	return err
-}
-
-const deleteChatQueuedMessage = `-- name: DeleteChatQueuedMessage :exec
-DELETE FROM chat_queued_messages WHERE id = $1 AND chat_id = $2
-`
-
-type DeleteChatQueuedMessageParams struct {
-	ID     int64     `db:"id" json:"id"`
-	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
-}
-
-func (q *sqlQuerier) DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error {
-	_, err := q.db.ExecContext(ctx, deleteChatQueuedMessage, arg.ID, arg.ChatID)
+func (q *sqlQuerier) DeleteAllQueuedChatMessages(ctx context.Context, chatID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteAllQueuedChatMessages, chatID)
 	return err
 }
 
@@ -3784,6 +3770,23 @@ UPDATE users SET chat_spend_limit_micros = NULL WHERE id = $1::uuid
 func (q *sqlQuerier) DeleteChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteChatUsageLimitUserOverride, userID)
 	return err
+}
+
+const deleteQueuedChatMessage = `-- name: DeleteQueuedChatMessage :execrows
+DELETE FROM chat_messages WHERE id = $1 AND chat_id = $2 AND queued = true
+`
+
+type DeleteQueuedChatMessageParams struct {
+	ID     int64     `db:"id" json:"id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+func (q *sqlQuerier) DeleteQueuedChatMessage(ctx context.Context, arg DeleteQueuedChatMessageParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteQueuedChatMessage, arg.ID, arg.ChatID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getChatByID = `-- name: GetChatByID :one
@@ -4322,12 +4325,13 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds [
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, queued
 FROM
     chat_messages
 WHERE
     id = $1::bigint
     AND deleted = false
+    AND queued = false
 `
 
 func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error) {
@@ -4354,13 +4358,14 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 		&i.TotalCostMicros,
 		&i.RuntimeMs,
 		&i.Deleted,
+		&i.Queued,
 	)
 	return i, err
 }
 
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, queued
 FROM
     chat_messages
 WHERE
@@ -4368,6 +4373,7 @@ WHERE
     AND id > $2::bigint
     AND visibility IN ('user', 'both')
     AND deleted = false
+    AND queued = false
 ORDER BY
     created_at ASC
 `
@@ -4407,6 +4413,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 			&i.TotalCostMicros,
 			&i.RuntimeMs,
 			&i.Deleted,
+			&i.Queued,
 		); err != nil {
 			return nil, err
 		}
@@ -4423,7 +4430,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 
 const getChatMessagesByChatIDDescPaginated = `-- name: GetChatMessagesByChatIDDescPaginated :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, queued
 FROM
     chat_messages
 WHERE
@@ -4434,6 +4441,7 @@ WHERE
     END
     AND visibility IN ('user', 'both')
     AND deleted = false
+    AND queued = false
 ORDER BY
     id DESC
 LIMIT
@@ -4476,6 +4484,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, a
 			&i.TotalCostMicros,
 			&i.RuntimeMs,
 			&i.Deleted,
+			&i.Queued,
 		); err != nil {
 			return nil, err
 		}
@@ -4508,13 +4517,14 @@ WITH latest_compressed_summary AS (
         1
 )
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, queued
 FROM
     chat_messages
 WHERE
     chat_id = $1::uuid
     AND visibility IN ('model', 'both')
     AND deleted = false
+    AND queued = false
     AND (
         (
             role = 'system'
@@ -4579,40 +4589,7 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 			&i.TotalCostMicros,
 			&i.RuntimeMs,
 			&i.Deleted,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getChatQueuedMessages = `-- name: GetChatQueuedMessages :many
-SELECT id, chat_id, content, created_at FROM chat_queued_messages
-WHERE chat_id = $1
-ORDER BY id ASC
-`
-
-func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error) {
-	rows, err := q.db.QueryContext(ctx, getChatQueuedMessages, chatID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ChatQueuedMessage
-	for rows.Next() {
-		var i ChatQueuedMessage
-		if err := rows.Scan(
-			&i.ID,
-			&i.ChatID,
-			&i.Content,
-			&i.CreatedAt,
+			&i.Queued,
 		); err != nil {
 			return nil, err
 		}
@@ -4784,13 +4761,14 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]Chat, 
 
 const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, queued
 FROM
     chat_messages
 WHERE
     chat_id = $1::uuid
     AND role = $2::chat_message_role
     AND deleted = false
+    AND queued = false
 ORDER BY
     created_at DESC, id DESC
 LIMIT
@@ -4826,8 +4804,60 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 		&i.TotalCostMicros,
 		&i.RuntimeMs,
 		&i.Deleted,
+		&i.Queued,
 	)
 	return i, err
+}
+
+const getQueuedChatMessages = `-- name: GetQueuedChatMessages :many
+SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, queued FROM chat_messages
+WHERE chat_id = $1 AND queued = true AND deleted = false
+ORDER BY id ASC
+`
+
+func (q *sqlQuerier) GetQueuedChatMessages(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error) {
+	rows, err := q.db.QueryContext(ctx, getQueuedChatMessages, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMessage
+	for rows.Next() {
+		var i ChatMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.ModelConfigID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+			&i.Visibility,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ReasoningTokens,
+			&i.CacheCreationTokens,
+			&i.CacheReadTokens,
+			&i.ContextLimit,
+			&i.Compressed,
+			&i.CreatedBy,
+			&i.ContentVersion,
+			&i.TotalCostMicros,
+			&i.RuntimeMs,
+			&i.Deleted,
+			&i.Queued,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getStaleChats = `-- name: GetStaleChats :many
@@ -5059,7 +5089,7 @@ SELECT
     NULLIF(UNNEST($16::bigint[]), 0),
     NULLIF(UNNEST($17::bigint[]), 0)
 RETURNING
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, queued
 `
 
 type InsertChatMessagesParams struct {
@@ -5130,6 +5160,7 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 			&i.TotalCostMicros,
 			&i.RuntimeMs,
 			&i.Deleted,
+			&i.Queued,
 		); err != nil {
 			return nil, err
 		}
@@ -5144,25 +5175,42 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 	return items, nil
 }
 
-const insertChatQueuedMessage = `-- name: InsertChatQueuedMessage :one
-INSERT INTO chat_queued_messages (chat_id, content)
-VALUES ($1, $2)
-RETURNING id, chat_id, content, created_at
+const insertQueuedChatMessage = `-- name: InsertQueuedChatMessage :one
+INSERT INTO chat_messages (chat_id, role, content, content_version, visibility, queued)
+VALUES ($1, 'user', $2, 1, 'both', true)
+RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, queued
 `
 
-type InsertChatQueuedMessageParams struct {
-	ChatID  uuid.UUID       `db:"chat_id" json:"chat_id"`
-	Content json.RawMessage `db:"content" json:"content"`
+type InsertQueuedChatMessageParams struct {
+	ChatID  uuid.UUID             `db:"chat_id" json:"chat_id"`
+	Content pqtype.NullRawMessage `db:"content" json:"content"`
 }
 
-func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChatQueuedMessageParams) (ChatQueuedMessage, error) {
-	row := q.db.QueryRowContext(ctx, insertChatQueuedMessage, arg.ChatID, arg.Content)
-	var i ChatQueuedMessage
+func (q *sqlQuerier) InsertQueuedChatMessage(ctx context.Context, arg InsertQueuedChatMessageParams) (ChatMessage, error) {
+	row := q.db.QueryRowContext(ctx, insertQueuedChatMessage, arg.ChatID, arg.Content)
+	var i ChatMessage
 	err := row.Scan(
 		&i.ID,
 		&i.ChatID,
-		&i.Content,
+		&i.ModelConfigID,
 		&i.CreatedAt,
+		&i.Role,
+		&i.Content,
+		&i.Visibility,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
+		&i.Compressed,
+		&i.CreatedBy,
+		&i.ContentVersion,
+		&i.TotalCostMicros,
+		&i.RuntimeMs,
+		&i.Deleted,
+		&i.Queued,
 	)
 	return i, err
 }
@@ -5267,25 +5315,128 @@ func (q *sqlQuerier) ListChatUsageLimitOverrides(ctx context.Context) ([]ListCha
 	return items, nil
 }
 
-const popNextQueuedMessage = `-- name: PopNextQueuedMessage :one
-DELETE FROM chat_queued_messages
-WHERE id = (
-    SELECT cqm.id FROM chat_queued_messages cqm
-    WHERE cqm.chat_id = $1
-    ORDER BY cqm.id ASC
-    LIMIT 1
+const promoteNextQueuedChatMessage = `-- name: PromoteNextQueuedChatMessage :one
+WITH removed AS (
+    DELETE FROM chat_messages
+    WHERE id = (
+        SELECT cm.id FROM chat_messages cm
+        WHERE cm.chat_id = $2 AND cm.queued = true AND cm.deleted = false
+        ORDER BY cm.id ASC
+        LIMIT 1
+    )
+    RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, queued
 )
-RETURNING id, chat_id, content, created_at
+INSERT INTO chat_messages (
+    chat_id, created_by, model_config_id, role, content,
+    content_version, visibility, queued
+)
+SELECT
+    removed.chat_id,
+    removed.created_by,
+    CASE WHEN $1::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+         THEN NULL ELSE $1::uuid END,
+    removed.role,
+    removed.content,
+    removed.content_version,
+    removed.visibility,
+    false
+FROM removed
+RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, queued
 `
 
-func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error) {
-	row := q.db.QueryRowContext(ctx, popNextQueuedMessage, chatID)
-	var i ChatQueuedMessage
+type PromoteNextQueuedChatMessageParams struct {
+	ModelConfigID uuid.UUID `db:"model_config_id" json:"model_config_id"`
+	ChatID        uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+// Promotes the oldest queued message into chat history.
+// Uses DELETE+INSERT (not UPDATE) so the message gets a new BIGSERIAL id,
+// ensuring it sorts AFTER any assistant reply already in the table.
+func (q *sqlQuerier) PromoteNextQueuedChatMessage(ctx context.Context, arg PromoteNextQueuedChatMessageParams) (ChatMessage, error) {
+	row := q.db.QueryRowContext(ctx, promoteNextQueuedChatMessage, arg.ModelConfigID, arg.ChatID)
+	var i ChatMessage
 	err := row.Scan(
 		&i.ID,
 		&i.ChatID,
-		&i.Content,
+		&i.ModelConfigID,
 		&i.CreatedAt,
+		&i.Role,
+		&i.Content,
+		&i.Visibility,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
+		&i.Compressed,
+		&i.CreatedBy,
+		&i.ContentVersion,
+		&i.TotalCostMicros,
+		&i.RuntimeMs,
+		&i.Deleted,
+		&i.Queued,
+	)
+	return i, err
+}
+
+const promoteQueuedChatMessageByID = `-- name: PromoteQueuedChatMessageByID :one
+WITH removed AS (
+    DELETE FROM chat_messages
+    WHERE id = $2 AND chat_id = $3 AND queued = true
+    RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, queued
+)
+INSERT INTO chat_messages (
+    chat_id, created_by, model_config_id, role, content,
+    content_version, visibility, queued
+)
+SELECT
+    removed.chat_id,
+    removed.created_by,
+    CASE WHEN $1::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+         THEN NULL ELSE $1::uuid END,
+    removed.role,
+    removed.content,
+    removed.content_version,
+    removed.visibility,
+    false
+FROM removed
+RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, queued
+`
+
+type PromoteQueuedChatMessageByIDParams struct {
+	ModelConfigID uuid.UUID `db:"model_config_id" json:"model_config_id"`
+	ID            int64     `db:"id" json:"id"`
+	ChatID        uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+// Same as PromoteNextQueuedChatMessage but for a specific message ID.
+func (q *sqlQuerier) PromoteQueuedChatMessageByID(ctx context.Context, arg PromoteQueuedChatMessageByIDParams) (ChatMessage, error) {
+	row := q.db.QueryRowContext(ctx, promoteQueuedChatMessageByID, arg.ModelConfigID, arg.ID, arg.ChatID)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.ModelConfigID,
+		&i.CreatedAt,
+		&i.Role,
+		&i.Content,
+		&i.Visibility,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
+		&i.Compressed,
+		&i.CreatedBy,
+		&i.ContentVersion,
+		&i.TotalCostMicros,
+		&i.RuntimeMs,
+		&i.Deleted,
+		&i.Queued,
 	)
 	return i, err
 }
@@ -5488,7 +5639,7 @@ SET
 WHERE
     id = $3::bigint
 RETURNING
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, queued
 `
 
 type UpdateChatMessageByIDParams struct {
@@ -5521,6 +5672,7 @@ func (q *sqlQuerier) UpdateChatMessageByID(ctx context.Context, arg UpdateChatMe
 		&i.TotalCostMicros,
 		&i.RuntimeMs,
 		&i.Deleted,
+		&i.Queued,
 	)
 	return i, err
 }

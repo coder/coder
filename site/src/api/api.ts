@@ -3059,19 +3059,19 @@ class ApiMethods {
 
 	deleteChatQueuedMessage = async (
 		chatId: string,
-		queuedMessageId: number,
+		messageId: number,
 	): Promise<void> => {
 		await this.axios.delete(
-			`/api/experimental/chats/${chatId}/queue/${queuedMessageId}`,
+			`/api/experimental/chats/${chatId}/messages/${messageId}`,
 		);
 	};
 
 	promoteChatQueuedMessage = async (
 		chatId: string,
-		queuedMessageId: number,
+		messageId: number,
 	): Promise<TypesGen.ChatMessage> => {
 		const response = await this.axios.post<TypesGen.ChatMessage>(
-			`/api/experimental/chats/${chatId}/queue/${queuedMessageId}/promote`,
+			`/api/experimental/chats/${chatId}/messages/${messageId}/promote`,
 		);
 		return response.data;
 	};

@@ -26,13 +26,15 @@ const makeQueuedMessage = (
 	id: number,
 	text: string,
 	chatID = "chat-1",
-): TypesGen.ChatQueuedMessage =>
+): TypesGen.ChatMessage =>
 	({
 		id,
 		chat_id: chatID,
 		created_at: "2025-01-01T00:00:00Z",
+		role: "user" as const,
+		queued: true,
 		content: [{ type: "text", text }],
-	}) as TypesGen.ChatQueuedMessage;
+	}) as TypesGen.ChatMessage;
 
 // ---------------------------------------------------------------------------
 // replaceMessages

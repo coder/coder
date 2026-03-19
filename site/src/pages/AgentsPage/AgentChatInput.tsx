@@ -1,4 +1,4 @@
-import type { ChatMessagePart, ChatQueuedMessage } from "api/typesGenerated";
+import type { ChatMessage, ChatMessagePart } from "api/typesGenerated";
 import {
 	ModelSelector,
 	type ModelSelectorOption,
@@ -88,7 +88,7 @@ interface AgentChatInputProps {
 	// selector on the create page).
 	leftActions?: ReactNode;
 	// Queued user messages rendered above the textarea.
-	queuedMessages?: readonly ChatQueuedMessage[];
+	queuedMessages?: readonly ChatMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
 	// Queue editing state, owned by the parent.

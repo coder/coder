@@ -1796,7 +1796,7 @@ func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) e
 	return q.db.DeleteAPIKeysByUserID(ctx, userID)
 }
 
-func (q *querier) DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.UUID) error {
+func (q *querier) DeleteAllQueuedChatMessages(ctx context.Context, chatID uuid.UUID) error {
 	chat, err := q.db.GetChatByID(ctx, chatID)
 	if err != nil {
 		return err
@@ -1804,7 +1804,7 @@ func (q *querier) DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.U
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
 		return err
 	}
-	return q.db.DeleteAllChatQueuedMessages(ctx, chatID)
+	return q.db.DeleteAllQueuedChatMessages(ctx, chatID)
 }
 
 func (q *querier) DeleteAllTailnetTunnels(ctx context.Context, arg database.DeleteAllTailnetTunnelsParams) error {
@@ -1843,17 +1843,6 @@ func (q *querier) DeleteChatProviderByID(ctx context.Context, id uuid.UUID) erro
 		return err
 	}
 	return q.db.DeleteChatProviderByID(ctx, id)
-}
-
-func (q *querier) DeleteChatQueuedMessage(ctx context.Context, arg database.DeleteChatQueuedMessageParams) error {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.DeleteChatQueuedMessage(ctx, arg)
 }
 
 func (q *querier) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error {
@@ -2072,6 +2061,17 @@ func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.Del
 
 func (q *querier) DeleteProvisionerKey(ctx context.Context, id uuid.UUID) error {
 	return deleteQ(q.log, q.auth, q.db.GetProvisionerKeyByID, q.db.DeleteProvisionerKey)(ctx, id)
+}
+
+func (q *querier) DeleteQueuedChatMessage(ctx context.Context, arg database.DeleteQueuedChatMessageParams) (int64, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteQueuedChatMessage(ctx, arg)
 }
 
 func (q *querier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error {
@@ -2630,14 +2630,6 @@ func (q *querier) GetChatProviders(ctx context.Context) ([]database.ChatProvider
 		return nil, err
 	}
 	return q.db.GetChatProviders(ctx)
-}
-
-func (q *querier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]database.ChatQueuedMessage, error) {
-	_, err := q.GetChatByID(ctx, chatID)
-	if err != nil {
-		return nil, err
-	}
-	return q.db.GetChatQueuedMessages(ctx, chatID)
 }
 
 func (q *querier) GetChatSystemPrompt(ctx context.Context) (string, error) {
@@ -3475,6 +3467,14 @@ func (q *querier) GetProvisionerLogsAfterID(ctx context.Context, arg database.Ge
 		return nil, err
 	}
 	return q.db.GetProvisionerLogsAfterID(ctx, arg)
+}
+
+func (q *querier) GetQueuedChatMessages(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
+	_, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetQueuedChatMessages(ctx, chatID)
 }
 
 func (q *querier) GetQuotaAllowanceForUser(ctx context.Context, params database.GetQuotaAllowanceForUserParams) (int64, error) {
@@ -4694,17 +4694,6 @@ func (q *querier) InsertChatProvider(ctx context.Context, arg database.InsertCha
 	return q.db.InsertChatProvider(ctx, arg)
 }
 
-func (q *querier) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return database.ChatQueuedMessage{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.ChatQueuedMessage{}, err
-	}
-	return q.db.InsertChatQueuedMessage(ctx, arg)
-}
-
 func (q *querier) InsertCryptoKey(ctx context.Context, arg database.InsertCryptoKeyParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -4925,6 +4914,17 @@ func (q *querier) InsertProvisionerJobTimings(ctx context.Context, arg database.
 
 func (q *querier) InsertProvisionerKey(ctx context.Context, arg database.InsertProvisionerKeyParams) (database.ProvisionerKey, error) {
 	return insert(q.log, q.auth, rbac.ResourceProvisionerDaemon.InOrg(arg.OrganizationID).WithID(arg.ID), q.db.InsertProvisionerKey)(ctx, arg)
+}
+
+func (q *querier) InsertQueuedChatMessage(ctx context.Context, arg database.InsertQueuedChatMessageParams) (database.ChatMessage, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatMessage{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatMessage{}, err
+	}
+	return q.db.InsertQueuedChatMessage(ctx, arg)
 }
 
 func (q *querier) InsertReplica(ctx context.Context, arg database.InsertReplicaParams) (database.Replica, error) {
@@ -5402,15 +5402,26 @@ func (q *querier) PaginatedOrganizationMembers(ctx context.Context, arg database
 	return q.db.PaginatedOrganizationMembers(ctx, arg)
 }
 
-func (q *querier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (database.ChatQueuedMessage, error) {
-	chat, err := q.db.GetChatByID(ctx, chatID)
+func (q *querier) PromoteNextQueuedChatMessage(ctx context.Context, arg database.PromoteNextQueuedChatMessageParams) (database.ChatMessage, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
-		return database.ChatQueuedMessage{}, err
+		return database.ChatMessage{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.ChatQueuedMessage{}, err
+		return database.ChatMessage{}, err
 	}
-	return q.db.PopNextQueuedMessage(ctx, chatID)
+	return q.db.PromoteNextQueuedChatMessage(ctx, arg)
+}
+
+func (q *querier) PromoteQueuedChatMessageByID(ctx context.Context, arg database.PromoteQueuedChatMessageByIDParams) (database.ChatMessage, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatMessage{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatMessage{}, err
+	}
+	return q.db.PromoteQueuedChatMessageByID(ctx, arg)
 }
 
 func (q *querier) ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error {

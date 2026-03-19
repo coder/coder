@@ -368,8 +368,8 @@ const AgentDetail: FC = () => {
 		return all;
 	}, [chatMessagesQuery.data]);
 
-	// Queued messages are only in the first page (most recent).
-	const chatQueuedMessages = chatMessagesQuery.data?.pages[0]?.queued_messages;
+	// Queued messages are in the regular messages array with queued: true.
+	const chatQueuedMessages = chatMessagesQuery.data?.pages[0]?.messages.filter(m => m.queued);
 
 	// Build a synthetic ChatMessagesResponse from the flattened
 	// data for backward compat with useChatStore.
@@ -378,10 +378,9 @@ const AgentDetail: FC = () => {
 			if (!chatMessagesList) return undefined;
 			return {
 				messages: chatMessagesList,
-				queued_messages: chatQueuedMessages ?? [],
 				has_more: chatMessagesQuery.data?.pages.at(-1)?.has_more ?? false,
 			};
-		}, [chatMessagesList, chatQueuedMessages, chatMessagesQuery.data]);
+		}, [chatMessagesList, chatMessagesQuery.data]);
 	const isArchived = chatRecord?.archived ?? false;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
