@@ -895,13 +895,12 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 										/>
 										{isLast && (
 											<div className="flex items-center justify-center py-4 text-xs text-content-secondary">
-												{sortedFiles.length}{" "}
-												{sortedFiles.length === 1 ? "file" : "files"} changed
+												{`${sortedFiles.length} ${sortedFiles.length === 1 ? "file" : "files"} changed`}
 											</div>
 										)}
 									</div>
 								);
-							})}{" "}
+							})}
 						</div>
 					</ScrollArea>
 				</div>
