@@ -149,4 +149,34 @@ describe("SmoothTextEngine", () => {
 		// approximately the same number of characters.
 		expect(Math.abs(at60Hz - at240Hz)).toBeLessThanOrEqual(2);
 	});
+
+	it("clamps dtMs to prevent charBudget inflation after long background pause", () => {
+		const setupEngine = () => {
+			const engine = new SmoothTextEngine();
+			engine.update(makeText(400), true, false);
+			for (let i = 0; i < 3; i++) {
+				engine.tick(16);
+			}
+			return engine;
+		};
+
+		const engineA = setupEngine();
+		const engineB = setupEngine();
+
+		const baselineA = engineA.visibleLength;
+		const baselineB = engineB.visibleLength;
+		expect(baselineA).toBe(baselineB);
+
+		// Simulate a 5-second RAF pause (browser backgrounded the tab).
+		engineA.tick(5000);
+		const revealedAfterLongPause = engineA.visibleLength - baselineA;
+
+		// Simulate a normal 100ms tick from the same starting state.
+		engineB.tick(100);
+		const revealedAfterNormalTick = engineB.visibleLength - baselineB;
+
+		// The dtMs clamp ensures a long pause does not inflate
+		// charBudget beyond what 100ms would produce.
+		expect(revealedAfterLongPause).toBe(revealedAfterNormalTick);
+	});
 });

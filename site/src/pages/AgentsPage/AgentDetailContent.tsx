@@ -10,6 +10,7 @@ import {
 	type UploadState,
 } from "./AgentChatInput";
 import {
+	selectCatchUpRenderPending,
 	selectChatStatus,
 	selectHasStreamState,
 	selectMessagesByID,
@@ -71,6 +72,10 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 		selectSubagentStatusOverrides,
 	);
 	const retryState = useChatSelector(store, selectRetryState);
+	const catchUpRenderPending = useChatSelector(
+		store,
+		selectCatchUpRenderPending,
+	);
 
 	const messages = useMemo(
 		() =>
@@ -124,6 +129,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 			editingMessageId={editingMessageId}
 			savingMessageId={savingMessageId}
 			urlTransform={urlTransform}
+			bypassSmoothing={catchUpRenderPending}
 		/>
 	);
 };

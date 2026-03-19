@@ -506,3 +506,134 @@ describe("subscribe", () => {
 		expect(countB).toBe(1);
 	});
 });
+
+// ---------------------------------------------------------------------------
+// beginBatch / endBatch / discardBatch
+// ---------------------------------------------------------------------------
+
+describe("beginBatch / endBatch / discardBatch", () => {
+	it("coalesces multiple mutations into a single subscriber notification", () => {
+		const store = createChatStore();
+		let callCount = 0;
+		store.subscribe(() => {
+			callCount += 1;
+		});
+
+		store.beginBatch();
+		store.setChatStatus("running");
+		store.setStreamError("oops");
+		store.setRetryState({ attempt: 1, error: "rate limited" });
+		store.endBatch();
+
+		expect(callCount).toBe(1);
+	});
+
+	it("emits nothing when no mutations occur inside batch", () => {
+		const store = createChatStore();
+		let callCount = 0;
+		store.subscribe(() => {
+			callCount += 1;
+		});
+
+		store.beginBatch();
+		store.endBatch();
+
+		expect(callCount).toBe(0);
+	});
+
+	it("does not suppress emit when not batching", () => {
+		const store = createChatStore();
+		let callCount = 0;
+		store.subscribe(() => {
+			callCount += 1;
+		});
+
+		store.setChatStatus("running");
+		store.setStreamError("oops");
+
+		expect(callCount).toBe(2);
+	});
+
+	it("handles nested beginBatch / endBatch correctly", () => {
+		const store = createChatStore();
+		let callCount = 0;
+		store.subscribe(() => {
+			callCount += 1;
+		});
+
+		store.beginBatch();
+		store.beginBatch();
+		store.setChatStatus("running");
+		store.endBatch(); // inner
+		expect(callCount).toBe(0);
+
+		store.endBatch(); // outer
+		expect(callCount).toBe(1);
+	});
+
+	it("discardBatch resets batch without emitting", () => {
+		const store = createChatStore();
+		let callCount = 0;
+		store.subscribe(() => {
+			callCount += 1;
+		});
+
+		store.beginBatch();
+		store.setChatStatus("running");
+		store.setStreamError("oops");
+		store.discardBatch();
+
+		// No subscriber notification from discardBatch.
+		expect(callCount).toBe(0);
+
+		// Store is no longer in batch mode — subsequent
+		// mutations emit normally.
+		store.setChatStatus("completed");
+		expect(callCount).toBe(1);
+
+		// Mutations from the discarded batch are still in state
+		// (discardBatch only suppresses the emit, it does not
+		// roll back state).
+		expect(store.getSnapshot().chatStatus).toBe("completed");
+		expect(store.getSnapshot().streamError).toBe("oops");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// setCatchUpRenderPending
+// ---------------------------------------------------------------------------
+
+describe("setCatchUpRenderPending", () => {
+	it("sets and clears the flag", () => {
+		const store = createChatStore();
+
+		store.setCatchUpRenderPending(true);
+		expect(store.getSnapshot().catchUpRenderPending).toBe(true);
+
+		store.setCatchUpRenderPending(false);
+		expect(store.getSnapshot().catchUpRenderPending).toBe(false);
+	});
+
+	it("no-ops when setting the same value", () => {
+		const store = createChatStore();
+		let callCount = 0;
+		store.subscribe(() => {
+			callCount += 1;
+		});
+
+		store.setCatchUpRenderPending(true);
+		expect(callCount).toBe(1);
+
+		store.setCatchUpRenderPending(true);
+		expect(callCount).toBe(1);
+	});
+
+	it("resetTransientState clears catchUpRenderPending", () => {
+		const store = createChatStore();
+		store.setCatchUpRenderPending(true);
+
+		store.resetTransientState();
+
+		expect(store.getSnapshot().catchUpRenderPending).toBe(false);
+	});
+});

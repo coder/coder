@@ -130,6 +130,10 @@ type ChatStoreState = {
 	retryState: { attempt: number; error: string } | null;
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
+	// True for exactly one render cycle after a catch-up batch is
+	// applied. Components use this to bypass smooth-text animation
+	// so the entire catch-up state appears instantly.
+	catchUpRenderPending: boolean;
 };
 
 type ChatStore = {
@@ -158,6 +162,10 @@ type ChatStore = {
 		status: TypesGen.ChatStatus,
 	) => void;
 	resetTransientState: () => void;
+	setCatchUpRenderPending: (pending: boolean) => void;
+	beginBatch: () => void;
+	endBatch: () => void;
+	discardBatch: () => void;
 };
 
 const createInitialState = (): ChatStoreState => ({
@@ -169,13 +177,23 @@ const createInitialState = (): ChatStoreState => ({
 	retryState: null,
 	queuedMessages: [],
 	subagentStatusOverrides: new Map(),
+	catchUpRenderPending: false,
 });
 
 export const createChatStore = (): ChatStore => {
 	let state = createInitialState();
 	const listeners = new Set<() => void>();
 
+	// Batch mechanism: while batchDepth > 0, emit() is deferred.
+	// endBatch() fires a single emit when depth returns to 0.
+	let batchDepth = 0;
+	let batchDirty = false;
+
 	const emit = (): void => {
+		if (batchDepth > 0) {
+			batchDirty = true;
+			return;
+		}
 		for (const listener of listeners) {
 			listener();
 		}
@@ -383,7 +401,8 @@ export const createChatStore = (): ChatStore => {
 				state.streamState === null &&
 				state.streamError === null &&
 				state.retryState === null &&
-				state.subagentStatusOverrides.size === 0
+				state.subagentStatusOverrides.size === 0 &&
+				!state.catchUpRenderPending
 			) {
 				return;
 			}
@@ -393,7 +412,36 @@ export const createChatStore = (): ChatStore => {
 				streamError: null,
 				retryState: null,
 				subagentStatusOverrides: new Map(),
+				catchUpRenderPending: false,
 			}));
+		},
+		setCatchUpRenderPending: (pending) => {
+			if (state.catchUpRenderPending === pending) {
+				return;
+			}
+			setState((current) => ({
+				...current,
+				catchUpRenderPending: pending,
+			}));
+		},
+		beginBatch: () => {
+			batchDepth++;
+		},
+		endBatch: () => {
+			batchDepth = Math.max(0, batchDepth - 1);
+			if (batchDepth === 0 && batchDirty) {
+				batchDirty = false;
+				for (const listener of listeners) {
+					listener();
+				}
+			}
+		},
+		// Reset batch state without emitting. Used during
+		// cleanup to discard buffered mutations rather than
+		// publishing stale data from a previous chat.
+		discardBatch: () => {
+			batchDepth = 0;
+			batchDirty = false;
 		},
 	};
 };
@@ -421,6 +469,8 @@ export const selectQueuedMessages = (state: ChatStoreState) =>
 export const selectSubagentStatusOverrides = (state: ChatStoreState) =>
 	state.subagentStatusOverrides;
 export const selectRetryState = (state: ChatStoreState) => state.retryState;
+export const selectCatchUpRenderPending = (state: ChatStoreState) =>
+	state.catchUpRenderPending;
 
 export const useChatStore = (
 	options: UseChatStoreOptions,
@@ -497,6 +547,11 @@ export const useChatStore = (
 			});
 		},
 		[chatID, queryClient],
+	);
+
+	const hasScheduledStreamReset = useCallback(
+		() => streamResetFrameRef.current !== null,
+		[],
 	);
 
 	const cancelScheduledStreamReset = useCallback(() => {
@@ -641,6 +696,96 @@ export const useChatStore = (
 		// outside the utility) can bail out after cleanup.
 		let disposed = false;
 
+		// --- Catch-up state ---
+		// When the tab was hidden and becomes visible, we open a
+		// store batch (beginBatch) that suppresses emit. Each
+		// handleMessage call mutates the store normally but no
+		// React re-renders happen. When the browser's WS message
+		// queue drains (setTimeout(0) fires), we end the batch,
+		// producing a single atomic render.
+		let wasHidden = document.hidden;
+		let catchingUp = false;
+		// Tracks whether a completed durable message needs to
+		// clear stream state before the next message_part. Used
+		// during catch-up instead of the RAF-based
+		// scheduleStreamReset, which can't fire inside a batch.
+		let catchUpPendingReset = false;
+		let drainTimer: ReturnType<typeof setTimeout> | null = null;
+		let catchUpRenderFrameId: number | null = null;
+
+		const cancelDrainTimer = () => {
+			if (drainTimer !== null) {
+				clearTimeout(drainTimer);
+				drainTimer = null;
+			}
+		};
+
+		// Ends the catch-up batch after the browser's WS message
+		// queue has drained. Resolves any trailing stream reset
+		// and emits exactly once via endBatch.
+		const endCatchUp = () => {
+			drainTimer = null;
+			if (!catchingUp || disposed) {
+				return;
+			}
+			// If the tab was re-hidden before the drain fires, keep
+			// the batch open. The next visibility change will retry.
+			if (document.hidden) {
+				return;
+			}
+			catchingUp = false;
+
+			// Resolve any trailing reset from a completed durable
+			// message that had no subsequent parts.
+			if (catchUpPendingReset) {
+				store.clearStreamState();
+				catchUpPendingReset = false;
+			}
+
+			// Signal components to bypass smooth-text animation
+			// for this render. Cleared after the browser paints.
+			store.setCatchUpRenderPending(true);
+			store.endBatch();
+
+			// Clear the bypass flag after the browser paints the
+			// catch-up frame so subsequent live events animate
+			// normally.
+			catchUpRenderFrameId = window.requestAnimationFrame(() => {
+				catchUpRenderFrameId = null;
+				store.setCatchUpRenderPending(false);
+			});
+		};
+
+		const onVisibilityChange = () => {
+			if (document.hidden) {
+				wasHidden = true;
+				return;
+			}
+			if (!wasHidden) {
+				return;
+			}
+			wasHidden = false;
+			// Cancel any pre-existing stream reset RAF that was
+			// paused while the tab was hidden. Without this, the
+			// RAF fires after catch-up and wipes stream state.
+			if (!catchingUp) {
+				catchingUp = true;
+				catchUpPendingReset = false;
+				store.beginBatch();
+			}
+			// Transfer intent from cancelled RAF to catch-up flag.
+			if (hasScheduledStreamReset()) {
+				catchUpPendingReset = true;
+			}
+			cancelScheduledStreamReset();
+			// Schedule an immediate drain in case no WS messages
+			// are queued (e.g. short background, nothing happened).
+			cancelDrainTimer();
+			drainTimer = setTimeout(endCatchUp, 0);
+		};
+
+		document.addEventListener("visibilitychange", onVisibilityChange);
+
 		const handleMessage = (
 			payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
 		) => {
@@ -660,6 +805,14 @@ export const useChatStore = (
 				return;
 			}
 
+			// During catch-up, reset the drain timer on each
+			// message so that endCatchUp fires only once the
+			// browser's queued WS messages have all been delivered.
+			if (catchingUp) {
+				cancelDrainTimer();
+				drainTimer = setTimeout(endCatchUp, 0);
+			}
+
 			const shouldApplyMessagePart = (): boolean => {
 				const currentStatus = store.getSnapshot().chatStatus;
 				return currentStatus !== "pending" && currentStatus !== "waiting";
@@ -670,21 +823,32 @@ export const useChatStore = (
 				if (pendingMessageParts.length === 0) {
 					return;
 				}
-				cancelScheduledStreamReset();
 				const parts = pendingMessageParts.splice(0, pendingMessageParts.length);
-				const currentChatID = chatID;
-				startTransition(() => {
-					if (activeChatIDRef.current !== currentChatID) {
-						return;
-					}
-					// Re-check status at execution time. A status
-					// event processed between scheduling and running
-					// this callback may have cleared stream state.
-					if (!shouldApplyMessagePart()) {
-						return;
+				if (catchingUp) {
+					// During catch-up: resolve any pending reset from
+					// a completed turn before applying the next turn's
+					// parts, then apply synchronously (no transition).
+					if (catchUpPendingReset) {
+						store.clearStreamState();
+						catchUpPendingReset = false;
 					}
 					store.applyMessageParts(parts);
-				});
+				} else {
+					cancelScheduledStreamReset();
+					const currentChatID = chatID;
+					startTransition(() => {
+						if (activeChatIDRef.current !== currentChatID) {
+							return;
+						}
+						// Re-check status at execution time. A status
+						// event processed between scheduling and running
+						// this callback may have cleared stream state.
+						if (!shouldApplyMessagePart()) {
+							return;
+						}
+						store.applyMessageParts(parts);
+					});
+				}
 			};
 
 			for (const streamEvent of streamEvents) {
@@ -697,7 +861,9 @@ export const useChatStore = (
 					}
 					const part = streamEvent.message_part?.part;
 					if (part) {
-						cancelScheduledStreamReset();
+						if (!catchingUp) {
+							cancelScheduledStreamReset();
+						}
 						pendingMessageParts.push(part);
 					}
 					continue;
@@ -726,7 +892,11 @@ export const useChatStore = (
 							lastMessageIdRef.current = message.id;
 						}
 						if (changed && message.role === "assistant") {
-							scheduleStreamReset();
+							if (catchingUp) {
+								catchUpPendingReset = true;
+							} else {
+								scheduleStreamReset();
+							}
 						}
 						// Do not update updated_at here. The global
 						// chat-list WebSocket delivers the authoritative
@@ -758,6 +928,7 @@ export const useChatStore = (
 						if (nextStatus === "pending" || nextStatus === "waiting") {
 							store.clearStreamState();
 							store.clearRetryState();
+							catchUpPendingReset = false;
 						}
 						if (nextStatus === "running") {
 							store.clearRetryState();
@@ -797,6 +968,7 @@ export const useChatStore = (
 						const retry = streamEvent.retry;
 						if (retry) {
 							store.clearStreamState();
+							catchUpPendingReset = false;
 							store.setRetryState({
 								attempt: retry.attempt,
 								error: retry.error,
@@ -827,6 +999,7 @@ export const useChatStore = (
 				// from a clean slate to avoid duplicating text.
 				store.clearStreamError();
 				store.clearStreamState();
+				catchUpPendingReset = false;
 			},
 			onDisconnect(attempt) {
 				// Show the error only on the first disconnect (not
@@ -848,12 +1021,22 @@ export const useChatStore = (
 			disposed = true;
 			disposeSocket();
 			cancelScheduledStreamReset();
+			cancelDrainTimer();
+			if (catchUpRenderFrameId !== null) {
+				window.cancelAnimationFrame(catchUpRenderFrameId);
+				store.setCatchUpRenderPending(false);
+			}
+			if (catchingUp) {
+				store.discardBatch();
+			}
+			document.removeEventListener("visibilitychange", onVisibilityChange);
 			activeChatIDRef.current = null;
 		};
 	}, [
 		cancelScheduledStreamReset,
 		chatID,
 		clearChatErrorReason,
+		hasScheduledStreamReset,
 		initialDataLoaded,
 		scheduleStreamReset,
 		setChatErrorReason,
@@ -861,7 +1044,6 @@ export const useChatStore = (
 		updateChatQueuedMessages,
 		updateSidebarChat,
 	]);
-
 	return {
 		store,
 		clearStreamError: useCallback(() => {
