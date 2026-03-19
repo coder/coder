@@ -1,9 +1,9 @@
 import { getErrorDetail, getErrorMessage } from "api/errors";
-import { authMethods, createUser } from "api/queries/users";
+import { user } from "api/queries/users";
 import { Margins } from "components/Margins/Margins";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useQuery } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
@@ -11,14 +11,11 @@ import { EditUserForm } from "./EditUserForm";
 
 const EditUserPage: FC = () => {
 	const navigate = useNavigate();
-	const queryClient = useQueryClient();
-	const createUserMutation = useMutation(createUser(queryClient));
-	const authMethodsQuery = useQuery(authMethods());
-	const { showOrganizations } = useDashboard();
+	const userQuery = useQuery(user());
 
 	return (
 		<Margins>
-			<title>{pageTitle("Create User")}</title>
+			<title>{pageTitle("Edit User")}</title>
 
 			<EditUserForm
 				error={createUserMutation.error}
