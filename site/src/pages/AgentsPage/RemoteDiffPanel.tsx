@@ -32,6 +32,11 @@ import type { ChatMessageInputRef } from "./AgentChatInput";
 import { DiffStatBadge } from "./DiffStats";
 import type { DiffStyle } from "./DiffViewer";
 import { DiffViewer } from "./DiffViewer";
+import {
+	annotationSideForBox,
+	commentBoxFromRange,
+	selectedLinesForBox,
+} from "./diffCommentSelection";
 import { parsePullRequestUrl } from "./pullRequest";
 
 // -------------------------------------------------------------------
@@ -263,6 +268,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 		startLine: number;
 		endLine: number;
 		side: "additions" | "deletions";
+		endSide?: "additions" | "deletions";
 	} | null>(null);
 
 	// ---------------------------------------------------------------
@@ -334,20 +340,12 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 				start: number;
 				end: number;
 				side?: "additions" | "deletions";
+				endSide?: "additions" | "deletions";
 			} | null,
 		) => {
-			if (!range) {
-				setActiveCommentBox(null);
-				return;
-			}
-			if (range.start === range.end) return;
-			const side = range.side ?? "additions";
-			setActiveCommentBox({
-				fileName,
-				startLine: Math.min(range.start, range.end),
-				endLine: Math.max(range.start, range.end),
-				side,
-			});
+			const result = commentBoxFromRange(fileName, range);
+			if (result === "ignore") return;
+			setActiveCommentBox(result);
 		},
 		[],
 	);
@@ -360,7 +358,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 			if (activeCommentBox && activeCommentBox.fileName === fileName) {
 				return [
 					{
-						side: activeCommentBox.side,
+						side: annotationSideForBox(activeCommentBox),
 						lineNumber: activeCommentBox.endLine,
 						metadata: "active-input",
 					},
@@ -374,11 +372,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	const getSelectedLines = useCallback(
 		(fileName: string): SelectedLineRange | null => {
 			if (activeCommentBox && activeCommentBox.fileName === fileName) {
-				return {
-					start: activeCommentBox.startLine,
-					end: activeCommentBox.endLine,
-					side: activeCommentBox.side,
-				};
+				return selectedLinesForBox(activeCommentBox);
 			}
 			return null;
 		},

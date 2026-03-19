@@ -1,7 +1,7 @@
 import type { DiffLineAnnotation, SelectedLineRange } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, waitFor } from "storybook/test";
 import type { DiffStyle } from "./DiffViewer";
 import { DiffViewer } from "./DiffViewer";
 import { InlinePromptInput } from "./RemoteDiffPanel";
@@ -149,4 +149,82 @@ export const WithAnnotation: Story = {
 			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
 		),
 	},
+};
+
+// Diff with a change block (both deletions and additions) for
+// testing cross-side selection in split view.
+// biome-ignore format: raw diff string must preserve exact whitespace
+const changeDiff = [
+"diff --git a/src/config.ts b/src/config.ts",
+"index abc1234..def5678 100644",
+"--- a/src/config.ts",
+"+++ b/src/config.ts",
+"@@ -1,5 +1,5 @@",
+" const config = {",
+"-  port: 3000,",
+"-  host: \"localhost\",",
+"+  port: 8080,",
+"+  host: \"0.0.0.0\",",
+"   debug: false,",
+" };",
+].join("\n");
+const changeFiles = parsePatchFiles(changeDiff).flatMap((p) => p.files);
+const changeFileName = changeFiles[0]?.name ?? "";
+
+// Regression test: in split view, selecting from one side to the
+// other can produce a range where start === end numerically but
+// the sides differ (e.g. deletions line 2 → additions line 2).
+// Previously this was incorrectly treated as a single-line click
+// and the annotation was never shown.
+export const CrossSideAnnotation: Story = {
+	args: {
+		parsedFiles: changeFiles,
+		diffStyle: "split",
+		getSelectedLines: (fileName: string): SelectedLineRange | null => {
+			if (fileName === changeFileName) {
+				return {
+					start: 2,
+					end: 2,
+					side: "deletions",
+					endSide: "additions",
+				};
+			}
+			return null;
+		},
+		getLineAnnotations: (
+			fileName: string,
+		): DiffLineAnnotation<string>[] => {
+			if (fileName === changeFileName) {
+				return [
+					{
+						lineNumber: 2,
+						side: "additions",
+						metadata: "active-input",
+					},
+				];
+			}
+			return [];
+		},
+		renderAnnotation: () => (
+			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
+		),
+	},
+	play: async ({ canvasElement }) => {
+		// The annotation renders via a slot in the light DOM of the
+		// web component, so we can find the textarea directly.
+		await waitFor(() => {
+			const textarea = canvasElement.querySelector("textarea");
+			expect(textarea).not.toBeNull();
+		});
+	},
+};
+
+// Same regression scenario in unified view to ensure the
+// annotation also renders when diffStyle is "unified".
+export const CrossSideAnnotationUnified: Story = {
+	args: {
+		...CrossSideAnnotation.args,
+		diffStyle: "unified",
+	},
+	play: CrossSideAnnotation.play,
 };

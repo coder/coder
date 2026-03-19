@@ -66,6 +66,7 @@ interface DiffViewerProps {
 			start: number;
 			end: number;
 			side?: "additions" | "deletions";
+			endSide?: "additions" | "deletions";
 		} | null,
 	) => void;
 	/**
@@ -577,6 +578,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 							start: number;
 							end: number;
 							side?: "additions" | "deletions";
+							endSide?: "additions" | "deletions";
 						} | null,
 					) => onLineSelected(fileName, range)
 				: () => {
