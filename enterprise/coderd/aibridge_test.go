@@ -54,18 +54,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 	t.Run("EmptyDB", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, _ := coderdenttest.New(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 		//nolint:gocritic // Owner role is irrelevant here.
 		res, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
@@ -75,18 +64,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		user1, err := client.User(ctx, codersdk.Me)
@@ -194,18 +172,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 	t.Run("Pagination", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		allInterceptionIDs := make([]uuid.UUID, 0, 20)
@@ -310,18 +277,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 	t.Run("InflightInterceptions", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		now := dbtime.Now()
@@ -344,18 +300,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 	t.Run("Authorized", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		adminClient, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		adminClient, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		secondUserClient, secondUser := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -390,18 +335,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 	t.Run("Filter", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		user1, err := client.User(ctx, codersdk.Me)
@@ -588,18 +522,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 	t.Run("FilterErrors", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, _ := coderdenttest.New(t, aibridgeOpts(t))
 
 		// No need to insert any test data, we're just testing the filter
 		// errors.
@@ -1414,18 +1337,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		ownerClient, firstUser := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		ownerClient, firstUser := coderdenttest.New(t, aibridgeOpts(t))
 		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1437,18 +1349,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 
 	t.Run("LookupByClientSessionID", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		now := dbtime.Now()
@@ -1471,18 +1372,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 
 	t.Run("LookupByUUIDClientSessionID", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Use a UUID as the client_session_id. The handler must
@@ -1506,18 +1396,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 
 	t.Run("LookupByInterceptionUUID", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		now := dbtime.Now()
@@ -1538,18 +1417,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 
 	t.Run("ThreadsWithAgenticActions", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		now := dbtime.Now()
@@ -1672,18 +1540,7 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 
 	t.Run("MultiThreadPagination", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		now := dbtime.Now()
@@ -1735,22 +1592,37 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", threadIDs[0], uuid.Nil, 1)
 		require.NoError(t, err)
 		require.Empty(t, res.Threads)
+
+		// before_id filters to threads newer than the given ID.
+		// Results are still ordered DESC, so limit matters.
+		// before_id=oldest → returns both newer threads, DESC.
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, threadIDs[0], 0)
+		require.NoError(t, err)
+		require.Len(t, res.Threads, 2)
+		require.Equal(t, threadIDs[2], res.Threads[0].ID)
+		require.Equal(t, threadIDs[1], res.Threads[1].ID)
+
+		// before_id=middle → returns only the newest thread.
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, threadIDs[1], 0)
+		require.NoError(t, err)
+		require.Len(t, res.Threads, 1)
+		require.Equal(t, threadIDs[2], res.Threads[0].ID)
+
+		// before_id=newest → no newer threads exist.
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, threadIDs[2], 0)
+		require.NoError(t, err)
+		require.Empty(t, res.Threads)
+
+		// Combining after_id and before_id is rejected.
+		_, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", threadIDs[2], threadIDs[0], 0)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
 
 	t.Run("Authorization", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		ownerClient, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		ownerClient, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
