@@ -139,6 +139,7 @@ export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 			});
 		},
 		refetchOnWindowFocus: true as const,
+		retry: 3,
 	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
 };
 
