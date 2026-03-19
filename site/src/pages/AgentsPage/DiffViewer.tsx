@@ -114,6 +114,10 @@ const STICKY_HEADER_CSS = [
 	"  background-color: hsl(var(--surface-secondary)) !important;",
 	"}",
 	"[data-diffs-header] [data-metadata] { flex-direction: row-reverse; }",
+	// Hide the library's built-in change-type SVG icons. They
+	// clash with Coder's Lucide icon set and the information is
+	// already conveyed by the file tree badges and diff content.
+	"[data-change-icon] { display: none !important; }",
 ].join(" ");
 
 export type DiffStyle = "unified" | "split";
