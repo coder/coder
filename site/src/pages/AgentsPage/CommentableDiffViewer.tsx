@@ -17,8 +17,10 @@ import type { ChatMessageInputRef } from "./AgentChatInput";
 import type { DiffStyle } from "./DiffViewer";
 import { DiffViewer } from "./DiffViewer";
 import {
+	annotationLineForBox,
 	annotationSideForBox,
 	commentBoxFromRange,
+	contentRangeForBox,
 	selectedLinesForBox,
 } from "./diffCommentSelection";
 
@@ -213,10 +215,10 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 	// ---------------------------------------------------------------
 	const [activeCommentBox, setActiveCommentBox] = useState<{
 		fileName: string;
-		startLine: number;
-		endLine: number;
-		side: "additions" | "deletions";
-		endSide?: "additions" | "deletions";
+		start: number;
+		startSide: "additions" | "deletions";
+		end: number;
+		endSide: "additions" | "deletions";
 	} | null>(null);
 
 	// ---------------------------------------------------------------
@@ -232,9 +234,10 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 		) => {
 			setActiveCommentBox({
 				fileName,
-				startLine: props.lineNumber,
-				endLine: props.lineNumber,
-				side: props.annotationSide,
+				start: props.lineNumber,
+				startSide: props.annotationSide,
+				end: props.lineNumber,
+				endSide: props.annotationSide,
 			});
 		},
 		[],
@@ -266,7 +269,7 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 				return [
 					{
 						side: annotationSideForBox(activeCommentBox),
-						lineNumber: activeCommentBox.endLine,
+						lineNumber: annotationLineForBox(activeCommentBox),
 						metadata: "active-input",
 					},
 				];
@@ -293,19 +296,20 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 	const handleSubmitComment = useCallback(
 		(text: string) => {
 			if (!activeCommentBox) return;
+			const { startLine, endLine, side } = contentRangeForBox(activeCommentBox);
 			const content = extractDiffContent(
 				parsedFiles,
 				activeCommentBox.fileName,
-				activeCommentBox.startLine,
-				activeCommentBox.endLine,
-				activeCommentBox.side,
+				startLine,
+				endLine,
+				side,
 			);
 			// Single imperative call -- chip inserted atomically
 			// in one Lexical update. No rAF hack needed.
 			chatInputRef?.current?.addFileReference({
 				fileName: activeCommentBox.fileName,
-				startLine: activeCommentBox.startLine,
-				endLine: activeCommentBox.endLine,
+				startLine,
+				endLine,
 				content,
 			});
 			if (text.trim()) {
