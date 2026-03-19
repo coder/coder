@@ -1299,7 +1299,8 @@ WITH session_interceptions AS (
 	FROM
 		aibridge_interceptions
 	WHERE
-		aibridge_interceptions.ended_at IS NOT NULL
+		aibridge_interceptions.session_id = $1::text
+		AND aibridge_interceptions.ended_at IS NOT NULL
 		-- Authorize Filter clause will be injected below
 		-- @authorize_filter
 ),
@@ -1309,8 +1310,6 @@ thread_roots AS (
 		MIN(si.started_at) AS started_at
 	FROM
 		session_interceptions si
-	WHERE
-		si.session_id = $1::text
 	GROUP BY
 		si.thread_id
 ),
@@ -1352,7 +1351,8 @@ FROM
 JOIN
 	visible_users ON visible_users.id = aibridge_interceptions.initiator_id
 WHERE
-	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) IN (SELECT thread_id FROM paginated_threads)
+	aibridge_interceptions.session_id = $1::text
+	AND COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) IN (SELECT thread_id FROM paginated_threads)
 	AND aibridge_interceptions.ended_at IS NOT NULL
 ORDER BY
 	aibridge_interceptions.started_at ASC,
