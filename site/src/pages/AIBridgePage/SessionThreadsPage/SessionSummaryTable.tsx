@@ -106,7 +106,7 @@ export const SessionSummaryTable = ({
 				<span className="pr-4 whitespace-nowrap">Provider</span>
 				<div className="flex flex-col items-end gap-1">
 					{providers.map((p) => (
-						<Badge key={p}>
+						<Badge key={p} className="gap-1.5 max-w-full">
 							<AIBridgeProviderIcon
 								provider={getProviderIconName(p)}
 								className="size-icon-xs"
