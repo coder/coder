@@ -170,14 +170,21 @@ func TestConfigCache_ModelConfigByID_ClonesOptionsForCache(t *testing.T) {
 	}
 	cache := newChatConfigCache(store, clock)
 
+	// First call populates cache via singleflight.
 	first, err := cache.ModelConfigByID(ctx, configID)
 	require.NoError(t, err)
-	first.Options[0] = 'x'
+	first.Options[0] = 'x' // mutate singleflight return
 
+	// Second call is a cache hit.
 	second, err := cache.ModelConfigByID(ctx, configID)
 	require.NoError(t, err)
+	require.Equal(t, options, string(second.Options))
+	second.Options[0] = 'y' // mutate cache-hit return
 
-	require.Equal(t, []byte(options), []byte(second.Options))
+	// Third call is another cache hit — must be unaffected.
+	third, err := cache.ModelConfigByID(ctx, configID)
+	require.NoError(t, err)
+	require.Equal(t, options, string(third.Options))
 }
 
 func TestConfigCache_ModelConfigByID_NotFound(t *testing.T) {

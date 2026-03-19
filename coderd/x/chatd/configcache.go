@@ -16,10 +16,9 @@ import (
 )
 
 const (
-	chatConfigProvidersTTL          = 10 * time.Second
-	chatConfigModelConfigTTL        = 10 * time.Second
-	chatConfigDefaultModelConfigTTL = 10 * time.Second
-	chatConfigUserPromptTTL         = 5 * time.Second
+	chatConfigProvidersTTL   = 10 * time.Second
+	chatConfigModelConfigTTL = 10 * time.Second
+	chatConfigUserPromptTTL  = 5 * time.Second
 )
 
 type cachedProviders struct {
@@ -172,7 +171,7 @@ func (c *chatConfigCache) ModelConfigByID(ctx context.Context, id uuid.UUID) (da
 			return database.ChatModelConfig{}, err
 		}
 		c.storeModelConfig(id, generation, fetched)
-		return fetched, nil
+		return cloneModelConfig(fetched), nil
 	})
 	if err != nil {
 		return database.ChatModelConfig{}, err
@@ -189,7 +188,7 @@ func (c *chatConfigCache) cachedModelConfig(id uuid.UUID) (database.ChatModelCon
 		return database.ChatModelConfig{}, false
 	}
 	if c.clock.Now().Before(entry.expiresAt) {
-		return entry.config, true
+		return cloneModelConfig(entry.config), true
 	}
 
 	c.mu.Lock()
@@ -238,7 +237,7 @@ func (c *chatConfigCache) DefaultModelConfig(ctx context.Context) (database.Chat
 			return database.ChatModelConfig{}, err
 		}
 		c.storeDefaultModelConfig(generation, fetched)
-		return fetched, nil
+		return cloneModelConfig(fetched), nil
 	})
 	if err != nil {
 		return database.ChatModelConfig{}, err
@@ -255,7 +254,7 @@ func (c *chatConfigCache) cachedDefaultModelConfig() (database.ChatModelConfig, 
 		return database.ChatModelConfig{}, false
 	}
 	if c.clock.Now().Before(entry.expiresAt) {
-		return entry.config, true
+		return cloneModelConfig(entry.config), true
 	}
 
 	c.mu.Lock()
@@ -284,7 +283,7 @@ func (c *chatConfigCache) storeDefaultModelConfig(generation uint64, config data
 
 	c.defaultModelConfig = &cachedModelConfig{
 		config:    cloneModelConfig(config),
-		expiresAt: c.clock.Now().Add(chatConfigDefaultModelConfigTTL),
+		expiresAt: c.clock.Now().Add(chatConfigModelConfigTTL),
 	}
 }
 
