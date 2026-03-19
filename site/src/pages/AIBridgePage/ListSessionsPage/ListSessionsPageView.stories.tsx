@@ -1,5 +1,6 @@
 import { MockSession } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { fn } from "storybook/test";
 import {
 	getDefaultFilterProps,
 	MockMenu,
@@ -26,12 +27,17 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 	},
 });
 
-const sessions = [MockSession];
-
 const meta: Meta<typeof ListSessionsPageView> = {
 	title: "pages/AIBridgePage/ListSessionsPageView",
 	component: ListSessionsPageView,
-	args: {},
+	args: {
+		isLoading: false,
+		isAISessionsEntitled: true,
+		isAISessionsEnabled: true,
+		filterProps: defaultFilterProps,
+		sessionsQuery: mockSuccessResult,
+		onSessionRowClick: fn(),
+	},
 };
 
 export default meta;
@@ -51,39 +57,43 @@ export const NotEnabled: Story = {
 	},
 };
 
-export const Loaded: Story = {
+export const Loading: Story = {
 	args: {
-		isAISessionsEntitled: true,
-		isAISessionsEnabled: true,
-		sessions,
-		filterProps: {
-			...defaultFilterProps,
-		},
-		sessionsQuery: mockSuccessResult,
+		isLoading: true,
+		sessions: undefined,
+		sessionsQuery: mockInitialRenderResult,
 	},
 };
 
 export const Empty: Story = {
 	args: {
-		isAISessionsEntitled: true,
-		isAISessionsEnabled: true,
 		sessions: [],
-		filterProps: {
-			...defaultFilterProps,
-		},
-		sessionsQuery: mockSuccessResult,
 	},
 };
 
-export const Loading: Story = {
+export const Loaded: Story = {
 	args: {
-		isLoading: true,
-		isAISessionsEntitled: true,
-		isAISessionsEnabled: true,
-		sessions: [],
-		filterProps: {
-			...defaultFilterProps,
-		},
-		sessionsQuery: mockInitialRenderResult,
+		sessions: [MockSession],
+	},
+};
+
+export const MultipleSessions: Story = {
+	args: {
+		sessions: Array.from({ length: 5 }, (_, i) => ({
+			...MockSession,
+			id: `session-${i}`,
+			threads: i + 1,
+			last_prompt: [
+				"But *can* I really fix it?",
+				"Can you refactor the entire authentication module to use JWT tokens instead of session cookies?",
+				"What's the best way to handle errors in Go?",
+				"Help me write a Terraform module for a Kubernetes cluster.",
+				"Explain how the agentic loop works in this codebase.",
+			][i],
+			token_usage_summary: {
+				input_tokens: 1000 * (i + 1),
+				output_tokens: 300 * (i + 1),
+			},
+		})),
 	},
 };
