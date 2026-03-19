@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -30,10 +31,12 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
@@ -2245,9 +2248,13 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 	t.Cleanup(func() { tracker.Close() })
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	// Wrap the database with dbauthz so the chatd server's
+	// AsChatd context is enforced on every query, matching
+	// production behavior.
+	authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
-		Database:                   db,
+		Database:                   authzDB,
 		ReplicaID:                  uuid.New(),
 		Pubsub:                     ps,
 		PendingChatAcquireInterval: 10 * time.Millisecond,
@@ -2260,7 +2267,11 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 	})
 
 	// Create a chat WITHOUT a workspace, the normal starting state.
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+	// In production, CreateChat is called from the HTTP handler with
+	// the authenticated user's context. Here we use AsChatd since
+	// the chatd server processes everything under that role.
+	chatCtx := dbauthz.AsChatd(ctx)
+	chat, err := server.CreateChat(chatCtx, chatd.CreateOptions{
 		OwnerID:            user.ID,
 		Title:              "usage-tracking-test",
 		ModelConfigID:      model.ID,
