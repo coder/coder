@@ -3265,6 +3265,14 @@ class ApiMethods {
 			return response.data;
 		};
 
+	getChatUsageLimitStatus =
+		async (): Promise<TypesGen.ChatUsageLimitStatus> => {
+			const response = await this.axios.get<TypesGen.ChatUsageLimitStatus>(
+				"/api/experimental/chats/usage-limits/status",
+			);
+			return response.data;
+		};
+
 	updateChatUsageLimitConfig = async (
 		req: TypesGen.ChatUsageLimitConfig,
 	): Promise<TypesGen.ChatUsageLimitConfig> => {
