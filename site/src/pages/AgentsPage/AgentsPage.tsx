@@ -279,12 +279,10 @@ const AgentsPage: FC = () => {
 							?.created_at,
 				);
 				if (action === "proceed") {
-					archiveAndDeleteMutation.mutate(
-						{ chatId, workspaceId },
-						{
-							onSettled: () => navigate("/agents"),
-						},
-					);
+					// Navigate immediately so the user isn't left staring
+					// at a chat they just chose to delete.
+					navigate("/agents");
+					archiveAndDeleteMutation.mutate({ chatId, workspaceId });
 				} else {
 					setPendingArchiveAndDelete({ chatId, workspaceId });
 				}
@@ -296,12 +294,9 @@ const AgentsPage: FC = () => {
 	);
 	const handleConfirmArchiveAndDelete = useCallback(() => {
 		if (pendingArchiveAndDelete && !isArchiving) {
-			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete, {
-				onSettled: () => {
-					setPendingArchiveAndDelete(null);
-					navigate("/agents");
-				},
-			});
+			setPendingArchiveAndDelete(null);
+			navigate("/agents");
+			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete);
 		}
 	}, [
 		pendingArchiveAndDelete,
