@@ -2731,6 +2731,13 @@ func (p *Server) runChat(
 		messages     []database.ChatMessage
 	)
 
+	// Load MCP server configs and user tokens in parallel with
+	// model resolution and message loading. These queries have
+	// no dependencies on each other and all hit different tables.
+	var (
+		mcpConfigs []database.MCPServerConfig
+		mcpTokens  []database.MCPServerUserToken
+	)
 	var g errgroup.Group
 	g.Go(func() error {
 		var err error
@@ -2753,6 +2760,34 @@ func (p *Server) runChat(
 		}
 		return nil
 	})
+	if len(chat.MCPServerIDs) > 0 {
+		g.Go(func() error {
+			var err error
+			mcpConfigs, err = p.db.GetMCPServerConfigsByIDs(
+				ctx, chat.MCPServerIDs,
+			)
+			if err != nil {
+				logger.Warn(ctx,
+					"failed to load MCP server configs",
+					slog.Error(err),
+				)
+			}
+			return nil
+		})
+		g.Go(func() error {
+			var err error
+			mcpTokens, err = p.db.GetMCPServerUserTokensByUserID(
+				ctx, chat.OwnerID,
+			)
+			if err != nil {
+				logger.Warn(ctx,
+					"failed to load MCP user tokens",
+					slog.Error(err),
+				)
+			}
+			return nil
+		})
+	}
 	if err := g.Wait(); err != nil {
 		return result, err
 	}
@@ -3117,38 +3152,13 @@ func (p *Server) runChat(
 	// do not block the chat — the LLM simply won't have those
 	// tools available.
 	var mcpTools []fantasy.AgentTool
-	if len(chat.MCPServerIDs) > 0 {
-		configs, mcpErr := p.db.GetMCPServerConfigsByIDs(
-			ctx, chat.MCPServerIDs,
+	if len(mcpConfigs) > 0 {
+		var mcpCleanup func()
+		mcpTools, mcpCleanup, _ = mcpclient.ConnectAll(
+			ctx, logger, mcpConfigs, mcpTokens,
 		)
-		if mcpErr != nil {
-			logger.Warn(ctx,
-				"failed to load MCP server configs",
-				slog.Error(mcpErr),
-			)
-		} else {
-			tokens, tokErr := p.db.GetMCPServerUserTokensByUserID(
-				ctx, chat.OwnerID,
-			)
-			if tokErr != nil {
-				logger.Warn(ctx,
-					"failed to load MCP user tokens",
-					slog.Error(tokErr),
-				)
-			}
-			var mcpCleanup func()
-			mcpTools, mcpCleanup, mcpErr = mcpclient.ConnectAll(
-				ctx, logger, configs, tokens,
-			)
-			if mcpErr != nil {
-				logger.Warn(ctx,
-					"failed to connect to MCP servers",
-					slog.Error(mcpErr),
-				)
-			}
-			if mcpCleanup != nil {
-				defer mcpCleanup()
-			}
+		if mcpCleanup != nil {
+			defer mcpCleanup()
 		}
 	}
 
