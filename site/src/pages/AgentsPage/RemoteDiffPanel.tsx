@@ -1,11 +1,15 @@
-import type { DiffLineAnnotation, FileDiffMetadata } from "@pierre/diffs";
+import type {
+	DiffLineAnnotation,
+	FileDiffMetadata,
+	SelectedLineRange,
+} from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import { chatDiffContents } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	ArrowLeftIcon,
-	CornerDownLeftIcon,
+	ArrowUpIcon,
 	ExternalLinkIcon,
 	GitBranchIcon,
 	GitMergeIcon,
@@ -183,12 +187,12 @@ const InlinePromptInput: FC<{
 
 	return (
 		<div className="px-2 py-1.5">
-			<div className="rounded-lg border border-border-default bg-surface-secondary p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40">
+			<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40">
 				<textarea
 					ref={textareaRef}
-					className="w-full resize-none border-none bg-transparent px-2.5 py-1.5 font-sans text-[13px] leading-5 text-content-primary placeholder:text-content-secondary outline-none ring-0 focus:outline-none focus:ring-0"
-					placeholder="Add a comment to include with this reference..."
-					rows={1}
+					className="w-full resize-none border-none bg-transparent px-3 py-2 font-sans text-sm leading-5 text-content-primary placeholder:text-content-secondary outline-none ring-0 focus:outline-none focus:ring-0"
+					placeholder="Add a comment..."
+					rows={2}
 					value={text}
 					onChange={(e) => setText(e.target.value)}
 					onKeyDown={(e) => {
@@ -206,11 +210,12 @@ const InlinePromptInput: FC<{
 						}
 					}}
 				/>
-				<div className="flex items-center justify-end px-1.5 pb-1">
+				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
+					<span className="text-xs text-content-secondary">Esc to cancel</span>
 					<Button
-						size="sm"
-						variant="subtle"
-						className="h-6 gap-1.5 px-2 text-xs text-content-secondary hover:text-content-primary"
+						size="icon"
+						variant="default"
+						className="size-7 rounded-full transition-colors [&>svg]:!size-4 [&>svg]:p-0"
 						disabled={!text.trim()}
 						onMouseDown={(e: React.MouseEvent) => {
 							// Prevent blur from firing before click.
@@ -222,8 +227,8 @@ const InlinePromptInput: FC<{
 							}
 						}}
 					>
-						<CornerDownLeftIcon className="size-3" />
-						Add to chat
+						<ArrowUpIcon />
+						<span className="sr-only">Add to chat</span>
 					</Button>
 				</div>
 			</div>
@@ -352,12 +357,26 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 				return [
 					{
 						side: activeCommentBox.side,
-						lineNumber: activeCommentBox.startLine,
+						lineNumber: activeCommentBox.endLine,
 						metadata: "active-input",
 					},
 				];
 			}
 			return [];
+		},
+		[activeCommentBox],
+	);
+
+	const getSelectedLines = useCallback(
+		(fileName: string): SelectedLineRange | null => {
+			if (activeCommentBox && activeCommentBox.fileName === fileName) {
+				return {
+					start: activeCommentBox.startLine,
+					end: activeCommentBox.endLine,
+					side: activeCommentBox.side,
+				};
+			}
+			return null;
 		},
 		[activeCommentBox],
 	);
@@ -492,6 +511,7 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 				onLineNumberClick={handleLineNumberClick}
 				onLineSelected={handleLineSelected}
 				getLineAnnotations={getLineAnnotations}
+				getSelectedLines={getSelectedLines}
 				renderAnnotation={renderAnnotation}
 				scrollToFile={scrollTarget}
 				onScrollToFileComplete={handleScrollComplete}

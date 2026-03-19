@@ -1,5 +1,9 @@
 import { useTheme } from "@emotion/react";
-import type { DiffLineAnnotation, FileDiffMetadata } from "@pierre/diffs";
+import type {
+	DiffLineAnnotation,
+	FileDiffMetadata,
+	SelectedLineRange,
+} from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
@@ -69,6 +73,11 @@ interface DiffViewerProps {
 	 * inline widgets such as comment inputs.
 	 */
 	getLineAnnotations?: (fileName: string) => DiffLineAnnotation<string>[];
+	/**
+	 * Returns the selected line range for the given file, if any.
+	 * Used to visually highlight the lines being commented on.
+	 */
+	getSelectedLines?: (fileName: string) => SelectedLineRange | null;
 	/**
 	 * Renderer for line annotations returned by `getLineAnnotations`.
 	 */
@@ -346,12 +355,14 @@ const LazyFileDiff = memo<{
 	options: ComponentProps<typeof FileDiff>["options"];
 	lineAnnotations?: DiffLineAnnotation<string>[];
 	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
+	selectedLines?: SelectedLineRange | null;
 }>(
 	({
 		fileDiff,
 		options,
 		lineAnnotations,
 		renderAnnotation: renderAnnotationProp,
+		selectedLines,
 	}) => {
 		const placeholderRef = useRef<HTMLDivElement>(null);
 		const [visible, setVisible] = useState(false);
@@ -399,6 +410,7 @@ const LazyFileDiff = memo<{
 				style={DIFFS_FONT_STYLE}
 				lineAnnotations={lineAnnotations}
 				renderAnnotation={renderAnnotationProp}
+				selectedLines={selectedLines}
 			/>
 		);
 	},
@@ -406,7 +418,8 @@ const LazyFileDiff = memo<{
 		if (
 			prev.fileDiff !== next.fileDiff ||
 			prev.options !== next.options ||
-			prev.lineAnnotations !== next.lineAnnotations
+			prev.lineAnnotations !== next.lineAnnotations ||
+			prev.selectedLines !== next.selectedLines
 		) {
 			return false;
 		}
@@ -436,6 +449,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	onLineNumberClick,
 	onLineSelected,
 	getLineAnnotations,
+	getSelectedLines,
 	renderAnnotation,
 	scrollToFile,
 	onScrollToFileComplete,
@@ -778,6 +792,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 										options={perFileOptions?.get(fileDiff.name) ?? fileOptions}
 										lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
 										renderAnnotation={renderAnnotation}
+										selectedLines={getSelectedLines?.(fileDiff.name) ?? null}
 									/>
 								</div>
 							))}
