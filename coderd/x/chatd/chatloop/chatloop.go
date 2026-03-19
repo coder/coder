@@ -16,6 +16,7 @@ import (
 	"charm.land/fantasy/schema"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/codersdk"
@@ -23,8 +24,6 @@ import (
 
 const (
 	interruptedToolResultErrorMessage = "tool call was interrupted before it produced a result"
-	startupTimeoutErrorKind           = "startup_timeout"
-
 	// maxCompactionRetries limits how many times the post-run
 	// compaction safety net can re-enter the step loop. This
 	// prevents infinite compaction loops when the model keeps
@@ -506,8 +505,8 @@ func wrapStartupTimeoutError(
 	if err == nil || !errors.Is(context.Cause(ctx), errFirstChunkTimeout) {
 		return err
 	}
-	return chatretry.WithClassification(err, chatretry.ClassifiedError{
-		Kind:      startupTimeoutErrorKind,
+	return chaterror.WithClassification(err, chaterror.ClassifiedError{
+		Kind:      chaterror.KindStartupTimeout,
 		Provider:  provider,
 		Retryable: true,
 	})

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/chatd/chatretry"
 )
 
@@ -150,7 +151,7 @@ func TestRun_OnRetryEnrichesProvider(t *testing.T) {
 	require.Equal(t, "received status 429 from upstream", records[0].errMsg)
 	require.Equal(t, chatretry.Delay(0), records[0].delay)
 	require.Equal(t, "openai", records[0].classified.Provider)
-	require.Equal(t, "rate_limit", records[0].classified.Kind)
+	require.Equal(t, chaterror.KindRateLimit, records[0].classified.Kind)
 	require.True(t, records[0].classified.Retryable)
 	require.Equal(t, 429, records[0].classified.StatusCode)
 	require.Equal(
@@ -206,7 +207,7 @@ func TestRun_RetriesStartupTimeoutBeforeFirstChunk(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
-	require.Equal(t, startupTimeoutErrorKind, retries[0].Kind)
+	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
 	require.True(t, retries[0].Retryable)
 	require.Equal(t, "openai", retries[0].Provider)
 	require.Equal(

@@ -21,6 +21,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -2198,43 +2199,8 @@ func (p *Server) publishRetry(chatID uuid.UUID, payload *codersdk.ChatStreamRetr
 	})
 }
 
-func chatStreamErrorPayload(classified chatretry.ClassifiedError) *codersdk.ChatStreamError {
-	classified.Message = strings.TrimSpace(classified.Message)
-	if classified.Message == "" {
-		return nil
-	}
-	return &codersdk.ChatStreamError{
-		Message:    classified.Message,
-		Kind:       classified.Kind,
-		Provider:   classified.Provider,
-		Retryable:  classified.Retryable,
-		StatusCode: classified.StatusCode,
-	}
-}
-
-func chatStreamRetryPayload(
-	attempt int,
-	delay time.Duration,
-	classified chatretry.ClassifiedError,
-) *codersdk.ChatStreamRetry {
-	classified.Message = strings.TrimSpace(classified.Message)
-	if classified.Message == "" {
-		return nil
-	}
-	return &codersdk.ChatStreamRetry{
-		Attempt:    attempt,
-		DelayMs:    delay.Milliseconds(),
-		Error:      classified.Message,
-		Kind:       classified.Kind,
-		Provider:   classified.Provider,
-		Retryable:  classified.Retryable,
-		StatusCode: classified.StatusCode,
-		RetryingAt: time.Now().Add(delay),
-	}
-}
-
-func (p *Server) publishError(chatID uuid.UUID, classified chatretry.ClassifiedError) {
-	payload := chatStreamErrorPayload(classified)
+func (p *Server) publishError(chatID uuid.UUID, classified chaterror.ClassifiedError) {
+	payload := chaterror.StreamErrorPayload(classified)
 	if payload == nil {
 		return
 	}
@@ -2247,14 +2213,14 @@ func (p *Server) publishError(chatID uuid.UUID, classified chatretry.ClassifiedE
 	})
 }
 
-func processingFailure(err error) (chatretry.ClassifiedError, bool) {
+func processingFailure(err error) (chaterror.ClassifiedError, bool) {
 	if err == nil {
-		return chatretry.ClassifiedError{}, false
+		return chaterror.ClassifiedError{}, false
 	}
 
-	classified := chatretry.ClassifyError(err)
+	classified := chaterror.Classify(err)
 	if strings.TrimSpace(classified.Message) == "" {
-		return chatretry.ClassifiedError{}, false
+		return chaterror.ClassifiedError{}, false
 	}
 	return classified, true
 }
@@ -2592,7 +2558,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		if r := recover(); r != nil {
 			logger.Error(cleanupCtx, "panic during chat processing", slog.F("panic", r))
 			lastError = panicFailureReason(r)
-			p.publishError(chat.ID, chatretry.ClassifiedError{Message: lastError})
+			p.publishError(chat.ID, chaterror.ClassifiedError{Message: lastError})
 			status = database.ChatStatusError
 		}
 
@@ -3406,7 +3372,7 @@ func (p *Server) runChat(
 				slog.F("delay", delay.String()),
 				slog.Error(retryErr),
 			)
-			payload := chatStreamRetryPayload(attempt, delay, classified)
+			payload := chaterror.StreamRetryPayload(attempt, delay, classified)
 			p.publishRetry(chat.ID, payload)
 		},
 
@@ -3415,8 +3381,8 @@ func (p *Server) runChat(
 		},
 	})
 	if err != nil {
-		classified := chatretry.ClassifyError(err).WithProvider(model.Provider())
-		return result, chatretry.WithClassification(err, classified)
+		classified := chaterror.Classify(err).WithProvider(model.Provider())
+		return result, chaterror.WithClassification(err, classified)
 	}
 	result.FinalAssistantText = finalAssistantText
 	return result, nil
