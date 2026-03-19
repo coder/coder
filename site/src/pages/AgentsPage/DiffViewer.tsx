@@ -13,6 +13,7 @@ import { ChevronRightIcon } from "lucide-react";
 import {
 	type ComponentProps,
 	type FC,
+	memo,
 	type ReactNode,
 	useCallback,
 	useEffect,
@@ -340,66 +341,68 @@ const FileTreeNodeView: FC<{
  * FileDiff that the user has already scrolled past, which avoids
  * layout shifts and repeated highlighting work.
  */
-const LazyFileDiff: FC<{
+const LazyFileDiff = memo<{
 	fileDiff: FileDiffMetadata;
 	options: ComponentProps<typeof FileDiff>["options"];
 	lineAnnotations?: DiffLineAnnotation<string>[];
 	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
-}> = ({
-	fileDiff,
-	options,
-	lineAnnotations,
-	renderAnnotation: renderAnnotationProp,
-}) => {
-	const placeholderRef = useRef<HTMLDivElement>(null);
-	const [visible, setVisible] = useState(false);
+}>(
+	({
+		fileDiff,
+		options,
+		lineAnnotations,
+		renderAnnotation: renderAnnotationProp,
+	}) => {
+		const placeholderRef = useRef<HTMLDivElement>(null);
+		const [visible, setVisible] = useState(false);
 
-	useEffect(() => {
-		const el = placeholderRef.current;
-		if (!el || visible) {
-			return;
+		useEffect(() => {
+			const el = placeholderRef.current;
+			if (!el || visible) {
+				return;
+			}
+			const observer = new IntersectionObserver(
+				([entry]) => {
+					if (entry.isIntersecting) {
+						setVisible(true);
+						observer.disconnect();
+					}
+				},
+				// Pre-load files that are within one viewport-height of
+				// the visible area so they are ready before the user
+				// scrolls to them.
+				{ rootMargin: "100% 0px" },
+			);
+			observer.observe(el);
+			return () => observer.disconnect();
+		}, [visible]);
+
+		if (!visible) {
+			return (
+				<div
+					ref={placeholderRef}
+					style={{ height: estimateDiffHeight(fileDiff) }}
+					className="p-4 space-y-2"
+				>
+					<Skeleton className="h-4 w-48" />
+					<Skeleton className="h-3 w-full" />
+					<Skeleton className="h-3 w-full" />
+					<Skeleton className="h-3 w-3/4" />
+				</div>
+			);
 		}
-		const observer = new IntersectionObserver(
-			([entry]) => {
-				if (entry.isIntersecting) {
-					setVisible(true);
-					observer.disconnect();
-				}
-			},
-			// Pre-load files that are within one viewport-height of
-			// the visible area so they are ready before the user
-			// scrolls to them.
-			{ rootMargin: "100% 0px" },
-		);
-		observer.observe(el);
-		return () => observer.disconnect();
-	}, [visible]);
 
-	if (!visible) {
 		return (
-			<div
-				ref={placeholderRef}
-				style={{ height: estimateDiffHeight(fileDiff) }}
-				className="p-4 space-y-2"
-			>
-				<Skeleton className="h-4 w-48" />
-				<Skeleton className="h-3 w-full" />
-				<Skeleton className="h-3 w-full" />
-				<Skeleton className="h-3 w-3/4" />
-			</div>
+			<FileDiff
+				fileDiff={fileDiff}
+				options={options}
+				style={DIFFS_FONT_STYLE}
+				lineAnnotations={lineAnnotations}
+				renderAnnotation={renderAnnotationProp}
+			/>
 		);
-	}
-
-	return (
-		<FileDiff
-			fileDiff={fileDiff}
-			options={options}
-			style={DIFFS_FONT_STYLE}
-			lineAnnotations={lineAnnotations}
-			renderAnnotation={renderAnnotationProp}
-		/>
-	);
-};
+	},
+);
 
 // -------------------------------------------------------------------
 // Main component
@@ -504,6 +507,30 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			(a, b) => (order.get(a.name) ?? 0) - (order.get(b.name) ?? 0),
 		);
 	}, [fileTree, parsedFiles]);
+
+	// Pre-compute per-file options so each LazyFileDiff receives a
+	// stable reference and avoids re-highlighting on parent re-render.
+	const perFileOptions = useMemo(() => {
+		if (!hasPerFileCallbacks) return null;
+		const map = new Map<string, ComponentProps<typeof FileDiff>["options"]>();
+		for (const file of sortedFiles) {
+			map.set(file.name, getOptionsForFile(file.name));
+		}
+		return map;
+	}, [hasPerFileCallbacks, sortedFiles, getOptionsForFile]);
+
+	// Pre-compute per-file line annotations for the same reason.
+	const perFileAnnotations = useMemo(() => {
+		if (!getLineAnnotations) return null;
+		const map = new Map<string, DiffLineAnnotation<string>[]>();
+		for (const file of sortedFiles) {
+			const annotations = getLineAnnotations(file.name);
+			if (annotations.length > 0) {
+				map.set(file.name, annotations);
+			}
+		}
+		return map;
+	}, [sortedFiles, getLineAnnotations]);
 
 	// ---------------------------------------------------------------
 	// Container width measurement via ResizeObserver so we can decide
@@ -730,12 +757,8 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 								>
 									<LazyFileDiff
 										fileDiff={fileDiff}
-										options={
-											hasPerFileCallbacks
-												? getOptionsForFile(fileDiff.name)
-												: fileOptions
-										}
-										lineAnnotations={getLineAnnotations?.(fileDiff.name)}
+										options={perFileOptions?.get(fileDiff.name) ?? fileOptions}
+										lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
 										renderAnnotation={renderAnnotation}
 									/>
 								</div>

@@ -77,15 +77,28 @@ export function useGitWatcher({
 
 					if (data.type === "changes" && data.repositories) {
 						setRepositories((prev) => {
+							let changed = false;
 							const next = new Map(prev);
 							for (const repo of data.repositories!) {
 								if (repo.removed) {
-									next.delete(repo.repo_root);
+									if (next.has(repo.repo_root)) {
+										next.delete(repo.repo_root);
+										changed = true;
+									}
 								} else {
-									next.set(repo.repo_root, repo);
+									const existing = next.get(repo.repo_root);
+									if (
+										!existing ||
+										existing.branch !== repo.branch ||
+										existing.remote_origin !== repo.remote_origin ||
+										existing.unified_diff !== repo.unified_diff
+									) {
+										next.set(repo.repo_root, repo);
+										changed = true;
+									}
 								}
 							}
-							return next;
+							return changed ? next : prev;
 						});
 					} else if (data.type === "error") {
 						console.warn("[useGitWatcher] server error:", data.message);
