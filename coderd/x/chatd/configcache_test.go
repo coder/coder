@@ -74,7 +74,7 @@ func TestConfigCache_EnabledProviders_CacheHit(t *testing.T) {
 			return providers, nil
 		},
 	}
-	cache := newChatConfigCache(store, clock)
+	cache := newChatConfigCache(ctx, store, clock)
 
 	first, err := cache.EnabledProviders(ctx)
 	require.NoError(t, err)
@@ -96,7 +96,7 @@ func TestConfigCache_EnabledProviders_TTLExpiry(t *testing.T) {
 		call := store.enabledProvidersCalls.Load()
 		return []database.ChatProvider{testChatProvider(fmt.Sprintf("provider-%d", call))}, nil
 	}
-	cache := newChatConfigCache(store, clock)
+	cache := newChatConfigCache(ctx, store, clock)
 
 	first, err := cache.EnabledProviders(ctx)
 	require.NoError(t, err)
@@ -118,7 +118,7 @@ func TestConfigCache_EnabledProviders_Invalidation(t *testing.T) {
 		call := store.enabledProvidersCalls.Load()
 		return []database.ChatProvider{testChatProvider(fmt.Sprintf("provider-%d", call))}, nil
 	}
-	cache := newChatConfigCache(store, clock)
+	cache := newChatConfigCache(ctx, store, clock)
 
 	first, err := cache.EnabledProviders(ctx)
 	require.NoError(t, err)
@@ -142,7 +142,7 @@ func TestConfigCache_ModelConfigByID_CacheHit(t *testing.T) {
 			return config, nil
 		},
 	}
-	cache := newChatConfigCache(store, clock)
+	cache := newChatConfigCache(ctx, store, clock)
 
 	first, err := cache.ModelConfigByID(ctx, configID)
 	require.NoError(t, err)
@@ -168,7 +168,7 @@ func TestConfigCache_ModelConfigByID_ClonesOptionsForCache(t *testing.T) {
 			return config, nil
 		},
 	}
-	cache := newChatConfigCache(store, clock)
+	cache := newChatConfigCache(ctx, store, clock)
 
 	// First call populates cache via singleflight.
 	first, err := cache.ModelConfigByID(ctx, configID)
@@ -198,7 +198,7 @@ func TestConfigCache_ModelConfigByID_NotFound(t *testing.T) {
 			return database.ChatModelConfig{}, sql.ErrNoRows
 		},
 	}
-	cache := newChatConfigCache(store, clock)
+	cache := newChatConfigCache(ctx, store, clock)
 
 	_, err := cache.ModelConfigByID(ctx, configID)
 	require.ErrorIs(t, err, sql.ErrNoRows)
@@ -225,7 +225,7 @@ func TestConfigCache_InvalidateModelConfig_CascadesToDefault(t *testing.T) {
 		call := store.defaultModelConfigCall.Load()
 		return testChatModelConfig(uuid.New(), fmt.Sprintf("default-model-%d", call)), nil
 	}
-	cache := newChatConfigCache(store, clock)
+	cache := newChatConfigCache(ctx, store, clock)
 
 	_, err := cache.ModelConfigByID(ctx, configID)
 	require.NoError(t, err)
@@ -253,7 +253,7 @@ func TestConfigCache_UserPrompt_NegativeCaching(t *testing.T) {
 			return "", sql.ErrNoRows
 		},
 	}
-	cache := newChatConfigCache(store, clock)
+	cache := newChatConfigCache(ctx, store, clock)
 
 	first, err := cache.UserPrompt(ctx, userID)
 	require.NoError(t, err)
@@ -276,7 +276,7 @@ func TestConfigCache_UserPrompt_ShorterTTL(t *testing.T) {
 		call := store.userPromptCalls.Load()
 		return fmt.Sprintf("prompt-%d", call), nil
 	}
-	cache := newChatConfigCache(store, clock)
+	cache := newChatConfigCache(ctx, store, clock)
 
 	first, err := cache.UserPrompt(ctx, userID)
 	require.NoError(t, err)
@@ -303,7 +303,7 @@ func TestConfigCache_Singleflight(t *testing.T) {
 		<-releaseFetch
 		return providers, nil
 	}
-	cache := newChatConfigCache(store, clock)
+	cache := newChatConfigCache(ctx, store, clock)
 
 	const callers = 8
 	results := make([][]database.ChatProvider, callers)
@@ -351,7 +351,7 @@ func TestConfigCache_GenerationPreventsStaleWrite(t *testing.T) {
 		}
 		return secondProviders, nil
 	}
-	cache := newChatConfigCache(store, clock)
+	cache := newChatConfigCache(ctx, store, clock)
 
 	resultCh := make(chan []database.ChatProvider, 1)
 	errCh := make(chan error, 1)

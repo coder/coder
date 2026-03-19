@@ -1547,10 +1547,10 @@ func New(cfg Config) *Server {
 		clock:                          clk,
 	}
 
-	p.configCache = newChatConfigCache(cfg.Database, clk)
-
 	//nolint:gocritic // The chat processor uses a scoped chatd context.
 	ctx = dbauthz.AsChatd(ctx)
+
+	p.configCache = newChatConfigCache(ctx, cfg.Database, clk)
 	if p.pubsub != nil {
 		cancelConfigSub, err := p.pubsub.SubscribeWithErr(
 			coderdpubsub.ChatConfigEventChannel,

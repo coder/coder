@@ -46,6 +46,15 @@ func cloneModelConfig(cfg database.ChatModelConfig) database.ChatModelConfig {
 type chatConfigCache struct {
 	db    database.Store
 	clock quartz.Clock
+	// ctx is the server-scoped context used for all DB fills.
+	// Cache fills run inside singleflight.Do where one caller
+	// becomes the leader for all coalesced waiters. Using a
+	// per-request context would mean the leader's cancellation
+	// (timeout, user disconnect) fans the error to every waiter.
+	// Storing the server context here makes that impossible by
+	// construction — callers cannot pass a request context into
+	// the shared fill path.
+	ctx context.Context
 
 	mu sync.RWMutex
 
@@ -70,10 +79,11 @@ type chatConfigCache struct {
 	userPromptFetches     singleflight.Group[string, string]
 }
 
-func newChatConfigCache(db database.Store, clock quartz.Clock) *chatConfigCache {
+func newChatConfigCache(ctx context.Context, db database.Store, clock quartz.Clock) *chatConfigCache {
 	return &chatConfigCache{
 		db:                     db,
 		clock:                  clock,
+		ctx:                    ctx,
 		modelConfigs:           make(map[uuid.UUID]cachedModelConfig),
 		modelConfigGenerations: make(map[uuid.UUID]uint64),
 		userPrompts:            make(map[uuid.UUID]cachedUserPrompt),
@@ -92,7 +102,7 @@ func (c *chatConfigCache) EnabledProviders(ctx context.Context) ([]database.Chat
 		}
 
 		generation := c.providersGeneration()
-		fetched, err := c.db.GetEnabledChatProviders(ctx)
+		fetched, err := c.db.GetEnabledChatProviders(c.ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -166,7 +176,7 @@ func (c *chatConfigCache) ModelConfigByID(ctx context.Context, id uuid.UUID) (da
 		}
 
 		generation := c.modelConfigGeneration(id)
-		fetched, err := c.db.GetChatModelConfigByID(ctx, id)
+		fetched, err := c.db.GetChatModelConfigByID(c.ctx, id)
 		if err != nil {
 			return database.ChatModelConfig{}, err
 		}
@@ -232,7 +242,7 @@ func (c *chatConfigCache) DefaultModelConfig(ctx context.Context) (database.Chat
 		}
 
 		generation := c.defaultConfigGeneration()
-		fetched, err := c.db.GetDefaultChatModelConfig(ctx)
+		fetched, err := c.db.GetDefaultChatModelConfig(c.ctx)
 		if err != nil {
 			return database.ChatModelConfig{}, err
 		}
@@ -298,7 +308,7 @@ func (c *chatConfigCache) UserPrompt(ctx context.Context, userID uuid.UUID) (str
 		}
 
 		generation := c.userPromptGeneration(userID)
-		fetched, err := c.db.GetUserChatCustomPrompt(ctx, userID)
+		fetched, err := c.db.GetUserChatCustomPrompt(c.ctx, userID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				c.storeUserPrompt(userID, generation, "")
