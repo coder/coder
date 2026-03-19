@@ -30,12 +30,6 @@ const (
 
 type ClassifiedError = chaterror.ClassifiedError
 
-var (
-	Classify           = chaterror.Classify
-	WithProvider       = chaterror.WithProvider
-	WithClassification = chaterror.WithClassification
-)
-
 // IsRetryable determines whether an error from an LLM provider is
 // transient and worth retrying.
 func IsRetryable(err error) bool {

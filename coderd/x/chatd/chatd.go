@@ -2558,7 +2558,10 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		if r := recover(); r != nil {
 			logger.Error(cleanupCtx, "panic during chat processing", slog.F("panic", r))
 			lastError = panicFailureReason(r)
-			p.publishError(chat.ID, chaterror.ClassifiedError{Message: lastError})
+			p.publishError(chat.ID, chaterror.ClassifiedError{
+				Message: lastError,
+				Kind:    chaterror.KindGeneric,
+			})
 			status = database.ChatStatusError
 		}
 

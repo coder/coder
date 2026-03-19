@@ -5,20 +5,19 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/chatd/chaterror"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestStreamErrorPayloadNormalizesClassification(t *testing.T) {
+func TestStreamErrorPayloadUsesNormalizedClassification(t *testing.T) {
 	t.Parallel()
 
-	payload := chaterror.StreamErrorPayload(chaterror.ClassifiedError{
-		Kind:       chaterror.KindRateLimit,
-		Provider:   " Azure OpenAI ",
-		Retryable:  true,
-		StatusCode: 429,
-	})
+	classified := chaterror.Classify(
+		xerrors.New("azure openai received status 429 from upstream"),
+	)
+	payload := chaterror.StreamErrorPayload(classified)
 
 	require.Equal(t, &codersdk.ChatStreamError{
 		Message:    "Azure OpenAI is rate limiting requests (HTTP 429). Please try again later.",
@@ -35,14 +34,15 @@ func TestStreamErrorPayloadNilForEmptyClassification(t *testing.T) {
 	require.Nil(t, chaterror.StreamErrorPayload(chaterror.ClassifiedError{}))
 }
 
-func TestStreamRetryPayloadNormalizesClassification(t *testing.T) {
+func TestStreamRetryPayloadUsesNormalizedClassification(t *testing.T) {
 	t.Parallel()
 
 	delay := 3 * time.Second
 	startedAt := time.Now()
 	payload := chaterror.StreamRetryPayload(2, delay, chaterror.ClassifiedError{
-		Message:    "  retry me  ",
-		Provider:   " OpenAI ",
+		Message:    "retry me",
+		Kind:       chaterror.KindGeneric,
+		Provider:   "openai",
 		Retryable:  true,
 		StatusCode: 503,
 	})

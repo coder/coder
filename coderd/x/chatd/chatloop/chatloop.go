@@ -542,29 +542,20 @@ func guardedStream(
 		}),
 		cleanup: func(err error) error {
 			firstChunkTimer.Stop()
-			wrapped := wrapStartupTimeoutError(attemptCtx, provider, err)
+			if errors.Is(context.Cause(attemptCtx), errFirstChunkTimeout) {
+				if err == nil {
+					err = errFirstChunkTimeout
+				}
+				err = chaterror.WithClassification(err, chaterror.ClassifiedError{
+					Kind:      chaterror.KindStartupTimeout,
+					Provider:  provider,
+					Retryable: true,
+				})
+			}
 			cancelAttempt(nil)
-			return wrapped
+			return err
 		},
 	}, nil
-}
-
-func wrapStartupTimeoutError(
-	ctx context.Context,
-	provider string,
-	err error,
-) error {
-	if !errors.Is(context.Cause(ctx), errFirstChunkTimeout) {
-		return err
-	}
-	if err == nil {
-		err = errFirstChunkTimeout
-	}
-	return chaterror.WithClassification(err, chaterror.ClassifiedError{
-		Kind:      chaterror.KindStartupTimeout,
-		Provider:  provider,
-		Retryable: true,
-	})
 }
 
 // processStepStream consumes a fantasy StreamResponse and

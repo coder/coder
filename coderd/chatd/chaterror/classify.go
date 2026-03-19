@@ -1,6 +1,7 @@
 package chaterror
 
 import (
+	"context"
 	"errors"
 	"strings"
 )
@@ -32,11 +33,6 @@ func (c ClassifiedError) WithProvider(provider string) ClassifiedError {
 	return normalizeClassification(updated)
 }
 
-// WithProvider applies an explicit provider hint to a classification.
-func WithProvider(classified ClassifiedError, provider string) ClassifiedError {
-	return classified.WithProvider(provider)
-}
-
 // WithClassification wraps err so future calls to Classify return
 // classified instead of re-deriving it from err.Error().
 func WithClassification(err error, classified ClassifiedError) error {
@@ -55,16 +51,10 @@ type classifiedError struct {
 }
 
 func (e *classifiedError) Error() string {
-	if e == nil || e.cause == nil {
-		return ""
-	}
 	return e.cause.Error()
 }
 
 func (e *classifiedError) Unwrap() error {
-	if e == nil {
-		return nil
-	}
 	return e.cause
 }
 
@@ -77,7 +67,7 @@ func Classify(err error) ClassifiedError {
 	}
 
 	var wrapped *classifiedError
-	if errors.As(err, &wrapped) && wrapped != nil {
+	if errors.As(err, &wrapped) {
 		return normalizeClassification(wrapped.classified)
 	}
 
@@ -86,67 +76,76 @@ func Classify(err error) ClassifiedError {
 		return ClassifiedError{}
 	}
 
-	signals := collectSignals(err, message)
-
-	switch {
-	case signals.canceled || signals.interrupted:
+	lower := strings.ToLower(message)
+	statusCode := extractStatusCode(lower)
+	provider := detectProvider(lower)
+	canceled := errors.Is(err, context.Canceled) || strings.Contains(lower, "context canceled")
+	interrupted := containsAny(lower, interruptedPatterns...)
+	if canceled || interrupted {
 		return normalizeClassification(ClassifiedError{
 			Message:    "The request was canceled before it completed.",
 			Kind:       KindGeneric,
-			Provider:   signals.provider,
-			Retryable:  false,
-			StatusCode: signals.statusCode,
-		})
-	case signals.overloaded:
-		return normalizeClassification(ClassifiedError{
-			Kind:       KindOverloaded,
-			Provider:   signals.provider,
-			Retryable:  true,
-			StatusCode: signals.statusCode,
-		})
-	case signals.auth:
-		return normalizeClassification(ClassifiedError{
-			Kind:       KindAuth,
-			Provider:   signals.provider,
-			Retryable:  false,
-			StatusCode: signals.statusCode,
-		})
-	case signals.rateLimit:
-		return normalizeClassification(ClassifiedError{
-			Kind:       KindRateLimit,
-			Provider:   signals.provider,
-			Retryable:  true,
-			StatusCode: signals.statusCode,
-		})
-	case signals.deadline || signals.timeout:
-		return normalizeClassification(ClassifiedError{
-			Kind:       KindTimeout,
-			Provider:   signals.provider,
-			Retryable:  !signals.deadline,
-			StatusCode: signals.statusCode,
-		})
-	case signals.config:
-		return normalizeClassification(ClassifiedError{
-			Kind:       KindConfig,
-			Provider:   signals.provider,
-			Retryable:  false,
-			StatusCode: signals.statusCode,
-		})
-	case signals.genericRetryable:
-		return normalizeClassification(ClassifiedError{
-			Kind:       KindGeneric,
-			Provider:   signals.provider,
-			Retryable:  true,
-			StatusCode: signals.statusCode,
-		})
-	default:
-		return normalizeClassification(ClassifiedError{
-			Kind:       KindGeneric,
-			Provider:   signals.provider,
-			Retryable:  false,
-			StatusCode: signals.statusCode,
+			Provider:   provider,
+			StatusCode: statusCode,
 		})
 	}
+
+	deadline := errors.Is(err, context.DeadlineExceeded) || strings.Contains(lower, "context deadline exceeded")
+	rules := []struct {
+		match     bool
+		kind      string
+		retryable bool
+	}{
+		{
+			match:     statusCode == 529 || containsAny(lower, overloadedPatterns...),
+			kind:      KindOverloaded,
+			retryable: true,
+		},
+		{
+			match:     statusCode == 401 || statusCode == 403 || containsAny(lower, authPatterns...),
+			kind:      KindAuth,
+			retryable: false,
+		},
+		{
+			match:     statusCode == 429 || containsAny(lower, rateLimitPatterns...),
+			kind:      KindRateLimit,
+			retryable: true,
+		},
+		{
+			match: deadline || statusCode == 408 || statusCode == 502 ||
+				statusCode == 503 || statusCode == 504 ||
+				containsAny(lower, timeoutPatterns...),
+			kind:      KindTimeout,
+			retryable: !deadline,
+		},
+		{
+			match:     containsAny(lower, configPatterns...),
+			kind:      KindConfig,
+			retryable: false,
+		},
+		{
+			match:     statusCode == 500 || containsAny(lower, genericRetryablePatterns...),
+			kind:      KindGeneric,
+			retryable: true,
+		},
+	}
+	for _, rule := range rules {
+		if !rule.match {
+			continue
+		}
+		return normalizeClassification(ClassifiedError{
+			Kind:       rule.kind,
+			Provider:   provider,
+			Retryable:  rule.retryable,
+			StatusCode: statusCode,
+		})
+	}
+
+	return normalizeClassification(ClassifiedError{
+		Kind:       KindGeneric,
+		Provider:   provider,
+		StatusCode: statusCode,
+	})
 }
 
 func normalizeClassification(classified ClassifiedError) ClassifiedError {

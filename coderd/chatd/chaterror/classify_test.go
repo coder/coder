@@ -121,7 +121,7 @@ func TestWithProviderUsesExplicitHint(t *testing.T) {
 	classified := chaterror.Classify(xerrors.New("openai received status 429 from upstream"))
 	require.Equal(t, "openai", classified.Provider)
 
-	enriched := chaterror.WithProvider(classified, "azure openai")
+	enriched := classified.WithProvider("azure openai")
 	require.Equal(t, chaterror.ClassifiedError{
 		Message:    "Azure OpenAI is rate limiting requests (HTTP 429). Please try again later.",
 		Kind:       chaterror.KindRateLimit,

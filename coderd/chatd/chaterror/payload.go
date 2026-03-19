@@ -7,7 +7,6 @@ import (
 )
 
 func StreamErrorPayload(classified ClassifiedError) *codersdk.ChatStreamError {
-	classified = normalizeClassification(classified)
 	if classified.Message == "" {
 		return nil
 	}
@@ -25,7 +24,6 @@ func StreamRetryPayload(
 	delay time.Duration,
 	classified ClassifiedError,
 ) *codersdk.ChatStreamRetry {
-	classified = normalizeClassification(classified)
 	if classified.Message == "" {
 		return nil
 	}
