@@ -15,8 +15,69 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from "lucide-react";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
+import { ChevronDownIcon, ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
+
+const EXPANDABLE_COLLAPSE_HEIGHT = 50;
+
+interface ExpandableTextProps {
+	text: string;
+	className?: string;
+}
+
+const ExpandableText: FC<ExpandableTextProps> = ({ text, className }) => {
+	const contentRef = useRef<HTMLParagraphElement>(null);
+	const [isExpandable, setIsExpandable] = useState(false);
+	const [isExpanded, setIsExpanded] = useState(false);
+
+	useEffect(() => {
+		const el = contentRef.current;
+		if (el) {
+			setIsExpandable(el.scrollHeight > EXPANDABLE_COLLAPSE_HEIGHT);
+		}
+	}, []);
+
+	return (
+		<div className="relative">
+			<p
+				ref={contentRef}
+				style={
+					isExpandable && !isExpanded
+						? {
+								maxHeight: EXPANDABLE_COLLAPSE_HEIGHT,
+								overflow: "hidden",
+								WebkitMaskImage:
+									"linear-gradient(to bottom, black 40%, transparent 100%)",
+								maskImage:
+									"linear-gradient(to bottom, black 40%, transparent 100%)",
+							}
+						: undefined
+				}
+				className={className}
+			>
+				{text}
+			</p>
+			{isExpandable && (
+				<div className="flex justify-end mt-1">
+					<Button
+						size="sm"
+						variant="outline"
+						onClick={() => setIsExpanded((v) => !v)}
+					>
+						{isExpanded ? "Collapse" : "Show more"}
+					</Button>
+				</div>
+			)}
+		</div>
+	);
+};
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { TokenBadges } from "../../TokenBadges";
@@ -96,10 +157,10 @@ interface ThinkingBlockProps {
 const ThinkingBlock: FC<ThinkingBlockProps> = ({ text }) => (
 	<BracketConnector contentClassName="mt-5 pl-2 pr-4 text-sm text-content-secondary">
 		<div className="flex items-center">
-			<Spinner loading={true} size="sm" />
+			<LoaderIcon className="size-icon-sm text-content-secondary" />
 			<span className="font-mono ml-2">Thinking...</span>
 		</div>
-		<p className="text-pretty">{text}</p>
+		<ExpandableText text={text} className="text-pretty m-0" />
 	</BracketConnector>
 );
 
@@ -333,6 +394,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 	onFetchNextPage,
 }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
+	const [sort, setSort] = useState<"oldest" | "newest">("oldest");
 
 	useEffect(() => {
 		const sentinel = sentinelRef.current;
@@ -375,12 +437,33 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 			<div className="row-start-2 col-start-3 border-0 border-l border-solid border-surface-secondary">
 				{/* vertical line */}
 			</div>
-			<div className="invisible md:visible row-start-2 col-start-4 col-span-2 text-right">
-				{/* TODO */}
-				<div className="border border-solid border-border rounded-md inline-flex items-center text-xs text-content-secondary px-2 py-1">
-					TODO sort action dropdown
-				</div>
-			</div>
+		<div className="invisible md:visible row-start-2 col-start-4 col-span-2 text-right">
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button
+						variant="outline"
+						size="sm"
+						className="text-xs text-content-secondary"
+					>
+						{sort === "oldest" ? "Sort by oldest" : "Sort by newest"}
+						<ChevronDownIcon />
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end">
+					<DropdownMenuRadioGroup
+						value={sort}
+						onValueChange={(v) => setSort(v as "oldest" | "newest")}
+					>
+						<DropdownMenuRadioItem value="oldest">
+							Sort by oldest
+						</DropdownMenuRadioItem>
+						<DropdownMenuRadioItem value="newest">
+							Sort by newest
+						</DropdownMenuRadioItem>
+					</DropdownMenuRadioGroup>
+				</DropdownMenuContent>
+			</DropdownMenu>
+		</div>
 
 			{/* row 3: sized intentionally to create the visual space above the timeline border */}
 			<div className="row-start-3 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-[20px]">
