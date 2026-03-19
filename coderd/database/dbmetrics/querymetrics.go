@@ -384,14 +384,6 @@ func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.C
 	return r0
 }
 
-func (m queryMetricsStore) DeleteChatMessagesAfterID(ctx context.Context, arg database.DeleteChatMessagesAfterIDParams) error {
-	start := time.Now()
-	r0 := m.s.DeleteChatMessagesAfterID(ctx, arg)
-	m.queryLatencies.WithLabelValues("DeleteChatMessagesAfterID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatMessagesAfterID").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatModelConfigByID(ctx, id)
@@ -3064,11 +3056,11 @@ func (m queryMetricsStore) InsertChatFile(ctx context.Context, arg database.Inse
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertChatMessage(ctx context.Context, arg database.InsertChatMessageParams) (database.ChatMessage, error) {
+func (m queryMetricsStore) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
 	start := time.Now()
-	r0, r1 := m.s.InsertChatMessage(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertChatMessage").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatMessage").Inc()
+	r0, r1 := m.s.InsertChatMessages(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatMessages").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatMessages").Inc()
 	return r0, r1
 }
 
@@ -3774,6 +3766,22 @@ func (m queryMetricsStore) SelectUsageEventsForPublishing(ctx context.Context, n
 	m.queryLatencies.WithLabelValues("SelectUsageEventsForPublishing").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SelectUsageEventsForPublishing").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
+	start := time.Now()
+	r0 := m.s.SoftDeleteChatMessageByID(ctx, id)
+	m.queryLatencies.WithLabelValues("SoftDeleteChatMessageByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteChatMessageByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) SoftDeleteChatMessagesAfterID(ctx context.Context, arg database.SoftDeleteChatMessagesAfterIDParams) error {
+	start := time.Now()
+	r0 := m.s.SoftDeleteChatMessagesAfterID(ctx, arg)
+	m.queryLatencies.WithLabelValues("SoftDeleteChatMessagesAfterID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteChatMessagesAfterID").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error) {

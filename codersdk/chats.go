@@ -125,9 +125,18 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 // name = required, ? suffix = optional. Fields without a variants
 // tag are excluded from the generated union. See
 // scripts/apitypings/main.go for the codegen that reads these.
+//
+// omitempty rules (enforced by TestChatMessagePartVariantTags):
+//   - If a field is required (no ? suffix) in ANY variant, it
+//     must NOT use omitempty. Go would silently drop zero values
+//     that TypeScript expects to always be present.
+//   - If a field is optional (? suffix) in ALL of its variants,
+//     it MUST use omitempty. Sending zero values for fields that
+//     the frontend does not expect adds noise to the wire format
+//     and wastes space in persisted chat_messages rows.
 type ChatMessagePart struct {
 	Type        ChatMessagePartType `json:"type"`
-	Text        string              `json:"text,omitempty" variants:"text,reasoning"`
+	Text        string              `json:"text" variants:"text,reasoning"`
 	Signature   string              `json:"signature,omitempty"`
 	ToolCallID  string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
 	ToolName    string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
@@ -137,16 +146,16 @@ type ChatMessagePart struct {
 	ResultDelta string              `json:"result_delta,omitempty"`
 	IsError     bool                `json:"is_error,omitempty" variants:"tool-result?"`
 	SourceID    string              `json:"source_id,omitempty" variants:"source?"`
-	URL         string              `json:"url,omitempty" variants:"source"`
+	URL         string              `json:"url" variants:"source"`
 	Title       string              `json:"title,omitempty" variants:"source?"`
-	MediaType   string              `json:"media_type,omitempty" variants:"file"`
+	MediaType   string              `json:"media_type" variants:"file"`
 	Data        []byte              `json:"data,omitempty" variants:"file?"`
 	FileID      uuid.NullUUID       `json:"file_id,omitempty" format:"uuid" variants:"file?"`
-	FileName    string              `json:"file_name,omitempty" variants:"file-reference"`
-	StartLine   int                 `json:"start_line,omitempty" variants:"file-reference"`
-	EndLine     int                 `json:"end_line,omitempty" variants:"file-reference"`
+	FileName    string              `json:"file_name" variants:"file-reference"`
+	StartLine   int                 `json:"start_line" variants:"file-reference"`
+	EndLine     int                 `json:"end_line" variants:"file-reference"`
 	// The code content from the diff that was commented on.
-	Content string `json:"content,omitempty" variants:"file-reference"`
+	Content string `json:"content" variants:"file-reference"`
 	// ProviderMetadata holds provider-specific response metadata
 	// (e.g. Anthropic cache control hints) as raw JSON. Internal
 	// only: stripped by db2sdk before API responses.

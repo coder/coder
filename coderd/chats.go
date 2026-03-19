@@ -4330,7 +4330,7 @@ func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
 	modelEntries := make([]codersdk.PRInsightsModelBreakdown, 0, len(byModel))
 	for _, m := range byModel {
 		entry := codersdk.PRInsightsModelBreakdown{
-			ModelConfigID:   m.ModelConfigID,
+			ModelConfigID:   m.ModelConfigID.UUID,
 			DisplayName:     m.DisplayName,
 			Provider:        m.Provider,
 			TotalPRs:        m.TotalPrs,

@@ -70,23 +70,25 @@ func (p *process) output() (string, *workspacesdk.ProcessTruncation) {
 
 // manager tracks processes spawned by the agent.
 type manager struct {
-	mu        sync.Mutex
-	logger    slog.Logger
-	execer    agentexec.Execer
-	clock     quartz.Clock
-	procs     map[string]*process
-	closed    bool
-	updateEnv func(current []string) (updated []string, err error)
+	mu         sync.Mutex
+	logger     slog.Logger
+	execer     agentexec.Execer
+	clock      quartz.Clock
+	procs      map[string]*process
+	closed     bool
+	updateEnv  func(current []string) (updated []string, err error)
+	workingDir func() string
 }
 
 // newManager creates a new process manager.
-func newManager(logger slog.Logger, execer agentexec.Execer, updateEnv func(current []string) (updated []string, err error)) *manager {
+func newManager(logger slog.Logger, execer agentexec.Execer, updateEnv func(current []string) (updated []string, err error), workingDir func() string) *manager {
 	return &manager{
-		logger:    logger,
-		execer:    execer,
-		clock:     quartz.NewReal(),
-		procs:     make(map[string]*process),
-		updateEnv: updateEnv,
+		logger:     logger,
+		execer:     execer,
+		clock:      quartz.NewReal(),
+		procs:      make(map[string]*process),
+		updateEnv:  updateEnv,
+		workingDir: workingDir,
 	}
 }
 
@@ -109,9 +111,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 	// the process is not tied to any HTTP request.
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := m.execer.CommandContext(ctx, "sh", "-c", req.Command)
-	if req.WorkDir != "" {
-		cmd.Dir = req.WorkDir
-	}
+	cmd.Dir = m.resolveWorkDir(req.WorkDir)
 	cmd.Stdin = nil
 	cmd.SysProcAttr = procSysProcAttr()
 
@@ -158,7 +158,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 	proc := &process{
 		id:         id,
 		command:    req.Command,
-		workDir:    req.WorkDir,
+		workDir:    cmd.Dir,
 		background: req.Background,
 		chatID:     chatID,
 		cmd:        cmd,
@@ -318,4 +318,25 @@ func (m *manager) Close() error {
 	}
 
 	return nil
+}
+
+// resolveWorkDir returns the directory a process should start in.
+// Priority: explicit request dir > agent configured dir > $HOME.
+// Falls through when a candidate is empty or does not exist on
+// disk, matching the behavior of SSH sessions.
+func (m *manager) resolveWorkDir(requested string) string {
+	if requested != "" {
+		return requested
+	}
+	if m.workingDir != nil {
+		if dir := m.workingDir(); dir != "" {
+			if info, err := os.Stat(dir); err == nil && info.IsDir() {
+				return dir
+			}
+		}
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		return home
+	}
+	return ""
 }

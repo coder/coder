@@ -764,7 +764,7 @@ export const SidebarWithPRAndRepos: Story = {
 			{ diffUrl: "https://github.com/coder/coder/pull/456" },
 		),
 		webSocket: {
-			"/git/watch": [
+			"/stream/git": [
 				{
 					event: "message",
 					data: JSON.stringify({
@@ -945,7 +945,7 @@ export const SidebarWithSingleRepo: Story = {
 			{ diffUrl: undefined },
 		),
 		webSocket: {
-			"/git/watch": [
+			"/stream/git": [
 				{
 					event: "message",
 					data: JSON.stringify({

@@ -4225,6 +4225,7 @@ type ChatMessage struct {
 	ContentVersion      int16                 `db:"content_version" json:"content_version"`
 	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
 	RuntimeMs           sql.NullInt64         `db:"runtime_ms" json:"runtime_ms"`
+	Deleted             bool                  `db:"deleted" json:"deleted"`
 }
 
 type ChatModelConfig struct {

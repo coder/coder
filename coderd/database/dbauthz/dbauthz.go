@@ -1824,18 +1824,6 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
 }
 
-func (q *querier) DeleteChatMessagesAfterID(ctx context.Context, arg database.DeleteChatMessagesAfterIDParams) error {
-	// Authorize update on the parent chat.
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.DeleteChatMessagesAfterID(ctx, arg)
-}
-
 func (q *querier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
@@ -4603,16 +4591,16 @@ func (q *querier) InsertChatFile(ctx context.Context, arg database.InsertChatFil
 	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertChatFile)(ctx, arg)
 }
 
-func (q *querier) InsertChatMessage(ctx context.Context, arg database.InsertChatMessageParams) (database.ChatMessage, error) {
+func (q *querier) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
 	// Authorize create on the parent chat (using update permission).
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
-		return database.ChatMessage{}, err
+		return nil, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.ChatMessage{}, err
+		return nil, err
 	}
-	return q.db.InsertChatMessage(ctx, arg)
+	return q.db.InsertChatMessages(ctx, arg)
 }
 
 func (q *querier) InsertChatModelConfig(ctx context.Context, arg database.InsertChatModelConfigParams) (database.ChatModelConfig, error) {
@@ -5389,6 +5377,32 @@ func (q *querier) SelectUsageEventsForPublishing(ctx context.Context, arg time.T
 		return nil, err
 	}
 	return q.db.SelectUsageEventsForPublishing(ctx, arg)
+}
+
+func (q *querier) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
+	msg, err := q.db.GetChatMessageByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	chat, err := q.db.GetChatByID(ctx, msg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.SoftDeleteChatMessageByID(ctx, id)
+}
+
+func (q *querier) SoftDeleteChatMessagesAfterID(ctx context.Context, arg database.SoftDeleteChatMessagesAfterIDParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.SoftDeleteChatMessagesAfterID(ctx, arg)
 }
 
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {

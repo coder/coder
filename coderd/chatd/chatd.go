@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/webpush"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
@@ -46,12 +47,17 @@ const (
 
 	homeInstructionLookupTimeout = 5 * time.Second
 	instructionCacheTTL          = 5 * time.Minute
-	chatHeartbeatInterval        = 60 * time.Second
+	// DefaultChatHeartbeatInterval is the default time between chat
+	// heartbeat updates while a chat is being processed.
+	DefaultChatHeartbeatInterval = 30 * time.Second
 	maxChatSteps                 = 1200
-	// maxStreamBufferSize caps the number of events buffered
-	// per chat during a single LLM step. When exceeded the
-	// oldest event is evicted so memory stays bounded.
+	// maxStreamBufferSize caps the number of message_part events buffered
+	// per chat during a single LLM step. When exceeded the oldest event is
+	// evicted so memory stays bounded.
 	maxStreamBufferSize = 10000
+	// maxDurableMessageCacheSize caps the number of recent durable message
+	// events cached per chat for same-replica stream catch-up.
+	maxDurableMessageCacheSize = 256
 
 	// staleRecoveryIntervalDivisor determines how often the stale
 	// recovery loop runs relative to the stale threshold. A value
@@ -96,10 +102,14 @@ type Server struct {
 	instructionCacheMu sync.RWMutex
 	instructionCache   map[uuid.UUID]cachedInstruction
 
+	usageTracker *workspacestats.UsageTracker
+	clock        quartz.Clock
+
 	// Configuration
 	pendingChatAcquireInterval time.Duration
 	maxChatsPerAcquire         int32
 	inFlightChatStaleAfter     time.Duration
+	chatHeartbeatInterval      time.Duration
 }
 
 type cachedInstruction struct {
@@ -310,10 +320,12 @@ type SubscribeFnParams struct {
 }
 
 type chatStreamState struct {
-	mu          sync.Mutex
-	buffer      []codersdk.ChatStreamEvent
-	buffering   bool
-	subscribers map[uuid.UUID]chan codersdk.ChatStreamEvent
+	mu                   sync.Mutex
+	buffer               []codersdk.ChatStreamEvent
+	buffering            bool
+	durableMessages      []codersdk.ChatStreamEvent
+	durableEvictedBefore int64 // highest message ID evicted from durable cache
+	subscribers          map[uuid.UUID]chan codersdk.ChatStreamEvent
 }
 
 // MaxQueueSize is the maximum number of queued user messages per chat.
@@ -399,7 +411,7 @@ type SendMessageResult struct {
 	Chat          database.Chat
 }
 
-// EditMessageOptions controls in-place user message edits.
+// EditMessageOptions controls user message edits via soft-delete and re-insert.
 type EditMessageOptions struct {
 	ChatID          uuid.UUID
 	CreatedBy       uuid.UUID
@@ -407,7 +419,7 @@ type EditMessageOptions struct {
 	Content         []codersdk.ChatMessagePart
 }
 
-// EditMessageResult contains the updated user message and chat status.
+// EditMessageResult contains the replacement user message and chat status.
 type EditMessageResult struct {
 	Message database.ChatMessage
 	Chat    database.Chat
@@ -459,40 +471,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		}
 
 		systemPrompt := strings.TrimSpace(opts.SystemPrompt)
-		if systemPrompt != "" {
-			systemContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-				codersdk.ChatMessageText(systemPrompt),
-			})
-			if err != nil {
-				return xerrors.Errorf("marshal system prompt: %w", err)
-			}
-			_, err = tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
-				ChatID:    insertedChat.ID,
-				CreatedBy: uuid.NullUUID{},
-				ModelConfigID: uuid.NullUUID{
-					UUID:  opts.ModelConfigID,
-					Valid: true,
-				},
-				Role:                database.ChatMessageRoleSystem,
-				ContentVersion:      chatprompt.CurrentContentVersion,
-				Content:             systemContent,
-				Visibility:          database.ChatMessageVisibilityModel,
-				InputTokens:         sql.NullInt64{},
-				OutputTokens:        sql.NullInt64{},
-				TotalTokens:         sql.NullInt64{},
-				ReasoningTokens:     sql.NullInt64{},
-				CacheCreationTokens: sql.NullInt64{},
-				CacheReadTokens:     sql.NullInt64{},
-				ContextLimit:        sql.NullInt64{},
-				Compressed:          sql.NullBool{},
-				TotalCostMicros:     sql.NullInt64{},
-				RuntimeMs:           sql.NullInt64{},
-			})
-			if err != nil {
-				return xerrors.Errorf("insert system message: %w", err)
-			}
-		}
-
 		var workspaceAwareness string
 		if opts.WorkspaceID.Valid {
 			workspaceAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
@@ -505,60 +483,50 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		if err != nil {
 			return xerrors.Errorf("marshal workspace awareness: %w", err)
 		}
-		_, err = tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID:    insertedChat.ID,
-			CreatedBy: uuid.NullUUID{},
-			ModelConfigID: uuid.NullUUID{
-				UUID:  opts.ModelConfigID,
-				Valid: true,
-			},
-			Role:                database.ChatMessageRoleSystem,
-			ContentVersion:      chatprompt.CurrentContentVersion,
-			Content:             workspaceAwarenessContent,
-			Visibility:          database.ChatMessageVisibilityModel,
-			InputTokens:         sql.NullInt64{},
-			OutputTokens:        sql.NullInt64{},
-			TotalTokens:         sql.NullInt64{},
-			ReasoningTokens:     sql.NullInt64{},
-			CacheCreationTokens: sql.NullInt64{},
-			CacheReadTokens:     sql.NullInt64{},
-			ContextLimit:        sql.NullInt64{},
-			Compressed:          sql.NullBool{},
-			TotalCostMicros:     sql.NullInt64{},
-			RuntimeMs:           sql.NullInt64{},
-		})
-		if err != nil {
-			return xerrors.Errorf("insert workspace awareness message: %w", err)
-		}
-
 		userContent, err := chatprompt.MarshalParts(opts.InitialUserContent)
 		if err != nil {
 			return xerrors.Errorf("marshal initial user content: %w", err)
 		}
-		_, err = insertChatMessageWithStore(ctx, tx, database.InsertChatMessageParams{
+
+		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
 			ChatID: insertedChat.ID,
-			ModelConfigID: uuid.NullUUID{
-				UUID:  opts.ModelConfigID,
-				Valid: true,
-			},
-			Role:                database.ChatMessageRoleUser,
-			ContentVersion:      chatprompt.CurrentContentVersion,
-			Content:             userContent,
-			CreatedBy:           uuid.NullUUID{UUID: opts.OwnerID, Valid: opts.OwnerID != uuid.Nil},
-			Visibility:          database.ChatMessageVisibilityBoth,
-			InputTokens:         sql.NullInt64{},
-			OutputTokens:        sql.NullInt64{},
-			TotalTokens:         sql.NullInt64{},
-			ReasoningTokens:     sql.NullInt64{},
-			CacheCreationTokens: sql.NullInt64{},
-			CacheReadTokens:     sql.NullInt64{},
-			ContextLimit:        sql.NullInt64{},
-			TotalCostMicros:     sql.NullInt64{},
-			RuntimeMs:           sql.NullInt64{},
-			Compressed:          sql.NullBool{},
-		})
+		}
+
+		if systemPrompt != "" {
+			systemContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText(systemPrompt),
+			})
+			if err != nil {
+				return xerrors.Errorf("marshal system prompt: %w", err)
+			}
+			appendChatMessage(&msgParams, newChatMessage(
+				database.ChatMessageRoleSystem,
+				systemContent,
+				database.ChatMessageVisibilityModel,
+				opts.ModelConfigID,
+				chatprompt.CurrentContentVersion,
+			))
+		}
+
+		appendChatMessage(&msgParams, newChatMessage(
+			database.ChatMessageRoleSystem,
+			workspaceAwarenessContent,
+			database.ChatMessageVisibilityModel,
+			opts.ModelConfigID,
+			chatprompt.CurrentContentVersion,
+		))
+
+		appendChatMessage(&msgParams, newChatMessage(
+			database.ChatMessageRoleUser,
+			userContent,
+			database.ChatMessageVisibilityBoth,
+			opts.ModelConfigID,
+			chatprompt.CurrentContentVersion,
+		).withCreatedBy(opts.OwnerID))
+
+		_, err = tx.InsertChatMessages(ctx, msgParams)
 		if err != nil {
-			return xerrors.Errorf("insert initial user message: %w", err)
+			return xerrors.Errorf("insert initial chat messages: %w", err)
 		}
 
 		chat, err = setChatPendingWithStore(ctx, tx, insertedChat.ID)
@@ -754,7 +722,8 @@ func (p *Server) checkUsageLimit(ctx context.Context, store database.Store, owne
 	return nil
 }
 
-// EditMessage updates a user message in-place, truncates all following messages,
+// EditMessage marks the old user message as deleted, soft-deletes all
+// following messages, inserts a new message with the updated content,
 // clears queued messages, and moves the chat into pending status.
 func (p *Server) EditMessage(
 	ctx context.Context,
@@ -800,28 +769,43 @@ func (p *Server) EditMessage(
 			return ErrEditedMessageNotUser
 		}
 
-		updatedMessage, err := tx.UpdateChatMessageByID(ctx, database.UpdateChatMessageByIDParams{
-			ModelConfigID: uuid.NullUUID{},
-			Content:       content,
-			ID:            opts.EditedMessageID,
-		})
+		// Soft-delete the original message instead of updating in place
+		// so that usage/cost data is preserved.
+		err = tx.SoftDeleteChatMessageByID(ctx, opts.EditedMessageID)
 		if err != nil {
-			return xerrors.Errorf("update chat message: %w", err)
+			return xerrors.Errorf("soft-delete edited message: %w", err)
 		}
 
-		err = tx.DeleteChatMessagesAfterID(ctx, database.DeleteChatMessagesAfterIDParams{
+		// Soft-delete all messages that came after the edited one.
+		err = tx.SoftDeleteChatMessagesAfterID(ctx, database.SoftDeleteChatMessagesAfterIDParams{
 			ChatID:  opts.ChatID,
 			AfterID: opts.EditedMessageID,
 		})
 		if err != nil {
-			return xerrors.Errorf("delete later chat messages: %w", err)
+			return xerrors.Errorf("soft-delete later chat messages: %w", err)
 		}
+
+		// Insert a new message with the updated content.
+		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+			ChatID: opts.ChatID,
+		}
+		appendChatMessage(&msgParams, newChatMessage(
+			database.ChatMessageRoleUser,
+			content,
+			existing.Visibility,
+			existing.ModelConfigID.UUID,
+			chatprompt.CurrentContentVersion,
+		).withCreatedBy(opts.CreatedBy))
+		newMessages, err := insertChatMessageWithStore(ctx, tx, msgParams)
+		if err != nil {
+			return xerrors.Errorf("insert replacement message: %w", err)
+		}
+		newMessage := newMessages[0]
 
 		err = tx.DeleteAllChatQueuedMessages(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("delete queued messages: %w", err)
 		}
-
 		updatedChat, err := tx.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
 			ID:          opts.ChatID,
 			Status:      database.ChatStatusPending,
@@ -834,7 +818,7 @@ func (p *Server) EditMessage(
 			return xerrors.Errorf("set chat pending: %w", err)
 		}
 
-		result.Message = updatedMessage
+		result.Message = newMessage
 		result.Chat = updatedChat
 		return nil
 	}, nil)
@@ -1140,13 +1124,115 @@ func (p *Server) setChatWaiting(ctx context.Context, chatID uuid.UUID) (database
 func insertChatMessageWithStore(
 	ctx context.Context,
 	store database.Store,
-	params database.InsertChatMessageParams,
-) (database.ChatMessage, error) {
-	message, err := store.InsertChatMessage(ctx, params)
+	params database.InsertChatMessagesParams,
+) ([]database.ChatMessage, error) {
+	messages, err := store.InsertChatMessages(ctx, params)
 	if err != nil {
-		return database.ChatMessage{}, xerrors.Errorf("insert chat message: %w", err)
+		return nil, xerrors.Errorf("insert chat message: %w", err)
 	}
-	return message, nil
+	return messages, nil
+}
+
+// chatMessage describes a single message to insert as part of a batch.
+// Use newChatMessage to create one, then chain builder methods for
+// optional fields. For nullable UUID fields (ModelConfigID, CreatedBy),
+// use uuid.Nil to represent NULL — the SQL uses NULLIF to convert zero
+// UUIDs to NULL. For nullable int64 fields, use 0 to represent NULL —
+// the SQL uses NULLIF to convert zeros to NULL.
+type chatMessage struct {
+	role                database.ChatMessageRole
+	content             pqtype.NullRawMessage
+	visibility          database.ChatMessageVisibility
+	modelConfigID       uuid.UUID
+	createdBy           uuid.UUID
+	contentVersion      int16
+	compressed          bool
+	inputTokens         int64
+	outputTokens        int64
+	totalTokens         int64
+	reasoningTokens     int64
+	cacheCreationTokens int64
+	cacheReadTokens     int64
+	contextLimit        int64
+	totalCostMicros     int64
+	runtimeMs           int64
+}
+
+func newChatMessage(
+	role database.ChatMessageRole,
+	content pqtype.NullRawMessage,
+	visibility database.ChatMessageVisibility,
+	modelConfigID uuid.UUID,
+	contentVersion int16,
+) chatMessage {
+	return chatMessage{
+		role:           role,
+		content:        content,
+		visibility:     visibility,
+		modelConfigID:  modelConfigID,
+		contentVersion: contentVersion,
+	}
+}
+
+func (m chatMessage) withCreatedBy(id uuid.UUID) chatMessage {
+	m.createdBy = id
+	return m
+}
+
+func (m chatMessage) withCompressed() chatMessage {
+	m.compressed = true
+	return m
+}
+
+func (m chatMessage) withUsage(
+	inputTokens, outputTokens, totalTokens, reasoningTokens,
+	cacheCreationTokens, cacheReadTokens int64,
+) chatMessage {
+	m.inputTokens = inputTokens
+	m.outputTokens = outputTokens
+	m.totalTokens = totalTokens
+	m.reasoningTokens = reasoningTokens
+	m.cacheCreationTokens = cacheCreationTokens
+	m.cacheReadTokens = cacheReadTokens
+	return m
+}
+
+func (m chatMessage) withContextLimit(limit int64) chatMessage {
+	m.contextLimit = limit
+	return m
+}
+
+func (m chatMessage) withTotalCostMicros(cost int64) chatMessage {
+	m.totalCostMicros = cost
+	return m
+}
+
+func (m chatMessage) withRuntimeMs(ms int64) chatMessage {
+	m.runtimeMs = ms
+	return m
+}
+
+// appendChatMessage appends a single message to the batch insert params.
+func appendChatMessage(
+	params *database.InsertChatMessagesParams,
+	msg chatMessage,
+) {
+	params.CreatedBy = append(params.CreatedBy, msg.createdBy)
+	params.ModelConfigID = append(params.ModelConfigID, msg.modelConfigID)
+	params.Role = append(params.Role, msg.role)
+	params.Content = append(params.Content, string(msg.content.RawMessage))
+	params.ContentVersion = append(params.ContentVersion, msg.contentVersion)
+	params.Visibility = append(params.Visibility, msg.visibility)
+	params.InputTokens = append(params.InputTokens, msg.inputTokens)
+	params.OutputTokens = append(params.OutputTokens, msg.outputTokens)
+	params.TotalTokens = append(params.TotalTokens, msg.totalTokens)
+	params.ReasoningTokens = append(params.ReasoningTokens, msg.reasoningTokens)
+	params.CacheCreationTokens = append(params.CacheCreationTokens, msg.cacheCreationTokens)
+	params.CacheReadTokens = append(params.CacheReadTokens, msg.cacheReadTokens)
+	params.ContextLimit = append(params.ContextLimit, msg.contextLimit)
+	params.Compressed = append(params.Compressed, msg.compressed)
+	params.TotalCostMicros = append(params.TotalCostMicros, msg.totalCostMicros)
+	params.RuntimeMs = append(params.RuntimeMs, msg.runtimeMs)
 }
 
 func insertUserMessageAndSetPending(
@@ -1157,28 +1243,21 @@ func insertUserMessageAndSetPending(
 	content pqtype.NullRawMessage,
 	createdBy uuid.UUID,
 ) (database.ChatMessage, database.Chat, error) {
-	message, err := insertChatMessageWithStore(ctx, store, database.InsertChatMessageParams{
-		ChatID:              lockedChat.ID,
-		ModelConfigID:       uuid.NullUUID{UUID: modelConfigID, Valid: true},
-		Role:                database.ChatMessageRoleUser,
-		ContentVersion:      chatprompt.CurrentContentVersion,
-		Content:             content,
-		CreatedBy:           uuid.NullUUID{UUID: createdBy, Valid: createdBy != uuid.Nil},
-		Visibility:          database.ChatMessageVisibilityBoth,
-		InputTokens:         sql.NullInt64{},
-		OutputTokens:        sql.NullInt64{},
-		TotalTokens:         sql.NullInt64{},
-		ReasoningTokens:     sql.NullInt64{},
-		CacheCreationTokens: sql.NullInt64{},
-		CacheReadTokens:     sql.NullInt64{},
-		ContextLimit:        sql.NullInt64{},
-		TotalCostMicros:     sql.NullInt64{},
-		RuntimeMs:           sql.NullInt64{},
-		Compressed:          sql.NullBool{},
-	})
+	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		ChatID: lockedChat.ID,
+	}
+	appendChatMessage(&msgParams, newChatMessage(
+		database.ChatMessageRoleUser,
+		content,
+		database.ChatMessageVisibilityBoth,
+		modelConfigID,
+		chatprompt.CurrentContentVersion,
+	).withCreatedBy(createdBy))
+	messages, err := insertChatMessageWithStore(ctx, store, msgParams)
 	if err != nil {
 		return database.ChatMessage{}, database.Chat{}, err
 	}
+	message := messages[0]
 
 	if lockedChat.Status == database.ChatStatusPending {
 		return message, lockedChat, nil
@@ -1218,12 +1297,15 @@ type Config struct {
 	PendingChatAcquireInterval time.Duration
 	MaxChatsPerAcquire         int32
 	InFlightChatStaleAfter     time.Duration
+	ChatHeartbeatInterval      time.Duration
 	AgentConn                  AgentConnFunc
 	CreateWorkspace            chattool.CreateWorkspaceFn
 	StartWorkspace             chattool.StartWorkspaceFn
 	Pubsub                     pubsub.Pubsub
 	ProviderAPIKeys            chatprovider.ProviderAPIKeys
 	WebpushDispatcher          webpush.Dispatcher
+	UsageTracker               *workspacestats.UsageTracker
+	Clock                      quartz.Clock
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -1247,6 +1329,16 @@ func New(cfg Config) *Server {
 		maxChatsPerAcquire = DefaultMaxChatsPerAcquire
 	}
 
+	chatHeartbeatInterval := cfg.ChatHeartbeatInterval
+	if chatHeartbeatInterval == 0 {
+		chatHeartbeatInterval = DefaultChatHeartbeatInterval
+	}
+
+	clk := cfg.Clock
+	if clk == nil {
+		clk = quartz.NewReal()
+	}
+
 	workerID := cfg.ReplicaID
 	if workerID == uuid.Nil {
 		workerID = uuid.New()
@@ -1257,7 +1349,7 @@ func New(cfg Config) *Server {
 		closed:                     make(chan struct{}),
 		db:                         cfg.Database,
 		workerID:                   workerID,
-		logger:                     cfg.Logger.Named("chat-processor"),
+		logger:                     cfg.Logger.Named("processor"),
 		subscribeFn:                cfg.SubscribeFn,
 		agentConnFn:                cfg.AgentConn,
 		createWorkspaceFn:          cfg.CreateWorkspace,
@@ -1269,6 +1361,9 @@ func New(cfg Config) *Server {
 		pendingChatAcquireInterval: pendingChatAcquireInterval,
 		maxChatsPerAcquire:         maxChatsPerAcquire,
 		inFlightChatStaleAfter:     inFlightChatStaleAfter,
+		chatHeartbeatInterval:      chatHeartbeatInterval,
+		usageTracker:               cfg.UsageTracker,
+		clock:                      clk,
 	}
 
 	//nolint:gocritic // The chat processor uses a scoped chatd context.
@@ -1404,6 +1499,48 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 	state.mu.Unlock()
 }
 
+// cacheDurableMessage stores a recently persisted message event in the
+// per-chat stream state so that same-replica subscribers can catch up
+// from memory instead of the database. The afterMessageID is the
+// message ID that precedes this message (i.e. message.ID - 1).
+func (p *Server) cacheDurableMessage(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
+	state := p.getOrCreateStreamState(chatID)
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	if len(state.durableMessages) >= maxDurableMessageCacheSize {
+		if evicted := state.durableMessages[0]; evicted.Message != nil {
+			state.durableEvictedBefore = evicted.Message.ID
+		}
+		state.durableMessages = state.durableMessages[1:]
+	}
+	state.durableMessages = append(state.durableMessages, event)
+}
+
+// getCachedDurableMessages returns cached durable messages with IDs
+// greater than afterID. Returns nil when the cache has no relevant
+// entries.
+func (p *Server) getCachedDurableMessages(
+	chatID uuid.UUID,
+	afterID int64,
+) []codersdk.ChatStreamEvent {
+	state := p.getOrCreateStreamState(chatID)
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	if afterID < state.durableEvictedBefore {
+		return nil
+	}
+
+	var result []codersdk.ChatStreamEvent
+	for _, event := range state.durableMessages {
+		if event.Message != nil && event.Message.ID > afterID {
+			result = append(result, event)
+		}
+	}
+	return result
+}
+
 func (p *Server) subscribeToStream(chatID uuid.UUID) (
 	[]codersdk.ChatStreamEvent,
 	<-chan codersdk.ChatStreamEvent,
@@ -1475,7 +1612,8 @@ func (p *Server) Subscribe(
 		ctx = context.Background()
 	}
 
-	// Subscribe to local stream for message_parts (ephemeral).
+	// Subscribe to the local stream for message_parts and same-replica
+	// persisted messages.
 	localSnapshot, localParts, localCancel := p.subscribeToStream(chatID)
 
 	// Merge all event sources.
@@ -1625,10 +1763,9 @@ func (p *Server) Subscribe(
 		initialSnapshot = append([]codersdk.ChatStreamEvent{statusEvent}, initialSnapshot...)
 	}
 
-	// Track the last message ID we've seen for DB queries.
-	// Initialize from afterMessageID so that when the caller passes
-	// afterMessageID > 0 but no new messages exist yet, the first
-	// pubsub catch-up doesn't re-fetch already-seen messages.
+	// Track the highest durable message ID delivered to this subscriber,
+	// whether it came from the initial DB snapshot, the same-replica local
+	// stream, or a later DB/cache catch-up.
 	lastMessageID := afterMessageID
 	if len(messages) > 0 {
 		lastMessageID = messages[len(messages)-1].ID
@@ -1689,21 +1826,32 @@ func (p *Server) Subscribe(
 				return
 			case notify := <-notifications:
 				if notify.AfterMessageID > 0 || notify.FullRefresh {
-					afterID := lastMessageID
 					if notify.FullRefresh {
-						afterID = 0
+						lastMessageID = 0
 					}
-					newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
+					cached := p.getCachedDurableMessages(chatID, lastMessageID)
+					if !notify.FullRefresh && len(cached) > 0 {
+						for _, event := range cached {
+							select {
+							case <-mergedCtx.Done():
+								return
+							case mergedEvents <- event:
+							}
+							lastMessageID = event.Message.ID
+						}
+					} else if newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
 						ChatID:  chatID,
-						AfterID: afterID,
-					})
-					if msgErr != nil {
+						AfterID: lastMessageID,
+					}); msgErr != nil {
 						p.logger.Warn(mergedCtx, "failed to get chat messages after pubsub notification",
 							slog.F("chat_id", chatID),
 							slog.Error(msgErr),
 						)
 					} else {
 						for _, msg := range newMessages {
+							if msg.ID <= lastMessageID {
+								continue
+							}
 							sdkMsg := db2sdk.ChatMessage(msg)
 							select {
 							case <-mergedCtx.Done():
@@ -1789,7 +1937,7 @@ func (p *Server) Subscribe(
 				}
 				if hasPubsub {
 					// Only forward message_part events from local
-					// (durable events come via pubsub).
+					// (durable events come via pubsub + cache).
 					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
 						select {
 						case <-mergedCtx.Done():
@@ -1994,24 +2142,35 @@ func panicFailureReason(recovered any) string {
 
 func (p *Server) publishMessage(chatID uuid.UUID, message database.ChatMessage) {
 	sdkMessage := db2sdk.ChatMessage(message)
-	p.publishEvent(chatID, codersdk.ChatStreamEvent{
+	event := codersdk.ChatStreamEvent{
 		Type:    codersdk.ChatStreamEventTypeMessage,
+		ChatID:  chatID,
 		Message: &sdkMessage,
-	})
+	}
+	p.cacheDurableMessage(chatID, event)
+	p.publishEvent(chatID, event)
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
 		AfterMessageID: message.ID - 1,
 	})
 }
 
-// publishEditedMessage is like publishMessage but uses
-// AfterMessageID=0 so remote subscribers re-fetch from the
-// beginning, ensuring the edit is never silently dropped.
+// publishEditedMessage is like publishMessage but uses FullRefresh
+// so remote subscribers re-fetch from the beginning, ensuring the
+// edit is never silently dropped. The durable cache is replaced
+// with only the edited message.
 func (p *Server) publishEditedMessage(chatID uuid.UUID, message database.ChatMessage) {
 	sdkMessage := db2sdk.ChatMessage(message)
-	p.publishEvent(chatID, codersdk.ChatStreamEvent{
+	event := codersdk.ChatStreamEvent{
 		Type:    codersdk.ChatStreamEventTypeMessage,
+		ChatID:  chatID,
 		Message: &sdkMessage,
-	})
+	}
+	state := p.getOrCreateStreamState(chatID)
+	state.mu.Lock()
+	state.durableMessages = []codersdk.ChatStreamEvent{event}
+	state.durableEvictedBefore = 0
+	state.mu.Unlock()
+	p.publishEvent(chatID, event)
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
 		FullRefresh: true,
 	})
@@ -2132,33 +2291,26 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 		return nil, nil, false, xerrors.Errorf("pop next queued message: %w", err)
 	}
 
-	msg, err := insertChatMessageWithStore(ctx, tx, database.InsertChatMessageParams{
-		ChatID:         chat.ID,
-		ModelConfigID:  uuid.NullUUID{UUID: chat.LastModelConfigID, Valid: true},
-		Role:           database.ChatMessageRoleUser,
-		ContentVersion: chatprompt.CurrentContentVersion,
-		Content: pqtype.NullRawMessage{
+	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		ChatID: chat.ID,
+	}
+	appendChatMessage(&msgParams, newChatMessage(
+		database.ChatMessageRoleUser,
+		pqtype.NullRawMessage{
 			RawMessage: nextQueued.Content,
 			Valid:      len(nextQueued.Content) > 0,
 		},
-		CreatedBy:           uuid.NullUUID{UUID: chat.OwnerID, Valid: chat.OwnerID != uuid.Nil},
-		Visibility:          database.ChatMessageVisibilityBoth,
-		InputTokens:         sql.NullInt64{},
-		OutputTokens:        sql.NullInt64{},
-		TotalTokens:         sql.NullInt64{},
-		ReasoningTokens:     sql.NullInt64{},
-		CacheCreationTokens: sql.NullInt64{},
-		CacheReadTokens:     sql.NullInt64{},
-		ContextLimit:        sql.NullInt64{},
-		TotalCostMicros:     sql.NullInt64{},
-		RuntimeMs:           sql.NullInt64{},
-		Compressed:          sql.NullBool{},
-	})
+		database.ChatMessageVisibilityBoth,
+		chat.LastModelConfigID,
+		chatprompt.CurrentContentVersion,
+	).withCreatedBy(chat.OwnerID))
+	msgs, err := insertChatMessageWithStore(ctx, tx, msgParams)
 	if err != nil {
 		logger.Error(ctx, "failed to promote queued message",
 			slog.F("queued_message_id", nextQueued.ID), slog.Error(err))
 		return nil, nil, false, nil
 	}
+	msg := msgs[0]
 
 	remainingQueuedMessages, err := tx.GetChatQueuedMessages(ctx, chat.ID)
 	if err != nil {
@@ -2168,6 +2320,35 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 	}
 
 	return &msg, remainingQueuedMessages, true, nil
+}
+
+// trackWorkspaceUsage bumps the workspace's last_used_at via the
+// usage tracker. If wsID is not yet valid, it re-reads the chat
+// from the DB to pick up late associations (e.g. create_workspace
+// linking a workspace mid-conversation). The caller should store
+// the returned value so that subsequent calls skip the DB lookup
+// once a workspace has been found.
+func (p *Server) trackWorkspaceUsage(
+	ctx context.Context,
+	chatID uuid.UUID,
+	wsID uuid.NullUUID,
+	logger slog.Logger,
+) uuid.NullUUID {
+	if p.usageTracker == nil {
+		return wsID
+	}
+	if !wsID.Valid {
+		latest, err := p.db.GetChatByID(ctx, chatID)
+		if err != nil {
+			logger.Warn(ctx, "failed to re-read chat for workspace association", slog.Error(err))
+			return wsID
+		}
+		wsID = latest.WorkspaceID
+	}
+	if wsID.Valid {
+		p.usageTracker.Add(wsID.UUID)
+	}
+	return wsID
 }
 
 func (p *Server) processChat(ctx context.Context, chat database.Chat) {
@@ -2188,7 +2369,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	// worker is still alive. The goroutine stops when chatCtx is
 	// canceled (either by completion or interruption).
 	go func() {
-		ticker := time.NewTicker(chatHeartbeatInterval)
+		ticker := p.clock.NewTicker(p.chatHeartbeatInterval, "chatd", "heartbeat")
 		defer ticker.Stop()
 		for {
 			select {
@@ -2207,6 +2388,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 					cancel(chatloop.ErrInterrupted)
 					return
 				}
+				chat.WorkspaceID = p.trackWorkspaceUsage(chatCtx, chat.ID, chat.WorkspaceID, logger)
 			}
 		}
 	}()
@@ -2665,7 +2847,7 @@ func (p *Server) runChat(
 		err := p.db.InTx(func(tx database.Store) error {
 			// Verify this worker still owns the chat before
 			// inserting messages. This closes the race where
-			// EditMessage truncates history and clears worker_id
+			// EditMessage soft-deletes history and clears worker_id
 			// while persistInterruptedStep (which uses an
 			// uncancelable context) is still running.
 			//
@@ -2690,65 +2872,67 @@ func (p *Server) runChat(
 				}
 			}
 
-			if assistantContent.Valid {
-				assistantMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-					ChatID:         chat.ID,
-					CreatedBy:      uuid.NullUUID{},
-					ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-					Role:           database.ChatMessageRoleAssistant,
-					ContentVersion: chatprompt.CurrentContentVersion,
-					Content:        assistantContent,
-					Visibility:     database.ChatMessageVisibilityBoth,
-					InputTokens:    usageNullInt64(step.Usage.InputTokens, hasUsage),
-					OutputTokens:   usageNullInt64(step.Usage.OutputTokens, hasUsage),
-					TotalTokens:    usageNullInt64(step.Usage.TotalTokens, hasUsage),
-					ReasoningTokens: usageNullInt64(
-						step.Usage.ReasoningTokens,
-						hasUsage,
-					),
-					CacheCreationTokens: usageNullInt64(
-						step.Usage.CacheCreationTokens,
-						hasUsage,
-					),
-					CacheReadTokens: usageNullInt64(step.Usage.CacheReadTokens, hasUsage),
-					ContextLimit:    step.ContextLimit,
-					Compressed:      sql.NullBool{},
-					TotalCostMicros: usageNullInt64Ptr(totalCostMicros),
-					RuntimeMs: sql.NullInt64{
-						Int64: step.Runtime.Milliseconds(),
-						Valid: step.Runtime > 0,
-					},
-				})
-				if insertErr != nil {
-					return xerrors.Errorf("insert assistant message: %w", insertErr)
-				}
-				insertedMessages = append(insertedMessages, assistantMessage)
+			stepParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+				ChatID: chat.ID,
 			}
 
-			for i, resultContent := range toolResultContents {
-				toolMessage, insertErr := tx.InsertChatMessage(persistCtx, database.InsertChatMessageParams{
-					ChatID:              chat.ID,
-					CreatedBy:           uuid.NullUUID{},
-					ModelConfigID:       uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-					Role:                database.ChatMessageRoleTool,
-					ContentVersion:      chatprompt.CurrentContentVersion,
-					Content:             resultContent,
-					Visibility:          database.ChatMessageVisibilityBoth,
-					InputTokens:         sql.NullInt64{},
-					OutputTokens:        sql.NullInt64{},
-					TotalTokens:         sql.NullInt64{},
-					ReasoningTokens:     sql.NullInt64{},
-					CacheCreationTokens: sql.NullInt64{},
-					CacheReadTokens:     sql.NullInt64{},
-					ContextLimit:        sql.NullInt64{},
-					TotalCostMicros:     sql.NullInt64{},
-					RuntimeMs:           sql.NullInt64{},
-					Compressed:          sql.NullBool{},
-				})
+			var contextLimit int64
+			if step.ContextLimit.Valid {
+				contextLimit = step.ContextLimit.Int64
+			}
+
+			var runtimeMs int64
+			if step.Runtime > 0 {
+				runtimeMs = step.Runtime.Milliseconds()
+			}
+
+			var totalCostVal int64
+			if totalCostMicros != nil {
+				totalCostVal = *totalCostMicros
+			}
+
+			var inputTokens, outputTokens, totalTokens int64
+			var reasoningTokens, cacheCreationTokens, cacheReadTokens int64
+			if hasUsage {
+				inputTokens = step.Usage.InputTokens
+				outputTokens = step.Usage.OutputTokens
+				totalTokens = step.Usage.TotalTokens
+				reasoningTokens = step.Usage.ReasoningTokens
+				cacheCreationTokens = step.Usage.CacheCreationTokens
+				cacheReadTokens = step.Usage.CacheReadTokens
+			}
+
+			if assistantContent.Valid {
+				appendChatMessage(&stepParams, newChatMessage(
+					database.ChatMessageRoleAssistant,
+					assistantContent,
+					database.ChatMessageVisibilityBoth,
+					modelConfig.ID,
+					chatprompt.CurrentContentVersion,
+				).withUsage(
+					inputTokens, outputTokens, totalTokens,
+					reasoningTokens, cacheCreationTokens, cacheReadTokens,
+				).withContextLimit(contextLimit).
+					withTotalCostMicros(totalCostVal).
+					withRuntimeMs(runtimeMs))
+			}
+
+			for _, resultContent := range toolResultContents {
+				appendChatMessage(&stepParams, newChatMessage(
+					database.ChatMessageRoleTool,
+					resultContent,
+					database.ChatMessageVisibilityBoth,
+					modelConfig.ID,
+					chatprompt.CurrentContentVersion,
+				))
+			}
+
+			if len(stepParams.Role) > 0 {
+				inserted, insertErr := tx.InsertChatMessages(persistCtx, stepParams)
 				if insertErr != nil {
-					return xerrors.Errorf("insert tool result %d: %w", i, insertErr)
+					return xerrors.Errorf("insert step messages: %w", insertErr)
 				}
-				insertedMessages = append(insertedMessages, toolMessage)
+				insertedMessages = append(insertedMessages, inserted...)
 			}
 
 			return nil
@@ -3110,82 +3294,45 @@ func (p *Server) persistChatContextSummary(
 	var insertedMessages []database.ChatMessage
 
 	txErr := p.db.InTx(func(tx database.Store) error {
-		_, txErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID:              chatID,
-			CreatedBy:           uuid.NullUUID{},
-			ModelConfigID:       uuid.NullUUID{UUID: modelConfigID, Valid: true},
-			Role:                database.ChatMessageRoleUser,
-			ContentVersion:      chatprompt.CurrentContentVersion,
-			Content:             systemContent,
-			Visibility:          database.ChatMessageVisibilityModel,
-			Compressed:          sql.NullBool{Bool: true, Valid: true},
-			InputTokens:         sql.NullInt64{},
-			OutputTokens:        sql.NullInt64{},
-			TotalTokens:         sql.NullInt64{},
-			ReasoningTokens:     sql.NullInt64{},
-			CacheCreationTokens: sql.NullInt64{},
-			CacheReadTokens:     sql.NullInt64{},
-			ContextLimit:        sql.NullInt64{},
-			TotalCostMicros:     sql.NullInt64{},
-			RuntimeMs:           sql.NullInt64{},
-		})
-		if txErr != nil {
-			return xerrors.Errorf("insert hidden summary message: %w", txErr)
+		summaryParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+			ChatID: chatID,
 		}
 
-		assistantMessage, txErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID:         chatID,
-			CreatedBy:      uuid.NullUUID{},
-			ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
-			Role:           database.ChatMessageRoleAssistant,
-			ContentVersion: chatprompt.CurrentContentVersion,
-			Content:        assistantContent,
-			Visibility:     database.ChatMessageVisibilityUser,
-			Compressed: sql.NullBool{
-				Bool:  true,
-				Valid: true,
-			},
-			InputTokens:         sql.NullInt64{},
-			OutputTokens:        sql.NullInt64{},
-			TotalTokens:         sql.NullInt64{},
-			ReasoningTokens:     sql.NullInt64{},
-			CacheCreationTokens: sql.NullInt64{},
-			CacheReadTokens:     sql.NullInt64{},
-			ContextLimit:        sql.NullInt64{},
-			TotalCostMicros:     sql.NullInt64{},
-			RuntimeMs:           sql.NullInt64{},
-		})
-		if txErr != nil {
-			return xerrors.Errorf("insert summary tool call message: %w", txErr)
-		}
-		insertedMessages = append(insertedMessages, assistantMessage)
+		// Hidden summary user message (not published to subscribers).
+		appendChatMessage(&summaryParams, newChatMessage(
+			database.ChatMessageRoleUser,
+			systemContent,
+			database.ChatMessageVisibilityModel,
+			modelConfigID,
+			chatprompt.CurrentContentVersion,
+		).withCompressed())
 
-		toolMessage, txErr := tx.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID:         chatID,
-			CreatedBy:      uuid.NullUUID{},
-			ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
-			Role:           database.ChatMessageRoleTool,
-			ContentVersion: chatprompt.CurrentContentVersion,
-			Content:        toolResult,
-			Visibility:     database.ChatMessageVisibilityBoth,
-			Compressed: sql.NullBool{
-				Bool:  true,
-				Valid: true,
-			},
-			InputTokens:         sql.NullInt64{},
-			OutputTokens:        sql.NullInt64{},
-			TotalTokens:         sql.NullInt64{},
-			ReasoningTokens:     sql.NullInt64{},
-			CacheCreationTokens: sql.NullInt64{},
-			CacheReadTokens:     sql.NullInt64{},
-			ContextLimit:        sql.NullInt64{},
-			TotalCostMicros:     sql.NullInt64{},
-			RuntimeMs:           sql.NullInt64{},
-		})
+		// Assistant tool-call message.
+		appendChatMessage(&summaryParams, newChatMessage(
+			database.ChatMessageRoleAssistant,
+			assistantContent,
+			database.ChatMessageVisibilityUser,
+			modelConfigID,
+			chatprompt.CurrentContentVersion,
+		).withCompressed())
+
+		// Tool result message.
+		appendChatMessage(&summaryParams, newChatMessage(
+			database.ChatMessageRoleTool,
+			toolResult,
+			database.ChatMessageVisibilityBoth,
+			modelConfigID,
+			chatprompt.CurrentContentVersion,
+		).withCompressed())
+
+		allInserted, txErr := tx.InsertChatMessages(ctx, summaryParams)
 		if txErr != nil {
-			return xerrors.Errorf("insert summary tool result message: %w", txErr)
+			return xerrors.Errorf("insert summary messages: %w", txErr)
 		}
-		insertedMessages = append(insertedMessages, toolMessage)
+		// Skip the first message (hidden summary user msg) when
+		// publishing — only the assistant and tool messages are
+		// visible to subscribers.
+		insertedMessages = allInserted[1:]
 
 		return nil
 	}, nil)
@@ -3295,24 +3442,6 @@ func (p *Server) resolveModelConfig(
 
 func int64Ptr(value int64) *int64 {
 	return &value
-}
-
-//nolint:revive // Boolean controls SQL NULL validity.
-func usageNullInt64(value int64, valid bool) sql.NullInt64 {
-	if !valid {
-		return sql.NullInt64{}
-	}
-	return sql.NullInt64{
-		Int64: value,
-		Valid: valid,
-	}
-}
-
-func usageNullInt64Ptr(v *int64) sql.NullInt64 {
-	if v == nil {
-		return sql.NullInt64{}
-	}
-	return sql.NullInt64{Int64: *v, Valid: true}
 }
 
 func refreshChatWorkspaceSnapshot(

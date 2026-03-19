@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -127,22 +128,24 @@ func insertAssistantCostMessage(
 	})
 	require.NoError(t, err)
 
-	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+	_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
 		ChatID:              chatID,
-		ModelConfigID:       uuid.NullUUID{UUID: modelConfigID, Valid: true},
-		Role:                database.ChatMessageRoleAssistant,
-		ContentVersion:      chatprompt.CurrentContentVersion,
-		Content:             assistantContent,
-		Visibility:          database.ChatMessageVisibilityBoth,
-		InputTokens:         sql.NullInt64{},
-		OutputTokens:        sql.NullInt64{},
-		TotalTokens:         sql.NullInt64{},
-		ReasoningTokens:     sql.NullInt64{},
-		CacheCreationTokens: sql.NullInt64{},
-		CacheReadTokens:     sql.NullInt64{},
-		ContextLimit:        sql.NullInt64{},
-		Compressed:          sql.NullBool{},
-		TotalCostMicros:     sql.NullInt64{Int64: totalCostMicros, Valid: true},
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfigID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+		Content:             []string{string(assistantContent.RawMessage)},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{totalCostMicros},
+		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
 }
@@ -2660,7 +2663,9 @@ func TestPatchChatMessage(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Equal(t, userMessageID, edited.ID)
+		// The edited message is soft-deleted and a new one is inserted,
+		// so the returned ID will differ from the original.
+		require.NotEqual(t, userMessageID, edited.ID)
 		require.Equal(t, codersdk.ChatMessageRoleUser, edited.Role)
 
 		foundEditedText := false
@@ -2750,7 +2755,9 @@ func TestPatchChatMessage(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Equal(t, userMessageID, edited.ID)
+		// The edited message is soft-deleted and a new one is inserted,
+		// so the returned ID will differ from the original.
+		require.NotEqual(t, userMessageID, edited.ID)
 
 		// Assert the edit response preserves the file_id.
 		var foundText, foundFile bool
@@ -3984,6 +3991,30 @@ func TestGetChatFile(t *testing.T) {
 		require.NotContains(t, cd, strings.Repeat("a", 256))
 	})
 
+	t.Run("UnicodeFilename", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		// Upload with a non-ASCII filename using RFC 5987 encoding,
+		// which is what the frontend sends for Unicode filenames.
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "スクリーンショット.png", bytes.NewReader(data))
+		require.NoError(t, err)
+
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/files/%s", uploaded.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		cd := res.Header.Get("Content-Disposition")
+		require.Contains(t, cd, "inline")
+		_, params, err := mime.ParseMediaType(cd)
+		require.NoError(t, err)
+		require.Equal(t, "スクリーンショット.png", params["filename"])
+	})
+
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -4057,24 +4088,35 @@ func seedChatCostFixture(t *testing.T) chatCostTestFixture {
 	})
 	require.NoError(t, err)
 
-	var earliestCreatedAt time.Time
-	var latestCreatedAt time.Time
-	for i := 0; i < 2; i++ {
-		message, err := db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
-			ChatID:          chat.ID,
-			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-			Role:            "assistant",
-			Visibility:      database.ChatMessageVisibilityBoth,
-			InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
-			OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-			TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
-		})
-		require.NoError(t, err)
-		if i == 0 || message.CreatedAt.Before(earliestCreatedAt) {
-			earliestCreatedAt = message.CreatedAt
+	results, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil, uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfig.ID, modelConfig.ID},
+		Role:                []database.ChatMessageRole{"assistant", "assistant"},
+		Content:             []string{"null", "null"},
+		ContentVersion:      []int16{0, 0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{100, 100},
+		OutputTokens:        []int64{50, 50},
+		TotalTokens:         []int64{0, 0},
+		ReasoningTokens:     []int64{0, 0},
+		CacheCreationTokens: []int64{0, 0},
+		CacheReadTokens:     []int64{0, 0},
+		ContextLimit:        []int64{0, 0},
+		Compressed:          []bool{false, false},
+		TotalCostMicros:     []int64{500, 500},
+		RuntimeMs:           []int64{0, 0},
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+	earliestCreatedAt := results[0].CreatedAt
+	latestCreatedAt := results[0].CreatedAt
+	for _, msg := range results {
+		if msg.CreatedAt.Before(earliestCreatedAt) {
+			earliestCreatedAt = msg.CreatedAt
 		}
-		if i == 0 || message.CreatedAt.After(latestCreatedAt) {
-			latestCreatedAt = message.CreatedAt
+		if msg.CreatedAt.After(latestCreatedAt) {
+			latestCreatedAt = msg.CreatedAt
 		}
 	}
 
@@ -4162,16 +4204,27 @@ func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	message, err := db.InsertChatMessage(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessageParams{
-		ChatID:          chat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            "assistant",
-		Visibility:      database.ChatMessageVisibilityBoth,
-		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 100, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 750, Valid: true},
+	results, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfig.ID},
+		Role:                []database.ChatMessageRole{"assistant"},
+		Content:             []string{"null"},
+		ContentVersion:      []int16{0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{200},
+		OutputTokens:        []int64{100},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{750},
+		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
+	message := results[0]
 	options := codersdk.ChatCostSummaryOptions{
 		// Pad the DB-assigned timestamp so the query window cannot race it.
 		StartDate: message.CreatedAt.Add(-time.Minute),
@@ -4217,14 +4270,24 @@ func TestChatCostUsers(t *testing.T) {
 		Title:             "admin chat",
 	})
 	require.NoError(t, err)
-	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessageParams{
-		ChatID:          adminChat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            "assistant",
-		Visibility:      database.ChatMessageVisibilityBoth,
-		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 300, Valid: true},
+	_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessagesParams{
+		ChatID:              adminChat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfig.ID},
+		Role:                []database.ChatMessageRole{"assistant"},
+		Content:             []string{"null"},
+		ContentVersion:      []int16{0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{100},
+		OutputTokens:        []int64{50},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{300},
+		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
 
@@ -4234,14 +4297,24 @@ func TestChatCostUsers(t *testing.T) {
 		Title:             "member chat",
 	})
 	require.NoError(t, err)
-	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessageParams{
-		ChatID:          memberChat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            "assistant",
-		Visibility:      database.ChatMessageVisibilityBoth,
-		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 100, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 800, Valid: true},
+	_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessagesParams{
+		ChatID:              memberChat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfig.ID},
+		Role:                []database.ChatMessageRole{"assistant"},
+		Content:             []string{"null"},
+		ContentVersion:      []int16{0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{200},
+		OutputTokens:        []int64{100},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{800},
+		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
 
@@ -4308,14 +4381,24 @@ func TestChatCostSummary_DateRange(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessageParams{
-		ChatID:          chat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            "assistant",
-		Visibility:      database.ChatMessageVisibilityBoth,
-		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
+	_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfig.ID},
+		Role:                []database.ChatMessageRole{"assistant"},
+		Content:             []string{"null"},
+		ContentVersion:      []int16{0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{100},
+		OutputTokens:        []int64{50},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{500},
+		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
 
@@ -4363,27 +4446,49 @@ func TestChatCostSummary_UnpricedMessages(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	pricedMessage, err := db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
-		ChatID:          chat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            "assistant",
-		Visibility:      database.ChatMessageVisibilityBoth,
-		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
+	pricedResults, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfig.ID},
+		Role:                []database.ChatMessageRole{"assistant"},
+		Content:             []string{"null"},
+		ContentVersion:      []int16{0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{100},
+		OutputTokens:        []int64{50},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{500},
+		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
+	pricedMessage := pricedResults[0]
 
-	unpricedMessage, err := db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
-		ChatID:          chat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            "assistant",
-		Visibility:      database.ChatMessageVisibilityBoth,
-		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 75, Valid: true},
-		TotalCostMicros: sql.NullInt64{},
+	unpricedResults, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfig.ID},
+		Role:                []database.ChatMessageRole{"assistant"},
+		Content:             []string{"null"},
+		ContentVersion:      []int16{0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{200},
+		OutputTokens:        []int64{75},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{0},
+		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
+	unpricedMessage := unpricedResults[0]
 
 	earliestCreatedAt := pricedMessage.CreatedAt
 	latestCreatedAt := pricedMessage.CreatedAt
@@ -4462,7 +4567,7 @@ func TestWatchChatDesktop(t *testing.T) {
 		res, err := client.Request(
 			ctx,
 			http.MethodGet,
-			fmt.Sprintf("/api/experimental/chats/%s/desktop", createdChat.ID),
+			fmt.Sprintf("/api/experimental/chats/%s/stream/desktop", createdChat.ID),
 			nil,
 		)
 		require.NoError(t, err)

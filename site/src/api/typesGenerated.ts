@@ -1320,6 +1320,15 @@ export interface ChatMessage {
  * name = required, ? suffix = optional. Fields without a variants
  * tag are excluded from the generated union. See
  * scripts/apitypings/main.go for the codegen that reads these.
+ *
+ * omitempty rules (enforced by TestChatMessagePartVariantTags):
+ *   - If a field is required (no ? suffix) in ANY variant, it
+ *     must NOT use omitempty. Go would silently drop zero values
+ *     that TypeScript expects to always be present.
+ *   - If a field is optional (? suffix) in ALL of its variants,
+ *     it MUST use omitempty. Sending zero values for fields that
+ *     the frontend does not expect adds noise to the wire format
+ *     and wastes space in persisted chat_messages rows.
  */
 export type ChatMessagePart =
 	| ChatTextPart
@@ -4328,6 +4337,20 @@ export interface OAuthConversionResponse {
 export interface OIDCAuthMethod extends AuthMethod {
 	readonly signInText: string;
 	readonly iconUrl: string;
+}
+
+// From codersdk/users.go
+/**
+ * OIDCClaimsResponse represents the merged OIDC claims for a user.
+ */
+export interface OIDCClaimsResponse {
+	/**
+	 * Claims are the merged claims from the OIDC provider. These
+	 * are the union of the ID token claims and the userinfo claims,
+	 * where userinfo claims take precedence on conflict.
+	 */
+	// empty interface{} type, falling back to unknown
+	readonly claims: Record<string, unknown>;
 }
 
 // From codersdk/deployment.go

@@ -160,11 +160,13 @@ export const watchChats = (): OneWayWebSocket<TypesGen.ServerSentEvent> => {
 };
 
 export const watchChatGit = (chatId: string): WebSocket => {
-	return createWebSocket(`/api/experimental/chats/${chatId}/git/watch`);
+	return createWebSocket(`/api/experimental/chats/${chatId}/stream/git`);
 };
 
 export const watchChatDesktop = (chatId: string): WebSocket => {
-	const socket = createWebSocket(`/api/experimental/chats/${chatId}/desktop`);
+	const socket = createWebSocket(
+		`/api/experimental/chats/${chatId}/stream/desktop`,
+	);
 	// RFB is a binary protocol — noVNC expects arraybuffer, not blob.
 	socket.binaryType = "arraybuffer";
 	return socket;
@@ -1482,6 +1484,35 @@ class ApiMethods {
 		await this.waitForBuild(startBuild);
 	};
 
+	/**
+	 * Starts a workspace, but if the last build was a failed start,
+	 * stops it first to give it a clean slate and the best chance
+	 * of success.
+	 */
+	retryWorkspace = async (
+		workspace: TypesGen.Workspace,
+		templateVersionId: string,
+		logLevel?: TypesGen.ProvisionerLogLevel,
+		buildParameters?: TypesGen.WorkspaceBuildParameter[],
+	): Promise<TypesGen.WorkspaceBuild> => {
+		if (
+			workspace.latest_build.status === "failed" &&
+			workspace.latest_build.transition === "start"
+		) {
+			const stopBuild = await this.stopWorkspace(workspace.id, logLevel);
+			const awaitedStop = await this.waitForBuild(stopBuild);
+			if (awaitedStop?.status === "canceled") {
+				throw new Error("Cleanup stop was canceled");
+			}
+		}
+		return this.startWorkspace(
+			workspace.id,
+			templateVersionId,
+			logLevel,
+			buildParameters,
+		);
+	};
+
 	cancelTemplateVersionBuild = async (
 		templateVersionId: string,
 	): Promise<TypesGen.Response> => {
@@ -2311,7 +2342,11 @@ class ApiMethods {
 			{
 				headers: {
 					"Content-Type": file.type || "application/octet-stream",
-					"Content-Disposition": `attachment; filename="${file.name}"`,
+					// Use RFC 5987 encoding for the filename to support
+					// non-ASCII characters. Placing the raw name directly in
+					// the header causes XMLHttpRequest to throw because HTTP
+					// headers only allow ISO-8859-1 code points.
+					"Content-Disposition": `attachment; filename="file"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
 				},
 			},
 		);
@@ -3207,6 +3242,18 @@ class ApiMethods {
 			params,
 		);
 		const response = await this.axios.get<TypesGen.ChatCostUsersResponse>(url);
+		return response.data;
+	};
+
+	getPRInsights = async (params?: {
+		start_date?: string;
+		end_date?: string;
+	}): Promise<TypesGen.PRInsightsResponse> => {
+		const url = getURLWithSearchParams(
+			"/api/experimental/chats/insights/pull-requests",
+			params,
+		);
+		const response = await this.axios.get<TypesGen.PRInsightsResponse>(url);
 		return response.data;
 	};
 

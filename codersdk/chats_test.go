@@ -259,6 +259,46 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 		assert.True(t, coveredTypes[pt],
 			"ChatMessagePartType %q is not referenced by any variants tag; %s", pt, editHint)
 	}
+
+	// Enforce the omitempty <-> variants invariant:
+	//   required in any variant  => must NOT have omitempty
+	//   optional in all variants => MUST have omitempty
+	// See the struct comment on ChatMessagePart for rationale.
+	t.Run("omitempty must match variant optionality", func(t *testing.T) {
+		t.Parallel()
+
+		typ := reflect.TypeOf(codersdk.ChatMessagePart{})
+		for i := range typ.NumField() {
+			f := typ.Field(i)
+			varTag := f.Tag.Get("variants")
+			if varTag == "" {
+				continue
+			}
+
+			allOptional := true
+			for _, entry := range strings.Split(varTag, ",") {
+				if !strings.HasSuffix(entry, "?") {
+					allOptional = false
+					break
+				}
+			}
+
+			jsonTag := f.Tag.Get("json")
+			hasOmitEmpty := strings.Contains(jsonTag, "omitempty")
+
+			if !allOptional {
+				assert.False(t, hasOmitEmpty,
+					"field %s is required in at least one variant but has omitempty in its json tag; "+
+						"remove omitempty so Go does not silently drop the zero value that TypeScript expects to always be present",
+					f.Name)
+			} else {
+				assert.True(t, hasOmitEmpty,
+					"field %s is optional in all variants but is missing omitempty in its json tag; "+
+						"add omitempty to avoid sending zero values for fields the frontend does not expect",
+					f.Name)
+			}
+		}
+	})
 }
 
 func TestModelCostConfig_LegacyNumericJSON(t *testing.T) {

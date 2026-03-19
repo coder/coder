@@ -10,19 +10,30 @@ import { type PRInsightsTimeRange, PRInsightsView } from "./PRInsightsView";
 
 const NOW = dayjs("2025-07-15");
 
+// Deterministic PRNG so story snapshots are stable across runs.
+function seededRandom(seed: number) {
+	let s = seed;
+	return () => {
+		s = (s * 16807) % 2147483647;
+		return (s - 1) / 2147483646;
+	};
+}
+
 function generateTimeSeries(
 	days: number,
 	opts: { avgCreated: number; avgMerged: number; avgClosed?: number },
+	seed = 42,
 ): TypesGen.PRInsightsTimeSeriesEntry[] {
+	const rand = seededRandom(seed);
 	const entries: TypesGen.PRInsightsTimeSeriesEntry[] = [];
 	for (let i = days - 1; i >= 0; i--) {
 		const date = NOW.subtract(i, "day").format("YYYY-MM-DD");
-		const jitter = () => Math.round((Math.random() - 0.3) * 3);
+		const jitter = () => Math.round((rand() - 0.3) * 3);
 		const created = Math.max(0, opts.avgCreated + jitter());
 		const merged = Math.min(created, Math.max(0, opts.avgMerged + jitter()));
 		const closed = Math.max(
 			0,
-			(opts.avgClosed ?? 0) + Math.round((Math.random() - 0.5) * 2),
+			(opts.avgClosed ?? 0) + Math.round((rand() - 0.5) * 2),
 		);
 		entries.push({
 			date,
@@ -134,7 +145,11 @@ const AUTHORS = [
 	},
 ];
 
-function generatePRs(count: number): TypesGen.PRInsightsPullRequest[] {
+function generatePRs(
+	count: number,
+	seed = 100,
+): TypesGen.PRInsightsPullRequest[] {
+	const rand = seededRandom(seed);
 	const states: Array<"open" | "closed" | "merged"> = [
 		"merged",
 		"merged",
@@ -155,8 +170,8 @@ function generatePRs(count: number): TypesGen.PRInsightsPullRequest[] {
 	return Array.from({ length: count }, (_, i) => {
 		const state = states[i % states.length];
 		const author = AUTHORS[i % AUTHORS.length];
-		const additions = Math.round(40 + Math.random() * 400);
-		const deletions = Math.round(10 + Math.random() * 150);
+		const additions = Math.round(40 + rand() * 400);
+		const deletions = Math.round(10 + rand() * 150);
 
 		return {
 			chat_id: `chat-${i}`,
@@ -167,22 +182,22 @@ function generatePRs(count: number): TypesGen.PRInsightsPullRequest[] {
 			draft: state === "open" && i % 3 === 0,
 			additions,
 			deletions,
-			changed_files: Math.round(2 + Math.random() * 12),
-			commits: Math.round(1 + Math.random() * 6),
+			changed_files: Math.round(2 + rand() * 12),
+			commits: Math.round(1 + rand() * 6),
 			approved:
 				state === "merged" ? true : state === "open" ? undefined : false,
 			changes_requested: state === "closed" && i % 2 === 0,
 			reviewer_count:
 				state === "merged"
-					? Math.round(1 + Math.random() * 2)
-					: Math.round(Math.random() * 2),
+					? Math.round(1 + rand() * 2)
+					: Math.round(rand() * 2),
 			author_login: author.login,
 			author_avatar_url: author.avatar,
 			base_branch: "main",
 			model_display_name: models[i % models.length],
-			cost_micros: Math.round(1_500_000 + Math.random() * 8_000_000),
+			cost_micros: Math.round(1_500_000 + rand() * 8_000_000),
 			created_at: NOW.subtract(
-				i * 4 + Math.round(Math.random() * 8),
+				i * 4 + Math.round(rand() * 8),
 				"hour",
 			).toISOString(),
 		};
@@ -262,11 +277,11 @@ const lowVolumeData: TypesGen.PRInsightsResponse = {
 		prev_cost_per_merged_pr_micros: 4_200_000,
 	},
 	time_series: generateTimeSeries(30, { avgCreated: 0, avgMerged: 0 }),
-	by_model: MODELS.slice(0, 2).map((m) => ({
+	by_model: MODELS.slice(0, 2).map((m, i) => ({
 		...m,
 		total_prs: Math.round(m.total_prs / 6),
 		merged_prs: Math.round(m.merged_prs / 8),
-		merge_rate: 0.35 + Math.random() * 0.15,
+		merge_rate: 0.35 + i * 0.07,
 	})),
 	recent_prs: generatePRs(5),
 };

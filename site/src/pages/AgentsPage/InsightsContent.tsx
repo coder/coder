@@ -1,4 +1,4 @@
-import type { PRInsightsResponse } from "api/typesGenerated";
+import { prInsights } from "api/queries/chats";
 import { Spinner } from "components/Spinner/Spinner";
 import dayjs from "dayjs";
 import { type FC, useCallback, useMemo, useState } from "react";
@@ -15,31 +15,11 @@ function timeRangeToDates(range: PRInsightsTimeRange) {
 	};
 }
 
-async function fetchPRInsights(
-	startDate: string,
-	endDate: string,
-): Promise<PRInsightsResponse> {
-	const params = new URLSearchParams({
-		start_date: startDate,
-		end_date: endDate,
-	});
-	const resp = await fetch(
-		`/api/v2/chats/insights/pull-requests?${params.toString()}`,
-	);
-	if (!resp.ok) {
-		throw new Error(`Failed to fetch PR insights: ${resp.statusText}`);
-	}
-	return resp.json();
-}
-
 export const InsightsContent: FC = () => {
 	const [timeRange, setTimeRange] = useState<PRInsightsTimeRange>("30d");
 	const dates = useMemo(() => timeRangeToDates(timeRange), [timeRange]);
 
-	const { data, isLoading, error } = useQuery({
-		queryKey: ["prInsights", dates.start_date, dates.end_date],
-		queryFn: () => fetchPRInsights(dates.start_date, dates.end_date),
-	});
+	const { data, isLoading, error } = useQuery(prInsights(dates));
 
 	const handleTimeRangeChange = useCallback(
 		(range: PRInsightsTimeRange) => setTimeRange(range),

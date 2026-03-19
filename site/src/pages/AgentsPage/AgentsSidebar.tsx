@@ -962,7 +962,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							label="Behavior"
 							active={sidebarView.section === "behavior"}
 							to="/agents/settings/behavior"
-							replace
 							state={location.state}
 						/>
 						{isAdmin && (
@@ -972,7 +971,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Providers"
 									active={sidebarView.section === "providers"}
 									to="/agents/settings/providers"
-									replace
 									state={location.state}
 									adminOnly
 								/>
@@ -981,7 +979,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Models"
 									active={sidebarView.section === "models"}
 									to="/agents/settings/models"
-									replace
 									state={location.state}
 									adminOnly
 								/>
@@ -990,7 +987,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Limits"
 									active={sidebarView.section === "limits"}
 									to="/agents/settings/limits"
-									replace
 									state={location.state}
 									adminOnly
 								/>
@@ -999,7 +995,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Usage"
 									active={sidebarView.section === "usage"}
 									to="/agents/settings/usage"
-									replace
 									state={location.state}
 									adminOnly
 								/>
@@ -1008,7 +1003,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Analytics"
 									active={sidebarView.section === "insights"}
 									to="/agents/settings/insights"
-									replace
 									state={location.state}
 									adminOnly
 								/>{" "}
@@ -1112,13 +1106,8 @@ const LoadMoreSentinel: FC<{
 	// Keep refs in sync with the latest prop values so the
 	// observer callback always reads current state without
 	// needing to tear down and re-create the observer.
-	useEffect(() => {
-		onLoadMoreRef.current = onLoadMore;
-	}, [onLoadMore]);
-
-	useEffect(() => {
-		isFetchingNextPageRef.current = isFetchingNextPage;
-	}, [isFetchingNextPage]);
+	onLoadMoreRef.current = onLoadMore;
+	isFetchingNextPageRef.current = isFetchingNextPage;
 
 	useEffect(() => {
 		const el = sentinelRef.current;

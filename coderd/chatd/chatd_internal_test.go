@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -13,6 +14,8 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
@@ -222,4 +225,232 @@ func TestTurnWorkspaceContextGetWorkspaceConnRefreshesWorkspaceAgent(t *testing.
 	require.NoError(t, err)
 	require.Same(t, conn, gotConn)
 	require.Equal(t, []uuid.UUID{initialAgent.ID, refreshedAgent.ID}, dialed)
+}
+
+func TestSubscribeSkipsDatabaseCatchupForLocallyDeliveredMessage(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusPending}
+	initialMessage := database.ChatMessage{
+		ID:     1,
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleUser,
+	}
+	localMessage := database.ChatMessage{
+		ID:     2,
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleAssistant,
+	}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return([]database.ChatMessage{initialMessage}, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+	)
+
+	server := newSubscribeTestServer(t, db)
+	_, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	server.publishMessage(chatID, localMessage)
+
+	event := requireStreamMessageEvent(t, events)
+	require.Equal(t, int64(2), event.Message.ID)
+	requireNoStreamEvent(t, events, 200*time.Millisecond)
+}
+
+func TestSubscribeUsesDurableCacheWhenLocalMessageWasNotDelivered(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusPending}
+	initialMessage := database.ChatMessage{
+		ID:     1,
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleUser,
+	}
+	cachedMessage := codersdk.ChatMessage{
+		ID:     2,
+		ChatID: chatID,
+		Role:   codersdk.ChatMessageRoleAssistant,
+	}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return([]database.ChatMessage{initialMessage}, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+	)
+
+	server := newSubscribeTestServer(t, db)
+	server.cacheDurableMessage(chatID, codersdk.ChatStreamEvent{
+		Type:    codersdk.ChatStreamEventTypeMessage,
+		ChatID:  chatID,
+		Message: &cachedMessage,
+	})
+
+	_, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	server.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
+		AfterMessageID: 1,
+	})
+
+	event := requireStreamMessageEvent(t, events)
+	require.Equal(t, int64(2), event.Message.ID)
+	requireNoStreamEvent(t, events, 200*time.Millisecond)
+}
+
+func TestSubscribeQueriesDatabaseWhenDurableCacheMisses(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusPending}
+	initialMessage := database.ChatMessage{
+		ID:     1,
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleUser,
+	}
+	catchupMessage := database.ChatMessage{
+		ID:     2,
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleAssistant,
+	}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return([]database.ChatMessage{initialMessage}, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 1,
+		}).Return([]database.ChatMessage{catchupMessage}, nil),
+	)
+
+	server := newSubscribeTestServer(t, db)
+	_, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	server.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
+		AfterMessageID: 1,
+	})
+
+	event := requireStreamMessageEvent(t, events)
+	require.Equal(t, int64(2), event.Message.ID)
+	requireNoStreamEvent(t, events, 200*time.Millisecond)
+}
+
+func TestSubscribeFullRefreshStillUsesDatabaseCatchup(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusPending}
+	initialMessage := database.ChatMessage{
+		ID:     1,
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleUser,
+	}
+	editedMessage := database.ChatMessage{
+		ID:     1,
+		ChatID: chatID,
+		Role:   database.ChatMessageRoleUser,
+	}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return([]database.ChatMessage{initialMessage}, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return([]database.ChatMessage{editedMessage}, nil),
+	)
+
+	server := newSubscribeTestServer(t, db)
+	_, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	server.publishEditedMessage(chatID, editedMessage)
+
+	event := requireStreamMessageEvent(t, events)
+	require.Equal(t, int64(1), event.Message.ID)
+	requireNoStreamEvent(t, events, 200*time.Millisecond)
+}
+
+func newSubscribeTestServer(t *testing.T, db database.Store) *Server {
+	t.Helper()
+
+	return &Server{
+		db:     db,
+		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		pubsub: dbpubsub.NewInMemory(),
+	}
+}
+
+func requireStreamMessageEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent) codersdk.ChatStreamEvent {
+	t.Helper()
+
+	select {
+	case event, ok := <-events:
+		require.True(t, ok, "chat stream closed before delivering an event")
+		require.Equal(t, codersdk.ChatStreamEventTypeMessage, event.Type)
+		require.NotNil(t, event.Message)
+		return event
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for chat stream message event")
+		return codersdk.ChatStreamEvent{}
+	}
+}
+
+func requireNoStreamEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent, wait time.Duration) {
+	t.Helper()
+
+	select {
+	case event, ok := <-events:
+		if !ok {
+			t.Fatal("chat stream closed unexpectedly")
+		}
+		t.Fatalf("unexpected chat stream event: %+v", event)
+	case <-time.After(wait):
+	}
 }

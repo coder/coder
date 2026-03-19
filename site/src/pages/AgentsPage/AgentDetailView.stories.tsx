@@ -5,7 +5,7 @@ import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { fn, spyOn } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { createChatStore } from "./AgentDetail/ChatContext";
 import {
@@ -427,4 +427,94 @@ export const NotFoundSidebarCollapsed: Story = {
 			onToggleSidebarCollapsed={fn()}
 		/>
 	),
+};
+
+// ---------------------------------------------------------------------------
+// Scroll-to-bottom button stories
+// ---------------------------------------------------------------------------
+
+/** Generate a long conversation so the scroll container overflows. */
+const buildLongConversation = (count: number): TypesGen.ChatMessage[] => {
+	const messages: TypesGen.ChatMessage[] = [];
+	for (let i = 1; i <= count; i++) {
+		const role: TypesGen.ChatMessageRole = i % 2 === 1 ? "user" : "assistant";
+		const text =
+			role === "user"
+				? `Question ${Math.ceil(i / 2)}: Can you explain concept ${Math.ceil(i / 2)} in detail?`
+				: `Sure! Here is a detailed explanation of concept ${Math.floor(i / 2)}. `.repeat(
+						4,
+					);
+		messages.push(buildMessage(i, role, text));
+	}
+	return messages;
+};
+
+/** Scroll-to-bottom button appears after scrolling up in a long
+ *  conversation, and clicking it returns to the bottom. */
+export const ScrollToBottomButton: Story = {
+	args: {
+		store: buildStoreWithMessages(buildLongConversation(40)),
+	},
+	decorators: [
+		(Story) => (
+			<div
+				style={{
+					height: "600px",
+					display: "flex",
+					flexDirection: "column",
+				}}
+			>
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The button should be hidden initially — it has aria-hidden="true"
+		// when not shown, so queryByRole correctly returns null.
+		expect(
+			canvas.queryByRole("button", { name: "Scroll to bottom" }),
+		).toBeNull();
+
+		// Find the scroll container via data-testid.
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		// Wait for content to render and create overflow.
+		await waitFor(() => {
+			expect(scrollContainer.scrollHeight).toBeGreaterThan(
+				scrollContainer.clientHeight,
+			);
+		});
+
+		// Scroll up. In flex-col-reverse containers, Chrome uses
+		// negative scrollTop values when scrolled away from the
+		// bottom. Try negative first, fall back to positive for
+		// other engines.
+		const maxScroll =
+			scrollContainer.scrollHeight - scrollContainer.clientHeight;
+		scrollContainer.scrollTop = -maxScroll;
+		if (Math.abs(scrollContainer.scrollTop) < 100) {
+			scrollContainer.scrollTop = maxScroll;
+		}
+		scrollContainer.dispatchEvent(new Event("scroll"));
+
+		// Button should become visible (enters the accessibility tree).
+		const button = await waitFor(() => {
+			const btn = canvas.getByRole("button", { name: "Scroll to bottom" });
+			expect(btn).toBeVisible();
+			return btn;
+		});
+
+		// Click the button to scroll back to the bottom.
+		await userEvent.click(button);
+
+		// Button should be hidden again. The click handler immediately
+		// hides it, so this doesn't depend on smooth scroll completing.
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: "Scroll to bottom" }),
+			).toBeNull();
+		});
+	},
 };
