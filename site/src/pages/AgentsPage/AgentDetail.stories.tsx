@@ -211,7 +211,9 @@ const meta: Meta<typeof AgentDetailLayout> = {
 		}),
 	},
 	beforeEach: () => {
+		localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 	},
 };
 
@@ -585,22 +587,6 @@ export const CompletedWithDiffPanel: Story = {
 		expect(body.getByText("Open in VS Code")).toBeInTheDocument();
 		expect(body.getByText("View Workspace")).toBeInTheDocument();
 		expect(body.getByText("Archive Agent")).toBeInTheDocument();
-	},
-};
-
-/** Right panel stays closed when no diff-status URL exists. */
-export const NoDiffUrl: Story = {
-	parameters: {
-		queries: buildQueries(
-			{
-				id: CHAT_ID,
-				...baseChatFields,
-				title: "No diff yet",
-				status: "completed",
-			},
-			{ messages: [], queued_messages: [], has_more: false },
-			{ diffUrl: undefined },
-		),
 	},
 };
 

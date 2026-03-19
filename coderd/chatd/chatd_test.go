@@ -3372,3 +3372,83 @@ func TestInterruptChatPersistsPartialResponse(t *testing.T) {
 	require.Contains(t, foundText, "hello world",
 		"partial assistant response should contain the streamed text")
 }
+
+func TestProcessChatPanicRecovery(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+
+	// Wrap the database so we can trigger a panic on the main
+	// goroutine of processChat. The chatloop's executeTools has
+	// its own recover, so panicking inside a tool goroutine won't
+	// reach the processChat-level recovery. Instead, we panic
+	// during PersistStep's InTx call, which runs synchronously on
+	// the processChat goroutine.
+	panicWrapper := &panicOnInTxDB{Store: db}
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("Panic recovery test")
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("hello")...,
+		)
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+
+	// Pass the panic wrapper to the server, but use the real
+	// database for seeding so those operations don't panic.
+	server := newActiveTestServer(t, panicWrapper, ps)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:       user.ID,
+		Title:         "panic-recovery",
+		ModelConfigID: model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("hello"),
+		},
+	})
+	require.NoError(t, err)
+
+	// Enable the panic now that CreateChat's InTx has completed.
+	// The next InTx call is PersistStep inside the chatloop,
+	// running synchronously on the processChat goroutine.
+	panicWrapper.enablePanic()
+
+	// Wait for the panic to be recovered and the chat to
+	// transition to error status.
+	var chatResult database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	require.True(t, chatResult.LastError.Valid, "LastError should be set")
+	require.Contains(t, chatResult.LastError.String, "chat processing panicked")
+	require.Contains(t, chatResult.LastError.String, "intentional test panic")
+}
+
+// panicOnInTxDB wraps a database.Store and panics on the first InTx
+// call after enablePanic is called. Subsequent calls pass through
+// so the processChat cleanup defer can update the chat status.
+type panicOnInTxDB struct {
+	database.Store
+	active   atomic.Bool
+	panicked atomic.Bool
+}
+
+func (d *panicOnInTxDB) enablePanic() { d.active.Store(true) }
+
+func (d *panicOnInTxDB) InTx(f func(database.Store) error, opts *database.TxOptions) error {
+	if d.active.Load() && !d.panicked.Load() {
+		d.panicked.Store(true)
+		panic("intentional test panic")
+	}
+	return d.Store.InTx(f, opts)
+}

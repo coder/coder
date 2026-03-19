@@ -150,8 +150,91 @@ export const formatResultOutput = (result: unknown): string | null => {
 export const fileViewerCSS =
 	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; }";
 
-export const diffViewerCSS =
-	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; } [data-diffs-header] { border-left: 1px solid var(--border); }";
+// Selection override CSS maps the library's gold/yellow selection
+// palette to the Coder blue accent (`--content-link`) so line
+// highlighting feels native to the rest of the page.
+//
+// The library has two selection code paths: context lines use
+// `--diffs-bg-selection`, but change-addition/deletion lines
+// use a separate `color-mix()` against `--diffs-line-bg`. To
+// guarantee a uniform highlight across all line types we set
+// the CSS variables for annotations AND apply direct rules
+// with `!important` for line and gutter elements.
+const SELECTION_OVERRIDE_CSS = [
+	// Variable overrides for annotation areas and library internals.
+	":host {",
+	"  --diffs-bg-selection-override: hsl(var(--content-link) / 0.08);",
+	"  --diffs-bg-selection-number-override: hsl(var(--content-link) / 0.13);",
+	"  --diffs-selection-number-fg: hsl(var(--content-link));",
+	"}",
+	// Direct rules that override both context and change-line
+	// selection backgrounds so every selected line looks the same.
+	"[data-selected-line][data-line] {",
+	"  background-color: hsl(var(--content-link) / 0.08) !important;",
+	"}",
+	"[data-selected-line][data-column-number] {",
+	"  background-color: hsl(var(--content-link) / 0.13) !important;",
+	"  color: hsl(var(--content-link)) !important;",
+	"}",
+	// Clear the selection tint from annotation rows so the inline
+	// prompt input stands out clearly against the selected lines.
+	"[data-line-annotation][data-selected-line] [data-annotation-content] {",
+	"  background-color: transparent !important;",
+	"}",
+	"[data-line-annotation][data-selected-line]::before {",
+	"  background-color: transparent !important;",
+	"}",
+	"[data-selected-line][data-gutter-buffer='annotation'] {",
+	"  background-color: transparent !important;",
+	"}",
+].join(" ");
+
+// Restyled separators: quiet, full-width dividers that fade
+// into the background instead of drawing attention.
+const SEPARATOR_CSS = [
+	// Transparent backgrounds so separators blend with the
+	// code area rather than forming a distinct band.
+	":host {",
+	"  --diffs-bg-separator-override: transparent;",
+	"}",
+	"[data-separator-content] {",
+	"  border-radius: 0 !important;",
+	"  background-color: transparent !important;",
+	"}",
+	"[data-separator-wrapper] {",
+	"  border-radius: 0 !important;",
+	"}",
+	// Remove the inline padding that creates the inset pill look
+	// so separators span the full width of the diff.
+	"[data-unified] [data-separator='line-info'] [data-separator-wrapper] {",
+	"  padding-inline: 0 !important;",
+	"}",
+	// The first separator in a file just says "N unmodified
+	// lines" before the first hunk — that's obvious context
+	// that adds no value, so hide it entirely.
+	"[data-separator='line-info'][data-separator-first] {",
+	"  display: none !important;",
+	"}",
+	// Thin single border and muted text so collapsed-line
+	// indicators read as a quiet hint, not a landmark.
+	"[data-separator='line-info'] {",
+	"  height: 28px !important;",
+	"  border-top: 1px solid hsl(var(--border-default));",
+	"  border-bottom: 1px solid hsl(var(--border-default));",
+	"}",
+	"[data-separator-content] {",
+	"  font-size: 11px !important;",
+	"  color: hsl(var(--content-secondary)) !important;",
+	"  opacity: 0.8;",
+	"}",
+].join(" ");
+
+export const diffViewerCSS = [
+	"pre, [data-line]:not([data-selected-line]), [data-diffs-header] { background-color: transparent !important; }",
+	"[data-diffs-header] { border-left: 1px solid var(--border); }",
+	SELECTION_OVERRIDE_CSS,
+	SEPARATOR_CSS,
+].join(" ");
 
 // Theme-aware option factories shared across tool renderers.
 export function getDiffViewerOptions(isDark: boolean) {

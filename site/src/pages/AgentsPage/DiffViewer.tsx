@@ -1,5 +1,9 @@
 import { useTheme } from "@emotion/react";
-import type { DiffLineAnnotation, FileDiffMetadata } from "@pierre/diffs";
+import type {
+	DiffLineAnnotation,
+	FileDiffMetadata,
+	SelectedLineRange,
+} from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
@@ -70,6 +74,11 @@ interface DiffViewerProps {
 	 */
 	getLineAnnotations?: (fileName: string) => DiffLineAnnotation<string>[];
 	/**
+	 * Returns the selected line range for the given file, if any.
+	 * Used to visually highlight the lines being commented on.
+	 */
+	getSelectedLines?: (fileName: string) => SelectedLineRange | null;
+	/**
 	 * Renderer for line annotations returned by `getLineAnnotations`.
 	 */
 	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
@@ -98,15 +107,84 @@ const FILE_TREE_THRESHOLD = 1000;
  * file headers sticky and adjust metadata layout.
  */
 const STICKY_HEADER_CSS = [
+	// Layout and sticky behavior.
 	"[data-diffs-header] {",
 	"  position: sticky; top: 0; z-index: 10;",
 	"  font-size: 13px;",
+	"  min-height: 32px !important;",
+	"  padding-block: 0 !important;",
+	"  padding-inline: 12px !important;",
 	"  border-bottom: 1px solid hsl(var(--border-default));",
-	"  background-color: hsl(var(--surface-quaternary)) !important;",
+	"  background-color: hsl(var(--surface-secondary)) !important;",
 	"}",
-	"[data-diffs-header] [data-metadata] { flex-direction: row-reverse; }",
-	"@media (prefers-color-scheme: dark) {",
-	"  [data-diffs-header] { background-color: hsl(var(--surface-secondary)) !important; }",
+
+	// Keep the title in the site's sans-serif font, just a
+	// touch smaller than the surrounding header text.
+	"[data-diffs-header] [data-title] {",
+	"  font-size: 12px;",
+	"  color: hsl(var(--content-primary));",
+	"}",
+
+	// Hide the library's built-in change-type SVG icons and
+	// replace them with a single-letter badge (A/D/M/R) via
+	// CSS-generated content. The letter mirrors the file tree
+	// sidebar and works even when the tree is hidden in narrow
+	// layouts.
+	"[data-change-icon] { display: none !important; }",
+	"[data-diffs-header] [data-header-content]::before {",
+	"  font-size: 11px;",
+	"  font-weight: 600;",
+	"  flex-shrink: 0;",
+	"}",
+	"[data-diffs-header][data-change-type='new'] [data-header-content]::before {",
+	"  content: 'A';",
+	"  color: hsl(var(--git-added));",
+	"}",
+	"[data-diffs-header][data-change-type='change'] [data-header-content]::before {",
+	"  content: 'M';",
+	"  color: hsl(var(--git-modified));",
+	"}",
+	"[data-diffs-header][data-change-type='deleted'] [data-header-content]::before {",
+	"  content: 'D';",
+	"  color: hsl(var(--git-deleted));",
+	"}",
+	"[data-diffs-header][data-change-type='rename-pure'] [data-header-content]::before,",
+	"[data-diffs-header][data-change-type='rename-changed'] [data-header-content]::before {",
+	"  content: 'R';",
+	"  color: hsl(var(--git-modified));",
+	"}",
+
+	// Stat counts styled as compact pill badges matching the
+	// DiffStatBadge component used in the PR header.
+	"[data-diffs-header] [data-metadata] {",
+	"  flex-direction: row-reverse;",
+	"  gap: 0 !important;",
+	"}",
+	"[data-diffs-header] [data-additions-count],",
+	"[data-diffs-header] [data-deletions-count] {",
+	"  font-family: var(--diffs-font-family, var(--diffs-font-fallback));",
+	"  font-size: 12px;",
+	"  font-weight: 500;",
+	"  line-height: 20px;",
+	"  padding-inline: 6px;",
+	"  border-radius: 3px;",
+	"}",
+	"[data-diffs-header] [data-additions-count] {",
+	"  color: hsl(var(--git-added-bright)) !important;",
+	"  background-color: hsl(var(--surface-git-added));",
+	"}",
+	"[data-diffs-header] [data-deletions-count] {",
+	"  color: hsl(var(--git-deleted-bright)) !important;",
+	"  background-color: hsl(var(--surface-git-deleted));",
+	"}",
+	// When both counts are present, flatten the touching inner
+	// edges so they form one joined badge. DOM order is
+	// [deletions][additions]; row-reverse puts additions left.
+	"[data-deletions-count] + [data-additions-count] {",
+	"  border-radius: 3px 0 0 3px;",
+	"}",
+	"[data-deletions-count]:has(+ [data-additions-count]) {",
+	"  border-radius: 0 3px 3px 0;",
 	"}",
 ].join(" ");
 
@@ -346,12 +424,14 @@ const LazyFileDiff = memo<{
 	options: ComponentProps<typeof FileDiff>["options"];
 	lineAnnotations?: DiffLineAnnotation<string>[];
 	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
+	selectedLines?: SelectedLineRange | null;
 }>(
 	({
 		fileDiff,
 		options,
 		lineAnnotations,
 		renderAnnotation: renderAnnotationProp,
+		selectedLines,
 	}) => {
 		const placeholderRef = useRef<HTMLDivElement>(null);
 		const [visible, setVisible] = useState(false);
@@ -399,6 +479,7 @@ const LazyFileDiff = memo<{
 				style={DIFFS_FONT_STYLE}
 				lineAnnotations={lineAnnotations}
 				renderAnnotation={renderAnnotationProp}
+				selectedLines={selectedLines}
 			/>
 		);
 	},
@@ -406,7 +487,8 @@ const LazyFileDiff = memo<{
 		if (
 			prev.fileDiff !== next.fileDiff ||
 			prev.options !== next.options ||
-			prev.lineAnnotations !== next.lineAnnotations
+			prev.lineAnnotations !== next.lineAnnotations ||
+			prev.selectedLines !== next.selectedLines
 		) {
 			return false;
 		}
@@ -436,6 +518,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	onLineNumberClick,
 	onLineSelected,
 	getLineAnnotations,
+	getSelectedLines,
 	renderAnnotation,
 	scrollToFile,
 	onScrollToFileComplete,
@@ -778,6 +861,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 										options={perFileOptions?.get(fileDiff.name) ?? fileOptions}
 										lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
 										renderAnnotation={renderAnnotation}
+										selectedLines={getSelectedLines?.(fileDiff.name)}
 									/>
 								</div>
 							))}
