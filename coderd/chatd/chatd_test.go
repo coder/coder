@@ -2204,6 +2204,12 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 		ActiveVersionID: tv.ID,
 		CreatedBy:       user.ID,
 	})
+	require.NoError(t, db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+		ID:                tmpl.ID,
+		UpdatedAt:         dbtime.Now(),
+		AllowUserAutostop: true,
+		ActivityBump:      int64(time.Hour),
+	}))
 	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID:        user.ID,
 		OrganizationID: org.ID,
@@ -2216,9 +2222,6 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 			Valid: true,
 			Time:  dbtime.Now().Add(-30 * time.Minute),
 		},
-	})
-	_ = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-		JobID: pj.ID,
 	})
 	// Build deadline is 30 minutes in the past — close enough to
 	// be bumped by the default 1-hour activity bump.
@@ -2317,8 +2320,8 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 		"workspace last_used_at should have been bumped")
 
 	// Verify the workspace build deadline was also extended.
-	// The SQL only bumps when 5% of the deadline has elapsed, so
-	// most heartbeat calls are cheap no-op SELECTs. Wider ±2
+	// The SQL only writes when 5% of the deadline has elapsed —
+	// most calls perform a read-only CTE lookup. Wider ±2
 	// minute tolerance than activitybump_test.go because the bump
 	// happens asynchronously via the heartbeat goroutine.
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {

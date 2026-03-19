@@ -2384,8 +2384,8 @@ func (p *Server) trackWorkspaceUsage(
 		// so no prebuild guard is needed (unlike reporter.go).
 		//
 		// This fires every heartbeat (~30s) but the SQL only
-		// performs an UPDATE when 5% of the deadline has elapsed,
-		// so most calls are cheap no-op SELECTs.
+		// writes when 5% of the deadline has elapsed — most calls
+		// perform a read-only CTE lookup with no UPDATE.
 		workspacestats.ActivityBumpWorkspace(ctx, logger.Named("activity_bump"), p.db, wsID.UUID, time.Time{})
 	}
 	return wsID

@@ -5697,12 +5697,16 @@ func TestAsChatd(t *testing.T) {
 			require.NoError(t, err, "chat %s should be allowed", action)
 		}
 
-		// Workspace read.
-		err := auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceWorkspace)
-		require.NoError(t, err, "workspace read should be allowed")
+		// Workspace read + update (update needed for ActivityBumpWorkspace).
+		for _, action := range []policy.Action{
+			policy.ActionRead, policy.ActionUpdate,
+		} {
+			err := auth.Authorize(ctx, actor, action, rbac.ResourceWorkspace)
+			require.NoError(t, err, "workspace %s should be allowed", action)
+		}
 
 		// DeploymentConfig read.
-		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceDeploymentConfig)
+		err := auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceDeploymentConfig)
 		require.NoError(t, err, "deployment config read should be allowed")
 
 		// User read_personal (needed for GetUserChatCustomPrompt).
@@ -5713,16 +5717,12 @@ func TestAsChatd(t *testing.T) {
 	t.Run("DeniedActions", func(t *testing.T) {
 		t.Parallel()
 
-		// Cannot write workspaces.
-		for _, action := range []policy.Action{
-			policy.ActionUpdate, policy.ActionDelete,
-		} {
-			err := auth.Authorize(ctx, actor, action, rbac.ResourceWorkspace)
-			require.Error(t, err, "workspace %s should be denied", action)
-		}
+		// Cannot delete workspaces.
+		err := auth.Authorize(ctx, actor, policy.ActionDelete, rbac.ResourceWorkspace)
+		require.Error(t, err, "workspace delete should be denied")
 
 		// Cannot access users.
-		err := auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceUser)
+		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceUser)
 		require.Error(t, err, "user read should be denied")
 
 		// Cannot access API keys.
