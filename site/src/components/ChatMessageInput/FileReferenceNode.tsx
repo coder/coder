@@ -30,6 +30,7 @@ export function FileReferenceChip({
 	isSelected,
 	onRemove,
 	onClick,
+	className: extraClassName,
 }: {
 	fileName: string;
 	startLine: number;
@@ -37,6 +38,7 @@ export function FileReferenceChip({
 	isSelected?: boolean;
 	onRemove?: () => void;
 	onClick?: () => void;
+	className?: string;
 }) {
 	const shortFile = fileName.split("/").pop() || fileName;
 	const lineLabel =
@@ -45,9 +47,10 @@ export function FileReferenceChip({
 	return (
 		<span
 			className={cn(
-				"inline-flex h-6 max-w-[300px] cursor-pointer select-none items-center gap-1.5 rounded-md border border-border-default bg-surface-secondary px-1.5 align-middle text-xs text-content-primary shadow-sm transition-colors",
+				"inline-flex h-6 max-w-[300px] cursor-pointer select-none items-center gap-1.5 rounded-md border border-border-default bg-surface-primary px-1.5 align-middle text-xs text-content-primary shadow-sm transition-colors",
 				isSelected &&
 					"border-content-link bg-content-link/10 ring-1 ring-content-link/40",
+				extraClassName,
 			)}
 			contentEditable={false}
 			title={`${fileName}:${lineLabel}`}
