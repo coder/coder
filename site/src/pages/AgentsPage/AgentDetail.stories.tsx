@@ -13,8 +13,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import {
 	chatDiffContentsKey,
-	chatDiffStatusKey,
 	chatKey,
+	chatMessagesKey,
 	chatModelsKey,
 	chatsKey,
 } from "api/queries/chats";
@@ -27,8 +27,7 @@ import {
 	reactRouterOutlet,
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
-import AgentDetail from "./AgentDetail";
-import { RIGHT_PANEL_OPEN_KEY } from "./AgentDetailView";
+import AgentDetail, { RIGHT_PANEL_OPEN_KEY } from "./AgentDetail";
 import type { AgentsOutletContext } from "./AgentsPage";
 
 // ---------------------------------------------------------------------------
@@ -107,6 +106,7 @@ const baseChatFields = {
 	owner_id: "owner-id",
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: "model-config-1",
+	mcp_server_ids: [],
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 	archived: false,
@@ -132,38 +132,48 @@ index abc1234..def5678 100644
  }
 `;
 
-/** Build `parameters.queries` entries for a given chat data object. */
+/** Build `parameters.queries` entries for a given chat and messages. */
 const buildQueries = (
-	chatData: TypesGen.ChatWithMessages,
+	chat: TypesGen.Chat,
+	messagesData: TypesGen.ChatMessagesResponse,
 	opts?: { diffUrl?: string },
-) => [
-	{ key: chatKey(CHAT_ID), data: chatData },
-	{ key: chatsKey, data: [chatData.chat] },
-	{
-		key: chatDiffStatusKey(CHAT_ID),
-		data: {
-			chat_id: CHAT_ID,
-			url: opts?.diffUrl,
-			changes_requested: false,
-			additions: opts?.diffUrl ? 4 : 0,
-			deletions: opts?.diffUrl ? 1 : 0,
-			changed_files: opts?.diffUrl ? 2 : 0,
-		} satisfies TypesGen.ChatDiffStatus,
-	},
-	{
-		key: chatDiffContentsKey(CHAT_ID),
-		data: {
-			chat_id: CHAT_ID,
-			diff: opts?.diffUrl ? sampleDiff : undefined,
-			pull_request_url: opts?.diffUrl,
-		} satisfies TypesGen.ChatDiffContents,
-	},
-	{
-		key: workspaceByIdKey(mockWorkspace.id),
-		data: mockWorkspace,
-	},
-	{ key: chatModelsKey, data: mockModelCatalog },
-];
+) => {
+	const diffStatus: TypesGen.ChatDiffStatus = {
+		chat_id: CHAT_ID,
+		url: opts?.diffUrl,
+		pull_request_title: "",
+		pull_request_draft: false,
+		changes_requested: false,
+		additions: opts?.diffUrl ? 4 : 0,
+		deletions: opts?.diffUrl ? 1 : 0,
+		changed_files: opts?.diffUrl ? 2 : 0,
+	};
+	const chatWithDiffStatus: TypesGen.Chat = {
+		...chat,
+		diff_status: diffStatus,
+	};
+	return [
+		{ key: chatKey(CHAT_ID), data: chatWithDiffStatus },
+		{
+			key: chatMessagesKey(CHAT_ID),
+			data: { pages: [messagesData], pageParams: [undefined] },
+		},
+		{ key: chatsKey, data: [chatWithDiffStatus] },
+		{
+			key: chatDiffContentsKey(CHAT_ID),
+			data: {
+				chat_id: CHAT_ID,
+				diff: opts?.diffUrl ? sampleDiff : undefined,
+				pull_request_url: opts?.diffUrl,
+			} satisfies TypesGen.ChatDiffContents,
+		},
+		{
+			key: workspaceByIdKey(mockWorkspace.id),
+			data: mockWorkspace,
+		},
+		{ key: chatModelsKey, data: mockModelCatalog },
+	];
+};
 
 /**
  * Wrap a chat stream event payload in the JSON string format that
@@ -216,12 +226,12 @@ export const WithMessageHistory: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Markdown rendering showcase",
-					status: "completed",
-				},
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Markdown rendering showcase",
+				status: "completed",
+			},
+			{
 				messages: [
 					// -- Turn 1: user asks for a summary --
 					{
@@ -526,14 +536,15 @@ export const WithMessageHistory: Story = {
 					},
 				],
 				queued_messages: [],
+				has_more: false,
 			},
 			{ diffUrl: undefined },
 		),
 	},
 };
 
-/** Skeleton placeholder when no query data is available yet. */
-export const Loading: Story = {};
+/** Skeleton placeholder when no query data is available yet. */ export const Loading: Story =
+	{};
 
 /** Full layout with actions menu and diff panel portaled to the right slot. */
 export const CompletedWithDiffPanel: Story = {
@@ -544,15 +555,12 @@ export const CompletedWithDiffPanel: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Build a feature",
-					status: "completed",
-				},
-				messages: [],
-				queued_messages: [],
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Build a feature",
+				status: "completed",
 			},
+			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: "https://github.com/coder/coder/pull/123" },
 		),
 	},
@@ -582,15 +590,12 @@ export const NoDiffUrl: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "No diff yet",
-					status: "completed",
-				},
-				messages: [],
-				queued_messages: [],
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "No diff yet",
+				status: "completed",
 			},
+			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
 	},
@@ -601,12 +606,12 @@ export const WithSubagentCards: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Parent agent",
-					status: "running",
-				},
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Parent agent",
+				status: "running",
+			},
+			{
 				messages: [
 					{
 						id: 1,
@@ -634,6 +639,7 @@ export const WithSubagentCards: Story = {
 					},
 				],
 				queued_messages: [],
+				has_more: false,
 			},
 			{ diffUrl: undefined },
 		),
@@ -648,17 +654,17 @@ export const WithSubagentCards: Story = {
 	},
 };
 
-/** Reasoning part renders collapsed and can be expanded on click. */
-export const WithReasoningCollapsed: Story = {
+/** Completed reasoning part renders inline. */
+export const WithReasoningInline: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Reasoning title",
-					status: "completed",
-				},
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Reasoning title",
+				status: "completed",
+			},
+			{
 				messages: [
 					{
 						id: 1,
@@ -668,30 +674,23 @@ export const WithReasoningCollapsed: Story = {
 						content: [
 							{
 								type: "reasoning",
-								title: "Plan migration",
 								text: "Reasoning body",
 							},
 						],
 					},
 				],
 				queued_messages: [],
+				has_more: false,
 			},
 			{ diffUrl: undefined },
 		),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const user = userEvent.setup();
 
-		const reasoningToggle = await canvas.findByRole("button", {
-			name: "Plan migration",
-		});
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "false");
-
-		await user.click(reasoningToggle);
-
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "true");
+		// Reasoning text renders inline.
 		expect(canvas.getByText("Reasoning body")).toBeInTheDocument();
+		expect(canvas.queryByRole("button", { name: "Thinking" })).toBeNull();
 	},
 };
 
@@ -705,15 +704,12 @@ export const StreamedSubagentTitle: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Streaming title",
-					status: "running",
-				},
-				messages: [],
-				queued_messages: [],
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Streaming title",
+				status: "running",
 			},
+			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
 		webSocket: {
@@ -760,19 +756,16 @@ export const SidebarWithPRAndRepos: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Full sidebar demo",
-					status: "completed",
-				},
-				messages: [],
-				queued_messages: [],
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Full sidebar demo",
+				status: "completed",
 			},
+			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: "https://github.com/coder/coder/pull/456" },
 		),
 		webSocket: {
-			"/git/watch": [
+			"/stream/git": [
 				{
 					event: "message",
 					data: JSON.stringify({
@@ -944,19 +937,16 @@ export const SidebarWithSingleRepo: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Single repo sidebar",
-					status: "completed",
-				},
-				messages: [],
-				queued_messages: [],
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Single repo sidebar",
+				status: "completed",
 			},
+			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
 		webSocket: {
-			"/git/watch": [
+			"/stream/git": [
 				{
 					event: "message",
 					data: JSON.stringify({
@@ -1002,22 +992,18 @@ export const SidebarWithSingleRepo: Story = {
 	},
 };
 /**
- * Streaming reasoning part via WebSocket — renders collapsed and
- * can be expanded on click.
+ * Streaming reasoning part via WebSocket — renders inline text.
  */
-export const StreamedReasoningCollapsed: Story = {
+export const StreamedReasoning: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
-				chat: {
-					id: CHAT_ID,
-					...baseChatFields,
-					title: "Streaming reasoning title",
-					status: "running",
-				},
-				messages: [],
-				queued_messages: [],
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Streaming reasoning title",
+				status: "running",
 			},
+			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
 		webSocket: {
@@ -1029,7 +1015,6 @@ export const StreamedReasoningCollapsed: Story = {
 						message_part: {
 							part: {
 								type: "reasoning",
-								title: "Plan migration",
 								text: "Streaming reasoning body",
 							},
 						},
@@ -1040,16 +1025,7 @@ export const StreamedReasoningCollapsed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const user = userEvent.setup();
 
-		const reasoningToggle = await canvas.findByRole("button", {
-			name: "Plan migration",
-		});
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "false");
-
-		await user.click(reasoningToggle);
-
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "true");
 		await expect(
 			canvas.findByText("Streaming reasoning body"),
 		).resolves.toBeInTheDocument();

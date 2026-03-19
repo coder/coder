@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	httppprof "net/http/pprof"
 	"net/url"
@@ -44,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
+	"github.com/coder/coder/v2/coderd/aiseats"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -627,8 +629,11 @@ func New(options *Options) *API {
 			options.Database,
 			options.Pubsub,
 		),
-		dbRolluper: options.DatabaseRolluper,
+		dbRolluper:       options.DatabaseRolluper,
+		ProfileCollector: defaultProfileCollector{},
+		AISeatTracker:    aiseats.Noop{},
 	}
+
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
 		ctx,
 		options.Logger.Named("workspaceapps"),
@@ -762,17 +767,27 @@ func New(options *Options) *API {
 	}
 	api.agentProvider = stn
 
+	maxChatsPerAcquire := options.DeploymentValues.AI.Chat.AcquireBatchSize.Value()
+	if maxChatsPerAcquire > math.MaxInt32 {
+		maxChatsPerAcquire = math.MaxInt32
+	}
+	if maxChatsPerAcquire < math.MinInt32 {
+		maxChatsPerAcquire = math.MinInt32
+	}
+
 	api.chatDaemon = chatd.New(chatd.Config{
-		Logger:            options.Logger.Named("chats"),
-		Database:          options.Database,
-		ReplicaID:         api.ID,
-		SubscribeFn:       options.ChatSubscribeFn,
-		ProviderAPIKeys:   chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
-		AgentConn:         api.agentProvider.AgentConn,
-		CreateWorkspace:   api.chatCreateWorkspace,
-		StartWorkspace:    api.chatStartWorkspace,
-		Pubsub:            options.Pubsub,
-		WebpushDispatcher: options.WebPushDispatcher,
+		Logger:             options.Logger.Named("chatd"),
+		Database:           options.Database,
+		ReplicaID:          api.ID,
+		SubscribeFn:        options.ChatSubscribeFn,
+		MaxChatsPerAcquire: int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
+		ProviderAPIKeys:    chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
+		AgentConn:          api.agentProvider.AgentConn,
+		CreateWorkspace:    api.chatCreateWorkspace,
+		StartWorkspace:     api.chatStartWorkspace,
+		Pubsub:             options.Pubsub,
+		WebpushDispatcher:  options.WebPushDispatcher,
+		UsageTracker:       options.WorkspaceUsageTracker,
 	})
 	gitSyncLogger := options.Logger.Named("gitsync")
 	refresher := gitsync.NewRefresher(
@@ -1029,10 +1044,12 @@ func New(options *Options) *API {
 
 	// OAuth2 metadata endpoint for RFC 8414 discovery
 	r.Route("/.well-known/oauth-authorization-server", func(r chi.Router) {
+		r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2))
 		r.Get("/*", api.oauth2AuthorizationServerMetadata())
 	})
 	// OAuth2 protected resource metadata endpoint for RFC 9728 discovery
 	r.Route("/.well-known/oauth-protected-resource", func(r chi.Router) {
+		r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2))
 		r.Get("/*", api.oauth2ProtectedResourceMetadata())
 	})
 
@@ -1138,6 +1155,16 @@ func New(options *Options) *API {
 			r.Post("/", api.postChats)
 			r.Get("/models", api.listChatModels)
 			r.Get("/watch", api.watchChats)
+			r.Route("/cost", func(r chi.Router) {
+				r.Get("/users", api.chatCostUsers)
+				r.Route("/{user}", func(r chi.Router) {
+					r.Use(httpmw.ExtractUserParam(options.Database))
+					r.Get("/summary", api.chatCostSummary)
+				})
+			})
+			r.Route("/insights", func(r chi.Router) {
+				r.Get("/pull-requests", api.prInsights)
+			})
 			r.Route("/files", func(r chi.Router) {
 				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
 				r.Post("/", api.postChatFile)
@@ -1146,6 +1173,8 @@ func New(options *Options) *API {
 			r.Route("/config", func(r chi.Router) {
 				r.Get("/system-prompt", api.getChatSystemPrompt)
 				r.Put("/system-prompt", api.putChatSystemPrompt)
+				r.Get("/desktop-enabled", api.getChatDesktopEnabled)
+				r.Put("/desktop-enabled", api.putChatDesktopEnabled)
 				r.Get("/user-prompt", api.getUserChatCustomPrompt)
 				r.Put("/user-prompt", api.putUserChatCustomPrompt)
 			})
@@ -1167,17 +1196,32 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatModelConfig)
 				})
 			})
+			r.Route("/usage-limits", func(r chi.Router) {
+				r.Get("/", api.getChatUsageLimitConfig)
+				r.Put("/", api.updateChatUsageLimitConfig)
+				r.Get("/status", api.getMyChatUsageLimitStatus)
+				r.Route("/overrides/{user}", func(r chi.Router) {
+					r.Put("/", api.upsertChatUsageLimitOverride)
+					r.Delete("/", api.deleteChatUsageLimitOverride)
+				})
+				r.Route("/group-overrides/{group}", func(r chi.Router) {
+					r.Put("/", api.upsertChatUsageLimitGroupOverride)
+					r.Delete("/", api.deleteChatUsageLimitGroupOverride)
+				})
+			})
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Use(httpmw.ExtractChatParam(options.Database))
 				r.Get("/", api.getChat)
-				r.Get("/git/watch", api.watchChatGit)
-				r.Post("/archive", api.archiveChat)
-				r.Post("/unarchive", api.unarchiveChat)
+				r.Patch("/", api.patchChat)
+				r.Get("/messages", api.getChatMessages)
 				r.Post("/messages", api.postChatMessages)
 				r.Patch("/messages/{message}", api.patchChatMessage)
-				r.Get("/stream", api.streamChat)
+				r.Route("/stream", func(r chi.Router) {
+					r.Get("/", api.streamChat)
+					r.Get("/desktop", api.watchChatDesktop)
+					r.Get("/git", api.watchChatGit)
+				})
 				r.Post("/interrupt", api.interruptChat)
-				r.Get("/diff-status", api.getChatDiffStatus)
 				r.Get("/diff", api.getChatDiffContents)
 				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
 					r.Delete("/", api.deleteChatQueuedMessage)
@@ -1189,10 +1233,34 @@ func New(options *Options) *API {
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),
 			)
+			// MCP server configuration endpoints.
+			r.Route("/servers", func(r chi.Router) {
+				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents))
+				r.Get("/", api.listMCPServerConfigs)
+				r.Post("/", api.createMCPServerConfig)
+				r.Route("/{mcpServer}", func(r chi.Router) {
+					r.Get("/", api.getMCPServerConfig)
+					r.Patch("/", api.updateMCPServerConfig)
+					r.Delete("/", api.deleteMCPServerConfig)
+					// OAuth2 user flow
+					r.Get("/oauth2/connect", api.mcpServerOAuth2Connect)
+					r.Get("/oauth2/callback", api.mcpServerOAuth2Callback)
+					r.Delete("/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
+				})
+			})
 			// MCP HTTP transport endpoint with mandatory authentication
-			r.Mount("/http", api.mcpHTTPHandler())
+			r.Route("/http", func(r chi.Router) {
+				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP))
+				r.Mount("/", api.mcpHTTPHandler())
+			})
+		})
+		r.Route("/watch-all-workspacebuilds", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentWorkspaceBuildUpdates),
+			)
+			r.Get("/", api.watchAllWorkspaceBuilds)
 		})
 	})
 
@@ -1447,6 +1515,7 @@ func New(options *Options) *API {
 				r.Post("/", api.postUser)
 				r.Get("/", api.users)
 				r.Post("/logout", api.postLogout)
+				r.Get("/oidc-claims", api.userOIDCClaims)
 				// These routes query information about site wide roles.
 				r.Route("/roles", func(r chi.Router) {
 					r.Get("/", api.AssignableSiteRoles)
@@ -1730,6 +1799,8 @@ func New(options *Options) *API {
 				})
 			}
 			r.Method("GET", "/expvar", expvar.Handler()) // contains DERP metrics as well as cmdline and memstats
+
+			r.Post("/profile", api.debugCollectProfile)
 
 			r.Route("/pprof", func(r chi.Router) {
 				r.Use(func(next http.Handler) http.Handler {
@@ -2015,9 +2086,20 @@ type API struct {
 	dbRolluper *dbrollup.Rolluper
 	// chatDaemon handles background processing of pending chats.
 	chatDaemon *chatd.Server
+	// AISeatTracker records AI seat usage.
+	AISeatTracker aiseats.SeatTracker
 	// gitSyncWorker refreshes stale chat diff statuses in the
 	// background.
 	gitSyncWorker *gitsync.Worker
+
+	// ProfileCollector abstracts the runtime/pprof and runtime/trace
+	// calls used by the /debug/profile endpoint. Tests override this
+	// with a stub to avoid process-global side-effects.
+	ProfileCollector ProfileCollector
+	// ProfileCollecting is used as a concurrency guard so that only one
+	// profile collection (via /debug/profile) can run at a time. The CPU
+	// profiler is process-global, so concurrent collections would fail.
+	ProfileCollecting atomic.Bool
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -2218,6 +2300,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		provisionerdserver.Options{
 			OIDCConfig:          api.OIDCConfig,
 			ExternalAuthConfigs: api.ExternalAuthConfigs,
+			AISeatTracker:       api.AISeatTracker,
 			Clock:               api.Clock,
 			HeartbeatFn:         options.heartbeatFn,
 		},

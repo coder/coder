@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -33,6 +34,18 @@ import (
 // usage disabled.
 func New(t testing.TB, args ...string) (*serpent.Invocation, config.Root) {
 	var root cli.RootCmd
+
+	cmd, err := root.Command(root.AGPL())
+	require.NoError(t, err)
+
+	return NewWithCommand(t, cmd, args...)
+}
+
+// NewWithClock is like New, but injects the given clock for
+// tests that are time-dependent.
+func NewWithClock(t testing.TB, clk quartz.Clock, args ...string) (*serpent.Invocation, config.Root) {
+	var root cli.RootCmd
+	root.SetClock(clk)
 
 	cmd, err := root.Command(root.AGPL())
 	require.NoError(t, err)

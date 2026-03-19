@@ -90,11 +90,31 @@ if [[ "${DEBUG_DELVE}" == 1 ]]; then
 	# binary, so we can just build the debug binary here without having to worry
 	# about/use the makefile.
 	./scripts/build_go.sh "${build_flags[@]}"
-	# Use go run to ensure Delve is built with current Go version.
 	# Go 1.25+ uses DWARFv5 which requires Delve built with Go 1.25+.
 	# GOTOOLCHAIN is set to force building Delve with the current Go version.
+	# We use go install (not go run) so $dlv_pid is the actual dlv process.
+	# Using go run is an intermediary that orphans dlv.
 	current_toolchain="go$(go env GOVERSION | sed 's/^go//')"
-	runcmd=(env "GOTOOLCHAIN=${current_toolchain}" go run github.com/go-delve/delve/cmd/dlv@latest exec --headless --continue --listen 127.0.0.1:12345 --accept-multiclient "$CODER_DELVE_DEBUG_BIN" --)
+	GOBIN="${PROJECT_ROOT}/build/.bin" GOTOOLCHAIN="${current_toolchain}" go install github.com/go-delve/delve/cmd/dlv@latest
+	dlv_bin="build/.bin/dlv"
+	# The dlv exec mode does not allow the coder binary to shut down
+	# gracefully but attach mode does. So we run the coder binary
+	# directly, then attach dlv. The trap forwards signals to the
+	# debuggee. For proper signal propagation to work, we have to
+	# capture them here and can't exec either program.
+	"${runcmd[@]}" --global-config "${CODER_DEV_DIR}" "$@" &
+	debuggee_pid=$!
+	"$dlv_bin" attach $debuggee_pid --headless --continue --listen 127.0.0.1:12345 --accept-multiclient &
+	dlv_pid=$!
+	trap 'kill -INT $dlv_pid 2>/dev/null; wait $dlv_pid 2>/dev/null; kill -INT $debuggee_pid 2>/dev/null' INT TERM HUP
+	# First wait is interrupted when the trap fires, second
+	# wait blocks until the debuggee finishes shutting down.
+	wait $debuggee_pid
+	wait $debuggee_pid
+	ret=$?
+	kill -INT $dlv_pid 2>/dev/null
+	wait $dlv_pid 2>/dev/null
+	exit $ret
 fi
 
 exec "${runcmd[@]}" --global-config "${CODER_DEV_DIR}" "$@"

@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"sort"
 	"strings"
@@ -12,17 +13,40 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/database"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
 
 const (
 	subagentAwaitPollInterval  = 200 * time.Millisecond
+	subagentAwaitFallbackPoll  = 5 * time.Second
 	defaultSubagentWaitTimeout = 5 * time.Minute
 )
 
+// computerUseSubagentSystemPrompt is the system prompt prepended to
+// every computer use subagent chat. It instructs the model on how to
+// interact with the desktop environment via the computer tool.
+const computerUseSubagentSystemPrompt = `You are a computer use agent with access to a desktop environment. You can see the screen, move the mouse, click, type, scroll, and drag.
+
+Your primary tool is the "computer" tool which lets you interact with the desktop. After every action you take, you will receive a screenshot showing the current state of the screen. Use these screenshots to verify your actions and plan next steps.
+
+Guidelines:
+- Always start by taking a screenshot to see the current state of the desktop.
+- Be precise with coordinates when clicking or typing.
+- Wait for UI elements to load before interacting with them.
+- If an action doesn't produce the expected result, try alternative approaches.
+- Report what you accomplished when done.`
+
 type spawnAgentArgs struct {
+	Prompt string `json:"prompt"`
+	Title  string `json:"title,omitempty"`
+}
+
+type spawnComputerUseAgentArgs struct {
 	Prompt string `json:"prompt"`
 	Title  string `json:"title,omitempty"`
 }
@@ -42,8 +66,34 @@ type closeAgentArgs struct {
 	ChatID string `json:"chat_id"`
 }
 
-func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.AgentTool {
-	return []fantasy.AgentTool{
+// isAnthropicConfigured reports whether an Anthropic API key is
+// available, either from static provider keys or from the database.
+func (p *Server) isAnthropicConfigured(ctx context.Context) bool {
+	if p.providerAPIKeys.APIKey("anthropic") != "" {
+		return true
+	}
+	dbProviders, err := p.db.GetEnabledChatProviders(ctx)
+	if err != nil {
+		return false
+	}
+	for _, prov := range dbProviders {
+		if chatprovider.NormalizeProvider(prov.Provider) == "anthropic" && strings.TrimSpace(prov.APIKey) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *Server) isDesktopEnabled(ctx context.Context) bool {
+	enabled, err := p.db.GetChatDesktopEnabled(ctx)
+	if err != nil {
+		return false
+	}
+	return enabled
+}
+
+func (p *Server) subagentTools(ctx context.Context, currentChat func() database.Chat) []fantasy.AgentTool {
+	tools := []fantasy.AgentTool{
 		fantasy.NewAgentTool(
 			"spawn_agent",
 			"Spawn a delegated child agent to work on a clearly scoped, "+
@@ -209,6 +259,88 @@ func (p *Server) subagentTools(currentChat func() database.Chat) []fantasy.Agent
 			},
 		),
 	}
+
+	// Only include the computer use tool when an Anthropic
+	// provider is configured and desktop is enabled.
+	if p.isAnthropicConfigured(ctx) && p.isDesktopEnabled(ctx) {
+		tools = append(tools, fantasy.NewAgentTool(
+			"spawn_computer_use_agent",
+			"Spawn a dedicated computer use agent that can see the desktop "+
+				"(take screenshots) and interact with it (mouse, keyboard, "+
+				"scroll). The agent runs on a model optimized for computer "+
+				"use and has the same workspace tools as a standard subagent "+
+				"plus the native Anthropic computer tool. Use this for tasks "+
+				"that require visual interaction with a desktop GUI (e.g. "+
+				"browser automation, GUI testing, visual inspection). After "+
+				"spawning, use wait_agent to collect the result.",
+			func(ctx context.Context, args spawnComputerUseAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				if currentChat == nil {
+					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
+				}
+
+				parent := currentChat()
+				if parent.ParentChatID.Valid {
+					return fantasy.NewTextErrorResponse("delegated chats cannot create child subagents"), nil
+				}
+
+				parent, err := p.db.GetChatByID(ctx, parent.ID)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+
+				prompt := strings.TrimSpace(args.Prompt)
+				if prompt == "" {
+					return fantasy.NewTextErrorResponse("prompt is required"), nil
+				}
+
+				title := strings.TrimSpace(args.Title)
+				if title == "" {
+					title = subagentFallbackChatTitle(prompt)
+				}
+
+				rootChatID := parent.ID
+				if parent.RootChatID.Valid {
+					rootChatID = parent.RootChatID.UUID
+				}
+				if parent.LastModelConfigID == uuid.Nil {
+					return fantasy.NewTextErrorResponse("parent chat model config id is required"), nil
+				}
+
+				// Create the child chat with Mode set to
+				// computer_use. This signals runChat to use the
+				// predefined computer use model and include the
+				// computer tool.
+				childChat, err := p.CreateChat(ctx, CreateOptions{
+					OwnerID:     parent.OwnerID,
+					WorkspaceID: parent.WorkspaceID,
+					ParentChatID: uuid.NullUUID{
+						UUID:  parent.ID,
+						Valid: true,
+					},
+					RootChatID: uuid.NullUUID{
+						UUID:  rootChatID,
+						Valid: true,
+					},
+					ModelConfigID:      parent.LastModelConfigID,
+					Title:              title,
+					ChatMode:           database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true},
+					SystemPrompt:       computerUseSubagentSystemPrompt + "\n\n" + prompt,
+					InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)},
+				})
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+
+				return toolJSONResponse(map[string]any{
+					"chat_id": childChat.ID.String(),
+					"title":   childChat.Title,
+					"status":  string(childChat.Status),
+				}), nil
+			},
+		))
+	}
+
+	return tools
 }
 
 func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
@@ -260,7 +392,7 @@ func (p *Server) createChildSubagentChat(
 		},
 		ModelConfigID:      parent.LastModelConfigID,
 		Title:              title,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: prompt}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)},
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
@@ -298,7 +430,7 @@ func (p *Server) sendSubagentMessage(
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,
 		CreatedBy:    targetChat.OwnerID,
-		Content:      []fantasy.Content{fantasy.TextContent{Text: message}},
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
 		BusyBehavior: busyBehavior,
 	})
 	if err != nil {
@@ -322,39 +454,88 @@ func (p *Server) awaitSubagentCompletion(
 		return database.Chat{}, "", ErrSubagentNotDescendant
 	}
 
+	// Check immediately before entering the poll loop.
+	targetChat, report, done, checkErr := p.checkSubagentCompletion(ctx, targetChatID)
+	if checkErr != nil {
+		return database.Chat{}, "", checkErr
+	}
+	if done {
+		return handleSubagentDone(targetChat, report)
+	}
+
 	if timeout <= 0 {
 		timeout = defaultSubagentWaitTimeout
 	}
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 
-	ticker := time.NewTicker(subagentAwaitPollInterval)
+	// When pubsub is available, subscribe for fast status
+	// notifications and use a less aggressive fallback poll.
+	// Without pubsub (single-instance / in-memory) fall back
+	// to the original 200ms polling.
+	pollInterval := subagentAwaitPollInterval
+	var notifyCh <-chan struct{}
+	if p.pubsub != nil {
+		pollInterval = subagentAwaitFallbackPoll
+		ch := make(chan struct{}, 1)
+		notifyCh = ch
+		cancel, subErr := p.pubsub.SubscribeWithErr(
+			coderdpubsub.ChatStreamNotifyChannel(targetChatID),
+			func(_ context.Context, _ []byte, _ error) {
+				// Non-blocking send so we never stall the
+				// pubsub dispatch goroutine.
+				select {
+				case ch <- struct{}{}:
+				default:
+				}
+			},
+		)
+		if subErr == nil {
+			defer cancel()
+		} else {
+			// Subscription failed; fall back to fast polling.
+			pollInterval = subagentAwaitPollInterval
+			notifyCh = nil
+		}
+	}
+
+	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
 	for {
-		targetChat, report, done, checkErr := p.checkSubagentCompletion(ctx, targetChatID)
-		if checkErr != nil {
-			return database.Chat{}, "", checkErr
-		}
-		if done {
-			if targetChat.Status == database.ChatStatusError {
-				reason := strings.TrimSpace(report)
-				if reason == "" {
-					reason = "agent reached error status"
-				}
-				return database.Chat{}, "", xerrors.New(reason)
-			}
-			return targetChat, report, nil
-		}
-
 		select {
+		case <-notifyCh:
 		case <-ticker.C:
 		case <-timer.C:
 			return database.Chat{}, "", xerrors.New("timed out waiting for delegated subagent completion")
 		case <-ctx.Done():
 			return database.Chat{}, "", ctx.Err()
 		}
+
+		targetChat, report, done, checkErr = p.checkSubagentCompletion(ctx, targetChatID)
+		if checkErr != nil {
+			return database.Chat{}, "", checkErr
+		}
+		if done {
+			return handleSubagentDone(targetChat, report)
+		}
 	}
+}
+
+// handleSubagentDone translates a completed subagent check into the
+// appropriate return value, surfacing error-status chats as errors.
+func handleSubagentDone(
+	chat database.Chat,
+	report string,
+) (database.Chat, string, error) {
+	if chat.Status == database.ChatStatusError {
+		reason := strings.TrimSpace(report)
+		if reason == "" {
+			reason = "agent reached error status"
+		}
+		return database.Chat{}, "", xerrors.New(reason)
+	}
+	return chat, report, nil
 }
 
 func (p *Server) closeSubagent(
@@ -429,12 +610,12 @@ func latestSubagentAssistantMessage(
 
 	for i := len(messages) - 1; i >= 0; i-- {
 		message := messages[i]
-		if message.Role != string(fantasy.MessageRoleAssistant) ||
+		if message.Role != database.ChatMessageRoleAssistant ||
 			message.Visibility == database.ChatMessageVisibilityModel {
 			continue
 		}
 
-		content, parseErr := chatprompt.ParseContent(message.Role, message.Content)
+		content, parseErr := chatprompt.ParseContent(message)
 		if parseErr != nil {
 			continue
 		}
@@ -448,6 +629,9 @@ func latestSubagentAssistantMessage(
 	return "", nil
 }
 
+// isSubagentDescendant reports whether targetChatID is a descendant
+// of ancestorChatID by walking up the parent chain from the target.
+// This is O(depth) DB queries instead of O(nodes) BFS.
 func isSubagentDescendant(
 	ctx context.Context,
 	store database.Store,
@@ -458,47 +642,29 @@ func isSubagentDescendant(
 		return false, nil
 	}
 
-	descendants, err := listSubagentDescendants(ctx, store, ancestorChatID)
-	if err != nil {
-		return false, err
-	}
-	for _, descendant := range descendants {
-		if descendant.ID == targetChatID {
+	currentID := targetChatID
+	visited := map[uuid.UUID]struct{}{} // cycle protection
+	for {
+		if _, seen := visited[currentID]; seen {
+			return false, nil
+		}
+		visited[currentID] = struct{}{}
+
+		chat, err := store.GetChatByID(ctx, currentID)
+		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return false, nil // chain broken; not a confirmed descendant
+			}
+			return false, xerrors.Errorf("get chat %s: %w", currentID, err)
+		}
+		if !chat.ParentChatID.Valid {
+			return false, nil // reached root without finding ancestor
+		}
+		if chat.ParentChatID.UUID == ancestorChatID {
 			return true, nil
 		}
+		currentID = chat.ParentChatID.UUID
 	}
-	return false, nil
-}
-
-func listSubagentDescendants(
-	ctx context.Context,
-	store database.Store,
-	chatID uuid.UUID,
-) ([]database.Chat, error) {
-	queue := []uuid.UUID{chatID}
-	visited := map[uuid.UUID]struct{}{chatID: {}}
-
-	out := make([]database.Chat, 0)
-	for len(queue) > 0 {
-		parentChatID := queue[0]
-		queue = queue[1:]
-
-		children, err := store.ListChildChatsByParentID(ctx, parentChatID)
-		if err != nil {
-			return nil, xerrors.Errorf("list child chats for %s: %w", parentChatID, err)
-		}
-
-		for _, child := range children {
-			if _, ok := visited[child.ID]; ok {
-				continue
-			}
-			visited[child.ID] = struct{}{}
-			out = append(out, child)
-			queue = append(queue, child.ID)
-		}
-	}
-
-	return out, nil
 }
 
 func subagentFallbackChatTitle(message string) string {

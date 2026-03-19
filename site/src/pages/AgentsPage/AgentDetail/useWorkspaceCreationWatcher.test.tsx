@@ -17,6 +17,7 @@ const createStreamState = (
 	blocks: [],
 	toolCalls,
 	toolResults,
+	sources: [],
 });
 
 type MinimalChatStoreState = Pick<

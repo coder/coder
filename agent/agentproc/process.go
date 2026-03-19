@@ -21,6 +21,10 @@ import (
 var (
 	errProcessNotFound   = xerrors.New("process not found")
 	errProcessNotRunning = xerrors.New("process is not running")
+
+	// exitedProcessReapAge is how long an exited process is
+	// kept before being automatically removed from the map.
+	exitedProcessReapAge = 5 * time.Minute
 )
 
 // process represents a running or completed process.
@@ -30,6 +34,7 @@ type process struct {
 	command    string
 	workDir    string
 	background bool
+	chatID     string
 	cmd        *exec.Cmd
 	cancel     context.CancelFunc
 	buf        *HeadTailBuffer
@@ -65,23 +70,25 @@ func (p *process) output() (string, *workspacesdk.ProcessTruncation) {
 
 // manager tracks processes spawned by the agent.
 type manager struct {
-	mu        sync.Mutex
-	logger    slog.Logger
-	execer    agentexec.Execer
-	clock     quartz.Clock
-	procs     map[string]*process
-	closed    bool
-	updateEnv func(current []string) (updated []string, err error)
+	mu         sync.Mutex
+	logger     slog.Logger
+	execer     agentexec.Execer
+	clock      quartz.Clock
+	procs      map[string]*process
+	closed     bool
+	updateEnv  func(current []string) (updated []string, err error)
+	workingDir func() string
 }
 
 // newManager creates a new process manager.
-func newManager(logger slog.Logger, execer agentexec.Execer, updateEnv func(current []string) (updated []string, err error)) *manager {
+func newManager(logger slog.Logger, execer agentexec.Execer, updateEnv func(current []string) (updated []string, err error), workingDir func() string) *manager {
 	return &manager{
-		logger:    logger,
-		execer:    execer,
-		clock:     quartz.NewReal(),
-		procs:     make(map[string]*process),
-		updateEnv: updateEnv,
+		logger:     logger,
+		execer:     execer,
+		clock:      quartz.NewReal(),
+		procs:      make(map[string]*process),
+		updateEnv:  updateEnv,
+		workingDir: workingDir,
 	}
 }
 
@@ -89,7 +96,7 @@ func newManager(logger slog.Logger, execer agentexec.Execer, updateEnv func(curr
 // processes use a long-lived context so the process survives
 // the HTTP request lifecycle. The background flag only affects
 // client-side polling behavior.
-func (m *manager) start(req workspacesdk.StartProcessRequest) (*process, error) {
+func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*process, error) {
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
@@ -104,10 +111,9 @@ func (m *manager) start(req workspacesdk.StartProcessRequest) (*process, error) 
 	// the process is not tied to any HTTP request.
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := m.execer.CommandContext(ctx, "sh", "-c", req.Command)
-	if req.WorkDir != "" {
-		cmd.Dir = req.WorkDir
-	}
+	cmd.Dir = m.resolveWorkDir(req.WorkDir)
 	cmd.Stdin = nil
+	cmd.SysProcAttr = procSysProcAttr()
 
 	// WaitDelay ensures cmd.Wait returns promptly after
 	// the process is killed, even if child processes are
@@ -152,8 +158,9 @@ func (m *manager) start(req workspacesdk.StartProcessRequest) (*process, error) 
 	proc := &process{
 		id:         id,
 		command:    req.Command,
-		workDir:    req.WorkDir,
+		workDir:    cmd.Dir,
 		background: req.Background,
+		chatID:     chatID,
 		cmd:        cmd,
 		cancel:     cancel,
 		buf:        buf,
@@ -215,14 +222,32 @@ func (m *manager) get(id string) (*process, bool) {
 	return proc, ok
 }
 
-// list returns info about all tracked processes.
-func (m *manager) list() []workspacesdk.ProcessInfo {
+// list returns info about all tracked processes. Exited
+// processes older than exitedProcessReapAge are removed.
+// If chatID is non-empty, only processes belonging to that
+// chat are returned.
+func (m *manager) list(chatID string) []workspacesdk.ProcessInfo {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	now := m.clock.Now()
 	infos := make([]workspacesdk.ProcessInfo, 0, len(m.procs))
-	for _, proc := range m.procs {
-		infos = append(infos, proc.info())
+	for id, proc := range m.procs {
+		info := proc.info()
+		// Reap processes that exited more than 5 minutes ago
+		// to prevent unbounded map growth.
+		if !info.Running && info.ExitedAt != nil {
+			exitedAt := time.Unix(*info.ExitedAt, 0)
+			if now.Sub(exitedAt) > exitedProcessReapAge {
+				delete(m.procs, id)
+				continue
+			}
+		}
+		// Filter by chatID if provided.
+		if chatID != "" && proc.chatID != chatID {
+			continue
+		}
+		infos = append(infos, info)
 	}
 	return infos
 }
@@ -248,13 +273,15 @@ func (m *manager) signal(id string, sig string) error {
 
 	switch sig {
 	case "kill":
-		if err := proc.cmd.Process.Kill(); err != nil {
+		// Use process group kill to ensure child processes
+		// (e.g. from shell pipelines) are also killed.
+		if err := signalProcess(proc.cmd.Process, syscall.SIGKILL); err != nil {
 			return xerrors.Errorf("kill process: %w", err)
 		}
 	case "terminate":
-		//nolint:revive // syscall.SIGTERM is portable enough
-		// for our supported platforms.
-		if err := proc.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		// Use process group signal to ensure child processes
+		// are also terminated.
+		if err := signalProcess(proc.cmd.Process, syscall.SIGTERM); err != nil {
 			return xerrors.Errorf("terminate process: %w", err)
 		}
 	default:
@@ -291,4 +318,25 @@ func (m *manager) Close() error {
 	}
 
 	return nil
+}
+
+// resolveWorkDir returns the directory a process should start in.
+// Priority: explicit request dir > agent configured dir > $HOME.
+// Falls through when a candidate is empty or does not exist on
+// disk, matching the behavior of SSH sessions.
+func (m *manager) resolveWorkDir(requested string) string {
+	if requested != "" {
+		return requested
+	}
+	if m.workingDir != nil {
+		if dir := m.workingDir(); dir != "" {
+			if info, err := os.Stat(dir); err == nil && info.IsDir() {
+				return dir
+			}
+		}
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		return home
+	}
+	return ""
 }

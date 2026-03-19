@@ -96,6 +96,7 @@ type AnthropicDeltaBlock struct {
 // anthropicServer is a test server that mocks the Anthropic API.
 type anthropicServer struct {
 	mu      sync.Mutex
+	t       testing.TB
 	server  *httptest.Server
 	handler AnthropicHandler
 	request *AnthropicRequest
@@ -109,6 +110,7 @@ func NewAnthropic(t testing.TB, handler AnthropicHandler) string {
 	t.Helper()
 
 	s := &anthropicServer{
+		t:       t,
 		handler: handler,
 	}
 
@@ -143,7 +145,7 @@ func (s *anthropicServer) handleMessages(w http.ResponseWriter, r *http.Request)
 
 func (s *anthropicServer) writeResponse(w http.ResponseWriter, req *AnthropicRequest, resp AnthropicResponse) {
 	if resp.Error != nil {
-		writeErrorResponse(w, resp.Error)
+		writeErrorResponse(s.t, w, resp.Error)
 		return
 	}
 
@@ -223,7 +225,6 @@ func (s *anthropicServer) writeStreamingResponse(w http.ResponseWriter, chunks <
 }
 
 func (s *anthropicServer) writeNonStreamingResponse(w http.ResponseWriter, resp *AnthropicMessage) {
-	_ = s // receiver unused but kept for consistency
 	response := map[string]interface{}{
 		"id":    resp.ID,
 		"type":  resp.Type,
@@ -241,7 +242,9 @@ func (s *anthropicServer) writeNonStreamingResponse(w http.ResponseWriter, resp 
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("anthropic-version", "2023-06-01")
-	_ = json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		s.t.Errorf("writeNonStreamingResponse: failed to encode response: %v", err)
+	}
 }
 
 // AnthropicStreamingResponse creates a streaming response from chunks.

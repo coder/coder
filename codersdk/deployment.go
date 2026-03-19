@@ -970,9 +970,12 @@ type ExternalAuthConfig struct {
 	ExtraTokenKeys      []string `json:"-" yaml:"extra_token_keys"`
 	DeviceFlow          bool     `json:"device_flow" yaml:"device_flow"`
 	DeviceCodeURL       string   `json:"device_code_url" yaml:"device_code_url"`
-	MCPURL              string   `json:"mcp_url" yaml:"mcp_url"`
-	MCPToolAllowRegex   string   `json:"mcp_tool_allow_regex" yaml:"mcp_tool_allow_regex"`
-	MCPToolDenyRegex    string   `json:"mcp_tool_deny_regex" yaml:"mcp_tool_deny_regex"`
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	MCPURL string `json:"mcp_url" yaml:"mcp_url"`
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	MCPToolAllowRegex string `json:"mcp_tool_allow_regex" yaml:"mcp_tool_allow_regex"`
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	MCPToolDenyRegex string `json:"mcp_tool_deny_regex" yaml:"mcp_tool_deny_regex"`
 	// Regex allows API requesters to match an auth config by
 	// a string (e.g. coder.com) instead of by it's type.
 	//
@@ -1433,6 +1436,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:   "Inbox",
 			Parent: &deploymentGroupNotifications,
 			YAML:   "inbox",
+		}
+		deploymentGroupChat = serpent.Group{
+			Name:        "Chat",
+			YAML:        "chat",
+			Description: "Configure the background chat processing daemon.",
 		}
 		deploymentGroupAIBridge = serpent.Group{
 			Name: "AI Bridge",
@@ -3597,6 +3605,18 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupClient,
 			YAML:        "hideAITasks",
 		},
+		// Chat Options
+		{
+			Name:        "Chat: Acquire Batch Size",
+			Description: "How many pending chats a worker should acquire per polling cycle.",
+			Flag:        "chat-acquire-batch-size",
+			Env:         "CODER_CHAT_ACQUIRE_BATCH_SIZE",
+			Value:       &c.AI.Chat.AcquireBatchSize,
+			Default:     "10",
+			Group:       &deploymentGroupChat,
+			YAML:        "acquireBatchSize",
+			Hidden:      true, // Hidden because most operators should not need to modify this.
+		},
 		// AI Bridge Options
 		{
 			Name:        "AI Bridge Enabled",
@@ -3712,13 +3732,14 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "AI Bridge Inject Coder MCP tools",
-			Description: "Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
+			Description: "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release. Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
 			Flag:        "aibridge-inject-coder-mcp-tools",
 			Env:         "CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS",
 			Value:       &c.AI.BridgeConfig.InjectCoderMCPTools,
 			Default:     "false",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "inject_coder_mcp_tools",
+			Hidden:      true,
 		},
 		{
 			Name:        "AI Bridge Data Retention Duration",
@@ -3997,16 +4018,17 @@ Write out the current server config as YAML to stdout.`,
 }
 
 type AIBridgeConfig struct {
-	Enabled             serpent.Bool            `json:"enabled" typescript:",notnull"`
-	OpenAI              AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
-	Anthropic           AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
-	Bedrock             AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
-	InjectCoderMCPTools serpent.Bool            `json:"inject_coder_mcp_tools" typescript:",notnull"`
-	Retention           serpent.Duration        `json:"retention" typescript:",notnull"`
-	MaxConcurrency      serpent.Int64           `json:"max_concurrency" typescript:",notnull"`
-	RateLimit           serpent.Int64           `json:"rate_limit" typescript:",notnull"`
-	StructuredLogging   serpent.Bool            `json:"structured_logging" typescript:",notnull"`
-	SendActorHeaders    serpent.Bool            `json:"send_actor_headers" typescript:",notnull"`
+	Enabled   serpent.Bool            `json:"enabled" typescript:",notnull"`
+	OpenAI    AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
+	Anthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
+	Bedrock   AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
+	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	InjectCoderMCPTools serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
+	Retention           serpent.Duration `json:"retention" typescript:",notnull"`
+	MaxConcurrency      serpent.Int64    `json:"max_concurrency" typescript:",notnull"`
+	RateLimit           serpent.Int64    `json:"rate_limit" typescript:",notnull"`
+	StructuredLogging   serpent.Bool     `json:"structured_logging" typescript:",notnull"`
+	SendActorHeaders    serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
 	// Circuit breaker protects against cascading failures from upstream AI
 	// provider rate limits (429, 503, 529 overloaded).
 	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled" typescript:",notnull"`
@@ -4047,9 +4069,14 @@ type AIBridgeProxyConfig struct {
 	UpstreamProxyCA serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
 }
 
+type ChatConfig struct {
+	AcquireBatchSize serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+}
+
 type AIConfig struct {
 	BridgeConfig      AIBridgeConfig      `json:"bridge,omitempty"`
 	BridgeProxyConfig AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
+	Chat              ChatConfig          `json:"chat,omitempty" typescript:",notnull"`
 }
 
 type SupportConfig struct {
@@ -4293,14 +4320,15 @@ type Experiment string
 
 const (
 	// Add new experiments here!
-	ExperimentExample            Experiment = "example"              // This isn't used for anything.
-	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
-	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
-	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
-	ExperimentWebPush            Experiment = "web-push"             // Enables web push notifications through the browser.
-	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
-	ExperimentAgents             Experiment = "agents"               // Enables agent-powered chat functionality.
-	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
+	ExperimentExample               Experiment = "example"                 // This isn't used for anything.
+	ExperimentAutoFillParameters    Experiment = "auto-fill-parameters"    // This should not be taken out of experiments until we have redesigned the feature.
+	ExperimentNotifications         Experiment = "notifications"           // Sends notifications via SMTP and webhooks following certain events.
+	ExperimentWorkspaceUsage        Experiment = "workspace-usage"         // Enables the new workspace usage tracking.
+	ExperimentWebPush               Experiment = "web-push"                // Enables web push notifications through the browser.
+	ExperimentOAuth2                Experiment = "oauth2"                  // Enables OAuth2 provider functionality.
+	ExperimentAgents                Experiment = "agents"                  // Enables agent-powered chat functionality.
+	ExperimentMCPServerHTTP         Experiment = "mcp-server-http"         // Enables the MCP HTTP server functionality.
+	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
 )
 
 func (e Experiment) DisplayName() string {
@@ -4321,6 +4349,8 @@ func (e Experiment) DisplayName() string {
 		return "Agents"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
+	case ExperimentWorkspaceBuildUpdates:
+		return "Workspace Build Updates Channel"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
@@ -4339,6 +4369,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentOAuth2,
 	ExperimentAgents,
 	ExperimentMCPServerHTTP,
+	ExperimentWorkspaceBuildUpdates,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

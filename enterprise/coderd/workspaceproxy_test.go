@@ -586,9 +586,13 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		proxyClient := wsproxysdk.New(client.URL, createRes.ProxyToken)
 
 		for i := 0; i < 100; i++ {
-			ok := false
-			for j := 0; j < 2; j++ {
-				registerRes, err := proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
+			// Sibling replica count may not be immediately consistent.
+			// In production, proxies re-register every 30s and
+			// Kubernetes rolls out gradually, so this is benign.
+			var registerRes wsproxysdk.RegisterWorkspaceProxyResponse
+			require.Eventually(t, func() bool {
+				var err error
+				registerRes, err = proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
 					AccessURL:           "https://proxy.coder.test",
 					WildcardHostname:    "*.proxy.coder.test",
 					DerpEnabled:         true,
@@ -598,25 +602,11 @@ func TestProxyRegisterDeregister(t *testing.T) {
 					ReplicaRelayAddress: fmt.Sprintf("http://127.0.0.1:%d", 8080+i),
 					Version:             buildinfo.Version(),
 				})
-				require.NoErrorf(t, err, "register proxy %d", i)
-
-				// If the sibling replica count is wrong, try again. The impact
-				// of this not being immediate is that proxies may not function
-				// as DERP relays until they register again in 30 seconds.
-				//
-				// In the real world, replicas will not be registering this
-				// quickly. Kubernetes rolls out gradually in practice.
-				if len(registerRes.SiblingReplicas) != i {
-					t.Logf("%d: expected %d siblings, got %d", i, i, len(registerRes.SiblingReplicas))
-					time.Sleep(100 * time.Millisecond)
-					continue
+				if err != nil {
+					return false
 				}
-
-				ok = true
-				break
-			}
-
-			require.True(t, ok, "expected to register replica %d", i)
+				return len(registerRes.SiblingReplicas) == i
+			}, testutil.WaitShort, testutil.IntervalMedium, "expected to register replica %d with %d siblings", i, i)
 		}
 	})
 

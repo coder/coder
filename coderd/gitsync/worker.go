@@ -3,9 +3,11 @@ package gitsync
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -19,6 +21,17 @@ const (
 
 	// defaultInterval is the polling interval between ticks.
 	defaultInterval = 10 * time.Second
+
+	// defaultTickTimeout is the maximum time a single tick may
+	// run. Decoupled from the polling interval so that a batch
+	// of concurrent HTTP calls has enough headroom to complete.
+	defaultTickTimeout = 30 * time.Second
+
+	// NoTokenBackoff is the backoff duration applied to rows
+	// whose owner has no linked external-auth token. Much longer
+	// than DiffStatusTTL because the user must manually link
+	// their account before retrying is useful.
+	NoTokenBackoff = 10 * time.Minute
 )
 
 // Store is the narrow DB interface the Worker needs.
@@ -35,8 +48,8 @@ type Store interface {
 	UpsertChatDiffStatusReference(
 		ctx context.Context, arg database.UpsertChatDiffStatusReferenceParams,
 	) (database.ChatDiffStatus, error)
-	GetChatsByOwnerID(
-		ctx context.Context, arg database.GetChatsByOwnerIDParams,
+	GetChats(
+		ctx context.Context, arg database.GetChatsParams,
 	) ([]database.Chat, error)
 }
 
@@ -53,7 +66,20 @@ type Worker struct {
 	logger                    slog.Logger
 	batchSize                 int32
 	interval                  time.Duration
+	tickTimeout               time.Duration
 	done                      chan struct{}
+}
+
+// WorkerOption configures a Worker.
+type WorkerOption func(*Worker)
+
+// WithTickTimeout sets the maximum duration for a single tick.
+func WithTickTimeout(d time.Duration) WorkerOption {
+	return func(w *Worker) {
+		if d > 0 {
+			w.tickTimeout = d
+		}
+	}
 }
 
 // NewWorker creates a Worker with default batch size and interval.
@@ -63,8 +89,9 @@ func NewWorker(
 	publisher PublishDiffStatusChangeFunc,
 	clock quartz.Clock,
 	logger slog.Logger,
+	opts ...WorkerOption,
 ) *Worker {
-	return &Worker{
+	w := &Worker{
 		store:                     store,
 		refresher:                 refresher,
 		publishDiffStatusChangeFn: publisher,
@@ -72,8 +99,13 @@ func NewWorker(
 		logger:                    logger,
 		batchSize:                 defaultBatchSize,
 		interval:                  defaultInterval,
+		tickTimeout:               defaultTickTimeout,
 		done:                      make(chan struct{}),
 	}
+	for _, o := range opts {
+		o(w)
+	}
+	return w
 }
 
 // Start launches the background loop. It blocks until ctx is
@@ -108,19 +140,30 @@ func chatDiffStatusFromRow(row database.AcquireStaleChatDiffStatusesRow) databas
 		Additions:        row.Additions,
 		Deletions:        row.Deletions,
 		ChangedFiles:     row.ChangedFiles,
+		AuthorLogin:      row.AuthorLogin,
+		AuthorAvatarUrl:  row.AuthorAvatarUrl,
+		BaseBranch:       row.BaseBranch,
+		HeadBranch:       row.HeadBranch,
+		PrNumber:         row.PrNumber,
+		Commits:          row.Commits,
+		Approved:         row.Approved,
+		ReviewerCount:    row.ReviewerCount,
 		RefreshedAt:      row.RefreshedAt,
 		StaleAt:          row.StaleAt,
 		CreatedAt:        row.CreatedAt,
 		UpdatedAt:        row.UpdatedAt,
 		GitBranch:        row.GitBranch,
 		GitRemoteOrigin:  row.GitRemoteOrigin,
+		PullRequestTitle: row.PullRequestTitle,
+		PullRequestDraft: row.PullRequestDraft,
 	}
 }
 
 func (w *Worker) tick(ctx context.Context) {
-	// Set a context equal to w.interval so that we do not hold up processing due to
-	// random unicorn-related events.
-	ctx, cancel := context.WithTimeout(ctx, w.interval)
+	// Use a dedicated tick timeout that is longer than the
+	// polling interval. This gives concurrent HTTP calls enough
+	// headroom without stalling the next tick excessively.
+	ctx, cancel := context.WithTimeout(ctx, w.tickTimeout)
 	defer cancel()
 
 	acquiredRows, err := w.store.AcquireStaleChatDiffStatuses(ctx, w.batchSize)
@@ -154,11 +197,18 @@ func (w *Worker) tick(ctx context.Context) {
 			w.logger.Debug(ctx, "refresh chat diff status",
 				slog.F("chat_id", res.Request.Row.ChatID),
 				slog.Error(res.Error))
+			// Apply a longer backoff for rows whose owner has
+			// no linked token — retrying every 2 minutes is
+			// pointless until the user links their account.
+			backoff := DiffStatusTTL
+			if errors.Is(res.Error, ErrNoTokenAvailable) {
+				backoff = NoTokenBackoff
+			}
 			// Back off so the row isn't retried immediately.
 			if err := w.store.BackoffChatDiffStatus(ctx,
 				database.BackoffChatDiffStatusParams{
 					ChatID:  res.Request.Row.ChatID,
-					StaleAt: w.clock.Now().UTC().Add(DiffStatusTTL),
+					StaleAt: w.clock.Now().UTC().Add(backoff),
 				},
 			); err != nil {
 				w.logger.Warn(ctx, "backoff failed chat diff status",
@@ -200,7 +250,7 @@ func (w *Worker) MarkStale(
 		return
 	}
 
-	chats, err := w.store.GetChatsByOwnerID(ctx, database.GetChatsByOwnerIDParams{
+	chats, err := w.store.GetChats(ctx, database.GetChatsParams{
 		OwnerID: ownerID,
 	})
 	if err != nil {
@@ -236,6 +286,52 @@ func (w *Worker) MarkStale(
 			}
 		}
 	}
+}
+
+// RefreshChat synchronously refreshes a single chat's diff
+// status using the same Refresher pipeline as the background
+// worker. Returns nil, nil when no PR exists yet for the
+// branch. Called from HTTP handlers for instant feedback.
+func (w *Worker) RefreshChat(
+	ctx context.Context,
+	row database.ChatDiffStatus,
+	ownerID uuid.UUID,
+) (*database.ChatDiffStatus, error) {
+	requests := []RefreshRequest{{
+		Row:     row,
+		OwnerID: ownerID,
+	}}
+
+	results, err := w.refresher.Refresh(ctx, requests)
+	if err != nil {
+		return nil, xerrors.Errorf("refresh chat diff status: %w", err)
+	}
+
+	if len(results) == 0 {
+		return nil, nil
+	}
+	res := results[0]
+	if res.Error != nil {
+		return nil, xerrors.Errorf("refresh chat diff status: %w", res.Error)
+	}
+	if res.Params == nil {
+		return nil, nil
+	}
+
+	upserted, err := w.store.UpsertChatDiffStatus(ctx, *res.Params)
+	if err != nil {
+		return nil, xerrors.Errorf("upsert chat diff status: %w", err)
+	}
+
+	if w.publishDiffStatusChangeFn != nil {
+		if err := w.publishDiffStatusChangeFn(ctx, row.ChatID); err != nil {
+			w.logger.Debug(ctx, "publish diff status change",
+				slog.F("chat_id", row.ChatID),
+				slog.Error(err))
+		}
+	}
+
+	return &upserted, nil
 }
 
 // filterChatsByWorkspaceID returns only chats associated with

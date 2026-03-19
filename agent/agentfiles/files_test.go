@@ -576,7 +576,9 @@ func TestEditFiles(t *testing.T) {
 			expected: map[string]string{filepath.Join(tmpdir, "edit1"): "bar bar"},
 		},
 		{
-			name:     "EditEdit", // Edits affect previous edits.
+			// When the second edit creates ambiguity (two "bar"
+			// occurrences), it should fail.
+			name:     "EditEditAmbiguous",
 			contents: map[string]string{filepath.Join(tmpdir, "edit-edit"): "foo bar"},
 			edits: []workspacesdk.FileEdits{
 				{
@@ -593,7 +595,33 @@ func TestEditFiles(t *testing.T) {
 					},
 				},
 			},
-			expected: map[string]string{filepath.Join(tmpdir, "edit-edit"): "qux qux"},
+			errCode: http.StatusBadRequest,
+			errors:  []string{"matches 2 occurrences"},
+			// File should not be modified on error.
+			expected: map[string]string{filepath.Join(tmpdir, "edit-edit"): "foo bar"},
+		},
+		{
+			// With replace_all the cascading edit replaces
+			// both occurrences.
+			name:     "EditEditReplaceAll",
+			contents: map[string]string{filepath.Join(tmpdir, "edit-edit-ra"): "foo bar"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "edit-edit-ra"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo",
+							Replace: "bar",
+						},
+						{
+							Search:     "bar",
+							Replace:    "qux",
+							ReplaceAll: true,
+						},
+					},
+				},
+			},
+			expected: map[string]string{filepath.Join(tmpdir, "edit-edit-ra"): "qux qux"},
 		},
 		{
 			name:     "Multiline",
@@ -720,7 +748,7 @@ func TestEditFiles(t *testing.T) {
 			expected: map[string]string{filepath.Join(tmpdir, "exact-preferred"): "goodbye world"},
 		},
 		{
-			name:     "NoMatchStillSucceeds",
+			name:     "NoMatchErrors",
 			contents: map[string]string{filepath.Join(tmpdir, "no-match"): "original content"},
 			edits: []workspacesdk.FileEdits{
 				{
@@ -733,8 +761,45 @@ func TestEditFiles(t *testing.T) {
 					},
 				},
 			},
+			errCode: http.StatusBadRequest,
+			errors:  []string{"search string not found in file"},
 			// File should remain unchanged.
 			expected: map[string]string{filepath.Join(tmpdir, "no-match"): "original content"},
+		},
+		{
+			name:     "AmbiguousExactMatch",
+			contents: map[string]string{filepath.Join(tmpdir, "ambig-exact"): "foo bar foo baz foo"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "ambig-exact"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo",
+							Replace: "qux",
+						},
+					},
+				},
+			},
+			errCode:  http.StatusBadRequest,
+			errors:   []string{"matches 3 occurrences"},
+			expected: map[string]string{filepath.Join(tmpdir, "ambig-exact"): "foo bar foo baz foo"},
+		},
+		{
+			name:     "ReplaceAllExact",
+			contents: map[string]string{filepath.Join(tmpdir, "ra-exact"): "foo bar foo baz foo"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "ra-exact"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:     "foo",
+							Replace:    "qux",
+							ReplaceAll: true,
+						},
+					},
+				},
+			},
+			expected: map[string]string{filepath.Join(tmpdir, "ra-exact"): "qux bar qux baz qux"},
 		},
 		{
 			name:     "MixedWhitespaceMultiline",

@@ -1,7 +1,7 @@
 import { watchChat } from "api/api";
-import { chatKey, updateInfiniteChatsCache } from "api/queries/chats";
+import { chatMessagesKey, updateInfiniteChatsCache } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
-import { asRecord, asString } from "components/ai-elements/runtimeTypeUtils";
+
 import {
 	startTransition,
 	useCallback,
@@ -9,27 +9,14 @@ import {
 	useRef,
 	useSyncExternalStore,
 } from "react";
-import { useQueryClient } from "react-query";
+import { type InfiniteData, useQueryClient } from "react-query";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
+import type { ChatDetailError } from "../usageLimitMessage";
 import { applyMessagePartToStreamState } from "./streamState";
 import type { StreamState } from "./types";
 
-const VALID_CHAT_STATUSES: ReadonlySet<string> = new Set<TypesGen.ChatStatus>([
-	"pending",
-	"running",
-	"completed",
-	"error",
-	"paused",
-	"waiting",
-]);
-
-const isValidChatStatus = (value: unknown): value is TypesGen.ChatStatus =>
-	typeof value === "string" && VALID_CHAT_STATUSES.has(value);
-
-const isChatStreamEvent = (
-	data: unknown,
-): data is TypesGen.ChatStreamEvent & Record<string, unknown> =>
+const isChatStreamEvent = (data: unknown): data is TypesGen.ChatStreamEvent =>
 	typeof data === "object" &&
 	data !== null &&
 	"type" in data &&
@@ -37,12 +24,10 @@ const isChatStreamEvent = (
 
 const isChatStreamEventArray = (
 	data: unknown,
-): data is (TypesGen.ChatStreamEvent & Record<string, unknown>)[] =>
+): data is TypesGen.ChatStreamEvent[] =>
 	Array.isArray(data) && data.every(isChatStreamEvent);
 
-const toChatStreamEvents = (
-	data: unknown,
-): (TypesGen.ChatStreamEvent & Record<string, unknown>)[] => {
+const toChatStreamEvents = (data: unknown): TypesGen.ChatStreamEvent[] => {
 	if (isChatStreamEvent(data)) {
 		return [data];
 	}
@@ -157,8 +142,8 @@ type ChatStore = {
 		isDuplicate: boolean;
 		changed: boolean;
 	};
-	applyMessagePart: (part: Record<string, unknown>) => void;
-	applyMessageParts: (parts: readonly Record<string, unknown>[]) => void;
+	applyMessagePart: (part: TypesGen.ChatMessagePart) => void;
+	applyMessageParts: (parts: readonly TypesGen.ChatMessagePart[]) => void;
 	setQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	) => void;
@@ -280,7 +265,7 @@ export const createChatStore = (): ChatStore => {
 		return { isDuplicate, changed: actuallyChanged };
 	};
 
-	const applyMessageParts = (parts: readonly Record<string, unknown>[]) => {
+	const applyMessageParts = (parts: readonly TypesGen.ChatMessagePart[]) => {
 		if (parts.length === 0) {
 			return;
 		}
@@ -417,9 +402,9 @@ interface UseChatStoreOptions {
 	chatID: string | undefined;
 	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	chatRecord: TypesGen.Chat | undefined;
-	chatData: TypesGen.ChatWithMessages | undefined;
+	chatMessagesData: TypesGen.ChatMessagesResponse | undefined;
 	chatQueuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
-	setChatErrorReason: (chatID: string, reason: string) => void;
+	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatID: string) => void;
 }
 
@@ -444,7 +429,7 @@ export const useChatStore = (
 		chatID,
 		chatMessages,
 		chatRecord,
-		chatData,
+		chatMessagesData,
 		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
@@ -463,6 +448,16 @@ export const useChatStore = (
 	const wsQueueUpdateReceivedRef = useRef(false);
 	const activeChatIDRef = useRef<string | null>(null);
 	const prevChatIDRef = useRef<string | undefined>(chatID);
+	// Snapshot of the chatMessages elements from the last sync effect
+	// run. Used to detect whether chatMessages actually changed (e.g.
+	// after a refetch producing new objects) vs. just getting a new
+	// array reference because an unrelated field like queued_messages
+	// was updated in the query cache. Element-level reference
+	// comparison works because useMemo(flatMap) preserves message
+	// object references when only non-message fields change in the
+	// page, while a genuine refetch returns new objects from the
+	// server.
+	const lastSyncedMessagesRef = useRef<readonly TypesGen.ChatMessage[]>([]);
 
 	const store = storeRef.current;
 
@@ -476,6 +471,13 @@ export const useChatStore = (
 		chatMessages && chatMessages.length > 0
 			? chatMessages[chatMessages.length - 1].id
 			: undefined;
+
+	// True once the initial REST page has resolved for the current
+	// chat. The WebSocket effect gates on this so that
+	// lastMessageIdRef is populated before the socket opens;
+	// otherwise the server replays the entire message history as
+	// its snapshot, defeating pagination.
+	const initialDataLoaded = chatMessages !== undefined;
 
 	const updateSidebarChat = useCallback(
 		(updater: (chat: TypesGen.Chat) => TypesGen.Chat) => {
@@ -519,26 +521,29 @@ export const useChatStore = (
 				return;
 			}
 			const nextQueuedMessages = queuedMessages ?? [];
-			queryClient.setQueryData<TypesGen.ChatWithMessages | undefined>(
-				chatKey(chatID),
-				(currentChat) => {
-					if (!currentChat) {
-						return currentChat;
-					}
-					if (
-						chatQueuedMessagesEqualByID(
-							currentChat.queued_messages,
-							nextQueuedMessages,
-						)
-					) {
-						return currentChat;
-					}
-					return {
-						...currentChat,
-						queued_messages: nextQueuedMessages,
-					};
-				},
-			);
+			queryClient.setQueryData<
+				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+			>(chatMessagesKey(chatID), (currentData) => {
+				if (!currentData?.pages?.length) {
+					return currentData;
+				}
+				const firstPage = currentData.pages[0];
+				if (
+					chatQueuedMessagesEqualByID(
+						firstPage.queued_messages,
+						nextQueuedMessages,
+					)
+				) {
+					return currentData;
+				}
+				return {
+					...currentData,
+					pages: [
+						{ ...firstPage, queued_messages: nextQueuedMessages },
+						...currentData.pages.slice(1),
+					],
+				};
+			});
 		},
 		[chatID, queryClient],
 	);
@@ -549,9 +554,44 @@ export const useChatStore = (
 		// the new chat's query resolves.
 		if (prevChatIDRef.current !== chatID) {
 			prevChatIDRef.current = chatID;
+			lastSyncedMessagesRef.current = [];
 			store.replaceMessages([]);
 		}
-		store.replaceMessages(chatMessages);
+		// Merge REST-fetched messages into the store one-by-one instead
+		// of replacing the entire map. This preserves any messages the
+		// WebSocket delivered via upsertDurableMessage that haven't
+		// appeared in a REST page yet.
+		//
+		// However, if the fetched set is missing message IDs the store
+		// already has (e.g. after an edit truncation), a full replace
+		// is needed because upsert can only add/update, not remove.
+		// We must only do this when the fetched messages actually
+		// changed (new elements from a refetch), not when an
+		// unrelated field like queued_messages caused the query
+		// data reference to update. Without this guard, a
+		// queue_update WebSocket event would trigger
+		// replaceMessages with the stale REST data, wiping any
+		// message the WebSocket just delivered.
+		if (chatMessages) {
+			const prev = lastSyncedMessagesRef.current;
+			const contentChanged =
+				chatMessages.length !== prev.length ||
+				chatMessages.some((m, i) => m !== prev[i]);
+			lastSyncedMessagesRef.current = chatMessages;
+
+			const storeSnap = store.getSnapshot();
+			const fetchedIDs = new Set(chatMessages.map((m) => m.id));
+			const hasStaleEntries =
+				contentChanged &&
+				storeSnap.orderedMessageIDs.some((id) => !fetchedIDs.has(id));
+			if (hasStaleEntries) {
+				store.replaceMessages(chatMessages);
+			} else {
+				for (const message of chatMessages) {
+					store.upsertDurableMessage(message);
+				}
+			}
+		}
 	}, [chatID, chatMessages, store]);
 
 	useEffect(() => {
@@ -568,7 +608,7 @@ export const useChatStore = (
 	}, [chatID, store]);
 
 	useEffect(() => {
-		if (!chatID || !chatData) {
+		if (!chatID || !chatMessagesData) {
 			return;
 		}
 		// Allow re-hydration from REST as long as the WebSocket hasn't
@@ -584,14 +624,14 @@ export const useChatStore = (
 		}
 		queuedMessagesHydratedChatIDRef.current = chatID;
 		store.setQueuedMessages(chatQueuedMessages);
-	}, [chatData, chatID, chatQueuedMessages, store]);
+	}, [chatMessagesData, chatID, chatQueuedMessages, store]);
 
 	useEffect(() => {
 		cancelScheduledStreamReset();
 		store.resetTransientState();
 		activeChatIDRef.current = chatID ?? null;
 
-		if (!chatID) {
+		if (!chatID || !initialDataLoaded) {
 			return;
 		}
 
@@ -625,7 +665,7 @@ export const useChatStore = (
 				return currentStatus !== "pending" && currentStatus !== "waiting";
 			};
 
-			const pendingMessageParts: Record<string, unknown>[] = [];
+			const pendingMessageParts: TypesGen.ChatMessagePart[] = [];
 			const flushMessageParts = () => {
 				if (pendingMessageParts.length === 0) {
 					return;
@@ -649,14 +689,13 @@ export const useChatStore = (
 
 			for (const streamEvent of streamEvents) {
 				if (streamEvent.type === "message_part") {
-					const eventChatID = asString(streamEvent.chat_id);
-					if (eventChatID && eventChatID !== chatID) {
+					if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 						continue;
 					}
 					if (!shouldApplyMessagePart()) {
 						continue;
 					}
-					const part = asRecord(streamEvent.message_part?.part);
+					const part = streamEvent.message_part?.part;
 					if (part) {
 						cancelScheduledStreamReset();
 						pendingMessageParts.push(part);
@@ -671,8 +710,7 @@ export const useChatStore = (
 						if (!message) {
 							continue;
 						}
-						const eventChatID = asString(streamEvent.chat_id);
-						if (eventChatID && eventChatID !== chatID) {
+						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 							continue;
 						}
 						const { changed } = store.upsertDurableMessage(message);
@@ -698,26 +736,21 @@ export const useChatStore = (
 						continue;
 					}
 					case "queue_update":
-						{
-							const eventChatID = asString(streamEvent.chat_id);
-							if (eventChatID && eventChatID !== chatID) {
-								continue;
-							}
+						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+							continue;
 						}
 						wsQueueUpdateReceivedRef.current = true;
 						store.setQueuedMessages(streamEvent.queued_messages);
 						updateChatQueuedMessages(streamEvent.queued_messages);
 						continue;
 					case "status": {
-						const status = asRecord(streamEvent.status);
-						const nextStatus = asString(status?.status);
-						if (!isValidChatStatus(nextStatus)) {
+						const nextStatus = streamEvent.status?.status;
+						if (!nextStatus) {
 							continue;
 						}
 
-						const eventChatID = asString(streamEvent.chat_id);
-						if (eventChatID && eventChatID !== chatID) {
-							store.setSubagentStatusOverride(eventChatID, nextStatus);
+						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+							store.setSubagentStatusOverride(streamEvent.chat_id, nextStatus);
 							continue;
 						}
 
@@ -739,17 +772,18 @@ export const useChatStore = (
 						continue;
 					}
 					case "error": {
-						const eventChatID = asString(streamEvent.chat_id);
-						if (eventChatID && eventChatID !== chatID) {
+						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 							continue;
 						}
-						const error = asRecord(streamEvent.error);
 						const reason =
-							asString(error?.message).trim() || "Chat processing failed.";
+							streamEvent.error?.message.trim() || "Chat processing failed.";
 						store.setChatStatus("error");
 						store.setStreamError(reason);
 						store.clearRetryState();
-						setChatErrorReason(chatID, reason);
+						setChatErrorReason(chatID, {
+							kind: "generic",
+							message: reason,
+						});
 						updateSidebarChat((chat) => ({
 							...chat,
 							status: "error",
@@ -757,8 +791,7 @@ export const useChatStore = (
 						continue;
 					}
 					case "retry": {
-						const eventChatID = asString(streamEvent.chat_id);
-						if (eventChatID && eventChatID !== chatID) {
+						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 							continue;
 						}
 						const retry = streamEvent.retry;
@@ -821,6 +854,7 @@ export const useChatStore = (
 		cancelScheduledStreamReset,
 		chatID,
 		clearChatErrorReason,
+		initialDataLoaded,
 		scheduleStreamReset,
 		setChatErrorReason,
 		store,

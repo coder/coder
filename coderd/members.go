@@ -310,6 +310,14 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 		memberRows = append(memberRows, row)
 	}
 
+	if len(paginatedMemberRows) == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.PaginatedMembersResponse{
+			Members: []codersdk.OrganizationMemberWithUserData{},
+			Count:   0,
+		})
+		return
+	}
+
 	userIDs := make([]uuid.UUID, 0, len(memberRows))
 	for _, member := range memberRows {
 		userIDs = append(userIDs, member.OrganizationMember.UserID)

@@ -3,22 +3,25 @@ import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
+import type { Dayjs } from "dayjs";
 import { PanelLeftIcon } from "lucide-react";
-import { type FC, useState } from "react";
-import { NavLink, Outlet } from "react-router";
+import { type FC, useCallback, useMemo } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentCreateForm, type CreateChatOptions } from "./AgentCreateForm";
-import { AgentsSidebar } from "./AgentsSidebar";
+import { AgentsSidebar, sidebarViewFromPath } from "./AgentsSidebar";
+import { AnalyticsPageContent } from "./AnalyticsPageContent";
 import { ChimeButton } from "./ChimeButton";
-import { ConfigureAgentsDialog } from "./ConfigureAgentsDialog";
+import { SettingsPageContent } from "./SettingsPageContent";
+import type { ChatDetailError } from "./usageLimitMessage";
 import { WebPushButton } from "./WebPushButton";
 
 type ChatModelOption = ModelSelectorOption;
 
 export interface AgentsOutletContext {
-	chatErrorReasons: Record<string, string>;
-	setChatErrorReason: (chatId: string, reason: string) => void;
+	chatErrorReasons: Record<string, ChatDetailError>;
+	setChatErrorReason: (chatId: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatId: string) => void;
 	requestArchiveAgent: (chatId: string) => void;
 	requestUnarchiveAgent: (chatId: string) => void;
@@ -26,6 +29,7 @@ export interface AgentsOutletContext {
 		chatId: string,
 		workspaceId: string,
 	) => void;
+	onOpenAnalytics?: () => void;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 }
@@ -56,6 +60,10 @@ interface AgentsPageViewProps {
 	modelCatalogError: unknown;
 	hasNextPage: boolean | undefined;
 	onLoadMore: () => void;
+	isFetchingNextPage: boolean;
+	archivedFilter: "active" | "archived";
+	onArchivedFilterChange: (filter: "active" | "archived") => void;
+	analyticsNow?: Dayjs;
 }
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
@@ -84,6 +92,10 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	modelCatalogError,
 	hasNextPage,
 	onLoadMore,
+	isFetchingNextPage,
+	archivedFilter,
+	onArchivedFilterChange,
+	analyticsNow,
 }) => {
 	const {
 		chatErrorReasons,
@@ -91,8 +103,32 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		requestUnarchiveAgent,
 		requestArchiveAndDeleteWorkspace,
 	} = outletContext;
-	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
-		useState(false);
+	const location = useLocation();
+	const navigate = useNavigate();
+	const sidebarView = sidebarViewFromPath(location.pathname);
+
+	const handleOpenAnalytics = useCallback(() => {
+		navigate("/agents/analytics");
+	}, [navigate]);
+
+	// The sidebar expects plain string error messages, but the outlet
+	// context now carries structured ChatDetailError objects.
+	const sidebarChatErrorReasons = useMemo(
+		() =>
+			Object.fromEntries(
+				Object.entries(chatErrorReasons).map(([chatId, error]) => [
+					chatId,
+					error.message,
+				]),
+			),
+		[chatErrorReasons],
+	);
+
+	const outletContextValue = useMemo(
+		() => ({ ...outletContext, onOpenAnalytics: handleOpenAnalytics }),
+		[outletContext, handleOpenAnalytics],
+	);
+
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
 			<title>{pageTitle("Agents")}</title>
@@ -107,14 +143,14 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 			>
 				<AgentsSidebar
 					chats={chatList}
-					chatErrorReasons={chatErrorReasons}
+					chatErrorReasons={sidebarChatErrorReasons}
 					modelOptions={catalogModelOptions}
 					modelConfigs={modelConfigs}
 					logoUrl={logoUrl}
 					onArchiveAgent={requestArchiveAgent}
 					onUnarchiveAgent={requestUnarchiveAgent}
 					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
-					onNewAgent={handleNewAgent}
+					onBeforeNewAgent={handleNewAgent}
 					isCreating={isCreating}
 					isArchiving={isArchiving}
 					archivingChatId={archivingChatId}
@@ -123,19 +159,32 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onRetryLoad={onRetryChatsLoad}
 					hasNextPage={hasNextPage}
 					onLoadMore={onLoadMore}
+					isFetchingNextPage={isFetchingNextPage}
+					archivedFilter={archivedFilter}
+					onArchivedFilterChange={onArchivedFilterChange}
 					onCollapse={onCollapseSidebar}
-					onOpenSettings={() => setConfigureAgentsDialogOpen(true)}
+					isAdmin={isAgentsAdmin}
 				/>
 			</div>
 
 			<div
 				className={cn(
 					"flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
-					!agentId && "order-1 md:order-none flex-none md:flex-1",
+					!agentId &&
+						sidebarView.panel === "chats" &&
+						"order-1 md:order-none flex-none md:flex-1",
 				)}
 			>
-				{agentId ? (
-					<Outlet key={agentId} context={outletContext} />
+				{sidebarView.panel === "settings" ? (
+					<SettingsPageContent
+						activeSection={sidebarView.section}
+						canManageChatModelConfigs={isAgentsAdmin}
+						canSetSystemPrompt={isAgentsAdmin}
+					/>
+				) : sidebarView.panel === "analytics" ? (
+					<AnalyticsPageContent now={analyticsNow} />
+				) : agentId ? (
+					<Outlet key={agentId} context={outletContextValue} />
 				) : (
 					<>
 						<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
@@ -176,17 +225,11 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 							isModelCatalogLoading={isModelCatalogLoading}
 							isModelConfigsLoading={isModelConfigsLoading}
 							modelCatalogError={modelCatalogError}
+							onOpenAnalytics={handleOpenAnalytics}
 						/>
 					</>
 				)}
 			</div>
-
-			<ConfigureAgentsDialog
-				open={isConfigureAgentsDialogOpen}
-				onOpenChange={setConfigureAgentsDialogOpen}
-				canManageChatModelConfigs={isAgentsAdmin}
-				canSetSystemPrompt={isAgentsAdmin}
-			/>
 		</div>
 	);
 };

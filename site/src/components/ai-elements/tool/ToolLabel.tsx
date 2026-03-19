@@ -154,6 +154,12 @@ export const ToolLabel: React.FC<{
 					Summarized
 				</span>
 			);
+		case "computer":
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					Screenshot
+				</span>
+			);
 		default:
 			return (
 				<span className="truncate text-sm text-content-secondary">{name}</span>

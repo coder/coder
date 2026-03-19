@@ -67,14 +67,6 @@ WHERE
 	id = $1
 FOR UPDATE;
 
--- name: GetProvisionerJobsByIDs :many
-SELECT
-	*
-FROM
-	provisioner_jobs
-WHERE
-	id = ANY(@ids :: uuid [ ]);
-
 -- name: GetProvisionerJobsByIDsWithQueuePosition :many
 WITH filtered_provisioner_jobs AS (
 	-- Step 1: Filter provisioner_jobs

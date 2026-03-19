@@ -72,6 +72,64 @@ func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, link.Claims)
 }
 
+// Returns the merged OIDC claims for the authenticated user.
+//
+// @Summary Get OIDC claims for the authenticated user
+// @ID get-oidc-claims-for-the-authenticated-user
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Users
+// @Success 200 {object} codersdk.OIDCClaimsResponse
+// @Router /users/oidc-claims [get]
+func (api *API) userOIDCClaims(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	user, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if user.LoginType != database.LoginTypeOIDC {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "User is not an OIDC user.",
+		})
+		return
+	}
+
+	//nolint:gocritic // GetUserLinkByUserIDLoginType requires reading
+	// rbac.ResourceSystem. The endpoint is scoped to the authenticated
+	// user's own identity via apiKey, so this is safe.
+	link, err := api.Database.GetUserLinkByUserIDLoginType(
+		dbauthz.AsSystemRestricted(ctx),
+		database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeOIDC,
+		},
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get user link.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	claims := link.Claims.MergedClaims
+	if claims == nil {
+		claims = map[string]interface{}{}
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OIDCClaimsResponse{
+		Claims: claims,
+	})
+}
+
 // Returns whether the initial user has been created or not.
 //
 // @Summary Check initial user created
@@ -372,7 +430,33 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.UserLoginType == "" {
+	// Service accounts must use login_type 'none' and have no password
+	// or email.
+	if req.ServiceAccount {
+		// The client can omit login type for a service account and it will be
+		// set for them below. But if they request the wrong one, we have to let
+		// them know.
+		if req.UserLoginType != "" && req.UserLoginType != codersdk.LoginTypeNone {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Service accounts must use login type 'none'.",
+			})
+			return
+		}
+		if req.Password != "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Password cannot be set for service accounts.",
+			})
+			return
+		}
+		if req.Email != "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Email cannot be set for service accounts.",
+			})
+			return
+		}
+
+		req.UserLoginType = codersdk.LoginTypeNone
+	} else if req.UserLoginType == "" {
 		// Default to password auth
 		req.UserLoginType = codersdk.LoginTypePassword
 	}
@@ -1526,16 +1610,17 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			status = string(*req.UserStatus)
 		}
 		params := database.InsertUserParams{
-			ID:             uuid.New(),
-			Email:          req.Email,
-			Username:       req.Username,
-			Name:           codersdk.NormalizeRealUsername(req.Name),
-			CreatedAt:      dbtime.Now(),
-			UpdatedAt:      dbtime.Now(),
-			HashedPassword: []byte{},
-			RBACRoles:      rbacRoles,
-			LoginType:      req.LoginType,
-			Status:         status,
+			ID:               uuid.New(),
+			Email:            req.Email,
+			Username:         req.Username,
+			Name:             codersdk.NormalizeRealUsername(req.Name),
+			CreatedAt:        dbtime.Now(),
+			UpdatedAt:        dbtime.Now(),
+			HashedPassword:   []byte{},
+			RBACRoles:        rbacRoles,
+			LoginType:        req.LoginType,
+			Status:           status,
+			IsServiceAccount: req.ServiceAccount,
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {

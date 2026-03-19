@@ -1,0 +1,250 @@
+import { getErrorMessage } from "api/errors";
+import { Button } from "components/Button/Button";
+import { Loader } from "components/Loader/Loader";
+import { useAuthContext } from "contexts/auth/AuthProvider";
+import { ProxyProvider } from "contexts/ProxyContext";
+import { DashboardProvider } from "modules/dashboard/DashboardProvider";
+import { permissionChecks } from "modules/permissions";
+import {
+	type FC,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import { useMutation, useQueryClient } from "react-query";
+import { Outlet, useParams } from "react-router";
+import type { AgentsOutletContext } from "./AgentsPage";
+import { bootstrapChatEmbedSession, EmbedProvider } from "./EmbedContext";
+import type { ChatDetailError } from "./usageLimitMessage";
+
+type BootstrapMessage = {
+	type: "coder:vscode-auth-bootstrap";
+	payload: {
+		token: string;
+	};
+};
+
+const getBootstrapToken = (data: unknown): string | undefined => {
+	if (typeof data !== "object" || data === null) {
+		return undefined;
+	}
+
+	const message = data as Partial<BootstrapMessage>;
+	if (message.type !== "coder:vscode-auth-bootstrap") {
+		return undefined;
+	}
+
+	if (typeof message.payload !== "object" || message.payload === null) {
+		return undefined;
+	}
+
+	const payload = message.payload as { token?: unknown };
+	if (typeof payload.token !== "string") {
+		return undefined;
+	}
+
+	const token = payload.token.trim();
+	return token.length > 0 ? token : undefined;
+};
+
+const AgentEmbedPage: FC = () => {
+	const { agentId } = useParams<{ agentId: string }>();
+	if (!agentId) {
+		throw new Error("AgentEmbedPage requires an agentId route parameter.");
+	}
+
+	const auth = useAuthContext();
+	const queryClient = useQueryClient();
+	const embedSessionMutation = useMutation(
+		bootstrapChatEmbedSession({ checks: permissionChecks }, queryClient),
+	);
+	const latestEmbedSessionMutationRef = useRef(embedSessionMutation);
+	latestEmbedSessionMutationRef.current = embedSessionMutation;
+	const inFlightBootstrapRef = useRef<Promise<unknown> | null>(null);
+
+	const [chatErrorReasons, setChatErrorReasons] = useState<
+		Record<string, ChatDetailError>
+	>({});
+	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+	const setChatErrorReason = useCallback(
+		(chatId: string, reason: ChatDetailError) => {
+			const trimmedMessage = reason.message.trim();
+			if (!chatId || !trimmedMessage) {
+				return;
+			}
+			setChatErrorReasons((current) => {
+				const existing = current[chatId];
+				if (
+					existing &&
+					existing.kind === reason.kind &&
+					existing.message === trimmedMessage
+				) {
+					return current;
+				}
+				return {
+					...current,
+					[chatId]: { kind: reason.kind, message: trimmedMessage },
+				};
+			});
+		},
+		[],
+	);
+
+	const clearChatErrorReason = useCallback((chatId: string) => {
+		if (!chatId) {
+			return;
+		}
+		setChatErrorReasons((current) => {
+			if (!(chatId in current)) {
+				return current;
+			}
+			const next = { ...current };
+			delete next[chatId];
+			return next;
+		});
+	}, []);
+
+	const requestArchiveAgent = useCallback((_chatId: string) => {}, []);
+
+	const requestUnarchiveAgent = useCallback((_chatId: string) => {}, []);
+
+	const requestArchiveAndDeleteWorkspace = useCallback(
+		(_chatId: string, _workspaceId: string) => {},
+		[],
+	);
+
+	const onToggleSidebarCollapsed = useCallback(() => {
+		setIsSidebarCollapsed((current) => !current);
+	}, []);
+
+	const outletContext = useMemo<AgentsOutletContext>(
+		() => ({
+			chatErrorReasons,
+			setChatErrorReason,
+			clearChatErrorReason,
+			requestArchiveAgent,
+			requestUnarchiveAgent,
+			requestArchiveAndDeleteWorkspace,
+			isSidebarCollapsed,
+			onToggleSidebarCollapsed,
+		}),
+		[
+			chatErrorReasons,
+			setChatErrorReason,
+			clearChatErrorReason,
+			requestArchiveAgent,
+			requestUnarchiveAgent,
+			requestArchiveAndDeleteWorkspace,
+			isSidebarCollapsed,
+			onToggleSidebarCollapsed,
+		],
+	);
+
+	// When signed out and not already bootstrapping, listen for the
+	// postMessage from the parent frame carrying the session token.
+	const isAwaitingBootstrapMessage =
+		auth.isSignedOut &&
+		!embedSessionMutation.isPending &&
+		!embedSessionMutation.isError;
+
+	useEffect(() => {
+		if (!isAwaitingBootstrapMessage) {
+			return;
+		}
+
+		const parentWindow = window.parent;
+
+		const handleMessage = (event: MessageEvent) => {
+			if (event.source !== parentWindow) {
+				return;
+			}
+
+			const token = getBootstrapToken(event.data);
+			if (!token || inFlightBootstrapRef.current) {
+				return;
+			}
+
+			const bootstrapPromise = latestEmbedSessionMutationRef.current
+				.mutateAsync(token)
+				.catch(() => undefined)
+				.finally(() => {
+					inFlightBootstrapRef.current = null;
+				});
+			inFlightBootstrapRef.current = bootstrapPromise;
+		};
+
+		// Register the listener before notifying the parent so an
+		// immediate bootstrap response is never missed.
+		window.addEventListener("message", handleMessage);
+		parentWindow.postMessage(
+			{ type: "coder:vscode-ready", payload: { agentId } },
+			"*",
+		);
+		return () => {
+			window.removeEventListener("message", handleMessage);
+		};
+	}, [agentId, isAwaitingBootstrapMessage]);
+
+	const handleBootstrapRetry = useCallback(() => {
+		inFlightBootstrapRef.current = null;
+		embedSessionMutation.reset();
+	}, [embedSessionMutation]);
+
+	if (auth.isSignedIn) {
+		return (
+			<EmbedProvider value={{ isEmbedded: true }}>
+				<DashboardProvider>
+					<ProxyProvider>
+						<Outlet context={outletContext} />
+					</ProxyProvider>
+				</DashboardProvider>
+			</EmbedProvider>
+		);
+	}
+
+	if (embedSessionMutation.isError) {
+		return (
+			<div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface-primary px-6 text-center">
+				<div className="space-y-2">
+					<h1 className="text-xl font-semibold text-content-primary">
+						Unable to start embedded agent.
+					</h1>
+					<p className="max-w-md text-sm text-content-secondary">
+						{getErrorMessage(
+							embedSessionMutation.error,
+							"We couldn't exchange the VS Code bootstrap token for a session.",
+						)}
+					</p>
+				</div>
+				<Button onClick={handleBootstrapRetry}>Try again</Button>
+			</div>
+		);
+	}
+
+	if (embedSessionMutation.isPending) {
+		return (
+			<div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface-primary px-6 text-center">
+				<Loader label="Signing in to embedded agent" />
+				<p className="max-w-md text-sm text-content-secondary">
+					Signing in to the embedded agent…
+				</p>
+			</div>
+		);
+	}
+
+	// Either auth is loading or we're waiting for the bootstrap
+	// postMessage from the parent frame.
+	return (
+		<div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface-primary px-6 text-center">
+			<Loader label="Waiting for VS Code authentication" />
+			<p className="max-w-md text-sm text-content-secondary">
+				{auth.isLoading ? "Loading…" : "Waiting for VS Code authentication…"}
+			</p>
+		</div>
+	);
+};
+
+export default AgentEmbedPage;

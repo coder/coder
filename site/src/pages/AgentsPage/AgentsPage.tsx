@@ -3,13 +3,13 @@ import { getErrorMessage } from "api/errors";
 import {
 	archiveChat,
 	chatDiffContentsKey,
-	chatDiffStatusKey,
 	chatKey,
 	chatModelConfigs,
 	chatModels,
-	chatsKey,
 	createChat,
 	infiniteChats,
+	invalidateChatListQueries,
+	prependToInfiniteChatsCache,
 	readInfiniteChatsCache,
 	unarchiveChat,
 	updateInfiniteChatsCache,
@@ -41,7 +41,11 @@ import {
 import { maybePlayChime } from "./AgentDetail/useAgentChime";
 import type { AgentsOutletContext } from "./AgentsPageView";
 import { AgentsPageView } from "./AgentsPageView";
-import { getModelOptionsFromCatalog } from "./modelOptions";
+import {
+	getModelOptionsFromCatalog,
+	getNormalizedModelRef,
+} from "./modelOptions";
+import type { ChatDetailError } from "./usageLimitMessage";
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 import { useAgentsPWA } from "./useAgentsPWA";
 
@@ -74,6 +78,10 @@ const AgentsPage: FC = () => {
 	const isAgentsAdmin =
 		permissions.editDeploymentConfig ||
 		user.roles.some((role) => role.name === "owner" || role.name === "admin");
+
+	const [archivedFilter, setArchivedFilter] = useState<"active" | "archived">(
+		"active",
+	);
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
 	// layout shift on pages that toggle scrollbars. The agents page
@@ -118,7 +126,9 @@ const AgentsPage: FC = () => {
 		};
 	}, []);
 
-	const chatsQuery = useInfiniteQuery(infiniteChats());
+	const chatsQuery = useInfiniteQuery(
+		infiniteChats({ archived: archivedFilter === "archived" }),
+	);
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
 	const createMutation = useMutation(createChat(queryClient));
@@ -141,14 +151,17 @@ const AgentsPage: FC = () => {
 			chatId: string;
 			workspaceId: string;
 		}) => {
-			await API.archiveChat(chatId);
+			await API.updateChat(chatId, { archived: true });
 			await API.deleteWorkspace(workspaceId);
 			return { chatId, workspaceId };
 		},
 		onSuccess: async ({ chatId }) => {
 			clearChatErrorReason(chatId);
-			await queryClient.invalidateQueries({ queryKey: chatsKey });
-			await queryClient.invalidateQueries({ queryKey: chatKey(chatId) });
+			await invalidateChatListQueries(queryClient);
+			await queryClient.invalidateQueries({
+				queryKey: chatKey(chatId),
+				exact: true,
+			});
 		},
 		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
@@ -164,7 +177,7 @@ const AgentsPage: FC = () => {
 	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
-		Record<string, string>
+		Record<string, ChatDetailError>
 	>({});
 	const catalogModelOptions = useMemo(
 		() =>
@@ -177,8 +190,7 @@ const AgentsPage: FC = () => {
 	const modelConfigIDByModelID = useMemo(() => {
 		const byModelID = new Map<string, string>();
 		for (const config of chatModelConfigsQuery.data ?? []) {
-			const provider = config.provider.trim().toLowerCase();
-			const model = config.model.trim();
+			const { provider, model } = getNormalizedModelRef(config);
 			if (!provider || !model) {
 				continue;
 			}
@@ -193,21 +205,29 @@ const AgentsPage: FC = () => {
 		}
 		return byModelID;
 	}, [chatModelConfigsQuery.data]);
-	const setChatErrorReason = useCallback((chatId: string, reason: string) => {
-		const trimmedReason = reason.trim();
-		if (!chatId || !trimmedReason) {
-			return;
-		}
-		setChatErrorReasons((current) => {
-			if (current[chatId] === trimmedReason) {
-				return current;
+	const setChatErrorReason = useCallback(
+		(chatId: string, reason: ChatDetailError) => {
+			const trimmedMessage = reason.message.trim();
+			if (!chatId || !trimmedMessage) {
+				return;
 			}
-			return {
-				...current,
-				[chatId]: trimmedReason,
-			};
-		});
-	}, []);
+			setChatErrorReasons((current) => {
+				const existing = current[chatId];
+				if (
+					existing &&
+					existing.kind === reason.kind &&
+					existing.message === trimmedMessage
+				) {
+					return current;
+				}
+				return {
+					...current,
+					[chatId]: { kind: reason.kind, message: trimmedMessage },
+				};
+			});
+		},
+		[],
+	);
 	const clearChatErrorReason = useCallback((chatId: string) => {
 		if (!chatId) {
 			return;
@@ -377,20 +397,14 @@ const AgentsPage: FC = () => {
 					}
 
 					if (chatEvent.kind === "diff_status_change") {
-						void Promise.all([
-							queryClient.invalidateQueries({
-								queryKey: chatsKey,
-							}),
-							queryClient.invalidateQueries({
-								queryKey: chatDiffStatusKey(updatedChat.id),
-							}),
-							queryClient.invalidateQueries({
-								queryKey: chatDiffContentsKey(updatedChat.id),
-							}),
-						]);
-						return;
+						// Only refetch the diff file contents — the chat's
+						// diff_status field is already written into the
+						// chatKey and infinite-list caches below.
+						void queryClient.invalidateQueries({
+							queryKey: chatDiffContentsKey(updatedChat.id),
+							exact: true,
+						});
 					}
-
 					// Scope field updates by event kind so that
 					// status_change events (which may carry a stale title
 					// snapshot from before async title generation
@@ -398,29 +412,38 @@ const AgentsPage: FC = () => {
 					// landed.
 					const isTitleEvent = chatEvent.kind === "title_change";
 					const isStatusEvent = chatEvent.kind === "status_change";
+					const isDiffStatusEvent = chatEvent.kind === "diff_status_change";
 
-					updateInfiniteChatsCache(queryClient, (chats) => {
-						const exists = chats.some((c) => c.id === updatedChat.id);
-						if (exists) {
-							return chats.map((c) => {
+					// For "created" events, use a cross-page existence
+					// check and prepend only to the first page.
+					// updateInfiniteChatsCache runs the updater per
+					// page, so a naive prepend would duplicate the
+					// chat into every loaded page.
+					if (chatEvent.kind === "created") {
+						prependToInfiniteChatsCache(queryClient, updatedChat);
+					} else {
+						updateInfiniteChatsCache(queryClient, (chats) => {
+							let didUpdate = false;
+							const nextChats = chats.map((c) => {
 								if (c.id !== updatedChat.id) return c;
+								didUpdate = true;
 								return {
 									...c,
 									...(isStatusEvent && { status: updatedChat.status }),
 									...(isTitleEvent && { title: updatedChat.title }),
+									...(isDiffStatusEvent && {
+										diff_status: updatedChat.diff_status,
+									}),
 									updated_at:
 										c.updated_at > updatedChat.updated_at
 											? c.updated_at
 											: updatedChat.updated_at,
 								};
 							});
-						}
-						if (chatEvent.kind === "created") {
-							return [updatedChat, ...chats];
-						}
-						return chats;
-					});
-					queryClient.setQueryData<TypesGen.ChatWithMessages | undefined>(
+							return didUpdate ? nextChats : chats;
+						});
+					}
+					queryClient.setQueryData<TypesGen.Chat | undefined>(
 						chatKey(updatedChat.id),
 						(previousChat) => {
 							if (!previousChat) {
@@ -428,15 +451,15 @@ const AgentsPage: FC = () => {
 							}
 							return {
 								...previousChat,
-								chat: {
-									...previousChat.chat,
-									...(isStatusEvent && { status: updatedChat.status }),
-									...(isTitleEvent && { title: updatedChat.title }),
-									updated_at:
-										previousChat.chat.updated_at > updatedChat.updated_at
-											? previousChat.chat.updated_at
-											: updatedChat.updated_at,
-								},
+								...(isStatusEvent && { status: updatedChat.status }),
+								...(isTitleEvent && { title: updatedChat.title }),
+								...(isDiffStatusEvent && {
+									diff_status: updatedChat.diff_status,
+								}),
+								updated_at:
+									previousChat.updated_at > updatedChat.updated_at
+										? previousChat.updated_at
+										: updatedChat.updated_at,
 							};
 						},
 					);
@@ -445,10 +468,7 @@ const AgentsPage: FC = () => {
 				return ws;
 			},
 			onOpen() {
-				void queryClient.invalidateQueries({ queryKey: chatsKey });
-			},
-			onDisconnect() {
-				void queryClient.invalidateQueries({ queryKey: chatsKey });
+				void invalidateChatListQueries(queryClient);
 			},
 		});
 	}, [queryClient]);
@@ -484,6 +504,9 @@ const AgentsPage: FC = () => {
 			isAgentsAdmin={isAgentsAdmin}
 			hasNextPage={chatsQuery.hasNextPage}
 			onLoadMore={() => void chatsQuery.fetchNextPage()}
+			isFetchingNextPage={chatsQuery.isFetchingNextPage}
+			archivedFilter={archivedFilter}
+			onArchivedFilterChange={setArchivedFilter}
 		/>
 	);
 };

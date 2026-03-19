@@ -149,7 +149,7 @@ func TestRun_Compaction(t *testing.T) {
 				SummaryPrompt:    "summarize now",
 				ToolCallID:       "test-tool-call-id",
 				ToolName:         "chat_summarized",
-				PublishMessagePart: func(role fantasy.MessageRole, part codersdk.ChatMessagePart) {
+				PublishMessagePart: func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 					switch part.Type {
 					case codersdk.ChatMessagePartTypeToolCall:
 						callOrder = append(callOrder, "publish_tool_call")
@@ -218,7 +218,7 @@ func TestRun_Compaction(t *testing.T) {
 				ThresholdPercent: 70,
 				ToolCallID:       "test-tool-call-id",
 				ToolName:         "chat_summarized",
-				PublishMessagePart: func(_ fantasy.MessageRole, _ codersdk.ChatMessagePart) {
+				PublishMessagePart: func(_ codersdk.ChatMessageRole, _ codersdk.ChatMessagePart) {
 					publishCalled = true
 				},
 				Persist: func(_ context.Context, _ CompactionResult) error {

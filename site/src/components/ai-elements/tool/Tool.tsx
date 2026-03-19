@@ -5,6 +5,7 @@ import type { ComponentPropsWithRef, FC } from "react";
 import { memo } from "react";
 import { cn } from "utils/cn";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
+import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
 import { EditFilesTool } from "./EditFilesTool";
 import {
@@ -366,6 +367,53 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+const ComputerRenderer: FC<ToolRendererProps> = ({
+	status,
+	result,
+	isError,
+}) => {
+	// The result can be a single object with {data, text, mime_type}
+	// or an array of content blocks.
+	let imageData = "";
+	let mimeType = "image/png";
+	let text = "";
+
+	if (Array.isArray(result)) {
+		for (const block of result) {
+			const blockRec = asRecord(block);
+			if (blockRec) {
+				if (blockRec.type === "image" || asString(blockRec.data)) {
+					imageData = asString(blockRec.data);
+					mimeType = asString(blockRec.mime_type) || "image/png";
+				}
+				if (
+					blockRec.type === "text" ||
+					(!imageData && asString(blockRec.text))
+				) {
+					text = asString(blockRec.text);
+				}
+			}
+		}
+	} else {
+		const rec = asRecord(result);
+		if (rec) {
+			imageData = asString(rec.data);
+			mimeType = asString(rec.mime_type) || "image/png";
+			text = asString(rec.text);
+		}
+	}
+
+	return (
+		<ComputerTool
+			imageData={imageData}
+			mimeType={mimeType}
+			text={text}
+			status={status}
+			isError={isError}
+		/>
+	);
+};
+
 // Generic fallback renderer — only path that needs theme, diff
 // viewers, and file content helpers.
 const GenericToolRenderer: FC<ToolRendererProps> = ({
@@ -461,6 +509,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	message_agent: SubagentRenderer,
 	close_agent: SubagentRenderer,
 	chat_summarized: ChatSummarizedRenderer,
+	computer: ComputerRenderer,
 };
 
 // ---------------------------------------------------------------------------

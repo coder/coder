@@ -382,12 +382,14 @@ func TestConvertResources(t *testing.T) {
 					Architecture:    "amd64",
 					ExtraEnvs: []*proto.Env{
 						{
-							Name:  "PATH",
-							Value: "/a/bin",
+							Name:          "PATH",
+							Value:         "/a/bin",
+							MergeStrategy: "append",
 						},
 						{
-							Name:  "PATH",
-							Value: "/b/bin",
+							Name:          "PATH",
+							Value:         "/b/bin",
+							MergeStrategy: "append",
 						},
 						{
 							Name:  "UNIQUE",

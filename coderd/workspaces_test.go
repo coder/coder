@@ -3674,6 +3674,113 @@ func TestWorkspaceWatcher(t *testing.T) {
 	wait("second is for the build cancel", nil)
 }
 
+func TestWatchAllWorkspaceBuilds(t *testing.T) {
+	t.Parallel()
+
+	// Enable the workspace build updates experiment.
+	client, closer := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+		DeploymentValues: coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+			dv.Experiments = []string{string(codersdk.ExperimentWorkspaceBuildUpdates)}
+		}),
+	})
+	defer closer.Close()
+	user := coderdtest.CreateFirstUser(t, client)
+
+	// Create a simple template version.
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:         echo.ParseComplete,
+		ProvisionPlan: echo.PlanComplete,
+		ProvisionGraph: []*proto.Response{{
+			Type: &proto.Response_Graph{
+				Graph: &proto.GraphComplete{
+					Resources: []*proto.Resource{{
+						Name: "example",
+						Type: "aws_instance",
+					}},
+				},
+			},
+		}},
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Subscribe to all workspace build updates via SSE BEFORE creating workspaces
+	// so we can use it to wait for the initial builds.
+	decoder, err := client.WatchAllWorkspaceBuilds(ctx)
+	require.NoError(t, err)
+	defer decoder.Close()
+
+	updates := decoder.Chan()
+	logger := testutil.Logger(t).Named(t.Name())
+
+	// Helper to wait for a specific update.
+	waitForUpdate := func(event string, workspaceID uuid.UUID, expectedTransition, expectedStatus string) codersdk.WorkspaceBuildUpdate {
+		t.Helper()
+		for {
+			select {
+			case <-ctx.Done():
+				require.FailNow(t, "timed out waiting for event", event)
+				return codersdk.WorkspaceBuildUpdate{}
+			case update, ok := <-updates:
+				if !ok {
+					require.FailNow(t, "updates channel closed", event)
+					return codersdk.WorkspaceBuildUpdate{}
+				}
+				logger.Info(ctx, "received workspace build update",
+					slog.F("event", event),
+					slog.F("workspace_id", update.WorkspaceID),
+					slog.F("build_id", update.BuildID),
+					slog.F("transition", update.Transition),
+					slog.F("job_status", update.JobStatus),
+					slog.F("build_number", update.BuildNumber))
+				if update.WorkspaceID == workspaceID && update.Transition == expectedTransition && update.JobStatus == expectedStatus {
+					return update
+				}
+				// Keep waiting if this isn't the update we're looking for.
+				logger.Info(ctx, "skipping update, not matching expected",
+					slog.F("expected_workspace_id", workspaceID),
+					slog.F("expected_transition", expectedTransition),
+					slog.F("expected_status", expectedStatus))
+			}
+		}
+	}
+
+	// Create two workspaces and wait for their initial builds via the SSE channel.
+	workspace1 := coderdtest.CreateWorkspace(t, client, template.ID)
+	update := waitForUpdate("workspace1 initial build", workspace1.ID, "start", "succeeded")
+	require.Equal(t, workspace1.ID, update.WorkspaceID)
+	require.Equal(t, int32(1), update.BuildNumber)
+
+	workspace2 := coderdtest.CreateWorkspace(t, client, template.ID)
+	update = waitForUpdate("workspace2 initial build", workspace2.ID, "start", "succeeded")
+	require.Equal(t, workspace2.ID, update.WorkspaceID)
+	require.Equal(t, int32(1), update.BuildNumber)
+
+	// Stop workspace 1.
+	_ = coderdtest.CreateWorkspaceBuild(t, client, workspace1, database.WorkspaceTransitionStop)
+	update = waitForUpdate("workspace1 stop", workspace1.ID, "stop", "succeeded")
+	require.Equal(t, workspace1.ID, update.WorkspaceID)
+
+	// Stop workspace 2.
+	_ = coderdtest.CreateWorkspaceBuild(t, client, workspace2, database.WorkspaceTransitionStop)
+	update = waitForUpdate("workspace2 stop", workspace2.ID, "stop", "succeeded")
+	require.Equal(t, workspace2.ID, update.WorkspaceID)
+
+	// Start workspace 1 again.
+	_ = coderdtest.CreateWorkspaceBuild(t, client, workspace1, database.WorkspaceTransitionStart)
+	update = waitForUpdate("workspace1 start", workspace1.ID, "start", "succeeded")
+	require.Equal(t, workspace1.ID, update.WorkspaceID)
+
+	// Start workspace 2 again.
+	_ = coderdtest.CreateWorkspaceBuild(t, client, workspace2, database.WorkspaceTransitionStart)
+	update = waitForUpdate("workspace2 start", workspace2.ID, "start", "succeeded")
+	require.Equal(t, workspace2.ID, update.WorkspaceID)
+}
+
 func mustLocation(t *testing.T, location string) *time.Location {
 	t.Helper()
 	loc, err := time.LoadLocation(location)

@@ -140,7 +140,8 @@ describe("CreateWorkspacePage", () => {
 			const instanceTypeField = screen.getByTestId(
 				"parameter-field-instance_type",
 			);
-			const instanceTypeSelect = within(instanceTypeField).getByRole("button");
+			const instanceTypeSelect =
+				within(instanceTypeField).getByRole("combobox");
 			expect(instanceTypeSelect).toBeInTheDocument();
 
 			jest.useFakeTimers();

@@ -39,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/pretty"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -230,6 +231,10 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 }
 
 func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, error) {
+	if r.clock == nil {
+		r.clock = quartz.NewReal()
+	}
+
 	fmtLong := `Coder %s — A tool for provisioning self-hosted development environments with Terraform.
 `
 	hiddenAgentAuth := &AgentAuth{}
@@ -548,6 +553,16 @@ type RootCmd struct {
 	useKeyring                 bool
 	keyringServiceName         string
 	useKeyringWithGlobalConfig bool
+
+	// clock is used for time-dependent operations. Initialized to
+	// quartz.NewReal() in Command() if not set via SetClock.
+	clock quartz.Clock
+}
+
+// SetClock sets the clock used for time-dependent operations.
+// Must be called before Command() to take effect.
+func (r *RootCmd) SetClock(clk quartz.Clock) {
+	r.clock = clk
 }
 
 // ensureClientURL loads the client URL from the config file if it

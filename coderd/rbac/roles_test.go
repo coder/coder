@@ -51,54 +51,68 @@ func TestBuiltInRoles(t *testing.T) {
 	}
 }
 
-func TestSystemRolesAreReservedRoleNames(t *testing.T) {
-	t.Parallel()
-
-	require.True(t, rbac.ReservedRoleName(rbac.RoleOrgMember()))
+// permissionGranted checks whether a permission list contains a
+// matching entry for the target, accounting for wildcard actions.
+// It does not evaluate negations that may override a positive grant.
+func permissionGranted(perms []rbac.Permission, target rbac.Permission) bool {
+	return slices.ContainsFunc(perms, func(p rbac.Permission) bool {
+		return p.Negate == target.Negate &&
+			p.ResourceType == target.ResourceType &&
+			(p.Action == target.Action || p.Action == policy.WildcardSymbol)
+	})
 }
 
-func TestOrgMemberPermissions(t *testing.T) {
+func TestOrgSharingPermissions(t *testing.T) {
 	t.Parallel()
 
-	t.Run("WorkspaceSharingEnabled", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name              string
+		permsFunc         func(rbac.OrgSettings) rbac.OrgRolePermissions
+		mode              rbac.ShareableWorkspaceOwners
+		orgReadMembers    bool
+		orgReadGroups     bool
+		orgNegateShare    bool
+		memberNegateShare bool
+	}{
+		{"Member/Everyone", rbac.OrgMemberPermissions, rbac.ShareableWorkspaceOwnersEveryone, true, true, false, false},
+		{"Member/None", rbac.OrgMemberPermissions, rbac.ShareableWorkspaceOwnersNone, false, false, true, true},
+		{"Member/ServiceAccounts", rbac.OrgMemberPermissions, rbac.ShareableWorkspaceOwnersServiceAccounts, true, false, false, true},
+		{"ServiceAccount/Everyone", rbac.OrgServiceAccountPermissions, rbac.ShareableWorkspaceOwnersEveryone, true, true, false, false},
+		{"ServiceAccount/None", rbac.OrgServiceAccountPermissions, rbac.ShareableWorkspaceOwnersNone, false, false, true, false},
+		{"ServiceAccount/ServiceAccounts", rbac.OrgServiceAccountPermissions, rbac.ShareableWorkspaceOwnersServiceAccounts, true, true, false, false},
+	}
 
-		orgPerms, _ := rbac.OrgMemberPermissions(false)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		require.True(t, slices.Contains(orgPerms, rbac.Permission{
-			ResourceType: rbac.ResourceOrganizationMember.Type,
-			Action:       policy.ActionRead,
-		}))
-		require.True(t, slices.Contains(orgPerms, rbac.Permission{
-			ResourceType: rbac.ResourceGroup.Type,
-			Action:       policy.ActionRead,
-		}))
-		require.False(t, slices.Contains(orgPerms, rbac.Permission{
-			Negate:       true,
-			ResourceType: rbac.ResourceWorkspace.Type,
-			Action:       policy.ActionShare,
-		}))
-	})
+			perms := tt.permsFunc(rbac.OrgSettings{
+				ShareableWorkspaceOwners: tt.mode,
+			})
 
-	t.Run("WorkspaceSharingDisabled", func(t *testing.T) {
-		t.Parallel()
+			assert.Equal(t, tt.orgReadMembers, permissionGranted(perms.Org, rbac.Permission{
+				ResourceType: rbac.ResourceOrganizationMember.Type,
+				Action:       policy.ActionRead,
+			}), "org read members")
 
-		orgPerms, _ := rbac.OrgMemberPermissions(true)
+			assert.Equal(t, tt.orgReadGroups, permissionGranted(perms.Org, rbac.Permission{
+				ResourceType: rbac.ResourceGroup.Type,
+				Action:       policy.ActionRead,
+			}), "org read groups")
 
-		require.False(t, slices.Contains(orgPerms, rbac.Permission{
-			ResourceType: rbac.ResourceOrganizationMember.Type,
-			Action:       policy.ActionRead,
-		}))
-		require.False(t, slices.Contains(orgPerms, rbac.Permission{
-			ResourceType: rbac.ResourceGroup.Type,
-			Action:       policy.ActionRead,
-		}))
-		require.True(t, slices.Contains(orgPerms, rbac.Permission{
-			Negate:       true,
-			ResourceType: rbac.ResourceWorkspace.Type,
-			Action:       policy.ActionShare,
-		}))
-	})
+			assert.Equal(t, tt.orgNegateShare, permissionGranted(perms.Org, rbac.Permission{
+				Negate:       true,
+				ResourceType: rbac.ResourceWorkspace.Type,
+				Action:       policy.ActionShare,
+			}), "org negate share")
+
+			assert.Equal(t, tt.memberNegateShare, permissionGranted(perms.Member, rbac.Permission{
+				Negate:       true,
+				ResourceType: rbac.ResourceWorkspace.Type,
+				Action:       policy.ActionShare,
+			}), "member negate share")
+		})
+	}
 }
 
 //nolint:tparallel,paralleltest

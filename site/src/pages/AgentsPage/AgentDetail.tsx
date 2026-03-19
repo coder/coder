@@ -1,7 +1,9 @@
 import { API, watchWorkspace } from "api/api";
+import { isApiError } from "api/errors";
 import {
 	chat,
-	chatDiffStatus,
+	chatDesktopEnabled,
+	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
 	chats,
@@ -14,14 +16,13 @@ import {
 import { deploymentSSHConfig } from "api/queries/deployment";
 import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
-import type { ModelSelectorOption } from "components/ai-elements";
+import type { ChatMessagePart } from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
 import {
 	getTerminalHref,
 	getVSCodeHref,
 	openAppInNewWindow,
 } from "modules/apps/apps";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	type FC,
 	useCallback,
@@ -30,43 +31,21 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
+import { isMobileViewport } from "utils/mobile";
 import { pageTitle } from "utils/page";
 import { portForwardURL } from "utils/portForward";
-import {
-	AgentChatInput,
-	type ChatMessageInputRef,
-	type UploadState,
-} from "./AgentChatInput";
-import {
-	selectChatStatus,
-	selectHasStreamState,
-	selectMessagesByID,
-	selectOrderedMessageIDs,
-	selectQueuedMessages,
-	selectRetryState,
-	selectStreamError,
-	selectStreamState,
-	selectSubagentStatusOverrides,
-	useChatSelector,
-	useChatStore,
-} from "./AgentDetail/ChatContext";
-import { ConversationTimeline } from "./AgentDetail/ConversationTimeline";
-import {
-	getLatestContextUsage,
-	getParentChatID,
-	getWorkspaceAgent,
-} from "./AgentDetail/chatHelpers";
-import {
-	buildParsedMessageSections,
-	buildSubagentTitles,
-	parseMessagesWithMergedTools,
-} from "./AgentDetail/messageParsing";
-import { buildStreamTools } from "./AgentDetail/streamState";
-import { useMessageWindow } from "./AgentDetail/useMessageWindow";
+import type { ChatMessageInputRef } from "./AgentChatInput";
+import { useChatStore } from "./AgentDetail/ChatContext";
+import { getParentChatID, getWorkspaceAgent } from "./AgentDetail/chatHelpers";
 import { useWorkspaceCreationWatcher } from "./AgentDetail/useWorkspaceCreationWatcher";
 import {
 	AgentDetailLoadingView,
@@ -78,319 +57,21 @@ import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
 	getModelSelectorPlaceholder,
+	getNormalizedModelRef,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
-import { useFileAttachments } from "./useFileAttachments";
+import { parsePullRequestUrl } from "./pullRequest";
+import { formatUsageLimitMessage, isUsageLimitData } from "./usageLimitMessage";
 import { useGitWatcher } from "./useGitWatcher";
+
+/** localStorage key controlling whether the right panel is visible. */
+export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 
 const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
-type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
-
-const isChatMessage = (
-	message: TypesGen.ChatMessage | undefined,
-): message is TypesGen.ChatMessage => Boolean(message);
-
-interface AgentDetailTimelineProps {
-	store: ChatStoreHandle;
-	chatID: string;
-	persistedErrorReason: string | undefined;
-	onEditUserMessage?: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly { mediaType: string; data?: string }[],
-	) => void;
-	editingMessageId?: number | null;
-	savingMessageId?: number | null;
-	urlTransform?: UrlTransform;
-}
-
-export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
-	store,
-	chatID,
-	persistedErrorReason,
-	onEditUserMessage,
-	editingMessageId,
-	savingMessageId,
-	urlTransform,
-}) => {
-	const messagesByID = useChatSelector(store, selectMessagesByID);
-	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
-	const streamState = useChatSelector(store, selectStreamState);
-	const chatStatus = useChatSelector(store, selectChatStatus);
-	const streamError = useChatSelector(store, selectStreamError);
-	const subagentStatusOverrides = useChatSelector(
-		store,
-		selectSubagentStatusOverrides,
-	);
-	const retryState = useChatSelector(store, selectRetryState);
-
-	const messages = useMemo(
-		() =>
-			orderedMessageIDs
-				.map((messageID) => messagesByID.get(messageID))
-				.filter(isChatMessage),
-		[messagesByID, orderedMessageIDs],
-	);
-	const streamTools = useMemo(
-		() => buildStreamTools(streamState),
-		[streamState],
-	);
-	const { hasMoreMessages, windowedMessages, loadMoreSentinelRef } =
-		useMessageWindow({
-			messages,
-			resetKey: chatID,
-		});
-	const parsedMessages = useMemo(
-		() => parseMessagesWithMergedTools(windowedMessages),
-		[windowedMessages],
-	);
-	const subagentTitles = useMemo(
-		() => buildSubagentTitles(parsedMessages),
-		[parsedMessages],
-	);
-	const parsedSections = useMemo(
-		() => buildParsedMessageSections(parsedMessages),
-		[parsedMessages],
-	);
-	const detailErrorMessage =
-		(chatStatus === "error" ? persistedErrorReason : undefined) || streamError;
-	const latestMessage = messages[messages.length - 1];
-	const latestMessageNeedsAssistantResponse =
-		!latestMessage || latestMessage.role !== "assistant";
-	const isAwaitingFirstStreamChunk =
-		!streamState &&
-		(chatStatus === "running" || chatStatus === "pending") &&
-		latestMessageNeedsAssistantResponse;
-	const hasStreamOutput = Boolean(streamState) || isAwaitingFirstStreamChunk;
-
-	return (
-		<ConversationTimeline
-			isEmpty={messages.length === 0}
-			hasMoreMessages={hasMoreMessages}
-			loadMoreSentinelRef={loadMoreSentinelRef}
-			parsedSections={parsedSections}
-			hasStreamOutput={hasStreamOutput}
-			streamState={streamState}
-			streamTools={streamTools}
-			subagentTitles={subagentTitles}
-			subagentStatusOverrides={subagentStatusOverrides}
-			retryState={retryState}
-			isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-			detailErrorMessage={detailErrorMessage}
-			onEditUserMessage={onEditUserMessage}
-			editingMessageId={editingMessageId}
-			savingMessageId={savingMessageId}
-			urlTransform={urlTransform}
-		/>
-	);
-};
-
-interface AgentDetailInputProps {
-	store: ChatStoreHandle;
-	compressionThreshold: number | undefined;
-	onSend: (message: string, fileIds?: string[]) => void;
-	onDeleteQueuedMessage: (id: number) => Promise<void>;
-	onPromoteQueuedMessage: (id: number) => Promise<void>;
-	onInterrupt: () => void;
-	isInputDisabled: boolean;
-	isSendPending: boolean;
-	isInterruptPending: boolean;
-	hasModelOptions: boolean;
-	selectedModel: string;
-	onModelChange: (modelID: string) => void;
-	modelOptions: readonly ModelSelectorOption[];
-	modelSelectorPlaceholder: string;
-	inputStatusText: string | null;
-	modelCatalogStatusMessage: string | null;
-	// Controlled input value and editing state, owned by the
-	// conversation component.
-	inputRef?: React.Ref<ChatMessageInputRef>;
-	initialValue?: string;
-	onContentChange?: (content: string) => void;
-	editingQueuedMessageID: number | null;
-	onStartQueueEdit: (id: number, text: string) => void;
-	onCancelQueueEdit: () => void;
-	isEditingHistoryMessage: boolean;
-	onCancelHistoryEdit: () => void;
-	// File blocks from the message being edited, converted to
-	// File objects and pre-populated into attachments.
-	editingFileBlocks?: readonly {
-		mediaType: string;
-		data?: string;
-		fileId?: string;
-	}[];
-}
-
-export const AgentDetailInput: FC<AgentDetailInputProps> = ({
-	store,
-	compressionThreshold,
-	onSend,
-	onDeleteQueuedMessage,
-	onPromoteQueuedMessage,
-	onInterrupt,
-	isInputDisabled,
-	isSendPending,
-	isInterruptPending,
-	hasModelOptions,
-	selectedModel,
-	onModelChange,
-	modelOptions,
-	modelSelectorPlaceholder,
-	inputStatusText,
-	modelCatalogStatusMessage,
-	inputRef,
-	initialValue,
-	onContentChange,
-	editingQueuedMessageID,
-	onStartQueueEdit,
-	onCancelQueueEdit,
-	isEditingHistoryMessage,
-	onCancelHistoryEdit,
-	editingFileBlocks,
-}) => {
-	const messagesByID = useChatSelector(store, selectMessagesByID);
-	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
-	const hasStreamState = useChatSelector(store, selectHasStreamState);
-	const chatStatus = useChatSelector(store, selectChatStatus);
-	const queuedMessages = useChatSelector(store, selectQueuedMessages);
-
-	const messages = useMemo(
-		() =>
-			orderedMessageIDs
-				.map((messageID) => messagesByID.get(messageID))
-				.filter(isChatMessage),
-		[messagesByID, orderedMessageIDs],
-	);
-	const { organizations } = useDashboard();
-	const organizationId = organizations[0]?.id;
-	const latestContextUsage = useMemo(() => {
-		const usage = getLatestContextUsage(messages);
-		if (!usage) {
-			return usage;
-		}
-		return { ...usage, compressionThreshold };
-	}, [messages, compressionThreshold]);
-	const {
-		attachments,
-		uploadStates,
-		previewUrls,
-		handleAttach,
-		handleRemoveAttachment,
-		resetAttachments,
-		setAttachments,
-		setPreviewUrls,
-		setUploadStates,
-	} = useFileAttachments(organizationId);
-	// Pre-populate attachments from existing file blocks when
-	// entering edit mode on a message with images.
-	useEffect(() => {
-		if (!editingFileBlocks || editingFileBlocks.length === 0) {
-			// Clear attachments when exiting edit mode.
-			setAttachments([]);
-			setUploadStates(new Map());
-			setPreviewUrls(new Map());
-			return;
-		}
-		const files = editingFileBlocks.map((block, i) => {
-			const ext = block.mediaType.split("/")[1] ?? "png";
-			// Empty File used as a Map key only, its content is never
-			// read because the existing fileId is reused at send time.
-			return new File([], `attachment-${i}.${ext}`, {
-				type: block.mediaType,
-			});
-		});
-		setAttachments(files);
-		setPreviewUrls(
-			new Map(
-				files.map((f, i) => [
-					f,
-					`/api/experimental/chats/files/${editingFileBlocks[i].fileId}`,
-				]),
-			),
-		);
-		const newUploadStates = new Map<File, UploadState>();
-		for (const [i, file] of files.entries()) {
-			const block = editingFileBlocks[i];
-			if (block.fileId) {
-				newUploadStates.set(file, {
-					status: "uploaded",
-					fileId: block.fileId,
-				});
-			}
-		}
-		setUploadStates(newUploadStates);
-	}, [editingFileBlocks, setAttachments, setPreviewUrls, setUploadStates]);
-
-	const isStreaming =
-		hasStreamState || chatStatus === "running" || chatStatus === "pending";
-
-	return (
-		<AgentChatInput
-			onSend={(message) => {
-				void (async () => {
-					try {
-						// Collect file IDs from already-uploaded attachments.
-						// Skip files in error state (e.g. too large).
-						const fileIds: string[] = [];
-						let skippedErrors = 0;
-						for (const file of attachments) {
-							const state = uploadStates.get(file);
-							if (state?.status === "error") {
-								skippedErrors++;
-								continue;
-							}
-							if (state?.status === "uploaded" && state.fileId) {
-								fileIds.push(state.fileId);
-							}
-						}
-						if (skippedErrors > 0) {
-							toast.warning(
-								`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
-							);
-						}
-						await onSend(message, fileIds.length > 0 ? fileIds : undefined);
-						resetAttachments();
-					} catch {
-						// Attachments preserved for retry on failure.
-					}
-				})();
-			}}
-			attachments={attachments}
-			onAttach={handleAttach}
-			onRemoveAttachment={handleRemoveAttachment}
-			uploadStates={uploadStates}
-			previewUrls={previewUrls}
-			inputRef={inputRef}
-			initialValue={initialValue}
-			onContentChange={onContentChange}
-			queuedMessages={queuedMessages}
-			onDeleteQueuedMessage={onDeleteQueuedMessage}
-			onPromoteQueuedMessage={onPromoteQueuedMessage}
-			editingQueuedMessageID={editingQueuedMessageID}
-			onStartQueueEdit={onStartQueueEdit}
-			onCancelQueueEdit={onCancelQueueEdit}
-			isEditingHistoryMessage={isEditingHistoryMessage}
-			onCancelHistoryEdit={onCancelHistoryEdit}
-			isDisabled={isInputDisabled}
-			isLoading={isSendPending}
-			isStreaming={isStreaming}
-			onInterrupt={onInterrupt}
-			isInterruptPending={isInterruptPending}
-			contextUsage={latestContextUsage}
-			hasModelOptions={hasModelOptions}
-			selectedModel={selectedModel}
-			onModelChange={onModelChange}
-			modelOptions={modelOptions}
-			modelSelectorPlaceholder={modelSelectorPlaceholder}
-			inputStatusText={inputStatusText}
-			modelCatalogStatusMessage={modelCatalogStatusMessage}
-		/>
-	);
-};
 
 /** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
@@ -426,18 +107,14 @@ export function useConversationEditingState(deps: {
 		string | null
 	>(null);
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
-		readonly { mediaType: string; data?: string; fileId?: string }[]
+		readonly ChatMessagePart[]
 	>([]);
 
 	const handleEditUserMessage = useCallback(
 		(
 			messageId: number,
 			text: string,
-			fileBlocks?: readonly {
-				mediaType: string;
-				data?: string;
-				fileId?: string;
-			}[],
+			fileBlocks?: readonly ChatMessagePart[],
 		) => {
 			setDraftBeforeHistoryEdit((prev) =>
 				editingMessageId !== null ? prev : inputValueRef.current,
@@ -456,7 +133,11 @@ export function useConversationEditingState(deps: {
 		setEditingMessageId(null);
 		setDraftBeforeHistoryEdit(null);
 		setEditingFileBlocks([]);
-	}, [draftBeforeHistoryEdit, inputValueRef]);
+		chatInputRef.current?.clear();
+		if (draftBeforeHistoryEdit) {
+			chatInputRef.current?.insertText(draftBeforeHistoryEdit);
+		}
+	}, [draftBeforeHistoryEdit, inputValueRef, chatInputRef]);
 
 	// -- Queue editing state --
 	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
@@ -467,13 +148,14 @@ export function useConversationEditingState(deps: {
 	>(null);
 
 	const handleStartQueueEdit = useCallback(
-		(id: number, text: string) => {
+		(id: number, text: string, fileBlocks: readonly ChatMessagePart[]) => {
 			setDraftBeforeQueueEdit((prev) =>
 				editingQueuedMessageID === null ? inputValueRef.current : prev,
 			);
 			setEditingQueuedMessageID(id);
 			setEditorInitialValue(text);
 			inputValueRef.current = text;
+			setEditingFileBlocks(fileBlocks);
 		},
 		[editingQueuedMessageID, inputValueRef],
 	);
@@ -483,6 +165,7 @@ export function useConversationEditingState(deps: {
 		inputValueRef.current = draftBeforeQueueEdit ?? "";
 		setEditingQueuedMessageID(null);
 		setDraftBeforeQueueEdit(null);
+		setEditingFileBlocks([]);
 	}, [draftBeforeQueueEdit, inputValueRef]);
 
 	// Wraps the parent onSend to clear local input/editing state
@@ -496,7 +179,9 @@ export function useConversationEditingState(deps: {
 			await onSend(message, fileIds, editedMessageID);
 			// Clear input and editing state on success.
 			chatInputRef.current?.clear();
-			chatInputRef.current?.focus();
+			if (!isMobileViewport()) {
+				chatInputRef.current?.focus();
+			}
 			inputValueRef.current = "";
 			if (typeof window !== "undefined" && draftStorageKey) {
 				localStorage.removeItem(draftStorageKey);
@@ -509,6 +194,7 @@ export function useConversationEditingState(deps: {
 			if (queueEditID !== null) {
 				setEditingQueuedMessageID(null);
 				setDraftBeforeQueueEdit(null);
+				setEditingFileBlocks([]);
 				void onDeleteQueuedMessage(queueEditID);
 			}
 		},
@@ -569,6 +255,7 @@ const AgentDetail: FC = () => {
 		requestArchiveAgent,
 		requestArchiveAndDeleteWorkspace,
 		requestUnarchiveAgent,
+		onOpenAnalytics,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 	} = outletContext;
@@ -576,12 +263,36 @@ const AgentDetail: FC = () => {
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef("");
 
+	// Right panel open/closed state is owned here so the loading
+	// skeleton and the loaded view share the same layout, preventing
+	// a horizontal shift when data arrives.
+	const [showSidebarPanel, setShowSidebarPanel] = useState(() => {
+		if (typeof window === "undefined") return false;
+		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
+	});
+	const handleSetShowSidebarPanel = useCallback(
+		(next: boolean | ((prev: boolean) => boolean)) => {
+			setShowSidebarPanel((prev) => {
+				const value = typeof next === "function" ? next(prev) : next;
+				if (typeof window !== "undefined") {
+					localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(value));
+				}
+				return value;
+			});
+		},
+		[],
+	);
+
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
 	});
+	const chatMessagesQuery = useInfiniteQuery({
+		...chatMessagesForInfiniteScroll(agentId ?? ""),
+		enabled: Boolean(agentId),
+	});
 	const chatsQuery = useQuery(chats());
-	const workspaceId = chatQuery.data?.chat?.workspace_id;
+	const workspaceId = chatQuery.data?.workspace_id;
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
@@ -607,12 +318,9 @@ const AgentDetail: FC = () => {
 		});
 		return () => socket.close();
 	}, [workspaceId, queryClient]);
-	const diffStatusQuery = useQuery({
-		...chatDiffStatus(agentId ?? ""),
-		enabled: Boolean(agentId),
-	});
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspace = workspaceQuery.data;
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
@@ -646,11 +354,35 @@ const AgentDetail: FC = () => {
 		[proxy.preferredWildcardHostname, workspaceAgent, workspace],
 	);
 
-	const chatData = chatQuery.data;
-	const chatRecord = chatData?.chat;
+	const chatRecord = chatQuery.data;
+	// Flatten paginated messages into chronological order.
+	// Pages arrive newest-first per page, and pages[0] is the
+	// most recent page.
+	const chatMessagesList = useMemo(() => {
+		const pages = chatMessagesQuery.data?.pages;
+		if (!pages || pages.length === 0) return undefined;
+		// Collect all messages, then sort chronologically by ID.
+		const all = pages.flatMap((p) => p.messages);
+		// Sort ascending by ID for chronological order.
+		all.sort((a, b) => a.id - b.id);
+		return all;
+	}, [chatMessagesQuery.data]);
+
+	// Queued messages are only in the first page (most recent).
+	const chatQueuedMessages = chatMessagesQuery.data?.pages[0]?.queued_messages;
+
+	// Build a synthetic ChatMessagesResponse from the flattened
+	// data for backward compat with useChatStore.
+	const chatMessagesData: TypesGen.ChatMessagesResponse | undefined =
+		useMemo(() => {
+			if (!chatMessagesList) return undefined;
+			return {
+				messages: chatMessagesList,
+				queued_messages: chatQueuedMessages ?? [],
+				has_more: chatMessagesQuery.data?.pages.at(-1)?.has_more ?? false,
+			};
+		}, [chatMessagesList, chatQueuedMessages, chatMessagesQuery.data]);
 	const isArchived = chatRecord?.archived ?? false;
-	const chatMessages = chatData?.messages;
-	const chatQueuedMessages = chatData?.queued_messages;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
 	const modelOptions = useMemo(
@@ -664,8 +396,7 @@ const AgentDetail: FC = () => {
 	const modelConfigIDByModelID = useMemo(() => {
 		const byModelID = new Map<string, string>();
 		for (const config of chatModelConfigsQuery.data ?? []) {
-			const provider = config.provider.trim().toLowerCase();
-			const model = config.model.trim();
+			const { provider, model } = getNormalizedModelRef(config);
 			if (!provider || !model) {
 				continue;
 			}
@@ -706,9 +437,9 @@ const AgentDetail: FC = () => {
 
 	const { store, clearStreamError } = useChatStore({
 		chatID: agentId,
-		chatMessages,
+		chatMessages: chatMessagesList,
 		chatRecord,
-		chatData,
+		chatMessagesData,
 		chatQueuedMessages,
 		setChatErrorReason,
 		clearChatErrorReason,
@@ -740,9 +471,13 @@ const AgentDetail: FC = () => {
 		chatInputRef.current?.focus();
 	}, []);
 
-	// Extract PR number from diff status URL.
-	const prMatch = diffStatusQuery.data?.url?.match(/\/pull\/(\d+)/)?.[1];
-	const prNumber = prMatch ? Number(prMatch) : undefined;
+	// Prefer the explicit PR number from the API, and only fall back to URL
+	// parsing when older metadata does not provide it.
+	const parsedPrNumber = Number(
+		parsePullRequestUrl(chatQuery.data?.diff_status?.url)?.number,
+	);
+	const prNumber =
+		chatQuery.data?.diff_status?.pr_number ?? (parsedPrNumber || undefined);
 	// Compute an effective selected model by validating the user's
 	// explicit choice against the current model options, falling
 	// back to the chat's last model or the first available option.
@@ -796,6 +531,30 @@ const AgentDetail: FC = () => {
 		editMutation.isPending ||
 		interruptMutation.isPending;
 	const isInputDisabled = !hasModelOptions || isArchived;
+
+	const handleUsageLimitError = useCallback(
+		(error: unknown): void => {
+			if (!agentId) {
+				return;
+			}
+			if (
+				isApiError(error) &&
+				error.response?.status === 409 &&
+				isUsageLimitData(error.response.data)
+			) {
+				setChatErrorReason(agentId, {
+					kind: "usage-limit",
+					message: formatUsageLimitMessage(error.response.data),
+				});
+			} else if (isApiError(error)) {
+				setChatErrorReason(agentId, {
+					kind: "generic",
+					message: error.message || "An unexpected error occurred.",
+				});
+			}
+		},
+		[agentId, setChatErrorReason],
+	);
 
 	const handleSend = async (
 		message: string,
@@ -862,6 +621,9 @@ const AgentDetail: FC = () => {
 					messageId: editedMessageID,
 					req: request,
 				});
+			} catch (error) {
+				handleUsageLimitError(error);
+				throw error;
 			} finally {
 				setPendingEditMessageId(null);
 			}
@@ -885,22 +647,27 @@ const AgentDetail: FC = () => {
 		// timeline when the server confirms via the POST response or
 		// via the SSE stream.
 		store.clearStreamState();
-		const response = await sendMutation.mutateAsync(request);
-		// When the server accepts the message immediately (not
-		// queued), insert it into the store so it appears in the
-		// timeline without waiting for the SSE stream.
-		if (!response.queued && response.message) {
-			store.upsertDurableMessage(response.message);
-		}
-		if (typeof window !== "undefined") {
-			if (selectedModelConfigID) {
-				localStorage.setItem(
-					lastModelConfigIDStorageKey,
-					selectedModelConfigID,
-				);
-			} else {
-				localStorage.removeItem(lastModelConfigIDStorageKey);
+		try {
+			const response = await sendMutation.mutateAsync(request);
+			// When the server accepts the message immediately (not
+			// queued), insert it into the store so it appears in the
+			// timeline without waiting for the SSE stream.
+			if (!response.queued && response.message) {
+				store.upsertDurableMessage(response.message);
 			}
+			if (typeof window !== "undefined") {
+				if (selectedModelConfigID) {
+					localStorage.setItem(
+						lastModelConfigIDStorageKey,
+						selectedModelConfigID,
+					);
+				} else {
+					localStorage.removeItem(lastModelConfigIDStorageKey);
+				}
+			}
+		} catch (error) {
+			handleUsageLimitError(error);
+			throw error;
 		}
 	};
 
@@ -936,17 +703,31 @@ const AgentDetail: FC = () => {
 				previousQueuedMessages.filter((message) => message.id !== id),
 			);
 			store.clearStreamState();
+			if (agentId) {
+				clearChatErrorReason(agentId);
+			}
 			store.clearStreamError();
 			store.setChatStatus("pending");
 			try {
-				await promoteQueuedMutation.mutateAsync(id);
+				const promotedMessage = await promoteQueuedMutation.mutateAsync(id);
+				// Insert the promoted message into the store immediately
+				// so it appears in the timeline without waiting for the
+				// WebSocket to deliver it.
+				store.upsertDurableMessage(promotedMessage);
 			} catch (error) {
 				store.setQueuedMessages(previousQueuedMessages);
 				store.setChatStatus(previousChatStatus);
+				handleUsageLimitError(error);
 				throw error;
 			}
 		},
-		[promoteQueuedMutation, store],
+		[
+			agentId,
+			clearChatErrorReason,
+			handleUsageLimitError,
+			promoteQueuedMutation,
+			store,
+		],
 	);
 
 	const editing = useConversationEditingState({
@@ -957,7 +738,7 @@ const AgentDetail: FC = () => {
 		inputValueRef,
 	});
 
-	const chatTitle = chatQuery.data?.chat?.title;
+	const chatTitle = chatQuery.data?.title;
 
 	const titleElement = (
 		<title>
@@ -965,7 +746,7 @@ const AgentDetail: FC = () => {
 		</title>
 	);
 
-	const parentChatID = getParentChatID(chatQuery.data?.chat);
+	const parentChatID = getParentChatID(chatQuery.data);
 	const parentChat = parentChatID
 		? chatsQuery.data?.find((chat) => chat.id === parentChatID)
 		: undefined;
@@ -1004,6 +785,7 @@ const AgentDetail: FC = () => {
 					token: key,
 					agent: workspaceAgent.name,
 					folder: workspaceAgent.expanded_directory,
+					chatId: agentId,
 				});
 			},
 			onError: () => {
@@ -1051,7 +833,7 @@ const AgentDetail: FC = () => {
 		requestUnarchiveAgent(agentId);
 	};
 
-	if (chatQuery.isLoading) {
+	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (
 			<AgentDetailLoadingView
 				titleElement={titleElement}
@@ -1065,11 +847,12 @@ const AgentDetail: FC = () => {
 				modelCatalogStatusMessage={modelCatalogStatusMessage}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				showRightPanel={showSidebarPanel}
 			/>
 		);
 	}
 
-	if (!chatQuery.data || !agentId) {
+	if (!chatQuery.data || !chatMessagesQuery.data?.pages?.length || !agentId) {
 		return (
 			<AgentDetailNotFoundView
 				titleElement={titleElement}
@@ -1103,8 +886,11 @@ const AgentDetail: FC = () => {
 			isInterruptPending={interruptMutation.isPending}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+			onOpenAnalytics={onOpenAnalytics}
+			showSidebarPanel={showSidebarPanel}
+			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}
-			diffStatusData={diffStatusQuery.data}
+			diffStatusData={chatQuery.data?.diff_status}
 			gitWatcher={gitWatcher}
 			canOpenEditors={canOpenEditors}
 			canOpenWorkspace={canOpenWorkspace}
@@ -1124,6 +910,12 @@ const AgentDetail: FC = () => {
 			}
 			urlTransform={urlTransform}
 			scrollContainerRef={scrollContainerRef}
+			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
+			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
+			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
+			desktopChatId={
+				desktopEnabledQuery.data?.enable_desktop ? agentId : undefined
+			}
 		/>
 	);
 };

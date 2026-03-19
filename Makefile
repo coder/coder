@@ -27,6 +27,7 @@ ifdef MAKE_TIMED
 SHELL := $(CURDIR)/scripts/lib/timed-shell.sh
 .SHELLFLAGS = $@ -ceu
 export MAKE_TIMED
+export MAKE_LOGDIR
 endif
 
 # This doesn't work on directories.
@@ -114,7 +115,7 @@ POSTGRES_VERSION ?= 17
 POSTGRES_IMAGE   ?= us-docker.pkg.dev/coder-v2-images-public/public/postgres:$(POSTGRES_VERSION)
 
 # Limit parallel Make jobs in pre-commit/pre-push. Defaults to
-# nproc/4 (min 2) since test and lint targets have internal
+# nproc/4 (min 2) since test, lint, and build targets have internal
 # parallelism. Override: make pre-push PARALLEL_JOBS=8
 PARALLEL_JOBS ?= $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 8); echo $$(( n / 4 > 2 ? n / 4 : 2 )))
 
@@ -135,18 +136,10 @@ endif
 # the search path so that these exclusions match.
 FIND_EXCLUSIONS= \
 	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path '*/out/*' -o -path './coderd/apidoc/*' -o -path '*/.next/*' -o -path '*/.terraform/*' -o -path './_gen/*' \) -prune \)
+
 # Source files used for make targets, evaluated on use.
 GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -not -name '*_test.go')
-# Same as GO_SRC_FILES but excluding certain files that have problematic
-# Makefile dependencies (e.g. pnpm).
-MOST_GO_SRC_FILES := $(shell \
-	find . \
-		$(FIND_EXCLUSIONS) \
-		-type f \
-		-name '*.go' \
-		-not -name '*_test.go' \
-		-not -wholename './agent/agentcontainers/dcspec/dcspec_gen.go' \
-)
+
 # All the shell files in the repo, excluding ignored files.
 SHELL_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.sh')
 
@@ -513,8 +506,17 @@ install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 	cp "$<" "$$output_file"
 .PHONY: install
 
+# Only wildcard the go files in the develop directory to avoid rebuilds
+# when project files are changd. Technically changes to some imports may
+# not be detected, but it's unlikely to cause any issues.
+build/.bin/develop: go.mod go.sum $(wildcard scripts/develop/*.go)
+	CGO_ENABLED=0 go build -o $@ ./scripts/develop
+
 BOLD := $(shell tput bold 2>/dev/null)
 GREEN := $(shell tput setaf 2 2>/dev/null)
+RED := $(shell tput setaf 1 2>/dev/null)
+YELLOW := $(shell tput setaf 3 2>/dev/null)
+DIM := $(shell tput dim 2>/dev/null || tput setaf 8 2>/dev/null)
 RESET := $(shell tput sgr0 2>/dev/null)
 
 fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/biome fmt/markdown
@@ -713,89 +715,73 @@ lint/typos: build/typos-$(TYPOS_VERSION)
 	build/typos-$(TYPOS_VERSION) --config .github/workflows/typos.toml
 .PHONY: lint/typos
 
-# pre-commit and pre-push mirror CI "required" jobs locally.
-# See the "required" job's needs list in .github/workflows/ci.yaml.
+# pre-commit and pre-push mirror CI checks locally.
 #
 # pre-commit runs checks that don't need external services (Docker,
-# Playwright). This is the git pre-commit hook default since test
-# and Docker failures in the local environment would otherwise block
+# Playwright). This is the git pre-commit hook default since Docker
+# and browser issues in the local environment would otherwise block
 # all commits.
 #
-# pre-push runs the full CI suite including tests. This is the git
-# pre-push hook default, catching everything CI would before pushing.
+# pre-push adds heavier checks: Go tests, JS tests, and site build.
+# The pre-push hook is allowlisted, see scripts/githooks/pre-push.
 #
-# pre-push uses two-phase execution: gen+fmt+test-postgres-docker
-# first (writes files, starts Docker), then lint+build+test in
-# parallel. pre-commit uses two phases: gen+fmt first, then
-# lint+build. This avoids races where gen's `go run` creates
-# temporary .go files that lint's find-based checks pick up.
-# Within each phase, targets run in parallel via -j. Both fail if
-# any tracked files have unstaged changes afterward.
-#
-# Both pre-commit and pre-push:
-#   gen, fmt, lint, lint/typos, slim binary (local arch)
-#
-# pre-push only (need external services or are slow):
-#   site/out/index.html (pnpm build)
-#   test-postgres-docker + test (needs Docker)
-#   test-js, test-e2e (needs Playwright)
-#   sqlc-vet (needs Docker)
-#   offlinedocs/check
-#
-# Omitted:
-#   test-go-pg-17 (same tests, different PG version)
+# pre-commit uses two phases: gen+fmt first, then lint+build. This
+# avoids races where gen's `go run` creates temporary .go files that
+# lint's find-based checks pick up. Within each phase, targets run in
+# parallel via -j. It fails if any tracked files have unstaged
+# changes afterward.
 
 define check-unstaged
 	unstaged="$$(git diff --name-only)"
 	if [[ -n $$unstaged ]]; then
-		echo "ERROR: unstaged changes in tracked files:"
-		echo "$$unstaged"
-		echo
-		echo "Review each change (git diff), verify correctness, then stage:"
-		echo "  git add -u && git commit"
+		echo "$(RED)✗ check unstaged changes$(RESET)"
+		echo "$$unstaged" | sed 's/^/  - /'
+		echo ""
+		echo "$(DIM)  Verify generated changes are correct before staging:$(RESET)"
+		echo "$(DIM)    git diff$(RESET)"
+		echo "$(DIM)    git add -u && git commit$(RESET)"
 		exit 1
 	fi
+endef
+define check-untracked
 	untracked=$$(git ls-files --other --exclude-standard)
 	if [[ -n $$untracked ]]; then
-		echo "WARNING: untracked files (not in this commit, won't be in CI):"
-		echo "$$untracked"
-		echo
+		echo "$(YELLOW)? check untracked files$(RESET)"
+		echo "$$untracked" | sed 's/^/  - /'
+		echo ""
+		echo "$(DIM)  Review if these should be committed or added to .gitignore.$(RESET)"
 	fi
 endef
 
 pre-commit:
 	start=$$(date +%s)
-	echo "=== Phase 1/2: gen + fmt ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 gen fmt
+	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-commit.XXXXXX")
+	echo "$(BOLD)pre-commit$(RESET) ($$logdir)"
+	echo "gen + fmt:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir gen fmt
 	$(check-unstaged)
-	echo "=== Phase 2/2: lint + build ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 \
+	echo "lint + build:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
 		lint \
 		lint/typos \
 		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 	$(check-unstaged)
-	echo "$(BOLD)$(GREEN)=== pre-commit passed in $$(( $$(date +%s) - $$start ))s ===$(RESET)"
+	$(check-untracked)
+	rm -rf $$logdir
+	echo "$(GREEN)✓ pre-commit passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
 .PHONY: pre-commit
 
 pre-push:
 	start=$$(date +%s)
-	echo "=== Phase 1/2: gen + fmt + postgres ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 gen fmt test-postgres-docker
-	$(check-unstaged)
-	echo "=== Phase 2/2: lint + build + test ==="
-	$(MAKE) -j$(PARALLEL_JOBS) --output-sync=target MAKE_TIMED=1 \
-		lint \
-		lint/typos \
-		build/coder-slim_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT) \
-		site/out/index.html \
+	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-push.XXXXXX")
+	echo "$(BOLD)pre-push$(RESET) ($$logdir)"
+	echo "test + build site:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
 		test \
 		test-js \
-		test-e2e \
-		test-race \
-		sqlc-vet \
-		offlinedocs/check
-	$(check-unstaged)
-	echo "$(BOLD)$(GREEN)=== pre-push passed in $$(( $$(date +%s) - $$start ))s ===$(RESET)"
+		site/out/index.html
+	rm -rf $$logdir
+	echo "$(GREEN)✓ pre-push passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
 .PHONY: pre-push
 
 offlinedocs/check: offlinedocs/node_modules/.installed
@@ -1474,4 +1460,6 @@ dogfood/coder/nix.hash: flake.nix flake.lock
 # Count the number of test databases created per test package.
 count-test-databases:
 	PGPASSWORD=postgres psql -h localhost -U postgres -d coder_testing -P pager=off -c 'SELECT test_package, count(*) as count from test_databases GROUP BY test_package ORDER BY count DESC'
+.PHONY: count-test-databases
+
 .PHONY: count-test-databases

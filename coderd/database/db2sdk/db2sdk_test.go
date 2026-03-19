@@ -437,11 +437,67 @@ func TestAIBridgeInterception(t *testing.T) {
 	}
 }
 
+func TestChatMessage_PreservesProviderExecutedOnToolResults(t *testing.T) {
+	t.Parallel()
+
+	toolCallID := uuid.New().String()
+	toolName := "web_search"
+
+	// Build assistant content blocks with ProviderExecuted set.
+	toolCall := fantasy.ToolCallContent{
+		ToolCallID:       toolCallID,
+		ToolName:         toolName,
+		Input:            `{"query":"test"}`,
+		ProviderExecuted: true,
+	}
+	toolResult := fantasy.ToolResultContent{
+		ToolCallID:       toolCallID,
+		ToolName:         toolName,
+		Result:           fantasy.ToolResultOutputContentText{Text: `{"results":[]}`},
+		ProviderExecuted: true,
+	}
+
+	tcJSON, err := json.Marshal(toolCall)
+	require.NoError(t, err)
+	trJSON, err := json.Marshal(toolResult)
+	require.NoError(t, err)
+
+	rawContent := json.RawMessage("[" + string(tcJSON) + "," + string(trJSON) + "]")
+
+	dbMsg := database.ChatMessage{
+		ID:     1,
+		ChatID: uuid.New(),
+		Role:   database.ChatMessageRoleAssistant,
+		Content: pqtype.NullRawMessage{
+			RawMessage: rawContent,
+			Valid:      true,
+		},
+		CreatedAt: time.Now(),
+	}
+
+	result := db2sdk.ChatMessage(dbMsg)
+
+	require.Len(t, result.Content, 2)
+
+	// First part: tool call.
+	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, result.Content[0].Type)
+	require.Equal(t, toolCallID, result.Content[0].ToolCallID)
+	require.Equal(t, toolName, result.Content[0].ToolName)
+	require.True(t, result.Content[0].ProviderExecuted, "tool call should preserve ProviderExecuted")
+
+	// Second part: tool result.
+	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, result.Content[1].Type)
+	require.Equal(t, toolCallID, result.Content[1].ToolCallID)
+	require.Equal(t, toolName, result.Content[1].ToolName)
+	require.True(t, result.Content[1].ProviderExecuted, "tool result should preserve ProviderExecuted")
+}
+
 func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {
 	t.Parallel()
 
-	rawContent, err := json.Marshal([]fantasy.Content{
-		fantasy.TextContent{Text: "queued text"},
+	// Queued messages are always written via MarshalParts (SDK format).
+	rawContent, err := json.Marshal([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("queued text"),
 	})
 	require.NoError(t, err)
 
@@ -457,35 +513,15 @@ func TestChatQueuedMessage_ParsesUserContentParts(t *testing.T) {
 	require.Equal(t, "queued text", queued.Content[0].Text)
 }
 
-func TestChatQueuedMessage_FallsBackToTextForLegacyContent(t *testing.T) {
+func TestChatQueuedMessage_MalformedContent(t *testing.T) {
 	t.Parallel()
 
-	t.Run("legacy_string", func(t *testing.T) {
-		t.Parallel()
-
-		queued := db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
-			ID:        1,
-			ChatID:    uuid.New(),
-			Content:   json.RawMessage(`"legacy queued text"`),
-			CreatedAt: time.Now(),
-		})
-
-		require.Len(t, queued.Content, 1)
-		require.Equal(t, codersdk.ChatMessagePartTypeText, queued.Content[0].Type)
-		require.Equal(t, "legacy queued text", queued.Content[0].Text)
+	queued := db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
+		ID:        1,
+		ChatID:    uuid.New(),
+		Content:   json.RawMessage(`{"unexpected":"shape"}`),
+		CreatedAt: time.Now(),
 	})
 
-	t.Run("malformed_payload", func(t *testing.T) {
-		t.Parallel()
-
-		raw := json.RawMessage(`{"unexpected":"shape"}`)
-		queued := db2sdk.ChatQueuedMessage(database.ChatQueuedMessage{
-			ID:        1,
-			ChatID:    uuid.New(),
-			Content:   raw,
-			CreatedAt: time.Now(),
-		})
-
-		require.Empty(t, queued.Content)
-	})
+	require.Empty(t, queued.Content)
 }

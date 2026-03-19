@@ -5,7 +5,16 @@ import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { Chat } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { fn, spyOn } from "storybook/test";
+import dayjs from "dayjs";
+import {
+	expect,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { AgentsPageView } from "./AgentsPageView";
 
@@ -33,6 +42,68 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	},
 ];
 
+const mockAnalyticsSummary: TypesGen.ChatCostSummary = {
+	start_date: "2026-02-10T00:00:00Z",
+	end_date: "2026-03-12T00:00:00Z",
+	total_cost_micros: 1_500_000,
+	priced_message_count: 12,
+	unpriced_message_count: 1,
+	total_input_tokens: 123_456,
+	total_output_tokens: 654_321,
+	total_cache_read_tokens: 9_876,
+	total_cache_creation_tokens: 5_432,
+	by_model: [
+		{
+			model_config_id: "model-config-1",
+			display_name: "GPT-4.1",
+			provider: "OpenAI",
+			model: "gpt-4.1",
+			total_cost_micros: 1_250_000,
+			message_count: 9,
+			total_input_tokens: 100_000,
+			total_output_tokens: 200_000,
+			total_cache_read_tokens: 7_654,
+			total_cache_creation_tokens: 3_210,
+		},
+	],
+	by_chat: [
+		{
+			root_chat_id: "chat-1",
+			chat_title: "Quarterly review",
+			total_cost_micros: 750_000,
+			message_count: 5,
+			total_input_tokens: 60_000,
+			total_output_tokens: 80_000,
+			total_cache_read_tokens: 4_321,
+			total_cache_creation_tokens: 1_234,
+		},
+	],
+};
+
+const mockUsageUsers: TypesGen.ChatCostUsersResponse = {
+	start_date: "2026-02-10T00:00:00Z",
+	end_date: "2026-03-12T00:00:00Z",
+	count: 1,
+	users: [
+		{
+			user_id: "user-1",
+			username: "alice",
+			name: "Alice Example",
+			avatar_url: "https://example.com/alice.png",
+			total_cost_micros: 1_200_000,
+			message_count: 12,
+			chat_count: 3,
+			total_input_tokens: 120_000,
+			total_output_tokens: 45_000,
+			total_cache_read_tokens: 6_789,
+			total_cache_creation_tokens: 2_468,
+		},
+	],
+};
+
+// Use local noon so the rendered range label stays stable across timezones.
+const fixedAnalyticsNow = dayjs("2026-03-12T12:00:00");
+
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const todayTimestamp = new Date().toISOString();
 
@@ -42,6 +113,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	title: "Agent",
 	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
+	mcp_server_ids: [],
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
@@ -50,6 +122,9 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 });
 
 const agentsRouting = [
+	{ path: "/agents/settings/:section", useStoryElement: true },
+	{ path: "/agents/settings", useStoryElement: true },
+	{ path: "/agents/analytics", useStoryElement: true },
 	{ path: "/agents/:agentId", useStoryElement: true },
 	{ path: "/agents", useStoryElement: true },
 ] satisfies [
@@ -96,6 +171,10 @@ const meta: Meta<typeof AgentsPageView> = {
 			onToggleSidebarCollapsed: fn(),
 		},
 		isAgentsAdmin: false,
+		analyticsNow: fixedAnalyticsNow,
+		archivedFilter: "active" as const,
+		onArchivedFilterChange: fn(),
+		isFetchingNextPage: false,
 		onCreateChat: fn(),
 		createError: undefined,
 		modelCatalog: undefined,
@@ -107,6 +186,18 @@ const meta: Meta<typeof AgentsPageView> = {
 		spyOn(API, "getWorkspaces").mockResolvedValue({
 			workspaces: [],
 			count: 0,
+		});
+		spyOn(API, "getChatCostSummary").mockResolvedValue(mockAnalyticsSummary);
+		spyOn(API, "getChatCostUsers").mockResolvedValue(mockUsageUsers);
+		spyOn(API, "getChatSystemPrompt").mockResolvedValue({
+			system_prompt: "",
+		});
+		spyOn(API, "updateChatSystemPrompt").mockResolvedValue();
+		spyOn(API, "getUserChatCustomPrompt").mockResolvedValue({
+			custom_prompt: "",
+		});
+		spyOn(API, "updateUserChatCustomPrompt").mockResolvedValue({
+			custom_prompt: "",
 		});
 	},
 };
@@ -286,8 +377,8 @@ export const WithErrorReasons: Story = {
 		],
 		outletContext: {
 			chatErrorReasons: {
-				"chat-1": "Model rate limited",
-				"chat-3": "Context window exceeded",
+				"chat-1": { kind: "generic", message: "Model rate limited" },
+				"chat-3": { kind: "generic", message: "Context window exceeded" },
 			},
 			setChatErrorReason: fn(),
 			clearChatErrorReason: fn(),
@@ -297,5 +388,125 @@ export const WithErrorReasons: Story = {
 			isSidebarCollapsed: false,
 			onToggleSidebarCollapsed: fn(),
 		},
+	},
+};
+
+const openAnalyticsView = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	await userEvent.click(canvas.getByRole("link", { name: "Analytics" }));
+};
+
+const openSettingsView = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	await userEvent.click(canvas.getByRole("link", { name: "Settings" }));
+};
+
+export const OpensAnalyticsForAdmins: Story = {
+	args: {
+		isAgentsAdmin: true,
+	},
+	play: async ({ canvasElement }) => {
+		await openAnalyticsView(canvasElement);
+
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"Review your personal chat usage and cost breakdowns.",
+				),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const OpensAnalyticsForNonAdmins: Story = {
+	args: {
+		isAgentsAdmin: false,
+	},
+	play: async ({ canvasElement }) => {
+		await openAnalyticsView(canvasElement);
+
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"Review your personal chat usage and cost breakdowns.",
+				),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const OpensSettingsForAdmins: Story = {
+	args: {
+		isAgentsAdmin: true,
+	},
+	play: async ({ canvasElement }) => {
+		await openSettingsView(canvasElement);
+
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"Custom instructions that shape how the agent responds in your chats.",
+				),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const OpensSettingsForNonAdmins: Story = {
+	args: {
+		isAgentsAdmin: false,
+	},
+	play: async ({ canvasElement }) => {
+		await openSettingsView(canvasElement);
+
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"Custom instructions that shape how the agent responds in your chats.",
+				),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const SettingsViewResets: Story = {
+	args: {
+		isAgentsAdmin: true,
+	},
+	play: async ({ canvasElement }) => {
+		// Open settings
+		await openSettingsView(canvasElement);
+
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"Custom instructions that shape how the agent responds in your chats.",
+				),
+			).toBeInTheDocument();
+		});
+
+		// Navigate to Usage section
+		await userEvent.click(screen.getByText("Usage"));
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"Review deployment chat usage and drill into individual users.",
+				),
+			).toBeInTheDocument();
+		});
+
+		// Go back to chats
+		const backButton = screen.getByLabelText("Back to chats from Settings");
+		await userEvent.click(backButton);
+
+		// Re-open settings, should reset to Behavior
+		await openSettingsView(canvasElement);
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"Custom instructions that shape how the agent responds in your chats.",
+				),
+			).toBeInTheDocument();
+		});
 	},
 };

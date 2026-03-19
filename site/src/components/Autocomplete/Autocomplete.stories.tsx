@@ -31,8 +31,6 @@ const simpleOptions: SimpleOption[] = [
 	{ id: "5", name: "Coconut" },
 ];
 
-const onClearSelectionChange = fn<(value: SimpleOption | null) => void>();
-
 export const Default: Story = {
 	render: function DefaultStory() {
 		const [value, setValue] = useState<SimpleOption | null>(null);
@@ -224,16 +222,20 @@ export const SearchAndFilter: Story = {
 };
 
 export const ClearSelection: Story = {
-	render: function ClearSelectionStory() {
+	args: {
+		onChange: fn<(value: unknown) => void>(),
+	},
+	render: function ClearSelectionStory(args) {
 		const [value, setValue] = useState<SimpleOption | null>(simpleOptions[0]);
 		const handleChange = (newValue: SimpleOption | null) => {
-			onClearSelectionChange(newValue);
+			args.onChange(newValue);
 			setValue(newValue);
 		};
 
 		return (
 			<div className="w-80">
 				<Autocomplete
+					{...args}
 					value={value}
 					onChange={handleChange}
 					options={simpleOptions}
@@ -244,12 +246,15 @@ export const ClearSelection: Story = {
 			</div>
 		);
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		const trigger = canvas.getByRole("button", { name: /mango/i });
 		expect(trigger).toHaveTextContent("Mango");
 
-		onClearSelectionChange.mockClear();
+		const onChangeSpy = args.onChange as ReturnType<
+			typeof fn<(value: unknown) => void>
+		>;
+		onChangeSpy.mockClear();
 
 		const clearButton = canvas.getByLabelText("Clear selection");
 		expect(clearButton).toHaveAttribute("role", "button");
@@ -257,9 +262,7 @@ export const ClearSelection: Story = {
 		expect(clearButton.tagName).toBe("SPAN");
 
 		await userEvent.click(clearButton);
-		await waitFor(() =>
-			expect(onClearSelectionChange).toHaveBeenCalledWith(null),
-		);
+		await waitFor(() => expect(onChangeSpy).toHaveBeenCalledWith(null));
 
 		await waitFor(() =>
 			expect(

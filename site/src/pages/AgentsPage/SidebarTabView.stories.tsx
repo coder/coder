@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
+import { mockAttach, mockDesktopConnection } from "./desktopStoryUtils";
 import type { SidebarTab } from "./SidebarTabView";
 import { SidebarTabView } from "./SidebarTabView";
 
@@ -12,12 +13,12 @@ const makePanelContent = (label: string) => (
 const makeBadge = (additions: number, deletions: number) => (
 	<span className="inline-flex h-full items-center self-stretch overflow-hidden font-mono text-xs font-medium">
 		{additions > 0 && (
-			<span className="flex h-full items-center bg-green-100 px-1.5 text-green-700 dark:bg-green-950 dark:text-green-500">
+			<span className="flex h-full items-center bg-surface-git-added px-1.5 text-git-added-bright">
 				+{additions}
 			</span>
 		)}
 		{deletions > 0 && (
-			<span className="flex h-full items-center bg-red-100 px-1.5 text-red-700 dark:bg-red-950 dark:text-red-400">
+			<span className="flex h-full items-center bg-surface-git-deleted px-1.5 text-git-deleted-bright">
 				&minus;{deletions}
 			</span>
 		)}
@@ -73,6 +74,13 @@ export const EmptyState: Story = {
 	},
 };
 
+export const DesktopHidden: Story = {
+	args: {
+		tabs: [],
+		desktopChatId: undefined,
+	},
+};
+
 export const ExpandedWithTitle: Story = {
 	args: {
 		tabs: [gitTab],
@@ -99,4 +107,32 @@ export const NarrowPanel: Story = {
 			</div>
 		),
 	],
+};
+
+export const DesktopConnecting: Story = {
+	args: {
+		tabs: [],
+		desktopChatId: "test-chat-id",
+		desktopConnectionOverride: mockDesktopConnection({ status: "connecting" }),
+	},
+};
+
+export const DesktopConnected: Story = {
+	args: {
+		tabs: [],
+		desktopChatId: "test-chat-id",
+		desktopConnectionOverride: mockDesktopConnection({
+			status: "connected",
+			hasConnected: true,
+			attach: mockAttach(),
+		}),
+	},
+};
+
+export const DesktopError: Story = {
+	args: {
+		tabs: [],
+		desktopChatId: "test-chat-id",
+		desktopConnectionOverride: mockDesktopConnection({ status: "error" }),
+	},
 };

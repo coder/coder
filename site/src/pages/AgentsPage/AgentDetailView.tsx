@@ -1,19 +1,35 @@
-import type { ChatDiffStatusResponse } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
+import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { Skeleton } from "components/Skeleton/Skeleton";
-import { ArchiveIcon } from "lucide-react";
-import { type FC, type RefObject, useCallback, useMemo, useState } from "react";
+import { Button } from "components/Button/Button";
+import { ArchiveIcon, ArrowDownIcon } from "lucide-react";
+import {
+	type FC,
+	type RefObject,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
-import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetail";
-import type { useChatStore } from "./AgentDetail/ChatContext";
+import {
+	selectChatStatus,
+	useChatSelector,
+	type useChatStore,
+} from "./AgentDetail/ChatContext";
 import { AgentDetailTopBar } from "./AgentDetail/TopBar";
+import { AgentDetailInput, AgentDetailTimeline } from "./AgentDetailContent";
+import {
+	ChatConversationSkeleton,
+	RightPanelSkeleton,
+} from "./AgentsSkeletons";
 import { GitPanel } from "./GitPanel";
 import { RightPanel } from "./RightPanel";
 import { SidebarTabView } from "./SidebarTabView";
+import type { ChatDetailError } from "./usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -23,23 +39,19 @@ interface EditingState {
 	chatInputRef: RefObject<ChatMessageInputRef | null>;
 	editorInitialValue: string;
 	editingMessageId: number | null;
-	editingFileBlocks: readonly {
-		mediaType: string;
-		data?: string;
-		fileId?: string;
-	}[];
+	editingFileBlocks: readonly ChatMessagePart[];
 	handleEditUserMessage: (
 		messageId: number,
 		text: string,
-		fileBlocks?: readonly {
-			mediaType: string;
-			data?: string;
-			fileId?: string;
-		}[],
+		fileBlocks?: readonly ChatMessagePart[],
 	) => void;
 	handleCancelHistoryEdit: () => void;
 	editingQueuedMessageID: number | null;
-	handleStartQueueEdit: (id: number, text: string) => void;
+	handleStartQueueEdit: (
+		id: number,
+		text: string,
+		fileBlocks: readonly ChatMessagePart[],
+	) => void;
 	handleCancelQueueEdit: () => void;
 	handleSendFromInput: (message: string, fileIds?: string[]) => void;
 	handleContentChange: (content: string) => void;
@@ -50,7 +62,7 @@ interface AgentDetailViewProps {
 	agentId: string;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
-	chatErrorReasons: Record<string, string>;
+	chatErrorReasons: Record<string, ChatDetailError>;
 	chatRecord: TypesGen.Chat | undefined;
 	isArchived: boolean;
 	hasWorkspace: boolean;
@@ -78,10 +90,16 @@ interface AgentDetailViewProps {
 	// Sidebar / panel state.
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
+	onOpenAnalytics?: () => void;
+
+	// Right panel state (owned by the parent so loading and
+	// loaded views share the same layout).
+	showSidebarPanel: boolean;
+	onSetShowSidebarPanel: (next: boolean | ((prev: boolean) => boolean)) => void;
 
 	// Sidebar content data.
 	prNumber: number | undefined;
-	diffStatusData: ChatDiffStatusResponse | undefined;
+	diffStatusData: ChatDiffStatus | undefined;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 		refresh: () => void;
@@ -112,11 +130,16 @@ interface AgentDetailViewProps {
 	// Scroll container ref.
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
 
-	urlTransform?: UrlTransform;
-}
+	// Pagination for loading older messages.
+	hasMoreMessages: boolean;
+	isFetchingMoreMessages: boolean;
+	onFetchMoreMessages: () => void;
 
-/** localStorage key controlling whether the right panel is visible. */
-export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
+	urlTransform?: UrlTransform;
+
+	// Desktop chat ID (optional).
+	desktopChatId?: string;
+}
 
 export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	agentId,
@@ -142,6 +165,9 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	isInterruptPending,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
+	onOpenAnalytics,
+	showSidebarPanel,
+	onSetShowSidebarPanel,
 	prNumber,
 	diffStatusData,
 	gitWatcher,
@@ -160,49 +186,20 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	handleUnarchiveAgentAction,
 	handleArchiveAndDeleteWorkspaceAction,
 	scrollContainerRef,
+	hasMoreMessages,
+	isFetchingMoreMessages,
+	onFetchMoreMessages,
 	urlTransform,
+	desktopChatId,
 }) => {
-	// Panel/sidebar UI state – purely visual, no data-fetching
-	// implications. The open/closed state is persisted to localStorage
-	// so users get a consistent layout when switching between chats.
-	const [showSidebarPanel, setShowSidebarPanel] = useState(() => {
-		if (typeof window === "undefined") return false;
-		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
-	});
-	const handleSetShowSidebarPanel = useCallback(
-		(next: boolean | ((prev: boolean) => boolean)) => {
-			setShowSidebarPanel((prev) => {
-				const value = typeof next === "function" ? next(prev) : next;
-				if (typeof window !== "undefined") {
-					localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(value));
-				}
-				return value;
-			});
-		},
-		[],
-	);
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,
 	);
 	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
+	const chatStatus = useChatSelector(store, selectChatStatus);
 
 	// Compute local diff stats from git watcher unified diffs.
-	const localDiffStats = useMemo(() => {
-		let additions = 0;
-		let deletions = 0;
-		for (const repo of gitWatcher.repositories.values()) {
-			if (!repo.unified_diff) continue;
-			for (const line of repo.unified_diff.split("\n")) {
-				if (line.startsWith("+") && !line.startsWith("+++")) {
-					additions++;
-				} else if (line.startsWith("-") && !line.startsWith("---")) {
-					deletions++;
-				}
-			}
-		}
-		return { additions, deletions, changed_files: 0 };
-	}, [gitWatcher.repositories]);
 
 	const titleElement = (
 		<title>
@@ -234,7 +231,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 						onOpenParentChat={(chatId) => onNavigateToChat(chatId)}
 						panel={{
 							showSidebarPanel,
-							onToggleSidebar: () => handleSetShowSidebarPanel((prev) => !prev),
+							onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
 						}}
 						workspace={{
 							canOpenEditors,
@@ -249,6 +246,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 						onArchiveAndDeleteWorkspace={handleArchiveAndDeleteWorkspaceAction}
 						hasWorkspace={hasWorkspace}
 						isArchived={isArchived}
+						diffStatusData={diffStatusData}
 						isSidebarCollapsed={isSidebarCollapsed}
 						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 					/>
@@ -260,7 +258,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 					)}
 					<div
 						aria-hidden
-						className="pointer-events-none absolute inset-x-0 top-full z-10 h-6 bg-surface-primary"
+						className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
 						style={{
 							maskImage:
 								"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
@@ -269,24 +267,29 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 						}}
 					/>
 				</div>
-				<div
-					ref={scrollContainerRef}
-					className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+				<ScrollAnchoredContainer
+					scrollContainerRef={scrollContainerRef}
+					isFetchingMoreMessages={isFetchingMoreMessages}
+					hasMoreMessages={hasMoreMessages}
+					onFetchMoreMessages={onFetchMoreMessages}
 				>
 					<div className="px-4">
 						<AgentDetailTimeline
 							store={store}
-							chatID={agentId}
 							persistedErrorReason={
-								chatErrorReasons[agentId] || chatRecord?.last_error || undefined
+								chatErrorReasons[agentId] ??
+								(chatStatus === "error" && chatRecord?.last_error
+									? { kind: "generic" as const, message: chatRecord.last_error }
+									: undefined)
 							}
+							onOpenAnalytics={onOpenAnalytics}
 							onEditUserMessage={editing.handleEditUserMessage}
 							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
 							urlTransform={urlTransform}
 						/>
 					</div>
-				</div>
+				</ScrollAnchoredContainer>
 				<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<AgentDetailInput
 						store={store}
@@ -321,7 +324,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 				isOpen={shouldShowSidebar}
 				isExpanded={isRightPanelExpanded}
 				onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
-				onClose={() => handleSetShowSidebarPanel(false)}
+				onClose={() => onSetShowSidebarPanel(false)}
 				onVisualExpandedChange={setDragVisualExpanded}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
@@ -343,20 +346,20 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 									onCommit={handleCommit}
 									isExpanded={visualExpanded}
 									remoteDiffStats={diffStatusData}
-									localDiffStats={localDiffStats}
 									chatInputRef={editing.chatInputRef}
 								/>
 							),
 						},
 					]}
-					onClose={() => handleSetShowSidebarPanel(false)}
+					onClose={() => onSetShowSidebarPanel(false)}
 					isExpanded={visualExpanded}
 					onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 					chatTitle={chatTitle}
+					desktopChatId={desktopChatId}
 				/>
-			</RightPanel>{" "}
+			</RightPanel>
 		</div>
 	);
 };
@@ -373,6 +376,7 @@ interface AgentDetailLoadingViewProps {
 	modelCatalogStatusMessage: string | null;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
+	showRightPanel: boolean;
 }
 
 export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
@@ -387,76 +391,73 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 	modelCatalogStatusMessage,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
+	showRightPanel,
 }) => {
 	return (
-		<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+		<div
+			className={cn(
+				"relative flex h-full min-h-0 min-w-0 flex-1",
+				showRightPanel && "flex-row",
+			)}
+		>
 			{titleElement}
-			<AgentDetailTopBar
-				panel={{
-					showSidebarPanel: false,
-					onToggleSidebar: () => {},
-				}}
-				workspace={{
-					canOpenEditors: false,
-					canOpenWorkspace: false,
-					onOpenInEditor: () => {},
-					onViewWorkspace: () => {},
-					onOpenTerminal: () => {},
-					sshCommand: undefined,
-				}}
-				onOpenParentChat={() => {}}
-				onArchiveAgent={() => {}}
-				onUnarchiveAgent={() => {}}
-				onArchiveAndDeleteWorkspace={() => {}}
-				hasWorkspace={false}
-				isSidebarCollapsed={isSidebarCollapsed}
-				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-			/>
-			<div className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden">
-				<div className="px-4">
-					<div className="mx-auto w-full max-w-3xl py-6">
-						<div className="flex flex-col gap-3">
-							{/* User message bubble (right-aligned) */}
-							<div className="flex w-full justify-end">
-								<Skeleton className="h-10 w-2/3 rounded-lg" />
-							</div>
-							{/* Assistant response lines (left-aligned) */}
-							<div className="space-y-3">
-								<Skeleton className="h-4 w-full" />
-								<Skeleton className="h-4 w-5/6" />
-								<Skeleton className="h-4 w-4/6" />
-							</div>
-							{/* Second user message bubble */}
-							<div className="mt-3 flex w-full justify-end">
-								<Skeleton className="h-10 w-1/2 rounded-lg" />
-							</div>
-							{/* Second assistant response */}
-							<div className="space-y-3">
-								<Skeleton className="h-4 w-full" />
-								<Skeleton className="h-4 w-5/6" />
-								<Skeleton className="h-4 w-4/6" />
-								<Skeleton className="h-4 w-full" />
-								<Skeleton className="h-4 w-3/5" />
-							</div>{" "}
+			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+				<AgentDetailTopBar
+					panel={{
+						showSidebarPanel: false,
+						onToggleSidebar: () => {},
+					}}
+					workspace={{
+						canOpenEditors: false,
+						canOpenWorkspace: false,
+						onOpenInEditor: () => {},
+						onViewWorkspace: () => {},
+						onOpenTerminal: () => {},
+						sshCommand: undefined,
+					}}
+					onOpenParentChat={() => {}}
+					onArchiveAgent={() => {}}
+					onUnarchiveAgent={() => {}}
+					onArchiveAndDeleteWorkspace={() => {}}
+					hasWorkspace={false}
+					isSidebarCollapsed={isSidebarCollapsed}
+					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				/>
+				<div className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden">
+					<div className="px-4">
+						<div className="mx-auto w-full max-w-3xl py-6">
+							<ChatConversationSkeleton />
 						</div>
 					</div>
 				</div>
+				<div className="shrink-0 px-4">
+					<AgentChatInput
+						onSend={() => {}}
+						initialValue=""
+						isDisabled={isInputDisabled}
+						isLoading={false}
+						selectedModel={effectiveSelectedModel}
+						onModelChange={setSelectedModel}
+						modelOptions={modelOptions}
+						modelSelectorPlaceholder={modelSelectorPlaceholder}
+						hasModelOptions={hasModelOptions}
+						inputStatusText={inputStatusText}
+						modelCatalogStatusMessage={modelCatalogStatusMessage}
+					/>
+				</div>
 			</div>
-			<div className="shrink-0 px-4">
-				<AgentChatInput
-					onSend={() => {}}
-					initialValue=""
-					isDisabled={isInputDisabled}
-					isLoading={false}
-					selectedModel={effectiveSelectedModel}
-					onModelChange={setSelectedModel}
-					modelOptions={modelOptions}
-					modelSelectorPlaceholder={modelSelectorPlaceholder}
-					hasModelOptions={hasModelOptions}
-					inputStatusText={inputStatusText}
-					modelCatalogStatusMessage={modelCatalogStatusMessage}
-				/>
-			</div>
+			{showRightPanel && (
+				<RightPanel
+					isOpen
+					isExpanded={false}
+					onToggleExpanded={() => {}}
+					onClose={() => {}}
+					isSidebarCollapsed={isSidebarCollapsed}
+					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				>
+					<RightPanelSkeleton />
+				</RightPanel>
+			)}
 		</div>
 	);
 };
@@ -498,7 +499,154 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
 			/>
 			<div className="flex flex-1 items-center justify-center text-content-secondary">
 				Chat not found
-			</div>{" "}
+			</div>
+		</div>
+	);
+};
+
+/**
+ * Scroll container that uses flex-col-reverse for bottom-anchored chat
+ * layout. Handles loading older message pages via an IntersectionObserver
+ * sentinel and manually restores scroll position after new content
+ * renders — CSS scroll anchoring is unreliable in flex-col-reverse
+ * containers.
+ */
+const SCROLL_THRESHOLD = 100;
+
+const ScrollAnchoredContainer: FC<{
+	scrollContainerRef: RefObject<HTMLDivElement | null>;
+	isFetchingMoreMessages: boolean;
+	hasMoreMessages: boolean;
+	onFetchMoreMessages: () => void;
+	children: React.ReactNode;
+}> = ({
+	scrollContainerRef,
+	isFetchingMoreMessages,
+	hasMoreMessages,
+	onFetchMoreMessages,
+	children,
+}) => {
+	const sentinelRef = useRef<HTMLDivElement>(null);
+	const observerRef = useRef<IntersectionObserver | null>(null);
+	const isFetchingRef = useRef(isFetchingMoreMessages);
+	isFetchingRef.current = isFetchingMoreMessages;
+	const onFetchRef = useRef(onFetchMoreMessages);
+	onFetchRef.current = onFetchMoreMessages;
+	const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+
+	// Sentinel observer — triggers loading older messages.
+	// All changing values are read from refs so the observer
+	// is created once and never torn down / recreated, which
+	// would cause spurious intersection callbacks.
+	useEffect(() => {
+		const sentinel = sentinelRef.current;
+		const container = scrollContainerRef.current;
+		if (!sentinel || !container) return;
+
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				if (entry.isIntersecting && !isFetchingRef.current) {
+					onFetchRef.current();
+				}
+			},
+			{
+				root: container,
+				rootMargin: "600px 0px 0px 0px",
+				threshold: 0.01,
+			},
+		);
+		observerRef.current = observer;
+		observer.observe(sentinel);
+		return () => {
+			observer.disconnect();
+			observerRef.current = null;
+		};
+	}, [scrollContainerRef]);
+
+	// When a fetch completes, re-observe the sentinel to force
+	// the IntersectionObserver to re-evaluate. The observer only
+	// fires on state *changes* (entering/leaving), so if the
+	// sentinel stayed visible throughout the fetch it won't fire
+	// again on its own.
+	useEffect(() => {
+		if (isFetchingMoreMessages) return;
+		const sentinel = sentinelRef.current;
+		const observer = observerRef.current;
+		if (!sentinel || !observer) return;
+		observer.unobserve(sentinel);
+		observer.observe(sentinel);
+	}, [isFetchingMoreMessages]);
+
+	// Track scroll position to show/hide the scroll-to-bottom button.
+	// In a flex-col-reverse container, scrollTop = 0 means the user
+	// is at the bottom (most recent content). Scrolling up to see
+	// older messages makes scrollTop negative.
+	//
+	// Throttled to once per animation frame so we avoid calling
+	// setState on every high-frequency scroll event.
+	useEffect(() => {
+		const container = scrollContainerRef.current;
+		if (!container) return;
+
+		let rafId: number | null = null;
+
+		const handleScroll = () => {
+			if (rafId !== null) return;
+			rafId = requestAnimationFrame(() => {
+				const isAtBottom = Math.abs(container.scrollTop) < SCROLL_THRESHOLD;
+				setShowScrollToBottom(!isAtBottom);
+				rafId = null;
+			});
+		};
+
+		container.addEventListener("scroll", handleScroll, { passive: true });
+		return () => {
+			container.removeEventListener("scroll", handleScroll);
+			if (rafId !== null) {
+				cancelAnimationFrame(rafId);
+			}
+		};
+	}, [scrollContainerRef]);
+
+	const handleScrollToBottom = useCallback(() => {
+		const container = scrollContainerRef.current;
+		if (!container) return;
+		container.scrollTo({ top: 0, behavior: "smooth" });
+		// Hide immediately so the button doesn't linger while the
+		// smooth scroll animates.  If the user interrupts the scroll
+		// before it reaches the bottom, the scroll handler will
+		// re-show the button.
+		setShowScrollToBottom(false);
+	}, [scrollContainerRef]);
+
+	return (
+		<div className="relative flex min-h-0 flex-1 flex-col">
+			<div
+				ref={scrollContainerRef}
+				data-testid="scroll-container"
+				className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [overflow-anchor:none] [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]"
+			>
+				{children}
+				{hasMoreMessages && <div ref={sentinelRef} className="h-px shrink-0" />}
+			</div>
+			<div className="pointer-events-none absolute inset-x-0 bottom-2 z-10 flex justify-center overflow-y-auto py-2 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+				<Button
+					variant="outline"
+					size="icon"
+					className={cn(
+						"rounded-full bg-surface-primary shadow-md transition-all duration-200",
+						showScrollToBottom
+							? "pointer-events-auto translate-y-0 opacity-100"
+							: "translate-y-2 opacity-0",
+					)}
+					onClick={handleScrollToBottom}
+					aria-label="Scroll to bottom"
+					aria-hidden={!showScrollToBottom || undefined}
+					tabIndex={showScrollToBottom ? undefined : -1}
+				>
+					<ArrowDownIcon />
+				</Button>
+			</div>
 		</div>
 	);
 };

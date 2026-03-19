@@ -82,7 +82,7 @@ func TestMergeMissingProviderOptions_OpenRouterNested(t *testing.T) {
 
 	options := &codersdk.ChatModelProviderOptions{
 		OpenRouter: &codersdk.ChatModelOpenRouterProviderOptions{
-			Reasoning: &codersdk.ChatModelOpenRouterReasoningOptions{
+			Reasoning: &codersdk.ChatModelReasoningOptions{
 				Enabled: boolPtr(true),
 			},
 			Provider: &codersdk.ChatModelOpenRouterProvider{
@@ -92,7 +92,7 @@ func TestMergeMissingProviderOptions_OpenRouterNested(t *testing.T) {
 	}
 	defaults := &codersdk.ChatModelProviderOptions{
 		OpenRouter: &codersdk.ChatModelOpenRouterProviderOptions{
-			Reasoning: &codersdk.ChatModelOpenRouterReasoningOptions{
+			Reasoning: &codersdk.ChatModelReasoningOptions{
 				Enabled:   boolPtr(false),
 				Exclude:   boolPtr(true),
 				MaxTokens: int64Ptr(123),
@@ -137,43 +137,6 @@ func TestMergeMissingProviderOptions_OpenRouterNested(t *testing.T) {
 	require.Equal(t, "latency", *options.OpenRouter.Provider.Sort)
 }
 
-func TestMergeMissingCallConfig_FillsUnsetFields(t *testing.T) {
-	t.Parallel()
-
-	dst := codersdk.ChatModelCallConfig{
-		Temperature: float64Ptr(0.2),
-		ProviderOptions: &codersdk.ChatModelProviderOptions{
-			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-				User: stringPtr("alice"),
-			},
-		},
-	}
-	defaults := codersdk.ChatModelCallConfig{
-		MaxOutputTokens: int64Ptr(512),
-		Temperature:     float64Ptr(0.9),
-		TopP:            float64Ptr(0.8),
-		ProviderOptions: &codersdk.ChatModelProviderOptions{
-			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-				User:            stringPtr("bob"),
-				ReasoningEffort: stringPtr("medium"),
-			},
-		},
-	}
-
-	chatprovider.MergeMissingCallConfig(&dst, defaults)
-
-	require.NotNil(t, dst.MaxOutputTokens)
-	require.EqualValues(t, 512, *dst.MaxOutputTokens)
-	require.NotNil(t, dst.Temperature)
-	require.Equal(t, 0.2, *dst.Temperature)
-	require.NotNil(t, dst.TopP)
-	require.Equal(t, 0.8, *dst.TopP)
-	require.NotNil(t, dst.ProviderOptions)
-	require.NotNil(t, dst.ProviderOptions.OpenAI)
-	require.Equal(t, "alice", *dst.ProviderOptions.OpenAI.User)
-	require.Equal(t, "medium", *dst.ProviderOptions.OpenAI.ReasoningEffort)
-}
-
 func stringPtr(value string) *string {
 	return &value
 }
@@ -183,9 +146,5 @@ func boolPtr(value bool) *bool {
 }
 
 func int64Ptr(value int64) *int64 {
-	return &value
-}
-
-func float64Ptr(value float64) *float64 {
 	return &value
 }
