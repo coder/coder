@@ -876,29 +876,32 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 						ref={scrollAreaRef}
 					>
 						<div className="min-w-0 text-xs">
-							{sortedFiles.map((fileDiff, i) => (
-								<div
-									key={fileDiff.name}
-									ref={(el) => setFileRef(fileDiff.name, el)}
-									style={
-										i === sortedFiles.length - 1
-											? { minHeight: viewportHeight }
-											: undefined
-									}
-								>
-									<LazyFileDiff
-										fileDiff={fileDiff}
-										options={perFileOptions?.get(fileDiff.name) ?? fileOptions}
-										lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
-										renderAnnotation={renderAnnotation}
-										selectedLines={getSelectedLines?.(fileDiff.name)}
-									/>
-								</div>
-							))}
-							<div className="flex items-center justify-center py-4 text-xs text-content-secondary">
-								{sortedFiles.length}{" "}
-								{sortedFiles.length === 1 ? "file" : "files"} changed
-							</div>
+							{sortedFiles.map((fileDiff, i) => {
+								const isLast = i === sortedFiles.length - 1;
+								return (
+									<div
+										key={fileDiff.name}
+										ref={(el) => setFileRef(fileDiff.name, el)}
+										style={isLast ? { minHeight: viewportHeight } : undefined}
+									>
+										<LazyFileDiff
+											fileDiff={fileDiff}
+											options={
+												perFileOptions?.get(fileDiff.name) ?? fileOptions
+											}
+											lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
+											renderAnnotation={renderAnnotation}
+											selectedLines={getSelectedLines?.(fileDiff.name)}
+										/>
+										{isLast && (
+											<div className="flex items-center justify-center py-4 text-xs text-content-secondary">
+												{sortedFiles.length}{" "}
+												{sortedFiles.length === 1 ? "file" : "files"} changed
+											</div>
+										)}
+									</div>
+								);
+							})}{" "}
 						</div>
 					</ScrollArea>
 				</div>
