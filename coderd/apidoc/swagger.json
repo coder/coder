@@ -128,16 +128,16 @@
 							}
 						}
 					}
-				}
-			}
-		},
-		"/aibridge/sessions": {
-			"get": {
+				},
 				"security": [
 					{
 						"CoderSessionToken": []
 					}
-				],
+				]
+			}
+		},
+		"/aibridge/sessions": {
+			"get": {
 				"produces": ["application/json"],
 				"tags": ["AI Bridge"],
 				"summary": "List AI Bridge sessions",
@@ -175,11 +175,7 @@
 							"$ref": "#/definitions/codersdk.AIBridgeListSessionsResponse"
 						}
 					}
-				}
-			}
-		},
-		"/appearance": {
-			"get": {
+				},
 				"security": [
 					{
 						"CoderSessionToken": []

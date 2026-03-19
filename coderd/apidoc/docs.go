@@ -155,16 +155,16 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
-            }
-        },
-        "/aibridge/sessions": {
-            "get": {
+                },
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ],
+                ]
+            }
+        },
+        "/aibridge/sessions": {
+            "get": {
                 "produces": [
                     "application/json"
                 ],
@@ -206,11 +206,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.AIBridgeListSessionsResponse"
                         }
                     }
-                }
-            }
-        },
-        "/appearance": {
-            "get": {
+                },
                 "security": [
                     {
                         "CoderSessionToken": []

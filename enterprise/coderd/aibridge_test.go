@@ -821,7 +821,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.ElementsMatch(t, []string{"anthropic"}, s1.Providers)
 		require.ElementsMatch(t, []string{"claude-4", "claude-4-haiku"}, s1.Models)
 		require.NotNil(t, s1.Client)
-		require.Equal(t, "claude-code", s1.Client)
+		require.Equal(t, "claude-code", *s1.Client)
 		require.EqualValues(t, 300, s1.TokenUsageSummary.InputTokens)
 		require.EqualValues(t, 125, s1.TokenUsageSummary.OutputTokens)
 		require.NotNil(t, s1.LastPrompt)
