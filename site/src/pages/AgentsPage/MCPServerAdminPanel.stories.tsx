@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { MCPServerAdminPanel } from "./MCPServerAdminPanel";
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -103,6 +104,12 @@ const setupMCPSpies = (state: { servers: TypesGen.MCPServerConfig[] }) => {
 const meta: Meta<typeof MCPServerAdminPanel> = {
 	title: "pages/AgentsPage/MCPServerAdminPanel",
 	component: MCPServerAdminPanel,
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/mcp-servers" },
+			routing: { path: "/agents/settings/mcp-servers" },
+		}),
+	},
 };
 
 export default meta;

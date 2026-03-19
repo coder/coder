@@ -24,6 +24,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { useFormik } from "formik";
 import {
 	CheckCircleIcon,
 	ChevronLeftIcon,
@@ -35,7 +36,6 @@ import {
 } from "lucide-react";
 import {
 	type FC,
-	type FormEvent,
 	type ReactNode,
 	useCallback,
 	useId,
@@ -43,6 +43,7 @@ import {
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useSearchParams } from "react-router";
 import { cn } from "utils/cn";
 import { SectionHeader } from "./SectionHeader";
 
@@ -252,6 +253,60 @@ const ServerList: FC<ServerListProps> = ({
 
 // ── Server Form ────────────────────────────────────────────────
 
+interface MCPServerFormValues {
+	displayName: string;
+	slug: string;
+	slugTouched: boolean;
+	description: string;
+	iconURL: string;
+	url: string;
+	transport: string;
+	authType: string;
+	oauth2ClientID: string;
+	oauth2ClientSecret: string;
+	oauth2SecretTouched: boolean;
+	oauth2AuthURL: string;
+	oauth2TokenURL: string;
+	oauth2Scopes: string;
+	apiKeyHeader: string;
+	apiKeyValue: string;
+	apiKeyTouched: boolean;
+	availability: string;
+	enabled: boolean;
+	toolAllowList: string;
+	toolDenyList: string;
+	customHeaders: Array<{ key: string; value: string }>;
+	customHeadersTouched: boolean;
+}
+
+const buildInitialValues = (
+	server: TypesGen.MCPServerConfig | null,
+): MCPServerFormValues => ({
+	displayName: server?.display_name ?? "",
+	slug: server?.slug ?? "",
+	slugTouched: false,
+	description: server?.description ?? "",
+	iconURL: server?.icon_url ?? "",
+	url: server?.url ?? "",
+	transport: server?.transport ?? "streamable_http",
+	authType: server?.auth_type ?? "none",
+	oauth2ClientID: server?.oauth2_client_id ?? "",
+	oauth2ClientSecret: server?.has_oauth2_secret ? SECRET_PLACEHOLDER : "",
+	oauth2SecretTouched: false,
+	oauth2AuthURL: server?.oauth2_auth_url ?? "",
+	oauth2TokenURL: server?.oauth2_token_url ?? "",
+	oauth2Scopes: server?.oauth2_scopes ?? "",
+	apiKeyHeader: server?.api_key_header ?? "",
+	apiKeyValue: server?.has_api_key ? SECRET_PLACEHOLDER : "",
+	apiKeyTouched: false,
+	availability: server?.availability ?? "default_off",
+	enabled: server?.enabled ?? true,
+	toolAllowList: joinList(server?.tool_allow_list),
+	toolDenyList: joinList(server?.tool_deny_list),
+	customHeaders: [],
+	customHeadersTouched: false,
+});
+
 interface ServerFormProps {
 	server: TypesGen.MCPServerConfig | null;
 	isSaving: boolean;
@@ -274,171 +329,63 @@ const ServerForm: FC<ServerFormProps> = ({
 }) => {
 	const formId = useId();
 	const isEditing = server !== null;
-
-	// ── Local state ─────────────────────────────────────────
-	const [displayName, setDisplayName] = useState(server?.display_name ?? "");
-	const [slug, setSlug] = useState(server?.slug ?? "");
-	const [slugTouched, setSlugTouched] = useState(false);
-	const [description, setDescription] = useState(server?.description ?? "");
-	const [iconURL, setIconURL] = useState(server?.icon_url ?? "");
-	const [url, setURL] = useState(server?.url ?? "");
-	const [transport, setTransport] = useState(
-		server?.transport ?? "streamable_http",
-	);
-	const [authType, setAuthType] = useState(server?.auth_type ?? "none");
-	const [oauth2ClientID, setOauth2ClientID] = useState(
-		server?.oauth2_client_id ?? "",
-	);
-	const [oauth2ClientSecret, setOauth2ClientSecret] = useState(
-		server?.has_oauth2_secret ? SECRET_PLACEHOLDER : "",
-	);
-	const [oauth2SecretTouched, setOauth2SecretTouched] = useState(false);
-	const [oauth2AuthURL, setOauth2AuthURL] = useState(
-		server?.oauth2_auth_url ?? "",
-	);
-	const [oauth2TokenURL, setOauth2TokenURL] = useState(
-		server?.oauth2_token_url ?? "",
-	);
-	const [oauth2Scopes, setOauth2Scopes] = useState(server?.oauth2_scopes ?? "");
-	const [apiKeyHeader, setApiKeyHeader] = useState(
-		server?.api_key_header ?? "",
-	);
-	const [apiKeyValue, setApiKeyValue] = useState(
-		server?.has_api_key ? SECRET_PLACEHOLDER : "",
-	);
-	const [apiKeyTouched, setApiKeyTouched] = useState(false);
-	const [availability, setAvailability] = useState(
-		server?.availability ?? "default_off",
-	);
-	const [enabled, setEnabled] = useState(server?.enabled ?? true);
-	const [toolAllowList, setToolAllowList] = useState(
-		joinList(server?.tool_allow_list),
-	);
-	const [toolDenyList, setToolDenyList] = useState(
-		joinList(server?.tool_deny_list),
-	);
-	const [customHeaders, setCustomHeaders] = useState<
-		Array<{ key: string; value: string }>
-	>([]);
-	const [customHeadersTouched, setCustomHeadersTouched] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-	const handleDisplayNameChange = useCallback(
-		(value: string) => {
-			setDisplayName(value);
-			if (!slugTouched) {
-				setSlug(slugify(value));
-			}
-		},
-		[slugTouched],
-	);
-
-	const handleSlugChange = useCallback((value: string) => {
-		setSlugTouched(true);
-		setSlug(value);
-	}, []);
-
-	const handleAddCustomHeader = useCallback(() => {
-		setCustomHeadersTouched(true);
-		setCustomHeaders((prev) => [...prev, { key: "", value: "" }]);
-	}, []);
-
-	const handleRemoveCustomHeader = useCallback((index: number) => {
-		setCustomHeadersTouched(true);
-		setCustomHeaders((prev) => prev.filter((_, i) => i !== index));
-	}, []);
-
-	const handleUpdateCustomHeader = useCallback(
-		(index: number, field: "key" | "value", val: string) => {
-			setCustomHeadersTouched(true);
-			setCustomHeaders((prev) =>
-				prev.map((h, i) => (i === index ? { ...h, [field]: val } : h)),
-			);
-		},
-		[],
-	);
-
-	const handleSubmit = useCallback(
-		async (e: FormEvent) => {
-			e.preventDefault();
-
+	const form = useFormik<MCPServerFormValues>({
+		initialValues: buildInitialValues(server),
+		onSubmit: async (values) => {
 			const effectiveOAuth2Secret =
-				oauth2SecretTouched && oauth2ClientSecret !== SECRET_PLACEHOLDER
-					? oauth2ClientSecret
+				values.oauth2SecretTouched &&
+				values.oauth2ClientSecret !== SECRET_PLACEHOLDER
+					? values.oauth2ClientSecret
 					: undefined;
 			const effectiveApiKeyValue =
-				apiKeyTouched && apiKeyValue !== SECRET_PLACEHOLDER
-					? apiKeyValue
+				values.apiKeyTouched && values.apiKeyValue !== SECRET_PLACEHOLDER
+					? values.apiKeyValue
 					: undefined;
 
 			const req: TypesGen.CreateMCPServerConfigRequest = {
-				display_name: displayName.trim(),
-				slug: slug.trim(),
-				description: description.trim(),
-				icon_url: iconURL.trim(),
-				url: url.trim(),
-				transport,
-				auth_type: authType,
-				availability,
-				enabled,
-				...(authType === "oauth2" && {
-					oauth2_client_id: oauth2ClientID.trim(),
+				display_name: values.displayName.trim(),
+				slug: values.slug.trim(),
+				description: values.description.trim(),
+				icon_url: values.iconURL.trim(),
+				url: values.url.trim(),
+				transport: values.transport,
+				auth_type: values.authType,
+				availability: values.availability,
+				enabled: values.enabled,
+				...(values.authType === "oauth2" && {
+					oauth2_client_id: values.oauth2ClientID.trim(),
 					oauth2_client_secret: effectiveOAuth2Secret,
-					oauth2_auth_url: oauth2AuthURL.trim() || undefined,
-					oauth2_token_url: oauth2TokenURL.trim() || undefined,
-					oauth2_scopes: oauth2Scopes.trim() || undefined,
+					oauth2_auth_url: values.oauth2AuthURL.trim() || undefined,
+					oauth2_token_url: values.oauth2TokenURL.trim() || undefined,
+					oauth2_scopes: values.oauth2Scopes.trim() || undefined,
 				}),
-				...(authType === "api_key" && {
-					api_key_header: apiKeyHeader.trim() || undefined,
+				...(values.authType === "api_key" && {
+					api_key_header: values.apiKeyHeader.trim() || undefined,
 					api_key_value: effectiveApiKeyValue,
 				}),
-				...(authType === "custom_headers" &&
-					customHeadersTouched && {
+				...(values.authType === "custom_headers" &&
+					values.customHeadersTouched && {
 						custom_headers: Object.fromEntries(
-							customHeaders
+							values.customHeaders
 								.filter((h) => h.key.trim() !== "")
 								.map((h) => [h.key.trim(), h.value]),
 						),
 					}),
-				tool_allow_list: splitList(toolAllowList),
-				tool_deny_list: splitList(toolDenyList),
+				tool_allow_list: splitList(values.toolAllowList),
+				tool_deny_list: splitList(values.toolDenyList),
 			};
 
 			await onSave(req, server?.id);
 		},
-		[
-			displayName,
-			slug,
-			description,
-			iconURL,
-			url,
-			transport,
-			authType,
-			oauth2ClientID,
-			oauth2ClientSecret,
-			oauth2SecretTouched,
-			oauth2AuthURL,
-			oauth2TokenURL,
-			oauth2Scopes,
-			apiKeyHeader,
-			apiKeyValue,
-			apiKeyTouched,
-			customHeaders,
-			customHeadersTouched,
-			availability,
-			enabled,
-			toolAllowList,
-			toolDenyList,
-			server,
-			onSave,
-		],
-	);
+	});
 
 	const isDisabled = isSaving || isDeleting;
 	const canSubmit =
-		displayName.trim() !== "" &&
-		slug.trim() !== "" &&
-		url.trim() !== "" &&
+		form.values.displayName.trim() !== "" &&
+		form.values.slug.trim() !== "" &&
+		form.values.url.trim() !== "" &&
 		!isDisabled;
 
 	return (
@@ -456,14 +403,19 @@ const ServerForm: FC<ServerFormProps> = ({
 			{/* Header with icon + editable name + enabled toggle */}
 			<div className="flex items-center gap-3">
 				<MCPServerIcon
-					iconUrl={iconURL}
-					name={displayName || "New Server"}
+					iconUrl={form.values.iconURL}
+					name={form.values.displayName || "New Server"}
 					className="h-8 w-8"
 				/>
 				<input
 					type="text"
-					value={displayName}
-					onChange={(e) => handleDisplayNameChange(e.target.value)}
+					value={form.values.displayName}
+					onChange={(e) => {
+						form.setFieldValue("displayName", e.target.value);
+						if (!form.values.slugTouched) {
+							form.setFieldValue("slug", slugify(e.target.value));
+						}
+					}}
 					disabled={isDisabled}
 					className="m-0 min-w-0 flex-1 border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
 					placeholder="Server display name"
@@ -473,15 +425,17 @@ const ServerForm: FC<ServerFormProps> = ({
 					<TooltipTrigger asChild>
 						<span className="ml-auto inline-flex">
 							<Switch
-								checked={enabled}
-								onCheckedChange={setEnabled}
+								checked={form.values.enabled}
+								onCheckedChange={(v) => {
+									form.setFieldValue("enabled", v);
+								}}
 								aria-label="Enabled"
 								disabled={isDisabled}
 							/>
 						</span>
 					</TooltipTrigger>
 					<TooltipContent side="bottom">
-						{enabled ? "Disable" : "Enable"} this server
+						{form.values.enabled ? "Disable" : "Enable"} this server
 					</TooltipContent>
 				</Tooltip>
 			</div>
@@ -489,7 +443,7 @@ const ServerForm: FC<ServerFormProps> = ({
 
 			<form
 				id={formId}
-				onSubmit={(e) => void handleSubmit(e)}
+				onSubmit={form.handleSubmit}
 				className="flex flex-1 flex-col"
 				autoComplete="off"
 			>
@@ -507,8 +461,11 @@ const ServerForm: FC<ServerFormProps> = ({
 							<Input
 								id={`${formId}-slug`}
 								className="h-9 text-[13px]"
-								value={slug}
-								onChange={(e) => handleSlugChange(e.target.value)}
+								value={form.values.slug}
+								onChange={(e) => {
+									form.setFieldValue("slugTouched", true);
+									form.setFieldValue("slug", e.target.value);
+								}}
 								placeholder="e.g. sentry"
 								disabled={isDisabled}
 							/>
@@ -521,8 +478,7 @@ const ServerForm: FC<ServerFormProps> = ({
 							<Input
 								id={`${formId}-desc`}
 								className="h-9 text-[13px]"
-								value={description}
-								onChange={(e) => setDescription(e.target.value)}
+								{...form.getFieldProps("description")}
 								placeholder="Optional description"
 								disabled={isDisabled}
 							/>
@@ -533,9 +489,13 @@ const ServerForm: FC<ServerFormProps> = ({
 						description="Pick an emoji or paste an image URL."
 					>
 						<IconField
-							value={iconURL}
-							onChange={(e) => setIconURL(e.target.value)}
-							onPickEmoji={(value) => setIconURL(value)}
+							value={form.values.iconURL}
+							onChange={(e) => {
+								form.setFieldValue("iconURL", e.target.value);
+							}}
+							onPickEmoji={(value) => {
+								form.setFieldValue("iconURL", value);
+							}}
 							disabled={isDisabled}
 						/>
 					</Field>
@@ -551,8 +511,7 @@ const ServerForm: FC<ServerFormProps> = ({
 							<Input
 								id={`${formId}-url`}
 								className="h-9 text-[13px]"
-								value={url}
-								onChange={(e) => setURL(e.target.value)}
+								{...form.getFieldProps("url")}
 								placeholder="https://mcp.example.com/sse"
 								disabled={isDisabled}
 							/>
@@ -560,8 +519,10 @@ const ServerForm: FC<ServerFormProps> = ({
 
 						<Field label="Transport" htmlFor={`${formId}-transport`}>
 							<Select
-								value={transport}
-								onValueChange={setTransport}
+								value={form.values.transport}
+								onValueChange={(v) => {
+									form.setFieldValue("transport", v);
+								}}
 								disabled={isDisabled}
 							>
 								<SelectTrigger
@@ -588,8 +549,10 @@ const ServerForm: FC<ServerFormProps> = ({
 						description="How users authenticate with this MCP server."
 					>
 						<Select
-							value={authType}
-							onValueChange={setAuthType}
+							value={form.values.authType}
+							onValueChange={(v) => {
+								form.setFieldValue("authType", v);
+							}}
 							disabled={isDisabled}
 						>
 							<SelectTrigger
@@ -607,7 +570,7 @@ const ServerForm: FC<ServerFormProps> = ({
 							</SelectContent>
 						</Select>
 					</Field>
-					{authType === "oauth2" && (
+					{form.values.authType === "oauth2" && (
 						<div className="space-y-4 rounded-lg border border-border bg-surface-secondary/30 p-4">
 							<p className="m-0 text-xs text-content-secondary">
 								Register a client with the external MCP server's OAuth2 provider
@@ -620,8 +583,7 @@ const ServerForm: FC<ServerFormProps> = ({
 									<Input
 										id={`${formId}-oauth-id`}
 										className="h-9 text-[13px]"
-										value={oauth2ClientID}
-										onChange={(e) => setOauth2ClientID(e.target.value)}
+										{...form.getFieldProps("oauth2ClientID")}
 										disabled={isDisabled}
 									/>
 								</Field>
@@ -635,18 +597,18 @@ const ServerForm: FC<ServerFormProps> = ({
 										data-lpignore="true"
 										data-form-type="other"
 										data-bwignore
-										value={oauth2ClientSecret}
+										value={form.values.oauth2ClientSecret}
 										onChange={(e) => {
-											setOauth2SecretTouched(true);
-											setOauth2ClientSecret(e.target.value);
+											form.setFieldValue("oauth2SecretTouched", true);
+											form.setFieldValue("oauth2ClientSecret", e.target.value);
 										}}
 										onFocus={() => {
 											if (
-												!oauth2SecretTouched &&
-												oauth2ClientSecret === SECRET_PLACEHOLDER
+												!form.values.oauth2SecretTouched &&
+												form.values.oauth2ClientSecret === SECRET_PLACEHOLDER
 											) {
-												setOauth2ClientSecret("");
-												setOauth2SecretTouched(true);
+												form.setFieldValue("oauth2ClientSecret", "");
+												form.setFieldValue("oauth2SecretTouched", true);
 											}
 										}}
 										disabled={isDisabled}
@@ -661,8 +623,7 @@ const ServerForm: FC<ServerFormProps> = ({
 									<Input
 										id={`${formId}-oauth-auth-url`}
 										className="h-9 text-[13px]"
-										value={oauth2AuthURL}
-										onChange={(e) => setOauth2AuthURL(e.target.value)}
+										{...form.getFieldProps("oauth2AuthURL")}
 										placeholder="https://provider.com/oauth2/authorize"
 										disabled={isDisabled}
 									/>
@@ -671,8 +632,7 @@ const ServerForm: FC<ServerFormProps> = ({
 									<Input
 										id={`${formId}-oauth-token-url`}
 										className="h-9 text-[13px]"
-										value={oauth2TokenURL}
-										onChange={(e) => setOauth2TokenURL(e.target.value)}
+										{...form.getFieldProps("oauth2TokenURL")}
 										placeholder="https://provider.com/oauth2/token"
 										disabled={isDisabled}
 									/>
@@ -682,22 +642,20 @@ const ServerForm: FC<ServerFormProps> = ({
 								<Input
 									id={`${formId}-oauth-scopes`}
 									className="h-9 text-[13px]"
-									value={oauth2Scopes}
-									onChange={(e) => setOauth2Scopes(e.target.value)}
+									{...form.getFieldProps("oauth2Scopes")}
 									placeholder="read write"
 									disabled={isDisabled}
 								/>
 							</Field>
 						</div>
 					)}
-					{authType === "api_key" && (
+					{form.values.authType === "api_key" && (
 						<div className="grid items-start gap-4 rounded-lg border border-border bg-surface-secondary/30 p-4 sm:grid-cols-2">
 							<Field label="Header Name" htmlFor={`${formId}-apikey-header`}>
 								<Input
 									id={`${formId}-apikey-header`}
 									className="h-9 text-[13px]"
-									value={apiKeyHeader}
-									onChange={(e) => setApiKeyHeader(e.target.value)}
+									{...form.getFieldProps("apiKeyHeader")}
 									placeholder="Authorization"
 									disabled={isDisabled}
 								/>
@@ -712,15 +670,18 @@ const ServerForm: FC<ServerFormProps> = ({
 									data-lpignore="true"
 									data-form-type="other"
 									data-bwignore
-									value={apiKeyValue}
+									value={form.values.apiKeyValue}
 									onChange={(e) => {
-										setApiKeyTouched(true);
-										setApiKeyValue(e.target.value);
+										form.setFieldValue("apiKeyTouched", true);
+										form.setFieldValue("apiKeyValue", e.target.value);
 									}}
 									onFocus={() => {
-										if (!apiKeyTouched && apiKeyValue === SECRET_PLACEHOLDER) {
-											setApiKeyValue("");
-											setApiKeyTouched(true);
+										if (
+											!form.values.apiKeyTouched &&
+											form.values.apiKeyValue === SECRET_PLACEHOLDER
+										) {
+											form.setFieldValue("apiKeyValue", "");
+											form.setFieldValue("apiKeyTouched", true);
 										}
 									}}
 									disabled={isDisabled}
@@ -728,23 +689,30 @@ const ServerForm: FC<ServerFormProps> = ({
 							</Field>
 						</div>
 					)}
-					{authType === "custom_headers" && (
+					{form.values.authType === "custom_headers" && (
 						<div className="space-y-3 rounded-lg border border-border bg-surface-secondary/30 p-4">
-							{server?.has_custom_headers && !customHeadersTouched && (
-								<p className="m-0 text-xs text-content-secondary">
-									This server has custom headers configured. Add headers below
-									to replace them.
-								</p>
-							)}
-							{customHeaders.map((header, index) => (
+							{server?.has_custom_headers &&
+								!form.values.customHeadersTouched && (
+									<p className="m-0 text-xs text-content-secondary">
+										This server has custom headers configured. Add headers below
+										to replace them.
+									</p>
+								)}
+							{form.values.customHeaders.map((header, index) => (
 								<div key={index} className="flex items-start gap-2">
 									<div className="grid flex-1 items-start gap-2 sm:grid-cols-2">
 										<Input
 											className="h-9 text-[13px]"
 											value={header.key}
-											onChange={(e) =>
-												handleUpdateCustomHeader(index, "key", e.target.value)
-											}
+											onChange={(e) => {
+												form.setFieldValue("customHeadersTouched", true);
+												const updated = [...form.values.customHeaders];
+												updated[index] = {
+													...updated[index],
+													key: e.target.value,
+												};
+												form.setFieldValue("customHeaders", updated);
+											}}
 											placeholder="Header name"
 											disabled={isDisabled}
 											aria-label={`Header ${index + 1} name`}
@@ -758,9 +726,15 @@ const ServerForm: FC<ServerFormProps> = ({
 											data-form-type="other"
 											data-bwignore
 											value={header.value}
-											onChange={(e) =>
-												handleUpdateCustomHeader(index, "value", e.target.value)
-											}
+											onChange={(e) => {
+												form.setFieldValue("customHeadersTouched", true);
+												const updated = [...form.values.customHeaders];
+												updated[index] = {
+													...updated[index],
+													value: e.target.value,
+												};
+												form.setFieldValue("customHeaders", updated);
+											}}
 											placeholder="Header value"
 											disabled={isDisabled}
 											aria-label={`Header ${index + 1} value`}
@@ -771,7 +745,13 @@ const ServerForm: FC<ServerFormProps> = ({
 										size="icon"
 										type="button"
 										className="mt-0 h-9 w-9 shrink-0"
-										onClick={() => handleRemoveCustomHeader(index)}
+										onClick={() => {
+											form.setFieldValue("customHeadersTouched", true);
+											form.setFieldValue(
+												"customHeaders",
+												form.values.customHeaders.filter((_, i) => i !== index),
+											);
+										}}
 										disabled={isDisabled}
 										aria-label={`Remove header ${index + 1}`}
 									>
@@ -783,7 +763,13 @@ const ServerForm: FC<ServerFormProps> = ({
 								variant="outline"
 								size="sm"
 								type="button"
-								onClick={handleAddCustomHeader}
+								onClick={() => {
+									form.setFieldValue("customHeadersTouched", true);
+									form.setFieldValue("customHeaders", [
+										...form.values.customHeaders,
+										{ key: "", value: "" },
+									]);
+								}}
 								disabled={isDisabled}
 							>
 								<PlusIcon className="h-4 w-4" />
@@ -799,8 +785,10 @@ const ServerForm: FC<ServerFormProps> = ({
 						description="Controls how this server appears in new chats."
 					>
 						<Select
-							value={availability}
-							onValueChange={setAvailability}
+							value={form.values.availability}
+							onValueChange={(v) => {
+								form.setFieldValue("availability", v);
+							}}
 							disabled={isDisabled}
 						>
 							<SelectTrigger
@@ -834,8 +822,7 @@ const ServerForm: FC<ServerFormProps> = ({
 							<Input
 								id={`${formId}-allow-list`}
 								className="h-9 text-[13px]"
-								value={toolAllowList}
-								onChange={(e) => setToolAllowList(e.target.value)}
+								{...form.getFieldProps("toolAllowList")}
 								placeholder="tool1, tool2"
 								disabled={isDisabled}
 							/>
@@ -849,8 +836,7 @@ const ServerForm: FC<ServerFormProps> = ({
 							<Input
 								id={`${formId}-deny-list`}
 								className="h-9 text-[13px]"
-								value={toolDenyList}
-								onChange={(e) => setToolDenyList(e.target.value)}
+								{...form.getFieldProps("toolDenyList")}
 								placeholder="tool3, tool4"
 								disabled={isDisabled}
 							/>
@@ -930,17 +916,14 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 	sectionBadge,
 }) => {
 	const queryClient = useQueryClient();
+	const [searchParams, setSearchParams] = useSearchParams();
+	const serverId = searchParams.get("server");
 
 	const serversQuery = useQuery(mcpServerConfigs());
 
 	const createMut = useMutation(createMCPServerConfigMutation(queryClient));
 	const updateMut = useMutation(updateMCPServerConfigMutation(queryClient));
 	const deleteMut = useMutation(deleteMCPServerConfigMutation(queryClient));
-
-	type View =
-		| { mode: "list" }
-		| { mode: "form"; server: TypesGen.MCPServerConfig | null };
-	const [view, setView] = useState<View>({ mode: "list" });
 
 	const servers = useMemo(
 		() =>
@@ -949,6 +932,16 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 				.sort((a, b) => a.display_name.localeCompare(b.display_name)),
 		[serversQuery.data],
 	);
+
+	const editingServer = useMemo(
+		() =>
+			serverId && serverId !== "new"
+				? (servers.find((s) => s.id === serverId) ?? null)
+				: null,
+		[serverId, servers],
+	);
+	const isFormView = serverId !== null;
+	const isCreating = serverId === "new";
 
 	const handleSave = useCallback(
 		async (req: TypesGen.CreateMCPServerConfigRequest, id?: string) => {
@@ -967,24 +960,24 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 				} else {
 					await createMut.mutateAsync(req);
 				}
-				setView({ mode: "list" });
+				setSearchParams({});
 			} catch {
 				// Error surfaced via mutation error state.
 			}
 		},
-		[createMut, updateMut],
+		[createMut, updateMut, setSearchParams],
 	);
 
 	const handleDelete = useCallback(
 		async (id: string) => {
 			try {
 				await deleteMut.mutateAsync(id);
-				setView({ mode: "list" });
+				setSearchParams({});
 			} catch {
 				// Error surfaced via mutation error state.
 			}
 		},
-		[deleteMut],
+		[deleteMut, setSearchParams],
 	);
 
 	if (serversQuery.isLoading) {
@@ -993,23 +986,24 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 
 	return (
 		<div className="flex min-h-full flex-col space-y-3">
-			{view.mode === "list" ? (
+			{!isFormView ? (
 				<ServerList
 					servers={servers}
-					onSelect={(server) => setView({ mode: "form", server })}
-					onAdd={() => setView({ mode: "form", server: null })}
+					onSelect={(server) => setSearchParams({ server: server.id })}
+					onAdd={() => setSearchParams({ server: "new" })}
 					sectionLabel={sectionLabel}
 					sectionDescription={sectionDescription}
 					sectionBadge={sectionBadge}
 				/>
 			) : (
 				<ServerForm
-					server={view.server}
+					key={serverId}
+					server={isCreating ? null : editingServer}
 					isSaving={createMut.isPending || updateMut.isPending}
 					isDeleting={deleteMut.isPending}
 					onSave={handleSave}
 					onDelete={handleDelete}
-					onBack={() => setView({ mode: "list" })}
+					onBack={() => setSearchParams({})}
 				/>
 			)}
 
