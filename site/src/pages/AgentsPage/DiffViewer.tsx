@@ -125,10 +125,34 @@ const STICKY_HEADER_CSS = [
 	"  color: hsl(var(--content-primary));",
 	"}",
 
-	// Hide the library's built-in change-type SVG icons. They
-	// clash with Coder's Lucide icon set and the information is
-	// already conveyed by the file tree badges and diff content.
+	// Hide the library's built-in change-type SVG icons and
+	// replace them with a single-letter badge (A/D/M/R) via
+	// CSS-generated content. The letter mirrors the file tree
+	// sidebar and works even when the tree is hidden in narrow
+	// layouts.
 	"[data-change-icon] { display: none !important; }",
+	"[data-diffs-header] [data-header-content]::before {",
+	"  font-size: 11px;",
+	"  font-weight: 600;",
+	"  flex-shrink: 0;",
+	"}",
+	"[data-diffs-header][data-change-type='new'] [data-header-content]::before {",
+	"  content: 'A';",
+	"  color: hsl(var(--git-added));",
+	"}",
+	"[data-diffs-header][data-change-type='change'] [data-header-content]::before {",
+	"  content: 'M';",
+	"  color: hsl(var(--git-modified));",
+	"}",
+	"[data-diffs-header][data-change-type='deleted'] [data-header-content]::before {",
+	"  content: 'D';",
+	"  color: hsl(var(--git-deleted));",
+	"}",
+	"[data-diffs-header][data-change-type='rename-pure'] [data-header-content]::before,",
+	"[data-diffs-header][data-change-type='rename-changed'] [data-header-content]::before {",
+	"  content: 'R';",
+	"  color: hsl(var(--git-modified));",
+	"}",
 
 	// Stat counts styled as compact pill badges matching the
 	// DiffStatBadge component used in the PR header.

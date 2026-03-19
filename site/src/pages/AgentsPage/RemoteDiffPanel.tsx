@@ -336,7 +336,11 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 				side?: "additions" | "deletions";
 			} | null,
 		) => {
-			if (!range || range.start === range.end) return;
+			if (!range) {
+				setActiveCommentBox(null);
+				return;
+			}
+			if (range.start === range.end) return;
 			const side = range.side ?? "additions";
 			setActiveCommentBox({
 				fileName,
