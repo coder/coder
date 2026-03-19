@@ -448,7 +448,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param groupName path string true "Group name"
 // @Param q query string false "Member search query"
-// @Success 200 {object} codersdk.Group
+// @Success 200 {object} codersdk.GroupMembersResponse
 // @Router /organizations/{organization}/groups/{groupName}/members [get]
 func (api *API) groupMembersByOrganization(rw http.ResponseWriter, r *http.Request) {
 	api.groupMembers(rw, r)
