@@ -890,9 +890,11 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			}
 
 			if !param.Validation[0].MaxDisabled {
+				// #nosec G115 - Safe conversion as the number is expected to be within int32 range
 				protoParam.ValidationMax = ptr.Ref(int32(param.Validation[0].Max))
 			}
 			if !param.Validation[0].MinDisabled {
+				// #nosec G115 - Safe conversion as the number is expected to be within int32 range
 				protoParam.ValidationMin = ptr.Ref(int32(param.Validation[0].Min))
 			}
 			protoParam.ValidationMonotonic = param.Validation[0].Monotonic
