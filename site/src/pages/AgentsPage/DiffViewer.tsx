@@ -107,17 +107,50 @@ const FILE_TREE_THRESHOLD = 1000;
  * file headers sticky and adjust metadata layout.
  */
 const STICKY_HEADER_CSS = [
+	// Layout and sticky behavior.
 	"[data-diffs-header] {",
 	"  position: sticky; top: 0; z-index: 10;",
 	"  font-size: 13px;",
 	"  border-bottom: 1px solid hsl(var(--border-default));",
 	"  background-color: hsl(var(--surface-secondary)) !important;",
 	"}",
-	"[data-diffs-header] [data-metadata] { flex-direction: row-reverse; }",
+
+	// File path in monospace so it reads like a code reference.
+	"[data-diffs-header] [data-title] {",
+	"  font-family: var(--diffs-font-family, var(--diffs-font-fallback));",
+	"  font-size: 12px;",
+	"  color: hsl(var(--content-primary));",
+	"}",
+
 	// Hide the library's built-in change-type SVG icons. They
 	// clash with Coder's Lucide icon set and the information is
 	// already conveyed by the file tree badges and diff content.
 	"[data-change-icon] { display: none !important; }",
+
+	// Stat counts styled as compact pill badges matching the
+	// DiffStatBadge component used in the PR header.
+	"[data-diffs-header] [data-metadata] {",
+	"  flex-direction: row-reverse;",
+	"  gap: 0 !important;",
+	"}",
+	"[data-diffs-header] [data-additions-count],",
+	"[data-diffs-header] [data-deletions-count] {",
+	"  font-family: var(--diffs-font-family, var(--diffs-font-fallback));",
+	"  font-size: 12px;",
+	"  font-weight: 500;",
+	"  line-height: 20px;",
+	"  padding-inline: 6px;",
+	"}",
+	"[data-diffs-header] [data-additions-count] {",
+	"  color: hsl(var(--git-added-bright)) !important;",
+	"  background-color: hsl(var(--surface-git-added));",
+	"  border-radius: 3px 0 0 3px;",
+	"}",
+	"[data-diffs-header] [data-deletions-count] {",
+	"  color: hsl(var(--git-deleted-bright)) !important;",
+	"  background-color: hsl(var(--surface-git-deleted));",
+	"  border-radius: 0 3px 3px 0;",
+	"}",
 ].join(" ");
 
 export type DiffStyle = "unified" | "split";
