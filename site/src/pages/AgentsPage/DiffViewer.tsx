@@ -769,6 +769,50 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	}, [scrollToFile, onScrollToFileComplete]);
 
 	// ---------------------------------------------------------------
+	// Dynamic end-spacer: measure viewport and last file so the
+	// spacer is only as tall as needed to scroll the last file's
+	// header to the top — no more.
+	// ---------------------------------------------------------------
+	const [viewportHeight, setViewportHeight] = useState(0);
+	const [lastFileHeight, setLastFileHeight] = useState(0);
+	const lastFileName = sortedFiles[sortedFiles.length - 1]?.name ?? null;
+
+	// Observe the scroll viewport's visible height. This is a DOM
+	// measurement subscription (ResizeObserver) — useEffect is the
+	// correct tool here.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: sortedFiles.length is an intentional proxy for viewport mount state
+	useEffect(() => {
+		const vp = diffViewportRef.current;
+		if (!vp) return;
+		setViewportHeight(vp.clientHeight);
+		const ro = new ResizeObserver(([entry]) => {
+			setViewportHeight(entry.contentRect.height);
+		});
+		ro.observe(vp);
+		return () => ro.disconnect();
+		// Re-subscribe when sortedFiles.length changes because that
+		// controls whether the ScrollArea (and thus the viewport ref)
+		// is mounted.
+	}, [sortedFiles.length]);
+
+	// Observe the last file element's rendered height.
+	useEffect(() => {
+		if (!lastFileName) return;
+		const el = fileRefs.current.get(lastFileName);
+		if (!el) return;
+		setLastFileHeight(el.getBoundingClientRect().height);
+		const ro = new ResizeObserver(([entry]) => {
+			setLastFileHeight(entry.contentRect.height);
+		});
+		ro.observe(el);
+		return () => ro.disconnect();
+	}, [lastFileName]);
+
+	// Only as tall as needed to let the last file's header reach
+	// the top of the scroll viewport — no larger.
+	const endSpacerHeight = Math.max(0, viewportHeight - lastFileHeight);
+
+	// ---------------------------------------------------------------
 	// Loading state
 	// ---------------------------------------------------------------
 	if (isLoading) {
@@ -865,8 +909,12 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 									/>
 								</div>
 							))}
-							{/* Spacer so the last file can scroll fully to the top. */}
-							<div className="h-[calc(100vh-100px)]" />
+							{/* Spacer so the last file can scroll fully to the top,
+								   sized dynamically so tall diffs don't create a huge
+								   empty zone at the bottom. */}
+							{endSpacerHeight > 0 && (
+								<div style={{ height: endSpacerHeight }} />
+							)}
 						</div>
 					</ScrollArea>
 				</div>
