@@ -1175,11 +1175,23 @@ func partsToMessageParts(
 	for _, part := range parts {
 		switch part.Type {
 		case codersdk.ChatMessagePartTypeText:
+			// Anthropic rejects empty text content blocks with
+			// "text content blocks must be non-empty". Empty parts
+			// can arise when a stream sends TextStart/TextEnd with
+			// no delta in between. We filter them here rather than
+			// at persistence time to preserve the raw record.
+			if strings.TrimSpace(part.Text) == "" {
+				continue
+			}
 			result = append(result, fantasy.TextPart{
 				Text:            part.Text,
 				ProviderOptions: providerMetadataToOptions(logger, part.ProviderMetadata),
 			})
 		case codersdk.ChatMessagePartTypeReasoning:
+			// Same guard as text parts above.
+			if strings.TrimSpace(part.Text) == "" {
+				continue
+			}
 			result = append(result, fantasy.ReasoningPart{
 				Text:            part.Text,
 				ProviderOptions: providerMetadataToOptions(logger, part.ProviderMetadata),

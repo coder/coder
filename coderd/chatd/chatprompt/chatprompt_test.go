@@ -1646,3 +1646,71 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 		require.Equal(t, "has\x00nul", decoded[1].Text)
 	})
 }
+
+func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T) {
+	t.Parallel()
+
+	// Build parts that mix empty/whitespace text and reasoning with
+	// valid content and tool-call/tool-result parts. The empty and
+	// whitespace-only text/reasoning parts should be filtered out by
+	// partsToMessageParts, while tool-call and tool-result parts
+	// must pass through unconditionally.
+	parts := []codersdk.ChatMessagePart{
+		codersdk.ChatMessageText(""),                     // empty text — filtered
+		codersdk.ChatMessageText("   \t\n "),             // whitespace text — filtered
+		codersdk.ChatMessageReasoning(""),                // empty reasoning — filtered
+		codersdk.ChatMessageReasoning("  \n"),            // whitespace reasoning — filtered
+		codersdk.ChatMessageText("hello"),                // valid text — kept
+		codersdk.ChatMessageReasoning("thinking deeply"), // valid reasoning — kept
+		codersdk.ChatMessageToolCall("call-1", "my_tool", json.RawMessage(`{"x":1}`)),
+		codersdk.ChatMessageToolResult("call-1", "my_tool", json.RawMessage(`{"ok":true}`), false),
+	}
+
+	encoded, err := chatprompt.MarshalParts(parts)
+	require.NoError(t, err)
+
+	// Use a user-role message so ConvertMessagesWithFiles routes
+	// through partsToMessageParts without assistant normalization.
+	msg := database.ChatMessage{
+		Role:           database.ChatMessageRoleUser,
+		Visibility:     database.ChatMessageVisibilityBoth,
+		Content:        encoded,
+		ContentVersion: chatprompt.CurrentContentVersion,
+	}
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{msg},
+		nil,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+
+	resultParts := prompt[0].Content
+
+	// Expect exactly 4 parts: text, reasoning, tool-call, tool-result.
+	// The 4 empty/whitespace parts should have been filtered.
+	require.Len(t, resultParts, 4, "expected 4 parts after filtering empty text/reasoning")
+
+	// Part 0: valid text.
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](resultParts[0])
+	require.True(t, ok, "expected TextPart at index 0")
+	require.Equal(t, "hello", textPart.Text)
+
+	// Part 1: valid reasoning.
+	reasoningPart, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](resultParts[1])
+	require.True(t, ok, "expected ReasoningPart at index 1")
+	require.Equal(t, "thinking deeply", reasoningPart.Text)
+
+	// Part 2: tool-call (unaffected by the filter).
+	toolCallPart, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](resultParts[2])
+	require.True(t, ok, "expected ToolCallPart at index 2")
+	require.Equal(t, "call-1", toolCallPart.ToolCallID)
+	require.Equal(t, "my_tool", toolCallPart.ToolName)
+
+	// Part 3: tool-result (unaffected by the filter).
+	toolResultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](resultParts[3])
+	require.True(t, ok, "expected ToolResultPart at index 3")
+	require.Equal(t, "call-1", toolResultPart.ToolCallID)
+}
