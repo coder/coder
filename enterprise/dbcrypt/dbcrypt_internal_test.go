@@ -901,8 +901,8 @@ func requireMCPServerConfigDecrypted(
 // requireMCPServerConfigRawEncrypted reads the config from the raw
 // (unwrapped) store and asserts every secret field is encrypted.
 func requireMCPServerConfigRawEncrypted(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	rawDB database.Store,
 	cfgID uuid.UUID,
 	ciphers []Cipher,
@@ -921,11 +921,11 @@ func TestMCPServerConfigs(t *testing.T) {
 	ctx := context.Background()
 
 	const (
+		//nolint:gosec // test credentials
 		oauthSecret   = "my-oauth-secret"
 		apiKeyValue   = "my-api-key"
 		customHeaders = `{"X-Custom":"header-value"}`
 	)
-
 	// insertConfig is a small helper that creates a user and an MCP
 	// server config through the encrypted store, returning both.
 	insertConfig := func(t *testing.T, crypt *dbCrypt, ciphers []Cipher) database.MCPServerConfig {
@@ -958,7 +958,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
 		cfg := insertConfig(t, crypt, ciphers)
-		requireMCPServerConfigRawEncrypted(t, ctx, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
 	})
 
 	t.Run("GetMCPServerConfigByID", func(t *testing.T) {
@@ -969,7 +969,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		got, err := crypt.GetMCPServerConfigByID(ctx, cfg.ID)
 		require.NoError(t, err)
 		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(t, ctx, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
 	})
 
 	t.Run("GetMCPServerConfigBySlug", func(t *testing.T) {
@@ -980,7 +980,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		got, err := crypt.GetMCPServerConfigBySlug(ctx, cfg.Slug)
 		require.NoError(t, err)
 		requireMCPServerConfigDecrypted(t, got, ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(t, ctx, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
 	})
 
 	t.Run("GetMCPServerConfigs", func(t *testing.T) {
@@ -992,7 +992,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
 		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(t, ctx, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
 	})
 
 	t.Run("GetMCPServerConfigsByIDs", func(t *testing.T) {
@@ -1004,7 +1004,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
 		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(t, ctx, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
 	})
 
 	t.Run("GetEnabledMCPServerConfigs", func(t *testing.T) {
@@ -1016,7 +1016,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
 		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(t, ctx, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
 	})
 
 	t.Run("GetForcedMCPServerConfigs", func(t *testing.T) {
@@ -1028,7 +1028,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, cfgs, 1)
 		requireMCPServerConfigDecrypted(t, cfgs[0], ciphers, oauthSecret, apiKeyValue, customHeaders)
-		requireMCPServerConfigRawEncrypted(t, ctx, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, oauthSecret, apiKeyValue, customHeaders)
 	})
 
 	t.Run("UpdateMCPServerConfig", func(t *testing.T) {
@@ -1037,6 +1037,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		cfg := insertConfig(t, crypt, ciphers)
 
 		const (
+			//nolint:gosec // test credential
 			newSecret  = "updated-oauth-secret"
 			newAPIKey  = "updated-api-key"
 			newHeaders = `{"X-New":"new-value"}`
@@ -1061,7 +1062,7 @@ func TestMCPServerConfigs(t *testing.T) {
 		})
 		require.NoError(t, err)
 		requireMCPServerConfigDecrypted(t, updated, ciphers, newSecret, newAPIKey, newHeaders)
-		requireMCPServerConfigRawEncrypted(t, ctx, db, cfg.ID, ciphers, newSecret, newAPIKey, newHeaders)
+		requireMCPServerConfigRawEncrypted(ctx, t, db, cfg.ID, ciphers, newSecret, newAPIKey, newHeaders)
 	})
 }
 
