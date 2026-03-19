@@ -111,13 +111,16 @@ const STICKY_HEADER_CSS = [
 	"[data-diffs-header] {",
 	"  position: sticky; top: 0; z-index: 10;",
 	"  font-size: 13px;",
+	"  min-height: 32px !important;",
+	"  padding-block: 0 !important;",
+	"  padding-inline: 12px !important;",
 	"  border-bottom: 1px solid hsl(var(--border-default));",
 	"  background-color: hsl(var(--surface-secondary)) !important;",
 	"}",
 
-	// File path in monospace so it reads like a code reference.
+	// Keep the title in the site's sans-serif font, just a
+	// touch smaller than the surrounding header text.
 	"[data-diffs-header] [data-title] {",
-	"  font-family: var(--diffs-font-family, var(--diffs-font-fallback));",
 	"  font-size: 12px;",
 	"  color: hsl(var(--content-primary));",
 	"}",
@@ -140,15 +143,23 @@ const STICKY_HEADER_CSS = [
 	"  font-weight: 500;",
 	"  line-height: 20px;",
 	"  padding-inline: 6px;",
+	"  border-radius: 3px;",
 	"}",
 	"[data-diffs-header] [data-additions-count] {",
 	"  color: hsl(var(--git-added-bright)) !important;",
 	"  background-color: hsl(var(--surface-git-added));",
-	"  border-radius: 3px 0 0 3px;",
 	"}",
 	"[data-diffs-header] [data-deletions-count] {",
 	"  color: hsl(var(--git-deleted-bright)) !important;",
 	"  background-color: hsl(var(--surface-git-deleted));",
+	"}",
+	// When both counts are present, flatten the touching inner
+	// edges so they form one joined badge. DOM order is
+	// [deletions][additions]; row-reverse puts additions left.
+	"[data-deletions-count] + [data-additions-count] {",
+	"  border-radius: 3px 0 0 3px;",
+	"}",
+	"[data-deletions-count]:has(+ [data-additions-count]) {",
 	"  border-radius: 0 3px 3px 0;",
 	"}",
 ].join(" ");
