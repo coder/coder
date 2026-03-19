@@ -206,16 +206,16 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.AIBridgeListSessionsResponse"
                         }
                     }
-                }
-            }
-        },
-        "/aibridge/sessions/{session_id}": {
-            "get": {
+                },
                 "security": [
                     {
                         "CoderSessionToken": []
                     }
-                ],
+                ]
+            }
+        },
+        "/aibridge/sessions/{session_id}": {
+            "get": {
                 "produces": [
                     "application/json"
                 ],
@@ -258,11 +258,7 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.AIBridgeSessionThreadsResponse"
                         }
                     }
-                }
-            }
-        },
-        "/appearance": {
-            "get": {
+                },
                 "security": [
                     {
                         "CoderSessionToken": []
