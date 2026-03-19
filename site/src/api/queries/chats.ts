@@ -560,6 +560,17 @@ export const prInsights = (params?: {
 	staleTime: 60_000,
 });
 
+export const chatUsageLimitStatusKey = [
+	...chatsKey,
+	"usageLimitStatus",
+] as const;
+
+export const chatUsageLimitStatus = () => ({
+	queryKey: chatUsageLimitStatusKey,
+	queryFn: () => API.getChatUsageLimitStatus(),
+	refetchInterval: 60_000,
+});
+
 const chatUsageLimitConfigKey = [...chatsKey, "usageLimitConfig"] as const;
 
 export const chatUsageLimitConfig = () => ({
