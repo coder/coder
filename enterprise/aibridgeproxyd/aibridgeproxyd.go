@@ -73,12 +73,16 @@ var blockedIPRanges = func() []net.IPNet {
 		"198.18.0.0/15",  // RFC 2544: Benchmarking
 		"240.0.0.0/4",    // RFC 1112: Reserved for Future Use
 		"::1/128",        // RFC 4291: Loopback
-		"::ffff:0:0/96",  // RFC 4291: IPv4-mapped IPv6
 		"64:ff9b::/96",   // RFC 6052: NAT64 well-known prefix
 		"64:ff9b:1::/48", // RFC 8215: NAT64 local-use prefix
 		"2002::/16",      // RFC 3056: 6to4
 		"fc00::/7",       // RFC 4193: Unique-Local
 		"fe80::/10",      // RFC 4291: Link-Local Unicast
+
+		// Note: intentionally excluded because Go's net.IPNet.Contains matches
+		// all IPv4 addresses against this range due to internal IPv4-to-IPv6 mapping.
+		// See https://github.com/golang/go/issues/51906
+		// "::ffff:0:0/96",  // RFC 4291: IPv4-mapped IPv6
 	}
 
 	ranges := make([]net.IPNet, 0, len(cidrs))
