@@ -187,7 +187,7 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 // @Security CoderSessionToken
 // @Produce json
 // @Tags AI Bridge
-// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, model, client, started_after, started_before."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, model, client, session_id, started_after, started_before."
 // @Param limit query int false "Page limit"
 // @Param after_session_id query string false "Cursor pagination after session ID (cannot be used with offset)"
 // @Param offset query int false "Offset pagination (cannot be used with after_session_id)"
@@ -244,6 +244,7 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 			Provider:      filter.Provider,
 			Model:         filter.Model,
 			Client:        filter.Client,
+			SessionID:     filter.SessionID,
 		})
 		if err != nil {
 			return xerrors.Errorf("count authorized aibridge sessions: %w", err)

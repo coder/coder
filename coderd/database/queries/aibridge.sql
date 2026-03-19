@@ -441,6 +441,11 @@ WHERE
 		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = @client::text
 		ELSE true
 	END
+	-- Filter session_id
+	AND CASE
+		WHEN @session_id::text != '' THEN aibridge_interceptions.session_id = @session_id::text
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
 	-- @authorize_filter
 ;
@@ -481,6 +486,11 @@ WITH filtered_interceptions AS (
 		-- Filter client
 		AND CASE
 			WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = @client::text
+			ELSE true
+		END
+		-- Filter session_id
+		AND CASE
+			WHEN @session_id::text != '' THEN aibridge_interceptions.session_id = @session_id::text
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions

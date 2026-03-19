@@ -369,6 +369,11 @@ WHERE
 		WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $6::text
 		ELSE true
 	END
+	-- Filter session_id
+	AND CASE
+		WHEN $7::text != '' THEN aibridge_interceptions.session_id = $7::text
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
 	-- @authorize_filter
 `
@@ -380,6 +385,7 @@ type CountAIBridgeSessionsParams struct {
 	Provider      string    `db:"provider" json:"provider"`
 	Model         string    `db:"model" json:"model"`
 	Client        string    `db:"client" json:"client"`
+	SessionID     string    `db:"session_id" json:"session_id"`
 }
 
 func (q *sqlQuerier) CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error) {
@@ -390,6 +396,7 @@ func (q *sqlQuerier) CountAIBridgeSessions(ctx context.Context, arg CountAIBridg
 		arg.Provider,
 		arg.Model,
 		arg.Client,
+		arg.SessionID,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -1177,6 +1184,11 @@ WITH filtered_interceptions AS (
 			WHEN $9::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $9::text
 			ELSE true
 		END
+		-- Filter session_id
+		AND CASE
+			WHEN $10::text != '' THEN aibridge_interceptions.session_id = $10::text
+			ELSE true
+		END
 		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions
 		-- @authorize_filter
 ),
@@ -1268,6 +1280,7 @@ type ListAIBridgeSessionsParams struct {
 	Provider       string    `db:"provider" json:"provider"`
 	Model          string    `db:"model" json:"model"`
 	Client         string    `db:"client" json:"client"`
+	SessionID      string    `db:"session_id" json:"session_id"`
 }
 
 type ListAIBridgeSessionsRow struct {
@@ -1299,6 +1312,7 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 		arg.Provider,
 		arg.Model,
 		arg.Client,
+		arg.SessionID,
 	)
 	if err != nil {
 		return nil, err
