@@ -1,7 +1,7 @@
 import type { DiffLineAnnotation, SelectedLineRange } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import type { DiffStyle } from "./DiffViewer";
 import { DiffViewer } from "./DiffViewer";
 import { InlinePromptInput } from "./RemoteDiffPanel";
@@ -122,6 +122,29 @@ const multiHunkFiles = parsePatchFiles(multiHunkDiff).flatMap((p) => p.files);
 export const WithMidFileSeparator: Story = {
 	args: {
 		parsedFiles: multiHunkFiles,
+	},
+};
+
+/**
+ * Verifies the scroll-overshoot fix: the last file wrapper must NOT
+ * carry a minHeight style so the scroll area stops at the bottom
+ * of the actual content rather than allowing the user to scroll
+ * the last file up to the top of the viewport.
+ */
+export const NoScrollOvershoot: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The footer is light-DOM text rendered by DiffViewer.
+		const footer = await canvas.findByText("2 files changed");
+		expect(footer).toBeVisible();
+
+		// The footer's parent is the last-file wrapper. It must
+		// not have a minHeight style, otherwise users can scroll
+		// past the last change.
+		const wrapper = footer.parentElement;
+		expect(wrapper).not.toBeNull();
+		expect(wrapper?.style.minHeight).toBeFalsy();
 	},
 };
 

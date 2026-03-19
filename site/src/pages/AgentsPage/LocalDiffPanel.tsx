@@ -31,7 +31,6 @@ export const LocalDiffPanel: FC<LocalDiffPanelProps> = ({
 		<DiffViewer
 			parsedFiles={parsedFiles}
 			isExpanded={isExpanded}
-			emptyMessage="No file changes."
 			diffStyle={diffStyle}
 		/>
 	);

@@ -768,32 +768,11 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		}
 	}, [scrollToFile, onScrollToFileComplete]);
 
-	// ---------------------------------------------------------------
-	// Viewport height for the last-file min-height trick: setting
-	// min-height on the last file wrapper lets CSS handle the
-	// "be at least viewport-tall" logic, removing the need for a
-	// separate spacer div and a second ResizeObserver. Uses a ref
-	// callback (same pattern as containerRef) so the measurement
-	// lands during commit — before useEffect-based scroll logic.
-	// ---------------------------------------------------------------
-	const [viewportHeight, setViewportHeight] = useState(0);
 	const scrollAreaRef = useCallback((node: HTMLElement | null) => {
 		const vp = node?.querySelector<HTMLElement>(
 			"[data-radix-scroll-area-viewport]",
 		);
 		diffViewportRef.current = vp ?? null;
-
-		if (!vp) return;
-
-		setViewportHeight(vp.clientHeight);
-		const ro = new ResizeObserver(([entry]) => {
-			setViewportHeight(entry.contentRect.height);
-		});
-		ro.observe(vp);
-		return () => {
-			ro.disconnect();
-			diffViewportRef.current = null;
-		};
 	}, []);
 
 	// ---------------------------------------------------------------
@@ -880,7 +859,6 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 									<div
 										key={fileDiff.name}
 										ref={(el) => setFileRef(fileDiff.name, el)}
-										style={isLast ? { minHeight: viewportHeight } : undefined}
 									>
 										<LazyFileDiff
 											fileDiff={fileDiff}
