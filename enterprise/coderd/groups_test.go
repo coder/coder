@@ -1,6 +1,10 @@
 package coderd_test
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"testing"
@@ -597,6 +601,58 @@ func TestPatchGroup(t *testing.T) {
 			require.Equal(t, expectedQuota, group.QuotaAllowance)
 		})
 	})
+
+	t.Run("OrganizationNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		client, _, _, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database: db,
+				Pubsub:   ps,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		// Break the organization FK so that GetOrganizationByID
+		// returns sql.ErrNoRows after the group update succeeds.
+		_, err = sqlDB.ExecContext(ctx, "ALTER TABLE groups DROP CONSTRAINT groups_organization_id_fkey")
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx, "UPDATE groups SET organization_id = '00000000-0000-0000-0000-000000000099' WHERE id = $1", group.ID)
+		require.NoError(t, err)
+
+		// Use a raw HTTP request so we can inspect the full
+		// response body. Without the return after
+		// InternalServerError, the handler writes a second JSON
+		// object which corrupts the response.
+		res, err := userAdminClient.Request(ctx, http.MethodPatch,
+			fmt.Sprintf("/api/v2/groups/%s", group.ID.String()),
+			codersdk.PatchGroupRequest{Name: "newname"},
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusInternalServerError, res.StatusCode)
+
+		// The body must contain exactly one JSON value. A missing
+		// return would cause the handler to append a second JSON
+		// object, which the decoder would pick up here.
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		dec := json.NewDecoder(bytes.NewReader(body))
+		var first json.RawMessage
+		require.NoError(t, dec.Decode(&first), "decode first JSON value")
+		require.False(t, dec.More(), "response body contains more than one JSON value: body=%s", string(body))
+	})
 }
 
 func normalizeAllGroups(groups []codersdk.Group) {
@@ -924,6 +980,58 @@ func TestGroup(t *testing.T) {
 		require.Contains(t, group.Members, user1.ReducedUser)
 		require.Contains(t, group.Members, user2.ReducedUser)
 		require.NotContains(t, group.Members, prebuildsUser.ReducedUser)
+	})
+
+	t.Run("OrganizationNotFound", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		client, _, _, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database: db,
+				Pubsub:   ps,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		// Break the organization FK so that GetOrganizationByID
+		// returns sql.ErrNoRows when the handler looks up the org.
+		_, err = sqlDB.ExecContext(ctx, "ALTER TABLE groups DROP CONSTRAINT groups_organization_id_fkey")
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx, "UPDATE groups SET organization_id = '00000000-0000-0000-0000-000000000099' WHERE id = $1", group.ID)
+		require.NoError(t, err)
+
+		// Use a raw HTTP request so we can inspect the full
+		// response body. Without the return after
+		// InternalServerError, the handler writes a second JSON
+		// object which corrupts the response.
+		res, err := userAdminClient.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/v2/groups/%s", group.ID.String()),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusInternalServerError, res.StatusCode)
+
+		// The body must contain exactly one JSON value. A missing
+		// return would cause the handler to append a second JSON
+		// object, which the decoder would pick up here.
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		dec := json.NewDecoder(bytes.NewReader(body))
+		var first json.RawMessage
+		require.NoError(t, dec.Decode(&first), "decode first JSON value")
+		require.False(t, dec.More(), "response body contains more than one JSON value: body=%s", string(body))
 	})
 }
 

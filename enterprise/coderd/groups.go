@@ -293,6 +293,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	org, err := api.Database.GetOrganizationByID(ctx, group.OrganizationID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
+		return
 	}
 
 	patchedMembers, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
@@ -404,6 +405,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 	org, err := api.Database.GetOrganizationByID(ctx, group.OrganizationID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
+		return
 	}
 
 	users, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
