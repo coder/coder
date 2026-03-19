@@ -586,7 +586,7 @@ func TestPatchGroup(t *testing.T) {
 			userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			group, err := userAdminClient.Group(ctx, user.OrganizationID, codersdk.UsersRequest{})
+			group, err := userAdminClient.Group(ctx, user.OrganizationID, codersdk.GroupRequest{})
 			require.NoError(t, err)
 
 			require.Equal(t, 0, group.QuotaAllowance)
@@ -638,7 +638,7 @@ func TestGroup(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		ggroup, err := userAdminClient.Group(ctx, group.ID, codersdk.UsersRequest{})
+		ggroup, err := userAdminClient.Group(ctx, group.ID, codersdk.GroupRequest{})
 		require.NoError(t, err)
 		require.Equal(t, group, ggroup)
 	})
@@ -688,12 +688,44 @@ func TestGroup(t *testing.T) {
 		require.Contains(t, group.Members, user2.ReducedUser)
 		require.Contains(t, group.Members, user3.ReducedUser)
 
-		ggroup, err := userAdminClient.Group(ctx, group.ID, codersdk.UsersRequest{})
+		ggroup, err := userAdminClient.Group(ctx, group.ID, codersdk.GroupRequest{})
 		require.NoError(t, err)
 		normalizeGroupMembers(&group)
 		normalizeGroupMembers(&ggroup)
 
 		require.Equal(t, group, ggroup)
+	})
+
+	t.Run("WithoutMembers", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleUserAdmin())
+		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, user3 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := userAdminClient.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "hi",
+		})
+		require.NoError(t, err)
+
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{user2.ID.String(), user3.ID.String()},
+		})
+		require.NoError(t, err)
+		require.Contains(t, group.Members, user2.ReducedUser)
+		require.Contains(t, group.Members, user3.ReducedUser)
+
+		ggroup, err := userAdminClient.Group(ctx, group.ID, codersdk.GroupRequest{
+			ExcludeMembers: true,
+		})
+		require.NoError(t, err)
+		require.Len(t, ggroup.Members, 0)
 	})
 
 	t.Run("RegularUserReadGroup", func(t *testing.T) {
@@ -716,7 +748,7 @@ func TestGroup(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			ggroup, err := client1.Group(ctx, group.ID, codersdk.UsersRequest{})
+			ggroup, err := client1.Group(ctx, group.ID, codersdk.GroupRequest{})
 			require.NoError(t, err, "regular users can read groups unless workspace sharing is disabled")
 			normalizeGroupMembers(&group)
 			normalizeGroupMembers(&ggroup)
@@ -762,7 +794,7 @@ func TestGroup(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			_, err = client1.Group(ctx, group.ID, codersdk.UsersRequest{})
+			_, err = client1.Group(ctx, group.ID, codersdk.GroupRequest{})
 			require.Error(t, err, "regular users cannot read groups when workspace sharing is disabled")
 			cerr, ok := codersdk.AsError(err)
 			require.True(t, ok)
@@ -799,93 +831,9 @@ func TestGroup(t *testing.T) {
 		err = userAdminClient.DeleteUser(ctx, user1.ID)
 		require.NoError(t, err)
 
-		group, err = userAdminClient.Group(ctx, group.ID, codersdk.UsersRequest{})
+		group, err = userAdminClient.Group(ctx, group.ID, codersdk.GroupRequest{})
 		require.NoError(t, err)
 		require.NotContains(t, group.Members, user1.ReducedUser)
-	})
-
-	t.Run("MembersFilter", func(t *testing.T) {
-		t.Parallel()
-
-		client, db, first := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				IncludeProvisionerDaemon: true,
-				OIDCConfig: &coderd.OIDCConfig{
-					AllowSignups: true,
-				},
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureTemplateRBAC: 1,
-				},
-			},
-		})
-
-		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleUserAdmin())
-
-		setupCtx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		t.Cleanup(cancel)
-
-		group, err := userAdminClient.CreateGroup(setupCtx, first.OrganizationID, codersdk.CreateGroupRequest{
-			Name: "filtered",
-		})
-		require.NoError(t, err)
-
-		setup := func(users []codersdk.User) {
-			userIDs := make([]string, len(users))
-			for i, user := range users {
-				userIDs[i] = user.ID.String()
-			}
-			group, err = userAdminClient.PatchGroup(setupCtx, group.ID, codersdk.PatchGroupRequest{
-				AddUsers: userIDs,
-			})
-			require.NoError(t, err)
-		}
-		fetch := func(testCtx context.Context, req codersdk.UsersRequest) []codersdk.ReducedUser {
-			group, err := userAdminClient.Group(testCtx, group.ID, req)
-			require.NoError(t, err)
-			return group.Members
-		}
-		coderdtest.UsersFilter(setupCtx, t, client, db, setup, fetch)
-	})
-
-	t.Run("MembersPagination", func(t *testing.T) {
-		t.Parallel()
-
-		client, first := coderdenttest.New(t, &coderdenttest.Options{
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureTemplateRBAC: 1,
-				},
-			},
-		})
-
-		userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleUserAdmin())
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		t.Cleanup(cancel)
-
-		group, err := userAdminClient.CreateGroup(ctx, first.OrganizationID, codersdk.CreateGroupRequest{
-			Name: "paginated",
-		})
-		require.NoError(t, err)
-
-		setup := func(users []codersdk.User) {
-			userIDs := make([]string, len(users))
-			for i, user := range users {
-				userIDs[i] = user.ID.String()
-			}
-			group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
-				AddUsers: userIDs,
-			})
-			require.NoError(t, err)
-		}
-		fetch := func(req codersdk.UsersRequest) ([]codersdk.ReducedUser, int) {
-			group, err := userAdminClient.Group(ctx, group.ID, req)
-			require.NoError(t, err)
-			return group.Members, group.TotalMemberCount
-		}
-		coderdtest.UsersPagination(ctx, t, client, setup, fetch)
 	})
 
 	t.Run("IncludeSuspendedAndDormantUsers", func(t *testing.T) {
@@ -918,7 +866,7 @@ func TestGroup(t *testing.T) {
 		user1, err = userAdminClient.UpdateUserStatus(ctx, user1.ID.String(), codersdk.UserStatusSuspended)
 		require.NoError(t, err)
 
-		group, err = userAdminClient.Group(ctx, group.ID, codersdk.UsersRequest{})
+		group, err = userAdminClient.Group(ctx, group.ID, codersdk.GroupRequest{})
 		require.NoError(t, err)
 		require.Len(t, group.Members, 2)
 		require.Contains(t, group.Members, user1.ReducedUser)
@@ -940,7 +888,7 @@ func TestGroup(t *testing.T) {
 			AddUsers: []string{anotherUser.ID.String()},
 		})
 
-		group, err = userAdminClient.Group(ctx, group.ID, codersdk.UsersRequest{})
+		group, err = userAdminClient.Group(ctx, group.ID, codersdk.GroupRequest{})
 		require.NoError(t, err)
 		require.Len(t, group.Members, 3)
 		require.Contains(t, group.Members, user1.ReducedUser)
@@ -1002,7 +950,7 @@ func TestGroup(t *testing.T) {
 		prebuildsUser, err := client.User(ctx, database.PrebuildsSystemUserID.String())
 		require.NoError(t, err)
 		// The 'Everyone' group always has an ID that matches the organization ID.
-		group, err := userAdminClient.Group(ctx, user.OrganizationID, codersdk.UsersRequest{})
+		group, err := userAdminClient.Group(ctx, user.OrganizationID, codersdk.GroupRequest{})
 		require.NoError(t, err)
 		require.Len(t, group.Members, 4)
 		require.Equal(t, "Everyone", group.Name)
@@ -1057,7 +1005,7 @@ func TestGroups(t *testing.T) {
 		normalizeGroupMembers(&group2)
 
 		// Fetch everyone group for comparison
-		everyoneGroup, err := userAdminClient.Group(ctx, user.OrganizationID, codersdk.UsersRequest{})
+		everyoneGroup, err := userAdminClient.Group(ctx, user.OrganizationID, codersdk.GroupRequest{})
 		require.NoError(t, err)
 		normalizeGroupMembers(&everyoneGroup)
 
@@ -1138,7 +1086,7 @@ func TestDeleteGroup(t *testing.T) {
 		err = userAdminClient.DeleteGroup(ctx, group1.ID)
 		require.NoError(t, err)
 
-		_, err = userAdminClient.Group(ctx, group1.ID, codersdk.UsersRequest{})
+		_, err = userAdminClient.Group(ctx, group1.ID, codersdk.GroupRequest{})
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)
 		require.True(t, ok)
@@ -1199,4 +1147,88 @@ func TestDeleteGroup(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 	})
+}
+
+func TestGetGroupMembersFilter(t *testing.T) {
+	t.Parallel()
+
+	client, db, first := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			OIDCConfig: &coderd.OIDCConfig{
+				AllowSignups: true,
+			},
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		},
+	})
+
+	userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleUserAdmin())
+
+	setupCtx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	t.Cleanup(cancel)
+
+	group, err := userAdminClient.CreateGroup(setupCtx, first.OrganizationID, codersdk.CreateGroupRequest{
+		Name: "filtered",
+	})
+	require.NoError(t, err)
+
+	setup := func(users []codersdk.User) {
+		userIDs := make([]string, len(users))
+		for i, user := range users {
+			userIDs[i] = user.ID.String()
+		}
+		group, err = userAdminClient.PatchGroup(setupCtx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: userIDs,
+		})
+		require.NoError(t, err)
+	}
+	fetch := func(testCtx context.Context, req codersdk.UsersRequest) []codersdk.ReducedUser {
+		res, err := userAdminClient.GroupMembers(testCtx, group.ID, req)
+		require.NoError(t, err)
+		return res.Users
+	}
+	coderdtest.UsersFilter(setupCtx, t, client, db, setup, fetch)
+}
+
+func TestGetGroupMembersPagination(t *testing.T) {
+	t.Parallel()
+
+	client, first := coderdenttest.New(t, &coderdenttest.Options{
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		},
+	})
+
+	userAdminClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleUserAdmin())
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	t.Cleanup(cancel)
+
+	group, err := userAdminClient.CreateGroup(ctx, first.OrganizationID, codersdk.CreateGroupRequest{
+		Name: "paginated",
+	})
+	require.NoError(t, err)
+
+	setup := func(users []codersdk.User) {
+		userIDs := make([]string, len(users))
+		for i, user := range users {
+			userIDs[i] = user.ID.String()
+		}
+		group, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: userIDs,
+		})
+		require.NoError(t, err)
+	}
+	fetch := func(req codersdk.UsersRequest) ([]codersdk.ReducedUser, int) {
+		group, err := userAdminClient.GroupMembers(ctx, group.ID, req)
+		require.NoError(t, err)
+		return group.Users, group.Count
+	}
+	coderdtest.UsersPagination(ctx, t, client, setup, fetch)
 }

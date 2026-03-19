@@ -7,8 +7,19 @@ WHERE CASE
         END;
 
 -- name: GetGroupMembersByGroupID :many
+SELECT *
+FROM group_members_expanded
+WHERE group_id = @group_id
+  -- Filter by system type
+  AND CASE
+      WHEN @include_system::bool THEN TRUE
+      ELSE
+        user_is_system = false
+      END;
+
+-- name: GetGroupMembersByGroupIDPaginated :many
 SELECT
-	*
+	*, COUNT(*) OVER() AS count
 FROM
 	group_members_expanded
 WHERE

@@ -234,6 +234,34 @@ func ReducedUsersFromGroupMembers(members []database.GroupMember) []codersdk.Red
 	return slice.List(members, ReducedUserFromGroupMember)
 }
 
+func UserFromGroupMemberRow(member database.GetGroupMembersByGroupIDPaginatedRow) database.User {
+	return database.User{
+		ID:                 member.UserID,
+		Email:              member.UserEmail,
+		Username:           member.UserUsername,
+		HashedPassword:     member.UserHashedPassword,
+		CreatedAt:          member.UserCreatedAt,
+		UpdatedAt:          member.UserUpdatedAt,
+		Status:             member.UserStatus,
+		RBACRoles:          member.UserRbacRoles,
+		LoginType:          member.UserLoginType,
+		AvatarURL:          member.UserAvatarUrl,
+		Deleted:            member.UserDeleted,
+		LastSeenAt:         member.UserLastSeenAt,
+		QuietHoursSchedule: member.UserQuietHoursSchedule,
+		Name:               member.UserName,
+		GithubComUserID:    member.UserGithubComUserID,
+	}
+}
+
+func ReducedUserFromGroupMemberRow(member database.GetGroupMembersByGroupIDPaginatedRow) codersdk.ReducedUser {
+	return ReducedUser(UserFromGroupMemberRow(member))
+}
+
+func ReducedUsersFromGroupMemberRows(members []database.GetGroupMembersByGroupIDPaginatedRow) []codersdk.ReducedUser {
+	return slice.List(members, ReducedUserFromGroupMemberRow)
+}
+
 func ReducedUsers(users []database.User) []codersdk.ReducedUser {
 	return slice.List(users, ReducedUser)
 }

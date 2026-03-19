@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -395,10 +396,74 @@ func (api *API) groupByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Param group path string true "Group id"
-// @Param q query string false "Member search query"
+// @Param exclude_members query bool false "Exclude members from the response"
 // @Success 200 {object} codersdk.Group
 // @Router /groups/{group} [get]
 func (api *API) group(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx   = r.Context()
+		group = httpmw.GroupParam(r)
+	)
+
+	excludeMembers, _ := strconv.ParseBool(r.URL.Query().Get("exclude_members"))
+
+	org, err := api.Database.GetOrganizationByID(ctx, group.OrganizationID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+	}
+
+	users := []database.GroupMember{}
+	if !excludeMembers {
+		users, err = api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+			GroupID:       group.ID,
+			IncludeSystem: false,
+		})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+	}
+
+	memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, database.GetGroupMembersCountByGroupIDParams{
+		GroupID:       group.ID,
+		IncludeSystem: false,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(database.GetGroupsRow{
+		Group:                   group,
+		OrganizationName:        org.Name,
+		OrganizationDisplayName: org.DisplayName,
+	}, users, int(memberCount)))
+}
+
+// @Summary Get group members by organization and group name
+// @ID get-group-members-by-organization-and-group-name
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param groupName path string true "Group name"
+// @Param q query string false "Member search query"
+// @Success 200 {object} codersdk.Group
+// @Router /organizations/{organization}/groups/{groupName}/members [get]
+func (api *API) groupMembersByOrganization(rw http.ResponseWriter, r *http.Request) {
+	api.groupMembers(rw, r)
+}
+
+// @Summary Get group members by group ID
+// @ID get-group-members-by-group-id
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param group path string true "Group id"
+// @Param q query string false "Member search query"
+// @Success 200 {object} codersdk.GroupMembersResponse
+// @Router /groups/{group}/members [get]
+func (api *API) groupMembers(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx   = r.Context()
 		group = httpmw.GroupParam(r)
@@ -419,12 +484,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	org, err := api.Database.GetOrganizationByID(ctx, group.OrganizationID)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-	}
-
-	users, err := api.Database.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+	members, err := api.Database.GetGroupMembersByGroupIDPaginated(ctx, database.GetGroupMembersByGroupIDPaginatedParams{
 		AfterID:         paginationParams.AfterID,
 		GroupID:         group.ID,
 		IncludeSystem:   false,
@@ -448,25 +508,18 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If there are no users, it could be because the offset is higher than the
-	// count.  In this case we return zero for the total.
-	var memberCount int64
-	if len(users) > 0 {
-		memberCount, err = api.Database.GetGroupMembersCountByGroupID(ctx, database.GetGroupMembersCountByGroupIDParams{
-			GroupID:       group.ID,
-			IncludeSystem: false,
+	if len(members) == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.GroupMembersResponse{
+			Users: nil,
+			Count: 0,
 		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
+		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Group(database.GetGroupsRow{
-		Group:                   group,
-		OrganizationName:        org.Name,
-		OrganizationDisplayName: org.DisplayName,
-	}, users, int(memberCount)))
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.GroupMembersResponse{
+		Users: db2sdk.ReducedUsersFromGroupMemberRows(members),
+		Count: int(members[0].Count),
+	})
 }
 
 // @Summary Get groups by organization
