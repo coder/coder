@@ -57,6 +57,7 @@ import {
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
 	getModelSelectorPlaceholder,
+	getNormalizedModelRef,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
 import { parsePullRequestUrl } from "./pullRequest";
@@ -395,8 +396,7 @@ const AgentDetail: FC = () => {
 	const modelConfigIDByModelID = useMemo(() => {
 		const byModelID = new Map<string, string>();
 		for (const config of chatModelConfigsQuery.data ?? []) {
-			const provider = config.provider.trim().toLowerCase();
-			const model = config.model.trim();
+			const { provider, model } = getNormalizedModelRef(config);
 			if (!provider || !model) {
 				continue;
 			}

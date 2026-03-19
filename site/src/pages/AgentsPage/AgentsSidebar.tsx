@@ -7,6 +7,7 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { asString } from "components/ai-elements/runtimeTypeUtils";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -69,6 +70,7 @@ import {
 import { Link, NavLink, useLocation, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { shortRelativeTime } from "utils/time";
+import { getNormalizedModelRef } from "./modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "./timeGroups";
 
 type SidebarView =
@@ -187,10 +189,10 @@ const getModelDisplayName = (
 	if (!modelConfig) {
 		return "Default model";
 	}
-	const provider = modelConfig.provider.trim().toLowerCase();
-	const model = modelConfig.model.trim();
+	const { provider, model } = getNormalizedModelRef(modelConfig);
+	const displayName = asString(modelConfig.display_name).trim();
 	if (!provider || !model) {
-		return modelConfig.display_name.trim() || "Default model";
+		return displayName || "Default model";
 	}
 
 	// Try to find a matching option with a display name.
@@ -203,8 +205,8 @@ const getModelDisplayName = (
 		return match.displayName;
 	}
 
-	if (modelConfig.display_name.trim()) {
-		return modelConfig.display_name.trim();
+	if (displayName) {
+		return displayName;
 	}
 
 	return model;
