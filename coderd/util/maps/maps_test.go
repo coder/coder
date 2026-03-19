@@ -7,6 +7,57 @@ import (
 	"github.com/coder/coder/v2/coderd/util/maps"
 )
 
+func TestSortedKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("StringToStruct", func(t *testing.T) {
+		t.Parallel()
+		m := map[string]struct{}{
+			"banana": {},
+			"apple":  {},
+			"cherry": {},
+		}
+		got := maps.SortedKeys(m)
+		expected := []string{"apple", "banana", "cherry"}
+		if len(got) != len(expected) {
+			t.Fatalf("expected %d keys, got %d", len(expected), len(got))
+		}
+		for i := range expected {
+			if got[i] != expected[i] {
+				t.Errorf("index %d: expected %q, got %q", i, expected[i], got[i])
+			}
+		}
+	})
+
+	t.Run("StringToInt", func(t *testing.T) {
+		t.Parallel()
+		m := map[string]int{
+			"zebra": 1,
+			"alpha": 2,
+			"mango": 3,
+		}
+		got := maps.SortedKeys(m)
+		expected := []string{"alpha", "mango", "zebra"}
+		if len(got) != len(expected) {
+			t.Fatalf("expected %d keys, got %d", len(expected), len(got))
+		}
+		for i := range expected {
+			if got[i] != expected[i] {
+				t.Errorf("index %d: expected %q, got %q", i, expected[i], got[i])
+			}
+		}
+	})
+
+	t.Run("EmptyMap", func(t *testing.T) {
+		t.Parallel()
+		m := map[string]int{}
+		got := maps.SortedKeys(m)
+		if len(got) != 0 {
+			t.Fatalf("expected 0 keys, got %d", len(got))
+		}
+	})
+}
+
 func TestSubset(t *testing.T) {
 	t.Parallel()
 
