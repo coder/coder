@@ -5245,6 +5245,21 @@ func TestChatTemplateAllowlist(t *testing.T) {
 		err := client.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: []string{"not-a-uuid"}})
 		requireSDKError(t, err, http.StatusBadRequest)
 	})
+
+	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
+	t.Run("DeduplicatesIDs", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		id := uuid.NewString()
+		err := adminClient.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{
+			TemplateIDs: []string{id, id, id},
+		})
+		require.NoError(t, err)
+		resp, err := adminClient.GetChatTemplateAllowlist(ctx)
+		require.NoError(t, err)
+		require.Len(t, resp.TemplateIDs, 1)
+		require.Equal(t, id, resp.TemplateIDs[0])
+	})
 }
 
 func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Error {

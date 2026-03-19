@@ -2813,7 +2813,9 @@ func (api *API) putChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Validate all entries are valid UUIDs.
+	// Validate all entries are valid UUIDs and deduplicate.
+	seen := make(map[string]struct{}, len(req.TemplateIDs))
+	deduped := make([]string, 0, len(req.TemplateIDs))
 	for _, id := range req.TemplateIDs {
 		if _, err := uuid.Parse(id); err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -2822,9 +2824,13 @@ func (api *API) putChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request
 			})
 			return
 		}
+		if _, ok := seen[id]; !ok {
+			seen[id] = struct{}{}
+			deduped = append(deduped, id)
+		}
 	}
 
-	raw, err := json.Marshal(req.TemplateIDs)
+	raw, err := json.Marshal(deduped)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error encoding template allowlist.",

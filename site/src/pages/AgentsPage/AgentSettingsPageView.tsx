@@ -1000,6 +1000,7 @@ const TemplateAllowlistSection: FC = () => {
 
 	const handleSave = (event: FormEvent) => {
 		event.preventDefault();
+		if (!isDirty) return;
 		saveAllowlist(
 			{ template_ids: [...currentAllowlist] },
 			{ onSuccess: () => setLocalAllowlist(null) },
@@ -1030,7 +1031,26 @@ const TemplateAllowlistSection: FC = () => {
 				</div>
 			)}
 
-			{!isLoading && (
+			{!isLoading && (templatesQuery.error || allowlistQuery.error) && (
+				<div className="flex min-h-[120px] flex-col items-center justify-center gap-4 text-center">
+					<p className="m-0 text-sm text-content-secondary">
+						Failed to load template data.
+					</p>
+					<Button
+						variant="outline"
+						size="sm"
+						type="button"
+						onClick={() => {
+							void templatesQuery.refetch();
+							void allowlistQuery.refetch();
+						}}
+					>
+						Retry
+					</Button>
+				</div>
+			)}
+
+			{!isLoading && !templatesQuery.error && !allowlistQuery.error && (
 				<form
 					className="space-y-3"
 					onSubmit={(event) => void handleSave(event)}
@@ -1052,7 +1072,9 @@ const TemplateAllowlistSection: FC = () => {
 					<div className="max-h-[320px] overflow-y-auto rounded-lg border border-border [scrollbar-width:thin]">
 						{filteredTemplates.length === 0 ? (
 							<p className="py-8 text-center text-xs text-content-secondary">
-								No templates found.
+								{searchFilter
+									? "No templates match your search."
+									: "No templates have been created yet."}
 							</p>
 						) : (
 							filteredTemplates.map((t) => (
@@ -1064,6 +1086,7 @@ const TemplateAllowlistSection: FC = () => {
 										type="checkbox"
 										checked={currentAllowlist.has(t.id)}
 										onChange={() => toggleTemplate(t.id)}
+										disabled={isSaving}
 										className="h-4 w-4 rounded border-border accent-content-link"
 									/>
 									<div className="min-w-0 flex-1">
@@ -1082,7 +1105,11 @@ const TemplateAllowlistSection: FC = () => {
 					</div>
 
 					{currentAllowlist.size > 0 && (
-						<p className="m-0 text-xs text-content-secondary">
+						<p
+							aria-live="polite"
+							role="status"
+							className="m-0 text-xs text-content-secondary"
+						>
 							{currentAllowlist.size} template
 							{currentAllowlist.size !== 1 ? "s" : ""} selected
 						</p>
@@ -1104,7 +1131,7 @@ const TemplateAllowlistSection: FC = () => {
 					</div>
 
 					{isSaveError && (
-						<p className="m-0 text-xs text-content-destructive">
+						<p role="alert" className="m-0 text-xs text-content-destructive">
 							Failed to save template allowlist.
 						</p>
 					)}

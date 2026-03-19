@@ -3374,7 +3374,9 @@ func (p *Server) runChat(
 	// Load the deployment-wide template allowlist so chat tools
 	// only expose permitted templates.
 	var allowedTemplateIDs map[uuid.UUID]bool
-	if raw, err := p.db.GetChatTemplateAllowlist(ctx); err == nil && raw != "" {
+	if raw, err := p.db.GetChatTemplateAllowlist(ctx); err != nil {
+		p.logger.Error(ctx, "failed to load template allowlist, all templates will be allowed", slog.Error(err))
+	} else if raw != "" {
 		var ids []string
 		if jsonErr := json.Unmarshal([]byte(raw), &ids); jsonErr == nil {
 			allowedTemplateIDs = make(map[uuid.UUID]bool, len(ids))
@@ -3414,6 +3416,10 @@ func (p *Server) runChat(
 				Logger:                         p.logger,
 				AllowedTemplateIDs:             allowedTemplateIDs,
 			}),
+			// StartWorkspace intentionally does not enforce the
+			// template allowlist. The allowlist restricts creation
+			// of new workspaces only — existing workspaces can
+			// be restarted regardless of allowlist changes.
 			chattool.StartWorkspace(chattool.StartWorkspaceOptions{
 				DB:          p.db,
 				OwnerID:     chat.OwnerID,
