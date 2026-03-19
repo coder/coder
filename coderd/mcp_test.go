@@ -122,8 +122,7 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	require.Equal(t, "my-mcp-server", updated.Slug)
 	require.Equal(t, "oauth2", updated.AuthType)
 
-	// Fetch by ID is not available as a standalone endpoint, so
-	// verify the update took effect through the list.
+	// Verify the update took effect through the list.
 	configs, err = client.MCPServerConfigs(ctx)
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
@@ -249,6 +248,7 @@ func TestMCPServerConfigsSecretsNeverLeaked(t *testing.T) {
 		assert.Empty(t, cfg.OAuth2AuthURL, "member should not see OAuth2AuthURL")
 		assert.Empty(t, cfg.OAuth2TokenURL, "member should not see OAuth2TokenURL")
 		assert.Empty(t, cfg.APIKeyHeader, "member should not see APIKeyHeader")
+		assert.Empty(t, cfg.OAuth2Scopes, "member should not see OAuth2Scopes")
 		assert.Empty(t, cfg.URL, "member should not see URL")
 		assert.Empty(t, cfg.Transport, "member should not see Transport")
 	}
@@ -258,7 +258,12 @@ func TestMCPServerConfigsSecretsNeverLeaked(t *testing.T) {
 	require.NoError(t, err)
 	assertNoSecrets(t, "member get-by-id", memberSingle)
 	assert.Empty(t, memberSingle.OAuth2ClientID, "member should not see OAuth2ClientID")
+	assert.Empty(t, memberSingle.OAuth2AuthURL, "member should not see OAuth2AuthURL")
+	assert.Empty(t, memberSingle.OAuth2TokenURL, "member should not see OAuth2TokenURL")
+	assert.Empty(t, memberSingle.OAuth2Scopes, "member should not see OAuth2Scopes")
+	assert.Empty(t, memberSingle.APIKeyHeader, "member should not see APIKeyHeader")
 	assert.Empty(t, memberSingle.URL, "member should not see URL")
+	assert.Empty(t, memberSingle.Transport, "member should not see Transport")
 }
 
 func TestMCPServerConfigsAuthConnected(t *testing.T) {
