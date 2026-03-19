@@ -16,10 +16,6 @@ import {
 	CopyIcon,
 	EllipsisIcon,
 	ExternalLinkIcon,
-	GitMergeIcon,
-	GitPullRequestArrowIcon,
-	GitPullRequestClosedIcon,
-	GitPullRequestDraftIcon,
 	MonitorIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
@@ -32,6 +28,7 @@ import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { useEmbedContext } from "../EmbedContext";
+import { PrStateIcon } from "../GitPanel";
 import { parsePullRequestUrl } from "../pullRequest";
 
 interface SidebarPanelState {
@@ -62,35 +59,6 @@ type AgentDetailTopBarProps = {
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	diffStatusData?: ChatDiffStatus;
-};
-
-const PrStateIcon: FC<{
-	state?: string;
-	draft?: boolean;
-	className?: string;
-}> = ({ state, draft, className }) => {
-	if (state === "merged") {
-		return <GitMergeIcon className={cn("text-git-merged-bright", className)} />;
-	}
-	if (state === "closed") {
-		return (
-			<GitPullRequestClosedIcon
-				className={cn("text-git-deleted-bright", className)}
-			/>
-		);
-	}
-	if (draft) {
-		return (
-			<GitPullRequestDraftIcon
-				className={cn("text-content-secondary", className)}
-			/>
-		);
-	}
-	return (
-		<GitPullRequestArrowIcon
-			className={cn("text-git-added-bright", className)}
-		/>
-	);
 };
 
 export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
@@ -169,9 +137,9 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 					</div>
 				)}
 			</div>
-			{/* PR link — visible on mobile always, hidden on desktop
-				   when the sidebar panel is open (which already shows PR
-				   info). */}
+			{/* PR link — mobile: icon + number; desktop: icon + title.
+			   Hidden on desktop when the sidebar panel is open
+			   (which already shows PR info). */}
 			{prUrl && hasPR && (
 				<a
 					href={prUrl}
@@ -187,8 +155,11 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 						draft={prDraft}
 						className="!size-3.5 shrink-0"
 					/>
-					<span className="truncate max-w-[120px]">
+					<span className="truncate max-w-[120px] hidden md:inline">
 						{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}
+					</span>
+					<span className="md:hidden">
+						{prNumberMatch ? prNumberMatch : "PR"}
 					</span>
 				</a>
 			)}

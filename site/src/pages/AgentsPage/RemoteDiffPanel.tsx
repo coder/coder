@@ -31,6 +31,18 @@ import { DiffViewer } from "./DiffViewer";
 import { parsePullRequestUrl } from "./pullRequest";
 
 // -------------------------------------------------------------------
+// Module-level counter for cache key uniqueness
+// -------------------------------------------------------------------
+
+/**
+ * Monotonic counter shared across all RemoteDiffPanel instances.
+ * Ensures parsePatchFiles cache keys never collide across mounts,
+ * since component-local refs reset to 0 on remount while the
+ * worker pool's LRU cache persists.
+ */
+let remoteDiffVersion = 0;
+
+// -------------------------------------------------------------------
 // Diff content extraction
 // -------------------------------------------------------------------
 
@@ -256,28 +268,38 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 		enabled: Boolean(diffStatus?.url),
 	});
 
+	const diffContent = diffContentsQuery.data?.diff;
+	const diffVersionRef = useRef(0);
+	const prevDiffRef = useRef<string | undefined>(undefined);
+	if (diffContent !== prevDiffRef.current) {
+		prevDiffRef.current = diffContent;
+		diffVersionRef.current = ++remoteDiffVersion;
+	}
+
 	const parsedFiles = useMemo(() => {
-		const diff = diffContentsQuery.data?.diff;
-		if (!diff) {
+		if (!diffContent) {
 			return [];
 		}
 		try {
 			// The cacheKeyPrefix enables the worker pool's LRU cache
 			// so highlighted ASTs are reused across re-renders instead
-			// of being re-computed on every render cycle. We include
-			// dataUpdatedAt so that when the diff content changes
-			// (e.g. new commits pushed) the old cached highlight AST
-			// is not reused with mismatched line indices, which would
-			// cause DiffHunksRenderer.processDiffResult to throw.
+			// of being re-computed on every render cycle. We include a
+			// version counter derived from the diff content so that when
+			// the diff changes (e.g. new commits pushed) the old cached
+			// highlight AST is not reused with mismatched line indices,
+			// which would cause DiffHunksRenderer.processDiffResult to
+			// throw. Unlike dataUpdatedAt, this counter only increments
+			// when the actual diff string changes, avoiding unnecessary
+			// recomputation on refetches with identical content.
 			const patches = parsePatchFiles(
-				diff,
-				`chat-${chatId}-${diffContentsQuery.dataUpdatedAt}`,
+				diffContent,
+				`chat-${chatId}-v${diffVersionRef.current}`,
 			);
 			return patches.flatMap((p) => p.files);
 		} catch {
 			return [];
 		}
-	}, [diffContentsQuery.data?.diff, diffContentsQuery.dataUpdatedAt, chatId]);
+	}, [diffContent, chatId]);
 
 	// ---------------------------------------------------------------
 	// Line interaction callbacks

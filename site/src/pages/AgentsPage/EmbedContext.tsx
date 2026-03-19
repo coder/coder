@@ -49,7 +49,14 @@ const bootstrapChatEmbedSessionFn = async ({
 	authorization: AuthorizationRequest;
 	queryClient: QueryClient;
 }) => {
+	// This is the token forwarded by the VS Code extension's
+	// ChatPanelProvider via the coder:vscode-auth-bootstrap
+	// postMessage handshake. See chatPanelProvider.ts in
+	// coder/vscode-coder for the sending side.
 	API.setSessionToken(token);
+	// Exchange the token for a cookie so that WebSocket connections
+	// (which cannot carry custom headers) are also authenticated.
+	await API.getAxiosInstance().post("/api/v2/users/me/session/token-to-cookie");
 	// Fetch user and permissions first, then set them in the cache
 	// atomically. This avoids a race where invalidating the "me"
 	// query causes isSignedIn to flip before permissions are ready.

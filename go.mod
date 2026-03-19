@@ -80,7 +80,7 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // 1) Adds thinking effort to Anthropic provider
 // 2) Downgraded to Go 1.25 due to issue with Windows CI
 // https://github.com/kylecarbs/fantasy/compare/main...kylecarbs:fantasy:cj/go1.25
-replace charm.land/fantasy => github.com/kylecarbs/fantasy v0.0.0-20260319114014-12345ae15482
+replace charm.land/fantasy => github.com/kylecarbs/fantasy v0.0.0-20260319151840-18e18e661ed4
 
 replace github.com/charmbracelet/anthropic-sdk-go => github.com/kylecarbs/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab
 
