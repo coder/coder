@@ -39,7 +39,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		number | undefined
 	>(undefined);
 
-	const currentUserLimit = license.claims.features.user_limit || userLimitLimit;
+	const currentUserLimit = license.claims.features.user_limit ?? userLimitLimit;
 	const confirmationName = licenseIDMarkedForRemoval?.toString() ?? "";
 
 	const isExpired = dayjs
@@ -65,24 +65,27 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 	);
 	const isAiGovernanceEntitlementInGracePeriod =
 		aiGovernanceUserFeature?.entitlement === "grace_period";
+	// Overage/display checks only apply to licenses that are currently effective.
 	const isLicenseApplicableForAiGovernanceOverage =
 		!isNotYetValid && (!isExpired || isAiGovernanceEntitlementInGracePeriod);
-	const isActiveAiGovernanceEntitlement =
+	// A license "wins" when its AI governance limit matches the merged limit.
+	const isWinningAiGovernanceLicense =
 		aiGovernanceMergedLimit !== undefined &&
 		aiGovernanceLimit > 0 &&
 		aiGovernanceLimit === aiGovernanceMergedLimit;
-	const isAiGovernanceAddOnExceeded =
+	const canUseAiGovernanceUsageForThisLicense =
 		isLicenseApplicableForAiGovernanceOverage &&
 		hasExplicitAiGovernanceAddOn &&
-		isActiveAiGovernanceEntitlement &&
+		isWinningAiGovernanceLicense;
+	// Show the add-on as exceeded only for the winning, active add-on license.
+	const isAiGovernanceAddOnExceeded =
+		canUseAiGovernanceUsageForThisLicense &&
 		aiGovernanceActual !== undefined &&
 		aiGovernanceActual > aiGovernanceLimit;
-	const aiGovernanceDisplayActual =
-		isLicenseApplicableForAiGovernanceOverage &&
-		hasExplicitAiGovernanceAddOn &&
-		isActiveAiGovernanceEntitlement
-			? aiGovernanceActual
-			: undefined;
+	// Show actual usage only when this license is the one providing the limit.
+	const aiGovernanceDisplayActual = canUseAiGovernanceUsageForThisLicense
+		? aiGovernanceActual
+		: undefined;
 	const statusClassName =
 		isAiGovernanceAddOnExceeded || isExpired
 			? "text-content-destructive"
