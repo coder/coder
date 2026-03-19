@@ -2386,6 +2386,11 @@ func (p *Server) trackWorkspaceUsage(
 		// This fires every heartbeat (~30s) but the SQL only
 		// writes when 5% of the deadline has elapsed — most calls
 		// perform a read-only CTE lookup with no UPDATE.
+		//
+		// Scaling note: for 10,000 active chats, this could lead to
+		// approx. 333 CTE queries/second. A cheap fix for this could
+		// be to heartbeat every Nth query. Leaving as potential future
+		// low-hanging fruit if needed.
 		workspacestats.ActivityBumpWorkspace(ctx, logger.Named("activity_bump"), p.db, wsID.UUID, time.Time{})
 	}
 	return wsID
