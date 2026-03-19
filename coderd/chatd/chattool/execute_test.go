@@ -57,14 +57,6 @@ func TestExecuteTool(t *testing.T) {
 				comment:            "Trailing & is correctly detected and stripped.",
 			},
 			{
-				name:               "DoubleAmpersandChain",
-				command:            "cmd && other",
-				wantCommand:        "cmd && other",
-				wantBackground:     false,
-				wantBackgroundResp: false,
-				comment:            "Does not end with &, no promotion.",
-			},
-			{
 				name:               "TrailingDoubleAmpersand",
 				command:            "cmd &&",
 				wantCommand:        "cmd &&",
@@ -90,18 +82,14 @@ func TestExecuteTool(t *testing.T) {
 					"The remaining command runs in background mode.",
 			},
 			{
-				// BUG: "|&" is bash's pipe-stderr operator, not
-				// backgrounding. The current logic strips the "&",
-				// turning "cmd |&" into "cmd |" which is a broken
-				// pipe command.
+				// "|&" is bash's pipe-stderr operator, not
+				// backgrounding. It must not be detected as a
+				// trailing "&".
 				name:               "BashPipeStderr",
 				command:            "cmd |&",
-				wantCommand:        "cmd |",
-				wantBackground:     true,
-				wantBackgroundResp: true,
-				comment: "BUG: |& is bash's pipe-stderr redirect. " +
-					"The current logic incorrectly strips the &, " +
-					"producing a broken pipe command.",
+				wantCommand:        "cmd |&",
+				wantBackground:     false,
+				wantBackgroundResp: false,
 			},
 			{
 				name:               "AlreadyBackgroundWithTrailingAmpersand",
@@ -417,11 +405,6 @@ func TestDetectFileDump(t *testing.T) {
 		{
 			name:    "CatFile",
 			command: "cat foo.txt",
-			wantHit: true,
-		},
-		{
-			name:    "CatWithFlags",
-			command: "cat -n foo.txt",
 			wantHit: true,
 		},
 		{

@@ -1,4 +1,4 @@
-package chatloop //nolint:testpackage // Tests unexported helpers.
+package chatloop
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ type testProviderData struct {
 	data map[string]any
 }
 
-func (d *testProviderData) Options() {}
+func (*testProviderData) Options() {}
 
 func (d *testProviderData) MarshalJSON() ([]byte, error) {
 	return json.Marshal(d.data)
