@@ -7836,9 +7836,12 @@ export interface WorkspaceAgentPortShares {
 // From codersdk/workspaceagents.go
 /**
  * WorkspaceAgentRepoChanges describes the current state of a single
- * git repository's working tree. When Removed is true the repo root
- * directory or its .git subdirectory no longer exists; all other
- * fields (Branch, RemoteOrigin, UnifiedDiff) are empty/zero.
+ * git repository. UnifiedDiff includes both committed-but-not-pushed
+ * and uncommitted changes relative to the upstream tracking branch
+ * (or origin/HEAD, or HEAD as a last resort). When Removed is true
+ * the repo root directory or its .git subdirectory no longer exists;
+ * all other fields (Branch, RemoteOrigin, UnifiedDiff) are
+ * empty/zero.
  */
 export interface WorkspaceAgentRepoChanges {
 	readonly repo_root: string;

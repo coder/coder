@@ -337,7 +337,8 @@ func findRepoRoot(gitBin string, p string) (string, error) {
 }
 
 // getRepoChanges reads the current state of a git repository using
-// the git CLI. It returns branch, remote origin, and a unified diff.
+// the git CLI. It returns branch, remote origin, and a unified diff
+// that includes both committed-but-not-pushed and uncommitted changes.
 func getRepoChanges(ctx context.Context, logger slog.Logger, gitBin string, repoRoot string) (codersdk.WorkspaceAgentRepoChanges, error) {
 	result := codersdk.WorkspaceAgentRepoChanges{
 		RepoRoot: repoRoot,
@@ -381,9 +382,43 @@ func getRepoChanges(ctx context.Context, logger slog.Logger, gitBin string, repo
 	return result, nil
 }
 
-// computeGitDiff produces a unified diff string for the repository by
-// combining `git diff HEAD` (staged + unstaged changes) with diffs
-// for untracked files.
+// diffBaseRef determines the best reference to diff the working tree
+// against. It tries, in order:
+//  1. @{upstream} — the branch's remote tracking ref
+//  2. origin/HEAD — the remote's default branch
+//  3. HEAD — falls back to showing only uncommitted changes
+func diffBaseRef(ctx context.Context, logger slog.Logger, gitBin string, repoRoot string) string {
+	// Try upstream tracking branch first.
+	upCmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "rev-parse", "--verify", "@{upstream}")
+	if out, err := upCmd.Output(); err == nil {
+		if ref := strings.TrimSpace(string(out)); ref != "" {
+			logger.Debug(ctx, "using @{upstream} as diff base",
+				slog.F("root", repoRoot), slog.F("ref", ref))
+			return "@{upstream}"
+		}
+	}
+
+	// Fall back to origin/HEAD (the remote's default branch).
+	ohCmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "rev-parse", "--verify", "origin/HEAD")
+	if out, err := ohCmd.Output(); err == nil {
+		if ref := strings.TrimSpace(string(out)); ref != "" {
+			logger.Debug(ctx, "using origin/HEAD as diff base",
+				slog.F("root", repoRoot), slog.F("ref", ref))
+			return "origin/HEAD"
+		}
+	}
+
+	logger.Debug(ctx, "no upstream or origin/HEAD, falling back to HEAD",
+		slog.F("root", repoRoot))
+	return "HEAD"
+}
+
+// computeGitDiff produces a unified diff string for the repository.
+// It diffs the working tree against the best available base ref
+// (upstream tracking branch, origin/HEAD, or HEAD) so that
+// committed-but-not-pushed changes are included alongside any
+// uncommitted modifications. Untracked files are appended as
+// synthetic diffs.
 func computeGitDiff(ctx context.Context, logger slog.Logger, gitBin string, repoRoot string) (string, error) {
 	var diffParts []string
 
@@ -395,12 +430,11 @@ func computeGitDiff(ctx context.Context, logger slog.Logger, gitBin string, repo
 	}
 
 	if hasCommits {
-		// `git diff HEAD` captures both staged and unstaged changes
-		// relative to HEAD in a single unified diff.
-		cmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "diff", "HEAD")
+		base := diffBaseRef(ctx, logger, gitBin, repoRoot)
+		cmd := exec.CommandContext(ctx, gitBin, "-C", repoRoot, "diff", base)
 		out, err := cmd.Output()
 		if err != nil {
-			return "", xerrors.Errorf("git diff HEAD: %w", err)
+			return "", xerrors.Errorf("git diff %s: %w", base, err)
 		}
 		if len(out) > 0 {
 			diffParts = append(diffParts, string(out))

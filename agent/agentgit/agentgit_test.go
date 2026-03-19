@@ -1422,3 +1422,124 @@ func TestE2E_RepoDeletionEmitsRemoved(t *testing.T) {
 	}
 	require.True(t, foundRemoved, "expected repo %s to be marked as removed", repoDir)
 }
+
+// initTestRepoWithRemote creates a bare "remote" repo, clones it into
+// a working directory with an initial commit, and pushes so that the
+// upstream tracking branch is established. Returns the working repo
+// root.
+func initTestRepoWithRemote(t *testing.T) string {
+	t.Helper()
+
+	// Create the bare remote.
+	bareDir := t.TempDir()
+	gitCmd(t, bareDir, "init", "--bare")
+
+	// Clone into a working directory.
+	workDir := t.TempDir()
+	gitCmd(t, workDir, "clone", bareDir, "repo")
+	repoDir := filepath.Join(workDir, "repo")
+
+	// Resolve symlinks so paths match git's canonical output.
+	resolved, err := filepath.EvalSymlinks(repoDir)
+	if err == nil {
+		repoDir = resolved
+	}
+
+	gitCmd(t, repoDir, "config", "user.name", "Test")
+	gitCmd(t, repoDir, "config", "user.email", "test@test.com")
+
+	// Create an initial commit and push to establish upstream.
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "README.md"), []byte("# Test\n"), 0o600))
+	gitCmd(t, repoDir, "add", "README.md")
+	gitCmd(t, repoDir, "commit", "-m", "initial commit")
+	gitCmd(t, repoDir, "push", "origin", "HEAD")
+
+	// Ensure origin/HEAD is set so diffBaseRef can fall back to it
+	// for branches that have no upstream tracking ref.
+	gitCmd(t, repoDir, "remote", "set-head", "origin", "--auto")
+
+	return repoDir
+}
+
+func TestScanIncludesCommittedNotPushedChanges(t *testing.T) {
+	t.Parallel()
+
+	repoDir := initTestRepoWithRemote(t)
+	logger := slogtest.Make(t, nil)
+
+	// Make a local commit without pushing.
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "feature.go"), []byte("package feature\n"), 0o600))
+	gitCmd(t, repoDir, "add", "feature.go")
+	gitCmd(t, repoDir, "commit", "-m", "add feature")
+
+	// Working tree is now clean, but we're 1 commit ahead of
+	// origin. The scan should still report a non-empty diff.
+	h := agentgit.NewHandler(logger)
+	h.Subscribe([]string{filepath.Join(repoDir, "feature.go")})
+
+	ctx := context.Background()
+	msg := h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Len(t, msg.Repositories, 1)
+
+	repo := msg.Repositories[0]
+	require.NotEmpty(t, repo.UnifiedDiff, "committed-but-not-pushed changes should appear in unified_diff")
+	require.Contains(t, repo.UnifiedDiff, "feature.go")
+}
+
+func TestScanFallsBackToOriginHeadWithoutUpstream(t *testing.T) {
+	t.Parallel()
+
+	repoDir := initTestRepoWithRemote(t)
+	logger := slogtest.Make(t, nil)
+
+	// Create a new local branch with no upstream tracking.
+	gitCmd(t, repoDir, "checkout", "-b", "local-only-branch")
+
+	// Commit a file on this branch.
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "local.go"), []byte("package local\n"), 0o600))
+	gitCmd(t, repoDir, "add", "local.go")
+	gitCmd(t, repoDir, "commit", "-m", "local only commit")
+
+	// No upstream for this branch, but origin/HEAD exists.
+	// The scan should fall back to diffing against origin/HEAD.
+	h := agentgit.NewHandler(logger)
+	h.Subscribe([]string{filepath.Join(repoDir, "local.go")})
+
+	ctx := context.Background()
+	msg := h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Len(t, msg.Repositories, 1)
+
+	repo := msg.Repositories[0]
+	require.NotEmpty(t, repo.UnifiedDiff, "changes on a branch with no upstream should diff against origin/HEAD")
+	require.Contains(t, repo.UnifiedDiff, "local.go")
+}
+
+func TestScanIncludesBothCommittedAndUncommittedChanges(t *testing.T) {
+	t.Parallel()
+
+	repoDir := initTestRepoWithRemote(t)
+	logger := slogtest.Make(t, nil)
+
+	// Make a committed change (not pushed).
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "committed.go"), []byte("package committed\n"), 0o600))
+	gitCmd(t, repoDir, "add", "committed.go")
+	gitCmd(t, repoDir, "commit", "-m", "committed change")
+
+	// Make an uncommitted change.
+	require.NoError(t, os.WriteFile(filepath.Join(repoDir, "uncommitted.go"), []byte("package uncommitted\n"), 0o600))
+
+	h := agentgit.NewHandler(logger)
+	h.Subscribe([]string{filepath.Join(repoDir, "committed.go")})
+
+	ctx := context.Background()
+	msg := h.Scan(ctx)
+	require.NotNil(t, msg)
+	require.Len(t, msg.Repositories, 1)
+
+	repo := msg.Repositories[0]
+	require.NotEmpty(t, repo.UnifiedDiff)
+	require.Contains(t, repo.UnifiedDiff, "committed.go", "committed-not-pushed file should appear")
+	require.Contains(t, repo.UnifiedDiff, "uncommitted.go", "uncommitted file should also appear")
+}
