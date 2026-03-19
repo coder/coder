@@ -210,9 +210,19 @@ export const verifyParameters = async (
 				switch (richParameter.type) {
 					case "bool":
 						{
+							// Use auto-retrying assertions to avoid capturing
+							// a stale default value before data hydration
+							// completes.
 							const parameterField = parameterLabel.locator("input");
-							const value = await parameterField.isChecked();
-							expect(value.toString()).toEqual(buildParameter.value);
+							if (buildParameter.value === "true") {
+								await expect(parameterField).toBeChecked({
+									timeout: 15_000,
+								});
+							} else {
+								await expect(parameterField).not.toBeChecked({
+									timeout: 15_000,
+								});
+							}
 						}
 						break;
 					case "string":
