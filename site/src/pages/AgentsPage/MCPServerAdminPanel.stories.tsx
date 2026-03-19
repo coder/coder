@@ -42,9 +42,7 @@ const createServerConfig = (
  * `state` object lets mutation spies update what queries return
  * on refetch, mimicking a real server round-trip.
  */
-const setupMCPSpies = (state: {
-	servers: TypesGen.MCPServerConfig[];
-}) => {
+const setupMCPSpies = (state: { servers: TypesGen.MCPServerConfig[] }) => {
 	spyOn(API, "getMCPServerConfigs").mockImplementation(async () => {
 		return state.servers;
 	});
@@ -63,7 +61,9 @@ const setupMCPSpies = (state: {
 			enabled: req.enabled,
 			has_oauth2_secret: (req.oauth2_client_secret ?? "").length > 0,
 			has_api_key: (req.api_key_value ?? "").length > 0,
-			has_custom_headers: req.custom_headers != null && Object.keys(req.custom_headers).length > 0,
+			has_custom_headers:
+				req.custom_headers != null &&
+				Object.keys(req.custom_headers).length > 0,
 			tool_allow_list: req.tool_allow_list ?? [],
 			tool_deny_list: req.tool_deny_list ?? [],
 		});
@@ -71,31 +71,27 @@ const setupMCPSpies = (state: {
 		return created;
 	});
 
-	spyOn(API, "updateMCPServerConfig").mockImplementation(
-		async (id, req) => {
-			const idx = state.servers.findIndex((s) => s.id === id);
-			if (idx < 0) {
-				throw new Error("MCP server config not found.");
-			}
-			const current = state.servers[idx];
-			const updated: TypesGen.MCPServerConfig = {
-				...current,
-				display_name: req.display_name ?? current.display_name,
-				slug: req.slug ?? current.slug,
-				description: req.description ?? current.description,
-				url: req.url ?? current.url,
-				transport: req.transport ?? current.transport,
-				auth_type: req.auth_type ?? current.auth_type,
-				availability: req.availability ?? current.availability,
-				enabled: req.enabled ?? current.enabled,
-				updated_at: now,
-			};
-			state.servers = state.servers.map((s, i) =>
-				i === idx ? updated : s,
-			);
-			return updated;
-		},
-	);
+	spyOn(API, "updateMCPServerConfig").mockImplementation(async (id, req) => {
+		const idx = state.servers.findIndex((s) => s.id === id);
+		if (idx < 0) {
+			throw new Error("MCP server config not found.");
+		}
+		const current = state.servers[idx];
+		const updated: TypesGen.MCPServerConfig = {
+			...current,
+			display_name: req.display_name ?? current.display_name,
+			slug: req.slug ?? current.slug,
+			description: req.description ?? current.description,
+			url: req.url ?? current.url,
+			transport: req.transport ?? current.transport,
+			auth_type: req.auth_type ?? current.auth_type,
+			availability: req.availability ?? current.availability,
+			enabled: req.enabled ?? current.enabled,
+			updated_at: now,
+		};
+		state.servers = state.servers.map((s, i) => (i === idx ? updated : s));
+		return updated;
+	});
 
 	spyOn(API, "deleteMCPServerConfig").mockImplementation(async (id) => {
 		state.servers = state.servers.filter((s) => s.id !== id);
@@ -211,9 +207,7 @@ export const CreateServer: Story = {
 		);
 
 		// Submit.
-		await userEvent.click(
-			body.getByRole("button", { name: /Create server/i }),
-		);
+		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
 
 		await waitFor(() => {
 			expect(API.createMCPServerConfig).toHaveBeenCalledTimes(1);
@@ -242,10 +236,7 @@ export const CreateServerOAuth2: Story = {
 			await body.findByRole("button", { name: /Add Server/i }),
 		);
 
-		await userEvent.type(
-			body.getByLabelText(/Display Name/i),
-			"GitHub",
-		);
+		await userEvent.type(body.getByLabelText(/Display Name/i), "GitHub");
 		await userEvent.type(
 			body.getByLabelText(/Server URL/i),
 			"https://api.githubcopilot.com/mcp/",
@@ -256,28 +247,18 @@ export const CreateServerOAuth2: Story = {
 		await userEvent.click(await body.findByRole("option", { name: /OAuth2/i }));
 
 		// OAuth2 fields should appear.
-		await expect(
-			await body.findByLabelText(/Client ID/i),
-		).toBeInTheDocument();
+		await expect(await body.findByLabelText(/Client ID/i)).toBeInTheDocument();
 		expect(body.getByLabelText(/Client Secret/i)).toBeInTheDocument();
 		expect(body.getByLabelText(/Authorization URL/i)).toBeInTheDocument();
 		expect(body.getByLabelText(/Token URL/i)).toBeInTheDocument();
 		expect(body.getByLabelText(/^Scopes/i)).toBeInTheDocument();
 
 		// Fill OAuth2 fields.
-		await userEvent.type(
-			body.getByLabelText(/Client ID/i),
-			"my-client-id",
-		);
-		await userEvent.type(
-			body.getByLabelText(/Client Secret/i),
-			"my-secret",
-		);
+		await userEvent.type(body.getByLabelText(/Client ID/i), "my-client-id");
+		await userEvent.type(body.getByLabelText(/Client Secret/i), "my-secret");
 
 		// Submit.
-		await userEvent.click(
-			body.getByRole("button", { name: /Create server/i }),
-		);
+		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
 
 		await waitFor(() => {
 			expect(API.createMCPServerConfig).toHaveBeenCalledTimes(1);
@@ -312,7 +293,9 @@ export const CreateServerAPIKey: Story = {
 
 		// Select API Key from the Radix Select dropdown.
 		await userEvent.click(body.getByLabelText(/Authentication/i));
-		await userEvent.click(await body.findByRole("option", { name: /API Key/i }));
+		await userEvent.click(
+			await body.findByRole("option", { name: /API Key/i }),
+		);
 
 		// API key fields should appear.
 		await expect(
@@ -320,18 +303,10 @@ export const CreateServerAPIKey: Story = {
 		).toBeInTheDocument();
 		expect(body.getByLabelText(/API Key/i)).toBeInTheDocument();
 
-		await userEvent.type(
-			body.getByLabelText(/Header Name/i),
-			"Authorization",
-		);
-		await userEvent.type(
-			body.getByLabelText(/API Key/i),
-			"lin_api_12345",
-		);
+		await userEvent.type(body.getByLabelText(/Header Name/i), "Authorization");
+		await userEvent.type(body.getByLabelText(/API Key/i), "lin_api_12345");
 
-		await userEvent.click(
-			body.getByRole("button", { name: /Create server/i }),
-		);
+		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
 
 		await waitFor(() => {
 			expect(API.createMCPServerConfig).toHaveBeenCalledTimes(1);
@@ -369,9 +344,7 @@ export const EditServer: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		// Click the server row.
-		await userEvent.click(
-			await body.findByRole("button", { name: /Sentry/ }),
-		);
+		await userEvent.click(await body.findByRole("button", { name: /Sentry/ }));
 
 		// The inline name input should be pre-populated.
 		const nameInput = await body.findByLabelText(/Display Name/i);
@@ -386,9 +359,7 @@ export const EditServer: Story = {
 		await userEvent.clear(descField);
 		await userEvent.type(descField, "Sentry error tracking integration");
 
-		await userEvent.click(
-			body.getByRole("button", { name: /Save changes/i }),
-		);
+		await userEvent.click(body.getByRole("button", { name: /Save changes/i }));
 
 		await waitFor(() => {
 			expect(API.updateMCPServerConfig).toHaveBeenCalledTimes(1);
@@ -416,8 +387,7 @@ export const EditServerWithOAuth2Secret: Story = {
 					oauth2_client_id: "gh-client-id",
 					has_oauth2_secret: true,
 					oauth2_auth_url: "https://github.com/login/oauth/authorize",
-					oauth2_token_url:
-						"https://github.com/login/oauth/access_token",
+					oauth2_token_url: "https://github.com/login/oauth/access_token",
 					oauth2_scopes: "repo user",
 					availability: "default_on",
 					enabled: true,
@@ -428,9 +398,7 @@ export const EditServerWithOAuth2Secret: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		await userEvent.click(
-			await body.findByRole("button", { name: /GitHub/ }),
-		);
+		await userEvent.click(await body.findByRole("button", { name: /GitHub/ }));
 
 		// The OAuth2 fields should be visible.
 		const secretField = await body.findByLabelText(/Client Secret/i);
@@ -470,9 +438,7 @@ export const EditServerWithCustomHeaders: Story = {
 		).toBeInTheDocument();
 
 		// Add a new header.
-		await userEvent.click(
-			body.getByRole("button", { name: /Add header/i }),
-		);
+		await userEvent.click(body.getByRole("button", { name: /Add header/i }));
 
 		await userEvent.type(
 			body.getByLabelText(/Header 1 name/i),
@@ -484,9 +450,7 @@ export const EditServerWithCustomHeaders: Story = {
 		);
 
 		// Submit.
-		await userEvent.click(
-			body.getByRole("button", { name: /Save changes/i }),
-		);
+		await userEvent.click(body.getByRole("button", { name: /Save changes/i }));
 
 		await waitFor(() => {
 			expect(API.updateMCPServerConfig).toHaveBeenCalledTimes(1);
@@ -516,14 +480,10 @@ export const DeleteServerConfirmation: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		await userEvent.click(
-			await body.findByRole("button", { name: /Sentry/ }),
-		);
+		await userEvent.click(await body.findByRole("button", { name: /Sentry/ }));
 
 		// Click Delete.
-		await userEvent.click(
-			body.getByRole("button", { name: "Delete" }),
-		);
+		await userEvent.click(body.getByRole("button", { name: "Delete" }));
 
 		// Confirmation should appear.
 		await expect(
@@ -548,9 +508,7 @@ export const DeleteServerCancelled: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		await userEvent.click(
-			await body.findByRole("button", { name: /Sentry/ }),
-		);
+		await userEvent.click(await body.findByRole("button", { name: /Sentry/ }));
 		await userEvent.click(body.getByRole("button", { name: "Delete" }));
 		await body.findByText(/Are you sure/i);
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
@@ -581,14 +539,10 @@ export const DeleteServerConfirmed: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		await userEvent.click(
-			await body.findByRole("button", { name: /Sentry/ }),
-		);
+		await userEvent.click(await body.findByRole("button", { name: /Sentry/ }));
 		await userEvent.click(body.getByRole("button", { name: "Delete" }));
 		await body.findByText(/Are you sure/i);
-		await userEvent.click(
-			body.getByRole("button", { name: /Delete server/i }),
-		);
+		await userEvent.click(body.getByRole("button", { name: /Delete server/i }));
 
 		await waitFor(() => {
 			expect(API.deleteMCPServerConfig).toHaveBeenCalledTimes(1);
@@ -659,9 +613,7 @@ export const CreateServerWithToolGovernance: Story = {
 			"delete_file, execute",
 		);
 
-		await userEvent.click(
-			body.getByRole("button", { name: /Create server/i }),
-		);
+		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
 
 		await waitFor(() => {
 			expect(API.createMCPServerConfig).toHaveBeenCalledTimes(1);
@@ -687,10 +639,7 @@ export const CustomHeadersAuthType: Story = {
 			await body.findByRole("button", { name: /Add Server/i }),
 		);
 
-		await userEvent.type(
-			body.getByLabelText(/Display Name/i),
-			"Custom API",
-		);
+		await userEvent.type(body.getByLabelText(/Display Name/i), "Custom API");
 		await userEvent.type(
 			body.getByLabelText(/Server URL/i),
 			"https://mcp.example.com/v1",
@@ -707,19 +656,14 @@ export const CustomHeadersAuthType: Story = {
 			await body.findByRole("button", { name: /Add header/i }),
 		);
 
-		await userEvent.type(
-			body.getByLabelText(/Header 1 name/i),
-			"X-Api-Token",
-		);
+		await userEvent.type(body.getByLabelText(/Header 1 name/i), "X-Api-Token");
 		await userEvent.type(
 			body.getByLabelText(/Header 1 value/i),
 			"secret-token-123",
 		);
 
 		// Submit.
-		await userEvent.click(
-			body.getByRole("button", { name: /Create server/i }),
-		);
+		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
 
 		await waitFor(() => {
 			expect(API.createMCPServerConfig).toHaveBeenCalledTimes(1);

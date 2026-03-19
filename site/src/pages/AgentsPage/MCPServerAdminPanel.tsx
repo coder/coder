@@ -221,8 +221,7 @@ const ServerList: FC<ServerListProps> = ({
 						aria-label={`${server.display_name} (${server.enabled ? "enabled" : "disabled"})`}
 						className={cn(
 							"flex w-full cursor-pointer items-center gap-3.5 bg-transparent border-0 p-0 px-3 py-3 text-left transition-colors hover:bg-surface-secondary/30",
-							i > 0 &&
-								"border-0 border-t border-solid border-border/50",
+							i > 0 && "border-0 border-t border-solid border-border/50",
 						)}
 					>
 						<MCPServerIcon
@@ -235,9 +234,7 @@ const ServerList: FC<ServerListProps> = ({
 								{server.display_name}
 							</span>
 							<span className="block truncate text-xs text-content-secondary">
-								{server.url}
-								{" · "}
-								{authTypeLabel(server.auth_type)}
+								{server.url} · {authTypeLabel(server.auth_type)}
 							</span>
 						</div>
 						{server.enabled ? (
@@ -279,14 +276,10 @@ const ServerForm: FC<ServerFormProps> = ({
 	const isEditing = server !== null;
 
 	// ── Local state ─────────────────────────────────────────
-	const [displayName, setDisplayName] = useState(
-		server?.display_name ?? "",
-	);
+	const [displayName, setDisplayName] = useState(server?.display_name ?? "");
 	const [slug, setSlug] = useState(server?.slug ?? "");
 	const [slugTouched, setSlugTouched] = useState(false);
-	const [description, setDescription] = useState(
-		server?.description ?? "",
-	);
+	const [description, setDescription] = useState(server?.description ?? "");
 	const [iconURL, setIconURL] = useState(server?.icon_url ?? "");
 	const [url, setURL] = useState(server?.url ?? "");
 	const [transport, setTransport] = useState(
@@ -306,9 +299,7 @@ const ServerForm: FC<ServerFormProps> = ({
 	const [oauth2TokenURL, setOauth2TokenURL] = useState(
 		server?.oauth2_token_url ?? "",
 	);
-	const [oauth2Scopes, setOauth2Scopes] = useState(
-		server?.oauth2_scopes ?? "",
-	);
+	const [oauth2Scopes, setOauth2Scopes] = useState(server?.oauth2_scopes ?? "");
 	const [apiKeyHeader, setApiKeyHeader] = useState(
 		server?.api_key_header ?? "",
 	);
@@ -372,8 +363,7 @@ const ServerForm: FC<ServerFormProps> = ({
 			e.preventDefault();
 
 			const effectiveOAuth2Secret =
-				oauth2SecretTouched &&
-				oauth2ClientSecret !== SECRET_PLACEHOLDER
+				oauth2SecretTouched && oauth2ClientSecret !== SECRET_PLACEHOLDER
 					? oauth2ClientSecret
 					: undefined;
 			const effectiveApiKeyValue =
@@ -452,59 +442,63 @@ const ServerForm: FC<ServerFormProps> = ({
 		!isDisabled;
 
 	return (
-			<div className="flex min-h-full flex-col">
-				{/* Back */}
-				<button
-					type="button"
-					onClick={onBack}
-					className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
-				>
-					<ChevronLeftIcon className="h-4 w-4" />
-					Back
-				</button>
+		<div className="flex min-h-full flex-col">
+			{/* Back */}
+			<button
+				type="button"
+				onClick={onBack}
+				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
+			>
+				<ChevronLeftIcon className="h-4 w-4" />
+				Back
+			</button>
 
-				{/* Header with icon + editable name + enabled toggle */}
-				<div className="flex items-center gap-3">
-					<MCPServerIcon
-						iconUrl={iconURL}
-						name={displayName || "New Server"}
-						className="h-8 w-8"
-					/>
-					<input
-						type="text"
-						value={displayName}
-						onChange={(e) => handleDisplayNameChange(e.target.value)}
-						disabled={isDisabled}
-						className="m-0 min-w-0 flex-1 border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
-						placeholder="Server display name"
-						aria-label="Display Name"
-					/>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<span className="ml-auto inline-flex">
-								<Switch
-									checked={enabled}
-									onCheckedChange={setEnabled}
-									aria-label="Enabled"
-									disabled={isDisabled}
-								/>
-							</span>
-						</TooltipTrigger>
-						<TooltipContent side="bottom">
-							{enabled ? "Disable" : "Enable"} this server
-						</TooltipContent>
-					</Tooltip>
-				</div>
-				<hr className="my-4 border-0 border-t border-solid border-border" />
+			{/* Header with icon + editable name + enabled toggle */}
+			<div className="flex items-center gap-3">
+				<MCPServerIcon
+					iconUrl={iconURL}
+					name={displayName || "New Server"}
+					className="h-8 w-8"
+				/>
+				<input
+					type="text"
+					value={displayName}
+					onChange={(e) => handleDisplayNameChange(e.target.value)}
+					disabled={isDisabled}
+					className="m-0 min-w-0 flex-1 border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
+					placeholder="Server display name"
+					aria-label="Display Name"
+				/>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<span className="ml-auto inline-flex">
+							<Switch
+								checked={enabled}
+								onCheckedChange={setEnabled}
+								aria-label="Enabled"
+								disabled={isDisabled}
+							/>
+						</span>
+					</TooltipTrigger>
+					<TooltipContent side="bottom">
+						{enabled ? "Disable" : "Enable"} this server
+					</TooltipContent>
+				</Tooltip>
+			</div>
+			<hr className="my-4 border-0 border-t border-solid border-border" />
 
-				<form
-					id={formId}
-					onSubmit={(e) => void handleSubmit(e)}
-					className="flex flex-1 flex-col"
-					autoComplete="off"
-				>
-					<div className="space-y-5">							{/* ── Identity row: slug + description side by side ── */}
-						<div className="grid items-start gap-5 sm:grid-cols-2">						<Field
+			<form
+				id={formId}
+				onSubmit={(e) => void handleSubmit(e)}
+				className="flex flex-1 flex-col"
+				autoComplete="off"
+			>
+				<div className="space-y-5">
+					{" "}
+					{/* ── Identity row: slug + description side by side ── */}
+					<div className="grid items-start gap-5 sm:grid-cols-2">
+						{" "}
+						<Field
 							label="Slug"
 							htmlFor={`${formId}-slug`}
 							required
@@ -514,14 +508,11 @@ const ServerForm: FC<ServerFormProps> = ({
 								id={`${formId}-slug`}
 								className="h-9 text-[13px]"
 								value={slug}
-								onChange={(e) =>
-									handleSlugChange(e.target.value)
-								}
+								onChange={(e) => handleSlugChange(e.target.value)}
 								placeholder="e.g. sentry"
 								disabled={isDisabled}
 							/>
 						</Field>
-
 						<Field
 							label="Description"
 							htmlFor={`${formId}-desc`}
@@ -531,15 +522,12 @@ const ServerForm: FC<ServerFormProps> = ({
 								id={`${formId}-desc`}
 								className="h-9 text-[13px]"
 								value={description}
-								onChange={(e) =>
-									setDescription(e.target.value)
-								}
+								onChange={(e) => setDescription(e.target.value)}
 								placeholder="Optional description"
 								disabled={isDisabled}
 							/>
 						</Field>
 					</div>
-
 					<Field
 						label="Icon"
 						description="Pick an emoji or paste an image URL."
@@ -551,10 +539,8 @@ const ServerForm: FC<ServerFormProps> = ({
 							disabled={isDisabled}
 						/>
 					</Field>
-
 					{/* ── Connection row: URL + transport side by side ── */}
 					<hr className="!my-2 border-0 border-t border-solid border-border" />
-
 					<div className="grid items-start gap-5 sm:grid-cols-[1fr_auto]">
 						<Field
 							label="Server URL"
@@ -586,10 +572,7 @@ const ServerForm: FC<ServerFormProps> = ({
 								</SelectTrigger>
 								<SelectContent>
 									{TRANSPORT_OPTIONS.map((opt) => (
-										<SelectItem
-											key={opt.value}
-											value={opt.value}
-										>
+										<SelectItem key={opt.value} value={opt.value}>
 											{opt.label}
 										</SelectItem>
 									))}
@@ -597,10 +580,8 @@ const ServerForm: FC<ServerFormProps> = ({
 							</Select>
 						</Field>
 					</div>
-
 					{/* ── Authentication ── */}
 					<hr className="!my-2 border-0 border-t border-solid border-border" />
-
 					<Field
 						label="Authentication"
 						htmlFor={`${formId}-auth`}
@@ -619,63 +600,53 @@ const ServerForm: FC<ServerFormProps> = ({
 							</SelectTrigger>
 							<SelectContent>
 								{AUTH_TYPE_OPTIONS.map((opt) => (
-									<SelectItem
-										key={opt.value}
-										value={opt.value}
-									>
+									<SelectItem key={opt.value} value={opt.value}>
 										{opt.label}
 									</SelectItem>
 								))}
 							</SelectContent>
 						</Select>
 					</Field>
-
-				{authType === "oauth2" && (
-					<div className="space-y-4 rounded-lg border border-border bg-surface-secondary/30 p-4">
-						<p className="m-0 text-xs text-content-secondary">
-							Register a client with the external MCP server's OAuth2
-							provider and enter the credentials below. Coder will
-							handle the per-user authorization flow.
-						</p>
-						<div className="grid items-start gap-4 sm:grid-cols-2">								<Field
-									label="Client ID"
-									htmlFor={`${formId}-oauth-id`}
-								>
+					{authType === "oauth2" && (
+						<div className="space-y-4 rounded-lg border border-border bg-surface-secondary/30 p-4">
+							<p className="m-0 text-xs text-content-secondary">
+								Register a client with the external MCP server's OAuth2 provider
+								and enter the credentials below. Coder will handle the per-user
+								authorization flow.
+							</p>
+							<div className="grid items-start gap-4 sm:grid-cols-2">
+								{" "}
+								<Field label="Client ID" htmlFor={`${formId}-oauth-id`}>
 									<Input
 										id={`${formId}-oauth-id`}
 										className="h-9 text-[13px]"
 										value={oauth2ClientID}
-										onChange={(e) =>
-											setOauth2ClientID(e.target.value)
-										}
+										onChange={(e) => setOauth2ClientID(e.target.value)}
 										disabled={isDisabled}
 									/>
 								</Field>
-								<Field
-									label="Client Secret"
-									htmlFor={`${formId}-oauth-secret`}
-								>
-										<Input
-											id={`${formId}-oauth-secret`}
-											className="h-9 font-mono text-[13px]"
-											type="text"
-											autoComplete="off"
-											data-1p-ignore
-											data-lpignore="true"
-											data-form-type="other"
-											data-bwignore
-											style={{ WebkitTextSecurity: "disc" } as React.CSSProperties}
-											value={oauth2ClientSecret}										onChange={(e) => {
+								<Field label="Client Secret" htmlFor={`${formId}-oauth-secret`}>
+									<Input
+										id={`${formId}-oauth-secret`}
+										className="h-9 font-mono text-[13px]"
+										type="text"
+										autoComplete="off"
+										data-1p-ignore
+										data-lpignore="true"
+										data-form-type="other"
+										data-bwignore
+										style={
+											{ WebkitTextSecurity: "disc" } as React.CSSProperties
+										}
+										value={oauth2ClientSecret}
+										onChange={(e) => {
 											setOauth2SecretTouched(true);
-											setOauth2ClientSecret(
-												e.target.value,
-											);
+											setOauth2ClientSecret(e.target.value);
 										}}
 										onFocus={() => {
 											if (
 												!oauth2SecretTouched &&
-												oauth2ClientSecret ===
-													SECRET_PLACEHOLDER
+												oauth2ClientSecret === SECRET_PLACEHOLDER
 											) {
 												setOauth2ClientSecret("");
 												setOauth2SecretTouched(true);
@@ -694,87 +665,64 @@ const ServerForm: FC<ServerFormProps> = ({
 										id={`${formId}-oauth-auth-url`}
 										className="h-9 text-[13px]"
 										value={oauth2AuthURL}
-										onChange={(e) =>
-											setOauth2AuthURL(e.target.value)
-										}
+										onChange={(e) => setOauth2AuthURL(e.target.value)}
 										placeholder="https://provider.com/oauth2/authorize"
 										disabled={isDisabled}
 									/>
 								</Field>
-								<Field
-									label="Token URL"
-									htmlFor={`${formId}-oauth-token-url`}
-								>
+								<Field label="Token URL" htmlFor={`${formId}-oauth-token-url`}>
 									<Input
 										id={`${formId}-oauth-token-url`}
 										className="h-9 text-[13px]"
 										value={oauth2TokenURL}
-										onChange={(e) =>
-											setOauth2TokenURL(e.target.value)
-										}
+										onChange={(e) => setOauth2TokenURL(e.target.value)}
 										placeholder="https://provider.com/oauth2/token"
 										disabled={isDisabled}
 									/>
 								</Field>
 							</div>
-							<Field
-								label="Scopes"
-								htmlFor={`${formId}-oauth-scopes`}
-							>
+							<Field label="Scopes" htmlFor={`${formId}-oauth-scopes`}>
 								<Input
 									id={`${formId}-oauth-scopes`}
 									className="h-9 text-[13px]"
 									value={oauth2Scopes}
-									onChange={(e) =>
-										setOauth2Scopes(e.target.value)
-									}
+									onChange={(e) => setOauth2Scopes(e.target.value)}
 									placeholder="read write"
 									disabled={isDisabled}
 								/>
 							</Field>
 						</div>
 					)}
-
 					{authType === "api_key" && (
 						<div className="grid items-start gap-4 rounded-lg border border-border bg-surface-secondary/30 p-4 sm:grid-cols-2">
-							<Field
-								label="Header Name"
-								htmlFor={`${formId}-apikey-header`}
-							>
+							<Field label="Header Name" htmlFor={`${formId}-apikey-header`}>
 								<Input
 									id={`${formId}-apikey-header`}
 									className="h-9 text-[13px]"
 									value={apiKeyHeader}
-									onChange={(e) =>
-										setApiKeyHeader(e.target.value)
-									}
+									onChange={(e) => setApiKeyHeader(e.target.value)}
 									placeholder="Authorization"
 									disabled={isDisabled}
 								/>
 							</Field>
-							<Field
-								label="API Key"
-								htmlFor={`${formId}-apikey-value`}
-							>
-									<Input
-										id={`${formId}-apikey-value`}
-										className="h-9 font-mono text-[13px]"
-										type="text"
-										autoComplete="off"
-										data-1p-ignore
-										data-lpignore="true"
-										data-form-type="other"
-										data-bwignore
-										style={{ WebkitTextSecurity: "disc" } as React.CSSProperties}
-										value={apiKeyValue}									onChange={(e) => {
+							<Field label="API Key" htmlFor={`${formId}-apikey-value`}>
+								<Input
+									id={`${formId}-apikey-value`}
+									className="h-9 font-mono text-[13px]"
+									type="text"
+									autoComplete="off"
+									data-1p-ignore
+									data-lpignore="true"
+									data-form-type="other"
+									data-bwignore
+									style={{ WebkitTextSecurity: "disc" } as React.CSSProperties}
+									value={apiKeyValue}
+									onChange={(e) => {
 										setApiKeyTouched(true);
 										setApiKeyValue(e.target.value);
 									}}
 									onFocus={() => {
-										if (
-											!apiKeyTouched &&
-											apiKeyValue === SECRET_PLACEHOLDER
-										) {
+										if (!apiKeyTouched && apiKeyValue === SECRET_PLACEHOLDER) {
 											setApiKeyValue("");
 											setApiKeyTouched(true);
 										}
@@ -784,32 +732,27 @@ const ServerForm: FC<ServerFormProps> = ({
 							</Field>
 						</div>
 					)}
-
-				{authType === "custom_headers" && (
-					<div className="space-y-3 rounded-lg border border-border bg-surface-secondary/30 p-4">
-						{server?.has_custom_headers && !customHeadersTouched && (
-							<p className="m-0 text-xs text-content-secondary">
-								This server has custom headers configured.
-								Add headers below to replace them.
-							</p>
-						)}
-						{customHeaders.map((header, index) => (
-							<div key={index} className="flex items-start gap-2">
-								<div className="grid flex-1 items-start gap-2 sm:grid-cols-2">
-									<Input
-										className="h-9 text-[13px]"
-										value={header.key}
-										onChange={(e) =>
-											handleUpdateCustomHeader(
-												index,
-												"key",
-												e.target.value,
-											)
-										}
-										placeholder="Header name"
-										disabled={isDisabled}
-										aria-label={`Header ${index + 1} name`}
-									/>
+					{authType === "custom_headers" && (
+						<div className="space-y-3 rounded-lg border border-border bg-surface-secondary/30 p-4">
+							{server?.has_custom_headers && !customHeadersTouched && (
+								<p className="m-0 text-xs text-content-secondary">
+									This server has custom headers configured. Add headers below
+									to replace them.
+								</p>
+							)}
+							{customHeaders.map((header, index) => (
+								<div key={index} className="flex items-start gap-2">
+									<div className="grid flex-1 items-start gap-2 sm:grid-cols-2">
+										<Input
+											className="h-9 text-[13px]"
+											value={header.key}
+											onChange={(e) =>
+												handleUpdateCustomHeader(index, "key", e.target.value)
+											}
+											placeholder="Header name"
+											disabled={isDisabled}
+											aria-label={`Header ${index + 1} name`}
+										/>
 										<Input
 											className="h-9 font-mono text-[13px]"
 											type="text"
@@ -818,85 +761,77 @@ const ServerForm: FC<ServerFormProps> = ({
 											data-lpignore="true"
 											data-form-type="other"
 											data-bwignore
-											style={{ WebkitTextSecurity: "disc" } as React.CSSProperties}
-											value={header.value}										onChange={(e) =>
-											handleUpdateCustomHeader(
-												index,
-												"value",
-												e.target.value,
-											)
-										}
-										placeholder="Header value"
+											style={
+												{ WebkitTextSecurity: "disc" } as React.CSSProperties
+											}
+											value={header.value}
+											onChange={(e) =>
+												handleUpdateCustomHeader(index, "value", e.target.value)
+											}
+											placeholder="Header value"
+											disabled={isDisabled}
+											aria-label={`Header ${index + 1} value`}
+										/>
+									</div>
+									<Button
+										variant="outline"
+										size="icon"
+										type="button"
+										className="mt-0 h-9 w-9 shrink-0"
+										onClick={() => handleRemoveCustomHeader(index)}
 										disabled={isDisabled}
-										aria-label={`Header ${index + 1} value`}
-									/>
+										aria-label={`Remove header ${index + 1}`}
+									>
+										<XIcon className="h-4 w-4" />
+									</Button>
 								</div>
-								<Button
-									variant="outline"
-									size="icon"
-									type="button"
-									className="mt-0 h-9 w-9 shrink-0"
-									onClick={() =>
-										handleRemoveCustomHeader(index)
-									}
-									disabled={isDisabled}
-									aria-label={`Remove header ${index + 1}`}
-								>
-									<XIcon className="h-4 w-4" />
-								</Button>
-							</div>
-						))}
-						<Button
-							variant="outline"
-							size="sm"
-							type="button"
-							onClick={handleAddCustomHeader}
-							disabled={isDisabled}
-						>
-							<PlusIcon className="h-4 w-4" />
-							Add header
-						</Button>
-						</div>
-					)}
-
-						{/* ── Availability ── */}
-						<hr className="!my-2 border-0 border-t border-solid border-border" />
-
-						<Field
-							label="Availability"
-							htmlFor={`${formId}-availability`}
-							description="Controls how this server appears in new chats."
-						>
-							<Select
-								value={availability}
-								onValueChange={setAvailability}
+							))}
+							<Button
+								variant="outline"
+								size="sm"
+								type="button"
+								onClick={handleAddCustomHeader}
 								disabled={isDisabled}
 							>
-								<SelectTrigger
-									id={`${formId}-availability`}
-									className="h-9 text-[13px]"
-								>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{AVAILABILITY_OPTIONS.map((opt) => (
-										<SelectItem
-											key={opt.value}
-											value={opt.value}
-										>
-											<div>
-												<span>{opt.label}</span>
-												<span className="ml-1.5 text-content-secondary">
-													— {opt.description}
-												</span>
-											</div>
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</Field>					{/* ── Tool governance row ── */}
+								<PlusIcon className="h-4 w-4" />
+								Add header
+							</Button>
+						</div>
+					)}
+					{/* ── Availability ── */}
 					<hr className="!my-2 border-0 border-t border-solid border-border" />
-
+					<Field
+						label="Availability"
+						htmlFor={`${formId}-availability`}
+						description="Controls how this server appears in new chats."
+					>
+						<Select
+							value={availability}
+							onValueChange={setAvailability}
+							disabled={isDisabled}
+						>
+							<SelectTrigger
+								id={`${formId}-availability`}
+								className="h-9 text-[13px]"
+							>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{AVAILABILITY_OPTIONS.map((opt) => (
+									<SelectItem key={opt.value} value={opt.value}>
+										<div>
+											<span>{opt.label}</span>
+											<span className="ml-1.5 text-content-secondary">
+												— {opt.description}
+											</span>
+										</div>
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</Field>{" "}
+					{/* ── Tool governance row ── */}
+					<hr className="!my-2 border-0 border-t border-solid border-border" />
 					<div className="grid items-start gap-5 sm:grid-cols-2">
 						<Field
 							label="Tool Allow List"
@@ -907,9 +842,7 @@ const ServerForm: FC<ServerFormProps> = ({
 								id={`${formId}-allow-list`}
 								className="h-9 text-[13px]"
 								value={toolAllowList}
-								onChange={(e) =>
-									setToolAllowList(e.target.value)
-								}
+								onChange={(e) => setToolAllowList(e.target.value)}
 								placeholder="tool1, tool2"
 								disabled={isDisabled}
 							/>
@@ -924,9 +857,7 @@ const ServerForm: FC<ServerFormProps> = ({
 								id={`${formId}-deny-list`}
 								className="h-9 text-[13px]"
 								value={toolDenyList}
-								onChange={(e) =>
-									setToolDenyList(e.target.value)
-								}
+								onChange={(e) => setToolDenyList(e.target.value)}
 								placeholder="tool3, tool4"
 								disabled={isDisabled}
 							/>
@@ -947,9 +878,7 @@ const ServerForm: FC<ServerFormProps> = ({
 									variant="outline"
 									size="lg"
 									type="button"
-									onClick={() =>
-										setConfirmingDelete(false)
-									}
+									onClick={() => setConfirmingDelete(false)}
 									disabled={isDisabled}
 								>
 									Cancel
@@ -959,16 +888,9 @@ const ServerForm: FC<ServerFormProps> = ({
 									size="lg"
 									type="button"
 									disabled={isDisabled}
-									onClick={() =>
-										void onDelete(server.id)
-									}
+									onClick={() => void onDelete(server.id)}
 								>
-									{isDeleting && (
-										<Spinner
-											className="h-4 w-4"
-											loading
-										/>
-									)}
+									{isDeleting && <Spinner className="h-4 w-4" loading />}
 									Delete server
 								</Button>
 							</div>
@@ -982,29 +904,16 @@ const ServerForm: FC<ServerFormProps> = ({
 									type="button"
 									className="text-content-secondary hover:text-content-destructive hover:border-border-destructive"
 									disabled={isDisabled}
-									onClick={() =>
-										setConfirmingDelete(true)
-									}
+									onClick={() => setConfirmingDelete(true)}
 								>
 									Delete
 								</Button>
 							) : (
 								<div />
 							)}
-							<Button
-								size="lg"
-								type="submit"
-								disabled={!canSubmit}
-							>
-								{isSaving && (
-									<Spinner
-										className="h-4 w-4"
-										loading
-									/>
-								)}
-								{isEditing
-									? "Save changes"
-									: "Create server"}
+							<Button size="lg" type="submit" disabled={!canSubmit}>
+								{isSaving && <Spinner className="h-4 w-4" loading />}
+								{isEditing ? "Save changes" : "Create server"}
 							</Button>
 						</div>
 					)}
@@ -1031,15 +940,9 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 
 	const serversQuery = useQuery(mcpServerConfigs());
 
-	const createMut = useMutation(
-		createMCPServerConfigMutation(queryClient),
-	);
-	const updateMut = useMutation(
-		updateMCPServerConfigMutation(queryClient),
-	);
-	const deleteMut = useMutation(
-		deleteMCPServerConfigMutation(queryClient),
-	);
+	const createMut = useMutation(createMCPServerConfigMutation(queryClient));
+	const updateMut = useMutation(updateMCPServerConfigMutation(queryClient));
+	const deleteMut = useMutation(deleteMCPServerConfigMutation(queryClient));
 
 	type View =
 		| { mode: "list" }
@@ -1050,17 +953,12 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 		() =>
 			(serversQuery.data ?? [])
 				.slice()
-				.sort((a, b) =>
-					a.display_name.localeCompare(b.display_name),
-				),
+				.sort((a, b) => a.display_name.localeCompare(b.display_name)),
 		[serversQuery.data],
 	);
 
 	const handleSave = useCallback(
-		async (
-			req: TypesGen.CreateMCPServerConfigRequest,
-			id?: string,
-		) => {
+		async (req: TypesGen.CreateMCPServerConfigRequest, id?: string) => {
 			try {
 				if (id) {
 					const updateReq: TypesGen.UpdateMCPServerConfigRequest = {
@@ -1110,9 +1008,7 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 			{view.mode === "list" ? (
 				<ServerList
 					servers={servers}
-					onSelect={(server) =>
-						setView({ mode: "form", server })
-					}
+					onSelect={(server) => setView({ mode: "form", server })}
 					onAdd={() => setView({ mode: "form", server: null })}
 					sectionLabel={sectionLabel}
 					sectionDescription={sectionDescription}
@@ -1121,9 +1017,7 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 			) : (
 				<ServerForm
 					server={view.server}
-					isSaving={
-						createMut.isPending || updateMut.isPending
-					}
+					isSaving={createMut.isPending || updateMut.isPending}
 					isDeleting={deleteMut.isPending}
 					onSave={handleSave}
 					onDelete={handleDelete}
@@ -1131,9 +1025,7 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 				/>
 			)}
 
-			{serversQuery.isError && (
-				<ErrorAlert error={serversQuery.error} />
-			)}
+			{serversQuery.isError && <ErrorAlert error={serversQuery.error} />}
 			{createMut.error && <ErrorAlert error={createMut.error} />}
 			{updateMut.error && <ErrorAlert error={updateMut.error} />}
 			{deleteMut.error && <ErrorAlert error={deleteMut.error} />}

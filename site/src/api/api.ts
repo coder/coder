@@ -3217,9 +3217,8 @@ class ApiMethods {
 	};
 
 	getMCPServerConfigs = async (): Promise<TypesGen.MCPServerConfig[]> => {
-		const response = await this.axios.get<TypesGen.MCPServerConfig[]>(
-			mcpServerConfigsPath,
-		);
+		const response =
+			await this.axios.get<TypesGen.MCPServerConfig[]>(mcpServerConfigsPath);
 		return response.data;
 	};
 
