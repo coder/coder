@@ -665,23 +665,28 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 	})
 }
 
+func aibridgeOpts(t *testing.T) *coderdenttest.Options {
+	t.Helper()
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	return &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureAIBridge: 1,
+			},
+		},
+	}
+}
+
 func TestAIBridgeListSessions(t *testing.T) {
 	t.Parallel()
 
 	t.Run("EmptyDB", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, _ := coderdenttest.New(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 		//nolint:gocritic // Owner role is irrelevant here.
 		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
@@ -692,18 +697,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		now := dbtime.Now()
@@ -756,8 +750,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 			CreatedAt:      now.Add(time.Minute),
 		})
 
-		// Session 2: Thread-based session (no client_session_id, shared
-		// thread_root_id).
+		// Session 2: Thread-based session (no client_session_id, shared thread_root_id).
 		s2i1EndedAt := now.Add(-time.Hour + time.Minute)
 		s2i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: firstUser.UserID,
@@ -775,8 +768,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 			ThreadParentInterceptionID: uuid.NullUUID{UUID: s2i1.ID, Valid: true},
 		}, &s2i2EndedAt)
 
-		// Session 3: Standalone interception (no client_session_id, no
-		// thread_root_id).
+		// Session 3: Standalone interception (no client_session_id, no thread_root_id).
 		s3EndedAt := now.Add(-2*time.Hour + time.Minute)
 		s3i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: firstUser.UserID,
@@ -853,19 +845,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 
 	t.Run("Pagination", func(t *testing.T) {
 		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		now := dbtime.Now()
@@ -938,18 +918,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 
 	t.Run("Filters", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, user2 := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
@@ -1014,6 +983,146 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 1, res.Count)
 		require.Equal(t, s1.ID.String(), res.Sessions[0].ID)
+	})
+
+	t.Run("Authorized", func(t *testing.T) {
+		t.Parallel()
+		adminClient, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		secondUserClient, secondUser := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		now := dbtime.Now()
+		i1EndedAt := now.Add(time.Minute)
+		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			StartedAt:   now,
+		}, &i1EndedAt)
+		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: secondUser.ID,
+			StartedAt:   now.Add(-time.Hour),
+		}, &now)
+
+		// Admin can see all sessions.
+		res, err := adminClient.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.EqualValues(t, 2, res.Count)
+		require.Len(t, res.Sessions, 2)
+		require.Equal(t, i1.ID.String(), res.Sessions[0].ID)
+		require.Equal(t, i2.ID.String(), res.Sessions[1].ID)
+
+		// Second user can only see their own sessions.
+		res, err = secondUserClient.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Len(t, res.Sessions, 1)
+		require.Equal(t, i2.ID.String(), res.Sessions[0].ID)
+	})
+
+	t.Run("InflightSessions", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		i1EndedAt := now.Add(time.Minute)
+		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			StartedAt:   now,
+		}, &i1EndedAt)
+		// Inflight interception (no ended_at) should not appear as a session.
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			StartedAt:   now.Add(-time.Hour),
+		}, nil)
+
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Len(t, res.Sessions, 1)
+		require.Equal(t, i1.ID.String(), res.Sessions[0].ID)
+	})
+
+	t.Run("FilterErrors", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+
+		cases := []struct {
+			name string
+			q    string
+			want []codersdk.ValidationError
+		}{
+			{
+				name: "UnknownUsername",
+				q:    "initiator:unknown",
+				want: []codersdk.ValidationError{
+					{
+						Field:  "initiator",
+						Detail: `Query param "initiator" has invalid value: user "unknown" either does not exist, or you are unauthorized to view them`,
+					},
+				},
+			},
+			{
+				name: "InvalidStartedAfter",
+				q:    "started_after:invalid",
+				want: []codersdk.ValidationError{
+					{
+						Field:  "started_after",
+						Detail: `Query param "started_after" must be a valid date format (2006-01-02T15:04:05.999999999Z07:00): parsing time "INVALID" as "2006-01-02T15:04:05.999999999Z07:00": cannot parse "INVALID" as "2006"`,
+					},
+				},
+			},
+			{
+				name: "InvalidStartedBefore",
+				q:    "started_before:invalid",
+				want: []codersdk.ValidationError{
+					{
+						Field:  "started_before",
+						Detail: `Query param "started_before" must be a valid date format (2006-01-02T15:04:05.999999999Z07:00): parsing time "INVALID" as "2006-01-02T15:04:05.999999999Z07:00": cannot parse "INVALID" as "2006"`,
+					},
+				},
+			},
+			{
+				name: "InvalidBeforeAfterRange",
+				q:    `started_after:"2025-01-01T00:00:00Z" started_before:"2024-01-01T00:00:00Z"`,
+				want: []codersdk.ValidationError{
+					{
+						Field:  "started_before",
+						Detail: `Query param "started_before" has invalid value: "started_before" must be after "started_after" if set`,
+					},
+				},
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+					FilterQuery: tc.q,
+				})
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, tc.want, sdkErr.Validations)
+				require.Empty(t, res.Sessions)
+			})
+		}
+	})
+
+	t.Run("PaginationLimitValidation", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Pagination: codersdk.Pagination{
+				Limit: 1001,
+			},
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Contains(t, sdkErr.Message, "Invalid pagination limit value.")
+		require.Empty(t, res.Sessions)
 	})
 }
 

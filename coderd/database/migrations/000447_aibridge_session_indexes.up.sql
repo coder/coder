@@ -10,6 +10,11 @@ ALTER TABLE aibridge_interceptions
             )
         ) STORED;
 
+-- Searching and grouping on the resolved session ID will be common.
+CREATE INDEX idx_aibridge_interceptions_session_id
+    ON aibridge_interceptions (session_id)
+    WHERE ended_at IS NOT NULL;
+
 COMMENT ON COLUMN aibridge_interceptions.session_id IS
     'Groups related interceptions into a logical session. '
     'Determined by a priority chain: '
