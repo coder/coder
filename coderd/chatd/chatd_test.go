@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -30,9 +31,12 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
@@ -2187,19 +2191,51 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 		return chattest.OpenAIResponse{StreamingChunks: chunks}
 	}))
 
-	// Create a workspace that will be linked to the chat later,
-	// simulating the normal flow where a chat is created first
-	// and then creates a workspace via create_workspace.
+	// Create a workspace with a full build chain so we can verify
+	// both last_used_at (dormancy) and deadline (autostop) bumps.
 	org := dbgen.Organization(t, db, database.Organization{})
-	tmpl := dbgen.Template(t, db, database.Template{
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 	})
+	tmpl := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: tv.ID,
+		CreatedBy:       user.ID,
+	})
+	require.NoError(t, db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+		ID:                tmpl.ID,
+		UpdatedAt:         dbtime.Now(),
+		AllowUserAutostop: true,
+		ActivityBump:      int64(time.Hour),
+	}))
 	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID:        user.ID,
 		OrganizationID: org.ID,
 		TemplateID:     tmpl.ID,
+		Ttl:            sql.NullInt64{Valid: true, Int64: int64(8 * time.Hour)},
 	})
+	pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		CompletedAt: sql.NullTime{
+			Valid: true,
+			Time:  dbtime.Now().Add(-30 * time.Minute),
+		},
+	})
+	// Build deadline is 30 minutes in the past — close enough to
+	// be bumped by the default 1-hour activity bump.
+	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       ws.ID,
+		TemplateVersionID: tv.ID,
+		JobID:             pj.ID,
+		Transition:        database.WorkspaceTransitionStart,
+		Deadline:          dbtime.Now().Add(-30 * time.Minute),
+	})
+	originalDeadline := build.Deadline
 
 	// Set up a short heartbeat interval and a UsageTracker that
 	// flushes frequently so last_used_at gets updated in the DB.
@@ -2212,9 +2248,13 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 	t.Cleanup(func() { tracker.Close() })
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	// Wrap the database with dbauthz so the chatd server's
+	// AsChatd context is enforced on every query, matching
+	// production behavior.
+	authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
-		Database:                   db,
+		Database:                   authzDB,
 		ReplicaID:                  uuid.New(),
 		Pubsub:                     ps,
 		PendingChatAcquireInterval: 10 * time.Millisecond,
@@ -2227,7 +2267,11 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 	})
 
 	// Create a chat WITHOUT a workspace, the normal starting state.
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+	// In production, CreateChat is called from the HTTP handler with
+	// the authenticated user's context. Here we use AsChatd since
+	// the chatd server processes everything under that role.
+	chatCtx := dbauthz.AsChatd(ctx)
+	chat, err := server.CreateChat(chatCtx, chatd.CreateOptions{
 		OwnerID:            user.ID,
 		Title:              "usage-tracking-test",
 		ModelConfigID:      model.ID,
@@ -2285,6 +2329,22 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, updatedWs.LastUsedAt.After(ws.LastUsedAt),
 		"workspace last_used_at should have been bumped")
+
+	// Verify the workspace build deadline was also extended.
+	// The SQL only writes when 5% of the deadline has elapsed —
+	// most calls perform a read-only CTE lookup. Wider ±2
+	// minute tolerance than activitybump_test.go because the bump
+	// happens asynchronously via the heartbeat goroutine.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		updatedBuild, buildErr := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, ws.ID)
+		if buildErr != nil || !updatedBuild.Deadline.After(originalDeadline) {
+			return false
+		}
+		now := dbtime.Now()
+		return updatedBuild.Deadline.After(now.Add(time.Hour-2*time.Minute)) &&
+			updatedBuild.Deadline.Before(now.Add(time.Hour+2*time.Minute))
+	}, testutil.IntervalFast,
+		"workspace build deadline should have been bumped to ~now+1h")
 }
 
 func TestHeartbeatNoWorkspaceNoBump(t *testing.T) {
