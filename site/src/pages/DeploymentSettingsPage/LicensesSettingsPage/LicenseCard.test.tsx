@@ -2,6 +2,7 @@ import { MockLicenseResponse } from "testHelpers/entities";
 import { render } from "testHelpers/renderHelpers";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import dayjs from "dayjs";
 import { LicenseCard } from "./LicenseCard";
 
 const openRemoveDialog = async (user: ReturnType<typeof userEvent.setup>) => {
@@ -174,6 +175,39 @@ describe("LicenseCard", () => {
 
 		await screen.findByText("Add-ons");
 		await screen.findByText("AI governance");
+	});
+
+	it("shows add-on exceeded during grace period after license expiry", async () => {
+		const license = {
+			...MockLicenseResponse[1],
+			claims: {
+				...MockLicenseResponse[1].claims,
+				license_expires: dayjs().subtract(1, "day").unix(),
+				features: {
+					...MockLicenseResponse[1].claims.features,
+					ai_governance_user_limit: 1000,
+				},
+				addons: ["ai_governance"],
+			},
+		};
+
+		render(
+			<LicenseCard
+				license={license}
+				aiGovernanceUserFeature={{
+					enabled: true,
+					entitlement: "grace_period",
+					actual: 1200,
+					limit: 1000,
+				}}
+				userLimitActual={1}
+				userLimitLimit={10}
+				onRemove={() => null}
+				isRemoving={false}
+			/>,
+		);
+
+		await screen.findByText("Add-on exceeded");
 	});
 
 	it("requires typing the license ID before allowing removal", async () => {
