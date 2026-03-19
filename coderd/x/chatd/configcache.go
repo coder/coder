@@ -2,6 +2,8 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"slices"
 	"sync"
 	"time"
@@ -35,6 +37,13 @@ type cachedUserPrompt struct {
 	expiresAt time.Time
 }
 
+// cloneModelConfig returns a shallow copy of cfg with Options
+// deep-cloned so the cache owns its own backing array.
+func cloneModelConfig(cfg database.ChatModelConfig) database.ChatModelConfig {
+	cfg.Options = slices.Clone(cfg.Options)
+	return cfg
+}
+
 type chatConfigCache struct {
 	db    database.Store
 	clock quartz.Clock
@@ -47,7 +56,7 @@ type chatConfigCache struct {
 	providerFetches    singleflight.Group[string, []database.ChatProvider]
 
 	// Model configs (keyed by ID).
-	modelConfigs           map[uuid.UUID]*cachedModelConfig
+	modelConfigs           map[uuid.UUID]cachedModelConfig
 	modelConfigGenerations map[uuid.UUID]uint64
 	modelConfigFetches     singleflight.Group[string, database.ChatModelConfig]
 
@@ -57,7 +66,7 @@ type chatConfigCache struct {
 	defaultModelConfigFetches    singleflight.Group[string, database.ChatModelConfig]
 
 	// User custom prompts (keyed by user ID).
-	userPrompts           map[uuid.UUID]*cachedUserPrompt
+	userPrompts           map[uuid.UUID]cachedUserPrompt
 	userPromptGenerations map[uuid.UUID]uint64
 	userPromptFetches     singleflight.Group[string, string]
 }
@@ -66,9 +75,9 @@ func newChatConfigCache(db database.Store, clock quartz.Clock) *chatConfigCache 
 	return &chatConfigCache{
 		db:                     db,
 		clock:                  clock,
-		modelConfigs:           make(map[uuid.UUID]*cachedModelConfig),
+		modelConfigs:           make(map[uuid.UUID]cachedModelConfig),
 		modelConfigGenerations: make(map[uuid.UUID]uint64),
-		userPrompts:            make(map[uuid.UUID]*cachedUserPrompt),
+		userPrompts:            make(map[uuid.UUID]cachedUserPrompt),
 		userPromptGenerations:  make(map[uuid.UUID]uint64),
 	}
 }
@@ -176,7 +185,7 @@ func (c *chatConfigCache) cachedModelConfig(id uuid.UUID) (database.ChatModelCon
 	c.mu.RLock()
 	entry, ok := c.modelConfigs[id]
 	c.mu.RUnlock()
-	if !ok || entry == nil {
+	if !ok {
 		return database.ChatModelConfig{}, false
 	}
 	if c.clock.Now().Before(entry.expiresAt) {
@@ -184,7 +193,7 @@ func (c *chatConfigCache) cachedModelConfig(id uuid.UUID) (database.ChatModelCon
 	}
 
 	c.mu.Lock()
-	if current, ok := c.modelConfigs[id]; ok && (current == nil || !c.clock.Now().Before(current.expiresAt)) {
+	if current, ok := c.modelConfigs[id]; ok && !c.clock.Now().Before(current.expiresAt) {
 		delete(c.modelConfigs, id)
 	}
 	c.mu.Unlock()
@@ -207,8 +216,8 @@ func (c *chatConfigCache) storeModelConfig(id uuid.UUID, generation uint64, conf
 		return
 	}
 
-	c.modelConfigs[id] = &cachedModelConfig{
-		config:    config,
+	c.modelConfigs[id] = cachedModelConfig{
+		config:    cloneModelConfig(config),
 		expiresAt: c.clock.Now().Add(chatConfigModelConfigTTL),
 	}
 }
@@ -274,7 +283,7 @@ func (c *chatConfigCache) storeDefaultModelConfig(generation uint64, config data
 	}
 
 	c.defaultModelConfig = &cachedModelConfig{
-		config:    config,
+		config:    cloneModelConfig(config),
 		expiresAt: c.clock.Now().Add(chatConfigDefaultModelConfigTTL),
 	}
 }
@@ -292,6 +301,10 @@ func (c *chatConfigCache) UserPrompt(ctx context.Context, userID uuid.UUID) (str
 		generation := c.userPromptGeneration(userID)
 		fetched, err := c.db.GetUserChatCustomPrompt(ctx, userID)
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				c.storeUserPrompt(userID, generation, "")
+				return "", nil
+			}
 			return "", err
 		}
 		c.storeUserPrompt(userID, generation, fetched)
@@ -308,7 +321,7 @@ func (c *chatConfigCache) cachedUserPrompt(userID uuid.UUID) (string, bool) {
 	c.mu.RLock()
 	entry, ok := c.userPrompts[userID]
 	c.mu.RUnlock()
-	if !ok || entry == nil {
+	if !ok {
 		return "", false
 	}
 	if c.clock.Now().Before(entry.expiresAt) {
@@ -316,7 +329,7 @@ func (c *chatConfigCache) cachedUserPrompt(userID uuid.UUID) (string, bool) {
 	}
 
 	c.mu.Lock()
-	if current, ok := c.userPrompts[userID]; ok && (current == nil || !c.clock.Now().Before(current.expiresAt)) {
+	if current, ok := c.userPrompts[userID]; ok && !c.clock.Now().Before(current.expiresAt) {
 		delete(c.userPrompts, userID)
 	}
 	c.mu.Unlock()
@@ -339,7 +352,7 @@ func (c *chatConfigCache) storeUserPrompt(userID uuid.UUID, generation uint64, p
 		return
 	}
 
-	c.userPrompts[userID] = &cachedUserPrompt{
+	c.userPrompts[userID] = cachedUserPrompt{
 		prompt:    prompt,
 		expiresAt: c.clock.Now().Add(chatConfigUserPromptTTL),
 	}

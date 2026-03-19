@@ -154,6 +154,32 @@ func TestConfigCache_ModelConfigByID_CacheHit(t *testing.T) {
 	require.Equal(t, int32(1), store.modelConfigByIDCalls.Load())
 }
 
+func TestConfigCache_ModelConfigByID_ClonesOptionsForCache(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	configID := uuid.New()
+	const options = `{"temperature":0.1}`
+	config := testChatModelConfig(configID, "model-a")
+	config.Options = []byte(options)
+	store := &stubChatConfigStore{
+		getChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+			return config, nil
+		},
+	}
+	cache := newChatConfigCache(store, clock)
+
+	first, err := cache.ModelConfigByID(ctx, configID)
+	require.NoError(t, err)
+	first.Options[0] = 'x'
+
+	second, err := cache.ModelConfigByID(ctx, configID)
+	require.NoError(t, err)
+
+	require.Equal(t, []byte(options), []byte(second.Options))
+}
+
 func TestConfigCache_ModelConfigByID_NotFound(t *testing.T) {
 	t.Parallel()
 
@@ -207,6 +233,29 @@ func TestConfigCache_InvalidateModelConfig_CascadesToDefault(t *testing.T) {
 
 	require.NotEqual(t, firstDefault, secondDefault)
 	require.Equal(t, int32(2), store.defaultModelConfigCall.Load())
+}
+
+func TestConfigCache_UserPrompt_NegativeCaching(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	userID := uuid.New()
+	store := &stubChatConfigStore{
+		getUserChatCustomPrompt: func(context.Context, uuid.UUID) (string, error) {
+			return "", sql.ErrNoRows
+		},
+	}
+	cache := newChatConfigCache(store, clock)
+
+	first, err := cache.UserPrompt(ctx, userID)
+	require.NoError(t, err)
+	second, err := cache.UserPrompt(ctx, userID)
+	require.NoError(t, err)
+
+	require.Empty(t, first)
+	require.Empty(t, second)
+	require.Equal(t, int32(1), store.userPromptCalls.Load())
 }
 
 func TestConfigCache_UserPrompt_ShorterTTL(t *testing.T) {
