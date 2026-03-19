@@ -77,6 +77,12 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		isActiveAiGovernanceEntitlement &&
 		aiGovernanceActual !== undefined &&
 		aiGovernanceActual > aiGovernanceLimit;
+	const aiGovernanceDisplayActual =
+		isLicenseApplicableForAiGovernanceOverage &&
+		hasExplicitAiGovernanceAddOn &&
+		isActiveAiGovernanceEntitlement
+			? aiGovernanceActual
+			: undefined;
 	const statusClassName =
 		isAiGovernanceAddOnExceeded || isExpired
 			? "text-content-destructive"
@@ -202,7 +208,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 								<AIGovernanceAddOnCard
 									title="AI governance"
 									unit="Seats"
-									actual={aiGovernanceActual}
+									actual={aiGovernanceDisplayActual}
 									limit={aiGovernanceLimit}
 									isExceeded={isAiGovernanceAddOnExceeded}
 								/>

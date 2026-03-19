@@ -302,6 +302,11 @@ export const LowerLimitCardUsesMergedEntitlement: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const seatsLabel = canvas.getByText("Seats");
+		const seatsValue = seatsLabel.nextElementSibling;
+		await expect(seatsValue).toHaveTextContent("—");
+		await expect(seatsValue).toHaveTextContent("/ 500");
+		await expect(seatsValue).not.toHaveTextContent("750 / 500");
 		await expect(canvas.queryByText("Add-on exceeded")).not.toBeInTheDocument();
 	},
 };
