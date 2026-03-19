@@ -96,6 +96,49 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 			: isNotYetValid
 				? `Starts on ${dayjs.unix(license.claims.nbf ?? 0).format("MMMM D, YYYY")}`
 				: "Active";
+	const hasCollapsibleContent = isPremium && hasExplicitAiGovernanceAddOn;
+	const headerContent = (
+		<>
+			<div className="flex items-center gap-1.5">
+				{hasCollapsibleContent && (
+					<ChevronDownIcon className="license-chevron size-4 text-content-secondary transition-colors transition-transform group-hover:text-content-primary" />
+				)}
+				<span className="text-base font-medium text-content-secondary">
+					#{license.id}
+				</span>
+				<span className="account-type text-base font-medium text-content-primary capitalize">
+					{licenseType}
+				</span>
+			</div>
+
+			<div className="ml-auto flex items-center gap-12 text-xs font-medium">
+				<div className="flex flex-col items-center">
+					<span className="text-content-secondary">Status</span>
+					<span className={statusClassName}>{statusText}</span>
+				</div>
+				<div className="flex flex-col items-center">
+					<span className="text-content-secondary">Users</span>
+					<span className="text-content-primary user-limit">
+						{userLimitActual} {` / ${currentUserLimit || "Unlimited"}`}
+					</span>
+				</div>
+				{license.claims.nbf && (
+					<div className="flex flex-col items-center">
+						<span className="text-content-secondary">Valid From</span>
+						<span className="text-content-primary license-valid-from">
+							{dayjs.unix(license.claims.nbf).format("MMMM D, YYYY")}
+						</span>
+					</div>
+				)}
+				<div className="flex flex-col items-center">
+					<span className="text-content-secondary">Valid Until</span>
+					<span className="text-content-primary license-expires">
+						{dayjs.unix(license.claims.license_expires).format("MMMM D, YYYY")}
+					</span>
+				</div>
+			</div>
+		</>
+	);
 
 	return (
 		<Collapsible defaultOpen>
@@ -123,56 +166,23 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 			/>
 			<div className="license-card group overflow-hidden rounded-md border border-solid border-border bg-surface-secondary text-sm shadow-sm">
 				<div className="flex items-center gap-6 p-3">
-					<CollapsibleTrigger
-						asChild
-						className="[&[data-state=closed]_.license-chevron]:-rotate-90"
-					>
-						<button
-							type="button"
-							className="m-0 flex min-w-0 flex-1 appearance-none items-center gap-6 border-0 bg-transparent p-0 text-left"
+					{hasCollapsibleContent ? (
+						<CollapsibleTrigger
+							asChild
+							className="[&[data-state=closed]_.license-chevron]:-rotate-90"
 						>
-							<div className="flex items-center gap-1.5">
-								{isPremium && hasExplicitAiGovernanceAddOn && (
-									<ChevronDownIcon className="license-chevron size-4 text-content-secondary transition-colors transition-transform group-hover:text-content-primary" />
-								)}
-								<span className="text-base font-medium text-content-secondary">
-									#{license.id}
-								</span>
-								<span className="account-type text-base font-medium text-content-primary capitalize">
-									{licenseType}
-								</span>
-							</div>
-
-							<div className="ml-auto flex items-center gap-12 text-xs font-medium">
-								<div className="flex flex-col items-center">
-									<span className="text-content-secondary">Status</span>
-									<span className={statusClassName}>{statusText}</span>
-								</div>
-								<div className="flex flex-col items-center">
-									<span className="text-content-secondary">Users</span>
-									<span className="text-content-primary user-limit">
-										{userLimitActual} {` / ${currentUserLimit || "Unlimited"}`}
-									</span>
-								</div>
-								{license.claims.nbf && (
-									<div className="flex flex-col items-center">
-										<span className="text-content-secondary">Valid From</span>
-										<span className="text-content-primary license-valid-from">
-											{dayjs.unix(license.claims.nbf).format("MMMM D, YYYY")}
-										</span>
-									</div>
-								)}
-								<div className="flex flex-col items-center">
-									<span className="text-content-secondary">Valid Until</span>
-									<span className="text-content-primary license-expires">
-										{dayjs
-											.unix(license.claims.license_expires)
-											.format("MMMM D, YYYY")}
-									</span>
-								</div>
-							</div>
-						</button>
-					</CollapsibleTrigger>
+							<button
+								type="button"
+								className="m-0 flex min-w-0 flex-1 appearance-none items-center gap-6 border-0 bg-transparent p-0 text-left"
+							>
+								{headerContent}
+							</button>
+						</CollapsibleTrigger>
+					) : (
+						<div className="m-0 flex min-w-0 flex-1 items-center gap-6">
+							{headerContent}
+						</div>
+					)}
 
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
@@ -199,7 +209,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 				</div>
 
 				<CollapsibleContent>
-					{isPremium && hasExplicitAiGovernanceAddOn && (
+					{hasCollapsibleContent && (
 						<div className="border-0 border-t border-solid border-border bg-surface-primary px-4 py-4">
 							<div className="text-sm font-medium text-content-secondary">
 								Add-ons
