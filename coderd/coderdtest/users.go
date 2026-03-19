@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/userpassword"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -43,6 +45,10 @@ func UsersPagination(
 		_, user := CreateAnotherUser(t, client, orgID)
 		users[i+1] = user
 	}
+
+	slices.SortFunc(users, func(a, b codersdk.User) int {
+		return slice.Ascending(strings.ToLower(a.Username), strings.ToLower(b.Username))
+	})
 
 	if setup != nil {
 		setup(users)
@@ -86,6 +92,16 @@ func UsersPagination(
 	})
 	require.Len(t, gotUsers, 0)
 	require.Equal(t, gotCount, 0)
+
+	// Check that AfterID works.
+	gotUsers, gotCount = fetch(codersdk.UsersRequest{
+		Pagination: codersdk.Pagination{
+			AfterID: users[5].ID,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, gotUsers, 4)
+	require.Equal(t, gotCount, 4)
 }
 
 // UsersFilter creates a set of users to run various filters against for
