@@ -73,19 +73,8 @@ func newDetectorTestEnv(ctx context.Context, t *testing.T) *detectorTestEnv {
 // require.FailNow which uses runtime.Goexit under the hood.
 func (e *detectorTestEnv) tick(ctx context.Context, now time.Time) jobreaper.Stats {
 	e.t.Helper()
-	select {
-	case <-ctx.Done():
-		require.FailNow(e.t, "tick: context canceled waiting to send tick")
-		return jobreaper.Stats{}
-	case e.tickCh <- now:
-	}
-	select {
-	case <-ctx.Done():
-		require.FailNow(e.t, "tick: context canceled waiting for stats")
-		return jobreaper.Stats{}
-	case stats := <-e.statsCh:
-		return stats
-	}
+	testutil.RequireSend(ctx, e.t, e.tickCh, now)
+	return testutil.RequireReceive(ctx, e.t, e.statsCh)
 }
 
 // close stops the detector and waits for it to finish.
