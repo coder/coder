@@ -53,6 +53,8 @@ const (
 	DefaultInFlightChatStaleAfter = 5 * time.Minute
 
 	homeInstructionLookupTimeout = 5 * time.Second
+	instructionCacheTTL          = 5 * time.Minute
+	workspaceDialValidationDelay = 5 * time.Second
 	// DefaultChatHeartbeatInterval is the default time between chat
 	// heartbeat updates while a chat is being processed.
 	DefaultChatHeartbeatInterval = 30 * time.Second
@@ -177,6 +179,12 @@ func (c *turnWorkspaceContext) close() {
 	}
 }
 
+func (c *turnWorkspaceContext) setCurrentChat(chat database.Chat) {
+	c.chatStateMu.Lock()
+	*c.currentChat = chat
+	c.chatStateMu.Unlock()
+}
+
 func (c *turnWorkspaceContext) getWorkspaceAgent(ctx context.Context) (database.WorkspaceAgent, error) {
 	_, agent, err := c.ensureWorkspaceAgent(ctx)
 	return agent, err
@@ -198,17 +206,6 @@ func (c *turnWorkspaceContext) ensureWorkspaceAgent(
 	return c.loadWorkspaceAgentLocked(ctx)
 }
 
-func (c *turnWorkspaceContext) refreshWorkspaceAgent(
-	ctx context.Context,
-) (database.Chat, database.WorkspaceAgent, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.agent = database.WorkspaceAgent{}
-	c.agentLoaded = false
-	return c.loadWorkspaceAgentLocked(ctx)
-}
-
 func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 	ctx context.Context,
 ) (database.Chat, database.WorkspaceAgent, error) {
@@ -226,15 +223,22 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 			return chatSnapshot, database.WorkspaceAgent{}, refreshErr
 		}
 		if refreshedChat.WorkspaceID.Valid {
-			c.chatStateMu.Lock()
-			*c.currentChat = refreshedChat
-			c.chatStateMu.Unlock()
+			c.setCurrentChat(refreshedChat)
 			chatSnapshot = refreshedChat
 		}
 	}
 
 	if !chatSnapshot.WorkspaceID.Valid {
 		return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("chat has no workspace")
+	}
+
+	if chatSnapshot.AgentID.Valid {
+		agent, err := c.server.db.GetWorkspaceAgentByID(ctx, chatSnapshot.AgentID.UUID)
+		if err == nil {
+			c.agent = agent
+			c.agentLoaded = true
+			return chatSnapshot, c.agent, nil
+		}
 	}
 
 	agents, err := c.server.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
@@ -244,6 +248,28 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 	if err != nil || len(agents) == 0 {
 		return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("chat has no workspace agent")
 	}
+
+	build, err := c.server.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, chatSnapshot.WorkspaceID.UUID)
+	if err != nil {
+		return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf("get latest workspace build: %w", err)
+	}
+
+	chatSnapshot, err = c.server.db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+		WorkspaceID: chatSnapshot.WorkspaceID,
+		BuildID: uuid.NullUUID{
+			UUID:  build.ID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agents[0].ID,
+			Valid: true,
+		},
+		ID: chatSnapshot.ID,
+	})
+	if err != nil {
+		return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf("update chat workspace binding: %w", err)
+	}
+	c.setCurrentChat(chatSnapshot)
 
 	c.agent = agents[0]
 	c.agentLoaded = true
@@ -268,21 +294,67 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 		return nil, err
 	}
 
-	agentConn, agentRelease, err := c.server.agentConnFn(ctx, agent.ID)
+	dialResult, err := dialWithLazyValidation(
+		ctx,
+		agent.ID,
+		chatSnapshot.WorkspaceID.UUID,
+		DialFunc(c.server.agentConnFn),
+		func(ctx context.Context, workspaceID uuid.UUID) (uuid.UUID, error) {
+			agents, err := c.server.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspaceID)
+			if err != nil || len(agents) == 0 {
+				return uuid.Nil, xerrors.New("chat has no workspace agent")
+			}
+			return agents[0].ID, nil
+		},
+		workspaceDialValidationDelay,
+	)
 	if err != nil {
-		refreshedChat, refreshedAgent, refreshErr := c.refreshWorkspaceAgent(ctx)
-		if refreshErr != nil {
-			return nil, xerrors.Errorf("connect to workspace agent: %w", err)
+		return nil, err
+	}
+
+	agentConn := dialResult.Conn
+	agentRelease := dialResult.Release
+	if dialResult.WasSwitched {
+		build, err := c.server.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, chatSnapshot.WorkspaceID.UUID)
+		if err != nil {
+			if agentRelease != nil {
+				agentRelease()
+			}
+			return nil, xerrors.Errorf("get latest workspace build: %w", err)
 		}
 
-		retryConn, retryRelease, retryErr := c.server.agentConnFn(ctx, refreshedAgent.ID)
-		if retryErr != nil {
-			return nil, xerrors.Errorf("connect to workspace agent after refresh: %w", retryErr)
+		switchedAgent, err := c.server.db.GetWorkspaceAgentByID(ctx, dialResult.AgentID)
+		if err != nil {
+			if agentRelease != nil {
+				agentRelease()
+			}
+			return nil, xerrors.Errorf("get workspace agent by id: %w", err)
 		}
 
-		chatSnapshot = refreshedChat
-		agentConn = retryConn
-		agentRelease = retryRelease
+		chatSnapshot, err = c.server.db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+			WorkspaceID: chatSnapshot.WorkspaceID,
+			BuildID: uuid.NullUUID{
+				UUID:  build.ID,
+				Valid: true,
+			},
+			AgentID: uuid.NullUUID{
+				UUID:  switchedAgent.ID,
+				Valid: true,
+			},
+			ID: chatSnapshot.ID,
+		})
+		if err != nil {
+			if agentRelease != nil {
+				agentRelease()
+			}
+			return nil, xerrors.Errorf("update chat workspace binding: %w", err)
+		}
+		c.setCurrentChat(chatSnapshot)
+
+		c.mu.Lock()
+		c.agent = switchedAgent
+		c.agentLoaded = true
+		c.mu.Unlock()
 	}
 
 	c.mu.Lock()
@@ -420,6 +492,8 @@ func (e *UsageLimitExceededError) Error() string {
 type CreateOptions struct {
 	OwnerID            uuid.UUID
 	WorkspaceID        uuid.NullUUID
+	BuildID            uuid.NullUUID
+	AgentID            uuid.NullUUID
 	ParentChatID       uuid.NullUUID
 	RootChatID         uuid.NullUUID
 	Title              string
@@ -525,8 +599,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		insertedChat, err := tx.InsertChat(ctx, database.InsertChatParams{
 			OwnerID:           opts.OwnerID,
 			WorkspaceID:       opts.WorkspaceID,
-			BuildID:           uuid.NullUUID{},
-			AgentID:           uuid.NullUUID{},
+			BuildID:           opts.BuildID,
+			AgentID:           opts.AgentID,
 			ParentChatID:      opts.ParentChatID,
 			RootChatID:        opts.RootChatID,
 			LastModelConfigID: opts.ModelConfigID,
