@@ -366,10 +366,7 @@ const ChatMessageItem = memo<{
 																fileName={block.file_name}
 																startLine={block.start_line}
 																endLine={block.end_line}
-																className={cn(
-																	i > 0 && "ml-1",
-																	i < userInlineContent.length - 1 && "mr-1",
-																)}
+																className="mx-1"
 															/>
 														),
 													)
