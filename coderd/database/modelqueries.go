@@ -965,6 +965,7 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg Lis
 		arg.Provider,
 		arg.Model,
 		arg.Client,
+		arg.SessionID,
 	)
 	if err != nil {
 		return nil, err
@@ -1023,6 +1024,7 @@ func (q *sqlQuerier) CountAuthorizedAIBridgeSessions(ctx context.Context, arg Co
 		arg.Provider,
 		arg.Model,
 		arg.Client,
+		arg.SessionID,
 	)
 	if err != nil {
 		return 0, err

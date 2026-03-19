@@ -441,6 +441,11 @@ WHERE
 		WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = @client::text
 		ELSE true
 	END
+	-- Filter session_id
+	AND CASE
+		WHEN @session_id::text != '' THEN aibridge_interceptions.session_id = @session_id::text
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
 	-- @authorize_filter
 ;
@@ -486,11 +491,16 @@ WITH filtered_interceptions AS (
 			WHEN @client::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = @client::text
 			ELSE true
 		END
+		-- Filter session_id
+		AND CASE
+			WHEN @session_id::text != '' THEN aibridge_interceptions.session_id = @session_id::text
+			ELSE true
+		END
 		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions
 		-- @authorize_filter
 ),
--- Aggregate token usage across all interceptions in each session.
 session_tokens AS (
+	-- Aggregate token usage across all interceptions in each session.
 	SELECT
 		fi.session_id,
 		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
@@ -503,12 +513,12 @@ session_tokens AS (
 	GROUP BY
 		fi.session_id
 ),
--- Build one summary row per session. The ARRAY_AGG with ORDER BY picks
--- values from the chronologically first interception for fields that
--- should represent the session as a whole (initiator, client, metadata).
--- Threads are counted as distinct root interception IDs: an interception
--- with a NULL thread_root_id is itself a thread root.
 session_root AS (
+	-- Build one summary row per session. The ARRAY_AGG with ORDER BY picks
+	-- values from the chronologically first interception for fields that
+	-- should represent the session as a whole (initiator, client, metadata).
+	-- Threads are counted as distinct root interception IDs: an interception
+	-- with a NULL thread_root_id is itself a thread root.
 	SELECT
 		fi.session_id,
 		(ARRAY_AGG(fi.initiator_id ORDER BY fi.started_at, fi.id))[1] AS initiator_id,
@@ -548,9 +558,9 @@ JOIN
 	visible_users ON visible_users.id = sr.initiator_id
 LEFT JOIN
 	session_tokens st ON st.session_id = sr.session_id
--- Lateral join to efficiently fetch only the most recent user prompt
--- across all interceptions in the session, avoiding a full aggregation.
 LEFT JOIN LATERAL (
+	-- Lateral join to efficiently fetch only the most recent user prompt
+	-- across all interceptions in the session, avoiding a full aggregation.
 	SELECT up.prompt
 	FROM aibridge_user_prompts up
 	WHERE up.interception_id = ANY(sr.interception_ids)

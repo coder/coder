@@ -99,6 +99,7 @@ type AIBridgeListSessionsFilter struct {
 	Provider      string    `json:"provider,omitempty"`
 	Model         string    `json:"model,omitempty"`
 	Client        string    `json:"client,omitempty"`
+	SessionID     string    `json:"session_id,omitempty"`
 
 	// AfterSessionID is a cursor for pagination. It is the session ID of the
 	// last session in the previous page.
@@ -182,6 +183,9 @@ func (f AIBridgeListSessionsFilter) asRequestOption() RequestOption {
 		}
 		if f.Client != "" {
 			params = append(params, fmt.Sprintf("client:%q", f.Client))
+		}
+		if f.SessionID != "" {
+			params = append(params, fmt.Sprintf("session_id:%q", f.SessionID))
 		}
 		if f.FilterQuery != "" {
 			params = append(params, f.FilterQuery)
