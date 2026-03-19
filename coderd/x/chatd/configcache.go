@@ -123,19 +123,24 @@ func (c *chatConfigCache) EnabledProviders(ctx context.Context) ([]database.Chat
 		return providers, nil
 	}
 
-	providers, err := singleflightDoChan(ctx, &c.providerFetches, "providers", func() ([]database.ChatProvider, error) {
-		if cached, ok := c.cachedProviders(); ok {
-			return cached, nil
-		}
+	generation := c.providersGeneration()
+	providers, err := singleflightDoChan(
+		ctx,
+		&c.providerFetches,
+		fmt.Sprintf("%d:providers", generation),
+		func() ([]database.ChatProvider, error) {
+			if cached, ok := c.cachedProviders(); ok {
+				return cached, nil
+			}
 
-		generation := c.providersGeneration()
-		fetched, err := c.db.GetEnabledChatProviders(c.ctx)
-		if err != nil {
-			return nil, err
-		}
-		c.storeProviders(generation, fetched)
-		return slices.Clone(fetched), nil
-	})
+			fetched, err := c.db.GetEnabledChatProviders(c.ctx)
+			if err != nil {
+				return nil, err
+			}
+			c.storeProviders(generation, fetched)
+			return slices.Clone(fetched), nil
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +191,6 @@ func (c *chatConfigCache) storeProviders(generation uint64, providers []database
 
 func (c *chatConfigCache) InvalidateProviders() {
 	c.mu.Lock()
-	defaultFetchKey := fmt.Sprintf("%d:default", c.modelTopologyEpoch)
 	c.providers = nil
 	c.providerGeneration++
 	// Provider topology changed — model selections depend on
@@ -196,8 +200,6 @@ func (c *chatConfigCache) InvalidateProviders() {
 	c.defaultModelConfig = nil
 	c.defaultModelConfigGeneration++
 	c.mu.Unlock()
-	c.providerFetches.Forget("providers")
-	c.defaultModelConfigFetches.Forget(defaultFetchKey)
 }
 
 func (c *chatConfigCache) ModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {

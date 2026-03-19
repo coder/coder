@@ -477,6 +477,73 @@ func TestConfigCache_GenerationPreventsStaleWrite(t *testing.T) {
 	require.Equal(t, int32(2), store.enabledProvidersCalls.Load())
 }
 
+func TestConfigCache_InvalidateProviders_BlocksStaleInFlightProviders(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	clock := quartz.NewMock(t)
+	staleProviders := []database.ChatProvider{testChatProvider("provider-stale")}
+	freshProviders := []database.ChatProvider{testChatProvider("provider-fresh")}
+	firstStarted := make(chan struct{})
+	secondStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	releaseSecond := make(chan struct{})
+	store := &stubChatConfigStore{}
+	store.getEnabledChatProviders = func(context.Context) ([]database.ChatProvider, error) {
+		switch call := store.enabledProvidersCalls.Load(); call {
+		case 1:
+			close(firstStarted)
+			<-releaseFirst
+			return staleProviders, nil
+		case 2:
+			close(secondStarted)
+			<-releaseSecond
+			return freshProviders, nil
+		default:
+			return nil, xerrors.Errorf("unexpected provider call %d", call)
+		}
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	type result struct {
+		providers []database.ChatProvider
+		err       error
+	}
+
+	firstResult := make(chan result, 1)
+	go func() {
+		providers, err := cache.EnabledProviders(ctx)
+		firstResult <- result{providers: providers, err: err}
+	}()
+
+	waitForSignal(t, firstStarted)
+	cache.InvalidateProviders()
+
+	secondResult := make(chan result, 1)
+	go func() {
+		providers, err := cache.EnabledProviders(ctx)
+		secondResult <- result{providers: providers, err: err}
+	}()
+
+	waitForSignal(t, secondStarted)
+	close(releaseFirst)
+	first := <-firstResult
+	require.NoError(t, first.err)
+	require.Equal(t, staleProviders, first.providers)
+	require.Nil(t, cache.providers)
+
+	close(releaseSecond)
+	second := <-secondResult
+	require.NoError(t, second.err)
+	require.Equal(t, freshProviders, second.providers)
+	require.Equal(t, int32(2), store.enabledProvidersCalls.Load())
+
+	third, err := cache.EnabledProviders(ctx)
+	require.NoError(t, err)
+	require.Equal(t, freshProviders, third)
+	require.Equal(t, int32(2), store.enabledProvidersCalls.Load())
+}
+
 func TestConfigCache_InvalidateProviders_CascadesToModelConfigs(t *testing.T) {
 	t.Parallel()
 
