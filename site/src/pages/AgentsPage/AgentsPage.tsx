@@ -2,6 +2,7 @@ import { API, watchChats } from "api/api";
 import { getErrorMessage } from "api/errors";
 import {
 	archiveChat,
+	chatDesktopEnabled,
 	chatDiffContentsKey,
 	chatKey,
 	chatModelConfigs,
@@ -41,7 +42,6 @@ import {
 	emptyInputStorageKey,
 } from "./AgentCreateForm";
 import { maybePlayChime } from "./AgentDetail/useAgentChime";
-import type { AgentsOutletContext } from "./AgentsPageView";
 import { AgentsPageView } from "./AgentsPageView";
 import { resolveArchiveAndDeleteAction } from "./agentWorkspaceUtils";
 import {
@@ -134,6 +134,7 @@ const AgentsPage: FC = () => {
 	);
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const createMutation = useMutation(createChat(queryClient));
 	const archiveChatBase = archiveChat(queryClient);
 	const archiveAgentMutation = useMutation({
@@ -318,28 +319,6 @@ const AgentsPage: FC = () => {
 	const handleToggleSidebarCollapsed = useCallback(
 		() => setIsSidebarCollapsed((prev) => !prev),
 		[],
-	);
-	const outletContext: AgentsOutletContext = useMemo(
-		() => ({
-			chatErrorReasons,
-			setChatErrorReason,
-			clearChatErrorReason,
-			requestArchiveAgent,
-			requestUnarchiveAgent,
-			requestArchiveAndDeleteWorkspace,
-			isSidebarCollapsed,
-			onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
-		}),
-		[
-			chatErrorReasons,
-			setChatErrorReason,
-			clearChatErrorReason,
-			requestArchiveAgent,
-			requestUnarchiveAgent,
-			requestArchiveAndDeleteWorkspace,
-			isSidebarCollapsed,
-			handleToggleSidebarCollapsed,
-		],
 	);
 	const handleCreateChat = async (options: CreateChatOptions) => {
 		const { message, fileIDs, workspaceId, model } = options;
@@ -555,13 +534,21 @@ const AgentsPage: FC = () => {
 				onCollapseSidebar={() => setIsSidebarCollapsed(true)}
 				isSidebarCollapsed={isSidebarCollapsed}
 				onExpandSidebar={() => setIsSidebarCollapsed(false)}
-				outletContext={outletContext}
+				chatErrorReasons={chatErrorReasons}
+				setChatErrorReason={setChatErrorReason}
+				clearChatErrorReason={clearChatErrorReason}
+				requestArchiveAgent={requestArchiveAgent}
+				requestUnarchiveAgent={requestUnarchiveAgent}
+				requestArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
+				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
 				onCreateChat={handleCreateChat}
 				createError={createMutation.error}
 				modelCatalog={chatModelsQuery.data}
 				isModelCatalogLoading={chatModelsQuery.isLoading}
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
 				modelCatalogError={chatModelsQuery.error}
+				modelConfigIDByModelID={modelConfigIDByModelID}
+				desktopEnabled={desktopEnabledQuery.data?.enable_desktop ?? false}
 				isAgentsAdmin={isAgentsAdmin}
 				hasNextPage={chatsQuery.hasNextPage}
 				onLoadMore={() => void chatsQuery.fetchNextPage()}
@@ -584,5 +571,4 @@ const AgentsPage: FC = () => {
 		</>
 	);
 };
-
 export default AgentsPage;
