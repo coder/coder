@@ -96,6 +96,35 @@ export const WithSelectedLines: Story = {
 	},
 };
 
+// Diff with two non-adjacent hunks in one file, producing a
+// mid-file separator that should remain visible even though
+// leading separators are hidden.
+// biome-ignore format: raw diff string must preserve exact whitespace
+const multiHunkDiff = [
+"diff --git a/src/app.ts b/src/app.ts",
+"index aaa1111..bbb2222 100644",
+"--- a/src/app.ts",
+"+++ b/src/app.ts",
+"@@ -3,4 +3,5 @@",
+" import { db } from \"./db\";",
+" import { logger } from \"./logger\";",
+"+import { metrics } from \"./metrics\";",
+" ",
+" const app = express();",
+"@@ -20,3 +21,4 @@",
+" app.listen(port, () => {",
+"   console.log(\"Listening on port \" + port);",
+"+  metrics.record(\"server.start\");",
+" });",
+].join("\n");
+const multiHunkFiles = parsePatchFiles(multiHunkDiff).flatMap((p) => p.files);
+
+export const WithMidFileSeparator: Story = {
+	args: {
+		parsedFiles: multiHunkFiles,
+	},
+};
+
 export const WithAnnotation: Story = {
 	args: {
 		getSelectedLines: (fileName: string): SelectedLineRange | null => {
