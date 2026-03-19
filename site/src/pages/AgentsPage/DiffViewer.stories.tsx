@@ -191,9 +191,7 @@ export const CrossSideAnnotation: Story = {
 			}
 			return null;
 		},
-		getLineAnnotations: (
-			fileName: string,
-		): DiffLineAnnotation<string>[] => {
+		getLineAnnotations: (fileName: string): DiffLineAnnotation<string>[] => {
 			if (fileName === changeFileName) {
 				return [
 					{

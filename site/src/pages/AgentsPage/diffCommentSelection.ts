@@ -12,7 +12,7 @@ type AnnotationSide = "additions" | "deletions";
  * crosses from one side to the other (e.g. deletions → additions in
  * a split diff).
  */
-export interface LineSelectionRange {
+interface LineSelectionRange {
 	start: number;
 	end: number;
 	side?: AnnotationSide;

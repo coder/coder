@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-	type CommentBoxState,
 	annotationSideForBox,
+	type CommentBoxState,
 	commentBoxFromRange,
 	selectedLinesForBox,
 } from "./diffCommentSelection";
