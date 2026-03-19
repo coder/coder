@@ -760,6 +760,9 @@ type sqlcQuerier interface {
 	// (provider, model, client) in the given timeframe for telemetry reporting.
 	ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySummariesParams) ([]ListAIBridgeInterceptionsTelemetrySummariesRow, error)
 	ListAIBridgeModels(ctx context.Context, arg ListAIBridgeModelsParams) ([]string, error)
+	// Returns paginated sessions with aggregated metadata, token counts, and
+	// the most recent user prompt. A "session" is a logical grouping of
+	// interceptions that share the same session_id (set by the client).
 	ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams) ([]ListAIBridgeSessionsRow, error)
 	ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeTokenUsage, error)
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)

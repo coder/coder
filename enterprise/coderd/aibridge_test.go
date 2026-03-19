@@ -986,6 +986,23 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 1, res.Count)
 		require.Equal(t, s1.ID.String(), res.Sessions[0].ID)
+
+		// Filter by session_id.
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			SessionID: s2.ID.String(),
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Len(t, res.Sessions, 1)
+		require.Equal(t, s2.ID.String(), res.Sessions[0].ID)
+
+		// Filter by session_id with no match.
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			SessionID: "nonexistent-session-id",
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 0, res.Count)
+		require.Empty(t, res.Sessions)
 	})
 
 	t.Run("Authorized", func(t *testing.T) {

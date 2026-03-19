@@ -369,6 +369,11 @@ WHERE
 		WHEN $6::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $6::text
 		ELSE true
 	END
+	-- Filter session_id
+	AND CASE
+		WHEN $7::text != '' THEN aibridge_interceptions.session_id = $7::text
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
 	-- @authorize_filter
 `
@@ -380,6 +385,7 @@ type CountAIBridgeSessionsParams struct {
 	Provider      string    `db:"provider" json:"provider"`
 	Model         string    `db:"model" json:"model"`
 	Client        string    `db:"client" json:"client"`
+	SessionID     string    `db:"session_id" json:"session_id"`
 }
 
 func (q *sqlQuerier) CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error) {
@@ -390,6 +396,7 @@ func (q *sqlQuerier) CountAIBridgeSessions(ctx context.Context, arg CountAIBridg
 		arg.Provider,
 		arg.Model,
 		arg.Client,
+		arg.SessionID,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -1177,10 +1184,16 @@ WITH filtered_interceptions AS (
 			WHEN $9::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $9::text
 			ELSE true
 		END
+		-- Filter session_id
+		AND CASE
+			WHEN $10::text != '' THEN aibridge_interceptions.session_id = $10::text
+			ELSE true
+		END
 		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions
 		-- @authorize_filter
 ),
 session_tokens AS (
+	-- Aggregate token usage across all interceptions in each session.
 	SELECT
 		fi.session_id,
 		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
@@ -1194,6 +1207,11 @@ session_tokens AS (
 		fi.session_id
 ),
 session_root AS (
+	-- Build one summary row per session. The ARRAY_AGG with ORDER BY picks
+	-- values from the chronologically first interception for fields that
+	-- should represent the session as a whole (initiator, client, metadata).
+	-- Threads are counted as distinct root interception IDs: an interception
+	-- with a NULL thread_root_id is itself a thread root.
 	SELECT
 		fi.session_id,
 		(ARRAY_AGG(fi.initiator_id ORDER BY fi.started_at, fi.id))[1] AS initiator_id,
@@ -1234,6 +1252,8 @@ JOIN
 LEFT JOIN
 	session_tokens st ON st.session_id = sr.session_id
 LEFT JOIN LATERAL (
+	-- Lateral join to efficiently fetch only the most recent user prompt
+	-- across all interceptions in the session, avoiding a full aggregation.
 	SELECT up.prompt
 	FROM aibridge_user_prompts up
 	WHERE up.interception_id = ANY(sr.interception_ids)
@@ -1241,7 +1261,9 @@ LEFT JOIN LATERAL (
 	LIMIT 1
 ) slp ON true
 WHERE
-	-- Cursor pagination
+	-- Cursor pagination: uses a composite (started_at, session_id) cursor
+	-- to support keyset pagination. The less-than comparison matches the
+	-- DESC sort order so that rows after the cursor come later in results.
 	CASE
 		WHEN $1::text != '' THEN (
 			(sr.started_at, sr.session_id) < (
@@ -1268,6 +1290,7 @@ type ListAIBridgeSessionsParams struct {
 	Provider       string    `db:"provider" json:"provider"`
 	Model          string    `db:"model" json:"model"`
 	Client         string    `db:"client" json:"client"`
+	SessionID      string    `db:"session_id" json:"session_id"`
 }
 
 type ListAIBridgeSessionsRow struct {
@@ -1288,6 +1311,9 @@ type ListAIBridgeSessionsRow struct {
 	LastPrompt    string          `db:"last_prompt" json:"last_prompt"`
 }
 
+// Returns paginated sessions with aggregated metadata, token counts, and
+// the most recent user prompt. A "session" is a logical grouping of
+// interceptions that share the same session_id (set by the client).
 func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams) ([]ListAIBridgeSessionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeSessions,
 		arg.AfterSessionID,
@@ -1299,6 +1325,7 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 		arg.Provider,
 		arg.Model,
 		arg.Client,
+		arg.SessionID,
 	)
 	if err != nil {
 		return nil, err
