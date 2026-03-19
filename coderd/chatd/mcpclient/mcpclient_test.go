@@ -92,9 +92,9 @@ func TestConnectAll_DiscoverTools(t *testing.T) {
 	assert.Contains(t, names, "myserver__greet")
 
 	// Verify the description is preserved.
-	echoTool := findTool(tools, "myserver__echo")
-	require.NotNilf(t, echoTool, "expected to find myserver__echo")
-	echoInfo := echoTool.Info()
+	foundEcho := findTool(tools, "myserver__echo")
+	require.NotNilf(t, foundEcho, "expected to find myserver__echo")
+	echoInfo := foundEcho.Info()
 	assert.Equal(t, "Echoes the input", echoInfo.Description)
 }
 

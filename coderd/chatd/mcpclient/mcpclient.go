@@ -72,6 +72,7 @@ func ConnectAll(
 		for _, c := range clients {
 			_ = c.Close()
 		}
+		clients = nil
 	}
 
 	for _, cfg := range configs {
@@ -117,7 +118,7 @@ func connectOne(
 	cfg database.MCPServerConfig,
 	tokensByConfigID map[string]database.MCPServerUserToken,
 ) ([]fantasy.AgentTool, *client.Client, error) {
-	headers := buildAuthHeaders(logger, cfg, tokensByConfigID)
+	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID)
 
 	tr, err := createTransport(cfg, headers)
 	if err != nil {
@@ -218,6 +219,7 @@ func createTransport(
 // buildAuthHeaders constructs HTTP headers for authenticating
 // with the MCP server based on the configured auth type.
 func buildAuthHeaders(
+	ctx context.Context,
 	logger slog.Logger,
 	cfg database.MCPServerConfig,
 	tokensByConfigID map[string]database.MCPServerUserToken,
@@ -245,7 +247,7 @@ func buildAuthHeaders(
 			if err := json.Unmarshal(
 				[]byte(cfg.CustomHeaders), &custom,
 			); err != nil {
-				logger.Warn(context.Background(),
+				logger.Warn(ctx,
 					"failed to parse custom headers JSON",
 					slog.F("server_slug", cfg.Slug),
 					slog.Error(err),
@@ -265,9 +267,10 @@ func buildAuthHeaders(
 
 // isToolAllowed checks a tool name against the allow and deny
 // lists. When the allow list is non-empty only tools in it are
-// permitted. When the deny list is non-empty tools in it are
-// rejected. Both lists use exact string matching against the
-// original (non-prefixed) tool name.
+// permitted and the deny list is ignored. When the allow list
+// is empty and the deny list is non-empty, tools in the deny
+// list are rejected. Both lists use exact string matching
+// against the original (non-prefixed) tool name.
 func isToolAllowed(
 	toolName string,
 	allowList []string,
@@ -435,7 +438,12 @@ func convertCallResult(
 	// append as a text part so the data is preserved for the LLM.
 	if result.StructuredContent != nil {
 		data, err := json.Marshal(result.StructuredContent)
-		if err == nil {
+		if err != nil {
+			textParts = append(textParts,
+				"[structured content marshal error: "+
+					err.Error()+"]",
+			)
+		} else {
 			textParts = append(textParts, string(data))
 		}
 	}

@@ -2884,9 +2884,9 @@ func (p *Server) runChat(
 			return nil
 		})
 	}
-	_ = g2.Wait()
-	if mcpCleanup != nil {
-		defer mcpCleanup()
+		// All g2 goroutines return nil; error is discarded.
+		_ = g2.Wait()
+		if mcpCleanup != nil {		defer mcpCleanup()
 	}
 
 	if instruction != "" {
@@ -3170,7 +3170,6 @@ func (p *Server) runChat(
 		model = cuModel
 	}
 
-	// Here are all the tools we have for the chat.
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
