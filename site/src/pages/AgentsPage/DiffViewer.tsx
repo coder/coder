@@ -777,6 +777,25 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	// ---------------------------------------------------------------
 	const [viewportHeight, setViewportHeight] = useState(0);
 	const viewportRoRef = useRef<ResizeObserver | null>(null);
+	const scrollAreaRef = useCallback((node: HTMLElement | null) => {
+		const vp = node?.querySelector<HTMLElement>(
+			"[data-radix-scroll-area-viewport]",
+		);
+		diffViewportRef.current = vp ?? null;
+
+		if (viewportRoRef.current) {
+			viewportRoRef.current.disconnect();
+			viewportRoRef.current = null;
+		}
+		if (vp) {
+			setViewportHeight(vp.clientHeight);
+			const ro = new ResizeObserver(([entry]) => {
+				setViewportHeight(entry.contentRect.height);
+			});
+			ro.observe(vp);
+			viewportRoRef.current = ro;
+		}
+	}, []);
 
 	const [lastFileHeight, setLastFileHeight] = useState(0);
 	const lastFileRoRef = useRef<ResizeObserver | null>(null);
@@ -875,26 +894,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 						)}
 						scrollBarClassName="w-1.5"
 						viewportClassName="[&>div]:!block"
-						ref={(node) => {
-							const vp = node?.querySelector<HTMLElement>(
-								"[data-radix-scroll-area-viewport]",
-							);
-							diffViewportRef.current = vp ?? null;
-
-							// Viewport height observer for dynamic end-spacer.
-							if (viewportRoRef.current) {
-								viewportRoRef.current.disconnect();
-								viewportRoRef.current = null;
-							}
-							if (vp) {
-								setViewportHeight(vp.clientHeight);
-								const ro = new ResizeObserver(([entry]) => {
-									setViewportHeight(entry.contentRect.height);
-								});
-								ro.observe(vp);
-								viewportRoRef.current = ro;
-							}
-						}}
+						ref={scrollAreaRef}
 					>
 						<div className="min-w-0 text-xs">
 							{sortedFiles.map((fileDiff, i) => (
