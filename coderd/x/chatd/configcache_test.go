@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/testutil"
@@ -453,7 +454,7 @@ func TestConfigCache_InvalidateProviders_BlocksStaleInFlightModelConfig(t *testi
 			<-releaseSecond
 			return freshConfig, nil
 		default:
-			return database.ChatModelConfig{}, fmt.Errorf("unexpected model config call %d", call)
+			return database.ChatModelConfig{}, xerrors.Errorf("unexpected model config call %d", call)
 		}
 	}
 	cache := newChatConfigCache(ctx, store, clock)
