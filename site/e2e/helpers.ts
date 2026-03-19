@@ -218,10 +218,14 @@ export const verifyParameters = async (
 								await expect(parameterField).toBeChecked({
 									timeout: 15_000,
 								});
-							} else {
+							} else if (buildParameter.value === "false") {
 								await expect(parameterField).not.toBeChecked({
 									timeout: 15_000,
 								});
+							} else {
+								throw new Error(
+									`Invalid boolean build parameter value: ${buildParameter.value}`,
+								);
 							}
 						}
 						break;
