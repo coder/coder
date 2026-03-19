@@ -21,11 +21,11 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/chatd/chatcost"
-	"github.com/coder/coder/v2/coderd/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -2776,6 +2776,10 @@ func (p *Server) runChat(
 		})
 		g.Go(func() error {
 			var err error
+			// If token loading fails, ConnectAll will still
+			// proceed but oauth2-authenticated servers will lack
+			// credentials and be skipped during connection
+			// (logged individually by ConnectAll).
 			mcpTokens, err = p.db.GetMCPServerUserTokensByUserID(
 				ctx, chat.OwnerID,
 			)
@@ -3154,9 +3158,16 @@ func (p *Server) runChat(
 	var mcpTools []fantasy.AgentTool
 	if len(mcpConfigs) > 0 {
 		var mcpCleanup func()
-		mcpTools, mcpCleanup, _ = mcpclient.ConnectAll(
+		var mcpErr error
+		mcpTools, mcpCleanup, mcpErr = mcpclient.ConnectAll(
 			ctx, logger, mcpConfigs, mcpTokens,
 		)
+		if mcpErr != nil {
+			logger.Warn(ctx,
+				"failed to connect to MCP servers",
+				slog.Error(mcpErr),
+			)
+		}
 		if mcpCleanup != nil {
 			defer mcpCleanup()
 		}

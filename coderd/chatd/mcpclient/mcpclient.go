@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -107,6 +108,7 @@ func connectOne(
 	defer cancel()
 
 	if err := mcpClient.Start(connectCtx); err != nil {
+		_ = mcpClient.Close()
 		return nil, nil, xerrors.Errorf(
 			"start transport: %w", err,
 		)
@@ -385,6 +387,10 @@ func convertCallResult(
 				MediaType: c.MIMEType,
 				IsError:   result.IsError,
 			}
+		default:
+			textParts = append(textParts,
+				fmt.Sprintf("[unsupported content type: %T]", c),
+			)
 		}
 	}
 

@@ -60,23 +60,6 @@ func greetTool() mcpserver.ServerTool {
 	}
 }
 
-// secretTool returns a ServerTool that only succeeds if the request
-// has the expected auth header.
-func secretTool() mcpserver.ServerTool {
-	return mcpserver.ServerTool{
-		Tool: mcp.NewTool("secret",
-			mcp.WithDescription("Returns a secret"),
-		),
-		Handler: func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			auth := req.Header.Get("Authorization")
-			if auth == "" {
-				return mcp.NewToolResultText("no-auth"), nil
-			}
-			return mcp.NewToolResultText("auth:" + auth), nil
-		},
-	}
-}
-
 // makeConfig builds a database.MCPServerConfig suitable for tests.
 func makeConfig(slug, url string) database.MCPServerConfig {
 	return database.MCPServerConfig{
@@ -110,7 +93,9 @@ func TestConnectAll_DiscoverTools(t *testing.T) {
 	assert.Contains(t, names, "myserver__greet")
 
 	// Verify the description is preserved.
-	echoInfo := findTool(tools, "myserver__echo").Info()
+	echoTool := findTool(tools, "myserver__echo")
+	require.NotNilf(t, echoTool, "expected to find myserver__echo")
+	echoInfo := echoTool.Info()
 	assert.Equal(t, "Echoes the input", echoInfo.Description)
 }
 
