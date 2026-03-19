@@ -12,11 +12,26 @@ import {
 import { server } from "testHelpers/server";
 import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { withDefaultFeatures } from "api/api";
 import type { SlimRole } from "api/typesGenerated";
 import { HttpResponse, http } from "msw";
 import OrganizationMembersPage from "./OrganizationMembersPage";
 
 vi.spyOn(console, "error").mockImplementation(() => {});
+
+const MockEntitlementsWithAIGovernance = {
+	...MockEntitlementsWithMultiOrg,
+	features: withDefaultFeatures({
+		multiple_organizations: {
+			enabled: true,
+			entitlement: "entitled",
+		},
+		ai_governance_user_limit: {
+			enabled: true,
+			entitlement: "entitled",
+		},
+	}),
+};
 
 beforeEach(() => {
 	server.use(
@@ -87,6 +102,28 @@ const updateUserRole = async (role: SlimRole) => {
 };
 
 describe("OrganizationMembersPage", () => {
+	it("shows the AI add-on column when AI governance is entitled", async () => {
+		server.use(
+			http.get("/api/v2/entitlements", () => {
+				return HttpResponse.json(MockEntitlementsWithAIGovernance);
+			}),
+		);
+
+		await renderPage();
+
+		expect(
+			screen.getByRole("columnheader", { name: "AI add-on" }),
+		).toBeInTheDocument();
+	});
+
+	it("hides the AI add-on column when AI governance is not entitled", async () => {
+		await renderPage();
+
+		expect(
+			screen.queryByRole("columnheader", { name: "AI add-on" }),
+		).not.toBeInTheDocument();
+	});
+
 	describe("remove member", () => {
 		describe("when it is success", () => {
 			it("shows a success message", async () => {

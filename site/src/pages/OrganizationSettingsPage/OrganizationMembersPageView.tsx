@@ -34,6 +34,7 @@ import {
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import type { PaginationResultInfo } from "hooks/usePaginatedQuery";
 import { EllipsisVertical, TriangleAlert, UserPlusIcon } from "lucide-react";
+import { AISeatCell } from "modules/users/AISeatCell";
 import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
 import { toast } from "sonner";
@@ -47,6 +48,7 @@ interface OrganizationMembersPageViewProps {
 	error: unknown;
 	isAddingMember: boolean;
 	isUpdatingMemberRoles: boolean;
+	showAISeatColumn?: boolean;
 	me: User;
 	members: Array<OrganizationMemberTableEntry> | undefined;
 	membersQuery: PaginationResultInfo & {
@@ -73,6 +75,7 @@ export const OrganizationMembersPageView: FC<
 	error,
 	isAddingMember,
 	isUpdatingMemberRoles,
+	showAISeatColumn,
 	me,
 	membersQuery,
 	members,
@@ -121,6 +124,14 @@ export const OrganizationMembersPageView: FC<
 										<TableColumnHelpTooltip variant="groups" />
 									</Stack>
 								</TableHead>
+								{showAISeatColumn && (
+									<TableHead className="w-1/6">
+										<Stack direction="row" spacing={1} alignItems="center">
+											<span>AI add-on</span>
+											<TableColumnHelpTooltip variant="ai_addon" />
+										</Stack>
+									</TableHead>
+								)}
 								<TableHead className="w-auto" />
 							</TableRow>
 						</TableHeader>
@@ -160,6 +171,9 @@ export const OrganizationMembersPageView: FC<
 											}}
 										/>
 										<UserGroupsCell userGroups={member.groups} />
+										{showAISeatColumn && (
+											<AISeatCell hasAISeat={member.has_ai_seat} />
+										)}
 										<TableCell>
 											{member.user_id !== me.id && canEditMembers && (
 												<DropdownMenu>

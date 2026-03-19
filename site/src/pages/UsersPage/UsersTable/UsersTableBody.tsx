@@ -32,6 +32,7 @@ import {
 	TrashIcon,
 	UserLockIcon,
 } from "lucide-react";
+import { AISeatCell } from "modules/users/AISeatCell";
 import type { FC } from "react";
 import { UserRoleCell } from "../../OrganizationSettingsPage/UserTable/UserRoleCell";
 import { UserGroupsCell } from "./UserGroupsCell";
@@ -47,6 +48,7 @@ interface UsersTableBodyProps {
 	canEditUsers: boolean;
 	isLoading: boolean;
 	canViewActivity?: boolean;
+	showAISeatColumn?: boolean;
 	onSuspendUser: (user: TypesGen.User) => void;
 	onDeleteUser: (user: TypesGen.User) => void;
 	onListWorkspaces: (user: TypesGen.User) => void;
@@ -79,6 +81,7 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 	isUpdatingUserRoles,
 	canEditUsers,
 	canViewActivity,
+	showAISeatColumn,
 	isLoading,
 	isNonInitialPage,
 	actorID,
@@ -101,6 +104,12 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 						<TableCell>
 							<Skeleton variant="text" width="25%" />
 						</TableCell>
+
+						{showAISeatColumn && (
+							<TableCell>
+								<Skeleton variant="text" width="25%" />
+							</TableCell>
+						)}
 
 						<TableCell>
 							<Skeleton variant="text" width="25%" />
@@ -165,6 +174,8 @@ export const UsersTableBody: FC<UsersTableBodyProps> = ({
 						/>
 
 						<UserGroupsCell userGroups={groupsByUserId?.get(user.id)} />
+
+						{showAISeatColumn && <AISeatCell hasAISeat={user.has_ai_seat} />}
 
 						<TableCell>
 							<LoginType authMethods={authMethods!} value={user.login_type} />

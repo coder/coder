@@ -13,6 +13,7 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "hooks";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useState } from "react";
@@ -30,6 +31,8 @@ const OrganizationMembersPage: FC = () => {
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
 	const searchParamsResult = useSearchParams();
+	const featureVisibility = useFeatureVisibility();
+	const showAISeatColumn = featureVisibility.ai_governance_user_limit ?? false;
 
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
 	const groupsByUserIdQuery = useQuery(
@@ -96,6 +99,7 @@ const OrganizationMembersPage: FC = () => {
 				}
 				isAddingMember={addMemberMutation.isPending}
 				isUpdatingMemberRoles={updateMemberRolesMutation.isPending}
+				showAISeatColumn={showAISeatColumn}
 				me={me}
 				members={members}
 				membersQuery={membersQuery}
