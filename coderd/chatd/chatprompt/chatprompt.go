@@ -139,9 +139,13 @@ func ConvertMessagesWithFiles(
 				},
 			})
 		case codersdk.ChatMessageRoleUser:
+			userParts := partsToMessageParts(logger, pm.parts, resolved)
+			if len(userParts) == 0 {
+				continue
+			}
 			prompt = append(prompt, fantasy.Message{
 				Role:    fantasy.MessageRoleUser,
-				Content: partsToMessageParts(logger, pm.parts, resolved),
+				Content: userParts,
 			})
 		case codersdk.ChatMessageRoleAssistant:
 			fantasyParts := normalizeAssistantToolCallInputs(
@@ -152,6 +156,9 @@ func ConvertMessagesWithFiles(
 					continue
 				}
 				toolNameByCallID[sanitizeToolCallID(toolCall.ToolCallID)] = toolCall.ToolName
+			}
+			if len(fantasyParts) == 0 {
+				continue
 			}
 			prompt = append(prompt, fantasy.Message{
 				Role:    fantasy.MessageRoleAssistant,
@@ -166,9 +173,13 @@ func ConvertMessagesWithFiles(
 					}
 				}
 			}
+			toolParts := partsToMessageParts(logger, pm.parts, resolved)
+			if len(toolParts) == 0 {
+				continue
+			}
 			prompt = append(prompt, fantasy.Message{
 				Role:    fantasy.MessageRoleTool,
-				Content: partsToMessageParts(logger, pm.parts, resolved),
+				Content: toolParts,
 			})
 		}
 	}

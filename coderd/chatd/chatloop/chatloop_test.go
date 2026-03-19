@@ -593,6 +593,9 @@ func TestToResponseMessages_FiltersEmptyTextAndReasoningParts(t *testing.T) {
 			fantasy.ReasoningContent{Text: "  \n"},
 			// Non-empty text — should pass through.
 			fantasy.TextContent{Text: "hello world"},
+			// Leading/trailing whitespace with content — kept
+			// with the original value (not trimmed).
+			fantasy.TextContent{Text: "  hello  "},
 			// Non-empty reasoning — should pass through.
 			fantasy.ReasoningContent{Text: "let me think"},
 			// Tool call — should be unaffected by filtering.
@@ -618,22 +621,27 @@ func TestToResponseMessages_FiltersEmptyTextAndReasoningParts(t *testing.T) {
 	// have been dropped.
 	assistantMsg := msgs[0]
 	assert.Equal(t, fantasy.MessageRoleAssistant, assistantMsg.Role)
-	require.Len(t, assistantMsg.Content, 3,
-		"assistant message should have TextPart, ReasoningPart, and ToolCallPart")
+	require.Len(t, assistantMsg.Content, 4,
+		"assistant message should have 2x TextPart, ReasoningPart, and ToolCallPart")
 
 	// Part 0: non-empty text.
 	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](assistantMsg.Content[0])
 	require.True(t, ok, "part 0 should be TextPart")
 	assert.Equal(t, "hello world", textPart.Text)
 
-	// Part 1: non-empty reasoning.
-	reasoningPart, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](assistantMsg.Content[1])
-	require.True(t, ok, "part 1 should be ReasoningPart")
+	// Part 1: padded text — original whitespace preserved.
+	paddedPart, ok := fantasy.AsMessagePart[fantasy.TextPart](assistantMsg.Content[1])
+	require.True(t, ok, "part 1 should be TextPart")
+	assert.Equal(t, "  hello  ", paddedPart.Text)
+
+	// Part 2: non-empty reasoning.
+	reasoningPart, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](assistantMsg.Content[2])
+	require.True(t, ok, "part 2 should be ReasoningPart")
 	assert.Equal(t, "let me think", reasoningPart.Text)
 
-	// Part 2: tool call (unaffected by text/reasoning filtering).
-	toolCallPart, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](assistantMsg.Content[2])
-	require.True(t, ok, "part 2 should be ToolCallPart")
+	// Part 3: tool call (unaffected by text/reasoning filtering).
+	toolCallPart, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](assistantMsg.Content[3])
+	require.True(t, ok, "part 3 should be ToolCallPart")
 	assert.Equal(t, "tc-1", toolCallPart.ToolCallID)
 	assert.Equal(t, "read_file", toolCallPart.ToolName)
 
