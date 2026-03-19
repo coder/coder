@@ -29,14 +29,13 @@ const (
 	// prevents infinite compaction loops when the model keeps
 	// hitting the context limit after summarization.
 	maxCompactionRetries = 3
+	// defaultFirstChunkTimeout bounds how long an individual
+	// model attempt may wait for its first stream part before
+	// the attempt is canceled and retried.
+	defaultFirstChunkTimeout = 60 * time.Second
 )
 
 var (
-	// firstChunkTimeout bounds how long an individual model
-	// attempt may wait for its first stream part before the
-	// attempt is canceled and retried.
-	firstChunkTimeout = 60 * time.Second
-
 	ErrInterrupted = xerrors.New("chat interrupted")
 
 	errFirstChunkTimeout = xerrors.New(
@@ -66,6 +65,10 @@ type RunOptions struct {
 	Messages []fantasy.Message
 	Tools    []fantasy.AgentTool
 	MaxSteps int
+	// FirstChunkTimeout bounds how long each model attempt may
+	// wait for its first stream part before the attempt is
+	// canceled and retried. Zero uses the production default.
+	FirstChunkTimeout time.Duration
 
 	ActiveTools          []string
 	ContextLimitFallback int64
@@ -243,6 +246,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 	if opts.MaxSteps <= 0 {
 		opts.MaxSteps = 1
 	}
+	if opts.FirstChunkTimeout <= 0 {
+		opts.FirstChunkTimeout = defaultFirstChunkTimeout
+	}
 
 	publishMessagePart := func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 		if opts.PublishMessagePart == nil {
@@ -306,6 +312,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				attempt, streamErr := guardedStream(
 					retryCtx,
 					opts.Model.Provider(),
+					opts.FirstChunkTimeout,
 					func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
 						return opts.Model.Stream(attemptCtx, call)
 					},
@@ -541,6 +548,7 @@ func (g *firstChunkGuard) Stop() {
 func guardedStream(
 	parent context.Context,
 	provider string,
+	timeout time.Duration,
 	openStream func(context.Context) (fantasy.StreamResponse, error),
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
@@ -551,7 +559,7 @@ func guardedStream(
 		return guardedAttempt{}, err
 	}
 
-	guard := newFirstChunkGuard(firstChunkTimeout, cancelAttempt)
+	guard := newFirstChunkGuard(timeout, cancelAttempt)
 
 	return guardedAttempt{
 		ctx: attemptCtx,

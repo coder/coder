@@ -20,21 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/chatd/chatretry"
 )
 
-var firstChunkTimeoutMu sync.Mutex
-
 const activeToolName = "read_file"
-
-func withFirstChunkTimeout(t *testing.T, timeout time.Duration) {
-	t.Helper()
-
-	firstChunkTimeoutMu.Lock()
-	previous := firstChunkTimeout
-	firstChunkTimeout = timeout
-	t.Cleanup(func() {
-		firstChunkTimeout = previous
-		firstChunkTimeoutMu.Unlock()
-	})
-}
 
 func TestRun_ActiveToolsPrepareBehavior(t *testing.T) {
 	t.Parallel()
@@ -202,7 +188,8 @@ func TestFirstChunkGuard_DisarmAndFireRace(t *testing.T) {
 
 func TestRun_RetriesStartupTimeoutBeforeFirstChunk(t *testing.T) {
 	t.Parallel()
-	withFirstChunkTimeout(t, 5*time.Millisecond)
+
+	const firstChunkTimeout = 5 * time.Millisecond
 
 	attempts := 0
 	attemptCause := make(chan error, 1)
@@ -229,8 +216,9 @@ func TestRun_RetriesStartupTimeoutBeforeFirstChunk(t *testing.T) {
 	}
 
 	err := Run(context.Background(), RunOptions{
-		Model:    model,
-		MaxSteps: 1,
+		Model:             model,
+		MaxSteps:          1,
+		FirstChunkTimeout: firstChunkTimeout,
 		PersistStep: func(_ context.Context, _ PersistedStep) error {
 			return nil
 		},
@@ -259,7 +247,8 @@ func TestRun_RetriesStartupTimeoutBeforeFirstChunk(t *testing.T) {
 
 func TestRun_FirstChunkDisarmsStartupTimeout(t *testing.T) {
 	t.Parallel()
-	withFirstChunkTimeout(t, 5*time.Millisecond)
+
+	const firstChunkTimeout = 5 * time.Millisecond
 
 	attempts := 0
 	retried := false
@@ -300,8 +289,9 @@ func TestRun_FirstChunkDisarmsStartupTimeout(t *testing.T) {
 	}
 
 	err := Run(context.Background(), RunOptions{
-		Model:    model,
-		MaxSteps: 1,
+		Model:             model,
+		MaxSteps:          1,
+		FirstChunkTimeout: firstChunkTimeout,
 		PersistStep: func(_ context.Context, _ PersistedStep) error {
 			return nil
 		},
@@ -321,7 +311,8 @@ func TestRun_FirstChunkDisarmsStartupTimeout(t *testing.T) {
 
 func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
 	t.Parallel()
-	withFirstChunkTimeout(t, 5*time.Millisecond)
+
+	const firstChunkTimeout = 5 * time.Millisecond
 
 	attempts := 0
 	attemptCause := make(chan error, 1)
@@ -344,8 +335,9 @@ func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
 	}
 
 	err := Run(context.Background(), RunOptions{
-		Model:    model,
-		MaxSteps: 1,
+		Model:             model,
+		MaxSteps:          1,
+		FirstChunkTimeout: firstChunkTimeout,
 		PersistStep: func(_ context.Context, _ PersistedStep) error {
 			return nil
 		},
