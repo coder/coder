@@ -95,10 +95,7 @@ const GroupMembersPage: FC = () => {
 						{members.length === 0 ? (
 							<TableRow>
 								<TableCell colSpan={999}>
-									<EmptyState
-										message="No members yet"
-										description="Add a member using the controls above"
-									/>
+									<EmptyState message="No members found" />
 								</TableCell>
 							</TableRow>
 						) : (
