@@ -51,6 +51,14 @@ const AgentDetailLayout: FC = () => {
 							requestUnarchiveAgent: () => {},
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
+							modelOptions: [],
+							modelConfigIDByModelID: new Map(),
+							modelIDByConfigID: new Map(),
+							modelConfigs: [],
+							modelCatalog: undefined,
+							isModelCatalogLoading: false,
+							modelCatalogError: null,
+							desktopEnabled: false,
 						} satisfies AgentsOutletContext
 					}
 				/>
