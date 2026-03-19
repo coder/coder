@@ -210,7 +210,7 @@ export const InlinePromptInput: FC<{
 						}
 					}}
 				/>
-					<div className="flex items-center justify-between gap-2 pl-2.5 pr-1.5 pb-1.5">					<span className="text-xs text-content-secondary">Esc to cancel</span>
+					<div className="flex items-end justify-between gap-2 pl-2.5 pr-1.5 pb-1.5">					<span className="text-xs text-content-secondary">Esc to cancel</span>
 					<Button
 						size="icon"
 						variant="default"
