@@ -1,11 +1,11 @@
 import { getErrorDetail, getErrorMessage } from "api/errors";
-import type { ShareableWorkspaceOwners } from "api/typesGenerated";
 import {
 	deleteOrganization,
 	patchWorkspaceSharingSettings,
 	updateOrganization,
 	workspaceSharingSettings,
 } from "api/queries/organizations";
+import type { ShareableWorkspaceOwners } from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
