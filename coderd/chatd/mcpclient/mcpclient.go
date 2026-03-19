@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"charm.land/fantasy"
@@ -22,6 +23,12 @@ import (
 // toolNameSep separates the server slug from the original tool
 // name in prefixed tool names. Double underscore avoids collisions
 // with tool names that may contain single underscores.
+//
+// TODO: tool names that themselves contain "__" produce ambiguous
+// prefixed names (e.g. "srv__my__tool" is indistinguishable from
+// slug "srv" + tool "my__tool" vs slug "srv__my" + tool "tool").
+// This doesn't affect tool invocation since originalName is used
+// directly when calling the remote server.
 const toolNameSep = "__"
 
 // connectTimeout bounds how long we wait for a single MCP server
@@ -40,7 +47,7 @@ func ConnectAll(
 	logger slog.Logger,
 	configs []database.MCPServerConfig,
 	tokens []database.MCPServerUserToken,
-) (tools []fantasy.AgentTool, cleanup func(), err error) {
+) ([]fantasy.AgentTool, func()) {
 	// Index tokens by server config ID so auth header
 	// construction is O(1) per server.
 	tokensByConfigID := make(
@@ -50,36 +57,55 @@ func ConnectAll(
 		tokensByConfigID[tok.MCPServerConfigID.String()] = tok
 	}
 
-	var clients []*client.Client
+	var (
+		mu      sync.Mutex
+		wg      sync.WaitGroup
+		clients []*client.Client
+		tools   []fantasy.AgentTool
+	)
+
+	// Build cleanup eagerly so it always closes any clients
+	// that connected, even if a later connection fails.
+	cleanup := func() {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, c := range clients {
+			_ = c.Close()
+		}
+	}
 
 	for _, cfg := range configs {
 		if !cfg.Enabled {
 			continue
 		}
 
-		serverTools, mcpClient, connectErr := connectOne(
-			ctx, logger, cfg, tokensByConfigID,
-		)
-		if connectErr != nil {
-			logger.Warn(ctx,
-				"skipping MCP server due to connection failure",
-				slog.F("server_slug", cfg.Slug),
-				slog.F("server_url", cfg.Url),
-				slog.Error(connectErr),
+		wg.Add(1)
+		go func(cfg database.MCPServerConfig) {
+			defer wg.Done()
+
+			serverTools, mcpClient, connectErr := connectOne(
+				ctx, logger, cfg, tokensByConfigID,
 			)
-			continue
-		}
-		clients = append(clients, mcpClient)
-		tools = append(tools, serverTools...)
+			if connectErr != nil {
+				logger.Warn(ctx,
+					"skipping MCP server due to connection failure",
+					slog.F("server_slug", cfg.Slug),
+					slog.F("server_url", cfg.Url),
+					slog.Error(connectErr),
+				)
+				return
+			}
+
+			mu.Lock()
+			clients = append(clients, mcpClient)
+			tools = append(tools, serverTools...)
+			mu.Unlock()
+		}(cfg)
 	}
 
-	cleanup = func() {
-		for _, c := range clients {
-			_ = c.Close()
-		}
-	}
+	wg.Wait()
 
-	return tools, cleanup, nil
+	return tools, cleanup
 }
 
 // connectOne establishes a connection to a single MCP server,
@@ -91,7 +117,7 @@ func connectOne(
 	cfg database.MCPServerConfig,
 	tokensByConfigID map[string]database.MCPServerUserToken,
 ) ([]fantasy.AgentTool, *client.Client, error) {
-	headers := buildAuthHeaders(cfg, tokensByConfigID)
+	headers := buildAuthHeaders(logger, cfg, tokensByConfigID)
 
 	tr, err := createTransport(cfg, headers)
 	if err != nil {
@@ -102,6 +128,8 @@ func connectOne(
 
 	mcpClient := client.NewClient(tr)
 
+	// The timeout covers the entire connect+init+list sequence,
+	// not each phase individually.
 	connectCtx, cancel := context.WithTimeout(
 		ctx, connectTimeout,
 	)
@@ -190,6 +218,7 @@ func createTransport(
 // buildAuthHeaders constructs HTTP headers for authenticating
 // with the MCP server based on the configured auth type.
 func buildAuthHeaders(
+	logger slog.Logger,
 	cfg database.MCPServerConfig,
 	tokensByConfigID map[string]database.MCPServerUserToken,
 ) map[string]string {
@@ -215,7 +244,13 @@ func buildAuthHeaders(
 			var custom map[string]string
 			if err := json.Unmarshal(
 				[]byte(cfg.CustomHeaders), &custom,
-			); err == nil {
+			); err != nil {
+				logger.Warn(context.Background(),
+					"failed to parse custom headers JSON",
+					slog.F("server_slug", cfg.Slug),
+					slog.Error(err),
+				)
+			} else {
 				for k, v := range custom {
 					headers[k] = v
 				}
@@ -339,10 +374,12 @@ func (t *mcpToolWrapper) SetProviderOptions(
 }
 
 // convertCallResult translates an MCP CallToolResult into a
-// fantasy.ToolResponse. It favours text content; for image or
-// audio data it returns the first binary item. When the result
-// contains multiple text items they are concatenated with
-// newlines so no content is silently dropped.
+// fantasy.ToolResponse. Binary items (image or audio) take
+// priority and short-circuit the loop; any preceding text parts
+// are dropped because the fantasy response model supports a
+// single content type per response. When the result contains
+// only text items they are concatenated with newlines so no
+// content is silently dropped.
 func convertCallResult(
 	result *mcp.CallToolResult,
 ) fantasy.ToolResponse {
@@ -391,6 +428,15 @@ func convertCallResult(
 			textParts = append(textParts,
 				fmt.Sprintf("[unsupported content type: %T]", c),
 			)
+		}
+	}
+
+	// If structured content is present, marshal it to JSON and
+	// append as a text part so the data is preserved for the LLM.
+	if result.StructuredContent != nil {
+		data, err := json.Marshal(result.StructuredContent)
+		if err == nil {
+			textParts = append(textParts, string(data))
 		}
 	}
 

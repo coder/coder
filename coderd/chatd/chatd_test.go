@@ -3518,6 +3518,11 @@ func (d *panicOnInTxDB) InTx(f func(database.Store) error, opts *database.TxOpti
 // TestMCPServerToolInvocation verifies that when a chat has
 // mcp_server_ids set, the chat loop connects to those MCP servers,
 // discovers their tools, and the LLM can invoke them.
+//
+// NOTE: This test uses a raw database.Store (no dbauthz wrapper).
+// The chatd RBAC authorization of GetMCPServerConfigsByIDs (which
+// requires ActionRead on ResourceDeploymentConfig) is covered by
+// the chatd role definition tests, not here.
 func TestMCPServerToolInvocation(t *testing.T) {
 	t.Parallel()
 
@@ -3636,6 +3641,11 @@ func TestMCPServerToolInvocation(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+
+	// Verify MCPServerIDs were persisted on the chat record.
+	dbChat, getErr := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, getErr)
+	require.Equal(t, []uuid.UUID{mcpConfig.ID}, dbChat.MCPServerIDs)
 
 	// Wait for the chat to finish processing.
 	var chatResult database.Chat

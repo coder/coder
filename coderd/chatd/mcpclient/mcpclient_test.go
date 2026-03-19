@@ -81,8 +81,7 @@ func TestConnectAll_DiscoverTools(t *testing.T) {
 	ts := newTestMCPServer(t, echoTool(), greetTool())
 
 	cfg := makeConfig("myserver", ts.URL)
-	tools, cleanup, err := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
-	require.NoError(t, err)
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
 	t.Cleanup(cleanup)
 
 	// Two tools should be discovered, namespaced with the server slug.
@@ -107,8 +106,7 @@ func TestConnectAll_CallTool(t *testing.T) {
 	ts := newTestMCPServer(t, echoTool())
 
 	cfg := makeConfig("srv", ts.URL)
-	tools, cleanup, err := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
-	require.NoError(t, err)
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
 
@@ -134,8 +132,7 @@ func TestConnectAll_ToolAllowList(t *testing.T) {
 	// Only allow the "echo" tool.
 	cfg.ToolAllowList = []string{"echo"}
 
-	tools, cleanup, err := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
-	require.NoError(t, err)
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
 	t.Cleanup(cleanup)
 
 	require.Len(t, tools, 1)
@@ -153,8 +150,7 @@ func TestConnectAll_ToolDenyList(t *testing.T) {
 	// Deny the "greet" tool, so only "echo" remains.
 	cfg.ToolDenyList = []string{"greet"}
 
-	tools, cleanup, err := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
-	require.NoError(t, err)
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
 	t.Cleanup(cleanup)
 
 	require.Len(t, tools, 1)
@@ -168,8 +164,7 @@ func TestConnectAll_ConnectionFailure(t *testing.T) {
 
 	cfg := makeConfig("bad", "http://127.0.0.1:0/does-not-exist")
 
-	tools, cleanup, err := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
-	require.NoError(t, err, "ConnectAll should not return an error for unreachable servers")
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
 	t.Cleanup(cleanup)
 
 	assert.Empty(t, tools, "no tools should be returned for an unreachable server")
@@ -186,12 +181,11 @@ func TestConnectAll_MultipleServers(t *testing.T) {
 	cfg1 := makeConfig("alpha", ts1.URL)
 	cfg2 := makeConfig("beta", ts2.URL)
 
-	tools, cleanup, err := mcpclient.ConnectAll(
+	tools, cleanup := mcpclient.ConnectAll(
 		ctx, logger,
 		[]database.MCPServerConfig{cfg1, cfg2},
 		nil,
 	)
-	require.NoError(t, err)
 	t.Cleanup(cleanup)
 
 	require.Len(t, tools, 2)
@@ -247,12 +241,11 @@ func TestConnectAll_AuthHeaders(t *testing.T) {
 		TokenType:         "Bearer",
 	}
 
-	tools, cleanup, err := mcpclient.ConnectAll(
+	tools, cleanup := mcpclient.ConnectAll(
 		ctx, logger,
 		[]database.MCPServerConfig{cfg},
 		[]database.MCPServerUserToken{token},
 	)
-	require.NoError(t, err)
 	t.Cleanup(cleanup)
 
 	require.Len(t, tools, 1)
@@ -306,8 +299,7 @@ func TestConnectAll_DisabledServer(t *testing.T) {
 	cfg := makeConfig("disabled", ts.URL)
 	cfg.Enabled = false
 
-	tools, cleanup, err := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
-	require.NoError(t, err)
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
 	t.Cleanup(cleanup)
 	assert.Empty(t, tools)
 }
@@ -322,8 +314,7 @@ func TestConnectAll_CallToolInvalidInput(t *testing.T) {
 	ts := newTestMCPServer(t, echoTool())
 
 	cfg := makeConfig("srv", ts.URL)
-	tools, cleanup, err := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
-	require.NoError(t, err)
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
 
@@ -348,8 +339,7 @@ func TestConnectAll_ToolInfoParameters(t *testing.T) {
 	ts := newTestMCPServer(t, echoTool())
 
 	cfg := makeConfig("srv", ts.URL)
-	tools, cleanup, err := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
-	require.NoError(t, err)
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
 
@@ -367,4 +357,173 @@ func TestConnectAll_ToolInfoParameters(t *testing.T) {
 		assert.Contains(t, string(propBytes), "string")
 	}
 	assert.Contains(t, info.Required, "input")
+}
+
+// TestConnectAll_APIKeyAuth verifies that api_key auth sends the
+// configured header and value on every request.
+func TestConnectAll_APIKeyAuth(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	var (
+		mu          sync.Mutex
+		seenHeaders []string
+	)
+
+	srv := mcpserver.NewMCPServer("apikey-server", "1.0.0")
+	srv.AddTools(mcpserver.ServerTool{
+		Tool: mcp.NewTool("check",
+			mcp.WithDescription("Returns the API key header"),
+		),
+		Handler: func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			val := req.Header.Get("X-API-Key")
+			mu.Lock()
+			seenHeaders = append(seenHeaders, val)
+			mu.Unlock()
+			return mcp.NewToolResultText("key:" + val), nil
+		},
+	})
+
+	httpSrv := mcpserver.NewStreamableHTTPServer(srv)
+	ts := httptest.NewServer(httpSrv)
+	t.Cleanup(ts.Close)
+
+	cfg := makeConfig("apikey", ts.URL)
+	cfg.AuthType = "api_key"
+	cfg.APIKeyHeader = "X-API-Key"
+	cfg.APIKeyValue = "secret-123"
+
+	tools, cleanup := mcpclient.ConnectAll(
+		ctx, logger, []database.MCPServerConfig{cfg}, nil,
+	)
+	t.Cleanup(cleanup)
+
+	require.Len(t, tools, 1)
+
+	resp, err := tools[0].Run(ctx, fantasy.ToolCall{
+		ID:    "call-apikey",
+		Name:  "apikey__check",
+		Input: "{}",
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+	assert.Equal(t, "key:secret-123", resp.Content)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.NotEmpty(t, seenHeaders)
+	assert.Equal(t, "secret-123", seenHeaders[len(seenHeaders)-1])
+}
+
+// TestConnectAll_CustomHeadersAuth verifies that custom_headers
+// auth sends the configured headers on every request.
+func TestConnectAll_CustomHeadersAuth(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	var (
+		mu          sync.Mutex
+		seenHeaders []string
+	)
+
+	srv := mcpserver.NewMCPServer("custom-server", "1.0.0")
+	srv.AddTools(mcpserver.ServerTool{
+		Tool: mcp.NewTool("check",
+			mcp.WithDescription("Returns the custom auth header"),
+		),
+		Handler: func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			val := req.Header.Get("X-Custom-Auth")
+			mu.Lock()
+			seenHeaders = append(seenHeaders, val)
+			mu.Unlock()
+			return mcp.NewToolResultText("custom:" + val), nil
+		},
+	})
+
+	httpSrv := mcpserver.NewStreamableHTTPServer(srv)
+	ts := httptest.NewServer(httpSrv)
+	t.Cleanup(ts.Close)
+
+	cfg := makeConfig("custom", ts.URL)
+	cfg.AuthType = "custom_headers"
+	cfg.CustomHeaders = `{"X-Custom-Auth":"custom-val"}`
+
+	tools, cleanup := mcpclient.ConnectAll(
+		ctx, logger, []database.MCPServerConfig{cfg}, nil,
+	)
+	t.Cleanup(cleanup)
+
+	require.Len(t, tools, 1)
+
+	resp, err := tools[0].Run(ctx, fantasy.ToolCall{
+		ID:    "call-custom",
+		Name:  "custom__check",
+		Input: "{}",
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+	assert.Equal(t, "custom:custom-val", resp.Content)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.NotEmpty(t, seenHeaders)
+	assert.Equal(t, "custom-val", seenHeaders[len(seenHeaders)-1])
+}
+
+// TestConnectAll_CustomHeadersInvalidJSON verifies that invalid
+// JSON in CustomHeaders does not prevent the server from
+// connecting. The auth headers are silently skipped.
+func TestConnectAll_CustomHeadersInvalidJSON(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	cfg := makeConfig("badjson", ts.URL)
+	cfg.AuthType = "custom_headers"
+	cfg.CustomHeaders = "{not json}"
+
+	tools, cleanup := mcpclient.ConnectAll(
+		ctx, logger, []database.MCPServerConfig{cfg}, nil,
+	)
+	t.Cleanup(cleanup)
+
+	// The server should still connect; only auth headers are
+	// skipped.
+	require.Len(t, tools, 1)
+	assert.Equal(t, "badjson__echo", tools[0].Info().Name)
+}
+
+// TestConnectAll_ParallelConnections verifies that connecting to
+// multiple MCP servers simultaneously returns all discovered
+// tools with the correct server slug prefixes.
+func TestConnectAll_ParallelConnections(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts1 := newTestMCPServer(t, echoTool())
+	ts2 := newTestMCPServer(t, greetTool())
+	ts3 := newTestMCPServer(t, echoTool())
+
+	cfg1 := makeConfig("srv1", ts1.URL)
+	cfg2 := makeConfig("srv2", ts2.URL)
+	cfg3 := makeConfig("srv3", ts3.URL)
+
+	tools, cleanup := mcpclient.ConnectAll(
+		ctx, logger,
+		[]database.MCPServerConfig{cfg1, cfg2, cfg3},
+		nil,
+	)
+	t.Cleanup(cleanup)
+
+	require.Len(t, tools, 3)
+
+	names := toolNames(tools)
+	assert.Contains(t, names, "srv1__echo")
+	assert.Contains(t, names, "srv2__greet")
+	assert.Contains(t, names, "srv3__echo")
 }

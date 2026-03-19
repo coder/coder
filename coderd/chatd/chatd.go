@@ -2853,7 +2853,15 @@ func (p *Server) runChat(
 	}
 	defer workspaceCtx.close()
 
-	var instruction, resolvedUserPrompt string
+	// Connect to MCP servers in parallel with instruction
+	// resolution. ConnectAll only depends on mcpConfigs and
+	// mcpTokens which are available after g.Wait() above.
+	var (
+		instruction       string
+		resolvedUserPrompt string
+		mcpTools          []fantasy.AgentTool
+		mcpCleanup        func()
+	)
 	var g2 errgroup.Group
 	g2.Go(func() error {
 		instruction = p.resolveInstructions(
@@ -2868,7 +2876,18 @@ func (p *Server) runChat(
 		resolvedUserPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
 		return nil
 	})
+	if len(mcpConfigs) > 0 {
+		g2.Go(func() error {
+			mcpTools, mcpCleanup = mcpclient.ConnectAll(
+				ctx, logger, mcpConfigs, mcpTokens,
+			)
+			return nil
+		})
+	}
 	_ = g2.Wait()
+	if mcpCleanup != nil {
+		defer mcpCleanup()
+	}
 
 	if instruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, instruction)
@@ -3149,28 +3168,6 @@ func (p *Server) runChat(
 			return result, xerrors.Errorf("resolve computer use model: %w", cuErr)
 		}
 		model = cuModel
-	}
-
-	// Connect to any external MCP servers selected for this
-	// chat and discover their tools. Failures are logged but
-	// do not block the chat — the LLM simply won't have those
-	// tools available.
-	var mcpTools []fantasy.AgentTool
-	if len(mcpConfigs) > 0 {
-		var mcpCleanup func()
-		var mcpErr error
-		mcpTools, mcpCleanup, mcpErr = mcpclient.ConnectAll(
-			ctx, logger, mcpConfigs, mcpTokens,
-		)
-		if mcpErr != nil {
-			logger.Warn(ctx,
-				"failed to connect to MCP servers",
-				slog.Error(mcpErr),
-			)
-		}
-		if mcpCleanup != nil {
-			defer mcpCleanup()
-		}
 	}
 
 	// Here are all the tools we have for the chat.
