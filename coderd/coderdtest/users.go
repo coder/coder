@@ -102,6 +102,19 @@ func UsersPagination(
 	require.NoError(t, err)
 	require.Len(t, gotUsers, 4)
 	require.Equal(t, gotCount, 4)
+
+	// Check we can paginate a filtered response.
+	gotUsers, gotCount = fetch(codersdk.UsersRequest{
+		SearchQuery: fmt.Sprintf("name:%s", users[5].Name),
+		Pagination: codersdk.Pagination{
+			Limit:  1,
+			Offset: 1,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, gotUsers, 1)
+	require.Equal(t, gotCount, 1)
+	require.Equal(t, gotUsers[0].ID, users[5].ID)
 }
 
 // UsersFilter creates a set of users to run various filters against for
