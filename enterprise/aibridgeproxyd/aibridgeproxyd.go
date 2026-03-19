@@ -62,13 +62,21 @@ var loadMITMOnce sync.Once
 // Operators can selectively allow specific ranges via AllowedPrivateCIDRs.
 var blockedIPRanges = func() []net.IPNet {
 	cidrs := []string{
+		"0.0.0.0/8",      // RFC 1122: "This" network
 		"10.0.0.0/8",     // RFC 1918: Private-Use
 		"100.64.0.0/10",  // RFC 6598: Shared Address Space (CGNAT / Tailscale)
 		"127.0.0.0/8",    // RFC 1122: Loopback
 		"169.254.0.0/16", // RFC 3927: Link-Local (cloud IMDS: AWS, GCP, Azure)
 		"172.16.0.0/12",  // RFC 1918: Private-Use
+		"192.0.0.0/24",   // RFC 6890: IETF Protocol Assignments
 		"192.168.0.0/16", // RFC 1918: Private-Use
+		"198.18.0.0/15",  // RFC 2544: Benchmarking
+		"240.0.0.0/4",    // RFC 1112: Reserved for Future Use
 		"::1/128",        // RFC 4291: Loopback
+		"::ffff:0:0/96",  // RFC 4291: IPv4-mapped IPv6
+		"64:ff9b::/96",   // RFC 6052: NAT64 well-known prefix
+		"64:ff9b:1::/48", // RFC 8215: NAT64 local-use prefix
+		"2002::/16",      // RFC 3056: 6to4
 		"fc00::/7",       // RFC 4193: Unique-Local
 		"fe80::/10",      // RFC 4291: Link-Local Unicast
 	}
@@ -344,6 +352,13 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		proxy.ConnectDial = func(network, addr string) (net.Conn, error) {
 			return srv.checkBlockedIPAndDial(srv.ctx, network, addr)
 		}
+	}
+
+	// Override goproxy's default CONNECT error handler to avoid leaking
+	// internal error details to clients. Errors are still logged by the caller.
+	proxy.ConnectionErrHandler = func(w io.Writer, _ *goproxy.ProxyCtx, _ error) {
+		msg := "Bad Gateway"
+		_, _ = fmt.Fprintf(w, "HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", len(msg), msg)
 	}
 
 	// Reject CONNECT requests to non-standard ports.
@@ -767,6 +782,9 @@ func (s *Server) checkBlockedIP(ctx context.Context, addr string) error {
 		return xerrors.Errorf("invalid address %q: %w", addr, err)
 	}
 
+	// DNS resolution relies on the OS resolver. We avoid application-level
+	// caching to keep the implementation simple. DNS caching behavior depends
+	// on the OS resolver.
 	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
 	if err != nil {
 		return xerrors.Errorf("failed to resolve %q: %w", host, err)
@@ -794,6 +812,9 @@ func (s *Server) checkBlockedIPAndDial(ctx context.Context, network, addr string
 		return nil, xerrors.Errorf("invalid address %q: %w", addr, err)
 	}
 
+	// DNS resolution is handled by Go's DialContext using the OS resolver.
+	// We avoid application-level DNS caching to keep the implementation
+	// simple. DNS caching behavior depends on the OS resolver.
 	dialer := net.Dialer{
 		// ControlContext fires after DNS resolution and before each TCP dial,
 		// receiving the resolved IP:port. The resolved address is always an IP,

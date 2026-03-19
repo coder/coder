@@ -2054,7 +2054,10 @@ func TestProxy_PrivateIPBlocking(t *testing.T) {
 				// Go's HTTP client does not expose the response for non-2xx CONNECT results.
 				resp := sendConnect(t, srv.Addr(), connectTarget, makeProxyAuthHeader("test-token"))
 				defer resp.Body.Close()
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
 				require.Equal(t, http.StatusBadGateway, resp.StatusCode)
+				require.Equal(t, "Bad Gateway", string(body), "error details should not be leaked to the client")
 			} else {
 				certPool := x509.NewCertPool()
 				certPool.AddCert(targetServer.Certificate())
