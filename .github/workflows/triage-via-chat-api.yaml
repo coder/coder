@@ -136,8 +136,10 @@ jobs:
             5. When you have finished implementation according to the plan, commit and push your changes, and create a PR using the gh CLI for me to review.
           EOF
           )
-          # Perform variable substitution on the prompt (${ISSUE_URL}).
-          TASK_PROMPT=$(echo "${TASK_PROMPT}" | envsubst)
+          # Perform variable substitution on the prompt — scoped to $ISSUE_URL only.
+          # Using envsubst without arguments would expand every env var in scope
+          # (including CODER_SESSION_TOKEN), so we name the variable explicitly.
+          TASK_PROMPT=$(echo "${TASK_PROMPT}" | envsubst '$ISSUE_URL')
 
           echo "Creating chat with prompt:"
           echo "${TASK_PROMPT}"
@@ -160,6 +162,14 @@ jobs:
           if [[ -z "${CHAT_ID}" || "${CHAT_ID}" == "null" ]]; then
             echo "::error::Failed to create chat — no ID returned"
             echo "Response: ${RESPONSE}"
+            exit 1
+          fi
+
+          # Validate that CHAT_ID is a UUID before using it in URL paths.
+          # This guards against unexpected API responses being interpolated
+          # into subsequent curl calls.
+          if [[ ! "${CHAT_ID}" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+            echo "::error::CHAT_ID is not a valid UUID: ${CHAT_ID}"
             exit 1
           fi
 
