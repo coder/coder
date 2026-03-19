@@ -1375,11 +1375,19 @@ func (p *Server) start(ctx context.Context) {
 	// to handle chats orphaned by crashed or redeployed workers.
 	p.recoverStaleChats(ctx)
 
-	acquireTicker := time.NewTicker(p.pendingChatAcquireInterval)
+	acquireTicker := p.clock.NewTicker(
+		p.pendingChatAcquireInterval,
+		"chatd",
+		"acquire",
+	)
 	defer acquireTicker.Stop()
 
 	staleRecoveryInterval := p.inFlightChatStaleAfter / staleRecoveryIntervalDivisor
-	staleTicker := time.NewTicker(staleRecoveryInterval)
+	staleTicker := p.clock.NewTicker(
+		staleRecoveryInterval,
+		"chatd",
+		"stale-recovery",
+	)
 	defer staleTicker.Stop()
 
 	for {
