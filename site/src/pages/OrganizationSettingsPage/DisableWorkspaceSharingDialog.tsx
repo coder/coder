@@ -1,4 +1,5 @@
 import { API } from "api/api";
+import type { ShareableWorkspaceOwners } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	Dialog,
@@ -16,6 +17,8 @@ import { useQuery } from "react-query";
 interface DisableWorkspaceSharingDialogProps {
 	isOpen: boolean;
 	organizationId: string;
+	/** The sharing level being transitioned to. */
+	targetValue: ShareableWorkspaceOwners;
 	onConfirm: () => void;
 	onCancel: () => void;
 	isLoading?: boolean;
@@ -23,14 +26,21 @@ interface DisableWorkspaceSharingDialogProps {
 
 export const DisableWorkspaceSharingDialog: FC<
 	DisableWorkspaceSharingDialogProps
-> = ({ isOpen, organizationId, onConfirm, onCancel, isLoading }) => {
-	// Fetch the count of shared workspaces in this organization
+> = ({
+	isOpen,
+	organizationId,
+	targetValue,
+	onConfirm,
+	onCancel,
+	isLoading,
+}) => {
+	// Fetch the count of shared workspaces in this organization.
 	const sharedWorkspacesQuery = useQuery({
 		queryKey: ["workspaces", organizationId, "shared", "count"],
 		queryFn: async () => {
 			const response = await API.getWorkspaces({
 				q: `organization:${organizationId} shared:true`,
-				limit: 0, // Avoid fetching workspaces as we only need the count
+				limit: 0, // Avoid fetching workspaces as we only need the count.
 			});
 			return response.count;
 		},
@@ -40,21 +50,25 @@ export const DisableWorkspaceSharingDialog: FC<
 	const sharedCount = sharedWorkspacesQuery.data ?? 0;
 	const isLoadingCount = sharedWorkspacesQuery.isLoading;
 
+	const isRestrictingToServiceAccounts = targetValue === "service_accounts";
+	const title = isRestrictingToServiceAccounts
+		? "Restrict sharing to service accounts"
+		: "Disable workspace sharing";
+	const description = isRestrictingToServiceAccounts
+		? "Restricting workspace sharing to service accounts only will immediately unshare any workspaces currently shared by non-service accounts."
+		: "Disabling workspace sharing will immediately remove all existing workspace sharing permissions for all users in this organization.";
+	const confirmLabel = isRestrictingToServiceAccounts
+		? "Restrict sharing"
+		: "Disable sharing";
+
 	return (
 		<Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
 			<DialogContent variant="destructive" className="max-w-xl">
 				<DialogHeader>
-					<DialogTitle>Disable workspace sharing</DialogTitle>
+					<DialogTitle>{title}</DialogTitle>
 					<DialogDescription asChild>
 						<div className="flex flex-col gap-4">
-							<p>
-								Disabling workspace sharing will{" "}
-								<strong className="text-content-primary">
-									immediately remove
-								</strong>{" "}
-								all existing workspace sharing permissions for all users in this
-								organization.
-							</p>
+							<p>{description}</p>
 							{isLoadingCount ? (
 								<Skeleton className="h-6 w-4/5" />
 							) : sharedCount > 0 ? (
@@ -88,7 +102,7 @@ export const DisableWorkspaceSharingDialog: FC<
 						disabled={isLoading}
 					>
 						<Spinner loading={isLoading} />
-						Disable sharing
+						{confirmLabel}
 					</Button>
 				</DialogFooter>
 			</DialogContent>
