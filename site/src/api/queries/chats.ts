@@ -631,3 +631,43 @@ export const deleteChatUsageLimitGroupOverride = (
 		});
 	},
 });
+
+// ── MCP Server Configs ───────────────────────────────────────
+
+const mcpServerConfigsKey = ["mcp-server-configs"] as const;
+
+export const mcpServerConfigs = () => ({
+	queryKey: mcpServerConfigsKey,
+	queryFn: (): Promise<TypesGen.MCPServerConfig[]> =>
+		API.getMCPServerConfigs(),
+});
+
+const invalidateMCPServerConfigQueries = async (queryClient: QueryClient) => {
+	await queryClient.invalidateQueries({ queryKey: mcpServerConfigsKey });
+};
+
+export const createMCPServerConfig = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.CreateMCPServerConfigRequest) =>
+		API.createMCPServerConfig(req),
+	onSuccess: async () => {
+		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+export const updateMCPServerConfig = (queryClient: QueryClient) => ({
+	mutationFn: ({
+		id,
+		req,
+	}: { id: string; req: TypesGen.UpdateMCPServerConfigRequest }) =>
+		API.updateMCPServerConfig(id, req),
+	onSuccess: async () => {
+		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
+	mutationFn: (id: string) => API.deleteMCPServerConfig(id),
+	onSuccess: async () => {
+		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});

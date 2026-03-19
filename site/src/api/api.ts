@@ -402,6 +402,7 @@ export type DeploymentConfig = Readonly<{
 
 const chatProviderConfigsPath = "/api/experimental/chats/providers";
 const chatModelConfigsPath = "/api/experimental/chats/model-configs";
+const mcpServerConfigsPath = "/api/experimental/mcp/servers";
 
 type ChatCostDateParams = {
 	start_date?: string;
@@ -3214,6 +3215,41 @@ class ApiMethods {
 			`${chatModelConfigsPath}/${encodeURIComponent(modelConfigId)}`,
 		);
 	};
+
+	getMCPServerConfigs = async (): Promise<TypesGen.MCPServerConfig[]> => {
+		const response = await this.axios.get<TypesGen.MCPServerConfig[]>(
+			mcpServerConfigsPath,
+		);
+		return response.data;
+	};
+
+	createMCPServerConfig = async (
+		req: TypesGen.CreateMCPServerConfigRequest,
+	): Promise<TypesGen.MCPServerConfig> => {
+		const response = await this.axios.post<TypesGen.MCPServerConfig>(
+			mcpServerConfigsPath,
+			req,
+		);
+		return response.data;
+	};
+
+	updateMCPServerConfig = async (
+		id: string,
+		req: TypesGen.UpdateMCPServerConfigRequest,
+	): Promise<TypesGen.MCPServerConfig> => {
+		const response = await this.axios.patch<TypesGen.MCPServerConfig>(
+			`${mcpServerConfigsPath}/${encodeURIComponent(id)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteMCPServerConfig = async (id: string): Promise<void> => {
+		await this.axios.delete(
+			`${mcpServerConfigsPath}/${encodeURIComponent(id)}`,
+		);
+	};
+
 	getAIBridgeModels = async (options: SearchParamOptions) => {
 		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
 
