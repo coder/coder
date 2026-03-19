@@ -2219,7 +2219,7 @@ func processingFailure(err error) (chaterror.ClassifiedError, bool) {
 	}
 
 	classified := chaterror.Classify(err)
-	if strings.TrimSpace(classified.Message) == "" {
+	if classified.Message == "" {
 		return chaterror.ClassifiedError{}, false
 	}
 	return classified, true

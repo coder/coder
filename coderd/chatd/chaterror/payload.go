@@ -1,14 +1,13 @@
 package chaterror
 
 import (
-	"strings"
 	"time"
 
 	"github.com/coder/coder/v2/codersdk"
 )
 
 func StreamErrorPayload(classified ClassifiedError) *codersdk.ChatStreamError {
-	classified.Message = strings.TrimSpace(classified.Message)
+	classified = normalizeClassification(classified)
 	if classified.Message == "" {
 		return nil
 	}
@@ -26,7 +25,7 @@ func StreamRetryPayload(
 	delay time.Duration,
 	classified ClassifiedError,
 ) *codersdk.ChatStreamRetry {
-	classified.Message = strings.TrimSpace(classified.Message)
+	classified = normalizeClassification(classified)
 	if classified.Message == "" {
 		return nil
 	}
