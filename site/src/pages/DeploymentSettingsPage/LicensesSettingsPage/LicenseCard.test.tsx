@@ -113,6 +113,69 @@ describe("LicenseCard", () => {
 		await screen.findByText("1 / 3");
 	});
 
+	it("does not show AI add-on card when only AI feature limit is present", () => {
+		const license = {
+			...MockLicenseResponse[1],
+			claims: {
+				...MockLicenseResponse[1].claims,
+				features: {
+					...MockLicenseResponse[1].claims.features,
+					ai_governance_user_limit: 1000,
+				},
+			},
+		};
+
+		render(
+			<LicenseCard
+				license={license}
+				aiGovernanceUserFeature={{
+					enabled: true,
+					entitlement: "entitled",
+					actual: 100,
+				}}
+				userLimitActual={1}
+				userLimitLimit={10}
+				onRemove={() => null}
+				isRemoving={false}
+			/>,
+		);
+
+		expect(screen.queryByText("Add-ons")).not.toBeInTheDocument();
+		expect(screen.queryByText("AI governance")).not.toBeInTheDocument();
+	});
+
+	it("shows AI add-on card when explicit AI add-on is present", async () => {
+		const license = {
+			...MockLicenseResponse[1],
+			claims: {
+				...MockLicenseResponse[1].claims,
+				features: {
+					...MockLicenseResponse[1].claims.features,
+					ai_governance_user_limit: 1000,
+				},
+				addons: ["ai_governance"],
+			},
+		};
+
+		render(
+			<LicenseCard
+				license={license}
+				aiGovernanceUserFeature={{
+					enabled: true,
+					entitlement: "entitled",
+					actual: 100,
+				}}
+				userLimitActual={1}
+				userLimitLimit={10}
+				onRemove={() => null}
+				isRemoving={false}
+			/>,
+		);
+
+		await screen.findByText("Add-ons");
+		await screen.findByText("AI governance");
+	});
+
 	it("requires typing the license ID before allowing removal", async () => {
 		const user = userEvent.setup();
 		const onRemove = vi.fn();

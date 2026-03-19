@@ -40,6 +40,7 @@ export const PremiumWithAIGovernance: Story = {
 					...MockLicenseResponse[1].claims.features,
 					ai_governance_user_limit: 1000,
 				},
+				addons: ["ai_governance"],
 			},
 		},
 		aiGovernanceUserFeature: {

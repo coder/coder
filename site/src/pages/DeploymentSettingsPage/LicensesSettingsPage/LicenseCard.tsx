@@ -64,16 +64,13 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 	const hasExplicitAiGovernanceAddOn = (license.claims.addons ?? []).includes(
 		"ai_governance",
 	);
-	const hasAiGovernanceAddOn =
-		hasExplicitAiGovernanceAddOn ||
-		(license.claims.features?.ai_governance_user_limit ?? 0) > 0;
 	const isActiveAiGovernanceEntitlement =
 		aiGovernanceMergedLimit !== undefined &&
 		aiGovernanceLimit > 0 &&
 		aiGovernanceLimit === aiGovernanceMergedLimit;
 	const isAiGovernanceAddOnExceeded =
 		isLicenseCurrentlyValid &&
-		hasAiGovernanceAddOn &&
+		hasExplicitAiGovernanceAddOn &&
 		isActiveAiGovernanceEntitlement &&
 		aiGovernanceActual > aiGovernanceLimit;
 	const statusClassName =
@@ -125,7 +122,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 							className="m-0 flex min-w-0 flex-1 appearance-none items-center gap-6 border-0 bg-transparent p-0 text-left"
 						>
 							<div className="flex items-center gap-1.5">
-								{isPremium && hasAiGovernanceAddOn && (
+								{isPremium && hasExplicitAiGovernanceAddOn && (
 									<ChevronDownIcon className="license-chevron size-4 text-content-secondary transition-colors transition-transform group-hover:text-content-primary" />
 								)}
 								<span className="text-base font-medium text-content-secondary">
@@ -192,7 +189,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 				</div>
 
 				<CollapsibleContent>
-					{isPremium && hasAiGovernanceAddOn && (
+					{isPremium && hasExplicitAiGovernanceAddOn && (
 						<div className="border-0 border-t border-solid border-border bg-surface-primary px-4 py-4">
 							<div className="text-sm font-medium text-content-secondary">
 								Add-ons
