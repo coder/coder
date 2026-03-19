@@ -373,40 +373,31 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	// Resolve session ID. If it parses as a UUID, it might be an
-	// interception ID rather than a client_session_id. Try to
-	// resolve it via the interception lookup. If that fails, fall
-	// through and use the original string as-is — it could be a
-	// client_session_id that happens to be a valid UUID.
-	sessionID := sessionIDParam
-	if parsed, err := uuid.Parse(sessionIDParam); err == nil {
-		intc, err := api.Database.GetAIBridgeInterceptionByID(ctx, parsed)
-		if err == nil {
-			// Derive session_id using the same COALESCE logic
-			// as SQL.
-			switch {
-			case intc.ClientSessionID.Valid:
-				sessionID = intc.ClientSessionID.String
-			case intc.ThreadRootID.Valid:
-				sessionID = intc.ThreadRootID.UUID.String()
-			default:
-				sessionID = intc.ID.String()
-			}
-		}
-	}
-
-	// Fetch session metadata.
-	session, err := api.Database.GetAIBridgeSessionByID(ctx, sessionID)
+	// Fetch session metadata by reusing the sessions list query
+	// with a session_id filter.
+	//nolint:exhaustruct // Let's keep things concise.
+	sessions, err := api.Database.ListAIBridgeSessions(ctx, database.ListAIBridgeSessionsParams{
+		Limit:     1,
+		SessionID: sessionIDParam,
+	})
 	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching session.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(sessions) == 0 {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Session not found.",
 		})
 		return
 	}
+	session := sessions[0]
 
 	// Fetch paginated session threads.
 	threadRows, err := api.Database.ListAIBridgeSessionThreads(ctx, database.ListAIBridgeSessionThreadsParams{
-		SessionID: sessionID,
+		SessionID: sessionIDParam,
 		AfterID:   afterID,
 		BeforeID:  beforeID,
 		Limit:     limit,
