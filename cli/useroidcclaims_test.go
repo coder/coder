@@ -21,18 +21,21 @@ import (
 func TestUserOIDCClaims(t *testing.T) {
 	t.Parallel()
 
-	fake := oidctest.NewFakeIDP(t,
-		oidctest.WithServing(),
-	)
-	cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
-		cfg.AllowSignups = true
-	})
-	ownerClient := coderdtest.New(t, &coderdtest.Options{
-		OIDCConfig: cfg,
-	})
+	setupOIDCTest := func(t *testing.T) (*oidctest.FakeIDP, *codersdk.Client) {
+		t.Helper()
+		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+		ownerClient := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+		return fake, ownerClient
+	}
 
 	t.Run("OwnClaims", func(t *testing.T) {
 		t.Parallel()
+		fake, ownerClient := setupOIDCTest(t)
 
 		claims := jwt.MapClaims{
 			"email":          "alice@coder.com",
@@ -60,6 +63,7 @@ func TestUserOIDCClaims(t *testing.T) {
 
 	t.Run("Table", func(t *testing.T) {
 		t.Parallel()
+		fake, ownerClient := setupOIDCTest(t)
 
 		claims := jwt.MapClaims{
 			"email":          "bob@coder.com",
@@ -101,6 +105,7 @@ func TestUserOIDCClaims(t *testing.T) {
 	// to request another user's claims by design.
 	t.Run("OnlyOwnClaims", func(t *testing.T) {
 		t.Parallel()
+		fake, ownerClient := setupOIDCTest(t)
 
 		aliceClaims := jwt.MapClaims{
 			"email":          "alice-isolation@coder.com",
@@ -133,6 +138,7 @@ func TestUserOIDCClaims(t *testing.T) {
 
 	t.Run("ClaimsNeverNull", func(t *testing.T) {
 		t.Parallel()
+		fake, ownerClient := setupOIDCTest(t)
 
 		// Use minimal claims — just enough for OIDC login.
 		claims := jwt.MapClaims{
