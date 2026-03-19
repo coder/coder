@@ -832,14 +832,6 @@ func (m queryMetricsStore) GetAIBridgeInterceptions(ctx context.Context) ([]data
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIBridgeSessionByID(ctx context.Context, sessionID string) (database.GetAIBridgeSessionByIDRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAIBridgeSessionByID(ctx, sessionID)
-	m.queryLatencies.WithLabelValues("GetAIBridgeSessionByID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIBridgeSessionByID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIBridgeTokenUsagesByInterceptionID(ctx, interceptionID)
@@ -5013,14 +5005,6 @@ func (m queryMetricsStore) CountAuthorizedAIBridgeSessions(ctx context.Context, 
 	r0, r1 := m.s.CountAuthorizedAIBridgeSessions(ctx, arg, prepared)
 	m.queryLatencies.WithLabelValues("CountAuthorizedAIBridgeSessions").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountAuthorizedAIBridgeSessions").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetAuthorizedAIBridgeSessionByID(ctx context.Context, sessionID string, prepared rbac.PreparedAuthorized) (database.GetAIBridgeSessionByIDRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAuthorizedAIBridgeSessionByID(ctx, sessionID, prepared)
-	m.queryLatencies.WithLabelValues("GetAuthorizedAIBridgeSessionByID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizedAIBridgeSessionByID").Inc()
 	return r0, r1
 }
 

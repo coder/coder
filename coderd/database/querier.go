@@ -183,8 +183,6 @@ type sqlcQuerier interface {
 	// the root), we return its own ID as the root.
 	GetAIBridgeInterceptionLineageByToolCallID(ctx context.Context, toolCallID string) (GetAIBridgeInterceptionLineageByToolCallIDRow, error)
 	GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeInterception, error)
-	// Returns session-level metadata for a single session identified by its ID.
-	GetAIBridgeSessionByID(ctx context.Context, sessionID string) (GetAIBridgeSessionByIDRow, error)
 	GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeTokenUsage, error)
 	GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeToolUsage, error)
 	GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeUserPrompt, error)

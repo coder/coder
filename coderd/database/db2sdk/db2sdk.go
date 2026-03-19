@@ -1072,7 +1072,7 @@ func AIBridgeToolUsage(usage database.AIBridgeToolUsage) codersdk.AIBridgeToolUs
 // agentic actions from tool usages and model thoughts, and aggregates
 // token usage with metadata.
 func AIBridgeSessionThreads(
-	session database.GetAIBridgeSessionByIDRow,
+	session database.ListAIBridgeSessionsRow,
 	interceptions []database.ListAIBridgeSessionThreadsRow,
 	tokenUsages []database.AIBridgeTokenUsage,
 	toolUsages []database.AIBridgeToolUsage,
