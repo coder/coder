@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -278,207 +279,213 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existing, err := api.Database.GetMCPServerConfigByID(ctx, mcpServerID)
-	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get MCP server config.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	var req codersdk.UpdateMCPServerConfigRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	displayName := existing.DisplayName
-	if req.DisplayName != nil {
-		displayName = strings.TrimSpace(*req.DisplayName)
-	}
-
-	slug := existing.Slug
-	if req.Slug != nil {
-		slug = strings.TrimSpace(*req.Slug)
-	}
-
-	description := existing.Description
-	if req.Description != nil {
-		description = strings.TrimSpace(*req.Description)
-	}
-
-	iconURL := existing.IconURL
-	if req.IconURL != nil {
-		iconURL = strings.TrimSpace(*req.IconURL)
-	}
-
-	transport := existing.Transport
-	if req.Transport != nil {
-		transport = strings.TrimSpace(*req.Transport)
-	}
-
-	serverURL := existing.Url
-	if req.URL != nil {
-		serverURL = strings.TrimSpace(*req.URL)
-	}
-
-	authType := existing.AuthType
-	if req.AuthType != nil {
-		authType = strings.TrimSpace(*req.AuthType)
-	}
-
-	oauth2ClientID := existing.OAuth2ClientID
-	if req.OAuth2ClientID != nil {
-		oauth2ClientID = strings.TrimSpace(*req.OAuth2ClientID)
-	}
-
-	oauth2ClientSecret := existing.OAuth2ClientSecret
-	oauth2ClientSecretKeyID := existing.OAuth2ClientSecretKeyID
-	if req.OAuth2ClientSecret != nil {
-		oauth2ClientSecret = strings.TrimSpace(*req.OAuth2ClientSecret)
-		// Clear the key ID when the secret is explicitly updated.
-		oauth2ClientSecretKeyID = sql.NullString{}
-	}
-
-	oauth2AuthURL := existing.OAuth2AuthURL
-	if req.OAuth2AuthURL != nil {
-		oauth2AuthURL = strings.TrimSpace(*req.OAuth2AuthURL)
-	}
-
-	oauth2TokenURL := existing.OAuth2TokenURL
-	if req.OAuth2TokenURL != nil {
-		oauth2TokenURL = strings.TrimSpace(*req.OAuth2TokenURL)
-	}
-
-	oauth2Scopes := existing.OAuth2Scopes
-	if req.OAuth2Scopes != nil {
-		oauth2Scopes = strings.TrimSpace(*req.OAuth2Scopes)
-	}
-
-	apiKeyHeader := existing.APIKeyHeader
-	if req.APIKeyHeader != nil {
-		apiKeyHeader = strings.TrimSpace(*req.APIKeyHeader)
-	}
-
-	apiKeyValue := existing.APIKeyValue
-	apiKeyValueKeyID := existing.APIKeyValueKeyID
-	if req.APIKeyValue != nil {
-		apiKeyValue = strings.TrimSpace(*req.APIKeyValue)
-		// Clear the key ID when the value is explicitly updated.
-		apiKeyValueKeyID = sql.NullString{}
-	}
-
-	customHeaders := existing.CustomHeaders
-	customHeadersKeyID := existing.CustomHeadersKeyID
+	// Pre-validate custom headers before entering the transaction.
+	var customHeadersJSON string
 	if req.CustomHeaders != nil {
-		customHeaders, err = marshalCustomHeaders(*req.CustomHeaders)
-		if err != nil {
+		var chErr error
+		customHeadersJSON, chErr = marshalCustomHeaders(*req.CustomHeaders)
+		if chErr != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid custom headers.",
-				Detail:  err.Error(),
+				Detail:  chErr.Error(),
 			})
 			return
 		}
-		// Clear the key ID when headers are explicitly updated.
-		customHeadersKeyID = sql.NullString{}
 	}
 
-	toolAllowList := existing.ToolAllowList
-	if req.ToolAllowList != nil {
-		toolAllowList = coalesceStringSlice(trimStringSlice(*req.ToolAllowList))
-	}
+	var updated database.MCPServerConfig
+	err := api.Database.InTx(func(tx database.Store) error {
+		existing, err := tx.GetMCPServerConfigByID(ctx, mcpServerID)
+		if err != nil {
+			return err
+		}
 
-	toolDenyList := existing.ToolDenyList
-	if req.ToolDenyList != nil {
-		toolDenyList = coalesceStringSlice(trimStringSlice(*req.ToolDenyList))
-	}
+		displayName := existing.DisplayName
+		if req.DisplayName != nil {
+			displayName = strings.TrimSpace(*req.DisplayName)
+		}
 
-	availability := existing.Availability
-	if req.Availability != nil {
-		availability = strings.TrimSpace(*req.Availability)
-	}
+		slug := existing.Slug
+		if req.Slug != nil {
+			slug = strings.TrimSpace(*req.Slug)
+		}
 
-	enabled := existing.Enabled
-	if req.Enabled != nil {
-		enabled = *req.Enabled
-	}
+		description := existing.Description
+		if req.Description != nil {
+			description = strings.TrimSpace(*req.Description)
+		}
 
-	// When auth_type changes, clear fields belonging to the
-	// previous auth type so stale secrets don't persist.
-	if authType != existing.AuthType {
-		switch authType {
-		case "none":
-			oauth2ClientID = ""
-			oauth2ClientSecret = ""
+		iconURL := existing.IconURL
+		if req.IconURL != nil {
+			iconURL = strings.TrimSpace(*req.IconURL)
+		}
+
+		transport := existing.Transport
+		if req.Transport != nil {
+			transport = strings.TrimSpace(*req.Transport)
+		}
+
+		serverURL := existing.Url
+		if req.URL != nil {
+			serverURL = strings.TrimSpace(*req.URL)
+		}
+
+		authType := existing.AuthType
+		if req.AuthType != nil {
+			authType = strings.TrimSpace(*req.AuthType)
+		}
+
+		oauth2ClientID := existing.OAuth2ClientID
+		if req.OAuth2ClientID != nil {
+			oauth2ClientID = strings.TrimSpace(*req.OAuth2ClientID)
+		}
+
+		oauth2ClientSecret := existing.OAuth2ClientSecret
+		oauth2ClientSecretKeyID := existing.OAuth2ClientSecretKeyID
+		if req.OAuth2ClientSecret != nil {
+			oauth2ClientSecret = strings.TrimSpace(*req.OAuth2ClientSecret)
+			// Clear the key ID when the secret is explicitly updated.
 			oauth2ClientSecretKeyID = sql.NullString{}
-			oauth2AuthURL = ""
-			oauth2TokenURL = ""
-			oauth2Scopes = ""
-			apiKeyHeader = ""
-			apiKeyValue = ""
-			apiKeyValueKeyID = sql.NullString{}
-			customHeaders = "{}"
-			customHeadersKeyID = sql.NullString{}
-		case "oauth2":
-			apiKeyHeader = ""
-			apiKeyValue = ""
-			apiKeyValueKeyID = sql.NullString{}
-			customHeaders = "{}"
-			customHeadersKeyID = sql.NullString{}
-		case "api_key":
-			oauth2ClientID = ""
-			oauth2ClientSecret = ""
-			oauth2ClientSecretKeyID = sql.NullString{}
-			oauth2AuthURL = ""
-			oauth2TokenURL = ""
-			oauth2Scopes = ""
-			customHeaders = "{}"
-			customHeadersKeyID = sql.NullString{}
-		case "custom_headers":
-			oauth2ClientID = ""
-			oauth2ClientSecret = ""
-			oauth2ClientSecretKeyID = sql.NullString{}
-			oauth2AuthURL = ""
-			oauth2TokenURL = ""
-			oauth2Scopes = ""
-			apiKeyHeader = ""
-			apiKeyValue = ""
+		}
+
+		oauth2AuthURL := existing.OAuth2AuthURL
+		if req.OAuth2AuthURL != nil {
+			oauth2AuthURL = strings.TrimSpace(*req.OAuth2AuthURL)
+		}
+
+		oauth2TokenURL := existing.OAuth2TokenURL
+		if req.OAuth2TokenURL != nil {
+			oauth2TokenURL = strings.TrimSpace(*req.OAuth2TokenURL)
+		}
+
+		oauth2Scopes := existing.OAuth2Scopes
+		if req.OAuth2Scopes != nil {
+			oauth2Scopes = strings.TrimSpace(*req.OAuth2Scopes)
+		}
+
+		apiKeyHeader := existing.APIKeyHeader
+		if req.APIKeyHeader != nil {
+			apiKeyHeader = strings.TrimSpace(*req.APIKeyHeader)
+		}
+
+		apiKeyValue := existing.APIKeyValue
+		apiKeyValueKeyID := existing.APIKeyValueKeyID
+		if req.APIKeyValue != nil {
+			apiKeyValue = strings.TrimSpace(*req.APIKeyValue)
+			// Clear the key ID when the value is explicitly updated.
 			apiKeyValueKeyID = sql.NullString{}
 		}
-	}
 
-	updated, err := api.Database.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
-		DisplayName:             displayName,
-		Slug:                    slug,
-		Description:             description,
-		IconURL:                 iconURL,
-		Transport:               transport,
-		Url:                     serverURL,
-		AuthType:                authType,
-		OAuth2ClientID:          oauth2ClientID,
-		OAuth2ClientSecret:      oauth2ClientSecret,
-		OAuth2ClientSecretKeyID: oauth2ClientSecretKeyID,
-		OAuth2AuthURL:           oauth2AuthURL,
-		OAuth2TokenURL:          oauth2TokenURL,
-		OAuth2Scopes:            oauth2Scopes,
-		APIKeyHeader:            apiKeyHeader,
-		APIKeyValue:             apiKeyValue,
-		APIKeyValueKeyID:        apiKeyValueKeyID,
-		CustomHeaders:           customHeaders,
-		CustomHeadersKeyID:      customHeadersKeyID,
-		ToolAllowList:           toolAllowList,
-		ToolDenyList:            toolDenyList,
-		Availability:            availability,
-		Enabled:                 enabled,
-		UpdatedBy:               apiKey.UserID,
-		ID:                      existing.ID,
-	})
+		customHeaders := existing.CustomHeaders
+		customHeadersKeyID := existing.CustomHeadersKeyID
+		if req.CustomHeaders != nil {
+			customHeaders = customHeadersJSON
+			// Clear the key ID when headers are explicitly updated.
+			customHeadersKeyID = sql.NullString{}
+		}
+
+		toolAllowList := existing.ToolAllowList
+		if req.ToolAllowList != nil {
+			toolAllowList = coalesceStringSlice(trimStringSlice(*req.ToolAllowList))
+		}
+
+		toolDenyList := existing.ToolDenyList
+		if req.ToolDenyList != nil {
+			toolDenyList = coalesceStringSlice(trimStringSlice(*req.ToolDenyList))
+		}
+
+		availability := existing.Availability
+		if req.Availability != nil {
+			availability = strings.TrimSpace(*req.Availability)
+		}
+
+		enabled := existing.Enabled
+		if req.Enabled != nil {
+			enabled = *req.Enabled
+		}
+
+		// When auth_type changes, clear fields belonging to the
+		// previous auth type so stale secrets don't persist.
+		if authType != existing.AuthType {
+			switch authType {
+			case "none":
+				oauth2ClientID = ""
+				oauth2ClientSecret = ""
+				oauth2ClientSecretKeyID = sql.NullString{}
+				oauth2AuthURL = ""
+				oauth2TokenURL = ""
+				oauth2Scopes = ""
+				apiKeyHeader = ""
+				apiKeyValue = ""
+				apiKeyValueKeyID = sql.NullString{}
+				customHeaders = "{}"
+				customHeadersKeyID = sql.NullString{}
+			case "oauth2":
+				apiKeyHeader = ""
+				apiKeyValue = ""
+				apiKeyValueKeyID = sql.NullString{}
+				customHeaders = "{}"
+				customHeadersKeyID = sql.NullString{}
+			case "api_key":
+				oauth2ClientID = ""
+				oauth2ClientSecret = ""
+				oauth2ClientSecretKeyID = sql.NullString{}
+				oauth2AuthURL = ""
+				oauth2TokenURL = ""
+				oauth2Scopes = ""
+				customHeaders = "{}"
+				customHeadersKeyID = sql.NullString{}
+			case "custom_headers":
+				oauth2ClientID = ""
+				oauth2ClientSecret = ""
+				oauth2ClientSecretKeyID = sql.NullString{}
+				oauth2AuthURL = ""
+				oauth2TokenURL = ""
+				oauth2Scopes = ""
+				apiKeyHeader = ""
+				apiKeyValue = ""
+				apiKeyValueKeyID = sql.NullString{}
+			}
+		}
+
+		updated, err = tx.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
+			DisplayName:             displayName,
+			Slug:                    slug,
+			Description:             description,
+			IconURL:                 iconURL,
+			Transport:               transport,
+			Url:                     serverURL,
+			AuthType:                authType,
+			OAuth2ClientID:          oauth2ClientID,
+			OAuth2ClientSecret:      oauth2ClientSecret,
+			OAuth2ClientSecretKeyID: oauth2ClientSecretKeyID,
+			OAuth2AuthURL:           oauth2AuthURL,
+			OAuth2TokenURL:          oauth2TokenURL,
+			OAuth2Scopes:            oauth2Scopes,
+			APIKeyHeader:            apiKeyHeader,
+			APIKeyValue:             apiKeyValue,
+			APIKeyValueKeyID:        apiKeyValueKeyID,
+			CustomHeaders:           customHeaders,
+			CustomHeadersKeyID:      customHeadersKeyID,
+			ToolAllowList:           toolAllowList,
+			ToolDenyList:            toolDenyList,
+			Availability:            availability,
+			Enabled:                 enabled,
+			UpdatedBy:               apiKey.UserID,
+			ID:                      existing.ID,
+		})
+		return err
+	}, nil)
 	if err != nil {
 		switch {
+		case httpapi.Is404Error(err):
+			httpapi.ResourceNotFound(rw)
+			return
 		case database.IsUniqueViolation(err):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "MCP server config slug already exists.",
@@ -724,7 +731,10 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 	}
 	oauth2Config.Scopes = scopes
 
-	token, err := oauth2Config.Exchange(ctx, code)
+	// Use the deployment's HTTP client for the token exchange to
+	// respect proxy settings and avoid using http.DefaultClient.
+	exchangeCtx := context.WithValue(ctx, oauth2.HTTPClient, api.HTTPClient)
+	token, err := oauth2Config.Exchange(exchangeCtx, code)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
 			Message: "Failed to exchange authorization code for token.",
