@@ -352,6 +352,12 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 							})
 						}
 						onDeleteModel={(id) => deleteModelMut.mutateAsync(id)}
+						onSetDefaultModel={(modelConfigId) =>
+							updateModelMut.mutate({
+								modelConfigId,
+								req: { is_default: true },
+							})
+						}
 					/>
 				)}
 			</div>

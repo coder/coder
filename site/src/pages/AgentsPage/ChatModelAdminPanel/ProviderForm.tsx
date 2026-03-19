@@ -31,7 +31,7 @@ interface ProviderFormProps {
 		providerConfigId: string,
 		req: TypesGen.UpdateChatProviderConfigRequest,
 	) => Promise<unknown>;
-	onDeleteProvider: (providerConfigId: string) => Promise<void>;
+	onDeleteProvider: (providerConfigId: string) => void;
 	onBack: () => void;
 }
 
@@ -273,7 +273,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 										size="lg"
 										type="button"
 										disabled={isProviderMutationPending}
-										onClick={() => void onDeleteProvider(providerConfig.id)}
+										onClick={() => onDeleteProvider(providerConfig.id)}
 									>
 										{isProviderMutationPending && (
 											<Spinner className="h-4 w-4" loading />

@@ -23,7 +23,7 @@ interface ProvidersSectionProps {
 		providerConfigId: string,
 		req: TypesGen.UpdateChatProviderConfigRequest,
 	) => Promise<unknown>;
-	onDeleteProvider: (providerConfigId: string) => Promise<void>;
+	onDeleteProvider: (providerConfigId: string) => Promise<unknown>;
 	onSelectedProviderChange: (provider: string) => void;
 }
 
@@ -61,8 +61,12 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 				onCreateProvider={onCreateProvider}
 				onUpdateProvider={onUpdateProvider}
 				onDeleteProvider={async (id) => {
-					await onDeleteProvider(id);
-					setView({ mode: "list" });
+					try {
+						await onDeleteProvider(id);
+						setView({ mode: "list" });
+					} catch {
+						// Error is surfaced via mutation state in the parent.
+					}
 				}}
 				onBack={() => setView({ mode: "list" })}
 			/>

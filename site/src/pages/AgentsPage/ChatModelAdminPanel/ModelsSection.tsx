@@ -52,7 +52,8 @@ interface ModelsSectionProps {
 		modelConfigId: string,
 		req: TypesGen.UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
-	onDeleteModel: (modelConfigId: string) => Promise<void>;
+	onDeleteModel: (modelConfigId: string) => Promise<unknown>;
+	onSetDefaultModel: (modelConfigId: string) => void;
 }
 
 export const ModelsSection: FC<ModelsSectionProps> = ({
@@ -71,6 +72,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	onCreateModel,
 	onUpdateModel,
 	onDeleteModel,
+	onSetDefaultModel,
 }) => {
 	const [view, setView] = useState<ModelView>({ mode: "list" });
 
@@ -116,8 +118,13 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				onDeleteModel={
 					editingModel
 						? async (id) => {
-								await onDeleteModel(id);
-								setView({ mode: "list" });
+								try {
+									await onDeleteModel(id);
+									setView({ mode: "list" });
+								} catch {
+									// Error is surfaced via mutation state
+									// in the parent.
+								}
 							}
 						: undefined
 				}
@@ -161,7 +168,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 
 	const handleSetDefault = (modelConfig: TypesGen.ChatModelConfig) => {
 		if (modelConfig.is_default) return;
-		void onUpdateModel(modelConfig.id, { is_default: true });
+		onSetDefaultModel(modelConfig.id);
 	};
 
 	return (

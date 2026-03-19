@@ -76,7 +76,7 @@ interface ModelFormProps {
 		req: TypesGen.UpdateChatModelConfigRequest,
 	) => Promise<unknown>;
 	onCancel: () => void;
-	onDeleteModel?: (modelConfigId: string) => Promise<void>;
+	onDeleteModel?: (modelConfigId: string) => void;
 }
 
 export const ModelForm: FC<ModelFormProps> = ({
@@ -528,7 +528,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 									size="lg"
 									type="button"
 									disabled={isDeleting}
-									onClick={() => void onDeleteModel(editingModel.id)}
+									onClick={() => onDeleteModel(editingModel.id)}
 								>
 									{isDeleting && <Spinner className="h-4 w-4" loading />}
 									Delete model

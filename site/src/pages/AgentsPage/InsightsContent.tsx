@@ -6,7 +6,7 @@ import { useQuery } from "react-query";
 import { type PRInsightsTimeRange, PRInsightsView } from "./PRInsightsView";
 
 function timeRangeToDates(range: PRInsightsTimeRange) {
-	const end = dayjs();
+	const end = dayjs().startOf("minute");
 	const days = Number.parseInt(range, 10);
 	const start = end.subtract(days, "day");
 	return {

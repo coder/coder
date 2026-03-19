@@ -155,16 +155,22 @@ const AgentsPage: FC = () => {
 			await API.deleteWorkspace(workspaceId);
 			return { chatId, workspaceId };
 		},
-		onSuccess: async ({ chatId }) => {
+		onSuccess: ({ chatId }) => {
 			clearChatErrorReason(chatId);
-			await invalidateChatListQueries(queryClient);
-			await queryClient.invalidateQueries({
-				queryKey: chatKey(chatId),
-				exact: true,
-			});
 		},
 		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
+		},
+		onSettled: async (_data, _error, variables) => {
+			// Always invalidate — even on partial failure the chat
+			// may have been archived server-side.
+			if (variables) {
+				await invalidateChatListQueries(queryClient);
+				await queryClient.invalidateQueries({
+					queryKey: chatKey(variables.chatId),
+					exact: true,
+				});
+			}
 		},
 	});
 	const unarchiveChatBase = unarchiveChat(queryClient);
@@ -503,7 +509,11 @@ const AgentsPage: FC = () => {
 			modelCatalogError={chatModelsQuery.error}
 			isAgentsAdmin={isAgentsAdmin}
 			hasNextPage={chatsQuery.hasNextPage}
-			onLoadMore={() => void chatsQuery.fetchNextPage()}
+			onLoadMore={() => {
+				if (!chatsQuery.isFetching) {
+					void chatsQuery.fetchNextPage();
+				}
+			}}
 			isFetchingNextPage={chatsQuery.isFetchingNextPage}
 			archivedFilter={archivedFilter}
 			onArchivedFilterChange={setArchivedFilter}
