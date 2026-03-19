@@ -81,9 +81,9 @@ type chatConfigCache struct {
 	defaultModelConfigFetches    singleflight.Group[string, database.ChatModelConfig]
 
 	// User custom prompts (keyed by user ID).
-	userPrompts           map[uuid.UUID]cachedUserPrompt
-	userPromptGenerations map[uuid.UUID]uint64
-	userPromptFetches     singleflight.Group[string, string]
+	userPromptEpoch   uint64
+	userPrompts       map[uuid.UUID]cachedUserPrompt
+	userPromptFetches singleflight.Group[string, string]
 }
 
 func newChatConfigCache(ctx context.Context, db database.Store, clock quartz.Clock) *chatConfigCache {
@@ -94,7 +94,6 @@ func newChatConfigCache(ctx context.Context, db database.Store, clock quartz.Clo
 		modelConfigs:           make(map[uuid.UUID]cachedModelConfig),
 		modelConfigGenerations: make(map[uuid.UUID]uint64),
 		userPrompts:            make(map[uuid.UUID]cachedUserPrompt),
-		userPromptGenerations:  make(map[uuid.UUID]uint64),
 	}
 }
 
@@ -350,21 +349,21 @@ func (c *chatConfigCache) UserPrompt(ctx context.Context, userID uuid.UUID) (str
 		return prompt, nil
 	}
 
-	prompt, err := singleflightDoChan(ctx, &c.userPromptFetches, userID.String(), func() (string, error) {
+	epoch := c.currentUserPromptEpoch()
+	prompt, err := singleflightDoChan(ctx, &c.userPromptFetches, fmt.Sprintf("%d:%s", epoch, userID), func() (string, error) {
 		if cached, ok := c.cachedUserPrompt(userID); ok {
 			return cached, nil
 		}
 
-		generation := c.userPromptGeneration(userID)
 		fetched, err := c.db.GetUserChatCustomPrompt(c.ctx, userID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				c.storeUserPrompt(userID, generation, "")
+				c.storeUserPrompt(epoch, userID, "")
 				return "", nil
 			}
 			return "", err
 		}
-		c.storeUserPrompt(userID, generation, fetched)
+		c.storeUserPrompt(epoch, userID, fetched)
 		return fetched, nil
 	})
 	if err != nil {
@@ -394,18 +393,18 @@ func (c *chatConfigCache) cachedUserPrompt(userID uuid.UUID) (string, bool) {
 	return "", false
 }
 
-func (c *chatConfigCache) userPromptGeneration(userID uuid.UUID) uint64 {
+func (c *chatConfigCache) currentUserPromptEpoch() uint64 {
 	c.mu.RLock()
-	generation := c.userPromptGenerations[userID]
+	epoch := c.userPromptEpoch
 	c.mu.RUnlock()
-	return generation
+	return epoch
 }
 
-func (c *chatConfigCache) storeUserPrompt(userID uuid.UUID, generation uint64, prompt string) {
+func (c *chatConfigCache) storeUserPrompt(epoch uint64, userID uuid.UUID, prompt string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.userPromptGenerations[userID] != generation {
+	if c.userPromptEpoch != epoch {
 		return
 	}
 
@@ -428,7 +427,6 @@ func (c *chatConfigCache) InvalidateModelConfig(id uuid.UUID) {
 func (c *chatConfigCache) InvalidateUserPrompt(userID uuid.UUID) {
 	c.mu.Lock()
 	delete(c.userPrompts, userID)
-	c.userPromptGenerations[userID]++
+	c.userPromptEpoch++
 	c.mu.Unlock()
-	c.userPromptFetches.Forget(userID.String())
 }

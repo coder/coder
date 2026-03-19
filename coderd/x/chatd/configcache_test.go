@@ -289,6 +289,98 @@ func TestConfigCache_UserPrompt_ShorterTTL(t *testing.T) {
 	require.Equal(t, int32(2), store.userPromptCalls.Load())
 }
 
+func TestConfigCache_InvalidateUserPrompt(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	userID := uuid.New()
+	store := &stubChatConfigStore{}
+	store.getUserChatCustomPrompt = func(context.Context, uuid.UUID) (string, error) {
+		call := store.userPromptCalls.Load()
+		return fmt.Sprintf("prompt-%d", call), nil
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	first, err := cache.UserPrompt(ctx, userID)
+	require.NoError(t, err)
+	cache.InvalidateUserPrompt(userID)
+	second, err := cache.UserPrompt(ctx, userID)
+	require.NoError(t, err)
+
+	require.NotEqual(t, first, second)
+	require.Equal(t, int32(2), store.userPromptCalls.Load())
+}
+
+func TestConfigCache_InvalidateUserPrompt_BlocksStaleInFlightPrompt(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	clock := quartz.NewMock(t)
+	userID := uuid.New()
+	const stalePrompt = "stale prompt"
+	const freshPrompt = "fresh prompt"
+	firstStarted := make(chan struct{})
+	secondStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	releaseSecond := make(chan struct{})
+	store := &stubChatConfigStore{}
+	store.getUserChatCustomPrompt = func(context.Context, uuid.UUID) (string, error) {
+		switch call := store.userPromptCalls.Load(); call {
+		case 1:
+			close(firstStarted)
+			<-releaseFirst
+			return stalePrompt, nil
+		case 2:
+			close(secondStarted)
+			<-releaseSecond
+			return freshPrompt, nil
+		default:
+			return "", xerrors.Errorf("unexpected user prompt call %d", call)
+		}
+	}
+	cache := newChatConfigCache(ctx, store, clock)
+
+	type result struct {
+		prompt string
+		err    error
+	}
+
+	firstResult := make(chan result, 1)
+	go func() {
+		prompt, err := cache.UserPrompt(ctx, userID)
+		firstResult <- result{prompt: prompt, err: err}
+	}()
+
+	waitForSignal(t, firstStarted)
+	cache.InvalidateUserPrompt(userID)
+
+	secondResult := make(chan result, 1)
+	go func() {
+		prompt, err := cache.UserPrompt(ctx, userID)
+		secondResult <- result{prompt: prompt, err: err}
+	}()
+
+	waitForSignal(t, secondStarted)
+	close(releaseFirst)
+	first := <-firstResult
+	require.NoError(t, first.err)
+	require.Equal(t, stalePrompt, first.prompt)
+	_, ok := cache.userPrompts[userID]
+	require.False(t, ok)
+
+	close(releaseSecond)
+	second := <-secondResult
+	require.NoError(t, second.err)
+	require.Equal(t, freshPrompt, second.prompt)
+	require.Equal(t, int32(2), store.userPromptCalls.Load())
+
+	third, err := cache.UserPrompt(ctx, userID)
+	require.NoError(t, err)
+	require.Equal(t, freshPrompt, third)
+	require.Equal(t, int32(2), store.userPromptCalls.Load())
+}
+
 func TestConfigCache_Singleflight(t *testing.T) {
 	t.Parallel()
 
