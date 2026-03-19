@@ -2415,33 +2415,68 @@ func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParam
 }
 
 const getPRInsightsPerModel = `-- name: GetPRInsightsPerModel :many
-SELECT
-    cmc.id AS model_config_id,
-    cmc.display_name,
-    cmc.provider,
-    COUNT(*)::bigint AS total_prs,
-    COUNT(*) FILTER (WHERE cds.pull_request_state = 'merged')::bigint AS merged_prs,
-    COALESCE(SUM(cds.additions), 0)::bigint AS total_additions,
-    COALESCE(SUM(cds.deletions), 0)::bigint AS total_deletions,
-    COALESCE(SUM(cc.cost_micros), 0)::bigint AS total_cost_micros,
-    COALESCE(SUM(cc.cost_micros) FILTER (WHERE cds.pull_request_state = 'merged'), 0)::bigint AS merged_cost_micros
-FROM chat_diff_statuses cds
-JOIN chats c ON c.id = cds.chat_id
-JOIN chat_model_configs cmc ON cmc.id = c.last_model_config_id
-LEFT JOIN (
+WITH pr_costs AS (
     SELECT
-        COALESCE(ch.root_chat_id, ch.id) AS root_id,
-        COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
-    FROM chat_messages cm
-    JOIN chats ch ON ch.id = cm.chat_id
-    WHERE cm.total_cost_micros IS NOT NULL
-    GROUP BY COALESCE(ch.root_chat_id, ch.id)
-) cc ON cc.root_id = COALESCE(c.root_chat_id, c.id)
-WHERE cds.pull_request_state IS NOT NULL
-  AND c.created_at >= $1::timestamptz
-  AND c.created_at < $2::timestamptz
-  AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
-GROUP BY cmc.id, cmc.display_name, cmc.provider
+        prc.pr_key,
+        COALESCE(SUM(cc.cost_micros), 0) AS cost_micros
+    FROM (
+        SELECT DISTINCT
+            COALESCE(NULLIF(cds.url, ''), c.id::text) AS pr_key,
+            related.id AS chat_id
+        FROM chat_diff_statuses cds
+        JOIN chats c ON c.id = cds.chat_id
+        JOIN chats related
+          ON related.id = c.id
+          OR (related.parent_chat_id = c.id
+              AND NOT EXISTS (
+                  SELECT 1 FROM chat_diff_statuses cds2
+                  WHERE cds2.chat_id = related.id
+                    AND cds2.pull_request_state IS NOT NULL
+              ))
+        WHERE cds.pull_request_state IS NOT NULL
+          AND c.created_at >= $1::timestamptz
+          AND c.created_at < $2::timestamptz
+          AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
+    ) prc
+    LEFT JOIN LATERAL (
+        SELECT COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
+        FROM chat_messages cm
+        WHERE cm.chat_id = prc.chat_id
+          AND cm.total_cost_micros IS NOT NULL
+    ) cc ON TRUE
+    GROUP BY prc.pr_key
+),
+deduped AS (
+    SELECT DISTINCT ON (COALESCE(NULLIF(cds.url, ''), c.id::text))
+        COALESCE(NULLIF(cds.url, ''), c.id::text) AS pr_key,
+        cds.pull_request_state,
+        cds.additions,
+        cds.deletions,
+        cmc.id AS model_config_id,
+        cmc.display_name,
+        cmc.provider
+    FROM chat_diff_statuses cds
+    JOIN chats c ON c.id = cds.chat_id
+    LEFT JOIN chat_model_configs cmc ON cmc.id = c.last_model_config_id
+    WHERE cds.pull_request_state IS NOT NULL
+      AND c.created_at >= $1::timestamptz
+      AND c.created_at < $2::timestamptz
+      AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
+    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), c.created_at DESC, c.id DESC
+)
+SELECT
+    d.model_config_id,
+    COALESCE(d.display_name, 'Unknown')::text AS display_name,
+    COALESCE(d.provider, 'unknown')::text AS provider,
+    COUNT(*)::bigint AS total_prs,
+    COUNT(*) FILTER (WHERE d.pull_request_state = 'merged')::bigint AS merged_prs,
+    COALESCE(SUM(d.additions), 0)::bigint AS total_additions,
+    COALESCE(SUM(d.deletions), 0)::bigint AS total_deletions,
+    COALESCE(SUM(pc.cost_micros), 0)::bigint AS total_cost_micros,
+    COALESCE(SUM(pc.cost_micros) FILTER (WHERE d.pull_request_state = 'merged'), 0)::bigint AS merged_cost_micros
+FROM deduped d
+JOIN pr_costs pc ON pc.pr_key = d.pr_key
+GROUP BY d.model_config_id, d.display_name, d.provider
 ORDER BY total_prs DESC
 `
 
@@ -2452,18 +2487,22 @@ type GetPRInsightsPerModelParams struct {
 }
 
 type GetPRInsightsPerModelRow struct {
-	ModelConfigID    uuid.UUID `db:"model_config_id" json:"model_config_id"`
-	DisplayName      string    `db:"display_name" json:"display_name"`
-	Provider         string    `db:"provider" json:"provider"`
-	TotalPrs         int64     `db:"total_prs" json:"total_prs"`
-	MergedPrs        int64     `db:"merged_prs" json:"merged_prs"`
-	TotalAdditions   int64     `db:"total_additions" json:"total_additions"`
-	TotalDeletions   int64     `db:"total_deletions" json:"total_deletions"`
-	TotalCostMicros  int64     `db:"total_cost_micros" json:"total_cost_micros"`
-	MergedCostMicros int64     `db:"merged_cost_micros" json:"merged_cost_micros"`
+	ModelConfigID    uuid.NullUUID `db:"model_config_id" json:"model_config_id"`
+	DisplayName      string        `db:"display_name" json:"display_name"`
+	Provider         string        `db:"provider" json:"provider"`
+	TotalPrs         int64         `db:"total_prs" json:"total_prs"`
+	MergedPrs        int64         `db:"merged_prs" json:"merged_prs"`
+	TotalAdditions   int64         `db:"total_additions" json:"total_additions"`
+	TotalDeletions   int64         `db:"total_deletions" json:"total_deletions"`
+	TotalCostMicros  int64         `db:"total_cost_micros" json:"total_cost_micros"`
+	MergedCostMicros int64         `db:"merged_cost_micros" json:"merged_cost_micros"`
 }
 
 // Returns PR metrics grouped by the model used for each chat.
+// Uses two CTEs: pr_costs sums cost for the PR-linked chat and its
+// direct children (that lack their own PR), and deduped picks one row
+// per PR for state/additions/deletions/model (model comes from the
+// most recent chat).
 func (q *sqlQuerier) GetPRInsightsPerModel(ctx context.Context, arg GetPRInsightsPerModelParams) ([]GetPRInsightsPerModelRow, error) {
 	rows, err := q.db.QueryContext(ctx, getPRInsightsPerModel, arg.StartDate, arg.EndDate, arg.OwnerID)
 	if err != nil {
@@ -2498,51 +2537,100 @@ func (q *sqlQuerier) GetPRInsightsPerModel(ctx context.Context, arg GetPRInsight
 }
 
 const getPRInsightsRecentPRs = `-- name: GetPRInsightsRecentPRs :many
-SELECT
-    c.id AS chat_id,
-    cds.pull_request_title AS pr_title,
-    cds.url AS pr_url,
-    cds.pr_number,
-    cds.pull_request_state AS state,
-    cds.pull_request_draft AS draft,
-    cds.additions,
-    cds.deletions,
-    cds.changed_files,
-    cds.commits,
-    cds.approved,
-    cds.changes_requested,
-    cds.reviewer_count,
-    cds.author_login,
-    cds.author_avatar_url,
-    COALESCE(cds.base_branch, '')::text AS base_branch,
-    COALESCE(cmc.display_name, cmc.model)::text AS model_display_name,
-    COALESCE(cc.cost_micros, 0)::bigint AS cost_micros,
-    c.created_at
-FROM chat_diff_statuses cds
-JOIN chats c ON c.id = cds.chat_id
-JOIN chat_model_configs cmc ON cmc.id = c.last_model_config_id
-LEFT JOIN (
+WITH pr_costs AS (
     SELECT
-        COALESCE(ch.root_chat_id, ch.id) AS root_id,
-        COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
-    FROM chat_messages cm
-    JOIN chats ch ON ch.id = cm.chat_id
-    WHERE cm.total_cost_micros IS NOT NULL
-    GROUP BY COALESCE(ch.root_chat_id, ch.id)
-) cc ON cc.root_id = COALESCE(c.root_chat_id, c.id)
-WHERE cds.pull_request_state IS NOT NULL
-  AND c.created_at >= $1::timestamptz
-  AND c.created_at < $2::timestamptz
-  AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
-ORDER BY c.created_at DESC
-LIMIT $4::int
+        prc.pr_key,
+        COALESCE(SUM(cc.cost_micros), 0) AS cost_micros
+    FROM (
+        SELECT DISTINCT
+            COALESCE(NULLIF(cds.url, ''), c.id::text) AS pr_key,
+            related.id AS chat_id
+        FROM chat_diff_statuses cds
+        JOIN chats c ON c.id = cds.chat_id
+        JOIN chats related
+          ON related.id = c.id
+          OR (related.parent_chat_id = c.id
+              AND NOT EXISTS (
+                  SELECT 1 FROM chat_diff_statuses cds2
+                  WHERE cds2.chat_id = related.id
+                    AND cds2.pull_request_state IS NOT NULL
+              ))
+        WHERE cds.pull_request_state IS NOT NULL
+          AND c.created_at >= $2::timestamptz
+          AND c.created_at < $3::timestamptz
+          AND ($4::uuid IS NULL OR c.owner_id = $4::uuid)
+    ) prc
+    LEFT JOIN LATERAL (
+        SELECT COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
+        FROM chat_messages cm
+        WHERE cm.chat_id = prc.chat_id
+          AND cm.total_cost_micros IS NOT NULL
+    ) cc ON TRUE
+    GROUP BY prc.pr_key
+),
+deduped AS (
+    SELECT DISTINCT ON (COALESCE(NULLIF(cds.url, ''), c.id::text))
+        COALESCE(NULLIF(cds.url, ''), c.id::text) AS pr_key,
+        c.id AS chat_id,
+        cds.pull_request_title AS pr_title,
+        cds.url AS pr_url,
+        cds.pr_number,
+        cds.pull_request_state AS state,
+        cds.pull_request_draft AS draft,
+        cds.additions,
+        cds.deletions,
+        cds.changed_files,
+        cds.commits,
+        cds.approved,
+        cds.changes_requested,
+        cds.reviewer_count,
+        cds.author_login,
+        cds.author_avatar_url,
+        COALESCE(cds.base_branch, '')::text AS base_branch,
+        COALESCE(cmc.display_name, cmc.model, 'Unknown')::text AS model_display_name,
+        c.created_at
+    FROM chat_diff_statuses cds
+    JOIN chats c ON c.id = cds.chat_id
+    LEFT JOIN chat_model_configs cmc ON cmc.id = c.last_model_config_id
+    WHERE cds.pull_request_state IS NOT NULL
+      AND c.created_at >= $2::timestamptz
+      AND c.created_at < $3::timestamptz
+      AND ($4::uuid IS NULL OR c.owner_id = $4::uuid)
+    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), c.created_at DESC, c.id DESC
+)
+SELECT chat_id, pr_title, pr_url, pr_number, state, draft, additions, deletions, changed_files, commits, approved, changes_requested, reviewer_count, author_login, author_avatar_url, base_branch, model_display_name, cost_micros, created_at FROM (
+    SELECT
+        d.chat_id,
+        d.pr_title,
+        d.pr_url,
+        d.pr_number,
+        d.state,
+        d.draft,
+        d.additions,
+        d.deletions,
+        d.changed_files,
+        d.commits,
+        d.approved,
+        d.changes_requested,
+        d.reviewer_count,
+        d.author_login,
+        d.author_avatar_url,
+        d.base_branch,
+        d.model_display_name,
+        COALESCE(pc.cost_micros, 0)::bigint AS cost_micros,
+        d.created_at
+    FROM deduped d
+    JOIN pr_costs pc ON pc.pr_key = d.pr_key
+) sub
+ORDER BY sub.created_at DESC
+LIMIT $1::int
 `
 
 type GetPRInsightsRecentPRsParams struct {
+	LimitVal  int32         `db:"limit_val" json:"limit_val"`
 	StartDate time.Time     `db:"start_date" json:"start_date"`
 	EndDate   time.Time     `db:"end_date" json:"end_date"`
 	OwnerID   uuid.NullUUID `db:"owner_id" json:"owner_id"`
-	LimitVal  int32         `db:"limit_val" json:"limit_val"`
 }
 
 type GetPRInsightsRecentPRsRow struct {
@@ -2568,12 +2656,15 @@ type GetPRInsightsRecentPRsRow struct {
 }
 
 // Returns individual PR rows with cost for the recent PRs table.
+// Uses two CTEs: pr_costs sums cost for the PR-linked chat and its
+// direct children (that lack their own PR), and deduped picks one row
+// per PR for metadata.
 func (q *sqlQuerier) GetPRInsightsRecentPRs(ctx context.Context, arg GetPRInsightsRecentPRsParams) ([]GetPRInsightsRecentPRsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getPRInsightsRecentPRs,
+		arg.LimitVal,
 		arg.StartDate,
 		arg.EndDate,
 		arg.OwnerID,
-		arg.LimitVal,
 	)
 	if err != nil {
 		return nil, err
@@ -2618,29 +2709,63 @@ func (q *sqlQuerier) GetPRInsightsRecentPRs(ctx context.Context, arg GetPRInsigh
 
 const getPRInsightsSummary = `-- name: GetPRInsightsSummary :one
 
+WITH pr_costs AS (
+    SELECT
+        prc.pr_key,
+        COALESCE(SUM(cc.cost_micros), 0) AS cost_micros
+    FROM (
+        -- For each PR, include the chat that references it plus any
+        -- direct children (subagents) that do not have their own PR.
+        SELECT DISTINCT
+            COALESCE(NULLIF(cds.url, ''), c.id::text) AS pr_key,
+            related.id AS chat_id
+        FROM chat_diff_statuses cds
+        JOIN chats c ON c.id = cds.chat_id
+        JOIN chats related
+          ON related.id = c.id
+          OR (related.parent_chat_id = c.id
+              AND NOT EXISTS (
+                  SELECT 1 FROM chat_diff_statuses cds2
+                  WHERE cds2.chat_id = related.id
+                    AND cds2.pull_request_state IS NOT NULL
+              ))
+        WHERE cds.pull_request_state IS NOT NULL
+          AND c.created_at >= $1::timestamptz
+          AND c.created_at < $2::timestamptz
+          AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
+    ) prc
+    LEFT JOIN LATERAL (
+        SELECT COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
+        FROM chat_messages cm
+        WHERE cm.chat_id = prc.chat_id
+          AND cm.total_cost_micros IS NOT NULL
+    ) cc ON TRUE
+    GROUP BY prc.pr_key
+),
+deduped AS (
+    SELECT DISTINCT ON (COALESCE(NULLIF(cds.url, ''), c.id::text))
+        COALESCE(NULLIF(cds.url, ''), c.id::text) AS pr_key,
+        cds.pull_request_state,
+        cds.additions,
+        cds.deletions
+    FROM chat_diff_statuses cds
+    JOIN chats c ON c.id = cds.chat_id
+    WHERE cds.pull_request_state IS NOT NULL
+      AND c.created_at >= $1::timestamptz
+      AND c.created_at < $2::timestamptz
+      AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
+    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), c.created_at DESC, c.id DESC
+)
 SELECT
     COUNT(*)::bigint AS total_prs_created,
-    COUNT(*) FILTER (WHERE cds.pull_request_state = 'merged')::bigint AS total_prs_merged,
-    COUNT(*) FILTER (WHERE cds.pull_request_state = 'closed')::bigint AS total_prs_closed,
-    COALESCE(SUM(cds.additions), 0)::bigint AS total_additions,
-    COALESCE(SUM(cds.deletions), 0)::bigint AS total_deletions,
-    COALESCE(SUM(cc.cost_micros), 0)::bigint AS total_cost_micros,
-    COALESCE(SUM(cc.cost_micros) FILTER (WHERE cds.pull_request_state = 'merged'), 0)::bigint AS merged_cost_micros
-FROM chat_diff_statuses cds
-JOIN chats c ON c.id = cds.chat_id
-LEFT JOIN (
-    SELECT
-        COALESCE(ch.root_chat_id, ch.id) AS root_id,
-        COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
-    FROM chat_messages cm
-    JOIN chats ch ON ch.id = cm.chat_id
-    WHERE cm.total_cost_micros IS NOT NULL
-    GROUP BY COALESCE(ch.root_chat_id, ch.id)
-) cc ON cc.root_id = COALESCE(c.root_chat_id, c.id)
-WHERE cds.pull_request_state IS NOT NULL
-  AND c.created_at >= $1::timestamptz
-  AND c.created_at < $2::timestamptz
-  AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
+    COUNT(*) FILTER (WHERE d.pull_request_state = 'merged')::bigint AS total_prs_merged,
+    COUNT(*) FILTER (WHERE d.pull_request_state = 'closed')::bigint AS total_prs_closed,
+    COALESCE(SUM(d.additions), 0)::bigint AS total_additions,
+    COALESCE(SUM(d.deletions), 0)::bigint AS total_deletions,
+    COALESCE(SUM(pc.cost_micros), 0)::bigint AS total_cost_micros,
+    COALESCE(SUM(pc.cost_micros) FILTER (WHERE d.pull_request_state = 'merged'), 0)::bigint AS merged_cost_micros
+FROM deduped d
+JOIN pr_costs pc ON pc.pr_key = d.pr_key
 `
 
 type GetPRInsightsSummaryParams struct {
@@ -2662,8 +2787,22 @@ type GetPRInsightsSummaryRow struct {
 // PR Insights queries for the /agents analytics dashboard.
 // These aggregate data from chat_diff_statuses (PR metadata) joined
 // with chats and chat_messages (cost) to power the PR Insights view.
+//
+// Cost is computed per PR by summing the PR-linked chat's own cost plus
+// the costs of any direct children (subagents) it spawned that do NOT
+// have their own PR association. If a child chat has its own
+// chat_diff_statuses entry (with a non-NULL pull_request_state), its
+// cost is attributed to that child's PR instead — preventing
+// double-counting when sibling chats create different PRs.
+// Subagent trees are at most 2 levels deep (enforced by the
+// application layer). PR metadata (state, additions, deletions)
+// comes from the most recent chat via DISTINCT ON so that each PR
+// is counted exactly once.
 // Returns aggregate PR metrics for the given date range.
 // The handler calls this twice (current + previous period) for trends.
+// Uses two CTEs: pr_costs sums cost for the PR-linked chat and its
+// direct children (that lack their own PR), and deduped picks one row
+// per PR for state/additions/deletions.
 func (q *sqlQuerier) GetPRInsightsSummary(ctx context.Context, arg GetPRInsightsSummaryParams) (GetPRInsightsSummaryRow, error) {
 	row := q.db.QueryRowContext(ctx, getPRInsightsSummary, arg.StartDate, arg.EndDate, arg.OwnerID)
 	var i GetPRInsightsSummaryRow
@@ -2680,19 +2819,26 @@ func (q *sqlQuerier) GetPRInsightsSummary(ctx context.Context, arg GetPRInsights
 }
 
 const getPRInsightsTimeSeries = `-- name: GetPRInsightsTimeSeries :many
+WITH deduped AS (
+    SELECT DISTINCT ON (COALESCE(NULLIF(cds.url, ''), c.id::text))
+        cds.pull_request_state,
+        c.created_at
+    FROM chat_diff_statuses cds
+    JOIN chats c ON c.id = cds.chat_id
+    WHERE cds.pull_request_state IS NOT NULL
+      AND c.created_at >= $1::timestamptz
+      AND c.created_at < $2::timestamptz
+      AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
+    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), c.created_at DESC, c.id DESC
+)
 SELECT
-    date_trunc('day', c.created_at)::timestamptz AS date,
+    date_trunc('day', created_at)::timestamptz AS date,
     COUNT(*)::bigint AS prs_created,
-    COUNT(*) FILTER (WHERE cds.pull_request_state = 'merged')::bigint AS prs_merged,
-    COUNT(*) FILTER (WHERE cds.pull_request_state = 'closed')::bigint AS prs_closed
-FROM chat_diff_statuses cds
-JOIN chats c ON c.id = cds.chat_id
-WHERE cds.pull_request_state IS NOT NULL
-  AND c.created_at >= $1::timestamptz
-  AND c.created_at < $2::timestamptz
-  AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
-GROUP BY date_trunc('day', c.created_at)
-ORDER BY date_trunc('day', c.created_at)
+    COUNT(*) FILTER (WHERE pull_request_state = 'merged')::bigint AS prs_merged,
+    COUNT(*) FILTER (WHERE pull_request_state = 'closed')::bigint AS prs_closed
+FROM deduped
+GROUP BY date_trunc('day', created_at)
+ORDER BY date_trunc('day', created_at)
 `
 
 type GetPRInsightsTimeSeriesParams struct {
@@ -2709,6 +2855,8 @@ type GetPRInsightsTimeSeriesRow struct {
 }
 
 // Returns daily PR counts grouped by state for the chart.
+// Uses a CTE to deduplicate by PR URL so that multiple chats referencing
+// the same pull request are only counted once (keeping the most recent chat).
 func (q *sqlQuerier) GetPRInsightsTimeSeries(ctx context.Context, arg GetPRInsightsTimeSeriesParams) ([]GetPRInsightsTimeSeriesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getPRInsightsTimeSeries, arg.StartDate, arg.EndDate, arg.OwnerID)
 	if err != nil {

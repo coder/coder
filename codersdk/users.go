@@ -339,6 +339,14 @@ type OIDCAuthMethod struct {
 	IconURL    string `json:"iconUrl"`
 }
 
+// OIDCClaimsResponse represents the merged OIDC claims for a user.
+type OIDCClaimsResponse struct {
+	// Claims are the merged claims from the OIDC provider. These
+	// are the union of the ID token claims and the userinfo claims,
+	// where userinfo claims take precedence on conflict.
+	Claims map[string]interface{} `json:"claims"`
+}
+
 type UserParameter struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
@@ -721,6 +729,20 @@ func (c *Client) UserRoles(ctx context.Context, user string) (UserRoles, error) 
 	}
 	var roles UserRoles
 	return roles, json.NewDecoder(res.Body).Decode(&roles)
+}
+
+// UserOIDCClaims returns the merged OIDC claims for the authenticated user.
+func (c *Client) UserOIDCClaims(ctx context.Context) (OIDCClaimsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users/oidc-claims", nil)
+	if err != nil {
+		return OIDCClaimsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OIDCClaimsResponse{}, ReadBodyAsError(res)
+	}
+	var resp OIDCClaimsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // LoginWithPassword creates a session token authenticating with an email and password.

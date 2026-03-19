@@ -7870,6 +7870,31 @@ const docTemplate = `{
                 ]
             }
         },
+        "/users/oidc-claims": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get OIDC claims for the authenticated user",
+                "operationId": "get-oidc-claims-for-the-authenticated-user",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OIDCClaimsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/users/oidc/callback": {
             "get": {
                 "tags": [
@@ -16883,6 +16908,16 @@ const docTemplate = `{
                 },
                 "signInText": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.OIDCClaimsResponse": {
+            "type": "object",
+            "properties": {
+                "claims": {
+                    "description": "Claims are the merged claims from the OIDC provider. These\nare the union of the ID token claims and the userinfo claims,\nwhere userinfo claims take precedence on conflict.",
+                    "type": "object",
+                    "additionalProperties": true
                 }
             }
         },

@@ -421,7 +421,9 @@ describe("WorkspacePage", () => {
 		const retryDebugButtonRe = /^Debug$/i;
 
 		describe("Retries a failed 'Start' transition", () => {
-			const mockStart = jest.spyOn(API, "startWorkspace");
+			const mockRetry = jest
+				.spyOn(API, "retryWorkspace")
+				.mockResolvedValue(MockWorkspaceBuild);
 			const failedStart: Workspace = {
 				...MockFailedWorkspace,
 				latest_build: {
@@ -431,10 +433,10 @@ describe("WorkspacePage", () => {
 			};
 
 			test("Retry with no debug", async () => {
-				await testButton(failedStart, retryButtonRe, mockStart);
+				await testButton(failedStart, retryButtonRe, mockRetry);
 
-				expect(mockStart).toBeCalledWith(
-					failedStart.id,
+				expect(mockRetry).toBeCalledWith(
+					failedStart,
 					failedStart.latest_build.template_version_id,
 					undefined,
 					undefined,
@@ -442,10 +444,10 @@ describe("WorkspacePage", () => {
 			});
 
 			test("Retry with debug logs", async () => {
-				await testButton(failedStart, retryDebugButtonRe, mockStart);
+				await testButton(failedStart, retryDebugButtonRe, mockRetry);
 
-				expect(mockStart).toBeCalledWith(
-					failedStart.id,
+				expect(mockRetry).toBeCalledWith(
+					failedStart,
 					failedStart.latest_build.template_version_id,
 					"debug",
 					undefined,
@@ -522,7 +524,9 @@ describe("WorkspacePage", () => {
 				return HttpResponse.json([parameter]);
 			}),
 		);
-		const startWorkspaceSpy = jest.spyOn(API, "startWorkspace");
+		const retryWorkspaceSpy = jest
+			.spyOn(API, "retryWorkspace")
+			.mockResolvedValue(MockWorkspaceBuild);
 
 		await renderWorkspacePage(workspace);
 		const retryWithBuildParametersButton = await screen.findByRole("button", {
@@ -539,8 +543,8 @@ describe("WorkspacePage", () => {
 		await user.click(submitButton);
 
 		await waitFor(() => {
-			expect(startWorkspaceSpy).toBeCalledWith(
-				workspace.id,
+			expect(retryWorkspaceSpy).toBeCalledWith(
+				workspace,
 				workspace.latest_build.template_version_id,
 				undefined,
 				[{ name: parameter.name, value: "some-value" }],
@@ -568,7 +572,9 @@ describe("WorkspacePage", () => {
 				return HttpResponse.json([parameter]);
 			}),
 		);
-		const startWorkspaceSpy = jest.spyOn(API, "startWorkspace");
+		const retryWorkspaceSpy = jest
+			.spyOn(API, "retryWorkspace")
+			.mockResolvedValue(MockWorkspaceBuild);
 
 		await renderWorkspacePage(workspace);
 		const retryWithBuildParametersButton = await screen.findByRole("button", {
@@ -585,8 +591,8 @@ describe("WorkspacePage", () => {
 		await user.click(submitButton);
 
 		await waitFor(() => {
-			expect(startWorkspaceSpy).toBeCalledWith(
-				workspace.id,
+			expect(retryWorkspaceSpy).toBeCalledWith(
+				workspace,
 				workspace.latest_build.template_version_id,
 				"debug",
 				[{ name: parameter.name, value: "some-value" }],

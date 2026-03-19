@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/webpush"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
@@ -46,12 +47,17 @@ const (
 
 	homeInstructionLookupTimeout = 5 * time.Second
 	instructionCacheTTL          = 5 * time.Minute
-	chatHeartbeatInterval        = 60 * time.Second
+	// DefaultChatHeartbeatInterval is the default time between chat
+	// heartbeat updates while a chat is being processed.
+	DefaultChatHeartbeatInterval = 30 * time.Second
 	maxChatSteps                 = 1200
-	// maxStreamBufferSize caps the number of events buffered
-	// per chat during a single LLM step. When exceeded the
-	// oldest event is evicted so memory stays bounded.
+	// maxStreamBufferSize caps the number of message_part events buffered
+	// per chat during a single LLM step. When exceeded the oldest event is
+	// evicted so memory stays bounded.
 	maxStreamBufferSize = 10000
+	// maxDurableMessageCacheSize caps the number of recent durable message
+	// events cached per chat for same-replica stream catch-up.
+	maxDurableMessageCacheSize = 256
 
 	// staleRecoveryIntervalDivisor determines how often the stale
 	// recovery loop runs relative to the stale threshold. A value
@@ -96,10 +102,14 @@ type Server struct {
 	instructionCacheMu sync.RWMutex
 	instructionCache   map[uuid.UUID]cachedInstruction
 
+	usageTracker *workspacestats.UsageTracker
+	clock        quartz.Clock
+
 	// Configuration
 	pendingChatAcquireInterval time.Duration
 	maxChatsPerAcquire         int32
 	inFlightChatStaleAfter     time.Duration
+	chatHeartbeatInterval      time.Duration
 }
 
 type cachedInstruction struct {
@@ -310,10 +320,12 @@ type SubscribeFnParams struct {
 }
 
 type chatStreamState struct {
-	mu          sync.Mutex
-	buffer      []codersdk.ChatStreamEvent
-	buffering   bool
-	subscribers map[uuid.UUID]chan codersdk.ChatStreamEvent
+	mu                   sync.Mutex
+	buffer               []codersdk.ChatStreamEvent
+	buffering            bool
+	durableMessages      []codersdk.ChatStreamEvent
+	durableEvictedBefore int64 // highest message ID evicted from durable cache
+	subscribers          map[uuid.UUID]chan codersdk.ChatStreamEvent
 }
 
 // MaxQueueSize is the maximum number of queued user messages per chat.
@@ -1285,12 +1297,15 @@ type Config struct {
 	PendingChatAcquireInterval time.Duration
 	MaxChatsPerAcquire         int32
 	InFlightChatStaleAfter     time.Duration
+	ChatHeartbeatInterval      time.Duration
 	AgentConn                  AgentConnFunc
 	CreateWorkspace            chattool.CreateWorkspaceFn
 	StartWorkspace             chattool.StartWorkspaceFn
 	Pubsub                     pubsub.Pubsub
 	ProviderAPIKeys            chatprovider.ProviderAPIKeys
 	WebpushDispatcher          webpush.Dispatcher
+	UsageTracker               *workspacestats.UsageTracker
+	Clock                      quartz.Clock
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -1312,6 +1327,16 @@ func New(cfg Config) *Server {
 	maxChatsPerAcquire := cfg.MaxChatsPerAcquire
 	if maxChatsPerAcquire <= 0 {
 		maxChatsPerAcquire = DefaultMaxChatsPerAcquire
+	}
+
+	chatHeartbeatInterval := cfg.ChatHeartbeatInterval
+	if chatHeartbeatInterval == 0 {
+		chatHeartbeatInterval = DefaultChatHeartbeatInterval
+	}
+
+	clk := cfg.Clock
+	if clk == nil {
+		clk = quartz.NewReal()
 	}
 
 	workerID := cfg.ReplicaID
@@ -1336,6 +1361,9 @@ func New(cfg Config) *Server {
 		pendingChatAcquireInterval: pendingChatAcquireInterval,
 		maxChatsPerAcquire:         maxChatsPerAcquire,
 		inFlightChatStaleAfter:     inFlightChatStaleAfter,
+		chatHeartbeatInterval:      chatHeartbeatInterval,
+		usageTracker:               cfg.UsageTracker,
+		clock:                      clk,
 	}
 
 	//nolint:gocritic // The chat processor uses a scoped chatd context.
@@ -1471,6 +1499,48 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 	state.mu.Unlock()
 }
 
+// cacheDurableMessage stores a recently persisted message event in the
+// per-chat stream state so that same-replica subscribers can catch up
+// from memory instead of the database. The afterMessageID is the
+// message ID that precedes this message (i.e. message.ID - 1).
+func (p *Server) cacheDurableMessage(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
+	state := p.getOrCreateStreamState(chatID)
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	if len(state.durableMessages) >= maxDurableMessageCacheSize {
+		if evicted := state.durableMessages[0]; evicted.Message != nil {
+			state.durableEvictedBefore = evicted.Message.ID
+		}
+		state.durableMessages = state.durableMessages[1:]
+	}
+	state.durableMessages = append(state.durableMessages, event)
+}
+
+// getCachedDurableMessages returns cached durable messages with IDs
+// greater than afterID. Returns nil when the cache has no relevant
+// entries.
+func (p *Server) getCachedDurableMessages(
+	chatID uuid.UUID,
+	afterID int64,
+) []codersdk.ChatStreamEvent {
+	state := p.getOrCreateStreamState(chatID)
+	state.mu.Lock()
+	defer state.mu.Unlock()
+
+	if afterID < state.durableEvictedBefore {
+		return nil
+	}
+
+	var result []codersdk.ChatStreamEvent
+	for _, event := range state.durableMessages {
+		if event.Message != nil && event.Message.ID > afterID {
+			result = append(result, event)
+		}
+	}
+	return result
+}
+
 func (p *Server) subscribeToStream(chatID uuid.UUID) (
 	[]codersdk.ChatStreamEvent,
 	<-chan codersdk.ChatStreamEvent,
@@ -1542,7 +1612,8 @@ func (p *Server) Subscribe(
 		ctx = context.Background()
 	}
 
-	// Subscribe to local stream for message_parts (ephemeral).
+	// Subscribe to the local stream for message_parts and same-replica
+	// persisted messages.
 	localSnapshot, localParts, localCancel := p.subscribeToStream(chatID)
 
 	// Merge all event sources.
@@ -1692,10 +1763,9 @@ func (p *Server) Subscribe(
 		initialSnapshot = append([]codersdk.ChatStreamEvent{statusEvent}, initialSnapshot...)
 	}
 
-	// Track the last message ID we've seen for DB queries.
-	// Initialize from afterMessageID so that when the caller passes
-	// afterMessageID > 0 but no new messages exist yet, the first
-	// pubsub catch-up doesn't re-fetch already-seen messages.
+	// Track the highest durable message ID delivered to this subscriber,
+	// whether it came from the initial DB snapshot, the same-replica local
+	// stream, or a later DB/cache catch-up.
 	lastMessageID := afterMessageID
 	if len(messages) > 0 {
 		lastMessageID = messages[len(messages)-1].ID
@@ -1756,21 +1826,32 @@ func (p *Server) Subscribe(
 				return
 			case notify := <-notifications:
 				if notify.AfterMessageID > 0 || notify.FullRefresh {
-					afterID := lastMessageID
 					if notify.FullRefresh {
-						afterID = 0
+						lastMessageID = 0
 					}
-					newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
+					cached := p.getCachedDurableMessages(chatID, lastMessageID)
+					if !notify.FullRefresh && len(cached) > 0 {
+						for _, event := range cached {
+							select {
+							case <-mergedCtx.Done():
+								return
+							case mergedEvents <- event:
+							}
+							lastMessageID = event.Message.ID
+						}
+					} else if newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
 						ChatID:  chatID,
-						AfterID: afterID,
-					})
-					if msgErr != nil {
+						AfterID: lastMessageID,
+					}); msgErr != nil {
 						p.logger.Warn(mergedCtx, "failed to get chat messages after pubsub notification",
 							slog.F("chat_id", chatID),
 							slog.Error(msgErr),
 						)
 					} else {
 						for _, msg := range newMessages {
+							if msg.ID <= lastMessageID {
+								continue
+							}
 							sdkMsg := db2sdk.ChatMessage(msg)
 							select {
 							case <-mergedCtx.Done():
@@ -1856,7 +1937,7 @@ func (p *Server) Subscribe(
 				}
 				if hasPubsub {
 					// Only forward message_part events from local
-					// (durable events come via pubsub).
+					// (durable events come via pubsub + cache).
 					if event.Type == codersdk.ChatStreamEventTypeMessagePart {
 						select {
 						case <-mergedCtx.Done():
@@ -2061,24 +2142,35 @@ func panicFailureReason(recovered any) string {
 
 func (p *Server) publishMessage(chatID uuid.UUID, message database.ChatMessage) {
 	sdkMessage := db2sdk.ChatMessage(message)
-	p.publishEvent(chatID, codersdk.ChatStreamEvent{
+	event := codersdk.ChatStreamEvent{
 		Type:    codersdk.ChatStreamEventTypeMessage,
+		ChatID:  chatID,
 		Message: &sdkMessage,
-	})
+	}
+	p.cacheDurableMessage(chatID, event)
+	p.publishEvent(chatID, event)
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
 		AfterMessageID: message.ID - 1,
 	})
 }
 
-// publishEditedMessage is like publishMessage but uses
-// AfterMessageID=0 so remote subscribers re-fetch from the
-// beginning, ensuring the edit is never silently dropped.
+// publishEditedMessage is like publishMessage but uses FullRefresh
+// so remote subscribers re-fetch from the beginning, ensuring the
+// edit is never silently dropped. The durable cache is replaced
+// with only the edited message.
 func (p *Server) publishEditedMessage(chatID uuid.UUID, message database.ChatMessage) {
 	sdkMessage := db2sdk.ChatMessage(message)
-	p.publishEvent(chatID, codersdk.ChatStreamEvent{
+	event := codersdk.ChatStreamEvent{
 		Type:    codersdk.ChatStreamEventTypeMessage,
+		ChatID:  chatID,
 		Message: &sdkMessage,
-	})
+	}
+	state := p.getOrCreateStreamState(chatID)
+	state.mu.Lock()
+	state.durableMessages = []codersdk.ChatStreamEvent{event}
+	state.durableEvictedBefore = 0
+	state.mu.Unlock()
+	p.publishEvent(chatID, event)
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
 		FullRefresh: true,
 	})
@@ -2230,6 +2322,35 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 	return &msg, remainingQueuedMessages, true, nil
 }
 
+// trackWorkspaceUsage bumps the workspace's last_used_at via the
+// usage tracker. If wsID is not yet valid, it re-reads the chat
+// from the DB to pick up late associations (e.g. create_workspace
+// linking a workspace mid-conversation). The caller should store
+// the returned value so that subsequent calls skip the DB lookup
+// once a workspace has been found.
+func (p *Server) trackWorkspaceUsage(
+	ctx context.Context,
+	chatID uuid.UUID,
+	wsID uuid.NullUUID,
+	logger slog.Logger,
+) uuid.NullUUID {
+	if p.usageTracker == nil {
+		return wsID
+	}
+	if !wsID.Valid {
+		latest, err := p.db.GetChatByID(ctx, chatID)
+		if err != nil {
+			logger.Warn(ctx, "failed to re-read chat for workspace association", slog.Error(err))
+			return wsID
+		}
+		wsID = latest.WorkspaceID
+	}
+	if wsID.Valid {
+		p.usageTracker.Add(wsID.UUID)
+	}
+	return wsID
+}
+
 func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(slog.F("chat_id", chat.ID))
 	logger.Info(ctx, "processing chat request")
@@ -2248,7 +2369,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	// worker is still alive. The goroutine stops when chatCtx is
 	// canceled (either by completion or interruption).
 	go func() {
-		ticker := time.NewTicker(chatHeartbeatInterval)
+		ticker := p.clock.NewTicker(p.chatHeartbeatInterval, "chatd", "heartbeat")
 		defer ticker.Stop()
 		for {
 			select {
@@ -2267,6 +2388,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 					cancel(chatloop.ErrInterrupted)
 					return
 				}
+				chat.WorkspaceID = p.trackWorkspaceUsage(chatCtx, chat.ID, chat.WorkspaceID, logger)
 			}
 		}
 	}()

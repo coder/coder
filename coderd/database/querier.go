@@ -341,16 +341,39 @@ type sqlcQuerier interface {
 	// membership status for the prebuilds system user (org membership, group existence, group membership).
 	GetOrganizationsWithPrebuildStatus(ctx context.Context, arg GetOrganizationsWithPrebuildStatusParams) ([]GetOrganizationsWithPrebuildStatusRow, error)
 	// Returns PR metrics grouped by the model used for each chat.
+	// Uses two CTEs: pr_costs sums cost for the PR-linked chat and its
+	// direct children (that lack their own PR), and deduped picks one row
+	// per PR for state/additions/deletions/model (model comes from the
+	// most recent chat).
 	GetPRInsightsPerModel(ctx context.Context, arg GetPRInsightsPerModelParams) ([]GetPRInsightsPerModelRow, error)
 	// Returns individual PR rows with cost for the recent PRs table.
+	// Uses two CTEs: pr_costs sums cost for the PR-linked chat and its
+	// direct children (that lack their own PR), and deduped picks one row
+	// per PR for metadata.
 	GetPRInsightsRecentPRs(ctx context.Context, arg GetPRInsightsRecentPRsParams) ([]GetPRInsightsRecentPRsRow, error)
 	// PR Insights queries for the /agents analytics dashboard.
 	// These aggregate data from chat_diff_statuses (PR metadata) joined
 	// with chats and chat_messages (cost) to power the PR Insights view.
+	//
+	// Cost is computed per PR by summing the PR-linked chat's own cost plus
+	// the costs of any direct children (subagents) it spawned that do NOT
+	// have their own PR association. If a child chat has its own
+	// chat_diff_statuses entry (with a non-NULL pull_request_state), its
+	// cost is attributed to that child's PR instead — preventing
+	// double-counting when sibling chats create different PRs.
+	// Subagent trees are at most 2 levels deep (enforced by the
+	// application layer). PR metadata (state, additions, deletions)
+	// comes from the most recent chat via DISTINCT ON so that each PR
+	// is counted exactly once.
 	// Returns aggregate PR metrics for the given date range.
 	// The handler calls this twice (current + previous period) for trends.
+	// Uses two CTEs: pr_costs sums cost for the PR-linked chat and its
+	// direct children (that lack their own PR), and deduped picks one row
+	// per PR for state/additions/deletions.
 	GetPRInsightsSummary(ctx context.Context, arg GetPRInsightsSummaryParams) (GetPRInsightsSummaryRow, error)
 	// Returns daily PR counts grouped by state for the chart.
+	// Uses a CTE to deduplicate by PR URL so that multiple chats referencing
+	// the same pull request are only counted once (keeping the most recent chat).
 	GetPRInsightsTimeSeries(ctx context.Context, arg GetPRInsightsTimeSeriesParams) ([]GetPRInsightsTimeSeriesRow, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
 	GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error)
