@@ -29,17 +29,17 @@ const (
 	// prevents infinite compaction loops when the model keeps
 	// hitting the context limit after summarization.
 	maxCompactionRetries = 3
-	// defaultFirstChunkTimeout bounds how long an individual
-	// model attempt may wait for its first stream part before
+	// defaultStartupTimeout bounds how long an individual
+	// model attempt may spend starting to respond before
 	// the attempt is canceled and retried.
-	defaultFirstChunkTimeout = 60 * time.Second
+	defaultStartupTimeout = 60 * time.Second
 )
 
 var (
 	ErrInterrupted = xerrors.New("chat interrupted")
 
-	errFirstChunkTimeout = xerrors.New(
-		"chat response did not start before the first chunk timeout",
+	errStartupTimeout = xerrors.New(
+		"chat response did not start before the startup timeout",
 	)
 )
 
@@ -65,10 +65,11 @@ type RunOptions struct {
 	Messages []fantasy.Message
 	Tools    []fantasy.AgentTool
 	MaxSteps int
-	// FirstChunkTimeout bounds how long each model attempt may
-	// wait for its first stream part before the attempt is
-	// canceled and retried. Zero uses the production default.
-	FirstChunkTimeout time.Duration
+	// StartupTimeout bounds how long each model attempt may
+	// spend opening the provider stream and waiting for its
+	// first stream part before the attempt is canceled and
+	// retried. Zero uses the production default.
+	StartupTimeout time.Duration
 
 	ActiveTools          []string
 	ContextLimitFallback int64
@@ -246,8 +247,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 	if opts.MaxSteps <= 0 {
 		opts.MaxSteps = 1
 	}
-	if opts.FirstChunkTimeout <= 0 {
-		opts.FirstChunkTimeout = defaultFirstChunkTimeout
+	if opts.StartupTimeout <= 0 {
+		opts.StartupTimeout = defaultStartupTimeout
 	}
 
 	publishMessagePart := func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
@@ -312,7 +313,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				attempt, streamErr := guardedStream(
 					retryCtx,
 					opts.Model.Provider(),
-					opts.FirstChunkTimeout,
+					opts.StartupTimeout,
 					func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
 						return opts.Model.Stream(attemptCtx, call)
 					},
@@ -502,7 +503,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 	return nil
 }
 
-// guardedAttempt owns an attempt-scoped context and first-chunk guard
+// guardedAttempt owns an attempt-scoped context and startup guard
 // around a provider stream. cleanup stops the guard and canonicalizes
 // startup timeout errors before the retry loop classifies them.
 type guardedAttempt struct {
@@ -511,38 +512,56 @@ type guardedAttempt struct {
 	cleanup func(error) error
 }
 
-// firstChunkGuard arbitrates whether an attempt times out before its
-// first stream part arrives. Exactly one outcome wins: the timer
-// cancels the attempt, or the first-part path disarms the timer.
-type firstChunkGuard struct {
+// startupGuard arbitrates whether an attempt times out during
+// stream startup. Exactly one outcome wins: the timer cancels
+// the attempt, or the first-part path disarms the timer.
+type startupGuard struct {
 	timer  *time.Timer
 	cancel context.CancelCauseFunc
 	once   sync.Once
 }
 
-func newFirstChunkGuard(
+func newStartupGuard(
 	timeout time.Duration,
 	cancel context.CancelCauseFunc,
-) *firstChunkGuard {
-	guard := &firstChunkGuard{cancel: cancel}
+) *startupGuard {
+	guard := &startupGuard{cancel: cancel}
 	guard.timer = time.AfterFunc(timeout, guard.onTimeout)
 	return guard
 }
 
-func (g *firstChunkGuard) onTimeout() {
+func (g *startupGuard) onTimeout() {
 	g.once.Do(func() {
-		g.cancel(errFirstChunkTimeout)
+		g.cancel(errStartupTimeout)
 	})
 }
 
-func (g *firstChunkGuard) Disarm() {
+func (g *startupGuard) Disarm() {
 	g.once.Do(func() {
 		g.timer.Stop()
 	})
 }
 
-func (g *firstChunkGuard) Stop() {
+func (g *startupGuard) Stop() {
 	g.timer.Stop()
+}
+
+func classifyStartupTimeout(
+	attemptCtx context.Context,
+	provider string,
+	err error,
+) error {
+	if !errors.Is(context.Cause(attemptCtx), errStartupTimeout) {
+		return err
+	}
+	if err == nil {
+		err = errStartupTimeout
+	}
+	return chaterror.WithClassification(err, chaterror.ClassifiedError{
+		Kind:      chaterror.KindStartupTimeout,
+		Provider:  provider,
+		Retryable: true,
+	})
 }
 
 func guardedStream(
@@ -552,14 +571,15 @@ func guardedStream(
 	openStream func(context.Context) (fantasy.StreamResponse, error),
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
+	guard := newStartupGuard(timeout, cancelAttempt)
 
 	stream, err := openStream(attemptCtx)
 	if err != nil {
+		guard.Stop()
+		err = classifyStartupTimeout(attemptCtx, provider, err)
 		cancelAttempt(nil)
 		return guardedAttempt{}, err
 	}
-
-	guard := newFirstChunkGuard(timeout, cancelAttempt)
 
 	return guardedAttempt{
 		ctx: attemptCtx,
@@ -573,16 +593,7 @@ func guardedStream(
 		}),
 		cleanup: func(err error) error {
 			guard.Stop()
-			if errors.Is(context.Cause(attemptCtx), errFirstChunkTimeout) {
-				if err == nil {
-					err = errFirstChunkTimeout
-				}
-				err = chaterror.WithClassification(err, chaterror.ClassifiedError{
-					Kind:      chaterror.KindStartupTimeout,
-					Provider:  provider,
-					Retryable: true,
-				})
-			}
+			err = classifyStartupTimeout(attemptCtx, provider, err)
 			cancelAttempt(nil)
 			return err
 		},

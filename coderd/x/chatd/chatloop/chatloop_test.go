@@ -148,13 +148,13 @@ func TestRun_OnRetryEnrichesProvider(t *testing.T) {
 	)
 }
 
-func TestFirstChunkGuard_DisarmAndFireRace(t *testing.T) {
+func TestStartupGuard_DisarmAndFireRace(t *testing.T) {
 	t.Parallel()
 
 	for range 128 {
 		var cancels atomic.Int32
-		guard := newFirstChunkGuard(time.Hour, func(err error) {
-			if errors.Is(err, errFirstChunkTimeout) {
+		guard := newStartupGuard(time.Hour, func(err error) {
+			if errors.Is(err, errStartupTimeout) {
 				cancels.Add(1)
 			}
 		})
@@ -186,10 +186,64 @@ func TestFirstChunkGuard_DisarmAndFireRace(t *testing.T) {
 	}
 }
 
-func TestRun_RetriesStartupTimeoutBeforeFirstChunk(t *testing.T) {
+func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
 	t.Parallel()
 
-	const firstChunkTimeout = 5 * time.Millisecond
+	const startupTimeout = 5 * time.Millisecond
+
+	attempts := 0
+	attemptCause := make(chan error, 1)
+	var retries []chatretry.ClassifiedError
+	model := &loopTestModel{
+		provider: "openai",
+		streamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			attempts++
+			if attempts == 1 {
+				<-ctx.Done()
+				attemptCause <- context.Cause(ctx)
+				return nil, ctx.Err()
+			}
+			return streamFromParts([]fantasy.StreamPart{{
+				Type:         fantasy.StreamPartTypeFinish,
+				FinishReason: fantasy.FinishReasonStop,
+			}}), nil
+		},
+	}
+
+	err := Run(context.Background(), RunOptions{
+		Model:          model,
+		MaxSteps:       1,
+		StartupTimeout: startupTimeout,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		OnRetry: func(
+			_ int,
+			_ error,
+			classified chatretry.ClassifiedError,
+			_ time.Duration,
+		) {
+			retries = append(retries, classified)
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, attempts)
+	require.Len(t, retries, 1)
+	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
+	require.True(t, retries[0].Retryable)
+	require.Equal(t, "openai", retries[0].Provider)
+	require.Equal(
+		t,
+		"OpenAI did not start responding in time. Please try again.",
+		retries[0].Message,
+	)
+	require.ErrorIs(t, <-attemptCause, errStartupTimeout)
+}
+
+func TestRun_RetriesStartupTimeoutBeforeFirstPart(t *testing.T) {
+	t.Parallel()
+
+	const startupTimeout = 5 * time.Millisecond
 
 	attempts := 0
 	attemptCause := make(chan error, 1)
@@ -216,9 +270,9 @@ func TestRun_RetriesStartupTimeoutBeforeFirstChunk(t *testing.T) {
 	}
 
 	err := Run(context.Background(), RunOptions{
-		Model:             model,
-		MaxSteps:          1,
-		FirstChunkTimeout: firstChunkTimeout,
+		Model:          model,
+		MaxSteps:       1,
+		StartupTimeout: startupTimeout,
 		PersistStep: func(_ context.Context, _ PersistedStep) error {
 			return nil
 		},
@@ -242,13 +296,13 @@ func TestRun_RetriesStartupTimeoutBeforeFirstChunk(t *testing.T) {
 		"OpenAI did not start responding in time. Please try again.",
 		retries[0].Message,
 	)
-	require.ErrorIs(t, <-attemptCause, errFirstChunkTimeout)
+	require.ErrorIs(t, <-attemptCause, errStartupTimeout)
 }
 
-func TestRun_FirstChunkDisarmsStartupTimeout(t *testing.T) {
+func TestRun_FirstPartDisarmsStartupTimeout(t *testing.T) {
 	t.Parallel()
 
-	const firstChunkTimeout = 5 * time.Millisecond
+	const startupTimeout = 5 * time.Millisecond
 
 	attempts := 0
 	retried := false
@@ -261,7 +315,7 @@ func TestRun_FirstChunkDisarmsStartupTimeout(t *testing.T) {
 					return
 				}
 
-				timer := time.NewTimer(firstChunkTimeout * 2)
+				timer := time.NewTimer(startupTimeout * 2)
 				defer timer.Stop()
 
 				select {
@@ -289,9 +343,9 @@ func TestRun_FirstChunkDisarmsStartupTimeout(t *testing.T) {
 	}
 
 	err := Run(context.Background(), RunOptions{
-		Model:             model,
-		MaxSteps:          1,
-		FirstChunkTimeout: firstChunkTimeout,
+		Model:          model,
+		MaxSteps:       1,
+		StartupTimeout: startupTimeout,
 		PersistStep: func(_ context.Context, _ PersistedStep) error {
 			return nil
 		},
@@ -312,7 +366,7 @@ func TestRun_FirstChunkDisarmsStartupTimeout(t *testing.T) {
 func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
 	t.Parallel()
 
-	const firstChunkTimeout = 5 * time.Millisecond
+	const startupTimeout = 5 * time.Millisecond
 
 	attempts := 0
 	attemptCause := make(chan error, 1)
@@ -335,9 +389,9 @@ func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
 	}
 
 	err := Run(context.Background(), RunOptions{
-		Model:             model,
-		MaxSteps:          1,
-		FirstChunkTimeout: firstChunkTimeout,
+		Model:          model,
+		MaxSteps:       1,
+		StartupTimeout: startupTimeout,
 		PersistStep: func(_ context.Context, _ PersistedStep) error {
 			return nil
 		},
@@ -361,7 +415,7 @@ func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
 		"OpenAI did not start responding in time. Please try again.",
 		retries[0].Message,
 	)
-	require.ErrorIs(t, <-attemptCause, errFirstChunkTimeout)
+	require.ErrorIs(t, <-attemptCause, errStartupTimeout)
 }
 
 func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
