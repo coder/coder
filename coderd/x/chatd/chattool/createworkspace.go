@@ -219,6 +219,10 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 						UUID:  workspace.ID,
 						Valid: true,
 					},
+					// BuildID and AgentID are intentionally left null
+					// here. The chatd runtime (loadWorkspaceAgentLocked)
+					// will bind them on the next turn. Authoritative
+					// tool-path binding is deferred to a follow-up PR.
 					BuildID: uuid.NullUUID{},
 					AgentID: uuid.NullUUID{},
 				}); err != nil {

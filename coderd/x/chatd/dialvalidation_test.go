@@ -314,6 +314,59 @@ func TestDialWithLazyValidation_FastFailureSameAgent(t *testing.T) {
 	require.EqualValues(t, 1, validateCalls.Load())
 }
 
+func TestDialWithLazyValidation_ValidationError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	agentID := uuid.New()
+	workspaceID := uuid.New()
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	unblockDial := make(chan struct{})
+
+	var releaseCalls atomic.Int32
+	var validateCalls atomic.Int32
+
+	result, err := dialWithLazyValidation(
+		context.Background(),
+		agentID,
+		workspaceID,
+		func(ctx context.Context, id uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			if id != agentID {
+				return nil, nil, xerrors.Errorf("unexpected agent ID %q", id)
+			}
+			select {
+			case <-unblockDial:
+				return conn, func() {
+					releaseCalls.Add(1)
+				}, nil
+			case <-ctx.Done():
+				return nil, nil, ctx.Err()
+			}
+		},
+		func(_ context.Context, id uuid.UUID) (uuid.UUID, error) {
+			if id != workspaceID {
+				return uuid.Nil, xerrors.Errorf("unexpected workspace ID %q", id)
+			}
+			validateCalls.Add(1)
+			// Validation fails — code should fall back to waiting
+			// for the original dial.
+			close(unblockDial)
+			return uuid.Nil, xerrors.New("db connection reset")
+		},
+		0,
+	)
+	require.NoError(t, err)
+	require.Same(t, conn, result.Conn)
+	require.Equal(t, agentID, result.AgentID)
+	require.False(t, result.WasSwitched)
+	require.EqualValues(t, 1, validateCalls.Load())
+
+	if result.Release != nil {
+		result.Release()
+	}
+	require.EqualValues(t, 1, releaseCalls.Load())
+}
+
 func TestDialWithLazyValidation_ContextCanceled(t *testing.T) {
 	t.Parallel()
 

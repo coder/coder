@@ -5715,15 +5715,7 @@ func (q *querier) UpdateChatWorkspaceBinding(ctx context.Context, arg database.U
 		return database.Chat{}, err
 	}
 
-	// UpdateChatWorkspaceBinding is manually implemented for chat tables and may
-	// not be present on every wrapped store interface yet.
-	chatWorkspaceBindingUpdater, ok := q.db.(interface {
-		UpdateChatWorkspaceBinding(context.Context, database.UpdateChatWorkspaceBindingParams) (database.Chat, error)
-	})
-	if !ok {
-		return database.Chat{}, xerrors.New("update chat workspace binding is not implemented by wrapped store")
-	}
-	return chatWorkspaceBindingUpdater.UpdateChatWorkspaceBinding(ctx, arg)
+	return q.db.UpdateChatWorkspaceBinding(ctx, arg)
 }
 
 func (q *querier) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {

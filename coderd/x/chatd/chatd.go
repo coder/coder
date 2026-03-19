@@ -239,6 +239,12 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 			c.agentLoaded = true
 			return chatSnapshot, c.agent, nil
 		}
+		if !xerrors.Is(err, sql.ErrNoRows) {
+			c.server.logger.Warn(ctx, "agent binding lookup failed, re-resolving",
+				slog.F("agent_id", chatSnapshot.AgentID.UUID),
+				slog.Error(err),
+			)
+		}
 	}
 
 	agents, err := c.server.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
