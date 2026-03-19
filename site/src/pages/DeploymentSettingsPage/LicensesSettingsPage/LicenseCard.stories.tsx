@@ -85,12 +85,16 @@ export const PremiumWithAIGovernance: Story = {
 			enabled: true,
 			entitlement: "entitled",
 			actual: 750,
+			limit: 1000,
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText(/add-ons/i)).toBeInTheDocument();
 		await expect(canvas.getByText(/ai governance/i)).toBeInTheDocument();
+		const seatsLabel = canvas.getByText("Seats");
+		const seatsValue = seatsLabel.nextElementSibling;
+		await expect(seatsValue).toHaveTextContent("750 / 1,000");
 	},
 };
 
@@ -110,6 +114,7 @@ export const PremiumWithoutAIGovernanceAddOn: Story = {
 			enabled: true,
 			entitlement: "entitled",
 			actual: 100,
+			limit: 1000,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -152,6 +157,13 @@ export const ExceededAIGovernance: Story = {
 			limit: 1000,
 		},
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Add-on exceeded")).toBeInTheDocument();
+		const seatsLabel = canvas.getByText("Seats");
+		const seatsValue = seatsLabel.nextElementSibling;
+		await expect(seatsValue).toHaveTextContent("1,200 / 1,000");
+	},
 };
 
 export const ExpiredAIGovernanceOverageShowsExpired: Story = {
@@ -172,12 +184,17 @@ export const ExpiredAIGovernanceOverageShowsExpired: Story = {
 			enabled: true,
 			entitlement: "entitled",
 			actual: 1200,
+			limit: 1000,
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Expired")).toBeInTheDocument();
 		await expect(canvas.queryByText("Add-on exceeded")).not.toBeInTheDocument();
+		const seatsLabel = canvas.getByText("Seats");
+		const seatsValue = seatsLabel.nextElementSibling;
+		await expect(seatsValue).toHaveTextContent("—");
+		await expect(seatsValue).toHaveTextContent("/ 1,000");
 	},
 };
 
@@ -205,6 +222,9 @@ export const ExpiredAIGovernanceInGracePeriodShowsExceeded: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Add-on exceeded")).toBeInTheDocument();
+		const seatsLabel = canvas.getByText("Seats");
+		const seatsValue = seatsLabel.nextElementSibling;
+		await expect(seatsValue).toHaveTextContent("1,200 / 1,000");
 	},
 };
 
@@ -242,12 +262,17 @@ export const FutureAIGovernanceOverageShowsStartsOn: Story = {
 			enabled: true,
 			entitlement: "entitled",
 			actual: 1200,
+			limit: 1000,
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText(/Starts on/)).toBeInTheDocument();
 		await expect(canvas.queryByText("Add-on exceeded")).not.toBeInTheDocument();
+		const seatsLabel = canvas.getByText("Seats");
+		const seatsValue = seatsLabel.nextElementSibling;
+		await expect(seatsValue).toHaveTextContent("—");
+		await expect(seatsValue).toHaveTextContent("/ 1,000");
 	},
 };
 
@@ -268,6 +293,7 @@ export const FutureAIGovernanceUsageShowsNoCurrentSeats: Story = {
 		aiGovernanceUserFeature: {
 			enabled: true,
 			entitlement: "entitled",
+			limit: 1000,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -329,6 +355,7 @@ export const EnterpriseDoesNotShowAIGovernanceAddOn: Story = {
 			enabled: true,
 			entitlement: "entitled",
 			actual: 750,
+			limit: 1000,
 		},
 	},
 	play: async ({ canvasElement }) => {
