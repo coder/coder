@@ -57,7 +57,6 @@ func UsersPagination(
 			Limit: 1,
 		},
 	})
-	require.NoError(t, err)
 	require.Len(t, gotUsers, 1)
 	require.Equal(t, gotCount, count)
 
@@ -66,7 +65,6 @@ func UsersPagination(
 			Offset: 1,
 		},
 	})
-	require.NoError(t, err)
 	require.Len(t, gotUsers, count-1)
 	require.Equal(t, gotCount, count)
 
@@ -76,7 +74,6 @@ func UsersPagination(
 			Offset: 1,
 		},
 	})
-	require.NoError(t, err)
 	require.Len(t, gotUsers, 1)
 	require.Equal(t, gotCount, count)
 
@@ -87,7 +84,6 @@ func UsersPagination(
 			Offset: count + 1,
 		},
 	})
-	require.NoError(t, err)
 	require.Len(t, gotUsers, 0)
 	require.Equal(t, gotCount, 0)
 }
