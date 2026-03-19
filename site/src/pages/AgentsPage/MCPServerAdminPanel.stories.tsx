@@ -243,7 +243,7 @@ export const CreateServerOAuth2: Story = {
 			await body.findByRole("button", { name: /Add Server/i }),
 		);
 
-		await userEvent.type(body.getByLabelText(/Display Name/i), "GitHub");
+		await userEvent.type(await body.findByLabelText(/Display Name/i), "GitHub");
 		await userEvent.type(
 			body.getByLabelText(/Server URL/i),
 			"https://api.githubcopilot.com/mcp/",
@@ -292,7 +292,7 @@ export const CreateServerAPIKey: Story = {
 			await body.findByRole("button", { name: /Add Server/i }),
 		);
 
-		await userEvent.type(body.getByLabelText(/Display Name/i), "Linear");
+		await userEvent.type(await body.findByLabelText(/Display Name/i), "Linear");
 		await userEvent.type(
 			body.getByLabelText(/Server URL/i),
 			"https://mcp.linear.app/v1",
@@ -490,7 +490,7 @@ export const DeleteServerConfirmation: Story = {
 		await userEvent.click(await body.findByRole("button", { name: /Sentry/ }));
 
 		// Click Delete.
-		await userEvent.click(body.getByRole("button", { name: "Delete" }));
+		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 
 		// Confirmation should appear.
 		await expect(
@@ -516,7 +516,7 @@ export const DeleteServerCancelled: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(await body.findByRole("button", { name: /Sentry/ }));
-		await userEvent.click(body.getByRole("button", { name: "Delete" }));
+		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 		await body.findByText(/Are you sure/i);
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 
@@ -547,7 +547,7 @@ export const DeleteServerConfirmed: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(await body.findByRole("button", { name: /Sentry/ }));
-		await userEvent.click(body.getByRole("button", { name: "Delete" }));
+		await userEvent.click(await body.findByRole("button", { name: "Delete" }));
 		await body.findByText(/Are you sure/i);
 		await userEvent.click(body.getByRole("button", { name: /Delete server/i }));
 
@@ -579,7 +579,7 @@ export const BackToList: Story = {
 		);
 
 		// Click Back.
-		await userEvent.click(body.getByText("Back"));
+		await userEvent.click(await body.findByText("Back"));
 
 		// Should be back on the list.
 		await expect(
@@ -603,7 +603,7 @@ export const CreateServerWithToolGovernance: Story = {
 		);
 
 		await userEvent.type(
-			body.getByLabelText(/Display Name/i),
+			await body.findByLabelText(/Display Name/i),
 			"Restricted Server",
 		);
 		await userEvent.type(
@@ -646,7 +646,7 @@ export const CustomHeadersAuthType: Story = {
 			await body.findByRole("button", { name: /Add Server/i }),
 		);
 
-		await userEvent.type(body.getByLabelText(/Display Name/i), "Custom API");
+		await userEvent.type(await body.findByLabelText(/Display Name/i), "Custom API");
 		await userEvent.type(
 			body.getByLabelText(/Server URL/i),
 			"https://mcp.example.com/v1",
