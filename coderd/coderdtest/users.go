@@ -42,7 +42,13 @@ func UsersPagination(
 	orgID := firstUser.OrganizationIDs[0]
 	users[0] = firstUser
 	for i := range count - 1 {
-		_, user := CreateAnotherUser(t, client, orgID)
+		_, user := CreateAnotherUserMutators(t, client, orgID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+			if i < 5 {
+				r.Name = fmt.Sprintf("before%d", i)
+			} else {
+				r.Name = fmt.Sprintf("after%d", i)
+			}
+		})
 		users[i+1] = user
 	}
 
@@ -105,7 +111,7 @@ func UsersPagination(
 
 	// Check we can paginate a filtered response.
 	gotUsers, gotCount = fetch(codersdk.UsersRequest{
-		SearchQuery: fmt.Sprintf("name:%s", users[5].Name),
+		SearchQuery: "name:after",
 		Pagination: codersdk.Pagination{
 			Limit:  1,
 			Offset: 1,
@@ -113,8 +119,8 @@ func UsersPagination(
 	})
 	require.NoError(t, err)
 	require.Len(t, gotUsers, 1)
-	require.Equal(t, gotCount, 1)
-	require.Equal(t, gotUsers[0].ID, users[5].ID)
+	require.Equal(t, gotCount, 4)
+	require.Contains(t, gotUsers[0].Name, "after")
 }
 
 // UsersFilter creates a set of users to run various filters against for
