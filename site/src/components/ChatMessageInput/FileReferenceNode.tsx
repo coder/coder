@@ -122,8 +122,9 @@ export class FileReferenceNode extends DecoratorNode<ReactNode> {
 		this.__content = content;
 	}
 
-	createDOM(_config: EditorConfig): HTMLElement {
+	createDOM(config: EditorConfig): HTMLElement {
 		const span = document.createElement("span");
+		span.className = config.theme.inlineDecorator ?? "";
 		span.style.display = "inline";
 		span.style.userSelect = "none";
 		return span;

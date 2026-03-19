@@ -324,6 +324,7 @@ const ChatMessageInput = memo(
 				namespace: "ChatMessageInput",
 				theme: {
 					paragraph: "m-0",
+					inlineDecorator: "mx-1",
 				},
 				onError: (error: Error) => console.error("Lexical error:", error),
 				nodes: [FileReferenceNode],
