@@ -46,7 +46,6 @@ import {
 	Loader2Icon,
 	PanelLeftCloseIcon,
 	PauseIcon,
-	PlugIcon,
 	SettingsIcon,
 	ShieldAlertIcon,
 	ShieldIcon,
@@ -982,14 +981,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Models"
 									active={sidebarView.section === "models"}
 									to="/agents/settings/models"
-									state={location.state}
-									adminOnly
-								/>
-								<SettingsNavItem
-									icon={PlugIcon}
-									label="MCP Servers"
-									active={sidebarView.section === "mcp-servers"}
-									to="/agents/settings/mcp-servers"
 									state={location.state}
 									adminOnly
 								/>
