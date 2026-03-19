@@ -99,7 +99,11 @@ export const openAppInNewWindow = (href: string) => {
 		});
 		return;
 	}
-	popup.opener = null;
+	try {
+		popup.opener = null;
+	} catch {
+		// no-op, Electron can throw
+	}
 	popup.location.href = href;
 };
 

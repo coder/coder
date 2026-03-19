@@ -3,7 +3,12 @@ import {
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 } from "#/testHelpers/entities";
-import { getAppHref, getVSCodeHref, SESSION_TOKEN_PLACEHOLDER } from "./apps";
+import {
+	getAppHref,
+	getVSCodeHref,
+	openAppInNewWindow,
+	SESSION_TOKEN_PLACEHOLDER,
+} from "./apps";
 
 describe("getVSCodeHref", () => {
 	it("includes the chat ID when provided", () => {
@@ -174,5 +179,43 @@ describe("getAppHref", () => {
 		expect(href).toBe(
 			`/path-base/@${MockWorkspace.owner_name}/Test-Workspace.a-workspace-agent/apps/${app.slug}/`,
 		);
+	});
+});
+
+describe("openAppInNewWindow", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("severs opener and navigates popup to href on success", () => {
+		const popup = {
+			opener: window,
+			location: { href: "" },
+		};
+		vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
+
+		openAppInNewWindow("https://app.example.com");
+
+		expect(popup.opener).toBeNull();
+		expect(popup.location.href).toBe("https://app.example.com");
+	});
+
+	it("still navigates when nulling opener throws", () => {
+		const popup = {
+			location: { href: "" },
+		};
+		Object.defineProperty(popup, "opener", {
+			set() {
+				throw new Error("Electron restriction");
+			},
+			get() {
+				return window;
+			},
+		});
+		vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
+
+		openAppInNewWindow("https://app.example.com");
+
+		expect(popup.location.href).toBe("https://app.example.com");
 	});
 });
