@@ -1,8 +1,8 @@
 import {
-	mcpServerConfigs,
 	createMCPServerConfig as createMCPServerConfigMutation,
-	updateMCPServerConfig as updateMCPServerConfigMutation,
 	deleteMCPServerConfig as deleteMCPServerConfigMutation,
+	mcpServerConfigs,
+	updateMCPServerConfig as updateMCPServerConfigMutation,
 } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
