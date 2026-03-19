@@ -39,9 +39,13 @@ export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
 							</span>
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<span className="inline-flex text-content-secondary">
+									<button
+										type="button"
+										aria-label="AI governance seat information"
+										className="m-0 inline-flex appearance-none border-0 bg-transparent p-0 text-content-secondary"
+									>
 										<InfoIcon className="size-3" />
-									</span>
+									</button>
 								</TooltipTrigger>
 								<TooltipContent side="top">
 									Seats consumed by users using AI Governance features.
