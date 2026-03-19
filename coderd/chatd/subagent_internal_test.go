@@ -332,3 +332,139 @@ func TestSpawnComputerUseAgent_UsesComputerUseModelNotParent(t *testing.T) {
 	assert.Equal(t, "anthropic", chattool.ComputerUseModelProvider)
 	assert.NotEmpty(t, chattool.ComputerUseModelName)
 }
+
+func TestIsSubagentDescendant(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, model := seedInternalChatDeps(ctx, t, db)
+
+	// Build a chain: root -> child -> grandchild.
+	root, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "root",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("root")},
+	})
+	require.NoError(t, err)
+
+	child, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID: user.ID,
+		ParentChatID: uuid.NullUUID{
+			UUID:  root.ID,
+			Valid: true,
+		},
+		RootChatID: uuid.NullUUID{
+			UUID:  root.ID,
+			Valid: true,
+		},
+		Title:              "child",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("child")},
+	})
+	require.NoError(t, err)
+
+	grandchild, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID: user.ID,
+		ParentChatID: uuid.NullUUID{
+			UUID:  child.ID,
+			Valid: true,
+		},
+		RootChatID: uuid.NullUUID{
+			UUID:  root.ID,
+			Valid: true,
+		},
+		Title:              "grandchild",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("grandchild")},
+	})
+	require.NoError(t, err)
+
+	// Build a separate, unrelated chain.
+	unrelated, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "unrelated-root",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("unrelated")},
+	})
+	require.NoError(t, err)
+
+	unrelatedChild, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID: user.ID,
+		ParentChatID: uuid.NullUUID{
+			UUID:  unrelated.ID,
+			Valid: true,
+		},
+		RootChatID: uuid.NullUUID{
+			UUID:  unrelated.ID,
+			Valid: true,
+		},
+		Title:              "unrelated-child",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("unrelated-child")},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		ancestor uuid.UUID
+		target   uuid.UUID
+		want     bool
+	}{
+		{
+			name:     "SameID",
+			ancestor: root.ID,
+			target:   root.ID,
+			want:     false,
+		},
+		{
+			name:     "DirectChild",
+			ancestor: root.ID,
+			target:   child.ID,
+			want:     true,
+		},
+		{
+			name:     "GrandChild",
+			ancestor: root.ID,
+			target:   grandchild.ID,
+			want:     true,
+		},
+		{
+			name:     "Unrelated",
+			ancestor: root.ID,
+			target:   unrelatedChild.ID,
+			want:     false,
+		},
+		{
+			name:     "RootChat",
+			ancestor: child.ID,
+			target:   root.ID,
+			want:     false,
+		},
+		{
+			name:     "BrokenChain",
+			ancestor: root.ID,
+			target:   uuid.New(),
+			want:     false,
+		},
+		{
+			name:     "NotDescendant",
+			ancestor: unrelated.ID,
+			target:   child.ID,
+			want:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := chatdTestContext(t)
+			got, err := isSubagentDescendant(ctx, db, tt.ancestor, tt.target)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
