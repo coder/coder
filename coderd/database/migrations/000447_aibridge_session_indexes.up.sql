@@ -1,7 +1,7 @@
 -- A "session" groups related interceptions together. See the COMMENT ON
 -- COLUMN below for the full business-logic description.
 ALTER TABLE aibridge_interceptions
-    ADD COLUMN session_id text
+    ADD COLUMN session_id TEXT NOT NULL
         GENERATED ALWAYS AS (
             COALESCE(
                 client_session_id,

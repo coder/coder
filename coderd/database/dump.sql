@@ -1100,7 +1100,7 @@ CREATE TABLE aibridge_interceptions (
     thread_parent_id uuid,
     thread_root_id uuid,
     client_session_id character varying(256),
-    session_id text GENERATED ALWAYS AS (COALESCE(client_session_id, ((thread_root_id)::text)::character varying, ((id)::text)::character varying)) STORED
+    session_id text GENERATED ALWAYS AS (COALESCE(client_session_id, ((thread_root_id)::text)::character varying, ((id)::text)::character varying)) STORED NOT NULL
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';

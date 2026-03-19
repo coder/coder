@@ -1271,7 +1271,7 @@ type ListAIBridgeSessionsParams struct {
 }
 
 type ListAIBridgeSessionsRow struct {
-	SessionID     sql.NullString  `db:"session_id" json:"session_id"`
+	SessionID     string          `db:"session_id" json:"session_id"`
 	UserID        uuid.UUID       `db:"user_id" json:"user_id"`
 	UserUsername  string          `db:"user_username" json:"user_username"`
 	UserName      string          `db:"user_name" json:"user_name"`
