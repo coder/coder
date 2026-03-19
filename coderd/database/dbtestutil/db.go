@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -19,7 +20,11 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -29,6 +34,7 @@ type options struct {
 	returnSQLDB   func(*sql.DB)
 	logger        slog.Logger
 	url           string
+	noAuthz       bool
 }
 
 type Option func(*options)
@@ -62,6 +68,15 @@ func WithURL(u string) Option {
 func withReturnSQLDB(f func(*sql.DB)) Option {
 	return func(o *options) {
 		o.returnSQLDB = f
+	}
+}
+
+// WithNoAuthz skips wrapping the database store with dbauthz. This is
+// an escape hatch for tests that need raw database access without
+// authorization checks.
+func WithNoAuthz() Option {
+	return func(o *options) {
+		o.noAuthz = true
 	}
 }
 
@@ -140,6 +155,13 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	t.Cleanup(func() {
 		_ = ps.Close()
 	})
+
+	if !o.noAuthz {
+		acs := &atomic.Pointer[dbauthz.AccessControlStore]{}
+		var s dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+		acs.Store(&s)
+		db = dbauthz.New(db, &passAuthorizer{}, o.logger, acs)
+	}
 
 	return db, ps
 }
@@ -320,6 +342,32 @@ func normalizeDump(schema []byte) []byte {
 	schema = regexp.MustCompile(`(?im)\n{3,}`).ReplaceAll(schema, []byte("\n\n"))
 
 	return schema
+}
+
+// passAuthorizer is an rbac.Authorizer that always permits access.
+// It is used by default in dbtestutil so that every test database
+// is wrapped with dbauthz, exercising the authorization layer
+// without rejecting any queries.
+type passAuthorizer struct{}
+
+func (passAuthorizer) Authorize(_ context.Context, _ rbac.Subject, _ policy.Action, _ rbac.Object) error {
+	return nil
+}
+
+func (passAuthorizer) Prepare(_ context.Context, _ rbac.Subject, _ policy.Action, _ string) (rbac.PreparedAuthorized, error) {
+	return &passPrepared{}, nil
+}
+
+// passPrepared is an rbac.PreparedAuthorized that always permits
+// access and compiles to a SQL expression that is always true.
+type passPrepared struct{}
+
+func (passPrepared) Authorize(_ context.Context, _ rbac.Object) error {
+	return nil
+}
+
+func (passPrepared) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
+	return "TRUE", nil
 }
 
 // Deprecated: disable foreign keys was created to aid in migrating off
