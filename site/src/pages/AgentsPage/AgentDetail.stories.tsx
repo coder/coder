@@ -588,22 +588,6 @@ export const CompletedWithDiffPanel: Story = {
 	},
 };
 
-/** Right panel stays closed when no diff-status URL exists. */
-export const NoDiffUrl: Story = {
-	parameters: {
-		queries: buildQueries(
-			{
-				id: CHAT_ID,
-				...baseChatFields,
-				title: "No diff yet",
-				status: "completed",
-			},
-			{ messages: [], queued_messages: [], has_more: false },
-			{ diffUrl: undefined },
-		),
-	},
-};
-
 /** Subagent tool-call/result messages render subagent cards. */
 export const WithSubagentCards: Story = {
 	parameters: {
