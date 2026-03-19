@@ -45,6 +45,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { cn } from "utils/cn";
+import { ProviderField as Field } from "./ChatModelAdminPanel/ProviderForm";
 import { SectionHeader } from "./SectionHeader";
 
 // ── Constants ──────────────────────────────────────────────────
@@ -101,42 +102,6 @@ const joinList = (arr: readonly string[] | undefined): string =>
 
 const authTypeLabel = (t: string) =>
 	AUTH_TYPE_OPTIONS.find((o) => o.value === t)?.label ?? t;
-
-// ── Shared field wrapper (matches ProviderForm pattern) ────────
-
-interface FieldProps {
-	label: string;
-	htmlFor?: string;
-	required?: boolean;
-	description?: string;
-	children: ReactNode;
-}
-
-const Field: FC<FieldProps> = ({
-	label,
-	htmlFor,
-	required,
-	description,
-	children,
-}) => (
-	<div className="grid gap-1.5">
-		<div className="flex items-baseline gap-1.5">
-			<label
-				htmlFor={htmlFor}
-				className="text-sm font-medium text-content-primary"
-			>
-				{label}
-			</label>
-			{required && (
-				<span className="text-xs font-bold text-content-destructive">*</span>
-			)}
-		</div>
-		{description && (
-			<p className="m-0 text-xs text-content-secondary">{description}</p>
-		)}
-		{children}
-	</div>
-);
 
 // ── Server icon ────────────────────────────────────────────────
 

@@ -315,15 +315,15 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 
 // ── Field wrapper ──────────────────────────────────────────────
 
-interface ProviderFieldProps {
+export interface ProviderFieldProps {
 	label: string;
-	htmlFor: string;
+	htmlFor?: string;
 	required?: boolean;
 	description?: string;
 	children: React.ReactNode;
 }
 
-const ProviderField: FC<ProviderFieldProps> = ({
+export const ProviderField: FC<ProviderFieldProps> = ({
 	label,
 	htmlFor,
 	required,
