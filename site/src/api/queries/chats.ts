@@ -654,11 +654,13 @@ export const createMCPServerConfig = (queryClient: QueryClient) => ({
 	},
 });
 
+type UpdateMCPServerConfigMutationArgs = {
+	id: string;
+	req: TypesGen.UpdateMCPServerConfigRequest;
+};
+
 export const updateMCPServerConfig = (queryClient: QueryClient) => ({
-	mutationFn: ({
-		id,
-		req,
-	}: { id: string; req: TypesGen.UpdateMCPServerConfigRequest }) =>
+	mutationFn: ({ id, req }: UpdateMCPServerConfigMutationArgs) =>
 		API.updateMCPServerConfig(id, req),
 	onSuccess: async () => {
 		await invalidateMCPServerConfigQueries(queryClient);

@@ -178,10 +178,10 @@ export const ServerList: Story = {
 
 		// All three servers should be visible.
 		await expect(
-			await body.findByRole("button", { name: "Sentry" }),
+			await body.findByRole("button", { name: /Sentry/ }),
 		).toBeInTheDocument();
-		expect(body.getByRole("button", { name: "Linear" })).toBeInTheDocument();
-		expect(body.getByRole("button", { name: "GitHub" })).toBeInTheDocument();
+		expect(body.getByRole("button", { name: /Linear/ })).toBeInTheDocument();
+		expect(body.getByRole("button", { name: /GitHub/ })).toBeInTheDocument();
 	},
 };
 
@@ -370,7 +370,7 @@ export const EditServer: Story = {
 
 		// Click the server row.
 		await userEvent.click(
-			await body.findByRole("button", { name: "Sentry" }),
+			await body.findByRole("button", { name: /Sentry/ }),
 		);
 
 		// The inline name input should be pre-populated.
@@ -429,7 +429,7 @@ export const EditServerWithOAuth2Secret: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: "GitHub" }),
+			await body.findByRole("button", { name: /GitHub/ }),
 		);
 
 		// The OAuth2 fields should be visible.
@@ -461,7 +461,7 @@ export const EditServerWithCustomHeaders: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: "Custom API" }),
+			await body.findByRole("button", { name: /Custom API/ }),
 		);
 
 		// Should show message about existing headers.
@@ -481,6 +481,21 @@ export const EditServerWithCustomHeaders: Story = {
 		await userEvent.type(
 			body.getByLabelText(/Header 1 value/i),
 			"Bearer tok_abc",
+		);
+
+		// Submit.
+		await userEvent.click(
+			body.getByRole("button", { name: /Save changes/i }),
+		);
+
+		await waitFor(() => {
+			expect(API.updateMCPServerConfig).toHaveBeenCalledTimes(1);
+		});
+		expect(API.updateMCPServerConfig).toHaveBeenCalledWith(
+			"mcp-custom",
+			expect.objectContaining({
+				custom_headers: { Authorization: "Bearer tok_abc" },
+			}),
 		);
 	},
 };
@@ -502,7 +517,7 @@ export const DeleteServerConfirmation: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: "Sentry" }),
+			await body.findByRole("button", { name: /Sentry/ }),
 		);
 
 		// Click Delete.
@@ -534,7 +549,7 @@ export const DeleteServerCancelled: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: "Sentry" }),
+			await body.findByRole("button", { name: /Sentry/ }),
 		);
 		await userEvent.click(body.getByRole("button", { name: "Delete" }));
 		await body.findByText(/Are you sure/i);
@@ -567,7 +582,7 @@ export const DeleteServerConfirmed: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
-			await body.findByRole("button", { name: "Sentry" }),
+			await body.findByRole("button", { name: /Sentry/ }),
 		);
 		await userEvent.click(body.getByRole("button", { name: "Delete" }));
 		await body.findByText(/Are you sure/i);
@@ -607,7 +622,7 @@ export const BackToList: Story = {
 
 		// Should be back on the list.
 		await expect(
-			await body.findByRole("button", { name: "Sentry" }),
+			await body.findByRole("button", { name: /Sentry/ }),
 		).toBeInTheDocument();
 
 		expect(API.createMCPServerConfig).not.toHaveBeenCalled();

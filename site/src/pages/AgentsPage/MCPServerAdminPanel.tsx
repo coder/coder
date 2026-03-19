@@ -218,7 +218,7 @@ const ServerList: FC<ServerListProps> = ({
 						key={server.id}
 						type="button"
 						onClick={() => onSelect(server)}
-						aria-label={server.display_name}
+						aria-label={`${server.display_name} (${server.enabled ? "enabled" : "disabled"})`}
 						className={cn(
 							"flex w-full cursor-pointer items-center gap-3.5 bg-transparent border-0 p-0 px-3 py-3 text-left transition-colors hover:bg-surface-secondary/30",
 							i > 0 &&
@@ -655,12 +655,17 @@ const ServerForm: FC<ServerFormProps> = ({
 									label="Client Secret"
 									htmlFor={`${formId}-oauth-secret`}
 								>
-									<Input
-										id={`${formId}-oauth-secret`}
-										className="h-9 font-mono text-[13px]"
-										type="password"
-										value={oauth2ClientSecret}
-										onChange={(e) => {
+										<Input
+											id={`${formId}-oauth-secret`}
+											className="h-9 font-mono text-[13px]"
+											type="text"
+											autoComplete="off"
+											data-1p-ignore
+											data-lpignore="true"
+											data-form-type="other"
+											data-bwignore
+											style={{ WebkitTextSecurity: "disc" } as React.CSSProperties}
+											value={oauth2ClientSecret}										onChange={(e) => {
 											setOauth2SecretTouched(true);
 											setOauth2ClientSecret(
 												e.target.value,
@@ -751,12 +756,17 @@ const ServerForm: FC<ServerFormProps> = ({
 								label="API Key"
 								htmlFor={`${formId}-apikey-value`}
 							>
-								<Input
-									id={`${formId}-apikey-value`}
-									className="h-9 font-mono text-[13px]"
-									type="password"
-									value={apiKeyValue}
-									onChange={(e) => {
+									<Input
+										id={`${formId}-apikey-value`}
+										className="h-9 font-mono text-[13px]"
+										type="text"
+										autoComplete="off"
+										data-1p-ignore
+										data-lpignore="true"
+										data-form-type="other"
+										data-bwignore
+										style={{ WebkitTextSecurity: "disc" } as React.CSSProperties}
+										value={apiKeyValue}									onChange={(e) => {
 										setApiKeyTouched(true);
 										setApiKeyValue(e.target.value);
 									}}
@@ -800,11 +810,16 @@ const ServerForm: FC<ServerFormProps> = ({
 										disabled={isDisabled}
 										aria-label={`Header ${index + 1} name`}
 									/>
-									<Input
-										className="h-9 font-mono text-[13px]"
-										type="password"
-										value={header.value}
-										onChange={(e) =>
+										<Input
+											className="h-9 font-mono text-[13px]"
+											type="text"
+											autoComplete="off"
+											data-1p-ignore
+											data-lpignore="true"
+											data-form-type="other"
+											data-bwignore
+											style={{ WebkitTextSecurity: "disc" } as React.CSSProperties}
+											value={header.value}										onChange={(e) =>
 											handleUpdateCustomHeader(
 												index,
 												"value",
@@ -1046,29 +1061,37 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 			req: TypesGen.CreateMCPServerConfigRequest,
 			id?: string,
 		) => {
-			if (id) {
-				const updateReq: TypesGen.UpdateMCPServerConfigRequest = {
-					...req,
-					tool_allow_list: req.tool_allow_list
-						? [...req.tool_allow_list]
-						: undefined,
-					tool_deny_list: req.tool_deny_list
-						? [...req.tool_deny_list]
-						: undefined,
-				};
-				await updateMut.mutateAsync({ id, req: updateReq });
-			} else {
-				await createMut.mutateAsync(req);
+			try {
+				if (id) {
+					const updateReq: TypesGen.UpdateMCPServerConfigRequest = {
+						...req,
+						tool_allow_list: req.tool_allow_list
+							? [...req.tool_allow_list]
+							: undefined,
+						tool_deny_list: req.tool_deny_list
+							? [...req.tool_deny_list]
+							: undefined,
+					};
+					await updateMut.mutateAsync({ id, req: updateReq });
+				} else {
+					await createMut.mutateAsync(req);
+				}
+				setView({ mode: "list" });
+			} catch {
+				// Error surfaced via mutation error state.
 			}
-			setView({ mode: "list" });
 		},
 		[createMut, updateMut],
 	);
 
 	const handleDelete = useCallback(
 		async (id: string) => {
-			await deleteMut.mutateAsync(id);
-			setView({ mode: "list" });
+			try {
+				await deleteMut.mutateAsync(id);
+				setView({ mode: "list" });
+			} catch {
+				// Error surfaced via mutation error state.
+			}
 		},
 		[deleteMut],
 	);
