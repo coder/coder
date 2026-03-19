@@ -480,10 +480,7 @@ func (db *dbCrypt) decryptMCPServerConfig(cfg *database.MCPServerConfig) error {
 	if err := db.decryptField(&cfg.APIKeyValue, cfg.APIKeyValueKeyID); err != nil {
 		return err
 	}
-	if err := db.decryptField(&cfg.CustomHeaders, cfg.CustomHeadersKeyID); err != nil {
-		return err
-	}
-	return nil
+	return db.decryptField(&cfg.CustomHeaders, cfg.CustomHeadersKeyID)
 }
 
 // decryptMCPServerUserToken decrypts all encrypted fields on a
@@ -492,10 +489,7 @@ func (db *dbCrypt) decryptMCPServerUserToken(tok *database.MCPServerUserToken) e
 	if err := db.decryptField(&tok.AccessToken, tok.AccessTokenKeyID); err != nil {
 		return err
 	}
-	if err := db.decryptField(&tok.RefreshToken, tok.RefreshTokenKeyID); err != nil {
-		return err
-	}
-	return nil
+	return db.decryptField(&tok.RefreshToken, tok.RefreshTokenKeyID)
 }
 
 func (db *dbCrypt) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {

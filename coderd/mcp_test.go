@@ -212,7 +212,6 @@ func TestMCPServerConfigsAuthConnected(t *testing.T) {
 func TestMCPServerConfigsAvailability(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	client := newMCPClient(t)
 	_ = coderdtest.CreateFirstUser(t, client)
 
@@ -221,6 +220,7 @@ func TestMCPServerConfigsAvailability(t *testing.T) {
 		av := av
 		t.Run(av, func(t *testing.T) {
 			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
 			created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
 				DisplayName:   "Server " + av,
 				Slug:          "server-" + av,
@@ -239,6 +239,7 @@ func TestMCPServerConfigsAvailability(t *testing.T) {
 
 	t.Run("InvalidAvailability", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
 			DisplayName:   "Bad Availability",
 			Slug:          "bad-avail",
