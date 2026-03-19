@@ -105,7 +105,15 @@ export const getAppHref = (
 	{ path, token, workspace, agent, host }: GetAppHrefParams,
 ): string => {
 	if (isExternalApp(app)) {
-		const appProtocol = new URL(app.url).protocol;
+		let appProtocol: string;
+		try {
+			appProtocol = new URL(app.url).protocol;
+		} catch {
+			// The URL is not parseable (e.g. missing scheme). Return an empty
+			// string so callers can detect this and render an error state
+			// instead of crashing the page.
+			return "";
+		}
 		const isAllowedProtocol =
 			ALLOWED_EXTERNAL_APP_PROTOCOLS.includes(appProtocol);
 
