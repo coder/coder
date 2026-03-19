@@ -1069,7 +1069,11 @@ const TemplateAllowlistSection: FC = () => {
 						aria-label="Filter templates"
 					/>
 
-					<div className="max-h-[320px] overflow-y-auto rounded-lg border border-border [scrollbar-width:thin]">
+					<div
+						role="group"
+						aria-label="Template allowlist"
+						className="max-h-[320px] overflow-y-auto rounded-lg border border-border [scrollbar-width:thin]"
+					>
 						{filteredTemplates.length === 0 ? (
 							<p className="py-8 text-center text-xs text-content-secondary">
 								{searchFilter
@@ -1104,17 +1108,15 @@ const TemplateAllowlistSection: FC = () => {
 						)}
 					</div>
 
-					{currentAllowlist.size > 0 && (
-						<p
-							aria-live="polite"
-							role="status"
-							className="m-0 text-xs text-content-secondary"
-						>
-							{currentAllowlist.size} template
-							{currentAllowlist.size !== 1 ? "s" : ""} selected
-						</p>
-					)}
-
+					<p
+						aria-live="polite"
+						role="status"
+						className="m-0 text-xs text-content-secondary"
+					>
+						{currentAllowlist.size > 0
+							? `${currentAllowlist.size} template${currentAllowlist.size !== 1 ? "s" : ""} selected`
+							: "No templates selected \u2014 all templates are available"}
+					</p>
 					<div className="flex justify-end gap-2">
 						<Button
 							size="sm"
@@ -1123,7 +1125,7 @@ const TemplateAllowlistSection: FC = () => {
 							onClick={handleClear}
 							disabled={isSaving || currentAllowlist.size === 0}
 						>
-							Clear
+							Deselect All
 						</Button>
 						<Button size="sm" type="submit" disabled={isSaving || !isDirty}>
 							Save

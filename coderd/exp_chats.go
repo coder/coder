@@ -2817,16 +2817,20 @@ func (api *API) putChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request
 	seen := make(map[string]struct{}, len(req.TemplateIDs))
 	deduped := make([]string, 0, len(req.TemplateIDs))
 	for _, id := range req.TemplateIDs {
-		if _, err := uuid.Parse(id); err != nil {
+		parsed, err := uuid.Parse(id)
+		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid template ID in allowlist.",
 				Detail:  fmt.Sprintf("%q is not a valid UUID.", id),
 			})
 			return
 		}
-		if _, ok := seen[id]; !ok {
-			seen[id] = struct{}{}
-			deduped = append(deduped, id)
+		// Canonicalize to lowercase so deduplication is
+		// case-insensitive and stored values are consistent.
+		canonical := parsed.String()
+		if _, ok := seen[canonical]; !ok {
+			seen[canonical] = struct{}{}
+			deduped = append(deduped, canonical)
 		}
 	}
 

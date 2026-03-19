@@ -3378,11 +3378,17 @@ func (p *Server) runChat(
 		p.logger.Error(ctx, "failed to load template allowlist, all templates will be allowed", slog.Error(err))
 	} else if raw != "" {
 		var ids []string
-		if jsonErr := json.Unmarshal([]byte(raw), &ids); jsonErr == nil {
+		if jsonErr := json.Unmarshal([]byte(raw), &ids); jsonErr != nil {
+			p.logger.Error(ctx, "failed to parse template allowlist JSON, all templates will be allowed",
+				slog.F("raw", raw), slog.Error(jsonErr))
+		} else {
 			allowedTemplateIDs = make(map[uuid.UUID]bool, len(ids))
 			for _, s := range ids {
 				if id, parseErr := uuid.Parse(s); parseErr == nil {
 					allowedTemplateIDs[id] = true
+				} else {
+					p.logger.Warn(ctx, "ignoring invalid UUID in template allowlist",
+						slog.F("value", s), slog.Error(parseErr))
 				}
 			}
 		}

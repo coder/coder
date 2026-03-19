@@ -993,7 +993,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Templates"
 									active={sidebarView.section === "templates"}
 									to="/agents/settings/templates"
-									replace
 									state={location.state}
 									adminOnly
 								/>
