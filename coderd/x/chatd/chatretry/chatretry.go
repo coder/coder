@@ -360,13 +360,31 @@ func userFacingMessage(classified ClassifiedError) string {
 	case errorKindRateLimit:
 		return rateLimitMessage(classified.Provider, classified.StatusCode)
 	case errorKindTimeout:
-		return timeoutMessage(classified.Provider, classified.StatusCode, classified.Retryable)
+		if classified.StatusCode > 0 {
+			return timeoutStatusMessage(classified.Provider, classified.StatusCode)
+		}
+		if classified.Retryable {
+			return retryableTimeoutMessage(classified.Provider)
+		}
+		return timeoutMessage()
 	case errorKindAuth:
 		return authMessage(classified.Provider)
 	case errorKindConfig:
 		return configMessage(classified.Provider)
 	default:
-		return genericMessage(classified.Provider, classified.StatusCode, classified.Retryable)
+		if classified.StatusCode > 0 {
+			if classified.Retryable {
+				return retryableGenericStatusMessage(
+					classified.Provider,
+					classified.StatusCode,
+				)
+			}
+			return genericStatusMessage(classified.Provider, classified.StatusCode)
+		}
+		if classified.Retryable {
+			return retryableGenericMessage(classified.Provider)
+		}
+		return genericMessage()
 	}
 }
 
@@ -394,18 +412,21 @@ func rateLimitMessage(provider string, statusCode int) string {
 	return fmt.Sprintf("%s is rate limiting requests. Please try again later.", subject)
 }
 
-func timeoutMessage(provider string, statusCode int, retryable bool) string {
+func timeoutStatusMessage(provider string, statusCode int) string {
 	subject := providerSubject(provider)
-	if statusCode > 0 {
-		return fmt.Sprintf(
-			"%s is temporarily unavailable (HTTP %d). Please try again later.",
-			subject,
-			statusCode,
-		)
-	}
-	if retryable {
-		return fmt.Sprintf("%s did not respond in time. Please try again.", subject)
-	}
+	return fmt.Sprintf(
+		"%s is temporarily unavailable (HTTP %d). Please try again later.",
+		subject,
+		statusCode,
+	)
+}
+
+func retryableTimeoutMessage(provider string) string {
+	subject := providerSubject(provider)
+	return fmt.Sprintf("%s did not respond in time. Please try again.", subject)
+}
+
+func timeoutMessage() string {
 	return "The request timed out before it completed. Please try again."
 }
 
@@ -427,18 +448,30 @@ func configMessage(provider string) string {
 	)
 }
 
-func genericMessage(provider string, statusCode int, retryable bool) string {
+func retryableGenericStatusMessage(provider string, statusCode int) string {
 	subject := providerSubject(provider)
-	if statusCode > 0 {
-		message := fmt.Sprintf("%s returned an unexpected error (HTTP %d).", subject, statusCode)
-		if retryable {
-			return message + " Please try again later."
-		}
-		return message + " Please try again."
-	}
-	if retryable {
-		return fmt.Sprintf("%s returned an unexpected error. Please try again later.", subject)
-	}
+	return fmt.Sprintf(
+		"%s returned an unexpected error (HTTP %d). Please try again later.",
+		subject,
+		statusCode,
+	)
+}
+
+func genericStatusMessage(provider string, statusCode int) string {
+	subject := providerSubject(provider)
+	return fmt.Sprintf(
+		"%s returned an unexpected error (HTTP %d). Please try again.",
+		subject,
+		statusCode,
+	)
+}
+
+func retryableGenericMessage(provider string) string {
+	subject := providerSubject(provider)
+	return fmt.Sprintf("%s returned an unexpected error. Please try again later.", subject)
+}
+
+func genericMessage() string {
 	return "The chat request failed unexpectedly. Please try again."
 }
 
