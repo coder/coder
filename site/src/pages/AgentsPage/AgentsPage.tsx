@@ -41,7 +41,11 @@ import {
 import { maybePlayChime } from "./AgentDetail/useAgentChime";
 import type { AgentsOutletContext } from "./AgentsPageView";
 import { AgentsPageView } from "./AgentsPageView";
-import { getModelOptionsFromCatalog } from "./modelOptions";
+import {
+	getModelOptionsFromCatalog,
+	getNormalizedModelRef,
+} from "./modelOptions";
+import type { ChatDetailError } from "./usageLimitMessage";
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 import { useAgentsPWA } from "./useAgentsPWA";
 
@@ -147,7 +151,7 @@ const AgentsPage: FC = () => {
 			chatId: string;
 			workspaceId: string;
 		}) => {
-			await API.archiveChat(chatId);
+			await API.updateChat(chatId, { archived: true });
 			await API.deleteWorkspace(workspaceId);
 			return { chatId, workspaceId };
 		},
@@ -173,7 +177,7 @@ const AgentsPage: FC = () => {
 	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
-		Record<string, string>
+		Record<string, ChatDetailError>
 	>({});
 	const catalogModelOptions = useMemo(
 		() =>
@@ -186,8 +190,7 @@ const AgentsPage: FC = () => {
 	const modelConfigIDByModelID = useMemo(() => {
 		const byModelID = new Map<string, string>();
 		for (const config of chatModelConfigsQuery.data ?? []) {
-			const provider = config.provider.trim().toLowerCase();
-			const model = config.model.trim();
+			const { provider, model } = getNormalizedModelRef(config);
 			if (!provider || !model) {
 				continue;
 			}
@@ -202,21 +205,29 @@ const AgentsPage: FC = () => {
 		}
 		return byModelID;
 	}, [chatModelConfigsQuery.data]);
-	const setChatErrorReason = useCallback((chatId: string, reason: string) => {
-		const trimmedReason = reason.trim();
-		if (!chatId || !trimmedReason) {
-			return;
-		}
-		setChatErrorReasons((current) => {
-			if (current[chatId] === trimmedReason) {
-				return current;
+	const setChatErrorReason = useCallback(
+		(chatId: string, reason: ChatDetailError) => {
+			const trimmedMessage = reason.message.trim();
+			if (!chatId || !trimmedMessage) {
+				return;
 			}
-			return {
-				...current,
-				[chatId]: trimmedReason,
-			};
-		});
-	}, []);
+			setChatErrorReasons((current) => {
+				const existing = current[chatId];
+				if (
+					existing &&
+					existing.kind === reason.kind &&
+					existing.message === trimmedMessage
+				) {
+					return current;
+				}
+				return {
+					...current,
+					[chatId]: { kind: reason.kind, message: trimmedMessage },
+				};
+			});
+		},
+		[],
+	);
 	const clearChatErrorReason = useCallback((chatId: string) => {
 		if (!chatId) {
 			return;
@@ -386,14 +397,13 @@ const AgentsPage: FC = () => {
 					}
 
 					if (chatEvent.kind === "diff_status_change") {
-						void Promise.all([
-							queryClient.invalidateQueries({
-								queryKey: chatKey(updatedChat.id),
-							}),
-							queryClient.invalidateQueries({
-								queryKey: chatDiffContentsKey(updatedChat.id),
-							}),
-						]);
+						// Only refetch the diff file contents — the chat's
+						// diff_status field is already written into the
+						// chatKey and infinite-list caches below.
+						void queryClient.invalidateQueries({
+							queryKey: chatDiffContentsKey(updatedChat.id),
+							exact: true,
+						});
 					}
 					// Scope field updates by event kind so that
 					// status_change events (which may carry a stale title
@@ -413,8 +423,10 @@ const AgentsPage: FC = () => {
 						prependToInfiniteChatsCache(queryClient, updatedChat);
 					} else {
 						updateInfiniteChatsCache(queryClient, (chats) => {
-							return chats.map((c) => {
+							let didUpdate = false;
+							const nextChats = chats.map((c) => {
 								if (c.id !== updatedChat.id) return c;
+								didUpdate = true;
 								return {
 									...c,
 									...(isStatusEvent && { status: updatedChat.status }),
@@ -428,6 +440,7 @@ const AgentsPage: FC = () => {
 											: updatedChat.updated_at,
 								};
 							});
+							return didUpdate ? nextChats : chats;
 						});
 					}
 					queryClient.setQueryData<TypesGen.Chat | undefined>(

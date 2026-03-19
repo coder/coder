@@ -175,7 +175,7 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 });
 
 export const archiveChat = (queryClient: QueryClient) => ({
-	mutationFn: (chatId: string) => API.archiveChat(chatId),
+	mutationFn: (chatId: string) => API.updateChat(chatId, { archived: true }),
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
@@ -234,7 +234,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 });
 
 export const unarchiveChat = (queryClient: QueryClient) => ({
-	mutationFn: (chatId: string) => API.unarchiveChat(chatId),
+	mutationFn: (chatId: string) => API.updateChat(chatId, { archived: false }),
 	onMutate: async (chatId: string) => {
 		await queryClient.cancelQueries({
 			queryKey: chatsKey,
@@ -366,9 +366,9 @@ export const promoteChatQueuedMessage = (
 ) => ({
 	mutationFn: (queuedMessageId: number) =>
 		API.promoteChatQueuedMessage(chatId, queuedMessageId),
-	// No onSuccess invalidation needed: the per-chat WebSocket
-	// delivers the promoted message, queue update, and status
-	// change in real-time.
+	// No onSuccess invalidation needed: the caller upserts the
+	// promoted message from the response, and the per-chat
+	// WebSocket delivers queue and status updates in real-time.
 });
 
 export const chatDiffContentsKey = (chatId: string) =>
@@ -391,6 +391,22 @@ export const updateChatSystemPrompt = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatSystemPromptKey,
+		});
+	},
+});
+
+const chatDesktopEnabledKey = ["chat-desktop-enabled"] as const;
+
+export const chatDesktopEnabled = () => ({
+	queryKey: chatDesktopEnabledKey,
+	queryFn: () => API.getChatDesktopEnabled(),
+});
+
+export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
+	mutationFn: API.updateChatDesktopEnabled,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatDesktopEnabledKey,
 		});
 	},
 });
@@ -418,7 +434,7 @@ export const chatModels = () => ({
 	queryFn: (): Promise<TypesGen.ChatModelsResponse> => API.getChatModels(),
 });
 
-export const chatProviderConfigsKey = ["chat-provider-configs"] as const;
+const chatProviderConfigsKey = ["chat-provider-configs"] as const;
 
 export const chatProviderConfigs = () => ({
 	queryKey: chatProviderConfigsKey,
@@ -426,7 +442,7 @@ export const chatProviderConfigs = () => ({
 		API.getChatProviderConfigs(),
 });
 
-export const chatModelConfigsKey = ["chat-model-configs"] as const;
+const chatModelConfigsKey = ["chat-model-configs"] as const;
 
 export const chatModelConfigs = () => ({
 	queryKey: chatModelConfigsKey,
@@ -529,4 +545,89 @@ export const chatCostUsers = (params?: ChatCostUsersParams) => ({
 	queryKey: chatCostUsersKey(params),
 	queryFn: () => API.getChatCostUsers(params),
 	staleTime: 60_000,
+});
+
+const prInsightsKey = (params?: { start_date?: string; end_date?: string }) =>
+	[...chatsKey, "prInsights", params] as const;
+
+export const prInsights = (params?: {
+	start_date?: string;
+	end_date?: string;
+}) => ({
+	queryKey: prInsightsKey(params),
+	queryFn: () => API.getPRInsights(params),
+	staleTime: 60_000,
+});
+
+const chatUsageLimitConfigKey = [...chatsKey, "usageLimitConfig"] as const;
+
+export const chatUsageLimitConfig = () => ({
+	queryKey: chatUsageLimitConfigKey,
+	queryFn: () => API.getChatUsageLimitConfig(),
+});
+
+export const updateChatUsageLimitConfig = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.ChatUsageLimitConfig) =>
+		API.updateChatUsageLimitConfig(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});
+
+type UpsertChatUsageLimitOverrideMutationArgs = {
+	userID: string;
+	req: TypesGen.UpsertChatUsageLimitOverrideRequest;
+};
+
+export const upsertChatUsageLimitOverride = (queryClient: QueryClient) => ({
+	mutationFn: ({ userID, req }: UpsertChatUsageLimitOverrideMutationArgs) =>
+		API.upsertChatUsageLimitOverride(userID, req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});
+
+export const deleteChatUsageLimitOverride = (queryClient: QueryClient) => ({
+	mutationFn: (userID: string) => API.deleteChatUsageLimitOverride(userID),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});
+
+type UpsertChatUsageLimitGroupOverrideMutationArgs = {
+	groupID: string;
+	req: TypesGen.UpsertChatUsageLimitGroupOverrideRequest;
+};
+
+export const upsertChatUsageLimitGroupOverride = (
+	queryClient: QueryClient,
+) => ({
+	mutationFn: ({
+		groupID,
+		req,
+	}: UpsertChatUsageLimitGroupOverrideMutationArgs) =>
+		API.upsertChatUsageLimitGroupOverride(groupID, req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
+});
+
+export const deleteChatUsageLimitGroupOverride = (
+	queryClient: QueryClient,
+) => ({
+	mutationFn: (groupID: string) =>
+		API.deleteChatUsageLimitGroupOverride(groupID),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatUsageLimitConfigKey,
+		});
+	},
 });

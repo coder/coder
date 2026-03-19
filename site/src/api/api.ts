@@ -160,11 +160,13 @@ export const watchChats = (): OneWayWebSocket<TypesGen.ServerSentEvent> => {
 };
 
 export const watchChatGit = (chatId: string): WebSocket => {
-	return createWebSocket(`/api/experimental/chats/${chatId}/git/watch`);
+	return createWebSocket(`/api/experimental/chats/${chatId}/stream/git`);
 };
 
 export const watchChatDesktop = (chatId: string): WebSocket => {
-	const socket = createWebSocket(`/api/experimental/chats/${chatId}/desktop`);
+	const socket = createWebSocket(
+		`/api/experimental/chats/${chatId}/stream/desktop`,
+	);
 	// RFB is a binary protocol — noVNC expects arraybuffer, not blob.
 	socket.binaryType = "arraybuffer";
 	return socket;
@@ -1481,6 +1483,35 @@ class ApiMethods {
 		await this.waitForBuild(startBuild);
 	};
 
+	/**
+	 * Starts a workspace, but if the last build was a failed start,
+	 * stops it first to give it a clean slate and the best chance
+	 * of success.
+	 */
+	retryWorkspace = async (
+		workspace: TypesGen.Workspace,
+		templateVersionId: string,
+		logLevel?: TypesGen.ProvisionerLogLevel,
+		buildParameters?: TypesGen.WorkspaceBuildParameter[],
+	): Promise<TypesGen.WorkspaceBuild> => {
+		if (
+			workspace.latest_build.status === "failed" &&
+			workspace.latest_build.transition === "start"
+		) {
+			const stopBuild = await this.stopWorkspace(workspace.id, logLevel);
+			const awaitedStop = await this.waitForBuild(stopBuild);
+			if (awaitedStop?.status === "canceled") {
+				throw new Error("Cleanup stop was canceled");
+			}
+		}
+		return this.startWorkspace(
+			workspace.id,
+			templateVersionId,
+			logLevel,
+			buildParameters,
+		);
+	};
+
 	cancelTemplateVersionBuild = async (
 		templateVersionId: string,
 	): Promise<TypesGen.Response> => {
@@ -2310,7 +2341,11 @@ class ApiMethods {
 			{
 				headers: {
 					"Content-Type": file.type || "application/octet-stream",
-					"Content-Disposition": `attachment; filename="${file.name}"`,
+					// Use RFC 5987 encoding for the filename to support
+					// non-ASCII characters. Placing the raw name directly in
+					// the header causes XMLHttpRequest to throw because HTTP
+					// headers only allow ISO-8859-1 code points.
+					"Content-Disposition": `attachment; filename="file"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
 				},
 			},
 		);
@@ -2985,12 +3020,11 @@ class ApiMethods {
 		return response.data;
 	};
 
-	archiveChat = async (chatId: string): Promise<void> => {
-		await this.axios.post(`/api/experimental/chats/${chatId}/archive`);
-	};
-
-	unarchiveChat = async (chatId: string): Promise<void> => {
-		await this.axios.post(`/api/experimental/chats/${chatId}/unarchive`);
+	updateChat = async (
+		chatId: string,
+		req: TypesGen.UpdateChatRequest,
+	): Promise<void> => {
+		await this.axios.patch(`/api/experimental/chats/${chatId}`, req);
 	};
 
 	createChatMessage = async (
@@ -3067,37 +3101,48 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getChatSystemPrompt =
-		async (): Promise<TypesGen.ChatSystemPromptResponse> => {
-			const response = await this.axios.get<TypesGen.ChatSystemPromptResponse>(
-				"/api/experimental/chats/config/system-prompt",
-			);
-			return response.data;
-		};
+	getChatSystemPrompt = async (): Promise<TypesGen.ChatSystemPrompt> => {
+		const response = await this.axios.get<TypesGen.ChatSystemPrompt>(
+			"/api/experimental/chats/config/system-prompt",
+		);
+		return response.data;
+	};
 
 	updateChatSystemPrompt = async (
-		req: TypesGen.UpdateChatSystemPromptRequest,
+		req: TypesGen.ChatSystemPrompt,
 	): Promise<void> => {
 		await this.axios.put("/api/experimental/chats/config/system-prompt", req);
 	};
 
-	getUserChatCustomPrompt =
-		async (): Promise<TypesGen.UserChatCustomPromptResponse> => {
+	getChatDesktopEnabled =
+		async (): Promise<TypesGen.ChatDesktopEnabledResponse> => {
 			const response =
-				await this.axios.get<TypesGen.UserChatCustomPromptResponse>(
-					"/api/experimental/chats/config/user-prompt",
+				await this.axios.get<TypesGen.ChatDesktopEnabledResponse>(
+					"/api/experimental/chats/config/desktop-enabled",
 				);
 			return response.data;
 		};
 
-	updateUserChatCustomPrompt = async (
-		req: TypesGen.UpdateUserChatCustomPromptRequest,
-	): Promise<TypesGen.UserChatCustomPromptResponse> => {
-		const response =
-			await this.axios.put<TypesGen.UserChatCustomPromptResponse>(
+	updateChatDesktopEnabled = async (
+		req: TypesGen.UpdateChatDesktopEnabledRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/desktop-enabled", req);
+	};
+
+	getUserChatCustomPrompt =
+		async (): Promise<TypesGen.UserChatCustomPrompt> => {
+			const response = await this.axios.get<TypesGen.UserChatCustomPrompt>(
 				"/api/experimental/chats/config/user-prompt",
-				req,
 			);
+			return response.data;
+		};
+	updateUserChatCustomPrompt = async (
+		req: TypesGen.UserChatCustomPrompt,
+	): Promise<TypesGen.UserChatCustomPrompt> => {
+		const response = await this.axios.put<TypesGen.UserChatCustomPrompt>(
+			"/api/experimental/chats/config/user-prompt",
+			req,
+		);
 		return response.data;
 	};
 
@@ -3196,6 +3241,75 @@ class ApiMethods {
 			params,
 		);
 		const response = await this.axios.get<TypesGen.ChatCostUsersResponse>(url);
+		return response.data;
+	};
+
+	getPRInsights = async (params?: {
+		start_date?: string;
+		end_date?: string;
+	}): Promise<TypesGen.PRInsightsResponse> => {
+		const url = getURLWithSearchParams(
+			"/api/experimental/chats/insights/pull-requests",
+			params,
+		);
+		const response = await this.axios.get<TypesGen.PRInsightsResponse>(url);
+		return response.data;
+	};
+
+	getChatUsageLimitConfig =
+		async (): Promise<TypesGen.ChatUsageLimitConfigResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatUsageLimitConfigResponse>(
+					"/api/experimental/chats/usage-limits",
+				);
+			return response.data;
+		};
+
+	updateChatUsageLimitConfig = async (
+		req: TypesGen.ChatUsageLimitConfig,
+	): Promise<TypesGen.ChatUsageLimitConfig> => {
+		const response = await this.axios.put<TypesGen.ChatUsageLimitConfig>(
+			"/api/experimental/chats/usage-limits",
+			req,
+		);
+		return response.data;
+	};
+
+	upsertChatUsageLimitOverride = async (
+		userID: string,
+		req: TypesGen.UpsertChatUsageLimitOverrideRequest,
+	): Promise<TypesGen.ChatUsageLimitOverride> => {
+		const response = await this.axios.put<TypesGen.ChatUsageLimitOverride>(
+			`/api/experimental/chats/usage-limits/overrides/${encodeURIComponent(userID)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatUsageLimitOverride = async (userID: string): Promise<void> => {
+		const response = await this.axios.delete(
+			`/api/experimental/chats/usage-limits/overrides/${encodeURIComponent(userID)}`,
+		);
+		return response.data;
+	};
+
+	upsertChatUsageLimitGroupOverride = async (
+		groupID: string,
+		req: TypesGen.UpsertChatUsageLimitGroupOverrideRequest,
+	): Promise<TypesGen.ChatUsageLimitGroupOverride> => {
+		const response = await this.axios.put<TypesGen.ChatUsageLimitGroupOverride>(
+			`/api/experimental/chats/usage-limits/group-overrides/${encodeURIComponent(groupID)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteChatUsageLimitGroupOverride = async (
+		groupID: string,
+	): Promise<void> => {
+		const response = await this.axios.delete(
+			`/api/experimental/chats/usage-limits/group-overrides/${encodeURIComponent(groupID)}`,
+		);
 		return response.data;
 	};
 }

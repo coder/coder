@@ -3,18 +3,20 @@ package aiseats
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 
 	"cdr.dev/slog/v3"
 	agplaiseats "github.com/coder/coder/v2/coderd/aiseats"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/quartz"
 )
 
 type store interface {
-	UpsertAISeatState(ctx context.Context, arg database.UpsertAISeatStateParams) error
+	UpsertAISeatState(ctx context.Context, arg database.UpsertAISeatStateParams) (bool, error)
 }
 
 // throttleInterval is the minimum time between DB writes for the same user. This
@@ -33,19 +35,20 @@ const (
 
 // SeatTracker records current AI seat state for users.
 type SeatTracker struct {
-	db     store
-	logger slog.Logger
-	clock  quartz.Clock
+	db      store
+	logger  slog.Logger
+	clock   quartz.Clock
+	auditor *atomic.Pointer[audit.Auditor]
 
 	mu         sync.RWMutex
 	retryAfter map[uuid.UUID]time.Time
 }
 
-func New(db store, logger slog.Logger, clock quartz.Clock) *SeatTracker {
+func New(db store, logger slog.Logger, clock quartz.Clock, auditor *atomic.Pointer[audit.Auditor]) *SeatTracker {
 	if clock == nil {
 		clock = quartz.NewReal()
 	}
-	return &SeatTracker{db: db, logger: logger, clock: clock, retryAfter: make(map[uuid.UUID]time.Time)}
+	return &SeatTracker{db: db, logger: logger, clock: clock, auditor: auditor, retryAfter: make(map[uuid.UUID]time.Time)}
 }
 
 // skipRecord returns true when the user is still in the retry cooldown
@@ -75,7 +78,7 @@ func (t *SeatTracker) RecordUsage(ctx context.Context, userID uuid.UUID, reason 
 		return
 	}
 
-	err := t.db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
+	isNew, err := t.db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
 		UserID:               userID,
 		FirstUsedAt:          now,
 		LastEventType:        reason.EventType,
@@ -88,4 +91,26 @@ func (t *SeatTracker) RecordUsage(ctx context.Context, userID uuid.UUID, reason 
 	}
 
 	t.recordThrottle(userID, now, throttleInterval)
+	if isNew && t.auditor != nil {
+		// Record an audit log for the first time a user uses an AI seat.
+		auditor := t.auditor.Load()
+		if auditor == nil || *auditor == nil {
+			return
+		}
+		audit.BackgroundAudit[database.AiSeatState](ctx, &audit.BackgroundAuditParams[database.AiSeatState]{
+			Audit:  *auditor,
+			Log:    t.logger,
+			UserID: userID,
+			Time:   now,
+			Action: database.AuditActionCreate,
+			New: database.AiSeatState{
+				UserID:               userID,
+				FirstUsedAt:          now,
+				LastUsedAt:           now,
+				LastEventType:        reason.EventType,
+				LastEventDescription: reason.Description,
+				UpdatedAt:            now,
+			},
+		})
+	}
 }

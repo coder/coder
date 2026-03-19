@@ -23,20 +23,22 @@ type SerializedFileReferenceNode = Spread<
 	SerializedLexicalNode
 >;
 
-function FileReferenceChip({
+export function FileReferenceChip({
 	fileName,
 	startLine,
 	endLine,
 	isSelected,
 	onRemove,
 	onClick,
+	className: extraClassName,
 }: {
 	fileName: string;
 	startLine: number;
 	endLine: number;
 	isSelected?: boolean;
-	onRemove: () => void;
+	onRemove?: () => void;
 	onClick?: () => void;
+	className?: string;
 }) {
 	const shortFile = fileName.split("/").pop() || fileName;
 	const lineLabel =
@@ -45,9 +47,10 @@ function FileReferenceChip({
 	return (
 		<span
 			className={cn(
-				"inline-flex h-6 max-w-[300px] cursor-pointer select-none items-center gap-1.5 rounded-md border border-border-default bg-surface-secondary px-1.5 align-middle text-xs text-content-primary shadow-sm transition-colors",
+				"inline-flex h-6 max-w-[300px] cursor-pointer select-none items-center gap-1.5 rounded-md border border-border-default bg-surface-primary px-1.5 align-middle text-xs text-content-primary shadow-sm transition-colors",
 				isSelected &&
 					"border-content-link bg-content-link/10 ring-1 ring-content-link/40",
+				extraClassName,
 			)}
 			contentEditable={false}
 			title={`${fileName}:${lineLabel}`}
@@ -66,19 +69,21 @@ function FileReferenceChip({
 				{shortFile}
 				<span className="text-content-link">:{lineLabel}</span>
 			</span>
-			<button
-				type="button"
-				className="ml-auto inline-flex size-4 shrink-0 items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors hover:text-content-primary cursor-pointer"
-				onClick={(e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					onRemove();
-				}}
-				aria-label="Remove reference"
-				tabIndex={-1}
-			>
-				<XIcon className="size-2" />
-			</button>
+			{onRemove && (
+				<button
+					type="button"
+					className="ml-auto inline-flex size-4 shrink-0 items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors hover:text-content-primary cursor-pointer"
+					onClick={(e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						onRemove();
+					}}
+					aria-label="Remove reference"
+					tabIndex={-1}
+				>
+					<XIcon className="size-2" />
+				</button>
+			)}
 		</span>
 	);
 }

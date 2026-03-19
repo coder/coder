@@ -42,6 +42,11 @@ type PersistedStep struct {
 	Content      []fantasy.Content
 	Usage        fantasy.Usage
 	ContextLimit sql.NullInt64
+	// Runtime is the wall-clock duration of this step,
+	// covering LLM streaming, tool execution, and retries.
+	// Zero indicates the duration was not measured (e.g.
+	// interrupted steps).
+	Runtime time.Duration
 }
 
 // RunOptions configures a single streaming chat loop run.
@@ -260,6 +265,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 
 		for step := 0; totalSteps < opts.MaxSteps; step++ {
 			totalSteps++
+			stepStart := time.Now()
 			// Copy messages so that provider-specific caching
 			// mutations don't leak back to the caller's slice.
 			// copy copies Message structs by value, so field
@@ -365,6 +371,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 				Content:      result.content,
 				Usage:        result.usage,
 				ContextLimit: contextLimit,
+				Runtime:      time.Since(stepStart),
 			}); err != nil {
 				if errors.Is(err, ErrInterrupted) {
 					persistInterruptedStep(ctx, opts, &result)
@@ -610,10 +617,12 @@ func processStepStream(
 			result.providerMetadata = part.ProviderMetadata
 
 		case fantasy.StreamPartTypeError:
-			// Detect interruption: context canceled with
-			// ErrInterrupted as the cause.
-			if errors.Is(part.Error, context.Canceled) &&
-				errors.Is(context.Cause(ctx), ErrInterrupted) {
+			// Detect interruption: the stream may surface the
+			// cancel as context.Canceled or propagate the
+			// ErrInterrupted cause directly, depending on
+			// the provider implementation.
+			if errors.Is(context.Cause(ctx), ErrInterrupted) &&
+				(errors.Is(part.Error, context.Canceled) || errors.Is(part.Error, ErrInterrupted)) {
 				// Flush in-progress content so that
 				// persistInterruptedStep has access to partial
 				// text, reasoning, and tool calls that were
@@ -629,6 +638,23 @@ func processStepStream(
 			}
 			return result, part.Error
 		}
+	}
+
+	// The stream iterator may stop yielding parts without
+	// producing a StreamPartTypeError when the context is
+	// canceled (e.g. some providers close the response body
+	// silently). Detect this case and flush partial content
+	// so that persistInterruptedStep can save it.
+	if ctx.Err() != nil &&
+		errors.Is(context.Cause(ctx), ErrInterrupted) {
+		flushActiveState(
+			&result,
+			activeTextContent,
+			activeReasoningContent,
+			activeToolCalls,
+			toolNames,
+		)
+		return result, ErrInterrupted
 	}
 
 	hasLocalToolCalls := false

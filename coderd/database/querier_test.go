@@ -1235,6 +1235,230 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 	})
 }
 
+func TestGetAuthorizedChats(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	// Create users with different roles.
+	owner := dbgen.User(t, db, database.User{
+		RBACRoles: []string{rbac.RoleOwner().String()},
+	})
+	member := dbgen.User(t, db, database.User{})
+	secondMember := dbgen.User(t, db, database.User{})
+
+	// Create FK dependencies: a chat provider and model config.
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+		APIKey:      "test-key",
+		Enabled:     true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "test-model",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	// Create 3 chats owned by owner.
+	for i := range 3 {
+		_, err := db.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             fmt.Sprintf("owner chat %d", i+1),
+		})
+		require.NoError(t, err)
+	}
+
+	// Create 2 chats owned by member.
+	for i := range 2 {
+		_, err := db.InsertChat(ctx, database.InsertChatParams{
+			OwnerID:           member.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             fmt.Sprintf("member chat %d", i+1),
+		})
+		require.NoError(t, err)
+	}
+
+	t.Run("sqlQuerier", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Member should only see their own 2 chats.
+		memberSubject, _, err := httpmw.UserRBACSubject(ctx, db, member.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedMember, err := authorizer.Prepare(ctx, memberSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+		memberRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedMember)
+		require.NoError(t, err)
+		require.Len(t, memberRows, 2)
+		for _, row := range memberRows {
+			require.Equal(t, member.ID, row.OwnerID, "member should only see own chats")
+		}
+
+		// Owner should see at least the 5 pre-created chats (site-wide
+		// access). Parallel subtests may add more, so use GreaterOrEqual.
+		ownerSubject, _, err := httpmw.UserRBACSubject(ctx, db, owner.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedOwner, err := authorizer.Prepare(ctx, ownerSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+		ownerRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedOwner)
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(ownerRows), 5)
+
+		// secondMember has no chats and should see 0.
+		secondSubject, _, err := httpmw.UserRBACSubject(ctx, db, secondMember.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedSecond, err := authorizer.Prepare(ctx, secondSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+		secondRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedSecond)
+		require.NoError(t, err)
+		require.Len(t, secondRows, 0)
+
+		// Org admin should NOT see other users' chats — chats are
+		// not org-scoped resources.
+		orgs, err := db.GetOrganizations(ctx, database.GetOrganizationsParams{})
+		require.NoError(t, err)
+		require.NotEmpty(t, orgs)
+		orgAdmin := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         orgAdmin.ID,
+			OrganizationID: orgs[0].ID,
+			Roles:          []string{rbac.RoleOrgAdmin()},
+		})
+		orgAdminSubject, _, err := httpmw.UserRBACSubject(ctx, db, orgAdmin.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedOrgAdmin, err := authorizer.Prepare(ctx, orgAdminSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+		orgAdminRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedOrgAdmin)
+		require.NoError(t, err)
+		require.Len(t, orgAdminRows, 0, "org admin with no chats should see 0 chats")
+
+		// OwnerID filter: member queries their own chats.
+		memberFilterSelf, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+			OwnerID: member.ID,
+		}, preparedMember)
+		require.NoError(t, err)
+		require.Len(t, memberFilterSelf, 2)
+
+		// OwnerID filter: member queries owner's chats → sees 0.
+		memberFilterOwner, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+			OwnerID: owner.ID,
+		}, preparedMember)
+		require.NoError(t, err)
+		require.Len(t, memberFilterOwner, 0)
+	})
+
+	t.Run("dbauthz", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+
+		// As member: should see only own 2 chats.
+		memberSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, member.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		memberCtx := dbauthz.As(ctx, memberSubject)
+		memberRows, err := authzdb.GetChats(memberCtx, database.GetChatsParams{})
+		require.NoError(t, err)
+		require.Len(t, memberRows, 2)
+		for _, row := range memberRows {
+			require.Equal(t, member.ID, row.OwnerID, "member should only see own chats")
+		}
+
+		// As owner: should see at least the 5 pre-created chats.
+		ownerSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, owner.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		ownerCtx := dbauthz.As(ctx, ownerSubject)
+		ownerRows, err := authzdb.GetChats(ownerCtx, database.GetChatsParams{})
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(ownerRows), 5)
+
+		// As secondMember: should see 0 chats.
+		secondSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, secondMember.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		secondCtx := dbauthz.As(ctx, secondSubject)
+		secondRows, err := authzdb.GetChats(secondCtx, database.GetChatsParams{})
+		require.NoError(t, err)
+		require.Len(t, secondRows, 0)
+	})
+
+	t.Run("pagination", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// Use a dedicated user for pagination to avoid interference
+		// with the other parallel subtests.
+		paginationUser := dbgen.User(t, db, database.User{})
+		for i := range 7 {
+			_, err := db.InsertChat(ctx, database.InsertChatParams{
+				OwnerID:           paginationUser.ID,
+				LastModelConfigID: modelCfg.ID,
+				Title:             fmt.Sprintf("pagination chat %d", i+1),
+			})
+			require.NoError(t, err)
+		}
+
+		pagUserSubject, _, err := httpmw.UserRBACSubject(ctx, db, paginationUser.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedMember, err := authorizer.Prepare(ctx, pagUserSubject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+
+		// Fetch first page with limit=2.
+		page1, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+			LimitOpt: 2,
+		}, preparedMember)
+		require.NoError(t, err)
+		require.Len(t, page1, 2)
+		for _, row := range page1 {
+			require.Equal(t, paginationUser.ID, row.OwnerID, "paginated results must belong to pagination user")
+		}
+
+		// Fetch remaining pages and collect all chat IDs.
+		allIDs := make(map[uuid.UUID]struct{})
+		for _, row := range page1 {
+			allIDs[row.ID] = struct{}{}
+		}
+		offset := int32(2)
+		for {
+			page, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+				LimitOpt:  2,
+				OffsetOpt: offset,
+			}, preparedMember)
+			require.NoError(t, err)
+			for _, row := range page {
+				require.Equal(t, paginationUser.ID, row.OwnerID, "paginated results must belong to pagination user")
+				allIDs[row.ID] = struct{}{}
+			}
+			if len(page) < 2 {
+				break
+			}
+			offset += int32(len(page)) //nolint:gosec // Test code, pagination values are small.
+		}
+
+		// All 7 member chats should be accounted for with no leakage.
+		require.Len(t, allIDs, 7, "pagination should return all member chats exactly once")
+	})
+}
+
 func TestInsertWorkspaceAgentLogs(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2431,6 +2655,42 @@ func TestDeleteCustomRoleDoesNotDeleteSystemRole(t *testing.T) {
 	require.True(t, roles[0].IsSystem)
 }
 
+func TestGetAuthorizationUserRolesImpliedOrgRole(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+
+	regularUser := dbgen.User(t, db, database.User{})
+	saUser := dbgen.User(t, db, database.User{IsServiceAccount: true})
+
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         regularUser.ID,
+	})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         saUser.ID,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	wantMember := rbac.RoleOrgMember() + ":" + org.ID.String()
+	wantSA := rbac.RoleOrgServiceAccount() + ":" + org.ID.String()
+
+	// Regular users get the implied organization-member role.
+	regularRoles, err := db.GetAuthorizationUserRoles(ctx, regularUser.ID)
+	require.NoError(t, err)
+	require.Contains(t, regularRoles.Roles, wantMember)
+	require.NotContains(t, regularRoles.Roles, wantSA)
+
+	// Service accounts get the implied organization-service-account role.
+	saRoles, err := db.GetAuthorizationUserRoles(ctx, saUser.ID)
+	require.NoError(t, err)
+	require.Contains(t, saRoles.Roles, wantSA)
+	require.NotContains(t, saRoles.Roles, wantMember)
+}
+
 func TestUpdateOrganizationWorkspaceSharingSettings(t *testing.T) {
 	t.Parallel()
 
@@ -2441,82 +2701,155 @@ func TestUpdateOrganizationWorkspaceSharingSettings(t *testing.T) {
 
 	updated, err := db.UpdateOrganizationWorkspaceSharingSettings(ctx, database.UpdateOrganizationWorkspaceSharingSettingsParams{
 		ID:                       org.ID,
-		WorkspaceSharingDisabled: true,
+		ShareableWorkspaceOwners: database.ShareableWorkspaceOwnersNone,
 		UpdatedAt:                dbtime.Now(),
 	})
 	require.NoError(t, err)
-	require.True(t, updated.WorkspaceSharingDisabled)
+	require.Equal(t, database.ShareableWorkspaceOwnersNone, updated.ShareableWorkspaceOwners)
 
 	got, err := db.GetOrganizationByID(ctx, org.ID)
 	require.NoError(t, err)
-	require.True(t, got.WorkspaceSharingDisabled)
+	require.Equal(t, database.ShareableWorkspaceOwnersNone, got.ShareableWorkspaceOwners)
 }
 
 func TestDeleteWorkspaceACLsByOrganization(t *testing.T) {
 	t.Parallel()
 
-	db, _ := dbtestutil.NewDB(t)
-	org1 := dbgen.Organization(t, db, database.Organization{})
-	org2 := dbgen.Organization(t, db, database.Organization{})
+	t.Run("DeletesAll", func(t *testing.T) {
+		t.Parallel()
 
-	owner1 := dbgen.User(t, db, database.User{})
-	owner2 := dbgen.User(t, db, database.User{})
-	sharedUser := dbgen.User(t, db, database.User{})
-	sharedGroup := dbgen.Group(t, db, database.Group{
-		OrganizationID: org1.ID,
+		db, _ := dbtestutil.NewDB(t)
+		org1 := dbgen.Organization(t, db, database.Organization{})
+		org2 := dbgen.Organization(t, db, database.Organization{})
+
+		owner1 := dbgen.User(t, db, database.User{})
+		owner2 := dbgen.User(t, db, database.User{})
+		sharedUser := dbgen.User(t, db, database.User{})
+		sharedGroup := dbgen.Group(t, db, database.Group{
+			OrganizationID: org1.ID,
+		})
+
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org1.ID,
+			UserID:         owner1.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org2.ID,
+			UserID:         owner2.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org1.ID,
+			UserID:         sharedUser.ID,
+		})
+
+		ws1 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        owner1.ID,
+			OrganizationID: org1.ID,
+			UserACL: database.WorkspaceACL{
+				sharedUser.ID.String(): {
+					Permissions: []policy.Action{policy.ActionRead},
+				},
+			},
+			GroupACL: database.WorkspaceACL{
+				sharedGroup.ID.String(): {
+					Permissions: []policy.Action{policy.ActionRead},
+				},
+			},
+		}).Do().Workspace
+
+		ws2 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        owner2.ID,
+			OrganizationID: org2.ID,
+			UserACL: database.WorkspaceACL{
+				uuid.NewString(): {
+					Permissions: []policy.Action{policy.ActionRead},
+				},
+			},
+		}).Do().Workspace
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		err := db.DeleteWorkspaceACLsByOrganization(ctx, database.DeleteWorkspaceACLsByOrganizationParams{
+			OrganizationID:         org1.ID,
+			ExcludeServiceAccounts: false,
+		})
+		require.NoError(t, err)
+
+		got1, err := db.GetWorkspaceByID(ctx, ws1.ID)
+		require.NoError(t, err)
+		require.Empty(t, got1.UserACL)
+		require.Empty(t, got1.GroupACL)
+
+		got2, err := db.GetWorkspaceByID(ctx, ws2.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, got2.UserACL)
 	})
 
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: org1.ID,
-		UserID:         owner1.ID,
-	})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: org2.ID,
-		UserID:         owner2.ID,
-	})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		OrganizationID: org1.ID,
-		UserID:         sharedUser.ID,
-	})
+	t.Run("ExcludesServiceAccounts", func(t *testing.T) {
+		t.Parallel()
 
-	ws1 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OwnerID:        owner1.ID,
-		OrganizationID: org1.ID,
-		UserACL: database.WorkspaceACL{
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		regularUser := dbgen.User(t, db, database.User{})
+		saUser := dbgen.User(t, db, database.User{IsServiceAccount: true})
+		sharedUser := dbgen.User(t, db, database.User{})
+
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org.ID,
+			UserID:         regularUser.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org.ID,
+			UserID:         saUser.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org.ID,
+			UserID:         sharedUser.ID,
+		})
+
+		regularWS := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        regularUser.ID,
+			OrganizationID: org.ID,
+			UserACL: database.WorkspaceACL{
+				sharedUser.ID.String(): {
+					Permissions: []policy.Action{policy.ActionRead},
+				},
+			},
+		}).Do().Workspace
+
+		saWS := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        saUser.ID,
+			OrganizationID: org.ID,
+			UserACL: database.WorkspaceACL{
+				sharedUser.ID.String(): {
+					Permissions: []policy.Action{policy.ActionRead},
+				},
+			},
+		}).Do().Workspace
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		err := db.DeleteWorkspaceACLsByOrganization(ctx, database.DeleteWorkspaceACLsByOrganizationParams{
+			OrganizationID:         org.ID,
+			ExcludeServiceAccounts: true,
+		})
+		require.NoError(t, err)
+
+		// Regular user workspace ACLs should be cleared.
+		gotRegular, err := db.GetWorkspaceByID(ctx, regularWS.ID)
+		require.NoError(t, err)
+		require.Empty(t, gotRegular.UserACL)
+
+		// Service account workspace ACLs should be preserved.
+		gotSA, err := db.GetWorkspaceByID(ctx, saWS.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.WorkspaceACL{
 			sharedUser.ID.String(): {
 				Permissions: []policy.Action{policy.ActionRead},
 			},
-		},
-		GroupACL: database.WorkspaceACL{
-			sharedGroup.ID.String(): {
-				Permissions: []policy.Action{policy.ActionRead},
-			},
-		},
-	}).Do().Workspace
-
-	ws2 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OwnerID:        owner2.ID,
-		OrganizationID: org2.ID,
-		UserACL: database.WorkspaceACL{
-			uuid.NewString(): {
-				Permissions: []policy.Action{policy.ActionRead},
-			},
-		},
-	}).Do().Workspace
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	err := db.DeleteWorkspaceACLsByOrganization(ctx, org1.ID)
-	require.NoError(t, err)
-
-	got1, err := db.GetWorkspaceByID(ctx, ws1.ID)
-	require.NoError(t, err)
-	require.Empty(t, got1.UserACL)
-	require.Empty(t, got1.GroupACL)
-
-	got2, err := db.GetWorkspaceByID(ctx, ws2.ID)
-	require.NoError(t, err)
-	require.NotEmpty(t, got2.UserACL)
+		}, gotSA.UserACL)
+	})
 }
 
 func TestAuthorizedAuditLogs(t *testing.T) {
@@ -7982,6 +8315,80 @@ func TestUsageEventsTrigger(t *testing.T) {
 		require.WithinDuration(t, time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC), rows[1].Day, time.Second)
 	})
 
+	t.Run("HeartbeatAISeats", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+		// Insert a heartbeat event.
+		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "hb-1",
+			EventType: "hb_ai_seats_v1",
+			EventData: []byte(`{"count": 10}`),
+			CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		})
+		require.NoError(t, err)
+
+		rows := getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 1)
+		require.Equal(t, "hb_ai_seats_v1", rows[0].EventType)
+		require.JSONEq(t, `{"count": 10}`, string(rows[0].UsageData))
+
+		// Insert a higher count on the same day — should take the max.
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "hb-2",
+			EventType: "hb_ai_seats_v1",
+			EventData: []byte(`{"count": 50}`),
+			CreatedAt: time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC),
+		})
+		require.NoError(t, err)
+
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 1)
+		require.JSONEq(t, `{"count": 50}`, string(rows[0].UsageData))
+
+		// Insert a lower count on the same day — should keep the max (50).
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "hb-3",
+			EventType: "hb_ai_seats_v1",
+			EventData: []byte(`{"count": 25}`),
+			CreatedAt: time.Date(2025, 1, 1, 18, 0, 0, 0, time.UTC),
+		})
+		require.NoError(t, err)
+
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 1)
+		require.JSONEq(t, `{"count": 50}`, string(rows[0].UsageData))
+
+		// Insert on a different day.
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "hb-4",
+			EventType: "hb_ai_seats_v1",
+			EventData: []byte(`{"count": 5}`),
+			CreatedAt: time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC),
+		})
+		require.NoError(t, err)
+
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 2)
+		require.JSONEq(t, `{"count": 50}`, string(rows[0].UsageData))
+		require.JSONEq(t, `{"count": 5}`, string(rows[1].UsageData))
+
+		// Also insert a dc_managed_agents_v1 on the same first day to
+		// verify different event types get separate daily rows.
+		err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        "dc-1",
+			EventType: "dc_managed_agents_v1",
+			EventData: []byte(`{"count": 7}`),
+			CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		})
+		require.NoError(t, err)
+
+		rows = getDailyRows(ctx, sqlDB)
+		require.Len(t, rows, 3)
+	})
+
 	t.Run("UnknownEventType", func(t *testing.T) {
 		t.Parallel()
 
@@ -8997,7 +9404,7 @@ func TestInsertWorkspaceAgentDevcontainers(t *testing.T) {
 	}
 }
 
-func TestInsertChatMessage(t *testing.T) {
+func TestInsertChatMessages(t *testing.T) {
 	t.Parallel()
 
 	insertModelConfig := func(
@@ -9071,17 +9478,24 @@ func TestInsertChatMessage(t *testing.T) {
 	insertMessage := func(t *testing.T, store database.Store, ctx context.Context, chatID, userID, modelConfigID uuid.UUID, content string) {
 		t.Helper()
 
-		_, err := store.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID:         chatID,
-			CreatedBy:      uuid.NullUUID{UUID: userID, Valid: true},
-			ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
-			Role:           database.ChatMessageRoleUser,
-			ContentVersion: chatprompt.CurrentContentVersion,
-			Visibility:     database.ChatMessageVisibilityBoth,
-			Content: pqtype.NullRawMessage{
-				RawMessage: json.RawMessage(fmt.Sprintf("%q", content)),
-				Valid:      true,
-			},
+		_, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+			ChatID:              chatID,
+			CreatedBy:           []uuid.UUID{userID},
+			ModelConfigID:       []uuid.UUID{modelConfigID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+			Content:             []string{fmt.Sprintf("%q", content)},
+			InputTokens:         []int64{0},
+			OutputTokens:        []int64{0},
+			TotalTokens:         []int64{0},
+			ReasoningTokens:     []int64{0},
+			CacheCreationTokens: []int64{0},
+			CacheReadTokens:     []int64{0},
+			ContextLimit:        []int64{0},
+			Compressed:          []bool{false},
+			TotalCostMicros:     []int64{0},
+			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
 	}
@@ -9119,6 +9533,68 @@ func TestInsertChatMessage(t *testing.T) {
 		gotChat, err := store.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, modelConfigA.ID, gotChat.LastModelConfigID)
+	})
+
+	t.Run("BatchInsertMultipleMessages", func(t *testing.T) {
+		t.Parallel()
+
+		store, ctx, user, chat, _, modelConfigA := setupChat(t)
+
+		msgs, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+			ChatID:              chat.ID,
+			CreatedBy:           []uuid.UUID{user.ID, uuid.Nil, uuid.Nil},
+			ModelConfigID:       []uuid.UUID{modelConfigA.ID, modelConfigA.ID, modelConfigA.ID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleAssistant, database.ChatMessageRoleTool},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
+			Content:             []string{`"hello"`, `"response"`, `"tool result"`},
+			InputTokens:         []int64{10, 0, 0},
+			OutputTokens:        []int64{0, 20, 0},
+			TotalTokens:         []int64{10, 20, 0},
+			ReasoningTokens:     []int64{0, 5, 0},
+			CacheCreationTokens: []int64{0, 0, 0},
+			CacheReadTokens:     []int64{0, 0, 0},
+			ContextLimit:        []int64{0, 0, 0},
+			Compressed:          []bool{false, false, false},
+			TotalCostMicros:     []int64{0, 100, 0},
+			RuntimeMs:           []int64{0, 500, 0},
+		})
+		require.NoError(t, err)
+		require.Len(t, msgs, 3)
+
+		// Verify ordering and roles.
+		require.Equal(t, database.ChatMessageRoleUser, msgs[0].Role)
+		require.Equal(t, database.ChatMessageRoleAssistant, msgs[1].Role)
+		require.Equal(t, database.ChatMessageRoleTool, msgs[2].Role)
+
+		// Verify IDs are sequential.
+		require.Less(t, msgs[0].ID, msgs[1].ID)
+		require.Less(t, msgs[1].ID, msgs[2].ID)
+
+		// Verify nullable fields: user message has CreatedBy set.
+		require.True(t, msgs[0].CreatedBy.Valid)
+		require.Equal(t, user.ID, msgs[0].CreatedBy.UUID)
+		// Assistant and tool messages have NULL CreatedBy.
+		require.False(t, msgs[1].CreatedBy.Valid)
+		require.False(t, msgs[2].CreatedBy.Valid)
+
+		// Verify token fields stored as NULL when zero.
+		require.True(t, msgs[0].InputTokens.Valid)
+		require.Equal(t, int64(10), msgs[0].InputTokens.Int64)
+		require.False(t, msgs[0].OutputTokens.Valid) // 0 → NULL
+		require.True(t, msgs[1].OutputTokens.Valid)
+		require.Equal(t, int64(20), msgs[1].OutputTokens.Int64)
+
+		// Verify cost: assistant has cost, others NULL.
+		require.True(t, msgs[1].TotalCostMicros.Valid)
+		require.Equal(t, int64(100), msgs[1].TotalCostMicros.Int64)
+		require.False(t, msgs[0].TotalCostMicros.Valid)
+		require.False(t, msgs[2].TotalCostMicros.Valid)
+
+		// Verify runtime_ms on assistant message.
+		require.True(t, msgs[1].RuntimeMs.Valid)
+		require.Equal(t, int64(500), msgs[1].RuntimeMs.Int64)
+		require.False(t, msgs[0].RuntimeMs.Valid)
 	})
 }
 
@@ -9176,19 +9652,27 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 		content string,
 	) database.ChatMessage {
 		t.Helper()
-		msg, err := db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-			ChatID:         chatID,
-			Role:           role,
-			ContentVersion: chatprompt.CurrentContentVersion,
-			Visibility:     vis,
-			Compressed:     sql.NullBool{Bool: compressed, Valid: true},
-			Content: pqtype.NullRawMessage{
-				RawMessage: json.RawMessage(`"` + content + `"`),
-				Valid:      true,
-			},
+		results, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+			ChatID:              chatID,
+			CreatedBy:           []uuid.UUID{uuid.Nil},
+			ModelConfigID:       []uuid.UUID{uuid.Nil},
+			Role:                []database.ChatMessageRole{role},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+			Visibility:          []database.ChatMessageVisibility{vis},
+			Compressed:          []bool{compressed},
+			Content:             []string{`"` + content + `"`},
+			InputTokens:         []int64{0},
+			OutputTokens:        []int64{0},
+			TotalTokens:         []int64{0},
+			ReasoningTokens:     []int64{0},
+			CacheCreationTokens: []int64{0},
+			CacheReadTokens:     []int64{0},
+			ContextLimit:        []int64{0},
+			TotalCostMicros:     []int64{0},
+			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
-		return msg
+		return results[0]
 	}
 
 	msgIDs := func(msgs []database.ChatMessage) []int64 {
@@ -9439,5 +9923,523 @@ func TestGetWorkspaceBuildMetricsByResourceID(t *testing.T) {
 		// LastAgentReadyAt should be the parent's, not the sub-agent's.
 		require.True(t, parentReadyAt.Equal(row.LastAgentReadyAt))
 		require.Equal(t, "success", row.WorstStatus)
+	})
+}
+
+// TestUpsertAISeats verifies 'UpsertAISeatState' only returns true when a new
+// row is inserted.
+func TestUpsertAISeats(t *testing.T) {
+	t.Parallel()
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	now := dbtime.Now()
+
+	user := dbgen.User(t, db, database.User{})
+	newRow, err := db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
+		UserID:        user.ID,
+		FirstUsedAt:   now.Add(time.Hour * -24),
+		LastEventType: database.AiSeatUsageReasonTask,
+	})
+	require.NoError(t, err)
+	require.True(t, newRow)
+
+	alreadyExists, err := db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
+		UserID:        user.ID,
+		FirstUsedAt:   now.Add(time.Hour * -23),
+		LastEventType: database.AiSeatUsageReasonTask,
+	})
+	require.NoError(t, err)
+	require.False(t, alreadyExists)
+
+	alreadyExists, err = db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
+		UserID:        user.ID,
+		FirstUsedAt:   now,
+		LastEventType: database.AiSeatUsageReasonTask,
+	})
+	require.NoError(t, err)
+	require.False(t, alreadyExists)
+}
+
+func TestGetPRInsights(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	// setupChatInfra creates a fresh database with a user, chat provider,
+	// and model config. Returns the store, user ID, and model config ID.
+	setupChatInfra := func(t *testing.T) (database.Store, uuid.UUID, uuid.UUID) {
+		t.Helper()
+		store, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+		dbgen.Organization(t, store, database.Organization{})
+		user := dbgen.User(t, store, database.User{})
+
+		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+			Provider:    "anthropic",
+			DisplayName: "Anthropic",
+			APIKey:      "test-key",
+			Enabled:     true,
+		})
+		require.NoError(t, err)
+
+		mc, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+			Provider:             "anthropic",
+			Model:                "claude-4",
+			DisplayName:          "Claude 4",
+			CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+			Enabled:              true,
+			IsDefault:            true,
+			ContextLimit:         128000,
+			CompressionThreshold: 80,
+			Options:              json.RawMessage(`{}`),
+		})
+		require.NoError(t, err)
+
+		return store, user.ID, mc.ID
+	}
+
+	createChat := func(t *testing.T, store database.Store, userID, mcID uuid.UUID, title string) database.Chat {
+		t.Helper()
+		chat, err := store.InsertChat(context.Background(), database.InsertChatParams{
+			OwnerID:           userID,
+			LastModelConfigID: mcID,
+			Title:             title,
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	// insertCostMessage inserts a single assistant message with the
+	// given total_cost_micros value.
+	insertCostMessage := func(t *testing.T, store database.Store, chatID, userID, mcID uuid.UUID, costMicros int64) {
+		t.Helper()
+		_, err := store.InsertChatMessages(context.Background(), database.InsertChatMessagesParams{
+			ChatID:              chatID,
+			CreatedBy:           []uuid.UUID{userID},
+			ModelConfigID:       []uuid.UUID{mcID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+			Content:             []string{`[{"type":"text","text":"hello"}]`},
+			ContentVersion:      []int16{1},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+			InputTokens:         []int64{0},
+			OutputTokens:        []int64{0},
+			TotalTokens:         []int64{0},
+			ReasoningTokens:     []int64{0},
+			CacheCreationTokens: []int64{0},
+			CacheReadTokens:     []int64{0},
+			ContextLimit:        []int64{0},
+			Compressed:          []bool{false},
+			TotalCostMicros:     []int64{costMicros},
+			RuntimeMs:           []int64{0},
+		})
+		require.NoError(t, err)
+	}
+
+	// linkPR associates a chat with a pull request via
+	// UpsertChatDiffStatus.
+	linkPR := func(t *testing.T, store database.Store, chatID uuid.UUID, prURL, state, title string, additions, deletions, changed int32) {
+		t.Helper()
+		now := time.Now()
+		_, err := store.UpsertChatDiffStatus(context.Background(), database.UpsertChatDiffStatusParams{
+			ChatID:           chatID,
+			Url:              sql.NullString{String: prURL, Valid: true},
+			PullRequestState: sql.NullString{String: state, Valid: true},
+			PullRequestTitle: title,
+			Additions:        additions,
+			Deletions:        deletions,
+			ChangedFiles:     changed,
+			RefreshedAt:      now,
+			StaleAt:          now.Add(time.Hour),
+		})
+		require.NoError(t, err)
+	}
+
+	startDate := time.Now().Add(-24 * time.Hour)
+	endDate := time.Now().Add(time.Hour)
+	noOwner := uuid.NullUUID{}
+
+	t.Run("MultipleChatsSamePR_CostSummed", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		chatA := createChat(t, store, userID, mcID, "chat-A")
+		insertCostMessage(t, store, chatA.ID, userID, mcID, 5_000_000) // $5
+
+		chatB := createChat(t, store, userID, mcID, "chat-B")
+		insertCostMessage(t, store, chatB.ID, userID, mcID, 3_000_000) // $3
+
+		prURL := "https://github.com/org/repo/pull/123"
+		linkPR(t, store, chatA.ID, prURL, "merged", "fix: something", 100, 20, 5)
+		linkPR(t, store, chatB.ID, prURL, "merged", "fix: something", 100, 20, 5)
+
+		// Both chats reference the same PR. The pr_costs CTE sums
+		// cost across all chats for the same PR URL, so the total
+		// should be $5 + $3 = $8. The PR itself is counted once.
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), summary.TotalPrsCreated)
+		assert.Equal(t, int64(8_000_000), summary.TotalCostMicros)
+
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 1)
+		assert.Equal(t, int64(8_000_000), recent[0].CostMicros)
+	})
+
+	t.Run("DifferentPRs_NoDuplication", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		chatA := createChat(t, store, userID, mcID, "chat-A")
+		insertCostMessage(t, store, chatA.ID, userID, mcID, 5_000_000)
+		linkPR(t, store, chatA.ID, "https://github.com/org/repo/pull/1", "merged", "feat: A", 50, 10, 2)
+
+		chatB := createChat(t, store, userID, mcID, "chat-B")
+		insertCostMessage(t, store, chatB.ID, userID, mcID, 3_000_000)
+		linkPR(t, store, chatB.ID, "https://github.com/org/repo/pull/2", "open", "feat: B", 80, 30, 4)
+
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), summary.TotalPrsCreated)
+		assert.Equal(t, int64(8_000_000), summary.TotalCostMicros) // $5 + $3
+		assert.Equal(t, int64(1), summary.TotalPrsMerged)
+
+		// RecentPRs ordered by created_at DESC: chatB is newer.
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 2)
+		// Costs must not be mixed across different PRs.
+		assert.Equal(t, int64(3_000_000), recent[0].CostMicros) // PR 2 (newer)
+		assert.Equal(t, int64(5_000_000), recent[1].CostMicros) // PR 1 (older)
+	})
+
+	// createChildChat creates a chat with ParentChatID and RootChatID
+	// set, simulating a subagent/child chat in a tree.
+	createChildChat := func(t *testing.T, store database.Store, userID, mcID, parentID, rootID uuid.UUID, title string) database.Chat {
+		t.Helper()
+		chat, err := store.InsertChat(context.Background(), database.InsertChatParams{
+			OwnerID:           userID,
+			LastModelConfigID: mcID,
+			Title:             title,
+			ParentChatID:      uuid.NullUUID{UUID: parentID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: rootID, Valid: true},
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	t.Run("DuplicatePRUrl_CountedOnce", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		prURL := "https://github.com/org/repo/pull/99"
+		for i := 0; i < 3; i++ {
+			chat := createChat(t, store, userID, mcID, fmt.Sprintf("chat-%d", i))
+			insertCostMessage(t, store, chat.ID, userID, mcID, 1_000_000)
+			linkPR(t, store, chat.ID, prURL, "merged", "fix: same PR", 40, 10, 3)
+		}
+
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), summary.TotalPrsCreated)
+		assert.Equal(t, int64(1), summary.TotalPrsMerged)
+
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 1)
+	})
+
+	t.Run("ChildChatCostsIncluded", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		// Parent chat with a $5 cost.
+		parent := createChat(t, store, userID, mcID, "parent-chat")
+		insertCostMessage(t, store, parent.ID, userID, mcID, 5_000_000)
+
+		// Two child chats (subagents) with $2 each. Only the parent
+		// has a chat_diff_statuses entry, but the children's costs
+		// should be included via the tree join.
+		child1 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-1")
+		insertCostMessage(t, store, child1.ID, userID, mcID, 2_000_000)
+
+		child2 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-2")
+		insertCostMessage(t, store, child2.ID, userID, mcID, 2_000_000)
+
+		prURL := "https://github.com/org/repo/pull/42"
+		linkPR(t, store, parent.ID, prURL, "merged", "feat: tree cost", 60, 15, 3)
+
+		// Summary should reflect $5 + $2 + $2 = $9 total.
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), summary.TotalPrsCreated)
+		assert.Equal(t, int64(1), summary.TotalPrsMerged)
+		assert.Equal(t, int64(9_000_000), summary.TotalCostMicros)
+
+		// RecentPRs should return 1 row with the full tree cost.
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 1)
+		assert.Equal(t, int64(9_000_000), recent[0].CostMicros)
+	})
+
+	t.Run("SiblingPRs_NoCrossContamination", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		// Parent chat with $10 orchestration cost.
+		parent := createChat(t, store, userID, mcID, "parent")
+		insertCostMessage(t, store, parent.ID, userID, mcID, 10_000_000)
+
+		// Child C1 ($5) creates PR1.
+		c1 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-1")
+		insertCostMessage(t, store, c1.ID, userID, mcID, 5_000_000)
+		linkPR(t, store, c1.ID, "https://github.com/org/repo/pull/10", "merged", "feat: PR1", 50, 10, 2)
+
+		// Child C2 ($3) creates PR2.
+		c2 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-2")
+		insertCostMessage(t, store, c2.ID, userID, mcID, 3_000_000)
+		linkPR(t, store, c2.ID, "https://github.com/org/repo/pull/11", "open", "feat: PR2", 30, 5, 1)
+
+		// With direct-branch attribution:
+		//   PR1 cost = C1's own cost = $5 (parent NOT included — only children of C1)
+		//   PR2 cost = C2's own cost = $3
+		//   Total = $8 (no double-counting of parent or siblings)
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), summary.TotalPrsCreated)
+		assert.Equal(t, int64(8_000_000), summary.TotalCostMicros)
+
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 2)
+		// PR2 (newer) = $3, PR1 (older) = $5.
+		assert.Equal(t, int64(3_000_000), recent[0].CostMicros)
+		assert.Equal(t, int64(5_000_000), recent[1].CostMicros)
+	})
+
+	t.Run("ParentAndChildDifferentPRs_NoCrossContamination", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		// Parent P ($10) creates PR1.
+		parent := createChat(t, store, userID, mcID, "parent")
+		insertCostMessage(t, store, parent.ID, userID, mcID, 10_000_000)
+		linkPR(t, store, parent.ID, "https://github.com/org/repo/pull/20", "merged", "feat: parent PR", 80, 20, 4)
+
+		// Child C1 ($5) has its own PR2. Because C1 has its own
+		// chat_diff_statuses entry, its cost should NOT be included
+		// under PR1 — it belongs to PR2 only.
+		c1 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-1")
+		insertCostMessage(t, store, c1.ID, userID, mcID, 5_000_000)
+		linkPR(t, store, c1.ID, "https://github.com/org/repo/pull/21", "open", "feat: child PR", 30, 5, 1)
+
+		// Child C2 ($2) has NO cds entry — pure subagent.
+		// Its cost should be included under PR1 (the parent's PR).
+		c2 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-2")
+		insertCostMessage(t, store, c2.ID, userID, mcID, 2_000_000)
+
+		// PR1 cost = parent ($10) + C2 ($2) = $12 (C1 excluded)
+		// PR2 cost = C1 ($5)
+		// Total = $17 (actual spend: $10 + $5 + $2 = $17)
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), summary.TotalPrsCreated)
+		assert.Equal(t, int64(17_000_000), summary.TotalCostMicros)
+
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 2)
+		// PR2/C1 (newer) = $5, PR1/parent (older) = $12.
+		assert.Equal(t, int64(5_000_000), recent[0].CostMicros)
+		assert.Equal(t, int64(12_000_000), recent[1].CostMicros)
+	})
+
+	t.Run("EmptyURLNotCollapsed", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		// Two chats with empty-string URLs should be treated as
+		// separate PRs (NULLIF converts '' to NULL, falling back
+		// to c.id::text).
+		chatX := createChat(t, store, userID, mcID, "chat-X")
+		insertCostMessage(t, store, chatX.ID, userID, mcID, 4_000_000)
+		linkPR(t, store, chatX.ID, "", "open", "draft: X", 10, 2, 1)
+
+		chatY := createChat(t, store, userID, mcID, "chat-Y")
+		insertCostMessage(t, store, chatY.ID, userID, mcID, 6_000_000)
+		linkPR(t, store, chatY.ID, "", "merged", "draft: Y", 20, 5, 2)
+
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), summary.TotalPrsCreated)
+		assert.Equal(t, int64(10_000_000), summary.TotalCostMicros)
+
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 2)
+	})
+
+	t.Run("ParentAndChildSameURL_DedupedWithCombinedCost", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		// Parent P ($10) links to a PR.
+		parent := createChat(t, store, userID, mcID, "parent")
+		insertCostMessage(t, store, parent.ID, userID, mcID, 10_000_000)
+
+		// Child C ($5) also links to the same PR URL.
+		child := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child")
+		insertCostMessage(t, store, child.ID, userID, mcID, 5_000_000)
+
+		prURL := "https://github.com/org/repo/pull/50"
+		linkPR(t, store, parent.ID, prURL, "merged", "feat: shared PR", 70, 15, 3)
+		linkPR(t, store, child.ID, prURL, "merged", "feat: shared PR", 70, 15, 3)
+
+		// Both parent and child have cds entries for the same URL.
+		// The PR should be counted once with combined cost $10 + $5 = $15.
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), summary.TotalPrsCreated)
+		assert.Equal(t, int64(15_000_000), summary.TotalCostMicros)
+
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 1)
+		assert.Equal(t, int64(15_000_000), recent[0].CostMicros)
+	})
+
+	t.Run("ZeroCostChat_StillCounted", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		// A chat linked to a PR but with NO chat_messages at all.
+		// The PR should still appear with zero cost.
+		chat := createChat(t, store, userID, mcID, "zero-cost-chat")
+		linkPR(t, store, chat.ID, "https://github.com/org/repo/pull/60", "open", "feat: no messages", 25, 5, 2)
+
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), summary.TotalPrsCreated)
+		assert.Equal(t, int64(0), summary.TotalCostMicros)
+
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 1)
+		assert.Equal(t, int64(0), recent[0].CostMicros)
+	})
+
+	t.Run("MergedCostMicros_OnlyCountsMerged", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		// Merged PR with $5 cost.
+		chatMerged := createChat(t, store, userID, mcID, "chat-merged")
+		insertCostMessage(t, store, chatMerged.ID, userID, mcID, 5_000_000)
+		linkPR(t, store, chatMerged.ID, "https://github.com/org/repo/pull/70", "merged", "fix: merged", 40, 10, 2)
+
+		// Open PR with $3 cost.
+		chatOpen := createChat(t, store, userID, mcID, "chat-open")
+		insertCostMessage(t, store, chatOpen.ID, userID, mcID, 3_000_000)
+		linkPR(t, store, chatOpen.ID, "https://github.com/org/repo/pull/71", "open", "feat: open", 20, 5, 1)
+
+		// TotalCostMicros includes both ($5 + $3 = $8), but
+		// MergedCostMicros only includes the merged PR ($5).
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(8_000_000), summary.TotalCostMicros)
+		assert.Equal(t, int64(5_000_000), summary.MergedCostMicros)
 	})
 }

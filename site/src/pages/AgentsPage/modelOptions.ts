@@ -1,44 +1,82 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { asNumber, asString } from "components/ai-elements/runtimeTypeUtils";
 
-type CatalogProvider = TypesGen.ChatModelsResponse["providers"][number];
+type RuntimeModelRef = {
+	readonly provider?: unknown;
+	readonly model?: unknown;
+};
+
+type ModelRefLike =
+	| Pick<TypesGen.ChatModel, "provider" | "model">
+	| Pick<TypesGen.ChatModelConfig, "provider" | "model">
+	| RuntimeModelRef;
+
+type CatalogModelLike =
+	| TypesGen.ChatModel
+	| (RuntimeModelRef & {
+			readonly id?: unknown;
+			readonly display_name?: unknown;
+	  });
+
+type CatalogProviderLike = Omit<TypesGen.ChatModelProvider, "models"> & {
+	readonly models?: readonly CatalogModelLike[];
+};
+
+type ModelCatalogLike = {
+	readonly providers?: readonly CatalogProviderLike[];
+};
+
+type ChatModelConfigLike =
+	| Pick<TypesGen.ChatModelConfig, "provider" | "model" | "context_limit">
+	| (RuntimeModelRef & Pick<TypesGen.ChatModelConfig, "context_limit">);
+
+export const getNormalizedModelRef = (
+	value: ModelRefLike,
+): { readonly provider: string; readonly model: string } => {
+	const modelRef = value ?? {};
+	return {
+		provider: asString(modelRef.provider).trim().toLowerCase(),
+		model: asString(modelRef.model).trim(),
+	};
+};
 
 const getCatalogProviders = (
-	catalog: TypesGen.ChatModelsResponse | null | undefined,
-): readonly CatalogProvider[] => {
+	catalog: ModelCatalogLike | null | undefined,
+): readonly CatalogProviderLike[] => {
 	const providers = catalog?.providers;
 	return Array.isArray(providers) ? providers : [];
 };
 
 const getProviderModels = (
-	provider: CatalogProvider,
-): readonly CatalogProvider["models"][number][] => {
+	provider: CatalogProviderLike,
+): readonly CatalogModelLike[] => {
 	const models = provider.models;
 	return Array.isArray(models) ? models : [];
 };
 
-const isProviderConfiguredInCatalog = (provider: CatalogProvider): boolean => {
+const isProviderConfiguredInCatalog = (
+	provider: CatalogProviderLike,
+): boolean => {
 	if (getProviderModels(provider).length > 0) {
 		return true;
 	}
-	if (provider.available) {
+	if (provider.available === true) {
 		return true;
 	}
-	return (
-		Boolean(provider.unavailable_reason) &&
-		provider.unavailable_reason !== "missing_api_key"
-	);
+	const unavailableReason = asString(provider.unavailable_reason).trim();
+	return unavailableReason !== "" && unavailableReason !== "missing_api_key";
 };
 
 export const hasConfiguredModelsInCatalog = (
-	catalog: TypesGen.ChatModelsResponse | null | undefined,
+	catalog: ModelCatalogLike | null | undefined,
 ): boolean => {
 	return getCatalogProviders(catalog).some(isProviderConfiguredInCatalog);
 };
 
 export const getModelOptionsFromCatalog = (
-	catalog: TypesGen.ChatModelsResponse | null | undefined,
-	configs?: readonly TypesGen.ChatModelConfig[],
+	catalog: ModelCatalogLike | null | undefined,
+	configs?: readonly ChatModelConfigLike[],
 ): readonly ModelSelectorOption[] => {
 	const optionsByID = new Map<string, ModelSelectorOption>();
 
@@ -47,18 +85,24 @@ export const getModelOptionsFromCatalog = (
 	const contextLimitByKey = new Map<string, number>();
 	if (configs) {
 		for (const config of configs) {
-			if (config.context_limit > 0) {
-				const key = `${config.provider.trim().toLowerCase()}:${config.model.trim()}`;
-				if (!contextLimitByKey.has(key)) {
-					contextLimitByKey.set(key, config.context_limit);
-				}
+			const contextLimit = asNumber(config.context_limit);
+			if (contextLimit === undefined || contextLimit <= 0) {
+				continue;
+			}
+			const { provider, model } = getNormalizedModelRef(config);
+			if (!provider || !model) {
+				continue;
+			}
+			const key = `${provider}:${model}`;
+			if (!contextLimitByKey.has(key)) {
+				contextLimitByKey.set(key, contextLimit);
 			}
 		}
 	}
 
 	for (const provider of getCatalogProviders(catalog)) {
 		const models = getProviderModels(provider);
-		if (!provider.available || models.length === 0) {
+		if (provider.available !== true || models.length === 0) {
 			continue;
 		}
 		for (const model of models) {
@@ -66,9 +110,9 @@ export const getModelOptionsFromCatalog = (
 				continue;
 			}
 
-			const modelID = model.id.trim();
-			const modelProvider = model.provider.trim();
-			const modelRef = model.model.trim();
+			const modelID = asString(model.id).trim();
+			const { provider: modelProvider, model: modelRef } =
+				getNormalizedModelRef(model);
 			if (!modelID || !modelProvider || !modelRef) {
 				continue;
 			}
@@ -82,10 +126,7 @@ export const getModelOptionsFromCatalog = (
 				id: modelID,
 				provider: modelProvider,
 				model: modelRef,
-				displayName:
-					(typeof model.display_name === "string" &&
-						model.display_name.trim()) ||
-					modelRef,
+				displayName: asString(model.display_name).trim() || modelRef,
 				contextLimit: contextLimitByKey.get(configKey),
 			});
 		}

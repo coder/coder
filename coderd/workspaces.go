@@ -2487,7 +2487,11 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
-		httpapi.InternalServerError(rw, err)
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+		} else {
+			httpapi.InternalServerError(rw, err)
+		}
 		return
 	}
 
@@ -2566,7 +2570,7 @@ func (api *API) allowWorkspaceSharing(ctx context.Context, rw http.ResponseWrite
 		httpapi.InternalServerError(rw, err)
 		return false
 	}
-	if org.WorkspaceSharingDisabled {
+	if org.ShareableWorkspaceOwners == database.ShareableWorkspaceOwnersNone {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Workspace sharing is disabled for this organization.",
 		})

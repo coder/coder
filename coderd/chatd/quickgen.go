@@ -62,6 +62,7 @@ func (p *Server) maybeGenerateChatTitle(
 	messages []database.ChatMessage,
 	fallbackModel fantasy.LanguageModel,
 	keys chatprovider.ProviderAPIKeys,
+	generatedTitle *generatedChatTitle,
 	logger slog.Logger,
 ) {
 	input, ok := titleInput(chat, messages)
@@ -111,6 +112,7 @@ func (p *Server) maybeGenerateChatTitle(
 			return
 		}
 		chat.Title = title
+		generatedTitle.Store(title)
 		p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindTitleChange, nil)
 		return
 	}

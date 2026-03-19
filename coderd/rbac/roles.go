@@ -29,6 +29,7 @@ const (
 
 	orgAdmin                string = "organization-admin"
 	orgMember               string = "organization-member"
+	orgServiceAccount       string = "organization-service-account"
 	orgAuditor              string = "organization-auditor"
 	orgUserAdmin            string = "organization-user-admin"
 	orgTemplateAdmin        string = "organization-template-admin"
@@ -150,6 +151,10 @@ func RoleOrgMember() string {
 	return orgMember
 }
 
+func RoleOrgServiceAccount() string {
+	return orgServiceAccount
+}
+
 func RoleOrgAuditor() string {
 	return orgAuditor
 }
@@ -229,31 +234,16 @@ func allPermsExcept(excepts ...Objecter) []Permission {
 // https://github.com/coder/coder/issues/1194
 var builtInRoles map[string]func(orgID uuid.UUID) Role
 
-// systemRoles are roles that have migrated from builtInRoles to
-// database storage. This migration is partial - permissions are still
-// generated at runtime and reconciled to the database, rather than
-// the database being the source of truth.
-var systemRoles = map[string]struct{}{
-	RoleOrgMember(): {},
-}
-
-func SystemRoleName(name string) bool {
-	_, ok := systemRoles[name]
-	return ok
-}
-
 type RoleOptions struct {
 	NoOwnerWorkspaceExec bool
 	NoWorkspaceSharing   bool
 }
 
 // ReservedRoleName exists because the database should only allow unique role
-// names, but some roles are built in or generated at runtime. So these names
-// are reserved
+// names, but some roles are built in. So these names are reserved
 func ReservedRoleName(name string) bool {
-	_, isBuiltIn := builtInRoles[name]
-	_, isSystem := systemRoles[name]
-	return isBuiltIn || isSystem
+	_, ok := builtInRoles[name]
+	return ok
 }
 
 // ReloadBuiltinRoles loads the static roles into the builtInRoles map.
@@ -938,21 +928,32 @@ func PermissionsEqual(a, b []Permission) bool {
 	return len(setA) == len(setB)
 }
 
+// OrgSettings carries organization-level settings that affect system
+// role permissions. It lives in the rbac package to avoid a cyclic
+// dependency with the database package. Callers in rolestore map
+// database.Organization fields onto this struct.
+type OrgSettings struct {
+	ShareableWorkspaceOwners ShareableWorkspaceOwners
+}
+type ShareableWorkspaceOwners string
+
+const (
+	ShareableWorkspaceOwnersNone            ShareableWorkspaceOwners = "none"
+	ShareableWorkspaceOwnersEveryone        ShareableWorkspaceOwners = "everyone"
+	ShareableWorkspaceOwnersServiceAccounts ShareableWorkspaceOwners = "service_accounts"
+)
+
+// OrgRolePermissions holds the two permission sets that make up a
+// system role: org-wide permissions and member-scoped permissions.
+type OrgRolePermissions struct {
+	Org    []Permission
+	Member []Permission
+}
+
 // OrgMemberPermissions returns the permissions for the organization-member
-// system role. The results are then stored in the database and can vary per
-// organization based on the workspace_sharing_disabled setting.
-// This is the source of truth for org-member permissions, used by:
-//   - the startup reconciliation routine, to keep permissions current with
-//     RBAC resources
-//   - the organization workspace sharing setting endpoint, when updating
-//     the setting
-//   - the org creation endpoint, when populating the organization-member
-//     system role created by the DB trigger
-//
-//nolint:revive // workspaceSharingDisabled is an org setting
-func OrgMemberPermissions(workspaceSharingDisabled bool) (
-	orgPerms, memberPerms []Permission,
-) {
+// system role, which can vary based on the organization's workspace sharing
+// settings.
+func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 	// Organization-level permissions that all org members get.
 	orgPermMap := map[string][]policy.Action{
 		// All users can see provisioner daemons for workspace creation.
@@ -963,18 +964,35 @@ func OrgMemberPermissions(workspaceSharingDisabled bool) (
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
 	}
 
-	// When workspace sharing is enabled, members need to see other org members
-	// and groups to share workspaces with them.
-	if !workspaceSharingDisabled {
+	// In all modes of workspace sharing but `none`, members need to
+	// see other org members (including service accounts) to either
+	// share with them or get access to their shared workspaces,
+	// resolved through GET /users/{user}/workspace/{workspace}
+	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersNone {
 		orgPermMap[ResourceOrganizationMember.Type] = []policy.Action{policy.ActionRead}
+	}
+
+	// When workspace sharing is open to members, they also need to
+	// see org groups to share with them.
+	if org.ShareableWorkspaceOwners == ShareableWorkspaceOwnersEveryone {
 		orgPermMap[ResourceGroup.Type] = []policy.Action{policy.ActionRead}
 	}
 
-	orgPerms = Permissions(orgPermMap)
+	orgPerms := Permissions(orgPermMap)
 
-	// Member-scoped permissions (resources owned by the member).
+	if org.ShareableWorkspaceOwners == ShareableWorkspaceOwnersNone {
+		// Org-level negation blocks sharing on ANY workspace in the
+		// org. This overrides any positive permission from other
+		// roles, including org-admin.
+		orgPerms = append(orgPerms, Permission{
+			Negate:       true,
+			ResourceType: ResourceWorkspace.Type,
+			Action:       policy.ActionShare,
+		})
+	}
+
 	// Uses allPermsExcept to automatically include permissions for new resources.
-	memberPerms = append(
+	memberPerms := append(
 		allPermsExcept(
 			ResourceWorkspaceDormant,
 			ResourcePrebuiltWorkspace,
@@ -998,24 +1016,47 @@ func OrgMemberPermissions(workspaceSharingDisabled bool) (
 			ResourceOrganizationMember.Type: {
 				policy.ActionRead,
 			},
-			// Users can create provisioner daemons scoped to themselves.
-			//
-			// TODO(geokat): copied from the original built-in role
-			// verbatim, but seems to be a no-op (not excepted above;
-			// plus no owner is set for the ProvisionerDaemon RBAC
-			// object).
-			ResourceProvisionerDaemon.Type: {
-				policy.ActionRead,
-				policy.ActionCreate,
-				policy.ActionUpdate,
-			},
 		})...,
 	)
 
-	if workspaceSharingDisabled {
+	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {
+		memberPerms = append(memberPerms, Permission{
+			Negate:       true,
+			ResourceType: ResourceWorkspace.Type,
+			Action:       policy.ActionShare,
+		})
+	}
+
+	return OrgRolePermissions{Org: orgPerms, Member: memberPerms}
+}
+
+// OrgServiceAccountPermissions returns the permissions for the
+// organization-service-account system role, which can vary based on
+// the organization's workspace sharing settings.
+func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
+	// Organization-level permissions that all org service accounts get.
+	orgPermMap := map[string][]policy.Action{
+		// All users can see provisioner daemons for workspace creation.
+		ResourceProvisionerDaemon.Type: {policy.ActionRead},
+		// All org members can read the organization.
+		ResourceOrganization.Type: {policy.ActionRead},
+		// Can read available roles.
+		ResourceAssignOrgRole.Type: {policy.ActionRead},
+	}
+
+	// When workspace sharing is enabled, service accounts need to see
+	// other org members and groups to share workspaces with them.
+	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersNone {
+		orgPermMap[ResourceOrganizationMember.Type] = []policy.Action{policy.ActionRead}
+		orgPermMap[ResourceGroup.Type] = []policy.Action{policy.ActionRead}
+	}
+
+	orgPerms := Permissions(orgPermMap)
+
+	if org.ShareableWorkspaceOwners == ShareableWorkspaceOwnersNone {
 		// Org-level negation blocks sharing on ANY workspace in the
-		// org.  This overrides any positive permission from other
-		// roles, including org-admin.
+		// org. If a service account has any other roles assigned,
+		// this negation will override any positive perms in them, too.
 		orgPerms = append(orgPerms, Permission{
 			Negate:       true,
 			ResourceType: ResourceWorkspace.Type,
@@ -1023,5 +1064,35 @@ func OrgMemberPermissions(workspaceSharingDisabled bool) (
 		})
 	}
 
-	return orgPerms, memberPerms
+	// service account-scoped permissions (resources owned by the
+	// service account).  Uses allPermsExcept to automatically include
+	// permissions for new resources.
+	memberPerms := append(
+		allPermsExcept(
+			ResourceWorkspaceDormant,
+			ResourcePrebuiltWorkspace,
+			ResourceUser,
+			ResourceOrganizationMember,
+		),
+		Permissions(map[string][]policy.Action{
+			// Reduced permission set on dormant workspaces. No build,
+			// ssh, or exec.
+			ResourceWorkspaceDormant.Type: {
+				policy.ActionRead,
+				policy.ActionDelete,
+				policy.ActionCreate,
+				policy.ActionUpdate,
+				policy.ActionWorkspaceStop,
+				policy.ActionCreateAgent,
+				policy.ActionDeleteAgent,
+				policy.ActionUpdateAgent,
+			},
+			// Can read their own organization member record.
+			ResourceOrganizationMember.Type: {
+				policy.ActionRead,
+			},
+		})...,
+	)
+
+	return OrgRolePermissions{Org: orgPerms, Member: memberPerms}
 }

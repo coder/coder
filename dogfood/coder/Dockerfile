@@ -214,7 +214,11 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 # Install Google Chrome directly from Google. Ubuntu 22.04 ships
 # chromium-browser as a snap-only package, which does not work in
 # Docker containers.
-RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+# configure-chrome-flags.sh is automatically run after dpkg operations
+# by dogfood/coder/files/etc/apt/apt.conf.d/99-chrome-flags.
+COPY configure-chrome-flags.sh /usr/local/bin/configure-chrome-flags.sh
+RUN chmod a+x /usr/local/bin/configure-chrome-flags.sh && \
+	wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
 	apt-get install --yes ./google-chrome-stable_current_amd64.deb && \
 	rm google-chrome-stable_current_amd64.deb
 

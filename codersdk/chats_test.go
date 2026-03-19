@@ -1,8 +1,15 @@
 package codersdk_test
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -53,6 +60,81 @@ func TestChatModelProviderOptions_UnmarshalJSON_ParsesPlainProviderPayloads(t *t
 		"high",
 		*decoded.Anthropic.Effort,
 	)
+}
+
+func TestChatUsageLimitExceededFrom(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ExtractsTyped409", func(t *testing.T) {
+		t.Parallel()
+
+		want := codersdk.ChatUsageLimitExceededResponse{
+			Response:    codersdk.Response{Message: "Chat usage limit exceeded."},
+			SpentMicros: 123,
+			LimitMicros: 456,
+			ResetsAt:    time.Date(2026, time.March, 16, 12, 0, 0, 0, time.UTC),
+		}
+
+		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodPost, r.Method)
+			require.Equal(t, "/api/experimental/chats", r.URL.Path)
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(http.StatusConflict)
+			require.NoError(t, json.NewEncoder(rw).Encode(want))
+		}))
+		defer srv.Close()
+
+		serverURL, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		client := codersdk.New(serverURL)
+		_, err = client.CreateChat(context.Background(), codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
+		})
+		require.Error(t, err)
+
+		sdkErr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+		require.Equal(t, want.Message, sdkErr.Message)
+
+		limitErr := codersdk.ChatUsageLimitExceededFrom(err)
+		require.NotNil(t, limitErr)
+		require.Equal(t, want, *limitErr)
+	})
+
+	t.Run("ReturnsNilForNonLimitErrors", func(t *testing.T) {
+		t.Parallel()
+
+		require.Nil(t, codersdk.ChatUsageLimitExceededFrom(codersdk.NewError(http.StatusConflict, codersdk.Response{Message: "plain conflict"})))
+
+		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(http.StatusBadRequest)
+			require.NoError(t, json.NewEncoder(rw).Encode(codersdk.Response{Message: "Invalid request."}))
+		}))
+		defer srv.Close()
+
+		serverURL, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		client := codersdk.New(serverURL)
+		_, err = client.CreateChat(context.Background(), codersdk.CreateChatRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello",
+			}},
+		})
+		require.Error(t, err)
+
+		sdkErr, ok := codersdk.AsError(err)
+		require.True(t, ok)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Nil(t, codersdk.ChatUsageLimitExceededFrom(err))
+	})
 }
 
 func TestChatMessagePart_StripInternal(t *testing.T) {
@@ -108,6 +190,114 @@ func TestChatMessagePart_StripInternal(t *testing.T) {
 		part.StripInternal()
 		assert.Equal(t, "hello", part.Text)
 		assert.Equal(t, codersdk.ChatMessagePartTypeText, part.Type)
+	})
+}
+
+// TestChatMessagePartVariantTags validates the `variants` struct tags
+// on ChatMessagePart fields. Every field must either declare variant
+// membership or be explicitly excluded, and every known part type
+// must appear in at least one tag.
+//
+// If this test fails, edit the variants struct tags on ChatMessagePart
+// in codersdk/chats.go.
+func TestChatMessagePartVariantTags(t *testing.T) {
+	t.Parallel()
+
+	const editHint = "edit the variants struct tags on ChatMessagePart in codersdk/chats.go"
+
+	// Fields intentionally excluded from all generated variants.
+	// If you add a new field to ChatMessagePart, either add a
+	// variants tag or add it here with a comment explaining why.
+	excludedFields := map[string]string{
+		"type":              "discriminant, added automatically by codegen",
+		"signature":         "added in #22290, never populated by any code path",
+		"result_delta":      "added in #22290, never populated by any code path",
+		"provider_metadata": "internal only, stripped by db2sdk before API responses",
+	}
+
+	knownTypes := make(map[codersdk.ChatMessagePartType]bool)
+	for _, pt := range codersdk.AllChatMessagePartTypes() {
+		knownTypes[pt] = true
+	}
+
+	// Parse all variants tags from the struct and validate them.
+	typ := reflect.TypeOf(codersdk.ChatMessagePart{})
+	coveredTypes := make(map[codersdk.ChatMessagePartType]bool)
+
+	for i := range typ.NumField() {
+		f := typ.Field(i)
+		jsonTag := f.Tag.Get("json")
+		if jsonTag == "" || jsonTag == "-" {
+			continue
+		}
+		jsonName, _, _ := strings.Cut(jsonTag, ",")
+
+		varTag := f.Tag.Get("variants")
+		if varTag == "" {
+			assert.Contains(t, excludedFields, jsonName,
+				"field %s (json:%q) has no variants tag and is not in excludedFields; %s",
+				f.Name, jsonName, editHint)
+			continue
+		}
+
+		assert.NotEqual(t, "type", jsonName,
+			"the discriminant field must not have a variants tag; %s", editHint)
+
+		for _, entry := range strings.Split(varTag, ",") {
+			typeLit := codersdk.ChatMessagePartType(strings.TrimSuffix(entry, "?"))
+
+			assert.True(t, knownTypes[typeLit],
+				"field %s variants tag references unknown type %q; %s",
+				f.Name, typeLit, editHint)
+
+			coveredTypes[typeLit] = true
+		}
+	}
+
+	// Every known type must appear in at least one variants tag.
+	for pt := range knownTypes {
+		assert.True(t, coveredTypes[pt],
+			"ChatMessagePartType %q is not referenced by any variants tag; %s", pt, editHint)
+	}
+
+	// Enforce the omitempty <-> variants invariant:
+	//   required in any variant  => must NOT have omitempty
+	//   optional in all variants => MUST have omitempty
+	// See the struct comment on ChatMessagePart for rationale.
+	t.Run("omitempty must match variant optionality", func(t *testing.T) {
+		t.Parallel()
+
+		typ := reflect.TypeOf(codersdk.ChatMessagePart{})
+		for i := range typ.NumField() {
+			f := typ.Field(i)
+			varTag := f.Tag.Get("variants")
+			if varTag == "" {
+				continue
+			}
+
+			allOptional := true
+			for _, entry := range strings.Split(varTag, ",") {
+				if !strings.HasSuffix(entry, "?") {
+					allOptional = false
+					break
+				}
+			}
+
+			jsonTag := f.Tag.Get("json")
+			hasOmitEmpty := strings.Contains(jsonTag, "omitempty")
+
+			if !allOptional {
+				assert.False(t, hasOmitEmpty,
+					"field %s is required in at least one variant but has omitempty in its json tag; "+
+						"remove omitempty so Go does not silently drop the zero value that TypeScript expects to always be present",
+					f.Name)
+			} else {
+				assert.True(t, hasOmitEmpty,
+					"field %s is optional in all variants but is missing omitempty in its json tag; "+
+						"add omitempty to avoid sending zero values for fields the frontend does not expect",
+					f.Name)
+			}
+		}
 	})
 }
 

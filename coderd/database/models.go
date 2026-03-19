@@ -3027,6 +3027,7 @@ const (
 	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
 	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
 	ResourceTypeTask                        ResourceType = "task"
+	ResourceTypeAiSeat                      ResourceType = "ai_seat"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3091,7 +3092,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeWorkspaceAgent,
 		ResourceTypeWorkspaceApp,
 		ResourceTypePrebuildsSettings,
-		ResourceTypeTask:
+		ResourceTypeTask,
+		ResourceTypeAiSeat:
 		return true
 	}
 	return false
@@ -3125,6 +3127,68 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeWorkspaceApp,
 		ResourceTypePrebuildsSettings,
 		ResourceTypeTask,
+		ResourceTypeAiSeat,
+	}
+}
+
+type ShareableWorkspaceOwners string
+
+const (
+	ShareableWorkspaceOwnersNone            ShareableWorkspaceOwners = "none"
+	ShareableWorkspaceOwnersEveryone        ShareableWorkspaceOwners = "everyone"
+	ShareableWorkspaceOwnersServiceAccounts ShareableWorkspaceOwners = "service_accounts"
+)
+
+func (e *ShareableWorkspaceOwners) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ShareableWorkspaceOwners(s)
+	case string:
+		*e = ShareableWorkspaceOwners(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ShareableWorkspaceOwners: %T", src)
+	}
+	return nil
+}
+
+type NullShareableWorkspaceOwners struct {
+	ShareableWorkspaceOwners ShareableWorkspaceOwners `json:"shareable_workspace_owners"`
+	Valid                    bool                     `json:"valid"` // Valid is true if ShareableWorkspaceOwners is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullShareableWorkspaceOwners) Scan(value interface{}) error {
+	if value == nil {
+		ns.ShareableWorkspaceOwners, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ShareableWorkspaceOwners.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullShareableWorkspaceOwners) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ShareableWorkspaceOwners), nil
+}
+
+func (e ShareableWorkspaceOwners) Valid() bool {
+	switch e {
+	case ShareableWorkspaceOwnersNone,
+		ShareableWorkspaceOwnersEveryone,
+		ShareableWorkspaceOwnersServiceAccounts:
+		return true
+	}
+	return false
+}
+
+func AllShareableWorkspaceOwnersValues() []ShareableWorkspaceOwners {
+	return []ShareableWorkspaceOwners{
+		ShareableWorkspaceOwnersNone,
+		ShareableWorkspaceOwnersEveryone,
+		ShareableWorkspaceOwnersServiceAccounts,
 	}
 }
 
@@ -3974,6 +4038,14 @@ type AIBridgeInterception struct {
 	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
 }
 
+// Audit log of model thinking in intercepted requests in AI Bridge
+type AIBridgeModelThought struct {
+	InterceptionID uuid.UUID             `db:"interception_id" json:"interception_id"`
+	Content        string                `db:"content" json:"content"`
+	Metadata       pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	CreatedAt      time.Time             `db:"created_at" json:"created_at"`
+}
+
 // Audit log of tokens used by intercepted requests in AI Bridge
 type AIBridgeTokenUsage struct {
 	ID             uuid.UUID `db:"id" json:"id"`
@@ -4152,6 +4224,8 @@ type ChatMessage struct {
 	CreatedBy           uuid.NullUUID         `db:"created_by" json:"created_by"`
 	ContentVersion      int16                 `db:"content_version" json:"content_version"`
 	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
+	RuntimeMs           sql.NullInt64         `db:"runtime_ms" json:"runtime_ms"`
+	Deleted             bool                  `db:"deleted" json:"deleted"`
 }
 
 type ChatModelConfig struct {
@@ -4191,6 +4265,16 @@ type ChatQueuedMessage struct {
 	ChatID    uuid.UUID       `db:"chat_id" json:"chat_id"`
 	Content   json.RawMessage `db:"content" json:"content"`
 	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+}
+
+type ChatUsageLimitConfig struct {
+	ID                 int64     `db:"id" json:"id"`
+	Singleton          bool      `db:"singleton" json:"singleton"`
+	Enabled            bool      `db:"enabled" json:"enabled"`
+	DefaultLimitMicros int64     `db:"default_limit_micros" json:"default_limit_micros"`
+	Period             string    `db:"period" json:"period"`
+	CreatedAt          time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type ConnectionLog struct {
@@ -4305,7 +4389,8 @@ type Group struct {
 	// Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.
 	DisplayName string `db:"display_name" json:"display_name"`
 	// Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.
-	Source GroupSource `db:"source" json:"source"`
+	Source               GroupSource   `db:"source" json:"source"`
+	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 }
 
 // Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).
@@ -4513,16 +4598,17 @@ type OAuth2ProviderAppToken struct {
 }
 
 type Organization struct {
-	ID                       uuid.UUID `db:"id" json:"id"`
-	Name                     string    `db:"name" json:"name"`
-	Description              string    `db:"description" json:"description"`
-	CreatedAt                time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt                time.Time `db:"updated_at" json:"updated_at"`
-	IsDefault                bool      `db:"is_default" json:"is_default"`
-	DisplayName              string    `db:"display_name" json:"display_name"`
-	Icon                     string    `db:"icon" json:"icon"`
-	Deleted                  bool      `db:"deleted" json:"deleted"`
-	WorkspaceSharingDisabled bool      `db:"workspace_sharing_disabled" json:"workspace_sharing_disabled"`
+	ID          uuid.UUID `db:"id" json:"id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	IsDefault   bool      `db:"is_default" json:"is_default"`
+	DisplayName string    `db:"display_name" json:"display_name"`
+	Icon        string    `db:"icon" json:"icon"`
+	Deleted     bool      `db:"deleted" json:"deleted"`
+	// Controls whose workspaces can be shared: none, everyone, or service_accounts.
+	ShareableWorkspaceOwners ShareableWorkspaceOwners `db:"shareable_workspace_owners" json:"shareable_workspace_owners"`
 }
 
 type OrganizationMember struct {
@@ -5075,7 +5161,8 @@ type User struct {
 	// Determines if a user is a system user, and therefore cannot login or perform normal actions
 	IsSystem bool `db:"is_system" json:"is_system"`
 	// Determines if a user is an admin-managed account that cannot login
-	IsServiceAccount bool `db:"is_service_account" json:"is_service_account"`
+	IsServiceAccount     bool          `db:"is_service_account" json:"is_service_account"`
+	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 }
 
 type UserConfig struct {

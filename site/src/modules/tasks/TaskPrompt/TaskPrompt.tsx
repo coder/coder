@@ -284,7 +284,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 											<SelectItem value={template.id} key={template.id}>
 												<div className="flex items-center gap-2">
 													{template.icon && (
-														<img
+														<ExternalImage
 															src={template.icon}
 															alt={template.name}
 															className="size-icon-sm flex-shrink-0"
@@ -343,7 +343,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 												<SelectItem value={preset.ID} key={preset.ID}>
 													<div className="flex items-center gap-2">
 														{preset.Icon && (
-															<img
+															<ExternalImage
 																data-slot="preset-icon"
 																src={preset.Icon}
 																alt={preset.Name}

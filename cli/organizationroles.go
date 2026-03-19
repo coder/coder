@@ -214,7 +214,7 @@ func (r *RootCmd) createOrganizationRole(orgContext *OrganizationContext) *serpe
 			} else {
 				updated, err = client.CreateOrganizationRole(ctx, customRole)
 				if err != nil {
-					return xerrors.Errorf("patch role: %w", err)
+					return xerrors.Errorf("create role: %w", err)
 				}
 			}
 

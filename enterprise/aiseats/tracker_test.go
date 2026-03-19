@@ -1,12 +1,14 @@
 package aiseats_test
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	agplaiseats "github.com/coder/coder/v2/coderd/aiseats"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -25,7 +27,7 @@ func TestSeatTrackerDB(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		clock := quartz.NewMock(t)
-		tracker := enterpriseaiseats.New(db, testutil.Logger(t), clock)
+		tracker := enterpriseaiseats.New(db, testutil.Logger(t), clock, nil)
 
 		user := dbgen.User(t, db, database.User{Status: database.UserStatusActive})
 		tracker.RecordUsage(ctx, user.ID, agplaiseats.ReasonAIBridge("active user event"))
@@ -40,7 +42,7 @@ func TestSeatTrackerDB(t *testing.T) {
 
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		tracker := enterpriseaiseats.New(db, testutil.Logger(t), quartz.NewMock(t))
+		tracker := enterpriseaiseats.New(db, testutil.Logger(t), quartz.NewMock(t), nil)
 
 		dormantUser := dbgen.User(t, db, database.User{Status: database.UserStatusDormant})
 		tracker.RecordUsage(ctx, dormantUser.ID, agplaiseats.ReasonTask("dormant user event"))
@@ -58,7 +60,12 @@ func TestSeatTrackerDB(t *testing.T) {
 
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		tracker := enterpriseaiseats.New(db, testutil.Logger(t), quartz.NewMock(t))
+		a := audit.NewMock()
+		var aI audit.Auditor = a
+		var al atomic.Pointer[audit.Auditor]
+		al.Store(&aI)
+
+		tracker := enterpriseaiseats.New(db, testutil.Logger(t), quartz.NewMock(t), &al)
 
 		user := dbgen.User(t, db, database.User{Status: database.UserStatusActive})
 		tracker.RecordUsage(ctx, user.ID, agplaiseats.ReasonAIBridge("status transition"))
@@ -90,5 +97,8 @@ func TestSeatTrackerDB(t *testing.T) {
 		count, err = db.GetActiveAISeatCount(ctx)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, count)
+
+		require.Len(t, a.AuditLogs(), 1)
+		require.Equal(t, database.ResourceTypeAiSeat, a.AuditLogs()[0].ResourceType)
 	})
 }

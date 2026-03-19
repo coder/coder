@@ -57,8 +57,9 @@ type ReducedUser struct {
 	UpdatedAt   time.Time `json:"updated_at" table:"updated at" format:"date-time"`
 	LastSeenAt  time.Time `json:"last_seen_at,omitempty" format:"date-time"`
 
-	Status    UserStatus `json:"status" table:"status" enums:"active,suspended"`
-	LoginType LoginType  `json:"login_type"`
+	Status           UserStatus `json:"status" table:"status" enums:"active,suspended"`
+	LoginType        LoginType  `json:"login_type"`
+	IsServiceAccount bool       `json:"is_service_account,omitempty"`
 	// Deprecated: this value should be retrieved from
 	// `codersdk.UserPreferenceSettings` instead.
 	ThemePreference string `json:"theme_preference,omitempty"`
@@ -336,6 +337,14 @@ type OIDCAuthMethod struct {
 	AuthMethod
 	SignInText string `json:"signInText"`
 	IconURL    string `json:"iconUrl"`
+}
+
+// OIDCClaimsResponse represents the merged OIDC claims for a user.
+type OIDCClaimsResponse struct {
+	// Claims are the merged claims from the OIDC provider. These
+	// are the union of the ID token claims and the userinfo claims,
+	// where userinfo claims take precedence on conflict.
+	Claims map[string]interface{} `json:"claims"`
 }
 
 type UserParameter struct {
@@ -720,6 +729,20 @@ func (c *Client) UserRoles(ctx context.Context, user string) (UserRoles, error) 
 	}
 	var roles UserRoles
 	return roles, json.NewDecoder(res.Body).Decode(&roles)
+}
+
+// UserOIDCClaims returns the merged OIDC claims for the authenticated user.
+func (c *Client) UserOIDCClaims(ctx context.Context) (OIDCClaimsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users/oidc-claims", nil)
+	if err != nil {
+		return OIDCClaimsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OIDCClaimsResponse{}, ReadBodyAsError(res)
+	}
+	var resp OIDCClaimsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // LoginWithPassword creates a session token authenticating with an email and password.

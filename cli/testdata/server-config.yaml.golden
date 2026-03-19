@@ -752,6 +752,11 @@ workspace_prebuilds:
   # limit; disabled when set to zero.
   # (default: 3, type: int)
   failure_hard_limit: 3
+# Configure the background chat processing daemon.
+chat:
+  # How many pending chats a worker should acquire per polling cycle.
+  # (default: 10, type: int)
+  acquireBatchSize: 10
 aibridge:
   # Whether to start an in-memory aibridged instance.
   # (default: false, type: bool)

@@ -66,7 +66,7 @@ const meta: Meta<typeof AgentsSidebar> = {
 		onArchiveAgent: fn(),
 		onUnarchiveAgent: fn(),
 		onArchiveAndDeleteWorkspace: fn(),
-		onNewAgent: fn(),
+		onBeforeNewAgent: fn(),
 		isCreating: false,
 		archivedFilter: "active" as const,
 		onArchivedFilterChange: fn(),

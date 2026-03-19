@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	BORDER_BG_STYLE,
 	buildEditDiff,
@@ -22,6 +22,7 @@ import {
 	parseArgs,
 	parseEditFilesArgs,
 	shortDurationMs,
+	stripSvnIndexHeaders,
 	toProviderLabel,
 } from "./utils";
 
@@ -420,6 +421,20 @@ describe("buildWriteFileDiff", () => {
 		// That's 1 empty-string line, which is still a valid line.
 		expect(diff).not.toBeNull();
 	});
+
+	it("does not emit console errors from SVN-style Index headers", () => {
+		const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			const diff = buildWriteFileDiff(
+				"src/components/Example.tsx",
+				"export default function Example() {\n  return <div />;\n}\n",
+			);
+			expect(diff).not.toBeNull();
+			expect(spy).not.toHaveBeenCalled();
+		} finally {
+			spy.mockRestore();
+		}
+	});
 });
 
 describe("getWriteFileDiff", () => {
@@ -520,6 +535,26 @@ describe("buildEditDiff", () => {
 		expect(diff).not.toBeNull();
 	});
 
+	it("does not emit console errors for multi-edit diffs", () => {
+		const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			const diff = buildEditDiff(
+				"/home/coder/coder/site/src/pages/AgentsPage/AgentsSidebar.tsx",
+				[
+					{ search: "const a = 1;", replace: "const a = 2;" },
+					{ search: "const b = 3;", replace: "const b = 4;" },
+				],
+			);
+			expect(diff).not.toBeNull();
+			// Before the fix, @pierre/diffs logged:
+			//   parseLineType: Invalid firstChar: "I"
+			//   processFile: invalid rawLine: Index: ...
+			expect(spy).not.toHaveBeenCalled();
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
 	it("strips leading slash from path", () => {
 		const diff = buildEditDiff("/src/index.ts", [
 			{ search: "old", replace: "new" },
@@ -567,6 +602,68 @@ describe("buildEditDiff", () => {
 		// middle line rather than removing and re-adding everything.
 		const hasContext = hunk.hunkContent.some((c) => c.type === "context");
 		expect(hasContext).toBe(true);
+	});
+});
+
+describe("stripSvnIndexHeaders", () => {
+	it("removes Index: headers from SVN-style patches", () => {
+		const input = [
+			"Index: src/file.ts",
+			"===================================================================",
+			"--- src/file.ts",
+			"+++ src/file.ts",
+			"@@ -1,1 +1,1 @@",
+			"-old",
+			"+new",
+			"",
+		].join("\n");
+		const result = stripSvnIndexHeaders(input);
+		expect(result).not.toContain("Index:");
+		expect(result).not.toContain("===");
+		expect(result).toContain("--- src/file.ts");
+	});
+
+	it("handles multiple Index: headers in concatenated patches", () => {
+		const input = [
+			"Index: a.ts",
+			"===================================================================",
+			"--- a.ts",
+			"+++ a.ts",
+			"@@ -1,1 +1,1 @@",
+			"-old1",
+			"+new1",
+			"Index: b.ts",
+			"===================================================================",
+			"--- b.ts",
+			"+++ b.ts",
+			"@@ -1,1 +1,1 @@",
+			"-old2",
+			"+new2",
+			"",
+		].join("\n");
+		const result = stripSvnIndexHeaders(input);
+		// Both Index headers removed.
+		expect(result.match(/Index:/g)).toBeNull();
+		// Diff content preserved.
+		expect(result).toContain("-old1");
+		expect(result).toContain("+new2");
+	});
+
+	it("is a no-op for git-style diffs", () => {
+		const gitDiff = [
+			"diff --git a/file.ts b/file.ts",
+			"--- a/file.ts",
+			"+++ b/file.ts",
+			"@@ -1,1 +1,1 @@",
+			"-old",
+			"+new",
+			"",
+		].join("\n");
+		expect(stripSvnIndexHeaders(gitDiff)).toBe(gitDiff);
+	});
+
+	it("is a no-op for empty strings", () => {
+		expect(stripSvnIndexHeaders("")).toBe("");
 	});
 });
 

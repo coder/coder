@@ -235,6 +235,7 @@ sql:
           aibridge_tool_usage: AIBridgeToolUsage
           aibridge_token_usage: AIBridgeTokenUsage
           aibridge_user_prompt: AIBridgeUserPrompt
+          aibridge_model_thought: AIBridgeModelThought
 rules:
   - name: do-not-use-public-schema-in-queries
     message: "do not use public schema in queries"

@@ -78,6 +78,9 @@ run() {
 	toskip=(
 		# This needs care to update correctly.
 		"kubernetes-metadata"
+		# Multiple resources with duplicate JSON key names (id, agent_id)
+		# cause minimize_diff() to scramble UUIDs. Hand-crafted fixture.
+		"duplicate-env-keys"
 	)
 	for skip in "${toskip[@]}"; do
 		if [[ $name == "$skip" ]]; then

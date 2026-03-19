@@ -1,18 +1,25 @@
+import { isApiError } from "api/errors";
 import { workspaces } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { Button } from "components/Button/Button";
 import {
-	Combobox,
-	ComboboxContent,
-	ComboboxEmpty,
-	ComboboxInput,
-	ComboboxItem,
-	ComboboxList,
-	ComboboxTrigger,
-} from "components/Combobox/Combobox";
-import { MonitorIcon } from "lucide-react";
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "components/Command/Command";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
+import { Check, MonitorIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	type FC,
@@ -28,8 +35,10 @@ import { AgentChatInput } from "./AgentChatInput";
 import {
 	getModelCatalogStatusMessage,
 	getModelSelectorPlaceholder,
+	getNormalizedModelRef,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
+import { formatUsageLimitMessage, isUsageLimitData } from "./usageLimitMessage";
 import { useFileAttachments } from "./useFileAttachments";
 
 /** @internal Exported for testing. */
@@ -110,6 +119,7 @@ interface AgentCreateFormProps {
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
 	modelCatalogError: unknown;
+	onOpenAnalytics?: () => void;
 }
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
@@ -122,6 +132,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isModelCatalogLoading,
 	isModelConfigsLoading,
 	modelCatalogError,
+	onOpenAnalytics,
 }) => {
 	const { organizations } = useDashboard();
 	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
@@ -148,8 +159,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 
 		const byConfigID = new Map<string, string>();
 		for (const config of modelConfigs) {
-			const provider = config.provider.trim().toLowerCase();
-			const model = config.model.trim();
+			const { provider, model } = getNormalizedModelRef(config);
 			if (!provider || !model) {
 				continue;
 			}
@@ -185,6 +195,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
 			? userSelectedModel
 			: preferredModelID;
+	const [workspacePopoverOpen, setWorkspacePopoverOpen] = useState(false);
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
@@ -326,7 +337,27 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	return (
 		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
 			<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-				{createError ? <ErrorAlert error={createError} /> : null}
+				{createError ? (
+					isApiError(createError) &&
+					createError.response?.status === 409 &&
+					isUsageLimitData(createError.response.data) ? (
+						<Alert
+							severity="info"
+							className="py-2"
+							actions={
+								onOpenAnalytics && (
+									<Button variant="subtle" size="sm" onClick={onOpenAnalytics}>
+										View Usage
+									</Button>
+								)
+							}
+						>
+							{formatUsageLimitMessage(createError.response.data)}
+						</Alert>
+					) : (
+						<ErrorAlert error={createError} />
+					)
+				) : null}
 				{workspacesQuery.isError && (
 					<ErrorAlert error={workspacesQuery.error} />
 				)}
@@ -351,46 +382,65 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					uploadStates={uploadStates}
 					previewUrls={previewUrls}
 					leftActions={
-						<Combobox
-							value={selectedWorkspaceId ?? autoCreateWorkspaceValue}
-							onValueChange={(value) =>
-								handleWorkspaceChange(value ?? autoCreateWorkspaceValue)
-							}
+						<Popover
+							open={workspacePopoverOpen}
+							onOpenChange={setWorkspacePopoverOpen}
 						>
-							<ComboboxTrigger asChild>
+							{/* pointer-events-auto overrides the pointer-events:none
+									   that Radix Select's DismissableLayer sets on
+									   document.body when the Model Selector is open.
+									   Without it the first click only dismisses the
+									   Select and a second click is needed to open
+									   the popover. */}
+							<PopoverTrigger asChild>
 								<button
 									type="button"
 									disabled={isCreating || workspacesQuery.isLoading}
-									className="group flex h-8 items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:bg-transparent hover:text-content-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+									className="pointer-events-auto group flex h-8 items-center gap-1.5 rounded-md border-none bg-transparent px-1 text-xs text-content-secondary shadow-none ring-offset-background transition-colors hover:bg-transparent hover:text-content-primary focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
 								>
 									<MonitorIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary transition-colors group-hover:text-content-primary" />
 									<span>{selectedWorkspaceLabel ?? "Workspace"}</span>
 									<ChevronDownIcon className="size-icon-sm text-content-secondary transition-colors group-hover:text-content-primary" />
 								</button>
-							</ComboboxTrigger>
-							<ComboboxContent
-								side="top"
-								align="center"
-								className="w-72 [&_[cmdk-item]]:text-xs"
-							>
-								<ComboboxInput placeholder="Search workspaces..." />
-								<ComboboxList>
-									<ComboboxItem value={autoCreateWorkspaceValue}>
-										Auto-create Workspace
-									</ComboboxItem>
-									{workspaceOptions.map((workspace) => (
-										<ComboboxItem
-											key={workspace.id}
-											value={workspace.id}
-											keywords={[workspace.owner_name, workspace.name]}
-										>
-											{workspace.owner_name}/{workspace.name}
-										</ComboboxItem>
-									))}
-								</ComboboxList>
-								<ComboboxEmpty>No workspaces found</ComboboxEmpty>
-							</ComboboxContent>
-						</Combobox>
+							</PopoverTrigger>
+							<PopoverContent side="top" align="start" className="w-72 p-0">
+								<Command loop>
+									<CommandInput placeholder="Search workspaces..." />
+									<CommandList>
+										<CommandEmpty>No workspaces found</CommandEmpty>
+										<CommandGroup>
+											<CommandItem
+												value="Auto-create Workspace"
+												onSelect={() => {
+													handleWorkspaceChange(autoCreateWorkspaceValue);
+													setWorkspacePopoverOpen(false);
+												}}
+											>
+												Auto-create Workspace
+												{selectedWorkspaceId == null && (
+													<Check className="ml-auto size-icon-sm shrink-0" />
+												)}
+											</CommandItem>
+											{workspaceOptions.map((workspace) => (
+												<CommandItem
+													key={workspace.id}
+													value={`${workspace.owner_name}/${workspace.name}`}
+													onSelect={() => {
+														handleWorkspaceChange(workspace.id);
+														setWorkspacePopoverOpen(false);
+													}}
+												>
+													{workspace.owner_name}/{workspace.name}
+													{selectedWorkspaceId === workspace.id && (
+														<Check className="ml-auto size-icon-sm shrink-0" />
+													)}
+												</CommandItem>
+											))}
+										</CommandGroup>
+									</CommandList>
+								</Command>
+							</PopoverContent>
+						</Popover>
 					}
 				/>
 				<p className="mt-1 text-center text-xs text-content-secondary/50">

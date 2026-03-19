@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
@@ -16,32 +15,6 @@ import (
 	"github.com/coder/quartz"
 	"github.com/coder/websocket"
 )
-
-// logSink captures log entries so tests can assert on log levels.
-type logSink struct {
-	mu      sync.Mutex
-	entries []slog.SinkEntry
-}
-
-func (s *logSink) LogEntry(_ context.Context, e slog.SinkEntry) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.entries = append(s.entries, e)
-}
-
-func (*logSink) Sync() {}
-
-func (s *logSink) entriesAtLevel(level slog.Level) []slog.SinkEntry {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	var result []slog.SinkEntry
-	for _, e := range s.entries {
-		if e.Level == level {
-			result = append(result, e)
-		}
-	}
-	return result
-}
 
 // websocketPair sets up an httptest server with a websocket endpoint and
 // returns the server-side conn. The server handler stays alive until ctx
@@ -85,8 +58,8 @@ func TestHeartbeatClose(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		sink := &logSink{}
-		logger := slog.Make(sink).Leveled(slog.LevelDebug)
+		sink := testutil.NewFakeSink(t)
+		logger := sink.Logger()
 		mClock := quartz.NewMock(t)
 
 		// Trap ticker creation so we can synchronize startup.
@@ -119,10 +92,10 @@ func TestHeartbeatClose(t *testing.T) {
 
 		// A closed connection is a normal shutdown condition. The
 		// error should be logged at Debug, not Error.
-		errorEntries := sink.entriesAtLevel(slog.LevelError)
+		errorEntries := sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelError })
 		assert.Empty(t, errorEntries,
 			"closed connection should not produce error-level logs, got: %+v", errorEntries)
-		debugEntries := sink.entriesAtLevel(slog.LevelDebug)
+		debugEntries := sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelDebug })
 		assert.NotEmpty(t, debugEntries,
 			"expected a debug-level log entry for the closed connection")
 	})
@@ -131,8 +104,8 @@ func TestHeartbeatClose(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		sink := &logSink{}
-		logger := slog.Make(sink).Leveled(slog.LevelDebug)
+		sink := testutil.NewFakeSink(t)
+		logger := sink.Logger()
 		mClock := quartz.NewMock(t)
 
 		trap := mClock.Trap().NewTicker("HeartbeatClose")
@@ -161,7 +134,7 @@ func TestHeartbeatClose(t *testing.T) {
 			t.Fatal("timed out waiting for heartbeatClose to return")
 		}
 
-		errorEntries := sink.entriesAtLevel(slog.LevelError)
+		errorEntries := sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelError })
 		assert.Empty(t, errorEntries,
 			"context cancellation should not produce error-level logs, got: %+v", errorEntries)
 	})
@@ -170,8 +143,8 @@ func TestHeartbeatClose(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		sink := &logSink{}
-		logger := slog.Make(sink).Leveled(slog.LevelDebug)
+		sink := testutil.NewFakeSink(t)
+		logger := sink.Logger()
 		mClock := quartz.NewMock(t)
 
 		trap := mClock.Trap().NewTicker("HeartbeatClose")
@@ -200,10 +173,10 @@ func TestHeartbeatClose(t *testing.T) {
 		}
 
 		// No logs should be emitted during normal operation.
-		errorEntries := sink.entriesAtLevel(slog.LevelError)
+		errorEntries := sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelError })
 		assert.Empty(t, errorEntries,
 			"successful pings should not produce error-level logs, got: %+v", errorEntries)
-		debugEntries := sink.entriesAtLevel(slog.LevelDebug)
+		debugEntries := sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelDebug })
 		assert.Empty(t, debugEntries,
 			"successful pings should not produce debug-level logs, got: %+v", debugEntries)
 	})

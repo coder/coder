@@ -216,6 +216,34 @@ export const WithUploadingAttachment: Story = {
 	})(),
 };
 
+export const UploadingDisablesSend: Story = {
+	args: (() => {
+		const file = createMockFile("uploading.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploading" }],
+			]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			initialValue: "Message with uploading image",
+		};
+	})(),
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		// Send should be disabled while an upload is still in progress,
+		// even though the editor has text content.
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		expect(sendButton).toBeDisabled();
+		// Enter key should not trigger send while uploading.
+		const editor = canvas.getByRole("textbox");
+		await userEvent.click(editor);
+		await userEvent.keyboard("{Enter}");
+		expect(args.onSend).not.toHaveBeenCalled();
+	},
+};
+
 export const WithAttachmentError: Story = {
 	args: (() => {
 		const file = createMockFile("broken.png", "image/png");

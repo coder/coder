@@ -1437,6 +1437,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Parent: &deploymentGroupNotifications,
 			YAML:   "inbox",
 		}
+		deploymentGroupChat = serpent.Group{
+			Name:        "Chat",
+			YAML:        "chat",
+			Description: "Configure the background chat processing daemon.",
+		}
 		deploymentGroupAIBridge = serpent.Group{
 			Name: "AI Bridge",
 			YAML: "aibridge",
@@ -3600,6 +3605,18 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupClient,
 			YAML:        "hideAITasks",
 		},
+		// Chat Options
+		{
+			Name:        "Chat: Acquire Batch Size",
+			Description: "How many pending chats a worker should acquire per polling cycle.",
+			Flag:        "chat-acquire-batch-size",
+			Env:         "CODER_CHAT_ACQUIRE_BATCH_SIZE",
+			Value:       &c.AI.Chat.AcquireBatchSize,
+			Default:     "10",
+			Group:       &deploymentGroupChat,
+			YAML:        "acquireBatchSize",
+			Hidden:      true, // Hidden because most operators should not need to modify this.
+		},
 		// AI Bridge Options
 		{
 			Name:        "AI Bridge Enabled",
@@ -4052,9 +4069,14 @@ type AIBridgeProxyConfig struct {
 	UpstreamProxyCA serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
 }
 
+type ChatConfig struct {
+	AcquireBatchSize serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+}
+
 type AIConfig struct {
 	BridgeConfig      AIBridgeConfig      `json:"bridge,omitempty"`
 	BridgeProxyConfig AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
+	Chat              ChatConfig          `json:"chat,omitempty" typescript:",notnull"`
 }
 
 type SupportConfig struct {

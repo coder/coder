@@ -15,6 +15,11 @@ VALUES
     (@id, @event_type, @event_data, @created_at, NULL, NULL, NULL)
 ON CONFLICT (id) DO NOTHING;
 
+-- name: UsageEventExistsByID :one
+SELECT EXISTS(
+    SELECT 1 FROM usage_events WHERE id = @id
+)::bool;
+
 -- name: SelectUsageEventsForPublishing :many
 WITH usage_events AS (
     UPDATE

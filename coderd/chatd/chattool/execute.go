@@ -78,10 +78,10 @@ type ProcessToolOptions struct {
 
 // ExecuteArgs are the parameters accepted by the execute tool.
 type ExecuteArgs struct {
-	Command         string  `json:"command"`
-	Timeout         *string `json:"timeout,omitempty"`
-	WorkDir         *string `json:"workdir,omitempty"`
-	RunInBackground *bool   `json:"run_in_background,omitempty"`
+	Command         string  `json:"command" description:"The shell command to execute."`
+	Timeout         *string `json:"timeout,omitempty" description:"Timeout duration (e.g. '30s', '5m'). Default is 10s. Only applies to foreground commands."`
+	WorkDir         *string `json:"workdir,omitempty" description:"Working directory for the command."`
+	RunInBackground *bool   `json:"run_in_background,omitempty" description:"Run this command in the background without blocking. Use for long-running processes like dev servers, file watchers, or builds that run longer than 5 seconds. Do NOT use shell & to background processes — it will not work correctly. Always use this parameter instead."`
 }
 
 // Execute returns an AgentTool that runs a shell command in the
@@ -89,7 +89,7 @@ type ExecuteArgs struct {
 func Execute(options ExecuteOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"execute",
-		"Execute a shell command in the workspace.",
+		"Execute a shell command in the workspace. Use run_in_background=true for long-running processes (dev servers, file watchers, builds). Never use shell '&' for backgrounding.",
 		func(ctx context.Context, args ExecuteArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
@@ -121,6 +121,16 @@ func executeTool(
 	}
 
 	background := args.RunInBackground != nil && *args.RunInBackground
+
+	// Detect shell-style backgrounding (trailing &) and promote to
+	// background mode. Models sometimes use "cmd &" instead of the
+	// run_in_background parameter, which causes the shell to fork
+	// and exit immediately, leaving an untracked orphan process.
+	trimmed := strings.TrimSpace(args.Command)
+	if !background && strings.HasSuffix(trimmed, "&") && !strings.HasSuffix(trimmed, "&&") {
+		background = true
+		args.Command = strings.TrimSpace(strings.TrimSuffix(trimmed, "&"))
+	}
 
 	var workDir string
 	if args.WorkDir != nil {

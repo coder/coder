@@ -60,7 +60,8 @@
             "agent_id": "aaaaaaaa-1111-2222-3333-444444444444",
             "id": "bbbbbbbb-1111-2222-3333-444444444444",
             "name": "PATH",
-            "value": "/a/bin"
+            "value": "/a/bin",
+            "merge_strategy": "append"
           },
           "sensitive_values": {},
           "depends_on": [
@@ -78,7 +79,8 @@
             "agent_id": "aaaaaaaa-1111-2222-3333-444444444444",
             "id": "cccccccc-1111-2222-3333-444444444444",
             "name": "PATH",
-            "value": "/b/bin"
+            "value": "/b/bin",
+            "merge_strategy": "append"
           },
           "sensitive_values": {},
           "depends_on": [

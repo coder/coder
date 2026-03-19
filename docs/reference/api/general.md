@@ -204,6 +204,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "retention": 0,
         "send_actor_headers": true,
         "structured_logging": true
+      },
+      "chat": {
+        "acquire_batch_size": 0
       }
     },
     "allow_workspace_renames": true,
