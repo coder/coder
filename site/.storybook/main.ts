@@ -8,6 +8,7 @@ export default {
 		"@storybook/addon-links",
 		"@storybook/addon-themes",
 		"storybook-addon-remix-react-router",
+		"@storybook/addon-vitest",
 	],
 
 	staticDirs: ["../static"],

@@ -16,7 +16,9 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 ## Bash commands
 
 - `pnpm dev` - Start Vite development server
-- `pnpm storybook --no-open` - Run storybook tests
+- `pnpm storybook --no-open` - Start Storybook dev server
+- `pnpm test:storybook` - Run storybook story tests (play functions) via Vitest + Playwright
+- `pnpm test:storybook src/path/to/component.stories.tsx` - Run a single story file
 - `pnpm test` - Run jest unit tests
 - `pnpm test -- path/to/specific.test.ts` - Run a single test file
 - `pnpm lint` - Run complete linting suite (Biome + TypeScript + circular deps + knip)
