@@ -169,7 +169,7 @@ const PullRequestStateBadge: FC<{
  * line(s). Supports multiline via Shift+Enter. Enter submits,
  * Escape dismisses.
  */
-const InlinePromptInput: FC<{
+export const InlinePromptInput: FC<{
 	onSubmit: (text: string) => void;
 	onCancel: () => void;
 }> = ({ onSubmit, onCancel }) => {

@@ -150,8 +150,39 @@ export const formatResultOutput = (result: unknown): string | null => {
 export const fileViewerCSS =
 	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; }";
 
-export const diffViewerCSS =
-	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; } [data-diffs-header] { border-left: 1px solid var(--border); }";
+// Selection override CSS maps the library's gold/yellow selection
+// palette to the Coder blue accent (`--content-link`) so line
+// highlighting feels native to the rest of the page.
+//
+// The library has two selection code paths: context lines use
+// `--diffs-bg-selection`, but change-addition/deletion lines
+// use a separate `color-mix()` against `--diffs-line-bg`. To
+// guarantee a uniform highlight across all line types we set
+// the CSS variables for annotations AND apply direct rules
+// with `!important` for line and gutter elements.
+const SELECTION_OVERRIDE_CSS = [
+	// Variable overrides for annotation areas and library internals.
+	":host {",
+	"  --diffs-bg-selection-override: hsl(var(--content-link) / 0.08);",
+	"  --diffs-bg-selection-number-override: hsl(var(--content-link) / 0.13);",
+	"  --diffs-selection-number-fg: hsl(var(--content-link));",
+	"}",
+	// Direct rules that override both context and change-line
+	// selection backgrounds so every selected line looks the same.
+	"[data-selected-line][data-line] {",
+	"  background-color: hsl(var(--content-link) / 0.08) !important;",
+	"}",
+	"[data-selected-line][data-column-number] {",
+	"  background-color: hsl(var(--content-link) / 0.13) !important;",
+	"  color: hsl(var(--content-link)) !important;",
+	"}",
+].join(" ");
+
+export const diffViewerCSS = [
+	"pre, [data-line]:not([data-selected-line]), [data-diffs-header] { background-color: transparent !important; }",
+	"[data-diffs-header] { border-left: 1px solid var(--border); }",
+	SELECTION_OVERRIDE_CSS,
+].join(" ");
 
 // Theme-aware option factories shared across tool renderers.
 export function getDiffViewerOptions(isDark: boolean) {

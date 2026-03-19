@@ -792,7 +792,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 										options={perFileOptions?.get(fileDiff.name) ?? fileOptions}
 										lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
 										renderAnnotation={renderAnnotation}
-										selectedLines={getSelectedLines?.(fileDiff.name) ?? null}
+										selectedLines={getSelectedLines?.(fileDiff.name)}
 									/>
 								</div>
 							))}
