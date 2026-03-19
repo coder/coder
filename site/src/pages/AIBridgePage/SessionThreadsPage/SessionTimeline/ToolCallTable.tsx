@@ -45,11 +45,13 @@ export const ToolCallTable: FC<ToolCallTableProps> = ({
 					{formatDate(timestamp)}
 				</span>
 			</div>
-			<div className="flex items-center justify-between">
-				<span className="pr-4">MCP server</span>
-				<span className="font-mono truncate">{serverURL}</span>
-				<CopyButton text={serverURL} label="Copy MCP server URL" />
-			</div>
+			{serverURL && (
+				<div className="flex items-center justify-between">
+					<span className="pr-4">MCP server</span>
+					<span className="font-mono truncate">{serverURL}</span>
+					<CopyButton text={serverURL} label="Copy MCP server URL" />
+				</div>
+			)}
 		</div>
 	);
 };
