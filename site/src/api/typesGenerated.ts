@@ -1070,6 +1070,7 @@ export interface Chat {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly archived: boolean;
+	readonly mcp_server_ids: readonly string[];
 }
 
 // From codersdk/deployment.go
@@ -2076,6 +2077,7 @@ export interface ConvertLoginRequest {
 export interface CreateChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
 	readonly model_config_id?: string;
+	readonly mcp_server_ids?: string[];
 }
 
 // From codersdk/chats.go
@@ -2123,6 +2125,7 @@ export interface CreateChatRequest {
 	readonly content: readonly ChatInputPart[];
 	readonly workspace_id?: string;
 	readonly model_config_id?: string;
+	readonly mcp_server_ids?: readonly string[];
 }
 
 // From codersdk/users.go
@@ -2161,6 +2164,32 @@ export interface CreateGroupRequest {
 	readonly display_name: string;
 	readonly avatar_url: string;
 	readonly quota_allowance: number;
+}
+
+// From codersdk/mcp.go
+/**
+ * CreateMCPServerConfigRequest is the request to create a new MCP server config.
+ */
+export interface CreateMCPServerConfigRequest {
+	readonly display_name: string;
+	readonly slug: string;
+	readonly description: string;
+	readonly icon_url: string;
+	readonly transport: string;
+	readonly url: string;
+	readonly auth_type: string;
+	readonly oauth2_client_id?: string;
+	readonly oauth2_client_secret?: string;
+	readonly oauth2_auth_url?: string;
+	readonly oauth2_token_url?: string;
+	readonly oauth2_scopes?: string;
+	readonly api_key_header?: string;
+	readonly api_key_value?: string;
+	readonly custom_headers?: Record<string, string>;
+	readonly tool_allow_list?: readonly string[];
+	readonly tool_deny_list?: readonly string[];
+	readonly availability: string;
+	readonly enabled: boolean;
 }
 
 // From codersdk/organizations.go
@@ -3690,6 +3719,51 @@ export interface LoginWithPasswordRequest {
  */
 export interface LoginWithPasswordResponse {
 	readonly session_token: string;
+}
+
+// From codersdk/mcp.go
+/**
+ * MCPServerConfig represents an admin-configured MCP server.
+ */
+export interface MCPServerConfig {
+	readonly id: string;
+	readonly display_name: string;
+	readonly slug: string;
+	readonly description: string;
+	readonly icon_url: string;
+	readonly transport: string; // "streamable_http" or "sse"
+	readonly url: string;
+	readonly auth_type: string; // "none", "oauth2", "api_key", "custom_headers"
+	/**
+	 * OAuth2 fields (only populated for admins).
+	 */
+	readonly oauth2_client_id?: string;
+	readonly has_oauth2_secret: boolean;
+	readonly oauth2_auth_url?: string;
+	readonly oauth2_token_url?: string;
+	readonly oauth2_scopes?: string;
+	/**
+	 * API key fields (only populated for admins).
+	 */
+	readonly api_key_header?: string;
+	readonly has_api_key: boolean;
+	readonly has_custom_headers: boolean;
+	/**
+	 * Tool governance.
+	 */
+	readonly tool_allow_list: readonly string[];
+	readonly tool_deny_list: readonly string[];
+	/**
+	 * Availability policy set by admin.
+	 */
+	readonly availability: string; // "force_on", "default_on", "default_off"
+	readonly enabled: boolean;
+	readonly created_at: string;
+	readonly updated_at: string;
+	/**
+	 * Per-user state (populated for non-admin requests).
+	 */
+	readonly auth_connected: boolean;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -6842,6 +6916,32 @@ export interface UpdateInboxNotificationReadStatusRequest {
 export interface UpdateInboxNotificationReadStatusResponse {
 	readonly notification: InboxNotification;
 	readonly unread_count: number;
+}
+
+// From codersdk/mcp.go
+/**
+ * UpdateMCPServerConfigRequest is the request to update an MCP server config.
+ */
+export interface UpdateMCPServerConfigRequest {
+	readonly display_name?: string;
+	readonly slug?: string;
+	readonly description?: string;
+	readonly icon_url?: string;
+	readonly transport?: string;
+	readonly url?: string;
+	readonly auth_type?: string;
+	readonly oauth2_client_id?: string;
+	readonly oauth2_client_secret?: string;
+	readonly oauth2_auth_url?: string;
+	readonly oauth2_token_url?: string;
+	readonly oauth2_scopes?: string;
+	readonly api_key_header?: string;
+	readonly api_key_value?: string;
+	readonly custom_headers?: Record<string, string>;
+	readonly tool_allow_list?: string[];
+	readonly tool_deny_list?: string[];
+	readonly availability?: string;
+	readonly enabled?: boolean;
 }
 
 // From codersdk/notifications.go

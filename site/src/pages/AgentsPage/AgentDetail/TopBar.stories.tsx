@@ -52,6 +52,7 @@ export const WithParentChat: Story = {
 			id: "parent-chat-1",
 			owner_id: "owner-id",
 			last_model_config_id: "model-config-1",
+			mcp_server_ids: [],
 			title: "Set up CI/CD pipeline",
 			status: "completed",
 			last_error: null,

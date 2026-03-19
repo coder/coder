@@ -40,6 +40,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	title: "Agent",
 	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
+	mcp_server_ids: [],
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,

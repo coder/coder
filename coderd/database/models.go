@@ -4167,6 +4167,7 @@ type Chat struct {
 	Archived          bool           `db:"archived" json:"archived"`
 	LastError         sql.NullString `db:"last_error" json:"last_error"`
 	Mode              NullChatMode   `db:"mode" json:"mode"`
+	MCPServerIDs      []uuid.UUID    `db:"mcp_server_ids" json:"mcp_server_ids"`
 }
 
 type ChatDiffStatus struct {
@@ -4450,6 +4451,50 @@ type License struct {
 	// exp tracks the claim of the same name in the JWT, and we include it here so that we can easily query for licenses that have not yet expired.
 	Exp  time.Time `db:"exp" json:"exp"`
 	UUID uuid.UUID `db:"uuid" json:"uuid"`
+}
+
+type MCPServerConfig struct {
+	ID                      uuid.UUID      `db:"id" json:"id"`
+	DisplayName             string         `db:"display_name" json:"display_name"`
+	Slug                    string         `db:"slug" json:"slug"`
+	Description             string         `db:"description" json:"description"`
+	IconURL                 string         `db:"icon_url" json:"icon_url"`
+	Transport               string         `db:"transport" json:"transport"`
+	Url                     string         `db:"url" json:"url"`
+	AuthType                string         `db:"auth_type" json:"auth_type"`
+	OAuth2ClientID          string         `db:"oauth2_client_id" json:"oauth2_client_id"`
+	OAuth2ClientSecret      string         `db:"oauth2_client_secret" json:"oauth2_client_secret"`
+	OAuth2ClientSecretKeyID sql.NullString `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
+	OAuth2AuthURL           string         `db:"oauth2_auth_url" json:"oauth2_auth_url"`
+	OAuth2TokenURL          string         `db:"oauth2_token_url" json:"oauth2_token_url"`
+	OAuth2Scopes            string         `db:"oauth2_scopes" json:"oauth2_scopes"`
+	APIKeyHeader            string         `db:"api_key_header" json:"api_key_header"`
+	APIKeyValue             string         `db:"api_key_value" json:"api_key_value"`
+	APIKeyValueKeyID        sql.NullString `db:"api_key_value_key_id" json:"api_key_value_key_id"`
+	CustomHeaders           string         `db:"custom_headers" json:"custom_headers"`
+	CustomHeadersKeyID      sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
+	ToolAllowList           []string       `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList            []string       `db:"tool_deny_list" json:"tool_deny_list"`
+	Availability            string         `db:"availability" json:"availability"`
+	Enabled                 bool           `db:"enabled" json:"enabled"`
+	CreatedBy               uuid.NullUUID  `db:"created_by" json:"created_by"`
+	UpdatedBy               uuid.NullUUID  `db:"updated_by" json:"updated_by"`
+	CreatedAt               time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time      `db:"updated_at" json:"updated_at"`
+}
+
+type MCPServerUserToken struct {
+	ID                uuid.UUID      `db:"id" json:"id"`
+	MCPServerConfigID uuid.UUID      `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	UserID            uuid.UUID      `db:"user_id" json:"user_id"`
+	AccessToken       string         `db:"access_token" json:"access_token"`
+	AccessTokenKeyID  sql.NullString `db:"access_token_key_id" json:"access_token_key_id"`
+	RefreshToken      string         `db:"refresh_token" json:"refresh_token"`
+	RefreshTokenKeyID sql.NullString `db:"refresh_token_key_id" json:"refresh_token_key_id"`
+	TokenType         string         `db:"token_type" json:"token_type"`
+	Expiry            sql.NullTime   `db:"expiry" json:"expiry"`
+	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
 }
 
 type NotificationMessage struct {

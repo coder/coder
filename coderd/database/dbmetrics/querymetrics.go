@@ -264,6 +264,14 @@ func (m queryMetricsStore) CleanTailnetTunnels(ctx context.Context) error {
 	return r0
 }
 
+func (m queryMetricsStore) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.CleanupDeletedMCPServerIDsFromChats(ctx)
+	m.queryLatencies.WithLabelValues("CleanupDeletedMCPServerIDsFromChats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CleanupDeletedMCPServerIDsFromChats").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) CountAIBridgeInterceptions(ctx context.Context, arg database.CountAIBridgeInterceptionsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountAIBridgeInterceptions(ctx, arg)
@@ -478,6 +486,22 @@ func (m queryMetricsStore) DeleteLicense(ctx context.Context, id int32) (int32, 
 	m.queryLatencies.WithLabelValues("DeleteLicense").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteLicense").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) DeleteMCPServerConfigByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteMCPServerConfigByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteMCPServerConfigByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteMCPServerConfigByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) DeleteMCPServerUserToken(ctx context.Context, arg database.DeleteMCPServerUserTokenParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteMCPServerUserToken(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteMCPServerUserToken").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteMCPServerUserToken").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error {
@@ -1328,6 +1352,14 @@ func (m queryMetricsStore) GetEnabledChatProviders(ctx context.Context) ([]datab
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetEnabledMCPServerConfigs(ctx)
+	m.queryLatencies.WithLabelValues("GetEnabledMCPServerConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEnabledMCPServerConfigs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetExternalAuthLink(ctx, arg)
@@ -1381,6 +1413,14 @@ func (m queryMetricsStore) GetFilteredInboxNotificationsByUserID(ctx context.Con
 	r0, r1 := m.s.GetFilteredInboxNotificationsByUserID(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetFilteredInboxNotificationsByUserID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetFilteredInboxNotificationsByUserID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetForcedMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetForcedMCPServerConfigs(ctx)
+	m.queryLatencies.WithLabelValues("GetForcedMCPServerConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetForcedMCPServerConfigs").Inc()
 	return r0, r1
 }
 
@@ -1541,6 +1581,54 @@ func (m queryMetricsStore) GetLogoURL(ctx context.Context) (string, error) {
 	r0, r1 := m.s.GetLogoURL(ctx)
 	m.queryLatencies.WithLabelValues("GetLogoURL").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLogoURL").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMCPServerConfigByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetMCPServerConfigByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetMCPServerConfigBySlug(ctx context.Context, slug string) (database.MCPServerConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMCPServerConfigBySlug(ctx, slug)
+	m.queryLatencies.WithLabelValues("GetMCPServerConfigBySlug").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigBySlug").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMCPServerConfigs(ctx)
+	m.queryLatencies.WithLabelValues("GetMCPServerConfigs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.MCPServerConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMCPServerConfigsByIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetMCPServerConfigsByIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerConfigsByIDs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetMCPServerUserToken(ctx context.Context, arg database.GetMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMCPServerUserToken(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetMCPServerUserToken").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerUserToken").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]database.MCPServerUserToken, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMCPServerUserTokensByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetMCPServerUserTokensByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPServerUserTokensByUserID").Inc()
 	return r0, r1
 }
 
@@ -3184,6 +3272,14 @@ func (m queryMetricsStore) InsertLicense(ctx context.Context, arg database.Inser
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertMCPServerConfig(ctx context.Context, arg database.InsertMCPServerConfigParams) (database.MCPServerConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertMCPServerConfig(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertMCPServerConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertMCPServerConfig").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertMemoryResourceMonitor(ctx context.Context, arg database.InsertMemoryResourceMonitorParams) (database.WorkspaceAgentMemoryResourceMonitor, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertMemoryResourceMonitor(ctx, arg)
@@ -3856,6 +3952,14 @@ func (m queryMetricsStore) UpdateChatHeartbeat(ctx context.Context, arg database
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateChatMCPServerIDs(ctx context.Context, arg database.UpdateChatMCPServerIDsParams) (database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatMCPServerIDs(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatMCPServerIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatMCPServerIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateChatMessageByID(ctx context.Context, arg database.UpdateChatMessageByIDParams) (database.ChatMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatMessageByID(ctx, arg)
@@ -3958,6 +4062,14 @@ func (m queryMetricsStore) UpdateInboxNotificationReadStatus(ctx context.Context
 	m.queryLatencies.WithLabelValues("UpdateInboxNotificationReadStatus").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateInboxNotificationReadStatus").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateMCPServerConfig(ctx context.Context, arg database.UpdateMCPServerConfigParams) (database.MCPServerConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateMCPServerConfig(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateMCPServerConfig").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateMCPServerConfig").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
@@ -4694,6 +4806,14 @@ func (m queryMetricsStore) UpsertLogoURL(ctx context.Context, value string) erro
 	m.queryLatencies.WithLabelValues("UpsertLogoURL").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertLogoURL").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpsertMCPServerUserToken(ctx context.Context, arg database.UpsertMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertMCPServerUserToken(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertMCPServerUserToken").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertMCPServerUserToken").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpsertNotificationReportGeneratorLog(ctx context.Context, arg database.UpsertNotificationReportGeneratorLogParams) error {
