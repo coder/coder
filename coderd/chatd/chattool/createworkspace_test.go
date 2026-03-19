@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -128,7 +129,7 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 		{
 			name:      "PositiveTTL",
 			ttlReturn: "2h",
-			wantTTLMs: ptr(int64(2 * time.Hour / time.Millisecond)),
+			wantTTLMs: ptr.Ref(int64(2 * time.Hour / time.Millisecond)),
 		},
 		{
 			name:      "ZeroTTLUsesTemplateDefault",
@@ -257,8 +258,4 @@ func TestCheckExistingWorkspace_DeletedWorkspace(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, done, "should allow creation for deleted workspace")
 	require.Nil(t, result)
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }
