@@ -86,6 +86,7 @@ export const ExceededAIGovernance: Story = {
 			enabled: true,
 			entitlement: "entitled",
 			actual: 1200,
+			limit: 1000,
 		},
 	},
 };
