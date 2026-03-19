@@ -296,8 +296,19 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(existingConfigs) != len(req.MCPServerIDs) {
+			found := make(map[uuid.UUID]struct{}, len(existingConfigs))
+			for _, c := range existingConfigs {
+				found[c.ID] = struct{}{}
+			}
+			var missing []string
+			for _, id := range req.MCPServerIDs {
+				if _, ok := found[id]; !ok {
+					missing = append(missing, id.String())
+				}
+			}
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "One or more MCP server IDs are invalid.",
+				Detail:  fmt.Sprintf("Invalid IDs: %s", strings.Join(missing, ", ")),
 			})
 			return
 		}
@@ -1493,8 +1504,19 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(existingConfigs) != len(*req.MCPServerIDs) {
+			found := make(map[uuid.UUID]struct{}, len(existingConfigs))
+			for _, c := range existingConfigs {
+				found[c.ID] = struct{}{}
+			}
+			var missing []string
+			for _, id := range *req.MCPServerIDs {
+				if _, ok := found[id]; !ok {
+					missing = append(missing, id.String())
+				}
+			}
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "One or more MCP server IDs are invalid.",
+				Detail:  fmt.Sprintf("Invalid IDs: %s", strings.Join(missing, ", ")),
 			})
 			return
 		}

@@ -1692,7 +1692,7 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 }
 
 func (q *querier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return err
 	}
 	return q.db.CleanupDeletedMCPServerIDsFromChats(ctx)
