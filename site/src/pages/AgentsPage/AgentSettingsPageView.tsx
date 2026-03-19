@@ -38,6 +38,10 @@ import { Alert } from "#/components/Alert/Alert";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
+import {
+	MultiSelectCombobox,
+	type Option,
+} from "#/components/MultiSelectCombobox/MultiSelectCombobox";
 import { PaginationAmount } from "#/components/PaginationWidget/PaginationAmount";
 import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import { SearchField } from "#/components/SearchField/SearchField";
@@ -960,55 +964,50 @@ const TemplateAllowlistSection: FC = () => {
 		isError: isSaveError,
 	} = useMutation(updateChatTemplateAllowlist(queryClient));
 
-	const [searchFilter, setSearchFilter] = useState("");
-	const [localAllowlist, setLocalAllowlist] = useState<Set<string> | null>(
-		null,
+	const [localSelection, setLocalSelection] = useState<Option[] | null>(null);
+
+	// Map all templates to MultiSelectCombobox options.
+	const allOptions: Option[] = useMemo(
+		() =>
+			(templatesQuery.data ?? []).map((t) => ({
+				value: t.id,
+				label: t.display_name || t.name,
+				icon: t.icon,
+			})),
+		[templatesQuery.data],
 	);
 
-	// Initialize local state from server data.
-	const serverAllowlist = useMemo(
-		() => new Set(allowlistQuery.data?.template_ids ?? []),
-		[allowlistQuery.data],
+	// Build a lookup from template ID to Option for resolving server IDs.
+	const optionsByID = useMemo(
+		() => new Map(allOptions.map((o) => [o.value, o])),
+		[allOptions],
 	);
-	const currentAllowlist = localAllowlist ?? serverAllowlist;
 
-	const isDirty =
-		localAllowlist !== null &&
-		(localAllowlist.size !== serverAllowlist.size ||
-			[...localAllowlist].some((id) => !serverAllowlist.has(id)));
+	// Resolve the server-side allowlist IDs into Option objects.
+	const serverSelection: Option[] = useMemo(
+		() =>
+			(allowlistQuery.data?.template_ids ?? [])
+				.map((id) => optionsByID.get(id))
+				.filter((o): o is Option => o !== undefined),
+		[allowlistQuery.data, optionsByID],
+	);
 
-	const filteredTemplates = useMemo(() => {
-		const all = templatesQuery.data ?? [];
-		if (!searchFilter) return all;
-		const lower = searchFilter.toLowerCase();
-		return all.filter(
-			(t) =>
-				t.name.toLowerCase().includes(lower) ||
-				t.display_name?.toLowerCase().includes(lower),
-		);
-	}, [templatesQuery.data, searchFilter]);
+	const currentSelection = localSelection ?? serverSelection;
 
-	const toggleTemplate = (id: string) => {
-		const next = new Set(currentAllowlist);
-		if (next.has(id)) {
-			next.delete(id);
-		} else {
-			next.add(id);
-		}
-		setLocalAllowlist(next);
-	};
+	const isDirty = useMemo(() => {
+		if (localSelection === null) return false;
+		if (localSelection.length !== serverSelection.length) return true;
+		const serverSet = new Set(serverSelection.map((o) => o.value));
+		return localSelection.some((o) => !serverSet.has(o.value));
+	}, [localSelection, serverSelection]);
 
 	const handleSave = (event: FormEvent) => {
 		event.preventDefault();
 		if (!isDirty) return;
 		saveAllowlist(
-			{ template_ids: [...currentAllowlist] },
-			{ onSuccess: () => setLocalAllowlist(null) },
+			{ template_ids: currentSelection.map((o) => o.value) },
+			{ onSuccess: () => setLocalSelection(null) },
 		);
-	};
-
-	const handleClear = () => {
-		setLocalAllowlist(new Set());
 	};
 
 	const isLoading = templatesQuery.isLoading || allowlistQuery.isLoading;
@@ -1055,78 +1054,32 @@ const TemplateAllowlistSection: FC = () => {
 					className="space-y-3"
 					onSubmit={(event) => void handleSave(event)}
 				>
-					{currentAllowlist.size === 0 && (
-						<p className="m-0 rounded-lg border border-border bg-surface-secondary px-4 py-3 text-xs text-content-secondary">
-							No restrictions — agents can use any template the user has access
-							to.
-						</p>
-					)}
-
-					<SearchField
-						value={searchFilter}
-						onChange={setSearchFilter}
-						placeholder="Filter templates"
-						aria-label="Filter templates"
-					/>
-
-					<div
-						role="group"
-						aria-label="Template allowlist"
-						className="max-h-[320px] overflow-y-auto rounded-lg border border-border [scrollbar-width:thin]"
-					>
-						{filteredTemplates.length === 0 ? (
-							<p className="py-8 text-center text-xs text-content-secondary">
-								{searchFilter
-									? "No templates match your search."
-									: "No templates have been created yet."}
+					<MultiSelectCombobox
+						options={allOptions}
+						value={currentSelection}
+						onChange={setLocalSelection}
+						placeholder="Select templates..."
+						emptyIndicator={
+							<p className="text-center text-sm text-content-secondary">
+								No templates found.
 							</p>
-						) : (
-							filteredTemplates.map((t) => (
-								<label
-									key={t.id}
-									className="flex cursor-pointer items-center gap-3 border-b border-border px-4 py-2.5 last:border-b-0 hover:bg-surface-secondary"
-								>
-									<input
-										type="checkbox"
-										checked={currentAllowlist.has(t.id)}
-										onChange={() => toggleTemplate(t.id)}
-										disabled={isSaving}
-										className="h-4 w-4 rounded border-border accent-content-link"
-									/>
-									<div className="min-w-0 flex-1">
-										<div className="truncate text-sm font-medium text-content-primary">
-											{t.display_name || t.name}
-										</div>
-										{t.display_name && (
-											<div className="truncate text-xs text-content-secondary">
-												{t.name}
-											</div>
-										)}
-									</div>
-								</label>
-							))
-						)}
-					</div>
+						}
+						disabled={isSaving}
+						hidePlaceholderWhenSelected
+						data-testid="template-allowlist-select"
+					/>
 
 					<p
 						aria-live="polite"
 						role="status"
 						className="m-0 text-xs text-content-secondary"
 					>
-						{currentAllowlist.size > 0
-							? `${currentAllowlist.size} template${currentAllowlist.size !== 1 ? "s" : ""} selected`
+						{currentSelection.length > 0
+							? `${currentSelection.length} template${currentSelection.length !== 1 ? "s" : ""} selected`
 							: "No templates selected \u2014 all templates are available"}
 					</p>
-					<div className="flex justify-end gap-2">
-						<Button
-							size="sm"
-							variant="outline"
-							type="button"
-							onClick={handleClear}
-							disabled={isSaving || currentAllowlist.size === 0}
-						>
-							Deselect All
-						</Button>
+
+					<div className="flex justify-end">
 						<Button size="sm" type="submit" disabled={isSaving || !isDirty}>
 							Save
 						</Button>
