@@ -795,6 +795,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 			ClientSessionID: sql.NullString{String: "session-multi", Valid: true},
 		}, &s4i2EndedAt)
 
+		//nolint:gocritic // Owner role is irrelevant here.
 		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
 		require.NoError(t, err)
 		require.EqualValues(t, 4, res.Count)
@@ -862,6 +863,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 		}
 
 		// Test offset pagination.
+		//nolint:gocritic // Owner role is irrelevant here.
 		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
 			Pagination: codersdk.Pagination{Limit: 2},
 		})
@@ -945,6 +947,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 		}, &s2EndedAt)
 
 		// Filter by initiator.
+		//nolint:gocritic // Owner role is irrelevant; testing filter behavior.
 		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
 			Initiator: user2.Username,
 		})
@@ -1004,6 +1007,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 		}, &now)
 
 		// Admin can see all sessions.
+		//nolint:gocritic // Intentionally testing admin/owner visibility.
 		res, err := adminClient.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
 		require.NoError(t, err)
 		require.EqualValues(t, 2, res.Count)
@@ -1036,6 +1040,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 			StartedAt:   now.Add(-time.Hour),
 		}, nil)
 
+		//nolint:gocritic // Owner role is irrelevant; testing inflight filtering.
 		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
 		require.NoError(t, err)
 		require.EqualValues(t, 1, res.Count)
@@ -1114,6 +1119,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 		client, _ := coderdenttest.New(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
+		//nolint:gocritic // Owner role is irrelevant; testing pagination validation.
 		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
 			Pagination: codersdk.Pagination{
 				Limit: 1001,
