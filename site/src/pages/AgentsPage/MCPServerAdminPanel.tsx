@@ -628,16 +628,13 @@ const ServerForm: FC<ServerFormProps> = ({
 								<Field label="Client Secret" htmlFor={`${formId}-oauth-secret`}>
 									<Input
 										id={`${formId}-oauth-secret`}
-										className="h-9 font-mono text-[13px]"
+										className="h-9 font-mono text-[13px] [-webkit-text-security:disc]"
 										type="text"
 										autoComplete="off"
 										data-1p-ignore
 										data-lpignore="true"
 										data-form-type="other"
 										data-bwignore
-										style={
-											{ WebkitTextSecurity: "disc" } as React.CSSProperties
-										}
 										value={oauth2ClientSecret}
 										onChange={(e) => {
 											setOauth2SecretTouched(true);
@@ -708,14 +705,13 @@ const ServerForm: FC<ServerFormProps> = ({
 							<Field label="API Key" htmlFor={`${formId}-apikey-value`}>
 								<Input
 									id={`${formId}-apikey-value`}
-									className="h-9 font-mono text-[13px]"
+									className="h-9 font-mono text-[13px] [-webkit-text-security:disc]"
 									type="text"
 									autoComplete="off"
 									data-1p-ignore
 									data-lpignore="true"
 									data-form-type="other"
 									data-bwignore
-									style={{ WebkitTextSecurity: "disc" } as React.CSSProperties}
 									value={apiKeyValue}
 									onChange={(e) => {
 										setApiKeyTouched(true);
@@ -754,16 +750,13 @@ const ServerForm: FC<ServerFormProps> = ({
 											aria-label={`Header ${index + 1} name`}
 										/>
 										<Input
-											className="h-9 font-mono text-[13px]"
+											className="h-9 font-mono text-[13px] [-webkit-text-security:disc]"
 											type="text"
 											autoComplete="off"
 											data-1p-ignore
 											data-lpignore="true"
 											data-form-type="other"
 											data-bwignore
-											style={
-												{ WebkitTextSecurity: "disc" } as React.CSSProperties
-											}
 											value={header.value}
 											onChange={(e) =>
 												handleUpdateCustomHeader(index, "value", e.target.value)
@@ -995,12 +988,7 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 	);
 
 	if (serversQuery.isLoading) {
-		return (
-			<div className="flex items-center gap-1.5 text-xs text-content-secondary">
-				<Spinner className="h-4 w-4" loading />
-				Loading
-			</div>
-		);
+		return <Spinner loading className="h-4 w-4" />;
 	}
 
 	return (
