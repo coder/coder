@@ -189,14 +189,17 @@ const SELECTION_OVERRIDE_CSS = [
 	"}",
 ].join(" ");
 
-// Restyled separators: flat, full-width dividers instead of
-// the library's rounded, inset pill design.
+// Restyled separators: quiet, full-width dividers that fade
+// into the background instead of drawing attention.
 const SEPARATOR_CSS = [
+	// Transparent backgrounds so separators blend with the
+	// code area rather than forming a distinct band.
 	":host {",
-	"  --diffs-bg-separator-override: hsl(var(--surface-secondary));",
+	"  --diffs-bg-separator-override: transparent;",
 	"}",
 	"[data-separator-content] {",
 	"  border-radius: 0 !important;",
+	"  background-color: transparent !important;",
 	"}",
 	"[data-separator-wrapper] {",
 	"  border-radius: 0 !important;",
@@ -206,10 +209,17 @@ const SEPARATOR_CSS = [
 	"[data-unified] [data-separator='line-info'] [data-separator-wrapper] {",
 	"  padding-inline: 0 !important;",
 	"}",
-	// Add subtle borders for a clean divider feel.
+	// Thin single border and muted text so collapsed-line
+	// indicators read as a quiet hint, not a landmark.
 	"[data-separator='line-info'] {",
+	"  height: 28px !important;",
 	"  border-top: 1px solid hsl(var(--border-default));",
 	"  border-bottom: 1px solid hsl(var(--border-default));",
+	"}",
+	"[data-separator-content] {",
+	"  font-size: 11px !important;",
+	"  color: hsl(var(--content-secondary)) !important;",
+	"  opacity: 0.8;",
 	"}",
 ].join(" ");
 
