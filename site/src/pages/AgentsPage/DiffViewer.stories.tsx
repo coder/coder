@@ -34,6 +34,30 @@ const sampleDiff = [
 const parsedFiles = parsePatchFiles(sampleDiff).flatMap((p) => p.files);
 const firstFileName = parsedFiles[0]?.name ?? "";
 
+function generateLargeDiff(fileCount: number, linesPerFile: number): string {
+	const files: string[] = [];
+	for (let f = 0; f < fileCount; f++) {
+		const name = `src/module${f}.ts`;
+		const lines = [
+			`diff --git a/${name} b/${name}`,
+			`index ${f}aaa111..${f}bbb222 100644`,
+			`--- a/${name}`,
+			`+++ b/${name}`,
+			`@@ -1,${linesPerFile} +1,${linesPerFile * 2} @@`,
+		];
+		for (let i = 0; i < linesPerFile; i++) {
+			lines.push(` // existing line ${i}`);
+			lines.push(`+// added line ${i}`);
+		}
+		files.push(lines.join("\n"));
+	}
+	return files.join("\n");
+}
+
+const largeParsedFiles = parsePatchFiles(generateLargeDiff(5, 30)).flatMap(
+	(p) => p.files,
+);
+
 const meta: Meta<typeof DiffViewer> = {
 	title: "pages/AgentsPage/DiffViewer",
 	component: DiffViewer,
@@ -46,7 +70,14 @@ const meta: Meta<typeof DiffViewer> = {
 	},
 	decorators: [
 		(Story) => (
-			<div style={{ height: 500, width: 700 }}>
+			<div
+				style={{
+					height: 500,
+					width: 700,
+					display: "flex",
+					flexDirection: "column",
+				}}
+			>
 				<Story />
 			</div>
 		),
@@ -60,6 +91,13 @@ export const Default: Story = {};
 export const SplitView: Story = {
 	args: {
 		diffStyle: "split",
+	},
+};
+
+/** Large diff that requires scrolling. Regression test for overscroll. */
+export const LargeDiff: Story = {
+	args: {
+		parsedFiles: largeParsedFiles,
 	},
 };
 

@@ -50,6 +50,26 @@ index aaa1111..bbb2222 100644
 +Follow the steps below to get started.
 `;
 
+function generateLargeDiff(fileCount: number, linesPerFile: number): string {
+	const files: string[] = [];
+	for (let f = 0; f < fileCount; f++) {
+		const name = `src/module${f}.ts`;
+		const lines = [
+			`diff --git a/${name} b/${name}`,
+			`index ${f}aaa111..${f}bbb222 100644`,
+			`--- a/${name}`,
+			`+++ b/${name}`,
+			`@@ -1,${linesPerFile} +1,${linesPerFile * 2} @@`,
+		];
+		for (let i = 0; i < linesPerFile; i++) {
+			lines.push(` // existing line ${i}`);
+			lines.push(`+// added line ${i}`);
+		}
+		files.push(lines.join("\n"));
+	}
+	return files.join("\n");
+}
+
 const makeRepo = (
 	overrides: Partial<WorkspaceAgentRepoChanges> = {},
 ): WorkspaceAgentRepoChanges => ({
@@ -105,7 +125,14 @@ const meta: Meta<typeof GitPanel> = {
 	},
 	decorators: [
 		(Story) => (
-			<div style={{ height: 600, width: 480 }}>
+			<div
+				style={{
+					height: 600,
+					width: 480,
+					display: "flex",
+					flexDirection: "column",
+				}}
+			>
 				<Story />
 			</div>
 		),
@@ -226,6 +253,18 @@ export const WorkingChangesOnly: Story = {
 	},
 };
 
+/** Large local diff that requires scrolling. Regression test for overscroll. */
+export const LargeLocalDiff: Story = {
+	args: {
+		repositories: new Map([
+			[
+				"/home/coder/coder",
+				makeRepo({ unified_diff: generateLargeDiff(5, 30) }),
+			],
+		]),
+	},
+};
+
 /** Multiple repos with working changes. */
 export const MultipleRepos: Story = {
 	args: {
@@ -277,7 +316,14 @@ export const InlineCommentInput: Story = {
 	},
 	decorators: [
 		(Story) => (
-			<div style={{ height: 700, width: 600 }}>
+			<div
+				style={{
+					height: 700,
+					width: 600,
+					display: "flex",
+					flexDirection: "column",
+				}}
+			>
 				<Story />
 			</div>
 		),

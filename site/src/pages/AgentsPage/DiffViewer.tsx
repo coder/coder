@@ -801,7 +801,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	// ---------------------------------------------------------------
 	if (isLoading) {
 		return (
-			<div className="flex h-full min-w-0 flex-col overflow-hidden">
+			<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
 				<div className="space-y-4 p-4">
 					{Array.from({ length: 3 }, (_, i) => (
 						<div key={i} className="space-y-2">
@@ -833,7 +833,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	return (
 		<div
 			ref={containerRef}
-			className="flex h-full min-w-0 flex-col overflow-hidden"
+			className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
 		>
 			{/* Diff contents */}
 			{sortedFiles.length === 0 ? (
