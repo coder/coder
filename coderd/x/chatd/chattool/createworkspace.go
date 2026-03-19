@@ -211,14 +211,16 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 				}
 			}
 
-			// Persist workspace + agent association on the chat.
+			// Persist the workspace binding on the chat.
 			if options.DB != nil && options.ChatID != uuid.Nil {
-				if _, err := options.DB.UpdateChatWorkspace(ctx, database.UpdateChatWorkspaceParams{
+				if _, err := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
 					ID: options.ChatID,
 					WorkspaceID: uuid.NullUUID{
 						UUID:  workspace.ID,
 						Valid: true,
 					},
+					BuildID: uuid.NullUUID{},
+					AgentID: uuid.NullUUID{},
 				}); err != nil {
 					options.Logger.Error(ctx, "failed to persist chat workspace association",
 						slog.F("chat_id", options.ChatID),

@@ -819,15 +819,17 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpdateChatStatus(gomock.Any(), arg).Return(chat, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
 	}))
-	s.Run("UpdateChatWorkspace", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("UpdateChatWorkspaceBinding", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		arg := database.UpdateChatWorkspaceParams{
+		arg := database.UpdateChatWorkspaceBindingParams{
 			ID:          chat.ID,
 			WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			BuildID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			AgentID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		}
 		updatedChat := testutil.Fake(s.T(), faker, database.Chat{ID: chat.ID})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().UpdateChatWorkspace(gomock.Any(), arg).Return(updatedChat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatWorkspaceBinding(gomock.Any(), arg).Return(updatedChat, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(updatedChat)
 	}))
 	s.Run("UnsetDefaultChatModelConfigs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

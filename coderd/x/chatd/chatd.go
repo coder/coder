@@ -525,6 +525,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		insertedChat, err := tx.InsertChat(ctx, database.InsertChatParams{
 			OwnerID:           opts.OwnerID,
 			WorkspaceID:       opts.WorkspaceID,
+			BuildID:           uuid.NullUUID{},
+			AgentID:           uuid.NullUUID{},
 			ParentChatID:      opts.ParentChatID,
 			RootChatID:        opts.RootChatID,
 			LastModelConfigID: opts.ModelConfigID,
