@@ -178,7 +178,15 @@ const meta: Meta<typeof AgentsPageView> = {
 		isFetchingNextPage: false,
 		onCreateChat: fn(),
 		createError: undefined,
-		modelCatalog: undefined,
+		modelCatalog: {
+			providers: [
+				{
+					provider: "openai",
+					available: true,
+					models: [{ id: "openai:gpt-4o", provider: "openai", model: "gpt-4o", display_name: "GPT-4o" }],
+				},
+			],
+		},
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
 		modelCatalogError: undefined,
