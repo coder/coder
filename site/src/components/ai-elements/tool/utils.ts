@@ -209,6 +209,12 @@ const SEPARATOR_CSS = [
 	"[data-unified] [data-separator='line-info'] [data-separator-wrapper] {",
 	"  padding-inline: 0 !important;",
 	"}",
+	// The first separator in a file just says "N unmodified
+	// lines" before the first hunk — that's obvious context
+	// that adds no value, so hide it entirely.
+	"[data-separator='line-info'][data-separator-first] {",
+	"  display: none !important;",
+	"}",
 	// Thin single border and muted text so collapsed-line
 	// indicators read as a quiet hint, not a landmark.
 	"[data-separator='line-info'] {",
