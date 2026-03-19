@@ -1,4 +1,3 @@
-import type * as TypesGen from "api/typesGenerated";
 import { describe, expect, it } from "vitest";
 import {
 	getModelOptionsFromCatalog,
@@ -42,34 +41,20 @@ describe("getModelOptionsFromCatalog", () => {
 					],
 				},
 			],
-		} as unknown as TypesGen.ChatModelsResponse;
+		} satisfies NonNullable<Parameters<typeof getModelOptionsFromCatalog>[0]>;
 
 		const configs = [
 			{
-				id: "config-bad",
 				provider: undefined,
 				model: " gpt-4o ",
-				display_name: "",
-				enabled: true,
-				is_default: false,
 				context_limit: 123,
-				compression_threshold: 0,
-				created_at: "",
-				updated_at: "",
 			},
 			{
-				id: "config-good",
 				provider: " openai ",
 				model: " gpt-4o ",
-				display_name: "",
-				enabled: true,
-				is_default: false,
 				context_limit: 456,
-				compression_threshold: 0,
-				created_at: "",
-				updated_at: "",
 			},
-		] as unknown as readonly TypesGen.ChatModelConfig[];
+		] satisfies NonNullable<Parameters<typeof getModelOptionsFromCatalog>[1]>;
 
 		expect(() => getModelOptionsFromCatalog(catalog, configs)).not.toThrow();
 		expect(getModelOptionsFromCatalog(catalog, configs)).toEqual([

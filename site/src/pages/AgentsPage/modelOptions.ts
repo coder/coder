@@ -2,58 +2,77 @@ import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { asString } from "components/ai-elements/runtimeTypeUtils";
 
-type CatalogProvider = TypesGen.ChatModelsResponse["providers"][number];
-type ModelRefLike =
-	| {
-			readonly provider?: unknown;
-			readonly model?: unknown;
-	  }
-	| null
-	| undefined;
+type ModelRefLike = {
+	readonly provider?: unknown;
+	readonly model?: unknown;
+};
+
+type CatalogModelLike = ModelRefLike & {
+	readonly id?: unknown;
+	readonly display_name?: unknown;
+};
+
+type CatalogProviderLike = {
+	readonly provider?: unknown;
+	readonly available?: unknown;
+	readonly unavailable_reason?: unknown;
+	readonly models?: readonly CatalogModelLike[];
+};
+
+type ModelCatalogLike = {
+	readonly providers?: readonly CatalogProviderLike[];
+};
+
+type ChatModelConfigLike = ModelRefLike & {
+	readonly context_limit?: unknown;
+};
 
 export const getNormalizedModelRef = (
 	value: ModelRefLike,
-): { readonly provider: string; readonly model: string } => ({
-	provider: asString(value?.provider).trim().toLowerCase(),
-	model: asString(value?.model).trim(),
-});
+): { readonly provider: string; readonly model: string } => {
+	const modelRef = value ?? {};
+	return {
+		provider: asString(modelRef.provider).trim().toLowerCase(),
+		model: asString(modelRef.model).trim(),
+	};
+};
 
 const getCatalogProviders = (
-	catalog: TypesGen.ChatModelsResponse | null | undefined,
-): readonly CatalogProvider[] => {
+	catalog: ModelCatalogLike | null | undefined,
+): readonly CatalogProviderLike[] => {
 	const providers = catalog?.providers;
 	return Array.isArray(providers) ? providers : [];
 };
 
 const getProviderModels = (
-	provider: CatalogProvider,
-): readonly CatalogProvider["models"][number][] => {
+	provider: CatalogProviderLike,
+): readonly CatalogModelLike[] => {
 	const models = provider.models;
 	return Array.isArray(models) ? models : [];
 };
 
-const isProviderConfiguredInCatalog = (provider: CatalogProvider): boolean => {
+const isProviderConfiguredInCatalog = (
+	provider: CatalogProviderLike,
+): boolean => {
 	if (getProviderModels(provider).length > 0) {
 		return true;
 	}
-	if (provider.available) {
+	if (provider.available === true) {
 		return true;
 	}
-	return (
-		Boolean(provider.unavailable_reason) &&
-		provider.unavailable_reason !== "missing_api_key"
-	);
+	const unavailableReason = asString(provider.unavailable_reason).trim();
+	return unavailableReason !== "" && unavailableReason !== "missing_api_key";
 };
 
 export const hasConfiguredModelsInCatalog = (
-	catalog: TypesGen.ChatModelsResponse | null | undefined,
+	catalog: ModelCatalogLike | null | undefined,
 ): boolean => {
 	return getCatalogProviders(catalog).some(isProviderConfiguredInCatalog);
 };
 
 export const getModelOptionsFromCatalog = (
-	catalog: TypesGen.ChatModelsResponse | null | undefined,
-	configs?: readonly TypesGen.ChatModelConfig[],
+	catalog: ModelCatalogLike | null | undefined,
+	configs?: readonly ChatModelConfigLike[],
 ): readonly ModelSelectorOption[] => {
 	const optionsByID = new Map<string, ModelSelectorOption>();
 
@@ -62,7 +81,10 @@ export const getModelOptionsFromCatalog = (
 	const contextLimitByKey = new Map<string, number>();
 	if (configs) {
 		for (const config of configs) {
-			if (config.context_limit > 0) {
+			if (
+				typeof config.context_limit === "number" &&
+				config.context_limit > 0
+			) {
 				const { provider, model } = getNormalizedModelRef(config);
 				if (!provider || !model) {
 					continue;
@@ -77,7 +99,7 @@ export const getModelOptionsFromCatalog = (
 
 	for (const provider of getCatalogProviders(catalog)) {
 		const models = getProviderModels(provider);
-		if (!provider.available || models.length === 0) {
+		if (provider.available !== true || models.length === 0) {
 			continue;
 		}
 		for (const model of models) {
