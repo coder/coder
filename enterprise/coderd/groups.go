@@ -448,6 +448,9 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param groupName path string true "Group name"
 // @Param q query string false "Member search query"
+// @Param after_id query string false "After ID" format(uuid)
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.GroupMembersResponse
 // @Router /organizations/{organization}/groups/{groupName}/members [get]
 func (api *API) groupMembersByOrganization(rw http.ResponseWriter, r *http.Request) {
@@ -461,6 +464,9 @@ func (api *API) groupMembersByOrganization(rw http.ResponseWriter, r *http.Reque
 // @Tags Enterprise
 // @Param group path string true "Group id"
 // @Param q query string false "Member search query"
+// @Param after_id query string false "After ID" format(uuid)
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.GroupMembersResponse
 // @Router /groups/{group}/members [get]
 func (api *API) groupMembers(rw http.ResponseWriter, r *http.Request) {
