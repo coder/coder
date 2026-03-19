@@ -68,7 +68,7 @@ type AIBridgeSession struct {
 	Initiator         MinimalUser                      `json:"initiator"`
 	Providers         []string                         `json:"providers"`
 	Models            []string                         `json:"models"`
-	Client            string                           `json:"client"`
+	Client            *string                          `json:"client"`
 	Metadata          map[string]any                   `json:"metadata"`
 	StartedAt         time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
