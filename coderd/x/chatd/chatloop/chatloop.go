@@ -303,25 +303,23 @@ func Run(ctx context.Context, opts RunOptions) error {
 
 			var result stepResult
 			err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
-				attemptCtx, cancelAttempt := context.WithCancelCause(retryCtx)
-				defer cancelAttempt(nil)
-
-				stream, streamErr := opts.Model.Stream(attemptCtx, call)
+				attempt, streamErr := guardedStream(
+					retryCtx,
+					opts.Model.Provider(),
+					func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
+						return opts.Model.Stream(attemptCtx, call)
+					},
+				)
 				if streamErr != nil {
 					return streamErr
 				}
 				var processErr error
 				result, processErr = processStepStream(
-					attemptCtx,
-					cancelAttempt,
-					stream,
+					attempt.ctx,
+					attempt.stream,
 					publishMessagePart,
 				)
-				return wrapStartupTimeoutError(
-					attemptCtx,
-					opts.Model.Provider(),
-					processErr,
-				)
+				return attempt.cleanup(processErr)
 			}, func(
 				attempt int,
 				retryErr error,
@@ -497,13 +495,70 @@ func Run(ctx context.Context, opts RunOptions) error {
 	return nil
 }
 
+// guardedAttempt owns an attempt-scoped context and first-chunk guard
+// around a provider stream. cleanup stops the guard and canonicalizes
+// startup timeout errors before the retry loop classifies them.
+type guardedAttempt struct {
+	ctx     context.Context
+	stream  fantasy.StreamResponse
+	cleanup func(error) error
+}
+
+func guardedStream(
+	parent context.Context,
+	provider string,
+	openStream func(context.Context) (fantasy.StreamResponse, error),
+) (guardedAttempt, error) {
+	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
+
+	stream, err := openStream(attemptCtx)
+	if err != nil {
+		cancelAttempt(nil)
+		return guardedAttempt{}, err
+	}
+
+	firstPartSeen := false
+	firstChunkTimer := time.AfterFunc(firstChunkTimeout, func() {
+		cancelAttempt(errFirstChunkTimeout)
+	})
+
+	stopFirstChunkTimer := func() {
+		if firstPartSeen {
+			return
+		}
+		firstPartSeen = true
+		firstChunkTimer.Stop()
+	}
+
+	return guardedAttempt{
+		ctx: attemptCtx,
+		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
+			for part := range stream {
+				stopFirstChunkTimer()
+				if !yield(part) {
+					return
+				}
+			}
+		}),
+		cleanup: func(err error) error {
+			firstChunkTimer.Stop()
+			wrapped := wrapStartupTimeoutError(attemptCtx, provider, err)
+			cancelAttempt(nil)
+			return wrapped
+		},
+	}, nil
+}
+
 func wrapStartupTimeoutError(
 	ctx context.Context,
 	provider string,
 	err error,
 ) error {
-	if err == nil || !errors.Is(context.Cause(ctx), errFirstChunkTimeout) {
+	if !errors.Is(context.Cause(ctx), errFirstChunkTimeout) {
 		return err
+	}
+	if err == nil {
+		err = errFirstChunkTimeout
 	}
 	return chaterror.WithClassification(err, chaterror.ClassifiedError{
 		Kind:      chaterror.KindStartupTimeout,
@@ -517,25 +572,10 @@ func wrapStartupTimeoutError(
 // inline and their errors propagate directly.
 func processStepStream(
 	ctx context.Context,
-	cancel context.CancelCauseFunc,
 	stream fantasy.StreamResponse,
 	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
 ) (stepResult, error) {
 	var result stepResult
-
-	firstPartSeen := false
-	firstChunkTimer := time.AfterFunc(firstChunkTimeout, func() {
-		cancel(errFirstChunkTimeout)
-	})
-	defer firstChunkTimer.Stop()
-
-	stopFirstChunkTimer := func() {
-		if firstPartSeen {
-			return
-		}
-		firstPartSeen = true
-		firstChunkTimer.Stop()
-	}
 
 	activeToolCalls := make(map[string]*fantasy.ToolCallContent)
 	activeTextContent := make(map[string]string)
@@ -544,7 +584,6 @@ func processStepStream(
 	toolNames := make(map[string]string)
 
 	for part := range stream {
-		stopFirstChunkTimer()
 		switch part.Type {
 		case fantasy.StreamPartTypeTextStart:
 			activeTextContent[part.ID] = ""
@@ -717,11 +756,6 @@ func processStepStream(
 		)
 		return result, ErrInterrupted
 	}
-	if ctx.Err() != nil &&
-		errors.Is(context.Cause(ctx), errFirstChunkTimeout) {
-		return result, context.Cause(ctx)
-	}
-
 	hasLocalToolCalls := false
 	for _, tc := range result.toolCalls {
 		if !tc.ProviderExecuted {

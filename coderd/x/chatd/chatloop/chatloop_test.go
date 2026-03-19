@@ -280,6 +280,59 @@ func TestRun_FirstChunkDisarmsStartupTimeout(t *testing.T) {
 	require.False(t, retried)
 }
 
+func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
+	t.Parallel()
+	withFirstChunkTimeout(t, 5*time.Millisecond)
+
+	attempts := 0
+	attemptCause := make(chan error, 1)
+	var retries []chatretry.ClassifiedError
+	model := &loopTestModel{
+		provider: "openai",
+		streamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			attempts++
+			if attempts == 1 {
+				return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+					<-ctx.Done()
+					attemptCause <- context.Cause(ctx)
+				}), nil
+			}
+			return streamFromParts([]fantasy.StreamPart{{
+				Type:         fantasy.StreamPartTypeFinish,
+				FinishReason: fantasy.FinishReasonStop,
+			}}), nil
+		},
+	}
+
+	err := Run(context.Background(), RunOptions{
+		Model:    model,
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		OnRetry: func(
+			_ int,
+			_ error,
+			classified chatretry.ClassifiedError,
+			_ time.Duration,
+		) {
+			retries = append(retries, classified)
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, attempts)
+	require.Len(t, retries, 1)
+	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
+	require.True(t, retries[0].Retryable)
+	require.Equal(t, "openai", retries[0].Provider)
+	require.Equal(
+		t,
+		"OpenAI did not start responding in time. Please try again.",
+		retries[0].Message,
+	)
+	require.ErrorIs(t, <-attemptCause, errFirstChunkTimeout)
+}
+
 func TestRun_InterruptedStepPersistsSyntheticToolResult(t *testing.T) {
 	t.Parallel()
 
