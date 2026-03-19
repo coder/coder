@@ -1,10 +1,13 @@
 package coderd_test
 
 import (
+	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -159,6 +162,103 @@ func TestMCPServerConfigsNonAdmin(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, memberConfigs, 1)
 	require.Equal(t, "enabled-server", memberConfigs[0].Slug)
+}
+
+// TestMCPServerConfigsSecretsNeverLeaked is a load-bearing test that
+// ensures secret fields (OAuth2 client secret, API key value, custom
+// headers) are never present in API responses for any caller. If this
+// test fails, it means a code change accidentally started exposing
+// secrets. See: https://github.com/coder/coder/pull/23227#discussion_r2959461109
+func TestMCPServerConfigsSecretsNeverLeaked(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	adminClient := newMCPClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+	// Create a config with ALL secret fields populated.
+	created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:        "Secrets Test",
+		Slug:               "secrets-test",
+		Transport:          "streamable_http",
+		URL:                "https://mcp.example.com/secrets",
+		AuthType:           "oauth2",
+		OAuth2ClientID:     "client-id-secret-test",
+		OAuth2ClientSecret: "THIS-IS-A-SECRET-VALUE",
+		OAuth2AuthURL:      "https://auth.example.com/authorize",
+		OAuth2TokenURL:     "https://auth.example.com/token",
+		OAuth2Scopes:       "read write",
+		APIKeyHeader:       "X-Api-Key",
+		APIKeyValue:        "THIS-IS-A-SECRET-API-KEY",
+		CustomHeaders:      map[string]string{"X-Custom": "THIS-IS-A-SECRET-HEADER"},
+		Availability:       "default_on",
+		Enabled:            true,
+		ToolAllowList:      []string{},
+		ToolDenyList:       []string{},
+	})
+	require.NoError(t, err)
+
+	// The sentinel values we must never see in any JSON response.
+	secrets := []string{
+		"THIS-IS-A-SECRET-VALUE",
+		"THIS-IS-A-SECRET-API-KEY",
+		"THIS-IS-A-SECRET-HEADER",
+	}
+
+	assertNoSecrets := func(t *testing.T, label string, v interface{}) {
+		t.Helper()
+		data, err := json.Marshal(v)
+		require.NoError(t, err)
+		jsonStr := string(data)
+		for _, secret := range secrets {
+			assert.False(t, strings.Contains(jsonStr, secret),
+				"%s: JSON response contains secret %q", label, secret)
+		}
+	}
+
+	// Verify the create response doesn't leak secrets.
+	assertNoSecrets(t, "admin create response", created)
+
+	// Verify boolean indicators are set correctly.
+	require.True(t, created.HasOAuth2Secret, "HasOAuth2Secret should be true")
+	require.True(t, created.HasAPIKey, "HasAPIKey should be true")
+	require.True(t, created.HasCustomHeaders, "HasCustomHeaders should be true")
+
+	// Admin list endpoint.
+	adminConfigs, err := adminClient.MCPServerConfigs(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, adminConfigs)
+	for _, cfg := range adminConfigs {
+		assertNoSecrets(t, "admin list", cfg)
+	}
+
+	// Admin get-by-ID endpoint.
+	adminSingle, err := adminClient.MCPServerConfigByID(ctx, created.ID)
+	require.NoError(t, err)
+	assertNoSecrets(t, "admin get-by-id", adminSingle)
+
+	// Non-admin list endpoint.
+	memberConfigs, err := memberClient.MCPServerConfigs(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, memberConfigs)
+	for _, cfg := range memberConfigs {
+		assertNoSecrets(t, "member list", cfg)
+		// Non-admin should also not see admin-only fields.
+		assert.Empty(t, cfg.OAuth2ClientID, "member should not see OAuth2ClientID")
+		assert.Empty(t, cfg.OAuth2AuthURL, "member should not see OAuth2AuthURL")
+		assert.Empty(t, cfg.OAuth2TokenURL, "member should not see OAuth2TokenURL")
+		assert.Empty(t, cfg.APIKeyHeader, "member should not see APIKeyHeader")
+		assert.Empty(t, cfg.URL, "member should not see URL")
+		assert.Empty(t, cfg.Transport, "member should not see Transport")
+	}
+
+	// Non-admin get-by-ID endpoint.
+	memberSingle, err := memberClient.MCPServerConfigByID(ctx, created.ID)
+	require.NoError(t, err)
+	assertNoSecrets(t, "member get-by-id", memberSingle)
+	assert.Empty(t, memberSingle.OAuth2ClientID, "member should not see OAuth2ClientID")
+	assert.Empty(t, memberSingle.URL, "member should not see URL")
 }
 
 func TestMCPServerConfigsAuthConnected(t *testing.T) {
