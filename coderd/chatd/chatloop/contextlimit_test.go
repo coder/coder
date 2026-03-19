@@ -21,6 +21,7 @@ func (d *testProviderData) MarshalJSON() ([]byte, error) {
 	return json.Marshal(d.data)
 }
 
+// Required by the ProviderOptionsData interface; unused in tests.
 func (d *testProviderData) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &d.data)
 }
@@ -109,10 +110,10 @@ func TestNumericContextLimitValue(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		value   any
-		want    int64
-		wantOK  bool
+		name   string
+		value  any
+		want   int64
+		wantOK bool
 	}{
 		// float64: the default numeric type from json.Unmarshal.
 		{name: "float64 integer", value: float64(128000), want: 128000, wantOK: true},
