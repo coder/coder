@@ -461,6 +461,7 @@ func TestIsSubagentDescendant(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := chatdTestContext(t)
 			got, err := isSubagentDescendant(ctx, db, tt.ancestor, tt.target)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
