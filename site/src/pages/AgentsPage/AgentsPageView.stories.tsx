@@ -183,7 +183,14 @@ const meta: Meta<typeof AgentsPageView> = {
 				{
 					provider: "openai",
 					available: true,
-					models: [{ id: "openai:gpt-4o", provider: "openai", model: "gpt-4o", display_name: "GPT-4o" }],
+					models: [
+						{
+							id: "openai:gpt-4o",
+							provider: "openai",
+							model: "gpt-4o",
+							display_name: "GPT-4o",
+						},
+					],
 				},
 			],
 		},
