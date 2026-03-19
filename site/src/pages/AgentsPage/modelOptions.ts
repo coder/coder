@@ -1,21 +1,25 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { asString } from "components/ai-elements/runtimeTypeUtils";
+import { asNumber, asString } from "components/ai-elements/runtimeTypeUtils";
 
-type ModelRefLike = {
+type RuntimeModelRef = {
 	readonly provider?: unknown;
 	readonly model?: unknown;
 };
 
-type CatalogModelLike = ModelRefLike & {
-	readonly id?: unknown;
-	readonly display_name?: unknown;
-};
+type ModelRefLike =
+	| Pick<TypesGen.ChatModel, "provider" | "model">
+	| Pick<TypesGen.ChatModelConfig, "provider" | "model">
+	| RuntimeModelRef;
 
-type CatalogProviderLike = {
-	readonly provider?: unknown;
-	readonly available?: unknown;
-	readonly unavailable_reason?: unknown;
+type CatalogModelLike =
+	| TypesGen.ChatModel
+	| (RuntimeModelRef & {
+			readonly id?: unknown;
+			readonly display_name?: unknown;
+	  });
+
+type CatalogProviderLike = Omit<TypesGen.ChatModelProvider, "models"> & {
 	readonly models?: readonly CatalogModelLike[];
 };
 
@@ -23,9 +27,9 @@ type ModelCatalogLike = {
 	readonly providers?: readonly CatalogProviderLike[];
 };
 
-type ChatModelConfigLike = ModelRefLike & {
-	readonly context_limit?: unknown;
-};
+type ChatModelConfigLike =
+	| Pick<TypesGen.ChatModelConfig, "provider" | "model" | "context_limit">
+	| (RuntimeModelRef & Pick<TypesGen.ChatModelConfig, "context_limit">);
 
 export const getNormalizedModelRef = (
 	value: ModelRefLike,
@@ -81,18 +85,17 @@ export const getModelOptionsFromCatalog = (
 	const contextLimitByKey = new Map<string, number>();
 	if (configs) {
 		for (const config of configs) {
-			if (
-				typeof config.context_limit === "number" &&
-				config.context_limit > 0
-			) {
-				const { provider, model } = getNormalizedModelRef(config);
-				if (!provider || !model) {
-					continue;
-				}
-				const key = `${provider}:${model}`;
-				if (!contextLimitByKey.has(key)) {
-					contextLimitByKey.set(key, config.context_limit);
-				}
+			const contextLimit = asNumber(config.context_limit);
+			if (contextLimit === undefined || contextLimit <= 0) {
+				continue;
+			}
+			const { provider, model } = getNormalizedModelRef(config);
+			if (!provider || !model) {
+				continue;
+			}
+			const key = `${provider}:${model}`;
+			if (!contextLimitByKey.has(key)) {
+				contextLimitByKey.set(key, contextLimit);
 			}
 		}
 	}

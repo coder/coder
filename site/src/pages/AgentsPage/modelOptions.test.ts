@@ -38,6 +38,12 @@ describe("getModelOptionsFromCatalog", () => {
 							model: " gpt-4.1 ",
 							display_name: "Broken",
 						},
+						{
+							id: " fallback-model ",
+							provider: " OpenAI ",
+							model: " zz-model ",
+							display_name: undefined,
+						},
 					],
 				},
 			],
@@ -54,6 +60,11 @@ describe("getModelOptionsFromCatalog", () => {
 				model: " gpt-4o ",
 				context_limit: 456,
 			},
+			{
+				provider: " openai ",
+				model: " zz-model ",
+				context_limit: 789,
+			},
 		] satisfies NonNullable<Parameters<typeof getModelOptionsFromCatalog>[1]>;
 
 		expect(() => getModelOptionsFromCatalog(catalog, configs)).not.toThrow();
@@ -64,6 +75,13 @@ describe("getModelOptionsFromCatalog", () => {
 				model: "gpt-4o",
 				displayName: "GPT‑4o",
 				contextLimit: 456,
+			},
+			{
+				id: "fallback-model",
+				provider: "openai",
+				model: "zz-model",
+				displayName: "zz-model",
+				contextLimit: 789,
 			},
 		]);
 	});
