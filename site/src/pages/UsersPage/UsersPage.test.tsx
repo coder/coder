@@ -9,8 +9,13 @@ import { withDefaultFeatures } from "api/api";
 import { HttpResponse, http } from "msw";
 import UsersPage from "./UsersPage";
 
-const MockEntitlementsWithAIGovernance = {
+const MockLicensedEntitlements = {
 	...MockEntitlements,
+	has_license: true,
+};
+
+const MockEntitlementsWithAIGovernance = {
+	...MockLicensedEntitlements,
 	features: withDefaultFeatures({
 		ai_governance_user_limit: {
 			enabled: true,
@@ -45,7 +50,7 @@ describe("UsersPage", () => {
 	it("hides the AI add-on column when AI governance is not entitled", async () => {
 		server.use(
 			http.get("/api/v2/entitlements", () => {
-				return HttpResponse.json(MockEntitlements);
+				return HttpResponse.json(MockLicensedEntitlements);
 			}),
 		);
 
