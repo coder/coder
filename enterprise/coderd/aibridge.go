@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/searchquery"
@@ -333,13 +332,16 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 }
 
 func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.Store, dbInterceptions []database.ListAIBridgeInterceptionsRow) ([]codersdk.AIBridgeInterception, error) {
+	if len(dbInterceptions) == 0 {
+		return []codersdk.AIBridgeInterception{}, nil
+	}
+
 	ids := make([]uuid.UUID, len(dbInterceptions))
 	for i, row := range dbInterceptions {
 		ids[i] = row.AIBridgeInterception.ID
 	}
 
-	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AI Bridge interception subresources use the same authorization call as their parent.
-	tokenUsagesRows, err := db.ListAIBridgeTokenUsagesByInterceptionIDs(dbauthz.AsSystemRestricted(ctx), ids)
+	tokenUsagesRows, err := db.ListAIBridgeTokenUsagesByInterceptionIDs(ctx, ids)
 	if err != nil {
 		return nil, xerrors.Errorf("get linked aibridge token usages from database: %w", err)
 	}
@@ -348,8 +350,7 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 		tokenUsagesMap[row.InterceptionID] = append(tokenUsagesMap[row.InterceptionID], row)
 	}
 
-	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AI Bridge interception subresources use the same authorization call as their parent.
-	userPromptRows, err := db.ListAIBridgeUserPromptsByInterceptionIDs(dbauthz.AsSystemRestricted(ctx), ids)
+	userPromptRows, err := db.ListAIBridgeUserPromptsByInterceptionIDs(ctx, ids)
 	if err != nil {
 		return nil, xerrors.Errorf("get linked aibridge user prompts from database: %w", err)
 	}
@@ -358,8 +359,7 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 		userPromptsMap[row.InterceptionID] = append(userPromptsMap[row.InterceptionID], row)
 	}
 
-	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AI Bridge interception subresources use the same authorization call as their parent.
-	toolUsagesRows, err := db.ListAIBridgeToolUsagesByInterceptionIDs(dbauthz.AsSystemRestricted(ctx), ids)
+	toolUsagesRows, err := db.ListAIBridgeToolUsagesByInterceptionIDs(ctx, ids)
 	if err != nil {
 		return nil, xerrors.Errorf("get linked aibridge tool usages from database: %w", err)
 	}
