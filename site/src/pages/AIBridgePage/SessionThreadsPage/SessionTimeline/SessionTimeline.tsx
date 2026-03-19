@@ -6,6 +6,13 @@ import type {
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuTrigger,
+} from "components/DropdownMenu/DropdownMenu";
 import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { StatusIndicatorDot } from "components/StatusIndicator/StatusIndicator";
@@ -16,13 +23,11 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuRadioGroup,
-	DropdownMenuRadioItem,
-	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
-import { ChevronDownIcon, ChevronRightIcon, InfoIcon, LoaderIcon } from "lucide-react";
+	ChevronDownIcon,
+	ChevronRightIcon,
+	InfoIcon,
+	LoaderIcon,
+} from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 
 const EXPANDABLE_COLLAPSE_HEIGHT = 50;
@@ -78,6 +83,7 @@ const ExpandableText: FC<ExpandableTextProps> = ({ text, className }) => {
 		</div>
 	);
 };
+
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { TokenBadges } from "../../TokenBadges";
@@ -437,33 +443,33 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 			<div className="row-start-2 col-start-3 border-0 border-l border-solid border-surface-secondary">
 				{/* vertical line */}
 			</div>
-		<div className="invisible md:visible row-start-2 col-start-4 col-span-2 text-right">
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button
-						variant="outline"
-						size="sm"
-						className="text-xs text-content-secondary"
-					>
-						{sort === "oldest" ? "Sort by oldest" : "Sort by newest"}
-						<ChevronDownIcon />
-					</Button>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end">
-					<DropdownMenuRadioGroup
-						value={sort}
-						onValueChange={(v) => setSort(v as "oldest" | "newest")}
-					>
-						<DropdownMenuRadioItem value="oldest">
-							Sort by oldest
-						</DropdownMenuRadioItem>
-						<DropdownMenuRadioItem value="newest">
-							Sort by newest
-						</DropdownMenuRadioItem>
-					</DropdownMenuRadioGroup>
-				</DropdownMenuContent>
-			</DropdownMenu>
-		</div>
+			<div className="invisible md:visible row-start-2 col-start-4 col-span-2 text-right">
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button
+							variant="outline"
+							size="sm"
+							className="text-xs text-content-secondary"
+						>
+							{sort === "oldest" ? "Sort by oldest" : "Sort by newest"}
+							<ChevronDownIcon />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuRadioGroup
+							value={sort}
+							onValueChange={(v) => setSort(v as "oldest" | "newest")}
+						>
+							<DropdownMenuRadioItem value="oldest">
+								Sort by oldest
+							</DropdownMenuRadioItem>
+							<DropdownMenuRadioItem value="newest">
+								Sort by newest
+							</DropdownMenuRadioItem>
+						</DropdownMenuRadioGroup>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			</div>
 
 			{/* row 3: sized intentionally to create the visual space above the timeline border */}
 			<div className="row-start-3 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-[20px]">
