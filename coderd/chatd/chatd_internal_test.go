@@ -471,6 +471,7 @@ func TestPublishToStream_BufferFullRateLimitsWarn(t *testing.T) {
 
 	chatID := uuid.New()
 	// Pre-fill the buffer to capacity with buffering enabled.
+	// make(T, N) sets len=N, so the buffer is immediately full.
 	state := &chatStreamState{
 		buffering:   true,
 		buffer:      make([]codersdk.ChatStreamEvent, maxStreamBufferSize),
@@ -486,7 +487,8 @@ func TestPublishToStream_BufferFullRateLimitsWarn(t *testing.T) {
 	// First publish triggers WARN because lastWarnAt is zero.
 	server.publishToStream(chatID, event)
 
-	// Next 49 publishes should all be DEBUG (within the 10s window).
+	// Next 49 publishes should all be DEBUG (within the warn window).
+	// 50 total - 1 WARN = 49 DEBUG.
 	for i := 0; i < 49; i++ {
 		server.publishToStream(chatID, event)
 	}
@@ -501,24 +503,21 @@ func TestPublishToStream_BufferFullRateLimitsWarn(t *testing.T) {
 	require.Len(t, warnEntries, 1, "expected exactly 1 WARN in first batch")
 	require.Len(t, debugEntries, 49, "expected 49 DEBUG in first batch")
 
-	// Verify the WARN entry has a dropped_count field.
-	hasDroppedCount := false
-	for _, f := range warnEntries[0].Fields {
-		if f.Name == "dropped_count" {
-			hasDroppedCount = true
-			break
-		}
-	}
-	require.True(t, hasDroppedCount, "WARN entry should include dropped_count field")
+	// The first WARN should report dropped_count=1 (only one drop
+	// before the first WARN fires).
+	requireFieldValue(t, warnEntries[0], "dropped_count", int64(1))
 
 	// Advance clock past the warn interval and publish again.
-	mClock.Advance(11 * time.Second)
+	// This triggers a second WARN carrying the 49 accumulated DEBUG
+	// drops plus the current drop = 50.
+	mClock.Advance(streamDropWarnInterval + time.Second)
 	server.publishToStream(chatID, event)
 
 	warnEntries = sink.Entries(func(e slog.SinkEntry) bool {
 		return e.Level == slog.LevelWarn && e.Message == "chat stream buffer full, dropping oldest event"
 	})
 	require.Len(t, warnEntries, 2, "expected 2 total WARNs after clock advance")
+	requireFieldValue(t, warnEntries[1], "dropped_count", int64(50))
 }
 
 func TestPublishToStream_SubscriberFullRateLimitsWarn(t *testing.T) {
@@ -553,7 +552,7 @@ func TestPublishToStream_SubscriberFullRateLimitsWarn(t *testing.T) {
 	// First publish triggers WARN.
 	server.publishToStream(chatID, event)
 
-	// Next 9 should be DEBUG.
+	// Next 9 should be DEBUG. 10 total - 1 WARN = 9 DEBUG.
 	for i := 0; i < 9; i++ {
 		server.publishToStream(chatID, event)
 	}
@@ -567,13 +566,79 @@ func TestPublishToStream_SubscriberFullRateLimitsWarn(t *testing.T) {
 
 	require.Len(t, warnEntries, 1, "expected exactly 1 WARN for subscriber drops")
 	require.Len(t, debugEntries, 9, "expected 9 DEBUG for subscriber drops")
+	requireFieldValue(t, warnEntries[0], "dropped_count", int64(1))
 
-	// Advance clock and publish again — should get another WARN.
-	mClock.Advance(11 * time.Second)
+	// Advance clock and publish again — should get another WARN
+	// with dropped_count = 10 (9 accumulated + 1 current).
+	mClock.Advance(streamDropWarnInterval + time.Second)
 	server.publishToStream(chatID, event)
 
 	warnEntries = sink.Entries(func(e slog.SinkEntry) bool {
 		return e.Level == slog.LevelWarn && e.Message == "dropping chat stream event"
 	})
 	require.Len(t, warnEntries, 2, "expected 2 total WARNs after clock advance")
+	requireFieldValue(t, warnEntries[1], "dropped_count", int64(10))
+}
+
+func TestPublishToStream_BufferClearResetsWarnCadence(t *testing.T) {
+	t.Parallel()
+
+	sink := testutil.NewFakeSink(t)
+	mClock := quartz.NewMock(t)
+
+	server := &Server{
+		logger: sink.Logger(),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+	state := &chatStreamState{
+		buffering:   true,
+		buffer:      make([]codersdk.ChatStreamEvent, maxStreamBufferSize),
+		subscribers: make(map[uuid.UUID]chan codersdk.ChatStreamEvent),
+	}
+	server.chatStreams.Store(chatID, state)
+
+	event := codersdk.ChatStreamEvent{
+		Type:        codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{},
+	}
+
+	// Trigger a WARN then a few DEBUGs.
+	for i := 0; i < 5; i++ {
+		server.publishToStream(chatID, event)
+	}
+
+	warnFilter := func(e slog.SinkEntry) bool {
+		return e.Level == slog.LevelWarn && e.Message == "chat stream buffer full, dropping oldest event"
+	}
+	require.Len(t, sink.Entries(warnFilter), 1)
+
+	// Simulate a buffer clear (as processChat does between steps).
+	state.mu.Lock()
+	state.buffer = make([]codersdk.ChatStreamEvent, maxStreamBufferSize)
+	state.bufferDropCount = 0
+	state.bufferLastWarnAt = time.Time{}
+	state.mu.Unlock()
+
+	// The very next drop should WARN immediately — the reset
+	// zeroed lastWarnAt so the interval check passes.
+	server.publishToStream(chatID, event)
+
+	warnEntries := sink.Entries(warnFilter)
+	require.Len(t, warnEntries, 2, "expected WARN immediately after counter reset")
+	requireFieldValue(t, warnEntries[1], "dropped_count", int64(1))
+}
+
+// requireFieldValue asserts that a SinkEntry contains a field with
+// the given name and value.
+func requireFieldValue(t *testing.T, entry slog.SinkEntry, name string, expected interface{}) {
+	t.Helper()
+	for _, f := range entry.Fields {
+		if f.Name == name {
+			require.Equal(t, expected, f.Value, "field %q value mismatch", name)
+			return
+		}
+	}
+	t.Fatalf("field %q not found in log entry", name)
 }
