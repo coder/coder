@@ -271,8 +271,24 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		organizationIDsByUserID[organizationIDsByMemberIDsRow.UserID] = organizationIDsByMemberIDsRow.OrganizationIDs
 	}
 
+	aiSeatUserIDs, err := api.Database.GetUserAISeatStates(ctx, userIDs)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching AI seat states.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aiSeatSet := make(map[uuid.UUID]struct{}, len(aiSeatUserIDs))
+	for _, uid := range aiSeatUserIDs {
+		aiSeatSet[uid] = struct{}{}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.GetUsersResponse{
-		Users: convertUsers(users, organizationIDsByUserID),
+		Users: convertUsers(users, organizationIDsByUserID, aiSeatSet),
 		Count: int(userCount),
 	})
 }
@@ -1615,11 +1631,13 @@ func findUserAdmins(ctx context.Context, store database.Store) ([]database.GetUs
 	return userAdmins, nil
 }
 
-func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {
+func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID, aiSeatSet map[uuid.UUID]struct{}) []codersdk.User {
 	converted := make([]codersdk.User, 0, len(users))
 	for _, u := range users {
 		userOrganizationIDs := organizationIDsByUserID[u.ID]
-		converted = append(converted, db2sdk.User(u, userOrganizationIDs))
+		convertedUser := db2sdk.User(u, userOrganizationIDs)
+		_, convertedUser.HasAISeat = aiSeatSet[u.ID]
+		converted = append(converted, convertedUser)
 	}
 	return converted
 }

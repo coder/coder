@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 
@@ -179,7 +180,16 @@ func (api *API) organizationMember(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, rows)
+	aiSeatSet, err := getAISeatSetByUserIDs(ctx, api.Database, []uuid.UUID{member.UserID})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching AI seat states.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, rows, aiSeatSet)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -227,7 +237,20 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, members)
+	userIDs := make([]uuid.UUID, 0, len(members))
+	for _, member := range members {
+		userIDs = append(userIDs, member.OrganizationMember.UserID)
+	}
+	aiSeatSet, err := getAISeatSetByUserIDs(ctx, api.Database, userIDs)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching AI seat states.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, members, aiSeatSet)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -287,9 +310,23 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 		memberRows = append(memberRows, row)
 	}
 
-	members, err := convertOrganizationMembersWithUserData(ctx, api.Database, memberRows)
+	userIDs := make([]uuid.UUID, 0, len(memberRows))
+	for _, member := range memberRows {
+		userIDs = append(userIDs, member.OrganizationMember.UserID)
+	}
+	aiSeatSet, err := getAISeatSetByUserIDs(ctx, api.Database, userIDs)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching AI seat states.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	members, err := convertOrganizationMembersWithUserData(ctx, api.Database, memberRows, aiSeatSet)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
+		return
 	}
 
 	resp := codersdk.PaginatedMembersResponse{
@@ -297,6 +334,23 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 		Count:   int(paginatedMemberRows[0].Count),
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+func getAISeatSetByUserIDs(ctx context.Context, db database.Store, userIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
+	aiSeatUserIDs, err := db.GetUserAISeatStates(ctx, userIDs)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	aiSeatSet := make(map[uuid.UUID]struct{}, len(aiSeatUserIDs))
+	for _, uid := range aiSeatUserIDs {
+		aiSeatSet[uid] = struct{}{}
+	}
+
+	return aiSeatSet, nil
 }
 
 // @Summary Assign role to organization member
@@ -470,7 +524,7 @@ func convertOrganizationMembers(ctx context.Context, db database.Store, mems []d
 	return converted, nil
 }
 
-func convertOrganizationMembersWithUserData(ctx context.Context, db database.Store, rows []database.OrganizationMembersRow) ([]codersdk.OrganizationMemberWithUserData, error) {
+func convertOrganizationMembersWithUserData(ctx context.Context, db database.Store, rows []database.OrganizationMembersRow, aiSeatSet map[uuid.UUID]struct{}) ([]codersdk.OrganizationMemberWithUserData, error) {
 	members := make([]database.OrganizationMember, 0)
 	for _, row := range rows {
 		members = append(members, row.OrganizationMember)
@@ -486,12 +540,14 @@ func convertOrganizationMembersWithUserData(ctx context.Context, db database.Sto
 
 	converted := make([]codersdk.OrganizationMemberWithUserData, 0)
 	for i := range convertedMembers {
+		_, hasAISeat := aiSeatSet[rows[i].OrganizationMember.UserID]
 		converted = append(converted, codersdk.OrganizationMemberWithUserData{
 			Username:           rows[i].Username,
 			AvatarURL:          rows[i].AvatarURL,
 			Name:               rows[i].Name,
 			Email:              rows[i].Email,
 			GlobalRoles:        db2sdk.SlimRolesFromNames(rows[i].GlobalRoles),
+			HasAISeat:          hasAISeat,
 			OrganizationMember: convertedMembers[i],
 		})
 	}

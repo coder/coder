@@ -78,6 +78,7 @@ type OrganizationMemberWithUserData struct {
 	AvatarURL          string     `json:"avatar_url,omitempty"`
 	Email              string     `json:"email"`
 	GlobalRoles        []SlimRole `json:"global_roles"`
+	HasAISeat          bool       `json:"has_ai_seat"`
 	OrganizationMember `table:"m,recursive_inline"`
 }
 

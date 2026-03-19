@@ -4079,6 +4079,7 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 	readonly avatar_url?: string;
 	readonly email: string;
 	readonly global_roles: readonly SlimRole[];
+	readonly has_ai_seat: boolean;
 }
 
 // From codersdk/users.go
@@ -6671,6 +6672,7 @@ export interface UsageStatsConfig {
 export interface User extends ReducedUser {
 	readonly organization_ids: readonly string[];
 	readonly roles: readonly SlimRole[];
+	readonly has_ai_seat: boolean;
 }
 
 // From codersdk/insights.go

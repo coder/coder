@@ -70,6 +70,7 @@ type User struct {
 
 	OrganizationIDs []uuid.UUID `json:"organization_ids" format:"uuid"`
 	Roles           []SlimRole  `json:"roles"`
+	HasAISeat       bool        `json:"has_ai_seat"`
 }
 
 type GetUsersResponse struct {

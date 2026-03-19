@@ -516,6 +516,7 @@ export const MockUserOwner: TypesGen.User = {
 	status: "active",
 	organization_ids: [MockOrganization.id],
 	roles: [MockOwnerRole],
+	has_ai_seat: false,
 	avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
 	last_seen_at: "",
 	login_type: "password",
@@ -531,6 +532,7 @@ export const MockUserMember: TypesGen.User = {
 	status: "active",
 	organization_ids: [MockOrganization.id],
 	roles: [],
+	has_ai_seat: false,
 	avatar_url: "",
 	last_seen_at: "2022-09-14T19:12:21Z",
 	login_type: "oidc",
@@ -546,6 +548,7 @@ export const SuspendedMockUser: TypesGen.User = {
 	status: "suspended",
 	organization_ids: [MockOrganization.id],
 	roles: [],
+	has_ai_seat: false,
 	avatar_url: "",
 	last_seen_at: "",
 	login_type: "password",
@@ -571,6 +574,7 @@ export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	name: MockUserOwner.name,
 	avatar_url: MockUserOwner.avatar_url,
 	global_roles: MockUserOwner.roles,
+	has_ai_seat: false,
 	roles: [],
 };
 
@@ -585,6 +589,7 @@ export const MockOrganizationMember2: TypesGen.OrganizationMemberWithUserData =
 		name: MockUserMember.name,
 		avatar_url: MockUserMember.avatar_url,
 		global_roles: MockUserMember.roles,
+		has_ai_seat: false,
 		roles: [],
 	};
 

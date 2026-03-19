@@ -36,6 +36,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
         "organization_id": "string"
       }
     ],
+    "has_ai_seat": true,
     "name": "string",
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "roles": [
@@ -72,6 +73,7 @@ Status Code **200**
 | `»» display_name`    | string            | false    |              |             |
 | `»» name`            | string            | false    |              |             |
 | `»» organization_id` | string            | false    |              |             |
+| `» has_ai_seat`      | boolean           | false    |              |             |
 | `» name`             | string            | false    |              |             |
 | `» organization_id`  | string(uuid)      | false    |              |             |
 | `» roles`            | array             | false    |              |             |
@@ -576,6 +578,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
       "organization_id": "string"
     }
   ],
+  "has_ai_seat": true,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "roles": [
@@ -775,6 +778,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
             "organization_id": "string"
           }
         ],
+        "has_ai_seat": true,
         "name": "string",
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
         "roles": [
@@ -815,6 +819,7 @@ Status Code **200**
 | `»»» display_name`    | string            | false    |              |             |
 | `»»» name`            | string            | false    |              |             |
 | `»»» organization_id` | string            | false    |              |             |
+| `»» has_ai_seat`      | boolean           | false    |              |             |
 | `»» name`             | string            | false    |              |             |
 | `»» organization_id`  | string(uuid)      | false    |              |             |
 | `»» roles`            | array             | false    |              |             |

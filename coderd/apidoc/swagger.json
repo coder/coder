@@ -15440,6 +15440,9 @@
 						"$ref": "#/definitions/codersdk.SlimRole"
 					}
 				},
+				"has_ai_seat": {
+					"type": "boolean"
+				},
 				"name": {
 					"type": "string"
 				},
@@ -17911,6 +17914,9 @@
 					"type": "string",
 					"format": "email"
 				},
+				"has_ai_seat": {
+					"type": "boolean"
+				},
 				"id": {
 					"type": "string",
 					"format": "uuid"
@@ -18689,6 +18695,9 @@
 				"email": {
 					"type": "string",
 					"format": "email"
+				},
+				"has_ai_seat": {
+					"type": "boolean"
 				},
 				"id": {
 					"type": "string",

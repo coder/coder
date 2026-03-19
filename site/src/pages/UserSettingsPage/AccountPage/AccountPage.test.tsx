@@ -34,6 +34,7 @@ describe("AccountPage", () => {
 					status: "active",
 					organization_ids: ["123"],
 					roles: [],
+					has_ai_seat: false,
 					avatar_url: "",
 					last_seen_at: new Date().toISOString(),
 					login_type: "password",

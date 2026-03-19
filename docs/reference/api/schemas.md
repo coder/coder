@@ -1172,6 +1172,7 @@
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
     "email": "user@example.com",
+    "has_ai_seat": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
     "login_type": "",
@@ -1262,6 +1263,7 @@
         "avatar_url": "http://example.com",
         "created_at": "2019-08-24T14:15:22Z",
         "email": "user@example.com",
+        "has_ai_seat": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
@@ -1597,6 +1599,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "avatar_url": "http://example.com",
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
+      "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -1672,6 +1675,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "avatar_url": "http://example.com",
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
+          "has_ai_seat": true,
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "last_seen_at": "2019-08-24T14:15:22Z",
           "login_type": "",
@@ -1740,6 +1744,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
     "email": "user@example.com",
+    "has_ai_seat": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "last_seen_at": "2019-08-24T14:15:22Z",
     "login_type": "",
@@ -4367,6 +4372,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "avatar_url": "http://example.com",
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
+      "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -5923,6 +5929,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "organization_id": "string"
     }
   ],
+  "has_ai_seat": true,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "roles": [
@@ -5946,6 +5953,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `created_at`      | string                                          | false    |              |             |
 | `email`           | string                                          | false    |              |             |
 | `global_roles`    | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
+| `has_ai_seat`     | boolean                                         | false    |              |             |
 | `name`            | string                                          | false    |              |             |
 | `organization_id` | string                                          | false    |              |             |
 | `roles`           | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
@@ -5996,6 +6004,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
           "organization_id": "string"
         }
       ],
+      "has_ai_seat": true,
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "roles": [
@@ -8612,6 +8621,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "avatar_url": "http://example.com",
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
+      "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
@@ -9059,6 +9069,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
+  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
@@ -9088,6 +9099,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `avatar_url`       | string                                          | false    |              |                                                                                            |
 | `created_at`       | string                                          | true     |              |                                                                                            |
 | `email`            | string                                          | true     |              |                                                                                            |
+| `has_ai_seat`      | boolean                                         | false    |              |                                                                                            |
 | `id`               | string                                          | true     |              |                                                                                            |
 | `last_seen_at`     | string                                          | false    |              |                                                                                            |
 | `login_type`       | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                            |
@@ -9945,6 +9957,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
+  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
@@ -9973,6 +9986,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `avatar_url`       | string                                          | false    |              |                                                                                            |
 | `created_at`       | string                                          | true     |              |                                                                                            |
 | `email`            | string                                          | true     |              |                                                                                            |
+| `has_ai_seat`      | boolean                                         | false    |              |                                                                                            |
 | `id`               | string                                          | true     |              |                                                                                            |
 | `last_seen_at`     | string                                          | false    |              |                                                                                            |
 | `login_type`       | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                            |
