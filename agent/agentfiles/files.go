@@ -333,22 +333,68 @@ func (api *API) writeFile(ctx context.Context, r *http.Request, path string) (HT
 		return status, err
 	}
 
-	f, err := api.filesystem.Create(path)
+	// Check if the target already exists so we can preserve its
+	// permissions on the temp file before rename.
+	var origMode os.FileMode
+	var haveOrigMode bool
+	if stat, serr := api.filesystem.Stat(path); serr == nil {
+		if stat.IsDir() {
+			return http.StatusBadRequest, xerrors.Errorf("open %s: is a directory", path)
+		}
+		origMode = stat.Mode()
+		haveOrigMode = true
+	}
+
+	// Write to a temp file in the same directory so the rename is
+	// always on the same device (atomic).
+	tmpfile, err := afero.TempFile(api.filesystem, dir, filepath.Base(path))
 	if err != nil {
 		status := http.StatusInternalServerError
-		switch {
-		case errors.Is(err, os.ErrPermission):
+		if errors.Is(err, os.ErrPermission) {
 			status = http.StatusForbidden
-		case errors.Is(err, syscall.EISDIR):
-			status = http.StatusBadRequest
 		}
 		return status, err
 	}
-	defer f.Close()
+	tmpName := tmpfile.Name()
 
-	_, err = io.Copy(f, r.Body)
-	if err != nil && !errors.Is(err, io.EOF) && ctx.Err() == nil {
-		api.logger.Error(ctx, "workspace agent write file", slog.Error(err))
+	_, err = io.Copy(tmpfile, r.Body)
+	if err != nil && !errors.Is(err, io.EOF) {
+		_ = tmpfile.Close()
+		if rerr := api.filesystem.Remove(tmpName); rerr != nil {
+			api.logger.Warn(ctx, "unable to clean up temp file", slog.Error(rerr))
+		}
+		return http.StatusInternalServerError, xerrors.Errorf("write %s: %w", path, err)
+	}
+
+	// Close before rename to flush buffered data and catch write
+	// errors (e.g. delayed allocation failures).
+	if err := tmpfile.Close(); err != nil {
+		if rerr := api.filesystem.Remove(tmpName); rerr != nil {
+			api.logger.Warn(ctx, "unable to clean up temp file", slog.Error(rerr))
+		}
+		return http.StatusInternalServerError, xerrors.Errorf("write %s: %w", path, err)
+	}
+
+	// Set permissions on the temp file before rename so there is
+	// no window where the target has wrong permissions.
+	if haveOrigMode {
+		if err := api.filesystem.Chmod(tmpName, origMode); err != nil {
+			api.logger.Warn(ctx, "unable to set file permissions",
+				slog.F("path", path),
+				slog.Error(err),
+			)
+		}
+	}
+
+	if err := api.filesystem.Rename(tmpName, path); err != nil {
+		if rerr := api.filesystem.Remove(tmpName); rerr != nil {
+			api.logger.Warn(ctx, "unable to clean up temp file", slog.Error(rerr))
+		}
+		status := http.StatusInternalServerError
+		if errors.Is(err, os.ErrPermission) {
+			status = http.StatusForbidden
+		}
+		return status, err
 	}
 
 	return 0, nil
@@ -460,18 +506,44 @@ func (api *API) editFile(ctx context.Context, path string, edits []workspacesdk.
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	defer tmpfile.Close()
+	tmpName := tmpfile.Name()
 
 	if _, err := tmpfile.Write([]byte(content)); err != nil {
-		if rerr := api.filesystem.Remove(tmpfile.Name()); rerr != nil {
+		_ = tmpfile.Close()
+		if rerr := api.filesystem.Remove(tmpName); rerr != nil {
 			api.logger.Warn(ctx, "unable to clean up temp file", slog.Error(rerr))
 		}
 		return http.StatusInternalServerError, xerrors.Errorf("edit %s: %w", path, err)
 	}
 
-	err = api.filesystem.Rename(tmpfile.Name(), path)
+	// Close before rename to flush buffered data and catch write
+	// errors (e.g. delayed allocation failures).
+	if err := tmpfile.Close(); err != nil {
+		if rerr := api.filesystem.Remove(tmpName); rerr != nil {
+			api.logger.Warn(ctx, "unable to clean up temp file", slog.Error(rerr))
+		}
+		return http.StatusInternalServerError, xerrors.Errorf("edit %s: %w", path, err)
+	}
+
+	// Set permissions on the temp file before rename so there is
+	// no window where the target has wrong permissions.
+	if err := api.filesystem.Chmod(tmpName, stat.Mode()); err != nil {
+		api.logger.Warn(ctx, "unable to set file permissions",
+			slog.F("path", path),
+			slog.Error(err),
+		)
+	}
+
+	err = api.filesystem.Rename(tmpName, path)
 	if err != nil {
-		return http.StatusInternalServerError, err
+		if rerr := api.filesystem.Remove(tmpName); rerr != nil {
+			api.logger.Warn(ctx, "unable to clean up temp file", slog.Error(rerr))
+		}
+		status := http.StatusInternalServerError
+		if errors.Is(err, os.ErrPermission) {
+			status = http.StatusForbidden
+		}
+		return status, err
 	}
 
 	return 0, nil
