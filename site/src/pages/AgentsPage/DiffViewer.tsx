@@ -769,6 +769,34 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	}, [scrollToFile, onScrollToFileComplete]);
 
 	// ---------------------------------------------------------------
+	// Viewport height for the last-file min-height trick: setting
+	// min-height on the last file wrapper lets CSS handle the
+	// "be at least viewport-tall" logic, removing the need for a
+	// separate spacer div and a second ResizeObserver. Uses a ref
+	// callback (same pattern as containerRef) so the measurement
+	// lands during commit — before useEffect-based scroll logic.
+	// ---------------------------------------------------------------
+	const [viewportHeight, setViewportHeight] = useState(0);
+	const scrollAreaRef = useCallback((node: HTMLElement | null) => {
+		const vp = node?.querySelector<HTMLElement>(
+			"[data-radix-scroll-area-viewport]",
+		);
+		diffViewportRef.current = vp ?? null;
+
+		if (!vp) return;
+
+		setViewportHeight(vp.clientHeight);
+		const ro = new ResizeObserver(([entry]) => {
+			setViewportHeight(entry.contentRect.height);
+		});
+		ro.observe(vp);
+		return () => {
+			ro.disconnect();
+			diffViewportRef.current = null;
+		};
+	}, []);
+
+	// ---------------------------------------------------------------
 	// Loading state
 	// ---------------------------------------------------------------
 	if (isLoading) {
@@ -843,30 +871,34 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 						)}
 						scrollBarClassName="w-1.5"
 						viewportClassName="[&>div]:!block"
-						ref={(node) => {
-							const vp = node?.querySelector<HTMLElement>(
-								"[data-radix-scroll-area-viewport]",
-							);
-							diffViewportRef.current = vp ?? null;
-						}}
+						ref={scrollAreaRef}
 					>
 						<div className="min-w-0 text-xs">
-							{sortedFiles.map((fileDiff) => (
-								<div
-									key={fileDiff.name}
-									ref={(el) => setFileRef(fileDiff.name, el)}
-								>
-									<LazyFileDiff
-										fileDiff={fileDiff}
-										options={perFileOptions?.get(fileDiff.name) ?? fileOptions}
-										lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
-										renderAnnotation={renderAnnotation}
-										selectedLines={getSelectedLines?.(fileDiff.name)}
-									/>
-								</div>
-							))}
-							{/* Spacer so the last file can scroll fully to the top. */}
-							<div className="h-[calc(100vh-100px)]" />
+							{sortedFiles.map((fileDiff, i) => {
+								const isLast = i === sortedFiles.length - 1;
+								return (
+									<div
+										key={fileDiff.name}
+										ref={(el) => setFileRef(fileDiff.name, el)}
+										style={isLast ? { minHeight: viewportHeight } : undefined}
+									>
+										<LazyFileDiff
+											fileDiff={fileDiff}
+											options={
+												perFileOptions?.get(fileDiff.name) ?? fileOptions
+											}
+											lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
+											renderAnnotation={renderAnnotation}
+											selectedLines={getSelectedLines?.(fileDiff.name)}
+										/>
+										{isLast && (
+											<div className="flex items-center justify-center py-4 text-xs text-content-secondary">
+												{`${sortedFiles.length} ${sortedFiles.length === 1 ? "file" : "files"} changed`}
+											</div>
+										)}
+									</div>
+								);
+							})}
 						</div>
 					</ScrollArea>
 				</div>
