@@ -489,12 +489,26 @@ func LicensesEntitlements(
 				"Your deployment has %d active users but the license with the limit %d is expired.",
 				featureArguments.ActiveUserCount, *userLimit.Limit))
 		}
+		aiGovernanceUserLimit := entitlements.Features[codersdk.FeatureAIGovernanceUserLimit]
+		if aiGovernanceUserLimit.Limit != nil && featureArguments.ActiveAISeatCount > *aiGovernanceUserLimit.Limit {
+			entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
+				"Your deployment has %d active AI governance seats but is only licensed for %d.",
+				featureArguments.ActiveAISeatCount, *aiGovernanceUserLimit.Limit))
+		} else if aiGovernanceUserLimit.Limit != nil &&
+			aiGovernanceUserLimit.Entitlement == codersdk.EntitlementGracePeriod {
+			entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
+				"Your deployment has %d active AI governance seats but the license with the limit %d is expired.",
+				featureArguments.ActiveAISeatCount, *aiGovernanceUserLimit.Limit))
+		}
 
 		// Add a warning for every feature that is enabled but not entitled or
 		// is in a grace period.
 		for _, featureName := range codersdk.FeatureNames {
 			// The user limit has it's own warnings!
 			if featureName == codersdk.FeatureUserLimit {
+				continue
+			}
+			if featureName == codersdk.FeatureAIGovernanceUserLimit {
 				continue
 			}
 			// High availability has it's own warnings based on replica count!
