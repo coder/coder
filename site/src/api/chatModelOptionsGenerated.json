@@ -199,6 +199,28 @@
 				}
 			]
 		},
+		"litellm": {
+			"fields": [
+				{
+					"json_name": "user",
+					"go_name": "User",
+					"type": "string",
+					"description": "Unique identifier for the end user for abuse monitoring",
+					"required": false,
+					"input_type": "input",
+					"hidden": true
+				},
+				{
+					"json_name": "reasoning_effort",
+					"go_name": "ReasoningEffort",
+					"type": "string",
+					"description": "Controls the level of reasoning effort",
+					"required": false,
+					"enum": ["none", "minimal", "low", "medium", "high", "xhigh"],
+					"input_type": "select"
+				}
+			]
+		},
 		"openai": {
 			"fields": [
 				{

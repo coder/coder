@@ -1502,6 +1502,20 @@ export interface ChatModelGoogleThinkingConfig {
 
 // From codersdk/chats.go
 /**
+ * ChatModelLiteLLMProviderOptions configures LiteLLM proxy provider
+ * behavior. LiteLLM (https://github.com/BerriAI/litellm) is an
+ * OpenAI-compatible gateway that provides access to 100+ LLM
+ * providers through a unified API. Configure with a base URL
+ * pointing to your LiteLLM proxy instance and an API key for
+ * authentication.
+ */
+export interface ChatModelLiteLLMProviderOptions {
+	readonly user?: string;
+	readonly reasoning_effort?: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatModelOpenAICompatProviderOptions configures OpenAI-compatible behavior.
  */
 export interface ChatModelOpenAICompatProviderOptions {
@@ -1595,6 +1609,7 @@ export interface ChatModelProviderOptions {
 	readonly anthropic?: ChatModelAnthropicProviderOptions;
 	readonly google?: ChatModelGoogleProviderOptions;
 	readonly openaicompat?: ChatModelOpenAICompatProviderOptions;
+	readonly litellm?: ChatModelLiteLLMProviderOptions;
 	readonly openrouter?: ChatModelOpenRouterProviderOptions;
 	readonly vercel?: ChatModelVercelProviderOptions;
 }
