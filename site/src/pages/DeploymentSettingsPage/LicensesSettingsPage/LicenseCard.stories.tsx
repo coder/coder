@@ -22,7 +22,45 @@ const meta: Meta<typeof LicenseCard> = {
 export default meta;
 type Story = StoryObj<typeof LicenseCard>;
 
-export const Default: Story = {};
+export const Default: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("#1")).toBeInTheDocument();
+		await expect(canvas.getByText("4 / 10")).toBeInTheDocument();
+		await expect(canvas.getByText("Enterprise")).toBeInTheDocument();
+	},
+};
+
+export const UnlimitedUsers: Story = {
+	args: {
+		userLimitLimit: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("4 / Unlimited")).toBeInTheDocument();
+	},
+};
+
+export const UsesLicenseUserLimit: Story = {
+	args: {
+		license: {
+			...MockLicenseResponse[0],
+			claims: {
+				...MockLicenseResponse[0].claims,
+				features: {
+					...MockLicenseResponse[0].claims.features,
+					user_limit: 3,
+				},
+			},
+		},
+		userLimitActual: 1,
+		userLimitLimit: 100,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("1 / 3")).toBeInTheDocument();
+	},
+};
 
 export const Premium: Story = {
 	args: {
@@ -53,6 +91,31 @@ export const PremiumWithAIGovernance: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText(/add-ons/i)).toBeInTheDocument();
 		await expect(canvas.getByText(/ai governance/i)).toBeInTheDocument();
+	},
+};
+
+export const PremiumWithoutAIGovernanceAddOn: Story = {
+	args: {
+		license: {
+			...MockLicenseResponse[1],
+			claims: {
+				...MockLicenseResponse[1].claims,
+				features: {
+					...MockLicenseResponse[1].claims.features,
+					ai_governance_user_limit: 1000,
+				},
+			},
+		},
+		aiGovernanceUserFeature: {
+			enabled: true,
+			entitlement: "entitled",
+			actual: 100,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.queryByText("Add-ons")).not.toBeInTheDocument();
+		await expect(canvas.queryByText("AI governance")).not.toBeInTheDocument();
 	},
 };
 
@@ -118,6 +181,33 @@ export const ExpiredAIGovernanceOverageShowsExpired: Story = {
 	},
 };
 
+export const ExpiredAIGovernanceInGracePeriodShowsExceeded: Story = {
+	args: {
+		license: {
+			...MockLicenseResponse[1],
+			claims: {
+				...MockLicenseResponse[1].claims,
+				license_expires: dayjs().subtract(1, "day").unix(),
+				features: {
+					...MockLicenseResponse[1].claims.features,
+					ai_governance_user_limit: 1000,
+				},
+				addons: ["ai_governance"],
+			},
+		},
+		aiGovernanceUserFeature: {
+			enabled: true,
+			entitlement: "grace_period",
+			actual: 1200,
+			limit: 1000,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Add-on exceeded")).toBeInTheDocument();
+	},
+};
+
 export const NotYetValid: Story = {
 	args: {
 		license: {
@@ -158,6 +248,35 @@ export const FutureAIGovernanceOverageShowsStartsOn: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText(/Starts on/)).toBeInTheDocument();
 		await expect(canvas.queryByText("Add-on exceeded")).not.toBeInTheDocument();
+	},
+};
+
+export const FutureAIGovernanceUsageShowsNoCurrentSeats: Story = {
+	args: {
+		license: {
+			...MockLicenseResponse[1],
+			claims: {
+				...MockLicenseResponse[1].claims,
+				nbf: dayjs().add(7, "day").unix(),
+				features: {
+					...MockLicenseResponse[1].claims.features,
+					ai_governance_user_limit: 1000,
+				},
+				addons: ["ai_governance"],
+			},
+		},
+		aiGovernanceUserFeature: {
+			enabled: true,
+			entitlement: "entitled",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const seatsLabel = canvas.getByText("Seats");
+		const seatsValue = seatsLabel.nextElementSibling;
+		await expect(seatsValue).toHaveTextContent("—");
+		await expect(seatsValue).toHaveTextContent("/ 1,000");
+		await expect(seatsValue).not.toHaveTextContent("0 / 1,000");
 	},
 };
 

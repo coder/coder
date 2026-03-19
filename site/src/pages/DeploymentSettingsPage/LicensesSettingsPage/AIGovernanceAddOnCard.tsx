@@ -10,7 +10,7 @@ import type { FC } from "react";
 type AIGovernanceAddOnCardProps = {
 	title: string;
 	unit: string;
-	actual: number;
+	actual?: number;
 	limit: number;
 	isExceeded: boolean;
 };
@@ -22,6 +22,8 @@ export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
 	limit,
 	isExceeded,
 }) => {
+	const actualLabel = actual === undefined ? "—" : actual.toLocaleString();
+
 	return (
 		<div
 			className={`min-w-[320px] flex-1 rounded-sm border border-solid py-3 ${
@@ -62,7 +64,7 @@ export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
 											: "text-content-primary"
 									}
 								>
-									{actual.toLocaleString()}
+									{actualLabel}
 								</span>{" "}
 								/ {limit.toLocaleString()}
 							</div>
