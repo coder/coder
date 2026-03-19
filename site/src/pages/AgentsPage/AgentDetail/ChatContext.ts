@@ -563,8 +563,19 @@ export const useChatStore = (
 			if (hasStaleEntries) {
 				store.replaceMessages(chatMessages);
 			} else {
+				let anyChanged = false;
 				for (const message of chatMessages) {
-					store.upsertDurableMessage(message);
+					const { changed } = store.upsertDurableMessage(message);
+					if (changed) {
+						anyChanged = true;
+					}
+				}
+				// If a REST refetch delivered a new or updated message
+				// while streaming is still active, clear stream state
+				// to avoid showing the same content in both the durable
+				// message list and the streaming output.
+				if (anyChanged && storeSnap.streamState !== null) {
+					store.clearStreamState();
 				}
 			}
 		}
