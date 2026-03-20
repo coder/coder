@@ -461,9 +461,8 @@ func requireNoStreamEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent, 
 // TestPublishToStream_DropWarnRateLimiting walks through a
 // realistic lifecycle: buffer fills up, subscriber channel fills
 // up, counters get reset between steps. It verifies that WARN
-// logs are rate-limited to at most once per streamDropWarnInterval,
-// with DEBUG in between, and that counter resets re-enable an
-// immediate WARN.
+// logs are rate-limited to at most once per streamDropWarnInterval
+// and that counter resets re-enable an immediate WARN.
 func TestPublishToStream_DropWarnRateLimiting(t *testing.T) {
 	t.Parallel()
 
@@ -512,12 +511,12 @@ func TestPublishToStream_DropWarnRateLimiting(t *testing.T) {
 	}
 
 	require.Len(t, sink.Entries(filter(slog.LevelWarn, bufferMsg)), 1)
-	require.Len(t, sink.Entries(filter(slog.LevelDebug, bufferMsg)), 49)
+	require.Empty(t, sink.Entries(filter(slog.LevelDebug, bufferMsg)))
 	requireFieldValue(t, sink.Entries(filter(slog.LevelWarn, bufferMsg))[0], "dropped_count", int64(1))
 
 	// Subscriber also saw 50 drops (one per publish).
 	require.Len(t, sink.Entries(filter(slog.LevelWarn, subMsg)), 1)
-	require.Len(t, sink.Entries(filter(slog.LevelDebug, subMsg)), 49)
+	require.Empty(t, sink.Entries(filter(slog.LevelDebug, subMsg)))
 	requireFieldValue(t, sink.Entries(filter(slog.LevelWarn, subMsg))[0], "dropped_count", int64(1))
 
 	// --- Phase 2: clock advance triggers second WARN with count ---

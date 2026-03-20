@@ -1519,11 +1519,17 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 			return
 		}
 		if len(state.buffer) >= maxStreamBufferSize {
-			p.logRateLimitedDrop(
-				&state.bufferDropCount, &state.bufferLastWarnAt, 1,
-				"chat stream buffer full, dropping oldest event",
-				[]slog.Field{slog.F("chat_id", chatID), slog.F("buffer_size", len(state.buffer))},
-			)
+			state.bufferDropCount++
+			now := p.clock.Now()
+			if now.Sub(state.bufferLastWarnAt) >= streamDropWarnInterval {
+				p.logger.Warn(context.Background(), "chat stream buffer full, dropping oldest event",
+					slog.F("chat_id", chatID),
+					slog.F("buffer_size", len(state.buffer)),
+					slog.F("dropped_count", state.bufferDropCount),
+				)
+				state.bufferDropCount = 0
+				state.bufferLastWarnAt = now
+			}
 			state.buffer = state.buffer[1:]
 		}
 		state.buffer = append(state.buffer, event)
@@ -1548,39 +1554,20 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 	// gap between the two sections.
 	state.mu.Lock()
 	if subDropped > 0 {
-		p.logRateLimitedDrop(
-			&state.subscriberDropCount, &state.subscriberLastWarnAt, subDropped,
-			"dropping chat stream event",
-			[]slog.Field{slog.F("chat_id", chatID), slog.F("type", event.Type)},
-		)
+		state.subscriberDropCount += subDropped
+		now := p.clock.Now()
+		if now.Sub(state.subscriberLastWarnAt) >= streamDropWarnInterval {
+			p.logger.Warn(context.Background(), "dropping chat stream event",
+				slog.F("chat_id", chatID),
+				slog.F("type", event.Type),
+				slog.F("dropped_count", state.subscriberDropCount),
+			)
+			state.subscriberDropCount = 0
+			state.subscriberLastWarnAt = now
+		}
 	}
 	p.cleanupStreamIfIdle(chatID, state)
 	state.mu.Unlock()
-}
-
-// logRateLimitedDrop emits a rate-limited log for a stream drop event.
-// It logs at WARN (with the accumulated dropped_count) at most once
-// per streamDropWarnInterval, and at DEBUG in between. The delta is
-// added to count before evaluating. The caller must hold the
-// relevant lock protecting count and lastWarn.
-func (p *Server) logRateLimitedDrop(
-	count *int64, lastWarn *time.Time,
-	delta int64,
-	msg string, fields []slog.Field,
-) {
-	if p.clock == nil {
-		p.clock = quartz.NewReal()
-	}
-	*count += delta
-	now := p.clock.Now()
-	if now.Sub(*lastWarn) >= streamDropWarnInterval {
-		fields = append(fields, slog.F("dropped_count", *count))
-		p.logger.Warn(context.Background(), msg, fields...)
-		*count = 0
-		*lastWarn = now
-	} else {
-		p.logger.Debug(context.Background(), msg, fields...)
-	}
 }
 
 // cacheDurableMessage stores a recently persisted message event in the
