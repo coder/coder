@@ -38,7 +38,7 @@ const Language = {
 	ai_addon: {
 		title: "What is the AI add-on?",
 		text:
-			"Users with access to AI features like AI Bridge, Boundary, or Tasks " +
+			"Users with access to AI features like AI Bridge or Tasks " +
 			"who are actively consuming a seat.",
 		links: [],
 	},
