@@ -42,6 +42,7 @@ import { formatProviderLabel } from "../utils/modelOptions";
 import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerPicker } from "./MCPServerPicker";
 import { QueuedMessagesList } from "./QueuedMessagesList";
+import { TextPreviewDialog } from "./TextPreviewDialog";
 
 export type { ChatMessageInputRef } from "components/ChatMessageInput/ChatMessageInput";
 
@@ -411,6 +412,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 }) => {
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
+	const [previewText, setPreviewText] = useState<string | null>(null);
 
 	const [hasFileReferences, setHasFileReferences] = useState(false);
 
@@ -455,6 +457,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		if (content === undefined) return;
 		internalRef.current?.insertText(content);
 		onRemoveAttachment?.(index);
+	};
+
+	const handleTextPreview = (content: string, _fileName: string) => {
+		if (onTextPreview) {
+			onTextPreview(content, _fileName);
+		} else {
+			setPreviewText(content);
+		}
 	};
 
 	// Drag-and-drop support for image files.
@@ -681,7 +691,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						previewUrls={previewUrls}
 						onPreview={setPreviewImage}
 						textContents={textContents}
-						onTextPreview={onTextPreview}
+						onTextPreview={handleTextPreview}
 						onInlineText={handleInlineText}
 					/>
 				)}
@@ -844,6 +854,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				<ImageLightbox
 					src={previewImage}
 					onClose={() => setPreviewImage(null)}
+				/>
+			)}
+			{previewText !== null && (
+				<TextPreviewDialog
+					content={previewText}
+					onClose={() => setPreviewText(null)}
 				/>
 			)}
 		</>
