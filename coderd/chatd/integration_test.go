@@ -3,10 +3,12 @@ package chatd_test
 import (
 	"context"
 	"os"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -583,4 +585,183 @@ func partTypeSet(parts []codersdk.ChatMessagePart) map[codersdk.ChatMessagePartT
 		set[p.Type] = struct{}{}
 	}
 	return set
+}
+
+type openAIStoreMode string
+
+const (
+	openAIStoreModeTrue  openAIStoreMode = "store_true"
+	openAIStoreModeFalse openAIStoreMode = "store_false"
+)
+
+func TestOpenAIReasoningWithWebSearchRoundTrip(t *testing.T) {
+	t.Parallel()
+	runOpenAIReasoningWithWebSearchRoundTripTest(t, openAIStoreModeTrue)
+}
+
+func TestOpenAIReasoningWithWebSearchRoundTripStoreFalse(t *testing.T) {
+	t.Parallel()
+	runOpenAIReasoningWithWebSearchRoundTripTest(t, openAIStoreModeFalse)
+}
+
+func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, storeMode openAIStoreMode) {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	store := storeMode == openAIStoreModeTrue
+
+	var streamRequestCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("reasoning + web search title")
+		}
+
+		switch streamRequestCount.Add(1) {
+		case 1:
+			return chattest.OpenAIResponse{
+				StreamingChunks: chattest.OpenAIStreamingResponse(
+					chattest.OpenAITextChunks("Here is what I found.")...,
+				).StreamingChunks,
+				Reasoning: &chattest.OpenAIReasoningItem{
+					Summary:          "thinking about the question",
+					EncryptedContent: "encrypted_data_here",
+				},
+				WebSearch: &chattest.OpenAIWebSearchCall{
+					Query: "latest AI news",
+				},
+			}
+		default:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("Follow-up answer.")...,
+			)
+		}
+	})
+
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: deploymentValues,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		Provider: "openai",
+		APIKey:   "test-api-key",
+		BaseURL:  openAIURL,
+	})
+	require.NoError(t, err)
+
+	contextLimit := int64(200000)
+	isDefault := true
+	reasoningEffort := "medium"
+	reasoningSummary := "auto"
+	_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		Provider:     "openai",
+		Model:        "o4-mini",
+		ContextLimit: &contextLimit,
+		IsDefault:    &isDefault,
+		ModelConfig: &codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+					Store:            ptr.Ref(store),
+					ReasoningEffort:  &reasoningEffort,
+					ReasoningSummary: &reasoningSummary,
+					WebSearchEnabled: ptr.Ref(true),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	t.Logf("Creating chat with reasoning + web search query (store=%t)...", store)
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "Search for the latest AI news and summarize it briefly.",
+		}},
+	})
+	require.NoError(t, err)
+
+	events, closer, err := client.StreamChat(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	defer closer.Close()
+
+	waitForChatDone(ctx, t, events, "step 1")
+
+	chatData, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	chatMsgs, err := client.GetChatMessages(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.ChatStatusWaiting, chatData.Status,
+		"chat should be in waiting status after step 1")
+
+	assistantMsg := findAssistantWithText(t, chatMsgs.Messages)
+	require.NotNil(t, assistantMsg,
+		"expected an assistant message with text content after step 1")
+
+	partTypes := partTypeSet(assistantMsg.Content)
+	require.Contains(t, partTypes, codersdk.ChatMessagePartTypeReasoning,
+		"assistant message should contain reasoning parts")
+	require.Contains(t, partTypes, codersdk.ChatMessagePartTypeToolCall,
+		"assistant message should contain a provider-executed web search tool call")
+	require.Contains(t, partTypes, codersdk.ChatMessagePartTypeToolResult,
+		"assistant message should contain a provider-executed web search tool result")
+	require.Contains(t, partTypes, codersdk.ChatMessagePartTypeText,
+		"assistant message should contain a text part")
+
+	var foundReasoning, foundWebSearchCall, foundText bool
+	for _, part := range assistantMsg.Content {
+		switch part.Type {
+		case codersdk.ChatMessagePartTypeReasoning:
+			if part.Text == "thinking about the question" {
+				foundReasoning = true
+			}
+		case codersdk.ChatMessagePartTypeToolCall:
+			if part.ToolName == "web_search" {
+				require.True(t, part.ProviderExecuted,
+					"web search tool-call should be marked provider-executed")
+				foundWebSearchCall = true
+			}
+		case codersdk.ChatMessagePartTypeText:
+			if part.Text == "Here is what I found." {
+				foundText = true
+			}
+		}
+	}
+	require.True(t, foundReasoning, "expected reasoning summary text to be persisted")
+	require.True(t, foundWebSearchCall, "expected persisted web_search tool call")
+	require.True(t, foundText, "expected streamed assistant text to be persisted")
+
+	t.Log("Sending follow-up message...")
+	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "What is the follow-up takeaway?",
+		}},
+	})
+	if !store && err != nil {
+		require.NotContains(t, err.Error(),
+			"Items are not persisted when store is set to false.",
+			"follow-up should reconstruct store=false responses without stale provider item IDs")
+	}
+	require.NoError(t, err)
+
+	events2, closer2, err := client.StreamChat(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	defer closer2.Close()
+
+	waitForChatDone(ctx, t, events2, "step 2")
+
+	chatData2, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	chatMsgs2, err := client.GetChatMessages(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.ChatStatusWaiting, chatData2.Status,
+		"chat should be in waiting status after step 2")
+	require.Greater(t, len(chatMsgs2.Messages), len(chatMsgs.Messages),
+		"follow-up should have added more messages")
+	require.NotNil(t, findLastAssistantWithText(t, chatMsgs2.Messages),
+		"expected an assistant message with text after the follow-up")
+	require.Equal(t, int32(2), streamRequestCount.Load(),
+		"expected exactly two streamed OpenAI responses")
 }
