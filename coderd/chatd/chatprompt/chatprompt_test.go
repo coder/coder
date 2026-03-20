@@ -8,6 +8,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
@@ -1036,6 +1037,63 @@ func TestProviderMetadataRoundTrip(t *testing.T) {
 	cc := fantasyanthropic.GetCacheControl(textPart.ProviderOptions)
 	require.NotNil(t, cc, "Anthropic cache control must survive round-trip")
 	require.Equal(t, "ephemeral", cc.Type)
+}
+
+// TestProviderMetadataRoundTripOpenAIReasoningReplaySanitized verifies
+// OpenAI reasoning metadata survives round-trip replay except for the
+// ephemeral item_id, which is stripped before prompt reconstruction.
+func TestProviderMetadataRoundTripOpenAIReasoningReplaySanitized(t *testing.T) {
+	t.Parallel()
+
+	encryptedContent := "ciphertext"
+	original := fantasy.ReasoningContent{
+		Text: "thinking through the problem",
+		ProviderMetadata: fantasy.ProviderMetadata{
+			fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+				ItemID:           "rs_reasoning",
+				EncryptedContent: &encryptedContent,
+				Summary:          []string{"first thought", "second thought"},
+			},
+		},
+	}
+
+	sdkPart := chatprompt.PartFromContent(original)
+	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, sdkPart.Type)
+	require.NotNil(t, sdkPart.ProviderMetadata)
+
+	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{sdkPart})
+	require.NoError(t, err)
+
+	parts, err := chatprompt.ParseContent(testMsg(codersdk.ChatMessageRoleAssistant, raw))
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	assert.Equal(t, "thinking through the problem", parts[0].Text)
+	assert.JSONEq(t, string(sdkPart.ProviderMetadata), string(parts[0].ProviderMetadata))
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:       database.ChatMessageRoleAssistant,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    raw,
+		}},
+		nil,
+		slogtest.Make(t, nil),
+	)
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Len(t, prompt[0].Content, 1)
+
+	reasoningPart, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](prompt[0].Content[0])
+	require.True(t, ok, "expected ReasoningPart")
+	require.Equal(t, "thinking through the problem", reasoningPart.Text)
+
+	reasoningMetadata, ok := reasoningPart.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesReasoningMetadata)
+	require.True(t, ok, "expected OpenAI reasoning metadata")
+	require.Empty(t, reasoningMetadata.ItemID)
+	require.Equal(t, []string{"first thought", "second thought"}, reasoningMetadata.Summary)
+	require.NotNil(t, reasoningMetadata.EncryptedContent)
+	require.Equal(t, encryptedContent, *reasoningMetadata.EncryptedContent)
 }
 
 // TestFileReferencePreservation verifies file-reference parts

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
@@ -1085,6 +1086,29 @@ func marshalProviderMetadata(metadata fantasy.ProviderMetadata) json.RawMessage 
 	return data
 }
 
+// sanitizeOpenAIReplayMetadata clears ephemeral item/reference IDs from
+// OpenAI provider metadata that are only valid for server-stored
+// conversations. When the originating response used store=false, these
+// IDs reference non-existent server-side items and replaying them causes
+// "Item not found" errors. Stripping is unconditional because the
+// store=true code path in the fantasy library already skips reasoning
+// items before metadata is inspected, making the strip a no-op for
+// stored conversations.
+func sanitizeOpenAIReplayMetadata(opts fantasy.ProviderOptions) fantasy.ProviderOptions {
+	if opts == nil {
+		return nil
+	}
+	for _, val := range opts {
+		switch v := val.(type) {
+		case *fantasyopenai.ResponsesReasoningMetadata:
+			v.ItemID = ""
+		case *fantasyopenai.WebSearchCallMetadata:
+			v.ItemID = ""
+		}
+	}
+	return opts
+}
+
 // providerMetadataToOptions reconstructs fantasy ProviderOptions
 // from raw JSON stored in an SDK part's ProviderMetadata field.
 // Uses fantasy.UnmarshalProviderOptions to restore registered
@@ -1103,7 +1127,7 @@ func providerMetadataToOptions(logger slog.Logger, raw json.RawMessage) fantasy.
 		logger.Warn(context.Background(), "failed to decode provider options", slog.Error(err))
 		return nil
 	}
-	return opts
+	return sanitizeOpenAIReplayMetadata(opts)
 }
 
 // safeToolCallArgs ensures tool call args are valid JSON. Returns
