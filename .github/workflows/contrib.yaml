@@ -30,15 +30,13 @@ jobs:
     if: >-
       ${{
         github.event_name == 'pull_request_target' &&
-        github.event.action == 'opened' &&
-        github.event.pull_request.author_association != 'MEMBER' &&
-        github.event.pull_request.author_association != 'COLLABORATOR' &&
-        github.event.pull_request.author_association != 'OWNER'
+        github.event.action == 'opened'
       }}
     steps:
       - name: Add community label
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
+          github-token: ${{ secrets.CDRCI2_GITHUB_TOKEN }}
           script: |
             const params = {
               issue_number: context.issue.number,
@@ -52,10 +50,25 @@ jobs:
               return
             }
 
-            console.log(
-              'Adding "community" label for author association "%s".',
-              context.payload.pull_request.author_association,
-            )
+            // Use the org members API instead of author_association
+            // which can be flaky: https://github.com/actions/github-script/issues/643
+            // A token with read:org scope is required to see members
+            // with private visibility.
+            const author = context.payload.pull_request.user.login
+            try {
+              await github.rest.orgs.checkMembershipForUser({
+                org: context.repo.owner,
+                username: author,
+              })
+              console.log('Author "%s" is an org member, skipping.', author)
+              return
+            } catch (error) {
+              if (error.status !== 404 && error.status !== 302) {
+                throw error
+              }
+            }
+
+            console.log('Adding "community" label for author "%s".', author)
             await github.rest.issues.addLabels({
               ...params,
               labels: ["community"],
