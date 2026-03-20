@@ -426,21 +426,31 @@ const AgentsPage: FC = () => {
 							let didUpdate = false;
 							const nextChats = chats.map((c) => {
 								if (c.id !== updatedChat.id) return c;
+								const nextStatus = isStatusEvent ? updatedChat.status : c.status;
+								const nextTitle = isTitleEvent ? updatedChat.title : c.title;
+								const nextDiffStatus = isDiffStatusEvent ? updatedChat.diff_status : c.diff_status;
+								const nextWorkspaceId = updatedChat.workspace_id ?? c.workspace_id;
+								const nextUpdatedAt =
+									c.updated_at > updatedChat.updated_at
+										? c.updated_at
+										: updatedChat.updated_at;
+								if (
+									nextStatus === c.status &&
+									nextTitle === c.title &&
+									nextDiffStatus === c.diff_status &&
+									nextWorkspaceId === c.workspace_id &&
+									nextUpdatedAt === c.updated_at
+								) {
+									return c;
+								}
 								didUpdate = true;
 								return {
 									...c,
-									...(isStatusEvent && { status: updatedChat.status }),
-									...(isTitleEvent && { title: updatedChat.title }),
-									...(isDiffStatusEvent && {
-										diff_status: updatedChat.diff_status,
-									}),
-									// workspace_id can arrive on any event kind once
-									// the workspace is associated with the chat.
-									workspace_id: updatedChat.workspace_id ?? c.workspace_id,
-									updated_at:
-										c.updated_at > updatedChat.updated_at
-											? c.updated_at
-											: updatedChat.updated_at,
+									status: nextStatus,
+									title: nextTitle,
+									diff_status: nextDiffStatus,
+									workspace_id: nextWorkspaceId,
+									updated_at: nextUpdatedAt,
 								};
 							});
 							return didUpdate ? nextChats : chats;
