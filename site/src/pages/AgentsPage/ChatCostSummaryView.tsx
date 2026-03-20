@@ -185,8 +185,9 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 						</span>
 					</p>
 					<p className="m-0 mt-1 text-sm text-content-secondary">
-{totalMessages.toLocaleString()} messages over{" "}
-							{summary.by_chat.length.toLocaleString()} chats					</p>
+						{totalMessages.toLocaleString()} messages over{" "}
+						{summary.by_chat.length.toLocaleString()} chats{" "}
+					</p>
 				</div>
 
 				{/* Right — breakdowns + usage limit */}
@@ -249,12 +250,14 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 									{formatCostMicros(limitSpend)}
 								</span>
 								<span className="text-content-secondary">
-									{" "}/ {formatCostMicros(limitCap)}{" "}
+									{" "}
+									/ {formatCostMicros(limitCap)}{" "}
 									{limitPeriodLabel.toLowerCase()}
 								</span>
 								{limitResetAt && (
 									<span className="text-content-secondary">
-										{" "}· resets {limitResetAt}
+										{" "}
+										· resets {limitResetAt}
 									</span>
 								)}
 							</div>

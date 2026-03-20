@@ -36,7 +36,7 @@ export const AnalyticsPageContent: FC<AnalyticsPageContentProps> = ({
 		<div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 pt-10 pb-16 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 			<div className="mx-auto w-full max-w-4xl">
 				<div className="mb-8">
-					<h1 className="text-2xl font-semibold text-content-primary">
+					<h1 className="m-0 text-2xl font-semibold text-content-primary">
 						Analytics
 					</h1>
 					<p className="m-0 text-sm text-content-secondary">
