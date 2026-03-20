@@ -1849,6 +1849,44 @@ export interface ChatToolResultPart {
 
 // From codersdk/chats.go
 /**
+ * ChatUIMessagesResponse is returned by the /ui-messages endpoint.
+ * It contains only the boundary messages needed for rendering
+ * (user messages, initial assistant text, final assistant text)
+ * with working-block metadata for the omitted interior.
+ */
+export interface ChatUIMessagesResponse {
+	readonly messages: readonly ChatMessage[];
+	readonly working_blocks: readonly ChatUIWorkingBlock[];
+	readonly queued_messages: readonly ChatQueuedMessage[];
+	readonly has_more: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatUIWorkingBlock describes a range of omitted messages (tool calls,
+ * tool results, intermediate assistant messages) that are collapsed into
+ * a "Working" indicator in the UI.
+ */
+export interface ChatUIWorkingBlock {
+	/**
+	 * AfterMessageID is the last included message before the gap.
+	 */
+	readonly after_message_id: number;
+	/**
+	 * BeforeMessageID is the first included message after the gap.
+	 * Zero when the turn is still active (no final message yet).
+	 */
+	readonly before_message_id: number;
+	readonly started_at: string;
+	/**
+	 * EndedAt is nil when the working block is still active.
+	 */
+	readonly ended_at?: string;
+	readonly message_count: number;
+}
+
+// From codersdk/chats.go
+/**
  * ChatUsageLimitConfig is the deployment-wide default usage limit config.
  */
 export interface ChatUsageLimitConfig {

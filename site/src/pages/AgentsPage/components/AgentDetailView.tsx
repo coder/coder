@@ -63,6 +63,12 @@ interface AgentDetailViewProps {
 	// Store handle.
 	store: ChatStoreHandle;
 
+	// Working blocks from the UI messages endpoint.
+	workingBlocks: readonly TypesGen.ChatUIWorkingBlock[];
+
+	// Whether the collapsed tool-call rendering is active.
+	collapsedToolCalls?: boolean;
+
 	// Editing state.
 	editing: EditingState;
 	pendingEditMessageId: number | null;
@@ -139,6 +145,8 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	isArchived,
 	hasWorkspace,
 	store,
+	workingBlocks,
+	collapsedToolCalls,
 	editing,
 	pendingEditMessageId,
 	effectiveSelectedModel,
@@ -259,24 +267,27 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 					hasMoreMessages={hasMoreMessages}
 					onFetchMoreMessages={onFetchMoreMessages}
 				>
-					<div className="px-4">
-						<AgentDetailTimeline
-							store={store}
-							persistedErrorReason={
-								chatErrorReasons[agentId] ??
-								(chatStatus === "error" && chatRecord?.last_error
-									? { kind: "generic" as const, message: chatRecord.last_error }
-									: undefined)
-							}
-							onEditUserMessage={editing.handleEditUserMessage}
-							editingMessageId={editing.editingMessageId}
-							savingMessageId={pendingEditMessageId}
-							urlTransform={urlTransform}
-						/>
-					</div>
-				</ScrollAnchoredContainer>
-				<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
-					<AgentDetailInput
+						<div className="px-4">
+							<AgentDetailTimeline
+								store={store}
+								chatId={agentId}
+								workingBlocks={workingBlocks}
+								collapsedToolCalls={collapsedToolCalls}
+								persistedErrorReason={
+									chatErrorReasons[agentId] ??
+									(chatStatus === "error" && chatRecord?.last_error
+										? { kind: "generic" as const, message: chatRecord.last_error }
+										: undefined)
+								}
+								onEditUserMessage={editing.handleEditUserMessage}
+								editingMessageId={editing.editingMessageId}
+								savingMessageId={pendingEditMessageId}
+								urlTransform={urlTransform}
+							/>
+						</div>
+					</ScrollAnchoredContainer>
+					<div className="shrink-0 overflow-y-auto px-4 pb-4 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+						<AgentDetailInput
 						store={store}
 						compressionThreshold={compressionThreshold}
 						onSend={editing.handleSendFromInput}

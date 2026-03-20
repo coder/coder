@@ -3070,6 +3070,22 @@ class ExperimentalApiMethods {
 		const response = await this.axios.get<TypesGen.ChatMessagesResponse>(url);
 		return response.data;
 	};
+	getChatUIMessages = async (
+		chatId: string,
+		opts?: { before?: number; limit?: number },
+	): Promise<TypesGen.ChatUIMessagesResponse> => {
+		const params = new URLSearchParams();
+		if (opts?.before) {
+			params.set("before", opts.before.toString());
+		}
+		if (opts?.limit) {
+			params.set("limit", opts.limit.toString());
+		}
+		const query = params.toString();
+		const url = `/api/experimental/chats/${chatId}/ui-messages${query ? `?${query}` : ""}`;
+		const response = await this.axios.get<TypesGen.ChatUIMessagesResponse>(url);
+		return response.data;
+	};
 
 	createChat = async (
 		req: TypesGen.CreateChatRequest,

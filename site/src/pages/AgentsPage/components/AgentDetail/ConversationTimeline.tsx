@@ -1,3 +1,4 @@
+import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import {
@@ -9,6 +10,7 @@ import {
 	Tool,
 } from "components/ai-elements";
 import { WebSearchSources } from "components/ai-elements/tool";
+import { WorkingBlock } from "components/ai-elements/WorkingBlock";
 import { Button } from "components/Button/Button";
 import { FileReferenceChip } from "components/ChatMessageInput/FileReferenceNode";
 import { Spinner } from "components/Spinner/Spinner";
@@ -24,6 +26,7 @@ import {
 	memo,
 	type ReactNode,
 	useLayoutEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -34,6 +37,7 @@ import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import { ImageThumbnail } from "../AgentChatInput";
 import { ImageLightbox } from "../ImageLightbox";
 import { useSmoothStreamingText } from "./SmoothText";
+import { parseMessagesWithMergedTools } from "./messageParsing";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -261,6 +265,8 @@ const ChatMessageItem = memo<{
 	// that fades text out toward the bottom. Used by the sticky
 	// overlay to indicate truncated content.
 	fadeFromBottom?: boolean;
+	hideToolBlocks?: boolean;
+	animateText?: boolean;
 	urlTransform?: UrlTransform;
 }>(
 	({
@@ -271,6 +277,8 @@ const ChatMessageItem = memo<{
 		savingMessageId,
 		isAfterEditingMessage = false,
 		fadeFromBottom = false,
+		hideToolBlocks = false,
+		animateText = false,
 		urlTransform,
 	}) => {
 		const isUser = message.role === "user";
@@ -320,15 +328,20 @@ const ChatMessageItem = memo<{
 			role: isUser ? "user" : "assistant",
 		};
 		const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
-			blocks: parsed.blocks,
+			blocks: hideToolBlocks
+				? parsed.blocks.filter(
+						(b) => b.type === "response" || b.type === "thinking",
+					)
+				: parsed.blocks,
 			toolByID,
 			keyPrefix: String(message.id),
+			isStreaming: animateText,
 			onImageClick: setPreviewImage,
 			urlTransform,
 		});
-		const remainingTools = parsed.tools.filter(
-			(tool) => !renderedToolIDs.has(tool.id),
-		);
+		const remainingTools = hideToolBlocks
+			? []
+			: parsed.tools.filter((tool) => !renderedToolIDs.has(tool.id));
 
 		return (
 			<div
@@ -837,13 +850,17 @@ const StickyUserMessage: FC<{
 };
 
 interface ConversationTimelineProps {
+	chatId: string;
 	isEmpty: boolean;
 	parsedMessages: readonly ParsedMessageEntry[];
+	workingBlocks?: readonly TypesGen.ChatUIWorkingBlock[];
+	chatStatus?: TypesGen.ChatStatus;
 	hasStreamOutput: boolean;
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
 	subagentTitles: Map<string, string>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
+	streamHasToolCalls?: boolean;
 	retryState?: { attempt: number; error: string } | null;
 	isAwaitingFirstStreamChunk: boolean;
 	detailError?: ChatDetailError | null;
@@ -858,13 +875,17 @@ interface ConversationTimelineProps {
 }
 
 export const ConversationTimeline: FC<ConversationTimelineProps> = ({
+	chatId,
 	isEmpty,
 	parsedMessages,
+	workingBlocks,
+	chatStatus,
 	hasStreamOutput,
 	streamState,
 	streamTools,
 	subagentTitles,
 	subagentStatusOverrides,
+	streamHasToolCalls,
 	retryState,
 	isAwaitingFirstStreamChunk,
 	detailError,
@@ -876,6 +897,115 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	const shouldRenderStreamAfterMessages =
 		hasStreamOutput && parsedMessages.length > 0;
 	const isUsageLimitError = detailError?.kind === "usage-limit";
+
+	// Track when the stream first enters the working phase so the
+	// WorkingBlock timer starts from the right moment.
+	const workingStartRef = useRef<string | null>(null);
+	if (streamHasToolCalls && !workingStartRef.current) {
+		workingStartRef.current = new Date().toISOString();
+	}
+	if (!streamHasToolCalls) {
+		workingStartRef.current = null;
+	}
+
+	// Identify the last user message index once, shared by both
+	// workingBlockAfterMessage and the live-stream hiding logic.
+	const lastUserMsgIndex = (() => {
+		for (let i = parsedMessages.length - 1; i >= 0; i--) {
+			if (parsedMessages[i].message.role === "user") return i;
+		}
+		return -1;
+	})();
+
+	// Map working blocks by the message ID they follow.
+	// Includes REST-provided blocks for historical turns and a
+	// synthetic block for the current turn when its messages are
+	// already in the store (from WebSocket durable events) but
+	// the REST data hasn't refreshed yet.
+	const workingBlockAfterMessage = useMemo(() => {
+		const map = new Map<number, TypesGen.ChatUIWorkingBlock>();
+		for (const wb of workingBlocks ?? []) {
+			map.set(wb.after_message_id, wb);
+		}
+
+		// Build a synthetic working block for the current turn when
+		// the store has tool-call messages but REST hasn't caught up.
+		// This avoids a flash of interior messages between stream
+		// clearing and REST refetch.
+		if (parsedMessages.length > 0 && lastUserMsgIndex >= 0) {
+			const turnMsgs = parsedMessages.slice(lastUserMsgIndex + 1);
+			const firstAssistant = turnMsgs[0];
+			const hasTools = turnMsgs.some(
+				({ parsed }) => parsed.toolCalls.length > 0,
+			);
+			// Only add synthetic block if the turn has tools AND
+			// no REST working block covers it yet.
+			if (
+				hasTools &&
+				firstAssistant &&
+				!map.has(firstAssistant.message.id)
+			) {
+				// The final text message is the last assistant in
+				// the turn with no tool calls.
+				const lastPureText = [...turnMsgs]
+					.reverse()
+					.find(
+						({ message, parsed }) =>
+							message.role === "assistant" &&
+							parsed.toolCalls.length === 0 &&
+							parsed.markdown.length > 0,
+					);
+				const interiorCount = turnMsgs.length
+					- 1 // first assistant (boundary)
+					- (lastPureText ? 1 : 0); // final text (boundary)
+
+				map.set(firstAssistant.message.id, {
+					after_message_id: firstAssistant.message.id,
+					before_message_id: lastPureText?.message.id ?? 0,
+					started_at: firstAssistant.message.created_at,
+					ended_at: lastPureText
+						? lastPureText.message.created_at
+						: undefined,
+					message_count: Math.max(interiorCount, 0),
+				});
+			}
+		}
+
+		return map;
+	}, [workingBlocks, parsedMessages, lastUserMsgIndex]);
+
+	// Build a set of message IDs that fall inside a working block's
+	// range and should be hidden from the timeline. Single O(n)
+	// pass — each message checked against the small interval list.
+	const hiddenByWorkingBlock = useMemo(() => {
+		const hidden = new Set<number>();
+		if (workingBlockAfterMessage.size === 0) return hidden;
+		const ranges = [...workingBlockAfterMessage.values()].map((wb) => ({
+			after: wb.after_message_id,
+			before: wb.before_message_id,
+		}));
+		for (const { message } of parsedMessages) {
+			for (const r of ranges) {
+				if (message.id > r.after && (r.before === 0 || message.id < r.before)) {
+					hidden.add(message.id);
+					break;
+				}
+			}
+		}
+		return hidden;
+	}, [workingBlockAfterMessage, parsedMessages]);
+
+	// Build a set of message IDs that are the final text
+	// message after a working block — these animate text in.
+	const animateTextMessageIds = useMemo(() => {
+		const ids = new Set<number>();
+		for (const wb of workingBlockAfterMessage.values()) {
+			if (wb.before_message_id > 0) {
+				ids.add(wb.before_message_id);
+			}
+		}
+		return ids;
+	}, [workingBlockAfterMessage]);
 
 	// Build a set of message IDs that appear after the message
 	// currently being edited so they can be visually faded.
@@ -893,37 +1023,120 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 		}
 	}
 
+	let seenFirstAssistantInCurrentTurn = false;
+
 	return (
-		<div className="mx-auto w-full max-w-3xl space-y-3 py-6">
+		<div className="mx-auto w-full max-w-3xl py-6">
 			{isEmpty && !hasStreamOutput ? (
 				<div className="py-12 text-center text-content-secondary">
 					<p className="text-sm">Start a conversation with your agent.</p>
 				</div>
 			) : (
 				<div className="flex flex-col gap-3">
-					{parsedMessages.map(({ message, parsed }) =>
-						message.role === "user" ? (
-							<StickyUserMessage
-								key={message.id}
-								message={message}
-								parsed={parsed}
-								onEditUserMessage={onEditUserMessage}
-								editingMessageId={editingMessageId}
-								savingMessageId={savingMessageId}
-								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-							/>
-						) : (
-							<ChatMessageItem
-								key={message.id}
-								message={message}
-								parsed={parsed}
-								savingMessageId={savingMessageId}
-								urlTransform={urlTransform}
-								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-							/>
-						),
-					)}
-					{shouldRenderStreamAfterMessages && (
+					{parsedMessages.map(({ message, parsed }, idx) => {
+						const isInCurrentTurn = idx > lastUserMsgIndex;
+
+						// During live streaming with tool calls, only the
+						// first assistant in the current turn renders (with
+						// tool blocks hidden). All other non-user messages
+						// are interior — shown inside the live WorkingBlock.
+						let isFirstAssistantInCurrentTurn = false;
+						if (streamHasToolCalls && isInCurrentTurn && message.role !== "user") {
+							if (!seenFirstAssistantInCurrentTurn && message.role === "assistant") {
+								seenFirstAssistantInCurrentTurn = true;
+								isFirstAssistantInCurrentTurn = true;
+							} else {
+								return null;
+							}
+						}
+
+						// Skip messages inside a working block range (REST or synthetic).
+						if (hiddenByWorkingBlock.has(message.id)) {
+							return null;
+						}
+
+						const workingBlock = workingBlockAfterMessage.get(message.id);
+						const shouldHideTools = !!workingBlock || isFirstAssistantInCurrentTurn;
+						const isActive =
+							workingBlock && chatStatus
+								? ["running", "pending"].includes(chatStatus)
+								: false;
+
+						return (
+							<Fragment key={message.id}>
+								{message.role === "user" ? (
+									<StickyUserMessage
+										message={message}
+										parsed={parsed}
+										onEditUserMessage={onEditUserMessage}
+										editingMessageId={editingMessageId}
+										savingMessageId={savingMessageId}
+										isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+									/>
+								) : (
+									<ChatMessageItem
+										message={message}
+										parsed={parsed}
+										savingMessageId={savingMessageId}
+										urlTransform={urlTransform}
+										isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+										hideToolBlocks={shouldHideTools}
+										animateText={animateTextMessageIds.has(message.id)}
+									/>
+								)}
+								{workingBlock && !isFirstAssistantInCurrentTurn && (
+									<WorkingBlock
+										startedAt={workingBlock.started_at}
+										endedAt={workingBlock.ended_at}
+										isActive={isActive && !workingBlock.ended_at}
+										onExpand={async () => {
+											// Check if interior messages are already
+											// in the store first.
+											const storeInterior = parsedMessages
+												.filter(({ message: m }) =>
+													hiddenByWorkingBlock.has(m.id)
+													&& m.id > workingBlock.after_message_id
+													&& (workingBlock.before_message_id === 0 || m.id < workingBlock.before_message_id),
+												);
+											if (storeInterior.length > 0) {
+												return storeInterior.map(({ message: m, parsed: p }) => (
+													<ChatMessageItem
+														key={m.id}
+														message={m}
+														parsed={p}
+														urlTransform={urlTransform}
+													/>
+												));
+											}
+											// Fetch from the API for historical turns.
+											const resp = await API.experimental.getChatMessages(chatId, {
+												before_id: workingBlock.before_message_id || undefined,
+												limit: 200,
+											});
+											// Filter to only messages in this working
+											// block's range.
+											const rangeMessages = resp.messages
+												.filter((m) =>
+													m.id > workingBlock.after_message_id
+													&& (workingBlock.before_message_id === 0 || m.id < workingBlock.before_message_id),
+												)
+												.sort((a, b) => a.id - b.id);
+											const parsed = parseMessagesWithMergedTools(rangeMessages);
+											return parsed.map(({ message: m, parsed: p }) => (
+												<ChatMessageItem
+													key={m.id}
+													message={m}
+													parsed={p}
+													urlTransform={urlTransform}
+												/>
+											));
+										}}
+									/>
+								)}
+							</Fragment>
+						);
+					})}
+					{shouldRenderStreamAfterMessages && !streamHasToolCalls && (
 						<StreamingOutput
 							streamState={streamState}
 							streamTools={streamTools}
@@ -934,7 +1147,45 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 							urlTransform={urlTransform}
 						/>
 					)}
-					{hasStreamOutput && parsedMessages.length === 0 && (
+					{shouldRenderStreamAfterMessages && streamHasToolCalls && (
+						<WorkingBlock
+							startedAt={workingStartRef.current ?? new Date().toISOString()}
+							isActive={true}
+							defaultExpanded={true}
+						>
+							{/* Persisted interior messages from completed steps */}
+							{(() => {
+								// Find the first assistant index so we skip it
+								// (it's rendered above the WorkingBlock).
+								const firstAsstIdx = parsedMessages.findIndex(
+									(e, i) => i > lastUserMsgIndex && e.message.role === "assistant",
+								);
+								return parsedMessages
+									.filter(({ message: m }, idx) =>
+										idx > lastUserMsgIndex
+										&& m.role !== "user"
+										&& idx !== firstAsstIdx,
+									)
+									.map(({ message: m, parsed: p }) => (
+										<ChatMessageItem
+											key={m.id}
+											message={m}
+											parsed={p}
+											urlTransform={urlTransform}
+										/>
+									));
+							})()}
+							{/* Live stream from current step */}
+							<StreamingOutput
+								streamState={streamState}
+								streamTools={streamTools}
+								subagentTitles={subagentTitles}
+								subagentStatusOverrides={subagentStatusOverrides}
+								urlTransform={urlTransform}
+							/>
+						</WorkingBlock>
+					)}
+					{hasStreamOutput && parsedMessages.length === 0 && !streamHasToolCalls && (
 						<StreamingOutput
 							streamState={streamState}
 							streamTools={streamTools}
@@ -943,6 +1194,12 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 							showInitialPlaceholder={isAwaitingFirstStreamChunk}
 							retryState={retryState}
 							urlTransform={urlTransform}
+						/>
+					)}
+					{hasStreamOutput && parsedMessages.length === 0 && streamHasToolCalls && (
+						<WorkingBlock
+							startedAt={workingStartRef.current ?? new Date().toISOString()}
+							isActive={true}
 						/>
 					)}
 				</div>

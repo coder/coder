@@ -308,6 +308,32 @@ type ChatMessagesResponse struct {
 	HasMore        bool                `json:"has_more"`
 }
 
+// ChatUIWorkingBlock describes a range of omitted messages (tool calls,
+// tool results, intermediate assistant messages) that are collapsed into
+// a "Working" indicator in the UI.
+type ChatUIWorkingBlock struct {
+	// AfterMessageID is the last included message before the gap.
+	AfterMessageID int64 `json:"after_message_id"`
+	// BeforeMessageID is the first included message after the gap.
+	// Zero when the turn is still active (no final message yet).
+	BeforeMessageID int64 `json:"before_message_id"`
+	StartedAt time.Time `json:"started_at" format:"date-time"`
+	// EndedAt is nil when the working block is still active.
+	EndedAt *time.Time `json:"ended_at,omitempty" format:"date-time"`
+	MessageCount int `json:"message_count"`
+}
+
+// ChatUIMessagesResponse is returned by the /ui-messages endpoint.
+// It contains only the boundary messages needed for rendering
+// (user messages, initial assistant text, final assistant text)
+// with working-block metadata for the omitted interior.
+type ChatUIMessagesResponse struct {
+	Messages       []ChatMessage        `json:"messages"`
+	WorkingBlocks  []ChatUIWorkingBlock `json:"working_blocks"`
+	QueuedMessages []ChatQueuedMessage  `json:"queued_messages"`
+	HasMore        bool                 `json:"has_more"`
+}
+
 // ChatModelProviderUnavailableReason explains why a provider cannot be used.
 type ChatModelProviderUnavailableReason string
 
@@ -1609,6 +1635,34 @@ func (c *ExperimentalClient) GetChatMessages(ctx context.Context, chatID uuid.UU
 		return ChatMessagesResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatMessagesResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetChatUIMessages returns boundary messages grouped by turn with
+// working-block metadata for collapsed tool-call sections.
+func (c *Client) GetChatUIMessages(ctx context.Context, chatID uuid.UUID, opts *ChatMessagesPaginationOptions) (ChatUIMessagesResponse, error) {
+	reqOpts := []RequestOption{}
+	if opts != nil {
+		reqOpts = append(reqOpts, func(r *http.Request) {
+			q := r.URL.Query()
+			if opts.BeforeID > 0 {
+				q.Set("before", strconv.FormatInt(opts.BeforeID, 10))
+			}
+			if opts.Limit > 0 {
+				q.Set("limit", strconv.Itoa(opts.Limit))
+			}
+			r.URL.RawQuery = q.Encode()
+		})
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/ui-messages", chatID), nil, reqOpts...)
+	if err != nil {
+		return ChatUIMessagesResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatUIMessagesResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatUIMessagesResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

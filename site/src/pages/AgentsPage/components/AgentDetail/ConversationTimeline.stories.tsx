@@ -20,6 +20,7 @@ const defaultArgs: Omit<
 	React.ComponentProps<typeof ConversationTimeline>,
 	"parsedMessages"
 > = {
+	chatId: "story-chat",
 	isEmpty: false,
 	hasStreamOutput: false,
 	streamState: null,
