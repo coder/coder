@@ -1,7 +1,7 @@
 import type { MotionProps } from "motion/react";
 import { MotionConfig, motion } from "motion/react";
 import type { CSSProperties, ElementType, JSX } from "react";
-import { memo, useMemo } from "react";
+
 import { cn } from "utils/cn";
 
 type MotionHTMLProps = MotionProps & Record<string, unknown>;
@@ -40,10 +40,7 @@ const ShimmerComponent = ({
 		Component as keyof JSX.IntrinsicElements,
 	);
 
-	const dynamicSpread = useMemo(
-		() => (children?.length ?? 0) * spread,
-		[children, spread],
-	);
+	const dynamicSpread = (children?.length ?? 0) * spread;
 
 	return (
 		<MotionConfig reducedMotion="user">
@@ -75,4 +72,4 @@ const ShimmerComponent = ({
 	);
 };
 
-export const Shimmer = memo(ShimmerComponent);
+export const Shimmer = ShimmerComponent;

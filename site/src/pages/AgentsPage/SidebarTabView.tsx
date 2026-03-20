@@ -8,14 +8,7 @@ import {
 	XIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useId,
-	useRef,
-	useState,
-} from "react";
+import { type FC, useEffect, useId, useRef, useState } from "react";
 import { cn } from "utils/cn";
 import { DesktopPanel } from "./DesktopPanel";
 import type { UseDesktopConnectionResult } from "./useDesktopConnection";
@@ -66,16 +59,14 @@ function useTabScroll() {
 	const [canScrollLeft, setCanScrollLeft] = useState(false);
 	const [canScrollRight, setCanScrollRight] = useState(false);
 
-	const update = useCallback(() => {
-		const el = ref.current;
-		if (!el) return;
-		setCanScrollLeft(el.scrollLeft > 0);
-		setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
-	}, []);
-
 	useEffect(() => {
 		const el = ref.current;
 		if (!el) return;
+
+		const update = () => {
+			setCanScrollLeft(el.scrollLeft > 0);
+			setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+		};
 
 		// Initial check.
 		update();
@@ -91,21 +82,21 @@ function useTabScroll() {
 			el.removeEventListener("scroll", update);
 			ro.disconnect();
 		};
-	}, [update]);
+	}, []);
 
-	const scrollLeft = useCallback(() => {
+	const scrollLeft = () => {
 		ref.current?.scrollBy({
 			left: -TAB_SCROLL_AMOUNT,
 			behavior: "smooth",
 		});
-	}, []);
+	};
 
-	const scrollRight = useCallback(() => {
+	const scrollRight = () => {
 		ref.current?.scrollBy({
 			left: TAB_SCROLL_AMOUNT,
 			behavior: "smooth",
 		});
-	}, []);
+	};
 
 	return { ref, canScrollLeft, canScrollRight, scrollLeft, scrollRight };
 }
@@ -146,7 +137,13 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 
 	const activeTab = tabs.find((t) => t.id === effectiveTabId) ?? null;
 
-	const tabScroll = useTabScroll();
+	const {
+		ref: tabScrollRef,
+		canScrollLeft,
+		canScrollRight,
+		scrollLeft: scrollTabsLeft,
+		scrollRight: scrollTabsRight,
+	} = useTabScroll();
 
 	if (tabs.length === 0 && !desktopChatId) {
 		return (
@@ -212,10 +209,10 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				)}
 				{/* Scrollable tab strip with overlay chevrons */}
 				<div className="relative min-w-0 flex-1">
-					{tabScroll.canScrollLeft && (
+					{canScrollLeft && (
 						<button
 							type="button"
-							onClick={tabScroll.scrollLeft}
+							onClick={scrollTabsLeft}
 							aria-label="Scroll tabs left"
 							className="absolute left-0 top-0 z-10 flex h-full w-8 cursor-pointer items-center justify-start border-none p-0 pl-1 text-content-primary [background:linear-gradient(to_right,hsl(var(--surface-primary))_50%,transparent)]"
 						>
@@ -223,7 +220,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						</button>
 					)}
 					<div
-						ref={tabScroll.ref}
+						ref={tabScrollRef}
 						className="flex w-full items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 					>
 						{tabs.map((tab) => {
@@ -277,10 +274,10 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 							</Button>
 						)}
 					</div>
-					{tabScroll.canScrollRight && (
+					{canScrollRight && (
 						<button
 							type="button"
-							onClick={tabScroll.scrollRight}
+							onClick={scrollTabsRight}
 							aria-label="Scroll tabs right"
 							className="absolute right-0 top-0 z-10 flex h-full w-8 cursor-pointer items-center justify-end border-none p-0 pr-1 text-content-primary [background:linear-gradient(to_left,hsl(var(--surface-primary))_50%,transparent)]"
 						>

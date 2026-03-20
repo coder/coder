@@ -1,6 +1,6 @@
 import type * as TypesGen from "api/typesGenerated";
 import { CheckCircleIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
-import { type FC, type ReactNode, useMemo } from "react";
+import type { FC, ReactNode } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { cn } from "utils/cn";
 import { SectionHeader } from "../SectionHeader";
@@ -48,7 +48,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 
 	// Derive the current view from URL search params so that
 	// browser back/forward navigation works as expected.
-	const view: ProviderView = useMemo(() => {
+	const view: ProviderView = (() => {
 		const providerParam = searchParams.get("provider");
 		if (providerParam) {
 			const exists = providerStates.some((ps) => ps.provider === providerParam);
@@ -57,7 +57,7 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 				: { mode: "list" };
 		}
 		return { mode: "list" };
-	}, [searchParams, providerStates]);
+	})();
 
 	// Clear provider search param and return to the list.
 	const clearProviderView = () => {

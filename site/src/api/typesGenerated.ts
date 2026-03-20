@@ -3352,6 +3352,17 @@ export interface GroupArguments {
 }
 
 // From codersdk/groups.go
+export interface GroupMembersResponse {
+	readonly users: readonly ReducedUser[];
+	readonly count: number;
+}
+
+// From codersdk/groups.go
+export interface GroupRequest {
+	readonly exclude_members: boolean;
+}
+
+// From codersdk/groups.go
 export type GroupSource = "oidc" | "user";
 
 export const GroupSources: GroupSource[] = ["oidc", "user"];

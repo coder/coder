@@ -88,7 +88,7 @@ type ExecuteArgs struct {
 func Execute(options ExecuteOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"execute",
-		"Execute a shell command in the workspace. Use run_in_background=true for long-running processes (dev servers, file watchers, builds). Never use shell '&' for backgrounding. If the command times out, the response includes a background_process_id so you can retrieve output later with process_output.",
+		"Execute a shell command in the workspace. Use run_in_background=true for long-running processes (dev servers, file watchers, builds). Never use shell '&' for backgrounding. If the command fails or times out, the response may include a background_process_id; use process_output with that ID to retrieve the result.",
 		func(ctx context.Context, args ExecuteArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
@@ -211,7 +211,7 @@ func executeForeground(
 		return errorResult(fmt.Sprintf("start process: %v", err))
 	}
 
-	result := waitForProcess(cmdCtx, conn, resp.ID, timeout)
+	result := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
 	result.WallDurationMs = time.Since(start).Milliseconds()
 
 	// Add an advisory note for file-dump commands.
@@ -238,8 +238,13 @@ func truncateOutput(output string) string {
 
 // waitForProcess waits for process completion using the
 // blocking process output API instead of polling.
+// waitForProcess blocks until the process exits or the context
+// expires. On any error (timeout or transport), it tries a
+// non-blocking snapshot to recover. Total wall time may exceed
+// timeout by up to snapshotTimeout if recovery is needed.
 func waitForProcess(
 	ctx context.Context,
+	parentCtx context.Context,
 	conn workspacesdk.AgentConn,
 	processID string,
 	timeout time.Duration,
@@ -250,37 +255,62 @@ func waitForProcess(
 		Wait: true,
 	})
 	if err != nil {
-		if ctx.Err() != nil {
-			// Timeout: fetch final snapshot with a fresh
-			// context. The blocking request was canceled
-			// so the response body was lost.
-			bgCtx, bgCancel := context.WithTimeout(
-				context.Background(),
-				snapshotTimeout,
-			)
-			defer bgCancel()
-			resp, err = conn.ProcessOutput(bgCtx, processID, nil)
-			if err != nil {
-				return ExecuteResult{
-					Success:             false,
-					ExitCode:            -1,
-					Error:               fmt.Sprintf("command timed out after %s; failed to get output: %v", timeout, err),
-					BackgroundProcessID: processID,
-				}
+		origErr := err
+		timedOut := ctx.Err() != nil
+
+		// Fetch a snapshot with a fresh context. The blocking
+		// request may have failed due to a context timeout or
+		// a transport error (e.g. the server's WriteTimeout
+		// killed the connection). Either way, the process may
+		// still have output available.
+		bgCtx, bgCancel := context.WithTimeout(
+			parentCtx,
+			snapshotTimeout,
+		)
+		defer bgCancel()
+		resp, err = conn.ProcessOutput(bgCtx, processID, nil)
+		if err != nil {
+			errMsg := fmt.Sprintf("get process output: %v; use process_output with ID %s to retry", origErr, processID)
+			if timedOut {
+				errMsg = fmt.Sprintf("command timed out after %s; failed to get output: %v", timeout, err)
 			}
-			output := truncateOutput(resp.Output)
 			return ExecuteResult{
 				Success:             false,
-				Output:              output,
 				ExitCode:            -1,
-				Error:               fmt.Sprintf("command timed out after %s", timeout),
-				Truncated:           resp.Truncated,
+				Error:               errMsg,
 				BackgroundProcessID: processID,
 			}
 		}
+
+		// Snapshot succeeded. If the process finished, return
+		// its real result (transparent recovery).
+		if !resp.Running {
+			exitCode := 0
+			if resp.ExitCode != nil {
+				exitCode = *resp.ExitCode
+			}
+			output := truncateOutput(resp.Output)
+			return ExecuteResult{
+				Success:   exitCode == 0,
+				Output:    output,
+				ExitCode:  exitCode,
+				Truncated: resp.Truncated,
+			}
+		}
+
+		// Process still running, return partial output.
+		output := truncateOutput(resp.Output)
+		errMsg := fmt.Sprintf("command timed out after %s", timeout)
+		if !timedOut {
+			errMsg = fmt.Sprintf("get process output: %v (process still running, use process_output to check later)", origErr)
+		}
 		return ExecuteResult{
-			Success: false,
-			Error:   fmt.Sprintf("get process output: %v", err),
+			Success:             false,
+			Output:              output,
+			ExitCode:            -1,
+			Error:               errMsg,
+			Truncated:           resp.Truncated,
+			BackgroundProcessID: processID,
 		}
 	}
 
@@ -291,7 +321,7 @@ func waitForProcess(
 	if resp.Running {
 		if ctx.Err() == nil {
 			// Still within the caller's timeout, retry.
-			return waitForProcess(ctx, conn, processID, timeout)
+			return waitForProcess(ctx, parentCtx, conn, processID, timeout)
 		}
 		output := truncateOutput(resp.Output)
 		return ExecuteResult{
@@ -407,9 +437,11 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 			}
 			resp, err := conn.ProcessOutput(ctx, args.ProcessID, opts)
 			if err != nil {
-				// If our wait timed out but the parent is still alive,
-				// fetch a non-blocking snapshot.
-				if ctx.Err() == nil || parentCtx.Err() != nil {
+				// The blocking request may have failed due to a
+				// context timeout or a transport error (e.g.
+				// server WriteTimeout). Try a non-blocking
+				// snapshot if the parent context is still alive.
+				if parentCtx.Err() != nil {
 					return errorResult(fmt.Sprintf("get process output: %v", err)), nil
 				}
 				bgCtx, bgCancel := context.WithTimeout(parentCtx, snapshotTimeout)

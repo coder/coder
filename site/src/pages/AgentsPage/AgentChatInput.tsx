@@ -27,10 +27,10 @@ import {
 } from "lucide-react";
 import type React from "react";
 import {
-	memo,
+	type FC,
 	type ReactNode,
-	useCallback,
 	useEffect,
+	useImperativeHandle,
 	useRef,
 	useState,
 } from "react";
@@ -152,96 +152,95 @@ const RING_STROKE = 2.5;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
-const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
-	({ usage }) => {
-		const usedTokens = hasFiniteTokenValue(usage?.usedTokens)
-			? usage.usedTokens
-			: undefined;
-		const contextLimitTokens = hasFiniteTokenValue(usage?.contextLimitTokens)
-			? usage.contextLimitTokens
-			: undefined;
-		const percentUsed =
-			usedTokens !== undefined &&
-			contextLimitTokens !== undefined &&
-			contextLimitTokens > 0
-				? (usedTokens / contextLimitTokens) * 100
-				: null;
-		const hasPercent = percentUsed !== null;
-		const percentLabel =
-			percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
-		const clampedPercent = hasPercent
-			? Math.min(Math.max(percentUsed, 0), 100)
-			: 100;
-		const dashOffset =
-			RING_CIRCUMFERENCE - (clampedPercent / 100) * RING_CIRCUMFERENCE;
-		const toneClassName = getIndicatorToneClassName(percentUsed);
-		const ariaLabel = hasPercent
-			? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.`
-			: "Context usage";
+const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
+	usage,
+}) => {
+	const usedTokens = hasFiniteTokenValue(usage?.usedTokens)
+		? usage.usedTokens
+		: undefined;
+	const contextLimitTokens = hasFiniteTokenValue(usage?.contextLimitTokens)
+		? usage.contextLimitTokens
+		: undefined;
+	const percentUsed =
+		usedTokens !== undefined &&
+		contextLimitTokens !== undefined &&
+		contextLimitTokens > 0
+			? (usedTokens / contextLimitTokens) * 100
+			: null;
+	const hasPercent = percentUsed !== null;
+	const percentLabel =
+		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
+	const clampedPercent = hasPercent
+		? Math.min(Math.max(percentUsed, 0), 100)
+		: 100;
+	const dashOffset =
+		RING_CIRCUMFERENCE - (clampedPercent / 100) * RING_CIRCUMFERENCE;
+	const toneClassName = getIndicatorToneClassName(percentUsed);
+	const ariaLabel = hasPercent
+		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.`
+		: "Context usage";
 
-		return (
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<button
-						type="button"
-						aria-label={ariaLabel}
-						className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					aria-label={ariaLabel}
+					className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+				>
+					<svg
+						className={cn("size-icon-sm -rotate-90", toneClassName)}
+						viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
+						aria-hidden
 					>
-						<svg
-							className={cn("size-icon-sm -rotate-90", toneClassName)}
-							viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
-							aria-hidden
-						>
-							<circle
-								cx={RING_SIZE / 2}
-								cy={RING_SIZE / 2}
-								r={RING_RADIUS}
-								fill="none"
-								strokeWidth={RING_STROKE}
-								className="stroke-content-secondary/25"
-							/>
-							<circle
-								cx={RING_SIZE / 2}
-								cy={RING_SIZE / 2}
-								r={RING_RADIUS}
-								fill="none"
-								strokeWidth={RING_STROKE}
-								strokeLinecap="round"
-								className="stroke-current transition-all duration-300 ease-out"
-								style={{
-									strokeDasharray: `${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`,
-									strokeDashoffset: dashOffset,
-								}}
-							/>
-						</svg>
-					</button>
-				</TooltipTrigger>
-				<TooltipContent side="top">
-					<div className="text-xs text-content-primary">
-						{hasPercent
-							? `${percentLabel} – ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
-							: "Context usage unavailable"}
-						{hasPercent &&
-							usage?.compressionThreshold !== undefined &&
-							usage.compressionThreshold > 0 && (
-								<div className="mt-1 text-content-secondary">
-									Compacts at {usage.compressionThreshold}%
-								</div>
-							)}
-					</div>
-				</TooltipContent>
-			</Tooltip>
-		);
-	},
-);
-ContextUsageIndicator.displayName = "ContextUsageIndicator";
+						<circle
+							cx={RING_SIZE / 2}
+							cy={RING_SIZE / 2}
+							r={RING_RADIUS}
+							fill="none"
+							strokeWidth={RING_STROKE}
+							className="stroke-content-secondary/25"
+						/>
+						<circle
+							cx={RING_SIZE / 2}
+							cy={RING_SIZE / 2}
+							r={RING_RADIUS}
+							fill="none"
+							strokeWidth={RING_STROKE}
+							strokeLinecap="round"
+							className="stroke-current transition-all duration-300 ease-out"
+							style={{
+								strokeDasharray: `${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`,
+								strokeDashoffset: dashOffset,
+							}}
+						/>
+					</svg>
+				</button>
+			</TooltipTrigger>
+			<TooltipContent side="top">
+				<div className="text-xs text-content-primary">
+					{hasPercent
+						? `${percentLabel} – ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
+						: "Context usage unavailable"}
+					{hasPercent &&
+						usage?.compressionThreshold !== undefined &&
+						usage.compressionThreshold > 0 && (
+							<div className="mt-1 text-content-secondary">
+								Compacts at {usage.compressionThreshold}%
+							</div>
+						)}
+				</div>
+			</TooltipContent>
+		</Tooltip>
+	);
+};
 
 /** Renders an image thumbnail from a pre-created preview URL. */
-export const ImageThumbnail = memo<{
+export const ImageThumbnail: FC<{
 	previewUrl: string;
 	name: string;
 	className?: string;
-}>(({ previewUrl, name, className }) => (
+}> = ({ previewUrl, name, className }) => (
 	<img
 		src={previewUrl}
 		alt={name}
@@ -250,17 +249,16 @@ export const ImageThumbnail = memo<{
 			className,
 		)}
 	/>
-));
-ImageThumbnail.displayName = "ImageThumbnail";
+);
 
 /** Renders a horizontal strip of attachment thumbnails above the input. */
-export const AttachmentPreview = memo<{
+export const AttachmentPreview: FC<{
 	attachments: readonly File[];
 	onRemove: (index: number) => void;
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
 	onPreview?: (url: string) => void;
-}>(({ attachments, onRemove, uploadStates, previewUrls, onPreview }) => {
+}> = ({ attachments, onRemove, uploadStates, previewUrls, onPreview }) => {
 	if (attachments.length === 0) return null;
 
 	return (
@@ -324,502 +322,456 @@ export const AttachmentPreview = memo<{
 			})}
 		</div>
 	);
-});
-AttachmentPreview.displayName = "AttachmentPreview";
+};
 
-export const AgentChatInput = memo<AgentChatInputProps>(
-	({
-		onSend,
-		placeholder = "Type a message...",
-		isDisabled,
-		isLoading,
-		inputRef,
-		initialValue,
-		onContentChange,
-		selectedModel,
-		onModelChange,
-		modelOptions,
-		modelSelectorPlaceholder,
-		hasModelOptions,
-		inputStatusText,
-		modelCatalogStatusMessage,
-		isStreaming = false,
-		onInterrupt,
-		isInterruptPending = false,
-		leftActions,
-		queuedMessages = [],
-		onDeleteQueuedMessage,
-		onPromoteQueuedMessage,
-		editingQueuedMessageID = null,
-		onStartQueueEdit,
-		onCancelQueueEdit,
-		isEditingHistoryMessage = false,
-		onCancelHistoryEdit,
-		contextUsage,
-		attachments = [],
-		onAttach,
-		onRemoveAttachment,
-		uploadStates,
-		previewUrls,
-	}) => {
-		const internalRef = useRef<ChatMessageInputRef>(null);
-		const [previewImage, setPreviewImage] = useState<string | null>(null);
+export const AgentChatInput: FC<AgentChatInputProps> = ({
+	onSend,
+	placeholder = "Type a message...",
+	isDisabled,
+	isLoading,
+	inputRef,
+	initialValue,
+	onContentChange,
+	selectedModel,
+	onModelChange,
+	modelOptions,
+	modelSelectorPlaceholder,
+	hasModelOptions,
+	inputStatusText,
+	modelCatalogStatusMessage,
+	isStreaming = false,
+	onInterrupt,
+	isInterruptPending = false,
+	leftActions,
+	queuedMessages = [],
+	onDeleteQueuedMessage,
+	onPromoteQueuedMessage,
+	editingQueuedMessageID = null,
+	onStartQueueEdit,
+	onCancelQueueEdit,
+	isEditingHistoryMessage = false,
+	onCancelHistoryEdit,
+	contextUsage,
+	attachments = [],
+	onAttach,
+	onRemoveAttachment,
+	uploadStates,
+	previewUrls,
+}) => {
+	const internalRef = useRef<ChatMessageInputRef>(null);
+	const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-		const [hasFileReferences, setHasFileReferences] = useState(false);
+	const [hasFileReferences, setHasFileReferences] = useState(false);
 
-		const speech = useSpeechRecognition();
-		const [preRecordingValue, setPreRecordingValue] = useState<string>("");
+	const speech = useSpeechRecognition();
+	const [preRecordingValue, setPreRecordingValue] = useState<string>("");
 
-		useEffect(() => {
-			if (!speech.isRecording) return;
-			const editor = internalRef.current;
-			if (!editor) return;
-			editor.clear();
-			const combined = preRecordingValue
-				? `${preRecordingValue} ${speech.transcript}`
-				: speech.transcript;
-			if (combined) {
-				editor.insertText(combined);
-			}
-		}, [speech.transcript, speech.isRecording, preRecordingValue]);
-
-		// Merge the external inputRef with our internal ref so both
-		// point to the same ChatMessageInputRef instance.
-		const setRef = useCallback(
-			(instance: ChatMessageInputRef | null) => {
-				(
-					internalRef as React.MutableRefObject<ChatMessageInputRef | null>
-				).current = instance;
-				if (typeof inputRef === "function") {
-					inputRef(instance);
-				} else if (inputRef && typeof inputRef === "object") {
-					(
-						inputRef as React.MutableRefObject<ChatMessageInputRef | null>
-					).current = instance;
-				}
-			},
-			[inputRef],
-		);
-
-		const fileInputRef = useRef<HTMLInputElement>(null);
-
-		const handleFileSelect = useCallback(
-			(e: React.ChangeEvent<HTMLInputElement>) => {
-				if (e.target.files && onAttach) {
-					onAttach(Array.from(e.target.files));
-				}
-				// Reset so the same file can be selected again.
-				e.target.value = "";
-			},
-			[onAttach],
-		);
-
-		const handleFilePaste = useCallback(
-			(file: File) => {
-				onAttach?.([file]);
-			},
-			[onAttach],
-		);
-
-		// Drag-and-drop support for image files.
-		const [isDragging, setIsDragging] = useState(false);
-
-		const handleDragOver = useCallback((e: React.DragEvent) => {
-			e.preventDefault();
-			if (e.dataTransfer.types.includes("Files")) {
-				setIsDragging(true);
-			}
-		}, []);
-
-		const handleDragLeave = useCallback((e: React.DragEvent) => {
-			if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-				setIsDragging(false);
-			}
-		}, []);
-
-		const handleDrop = useCallback(
-			(e: React.DragEvent) => {
-				e.preventDefault();
-				setIsDragging(false);
-				if (!onAttach || !e.dataTransfer.files.length) return;
-				const images = Array.from(e.dataTransfer.files).filter((f) =>
-					f.type.startsWith("image/"),
-				);
-				if (images.length > 0) {
-					onAttach(images);
-				}
-			},
-			[onAttach],
-		);
-
-		// Track whether the editor has content so we can gate the
-		// send button without a controlled value prop.
-		const [hasContent, setHasContent] = useState(() =>
-			Boolean(initialValue?.trim()),
-		);
-
-		const handleContentChange = useCallback(
-			(content: string, hasRefs: boolean) => {
-				setHasContent(Boolean(content.trim()));
-				setHasFileReferences(hasRefs);
-				onContentChange?.(content);
-			},
-			[onContentChange],
-		);
-
-		// Re-focus the editor after a send completes (isLoading goes
-		// from true → false) so the user can immediately type again.
-		// Uses the "store previous value in state" pattern recommended
-		// by React for responding to prop changes during render.
-		const [prevIsLoading, setPrevIsLoading] = useState(isLoading);
-		if (prevIsLoading !== isLoading) {
-			setPrevIsLoading(isLoading);
-			if (prevIsLoading && !isLoading) {
-				if (!isMobileViewport()) {
-					internalRef.current?.focus();
-				}
-			}
+	useEffect(() => {
+		if (!speech.isRecording) return;
+		const editor = internalRef.current;
+		if (!editor) return;
+		editor.clear();
+		const combined = preRecordingValue
+			? `${preRecordingValue} ${speech.transcript}`
+			: speech.transcript;
+		if (combined) {
+			editor.insertText(combined);
 		}
+	}, [speech.transcript, speech.isRecording, preRecordingValue]);
 
-		const isUploading = attachments.some(
-			(f) => uploadStates?.get(f)?.status === "uploading",
+	// Forward the internal ref to the parent-supplied inputRef
+	// so both point to the same ChatMessageInputRef instance.
+	useImperativeHandle(inputRef, () => internalRef.current!, []);
+
+	const fileInputRef = useRef<HTMLInputElement>(null);
+
+	const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+		if (e.target.files && onAttach) {
+			onAttach(Array.from(e.target.files));
+		}
+		// Reset so the same file can be selected again.
+		e.target.value = "";
+	};
+
+	const handleFilePaste = (file: File) => {
+		onAttach?.([file]);
+	};
+
+	// Drag-and-drop support for image files.
+	const [isDragging, setIsDragging] = useState(false);
+
+	const handleDragOver = (e: React.DragEvent) => {
+		e.preventDefault();
+		if (e.dataTransfer.types.includes("Files")) {
+			setIsDragging(true);
+		}
+	};
+
+	const handleDragLeave = (e: React.DragEvent) => {
+		if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+			setIsDragging(false);
+		}
+	};
+
+	const handleDrop = (e: React.DragEvent) => {
+		e.preventDefault();
+		setIsDragging(false);
+		if (!onAttach || !e.dataTransfer.files.length) return;
+		const images = Array.from(e.dataTransfer.files).filter((f) =>
+			f.type.startsWith("image/"),
 		);
-		const hasUploadedAttachments = attachments.some(
-			(f) => uploadStates?.get(f)?.status === "uploaded",
-		);
-		const canSend =
+		if (images.length > 0) {
+			onAttach(images);
+		}
+	};
+
+	// Track whether the editor has content so we can gate the
+	// send button without a controlled value prop.
+	const [hasContent, setHasContent] = useState(() =>
+		Boolean(initialValue?.trim()),
+	);
+
+	const handleContentChange = (content: string, hasRefs: boolean) => {
+		setHasContent(Boolean(content.trim()));
+		setHasFileReferences(hasRefs);
+		onContentChange?.(content);
+	};
+
+	// Re-focus the editor after a send completes (isLoading goes
+	// from true → false) so the user can immediately type again.
+	const prevIsLoadingRef = useRef(isLoading);
+	useEffect(() => {
+		const wasLoading = prevIsLoadingRef.current;
+		prevIsLoadingRef.current = isLoading;
+		if (wasLoading && !isLoading && !isMobileViewport()) {
+			internalRef.current?.focus();
+		}
+	}, [isLoading]);
+	const isUploading = attachments.some(
+		(f) => uploadStates?.get(f)?.status === "uploading",
+	);
+	const hasUploadedAttachments = attachments.some(
+		(f) => uploadStates?.get(f)?.status === "uploaded",
+	);
+	const canSend =
+		!isDisabled &&
+		!isLoading &&
+		hasModelOptions &&
+		(hasContent || hasUploadedAttachments || hasFileReferences) &&
+		!isUploading;
+	const handleSubmit = () => {
+		const text = internalRef.current?.getValue()?.trim() ?? "";
+
+		// If the input is empty and there are queued messages,
+		// promote the first one instead of submitting.
+		if (
+			!text &&
+			!hasUploadedAttachments &&
+			!hasFileReferences &&
 			!isDisabled &&
 			!isLoading &&
-			hasModelOptions &&
-			(hasContent || hasUploadedAttachments || hasFileReferences) &&
-			!isUploading;
-		const handleSubmit = useCallback(() => {
-			const text = internalRef.current?.getValue()?.trim() ?? "";
+			!isUploading &&
+			queuedMessages.length > 0 &&
+			onPromoteQueuedMessage
+		) {
+			void onPromoteQueuedMessage(queuedMessages[0].id);
+			return;
+		}
 
-			// If the input is empty and there are queued messages,
-			// promote the first one instead of submitting.
-			if (
-				!text &&
-				!hasUploadedAttachments &&
-				!hasFileReferences &&
-				!isDisabled &&
-				!isLoading &&
-				!isUploading &&
-				queuedMessages.length > 0 &&
-				onPromoteQueuedMessage
-			) {
-				void onPromoteQueuedMessage(queuedMessages[0].id);
-				return;
+		if (
+			(!text && !hasUploadedAttachments && !hasFileReferences) ||
+			isDisabled ||
+			isLoading ||
+			isUploading ||
+			!hasModelOptions
+		) {
+			return;
+		}
+
+		onSend(text);
+		if (!isMobileViewport()) {
+			internalRef.current?.focus();
+		}
+	};
+	const handleStartRecording = () => {
+		setPreRecordingValue(internalRef.current?.getValue()?.trim() ?? "");
+		speech.start();
+	};
+
+	const handleAcceptRecording = () => {
+		speech.stop();
+	};
+
+	const handleCancelRecording = () => {
+		const original = preRecordingValue;
+		speech.cancel();
+		const editor = internalRef.current;
+		if (editor) {
+			editor.clear();
+			if (original) {
+				editor.insertText(original);
 			}
+		}
+		setPreRecordingValue("");
+	};
 
-			if (
-				(!text && !hasUploadedAttachments && !hasFileReferences) ||
-				isDisabled ||
-				isLoading ||
-				isUploading ||
-				!hasModelOptions
-			) {
-				return;
+	const handleKeyDown = (e: React.KeyboardEvent) => {
+		if (e.key === "Escape") {
+			if (editingQueuedMessageID !== null) {
+				e.preventDefault();
+				onCancelQueueEdit?.();
+			} else if (isEditingHistoryMessage) {
+				e.preventDefault();
+				onCancelHistoryEdit?.();
+			} else if (isStreaming && onInterrupt && !isInterruptPending) {
+				e.preventDefault();
+				onInterrupt();
 			}
+		}
+	};
 
-			onSend(text);
-			if (!isMobileViewport()) {
-				internalRef.current?.focus();
-			}
-		}, [
-			isDisabled,
-			isLoading,
-			isUploading,
-			hasModelOptions,
-			hasUploadedAttachments,
-			hasFileReferences,
-			onSend,
-			queuedMessages,
-			onPromoteQueuedMessage,
-		]);
-		const handleStartRecording = useCallback(() => {
-			setPreRecordingValue(internalRef.current?.getValue()?.trim() ?? "");
-			speech.start();
-		}, [speech]);
+	const sendButtonLabel =
+		editingQueuedMessageID !== null
+			? "Save"
+			: isEditingHistoryMessage
+				? "Save Edit"
+				: "Send";
 
-		const handleAcceptRecording = useCallback(() => {
-			speech.stop();
-		}, [speech]);
-
-		const handleCancelRecording = useCallback(() => {
-			const original = preRecordingValue;
-			speech.cancel();
-			const editor = internalRef.current;
-			if (editor) {
-				editor.clear();
-				if (original) {
-					editor.insertText(original);
-				}
-			}
-			setPreRecordingValue("");
-		}, [speech, preRecordingValue]);
-
-		const handleKeyDown = (e: React.KeyboardEvent) => {
-			if (e.key === "Escape") {
-				if (editingQueuedMessageID !== null) {
-					e.preventDefault();
-					onCancelQueueEdit?.();
-				} else if (isEditingHistoryMessage) {
-					e.preventDefault();
-					onCancelHistoryEdit?.();
-				} else if (isStreaming && onInterrupt && !isInterruptPending) {
-					e.preventDefault();
-					onInterrupt();
-				}
-			}
-		};
-
-		const sendButtonLabel =
-			editingQueuedMessageID !== null
-				? "Save"
-				: isEditingHistoryMessage
-					? "Save Edit"
-					: "Send";
-
-		const content = (
+	const content = (
+		<div
+			className={cn(
+				"mx-auto w-full max-w-3xl pb-0 sm:pb-4",
+				isEditingHistoryMessage && "pt-1",
+			)}
+		>
+			{queuedMessages.length > 0 && (
+				<QueuedMessagesList
+					messages={queuedMessages}
+					onDelete={(id) => {
+						if (id === editingQueuedMessageID) {
+							onCancelQueueEdit?.();
+						}
+						void onDeleteQueuedMessage?.(id);
+					}}
+					onPromote={(id) => {
+						if (id === editingQueuedMessageID) {
+							onCancelQueueEdit?.();
+						}
+						void onPromoteQueuedMessage?.(id);
+					}}
+					onEdit={onStartQueueEdit}
+					editingMessageID={editingQueuedMessageID}
+					className="mb-2"
+				/>
+			)}
 			<div
 				className={cn(
-					"mx-auto w-full max-w-3xl pb-0 sm:pb-4",
-					isEditingHistoryMessage && "pt-1",
+					"rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					isDragging && "ring-2 ring-content-link/40",
+					isEditingHistoryMessage &&
+						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 				)}
+				onKeyDown={handleKeyDown}
+				onDragOver={onAttach ? handleDragOver : undefined}
+				onDragLeave={onAttach ? handleDragLeave : undefined}
+				onDrop={onAttach ? handleDrop : undefined}
 			>
-				{queuedMessages.length > 0 && (
-					<QueuedMessagesList
-						messages={queuedMessages}
-						onDelete={(id) => {
-							if (id === editingQueuedMessageID) {
-								onCancelQueueEdit?.();
-							}
-							void onDeleteQueuedMessage?.(id);
-						}}
-						onPromote={(id) => {
-							if (id === editingQueuedMessageID) {
-								onCancelQueueEdit?.();
-							}
-							void onPromoteQueuedMessage?.(id);
-						}}
-						onEdit={onStartQueueEdit}
-						editingMessageID={editingQueuedMessageID}
-						className="mb-2"
-					/>
-				)}
-				<div
-					className={cn(
-						"rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
-						isDragging && "ring-2 ring-content-link/40",
-						isEditingHistoryMessage &&
-							"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
-					)}
-					onKeyDown={handleKeyDown}
-					onDragOver={onAttach ? handleDragOver : undefined}
-					onDragLeave={onAttach ? handleDragLeave : undefined}
-					onDrop={onAttach ? handleDrop : undefined}
-				>
-					{editingQueuedMessageID !== null && (
-						<div className="flex items-center justify-between border-b border-border-default/70 bg-surface-primary/25 px-3 py-1.5">
-							<span className="text-sm text-content-secondary">
-								Editing queued message
-							</span>
-							<Button
-								type="button"
-								variant="subtle"
-								size="sm"
-								onClick={onCancelQueueEdit}
-								className="h-7 px-2 text-content-secondary hover:text-content-primary"
-							>
-								Cancel
-							</Button>
-						</div>
-					)}
-					{isEditingHistoryMessage && editingQueuedMessageID === null && (
-						<div className="flex items-center justify-between border-b border-border-warning/50 px-3 py-1.5">
-							<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
-								<PencilIcon className="h-3.5 w-3.5" />
-								{isLoading
-									? "Saving edit..."
-									: "Editing will delete all subsequent messages and restart the conversation here."}
-							</span>
-							<Button
-								type="button"
-								variant="subtle"
-								size="icon"
-								aria-label="Cancel editing"
-								onClick={onCancelHistoryEdit}
-								disabled={isLoading}
-								className="size-6 rounded text-content-warning hover:text-content-primary"
-							>
-								<XIcon className="h-3.5 w-3.5" />
-							</Button>
-						</div>
-					)}
-					{onRemoveAttachment && (
-						<AttachmentPreview
-							attachments={attachments}
-							onRemove={onRemoveAttachment}
-							uploadStates={uploadStates}
-							previewUrls={previewUrls}
-							onPreview={setPreviewImage}
-						/>
-					)}
-					<ChatMessageInput
-						ref={setRef}
-						onFilePaste={onAttach ? handleFilePaste : undefined}
-						aria-label="Chat message"
-						className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
-						placeholder={placeholder}
-						initialValue={initialValue}
-						onChange={handleContentChange}
-						onEnter={handleSubmit}
-						disabled={isDisabled || isLoading}
-						autoFocus
-					/>
-
-					<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
-						<div className="flex min-w-0 items-center gap-2">
-							{" "}
-							<ModelSelector
-								value={selectedModel}
-								onValueChange={onModelChange}
-								options={modelOptions}
-								disabled={isDisabled}
-								placeholder={modelSelectorPlaceholder}
-								formatProviderLabel={formatProviderLabel}
-								dropdownSide="top"
-								dropdownAlign="center"
-							/>
-							{leftActions}
-							{inputStatusText && (
-								<span className="hidden text-xs text-content-secondary sm:inline">
-									{inputStatusText}
-								</span>
-							)}
-						</div>
-						<div className="flex items-center gap-2">
-							{onAttach && (
-								<>
-									<input
-										ref={fileInputRef}
-										type="file"
-										multiple
-										accept="image/*"
-										onChange={handleFileSelect}
-										className="hidden"
-									/>
-									<Button
-										type="button"
-										variant="subtle"
-										size="icon"
-										className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
-										onClick={() => fileInputRef.current?.click()}
-										disabled={isDisabled}
-										aria-label="Attach files"
-									>
-										<ImageIcon />
-									</Button>
-								</>
-							)}
-							{speech.isSupported && !isStreaming && (
-								<>
-									<Button
-										type="button"
-										variant="subtle"
-										size="icon"
-										className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
-										onClick={
-											speech.isRecording
-												? handleCancelRecording
-												: handleStartRecording
-										}
-										disabled={isDisabled}
-										aria-label={
-											speech.isRecording ? "Cancel voice input" : "Voice input"
-										}
-									>
-										{speech.isRecording ? <XIcon /> : <MicIcon />}
-									</Button>
-									{speech.error && !speech.isRecording && (
-										<span
-											className="text-2xs text-content-destructive"
-											role="alert"
-										>
-											{speech.error === "not-allowed"
-												? "Mic access denied"
-												: "Voice input failed"}
-										</span>
-									)}
-								</>
-							)}
-							{contextUsage !== undefined && (
-								<ContextUsageIndicator usage={contextUsage} />
-							)}
-							{isStreaming && onInterrupt && (
-								<Button
-									size="icon"
-									variant="default"
-									className="size-7 rounded-full transition-colors [&>svg]:!size-3 [&>svg]:p-0"
-									onClick={onInterrupt}
-									disabled={isInterruptPending}
-								>
-									<Square className="fill-current" />
-									<span className="sr-only">Stop</span>
-								</Button>
-							)}
-							{!(isStreaming && editingQueuedMessageID === null) && (
-								<Button
-									size="icon"
-									variant="default"
-									className="size-7 rounded-full transition-colors [&>svg]:!size-5 [&>svg]:p-0"
-									onClick={
-										speech.isRecording ? handleAcceptRecording : handleSubmit
-									}
-									disabled={speech.isRecording ? false : !canSend}
-								>
-									{isLoading ? (
-										<Spinner size="sm" loading aria-hidden="true" />
-									) : speech.isRecording ? (
-										<CheckIcon />
-									) : (
-										<ArrowUpIcon />
-									)}
-									<span className="sr-only">
-										{speech.isRecording
-											? "Accept voice input"
-											: sendButtonLabel}
-									</span>
-								</Button>
-							)}
-						</div>
+				{editingQueuedMessageID !== null && (
+					<div className="flex items-center justify-between border-b border-border-default/70 bg-surface-primary/25 px-3 py-1.5">
+						<span className="text-sm text-content-secondary">
+							Editing queued message
+						</span>
+						<Button
+							type="button"
+							variant="subtle"
+							size="sm"
+							onClick={onCancelQueueEdit}
+							className="h-7 px-2 text-content-secondary hover:text-content-primary"
+						>
+							Cancel
+						</Button>
 					</div>
-					{inputStatusText && (
-						<div className="px-2.5 pb-1 text-xs text-content-secondary sm:hidden">
-							{inputStatusText}
-						</div>
-					)}
-					{modelCatalogStatusMessage && (
-						<div className="px-2.5 pb-1 text-2xs text-content-secondary">
-							{modelCatalogStatusMessage}
-						</div>
-					)}
-				</div>
-			</div>
-		);
-
-		return (
-			<>
-				{content}
-				{previewImage && (
-					<ImageLightbox
-						src={previewImage}
-						onClose={() => setPreviewImage(null)}
+				)}
+				{isEditingHistoryMessage && editingQueuedMessageID === null && (
+					<div className="flex items-center justify-between border-b border-border-warning/50 px-3 py-1.5">
+						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
+							<PencilIcon className="h-3.5 w-3.5" />
+							{isLoading
+								? "Saving edit..."
+								: "Editing will delete all subsequent messages and restart the conversation here."}
+						</span>
+						<Button
+							type="button"
+							variant="subtle"
+							size="icon"
+							aria-label="Cancel editing"
+							onClick={onCancelHistoryEdit}
+							disabled={isLoading}
+							className="size-6 rounded text-content-warning hover:text-content-primary"
+						>
+							<XIcon className="h-3.5 w-3.5" />
+						</Button>
+					</div>
+				)}
+				{onRemoveAttachment && (
+					<AttachmentPreview
+						attachments={attachments}
+						onRemove={onRemoveAttachment}
+						uploadStates={uploadStates}
+						previewUrls={previewUrls}
+						onPreview={setPreviewImage}
 					/>
 				)}
-			</>
-		);
-	},
-);
-AgentChatInput.displayName = "AgentChatInput";
+				<ChatMessageInput
+					ref={internalRef}
+					onFilePaste={onAttach ? handleFilePaste : undefined}
+					aria-label="Chat message"
+					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+					placeholder={placeholder}
+					initialValue={initialValue}
+					onChange={handleContentChange}
+					onEnter={handleSubmit}
+					disabled={isDisabled || isLoading}
+					autoFocus
+				/>
+
+				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
+					<div className="flex min-w-0 items-center gap-2">
+						{" "}
+						<ModelSelector
+							value={selectedModel}
+							onValueChange={onModelChange}
+							options={modelOptions}
+							disabled={isDisabled}
+							placeholder={modelSelectorPlaceholder}
+							formatProviderLabel={formatProviderLabel}
+							dropdownSide="top"
+							dropdownAlign="center"
+						/>
+						{leftActions}
+						{inputStatusText && (
+							<span className="hidden text-xs text-content-secondary sm:inline">
+								{inputStatusText}
+							</span>
+						)}
+					</div>
+					<div className="flex items-center gap-2">
+						{onAttach && (
+							<>
+								<input
+									ref={fileInputRef}
+									type="file"
+									multiple
+									accept="image/*"
+									onChange={handleFileSelect}
+									className="hidden"
+								/>
+								<Button
+									type="button"
+									variant="subtle"
+									size="icon"
+									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+									onClick={() => fileInputRef.current?.click()}
+									disabled={isDisabled}
+									aria-label="Attach files"
+								>
+									<ImageIcon />
+								</Button>
+							</>
+						)}
+						{speech.isSupported && !isStreaming && (
+							<>
+								<Button
+									type="button"
+									variant="subtle"
+									size="icon"
+									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+									onClick={
+										speech.isRecording
+											? handleCancelRecording
+											: handleStartRecording
+									}
+									disabled={isDisabled}
+									aria-label={
+										speech.isRecording ? "Cancel voice input" : "Voice input"
+									}
+								>
+									{speech.isRecording ? <XIcon /> : <MicIcon />}
+								</Button>
+								{speech.error && !speech.isRecording && (
+									<span
+										className="text-2xs text-content-destructive"
+										role="alert"
+									>
+										{speech.error === "not-allowed"
+											? "Mic access denied"
+											: "Voice input failed"}
+									</span>
+								)}
+							</>
+						)}
+						{contextUsage !== undefined && (
+							<ContextUsageIndicator usage={contextUsage} />
+						)}
+						{isStreaming && onInterrupt && (
+							<Button
+								size="icon"
+								variant="default"
+								className="size-7 rounded-full transition-colors [&>svg]:!size-3 [&>svg]:p-0"
+								onClick={onInterrupt}
+								disabled={isInterruptPending}
+							>
+								<Square className="fill-current" />
+								<span className="sr-only">Stop</span>
+							</Button>
+						)}
+						{!(isStreaming && editingQueuedMessageID === null) && (
+							<Button
+								size="icon"
+								variant="default"
+								className="size-7 rounded-full transition-colors [&>svg]:!size-5 [&>svg]:p-0"
+								onClick={
+									speech.isRecording ? handleAcceptRecording : handleSubmit
+								}
+								disabled={speech.isRecording ? false : !canSend}
+							>
+								{isLoading ? (
+									<Spinner size="sm" loading aria-hidden="true" />
+								) : speech.isRecording ? (
+									<CheckIcon />
+								) : (
+									<ArrowUpIcon />
+								)}
+								<span className="sr-only">
+									{speech.isRecording ? "Accept voice input" : sendButtonLabel}
+								</span>
+							</Button>
+						)}
+					</div>
+				</div>
+				{inputStatusText && (
+					<div className="px-2.5 pb-1 text-xs text-content-secondary sm:hidden">
+						{inputStatusText}
+					</div>
+				)}
+				{modelCatalogStatusMessage && (
+					<div className="px-2.5 pb-1 text-2xs text-content-secondary">
+						{modelCatalogStatusMessage}
+					</div>
+				)}
+			</div>
+		</div>
+	);
+
+	return (
+		<>
+			{content}
+			{previewImage && (
+				<ImageLightbox
+					src={previewImage}
+					onClose={() => setPreviewImage(null)}
+				/>
+			)}
+		</>
+	);
+};

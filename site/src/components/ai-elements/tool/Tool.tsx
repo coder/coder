@@ -1,8 +1,7 @@
 import { useTheme } from "@emotion/react";
 import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
-import type { ComponentPropsWithRef, FC } from "react";
-import { memo } from "react";
+import { type ComponentPropsWithRef, type FC, memo } from "react";
 import { cn } from "utils/cn";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
@@ -555,5 +554,3 @@ export const Tool = memo(
 		);
 	},
 );
-
-Tool.displayName = "Tool";

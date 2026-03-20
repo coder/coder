@@ -636,6 +636,8 @@ func TestEditFiles(t *testing.T) {
 			},
 			errCode: http.StatusInternalServerError,
 			errors:  []string{"rename failed"},
+			// Original file must survive the failed rename.
+			expected: map[string]string{failRenameFilePath: "foo bar"},
 		},
 		{
 			name:     "Edit1",
