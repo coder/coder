@@ -635,13 +635,6 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getUser = async (userIdOrName: string): Promise<TypesGen.User> => {
-		const response = await this.axios.get<TypesGen.User>(
-			`/api/v2/users/${encodeURIComponent(userIdOrName)}`,
-		);
-		return response.data;
-	};
-
 	/**
 	 * Get users for workspace owner selection. Requires
 	 * permission to create workspaces for other users in the

@@ -1,62 +1,81 @@
 import { getErrorDetail, getErrorMessage } from "api/errors";
-import { user } from "api/queries/users";
+import { updateProfile, user } from "api/queries/users";
+import type { UpdateUserProfileRequest } from "api/typesGenerated";
+import { isUUID } from "utils/uuid";
+import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
-import { useQuery } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { EditUserForm } from "./EditUserForm";
 
 const EditUserPage: FC = () => {
-	const { userId } = useParams() as { userId: string };
+	const { user: usernameOrId } = useParams() as { user: string };
 	const navigate = useNavigate();
-	const userQuery = useQuery(user(userId));
+	const queryClient = useQueryClient();
+
+	const userQuery = useQuery(user(usernameOrId));
+	const updateProfileMutation = useMutation(
+		updateProfile(userQuery.data?.id ?? ""),
+	);
+
+	if (!userQuery.data) {
+		return <Loader />;
+	}
+
+	const userData = userQuery.data;
+
+	const handleSubmit = async (values: UpdateUserProfileRequest) => {
+		const mutation = updateProfileMutation.mutateAsync(values, {
+			onSuccess: (updatedUser) => {
+				// Invalidate the user cache so other parts of the UI reflect the change.
+				void queryClient.invalidateQueries({
+					queryKey: ["user", usernameOrId],
+				});
+				void queryClient.invalidateQueries({ queryKey: ["users"] });
+
+				// If the URL currently uses the username (not a UUID) and the username
+				// has changed, rewrite the URL so the page doesn't 404 on refresh.
+				if (!isUUID(usernameOrId) && updatedUser.username !== usernameOrId) {
+					navigate(`../${updatedUser.username}`, {
+						relative: "path",
+						replace: true,
+					});
+				}
+			},
+		});
+
+		toast.promise(mutation, {
+			loading: `Saving user "${values.username}"…`,
+			success: `User "${values.username}" updated successfully.`,
+			error: (e) => ({
+				message: getErrorMessage(
+					e,
+					`Failed to update user "${values.username}".`,
+				),
+				description: getErrorDetail(e),
+			}),
+		});
+	};
 
 	return (
 		<Margins>
-			<title>{pageTitle("Edit User")}</title>
+			<title>{pageTitle(`Edit User – ${userData.username}`)}</title>
 
-			<h1>{userQuery.data?.name}</h1>
-
-			{/*<EditUserForm
-				error={createUserMutation.error}
-				isLoading={createUserMutation.isPending}
-				onSubmit={async (user) => {
-					const mutation = createUserMutation.mutateAsync(
-						{
-							username: user.username,
-							name: user.name,
-							email: user.email,
-							organization_ids: [user.organization],
-							login_type: user.login_type,
-							password: user.password,
-							user_status: null,
-							service_account: user.service_account,
-						},
-						{
-							onSuccess: () => {
-								navigate("..", { relative: "path" });
-							},
-						},
-					);
-					toast.promise(mutation, {
-						loading: `Creating user "${user.username}"...`,
-						success: `User "${user.username}" created successfully.`,
-						error: (e) => ({
-							message: getErrorMessage(
-								e,
-								`Failed to create user "${user.username}".`,
-							),
-							description: getErrorDetail(e),
-						}),
-					});
+			<EditUserForm
+				error={updateProfileMutation.error}
+				isLoading={updateProfileMutation.isPending}
+				initialValues={{
+					username: userData.username,
+					name: userData.name ?? "",
 				}}
+				onSubmit={handleSubmit}
 				onCancel={() => {
 					navigate("..", { relative: "path" });
 				}}
-			/>*/}
+			/>
 		</Margins>
 	);
 };

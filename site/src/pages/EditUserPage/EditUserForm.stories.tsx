@@ -1,13 +1,6 @@
-import {
-	MockOrganization,
-	MockOrganization2,
-	mockApiError,
-} from "testHelpers/entities";
+import { mockApiError } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { organizationsKey } from "api/queries/organizations";
-import type { Organization } from "api/typesGenerated";
 import { action } from "storybook/actions";
-import { userEvent, within } from "storybook/test";
 import { EditUserForm } from "./EditUserForm";
 
 const meta: Meta<typeof EditUserForm> = {
@@ -17,6 +10,10 @@ const meta: Meta<typeof EditUserForm> = {
 		onCancel: action("cancel"),
 		onSubmit: action("submit"),
 		isLoading: false,
+		initialValues: {
+			username: "john-doe",
+			name: "John Doe",
+		},
 	},
 };
 
@@ -25,52 +22,21 @@ type Story = StoryObj<typeof EditUserForm>;
 
 export const Ready: Story = {};
 
-const permissionCheckQuery = (organizations: Organization[]) => {
-	return {
-		key: [
-			"authorization",
-			{
-				checks: Object.fromEntries(
-					organizations.map((org) => [
-						org.id,
-						{
-							action: "create",
-							object: {
-								resource_type: "organization_member",
-								organization_id: org.id,
-							},
-						},
-					]),
-				),
-			},
-		],
-		data: Object.fromEntries(organizations.map((org) => [org.id, true])),
-	};
-};
-
-export const WithOrganizations: Story = {
-	parameters: {
-		queries: [
-			{
-				key: organizationsKey,
-				data: [MockOrganization, MockOrganization2],
-			},
-			permissionCheckQuery([MockOrganization, MockOrganization2]),
-		],
-	},
+export const NoDisplayName: Story = {
 	args: {
-		showOrganizations: true,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByLabelText("Organization"));
+		initialValues: {
+			username: "jane-doe",
+			name: "",
+		},
 	},
 };
 
 export const FormError: Story = {
 	args: {
 		error: mockApiError({
-			validations: [{ field: "username", detail: "Username taken" }],
+			validations: [
+				{ field: "username", detail: "Username is already taken." },
+			],
 		}),
 	},
 };
@@ -78,7 +44,7 @@ export const FormError: Story = {
 export const GeneralError: Story = {
 	args: {
 		error: mockApiError({
-			message: "User already exists",
+			message: "Failed to update user profile.",
 		}),
 	},
 };

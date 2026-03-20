@@ -223,6 +223,7 @@ func UserFromGroupMember(member database.GroupMember) database.User {
 		QuietHoursSchedule: member.UserQuietHoursSchedule,
 		Name:               member.UserName,
 		GithubComUserID:    member.UserGithubComUserID,
+		IsServiceAccount:   member.UserIsServiceAccount,
 	}
 }
 
@@ -251,6 +252,7 @@ func UserFromGroupMemberRow(member database.GetGroupMembersByGroupIDPaginatedRow
 		QuietHoursSchedule: member.UserQuietHoursSchedule,
 		Name:               member.UserName,
 		GithubComUserID:    member.UserGithubComUserID,
+		IsServiceAccount:   member.UserIsServiceAccount,
 	}
 }
 
