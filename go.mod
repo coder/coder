@@ -79,9 +79,8 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 // Forked from kylecarbs/fantasy (cj/go1.25 branch) which adds:
 // 1) Anthropic computer use + thinking effort
 // 2) Go 1.25 downgrade for Windows CI compat
-// Additionally fixes ephemeral OpenAI item ID replay when store=false.
-// https://github.com/ibetitsmike/fantasy/pull/4
-replace charm.land/fantasy => github.com/ibetitsmike/fantasy v0.0.0-20260320131846-71989eacb229
+// 3) ibetitsmike/fantasy#4 — skip ephemeral replay items when store=false
+replace charm.land/fantasy => github.com/kylecarbs/fantasy v0.0.0-20260320175225-7bcfc3d2021a
 
 replace github.com/charmbracelet/anthropic-sdk-go => github.com/kylecarbs/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab
 
