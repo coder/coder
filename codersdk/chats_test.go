@@ -363,6 +363,7 @@ func TestChatCostSummary_JSONRoundTrip(t *testing.T) {
 	require.Equal(t, original.TotalCostMicros, decoded.TotalCostMicros)
 }
 
+//nolint:tparallel,paralleltest
 func TestParseChatWorkspaceTTL(t *testing.T) {
 	t.Parallel()
 
@@ -383,7 +384,6 @@ func TestParseChatWorkspaceTTL(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			got, err := codersdk.ParseChatWorkspaceTTL(tc.input)
 			if tc.wantErr {
 				require.Error(t, err)
