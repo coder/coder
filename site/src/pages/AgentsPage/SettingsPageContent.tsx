@@ -426,68 +426,80 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 				</div>
 			)}
 
-			{usersQuery.data &&
-				(usersQuery.data.users.length === 0 ? (
-					<p className="py-12 text-center text-content-secondary">
-						No usage data for this period.
-					</p>
-				) : (
-					<>
-						<div className="overflow-hidden rounded-lg border border-border-default">
-							<Table>
-								<TableHeader>
-									<TableRow className="text-left text-xs uppercase tracking-wide text-content-secondary">
-										<TableHead className="px-4 py-3">User</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Total Cost
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Messages
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Chats
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Input Tokens
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Output Tokens
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Cache Read
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Cache Write
-										</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{usersQuery.data.users.map((user) => (
-										<UserRow
-											key={user.user_id}
-											user={user}
-											onSelect={(u) => {
-												setSearchParams((prev) => {
-													const next = new URLSearchParams(prev);
-													next.set("user", u.user_id);
-													return next;
-												});
-											}}
-										/>
-									))}
-								</TableBody>
-							</Table>
+			{usersQuery.data && (
+				<div className="relative">
+					{usersQuery.isFetching && !usersQuery.isLoading && (
+						<div
+							role="status"
+							aria-label="Refreshing usage"
+							className="absolute inset-0 z-10 flex items-center justify-center bg-surface-primary/50"
+						>
+							<Spinner size="lg" loading className="text-content-secondary" />
 						</div>
-						<PaginationWidgetBase
-							totalRecords={usersQuery.data.count}
-							currentPage={page}
-							pageSize={pageSize}
-							onPageChange={setPage}
-							hasPreviousPage={hasPreviousPage}
-							hasNextPage={hasNextPage}
-						/>
-					</>
-				))}
+					)}
+					{usersQuery.data.users.length === 0 ? (
+						<p className="py-12 text-center text-content-secondary">
+							No usage data for this period.
+						</p>
+					) : (
+						<>
+							<div className="overflow-hidden rounded-lg border border-border-default">
+								<Table>
+									<TableHeader>
+										<TableRow className="text-left text-xs uppercase tracking-wide text-content-secondary">
+											<TableHead className="px-4 py-3">User</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Total Cost
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Messages
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Chats
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Input Tokens
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Output Tokens
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Cache Read
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Cache Write
+											</TableHead>
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{usersQuery.data.users.map((user) => (
+											<UserRow
+												key={user.user_id}
+												user={user}
+												onSelect={(u) => {
+													setSearchParams((prev) => {
+														const next = new URLSearchParams(prev);
+														next.set("user", u.user_id);
+														return next;
+													});
+												}}
+											/>
+										))}
+									</TableBody>
+								</Table>
+							</div>
+							<PaginationWidgetBase
+								totalRecords={usersQuery.data.count}
+								currentPage={page}
+								pageSize={pageSize}
+								onPageChange={setPage}
+								hasPreviousPage={hasPreviousPage}
+								hasNextPage={hasNextPage}
+							/>
+						</>
+					)}
+				</div>
+			)}
 		</div>
 	);
 };

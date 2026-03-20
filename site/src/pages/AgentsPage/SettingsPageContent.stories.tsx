@@ -362,12 +362,10 @@ export const UsageDateFilter: Story = {
 			name: "Last 7 days",
 		});
 
-		// The shared DateRange component requires a start and end selection
-		// before it closes and triggers the updated query.
-		await userEvent.click(last7Days);
 		await userEvent.click(last7Days);
 
 		await waitFor(() => {
+			expect(body.queryByRole("button", { name: "Last 7 days" })).toBeNull();
 			const calls = getChatCostUsersCalls();
 			expect(calls.length).toBeGreaterThan(initialCallCount);
 
@@ -379,6 +377,71 @@ export const UsageDateFilter: Story = {
 
 			expect(latestCall.start_date).not.toBe(defaultStartDate);
 		});
+	},
+};
+
+export const UsageDateFilterRefetchOverlay: Story = {
+	args: {
+		activeSection: "usage",
+		canManageChatModelConfigs: true,
+	},
+	beforeEach: () => {
+		let requestCount = 0;
+		let resolveRefetch:
+			| ((value: TypesGen.ChatCostUsersResponse) => void)
+			| undefined;
+		const refetchPromise = new Promise<TypesGen.ChatCostUsersResponse>(
+			(resolve) => {
+				resolveRefetch = resolve;
+			},
+		);
+
+		spyOn(API, "getChatCostUsers").mockImplementation(async () => {
+			requestCount += 1;
+			if (requestCount === 1) {
+				return mockUsersResponse;
+			}
+
+			return refetchPromise;
+		});
+		spyOn(API, "getUser").mockResolvedValue(mockUserProfile);
+		spyOn(API, "getChatCostSummary").mockResolvedValue(mockCostSummary);
+
+		return () => {
+			resolveRefetch?.({
+				...mockUsersResponse,
+				start_date: "2026-03-06T00:00:00Z",
+				end_date: "2026-03-12T00:00:00Z",
+			});
+		};
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const defaultStartLabel = fixedNow
+			.subtract(30, "day")
+			.format("MMM D, YYYY");
+		const defaultEndLabel = fixedNow.format("MMM D, YYYY");
+
+		await canvas.findByText("Alice Liddell");
+
+		await step(
+			"show a refetch overlay after changing the date range",
+			async () => {
+				const dateRangeTrigger = await canvas.findByRole("button", {
+					name: new RegExp(`${defaultStartLabel}.*${defaultEndLabel}`),
+				});
+
+				await userEvent.click(dateRangeTrigger);
+				await userEvent.click(
+					await body.findByRole("button", { name: "Last 7 days" }),
+				);
+
+				await expect(
+					await canvas.findByRole("status", { name: "Refreshing usage" }),
+				).toBeInTheDocument();
+			},
+		);
 	},
 };
 
