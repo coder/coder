@@ -12,9 +12,11 @@ import type React from "react";
 import { cn } from "utils/cn";
 import { ToolCollapsible } from "./ToolCollapsible";
 import {
+	computeDiffStats,
 	DIFFS_FONT_STYLE,
 	type EditFilesFileEntry,
 	getDiffViewerOptions,
+	splitPath,
 	type ToolStatus,
 } from "./utils";
 
@@ -34,20 +36,34 @@ export const EditFilesTool: React.FC<{
 	const isDark = theme.palette.mode === "dark";
 	const isRunning = status === "running";
 	const hasDiffs = diffs.some((d) => d !== null);
+	const isSingleFile = files.length === 1;
+	const isMultiFile = files.length > 1;
+	const singleFilePath = isSingleFile ? splitPath(files[0].path) : null;
+	const singleFileStats = isSingleFile ? computeDiffStats(diffs[0]) : null;
+	const totalStats = diffs.reduce(
+		(acc, diff) => {
+			const stats = computeDiffStats(diff);
+
+			return {
+				additions: acc.additions + stats.additions,
+				deletions: acc.deletions + stats.deletions,
+			};
+		},
+		{ additions: 0, deletions: 0 },
+	);
+	const headerStats = isSingleFile ? singleFileStats : totalStats;
+	const hasHeaderStats =
+		headerStats !== null &&
+		(headerStats.additions > 0 || headerStats.deletions > 0);
 
 	let label: string;
 	if (isRunning) {
-		if (files.length === 1) {
-			label = `Editing ${files[0].path.split("/").pop() || files[0].path}…`;
-		} else if (files.length > 1) {
+		if (isMultiFile) {
 			label = `Editing ${files.length} files…`;
 		} else {
 			label = "Editing files…";
 		}
-	} else if (files.length === 1) {
-		const filename = files[0].path.split("/").pop() || files[0].path;
-		label = `Edited ${filename}`;
-	} else if (files.length > 1) {
+	} else if (isMultiFile) {
 		label = `Edited ${files.length} files`;
 	} else {
 		label = "Edited files";
@@ -60,14 +76,43 @@ export const EditFilesTool: React.FC<{
 			defaultExpanded
 			header={
 				<>
-					<span
-						className={cn(
-							"text-sm",
-							isError ? "text-content-destructive" : "text-content-secondary",
-						)}
-					>
-						{label}
-					</span>
+					{isSingleFile && singleFilePath ? (
+						<span
+							className={cn(
+								"text-sm",
+								isError ? "text-content-destructive" : "text-content-secondary",
+							)}
+						>
+							{isRunning ? "Editing " : "Edited "}
+							{singleFilePath.directory && (
+								<span className="opacity-70">{singleFilePath.directory}</span>
+							)}
+							<span className="font-semibold">{singleFilePath.filename}</span>
+						</span>
+					) : (
+						<span
+							className={cn(
+								"text-sm",
+								isError ? "text-content-destructive" : "text-content-secondary",
+							)}
+						>
+							{label}
+						</span>
+					)}
+					{hasHeaderStats && headerStats && (
+						<span className="ml-auto flex shrink-0 items-center gap-1.5 text-xs tabular-nums">
+							{headerStats.additions > 0 && (
+								<span className="text-content-success">
+									+{headerStats.additions}
+								</span>
+							)}
+							{headerStats.deletions > 0 && (
+								<span className="text-content-destructive">
+									-{headerStats.deletions}
+								</span>
+							)}
+						</span>
+					)}
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -85,25 +130,79 @@ export const EditFilesTool: React.FC<{
 			}
 		>
 			<div className="space-y-px">
-				{diffs.map((diff, i) =>
-					diff ? (
-						<ScrollArea
-							key={files[i].path}
-							className="text-2xs"
-							viewportClassName="max-h-64"
-							scrollBarClassName="w-1.5"
-						>
-							<FileDiff
-								fileDiff={diff}
-								options={{
-									...getDiffViewerOptions(isDark),
-									disableFileHeader: true,
-								}}
-								style={DIFFS_FONT_STYLE}
-							/>
-						</ScrollArea>
-					) : null,
-				)}
+				{diffs.map((diff, i) => {
+					if (!diff) {
+						return null;
+					}
+
+					const { directory: perFileDir, filename: perFileName } = splitPath(
+						files[i].path,
+					);
+					const perFileStats = computeDiffStats(diff);
+					const hasPerFileStats =
+						perFileStats.additions > 0 || perFileStats.deletions > 0;
+
+					if (!isMultiFile) {
+						return (
+							<ScrollArea
+								key={files[i].path}
+								className="text-2xs"
+								viewportClassName="max-h-64"
+								scrollBarClassName="w-1.5"
+							>
+								<FileDiff
+									fileDiff={diff}
+									options={{
+										...getDiffViewerOptions(isDark),
+										disableFileHeader: true,
+									}}
+									style={DIFFS_FONT_STYLE}
+								/>
+							</ScrollArea>
+						);
+					}
+
+					return (
+						<div key={files[i].path}>
+							<div className="flex items-center gap-2 border-t border-border-default/20 bg-surface-tertiary/30 px-3 py-1 text-xs text-content-secondary">
+								<span className="min-w-0 truncate">
+									{perFileDir && (
+										<span className="opacity-70">{perFileDir}</span>
+									)}
+									<span className="font-semibold">{perFileName}</span>
+								</span>
+								{hasPerFileStats && (
+									<span className="ml-auto flex shrink-0 items-center gap-1.5 tabular-nums">
+										{perFileStats.additions > 0 && (
+											<span className="text-content-success">
+												+{perFileStats.additions}
+											</span>
+										)}
+										{perFileStats.deletions > 0 && (
+											<span className="text-content-destructive">
+												-{perFileStats.deletions}
+											</span>
+										)}
+									</span>
+								)}
+							</div>
+							<ScrollArea
+								className="text-2xs"
+								viewportClassName="max-h-64"
+								scrollBarClassName="w-1.5"
+							>
+								<FileDiff
+									fileDiff={diff}
+									options={{
+										...getDiffViewerOptions(isDark),
+										disableFileHeader: true,
+									}}
+									style={DIFFS_FONT_STYLE}
+								/>
+							</ScrollArea>
+						</div>
+					);
+				})}
 			</div>
 		</ToolCollapsible>
 	);
