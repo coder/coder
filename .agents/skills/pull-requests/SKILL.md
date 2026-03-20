@@ -50,7 +50,7 @@ Use the canonical docs for shared conventions and validation guidance:
 
 After pushing:
 
-- Monitor CI with `gh pr checks <PR_NUMBER>`.
+- Monitor CI with `gh pr checks <PR_NUMBER> --watch`.
 - Use `gh pr view <PR_NUMBER> --json statusCheckRollup` for programmatic check
   status.
 
