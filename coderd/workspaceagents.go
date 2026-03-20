@@ -1466,6 +1466,7 @@ func (api *API) workspaceAgentPostLogSource(rw http.ResponseWriter, r *http.Requ
 // @Produce json
 // @Tags Agents
 // @Success 200 {object} agentsdk.ReinitializationEvent
+// @Failure 409 {object} codersdk.Response
 // @Router /workspaceagents/me/reinit [get]
 func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 	// Allow us to interrupt watch via cancel.
@@ -1487,41 +1488,76 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 
 	log.Info(ctx, "agent waiting for reinit instruction")
 
+	// Subscribe to claim events BEFORE any durable checks to avoid a
+	// TOCTOU race: without this, a claim could fire between the
+	// IsPrebuild() check and the subscribe call, and we'd miss the
+	// pubsub event entirely. By subscribing first, any event that
+	// fires during the checks below is buffered in the channel.
 	reinitEvents := make(chan agentsdk.ReinitializationEvent, 1)
 
-	// If the workspace has already been claimed (i.e. the owner is no
-	// longer the prebuilds system user), verify the claim build completed
-	// successfully and send a reinit event immediately. This covers the
-	// case where the pubsub notification was missed before the agent
-	// connected.
-	if !workspace.IsPrebuild() {
-		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
-		if err != nil {
-			log.Error(ctx, "failed to get latest build for claimed workspace", slog.Error(err))
-		} else {
-			job, err := api.Database.GetProvisionerJobByID(ctx, latestBuild.JobID)
-			if err != nil {
-				log.Error(ctx, "failed to get provisioner job for claimed workspace", slog.Error(err))
-			} else if job.CompletedAt.Valid && !job.Error.Valid {
-				// Claim build succeeded — send reinit immediately so
-				// the agent picks up the new owner even if the
-				// original pubsub event was missed.
-				reinitEvents <- agentsdk.ReinitializationEvent{
-					WorkspaceID: workspace.ID,
-					Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
-					UserID:      workspace.OwnerID,
-				}
-			}
-		}
-	}
-
-	cancel, err = prebuilds.NewPubsubWorkspaceClaimListener(api.Pubsub, log).ListenForWorkspaceClaims(ctx, workspace.ID, reinitEvents)
+	cancelSub, err := prebuilds.NewPubsubWorkspaceClaimListener(api.Pubsub, log).ListenForWorkspaceClaims(ctx, workspace.ID, reinitEvents)
 	if err != nil {
 		log.Error(ctx, "subscribe to prebuild claimed channel", slog.Error(err))
 		httpapi.InternalServerError(rw, xerrors.New("failed to subscribe to prebuild claimed channel"))
 		return
 	}
-	defer cancel()
+	defer cancelSub()
+
+	// If the workspace has already been claimed (i.e. the owner is no
+	// longer the prebuilds system user), check whether it was originally
+	// a prebuild by inspecting the first build's initiator. The
+	// prebuild reconciler always uses PrebuildsSystemUserID as the
+	// initiator for the initial build.
+	if !workspace.IsPrebuild() {
+		firstBuild, err := api.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx,
+			database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
+				WorkspaceID: workspace.ID,
+				BuildNumber: 1,
+			})
+		if err != nil || firstBuild.InitiatorID != database.PrebuildsSystemUserID {
+			// Not a claimed prebuild — either a regular workspace
+			// or we couldn't determine the history. Return 409 so
+			// the agent stops reconnecting to this endpoint.
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Workspace is not a prebuilt workspace waiting to be claimed.",
+				Detail:  "This endpoint is only for agents running in prebuilt workspaces.",
+			})
+			return
+		}
+
+		// This workspace was a prebuild that got claimed. Check if
+		// the claim build completed successfully before sending
+		// reinit.
+		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+		if err != nil {
+			log.Error(ctx, "failed to get latest workspace build", slog.Error(err))
+			httpapi.InternalServerError(rw, xerrors.New("failed to get latest workspace build"))
+			return
+		}
+		job, err := api.Database.GetProvisionerJobByID(ctx, latestBuild.JobID)
+		if err != nil {
+			log.Error(ctx, "failed to get provisioner job", slog.Error(err))
+			httpapi.InternalServerError(rw, xerrors.New("failed to get provisioner job"))
+			return
+		}
+
+		if job.CompletedAt.Valid && !job.Error.Valid {
+			// Claim build succeeded — one-shot reinit.
+			reinitEvents <- agentsdk.ReinitializationEvent{
+				WorkspaceID: workspace.ID,
+				Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+				UserID:      workspace.OwnerID,
+			}
+			close(reinitEvents)
+			transmitter := agentsdk.NewSSEAgentReinitTransmitter(log, rw, r)
+			_ = transmitter.Transmit(ctx, reinitEvents)
+			return
+		}
+
+		// Claim build still in progress or failed — fall through
+		// to the transmitter. The pubsub subscription (set up
+		// above) will deliver the event when the build completes.
+	}
 
 	transmitter := agentsdk.NewSSEAgentReinitTransmitter(log, rw, r)
 
