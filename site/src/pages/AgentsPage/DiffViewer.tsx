@@ -633,6 +633,23 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		return map;
 	}, [sortedFiles, getLineAnnotations]);
 
+	// Pre-compute per-file selected lines so each LazyFileDiff
+	// receives a stable reference. Without this, calling
+	// getSelectedLines during render returns a new object every
+	// time, which busts the memo comparator and forces an
+	// expensive Shadow DOM + shiki re-highlight.
+	const perFileSelectedLines = useMemo(() => {
+		if (!getSelectedLines) return null;
+		const map = new Map<string, SelectedLineRange>();
+		for (const file of sortedFiles) {
+			const sel = getSelectedLines(file.name);
+			if (sel) {
+				map.set(file.name, sel);
+			}
+		}
+		return map;
+	}, [sortedFiles, getSelectedLines]);
+
 	// ---------------------------------------------------------------
 	// Container width measurement via ResizeObserver so we can decide
 	// whether to show the file tree sidebar without a prop from the
@@ -889,7 +906,9 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 											}
 											lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
 											renderAnnotation={renderAnnotation}
-											selectedLines={getSelectedLines?.(fileDiff.name)}
+											selectedLines={
+												perFileSelectedLines?.get(fileDiff.name) ?? null
+											}
 										/>
 										{isLast && (
 											<div className="flex items-center justify-center py-4 text-xs text-content-secondary">
