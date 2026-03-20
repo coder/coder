@@ -1006,6 +1006,15 @@ func (q *querier) peerUpdate(peer uuid.UUID) error {
 func (q *querier) mappingQuery(peer mKey) error {
 	logger := q.logger.With(slog.F("peer_id", uuid.UUID(peer)))
 	logger.Debug(q.ctx, "querying mappings")
+	// Fast path: skip DB query if no local mapper exists for this peer.
+	q.mu.Lock()
+	_, ok := q.mappers[peer]
+	q.mu.Unlock()
+	if !ok {
+		logger.Debug(q.ctx, "skipping query for missing mapper")
+		return nil
+	}
+
 	bindings, err := q.store.GetTailnetTunnelPeerBindings(q.ctx, uuid.UUID(peer))
 	logger.Debug(q.ctx, "queried mappings", slog.F("num_mappings", len(bindings)))
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
