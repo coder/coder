@@ -146,7 +146,7 @@ const meta = {
 			custom_prompt: "",
 		});
 		spyOn(API, "getChatWorkspaceTTL").mockResolvedValue({
-			workspace_ttl: "0s",
+			workspace_ttl_ms: 0,
 		});
 		spyOn(API, "updateChatWorkspaceTTL").mockResolvedValue();
 	},
@@ -210,7 +210,7 @@ export const DefaultAutostopCustomValue: Story = {
 	beforeEach: () => {
 		// 2h = 2 hours exactly, shows cleanly in DurationField.
 		spyOn(API, "getChatWorkspaceTTL").mockResolvedValue({
-			workspace_ttl: "2h0m0s",
+			workspace_ttl_ms: 7_200_000,
 		});
 	},
 	play: async ({ canvasElement }) => {
@@ -246,7 +246,7 @@ export const DefaultAutostopSave: Story = {
 		await userEvent.click(saveButton);
 		await waitFor(() => {
 			expect(API.updateChatWorkspaceTTL).toHaveBeenCalledWith({
-				workspace_ttl: "3h0m",
+				workspace_ttl_ms: 10_800_000,
 			});
 		});
 	},

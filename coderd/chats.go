@@ -2693,7 +2693,7 @@ func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatWorkspaceTTLResponse{
-		WorkspaceTTL: d.String(),
+		WorkspaceTTLMs: d.Milliseconds(),
 	})
 }
 
@@ -2710,18 +2710,12 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.TrimSpace(req.WorkspaceTTL) == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "workspace_ttl must not be empty; use \"0s\" to use the template's default TTL.",
-		})
-		return
-	}
+	// Convert milliseconds to duration.
+	d := time.Duration(req.WorkspaceTTLMs) * time.Millisecond
 
-	d, err := codersdk.ParseChatWorkspaceTTL(req.WorkspaceTTL)
-	if err != nil {
+	if d < 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid workspace TTL.",
-			Detail:  err.Error(),
+			Message: "Workspace TTL must be non-negative.",
 		})
 		return
 	}

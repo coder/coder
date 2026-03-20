@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { goDurationToMs, shortRelativeTime } from "./time";
+import { shortRelativeTime } from "./time";
 
 describe("shortRelativeTime", () => {
 	// Pin "now" so tests are deterministic.
@@ -100,52 +100,5 @@ describe("shortRelativeTime", () => {
 	it("accepts numeric timestamp input", () => {
 		const timestamp = NOW.getTime() - 10 * 60 * 1000;
 		expect(shortRelativeTime(timestamp)).toBe("10m");
-	});
-});
-
-describe("goDurationToMs", () => {
-	it.each([
-		// Hours and minutes.
-		["1h0m0s", 3_600_000],
-		["2h30m0s", 9_000_000],
-		["0h45m0s", 2_700_000],
-		["90m", 5_400_000],
-		["3h", 10_800_000],
-
-		// Seconds.
-		["45s", 45_000],
-		["1h30m45s", 5_445_000],
-		["30s", 30_000],
-
-		// Milliseconds — "ms" must not be confused with minutes.
-		["500ms", 500],
-		["1h500ms", 3_600_500],
-		["1s500ms", 1_500],
-		["1m500ms", 60_500],
-
-		// Microseconds — Go emits "µs" but also accepts "us".
-		["500µs", 0],
-		["500us", 0],
-
-		// Nanoseconds.
-		["100ns", 0],
-
-		// Zero and empty.
-		["0s", 0],
-		["", 0],
-
-		// Fractional (Go supports these).
-		["1.5h", 5_400_000],
-		["0.5s", 500],
-		["1.5m", 90_000],
-	])("%j → %d ms", (input, expected) => {
-		// Positive
-		expect(goDurationToMs(input)).toBe(expected);
-		// Positive+whitespace
-		expect(goDurationToMs(` ${input} `)).toBe(expected);
-		// Negative
-		expect(goDurationToMs(`-${input}`)).toBe(-expected);
-		// Negative+whitespace
-		expect(goDurationToMs(` -${input} `)).toBe(-expected);
 	});
 });

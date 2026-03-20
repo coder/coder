@@ -176,54 +176,6 @@ export function daysAgo(count: number) {
 	return dayjs().subtract(count, "day").toISOString();
 }
 
-/**
- * Parse a Go duration string (e.g. "1h30m0s", "500ms") into
- * milliseconds. Handles hours (h), minutes (m), seconds (s),
- * and milliseconds (ms). Fractional values (e.g. "1.5h") are
- * supported. Microseconds (µs/us) and nanoseconds (ns) are
- * parsed but truncated to 0 ms. Negative durations are supported.
- * Leading and trailing whitespace is ignored.
- */
-export function goDurationToMs(duration: string): number {
-	let norm = duration.trim();
-	let total = 0;
-
-	let mult = 1;
-	if (norm.startsWith("-")) {
-		mult = -1;
-		norm = norm.slice(1);
-	}
-
-	// Match numeric value + unit pairs. Multi-character units (ms,
-	// µs, us, ns) must appear before single-character ones so that
-	// e.g. "10ms" is treated as milliseconds, not "10m" + "s".
-	const pattern = /([\d.]+)\s*(h|ms|µs|us|ns|m|s)/g;
-	for (const match of norm.matchAll(pattern)) {
-		const value = Number.parseFloat(match[1]);
-		if (Number.isNaN(value)) continue;
-
-		switch (match[2]) {
-			case "h":
-				total += value * 3_600_000;
-				break;
-			case "m":
-				total += value * 60_000;
-				break;
-			case "s":
-				total += value * 1_000;
-				break;
-			case "ms":
-				total += value;
-				break;
-			default:
-				// µs, us, ns — parsed but truncated to 0 ms.
-				break;
-		}
-	}
-
-	return Math.round(total * mult);
-}
-
 // Date comparison functions
 export function isAfter(date1: DateTimeInput, date2: DateTimeInput) {
 	return dayjs(date1).isAfter(dayjs(date2));

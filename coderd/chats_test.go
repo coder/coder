@@ -4784,39 +4784,39 @@ func TestChatWorkspaceTTL(t *testing.T) {
 	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 	anonClient := codersdk.New(adminClient.URL)
 
-	// Default value is "0s" (disabled) when nothing has been configured.
+	// Default value is 0 (disabled) when nothing has been configured.
 	resp, err := adminClient.GetChatWorkspaceTTL(ctx)
 	require.NoError(t, err, "get default")
-	require.Equal(t, "0s", resp.WorkspaceTTL, "default should be 0s")
+	require.Equal(t, int64(0), resp.WorkspaceTTLMs, "default should be 0")
 
-	// Admin can set a positive TTL.
+	// Admin can set a positive TTL (2h = 7_200_000 ms).
 	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
-		WorkspaceTTL: "2h",
+		WorkspaceTTLMs: 7_200_000,
 	})
 	require.NoError(t, err, "admin set 2h")
 
 	resp, err = adminClient.GetChatWorkspaceTTL(ctx)
 	require.NoError(t, err, "get after set")
-	require.Equal(t, "2h0m0s", resp.WorkspaceTTL, "should return canonicalized 2h")
+	require.Equal(t, int64(7_200_000), resp.WorkspaceTTLMs, "should return 7200000 ms (2h)")
 
 	// Non-admin can read the value.
 	resp, err = memberClient.GetChatWorkspaceTTL(ctx)
 	require.NoError(t, err, "member get")
-	require.Equal(t, "2h0m0s", resp.WorkspaceTTL, "member should see same value")
+	require.Equal(t, int64(7_200_000), resp.WorkspaceTTLMs, "member should see same value")
 
 	// Admin can set back to zero (disabled / template default).
 	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
-		WorkspaceTTL: "0s",
+		WorkspaceTTLMs: 0,
 	})
-	require.NoError(t, err, "admin set 0s")
+	require.NoError(t, err, "admin set 0")
 
 	resp, err = adminClient.GetChatWorkspaceTTL(ctx)
 	require.NoError(t, err, "get after zero")
-	require.Equal(t, "0s", resp.WorkspaceTTL, "should be 0s after reset")
+	require.Equal(t, int64(0), resp.WorkspaceTTLMs, "should be 0 after reset")
 
 	// Non-admin write is forbidden.
 	err = memberClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
-		WorkspaceTTL: "1h",
+		WorkspaceTTLMs: 3_600_000,
 	})
 	requireSDKError(t, err, http.StatusForbidden)
 
@@ -4826,33 +4826,27 @@ func TestChatWorkspaceTTL(t *testing.T) {
 	require.ErrorAs(t, err, &sdkErr, "anon get")
 	require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode(), "anon should get 401")
 
-	// Validation: empty string.
-	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
-		WorkspaceTTL: "",
-	})
-	requireSDKError(t, err, http.StatusBadRequest)
-
-	// Validation: unparseable duration.
-	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
-		WorkspaceTTL: "not-a-duration",
-	})
-	requireSDKError(t, err, http.StatusBadRequest)
-
 	// Validation: negative duration.
 	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
-		WorkspaceTTL: "-1h",
+		WorkspaceTTLMs: -3_600_000,
 	})
 	requireSDKError(t, err, http.StatusBadRequest)
 
-	// Boundary: exactly 30 days should succeed.
+	// Validation: less than 1 minute (30s = 30_000 ms).
 	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
-		WorkspaceTTL: "720h",
+		WorkspaceTTLMs: 30_000,
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
+
+	// Boundary: exactly 30 days should succeed (720h = 2_592_000_000 ms).
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMs: 2_592_000_000,
 	})
 	require.NoError(t, err, "720h (exactly 30 days) should be accepted")
 
-	// Validation: exceeds 30-day maximum.
+	// Validation: exceeds 30-day maximum (721h = 2_595_600_000 ms).
 	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
-		WorkspaceTTL: "721h",
+		WorkspaceTTLMs: 2_595_600_000,
 	})
 	requireSDKError(t, err, http.StatusBadRequest)
 }

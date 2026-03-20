@@ -1947,9 +1947,10 @@ export interface ChatUsageLimitStatus {
  */
 export interface ChatWorkspaceTTLResponse {
 	/**
-	 * WorkspaceTTL is a Go duration string (e.g. "1h", "30m").
+	 * WorkspaceTTLMs is the workspace TTL in milliseconds.
+	 * Zero means disabled — the template's own autostop setting applies.
 	 */
-	readonly workspace_ttl: string;
+	readonly workspace_ttl_ms: number;
 }
 
 // From codersdk/client.go
@@ -6909,9 +6910,10 @@ export interface UpdateChatUsageLimitOverrideRequest {
  */
 export interface UpdateChatWorkspaceTTLRequest {
 	/**
-	 * WorkspaceTTL is a Go duration string (e.g. "1h", "30m").
+	 * WorkspaceTTLMs is the workspace TTL in milliseconds.
+	 * Zero means disabled — the template's own autostop setting applies.
 	 */
-	readonly workspace_ttl: string;
+	readonly workspace_ttl_ms: number;
 }
 
 // From codersdk/updatecheck.go

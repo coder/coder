@@ -51,7 +51,7 @@ import { useSearchParams } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatTokenCount } from "utils/analytics";
 import { formatCostMicros } from "utils/currency";
-import { goDurationToMs, humanDuration } from "utils/time";
+import { humanDuration } from "utils/time";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { InsightsContent } from "./InsightsContent";
@@ -453,9 +453,7 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 	const isUserPromptDirty =
 		localUserEdit !== null && localUserEdit !== serverUserPrompt;
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
-	// Parse Go duration string (e.g. "1h30m0s") into milliseconds.
-	const serverTTL = workspaceTTLQuery.data?.workspace_ttl ?? "0s";
-	const serverTTLMs = goDurationToMs(serverTTL);
+	const serverTTLMs = workspaceTTLQuery.data?.workspace_ttl_ms ?? 0;
 	const [localTTLMs, setLocalTTLMs] = useState<number | null>(null);
 	const ttlMs = localTTLMs ?? serverTTLMs;
 	const isTTLDirty = localTTLMs !== null && localTTLMs !== serverTTLMs;
@@ -496,13 +494,8 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 		(event: FormEvent) => {
 			event.preventDefault();
 			if (!isTTLDirty) return;
-			const totalMs = localTTLMs ?? 0;
-			const totalMinutes = Math.round(totalMs / 60_000);
-			const h = Math.floor(totalMinutes / 60);
-			const m = totalMinutes % 60;
-			const durationStr = totalMinutes === 0 ? "0s" : `${h}h${m}m`;
 			saveWorkspaceTTL(
-				{ workspace_ttl: durationStr },
+				{ workspace_ttl_ms: localTTLMs ?? 0 },
 				{ onSuccess: () => setLocalTTLMs(null) },
 			);
 		},
