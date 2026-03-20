@@ -195,6 +195,13 @@ func connectOne(
 		)
 	}
 
+	// If no tools passed filtering, close the client early
+	// to avoid holding an idle connection.
+	if len(tools) == 0 {
+		_ = mcpClient.Close()
+		return nil, nil, nil
+	}
+
 	return tools, mcpClient, nil
 }
 
@@ -210,7 +217,7 @@ func createTransport(
 			cfg.Url,
 			transport.WithHeaders(headers),
 		)
-	case "streamable_http", "":
+	case "", "streamable_http":
 		// Default to streamable HTTP, the newer transport.
 		return transport.NewStreamableHTTP(
 			cfg.Url,
@@ -231,6 +238,9 @@ func buildAuthHeaders(
 	cfg database.MCPServerConfig,
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
 ) map[string]string {
+	// Using map[string]string rather than http.Header because
+	// the mcp-go transport options accept map[string]string.
+	// MCP servers typically don't require multi-valued headers.
 	headers := make(map[string]string)
 
 	switch cfg.AuthType {
@@ -435,12 +445,10 @@ func (t *mcpToolWrapper) SetProviderOptions(
 }
 
 // convertCallResult translates an MCP CallToolResult into a
-// fantasy.ToolResponse. Binary items (image or audio) take
-// priority and short-circuit the loop; any preceding text parts
-// are dropped because the fantasy response model supports a
-// single content type per response. When the result contains
-// only text items they are concatenated with newlines so no
-// content is silently dropped.
+// fantasy.ToolResponse. The fantasy response model supports a
+// single content type per response, so we prioritize text. All
+// text items are collected first. Binary items (image or audio)
+// are only returned when no text content is available.
 func convertCallResult(
 	result *mcp.CallToolResult,
 ) fantasy.ToolResponse {
@@ -448,7 +456,10 @@ func convertCallResult(
 		return fantasy.NewTextResponse("")
 	}
 
-	var textParts []string
+	var (
+		textParts    []string
+		binaryResult *fantasy.ToolResponse
+	)
 	for _, item := range result.Content {
 		switch c := item.(type) {
 		case mcp.TextContent:
@@ -463,11 +474,14 @@ func convertCallResult(
 				)
 				continue
 			}
-			return fantasy.ToolResponse{
-				Type:      "image",
-				Data:      data,
-				MediaType: c.MIMEType,
-				IsError:   result.IsError,
+			if binaryResult == nil {
+				r := fantasy.ToolResponse{
+					Type:      "image",
+					Data:      data,
+					MediaType: c.MIMEType,
+					IsError:   result.IsError,
+				}
+				binaryResult = &r
 			}
 		case mcp.AudioContent:
 			data, err := base64.StdEncoding.DecodeString(
@@ -479,11 +493,14 @@ func convertCallResult(
 				)
 				continue
 			}
-			return fantasy.ToolResponse{
-				Type:      "media",
-				Data:      data,
-				MediaType: c.MIMEType,
-				IsError:   result.IsError,
+			if binaryResult == nil {
+				r := fantasy.ToolResponse{
+					Type:      "media",
+					Data:      data,
+					MediaType: c.MIMEType,
+					IsError:   result.IsError,
+				}
+				binaryResult = &r
 			}
 		default:
 			textParts = append(textParts,
@@ -506,9 +523,17 @@ func convertCallResult(
 		}
 	}
 
-	resp := fantasy.NewTextResponse(
-		strings.Join(textParts, "\n"),
-	)
-	resp.IsError = result.IsError
-	return resp
+	// Prefer text content. Only fall back to binary when no
+	// text was collected.
+	if len(textParts) > 0 {
+		resp := fantasy.NewTextResponse(
+			strings.Join(textParts, "\n"),
+		)
+		resp.IsError = result.IsError
+		return resp
+	}
+	if binaryResult != nil {
+		return *binaryResult
+	}
+	return fantasy.NewTextResponse("")
 }
