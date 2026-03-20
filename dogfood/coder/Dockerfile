@@ -1,3 +1,13 @@
+# 1.93.1
+FROM rust:slim@sha256:7d3701660d2aa7101811ba0c54920021452aa60e5bae073b79c2b137a432b2f4 AS rust-utils
+# Install rust helper programs
+ENV CARGO_INSTALL_ROOT=/tmp/
+# Use more reliable mirrors for Debian packages
+RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.edge.kernel.org/debian|g' /etc/apt/sources.list && \
+	apt-get update || true
+RUN apt-get update && apt-get install -y libssl-dev openssl pkg-config build-essential
+RUN cargo install jj-cli typos-cli watchexec-cli
+
 FROM ubuntu:jammy@sha256:3ba65aa20f86a0fad9df2b2c259c613df006b2e6d0bfcc8a146afb8c525a9751 AS go
 
 # Install Go manually, so that we can control the version
@@ -321,6 +331,7 @@ ENV PATH=$PATH:/usr/local/go/bin
 RUN update-alternatives --install /usr/local/bin/gofmt gofmt /usr/local/go/bin/gofmt 100
 
 COPY --from=go /tmp/bin /usr/local/bin
+COPY --from=rust-utils /tmp/bin /usr/local/bin
 COPY --from=proto /tmp/bin /usr/local/bin
 COPY --from=proto /tmp/include /usr/local/bin/include
 
