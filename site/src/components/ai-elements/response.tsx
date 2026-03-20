@@ -130,35 +130,29 @@ const CodeBlock = ({
 	};
 
 	return (
-		<div className="my-4 overflow-hidden rounded-xl border border-solid border-border-default bg-surface-secondary/15 text-2xs">
+		<div className="group/code my-4 overflow-hidden rounded-lg border border-solid border-border-default/50 text-2xs">
 			{showHeader && (
-				<div className="flex items-center justify-between border-b border-solid border-border-default bg-surface-secondary px-3 py-1.5">
-					<span className="text-xs text-content-secondary">{lang}</span>
-					<div className="flex items-center gap-1.5">
-						<span
-							aria-live="polite"
-							className={cn(
-								"text-xs text-content-secondary transition-opacity",
-								copied ? "opacity-100" : "opacity-0",
-							)}
-						>
-							Copied!
-						</span>
-						<button
-							type="button"
-							onClick={handleCopy}
-							className="inline-flex size-7 items-center justify-center rounded-md text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-default"
-							aria-label={
-								copied ? "Code copied to clipboard" : `Copy ${lang} code block`
-							}
-						>
-							{copied ? (
-								<CheckIcon className="size-3.5" />
-							) : (
-								<ClipboardIcon className="size-3.5" />
-							)}
-						</button>
-					</div>
+				<div className="flex items-center justify-between px-3 pt-2 pb-0">
+					<span className="text-2xs font-medium text-content-secondary/60">
+						{lang}
+					</span>
+					<button
+						type="button"
+						onClick={handleCopy}
+						className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-2xs text-content-secondary/60 opacity-0 transition-opacity group-hover/code:opacity-100 hover:text-content-primary"
+						aria-label={
+							copied ? "Code copied to clipboard" : `Copy ${lang} code block`
+						}
+					>
+						{copied ? (
+							<>
+								<CheckIcon className="size-3" />
+								<span>Copied</span>
+							</>
+						) : (
+							<ClipboardIcon className="size-3" />
+						)}
+					</button>
 				</div>
 			)}
 			<div className="max-h-96 overflow-auto">
