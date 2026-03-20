@@ -490,21 +490,53 @@ func LicensesEntitlements(
 				featureArguments.ActiveUserCount, *userLimit.Limit))
 		}
 		if featureArguments.ActiveAISeatCount > 0 {
+			actual := featureArguments.ActiveAISeatCount
 			feature := entitlements.Features[codersdk.FeatureAIGovernanceUserLimit]
 			switch {
 			case feature.Entitlement == codersdk.EntitlementNotEntitled:
 				// If the limit is not set
 				entitlements.Errors = append(entitlements.Errors,
-					fmt.Sprintf("Your deployment has %d active AI Governance seats but the license is not entitled to this feature.", featureArguments.ActiveAISeatCount))
+					fmt.Sprintf("Your deployment has %d active AI governance seats but the license is not entitled to this feature.", actual))
 			case feature.Entitlement == codersdk.EntitlementGracePeriod && feature.Limit != nil:
 				entitlements.Warnings = append(entitlements.Warnings,
 					fmt.Sprintf(
-						"Your deployment has %d active AI Governance seats but the license with the limit %d is expired.",
-						featureArguments.ActiveAISeatCount, *feature.Limit))
-			case feature.Limit != nil && featureArguments.ActiveAISeatCount > *feature.Limit:
+						"Your deployment has %d active AI governance seats but the license with the limit %d is expired.",
+						actual, *feature.Limit))
+				// Also emit the over-limit warning when usage exceeds the limit,
+				// so admins see both the expiry and overage details.
+				if *feature.Limit > 0 && actual > *feature.Limit {
+					overPct := ((actual - *feature.Limit) * 100) / *feature.Limit
+					if overPct < 1 {
+						overPct = 1
+					}
+					entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
+						codersdk.LicenseAIGovernanceOverLimitWarningText,
+						actual,
+						*feature.Limit,
+						overPct,
+					))
+					// Emit the 90% capacity warning when usage is near, but below
+					// the limit.
+				} else if *feature.Limit > 0 && actual*100 >= (*feature.Limit)*90 && actual < *feature.Limit {
+					entitlements.Warnings = append(entitlements.Warnings,
+						codersdk.LicenseAIGovernance90PercentWarningText)
+				}
+
+			case feature.Limit != nil && *feature.Limit > 0 &&
+				actual*100 >= (*feature.Limit)*90 && actual < *feature.Limit:
+				entitlements.Warnings = append(entitlements.Warnings,
+					codersdk.LicenseAIGovernance90PercentWarningText)
+			case feature.Limit != nil && *feature.Limit > 0 && actual > *feature.Limit:
+				overPct := ((actual - *feature.Limit) * 100) / *feature.Limit
+				if overPct < 1 {
+					overPct = 1
+				}
 				entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
-					"Your deployment has %d active AI Governance seats but is only licensed for %d.",
-					featureArguments.ActiveAISeatCount, *feature.Limit))
+					codersdk.LicenseAIGovernanceOverLimitWarningText,
+					actual,
+					*feature.Limit,
+					overPct,
+				))
 			}
 		}
 
