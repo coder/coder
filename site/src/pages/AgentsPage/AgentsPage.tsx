@@ -434,16 +434,14 @@ const AgentsPage: FC = () => {
 									c.updated_at > updatedChat.updated_at
 										? c.updated_at
 										: updatedChat.updated_at;
-								if (
-									nextStatus === c.status &&
-									nextTitle === c.title &&
-									nextDiffStatus === c.diff_status &&
-									nextWorkspaceId === c.workspace_id &&
-									nextUpdatedAt === c.updated_at
-								) {
-									return c;
-								}
-								didUpdate = true;
+							if (
+								nextStatus === c.status &&
+								nextTitle === c.title &&
+								nextDiffStatus === c.diff_status &&
+								nextWorkspaceId === c.workspace_id
+							) {
+								return c;
+							}								didUpdate = true;
 								return {
 									...c,
 									status: nextStatus,
@@ -477,16 +475,14 @@ const AgentsPage: FC = () => {
 										? previousChat.updated_at
 										: updatedChat.updated_at;
 
-								if (
-									nextStatus === previousChat.status &&
-									nextTitle === previousChat.title &&
-									nextDiffStatus === previousChat.diff_status &&
-									nextWorkspaceId === previousChat.workspace_id &&
-									nextUpdatedAt === previousChat.updated_at
-								) {
-									return previousChat;
-								}
-
+									if (
+										nextStatus === previousChat.status &&
+										nextTitle === previousChat.title &&
+										nextDiffStatus === previousChat.diff_status &&
+										nextWorkspaceId === previousChat.workspace_id
+									) {
+										return previousChat;
+									}
 								return {
 									...previousChat,
 									status: nextStatus,
