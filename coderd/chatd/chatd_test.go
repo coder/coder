@@ -3551,9 +3551,9 @@ func TestMCPServerToolInvocation(t *testing.T) {
 	// Track which tool names are sent to the LLM and capture
 	// whether the MCP tool result appears in the second call.
 	var (
-		callCount     atomic.Int32
-		llmToolNames  []string
-		llmToolsMu    sync.Mutex
+		callCount      atomic.Int32
+		llmToolNames   []string
+		llmToolsMu     sync.Mutex
 		foundMCPResult atomic.Bool
 	)
 
@@ -3591,7 +3591,7 @@ func TestMCPServerToolInvocation(t *testing.T) {
 		return chattest.OpenAIStreamingResponse(
 			chattest.OpenAITextChunks("Got it!")...,
 		)
-		})
+	})
 
 	user, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
 

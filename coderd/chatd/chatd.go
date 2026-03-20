@@ -2777,9 +2777,10 @@ func (p *Server) runChat(
 		g.Go(func() error {
 			var err error
 			// If token loading fails, ConnectAll will still
-			// proceed but oauth2-authenticated servers will lack
-			// credentials and be skipped during connection
-			// (logged individually by ConnectAll).
+			// proceed but oauth2-authenticated servers will
+			// attempt to connect without credentials. Those
+			// connections may succeed or fail depending on
+			// the remote server's auth requirements.
 			mcpTokens, err = p.db.GetMCPServerUserTokensByUserID(
 				ctx, chat.OwnerID,
 			)
@@ -2857,10 +2858,10 @@ func (p *Server) runChat(
 	// resolution. ConnectAll only depends on mcpConfigs and
 	// mcpTokens which are available after g.Wait() above.
 	var (
-		instruction       string
+		instruction        string
 		resolvedUserPrompt string
-		mcpTools          []fantasy.AgentTool
-		mcpCleanup        func()
+		mcpTools           []fantasy.AgentTool
+		mcpCleanup         func()
 	)
 	var g2 errgroup.Group
 	g2.Go(func() error {
@@ -2884,9 +2885,10 @@ func (p *Server) runChat(
 			return nil
 		})
 	}
-		// All g2 goroutines return nil; error is discarded.
-		_ = g2.Wait()
-		if mcpCleanup != nil {		defer mcpCleanup()
+	// All g2 goroutines return nil; error is discarded.
+	_ = g2.Wait()
+	if mcpCleanup != nil {
+		defer mcpCleanup()
 	}
 
 	if instruction != "" {

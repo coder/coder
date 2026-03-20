@@ -5,11 +5,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -37,6 +39,10 @@ const toolNameSep = "__"
 // entire chat startup.
 const connectTimeout = 10 * time.Second
 
+// toolCallTimeout bounds how long a single tool invocation may
+// take before being canceled.
+const toolCallTimeout = 60 * time.Second
+
 // ConnectAll connects to all configured MCP servers, discovers
 // their tools, and returns them as fantasy.AgentTool values. It
 // skips servers that fail to connect and logs warnings. The
@@ -51,10 +57,10 @@ func ConnectAll(
 	// Index tokens by server config ID so auth header
 	// construction is O(1) per server.
 	tokensByConfigID := make(
-		map[string]database.MCPServerUserToken, len(tokens),
+		map[uuid.UUID]database.MCPServerUserToken, len(tokens),
 	)
 	for _, tok := range tokens {
-		tokensByConfigID[tok.MCPServerConfigID.String()] = tok
+		tokensByConfigID[tok.MCPServerConfigID] = tok
 	}
 
 	var (
@@ -91,7 +97,7 @@ func ConnectAll(
 				logger.Warn(ctx,
 					"skipping MCP server due to connection failure",
 					slog.F("server_slug", cfg.Slug),
-					slog.F("server_url", cfg.Url),
+					slog.F("server_url", redactURL(cfg.Url)),
 					slog.Error(connectErr),
 				)
 				return
@@ -116,7 +122,7 @@ func connectOne(
 	ctx context.Context,
 	logger slog.Logger,
 	cfg database.MCPServerConfig,
-	tokensByConfigID map[string]database.MCPServerUserToken,
+	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
 ) ([]fantasy.AgentTool, *client.Client, error) {
 	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID)
 
@@ -222,20 +228,33 @@ func buildAuthHeaders(
 	ctx context.Context,
 	logger slog.Logger,
 	cfg database.MCPServerConfig,
-	tokensByConfigID map[string]database.MCPServerUserToken,
+	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
 ) map[string]string {
 	headers := make(map[string]string)
 
 	switch cfg.AuthType {
 	case "oauth2":
-		tok, ok := tokensByConfigID[cfg.ID.String()]
-		if ok && tok.AccessToken != "" {
+		tok, ok := tokensByConfigID[cfg.ID]
+		if !ok {
+			logger.Warn(ctx,
+				"no oauth2 token found for MCP server",
+				slog.F("server_slug", cfg.Slug),
+			)
+			break
+		}
+		if tok.Expiry.Valid && tok.Expiry.Time.Before(time.Now()) {
+			logger.Warn(ctx,
+				"oauth2 token for MCP server is expired",
+				slog.F("server_slug", cfg.Slug),
+				slog.F("expired_at", tok.Expiry.Time),
+			)
+		}
+		if tok.AccessToken != "" {
 			tokenType := tok.TokenType
 			if tokenType == "" {
 				tokenType = "Bearer"
 			}
-			headers["Authorization"] =
-				tokenType + " " + tok.AccessToken
+			headers["Authorization"] = tokenType + " " + tok.AccessToken
 		}
 	case "api_key":
 		if cfg.APIKeyHeader != "" && cfg.APIKeyValue != "" {
@@ -295,6 +314,17 @@ func isToolAllowed(
 	return true
 }
 
+// redactURL strips userinfo from a URL to avoid logging
+// embedded credentials.
+func redactURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	u.User = nil
+	return u.String()
+}
+
 // mcpToolWrapper adapts a single MCP tool into a
 // fantasy.AgentTool. It stores the prefixed name for Info() but
 // strips the prefix when forwarding calls to the remote server.
@@ -350,8 +380,11 @@ func (t *mcpToolWrapper) Run(
 		}
 	}
 
+	callCtx, cancel := context.WithTimeout(ctx, toolCallTimeout)
+	defer cancel()
+
 	result, err := t.client.CallTool(
-		ctx,
+		callCtx,
 		mcp.CallToolRequest{
 			Params: mcp.CallToolParams{
 				Name:      t.originalName,
