@@ -489,16 +489,23 @@ func LicensesEntitlements(
 				"Your deployment has %d active users but the license with the limit %d is expired.",
 				featureArguments.ActiveUserCount, *userLimit.Limit))
 		}
-		aiGovernanceUserLimit := entitlements.Features[codersdk.FeatureAIGovernanceUserLimit]
-		if aiGovernanceUserLimit.Limit != nil && featureArguments.ActiveAISeatCount > *aiGovernanceUserLimit.Limit {
-			entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
-				"Your deployment has %d active AI governance seats but is only licensed for %d.",
-				featureArguments.ActiveAISeatCount, *aiGovernanceUserLimit.Limit))
-		} else if aiGovernanceUserLimit.Limit != nil &&
-			aiGovernanceUserLimit.Entitlement == codersdk.EntitlementGracePeriod {
-			entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
-				"Your deployment has %d active AI governance seats but the license with the limit %d is expired.",
-				featureArguments.ActiveAISeatCount, *aiGovernanceUserLimit.Limit))
+		if featureArguments.ActiveAISeatCount > 0 {
+			feature := entitlements.Features[codersdk.FeatureAIGovernanceUserLimit]
+			switch {
+			case feature.Entitlement == codersdk.EntitlementNotEntitled:
+				// If the limit is not set
+				entitlements.Errors = append(entitlements.Errors,
+					fmt.Sprintf("Your deployment has %d active AI governance seats but the license is not entitled to this feature.", featureArguments.ActiveAISeatCount))
+			case feature.Entitlement == codersdk.EntitlementGracePeriod && feature.Limit != nil:
+				entitlements.Warnings = append(entitlements.Warnings,
+					fmt.Sprintf(
+						"Your deployment has %d active AI governance seats but the license with the limit %d is expired.",
+						featureArguments.ActiveAISeatCount, *feature.Limit))
+			case feature.Limit != nil && featureArguments.ActiveAISeatCount > *feature.Limit:
+				entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
+					"Your deployment has %d active AI governance seats but is only licensed for %d.",
+					featureArguments.ActiveAISeatCount, *feature.Limit))
+			}
 		}
 
 		// Add a warning for every feature that is enabled but not entitled or
