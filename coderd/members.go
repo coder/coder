@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -180,14 +181,7 @@ func (api *API) organizationMember(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	aiSeatSet, err := getAISeatSetByUserIDs(ctx, api.Database, []uuid.UUID{member.UserID})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching AI seat states.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	aiSeatSet := getAISeatSetByUserIDs(ctx, api.Logger, api.Database, []uuid.UUID{member.UserID})
 
 	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, rows, aiSeatSet)
 	if err != nil {
@@ -241,14 +235,7 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 	for _, member := range members {
 		userIDs = append(userIDs, member.OrganizationMember.UserID)
 	}
-	aiSeatSet, err := getAISeatSetByUserIDs(ctx, api.Database, userIDs)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching AI seat states.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	aiSeatSet := getAISeatSetByUserIDs(ctx, api.Logger, api.Database, userIDs)
 
 	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, members, aiSeatSet)
 	if err != nil {
@@ -322,14 +309,7 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 	for _, member := range memberRows {
 		userIDs = append(userIDs, member.OrganizationMember.UserID)
 	}
-	aiSeatSet, err := getAISeatSetByUserIDs(ctx, api.Database, userIDs)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching AI seat states.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	aiSeatSet := getAISeatSetByUserIDs(ctx, api.Logger, api.Database, userIDs)
 
 	members, err := convertOrganizationMembersWithUserData(ctx, api.Database, memberRows, aiSeatSet)
 	if err != nil {
@@ -344,13 +324,14 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-func getAISeatSetByUserIDs(ctx context.Context, db database.Store, userIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
+func getAISeatSetByUserIDs(ctx context.Context, logger slog.Logger, db database.Store, userIDs []uuid.UUID) map[uuid.UUID]struct{} {
 	aiSeatUserIDs, err := db.GetUserAISeatStates(ctx, userIDs)
 	if xerrors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
-		return nil, err
+		logger.Warn(ctx, "failed to fetch AI seat states", slog.Error(err))
+		return map[uuid.UUID]struct{}{}
 	}
 
 	aiSeatSet := make(map[uuid.UUID]struct{}, len(aiSeatUserIDs))
@@ -358,7 +339,7 @@ func getAISeatSetByUserIDs(ctx context.Context, db database.Store, userIDs []uui
 		aiSeatSet[uid] = struct{}{}
 	}
 
-	return aiSeatSet, nil
+	return aiSeatSet
 }
 
 // @Summary Assign role to organization member
