@@ -116,6 +116,39 @@ type RenderBlockListResult = {
 	renderedToolIDs: ReadonlySet<string>;
 };
 
+const ASSISTANT_CONTENT_CLASSES = "whitespace-normal";
+const BLOCK_STACK_CLASSES = "space-y-2";
+const TOOL_SHELL_CLASSES =
+	"rounded-md border-l-2 border-border-default bg-surface-secondary/50 py-1 pl-3 pr-1";
+
+// Per-block-type visual wrapper applied inside renderBlockList().
+function blockShell(type: string, key: string, children: ReactNode): ReactNode {
+	switch (type) {
+		case "tool":
+			return (
+				<div key={key} className={TOOL_SHELL_CLASSES}>
+					{children}
+				</div>
+			);
+		case "thinking":
+			return (
+				<div key={key} className="mt-1">
+					{children}
+				</div>
+			);
+		case "sources":
+		case "file-reference":
+			return (
+				<div key={key} className="mt-1 text-content-secondary">
+					{children}
+				</div>
+			);
+		default:
+			// "response", "file" (images), etc. — keep light, no extra wrapper.
+			return <Fragment key={key}>{children}</Fragment>;
+	}
+}
+
 function renderBlockList({
 	blocks,
 	toolByID,
@@ -129,39 +162,33 @@ function renderBlockList({
 	const renderedToolIDs = new Set<string>();
 	const elements = blocks
 		.map((block, index) => {
+			const key = `${keyPrefix}-${block.type}-${index}`;
+			let element: ReactNode | null = null;
 			switch (block.type) {
 				case "response":
-					return isStreaming ? (
+					element = isStreaming ? (
 						<SmoothedResponse
-							key={`${keyPrefix}-response-${index}`}
 							text={block.text}
 							streamKey={keyPrefix}
 							urlTransform={urlTransform}
 						/>
 					) : (
-						<Response
-							key={`${keyPrefix}-response-${index}`}
-							urlTransform={urlTransform}
-						>
-							{block.text}
-						</Response>
+						<Response urlTransform={urlTransform}>{block.text}</Response>
 					);
+					break;
 				case "thinking":
-					return (
+					element = (
 						<ReasoningDisclosure
-							key={`${keyPrefix}-thinking-${index}`}
 							id={`${keyPrefix}-thinking-${index}`}
 							text={block.text}
 							isStreaming={isStreaming}
 							urlTransform={urlTransform}
 						/>
 					);
+					break;
 				case "file-reference":
-					return (
-						<div
-							key={`${keyPrefix}-file-reference-${index}`}
-							className="my-1 flex items-start gap-2 rounded-md border border-content-link/20 bg-content-link/5 px-2.5 py-1.5"
-						>
+					element = (
+						<div className="my-1 flex items-start gap-2 rounded-md border border-content-link/20 bg-content-link/5 px-2.5 py-1.5">
 							<span className="shrink-0 text-xs font-medium text-content-link">
 								{block.file_name}:
 								{block.start_line === block.end_line
@@ -170,6 +197,7 @@ function renderBlockList({
 							</span>
 						</div>
 					);
+					break;
 				case "tool": {
 					const tool = toolByID.get(block.id);
 					if (!tool) {
@@ -178,9 +206,8 @@ function renderBlockList({
 						}
 						// Streaming placeholder for not-yet-resolved tool.
 						renderedToolIDs.add(block.id);
-						return (
+						element = (
 							<Tool
-								key={block.id}
 								name="Tool"
 								status="running"
 								isError={false}
@@ -188,11 +215,11 @@ function renderBlockList({
 								subagentStatusOverrides={subagentStatusOverrides}
 							/>
 						);
+						break;
 					}
 					renderedToolIDs.add(tool.id);
-					return (
+					element = (
 						<Tool
-							key={tool.id}
 							name={tool.name}
 							args={tool.args}
 							result={tool.result}
@@ -204,15 +231,15 @@ function renderBlockList({
 							}
 						/>
 					);
+					break;
 				}
 				case "file":
 					if (block.media_type.startsWith("image/")) {
 						const src = block.file_id
 							? `/api/experimental/chats/files/${block.file_id}`
 							: `data:${block.media_type};base64,${block.data}`;
-						return (
+						element = (
 							<button
-								key={`${keyPrefix}-file-${index}`}
 								type="button"
 								aria-label="View image"
 								className="inline-block rounded-md border-0 bg-transparent p-0"
@@ -229,21 +256,46 @@ function renderBlockList({
 							</button>
 						);
 					}
-					return null;
+					break;
 				case "sources":
-					return (
-						<WebSearchSources
-							key={`${keyPrefix}-sources-${index}`}
-							sources={block.sources}
-						/>
-					);
+					element = <WebSearchSources sources={block.sources} />;
+					break;
 				default:
-					return null;
+					break;
 			}
+			return element ? blockShell(block.type, key, element) : null;
 		})
 		.filter((el): el is NonNullable<typeof el> => el != null);
 	return { elements, renderedToolIDs };
 }
+
+// Shared wrapper providing consistent chrome for every transcript turn.
+// Supplies: deep-link anchor, role label, and the standard
+// ConversationItem → Message → MessageContent stack.
+const TurnChrome: FC<{
+	id?: string;
+	turnRole: "user" | "assistant";
+	label: string;
+	messageClassName?: string;
+	contentClassName?: string;
+	children: ReactNode;
+}> = ({
+	id,
+	turnRole,
+	label,
+	messageClassName,
+	contentClassName,
+	children,
+}) => (
+	<ConversationItem id={id} role={turnRole}>
+		<Message className={cn("w-full", messageClassName)}>
+			<span className="mb-1 select-none text-xs font-medium text-content-secondary">
+				{label}
+			</span>
+			<MessageContent className={contentClassName}>{children}</MessageContent>
+		</Message>
+	</ConversationItem>
+);
 
 const ChatMessageItem = memo<{
 	message: TypesGen.ChatMessage;
@@ -315,9 +367,11 @@ const ChatMessageItem = memo<{
 				)
 			: [];
 
-		const conversationItemProps: { role: "user" | "assistant" } = {
-			role: isUser ? "user" : "assistant",
+		const userConversationItemProps = {
+			id: `message-${message.id}`,
+			role: "user" as const,
 		};
+
 		const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
 			blocks: parsed.blocks,
 			toolByID,
@@ -336,9 +390,12 @@ const ChatMessageItem = memo<{
 					"transition-opacity duration-200",
 				)}
 			>
-				<ConversationItem {...conversationItemProps}>
-					{isUser ? (
+				{isUser ? (
+					<ConversationItem {...userConversationItemProps}>
 						<Message className="w-full max-w-none">
+							<span className="mb-1 select-none text-xs font-medium text-content-secondary">
+								You
+							</span>
 							<MessageContent
 								className={cn(
 									"group/msg rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
@@ -456,31 +513,34 @@ const ChatMessageItem = memo<{
 								</div>
 							</MessageContent>
 						</Message>
-					) : (
-						<Message className="w-full">
-							<MessageContent className="whitespace-normal">
-								<div className="space-y-3">
-									{orderedBlocks}
-									{remainingTools.map((tool) => (
-										<Tool
-											key={tool.id}
-											name={tool.name}
-											args={tool.args}
-											result={tool.result}
-											status={tool.status}
-											isError={tool.isError}
-										/>
-									))}
-									{!hasRenderableContent && (
-										<div className="text-xs text-content-secondary">
-											Message has no renderable content.
-										</div>
-									)}
+					</ConversationItem>
+				) : (
+					<TurnChrome
+						id={`message-${message.id}`}
+						turnRole="assistant"
+						label="Assistant"
+						contentClassName={ASSISTANT_CONTENT_CLASSES}
+					>
+						<div className={BLOCK_STACK_CLASSES}>
+							{orderedBlocks}
+							{remainingTools.map((tool) => (
+								<Tool
+									key={tool.id}
+									name={tool.name}
+									args={tool.args}
+									result={tool.result}
+									status={tool.status}
+									isError={tool.isError}
+								/>
+							))}
+							{!hasRenderableContent && (
+								<div className="text-xs text-content-secondary">
+									Message has no renderable content.
 								</div>
-							</MessageContent>
-						</Message>
-					)}
-				</ConversationItem>
+							)}
+						</div>
+					</TurnChrome>
+				)}
 				{previewImage && (
 					<ImageLightbox
 						src={previewImage}
@@ -511,7 +571,6 @@ export const StreamingOutput = memo<{
 		retryState,
 		urlTransform,
 	}) => {
-		const conversationItemProps = { role: "assistant" as const };
 		const toolByID = new Map(streamTools.map((tool) => [tool.id, tool]));
 		const blocks = streamState?.blocks ?? [];
 		const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
@@ -528,47 +587,48 @@ export const StreamingOutput = memo<{
 		);
 
 		return (
-			<ConversationItem {...conversationItemProps}>
-				<Message className="w-full">
-					<MessageContent className="whitespace-normal">
-						<div className="space-y-3">
-							{orderedBlocks}
-							{showInitialPlaceholder ||
-							(streamState &&
-								orderedBlocks.length === 0 &&
-								streamTools.length === 0) ? (
-								<div className="relative">
-									<Response aria-hidden className="invisible">
-										{`Thinking...${retryState ? ` attempt ${retryState.attempt}` : ""}`}
-									</Response>
-									<div className="pointer-events-none absolute inset-0 flex items-baseline gap-2">
-										<Shimmer as="div" className="text-[13px] leading-relaxed">
-											Thinking...
-										</Shimmer>
-										{retryState && (
-											<span className="text-[11px] text-content-secondary">
-												attempt {retryState.attempt}
-											</span>
-										)}
-									</div>
-								</div>
-							) : null}
-							{remainingTools.map((tool) => (
-								<Tool
-									key={tool.id}
-									name={tool.name}
-									args={tool.args}
-									result={tool.result}
-									status={tool.status}
-									isError={tool.isError}
-									subagentTitles={subagentTitles}
-									subagentStatusOverrides={subagentStatusOverrides}
-								/>
-							))}
+			<TurnChrome
+				id="agent-message-stream"
+				turnRole="assistant"
+				label="Assistant"
+				contentClassName={ASSISTANT_CONTENT_CLASSES}
+			>
+				<div className={BLOCK_STACK_CLASSES}>
+					{orderedBlocks}
+					{showInitialPlaceholder ||
+					(streamState &&
+						orderedBlocks.length === 0 &&
+						streamTools.length === 0) ? (
+						<div className="relative">
+							<Response aria-hidden className="invisible">
+								{`Thinking...${retryState ? ` attempt ${retryState.attempt}` : ""}`}
+							</Response>
+							<div className="pointer-events-none absolute inset-0 flex items-baseline gap-2">
+								<Shimmer as="div" className="text-[13px] leading-relaxed">
+									Thinking...
+								</Shimmer>
+								{retryState && (
+									<span className="text-[11px] text-content-secondary">
+										attempt {retryState.attempt}
+									</span>
+								)}
+							</div>
 						</div>
-					</MessageContent>
-				</Message>
-			</ConversationItem>
+					) : null}
+					{remainingTools.map((tool) => (
+						<Tool
+							key={tool.id}
+							name={tool.name}
+							args={tool.args}
+							result={tool.result}
+							status={tool.status}
+							isError={tool.isError}
+							subagentTitles={subagentTitles}
+							subagentStatusOverrides={subagentStatusOverrides}
+						/>
+					))}
+				</div>
+			</TurnChrome>
 		);
 	},
 );

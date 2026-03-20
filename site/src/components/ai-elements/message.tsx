@@ -5,7 +5,11 @@ type MessageProps = ComponentPropsWithRef<"div">;
 
 export const Message = ({ className, ref, ...props }: MessageProps) => {
 	return (
-		<div ref={ref} className={cn("max-w-full min-w-0", className)} {...props} />
+		<div
+			ref={ref}
+			className={cn("flex flex-col max-w-full min-w-0", className)}
+			{...props}
+		/>
 	);
 };
 
