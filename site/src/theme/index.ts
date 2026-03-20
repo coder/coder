@@ -36,3 +36,5 @@ const theme = {
 } satisfies Record<string, Theme>;
 
 export default theme;
+
+export type ThemeName = keyof typeof theme;

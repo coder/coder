@@ -22,23 +22,29 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
-import themes, { DEFAULT_THEME, type Theme } from "theme";
+import themes, { DEFAULT_THEME, type Theme, type ThemeName } from "theme";
+
+type MetadataUserAppearanceValue = ThemeName | "auto" | "" | undefined;
 
 /**
  *
  */
 export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
+	const initialTheme = metadata.userAppearance?.value
+		?.theme_preference as MetadataUserAppearanceValue;
 	const appearanceSettingsQuery = useQuery(
 		appearanceSettings(metadata.userAppearance),
 	);
+	const loadedTheme = appearanceSettingsQuery?.data
+		?.theme_preference as MetadataUserAppearanceValue;
 	const themeQuery = useMemo(
 		() => window.matchMedia?.("(prefers-color-scheme: light)"),
 		[],
 	);
-	const [preferredColorScheme, setPreferredColorScheme] = useState<
-		"dark" | "light"
-	>(themeQuery?.matches ? "light" : "dark");
+	const [preferredColorScheme, setPreferredColorScheme] = useState<ThemeName>(
+		themeQuery?.matches ? "light" : "dark",
+	);
 
 	useEffect(() => {
 		if (!themeQuery) {
@@ -57,12 +63,11 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 		};
 	}, [themeQuery]);
 
-	// We might not be logged in yet, or the `theme_preference` could be an empty string.
-	// Prefer JS-fetched value, fall back to server-rendered meta tag, then default.
-	const themePreference =
-		appearanceSettingsQuery.data?.theme_preference ||
-		metadata.userAppearance?.value?.theme_preference ||
-		DEFAULT_THEME;
+	// We might not be logged in yet, or the `theme_preference` could be an empty
+	// string. Prefer JS-fetched value, fall back to server-rendered meta tag,
+	// then default.
+	const themePreference = loadedTheme || initialTheme || DEFAULT_THEME;
+
 	// The janky casting here is fine because of the much more type safe fallback
 	// We need to support `themePreference` being wrong anyway because the database
 	// value could be anything, like an empty string.
@@ -81,8 +86,7 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	}, [themePreference, preferredColorScheme]);
 
 	const theme =
-		themes[themePreference as keyof typeof themes] ??
-		themes[preferredColorScheme];
+		themes[themePreference === "auto" ? preferredColorScheme : themePreference];
 
 	return (
 		<StyledEngineProvider injectFirst>
