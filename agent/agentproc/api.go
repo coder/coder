@@ -151,6 +151,18 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Enforce chat ID isolation. If the request carries
+	// a chat context, only allow access to processes
+	// belonging to that chat.
+	if chatID, _, ok := agentgit.ExtractChatContext(r); ok {
+		if proc.chatID != "" && proc.chatID != chatID.String() {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("Process %q not found.", id),
+			})
+			return
+		}
+	}
+
 	output, truncated := proc.output()
 	info := proc.info()
 
@@ -167,6 +179,17 @@ func (api *API) handleSignalProcess(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	id := chi.URLParam(r, "id")
+
+	// Enforce chat ID isolation.
+	if chatID, _, ok := agentgit.ExtractChatContext(r); ok {
+		proc, procOK := api.manager.get(id)
+		if procOK && proc.chatID != "" && proc.chatID != chatID.String() {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("Process %q not found.", id),
+			})
+			return
+		}
+	}
 
 	var req workspacesdk.SignalProcessRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

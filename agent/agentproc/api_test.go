@@ -77,6 +77,22 @@ func getOutput(t *testing.T, handler http.Handler, id string) *httptest.Response
 	return w
 }
 
+// getOutputWithHeaders sends a GET /{id}/output request with
+// custom headers and returns the recorder.
+func getOutputWithHeaders(t *testing.T, handler http.Handler, id string, headers http.Header) *httptest.ResponseRecorder {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	path := fmt.Sprintf("/%s/output", id)
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, path, nil)
+	for k, v := range headers {
+		req.Header[k] = v
+	}
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	return w
+}
+
 // postSignal sends a POST /{id}/signal request and returns
 // the recorder.
 func postSignal(t *testing.T, handler http.Handler, id string, req workspacesdk.SignalProcessRequest) *httptest.ResponseRecorder {
@@ -738,6 +754,34 @@ func TestProcessOutput(t *testing.T) {
 		err := json.NewDecoder(w.Body).Decode(&resp)
 		require.NoError(t, err)
 		require.Contains(t, resp.Message, "not found")
+	})
+
+	t.Run("ChatIDEnforcement", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+
+		// Start a process with chat-a.
+		chatA := uuid.New()
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command:    "echo secret",
+			Background: true,
+		}, http.Header{
+			workspacesdk.CoderChatIDHeader: {chatA.String()},
+		})
+		waitForExit(t, handler, id)
+
+		// Chat-b should NOT see this process.
+		chatB := uuid.New()
+		w1 := getOutputWithHeaders(t, handler, id, http.Header{
+			workspacesdk.CoderChatIDHeader: {chatB.String()},
+		})
+		require.Equal(t, http.StatusNotFound, w1.Code)
+
+		// Without any chat ID header, should return 200
+		// (backwards compatible).
+		w2 := getOutput(t, handler, id)
+		require.Equal(t, http.StatusOK, w2.Code)
 	})
 }
 
