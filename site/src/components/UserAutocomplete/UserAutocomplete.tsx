@@ -78,7 +78,7 @@ export const MemberAutocomplete: FC<MemberAutocompleteProps> = ({
 	const [filter, setFilter] = useState<string>();
 
 	const membersQuery = useQuery({
-		...organizationMembers(organizationId),
+		...organizationMembers(organizationId, { limit: 0 }),
 		enabled: filter !== undefined,
 		placeholderData: keepPreviousData,
 	});

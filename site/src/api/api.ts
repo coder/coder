@@ -732,7 +732,7 @@ class ApiMethods {
 	 */
 	getOrganizationPaginatedMembers = async (
 		organization: string,
-		options?: TypesGen.Pagination,
+		options?: TypesGen.UsersRequest,
 	) => {
 		const url = getURLWithSearchParams(
 			`/api/v2/organizations/${organization}/paginated-members`,
