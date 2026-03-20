@@ -46,6 +46,18 @@ describe("getVSCodeHref", () => {
 
 		expect(href).toBe(`cursor://coder.coder-remote/open?${query}`);
 	});
+
+	it("generates href for any custom editor protocol", () => {
+		const href = getVSCodeHref("windsurf", {
+			owner: "owner",
+			workspace: "my-workspace",
+			token: "abc123",
+			agent: "agent",
+		});
+		expect(href).toBe(
+			"windsurf://coder.coder-remote/open?owner=owner&workspace=my-workspace&url=http%3A%2F%2Flocalhost%3A3000&token=abc123&openRecent=true&agent=agent",
+		);
+	});
 });
 
 describe("getAppHref", () => {

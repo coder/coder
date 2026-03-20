@@ -27,6 +27,10 @@ import type { FC } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { cn } from "utils/cn";
+import {
+	DEFAULT_EDITOR_LIST,
+	type EditorDescriptor,
+} from "modules/apps/apps";
 import { useEmbedContext } from "../EmbedContext";
 import { PrStateIcon } from "../GitPanel";
 import { parsePullRequestUrl } from "../pullRequest";
@@ -39,7 +43,7 @@ interface SidebarPanelState {
 interface WorkspaceActions {
 	canOpenEditors: boolean;
 	canOpenWorkspace: boolean;
-	onOpenInEditor: (editor: "cursor" | "vscode") => void;
+	onOpenInEditor: (editorProtocol: string) => void;
 	onViewWorkspace: () => void;
 	onOpenTerminal: () => void;
 	sshCommand: string | undefined;
@@ -59,6 +63,8 @@ type AgentDetailTopBarProps = {
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	diffStatusData?: ChatDiffStatus;
+	/** Editors to show in the dropdown. Defaults to `DEFAULT_EDITOR_LIST`. */
+	editorList?: readonly EditorDescriptor[];
 };
 
 export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
@@ -75,6 +81,7 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	diffStatusData,
+	editorList = DEFAULT_EDITOR_LIST,
 }) => {
 	const navigate = useNavigate();
 	const { isEmbedded } = useEmbedContext();
@@ -178,24 +185,18 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								disabled={!workspace.canOpenEditors}
-								onSelect={() => {
-									workspace.onOpenInEditor("cursor");
-								}}
-							>
-								<ExternalLinkIcon className="h-3.5 w-3.5" />
-								Open in Cursor
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								disabled={!workspace.canOpenEditors}
-								onSelect={() => {
-									workspace.onOpenInEditor("vscode");
-								}}
-							>
-								<ExternalLinkIcon className="h-3.5 w-3.5" />
-								Open in VS Code
-							</DropdownMenuItem>
+							{editorList.map((editor) => (
+								<DropdownMenuItem
+									key={editor.protocol}
+									disabled={!workspace.canOpenEditors}
+									onSelect={() => {
+										workspace.onOpenInEditor(editor.protocol);
+									}}
+								>
+									<ExternalLinkIcon className="h-3.5 w-3.5" />
+									Open in {editor.displayName}
+								</DropdownMenuItem>
+							))}
 							<DropdownMenuItem
 								// You can think of the web terminal as an editor if you squint.
 								disabled={!workspace.canOpenEditors}

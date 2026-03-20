@@ -724,14 +724,14 @@ const AgentDetail: FC = () => {
 		mutationFn: () => API.getApiKey(),
 	});
 
-	const handleOpenInEditor = (editor: "cursor" | "vscode") => {
+	const handleOpenInEditor = (editorProtocol: string) => {
 		if (!workspace || !workspaceAgent) {
 			return;
 		}
 
 		generateKeyMutation.mutate(undefined, {
 			onSuccess: ({ key }) => {
-				location.href = getVSCodeHref(editor, {
+				location.href = getVSCodeHref(editorProtocol, {
 					owner: workspace.owner_name,
 					workspace: workspace.name,
 					token: key,
@@ -741,11 +741,7 @@ const AgentDetail: FC = () => {
 				});
 			},
 			onError: () => {
-				toast.error(
-					editor === "cursor"
-						? "Failed to open in Cursor."
-						: "Failed to open in VS Code.",
-				);
+				toast.error("Failed to open in editor.");
 			},
 		});
 	};
