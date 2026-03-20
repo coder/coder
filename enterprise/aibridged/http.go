@@ -46,11 +46,19 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Strip headers that carry the Coder session token so they are never
-	// forwarded to upstream providers. In BYOK mode, only the dedicated
-	// BYOK header is removed; the user's LLM credentials (Authorization,
-	// X-Api-Key) are left intact. In centralized mode, all auth headers
-	// are removed because they carried the Coder token.
+	// Strip every header that may carry the Coder session token so it is
+	// never forwarded to upstream providers.
+	//
+	// X-Coder-Token is always stripped (set by the AI proxy).
+	//
+	// In BYOK mode the token is in X-Coder-AI-Governance-BYOK-Token,
+	// Authorization and X-Api-Key carry the user's own LLM credentials
+	// and must be preserved.
+	//
+	// In centralized mode the token may be in Authorization (the
+	// documented path) or X-Api-Key (legacy clients that set
+	// ANTHROPIC_API_KEY to their Coder session token). Both are
+	// stripped.
 	r.Header.Del(agplaibridge.HeaderCoderAuth)
 	if byok {
 		r.Header.Del(agplaibridge.HeaderCoderBYOKToken)
