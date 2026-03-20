@@ -5,7 +5,9 @@ import { Button } from "components/Button/Button";
 import { ArchiveIcon, ArrowDownIcon } from "lucide-react";
 import {
 	type FC,
+	lazy,
 	type RefObject,
+	Suspense,
 	useCallback,
 	useEffect,
 	useRef,
@@ -26,10 +28,38 @@ import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
 } from "./AgentsSkeletons";
-import { GitPanel } from "./GitPanel";
-import { RightPanel } from "./RightPanel";
-import { SidebarTabView } from "./SidebarTabView";
 import type { ChatDetailError } from "./usageLimitMessage";
+
+const loadAgentDetailSidebarModules = () =>
+	Promise.all([
+		import("./RightPanel"),
+		import("./SidebarTabView"),
+		import("./GitPanel"),
+	]);
+
+const RightPanel = lazy(() =>
+	loadAgentDetailSidebarModules().then(([module]) => ({
+		default: module.RightPanel,
+	})),
+);
+
+const SidebarTabView = lazy(() =>
+	loadAgentDetailSidebarModules().then(([, module]) => ({
+		default: module.SidebarTabView,
+	})),
+);
+
+const GitPanel = lazy(() =>
+	loadAgentDetailSidebarModules().then(([, , module]) => ({
+		default: module.GitPanel,
+	})),
+);
+
+export const AgentDetailSidebarPanelLoadingFallback: FC = () => (
+	<div className="relative flex h-full w-[100vw] min-w-0 flex-col border-0 border-l border-solid border-border-default sm:w-[480px] sm:min-w-[360px] sm:max-w-[70vw]">
+		<RightPanelSkeleton />
+	</div>
+);
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -320,46 +350,50 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 					/>
 				</div>
 			</div>
-			<RightPanel
-				isOpen={shouldShowSidebar}
-				isExpanded={isRightPanelExpanded}
-				onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
-				onClose={() => onSetShowSidebarPanel(false)}
-				onVisualExpandedChange={setDragVisualExpanded}
-				isSidebarCollapsed={isSidebarCollapsed}
-				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-			>
-				<SidebarTabView
-					tabs={[
-						{
-							id: "git",
-							label: "Git",
-							content: (
-								<GitPanel
-									prTab={
-										prNumber && agentId
-											? { prNumber, chatId: agentId }
-											: undefined
-									}
-									repositories={gitWatcher.repositories}
-									onRefresh={gitWatcher.refresh}
-									onCommit={handleCommit}
-									isExpanded={visualExpanded}
-									remoteDiffStats={diffStatusData}
-									chatInputRef={editing.chatInputRef}
-								/>
-							),
-						},
-					]}
-					onClose={() => onSetShowSidebarPanel(false)}
-					isExpanded={visualExpanded}
-					onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
-					isSidebarCollapsed={isSidebarCollapsed}
-					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-					chatTitle={chatTitle}
-					desktopChatId={desktopChatId}
-				/>
-			</RightPanel>
+			{shouldShowSidebar && (
+				<Suspense fallback={<AgentDetailSidebarPanelLoadingFallback />}>
+					<RightPanel
+						isOpen={shouldShowSidebar}
+						isExpanded={isRightPanelExpanded}
+						onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
+						onClose={() => onSetShowSidebarPanel(false)}
+						onVisualExpandedChange={setDragVisualExpanded}
+						isSidebarCollapsed={isSidebarCollapsed}
+						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+					>
+						<SidebarTabView
+							tabs={[
+								{
+									id: "git",
+									label: "Git",
+									content: (
+										<GitPanel
+											prTab={
+												prNumber && agentId
+													? { prNumber, chatId: agentId }
+													: undefined
+											}
+											repositories={gitWatcher.repositories}
+											onRefresh={gitWatcher.refresh}
+											onCommit={handleCommit}
+											isExpanded={visualExpanded}
+											remoteDiffStats={diffStatusData}
+											chatInputRef={editing.chatInputRef}
+										/>
+									),
+								},
+							]}
+							onClose={() => onSetShowSidebarPanel(false)}
+							isExpanded={visualExpanded}
+							onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
+							isSidebarCollapsed={isSidebarCollapsed}
+							onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+							chatTitle={chatTitle}
+							desktopChatId={desktopChatId}
+						/>
+					</RightPanel>
+				</Suspense>
+			)}
 		</div>
 	);
 };
@@ -446,18 +480,7 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 					/>
 				</div>
 			</div>
-			{showRightPanel && (
-				<RightPanel
-					isOpen
-					isExpanded={false}
-					onToggleExpanded={() => {}}
-					onClose={() => {}}
-					isSidebarCollapsed={isSidebarCollapsed}
-					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-				>
-					<RightPanelSkeleton />
-				</RightPanel>
-			)}
+			{showRightPanel && <AgentDetailSidebarPanelLoadingFallback />}
 		</div>
 	);
 };

@@ -11,6 +11,7 @@ import { createChatStore } from "./AgentDetail/ChatContext";
 import {
 	AgentDetailLoadingView,
 	AgentDetailNotFoundView,
+	AgentDetailSidebarPanelLoadingFallback,
 	AgentDetailView,
 } from "./AgentDetailView";
 
@@ -222,6 +223,15 @@ index abc1234..def5678 100644
  start(port);`,
 		});
 	},
+};
+
+export const SidebarPanelDeferredLoading: Story = {
+	render: () => (
+		<div className="flex h-screen min-h-0 min-w-0 flex-1 bg-surface-primary">
+			<div className="flex-1 border-r border-border-default" />
+			<AgentDetailSidebarPanelLoadingFallback />
+		</div>
+	),
 };
 
 /** Left sidebar is collapsed. */

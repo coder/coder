@@ -18,7 +18,10 @@ import {
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { AgentsPageView } from "./AgentsPageView";
+import {
+	AgentsPagePanelLoadingFallback,
+	AgentsPageView,
+} from "./AgentsPageView";
 
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
@@ -534,6 +537,15 @@ export const OpensSettingsForNonAdmins: Story = {
 			).toBeInTheDocument();
 		});
 	},
+};
+
+export const DeferredPanelLoading: Story = {
+	render: () => (
+		<div className="flex h-screen min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
+			<div className="hidden border-r border-border-default md:block md:h-full md:w-[320px] md:min-h-0" />
+			<AgentsPagePanelLoadingFallback />
+		</div>
+	),
 };
 
 export const SettingsViewResets: Story = {

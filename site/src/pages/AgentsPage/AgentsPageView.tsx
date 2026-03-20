@@ -3,19 +3,49 @@ import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
+import { Skeleton } from "components/Skeleton/Skeleton";
 import type { Dayjs } from "dayjs";
 import { PanelLeftIcon } from "lucide-react";
-import { type FC, useCallback, useMemo } from "react";
+import { type FC, lazy, Suspense, useCallback, useMemo } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
 import { AgentCreateForm, type CreateChatOptions } from "./AgentCreateForm";
 import { AgentsSidebar, sidebarViewFromPath } from "./AgentsSidebar";
-import { AnalyticsPageContent } from "./AnalyticsPageContent";
 import { ChimeButton } from "./ChimeButton";
-import { SettingsPageContent } from "./SettingsPageContent";
 import type { ChatDetailError } from "./usageLimitMessage";
 import { WebPushButton } from "./WebPushButton";
+
+const SettingsPageContent = lazy(() =>
+	import("./SettingsPageContent").then((module) => ({
+		default: module.SettingsPageContent,
+	})),
+);
+
+const AnalyticsPageContent = lazy(() =>
+	import("./AnalyticsPageContent").then((module) => ({
+		default: module.AnalyticsPageContent,
+	})),
+);
+
+export const AgentsPagePanelLoadingFallback: FC = () => (
+	<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary">
+		<div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-6 py-5">
+			<div className="space-y-2">
+				<Skeleton className="h-7 w-40" />
+				<Skeleton className="h-4 w-80 max-w-full" />
+			</div>
+			<div className="rounded-lg border border-border-default bg-surface-secondary p-6">
+				<div className="space-y-4">
+					<Skeleton className="h-4 w-48 max-w-full" />
+					<Skeleton className="h-4 w-full" />
+					<Skeleton className="h-4 w-11/12" />
+					<Skeleton className="h-4 w-3/4" />
+				</div>
+			</div>
+		</div>
+	</div>
+);
 
 type ChatModelOption = ModelSelectorOption;
 
@@ -242,14 +272,19 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 						"order-1 md:order-none flex-none md:flex-1",
 				)}
 			>
-				{sidebarView.panel === "settings" ? (
-					<SettingsPageContent
-						activeSection={sidebarView.section}
-						canManageChatModelConfigs={isAgentsAdmin}
-						canSetSystemPrompt={isAgentsAdmin}
-					/>
-				) : sidebarView.panel === "analytics" ? (
-					<AnalyticsPageContent now={analyticsNow} />
+				{sidebarView.panel === "settings" ||
+				sidebarView.panel === "analytics" ? (
+					<Suspense fallback={<AgentsPagePanelLoadingFallback />}>
+						{sidebarView.panel === "settings" ? (
+							<SettingsPageContent
+								activeSection={sidebarView.section}
+								canManageChatModelConfigs={isAgentsAdmin}
+								canSetSystemPrompt={isAgentsAdmin}
+							/>
+						) : (
+							<AnalyticsPageContent now={analyticsNow} />
+						)}
+					</Suspense>
 				) : agentId ? (
 					<Outlet key={agentId} context={outletContextValue} />
 				) : (
