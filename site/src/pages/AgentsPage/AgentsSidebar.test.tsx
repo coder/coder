@@ -5,14 +5,14 @@ import {
 	MockEntitlements,
 	MockUserOwner,
 } from "testHelpers/entities";
-import { act, render } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type * as TypesGen from "api/typesGenerated";
 import type { Chat } from "api/typesGenerated";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes } from "react-router";
 import themes, { DEFAULT_THEME } from "theme";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentsSidebar } from "./AgentsSidebar";
@@ -89,6 +89,30 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 				<MemoryRouter initialEntries={["/agents"]}>
 					<DashboardContext.Provider value={dashboardValue}>
 						{children}
+					</DashboardContext.Provider>
+				</MemoryRouter>
+			</ThemeOverride>
+		</QueryClientProvider>
+	);
+};
+
+const RouteWrapper: FC<
+	PropsWithChildren<{ initialEntries: readonly string[] }>
+> = ({ children, initialEntries }) => {
+	const queryClient = new QueryClient({
+		defaultOptions: {
+			queries: { retry: false, refetchOnWindowFocus: false },
+		},
+	});
+	return (
+		<QueryClientProvider client={queryClient}>
+			<ThemeOverride theme={themes[DEFAULT_THEME]}>
+				<MemoryRouter initialEntries={[...initialEntries]}>
+					<DashboardContext.Provider value={dashboardValue}>
+						<Routes>
+							<Route path="/agents" element={children} />
+							<Route path="/agents/:agentId" element={children} />
+						</Routes>
 					</DashboardContext.Provider>
 				</MemoryRouter>
 			</ThemeOverride>
@@ -273,5 +297,139 @@ describe("AgentsSidebar load-more behavior", () => {
 		// No observer should have been created since the sentinel
 		// is not rendered.
 		expect(observeCount).toBe(0);
+	});
+});
+
+describe("AgentsSidebar tree behavior", () => {
+	it("expands and collapses a parent branch", () => {
+		const parentChat = buildChat({ id: "root-1", title: "Root Chat" });
+		const childChat = buildChat({
+			id: "child-1",
+			title: "Child Chat",
+			parent_chat_id: parentChat.id,
+			root_chat_id: parentChat.id,
+		});
+
+		render(
+			<Wrapper>
+				<AgentsSidebar {...defaultProps} chats={[parentChat, childChat]} />
+			</Wrapper>,
+		);
+
+		expect(screen.queryByText("Child Chat")).not.toBeInTheDocument();
+
+		fireEvent.click(screen.getByTestId(`agents-tree-toggle-${parentChat.id}`));
+		expect(screen.getByText("Child Chat")).toBeInTheDocument();
+
+		fireEvent.click(screen.getByTestId(`agents-tree-toggle-${parentChat.id}`));
+		expect(screen.queryByText("Child Chat")).not.toBeInTheDocument();
+	});
+
+	it("auto-expands ancestors for the active chat route", async () => {
+		const rootChat = buildChat({ id: "root-1", title: "Root Chat" });
+		const middleChat = buildChat({
+			id: "middle-1",
+			title: "Middle Chat",
+			parent_chat_id: rootChat.id,
+			root_chat_id: rootChat.id,
+		});
+		const leafChat = buildChat({
+			id: "leaf-1",
+			title: "Leaf Chat",
+			parent_chat_id: middleChat.id,
+			root_chat_id: rootChat.id,
+		});
+
+		render(
+			<RouteWrapper initialEntries={[`/agents/${leafChat.id}`]}>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[rootChat, middleChat, leafChat]}
+				/>
+			</RouteWrapper>,
+		);
+
+		await screen.findByText("Leaf Chat");
+
+		expect(
+			screen.getByTestId(`agents-tree-toggle-${rootChat.id}`),
+		).toHaveAttribute("aria-expanded", "true");
+		expect(
+			screen.getByTestId(`agents-tree-toggle-${middleChat.id}`),
+		).toHaveAttribute("aria-expanded", "true");
+		expect(screen.getByText("Leaf Chat")).toBeInTheDocument();
+	});
+
+	it("renders every root chat title when no search is applied", () => {
+		const rootChats = [
+			buildChat({ id: "root-1", title: "Alpha Root" }),
+			buildChat({ id: "root-2", title: "Beta Root" }),
+			buildChat({ id: "root-3", title: "Gamma Root" }),
+		];
+
+		render(
+			<Wrapper>
+				<AgentsSidebar {...defaultProps} chats={rootChats} />
+			</Wrapper>,
+		);
+
+		for (const chat of rootChats) {
+			expect(screen.getByText(chat.title)).toBeInTheDocument();
+		}
+	});
+});
+
+describe("AgentsSidebar render-path regression", () => {
+	it("preserves sibling root nodes when expanding a separate branch", () => {
+		const rootOne = buildChat({ id: "root-1", title: "Root One" });
+		const rootOneChild = buildChat({
+			id: "child-1",
+			title: "Root One Child",
+			parent_chat_id: rootOne.id,
+			root_chat_id: rootOne.id,
+		});
+		const rootTwo = buildChat({ id: "root-2", title: "Root Two" });
+		const rootTwoChild = buildChat({
+			id: "child-2",
+			title: "Root Two Child",
+			parent_chat_id: rootTwo.id,
+			root_chat_id: rootTwo.id,
+		});
+
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[rootOne, rootOneChild, rootTwo, rootTwoChild]}
+				/>
+			</Wrapper>,
+		);
+
+		expect(
+			screen.queryByTestId(`agents-tree-node-${rootOneChild.id}`),
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByTestId(`agents-tree-node-${rootTwoChild.id}`),
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByTestId(`agents-tree-node-${rootTwo.id}`),
+		).toBeInTheDocument();
+
+		fireEvent.click(screen.getByTestId(`agents-tree-toggle-${rootOne.id}`));
+
+		expect(
+			screen.getByTestId(`agents-tree-node-${rootOneChild.id}`),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByTestId(`agents-tree-node-${rootTwoChild.id}`),
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByTestId(`agents-tree-node-${rootTwo.id}`),
+		).toBeInTheDocument();
+		expect(
+			within(screen.getByTestId(`agents-tree-node-${rootTwo.id}`)).getByText(
+				rootTwo.title,
+			),
+		).toBeInTheDocument();
 	});
 });
