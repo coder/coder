@@ -20,6 +20,7 @@ import {
 	AlertTriangleIcon,
 	ArrowUpIcon,
 	CheckIcon,
+	ClipboardPasteIcon,
 	ImageIcon,
 	MicIcon,
 	PencilIcon,
@@ -114,6 +115,8 @@ interface AgentChatInputProps {
 	onRemoveAttachment?: (index: number) => void;
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
+	textContents?: Map<File, string>;
+	onTextPreview?: (content: string, fileName: string) => void;
 	// MCP Server picker.
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds?: readonly string[];
@@ -265,7 +268,19 @@ export const AttachmentPreview: FC<{
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
 	onPreview?: (url: string) => void;
-}> = ({ attachments, onRemove, uploadStates, previewUrls, onPreview }) => {
+	textContents?: Map<File, string>;
+	onTextPreview?: (content: string, fileName: string) => void;
+	onInlineText?: (index: number) => void;
+}> = ({
+	attachments,
+	onRemove,
+	uploadStates,
+	previewUrls,
+	onPreview,
+	textContents,
+	onTextPreview,
+	onInlineText,
+}) => {
 	if (attachments.length === 0) return null;
 
 	return (
@@ -273,6 +288,7 @@ export const AttachmentPreview: FC<{
 			{attachments.map((file, index) => {
 				const uploadState = uploadStates?.get(file);
 				const previewUrl = previewUrls?.get(file) ?? "";
+				const textContent = textContents?.get(file);
 				return (
 					<div
 						// Key combines file metadata with index as a fallback for
@@ -288,10 +304,30 @@ export const AttachmentPreview: FC<{
 							>
 								<ImageThumbnail previewUrl={previewUrl} name={file.name} />
 							</button>
+						) : file.type === "text/plain" && textContent !== undefined ? (
+							<button
+								type="button"
+								className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary"
+								onClick={() => onTextPreview?.(textContent, file.name)}
+							>
+								<span className="line-clamp-3 w-full font-mono text-2xs text-content-secondary">
+									{textContent.slice(0, 150)}
+								</span>
+							</button>
 						) : (
 							<div className="flex h-16 w-16 items-center justify-center rounded-md border border-border-default bg-surface-secondary text-xs text-content-secondary">
 								{file.name.split(".").pop()?.toUpperCase() || "FILE"}
 							</div>
+						)}
+						{file.type === "text/plain" && textContent !== undefined && (
+							<button
+								type="button"
+								onClick={() => onInlineText?.(index)}
+								className="absolute -bottom-2 -right-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+								aria-label="Paste inline"
+							>
+								<ClipboardPasteIcon className="h-3.5 w-3.5" />
+							</button>
 						)}
 						{uploadState?.status === "uploading" && (
 							<div className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay">
@@ -364,6 +400,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onRemoveAttachment,
 	uploadStates,
 	previewUrls,
+	textContents,
+	onTextPreview,
 	mcpServers,
 	selectedMCPServerIds,
 	onMCPSelectionChange,
@@ -406,6 +444,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 	const handleFilePaste = (file: File) => {
 		onAttach?.([file]);
+	};
+
+	const handleInlineText = (index: number) => {
+		const file = attachments[index];
+		if (!file) return;
+		const content = textContents?.get(file);
+		if (content === undefined) return;
+		internalRef.current?.insertText(content);
+		onRemoveAttachment?.(index);
 	};
 
 	// Drag-and-drop support for image files.
@@ -631,6 +678,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						uploadStates={uploadStates}
 						previewUrls={previewUrls}
 						onPreview={setPreviewImage}
+						textContents={textContents}
+						onTextPreview={onTextPreview}
+						onInlineText={handleInlineText}
 					/>
 				)}
 				<ChatMessageInput

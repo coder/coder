@@ -190,13 +190,16 @@ const TextAttachmentButton: FC<{
 					return;
 				}
 
+				let fetchedContent: string;
 				try {
-					const fetchedContent = await fetchTextAttachmentContent(fileId);
-					setContent(fetchedContent);
-					onPreview?.(fetchedContent);
+					fetchedContent = await fetchTextAttachmentContent(fileId);
 				} catch (err) {
 					console.error("Failed to load text attachment:", err);
+					return;
 				}
+
+				setContent(fetchedContent);
+				onPreview?.(fetchedContent);
 			}}
 		/>
 	);
