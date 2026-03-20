@@ -30,30 +30,44 @@ import {
 } from "./AgentsSkeletons";
 import type { ChatDetailError } from "./usageLimitMessage";
 
-type AgentDetailSidebarModules = [
+export type AgentDetailSidebarModules = [
 	typeof import("./RightPanel"),
 	typeof import("./SidebarTabView"),
 	typeof import("./GitPanel"),
 ];
 
-const loadAgentDetailSidebarModules = (() => {
+export const createAgentDetailSidebarModulesLoader = (
+	loadModules: () => Promise<AgentDetailSidebarModules> = () =>
+		Promise.all([
+			import("./RightPanel"),
+			import("./SidebarTabView"),
+			import("./GitPanel"),
+		]) as Promise<AgentDetailSidebarModules>,
+) => {
 	let modulesPromise: Promise<AgentDetailSidebarModules> | undefined;
 
 	return () => {
 		if (!modulesPromise) {
 			// React will invoke each lazy loader independently. Cache the shared
 			// sidebar import sequence so opening the panel only builds one
-			// Promise chain for all three modules.
-			modulesPromise = Promise.all([
-				import("./RightPanel"),
-				import("./SidebarTabView"),
-				import("./GitPanel"),
-			]) as Promise<AgentDetailSidebarModules>;
+			// Promise chain for all three modules. Clear the cache if the shared
+			// import fails so a later open can retry.
+			try {
+				modulesPromise = loadModules().catch((error) => {
+					modulesPromise = undefined;
+					throw error;
+				});
+			} catch (error) {
+				modulesPromise = undefined;
+				throw error;
+			}
 		}
 
 		return modulesPromise;
 	};
-})();
+};
+
+const loadAgentDetailSidebarModules = createAgentDetailSidebarModulesLoader();
 
 const RightPanel = lazy(() =>
 	loadAgentDetailSidebarModules().then(([module]) => ({
