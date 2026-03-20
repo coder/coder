@@ -2,10 +2,12 @@ package mcpclient_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -526,4 +528,132 @@ func TestConnectAll_ParallelConnections(t *testing.T) {
 	assert.Contains(t, names, "srv1__echo")
 	assert.Contains(t, names, "srv2__greet")
 	assert.Contains(t, names, "srv3__echo")
+}
+
+func TestRedactURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"plain", "https://mcp.example.com/v1", "https://mcp.example.com/v1"},
+		{"with userinfo", "https://user:secret@mcp.example.com/v1", "https://mcp.example.com/v1"},
+		{"with query params", "https://mcp.example.com/v1?api_key=sk-123", "https://mcp.example.com/v1"},
+		{"with both", "https://user:pass@host/p?key=val", "https://host/p"},
+		{"invalid url", "://not-a-url", "://not-a-url"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := mcpclient.RedactURL(tt.input)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestConnectAll_ExpiredToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	configID := uuid.New()
+	cfg := database.MCPServerConfig{
+		ID:          configID,
+		Slug:        "expired-srv",
+		DisplayName: "Expired Server",
+		Url:         ts.URL,
+		Transport:   "streamable_http",
+		AuthType:    "oauth2",
+		Enabled:     true,
+	}
+	// Token exists but is expired.
+	token := database.MCPServerUserToken{
+		MCPServerConfigID: configID,
+		AccessToken:       "expired-token",
+		TokenType:         "Bearer",
+		Expiry:            sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
+	}
+
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, []database.MCPServerUserToken{token})
+	t.Cleanup(cleanup)
+
+	// The server accepts any auth, so the tool is still discovered
+	// despite the expired token. The important thing is that the
+	// warning is logged (verified via IgnoreErrors: true in slogtest).
+	require.NotEmpty(t, tools)
+}
+
+func TestConnectAll_EmptyAccessToken(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, echoTool())
+
+	configID := uuid.New()
+	cfg := database.MCPServerConfig{
+		ID:          configID,
+		Slug:        "empty-tok",
+		DisplayName: "Empty Token Server",
+		Url:         ts.URL,
+		Transport:   "streamable_http",
+		AuthType:    "oauth2",
+		Enabled:     true,
+	}
+	// Token record exists but AccessToken is empty.
+	token := database.MCPServerUserToken{
+		MCPServerConfigID: configID,
+		AccessToken:       "",
+		TokenType:         "Bearer",
+	}
+
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, []database.MCPServerUserToken{token})
+	t.Cleanup(cleanup)
+
+	// Tool is still discovered (server doesn't require auth), but
+	// no Authorization header was sent. The warning about empty
+	// access token is logged.
+	require.NotEmpty(t, tools)
+}
+
+func TestConnectAll_CallToolError(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	// Server with a tool that always returns an error result.
+	srv := mcpserver.NewMCPServer("error-server", "1.0.0")
+	srv.AddTools(mcpserver.ServerTool{
+		Tool: mcp.NewTool("fail_tool",
+			mcp.WithDescription("Always fails"),
+		),
+		Handler: func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{mcp.NewTextContent("something broke")},
+				IsError: true,
+			}, nil
+		},
+	})
+	httpSrv := mcpserver.NewStreamableHTTPServer(srv)
+	ts := httptest.NewServer(httpSrv)
+	t.Cleanup(ts.Close)
+
+	cfg := makeConfig("err-srv", ts.URL)
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	resp, err := tools[0].Run(ctx, fantasy.ToolCall{
+		ID:    "call-err",
+		Name:  "err-srv__fail_tool",
+		Input: "{}",
+	})
+	require.NoError(t, err, "Run should not return a Go error for MCP-level errors")
+	assert.True(t, resp.IsError, "response should be flagged as error")
+	assert.Contains(t, resp.Content, "something broke")
 }

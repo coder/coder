@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -97,8 +98,8 @@ func ConnectAll(
 				logger.Warn(ctx,
 					"skipping MCP server due to connection failure",
 					slog.F("server_slug", cfg.Slug),
-					slog.F("server_url", redactURL(cfg.Url)),
-					slog.Error(connectErr),
+					slog.F("server_url", RedactURL(cfg.Url)),
+					slog.F("error", redactErrorURL(connectErr)),
 				)
 				return
 			}
@@ -249,13 +250,18 @@ func buildAuthHeaders(
 				slog.F("expired_at", tok.Expiry.Time),
 			)
 		}
-		if tok.AccessToken != "" {
-			tokenType := tok.TokenType
-			if tokenType == "" {
-				tokenType = "Bearer"
-			}
-			headers["Authorization"] = tokenType + " " + tok.AccessToken
+		if tok.AccessToken == "" {
+			logger.Warn(ctx,
+				"oauth2 token record has empty access token",
+				slog.F("server_slug", cfg.Slug),
+			)
+			break
 		}
+		tokenType := tok.TokenType
+		if tokenType == "" {
+			tokenType = "Bearer"
+		}
+		headers["Authorization"] = tokenType + " " + tok.AccessToken
 	case "api_key":
 		if cfg.APIKeyHeader != "" && cfg.APIKeyValue != "" {
 			headers[cfg.APIKeyHeader] = cfg.APIKeyValue
@@ -314,15 +320,34 @@ func isToolAllowed(
 	return true
 }
 
-// redactURL strips userinfo from a URL to avoid logging
-// embedded credentials.
-func redactURL(rawURL string) string {
+// RedactURL strips userinfo and query parameters from a URL
+// to avoid logging embedded credentials. Query params are
+// removed because API keys are sometimes passed as
+// ?api_key=sk-... in server URLs.
+func RedactURL(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return rawURL
 	}
 	u.User = nil
+	u.RawQuery = ""
+	u.Fragment = ""
 	return u.String()
+}
+
+// redactErrorURL rewrites URLs in an error string to strip
+// credentials. Go's net/http embeds the full request URL in
+// *url.Error messages, which can leak userinfo.
+func redactErrorURL(err error) string {
+	if err == nil {
+		return ""
+	}
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		urlErr.URL = RedactURL(urlErr.URL)
+		return urlErr.Error()
+	}
+	return err.Error()
 }
 
 // mcpToolWrapper adapts a single MCP tool into a
