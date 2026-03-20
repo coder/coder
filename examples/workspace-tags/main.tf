@@ -76,6 +76,9 @@ resource "coder_agent" "main" {
     # Append "-s -- --version x.x.x" to install a specific version of code-server.
     curl -fsSL https://code-server.dev/install.sh | sh
 
+    # Clean up old code-server archives to save disk space.
+    rm -f ~/.cache/code-server/code-server-*.tar.gz
+
     # Start code-server.
     code-server --auth none --port 13337
     EOF

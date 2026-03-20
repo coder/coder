@@ -45,6 +45,9 @@ resource "coder_agent" "main" {
     # add '-s -- --version x.x.x' to install a specific code-server version
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
 
+    # Clean up old code-server archives to save disk space.
+    rm -f ~/.cache/code-server/code-server-*.tar.gz
+
     # start code-server on a specific port
     # authn is off since the user already authn-ed into the coder deployment
     # & is used to run the process in the background
