@@ -1190,69 +1190,69 @@
 					"title": "MCP Server",
 					"description": "Connect to agents Coder with a MCP server",
 					"path": "./ai-coder/mcp-server.md",
-						"state": ["beta"]
-					},
-					{
-						"title": "Coder Agents",
-						"description": "Self-hosted agent by Coder",
-						"path": "./ai-coder/agents/index.md",
-						"state": ["early access"],
-						"children": [
-							{
-								"title": "Getting Started",
-								"description": "Enable Coder Agents, prepare your deployment, and run your first chat",
-								"path": "./ai-coder/agents/getting-started.md",
-								"state": ["early access"]
-							},
-							{
-								"title": "Early Access",
-								"description": "About the Coder Agents Early Access program",
-								"path": "./ai-coder/agents/early-access.md",
-								"state": ["early access"]
-							},
-							{
-								"title": "Architecture",
-								"description": "How the agent in the control plane communicates with workspaces",
-								"path": "./ai-coder/agents/architecture.md",
-								"state": ["early access"]
-							},
-							{
-								"title": "Models",
-								"description": "Configure LLM providers and models for Coder Agents",
-								"path": "./ai-coder/agents/models.md",
-								"state": ["early access"]
-							},
-							{
-								"title": "Platform Controls",
-								"description": "How platform teams control agent behavior, models, and policies",
-								"path": "./ai-coder/agents/platform-controls/index.md",
-								"state": ["early access"],
-								"children": [
-									{
-										"title": "Template Optimization",
-										"description": "Best practices for creating templates that are discoverable and useful to Coder Agents",
-										"path": "./ai-coder/agents/platform-controls/template-optimization.md",
-										"state": ["early access"]
-									}
-								]
-							},
-							{
-								"title": "Chats API",
-								"description": "Programmatic access to Coder Agents via the experimental Chats API",
-								"path": "./ai-coder/agents/chats-api.md",
-								"state": ["early access"]
-							}
-						]
-					}
-				]
-			},
-			{
-				"title": "Tutorials",
-				"description": "Coder knowledgebase for administrating your deployment",
-				"path": "./tutorials/index.md",
-				"icon_path": "./images/icons/generic.svg",
-				"children": [
-					{
+					"state": ["beta"]
+				},
+				{
+					"title": "Coder Agents",
+					"description": "Self-hosted agent by Coder",
+					"path": "./ai-coder/agents/index.md",
+					"state": ["early access"],
+					"children": [
+						{
+							"title": "Getting Started",
+							"description": "Enable Coder Agents, prepare your deployment, and run your first chat",
+							"path": "./ai-coder/agents/getting-started.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Early Access",
+							"description": "About the Coder Agents Early Access program",
+							"path": "./ai-coder/agents/early-access.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Architecture",
+							"description": "How the agent in the control plane communicates with workspaces",
+							"path": "./ai-coder/agents/architecture.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Models",
+							"description": "Configure LLM providers and models for Coder Agents",
+							"path": "./ai-coder/agents/models.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Platform Controls",
+							"description": "How platform teams control agent behavior, models, and policies",
+							"path": "./ai-coder/agents/platform-controls/index.md",
+							"state": ["early access"],
+							"children": [
+								{
+									"title": "Template Optimization",
+									"description": "Best practices for creating templates that are discoverable and useful to Coder Agents",
+									"path": "./ai-coder/agents/platform-controls/template-optimization.md",
+									"state": ["early access"]
+								}
+							]
+						},
+						{
+							"title": "Chats API",
+							"description": "Programmatic access to Coder Agents via the experimental Chats API",
+							"path": "./ai-coder/agents/chats-api.md",
+							"state": ["early access"]
+						}
+					]
+				}
+			]
+		},
+		{
+			"title": "Tutorials",
+			"description": "Coder knowledgebase for administrating your deployment",
+			"path": "./tutorials/index.md",
+			"icon_path": "./images/icons/generic.svg",
+			"children": [
+				{
 					"title": "Quickstart",
 					"description": "Learn how to install and run Coder quickly",
 					"path": "./tutorials/quickstart.md"

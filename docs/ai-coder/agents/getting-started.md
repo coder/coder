@@ -95,19 +95,19 @@ Update your template descriptions to include:
 
 **Good examples:**
 
-| Description | Why it works |
-|---|---|
-| Python backend services for the payments repo. Includes Poetry, Python 3.12, and PostgreSQL | Specific language, repo, and toolchain |
-| React frontend development for the customer portal. Node 20, pnpm, Storybook pre-installed | Clear stack, named project, key tools listed |
-| General-purpose Go development environment with Go 1.23, Docker, and common CLI tools | Broad but descriptive |
+| Description                                                                                 | Why it works                                 |
+|---------------------------------------------------------------------------------------------|----------------------------------------------|
+| Python backend services for the payments repo. Includes Poetry, Python 3.12, and PostgreSQL | Specific language, repo, and toolchain       |
+| React frontend development for the customer portal. Node 20, pnpm, Storybook pre-installed  | Clear stack, named project, key tools listed |
+| General-purpose Go development environment with Go 1.23, Docker, and common CLI tools       | Broad but descriptive                        |
 
 **Descriptions to avoid:**
 
-| Description | Problem |
-|---|---|
-| Team A template v2 | No information about what the template is for |
-| Dev environment | Too generic to distinguish from other templates |
-| Default | Tells the agent nothing |
+| Description        | Problem                                         |
+|--------------------|-------------------------------------------------|
+| Team A template v2 | No information about what the template is for   |
+| Dev environment    | Too generic to distinguish from other templates |
+| Default            | Tells the agent nothing                         |
 
 See [Template Optimization](./platform-controls/template-optimization.md) for
 the full guide, including dedicated agent templates, network boundaries,
