@@ -433,3 +433,89 @@ describe("AgentsSidebar render-path regression", () => {
 		).toBeInTheDocument();
 	});
 });
+
+describe("AgentsSidebar archive action state", () => {
+	it("disables archive-related actions on non-target rows while archiving", async () => {
+		const onArchiveAgent = vi.fn();
+		const onUnarchiveAgent = vi.fn();
+		const onArchiveAndDeleteWorkspace = vi.fn();
+		const archivingChat = buildChat({
+			id: "chat-archiving",
+			title: "Archiving agent",
+		});
+		const activeChat = buildChat({
+			id: "chat-active",
+			title: "Active agent",
+			workspace_id: "workspace-1",
+		});
+		const archivedChat = buildChat({
+			id: "chat-archived",
+			title: "Archived agent",
+			archived: true,
+		});
+
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[archivingChat, activeChat, archivedChat]}
+					onArchiveAgent={onArchiveAgent}
+					onUnarchiveAgent={onUnarchiveAgent}
+					onArchiveAndDeleteWorkspace={onArchiveAndDeleteWorkspace}
+					isArchiving
+					archivingChatId={archivingChat.id}
+				/>
+			</Wrapper>,
+		);
+
+		const archivingRow = screen.getByTestId(
+			`agents-tree-node-${archivingChat.id}`,
+		);
+		expect(
+			within(archivingRow).getByTitle("Loading spinner"),
+		).toBeInTheDocument();
+		expect(
+			within(archivingRow).queryByLabelText(
+				`Open actions for ${archivingChat.title}`,
+			),
+		).not.toBeInTheDocument();
+
+		fireEvent.pointerDown(
+			screen.getByLabelText(`Open actions for ${activeChat.title}`),
+			{
+				button: 0,
+				ctrlKey: false,
+			},
+		);
+
+		const archiveItem = await within(document.body).findByRole("menuitem", {
+			name: "Archive agent",
+		});
+		const archiveAndDeleteItem = await within(document.body).findByRole(
+			"menuitem",
+			{
+				name: "Archive & delete workspace",
+			},
+		);
+		expect(archiveItem).toHaveAttribute("data-disabled", "");
+		expect(archiveAndDeleteItem).toHaveAttribute("data-disabled", "");
+
+		expect(onArchiveAgent).not.toHaveBeenCalled();
+		expect(onArchiveAndDeleteWorkspace).not.toHaveBeenCalled();
+
+		fireEvent.pointerDown(
+			screen.getByLabelText(`Open actions for ${archivedChat.title}`),
+			{
+				button: 0,
+				ctrlKey: false,
+			},
+		);
+
+		const unarchiveItem = await within(document.body).findByRole("menuitem", {
+			name: "Unarchive agent",
+		});
+		expect(unarchiveItem).toHaveAttribute("data-disabled", "");
+
+		expect(onUnarchiveAgent).not.toHaveBeenCalled();
+	});
+});

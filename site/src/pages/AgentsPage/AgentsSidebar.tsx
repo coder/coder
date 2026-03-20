@@ -375,6 +375,7 @@ interface ChatRowData {
 	readonly isChildNode: boolean;
 	readonly isExpanded: boolean;
 	readonly isArchivingThis: boolean;
+	readonly areArchiveActionsDisabled: boolean;
 	readonly errorReason: string | undefined;
 	readonly modelName: string;
 	readonly childIDs: readonly string[];
@@ -439,6 +440,7 @@ const ChatTreeNodeContainer: FC<ChatTreeNodeContainerProps> = ({
 			? chatErrorReasons[chat.id] || chat.last_error || undefined
 			: undefined;
 	const isArchivingThis = isArchiving && archivingChatId === chatId;
+	const areArchiveActionsDisabled = isArchiving;
 	const isExpanded = normalizedSearch ? true : (expandedById[chatId] ?? false);
 
 	const rowData = useMemo<ChatRowData | null>(() => {
@@ -451,11 +453,13 @@ const ChatTreeNodeContainer: FC<ChatTreeNodeContainerProps> = ({
 			isChildNode,
 			isExpanded,
 			isArchivingThis,
+			areArchiveActionsDisabled,
 			errorReason,
 			modelName,
 			childIDs,
 		};
 	}, [
+		areArchiveActionsDisabled,
 		chat,
 		childIDs,
 		errorReason,
@@ -492,6 +496,7 @@ const areChatTreeNodeRowPropsEqual = (
 		prevRow.isChildNode === nextRow.isChildNode &&
 		prevRow.isExpanded === nextRow.isExpanded &&
 		prevRow.isArchivingThis === nextRow.isArchivingThis &&
+		prevRow.areArchiveActionsDisabled === nextRow.areArchiveActionsDisabled &&
 		prevRow.errorReason === nextRow.errorReason &&
 		prevRow.modelName === nextRow.modelName &&
 		prevRow.childIDs === nextRow.childIDs
@@ -511,6 +516,7 @@ const ChatTreeNodeRow = memo<ChatTreeNodeRowProps>(
 			isChildNode,
 			isExpanded,
 			isArchivingThis,
+			areArchiveActionsDisabled,
 			errorReason,
 			modelName,
 			childIDs,
@@ -659,7 +665,7 @@ const ChatTreeNodeRow = memo<ChatTreeNodeRowProps>(
 									<DropdownMenuContent align="end">
 										{chat.archived ? (
 											<DropdownMenuItem
-												disabled={isArchivingThis}
+												disabled={areArchiveActionsDisabled}
 												onSelect={() => onUnarchiveAgent(chat.id)}
 											>
 												<ArchiveRestoreIcon className="h-3.5 w-3.5" />
@@ -669,7 +675,7 @@ const ChatTreeNodeRow = memo<ChatTreeNodeRowProps>(
 											<>
 												<DropdownMenuItem
 													className="text-content-destructive focus:text-content-destructive"
-													disabled={isArchivingThis}
+													disabled={areArchiveActionsDisabled}
 													onSelect={() => onArchiveAgent(chat.id)}
 												>
 													<ArchiveIcon className="h-3.5 w-3.5" />
@@ -678,7 +684,7 @@ const ChatTreeNodeRow = memo<ChatTreeNodeRowProps>(
 												{workspaceId && (
 													<DropdownMenuItem
 														className="text-content-destructive focus:text-content-destructive"
-														disabled={isArchivingThis}
+														disabled={areArchiveActionsDisabled}
 														onSelect={() =>
 															onArchiveAndDeleteWorkspace(chat.id, workspaceId)
 														}
