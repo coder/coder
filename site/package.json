@@ -14,7 +14,8 @@
 		"dev": "vite",
 		"format": "biome format --write .",
 		"format:check": "biome format .",
-		"lint": "pnpm run lint:check && pnpm run lint:types && pnpm run lint:circular-deps && knip",
+		"lint": "pnpm run lint:check && pnpm run lint:types && pnpm run lint:circular-deps && pnpm run lint:compiler && knip",
+		"lint:compiler": "node scripts/check-compiler.mjs",
 		"lint:check": "biome lint --error-on-warnings .",
 		"lint:circular-deps": "dpdm --no-tree --no-warning -T ./src/App.tsx",
 		"lint:knip": "knip",
@@ -132,6 +133,8 @@
 		"yup": "1.7.1"
 	},
 	"devDependencies": {
+		"@babel/core": "7.29.0",
+		"@babel/plugin-syntax-typescript": "7.28.6",
 		"@biomejs/biome": "2.2.4",
 		"@chromatic-com/storybook": "5.0.1",
 		"@octokit/types": "12.6.0",
@@ -171,6 +174,7 @@
 		"@vitejs/plugin-react": "5.1.1",
 		"@vitest/browser-playwright": "4.0.14",
 		"autoprefixer": "10.4.22",
+		"babel-plugin-react-compiler": "1.0.0",
 		"chromatic": "11.29.0",
 		"dpdm": "3.14.0",
 		"express": "4.21.2",

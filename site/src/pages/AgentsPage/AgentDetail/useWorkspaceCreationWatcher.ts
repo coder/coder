@@ -1,13 +1,19 @@
 import { chatKey } from "api/queries/chats";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useQueryClient } from "react-query";
 import { useChatSelector } from "./ChatContext";
 import type { StreamState } from "./types";
 
 type ChatStoreHandle = Parameters<typeof useChatSelector>[0];
 
-const selectStreamState = (state: { streamState: StreamState | null }) =>
-	state.streamState;
+// Only extract the toolResults record from the stream state.
+// This reference is stable during pure text/thinking streaming
+// and only changes when a tool result actually appears, avoiding
+// a re-render of AgentDetail on every token.
+const selectStreamToolResults = (state: {
+	streamState: StreamState | null;
+}): Record<string, { id: string; name: string }> | null =>
+	state.streamState?.toolResults ?? null;
 
 interface UseWorkspaceCreationWatcherOptions {
 	store: ChatStoreHandle;
@@ -28,27 +34,26 @@ export function useWorkspaceCreationWatcher({
 	chatID,
 }: UseWorkspaceCreationWatcherOptions): void {
 	const queryClient = useQueryClient();
-	const streamState = useChatSelector(store, selectStreamState);
+	const toolResults = useChatSelector(store, selectStreamToolResults);
 	const processedToolCallIdsRef = useRef<Set<string>>(new Set());
-
-	// Reset processed IDs when chatID changes during render,
-	// before effects run.
-	const [previousChatID, setPreviousChatID] = useState(chatID);
-	if (previousChatID !== chatID) {
-		setPreviousChatID(chatID);
-		processedToolCallIdsRef.current = new Set();
-	}
+	const chatIDRef = useRef(chatID);
 
 	// Watch stream tool results for create_workspace completions.
 	useEffect(() => {
-		if (!streamState || !chatID) {
+		// Reset processed IDs when chatID changes.
+		if (chatIDRef.current !== chatID) {
+			chatIDRef.current = chatID;
+			processedToolCallIdsRef.current = new Set();
+		}
+
+		if (!toolResults || !chatID) {
 			processedToolCallIdsRef.current.clear();
 			return;
 		}
 
 		let shouldInvalidateChat = false;
 
-		for (const toolResult of Object.values(streamState.toolResults)) {
+		for (const toolResult of Object.values(toolResults)) {
 			if (processedToolCallIdsRef.current.has(toolResult.id)) {
 				continue;
 			}
@@ -67,5 +72,5 @@ export function useWorkspaceCreationWatcher({
 				queryKey: chatKey(chatID),
 			});
 		}
-	}, [chatID, streamState, queryClient]);
+	}, [toolResults, queryClient, chatID]);
 }

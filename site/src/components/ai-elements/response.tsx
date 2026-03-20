@@ -4,7 +4,6 @@ import {
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
 import type { ComponentPropsWithRef, ReactNode } from "react";
-import { useMemo } from "react";
 import {
 	type Components,
 	defaultRehypePlugins,
@@ -238,10 +237,7 @@ export const Response = ({
 	const fileViewerThemeType: FileViewerThemeType =
 		theme.palette.mode === "dark" ? "dark" : "light";
 	const viewerTheme = fileViewerTheme[fileViewerThemeType];
-	const components = useMemo(
-		() => createComponents(fileViewerThemeType, viewerTheme),
-		[fileViewerThemeType, viewerTheme],
-	);
+	const components = createComponents(fileViewerThemeType, viewerTheme);
 
 	return (
 		<div

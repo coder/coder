@@ -40,7 +40,7 @@ import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ChevronLeftIcon, ShieldIcon } from "lucide-react";
-import { type FC, type FormEvent, useCallback, useMemo, useState } from "react";
+import { type FC, type FormEvent, useState } from "react";
 import {
 	keepPreviousData,
 	useMutation,
@@ -132,7 +132,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 	const [searchFilter, setSearchFilter] = useState("");
 	const debouncedSearch = useDebouncedValue(searchFilter, 300);
 	const [page, setPage] = useState(1);
-	const dateRange = useMemo(() => {
+	const dateRange = (() => {
 		const end = now ?? dayjs();
 		const start = end.subtract(30, "day");
 		return {
@@ -140,7 +140,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 			endDate: end.toISOString(),
 			rangeLabel: `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`,
 		};
-	}, [now]);
+	})();
 	const offset = (page - 1) * pageSize;
 
 	const usersQuery = useQuery({
@@ -466,42 +466,32 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 		isSavingWorkspaceTTL;
 	const isTTLLoading = workspaceTTLQuery.isLoading;
 
-	const handleSaveSystemPrompt = useCallback(
-		(event: FormEvent) => {
-			event.preventDefault();
-			if (!isSystemPromptDirty) return;
-			saveSystemPrompt(
-				{ system_prompt: systemPromptDraft },
-				{ onSuccess: () => setLocalEdit(null) },
-			);
-		},
-		[isSystemPromptDirty, systemPromptDraft, saveSystemPrompt],
-	);
+	const handleSaveSystemPrompt = (event: FormEvent) => {
+		event.preventDefault();
+		if (!isSystemPromptDirty) return;
+		saveSystemPrompt(
+			{ system_prompt: systemPromptDraft },
+			{ onSuccess: () => setLocalEdit(null) },
+		);
+	};
 
-	const handleSaveUserPrompt = useCallback(
-		(event: FormEvent) => {
-			event.preventDefault();
-			if (!isUserPromptDirty) return;
-			saveUserPrompt(
-				{ custom_prompt: userPromptDraft },
-				{ onSuccess: () => setLocalUserEdit(null) },
-			);
-		},
-		[isUserPromptDirty, userPromptDraft, saveUserPrompt],
-	);
+	const handleSaveUserPrompt = (event: FormEvent) => {
+		event.preventDefault();
+		if (!isUserPromptDirty) return;
+		saveUserPrompt(
+			{ custom_prompt: userPromptDraft },
+			{ onSuccess: () => setLocalUserEdit(null) },
+		);
+	};
 
-	const handleSaveChatWorkspaceTTL = useCallback(
-		(event: FormEvent) => {
-			event.preventDefault();
-			if (!isTTLDirty) return;
-			saveWorkspaceTTL(
-				{ workspace_ttl_ms: localTTLMs ?? 0 },
-				{ onSuccess: () => setLocalTTLMs(null) },
-			);
-		},
-		[isTTLDirty, localTTLMs, saveWorkspaceTTL],
-	);
-
+	const handleSaveChatWorkspaceTTL = (event: FormEvent) => {
+		event.preventDefault();
+		if (!isTTLDirty) return;
+		saveWorkspaceTTL(
+			{ workspace_ttl_ms: localTTLMs ?? 0 },
+			{ onSuccess: () => setLocalTTLMs(null) },
+		);
+	};
 	return (
 		<div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 pt-8 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 			<div className="mx-auto w-full max-w-3xl">

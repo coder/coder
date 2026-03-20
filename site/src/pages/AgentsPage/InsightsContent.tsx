@@ -1,7 +1,7 @@
 import { prInsights } from "api/queries/chats";
 import { Spinner } from "components/Spinner/Spinner";
 import dayjs from "dayjs";
-import { type FC, useCallback, useMemo, useState } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { type PRInsightsTimeRange, PRInsightsView } from "./PRInsightsView";
 
@@ -17,14 +17,12 @@ function timeRangeToDates(range: PRInsightsTimeRange) {
 
 export const InsightsContent: FC = () => {
 	const [timeRange, setTimeRange] = useState<PRInsightsTimeRange>("30d");
-	const dates = useMemo(() => timeRangeToDates(timeRange), [timeRange]);
+	const dates = timeRangeToDates(timeRange);
 
 	const { data, isLoading, error } = useQuery(prInsights(dates));
 
-	const handleTimeRangeChange = useCallback(
-		(range: PRInsightsTimeRange) => setTimeRange(range),
-		[],
-	);
+	const handleTimeRangeChange = (range: PRInsightsTimeRange) =>
+		setTimeRange(range);
 
 	if (isLoading) {
 		return (
