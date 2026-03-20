@@ -140,6 +140,16 @@ const formatTextAttachmentPreview = (content: string | null): string => {
 	return normalized.slice(0, TEXT_ATTACHMENT_PREVIEW_LENGTH);
 };
 
+const decodeInlineTextAttachment = (content: string): string => {
+	try {
+		const decoded = atob(content);
+		const bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0));
+		return new TextDecoder().decode(bytes);
+	} catch {
+		return content;
+	}
+};
+
 const InlineTextAttachmentButton: FC<{
 	content: string;
 	onPreview?: (content: string) => void;
@@ -338,7 +348,7 @@ function renderBlockList({
 							return (
 								<InlineTextAttachmentButton
 									key={`${keyPrefix}-file-${index}`}
-									content={block.data}
+									content={decodeInlineTextAttachment(block.data)}
 									onPreview={onTextFileClick}
 								/>
 							);
@@ -571,7 +581,9 @@ const ChatMessageItem = memo<{
 															return (
 																<InlineTextAttachmentButton
 																	key={`user-file-${i}`}
-																	content={block.data}
+																	content={decodeInlineTextAttachment(
+																		block.data,
+																	)}
 																	onPreview={(content) =>
 																		setPreviewText(content)
 																	}
