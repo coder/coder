@@ -12,14 +12,16 @@ import type React from "react";
 import { cn } from "utils/cn";
 import { ToolCollapsible } from "./ToolCollapsible";
 import {
+	computeDiffStats,
 	DIFFS_FONT_STYLE,
 	getDiffViewerOptions,
+	splitPath,
 	type ToolStatus,
 } from "./utils";
 
 /**
- * Collapsed-by-default rendering for `write_file` tool calls. Shows
- * "Wrote <filename>" with a chevron; expanding reveals the unified diff.
+ * Collapsed-by-default rendering for `write_file` tool calls. Shows the
+ * written path with a chevron; expanding reveals the unified diff.
  */
 export const WriteFileTool: React.FC<{
 	path: string;
@@ -32,9 +34,8 @@ export const WriteFileTool: React.FC<{
 	const isDark = theme.palette.mode === "dark";
 	const hasDiff = diff !== null;
 	const isRunning = status === "running";
-
-	const filename = path.split("/").pop() || path;
-	const label = isRunning ? `Writing ${filename}…` : `Wrote ${filename}`;
+	const { directory, filename } = splitPath(path);
+	const stats = computeDiffStats(diff);
 
 	return (
 		<ToolCollapsible
@@ -48,7 +49,9 @@ export const WriteFileTool: React.FC<{
 							isError ? "text-content-destructive" : "text-content-secondary",
 						)}
 					>
-						{label}
+						{isRunning ? "Writing " : "Wrote "}
+						{directory && <span className="opacity-70">{directory}</span>}
+						<span className="font-semibold">{filename}</span>
 					</span>
 					{isError && (
 						<Tooltip>
@@ -62,6 +65,11 @@ export const WriteFileTool: React.FC<{
 					)}
 					{isRunning && (
 						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+					)}
+					{stats.additions > 0 && (
+						<span className="ml-auto shrink-0 text-xs tabular-nums text-content-success">
+							+{stats.additions}
+						</span>
 					)}
 				</>
 			}
