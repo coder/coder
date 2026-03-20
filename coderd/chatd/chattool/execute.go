@@ -3,14 +3,12 @@ package chattool
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 	"time"
 
 	"charm.land/fantasy"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -23,9 +21,10 @@ const (
 	// maxOutputToModel is the maximum output sent to the LLM.
 	maxOutputToModel = 32 << 10 // 32KB
 
-	// pollInterval is how often we check for process completion
-	// in foreground mode.
-	pollInterval = 200 * time.Millisecond
+	// snapshotTimeout is how long a non-blocking fallback
+	// request is allowed to take when retrieving a process
+	// output snapshot after a blocking wait times out.
+	snapshotTimeout = 30 * time.Second
 )
 
 // nonInteractiveEnvVars are set on every process to prevent
@@ -89,7 +88,7 @@ type ExecuteArgs struct {
 func Execute(options ExecuteOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"execute",
-		"Execute a shell command in the workspace. Use run_in_background=true for long-running processes (dev servers, file watchers, builds). Never use shell '&' for backgrounding.",
+		"Execute a shell command in the workspace. Use run_in_background=true for long-running processes (dev servers, file watchers, builds). Never use shell '&' for backgrounding. If the command times out, the response includes a background_process_id so you can retrieve output later with process_output.",
 		func(ctx context.Context, args ExecuteArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
@@ -173,7 +172,7 @@ func executeBackground(
 	return fantasy.NewTextResponse(string(data))
 }
 
-// executeForeground starts a process and polls for its
+// executeForeground starts a process and waits for its
 // completion, enforcing the configured timeout.
 func executeForeground(
 	ctx context.Context,
@@ -212,7 +211,7 @@ func executeForeground(
 		return errorResult(fmt.Sprintf("start process: %v", err))
 	}
 
-	result := pollProcess(cmdCtx, conn, resp.ID, timeout)
+	result := waitForProcess(cmdCtx, conn, resp.ID, timeout)
 	result.WallDurationMs = time.Since(start).Milliseconds()
 
 	// Add an advisory note for file-dump commands.
@@ -237,62 +236,84 @@ func truncateOutput(output string) string {
 	return output
 }
 
-// pollProcess polls for process output until the process exits
-// or the context times out.
-func pollProcess(
+// waitForProcess waits for process completion using the
+// blocking process output API instead of polling.
+func waitForProcess(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	processID string,
 	timeout time.Duration,
 ) ExecuteResult {
-	ticker := time.NewTicker(pollInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			// Timeout — get whatever output we have. Use a
-			// fresh context since cmdCtx is already canceled.
+	// Block until the process exits or the context is
+	// canceled.
+	resp, err := conn.ProcessOutput(ctx, processID, &workspacesdk.ProcessOutputOptions{
+		Wait: true,
+	})
+	if err != nil {
+		if ctx.Err() != nil {
+			// Timeout: fetch final snapshot with a fresh
+			// context. The blocking request was canceled
+			// so the response body was lost.
 			bgCtx, bgCancel := context.WithTimeout(
 				context.Background(),
-				5*time.Second,
+				snapshotTimeout,
 			)
-			outputResp, outputErr := conn.ProcessOutput(bgCtx, processID)
-			bgCancel()
-			output := truncateOutput(outputResp.Output)
-			timeoutErr := xerrors.Errorf("command timed out after %s", timeout)
-			if outputErr != nil {
-				timeoutErr = errors.Join(timeoutErr, xerrors.Errorf("failed to get output: %w", outputErr))
-			}
-			return ExecuteResult{
-				Success:   false,
-				Output:    output,
-				ExitCode:  -1,
-				Error:     timeoutErr.Error(),
-				Truncated: outputResp.Truncated,
-			}
-		case <-ticker.C:
-			outputResp, err := conn.ProcessOutput(ctx, processID)
+			defer bgCancel()
+			resp, err = conn.ProcessOutput(bgCtx, processID, nil)
 			if err != nil {
 				return ExecuteResult{
-					Success: false,
-					Error:   fmt.Sprintf("get process output: %v", err),
+					Success:             false,
+					ExitCode:            -1,
+					Error:               fmt.Sprintf("command timed out after %s; failed to get output: %v", timeout, err),
+					BackgroundProcessID: processID,
 				}
 			}
-			if !outputResp.Running {
-				exitCode := 0
-				if outputResp.ExitCode != nil {
-					exitCode = *outputResp.ExitCode
-				}
-				output := truncateOutput(outputResp.Output)
-				return ExecuteResult{
-					Success:   exitCode == 0,
-					Output:    output,
-					ExitCode:  exitCode,
-					Truncated: outputResp.Truncated,
-				}
+			output := truncateOutput(resp.Output)
+			return ExecuteResult{
+				Success:             false,
+				Output:              output,
+				ExitCode:            -1,
+				Error:               fmt.Sprintf("command timed out after %s", timeout),
+				Truncated:           resp.Truncated,
+				BackgroundProcessID: processID,
 			}
 		}
+		return ExecuteResult{
+			Success: false,
+			Error:   fmt.Sprintf("get process output: %v", err),
+		}
+	}
+
+	// The server-side wait may return before the
+	// process exits if maxWaitDuration is shorter than
+	// the client's timeout. Retry if our context still
+	// has time left.
+	if resp.Running {
+		if ctx.Err() == nil {
+			// Still within the caller's timeout, retry.
+			return waitForProcess(ctx, conn, processID, timeout)
+		}
+		output := truncateOutput(resp.Output)
+		return ExecuteResult{
+			Success:             false,
+			Output:              output,
+			ExitCode:            -1,
+			Error:               fmt.Sprintf("command timed out after %s", timeout),
+			Truncated:           resp.Truncated,
+			BackgroundProcessID: processID,
+		}
+	}
+
+	exitCode := 0
+	if resp.ExitCode != nil {
+		exitCode = *resp.ExitCode
+	}
+	output := truncateOutput(resp.Output)
+	return ExecuteResult{
+		Success:   exitCode == 0,
+		Output:    output,
+		ExitCode:  exitCode,
+		Truncated: resp.Truncated,
 	}
 }
 
@@ -322,10 +343,19 @@ func detectFileDump(command string) string {
 	return ""
 }
 
+const (
+	// defaultProcessOutputTimeout is the default time the
+	// process_output tool blocks waiting for new output or
+	// process exit before returning. This avoids polling
+	// loops that waste tokens and HTTP round-trips.
+	defaultProcessOutputTimeout = 10 * time.Second
+)
+
 // ProcessOutputArgs are the parameters accepted by the
 // process_output tool.
 type ProcessOutputArgs struct {
-	ProcessID string `json:"process_id"`
+	ProcessID   string  `json:"process_id"`
+	WaitTimeout *string `json:"wait_timeout,omitempty" description:"Override the default 10s block duration. The call blocks until the process exits or this timeout is reached. Set to '0s' for an immediate snapshot without waiting."`
 }
 
 // ProcessOutput returns an AgentTool that retrieves the output
@@ -335,9 +365,13 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 		"process_output",
 		"Retrieve output from a background process. "+
 			"Use the process_id returned by execute with "+
-			"run_in_background=true. Returns the current output, "+
-			"whether the process is still running, and the exit "+
-			"code if it has finished.",
+			"run_in_background=true or from a timed-out "+
+			"execute's background_process_id. Blocks up to "+
+			"10s for the process to exit, then returns the "+
+			"output and exit_code. If still running after "+
+			"the timeout, returns the output so far. Use "+
+			"wait_timeout to override the default 10s wait "+
+			"(e.g. '30s', or '0s' for an immediate snapshot).",
 		func(ctx context.Context, args ProcessOutputArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
@@ -349,9 +383,42 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			resp, err := conn.ProcessOutput(ctx, args.ProcessID)
+
+			timeout := defaultProcessOutputTimeout
+			if args.WaitTimeout != nil {
+				parsed, err := time.ParseDuration(*args.WaitTimeout)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(
+						fmt.Sprintf("invalid wait_timeout %q: %v", *args.WaitTimeout, err),
+					), nil
+				}
+				timeout = parsed
+			}
+			var opts *workspacesdk.ProcessOutputOptions
+			// Save parent context before applying timeout.
+			parentCtx := ctx
+			if timeout > 0 {
+				opts = &workspacesdk.ProcessOutputOptions{
+					Wait: true,
+				}
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, timeout)
+				defer cancel()
+			}
+			resp, err := conn.ProcessOutput(ctx, args.ProcessID, opts)
 			if err != nil {
-				return errorResult(fmt.Sprintf("get process output: %v", err)), nil
+				// If our wait timed out but the parent is still alive,
+				// fetch a non-blocking snapshot.
+				if ctx.Err() == nil || parentCtx.Err() != nil {
+					return errorResult(fmt.Sprintf("get process output: %v", err)), nil
+				}
+				bgCtx, bgCancel := context.WithTimeout(parentCtx, snapshotTimeout)
+				defer bgCancel()
+				resp, err = conn.ProcessOutput(bgCtx, args.ProcessID, nil)
+				if err != nil {
+					return errorResult(fmt.Sprintf("get process output: %v", err)), nil
+				}
+				// Fall through to normal response handling below.
 			}
 			output := truncateOutput(resp.Output)
 			exitCode := 0
@@ -365,7 +432,7 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 				Truncated: resp.Truncated,
 			}
 			if resp.Running {
-				// Process is still running — success is not
+				// Process is still running, success is not
 				// yet determined.
 				result.Success = true
 				result.Note = "process is still running"

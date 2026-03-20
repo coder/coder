@@ -74,7 +74,7 @@ func runForegroundWithOutput(t *testing.T, output string) ExecuteResult {
 		Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
 	exitCode := 0
 	mockConn.EXPECT().
-		ProcessOutput(gomock.Any(), "proc-1").
+		ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 		Return(workspacesdk.ProcessOutputResponse{
 			Running:  false,
 			ExitCode: &exitCode,

@@ -308,18 +308,18 @@ func (mr *MockAgentConnMockRecorder) Ping(ctx any) *gomock.Call {
 }
 
 // ProcessOutput mocks base method.
-func (m *MockAgentConn) ProcessOutput(ctx context.Context, id string) (workspacesdk.ProcessOutputResponse, error) {
+func (m *MockAgentConn) ProcessOutput(ctx context.Context, id string, opts *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ProcessOutput", ctx, id)
+	ret := m.ctrl.Call(m, "ProcessOutput", ctx, id, opts)
 	ret0, _ := ret[0].(workspacesdk.ProcessOutputResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ProcessOutput indicates an expected call of ProcessOutput.
-func (mr *MockAgentConnMockRecorder) ProcessOutput(ctx, id any) *gomock.Call {
+func (mr *MockAgentConnMockRecorder) ProcessOutput(ctx, id, opts any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessOutput", reflect.TypeOf((*MockAgentConn)(nil).ProcessOutput), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ProcessOutput", reflect.TypeOf((*MockAgentConn)(nil).ProcessOutput), ctx, id, opts)
 }
 
 // PrometheusMetrics mocks base method.
