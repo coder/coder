@@ -1056,7 +1056,7 @@ func isContextLimitKey(key string) bool {
 		(strings.Contains(normalized, "limit") ||
 			strings.Contains(normalized, "window") ||
 			strings.Contains(normalized, "length") ||
-			strings.HasPrefix(normalized, "max"))
+			strings.Contains(normalized, "tokens"))
 }
 
 func normalizeMetadataKey(key string) string {
