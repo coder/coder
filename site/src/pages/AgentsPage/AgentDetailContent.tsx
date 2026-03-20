@@ -28,6 +28,7 @@ import {
 	buildSubagentTitles,
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
+import type { ParsedMessageEntry } from "./AgentDetail/types";
 import { buildStreamTools } from "./AgentDetail/streamState";
 import type { ChatDetailError } from "./usageLimitMessage";
 import { useFileAttachments } from "./useFileAttachments";
@@ -52,7 +53,10 @@ interface AgentDetailTimelineProps {
 	urlTransform?: UrlTransform;
 }
 
-export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
+// Reads only message-related store state (stable during streaming).
+// Computes parsedMessages once and passes them to ConversationTimeline
+// via a memo boundary so that streaming ticks don't re-parse history.
+const MessageListProvider: FC<AgentDetailTimelineProps> = ({
 	store,
 	persistedErrorReason,
 	onOpenAnalytics,
@@ -61,10 +65,9 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	savingMessageId,
 	urlTransform,
 }) => {
-	console.log("[RENDER] AgentDetailTimeline");
+	console.log("[RENDER] MessageListProvider");
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
-	const streamState = useChatSelector(store, selectStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const streamError = useChatSelector(store, selectStreamError);
 	const subagentStatusOverrides = useChatSelector(
@@ -76,7 +79,6 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	const messages = orderedMessageIDs
 		.map((messageID) => messagesByID.get(messageID))
 		.filter(isChatMessage);
-	const streamTools = buildStreamTools(streamState);
 	const parsedMessages = parseMessagesWithMergedTools(messages);
 	const subagentTitles = buildSubagentTitles(parsedMessages);
 	const detailError: ChatDetailError | undefined =
@@ -89,6 +91,67 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	const latestMessage = messages[messages.length - 1];
 	const latestMessageNeedsAssistantResponse =
 		!latestMessage || latestMessage.role !== "assistant";
+
+	return (
+		<StreamingBridge
+			store={store}
+			isEmpty={messages.length === 0}
+			parsedMessages={parsedMessages}
+			subagentTitles={subagentTitles}
+			subagentStatusOverrides={subagentStatusOverrides}
+			retryState={retryState}
+			detailError={detailError}
+			latestMessageNeedsAssistantResponse={latestMessageNeedsAssistantResponse}
+			chatStatus={chatStatus}
+			onOpenAnalytics={onOpenAnalytics}
+			onEditUserMessage={onEditUserMessage}
+			editingMessageId={editingMessageId}
+			savingMessageId={savingMessageId}
+			urlTransform={urlTransform}
+		/>
+	);
+};
+
+// Reads stream-specific store state (changes every token). Isolated
+// so that streamState changes don't invalidate parsedMessages above.
+const StreamingBridge: FC<{
+	store: ChatStoreHandle;
+	isEmpty: boolean;
+	parsedMessages: ParsedMessageEntry[];
+	subagentTitles: Map<string, string>;
+	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
+	retryState: { attempt: number; error: string } | null;
+	detailError: ChatDetailError | undefined;
+	latestMessageNeedsAssistantResponse: boolean;
+	chatStatus: TypesGen.ChatStatus | null;
+	onOpenAnalytics?: () => void;
+	onEditUserMessage?: (
+		messageId: number,
+		text: string,
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+	) => void;
+	editingMessageId?: number | null;
+	savingMessageId?: number | null;
+	urlTransform?: UrlTransform;
+}> = ({
+	store,
+	isEmpty,
+	parsedMessages,
+	subagentTitles,
+	subagentStatusOverrides,
+	retryState,
+	detailError,
+	latestMessageNeedsAssistantResponse,
+	chatStatus,
+	onOpenAnalytics,
+	onEditUserMessage,
+	editingMessageId,
+	savingMessageId,
+	urlTransform,
+}) => {
+	console.log("[RENDER] StreamingBridge");
+	const streamState = useChatSelector(store, selectStreamState);
+	const streamTools = buildStreamTools(streamState);
 	const isAwaitingFirstStreamChunk =
 		!streamState &&
 		(chatStatus === "running" || chatStatus === "pending") &&
@@ -97,7 +160,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 
 	return (
 		<ConversationTimeline
-			isEmpty={messages.length === 0}
+			isEmpty={isEmpty}
 			parsedMessages={parsedMessages}
 			hasStreamOutput={hasStreamOutput}
 			streamState={streamState}
@@ -114,6 +177,11 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 			urlTransform={urlTransform}
 		/>
 	);
+};
+
+export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = (props) => {
+	console.log("[RENDER] AgentDetailTimeline");
+	return <MessageListProvider {...props} />;
 };
 
 interface AgentDetailInputProps {
