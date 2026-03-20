@@ -432,14 +432,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			// Re-focus the editor after a send completes (isLoading goes
 			// from true → false) so the user can immediately type again.
 			const prevIsLoadingRef = useRef(isLoading);
-			useEffect(() => {
-				const wasLoading = prevIsLoadingRef.current;
-				prevIsLoadingRef.current = isLoading;
-				if (wasLoading && !isLoading && !isMobileViewport()) {
-					internalRef.current?.focus();
-				}
-			});
-		const isUploading = attachments.some(
+				useEffect(() => {
+					const wasLoading = prevIsLoadingRef.current;
+					prevIsLoadingRef.current = isLoading;
+					if (wasLoading && !isLoading && !isMobileViewport()) {
+						internalRef.current?.focus();
+					}
+				}, [isLoading]);		const isUploading = attachments.some(
 			(f) => uploadStates?.get(f)?.status === "uploading",
 		);
 		const hasUploadedAttachments = attachments.some(

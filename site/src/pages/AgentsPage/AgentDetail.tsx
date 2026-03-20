@@ -305,9 +305,17 @@ const AgentDetail: FC = () => {
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
 	const { proxy } = useProxy();
 
+	// Extract the primitive fields used by the transform so the
+	// compiler can see the real dependencies and avoid invalidating
+	// the closure when the workspace object reference changes but
+	// the relevant fields haven't.
+	const proxyHost = proxy.preferredWildcardHostname;
+	const agentName = workspaceAgent?.name;
+	const wsName = workspace?.name;
+	const wsOwner = workspace?.owner_name;
+
 	const urlTransform: UrlTransform = (url) => {
-		const host = proxy.preferredWildcardHostname;
-		if (!host || !workspaceAgent || !workspace) {
+		if (!proxyHost || !agentName || !wsName || !wsOwner) {
 			return url;
 		}
 		try {
@@ -316,11 +324,11 @@ const AgentDetail: FC = () => {
 				return url;
 			}
 			return portForwardURL(
-				host,
+				proxyHost,
 				Number.parseInt(parsed.port, 10),
-				workspaceAgent.name,
-				workspace.name,
-				workspace.owner_name,
+				agentName,
+				wsName,
+				wsOwner,
 				"http",
 				parsed.pathname,
 				parsed.search,
