@@ -305,23 +305,15 @@ export const AttachmentPreview: FC<{
 								<ImageThumbnail previewUrl={previewUrl} name={file.name} />
 							</button>
 						) : file.type === "text/plain" && textContent !== undefined ? (
-							onTextPreview ? (
-								<button
-									type="button"
-									className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary"
-									onClick={() => onTextPreview(textContent, file.name)}
-								>
-									<span className="line-clamp-3 w-full font-mono text-2xs text-content-secondary">
-										{textContent.slice(0, 150)}
-									</span>
-								</button>
-							) : (
-								<div className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md bg-surface-tertiary p-2 text-left">
-									<span className="line-clamp-3 w-full font-mono text-2xs text-content-secondary">
-										{textContent.slice(0, 150)}
-									</span>
-								</div>
-							)
+							<button
+								type="button"
+								className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary"
+								onClick={() => onTextPreview?.(textContent, file.name)}
+							>
+								<span className="line-clamp-3 w-full font-mono text-2xs text-content-secondary">
+									{textContent.slice(0, 150)}
+								</span>
+							</button>
 						) : (
 							<div className="flex h-16 w-16 items-center justify-center rounded-md border border-border-default bg-surface-secondary text-xs text-content-secondary">
 								{file.name.split(".").pop()?.toUpperCase() || "FILE"}
@@ -364,7 +356,7 @@ export const AttachmentPreview: FC<{
 						<button
 							type="button"
 							onClick={() => onRemove(index)}
-							className="absolute -right-2 -top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border border-border-default bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+							className="absolute -right-2 -top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
 							aria-label={`Remove ${file.name}`}
 							tabIndex={-1}
 						>
