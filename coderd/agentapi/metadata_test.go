@@ -80,9 +80,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		t.Cleanup(batcher.Close)
 
 		api := &agentapi.MetadataAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
+			AgentID:   agent.ID,
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Log:       testutil.Logger(t),
 			Batcher:   batcher,
@@ -159,9 +157,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		t.Cleanup(batcher.Close)
 
 		api := &agentapi.MetadataAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
+			AgentID:   agent.ID,
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Log:       testutil.Logger(t),
 			Batcher:   batcher,
@@ -241,9 +237,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		t.Cleanup(batcher.Close)
 
 		api := &agentapi.MetadataAPI{
-			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
-				return agent, nil
-			},
+			AgentID:   agent.ID,
 			Workspace: &agentapi.CachedWorkspaceFields{},
 			Log:       testutil.Logger(t),
 			Batcher:   batcher,
