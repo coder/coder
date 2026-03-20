@@ -1,7 +1,7 @@
 import { MockLicenseResponse } from "testHelpers/entities";
 import { render } from "testHelpers/renderHelpers";
 import { screen, within } from "@testing-library/react";
-import userEvent, { UserEvent } from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { LicenseCard } from "./LicenseCard";
 
 const openRemoveDialog = async (user: UserEvent) => {

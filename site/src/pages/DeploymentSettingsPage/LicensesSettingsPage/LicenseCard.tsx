@@ -98,7 +98,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		: isExpired
 			? "Expired"
 			: isNotYetValid
-				? `Not started`
+				? "Not started"
 				: "Active";
 	const hasCollapsibleContent = isPremium && hasExplicitAiGovernanceAddOn;
 	const headerContent = (
