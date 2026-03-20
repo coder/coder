@@ -171,6 +171,7 @@
 		"@vitejs/plugin-react": "5.1.1",
 		"@vitest/browser-playwright": "4.0.14",
 		"autoprefixer": "10.4.22",
+		"babel-plugin-react-compiler": "1.0.0",
 		"chromatic": "11.29.0",
 		"dpdm": "3.14.0",
 		"express": "4.21.2",

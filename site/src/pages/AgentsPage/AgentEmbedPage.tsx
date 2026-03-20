@@ -7,9 +7,7 @@ import { DashboardProvider } from "modules/dashboard/DashboardProvider";
 import { permissionChecks } from "modules/permissions";
 import {
 	type FC,
-	useCallback,
 	useEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -61,7 +59,9 @@ const AgentEmbedPage: FC = () => {
 		bootstrapChatEmbedSession({ checks: permissionChecks }, queryClient),
 	);
 	const latestEmbedSessionMutationRef = useRef(embedSessionMutation);
-	latestEmbedSessionMutationRef.current = embedSessionMutation;
+	useEffect(() => {
+		latestEmbedSessionMutationRef.current = embedSessionMutation;
+	});
 	const inFlightBootstrapRef = useRef<Promise<unknown> | null>(null);
 
 	const [chatErrorReasons, setChatErrorReasons] = useState<
@@ -69,31 +69,28 @@ const AgentEmbedPage: FC = () => {
 	>({});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-	const setChatErrorReason = useCallback(
-		(chatId: string, reason: ChatDetailError) => {
-			const trimmedMessage = reason.message.trim();
-			if (!chatId || !trimmedMessage) {
-				return;
+	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
+		const trimmedMessage = reason.message.trim();
+		if (!chatId || !trimmedMessage) {
+			return;
+		}
+		setChatErrorReasons((current) => {
+			const existing = current[chatId];
+			if (
+				existing &&
+				existing.kind === reason.kind &&
+				existing.message === trimmedMessage
+			) {
+				return current;
 			}
-			setChatErrorReasons((current) => {
-				const existing = current[chatId];
-				if (
-					existing &&
-					existing.kind === reason.kind &&
-					existing.message === trimmedMessage
-				) {
-					return current;
-				}
-				return {
-					...current,
-					[chatId]: { kind: reason.kind, message: trimmedMessage },
-				};
-			});
-		},
-		[],
-	);
+			return {
+				...current,
+				[chatId]: { kind: reason.kind, message: trimmedMessage },
+			};
+		});
+	};
 
-	const clearChatErrorReason = useCallback((chatId: string) => {
+	const clearChatErrorReason = (chatId: string) => {
 		if (!chatId) {
 			return;
 		}
@@ -105,51 +102,36 @@ const AgentEmbedPage: FC = () => {
 			delete next[chatId];
 			return next;
 		});
-	}, []);
+	};
 
-	const requestArchiveAgent = useCallback((_chatId: string) => {}, []);
+	const requestArchiveAgent = (_chatId: string) => {};
 
-	const requestUnarchiveAgent = useCallback((_chatId: string) => {}, []);
+	const requestUnarchiveAgent = (_chatId: string) => {};
 
-	const requestArchiveAndDeleteWorkspace = useCallback(
-		(_chatId: string, _workspaceId: string) => {},
-		[],
-	);
+	const requestArchiveAndDeleteWorkspace = (_chatId: string, _workspaceId: string) => {};
 
-	const onToggleSidebarCollapsed = useCallback(() => {
+	const onToggleSidebarCollapsed = () => {
 		setIsSidebarCollapsed((current) => !current);
-	}, []);
+	};
 
-	const outletContext = useMemo<AgentsOutletContext>(
-		() => ({
-			chatErrorReasons,
-			setChatErrorReason,
-			clearChatErrorReason,
-			requestArchiveAgent,
-			requestUnarchiveAgent,
-			requestArchiveAndDeleteWorkspace,
-			isSidebarCollapsed,
-			onToggleSidebarCollapsed,
-			modelOptions: [],
-			modelConfigIDByModelID: new Map(),
-			modelIDByConfigID: new Map(),
-			modelConfigs: [],
-			modelCatalog: undefined,
-			isModelCatalogLoading: false,
-			modelCatalogError: null,
-			desktopEnabled: false,
-		}),
-		[
-			chatErrorReasons,
-			setChatErrorReason,
-			clearChatErrorReason,
-			requestArchiveAgent,
-			requestUnarchiveAgent,
-			requestArchiveAndDeleteWorkspace,
-			isSidebarCollapsed,
-			onToggleSidebarCollapsed,
-		],
-	);
+	const outletContext: AgentsOutletContext = {
+		chatErrorReasons,
+		setChatErrorReason,
+		clearChatErrorReason,
+		requestArchiveAgent,
+		requestUnarchiveAgent,
+		requestArchiveAndDeleteWorkspace,
+		isSidebarCollapsed,
+		onToggleSidebarCollapsed,
+		modelOptions: [],
+		modelConfigIDByModelID: new Map(),
+		modelIDByConfigID: new Map(),
+		modelConfigs: [],
+		modelCatalog: undefined,
+		isModelCatalogLoading: false,
+		modelCatalogError: null,
+		desktopEnabled: false,
+	};
 
 	// When signed out and not already bootstrapping, listen for the
 	// postMessage from the parent frame carrying the session token.
@@ -196,10 +178,10 @@ const AgentEmbedPage: FC = () => {
 		};
 	}, [agentId, isAwaitingBootstrapMessage]);
 
-	const handleBootstrapRetry = useCallback(() => {
+	const handleBootstrapRetry = () => {
 		inFlightBootstrapRef.current = null;
 		embedSessionMutation.reset();
-	}, [embedSessionMutation]);
+	};
 
 	if (auth.isSignedIn) {
 		return (

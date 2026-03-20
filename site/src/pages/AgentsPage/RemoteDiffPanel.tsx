@@ -14,9 +14,7 @@ import {
 import {
 	type FC,
 	type RefObject,
-	useCallback,
 	useEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -30,17 +28,7 @@ import { parsePullRequestUrl } from "./pullRequest";
 
 export { InlinePromptInput } from "./CommentableDiffViewer";
 
-// -------------------------------------------------------------------
-// Module-level counter for cache key uniqueness
-// -------------------------------------------------------------------
 
-/**
- * Monotonic counter shared across all RemoteDiffPanel instances.
- * Ensures parsePatchFiles cache keys never collide across mounts,
- * since component-local refs reset to 0 on remount while the
- * worker pool's LRU cache persists.
- */
-let remoteDiffVersion = 0;
 
 // -------------------------------------------------------------------
 // PR state badge
@@ -109,14 +97,16 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	});
 
 	const diffContent = diffContentsQuery.data?.diff;
-	const diffVersionRef = useRef(0);
-	const prevDiffRef = useRef<string | undefined>(undefined);
-	if (diffContent !== prevDiffRef.current) {
-		prevDiffRef.current = diffContent;
-		diffVersionRef.current = ++remoteDiffVersion;
+	const [diffVersion, setDiffVersion] = useState(0);
+	const [prevDiffContent, setPrevDiffContent] = useState<string | undefined>(
+		undefined,
+	);
+	if (diffContent !== prevDiffContent) {
+		setPrevDiffContent(diffContent);
+		setDiffVersion((v) => v + 1);
 	}
 
-	const parsedFiles = useMemo(() => {
+	const parsedFiles = (() => {
 		if (!diffContent) {
 			return [] as FileDiffMetadata[];
 		}
@@ -133,13 +123,13 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 			// recomputation on refetches with identical content.
 			const patches = parsePatchFiles(
 				diffContent,
-				`chat-${chatId}-v${diffVersionRef.current}`,
+				`chat-${chatId}-v${diffVersion}`,
 			);
 			return patches.flatMap((p) => p.files);
 		} catch {
 			return [] as FileDiffMetadata[];
 		}
-	}, [diffContent, chatId]);
+	})();
 
 	// ---------------------------------------------------------------
 	// Scroll-to-file from chat input chip clicks
@@ -156,9 +146,9 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 		return () => window.removeEventListener("file-reference-click", handler);
 	}, []);
 
-	const handleScrollComplete = useCallback(() => {
+	const handleScrollComplete = () => {
 		setScrollTarget(null);
-	}, []);
+	};
 
 	// ---------------------------------------------------------------
 	// Header content

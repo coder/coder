@@ -8,7 +8,17 @@ import checker from "vite-plugin-checker";
 import { defineConfig } from "vitest/config";
 
 const plugins: PluginOption[] = [
-	react(),
+	react({
+		babel: {
+			plugins: [],
+			overrides: [
+				{
+					test: /src\/(pages\/AgentsPage|components\/ai-elements)\//,
+					plugins: ["babel-plugin-react-compiler"],
+				},
+			],
+		},
+	}),
 	checker({
 		typescript: true,
 	}),

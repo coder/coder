@@ -20,9 +20,7 @@ import {
 import {
 	type FC,
 	type RefObject,
-	useCallback,
 	useEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -85,7 +83,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 	const prDraft = remoteDiffStats?.pull_request_draft;
 
 	// Compute per-repo diff stats from unified diffs.
-	const repoStats = useMemo(() => {
+	const repoStats = (() => {
 		const stats = new Map<string, DiffStats>();
 		for (const [root, repo] of repositories.entries()) {
 			if (!repo.unified_diff) continue;
@@ -103,12 +101,9 @@ export const GitPanel: FC<GitPanelProps> = ({
 			}
 		}
 		return stats;
-	}, [repositories]);
+	})();
 
-	const localRepos = useMemo(
-		() => Array.from(repoStats.keys()).sort((a, b) => a.localeCompare(b)),
-		[repoStats],
-	);
+	const localRepos = Array.from(repoStats.keys()).sort((a, b) => a.localeCompare(b));
 
 	// Default to the first local repo when there are only local
 	// changes and no remote stats.
@@ -138,20 +133,20 @@ export const GitPanel: FC<GitPanelProps> = ({
 
 	const [diffStyle, setDiffStyle] = useState<DiffStyle>(loadDiffStyle);
 
-	const handleDiffStyleChange = useCallback((style: DiffStyle) => {
+	const handleDiffStyleChange = (style: DiffStyle) => {
 		saveDiffStyle(style);
 		setDiffStyle(style);
-	}, []);
+	};
 
 	const [spinning, setSpinning] = useState(false);
 	const spinTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 	useEffect(() => () => clearTimeout(spinTimerRef.current), []);
-	const handleRefresh = useCallback(() => {
+	const handleRefresh = () => {
 		onRefresh();
 		setSpinning(true);
 		clearTimeout(spinTimerRef.current);
 		spinTimerRef.current = setTimeout(() => setSpinning(false), 1000);
-	}, [onRefresh]);
+	};
 
 	return (
 		<div className="flex h-full flex-col">

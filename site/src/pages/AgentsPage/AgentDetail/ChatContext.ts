@@ -4,9 +4,9 @@ import type * as TypesGen from "api/typesGenerated";
 
 import {
 	startTransition,
-	useCallback,
 	useEffect,
 	useRef,
+	useState,
 	useSyncExternalStore,
 } from "react";
 import { type InfiniteData, useQueryClient } from "react-query";
@@ -436,7 +436,7 @@ export const useChatStore = (
 	} = options;
 
 	const queryClient = useQueryClient();
-	const storeRef = useRef<ChatStore>(createChatStore());
+	const [store] = useState(createChatStore);
 	const streamResetFrameRef = useRef<number | null>(null);
 	const queuedMessagesHydratedChatIDRef = useRef<string | null>(null);
 	// Tracks whether the WebSocket has delivered a queue_update for the
@@ -459,7 +459,6 @@ export const useChatStore = (
 	// server.
 	const lastSyncedMessagesRef = useRef<readonly TypesGen.ChatMessage[]>([]);
 
-	const store = storeRef.current;
 
 	// Compute the last REST-fetched message ID so the stream can
 	// skip messages the client already has. We use a ref so the
@@ -467,10 +466,12 @@ export const useChatStore = (
 	// chatMessages in its dependency array (which would cause
 	// unnecessary reconnections).
 	const lastMessageIdRef = useRef<number | undefined>(undefined);
-	lastMessageIdRef.current =
-		chatMessages && chatMessages.length > 0
-			? chatMessages[chatMessages.length - 1].id
-			: undefined;
+	useEffect(() => {
+		lastMessageIdRef.current =
+			chatMessages && chatMessages.length > 0
+				? chatMessages[chatMessages.length - 1].id
+				: undefined;
+	});
 
 	// True once the initial REST page has resolved for the current
 	// chat. The WebSocket effect gates on this so that
@@ -479,74 +480,68 @@ export const useChatStore = (
 	// its snapshot, defeating pagination.
 	const initialDataLoaded = chatMessages !== undefined;
 
-	const updateSidebarChat = useCallback(
-		(updater: (chat: TypesGen.Chat) => TypesGen.Chat) => {
-			if (!chatID) {
-				return;
-			}
-			updateInfiniteChatsCache(queryClient, (chats) => {
-				let didUpdate = false;
-				const nextChats = chats.map((chat) => {
-					if (chat.id !== chatID) {
-						return chat;
-					}
-					didUpdate = true;
-					return updater(chat);
-				});
-				return didUpdate ? nextChats : chats;
+	const updateSidebarChat = (updater: (chat: TypesGen.Chat) => TypesGen.Chat) => {
+		if (!chatID) {
+			return;
+		}
+		updateInfiniteChatsCache(queryClient, (chats) => {
+			let didUpdate = false;
+			const nextChats = chats.map((chat) => {
+				if (chat.id !== chatID) {
+					return chat;
+				}
+				didUpdate = true;
+				return updater(chat);
 			});
-		},
-		[chatID, queryClient],
-	);
+			return didUpdate ? nextChats : chats;
+		});
+	};
 
-	const cancelScheduledStreamReset = useCallback(() => {
+	const cancelScheduledStreamReset = () => {
 		if (streamResetFrameRef.current === null) {
 			return;
 		}
 		window.cancelAnimationFrame(streamResetFrameRef.current);
 		streamResetFrameRef.current = null;
-	}, []);
+	};
 
-	const scheduleStreamReset = useCallback(() => {
+	const scheduleStreamReset = () => {
 		cancelScheduledStreamReset();
 		streamResetFrameRef.current = window.requestAnimationFrame(() => {
 			store.clearStreamState();
 			streamResetFrameRef.current = null;
 		});
-	}, [cancelScheduledStreamReset, store]);
+	};
 
-	const updateChatQueuedMessages = useCallback(
-		(queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined) => {
-			if (!chatID) {
-				return;
+	const updateChatQueuedMessages = (queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined) => {
+		if (!chatID) {
+			return;
+		}
+		const nextQueuedMessages = queuedMessages ?? [];
+		queryClient.setQueryData<
+			InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+		>(chatMessagesKey(chatID), (currentData) => {
+			if (!currentData?.pages?.length) {
+				return currentData;
 			}
-			const nextQueuedMessages = queuedMessages ?? [];
-			queryClient.setQueryData<
-				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-			>(chatMessagesKey(chatID), (currentData) => {
-				if (!currentData?.pages?.length) {
-					return currentData;
-				}
-				const firstPage = currentData.pages[0];
-				if (
-					chatQueuedMessagesEqualByID(
-						firstPage.queued_messages,
-						nextQueuedMessages,
-					)
-				) {
-					return currentData;
-				}
-				return {
-					...currentData,
-					pages: [
-						{ ...firstPage, queued_messages: nextQueuedMessages },
-						...currentData.pages.slice(1),
-					],
-				};
-			});
-		},
-		[chatID, queryClient],
-	);
+			const firstPage = currentData.pages[0];
+			if (
+				chatQueuedMessagesEqualByID(
+					firstPage.queued_messages,
+					nextQueuedMessages,
+				)
+			) {
+				return currentData;
+			}
+			return {
+				...currentData,
+				pages: [
+					{ ...firstPage, queued_messages: nextQueuedMessages },
+					...currentData.pages.slice(1),
+				],
+			};
+		});
+	};
 
 	useEffect(() => {
 		// When the active chat changes, clear stale messages immediately
@@ -864,9 +859,9 @@ export const useChatStore = (
 
 	return {
 		store,
-		clearStreamError: useCallback(() => {
+		clearStreamError: () => {
 			store.clearStreamError();
-		}, [store]),
+		},
 	};
 };
 
@@ -874,9 +869,6 @@ export const useChatSelector = <T>(
 	store: ChatStore,
 	selector: (state: ChatStoreState) => T,
 ): T => {
-	const getSnapshot = useCallback(
-		() => selector(store.getSnapshot()),
-		[selector, store],
-	);
+	const getSnapshot = () => selector(store.getSnapshot());
 	return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
 };

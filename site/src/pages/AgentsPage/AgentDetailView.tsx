@@ -6,7 +6,6 @@ import { ArchiveIcon, ArrowDownIcon } from "lucide-react";
 import {
 	type FC,
 	type RefObject,
-	useCallback,
 	useEffect,
 	useRef,
 	useState,
@@ -192,6 +191,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	urlTransform,
 	desktopChatId,
 }) => {
+	console.log("[RENDER] AgentDetailView");
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,
@@ -529,9 +529,11 @@ const ScrollAnchoredContainer: FC<{
 	const sentinelRef = useRef<HTMLDivElement>(null);
 	const observerRef = useRef<IntersectionObserver | null>(null);
 	const isFetchingRef = useRef(isFetchingMoreMessages);
-	isFetchingRef.current = isFetchingMoreMessages;
 	const onFetchRef = useRef(onFetchMoreMessages);
-	onFetchRef.current = onFetchMoreMessages;
+	useEffect(() => {
+		isFetchingRef.current = isFetchingMoreMessages;
+		onFetchRef.current = onFetchMoreMessages;
+	});
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
 	// Sentinel observer — triggers loading older messages.
@@ -608,7 +610,7 @@ const ScrollAnchoredContainer: FC<{
 		};
 	}, [scrollContainerRef]);
 
-	const handleScrollToBottom = useCallback(() => {
+	const handleScrollToBottom = () => {
 		const container = scrollContainerRef.current;
 		if (!container) return;
 		container.scrollTo({ top: 0, behavior: "smooth" });
@@ -617,7 +619,7 @@ const ScrollAnchoredContainer: FC<{
 		// before it reaches the bottom, the scroll handler will
 		// re-show the button.
 		setShowScrollToBottom(false);
-	}, [scrollContainerRef]);
+	};
 
 	return (
 		<div className="relative flex min-h-0 flex-1 flex-col">

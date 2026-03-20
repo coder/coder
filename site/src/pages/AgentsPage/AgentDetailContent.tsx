@@ -1,7 +1,7 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { type FC, useEffect, useMemo } from "react";
+import { type FC, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import {
@@ -61,6 +61,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	savingMessageId,
 	urlTransform,
 }) => {
+	console.log("[RENDER] AgentDetailTimeline");
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const streamState = useChatSelector(store, selectStreamState);
@@ -72,25 +73,12 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	);
 	const retryState = useChatSelector(store, selectRetryState);
 
-	const messages = useMemo(
-		() =>
-			orderedMessageIDs
-				.map((messageID) => messagesByID.get(messageID))
-				.filter(isChatMessage),
-		[messagesByID, orderedMessageIDs],
-	);
-	const streamTools = useMemo(
-		() => buildStreamTools(streamState),
-		[streamState],
-	);
-	const parsedMessages = useMemo(
-		() => parseMessagesWithMergedTools(messages),
-		[messages],
-	);
-	const subagentTitles = useMemo(
-		() => buildSubagentTitles(parsedMessages),
-		[parsedMessages],
-	);
+	const messages = orderedMessageIDs
+		.map((messageID) => messagesByID.get(messageID))
+		.filter(isChatMessage);
+	const streamTools = buildStreamTools(streamState);
+	const parsedMessages = parseMessagesWithMergedTools(messages);
+	const subagentTitles = buildSubagentTitles(parsedMessages);
 	const detailError: ChatDetailError | undefined =
 		(persistedErrorReason?.kind === "usage-limit" || chatStatus === "error"
 			? persistedErrorReason
@@ -191,28 +179,25 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	onCancelHistoryEdit,
 	editingFileBlocks,
 }) => {
+	console.log("[RENDER] AgentDetailInput");
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const queuedMessages = useChatSelector(store, selectQueuedMessages);
 
-	const messages = useMemo(
-		() =>
-			orderedMessageIDs
-				.map((messageID) => messagesByID.get(messageID))
-				.filter(isChatMessage),
-		[messagesByID, orderedMessageIDs],
-	);
+	const messages = orderedMessageIDs
+		.map((messageID) => messagesByID.get(messageID))
+		.filter(isChatMessage);
 	const { organizations } = useDashboard();
 	const organizationId = organizations[0]?.id;
-	const latestContextUsage = useMemo(() => {
+	const latestContextUsage = (() => {
 		const usage = getLatestContextUsage(messages);
 		if (!usage) {
 			return usage;
 		}
 		return { ...usage, compressionThreshold };
-	}, [messages, compressionThreshold]);
+	})();
 	const {
 		attachments,
 		uploadStates,
@@ -273,31 +258,33 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 		<AgentChatInput
 			onSend={(message) => {
 				void (async () => {
-					try {
-						// Collect file IDs from already-uploaded attachments.
-						// Skip files in error state (e.g. too large).
-						const fileIds: string[] = [];
-						let skippedErrors = 0;
-						for (const file of attachments) {
-							const state = uploadStates.get(file);
-							if (state?.status === "error") {
-								skippedErrors++;
-								continue;
-							}
-							if (state?.status === "uploaded" && state.fileId) {
-								fileIds.push(state.fileId);
-							}
+					// Collect file IDs from already-uploaded attachments.
+					// Skip files in error state (e.g. too large).
+					const fileIds: string[] = [];
+					let skippedErrors = 0;
+					for (const file of attachments) {
+						const state = uploadStates.get(file);
+						if (state?.status === "error") {
+							skippedErrors++;
+							continue;
 						}
-						if (skippedErrors > 0) {
-							toast.warning(
-								`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
-							);
+						if (state?.status === "uploaded" && state.fileId) {
+							fileIds.push(state.fileId);
 						}
-						await onSend(message, fileIds.length > 0 ? fileIds : undefined);
-						resetAttachments();
-					} catch {
-						// Attachments preserved for retry on failure.
 					}
+					if (skippedErrors > 0) {
+						toast.warning(
+							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+						);
+					}
+						const fileArg = fileIds.length > 0 ? fileIds : undefined;
+						try {
+							await onSend(message, fileArg);
+						} catch {
+							// Attachments preserved for retry on failure.
+							return;
+						}
+						resetAttachments();
 				})();
 			}}
 			attachments={attachments}

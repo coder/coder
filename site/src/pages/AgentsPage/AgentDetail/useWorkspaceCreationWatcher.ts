@@ -1,5 +1,5 @@
 import { chatKey } from "api/queries/chats";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useQueryClient } from "react-query";
 import { useChatSelector } from "./ChatContext";
 import type { StreamState } from "./types";
@@ -31,13 +31,11 @@ export function useWorkspaceCreationWatcher({
 	const streamState = useChatSelector(store, selectStreamState);
 	const processedToolCallIdsRef = useRef<Set<string>>(new Set());
 
-	// Reset processed IDs when chatID changes during render,
-	// before effects run.
-	const [previousChatID, setPreviousChatID] = useState(chatID);
-	if (previousChatID !== chatID) {
-		setPreviousChatID(chatID);
+	// Reset processed IDs when chatID changes. This effect runs
+	// before the watcher effect below because hooks execute in order.
+	useEffect(() => {
 		processedToolCallIdsRef.current = new Set();
-	}
+	}, [chatID]);
 
 	// Watch stream tool results for create_workspace completions.
 	useEffect(() => {

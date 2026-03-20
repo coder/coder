@@ -261,8 +261,7 @@ const ChatMessageItem = memo<{
 	// overlay to indicate truncated content.
 	fadeFromBottom?: boolean;
 	urlTransform?: UrlTransform;
-}>(
-	({
+}>(({
 		message,
 		parsed,
 		onEditUserMessage,
@@ -272,6 +271,7 @@ const ChatMessageItem = memo<{
 		fadeFromBottom = false,
 		urlTransform,
 	}) => {
+		console.log("[RENDER] ChatMessageItem");
 		const isUser = message.role === "user";
 		const isSavingMessage = savingMessageId === message.id;
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -489,11 +489,9 @@ const ChatMessageItem = memo<{
 				)}
 			</div>
 		);
-	},
-);
-ChatMessageItem.displayName = "ChatMessageItem";
+		});
 
-export const StreamingOutput = memo<{
+export const StreamingOutput: FC<{
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
 	subagentTitles?: Map<string, string>;
@@ -501,8 +499,7 @@ export const StreamingOutput = memo<{
 	showInitialPlaceholder?: boolean;
 	retryState?: { attempt: number; error: string } | null;
 	urlTransform?: UrlTransform;
-}>(
-	({
+}> = ({
 		streamState,
 		streamTools,
 		subagentTitles,
@@ -511,6 +508,7 @@ export const StreamingOutput = memo<{
 		retryState,
 		urlTransform,
 	}) => {
+		console.log("[RENDER] StreamingOutput");
 		const conversationItemProps = { role: "assistant" as const };
 		const toolByID = new Map(streamTools.map((tool) => [tool.id, tool]));
 		const blocks = streamState?.blocks ?? [];
@@ -570,9 +568,7 @@ export const StreamingOutput = memo<{
 				</Message>
 			</ConversationItem>
 		);
-	},
-);
-StreamingOutput.displayName = "StreamingOutput";
+	};
 
 const StickyUserMessage: FC<{
 	message: TypesGen.ChatMessage;
@@ -878,6 +874,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	savingMessageId,
 	urlTransform,
 }) => {
+	console.log("[RENDER] ConversationTimeline");
 	const shouldRenderStreamAfterMessages =
 		hasStreamOutput && parsedMessages.length > 0;
 	const isUsageLimitError = detailError?.kind === "usage-limit";

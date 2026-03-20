@@ -8,7 +8,6 @@ import { ArrowUpIcon } from "lucide-react";
 import {
 	type FC,
 	type RefObject,
-	useCallback,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -215,117 +214,99 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 	// ---------------------------------------------------------------
 	// Line interaction callbacks
 	// ---------------------------------------------------------------
-	const handleLineNumberClick = useCallback(
-		(
-			fileName: string,
-			props: {
-				lineNumber: number;
-				annotationSide: "additions" | "deletions";
-			},
-		) => {
-			setActiveCommentBox({
-				fileName,
-				start: props.lineNumber,
-				startSide: props.annotationSide,
-				end: props.lineNumber,
-				endSide: props.annotationSide,
-			});
+	const handleLineNumberClick = (
+		fileName: string,
+		props: {
+			lineNumber: number;
+			annotationSide: "additions" | "deletions";
 		},
-		[],
-	);
+	) => {
+		setActiveCommentBox({
+			fileName,
+			start: props.lineNumber,
+			startSide: props.annotationSide,
+			end: props.lineNumber,
+			endSide: props.annotationSide,
+		});
+	};
 
-	const handleLineSelected = useCallback(
-		(
-			fileName: string,
-			range: {
-				start: number;
-				end: number;
-				side?: "additions" | "deletions";
-				endSide?: "additions" | "deletions";
-			} | null,
-		) => {
-			const result = commentBoxFromRange(fileName, range);
-			if (result === "ignore") return;
-			setActiveCommentBox(result);
-		},
-		[],
-	);
+	const handleLineSelected = (
+		fileName: string,
+		range: {
+			start: number;
+			end: number;
+			side?: "additions" | "deletions";
+			endSide?: "additions" | "deletions";
+		} | null,
+	) => {
+		const result = commentBoxFromRange(fileName, range);
+		if (result === "ignore") return;
+		setActiveCommentBox(result);
+	};
 
 	// ---------------------------------------------------------------
 	// Annotation helpers
 	// ---------------------------------------------------------------
-	const getLineAnnotations = useCallback(
-		(fileName: string): DiffLineAnnotation<string>[] => {
-			if (activeCommentBox && activeCommentBox.fileName === fileName) {
-				return [
-					{
-						side: annotationSideForBox(activeCommentBox),
-						lineNumber: annotationLineForBox(activeCommentBox),
-						metadata: "active-input",
-					},
-				];
-			}
-			return [];
-		},
-		[activeCommentBox],
-	);
+	const getLineAnnotations = (fileName: string): DiffLineAnnotation<string>[] => {
+		if (activeCommentBox && activeCommentBox.fileName === fileName) {
+			return [
+				{
+					side: annotationSideForBox(activeCommentBox),
+					lineNumber: annotationLineForBox(activeCommentBox),
+					metadata: "active-input",
+				},
+			];
+		}
+		return [];
+	};
 
-	const getSelectedLines = useCallback(
-		(fileName: string): SelectedLineRange | null => {
-			if (activeCommentBox && activeCommentBox.fileName === fileName) {
-				return selectedLinesForBox(activeCommentBox);
-			}
-			return null;
-		},
-		[activeCommentBox],
-	);
+	const getSelectedLines = (fileName: string): SelectedLineRange | null => {
+		if (activeCommentBox && activeCommentBox.fileName === fileName) {
+			return selectedLinesForBox(activeCommentBox);
+		}
+		return null;
+	};
 
-	const handleCancelComment = useCallback(() => {
+	const handleCancelComment = () => {
 		setActiveCommentBox(null);
-	}, []);
+	};
 
-	const handleSubmitComment = useCallback(
-		(text: string) => {
-			if (!activeCommentBox) return;
-			const { startLine, endLine, side } = contentRangeForBox(activeCommentBox);
-			const content = extractDiffContent(
-				parsedFiles,
-				activeCommentBox.fileName,
-				startLine,
-				endLine,
-				side,
+	const handleSubmitComment = (text: string) => {
+		if (!activeCommentBox) return;
+		const { startLine, endLine, side } = contentRangeForBox(activeCommentBox);
+		const content = extractDiffContent(
+			parsedFiles,
+			activeCommentBox.fileName,
+			startLine,
+			endLine,
+			side,
+		);
+		// Single imperative call -- chip inserted atomically
+		// in one Lexical update. No rAF hack needed.
+		chatInputRef?.current?.addFileReference({
+			fileName: activeCommentBox.fileName,
+			startLine,
+			endLine,
+			content,
+		});
+		if (text.trim()) {
+			chatInputRef?.current?.insertText(text);
+		}
+		setActiveCommentBox(null);
+	};
+
+	const renderAnnotation = (annotation: DiffLineAnnotation<string>) => {
+		if (annotation.metadata === "active-input") {
+			if (!activeCommentBox) return null;
+			return (
+				<InlinePromptInput
+					onSubmit={handleSubmitComment}
+					onCancel={handleCancelComment}
+				/>
 			);
-			// Single imperative call -- chip inserted atomically
-			// in one Lexical update. No rAF hack needed.
-			chatInputRef?.current?.addFileReference({
-				fileName: activeCommentBox.fileName,
-				startLine,
-				endLine,
-				content,
-			});
-			if (text.trim()) {
-				chatInputRef?.current?.insertText(text);
-			}
-			setActiveCommentBox(null);
-		},
-		[activeCommentBox, chatInputRef, parsedFiles],
-	);
-
-	const renderAnnotation = useCallback(
-		(annotation: DiffLineAnnotation<string>) => {
-			if (annotation.metadata === "active-input") {
-				if (!activeCommentBox) return null;
-				return (
-					<InlinePromptInput
-						onSubmit={handleSubmitComment}
-						onCancel={handleCancelComment}
-					/>
-				);
-			}
-			return null;
-		},
-		[activeCommentBox, handleSubmitComment, handleCancelComment],
-	);
+		}
+		return null;
+	};
 
 	// ---------------------------------------------------------------
 	// Render

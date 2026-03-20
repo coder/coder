@@ -22,9 +22,7 @@ import { useAuthenticated } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	type FC,
-	useCallback,
 	useEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -73,6 +71,7 @@ function isChatListSSEEvent(
 export type { AgentsOutletContext } from "./AgentsPageView";
 
 const AgentsPage: FC = () => {
+	console.log("[RENDER] AgentsPage");
 	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -188,15 +187,11 @@ const AgentsPage: FC = () => {
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
 	>({});
-	const catalogModelOptions = useMemo(
-		() =>
-			getModelOptionsFromCatalog(
-				chatModelsQuery.data,
-				chatModelConfigsQuery.data,
-			),
-		[chatModelsQuery.data, chatModelConfigsQuery.data],
+	const catalogModelOptions = getModelOptionsFromCatalog(
+		chatModelsQuery.data,
+		chatModelConfigsQuery.data,
 	);
-	const modelConfigIDByModelID = useMemo(() => {
+	const modelConfigIDByModelID = (() => {
 		const byModelID = new Map<string, string>();
 		for (const config of chatModelConfigsQuery.data ?? []) {
 			const { provider, model } = getNormalizedModelRef(config);
@@ -213,31 +208,28 @@ const AgentsPage: FC = () => {
 			}
 		}
 		return byModelID;
-	}, [chatModelConfigsQuery.data]);
-	const setChatErrorReason = useCallback(
-		(chatId: string, reason: ChatDetailError) => {
-			const trimmedMessage = reason.message.trim();
-			if (!chatId || !trimmedMessage) {
-				return;
+	})();
+	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
+		const trimmedMessage = reason.message.trim();
+		if (!chatId || !trimmedMessage) {
+			return;
+		}
+		setChatErrorReasons((current) => {
+			const existing = current[chatId];
+			if (
+				existing &&
+				existing.kind === reason.kind &&
+				existing.message === trimmedMessage
+			) {
+				return current;
 			}
-			setChatErrorReasons((current) => {
-				const existing = current[chatId];
-				if (
-					existing &&
-					existing.kind === reason.kind &&
-					existing.message === trimmedMessage
-				) {
-					return current;
-				}
-				return {
-					...current,
-					[chatId]: { kind: reason.kind, message: trimmedMessage },
-				};
-			});
-		},
-		[],
-	);
-	const clearChatErrorReason = useCallback((chatId: string) => {
+			return {
+				...current,
+				[chatId]: { kind: reason.kind, message: trimmedMessage },
+			};
+		});
+	};
+	const clearChatErrorReason = (chatId: string) => {
 		if (!chatId) {
 			return;
 		}
@@ -249,11 +241,8 @@ const AgentsPage: FC = () => {
 			delete next[chatId];
 			return next;
 		});
-	}, []);
-	const chatList = useMemo(
-		() => chatsQuery.data?.pages.flat() ?? [],
-		[chatsQuery.data],
-	);
+	};
+	const chatList = chatsQuery.data?.pages.flat() ?? [];
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
 	const archivingChatId =
@@ -263,43 +252,37 @@ const AgentsPage: FC = () => {
 		(archiveAndDeleteMutation.isPending
 			? archiveAndDeleteMutation.variables?.chatId
 			: undefined);
-	const requestArchiveAgent = useCallback(
-		(chatId: string) => {
-			if (!isArchiving) {
-				archiveAgentMutation.mutate(chatId);
-			}
-		},
-		[isArchiving, archiveAgentMutation],
-	);
-	const requestArchiveAndDeleteWorkspace = useCallback(
-		async (chatId: string, workspaceId: string) => {
-			if (isArchiving) {
-				return;
-			}
-			try {
-				const action = await resolveArchiveAndDeleteAction(
-					() => queryClient.fetchQuery(workspaceById(workspaceId)),
-					() =>
-						readInfiniteChatsCache(queryClient)?.find((c) => c.id === chatId)
-							?.created_at,
+	const requestArchiveAgent = (chatId: string) => {
+		if (!isArchiving) {
+			archiveAgentMutation.mutate(chatId);
+		}
+	};
+	const requestArchiveAndDeleteWorkspace = async (chatId: string, workspaceId: string) => {
+		if (isArchiving) {
+			return;
+		}
+		try {
+			const action = await resolveArchiveAndDeleteAction(
+				() => queryClient.fetchQuery(workspaceById(workspaceId)),
+				() =>
+					readInfiniteChatsCache(queryClient)?.find((c) => c.id === chatId)
+						?.created_at,
+			);
+			if (action === "proceed") {
+				archiveAndDeleteMutation.mutate(
+					{ chatId, workspaceId },
+					{
+						onSettled: () => navigate("/agents"),
+					},
 				);
-				if (action === "proceed") {
-					archiveAndDeleteMutation.mutate(
-						{ chatId, workspaceId },
-						{
-							onSettled: () => navigate("/agents"),
-						},
-					);
-				} else {
-					setPendingArchiveAndDelete({ chatId, workspaceId });
-				}
-			} catch {
-				toast.error("Failed to look up workspace for deletion.");
+			} else {
+				setPendingArchiveAndDelete({ chatId, workspaceId });
 			}
-		},
-		[isArchiving, queryClient, archiveAndDeleteMutation, navigate],
-	);
-	const handleConfirmArchiveAndDelete = useCallback(() => {
+		} catch {
+			toast.error("Failed to look up workspace for deletion.");
+		}
+	};
+	const handleConfirmArchiveAndDelete = () => {
 		if (pendingArchiveAndDelete && !isArchiving) {
 			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete, {
 				onSettled: () => {
@@ -308,22 +291,11 @@ const AgentsPage: FC = () => {
 				},
 			});
 		}
-	}, [
-		pendingArchiveAndDelete,
-		isArchiving,
-		archiveAndDeleteMutation,
-		navigate,
-	]);
-	const requestUnarchiveAgent = useCallback(
-		(chatId: string) => {
-			unarchiveAgentMutation.mutate(chatId);
-		},
-		[unarchiveAgentMutation],
-	);
-	const handleToggleSidebarCollapsed = useCallback(
-		() => setIsSidebarCollapsed((prev) => !prev),
-		[],
-	);
+	};
+	const requestUnarchiveAgent = (chatId: string) => {
+		unarchiveAgentMutation.mutate(chatId);
+	};
+	const handleToggleSidebarCollapsed = () => setIsSidebarCollapsed((prev) => !prev);
 	const handleCreateChat = async (options: CreateChatOptions) => {
 		const { message, fileIDs, workspaceId, model } = options;
 		const modelConfigID =
@@ -368,7 +340,9 @@ const AgentsPage: FC = () => {
 	// WebSocket handler can read it without re-subscribing on
 	// every navigation.
 	const activeChatIDRef = useRef(agentId);
-	activeChatIDRef.current = agentId;
+	useEffect(() => {
+		activeChatIDRef.current = agentId;
+	});
 
 	useEffect(() => {
 		return createReconnectingWebSocket({

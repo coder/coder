@@ -60,10 +60,8 @@ import {
 	createContext,
 	type FC,
 	memo,
-	useCallback,
 	useContext,
 	useEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -357,6 +355,7 @@ interface ChatTreeNodeProps {
 }
 
 const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
+	console.log("[RENDER] ChatTreeNode");
 	const {
 		chatTree,
 		chatById,
@@ -579,11 +578,11 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 				</div>
 			)}
 		</div>
-	);
-});
-ChatTreeNode.displayName = "ChatTreeNode";
+		);
+	});
 
 export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
+	console.log("[RENDER] AgentsSidebar");
 	const {
 		chats,
 		chatErrorReasons,
@@ -620,23 +619,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 
-	const chatTree = useMemo(() => buildChatTree(chats), [chats]);
-	const chatById = useMemo(() => {
-		return new Map(chats.map((chat) => [chat.id, chat] as const));
-	}, [chats]);
-	const visibleChatIDs = useMemo(
-		() =>
-			collectVisibleChatIDs({
-				chats,
-				search: normalizedSearch,
-				tree: chatTree,
-			}),
-		[chats, chatTree],
-	);
-	const visibleRootIDs = useMemo(
-		() => chatTree.rootIds.filter((chatID) => visibleChatIDs.has(chatID)),
-		[chatTree.rootIds, visibleChatIDs],
-	);
+	const chatTree = buildChatTree(chats);
+	const chatById = new Map(chats.map((chat) => [chat.id, chat] as const));
+	const visibleChatIDs = collectVisibleChatIDs({
+		chats,
+		search: normalizedSearch,
+		tree: chatTree,
+	});
+	const visibleRootIDs = chatTree.rootIds.filter((chatID) => visibleChatIDs.has(chatID));
 
 	// Auto-expand ancestors of the active chat so it's always visible.
 	useEffect(() => {
@@ -662,43 +652,26 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		}
 	}, [activeChatId, chatTree.parentById]);
 
-	const toggleExpanded = useCallback((chatID: string) => {
+	const toggleExpanded = (chatID: string) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
-	}, []);
+	};
 
-	const chatTreeCtx = useMemo<ChatTreeContextValue>(
-		() => ({
-			chatTree,
-			chatById,
-			visibleChatIDs,
-			normalizedSearch,
-			expandedById,
-			modelOptions,
-			modelConfigs,
-			chatErrorReasons,
-			isArchiving,
-			archivingChatId,
-			toggleExpanded,
-			onArchiveAgent,
-			onUnarchiveAgent,
-			onArchiveAndDeleteWorkspace,
-		}),
-		[
-			chatTree,
-			chatById,
-			visibleChatIDs,
-			expandedById,
-			modelOptions,
-			modelConfigs,
-			chatErrorReasons,
-			isArchiving,
-			archivingChatId,
-			toggleExpanded,
-			onArchiveAgent,
-			onUnarchiveAgent,
-			onArchiveAndDeleteWorkspace,
-		],
-	);
+	const chatTreeCtx: ChatTreeContextValue = {
+		chatTree,
+		chatById,
+		visibleChatIDs,
+		normalizedSearch,
+		expandedById,
+		modelOptions,
+		modelConfigs,
+		chatErrorReasons,
+		isArchiving,
+		archivingChatId,
+		toggleExpanded,
+		onArchiveAgent,
+		onUnarchiveAgent,
+		onArchiveAndDeleteWorkspace,
+	};
 
 	const subNavTitle = "Settings";
 
@@ -1110,8 +1083,10 @@ const LoadMoreSentinel: FC<{
 	// Keep refs in sync with the latest prop values so the
 	// observer callback always reads current state without
 	// needing to tear down and re-create the observer.
-	onLoadMoreRef.current = onLoadMore;
-	isFetchingNextPageRef.current = isFetchingNextPage;
+	useEffect(() => {
+		onLoadMoreRef.current = onLoadMore;
+		isFetchingNextPageRef.current = isFetchingNextPage;
+	});
 
 	useEffect(() => {
 		const el = sentinelRef.current;

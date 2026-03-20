@@ -104,7 +104,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		const trimmedDisplayName = displayName.trim();
 		const trimmedBaseURL = baseURLValue.trim();
 
-		try {
 			if (providerConfig) {
 				const currentDisplayName =
 					readOptionalString(providerConfig.display_name) ?? "";
@@ -123,7 +122,13 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					return;
 				}
 
-				await onUpdateProvider(providerConfig.id, req);
+				try {
+					await onUpdateProvider(providerConfig.id, req);
+				} catch {
+					// Error is surfaced via the mutation's error state
+					// in ChatModelAdminPanel, no toast needed.
+					return;
+				}
 			} else {
 				if (!effectiveApiKey) {
 					return;
@@ -138,15 +143,16 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					...(trimmedBaseURL && { base_url: trimmedBaseURL }),
 				};
 
-				await onCreateProvider(req);
+				try {
+					await onCreateProvider(req);
+				} catch {
+					// Error is surfaced via the mutation's error state
+					// in ChatModelAdminPanel, no toast needed.
+					return;
+				}
 			}
 
-			setApiKeyTouched(false);
-		} catch {
-			// Error is surfaced via the mutation's error state
-			// in ChatModelAdminPanel, no toast needed.
-		}
-	};
+			setApiKeyTouched(false);	};
 
 	const handleApiKeyFocus = () => {
 		// Clear the placeholder on first focus so the user starts

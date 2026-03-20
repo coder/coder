@@ -26,14 +26,7 @@ import {
 	XIcon,
 } from "lucide-react";
 import type React from "react";
-import {
-	memo,
-	type ReactNode,
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type FC, type ReactNode, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { cn } from "utils/cn";
 import { isMobileViewport } from "utils/mobile";
 import { ImageLightbox } from "./ImageLightbox";
@@ -152,8 +145,7 @@ const RING_STROKE = 2.5;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
-const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
-	({ usage }) => {
+const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({ usage }) => {
 		const usedTokens = hasFiniteTokenValue(usage?.usedTokens)
 			? usage.usedTokens
 			: undefined;
@@ -232,16 +224,14 @@ const ContextUsageIndicator = memo<{ usage: AgentContextUsage | null }>(
 				</TooltipContent>
 			</Tooltip>
 		);
-	},
-);
-ContextUsageIndicator.displayName = "ContextUsageIndicator";
+	};
 
 /** Renders an image thumbnail from a pre-created preview URL. */
-export const ImageThumbnail = memo<{
+export const ImageThumbnail: FC<{
 	previewUrl: string;
 	name: string;
 	className?: string;
-}>(({ previewUrl, name, className }) => (
+}> = ({ previewUrl, name, className }) => (
 	<img
 		src={previewUrl}
 		alt={name}
@@ -250,17 +240,16 @@ export const ImageThumbnail = memo<{
 			className,
 		)}
 	/>
-));
-ImageThumbnail.displayName = "ImageThumbnail";
+);
 
 /** Renders a horizontal strip of attachment thumbnails above the input. */
-export const AttachmentPreview = memo<{
+export const AttachmentPreview: FC<{
 	attachments: readonly File[];
 	onRemove: (index: number) => void;
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
 	onPreview?: (url: string) => void;
-}>(({ attachments, onRemove, uploadStates, previewUrls, onPreview }) => {
+}> = ({ attachments, onRemove, uploadStates, previewUrls, onPreview }) => {
 	if (attachments.length === 0) return null;
 
 	return (
@@ -324,11 +313,9 @@ export const AttachmentPreview = memo<{
 			})}
 		</div>
 	);
-});
-AttachmentPreview.displayName = "AttachmentPreview";
+};
 
-export const AgentChatInput = memo<AgentChatInputProps>(
-	({
+export const AgentChatInput: FC<AgentChatInputProps> = ({
 		onSend,
 		placeholder = "Type a message...",
 		isDisabled,
@@ -362,6 +349,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 		uploadStates,
 		previewUrls,
 	}) => {
+		console.log("[RENDER] AgentChatInput");
 		const internalRef = useRef<ChatMessageInputRef>(null);
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 
@@ -383,74 +371,51 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			}
 		}, [speech.transcript, speech.isRecording, preRecordingValue]);
 
-		// Merge the external inputRef with our internal ref so both
-		// point to the same ChatMessageInputRef instance.
-		const setRef = useCallback(
-			(instance: ChatMessageInputRef | null) => {
-				(
-					internalRef as React.MutableRefObject<ChatMessageInputRef | null>
-				).current = instance;
-				if (typeof inputRef === "function") {
-					inputRef(instance);
-				} else if (inputRef && typeof inputRef === "object") {
-					(
-						inputRef as React.MutableRefObject<ChatMessageInputRef | null>
-					).current = instance;
-				}
-			},
-			[inputRef],
-		);
+		// Forward the internal ref to the parent-supplied inputRef
+		// so both point to the same ChatMessageInputRef instance.
+		useImperativeHandle(inputRef, () => internalRef.current!, []);
 
 		const fileInputRef = useRef<HTMLInputElement>(null);
 
-		const handleFileSelect = useCallback(
-			(e: React.ChangeEvent<HTMLInputElement>) => {
-				if (e.target.files && onAttach) {
-					onAttach(Array.from(e.target.files));
-				}
-				// Reset so the same file can be selected again.
-				e.target.value = "";
-			},
-			[onAttach],
-		);
+		const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+			if (e.target.files && onAttach) {
+				onAttach(Array.from(e.target.files));
+			}
+			// Reset so the same file can be selected again.
+			e.target.value = "";
+		};
 
-		const handleFilePaste = useCallback(
-			(file: File) => {
-				onAttach?.([file]);
-			},
-			[onAttach],
-		);
+		const handleFilePaste = (file: File) => {
+			onAttach?.([file]);
+		};
 
 		// Drag-and-drop support for image files.
 		const [isDragging, setIsDragging] = useState(false);
 
-		const handleDragOver = useCallback((e: React.DragEvent) => {
+		const handleDragOver = (e: React.DragEvent) => {
 			e.preventDefault();
 			if (e.dataTransfer.types.includes("Files")) {
 				setIsDragging(true);
 			}
-		}, []);
+		};
 
-		const handleDragLeave = useCallback((e: React.DragEvent) => {
+		const handleDragLeave = (e: React.DragEvent) => {
 			if (!e.currentTarget.contains(e.relatedTarget as Node)) {
 				setIsDragging(false);
 			}
-		}, []);
+		};
 
-		const handleDrop = useCallback(
-			(e: React.DragEvent) => {
-				e.preventDefault();
-				setIsDragging(false);
-				if (!onAttach || !e.dataTransfer.files.length) return;
-				const images = Array.from(e.dataTransfer.files).filter((f) =>
-					f.type.startsWith("image/"),
-				);
-				if (images.length > 0) {
-					onAttach(images);
-				}
-			},
-			[onAttach],
-		);
+		const handleDrop = (e: React.DragEvent) => {
+			e.preventDefault();
+			setIsDragging(false);
+			if (!onAttach || !e.dataTransfer.files.length) return;
+			const images = Array.from(e.dataTransfer.files).filter((f) =>
+				f.type.startsWith("image/"),
+			);
+			if (images.length > 0) {
+				onAttach(images);
+			}
+		};
 
 		// Track whether the editor has content so we can gate the
 		// send button without a controlled value prop.
@@ -458,29 +423,22 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			Boolean(initialValue?.trim()),
 		);
 
-		const handleContentChange = useCallback(
-			(content: string, hasRefs: boolean) => {
-				setHasContent(Boolean(content.trim()));
-				setHasFileReferences(hasRefs);
-				onContentChange?.(content);
-			},
-			[onContentChange],
-		);
+		const handleContentChange = (content: string, hasRefs: boolean) => {
+			setHasContent(Boolean(content.trim()));
+			setHasFileReferences(hasRefs);
+			onContentChange?.(content);
+		};
 
-		// Re-focus the editor after a send completes (isLoading goes
-		// from true → false) so the user can immediately type again.
-		// Uses the "store previous value in state" pattern recommended
-		// by React for responding to prop changes during render.
-		const [prevIsLoading, setPrevIsLoading] = useState(isLoading);
-		if (prevIsLoading !== isLoading) {
-			setPrevIsLoading(isLoading);
-			if (prevIsLoading && !isLoading) {
-				if (!isMobileViewport()) {
+			// Re-focus the editor after a send completes (isLoading goes
+			// from true → false) so the user can immediately type again.
+			const prevIsLoadingRef = useRef(isLoading);
+			useEffect(() => {
+				const wasLoading = prevIsLoadingRef.current;
+				prevIsLoadingRef.current = isLoading;
+				if (wasLoading && !isLoading && !isMobileViewport()) {
 					internalRef.current?.focus();
 				}
-			}
-		}
-
+			});
 		const isUploading = attachments.some(
 			(f) => uploadStates?.get(f)?.status === "uploading",
 		);
@@ -493,7 +451,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			hasModelOptions &&
 			(hasContent || hasUploadedAttachments || hasFileReferences) &&
 			!isUploading;
-		const handleSubmit = useCallback(() => {
+		const handleSubmit = () => {
 			const text = internalRef.current?.getValue()?.trim() ?? "";
 
 			// If the input is empty and there are queued messages,
@@ -526,27 +484,17 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 			if (!isMobileViewport()) {
 				internalRef.current?.focus();
 			}
-		}, [
-			isDisabled,
-			isLoading,
-			isUploading,
-			hasModelOptions,
-			hasUploadedAttachments,
-			hasFileReferences,
-			onSend,
-			queuedMessages,
-			onPromoteQueuedMessage,
-		]);
-		const handleStartRecording = useCallback(() => {
+		};
+		const handleStartRecording = () => {
 			setPreRecordingValue(internalRef.current?.getValue()?.trim() ?? "");
 			speech.start();
-		}, [speech]);
+		};
 
-		const handleAcceptRecording = useCallback(() => {
+		const handleAcceptRecording = () => {
 			speech.stop();
-		}, [speech]);
+		};
 
-		const handleCancelRecording = useCallback(() => {
+		const handleCancelRecording = () => {
 			const original = preRecordingValue;
 			speech.cancel();
 			const editor = internalRef.current;
@@ -557,7 +505,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				}
 			}
 			setPreRecordingValue("");
-		}, [speech, preRecordingValue]);
+		};
 
 		const handleKeyDown = (e: React.KeyboardEvent) => {
 			if (e.key === "Escape") {
@@ -667,7 +615,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 						/>
 					)}
 					<ChatMessageInput
-						ref={setRef}
+						ref={internalRef}
 						onFilePaste={onAttach ? handleFilePaste : undefined}
 						aria-label="Chat message"
 						className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
@@ -820,6 +768,4 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 				)}
 			</>
 		);
-	},
-);
-AgentChatInput.displayName = "AgentChatInput";
+	};

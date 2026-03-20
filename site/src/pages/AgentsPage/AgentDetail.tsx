@@ -21,9 +21,7 @@ import {
 } from "modules/apps/apps";
 import {
 	type FC,
-	useCallback,
 	useEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -88,11 +86,7 @@ export function useConversationEditingState(deps: {
 		if (typeof window === "undefined" || !draftStorageKey) {
 			return "";
 		}
-		const saved = localStorage.getItem(draftStorageKey);
-		if (saved) {
-			inputValueRef.current = saved;
-		}
-		return saved ?? "";
+		return localStorage.getItem(draftStorageKey) ?? "";
 	});
 
 	// -- History editing state --
@@ -104,24 +98,21 @@ export function useConversationEditingState(deps: {
 		readonly ChatMessagePart[]
 	>([]);
 
-	const handleEditUserMessage = useCallback(
-		(
-			messageId: number,
-			text: string,
-			fileBlocks?: readonly ChatMessagePart[],
-		) => {
-			setDraftBeforeHistoryEdit((prev) =>
-				editingMessageId !== null ? prev : inputValueRef.current,
-			);
-			setEditingMessageId(messageId);
-			setEditorInitialValue(text);
-			inputValueRef.current = text;
-			setEditingFileBlocks(fileBlocks ?? []);
-		},
-		[editingMessageId, inputValueRef],
-	);
+	const handleEditUserMessage = (
+		messageId: number,
+		text: string,
+		fileBlocks?: readonly ChatMessagePart[],
+	) => {
+		setDraftBeforeHistoryEdit((prev) =>
+			editingMessageId !== null ? prev : inputValueRef.current,
+		);
+		setEditingMessageId(messageId);
+		setEditorInitialValue(text);
+		inputValueRef.current = text;
+		setEditingFileBlocks(fileBlocks ?? []);
+	};
 
-	const handleCancelHistoryEdit = useCallback(() => {
+	const handleCancelHistoryEdit = () => {
 		setEditorInitialValue(draftBeforeHistoryEdit ?? "");
 		inputValueRef.current = draftBeforeHistoryEdit ?? "";
 		setEditingMessageId(null);
@@ -131,7 +122,7 @@ export function useConversationEditingState(deps: {
 		if (draftBeforeHistoryEdit) {
 			chatInputRef.current?.insertText(draftBeforeHistoryEdit);
 		}
-	}, [draftBeforeHistoryEdit, inputValueRef, chatInputRef]);
+	};
 
 	// -- Queue editing state --
 	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
@@ -141,81 +132,64 @@ export function useConversationEditingState(deps: {
 		string | null
 	>(null);
 
-	const handleStartQueueEdit = useCallback(
-		(id: number, text: string, fileBlocks: readonly ChatMessagePart[]) => {
-			setDraftBeforeQueueEdit((prev) =>
-				editingQueuedMessageID === null ? inputValueRef.current : prev,
-			);
-			setEditingQueuedMessageID(id);
-			setEditorInitialValue(text);
-			inputValueRef.current = text;
-			setEditingFileBlocks(fileBlocks);
-		},
-		[editingQueuedMessageID, inputValueRef],
-	);
+	const handleStartQueueEdit = (id: number, text: string, fileBlocks: readonly ChatMessagePart[]) => {
+		setDraftBeforeQueueEdit((prev) =>
+			editingQueuedMessageID === null ? inputValueRef.current : prev,
+		);
+		setEditingQueuedMessageID(id);
+		setEditorInitialValue(text);
+		inputValueRef.current = text;
+		setEditingFileBlocks(fileBlocks);
+	};
 
-	const handleCancelQueueEdit = useCallback(() => {
+	const handleCancelQueueEdit = () => {
 		setEditorInitialValue(draftBeforeQueueEdit ?? "");
 		inputValueRef.current = draftBeforeQueueEdit ?? "";
 		setEditingQueuedMessageID(null);
 		setDraftBeforeQueueEdit(null);
 		setEditingFileBlocks([]);
-	}, [draftBeforeQueueEdit, inputValueRef]);
+	};
 
 	// Wraps the parent onSend to clear local input/editing state
 	// and handle queue-edit deletion.
-	const handleSendFromInput = useCallback(
-		async (message: string, fileIds?: string[]) => {
-			const editedMessageID =
-				editingMessageId !== null ? editingMessageId : undefined;
-			const queueEditID = editingQueuedMessageID;
+	const handleSendFromInput = async (message: string, fileIds?: string[]) => {
+		const editedMessageID =
+			editingMessageId !== null ? editingMessageId : undefined;
+		const queueEditID = editingQueuedMessageID;
 
-			await onSend(message, fileIds, editedMessageID);
-			// Clear input and editing state on success.
-			chatInputRef.current?.clear();
-			if (!isMobileViewport()) {
-				chatInputRef.current?.focus();
-			}
-			inputValueRef.current = "";
-			if (typeof window !== "undefined" && draftStorageKey) {
+		await onSend(message, fileIds, editedMessageID);
+		// Clear input and editing state on success.
+		chatInputRef.current?.clear();
+		if (!isMobileViewport()) {
+			chatInputRef.current?.focus();
+		}
+		inputValueRef.current = "";
+		if (typeof window !== "undefined" && draftStorageKey) {
+			localStorage.removeItem(draftStorageKey);
+		}
+		if (editingMessageId !== null) {
+			setEditingMessageId(null);
+			setDraftBeforeHistoryEdit(null);
+			setEditingFileBlocks([]);
+		}
+		if (queueEditID !== null) {
+			setEditingQueuedMessageID(null);
+			setDraftBeforeQueueEdit(null);
+			setEditingFileBlocks([]);
+			void onDeleteQueuedMessage(queueEditID);
+		}
+	};
+
+	const handleContentChange = (content: string) => {
+		inputValueRef.current = content;
+		if (typeof window !== "undefined" && draftStorageKey) {
+			if (content) {
+				localStorage.setItem(draftStorageKey, content);
+			} else {
 				localStorage.removeItem(draftStorageKey);
 			}
-			if (editingMessageId !== null) {
-				setEditingMessageId(null);
-				setDraftBeforeHistoryEdit(null);
-				setEditingFileBlocks([]);
-			}
-			if (queueEditID !== null) {
-				setEditingQueuedMessageID(null);
-				setDraftBeforeQueueEdit(null);
-				setEditingFileBlocks([]);
-				void onDeleteQueuedMessage(queueEditID);
-			}
-		},
-		[
-			chatInputRef,
-			editingMessageId,
-			editingQueuedMessageID,
-			onDeleteQueuedMessage,
-			onSend,
-			draftStorageKey,
-			inputValueRef,
-		],
-	);
-
-	const handleContentChange = useCallback(
-		(content: string) => {
-			inputValueRef.current = content;
-			if (typeof window !== "undefined" && draftStorageKey) {
-				if (content) {
-					localStorage.setItem(draftStorageKey, content);
-				} else {
-					localStorage.removeItem(draftStorageKey);
-				}
-			}
-		},
-		[draftStorageKey, inputValueRef],
-	);
+		}
+	};
 
 	return {
 		inputValueRef,
@@ -234,6 +208,7 @@ export function useConversationEditingState(deps: {
 }
 
 const AgentDetail: FC = () => {
+	console.log("[RENDER] AgentDetail");
 	const navigate = useNavigate();
 	const { agentId } = useParams<{ agentId: string }>();
 	const outletContext = useOutletContext<AgentsOutletContext>();
@@ -263,7 +238,11 @@ const AgentDetail: FC = () => {
 	} = outletContext;
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
-	const inputValueRef = useRef("");
+	const inputValueRef = useRef(
+		typeof window !== "undefined" && agentId
+			? localStorage.getItem(`${draftInputStorageKeyPrefix}${agentId}`) ?? ""
+			: "",
+	);
 
 	// Right panel open/closed state is owned here so the loading
 	// skeleton and the loaded view share the same layout, preventing
@@ -272,18 +251,15 @@ const AgentDetail: FC = () => {
 		if (typeof window === "undefined") return false;
 		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
 	});
-	const handleSetShowSidebarPanel = useCallback(
-		(next: boolean | ((prev: boolean) => boolean)) => {
-			setShowSidebarPanel((prev) => {
-				const value = typeof next === "function" ? next(prev) : next;
-				if (typeof window !== "undefined") {
-					localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(value));
-				}
-				return value;
-			});
-		},
-		[],
-	);
+	const handleSetShowSidebarPanel = (next: boolean | ((prev: boolean) => boolean)) => {
+		setShowSidebarPanel((prev) => {
+			const value = typeof next === "function" ? next(prev) : next;
+			if (typeof window !== "undefined") {
+				localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(value));
+			}
+			return value;
+		});
+	};
 
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
@@ -329,39 +305,36 @@ const AgentDetail: FC = () => {
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
 	const { proxy } = useProxy();
 
-	const urlTransform = useCallback<UrlTransform>(
-		(url) => {
-			const host = proxy.preferredWildcardHostname;
-			if (!host || !workspaceAgent || !workspace) {
+	const urlTransform: UrlTransform = (url) => {
+		const host = proxy.preferredWildcardHostname;
+		if (!host || !workspaceAgent || !workspace) {
+			return url;
+		}
+		try {
+			const parsed = new URL(url);
+			if (!localHosts.has(parsed.hostname)) {
 				return url;
 			}
-			try {
-				const parsed = new URL(url);
-				if (!localHosts.has(parsed.hostname)) {
-					return url;
-				}
-				return portForwardURL(
-					host,
-					Number.parseInt(parsed.port, 10),
-					workspaceAgent.name,
-					workspace.name,
-					workspace.owner_name,
-					"http",
-					parsed.pathname,
-					parsed.search,
-				);
-			} catch {
-				return url;
-			}
-		},
-		[proxy.preferredWildcardHostname, workspaceAgent, workspace],
-	);
+			return portForwardURL(
+				host,
+				Number.parseInt(parsed.port, 10),
+				workspaceAgent.name,
+				workspace.name,
+				workspace.owner_name,
+				"http",
+				parsed.pathname,
+				parsed.search,
+			);
+		} catch {
+			return url;
+		}
+	};
 
 	const chatRecord = chatQuery.data;
 	// Flatten paginated messages into chronological order.
 	// Pages arrive newest-first per page, and pages[0] is the
 	// most recent page.
-	const chatMessagesList = useMemo(() => {
+	const chatMessagesList = (() => {
 		const pages = chatMessagesQuery.data?.pages;
 		if (!pages || pages.length === 0) return undefined;
 		// Collect all messages, then sort chronologically by ID.
@@ -369,7 +342,7 @@ const AgentDetail: FC = () => {
 		// Sort ascending by ID for chronological order.
 		all.sort((a, b) => a.id - b.id);
 		return all;
-	}, [chatMessagesQuery.data]);
+	})();
 
 	// Queued messages are only in the first page (most recent).
 	const chatQueuedMessages = chatMessagesQuery.data?.pages[0]?.queued_messages;
@@ -377,14 +350,13 @@ const AgentDetail: FC = () => {
 	// Build a synthetic ChatMessagesResponse from the flattened
 	// data for backward compat with useChatStore.
 	const chatMessagesData: TypesGen.ChatMessagesResponse | undefined =
-		useMemo(() => {
-			if (!chatMessagesList) return undefined;
-			return {
-				messages: chatMessagesList,
-				queued_messages: chatQueuedMessages ?? [],
-				has_more: chatMessagesQuery.data?.pages.at(-1)?.has_more ?? false,
-			};
-		}, [chatMessagesList, chatQueuedMessages, chatMessagesQuery.data]);
+		chatMessagesList
+			? {
+					messages: chatMessagesList,
+					queued_messages: chatQueuedMessages ?? [],
+					has_more: chatMessagesQuery.data?.pages.at(-1)?.has_more ?? false,
+				}
+			: undefined;
 	const isArchived = chatRecord?.archived ?? false;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
 
@@ -427,7 +399,7 @@ const AgentDetail: FC = () => {
 		chatID: agentId,
 	});
 
-	const handleCommit = useCallback((repoRoot: string) => {
+	const handleCommit = (repoRoot: string) => {
 		const commitPrompt = `Commit and push the working changes in ${repoRoot}. If there are unstaged files, commit them too.`;
 		const current = inputValueRef.current;
 		if (current.includes(commitPrompt)) {
@@ -436,7 +408,7 @@ const AgentDetail: FC = () => {
 		const prefix = current.trim() ? "\n\n" : "";
 		chatInputRef.current?.insertText(prefix + commitPrompt);
 		chatInputRef.current?.focus();
-	}, []);
+	};
 
 	// Prefer the explicit PR number from the API, and only fall back to URL
 	// parsing when older metadata does not provide it.
@@ -448,7 +420,7 @@ const AgentDetail: FC = () => {
 	// Compute an effective selected model by validating the user's
 	// explicit choice against the current model options, falling
 	// back to the chat's last model or the first available option.
-	const effectiveSelectedModel = useMemo(() => {
+	const effectiveSelectedModel = (() => {
 		if (
 			selectedModel &&
 			modelOptions.some((model) => model.id === selectedModel)
@@ -462,15 +434,11 @@ const AgentDetail: FC = () => {
 			}
 		}
 		return modelOptions[0]?.id ?? "";
-	}, [selectedModel, chatLastModelConfigID, modelIDByConfigID, modelOptions]);
+	})();
 
-	const compressionThreshold = useMemo(() => {
-		if (!chatLastModelConfigID) {
-			return undefined;
-		}
-		const config = modelConfigs.find((c) => c.id === chatLastModelConfigID);
-		return config?.compression_threshold;
-	}, [chatLastModelConfigID, modelConfigs]);
+	const compressionThreshold = chatLastModelConfigID
+		? modelConfigs.find((c) => c.id === chatLastModelConfigID)?.compression_threshold
+		: undefined;
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
@@ -495,29 +463,26 @@ const AgentDetail: FC = () => {
 		interruptMutation.isPending;
 	const isInputDisabled = !hasModelOptions || isArchived;
 
-	const handleUsageLimitError = useCallback(
-		(error: unknown): void => {
-			if (!agentId) {
-				return;
-			}
-			if (
-				isApiError(error) &&
-				error.response?.status === 409 &&
-				isUsageLimitData(error.response.data)
-			) {
-				setChatErrorReason(agentId, {
-					kind: "usage-limit",
-					message: formatUsageLimitMessage(error.response.data),
-				});
-			} else if (isApiError(error)) {
-				setChatErrorReason(agentId, {
-					kind: "generic",
-					message: error.message || "An unexpected error occurred.",
-				});
-			}
-		},
-		[agentId, setChatErrorReason],
-	);
+	const handleUsageLimitError = (error: unknown): void => {
+		if (!agentId) {
+			return;
+		}
+		if (
+			isApiError(error) &&
+			error.response?.status === 409 &&
+			isUsageLimitData(error.response.data)
+		) {
+			setChatErrorReason(agentId, {
+				kind: "usage-limit",
+				message: formatUsageLimitMessage(error.response.data),
+			});
+		} else if (isApiError(error)) {
+			setChatErrorReason(agentId, {
+				kind: "generic",
+				message: error.message || "An unexpected error occurred.",
+			});
+		}
+	};
 
 	const handleSend = async (
 		message: string,
@@ -584,11 +549,11 @@ const AgentDetail: FC = () => {
 					messageId: editedMessageID,
 					req: request,
 				});
+				setPendingEditMessageId(null);
 			} catch (error) {
+				setPendingEditMessageId(null);
 				handleUsageLimitError(error);
 				throw error;
-			} finally {
-				setPendingEditMessageId(null);
 			}
 			return;
 		}
@@ -609,9 +574,14 @@ const AgentDetail: FC = () => {
 		// No optimistic rendering — the message will appear in the
 		// timeline when the server confirms via the POST response or
 		// via the SSE stream.
-		store.clearStreamState();
-		try {
-			const response = await sendMutation.mutateAsync(request);
+			store.clearStreamState();
+			let response: Awaited<ReturnType<typeof sendMutation.mutateAsync>>;
+			try {
+				response = await sendMutation.mutateAsync(request);
+			} catch (error) {
+				handleUsageLimitError(error);
+				throw error;
+			}
 			// When the server accepts the message immediately (not
 			// queued), insert it into the store so it appears in the
 			// timeline without waiting for the SSE stream.
@@ -627,12 +597,7 @@ const AgentDetail: FC = () => {
 				} else {
 					localStorage.removeItem(lastModelConfigIDStorageKey);
 				}
-			}
-		} catch (error) {
-			handleUsageLimitError(error);
-			throw error;
-		}
-	};
+			}	};
 
 	const handleInterrupt = () => {
 		if (!agentId || interruptMutation.isPending) {
@@ -641,57 +606,45 @@ const AgentDetail: FC = () => {
 		void interruptMutation.mutateAsync();
 	};
 
-	const handleDeleteQueuedMessage = useCallback(
-		async (id: number) => {
-			const previousQueuedMessages = store.getSnapshot().queuedMessages;
-			store.setQueuedMessages(
-				previousQueuedMessages.filter((message) => message.id !== id),
-			);
-			try {
-				await deleteQueuedMutation.mutateAsync(id);
-			} catch (error) {
-				store.setQueuedMessages(previousQueuedMessages);
-				throw error;
-			}
-		},
-		[deleteQueuedMutation, store],
-	);
+	const handleDeleteQueuedMessage = async (id: number) => {
+		const previousQueuedMessages = store.getSnapshot().queuedMessages;
+		store.setQueuedMessages(
+			previousQueuedMessages.filter((message) => message.id !== id),
+		);
+		try {
+			await deleteQueuedMutation.mutateAsync(id);
+		} catch (error) {
+			store.setQueuedMessages(previousQueuedMessages);
+			throw error;
+		}
+	};
 
-	const handlePromoteQueuedMessage = useCallback(
-		async (id: number) => {
-			const previousSnapshot = store.getSnapshot();
-			const previousQueuedMessages = previousSnapshot.queuedMessages;
-			const previousChatStatus = previousSnapshot.chatStatus;
-			store.setQueuedMessages(
-				previousQueuedMessages.filter((message) => message.id !== id),
-			);
-			store.clearStreamState();
-			if (agentId) {
-				clearChatErrorReason(agentId);
-			}
-			store.clearStreamError();
-			store.setChatStatus("pending");
-			try {
-				const promotedMessage = await promoteQueuedMutation.mutateAsync(id);
-				// Insert the promoted message into the store immediately
-				// so it appears in the timeline without waiting for the
-				// WebSocket to deliver it.
-				store.upsertDurableMessage(promotedMessage);
-			} catch (error) {
-				store.setQueuedMessages(previousQueuedMessages);
-				store.setChatStatus(previousChatStatus);
-				handleUsageLimitError(error);
-				throw error;
-			}
-		},
-		[
-			agentId,
-			clearChatErrorReason,
-			handleUsageLimitError,
-			promoteQueuedMutation,
-			store,
-		],
-	);
+	const handlePromoteQueuedMessage = async (id: number) => {
+		const previousSnapshot = store.getSnapshot();
+		const previousQueuedMessages = previousSnapshot.queuedMessages;
+		const previousChatStatus = previousSnapshot.chatStatus;
+		store.setQueuedMessages(
+			previousQueuedMessages.filter((message) => message.id !== id),
+		);
+		store.clearStreamState();
+		if (agentId) {
+			clearChatErrorReason(agentId);
+		}
+		store.clearStreamError();
+		store.setChatStatus("pending");
+		try {
+			const promotedMessage = await promoteQueuedMutation.mutateAsync(id);
+			// Insert the promoted message into the store immediately
+			// so it appears in the timeline without waiting for the
+			// WebSocket to deliver it.
+			store.upsertDurableMessage(promotedMessage);
+		} catch (error) {
+			store.setQueuedMessages(previousQueuedMessages);
+			store.setChatStatus(previousChatStatus);
+			handleUsageLimitError(error);
+			throw error;
+		}
+	};
 
 	const editing = useConversationEditingState({
 		chatID: agentId,

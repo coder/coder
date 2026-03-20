@@ -1,6 +1,6 @@
 import RFB from "@novnc/novnc/lib/rfb";
 import { watchChatDesktop } from "api/api";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface UseDesktopConnectionOptions {
 	chatId: string | undefined;
@@ -47,6 +47,7 @@ export function useDesktopConnection({
 	const [status, setStatus] = useState<DesktopConnectionStatus>("idle");
 	const [hasConnected, setHasConnected] = useState(false);
 
+	const [rfbInstance, setRfbInstance] = useState<RFB | null>(null);
 	const rfbRef = useRef<RFB | null>(null);
 	const offscreenContainerRef = useRef<HTMLElement | null>(null);
 	const reconnectAttemptRef = useRef(0);
@@ -58,7 +59,7 @@ export function useDesktopConnection({
 	// the latest value without stale closures.
 	const hasConnectedRef = useRef(false);
 
-	const cleanupRfb = useCallback(() => {
+	const cleanupRfb = () => {
 		if (rfbRef.current) {
 			try {
 				rfbRef.current.disconnect();
@@ -66,10 +67,11 @@ export function useDesktopConnection({
 				// Ignore errors during disconnect.
 			}
 			rfbRef.current = null;
+			setRfbInstance(null);
 		}
-	}, []);
+	};
 
-	const doConnect = useCallback(() => {
+	const doConnect = () => {
 		if (!chatId || disposedRef.current) {
 			return;
 		}
@@ -109,6 +111,7 @@ export function useDesktopConnection({
 			rfb.addEventListener("disconnect", () => {
 				if (disposedRef.current) return;
 				rfbRef.current = null;
+				setRfbInstance(null);
 
 				if (!sessionConnected && !hasConnectedRef.current) {
 					// The VNC handshake never completed and the desktop
@@ -140,24 +143,26 @@ export function useDesktopConnection({
 			rfb.addEventListener("securityfailure", () => {
 				if (disposedRef.current) return;
 				rfbRef.current = null;
+				setRfbInstance(null);
 				setStatus("error");
 			});
 
 			rfbRef.current = rfb;
+			setRfbInstance(rfb);
 		} catch {
 			setStatus("error");
 		}
-	}, [chatId, cleanupRfb]);
+	};
 
-	const connect = useCallback(() => {
+	const connect = () => {
 		if (connectRequestedRef.current) {
 			return;
 		}
 		connectRequestedRef.current = true;
 		doConnect();
-	}, [doConnect]);
+	};
 
-	const disconnect = useCallback(() => {
+	const disconnect = () => {
 		if (reconnectTimerRef.current !== null) {
 			clearTimeout(reconnectTimerRef.current);
 			reconnectTimerRef.current = null;
@@ -167,14 +172,14 @@ export function useDesktopConnection({
 		setStatus("idle");
 		connectRequestedRef.current = false;
 		reconnectAttemptRef.current = 0;
-	}, [cleanupRfb]);
+	};
 
-	const attach = useCallback((container: HTMLElement) => {
+	const attach = (container: HTMLElement) => {
 		const screen = offscreenContainerRef.current;
 		if (screen && screen.parentElement !== container) {
 			container.appendChild(screen);
 		}
-	}, []);
+	};
 
 	// Cleanup on unmount or chatId change.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: chatId is an intentional trigger to reset state for a new conversation
@@ -203,6 +208,6 @@ export function useDesktopConnection({
 		connect,
 		disconnect,
 		attach,
-		rfb: rfbRef.current,
+		rfb: rfbInstance,
 	};
 }
