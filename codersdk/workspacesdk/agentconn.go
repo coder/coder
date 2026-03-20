@@ -170,6 +170,10 @@ type AgentReconnectingPTYInit struct {
 	ContainerUser string
 
 	BackendType string
+
+	// TraceContext carries OpenTelemetry trace propagation data so the
+	// agent can link its spans back to the client's trace.
+	TraceContext map[string]string `json:"trace_context,omitempty"`
 }
 
 // AgentReconnectingPTYInitOption is a functional option for AgentReconnectingPTYInit.
@@ -213,6 +217,7 @@ func (c *agentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, w
 		Width:   width,
 		Command: command,
 	}
+	rptyInit.TraceContext = tracing.MetadataFromContext(ctx)
 	for _, o := range initOpts {
 		o(&rptyInit)
 	}

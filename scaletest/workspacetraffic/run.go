@@ -243,6 +243,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 const (
 	BytesReadMetric    = "bytes_read"
 	BytesWrittenMetric = "bytes_written"
+
 )
 
 func (r *Runner) GetMetrics() map[string]any {
