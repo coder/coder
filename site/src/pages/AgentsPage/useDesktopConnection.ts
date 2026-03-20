@@ -59,24 +59,27 @@ export function useDesktopConnection({
 	// the latest value without stale closures.
 	const hasConnectedRef = useRef(false);
 
-	const cleanupRfb = () => {
-		if (rfbRef.current) {
-			try {
-				rfbRef.current.disconnect();
-			} catch {
-				// Ignore errors during disconnect.
+	const cleanupRfbRef = useRef(() => {});
+	useEffect(() => {
+		cleanupRfbRef.current = () => {
+			if (rfbRef.current) {
+				try {
+					rfbRef.current.disconnect();
+				} catch {
+					// Ignore errors during disconnect.
+				}
+				rfbRef.current = null;
+				setRfbInstance(null);
 			}
-			rfbRef.current = null;
-			setRfbInstance(null);
-		}
-	};
+		};
+	});
 
 	const doConnect = () => {
 		if (!chatId || disposedRef.current) {
 			return;
 		}
 
-		cleanupRfb();
+		cleanupRfbRef.current();
 		setStatus("connecting");
 
 		// Temporary offscreen container for the RFB canvas; moved into
@@ -167,7 +170,7 @@ export function useDesktopConnection({
 			clearTimeout(reconnectTimerRef.current);
 			reconnectTimerRef.current = null;
 		}
-		cleanupRfb();
+		cleanupRfbRef.current();
 		offscreenContainerRef.current = null;
 		setStatus("idle");
 		connectRequestedRef.current = false;
@@ -192,7 +195,7 @@ export function useDesktopConnection({
 				clearTimeout(reconnectTimerRef.current);
 				reconnectTimerRef.current = null;
 			}
-			cleanupRfb();
+			cleanupRfbRef.current();
 			offscreenContainerRef.current = null;
 			setStatus("idle");
 			setHasConnected(false);
@@ -200,7 +203,7 @@ export function useDesktopConnection({
 			connectRequestedRef.current = false;
 			reconnectAttemptRef.current = 0;
 		};
-	}, [chatId, cleanupRfb]);
+	}, [chatId]);
 
 	return {
 		status,

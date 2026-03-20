@@ -19,7 +19,7 @@ import {
 	StarIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { type FC, type ReactNode } from "react";
+import type { FC, ReactNode } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { cn } from "utils/cn";
 import { SectionHeader } from "../SectionHeader";

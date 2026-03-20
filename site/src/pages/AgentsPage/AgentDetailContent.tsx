@@ -28,8 +28,8 @@ import {
 	buildSubagentTitles,
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
-import type { ParsedMessageEntry } from "./AgentDetail/types";
 import { buildStreamTools } from "./AgentDetail/streamState";
+import type { ParsedMessageEntry } from "./AgentDetail/types";
 import type { ChatDetailError } from "./usageLimitMessage";
 import { useFileAttachments } from "./useFileAttachments";
 
@@ -341,14 +341,14 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
 						);
 					}
-						const fileArg = fileIds.length > 0 ? fileIds : undefined;
-						try {
-							await onSend(message, fileArg);
-						} catch {
-							// Attachments preserved for retry on failure.
-							return;
-						}
-						resetAttachments();
+					const fileArg = fileIds.length > 0 ? fileIds : undefined;
+					try {
+						await onSend(message, fileArg);
+					} catch {
+						// Attachments preserved for retry on failure.
+						return;
+					}
+					resetAttachments();
 				})();
 			}}
 			attachments={attachments}

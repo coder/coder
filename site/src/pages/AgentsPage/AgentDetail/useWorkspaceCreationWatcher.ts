@@ -10,9 +10,9 @@ type ChatStoreHandle = Parameters<typeof useChatSelector>[0];
 // This reference is stable during pure text/thinking streaming
 // and only changes when a tool result actually appears, avoiding
 // a re-render of AgentDetail on every token.
-const selectStreamToolResults = (
-	state: { streamState: StreamState | null },
-): Record<string, { id: string; name: string }> | null =>
+const selectStreamToolResults = (state: {
+	streamState: StreamState | null;
+}): Record<string, { id: string; name: string }> | null =>
 	state.streamState?.toolResults ?? null;
 
 interface UseWorkspaceCreationWatcherOptions {
@@ -36,15 +36,16 @@ export function useWorkspaceCreationWatcher({
 	const queryClient = useQueryClient();
 	const toolResults = useChatSelector(store, selectStreamToolResults);
 	const processedToolCallIdsRef = useRef<Set<string>>(new Set());
-
-	// Reset processed IDs when chatID changes. This effect runs
-	// before the watcher effect below because hooks execute in order.
-	useEffect(() => {
-		processedToolCallIdsRef.current = new Set();
-	}, [chatID]);
+	const chatIDRef = useRef(chatID);
 
 	// Watch stream tool results for create_workspace completions.
 	useEffect(() => {
+		// Reset processed IDs when chatID changes.
+		if (chatIDRef.current !== chatID) {
+			chatIDRef.current = chatID;
+			processedToolCallIdsRef.current = new Set();
+		}
+
 		if (!toolResults || !chatID) {
 			processedToolCallIdsRef.current.clear();
 			return;
@@ -71,5 +72,5 @@ export function useWorkspaceCreationWatcher({
 				queryKey: chatKey(chatID),
 			});
 		}
-	}, [chatID, toolResults, queryClient]);
+	}, [toolResults, queryClient, chatID]);
 }

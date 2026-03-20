@@ -91,44 +91,45 @@ export function useGitWatcher({
 				if (socketRef.current !== socket) {
 					return;
 				}
-					let data: WorkspaceAgentGitServerMessage;
-					try {
-						data = JSON.parse(
-							String(event.data),
-						) as WorkspaceAgentGitServerMessage;
-					} catch {
-						// Ignore unparsable messages.
-						return;
-					}
+				let data: WorkspaceAgentGitServerMessage;
+				try {
+					data = JSON.parse(
+						String(event.data),
+					) as WorkspaceAgentGitServerMessage;
+				} catch {
+					// Ignore unparsable messages.
+					return;
+				}
 
-					if (data.type === "changes" && data.repositories) {
-						setRepositories((prev) => {
-							let changed = false;
-							const next = new Map(prev);
-							for (const repo of data.repositories!) {
-								if (repo.removed) {
-									if (next.has(repo.repo_root)) {
-										next.delete(repo.repo_root);
-										changed = true;
-									}
-								} else {
-									const existing = next.get(repo.repo_root);
-									if (
-										!existing ||
-										existing.branch !== repo.branch ||
-										existing.remote_origin !== repo.remote_origin ||
-										existing.unified_diff !== repo.unified_diff
-									) {
-										next.set(repo.repo_root, repo);
-										changed = true;
-									}
+				if (data.type === "changes" && data.repositories) {
+					setRepositories((prev) => {
+						let changed = false;
+						const next = new Map(prev);
+						for (const repo of data.repositories!) {
+							if (repo.removed) {
+								if (next.has(repo.repo_root)) {
+									next.delete(repo.repo_root);
+									changed = true;
+								}
+							} else {
+								const existing = next.get(repo.repo_root);
+								if (
+									!existing ||
+									existing.branch !== repo.branch ||
+									existing.remote_origin !== repo.remote_origin ||
+									existing.unified_diff !== repo.unified_diff
+								) {
+									next.set(repo.repo_root, repo);
+									changed = true;
 								}
 							}
-							return changed ? next : prev;
-						});
-					} else if (data.type === "error") {
-						console.warn("[useGitWatcher] server error:", data.message);
-					}			});
+						}
+						return changed ? next : prev;
+					});
+				} else if (data.type === "error") {
+					console.warn("[useGitWatcher] server error:", data.message);
+				}
+			});
 
 			// Note: WebSocket "error" events are always followed by a "close"
 			// event, so reconnection is handled here.

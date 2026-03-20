@@ -145,9 +145,15 @@ export const LimitsTab: FC = () => {
 		spend_limit_micros: configQuery.data?.spend_limit_micros ?? null,
 		period: defaultLimitValues.period,
 	});
-	const existingGroupIds = new Set((configQuery.data?.group_overrides ?? []).map((g) => g.group_id));
-	const existingUserIds = new Set((configQuery.data?.overrides ?? []).map((o) => o.user_id));
-	const availableGroups = (groupsQuery.data ?? []).filter((g) => !existingGroupIds.has(g.id));
+	const existingGroupIds = new Set(
+		(configQuery.data?.group_overrides ?? []).map((g) => g.group_id),
+	);
+	const existingUserIds = new Set(
+		(configQuery.data?.overrides ?? []).map((o) => o.user_id),
+	);
+	const availableGroups = (groupsQuery.data ?? []).filter(
+		(g) => !existingGroupIds.has(g.id),
+	);
 	const selectedUserAlreadyOverridden = selectedUser
 		? existingUserIds.has(selectedUser.id)
 		: false;

@@ -65,9 +65,7 @@ function useTabScroll() {
 
 		const update = () => {
 			setCanScrollLeft(el.scrollLeft > 0);
-			setCanScrollRight(
-				el.scrollLeft + el.clientWidth < el.scrollWidth - 1,
-			);
+			setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
 		};
 
 		// Initial check.

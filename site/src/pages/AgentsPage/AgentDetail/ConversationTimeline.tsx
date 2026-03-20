@@ -41,8 +41,6 @@ import type {
 	StreamState,
 } from "./types";
 
-// biome-ignore lint: debug instrumentation
-
 const ReasoningDisclosure: FC<{
 	id: string;
 	text: string;
@@ -263,7 +261,8 @@ const ChatMessageItem = memo<{
 	// overlay to indicate truncated content.
 	fadeFromBottom?: boolean;
 	urlTransform?: UrlTransform;
-}>(({
+}>(
+	({
 		message,
 		parsed,
 		onEditUserMessage,
@@ -272,10 +271,9 @@ const ChatMessageItem = memo<{
 		isAfterEditingMessage = false,
 		fadeFromBottom = false,
 		urlTransform,
-		}) => {
-
-			const isUser = message.role === "user";
-			const isSavingMessage = savingMessageId === message.id;
+	}) => {
+		const isUser = message.role === "user";
+		const isSavingMessage = savingMessageId === message.id;
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const toolByID = new Map(parsed.tools.map((tool) => [tool.id, tool]));
 
@@ -491,7 +489,8 @@ const ChatMessageItem = memo<{
 				)}
 			</div>
 		);
-		});
+	},
+);
 
 export const StreamingOutput: FC<{
 	streamState: StreamState | null;
@@ -502,74 +501,74 @@ export const StreamingOutput: FC<{
 	retryState?: { attempt: number; error: string } | null;
 	urlTransform?: UrlTransform;
 }> = ({
-		streamState,
-		streamTools,
+	streamState,
+	streamTools,
+	subagentTitles,
+	subagentStatusOverrides,
+	showInitialPlaceholder = false,
+	retryState,
+	urlTransform,
+}) => {
+	const conversationItemProps = { role: "assistant" as const };
+	const toolByID = new Map(streamTools.map((tool) => [tool.id, tool]));
+	const blocks = streamState?.blocks ?? [];
+	const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
+		blocks,
+		toolByID,
+		keyPrefix: "stream",
+		isStreaming: true,
 		subagentTitles,
 		subagentStatusOverrides,
-		showInitialPlaceholder = false,
-		retryState,
 		urlTransform,
-	}) => {
-		const conversationItemProps = { role: "assistant" as const };
-		const toolByID = new Map(streamTools.map((tool) => [tool.id, tool]));
-		const blocks = streamState?.blocks ?? [];
-		const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
-			blocks,
-			toolByID,
-			keyPrefix: "stream",
-			isStreaming: true,
-			subagentTitles,
-			subagentStatusOverrides,
-			urlTransform,
-		});
-		const remainingTools = streamTools.filter(
-			(tool) => !renderedToolIDs.has(tool.id),
-		);
+	});
+	const remainingTools = streamTools.filter(
+		(tool) => !renderedToolIDs.has(tool.id),
+	);
 
-		return (
-			<ConversationItem {...conversationItemProps}>
-				<Message className="w-full">
-					<MessageContent className="whitespace-normal">
-						<div className="space-y-3">
-							{orderedBlocks}
-							{showInitialPlaceholder ||
-							(streamState &&
-								orderedBlocks.length === 0 &&
-								streamTools.length === 0) ? (
-								<div className="relative">
-									<Response aria-hidden className="invisible">
-										{`Thinking...${retryState ? ` attempt ${retryState.attempt}` : ""}`}
-									</Response>
-									<div className="pointer-events-none absolute inset-0 flex items-baseline gap-2">
-										<Shimmer as="div" className="text-[13px] leading-relaxed">
-											Thinking...
-										</Shimmer>
-										{retryState && (
-											<span className="text-[11px] text-content-secondary">
-												attempt {retryState.attempt}
-											</span>
-										)}
-									</div>
+	return (
+		<ConversationItem {...conversationItemProps}>
+			<Message className="w-full">
+				<MessageContent className="whitespace-normal">
+					<div className="space-y-3">
+						{orderedBlocks}
+						{showInitialPlaceholder ||
+						(streamState &&
+							orderedBlocks.length === 0 &&
+							streamTools.length === 0) ? (
+							<div className="relative">
+								<Response aria-hidden className="invisible">
+									{`Thinking...${retryState ? ` attempt ${retryState.attempt}` : ""}`}
+								</Response>
+								<div className="pointer-events-none absolute inset-0 flex items-baseline gap-2">
+									<Shimmer as="div" className="text-[13px] leading-relaxed">
+										Thinking...
+									</Shimmer>
+									{retryState && (
+										<span className="text-[11px] text-content-secondary">
+											attempt {retryState.attempt}
+										</span>
+									)}
 								</div>
-							) : null}
-							{remainingTools.map((tool) => (
-								<Tool
-									key={tool.id}
-									name={tool.name}
-									args={tool.args}
-									result={tool.result}
-									status={tool.status}
-									isError={tool.isError}
-									subagentTitles={subagentTitles}
-									subagentStatusOverrides={subagentStatusOverrides}
-								/>
-							))}
-						</div>
-					</MessageContent>
-				</Message>
-			</ConversationItem>
-		);
-	};
+							</div>
+						) : null}
+						{remainingTools.map((tool) => (
+							<Tool
+								key={tool.id}
+								name={tool.name}
+								args={tool.args}
+								result={tool.result}
+								status={tool.status}
+								isError={tool.isError}
+								subagentTitles={subagentTitles}
+								subagentStatusOverrides={subagentStatusOverrides}
+							/>
+						))}
+					</div>
+				</MessageContent>
+			</Message>
+		</ConversationItem>
+	);
+};
 
 const StickyUserMessage: FC<{
 	message: TypesGen.ChatMessage;

@@ -104,55 +104,56 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		const trimmedDisplayName = displayName.trim();
 		const trimmedBaseURL = baseURLValue.trim();
 
-			if (providerConfig) {
-				const currentDisplayName =
-					readOptionalString(providerConfig.display_name) ?? "";
-				const currentBaseURL = baseURL.trim();
-				const req: TypesGen.UpdateChatProviderConfigRequest = {
-					...(trimmedDisplayName !== currentDisplayName && {
-						display_name: trimmedDisplayName,
-					}),
-					...(effectiveApiKey && { api_key: effectiveApiKey }),
-					...(trimmedBaseURL !== currentBaseURL && {
-						base_url: trimmedBaseURL,
-					}),
-				};
+		if (providerConfig) {
+			const currentDisplayName =
+				readOptionalString(providerConfig.display_name) ?? "";
+			const currentBaseURL = baseURL.trim();
+			const req: TypesGen.UpdateChatProviderConfigRequest = {
+				...(trimmedDisplayName !== currentDisplayName && {
+					display_name: trimmedDisplayName,
+				}),
+				...(effectiveApiKey && { api_key: effectiveApiKey }),
+				...(trimmedBaseURL !== currentBaseURL && {
+					base_url: trimmedBaseURL,
+				}),
+			};
 
-				if (!req.display_name && !req.api_key && !req.base_url) {
-					return;
-				}
-
-				try {
-					await onUpdateProvider(providerConfig.id, req);
-				} catch {
-					// Error is surfaced via the mutation's error state
-					// in ChatModelAdminPanel, no toast needed.
-					return;
-				}
-			} else {
-				if (!effectiveApiKey) {
-					return;
-				}
-
-				const req: TypesGen.CreateChatProviderConfigRequest = {
-					provider,
-					api_key: effectiveApiKey,
-					...(trimmedDisplayName && {
-						display_name: trimmedDisplayName,
-					}),
-					...(trimmedBaseURL && { base_url: trimmedBaseURL }),
-				};
-
-				try {
-					await onCreateProvider(req);
-				} catch {
-					// Error is surfaced via the mutation's error state
-					// in ChatModelAdminPanel, no toast needed.
-					return;
-				}
+			if (!req.display_name && !req.api_key && !req.base_url) {
+				return;
 			}
 
-			setApiKeyTouched(false);	};
+			try {
+				await onUpdateProvider(providerConfig.id, req);
+			} catch {
+				// Error is surfaced via the mutation's error state
+				// in ChatModelAdminPanel, no toast needed.
+				return;
+			}
+		} else {
+			if (!effectiveApiKey) {
+				return;
+			}
+
+			const req: TypesGen.CreateChatProviderConfigRequest = {
+				provider,
+				api_key: effectiveApiKey,
+				...(trimmedDisplayName && {
+					display_name: trimmedDisplayName,
+				}),
+				...(trimmedBaseURL && { base_url: trimmedBaseURL }),
+			};
+
+			try {
+				await onCreateProvider(req);
+			} catch {
+				// Error is surfaced via the mutation's error state
+				// in ChatModelAdminPanel, no toast needed.
+				return;
+			}
+		}
+
+		setApiKeyTouched(false);
+	};
 
 	const handleApiKeyFocus = () => {
 		// Clear the placeholder on first focus so the user starts

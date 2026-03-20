@@ -11,13 +11,7 @@ import {
 	GitPullRequestDraftIcon,
 	GitPullRequestIcon,
 } from "lucide-react";
-import {
-	type FC,
-	type RefObject,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type FC, type RefObject, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { cn } from "utils/cn";
 import type { ChatMessageInputRef } from "./AgentChatInput";
@@ -27,8 +21,6 @@ import type { DiffStyle } from "./DiffViewer";
 import { parsePullRequestUrl } from "./pullRequest";
 
 export { InlinePromptInput } from "./CommentableDiffViewer";
-
-
 
 // -------------------------------------------------------------------
 // PR state badge

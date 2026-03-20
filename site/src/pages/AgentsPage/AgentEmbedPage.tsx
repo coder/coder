@@ -5,12 +5,7 @@ import { useAuthContext } from "contexts/auth/AuthProvider";
 import { ProxyProvider } from "contexts/ProxyContext";
 import { DashboardProvider } from "modules/dashboard/DashboardProvider";
 import { permissionChecks } from "modules/permissions";
-import {
-	type FC,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Outlet, useParams } from "react-router";
 import type { AgentsOutletContext } from "./AgentsPage";
@@ -108,7 +103,10 @@ const AgentEmbedPage: FC = () => {
 
 	const requestUnarchiveAgent = (_chatId: string) => {};
 
-	const requestArchiveAndDeleteWorkspace = (_chatId: string, _workspaceId: string) => {};
+	const requestArchiveAndDeleteWorkspace = (
+		_chatId: string,
+		_workspaceId: string,
+	) => {};
 
 	const onToggleSidebarCollapsed = () => {
 		setIsSidebarCollapsed((current) => !current);

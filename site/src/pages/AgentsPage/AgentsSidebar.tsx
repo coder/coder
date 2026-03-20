@@ -577,8 +577,8 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 				</div>
 			)}
 		</div>
-		);
-	});
+	);
+});
 
 export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const {
@@ -624,7 +624,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		search: normalizedSearch,
 		tree: chatTree,
 	});
-	const visibleRootIDs = chatTree.rootIds.filter((chatID) => visibleChatIDs.has(chatID));
+	const visibleRootIDs = chatTree.rootIds.filter((chatID) =>
+		visibleChatIDs.has(chatID),
+	);
 
 	// Auto-expand ancestors of the active chat so it's always visible.
 	useEffect(() => {

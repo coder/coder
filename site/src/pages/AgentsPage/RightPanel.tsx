@@ -91,9 +91,8 @@ function useResizableDrag({
 		sidebarCollapsedByDrag.current = false;
 		startX.current = e.clientX;
 		startWidth.current = isExpanded
-			? ((e.target as HTMLElement).closest(
-					"[data-testid='agents-right-panel']",
-				)?.parentElement?.clientWidth ?? getMaxWidth())
+			? ((e.target as HTMLElement).closest("[data-testid='agents-right-panel']")
+					?.parentElement?.clientWidth ?? getMaxWidth())
 			: width;
 		(e.target as HTMLElement).setPointerCapture(e.pointerId);
 	};
@@ -113,10 +112,7 @@ function useResizableDrag({
 				onToggleSidebarCollapsed();
 				sidebarCollapsedByDrag.current = true;
 			}
-		} else if (
-			e.clientX >= SNAP_THRESHOLD &&
-			sidebarCollapsedByDrag.current
-		) {
+		} else if (e.clientX >= SNAP_THRESHOLD && sidebarCollapsedByDrag.current) {
 			if (onToggleSidebarCollapsed) {
 				onToggleSidebarCollapsed();
 				sidebarCollapsedByDrag.current = false;

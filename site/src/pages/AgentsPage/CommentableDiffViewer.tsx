@@ -247,7 +247,9 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 	// ---------------------------------------------------------------
 	// Annotation helpers
 	// ---------------------------------------------------------------
-	const getLineAnnotations = (fileName: string): DiffLineAnnotation<string>[] => {
+	const getLineAnnotations = (
+		fileName: string,
+	): DiffLineAnnotation<string>[] => {
 		if (activeCommentBox && activeCommentBox.fileName === fileName) {
 			return [
 				{

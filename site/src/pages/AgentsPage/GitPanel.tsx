@@ -17,13 +17,7 @@ import {
 	RefreshCwIcon,
 	RowsIcon,
 } from "lucide-react";
-import {
-	type FC,
-	type RefObject,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type FC, type RefObject, useEffect, useRef, useState } from "react";
 import { cn } from "utils/cn";
 import type { ChatMessageInputRef } from "./AgentChatInput";
 import { DiffStatBadge } from "./DiffStats";
@@ -103,7 +97,9 @@ export const GitPanel: FC<GitPanelProps> = ({
 		return stats;
 	})();
 
-	const localRepos = Array.from(repoStats.keys()).sort((a, b) => a.localeCompare(b));
+	const localRepos = Array.from(repoStats.keys()).sort((a, b) =>
+		a.localeCompare(b),
+	);
 
 	// Default to the first local repo when there are only local
 	// changes and no remote stats.

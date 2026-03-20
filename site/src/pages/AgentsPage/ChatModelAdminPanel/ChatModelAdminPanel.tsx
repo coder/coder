@@ -99,101 +99,97 @@ const useProviderStates = (
 	providerConfigsData: TypesGen.ChatProviderConfig[] | null | undefined,
 	catalogData: TypesGen.ChatModelsResponse | null | undefined,
 ): readonly ProviderState[] => {
-		const orderedProviders: string[] = [];
-		const seenProviders = new Set<string>();
-		const includeProvider = (providerValue: string) => {
-			const normalized = normalizeProvider(providerValue);
-			if (!normalized || seenProviders.has(normalized)) return;
-			seenProviders.add(normalized);
-			orderedProviders.push(normalized);
+	const orderedProviders: string[] = [];
+	const seenProviders = new Set<string>();
+	const includeProvider = (providerValue: string) => {
+		const normalized = normalizeProvider(providerValue);
+		if (!normalized || seenProviders.has(normalized)) return;
+		seenProviders.add(normalized);
+		orderedProviders.push(normalized);
+	};
+
+	const catalogProviders = getCatalogProviders(catalogData);
+	const catalogProvidersByProvider = new Map<string, CatalogProvider>();
+	for (const cp of catalogProviders) {
+		const normalized = normalizeProvider(cp.provider);
+		if (!normalized) continue;
+		includeProvider(normalized);
+		catalogProvidersByProvider.set(normalized, cp);
+	}
+
+	for (const pc of providerConfigsData ?? []) {
+		includeProvider(pc.provider);
+	}
+	for (const mc of modelConfigs) {
+		includeProvider(mc.provider);
+	}
+
+	const providerConfigsByProvider = new Map<
+		string,
+		TypesGen.ChatProviderConfig
+	>();
+	for (const pc of providerConfigsData ?? []) {
+		const normalized = normalizeProvider(pc.provider);
+		if (!normalized) continue;
+		providerConfigsByProvider.set(normalized, pc);
+	}
+
+	const modelConfigsByProvider = new Map<string, TypesGen.ChatModelConfig[]>();
+	for (const mc of modelConfigs) {
+		const normalized = normalizeProvider(mc.provider);
+		if (!normalized) continue;
+		const existing = modelConfigsByProvider.get(normalized);
+		if (existing) {
+			existing.push(mc);
+		} else {
+			modelConfigsByProvider.set(normalized, [mc]);
+		}
+	}
+
+	return orderedProviders.map((provider) => {
+		const providerConfigEntry = providerConfigsByProvider.get(provider);
+		const providerConfigSource = getProviderConfigSource(providerConfigEntry);
+		const providerConfig = isDatabaseProviderConfig(
+			providerConfigEntry,
+			providerConfigSource,
+		)
+			? providerConfigEntry
+			: undefined;
+		const catalogProvider = catalogProvidersByProvider.get(provider);
+		const catalogProviderSource = readOptionalString(
+			(catalogProvider as CatalogProvider & { source?: string })?.source,
+		);
+		const hasManagedAPIKey = hasProviderAPIKey(providerConfig);
+		const hasProviderEntryAPIKey = hasProviderAPIKey(providerConfigEntry);
+		const hasCatalogAPIKey = catalogProvider
+			? providerHasCatalogAPIKey(catalogProvider)
+			: false;
+		const label =
+			readOptionalString(providerConfigEntry?.display_name) ??
+			formatProviderLabel(provider);
+		const modelConfigsForProvider = modelConfigsByProvider.get(provider) ?? [];
+		const isCatalogEnvPreset =
+			!providerConfig &&
+			envPresetProviders.has(provider) &&
+			(catalogProviderSource === "env" || hasCatalogAPIKey);
+		const isEnvPreset =
+			providerConfigSource === "env_preset" || isCatalogEnvPreset;
+
+		return {
+			provider,
+			label,
+			providerConfig,
+			modelConfigs: modelConfigsForProvider,
+			catalogModelCount: getProviderModels(catalogProvider).length,
+			hasManagedAPIKey,
+			hasCatalogAPIKey,
+			hasEffectiveAPIKey: providerConfigEntry
+				? hasProviderEntryAPIKey
+				: hasManagedAPIKey || hasCatalogAPIKey,
+			isEnvPreset,
+			baseURL: getProviderBaseURL(providerConfigEntry),
 		};
-
-		const catalogProviders = getCatalogProviders(catalogData);
-		const catalogProvidersByProvider = new Map<string, CatalogProvider>();
-		for (const cp of catalogProviders) {
-			const normalized = normalizeProvider(cp.provider);
-			if (!normalized) continue;
-			includeProvider(normalized);
-			catalogProvidersByProvider.set(normalized, cp);
-		}
-
-		for (const pc of providerConfigsData ?? []) {
-			includeProvider(pc.provider);
-		}
-		for (const mc of modelConfigs) {
-			includeProvider(mc.provider);
-		}
-
-		const providerConfigsByProvider = new Map<
-			string,
-			TypesGen.ChatProviderConfig
-		>();
-		for (const pc of providerConfigsData ?? []) {
-			const normalized = normalizeProvider(pc.provider);
-			if (!normalized) continue;
-			providerConfigsByProvider.set(normalized, pc);
-		}
-
-		const modelConfigsByProvider = new Map<
-			string,
-			TypesGen.ChatModelConfig[]
-		>();
-		for (const mc of modelConfigs) {
-			const normalized = normalizeProvider(mc.provider);
-			if (!normalized) continue;
-			const existing = modelConfigsByProvider.get(normalized);
-			if (existing) {
-				existing.push(mc);
-			} else {
-				modelConfigsByProvider.set(normalized, [mc]);
-			}
-		}
-
-		return orderedProviders.map((provider) => {
-			const providerConfigEntry = providerConfigsByProvider.get(provider);
-			const providerConfigSource = getProviderConfigSource(providerConfigEntry);
-			const providerConfig = isDatabaseProviderConfig(
-				providerConfigEntry,
-				providerConfigSource,
-			)
-				? providerConfigEntry
-				: undefined;
-			const catalogProvider = catalogProvidersByProvider.get(provider);
-			const catalogProviderSource = readOptionalString(
-				(catalogProvider as CatalogProvider & { source?: string })?.source,
-			);
-			const hasManagedAPIKey = hasProviderAPIKey(providerConfig);
-			const hasProviderEntryAPIKey = hasProviderAPIKey(providerConfigEntry);
-			const hasCatalogAPIKey = catalogProvider
-				? providerHasCatalogAPIKey(catalogProvider)
-				: false;
-			const label =
-				readOptionalString(providerConfigEntry?.display_name) ??
-				formatProviderLabel(provider);
-			const modelConfigsForProvider =
-				modelConfigsByProvider.get(provider) ?? [];
-			const isCatalogEnvPreset =
-				!providerConfig &&
-				envPresetProviders.has(provider) &&
-				(catalogProviderSource === "env" || hasCatalogAPIKey);
-			const isEnvPreset =
-				providerConfigSource === "env_preset" || isCatalogEnvPreset;
-
-			return {
-				provider,
-				label,
-				providerConfig,
-				modelConfigs: modelConfigsForProvider,
-				catalogModelCount: getProviderModels(catalogProvider).length,
-				hasManagedAPIKey,
-				hasCatalogAPIKey,
-				hasEffectiveAPIKey: providerConfigEntry
-					? hasProviderEntryAPIKey
-					: hasManagedAPIKey || hasCatalogAPIKey,
-				isEnvPreset,
-				baseURL: getProviderBaseURL(providerConfigEntry),
-			};
-		});
+	});
 };
 
 // ── Component ──────────────────────────────────────────────────

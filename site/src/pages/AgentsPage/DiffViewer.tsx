@@ -99,8 +99,6 @@ interface DiffViewerProps {
  * Minimum container width (px) at which the file tree sidebar
  * is shown alongside the diff list.
  */
-// biome-ignore lint: debug instrumentation
-
 const FILE_TREE_THRESHOLD = 1000;
 
 /**
@@ -426,13 +424,14 @@ const LazyFileDiff = memo<{
 	lineAnnotations?: DiffLineAnnotation<string>[];
 	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
 	selectedLines?: SelectedLineRange | null;
-}>(({
-	fileDiff,
-	options,
-	lineAnnotations,
-	renderAnnotation: renderAnnotationProp,
-	selectedLines,
-}) => {
+}>(
+	({
+		fileDiff,
+		options,
+		lineAnnotations,
+		renderAnnotation: renderAnnotationProp,
+		selectedLines,
+	}) => {
 		const placeholderRef = useRef<HTMLDivElement>(null);
 		const [visible, setVisible] = useState(false);
 
@@ -482,7 +481,8 @@ const LazyFileDiff = memo<{
 				selectedLines={selectedLines}
 			/>
 		);
-	});
+	},
+);
 
 // -------------------------------------------------------------------
 // Main component

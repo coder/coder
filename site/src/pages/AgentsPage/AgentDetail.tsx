@@ -20,12 +20,7 @@ import {
 	getVSCodeHref,
 	openAppInNewWindow,
 } from "modules/apps/apps";
-import {
-	type FC,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -90,6 +85,17 @@ export function useConversationEditingState(deps: {
 		return localStorage.getItem(draftStorageKey) ?? "";
 	});
 
+	// Sync the ref with the initial draft value so callers that
+	// read inputValueRef.current see the persisted draft. Uses a
+	// layout effect so the value is available before paint.
+	const initialSyncDone = useRef(false);
+	useLayoutEffect(() => {
+		if (!initialSyncDone.current && editorInitialValue) {
+			initialSyncDone.current = true;
+			(inputValueRef as React.MutableRefObject<string>).current = editorInitialValue;
+		}
+	}, [editorInitialValue, inputValueRef]);
+
 	// -- History editing state --
 	const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
 	const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] = useState<
@@ -133,7 +139,11 @@ export function useConversationEditingState(deps: {
 		string | null
 	>(null);
 
-	const handleStartQueueEdit = (id: number, text: string, fileBlocks: readonly ChatMessagePart[]) => {
+	const handleStartQueueEdit = (
+		id: number,
+		text: string,
+		fileBlocks: readonly ChatMessagePart[],
+	) => {
 		setDraftBeforeQueueEdit((prev) =>
 			editingQueuedMessageID === null ? inputValueRef.current : prev,
 		);
@@ -240,7 +250,7 @@ const AgentDetail: FC = () => {
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
 		typeof window !== "undefined" && agentId
-			? localStorage.getItem(`${draftInputStorageKeyPrefix}${agentId}`) ?? ""
+			? (localStorage.getItem(`${draftInputStorageKeyPrefix}${agentId}`) ?? "")
 			: "",
 	);
 
@@ -251,7 +261,9 @@ const AgentDetail: FC = () => {
 		if (typeof window === "undefined") return false;
 		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
 	});
-	const handleSetShowSidebarPanel = (next: boolean | ((prev: boolean) => boolean)) => {
+	const handleSetShowSidebarPanel = (
+		next: boolean | ((prev: boolean) => boolean),
+	) => {
 		setShowSidebarPanel((prev) => {
 			const value = typeof next === "function" ? next(prev) : next;
 			if (typeof window !== "undefined") {
@@ -291,28 +303,29 @@ const AgentDetail: FC = () => {
 			if (event.parseError) {
 				return;
 			}
-				if (event.parsedMessage.type === "data") {
-					const next = event.parsedMessage.data as TypesGen.Workspace;
-					queryClient.setQueryData<TypesGen.Workspace | undefined>(
-						workspaceByIdKey(workspaceId),
-						(prev) => {
-							// Return the same reference when nothing the UI
-							// reads has changed. This prevents react-query
-							// from notifying subscribers and avoids a full
-							// AgentDetail re-render on every heartbeat.
-							if (
-								prev &&
-								prev.latest_build.status === next.latest_build.status &&
-								prev.latest_build.resources === next.latest_build.resources &&
-								prev.name === next.name &&
-								prev.owner_name === next.owner_name
-							) {
-								return prev;
-							}
-							return next;
-						},
-					);
-				}		});
+			if (event.parsedMessage.type === "data") {
+				const next = event.parsedMessage.data as TypesGen.Workspace;
+				queryClient.setQueryData<TypesGen.Workspace | undefined>(
+					workspaceByIdKey(workspaceId),
+					(prev) => {
+						// Return the same reference when nothing the UI
+						// reads has changed. This prevents react-query
+						// from notifying subscribers and avoids a full
+						// AgentDetail re-render on every heartbeat.
+						if (
+							prev &&
+							prev.latest_build.status === next.latest_build.status &&
+							prev.latest_build.resources === next.latest_build.resources &&
+							prev.name === next.name &&
+							prev.owner_name === next.owner_name
+						) {
+							return prev;
+						}
+						return next;
+					},
+				);
+			}
+		});
 		return () => socket.close();
 	}, [workspaceId, queryClient]);
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
@@ -460,7 +473,8 @@ const AgentDetail: FC = () => {
 	})();
 
 	const compressionThreshold = chatLastModelConfigID
-		? modelConfigs.find((c) => c.id === chatLastModelConfigID)?.compression_threshold
+		? modelConfigs.find((c) => c.id === chatLastModelConfigID)
+				?.compression_threshold
 		: undefined;
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
@@ -597,30 +611,31 @@ const AgentDetail: FC = () => {
 		// No optimistic rendering — the message will appear in the
 		// timeline when the server confirms via the POST response or
 		// via the SSE stream.
-			store.clearStreamState();
-			let response: Awaited<ReturnType<typeof sendMutation.mutateAsync>>;
-			try {
-				response = await sendMutation.mutateAsync(request);
-			} catch (error) {
-				handleUsageLimitError(error);
-				throw error;
+		store.clearStreamState();
+		let response: Awaited<ReturnType<typeof sendMutation.mutateAsync>>;
+		try {
+			response = await sendMutation.mutateAsync(request);
+		} catch (error) {
+			handleUsageLimitError(error);
+			throw error;
+		}
+		// When the server accepts the message immediately (not
+		// queued), insert it into the store so it appears in the
+		// timeline without waiting for the SSE stream.
+		if (!response.queued && response.message) {
+			store.upsertDurableMessage(response.message);
+		}
+		if (typeof window !== "undefined") {
+			if (selectedModelConfigID) {
+				localStorage.setItem(
+					lastModelConfigIDStorageKey,
+					selectedModelConfigID,
+				);
+			} else {
+				localStorage.removeItem(lastModelConfigIDStorageKey);
 			}
-			// When the server accepts the message immediately (not
-			// queued), insert it into the store so it appears in the
-			// timeline without waiting for the SSE stream.
-			if (!response.queued && response.message) {
-				store.upsertDurableMessage(response.message);
-			}
-			if (typeof window !== "undefined") {
-				if (selectedModelConfigID) {
-					localStorage.setItem(
-						lastModelConfigIDStorageKey,
-						selectedModelConfigID,
-					);
-				} else {
-					localStorage.removeItem(lastModelConfigIDStorageKey);
-				}
-			}	};
+		}
+	};
 
 	const handleInterrupt = () => {
 		if (!agentId || interruptMutation.isPending) {
@@ -799,7 +814,8 @@ const AgentDetail: FC = () => {
 	}
 
 	return (
-			<AgentDetailView			agentId={agentId}
+		<AgentDetailView
+			agentId={agentId}
 			chatTitle={chatTitle}
 			parentChat={parentChat}
 			chatErrorReasons={chatErrorReasons}

@@ -20,12 +20,7 @@ import type * as TypesGen from "api/typesGenerated";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import {
-	type FC,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -279,7 +274,10 @@ const AgentsPage: FC = () => {
 			archiveAgentMutation.mutate(chatId);
 		}
 	};
-	const requestArchiveAndDeleteWorkspace = async (chatId: string, workspaceId: string) => {
+	const requestArchiveAndDeleteWorkspace = async (
+		chatId: string,
+		workspaceId: string,
+	) => {
 		if (isArchiving) {
 			return;
 		}
@@ -317,7 +315,8 @@ const AgentsPage: FC = () => {
 	const requestUnarchiveAgent = (chatId: string) => {
 		unarchiveAgentMutation.mutate(chatId);
 	};
-	const handleToggleSidebarCollapsed = () => setIsSidebarCollapsed((prev) => !prev);
+	const handleToggleSidebarCollapsed = () =>
+		setIsSidebarCollapsed((prev) => !prev);
 	const handleCreateChat = async (options: CreateChatOptions) => {
 		const { message, fileIDs, workspaceId, model } = options;
 		const modelConfigID =
@@ -383,8 +382,8 @@ const AgentsPage: FC = () => {
 					if (!isChatListSSEEvent(sse.data)) {
 						return;
 					}
-						const chatEvent = sse.data;
-						const updatedChat = chatEvent.chat;
+					const chatEvent = sse.data;
+					const updatedChat = chatEvent.chat;
 					// Read the previous status from the infinite chat list
 					// cache before we write the update below. The per-chat
 					// query cache (chatKey) only exists for chats the user
@@ -447,22 +446,28 @@ const AgentsPage: FC = () => {
 							let didUpdate = false;
 							const nextChats = chats.map((c) => {
 								if (c.id !== updatedChat.id) return c;
-								const nextStatus = isStatusEvent ? updatedChat.status : c.status;
+								const nextStatus = isStatusEvent
+									? updatedChat.status
+									: c.status;
 								const nextTitle = isTitleEvent ? updatedChat.title : c.title;
-								const nextDiffStatus = isDiffStatusEvent ? updatedChat.diff_status : c.diff_status;
-								const nextWorkspaceId = updatedChat.workspace_id ?? c.workspace_id;
+								const nextDiffStatus = isDiffStatusEvent
+									? updatedChat.diff_status
+									: c.diff_status;
+								const nextWorkspaceId =
+									updatedChat.workspace_id ?? c.workspace_id;
 								const nextUpdatedAt =
 									c.updated_at > updatedChat.updated_at
 										? c.updated_at
 										: updatedChat.updated_at;
-							if (
-								nextStatus === c.status &&
-								nextTitle === c.title &&
-								diffStatusEqual(nextDiffStatus, c.diff_status) &&
-								nextWorkspaceId === c.workspace_id
-							) {
-								return c;
-							}								didUpdate = true;
+								if (
+									nextStatus === c.status &&
+									nextTitle === c.title &&
+									diffStatusEqual(nextDiffStatus, c.diff_status) &&
+									nextWorkspaceId === c.workspace_id
+								) {
+									return c;
+								}
+								didUpdate = true;
 								return {
 									...c,
 									status: nextStatus,
@@ -475,45 +480,53 @@ const AgentsPage: FC = () => {
 							return didUpdate ? nextChats : chats;
 						});
 					}
-						queryClient.setQueryData<TypesGen.Chat | undefined>(
-							chatKey(updatedChat.id),
-							(previousChat) => {
-								if (!previousChat) {
-									return previousChat;
-								}
-								// Only create a new object if a field actually
-								// changed. Returning the same reference prevents
-								// react-query from notifying subscribers, avoiding
-								// unnecessary re-renders of AgentDetail during
-								// streaming when repeated status_change events
-								// carry the same "running" status.
-								const nextStatus = isStatusEvent ? updatedChat.status : previousChat.status;
-								const nextTitle = isTitleEvent ? updatedChat.title : previousChat.title;
-								const nextDiffStatus = isDiffStatusEvent ? updatedChat.diff_status : previousChat.diff_status;
-								const nextWorkspaceId = updatedChat.workspace_id ?? previousChat.workspace_id;
-								const nextUpdatedAt =
-									previousChat.updated_at > updatedChat.updated_at
-										? previousChat.updated_at
-										: updatedChat.updated_at;
+					queryClient.setQueryData<TypesGen.Chat | undefined>(
+						chatKey(updatedChat.id),
+						(previousChat) => {
+							if (!previousChat) {
+								return previousChat;
+							}
+							// Only create a new object if a field actually
+							// changed. Returning the same reference prevents
+							// react-query from notifying subscribers, avoiding
+							// unnecessary re-renders of AgentDetail during
+							// streaming when repeated status_change events
+							// carry the same "running" status.
+							const nextStatus = isStatusEvent
+								? updatedChat.status
+								: previousChat.status;
+							const nextTitle = isTitleEvent
+								? updatedChat.title
+								: previousChat.title;
+							const nextDiffStatus = isDiffStatusEvent
+								? updatedChat.diff_status
+								: previousChat.diff_status;
+							const nextWorkspaceId =
+								updatedChat.workspace_id ?? previousChat.workspace_id;
+							const nextUpdatedAt =
+								previousChat.updated_at > updatedChat.updated_at
+									? previousChat.updated_at
+									: updatedChat.updated_at;
 
-									if (
-										nextStatus === previousChat.status &&
-										nextTitle === previousChat.title &&
-										diffStatusEqual(nextDiffStatus, previousChat.diff_status) &&
-										nextWorkspaceId === previousChat.workspace_id
-									) {
-										return previousChat;
-									}
-								return {
-									...previousChat,
-									status: nextStatus,
-									title: nextTitle,
-									diff_status: nextDiffStatus,
-									workspace_id: nextWorkspaceId,
-									updated_at: nextUpdatedAt,
-								};
-							},
-						);				});
+							if (
+								nextStatus === previousChat.status &&
+								nextTitle === previousChat.title &&
+								diffStatusEqual(nextDiffStatus, previousChat.diff_status) &&
+								nextWorkspaceId === previousChat.workspace_id
+							) {
+								return previousChat;
+							}
+							return {
+								...previousChat,
+								status: nextStatus,
+								title: nextTitle,
+								diff_status: nextDiffStatus,
+								workspace_id: nextWorkspaceId,
+								updated_at: nextUpdatedAt,
+							};
+						},
+					);
+				});
 				return ws;
 			},
 			onOpen() {

@@ -1,7 +1,7 @@
 import { useTheme } from "@emotion/react";
 import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
-import { memo, type ComponentPropsWithRef, type FC } from "react";
+import { type ComponentPropsWithRef, type FC, memo } from "react";
 import { cn } from "utils/cn";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
@@ -515,41 +515,42 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 // Public Tool component — single wrapper div + map dispatch.
 // ---------------------------------------------------------------------------
 
-export const Tool = memo(({
-	className,
-	name,
-	status = "completed",
-	args,
-	result,
-	isError = false,
-	subagentTitles,
-	subagentStatusOverrides,
-	ref,
-	...props
-}: ToolProps) => {
-	const Renderer = toolRenderers[name] ?? GenericToolRenderer;
+export const Tool = memo(
+	({
+		className,
+		name,
+		status = "completed",
+		args,
+		result,
+		isError = false,
+		subagentTitles,
+		subagentStatusOverrides,
+		ref,
+		...props
+	}: ToolProps) => {
+		const Renderer = toolRenderers[name] ?? GenericToolRenderer;
 
-	return (
-		<div
-			ref={ref}
-			className={cn(
-				name === "execute" || name === "process_output"
-					? "w-full py-0.5"
-					: "py-0.5",
-				className,
-			)}
-			{...props}
-		>
-			<Renderer
-				name={name}
-				status={status}
-				args={args}
-				result={result}
-				isError={isError}
-				subagentTitles={subagentTitles}
-				subagentStatusOverrides={subagentStatusOverrides}
-			/>
-		</div>
-	);
-});
-
+		return (
+			<div
+				ref={ref}
+				className={cn(
+					name === "execute" || name === "process_output"
+						? "w-full py-0.5"
+						: "py-0.5",
+					className,
+				)}
+				{...props}
+			>
+				<Renderer
+					name={name}
+					status={status}
+					args={args}
+					result={result}
+					isError={isError}
+					subagentTitles={subagentTitles}
+					subagentStatusOverrides={subagentStatusOverrides}
+				/>
+			</div>
+		);
+	},
+);
