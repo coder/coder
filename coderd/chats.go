@@ -2721,7 +2721,15 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if d > 30*24*time.Hour {
+
+	// Technically a duplication of validWorkspaceTTL but this is not scoped to templates.
+	if d > 0 && d < ttlMinimum {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Workspace TTL must not be less than 1 minute.",
+		})
+		return
+	}
+	if d > ttlMaximum {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Workspace TTL must not exceed 30 days.",
 		})
