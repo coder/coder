@@ -273,7 +273,9 @@ func workspaceAgent() *serpent.Command {
 				logger.Info(ctx, "agent devcontainer detection not enabled")
 			}
 
-			reinitEvents := agentsdk.WaitForReinitLoop(ctx, logger, client)
+			reinitCtx, reinitCancel := context.WithCancel(ctx)
+			defer reinitCancel()
+			reinitEvents := agentsdk.WaitForReinitLoop(reinitCtx, logger, client)
 
 			var (
 				lastOwnerID uuid.UUID
@@ -345,15 +347,31 @@ func workspaceAgent() *serpent.Command {
 				case <-ctx.Done():
 					logger.Info(ctx, "agent shutting down", slog.Error(context.Cause(ctx)))
 					mustExit = true
-				case event := <-reinitEvents:
-					if event.UserID != uuid.Nil && event.UserID == lastOwnerID {
+				case event, ok := <-reinitEvents:
+					switch {
+					case !ok:
+						// Channel closed — 409 from server means this
+						// is not a prebuild. Keep running the current
+						// agent until the parent context is canceled.
+						logger.Info(ctx, "reinit channel closed, running without reinit capability")
+						reinitEvents = nil
+						<-ctx.Done()
+						mustExit = true
+					case event.UserID != uuid.Nil && event.UserID == lastOwnerID:
+						// Duplicate reinit for same owner — already
+						// reinitialized. Cancel the reinit loop
+						// goroutine and keep the current agent.
 						logger.Info(ctx, "skipping redundant reinit, owner unchanged",
 							slog.F("owner_id", event.UserID))
-						continue
+						reinitCancel()
+						reinitEvents = nil
+						<-ctx.Done()
+						mustExit = true
+					default:
+						lastOwnerID = event.UserID
+						logger.Info(ctx, "agent received instruction to reinitialize",
+							slog.F("workspace_id", event.WorkspaceID), slog.F("reason", event.Reason))
 					}
-					lastOwnerID = event.UserID
-					logger.Info(ctx, "agent received instruction to reinitialize",
-						slog.F("workspace_id", event.WorkspaceID), slog.F("reason", event.Reason))
 				}
 
 				lastErr = agnt.Close()

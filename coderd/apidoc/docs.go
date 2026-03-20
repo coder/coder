@@ -9914,6 +9914,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/agentsdk.ReinitializationEvent"
                         }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 }
             }
@@ -12348,7 +12354,10 @@ const docTemplate = `{
                 "reason": {
                     "$ref": "#/definitions/agentsdk.ReinitializationReason"
                 },
-                "workspaceID": {
+                "user_id": {
+                    "type": "string"
+                },
+                "workspace_id": {
                     "type": "string"
                 }
             }
