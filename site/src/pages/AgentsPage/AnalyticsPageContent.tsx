@@ -39,7 +39,7 @@ export const AnalyticsPageContent: FC<AnalyticsPageContentProps> = ({
 					<h1 className="text-2xl font-semibold text-content-primary">
 						Analytics
 					</h1>
-					<p className="mt-0.5 text-sm text-content-secondary">
+					<p className="m-0 text-sm text-content-secondary">
 						Personal usage over the last 30 days
 					</p>
 				</div>

@@ -175,7 +175,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 	return (
 		<div className="space-y-5">
 			{/* Overview */}
-			<div className="flex flex-col gap-6 pb-1 md:flex-row md:items-start md:justify-between">
+			<div className="flex flex-col gap-6 pb-1 md:flex-row md:items-center md:justify-between">
 				{/* Left — hero */}
 				<div className="shrink-0">
 					<p className="m-0 text-5xl font-bold leading-none tracking-tight text-content-primary">
@@ -185,9 +185,8 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 						</span>
 					</p>
 					<p className="m-0 mt-1 text-sm text-content-secondary">
-						{totalMessages.toLocaleString()} messages ·{" "}
-						{summary.by_chat.length.toLocaleString()} chats
-					</p>
+{totalMessages.toLocaleString()} messages over{" "}
+							{summary.by_chat.length.toLocaleString()} chats					</p>
 				</div>
 
 				{/* Right — breakdowns + usage limit */}
