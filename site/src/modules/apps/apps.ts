@@ -28,6 +28,28 @@ const ALLOWED_EXTERNAL_APP_PROTOCOLS = [
 	"antigravity:",
 ];
 
+/**
+ * Describes an editor that can open a Coder workspace via a deep link.
+ * All editors using the `coder.coder-remote` VS Code extension protocol
+ * (i.e. `{protocol}://coder.coder-remote/open?...`) are supported.
+ */
+export type EditorDescriptor = {
+	/** The protocol scheme used for deep links (e.g. "vscode", "cursor"). */
+	protocol: string;
+	/** The human-readable name shown in the UI (e.g. "VS Code", "Cursor"). */
+	displayName: string;
+};
+
+/**
+ * The default set of editors shown in the agent detail dropdown.
+ * Deployments can override this list to add or remove editors
+ * (e.g. adding PyCharm, Windsurf, or other JetBrains IDEs).
+ */
+export const DEFAULT_EDITOR_LIST: readonly EditorDescriptor[] = [
+	{ protocol: "cursor", displayName: "Cursor" },
+	{ protocol: "vscode", displayName: "VS Code" },
+];
+
 type GetVSCodeHrefParams = {
 	owner: string;
 	workspace: string;
@@ -38,7 +60,7 @@ type GetVSCodeHrefParams = {
 };
 
 export const getVSCodeHref = (
-	app: "vscode" | "vscode-insiders" | "cursor",
+	app: string,
 	{ owner, workspace, token, agent, folder, chatId }: GetVSCodeHrefParams,
 ) => {
 	const query = new URLSearchParams({

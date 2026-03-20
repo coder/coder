@@ -22,6 +22,7 @@ import {
 import { GitPanel } from "./GitPanel";
 import { RightPanel } from "./RightPanel";
 import { SidebarTabView } from "./SidebarTabView";
+import type { EditorDescriptor } from "modules/apps/apps";
 import type { ChatDetailError } from "./usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -102,7 +103,9 @@ interface AgentDetailViewProps {
 	canOpenEditors: boolean;
 	canOpenWorkspace: boolean;
 	sshCommand: string | undefined;
-	handleOpenInEditor: (editor: "cursor" | "vscode") => void;
+	/** Editors to show in the agent detail dropdown. */
+	editorList?: readonly EditorDescriptor[];
+	handleOpenInEditor: (editorProtocol: string) => void;
 	handleViewWorkspace: () => void;
 	handleOpenTerminal: () => void;
 	handleCommit: (repoRoot: string) => void;
@@ -167,6 +170,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	canOpenEditors,
 	canOpenWorkspace,
 	sshCommand,
+	editorList,
 	handleOpenInEditor,
 	handleViewWorkspace,
 	handleOpenTerminal,
@@ -242,6 +246,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 						diffStatusData={diffStatusData}
 						isSidebarCollapsed={isSidebarCollapsed}
 						onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+						editorList={editorList}
 					/>
 					{isArchived && (
 						<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">

@@ -226,6 +226,17 @@ export const MobileWithClosedPR: Story = {
 	},
 };
 
+export const CustomEditorList: Story = {
+	args: {
+		editorList: [
+			{ protocol: "cursor", displayName: "Cursor" },
+			{ protocol: "vscode", displayName: "VS Code" },
+			{ protocol: "windsurf", displayName: "Windsurf" },
+			{ protocol: "positron", displayName: "Positron" },
+		],
+	},
+};
+
 export const ArchivedWithUnarchive: Story = {
 	args: {
 		isArchived: true,
