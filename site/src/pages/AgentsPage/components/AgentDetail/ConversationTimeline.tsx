@@ -17,12 +17,13 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { PencilIcon } from "lucide-react";
+import { FileTextIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
 	memo,
 	type ReactNode,
+	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -33,6 +34,7 @@ import { cn } from "utils/cn";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import { ImageThumbnail } from "../AgentChatInput";
 import { ImageLightbox } from "../ImageLightbox";
+import { TextPreviewDialog } from "../TextPreviewDialog";
 import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
@@ -92,6 +94,7 @@ type RenderBlockListParams = {
 	subagentTitles?: Map<string, string>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	onImageClick?: (src: string) => void;
+	onTextFileClick?: (content: string) => void;
 	urlTransform?: UrlTransform;
 };
 
@@ -112,6 +115,93 @@ const SmoothedResponse: FC<{
 	return <Response urlTransform={urlTransform}>{visibleText}</Response>;
 };
 
+// Roughly 1-2 lines of typical code at normal terminal width.
+// Short enough to fit in the button without excessive wrapping.
+const TEXT_ATTACHMENT_PREVIEW_LENGTH = 150;
+
+const fetchTextAttachmentContent = async (
+	fileId: string,
+	signal?: AbortSignal,
+): Promise<string> => {
+	const response = await fetch(`/api/experimental/chats/files/${fileId}`, {
+		signal,
+	});
+	if (!response.ok) {
+		throw new Error("Failed to fetch file");
+	}
+	return response.text();
+};
+
+const formatTextAttachmentPreview = (content: string | null): string => {
+	const normalized = content?.replace(/\s+/g, " ").trim() ?? "";
+	if (normalized.length === 0) {
+		return "Pasted text";
+	}
+	return normalized.slice(0, TEXT_ATTACHMENT_PREVIEW_LENGTH);
+};
+
+const InlineTextAttachmentButton: FC<{
+	content: string;
+	onPreview?: (content: string) => void;
+}> = ({ content, onPreview }) => {
+	return (
+		<button
+			type="button"
+			aria-label="View text attachment"
+			className="inline-flex max-w-sm items-start gap-2 rounded-md border-0 bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary"
+			onClick={(e) => {
+				e.stopPropagation();
+				onPreview?.(content);
+			}}
+		>
+			<FileTextIcon className="mt-0.5 size-icon-sm shrink-0 text-content-secondary" />
+			<span className="line-clamp-2 min-w-0 font-mono text-xs text-content-secondary">
+				{formatTextAttachmentPreview(content)}
+			</span>
+		</button>
+	);
+};
+
+const TextAttachmentButton: FC<{
+	fileId: string;
+	onPreview?: (content: string) => void;
+}> = ({ fileId, onPreview }) => {
+	const [content, setContent] = useState<string | null>(null);
+
+	useEffect(() => {
+		const controller = new AbortController();
+		void fetchTextAttachmentContent(fileId, controller.signal)
+			.then(setContent)
+			.catch((err) => {
+				if (err instanceof DOMException && err.name === "AbortError") {
+					return;
+				}
+				console.error("Failed to load text attachment preview:", err);
+			});
+		return () => controller.abort();
+	}, [fileId]);
+
+	return (
+		<InlineTextAttachmentButton
+			content={content ?? ""}
+			onPreview={async () => {
+				if (content !== null) {
+					onPreview?.(content);
+					return;
+				}
+
+				try {
+					const fetchedContent = await fetchTextAttachmentContent(fileId);
+					setContent(fetchedContent);
+					onPreview?.(fetchedContent);
+				} catch (err) {
+					console.error("Failed to load text attachment:", err);
+				}
+			}}
+		/>
+	);
+};
+
 type RenderBlockListResult = {
 	elements: ReactNode[];
 	renderedToolIDs: ReadonlySet<string>;
@@ -125,6 +215,7 @@ function renderBlockList({
 	subagentTitles,
 	subagentStatusOverrides,
 	onImageClick,
+	onTextFileClick,
 	urlTransform,
 }: RenderBlockListParams): RenderBlockListResult {
 	const renderedToolIDs = new Set<string>();
@@ -230,6 +321,26 @@ function renderBlockList({
 							</button>
 						);
 					}
+					if (block.media_type === "text/plain") {
+						if (block.file_id) {
+							return (
+								<TextAttachmentButton
+									key={`${keyPrefix}-file-${index}`}
+									fileId={block.file_id}
+									onPreview={onTextFileClick}
+								/>
+							);
+						}
+						if (block.data != null) {
+							return (
+								<InlineTextAttachmentButton
+									key={`${keyPrefix}-file-${index}`}
+									content={block.data}
+									onPreview={onTextFileClick}
+								/>
+							);
+						}
+					}
 					return null;
 				case "sources":
 					return (
@@ -276,6 +387,7 @@ const ChatMessageItem = memo<{
 		const isUser = message.role === "user";
 		const isSavingMessage = savingMessageId === message.id;
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
+		const [previewText, setPreviewText] = useState<string | null>(null);
 		const toolByID = new Map(parsed.tools.map((tool) => [tool.id, tool]));
 
 		if (
@@ -316,6 +428,16 @@ const ChatMessageItem = memo<{
 				)
 			: [];
 
+		const userFileBlocks = isUser
+			? parsed.blocks.filter(
+					(b): b is Extract<RenderBlock, { type: "file" }> => b.type === "file",
+				)
+			: [];
+
+		const hasUserTextContent =
+			userInlineContent.length > 0 || Boolean(parsed.markdown?.trim());
+		const hasFileBlocks = userFileBlocks.length > 0;
+
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
 		};
@@ -324,6 +446,7 @@ const ChatMessageItem = memo<{
 			toolByID,
 			keyPrefix: String(message.id),
 			onImageClick: setPreviewImage,
+			onTextFileClick: (content) => setPreviewText(content),
 			urlTransform,
 		});
 		const remainingTools = parsed.tools.filter(
@@ -355,72 +478,106 @@ const ChatMessageItem = memo<{
 								}
 							>
 								<div className="flex flex-col gap-1.5">
-									<div className="flex items-start gap-2">
-										<span className="min-w-0 flex-1">
-											{userInlineContent.length > 0
-												? userInlineContent.map((block, i) =>
-														block.type === "response" ? (
-															<Fragment key={i}>{block.text}</Fragment>
-														) : (
-															<FileReferenceChip
-																key={i}
-																fileName={block.file_name}
-																startLine={block.start_line}
-																endLine={block.end_line}
-																className="mx-1"
-															/>
-														),
-													)
-												: parsed.markdown || ""}
-										</span>
-										{isSavingMessage && (
-											<Spinner
-												className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-secondary"
-												aria-label="Saving message edit"
-												loading
-											/>
-										)}
-										{onEditUserMessage && !isSavingMessage && (
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<button
-														type="button"
-														className="mt-0.5 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-content-secondary opacity-0 transition-opacity hover:bg-surface-tertiary hover:text-content-primary focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link group-hover/msg:opacity-100"
-														aria-label="Edit message"
-														onClick={() => {
-															const fileBlocks = parsed.blocks.filter(
-																(
-																	b,
-																): b is Extract<
-																	RenderBlock,
-																	{ type: "file" }
-																> =>
-																	b.type === "file" &&
-																	b.media_type.startsWith("image/"),
-															);
-															onEditUserMessage(
-																message.id,
-																parsed.markdown || "",
-																fileBlocks.length > 0 ? fileBlocks : undefined,
-															);
-														}}
-													>
-														<PencilIcon className="size-3.5" />
-													</button>
-												</TooltipTrigger>
-												<TooltipContent side="top">Edit message</TooltipContent>
-											</Tooltip>
-										)}
-									</div>
+									{(hasUserTextContent || hasFileBlocks) && (
+										<div className="flex items-start gap-2">
+											<span className="min-w-0 flex-1">
+												{userInlineContent.length > 0
+													? userInlineContent.map((block, i) =>
+															block.type === "response" ? (
+																<Fragment key={i}>{block.text}</Fragment>
+															) : (
+																<FileReferenceChip
+																	key={i}
+																	fileName={block.file_name}
+																	startLine={block.start_line}
+																	endLine={block.end_line}
+																	className="mx-1"
+																/>
+															),
+														)
+													: parsed.markdown || ""}
+											</span>
+											{isSavingMessage && (
+												<Spinner
+													className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-secondary"
+													aria-label="Saving message edit"
+													loading
+												/>
+											)}
+											{onEditUserMessage && !isSavingMessage && (
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<button
+															type="button"
+															className="mt-0.5 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-content-secondary opacity-0 transition-opacity hover:bg-surface-tertiary hover:text-content-primary focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link group-hover/msg:opacity-100"
+															aria-label="Edit message"
+															onClick={() => {
+																const fileBlocks = parsed.blocks.filter(
+																	(
+																		b,
+																	): b is Extract<
+																		RenderBlock,
+																		{ type: "file" }
+																	> =>
+																		b.type === "file" &&
+																		(b.media_type.startsWith("image/") ||
+																			b.media_type === "text/plain"),
+																);
+																onEditUserMessage(
+																	message.id,
+																	parsed.markdown || "",
+																	fileBlocks.length > 0
+																		? fileBlocks
+																		: undefined,
+																);
+															}}
+														>
+															<PencilIcon className="size-3.5" />
+														</button>
+													</TooltipTrigger>
+													<TooltipContent side="top">
+														Edit message
+													</TooltipContent>
+												</Tooltip>
+											)}
+										</div>
+									)}
 									{(() => {
-										const imageBlocks = parsed.blocks.filter(
-											(b): b is Extract<RenderBlock, { type: "file" }> =>
-												b.type === "file" && b.media_type.startsWith("image/"),
-										);
-										if (imageBlocks.length === 0) return null;
+										if (userFileBlocks.length === 0) return null;
 										return (
-											<div className="mt-2 flex flex-wrap gap-2">
-												{imageBlocks.map((block, i) => {
+											<div
+												className={cn(
+													hasUserTextContent && "mt-2",
+													"flex flex-wrap gap-2",
+												)}
+											>
+												{userFileBlocks.map((block, i) => {
+													if (block.media_type === "text/plain") {
+														if (block.file_id) {
+															return (
+																<TextAttachmentButton
+																	key={`user-file-${i}`}
+																	fileId={block.file_id}
+																	onPreview={(content) =>
+																		setPreviewText(content)
+																	}
+																/>
+															);
+														}
+														if (block.data != null) {
+															return (
+																<InlineTextAttachmentButton
+																	key={`user-file-${i}`}
+																	content={block.data}
+																	onPreview={(content) =>
+																		setPreviewText(content)
+																	}
+																/>
+															);
+														}
+													}
+													if (!block.media_type.startsWith("image/"))
+														return null;
 													const src = block.file_id
 														? `/api/experimental/chats/files/${block.file_id}`
 														: `data:${block.media_type};base64,${block.data}`;
@@ -486,6 +643,12 @@ const ChatMessageItem = memo<{
 					<ImageLightbox
 						src={previewImage}
 						onClose={() => setPreviewImage(null)}
+					/>
+				)}
+				{previewText && (
+					<TextPreviewDialog
+						content={previewText}
+						onClose={() => setPreviewText(null)}
 					/>
 				)}
 			</div>

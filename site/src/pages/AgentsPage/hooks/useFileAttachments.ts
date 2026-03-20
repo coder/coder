@@ -11,6 +11,7 @@ import type { UploadState } from "../components/AgentChatInput";
 
 interface UseFileAttachmentsReturn {
 	attachments: File[];
+	textContents: Map<File, string>;
 	uploadStates: Map<File, UploadState>;
 	previewUrls: Map<File, string>;
 	handleAttach: (files: File[]) => void;
@@ -30,6 +31,9 @@ export function useFileAttachments(
 		() => new Map<File, UploadState>(),
 	);
 	const [previewUrls, setPreviewUrls] = useState(() => new Map<File, string>());
+	const [textContents, setTextContents] = useState(
+		() => new Map<File, string>(),
+	);
 
 	// Revoke blob URLs on unmount to prevent memory leaks.
 	const previewUrlsRef = useRef(previewUrls);
@@ -97,6 +101,23 @@ export function useFileAttachments(
 			}
 			return next;
 		});
+		// Read text content for preview, but skip oversized files.
+		for (const file of files) {
+			if (file.type === "text/plain" && file.size <= maxSize) {
+				void file
+					.text()
+					.then((content) => {
+						setTextContents((prev) => {
+							const next = new Map(prev);
+							next.set(file, content);
+							return next;
+						});
+					})
+					.catch((err) => {
+						console.error("Failed to read text file content:", err);
+					});
+			}
+		}
 		for (const file of files) {
 			if (file.size > maxSize) {
 				setUploadStates((prev) =>
@@ -127,6 +148,11 @@ export function useFileAttachments(
 					next.delete(removed);
 					return next;
 				});
+				setTextContents((prevContents) => {
+					const next = new Map(prevContents);
+					next.delete(removed);
+					return next;
+				});
 			}
 			return prev.filter((_, i) => i !== index);
 		});
@@ -137,12 +163,14 @@ export function useFileAttachments(
 			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
 		}
 		setPreviewUrls(new Map());
+		setTextContents(new Map());
 		setUploadStates(new Map());
 		setAttachments([]);
 	};
 
 	return {
 		attachments,
+		textContents,
 		uploadStates,
 		previewUrls,
 		handleAttach,

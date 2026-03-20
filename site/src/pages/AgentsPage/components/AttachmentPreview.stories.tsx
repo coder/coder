@@ -6,8 +6,8 @@ import { AttachmentPreview, type UploadState } from "./AgentChatInput";
 const TINY_PNG =
 	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
-const createMockFile = (name: string, type: string) =>
-	new File(["mock-data"], name, { type });
+const createMockFile = (name: string, type: string, size = 9) =>
+	new File([new Uint8Array(size)], name, { type });
 
 const meta: Meta<typeof AttachmentPreview> = {
 	title: "pages/AgentsPage/AttachmentPreview",
@@ -115,6 +115,120 @@ export const NonImageFile: Story = {
 			attachments: [file],
 			uploadStates: new Map<File, UploadState>([
 				[file, { status: "uploaded", fileId: "file-txt" }],
+			]),
+		};
+	})(),
+};
+
+export const TextAttachment: Story = {
+	args: (() => {
+		const file = createMockFile("clipboard.txt", "text/plain", 2048);
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploaded", fileId: "file-1" }],
+			]),
+			previewUrls: new Map<File, string>(),
+			textContents: new Map<File, string>([
+				[
+					file,
+					"This is the pasted text content.\nIt has multiple lines.\nAnd should be displayed in a readable card format.",
+				],
+			]),
+		};
+	})(),
+};
+
+export const ThreeTextAttachments: Story = {
+	args: (() => {
+		const file1 = createMockFile("paste-1.txt", "text/plain", 2048);
+		const file2 = createMockFile("paste-2.txt", "text/plain", 3072);
+		const file3 = createMockFile("paste-3.txt", "text/plain", 1024);
+		return {
+			attachments: [file1, file2, file3],
+			uploadStates: new Map<File, UploadState>([
+				[file1, { status: "uploaded", fileId: "file-1" }],
+				[file2, { status: "uploaded", fileId: "file-2" }],
+				[file3, { status: "uploaded", fileId: "file-3" }],
+			]),
+			previewUrls: new Map<File, string>(),
+			textContents: new Map<File, string>([
+				[
+					file1,
+					"First pasted document with several lines of content.\nLine 2 of the first document.\nLine 3 continues here.",
+				],
+				[
+					file2,
+					"Second pasted text is a log file:\n[INFO] Server started on port 8080\n[WARN] Memory usage at 85%\n[ERROR] Connection timeout after 30s",
+				],
+				[
+					file3,
+					"Third paste is a short config:\nhost=localhost\nport=5432\ndb=myapp",
+				],
+			]),
+		};
+	})(),
+};
+
+export const ThreeMixedAttachments: Story = {
+	args: (() => {
+		const imageFile = createMockFile("screenshot.png", "image/png");
+		const textFile1 = createMockFile("logs.txt", "text/plain", 2048);
+		const textFile2 = createMockFile("config.txt", "text/plain", 1024);
+		return {
+			attachments: [imageFile, textFile1, textFile2],
+			uploadStates: new Map<File, UploadState>([
+				[imageFile, { status: "uploaded", fileId: "img-1" }],
+				[textFile1, { status: "uploaded", fileId: "txt-1" }],
+				[textFile2, { status: "uploaded", fileId: "txt-2" }],
+			]),
+			previewUrls: new Map<File, string>([[imageFile, TINY_PNG]]),
+			textContents: new Map<File, string>([
+				[
+					textFile1,
+					"[2025-01-15 10:30:00] Application started\n[2025-01-15 10:30:01] Connected to database\n[2025-01-15 10:30:02] Listening on :8080",
+				],
+				[
+					textFile2,
+					"DATABASE_URL=postgres://localhost/myapp\nREDIS_URL=redis://localhost:6379\nSECRET_KEY=abc123",
+				],
+			]),
+		};
+	})(),
+};
+
+export const MixedImageAndText: Story = {
+	args: (() => {
+		const imageFile = createMockFile("photo.png", "image/png");
+		const textFile = createMockFile("clipboard.txt", "text/plain", 2048);
+		return {
+			attachments: [imageFile, textFile],
+			uploadStates: new Map<File, UploadState>([
+				[imageFile, { status: "uploaded", fileId: "file-1" }],
+				[textFile, { status: "uploaded", fileId: "file-2" }],
+			]),
+			previewUrls: new Map<File, string>([[imageFile, TINY_PNG]]),
+			textContents: new Map<File, string>([
+				[
+					textFile,
+					"This is some pasted text content that appears alongside an image attachment.",
+				],
+			]),
+		};
+	})(),
+};
+
+export const TextAttachmentUploading: Story = {
+	args: (() => {
+		const file = createMockFile("clipboard.txt", "text/plain", 2048);
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploading" }],
+			]),
+			previewUrls: new Map<File, string>(),
+			textContents: new Map<File, string>([
+				[file, "Uploading text content..."],
 			]),
 		};
 	})(),

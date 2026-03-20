@@ -33,6 +33,13 @@ import {
 } from "react";
 import { cn } from "utils/cn";
 import {
+	createPasteFile,
+	getPasteDataTransfer,
+	getPastedPlainText,
+	isLargePaste,
+	type PasteCommandEvent,
+} from "../../pages/AgentsPage/utils/pasteHelpers";
+import {
 	$createFileReferenceNode,
 	FileReferenceNode,
 } from "./FileReferenceNode";
@@ -61,8 +68,16 @@ const DisableFormattingPlugin: FC = memo(function DisableFormattingPlugin() {
 });
 
 // Intercepts paste events and inserts clipboard content as plain text,
-// stripping any rich-text formatting. Image files are forwarded to
-// the parent via the onFilePaste callback instead of being inserted.
+// stripping any rich-text formatting. Image files and large pasted text
+// are forwarded to the parent via the onFilePaste callback instead.
+//
+// Lexical dispatches PASTE_COMMAND from both native ClipboardEvent paste
+// and beforeinput-based shortcuts (Cmd/Ctrl+Shift+V fires InputEvent
+// with inputType "insertFromPaste"). We fully handle ClipboardEvents
+// (sanitise + large-paste detection). For InputEvents we only intercept
+// large pastes that should become attachments — small text is left to
+// Lexical’s default paste flow so the editor stays in a consistent
+// reconciliation state.
 const PasteSanitizationPlugin: FC<{
 	onFilePaste?: (file: File) => void;
 }> = memo(function PasteSanitizationPlugin({ onFilePaste }) {
@@ -71,16 +86,35 @@ const PasteSanitizationPlugin: FC<{
 	useEffect(() => {
 		return editor.registerCommand(
 			PASTE_COMMAND,
-			(event: ClipboardEvent | null) => {
+			(event: PasteCommandEvent | null) => {
 				if (!event) return false;
-				const clipboardData = event.clipboardData;
-				if (!clipboardData) return false;
+
+				const isNativePaste = "clipboardData" in event;
+				const dataTransfer = getPasteDataTransfer(event);
+
+				// For beforeinput-based paste shortcuts (InputEvent),
+				// only intercept large pastes that should become
+				// attachments. Return false for everything else so
+				// Lexical handles normal text insertion.
+				if (!isNativePaste) {
+					if (onFilePaste) {
+						const text = getPastedPlainText(event, dataTransfer);
+						if (text && isLargePaste(text)) {
+							event.preventDefault();
+							onFilePaste(createPasteFile(text));
+							return true;
+						}
+					}
+					return false;
+				}
+
+				// Native paste event (ClipboardEvent) — full handling.
 
 				// Check for image files in the clipboard (e.g. pasted
 				// screenshots). Forward them to the parent via callback
 				// instead of inserting text.
-				if (onFilePaste && clipboardData.files.length > 0) {
-					const images = Array.from(clipboardData.files).filter((f) =>
+				if (onFilePaste && dataTransfer?.files.length) {
+					const images = Array.from(dataTransfer.files).filter((f) =>
 						f.type.startsWith("image/"),
 					);
 					if (images.length > 0) {
@@ -92,8 +126,14 @@ const PasteSanitizationPlugin: FC<{
 					}
 				}
 
-				const text = clipboardData.getData("text/plain");
+				const text = getPastedPlainText(event, dataTransfer);
 				if (!text) return false;
+
+				if (onFilePaste && isLargePaste(text)) {
+					event.preventDefault();
+					onFilePaste(createPasteFile(text));
+					return true;
+				}
 
 				event.preventDefault();
 

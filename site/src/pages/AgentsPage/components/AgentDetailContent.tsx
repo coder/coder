@@ -266,6 +266,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	})();
 	const {
 		attachments,
+		textContents,
 		uploadStates,
 		previewUrls,
 		handleAttach,
@@ -358,6 +359,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			onRemoveAttachment={handleRemoveAttachment}
 			uploadStates={uploadStates}
 			previewUrls={previewUrls}
+			textContents={textContents}
 			inputRef={inputRef}
 			initialValue={initialValue}
 			onContentChange={onContentChange}
