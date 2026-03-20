@@ -251,9 +251,9 @@ const AgentsPage: FC = () => {
 		});
 	}, []);
 	const chatList = useMemo(
-			() => chatsQuery.data?.pages.flat() ?? [],
-			[chatsQuery.data],
-		);
+		() => chatsQuery.data?.pages.flat() ?? [],
+		[chatsQuery.data],
+	);
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
 	const archivingChatId =
