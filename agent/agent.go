@@ -463,7 +463,9 @@ func (a *agent) runLoop() {
 	// messages.
 	ctx := a.hardCtx
 	defer a.logger.Info(ctx, "agent main loop exited")
-	for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+	retrier := retry.New(100*time.Millisecond, 10*time.Second)
+	retrier.Jitter = 0.5
+	for ; retrier.Wait(ctx); {
 		a.logger.Info(ctx, "connecting to coderd")
 		err := a.run()
 		if err == nil {
