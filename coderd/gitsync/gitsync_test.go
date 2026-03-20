@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -14,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -289,7 +289,7 @@ func TestRefresher_TokenResolutionFails(t *testing.T) {
 	mp := &mockProvider{
 		fetchPullRequestStatus: func(_ context.Context, _ string, _ gitprovider.PRRef) (*gitprovider.PRStatus, error) {
 			fetchCalled.Store(true)
-			return nil, errors.New("should not be called")
+			return nil, xerrors.New("should not be called")
 		},
 		parsePullRequestURL: func(_ string) (gitprovider.PRRef, bool) {
 			return gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1}, true
@@ -298,7 +298,7 @@ func TestRefresher_TokenResolutionFails(t *testing.T) {
 
 	providers := func(_ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
-		return nil, errors.New("token lookup failed")
+		return nil, xerrors.New("token lookup failed")
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -362,7 +362,7 @@ func TestRefresher_ProviderFetchFails(t *testing.T) {
 			return gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 42}, true
 		},
 		fetchPullRequestStatus: func(_ context.Context, _ string, _ gitprovider.PRRef) (*gitprovider.PRStatus, error) {
-			return nil, errors.New("api error")
+			return nil, xerrors.New("api error")
 		},
 	}
 
@@ -677,7 +677,7 @@ func TestRefresher_CorrectTokenPerOrigin(t *testing.T) {
 		case strings.Contains(origin, "ghes.corp.com"):
 			return ptr.Ref("ghe-private-token"), nil
 		default:
-			return nil, fmt.Errorf("unexpected origin: %s", origin)
+			return nil, xerrors.Errorf("unexpected origin: %s", origin)
 		}
 	}
 

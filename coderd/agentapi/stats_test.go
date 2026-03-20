@@ -119,7 +119,8 @@ func TestUpdateStats(t *testing.T) {
 			}
 		)
 		api := agentapi.StatsAPI{
-			Agent:     agent,
+			AgentID:   agent.ID,
+			AgentName: agent.Name,
 			Workspace: &workspaceAsCacheFields,
 			Database:  dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
@@ -227,7 +228,8 @@ func TestUpdateStats(t *testing.T) {
 			}
 		)
 		api := agentapi.StatsAPI{
-			Agent:     agent,
+			AgentID:   agent.ID,
+			AgentName: agent.Name,
 			Workspace: &workspaceAsCacheFields,
 			Database:  dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
@@ -260,7 +262,8 @@ func TestUpdateStats(t *testing.T) {
 			}
 		)
 		api := agentapi.StatsAPI{
-			Agent:     agent,
+			AgentID:   agent.ID,
+			AgentName: agent.Name,
 			Workspace: &workspaceAsCacheFields,
 			Database:  dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
@@ -341,7 +344,8 @@ func TestUpdateStats(t *testing.T) {
 		// ws.AutostartSchedule = workspace.AutostartSchedule
 
 		api := agentapi.StatsAPI{
-			Agent:     agent,
+			AgentID:   agent.ID,
+			AgentName: agent.Name,
 			Workspace: &ws,
 			Database:  dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
@@ -451,7 +455,8 @@ func TestUpdateStats(t *testing.T) {
 		)
 		defer wut.Close()
 		api := agentapi.StatsAPI{
-			Agent:     agent,
+			AgentID:   agent.ID,
+			AgentName: agent.Name,
 			Workspace: &workspaceAsCacheFields,
 			Database:  dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
@@ -586,7 +591,8 @@ func TestUpdateStats(t *testing.T) {
 			}
 		)
 		api := agentapi.StatsAPI{
-			Agent:     agent,
+			AgentID:   agent.ID,
+			AgentName: agent.Name,
 			Workspace: &workspaceAsCacheFields,
 			Database:  dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{

@@ -78,7 +78,7 @@ func NewWorker(
 }
 
 // Start launches the background loop. It blocks until ctx is
-// cancelled, then closes w.done.
+// canceled, then closes w.done.
 func (w *Worker) Start(ctx context.Context) {
 	defer close(w.done)
 

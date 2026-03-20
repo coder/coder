@@ -24,7 +24,7 @@ import (
 )
 
 type AppsAPI struct {
-	Agent                    database.WorkspaceAgent
+	AgentID                  uuid.UUID
 	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
 	Database                 database.Store
 	Log                      slog.Logger
@@ -36,7 +36,7 @@ type AppsAPI struct {
 
 func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.BatchUpdateAppHealthRequest) (*agentproto.BatchUpdateAppHealthResponse, error) {
 	a.Log.Debug(ctx, "got batch app health update",
-		slog.F("agent_id", a.Agent.ID.String()),
+		slog.F("agent_id", a.AgentID.String()),
 		slog.F("updates", req.Updates),
 	)
 
@@ -44,9 +44,9 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 		return &agentproto.BatchUpdateAppHealthResponse{}, nil
 	}
 
-	apps, err := a.Database.GetWorkspaceAppsByAgentID(ctx, a.Agent.ID)
+	apps, err := a.Database.GetWorkspaceAppsByAgentID(ctx, a.AgentID)
 	if err != nil {
-		return nil, xerrors.Errorf("get workspace apps by agent ID %q: %w", a.Agent.ID, err)
+		return nil, xerrors.Errorf("get workspace apps by agent ID %q: %w", a.AgentID, err)
 	}
 
 	var newApps []database.WorkspaceApp
@@ -107,7 +107,7 @@ func (a *AppsAPI) BatchUpdateAppHealths(ctx context.Context, req *agentproto.Bat
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil && len(newApps) > 0 {
-		err = a.PublishWorkspaceUpdateFn(ctx, a.Agent.ID, wspubsub.WorkspaceEventKindAppHealthUpdate)
+		err = a.PublishWorkspaceUpdateFn(ctx, a.AgentID, wspubsub.WorkspaceEventKindAppHealthUpdate)
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
 		}
@@ -147,7 +147,7 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	}
 
 	app, err := a.Database.GetWorkspaceAppByAgentIDAndSlug(ctx, database.GetWorkspaceAppByAgentIDAndSlugParams{
-		AgentID: a.Agent.ID,
+		AgentID: a.AgentID,
 		Slug:    req.Slug,
 	})
 	if err != nil {
@@ -183,7 +183,7 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 		ID:          uuid.New(),
 		CreatedAt:   dbtime.Now(),
 		WorkspaceID: ws.ID,
-		AgentID:     a.Agent.ID,
+		AgentID:     a.AgentID,
 		AppID:       app.ID,
 		State:       dbState,
 		Message:     cleaned,
@@ -200,7 +200,7 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil {
-		err = a.PublishWorkspaceUpdateFn(ctx, a.Agent.ID, wspubsub.WorkspaceEventKindAgentAppStatusUpdate)
+		err = a.PublishWorkspaceUpdateFn(ctx, a.AgentID, wspubsub.WorkspaceEventKindAgentAppStatusUpdate)
 		if err != nil {
 			return nil, codersdk.NewError(http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to publish workspace update.",

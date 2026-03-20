@@ -1751,7 +1751,7 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 	// 	return
 	// }
 
-	err = api.statsReporter.ReportAgentStats(ctx, dbtime.Now(), database.WorkspaceIdentityFromWorkspace(workspace), agent, stat, true)
+	err = api.statsReporter.ReportAgentStats(ctx, dbtime.Now(), database.WorkspaceIdentityFromWorkspace(workspace), agent.ID, agent.Name, stat, true)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

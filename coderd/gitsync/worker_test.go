@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -40,7 +41,7 @@ func withResolveBranchPR(f func(context.Context, string, gitprovider.BranchRef) 
 }
 
 // newTestRefresher creates a Refresher backed by mock
-// provider/token resolvers. The provider recognises any origin,
+// provider/token resolvers. The provider recognizes any origin,
 // resolves branches to a canned PR, and returns a canned PRStatus.
 func newTestRefresher(t *testing.T, clk quartz.Clock, opts ...testRefresherOpt) *gitsync.Refresher {
 	t.Helper()
@@ -318,7 +319,7 @@ func TestWorker_RefresherError_BacksOffRow(t *testing.T) {
 		func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error) {
 			n := callCount.Add(1)
 			if n == 1 {
-				return nil, fmt.Errorf("simulated provider error")
+				return nil, xerrors.New("simulated provider error")
 			}
 			return &gitprovider.PRRef{Owner: "o", Repo: "r", Number: 1}, nil
 		},
@@ -384,7 +385,7 @@ func TestWorker_UpsertError_ContinuesNextRow(t *testing.T) {
 			if arg.ChatID == chat1 {
 				// Terminal event for the failing row.
 				signalIfDone()
-				return database.ChatDiffStatus{}, fmt.Errorf("db write error")
+				return database.ChatDiffStatus{}, xerrors.New("db write error")
 			}
 			mu.Lock()
 			upsertedChatIDs[arg.ChatID] = struct{}{}
@@ -559,7 +560,7 @@ func TestWorker_MarkStale_UpsertFails_ContinuesNext(t *testing.T) {
 	store.EXPECT().UpsertChatDiffStatusReference(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
 			if arg.ChatID == chat1 {
-				return database.ChatDiffStatus{}, fmt.Errorf("upsert ref error")
+				return database.ChatDiffStatus{}, xerrors.New("upsert ref error")
 			}
 			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
 		}).Times(2)
@@ -587,7 +588,7 @@ func TestWorker_MarkStale_GetChatsFails(t *testing.T) {
 	store := dbmock.NewMockStore(ctrl)
 
 	store.EXPECT().GetChatsByOwnerID(gomock.Any(), gomock.Any()).
-		Return(nil, fmt.Errorf("db error"))
+		Return(nil, xerrors.New("db error"))
 
 	mClock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -609,7 +610,7 @@ func TestWorker_TickStoreError(t *testing.T) {
 	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(context.Context, int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
 			close(tickDone)
-			return nil, fmt.Errorf("database unavailable")
+			return nil, xerrors.New("database unavailable")
 		})
 
 	mClock := quartz.NewMock(t)
@@ -884,7 +885,7 @@ func TestRefreshChat_UpsertError(t *testing.T) {
 	store := dbmock.NewMockStore(ctrl)
 
 	store.EXPECT().UpsertChatDiffStatus(gomock.Any(), gomock.Any()).
-		Return(database.ChatDiffStatus{}, fmt.Errorf("db write error"))
+		Return(database.ChatDiffStatus{}, xerrors.New("db write error"))
 
 	var publishCalled atomic.Bool
 	pub := func(_ context.Context, _ uuid.UUID) error {

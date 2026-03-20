@@ -67,7 +67,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 
 		publishCalled := false
 		api := &agentapi.AppsAPI{
-			Agent:    agent,
+			AgentID:  agent.ID,
 			Database: dbM,
 			Log:      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: func(ctx context.Context, _ uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
@@ -103,7 +103,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 
 		publishCalled := false
 		api := &agentapi.AppsAPI{
-			Agent:    agent,
+			AgentID:  agent.ID,
 			Database: dbM,
 			Log:      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: func(ctx context.Context, _ uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
@@ -140,7 +140,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 
 		publishCalled := false
 		api := &agentapi.AppsAPI{
-			Agent:    agent,
+			AgentID:  agent.ID,
 			Database: dbM,
 			Log:      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: func(ctx context.Context, _ uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
@@ -174,7 +174,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 		dbM.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceApp{app3}, nil)
 
 		api := &agentapi.AppsAPI{
-			Agent:                    agent,
+			AgentID:                  agent.ID,
 			Database:                 dbM,
 			Log:                      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: nil,
@@ -201,7 +201,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 		dbM.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceApp{app1, app2}, nil)
 
 		api := &agentapi.AppsAPI{
-			Agent:                    agent,
+			AgentID:                  agent.ID,
 			Database:                 dbM,
 			Log:                      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: nil,
@@ -229,7 +229,7 @@ func TestBatchUpdateAppHealths(t *testing.T) {
 		dbM.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return([]database.WorkspaceApp{app1, app2}, nil)
 
 		api := &agentapi.AppsAPI{
-			Agent:                    agent,
+			AgentID:                  agent.ID,
 			Database:                 dbM,
 			Log:                      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: nil,
@@ -278,7 +278,7 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		cachedWs.UpdateValues(workspace)
 
 		api := &agentapi.AppsAPI{
-			Agent: agent,
+			AgentID: agent.ID,
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
@@ -355,7 +355,7 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 			Return(database.WorkspaceApp{}, sql.ErrNoRows)
 
 		api := &agentapi.AppsAPI{
-			Agent:    agent,
+			AgentID:  agent.ID,
 			Database: mDB,
 			Log:      testutil.Logger(t),
 		}
@@ -382,7 +382,7 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		}
 
 		api := &agentapi.AppsAPI{
-			Agent:    agent,
+			AgentID:  agent.ID,
 			Database: mDB,
 			Log:      testutil.Logger(t),
 		}
@@ -410,7 +410,7 @@ func TestWorkspaceAgentAppStatus(t *testing.T) {
 		}
 
 		api := &agentapi.AppsAPI{
-			Agent:    agent,
+			AgentID:  agent.ID,
 			Database: mDB,
 			Log:      testutil.Logger(t),
 		}

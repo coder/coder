@@ -318,7 +318,7 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 	cachedWs.UpdateValues(workspace)
 
 	appAPI := &agentapi.AppsAPI{
-		Agent:     workspaceAgent,
+		AgentID:   workspaceAgent.ID,
 		Database:  api.Database,
 		Log:       api.Logger,
 		Workspace: cachedWs,

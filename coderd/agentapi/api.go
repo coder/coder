@@ -119,7 +119,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		ExternalAuthConfigs:      opts.ExternalAuthConfigs,
 		DisableDirectConnections: opts.DisableDirectConnections,
 		DerpForceWebSockets:      opts.DerpForceWebSockets,
-		Agent:                    agent,
+		AgentFn:                  api.agent,
 		Database:                 opts.Database,
 		DerpMapFn:                opts.DerpMapFn,
 		WorkspaceID:              opts.WorkspaceID,
@@ -156,7 +156,8 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	}
 
 	api.StatsAPI = &StatsAPI{
-		Agent:                     agent,
+		AgentID:                   agent.ID,
+		AgentName:                 agent.Name,
 		Workspace:                 api.cachedWorkspaceFields,
 		Database:                  opts.Database,
 		Log:                       opts.Log,
@@ -175,7 +176,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	}
 
 	api.AppsAPI = &AppsAPI{
-		Agent:                    agent,
+		AgentID:                  agent.ID,
 		AgentFn:                  api.agent,
 		Database:                 opts.Database,
 		Log:                      opts.Log,
