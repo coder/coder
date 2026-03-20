@@ -493,23 +493,25 @@ const ChatMessageItem = memo<{
 								<div className="flex flex-col gap-1.5">
 									{(hasUserTextContent || hasFileBlocks) && (
 										<div className="flex items-start gap-2">
-											<span className="min-w-0 flex-1">
-												{userInlineContent.length > 0
-													? userInlineContent.map((block, i) =>
-															block.type === "response" ? (
-																<Fragment key={i}>{block.text}</Fragment>
-															) : (
-																<FileReferenceChip
-																	key={i}
-																	fileName={block.file_name}
-																	startLine={block.start_line}
-																	endLine={block.end_line}
-																	className="mx-1"
-																/>
-															),
-														)
-													: parsed.markdown || ""}
-											</span>
+											{hasUserTextContent && (
+												<span className="min-w-0 flex-1">
+													{userInlineContent.length > 0
+														? userInlineContent.map((block, i) =>
+																block.type === "response" ? (
+																	<Fragment key={i}>{block.text}</Fragment>
+																) : (
+																	<FileReferenceChip
+																		key={i}
+																		fileName={block.file_name}
+																		startLine={block.start_line}
+																		endLine={block.end_line}
+																		className="mx-1"
+																	/>
+																),
+															)
+														: parsed.markdown || ""}
+												</span>
+											)}
 											{isSavingMessage && (
 												<Spinner
 													className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-secondary"
