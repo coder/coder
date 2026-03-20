@@ -1,0 +1,168 @@
+# Alpine-based dogfood base image.
+#
+# This is an experimental lightweight alternative to the Ubuntu-based
+# dogfood image. It contains only what's needed for building and
+# testing Coder (make build, make test, make gen, make lint).
+#
+# Notable exclusions vs the Ubuntu base:
+# - No Playwright/Chrome (e2e tests won't run)
+# - No google-cloud-sdk (CI self-provisions this)
+# - No systemd (Alpine uses OpenRC)
+#
+# Usage:
+#   docker build -t dogfood-alpine -f dogfood/coder/Dockerfile.alpine dogfood/coder/
+#   docker run --rm -v $(pwd):/app -w /app dogfood-alpine make build
+
+# ========================================
+# Builder stages
+# ========================================
+
+FROM ubuntu:jammy@sha256:3ba65aa20f86a0fad9df2b2c259c613df006b2e6d0bfcc8a146afb8c525a9751 AS go
+
+ARG GO_VERSION=1.25.7
+ARG GO_CHECKSUM="12e6d6a191091ae27dc31f6efc630e3a3b8ba409baf3573d955b196fdf086005"
+
+RUN apt-get update && \
+	apt-get install --yes curl && \
+	curl --silent --show-error --location \
+	"https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
+	-o /usr/local/go.tar.gz && \
+	echo "$GO_CHECKSUM /usr/local/go.tar.gz" | sha256sum -c && \
+	rm -rf /var/lib/apt/lists/*
+
+ENV PATH=$PATH:/usr/local/go/bin
+ARG GOPATH="/tmp/"
+
+RUN apt-get update && \
+	apt-get install --yes gcc && \
+	mkdir --parents /usr/local/go && \
+	tar --extract --gzip --directory=/usr/local/go --file=/usr/local/go.tar.gz --strip-components=1 && \
+	mkdir --parents "$GOPATH" && \
+	go env -w GOSUMDB=sum.golang.org && \
+	go install github.com/swaggo/swag/cmd/swag@v1.16.2 && \
+	go install golang.org/x/tools/cmd/goimports@v0.41.0 && \
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30.0 && \
+	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34 && \
+	go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.1 && \
+	go install golang.org/x/tools/gopls@v0.21.0 && \
+	go install gotest.tools/gotestsum@v1.9.0 && \
+	(CGO_ENABLED=1 go install github.com/coder/sqlc/cmd/sqlc@aab4e865a51df0c43e1839f81a9d349b41d14f05) && \
+	go install github.com/quasilyte/go-ruleguard/cmd/ruleguard@v0.3.13 && \
+	go install mvdan.cc/sh/v3/cmd/shfmt@v3.12.0 && \
+	go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1 && \
+	go install github.com/mikefarah/yq/v4@v4.44.3 && \
+	mv /tmp/bin/yq /tmp/bin/yq4 && \
+	go install go.uber.org/mock/mockgen@v0.6.0 && \
+	apt-get remove --yes gcc && \
+	apt-get autoremove --yes && \
+	apt-get clean && \
+	rm -rf /var/lib/apt/lists/* && \
+	rm -rf /usr/local/go && \
+	rm -rf /tmp/go/pkg && \
+	rm -rf /tmp/go/src
+
+FROM us-docker.pkg.dev/coder-v2-images-public/public/alpine@sha256:fd032399cd767f310a1d1274e81cab9f0fd8a49b3589eba2c3420228cd45b6a7 AS proto
+WORKDIR /tmp
+RUN apk add curl unzip
+RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip && \
+	unzip protoc.zip && \
+	rm protoc.zip
+
+# ========================================
+# Alpine dogfood base
+# ========================================
+FROM alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+
+RUN apk add --no-cache \
+	bash \
+	build-base \
+	ca-certificates \
+	curl \
+	docker-cli \
+	docker-cli-buildx \
+	docker-cli-compose \
+	gettext \
+	git \
+	gnupg \
+	iproute2 \
+	jq \
+	kubectl \
+	libgcc \
+	libstdc++ \
+	openssh-server \
+	openssl \
+	openssl-dev \
+	pkgconf \
+	rsync \
+	screen \
+	shellcheck \
+	sudo \
+	tzdata \
+	unzip \
+	wget \
+	zip \
+	zstd
+
+# Terraform
+RUN ARCH="$(arch)"; \
+	if [ "${ARCH}" = "x86_64" ]; then ARCH="amd64"; \
+	elif [ "${ARCH}" = "aarch64" ]; then ARCH="arm64"; fi; \
+	wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.14.5/terraform_1.14.5_linux_${ARCH}.zip" && \
+	unzip /tmp/terraform.zip -d /usr/local/bin && \
+	rm -f /tmp/terraform.zip && \
+	chmod +x /usr/local/bin/terraform
+
+# GitHub CLI
+RUN ARCH="$(arch)"; \
+	if [ "${ARCH}" = "x86_64" ]; then ARCH="amd64"; \
+	elif [ "${ARCH}" = "aarch64" ]; then ARCH="arm64"; fi; \
+	GH_CLI_VERSION=$(curl -s "https://api.github.com/repos/cli/cli/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') && \
+	curl -L "https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_${ARCH}.tar.gz" | \
+	tar -xz --strip-components=1 -C /usr/local
+
+# Node.js + pnpm (unofficial musl builds for Alpine)
+ENV NODE_VERSION=22.19.0
+RUN ARCH="$(arch)"; \
+	if [ "${ARCH}" = "x86_64" ]; then ARCH="x64"; \
+	elif [ "${ARCH}" = "aarch64" ]; then ARCH="arm64"; fi; \
+	curl -fsSL "https://unofficial-builds.nodejs.org/download/release/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${ARCH}-musl.tar.xz" | \
+	tar -xJ --strip-components=1 -C /usr/local && \
+	corepack enable && \
+	corepack prepare pnpm@10.14.0 --activate
+
+# golangci-lint + helm
+ARG GOLANGCI_LINT_VERSION=1.64.8 \
+	HELM_VERSION=3.12.0
+
+RUN curl --silent --show-error --location --fail \
+	"https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.tar.gz" | \
+	tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 \
+	"golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64/golangci-lint" && \
+	curl --silent --show-error --location --fail \
+	"https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" | \
+	tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 \
+	linux-amd64/helm
+
+# Go toolchain
+COPY --from=go /usr/local/go.tar.gz /usr/local/go.tar.gz
+RUN mkdir /usr/local/go && \
+	tar -xzf /usr/local/go.tar.gz --strip-components=1 -C /usr/local/go && \
+	rm /usr/local/go.tar.gz
+ENV PATH=$PATH:/usr/local/go/bin
+
+# Go tools + protoc
+COPY --from=go /tmp/bin /usr/local/bin
+COPY --from=proto /tmp/bin /usr/local/bin
+COPY --from=proto /tmp/include /usr/local/bin/include
+
+# Coder user
+RUN addgroup -g 1000 coder && \
+	adduser -D -s /bin/bash -h /home/coder -u 1000 -G coder coder && \
+	addgroup coder docker 2>/dev/null || true && \
+	echo 'coder ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
+USER coder
+ENV HOME=/home/coder
+ENV PATH="/home/coder/go/bin:${PATH}"
+ENV GOPRIVATE="coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder"
+ENV NODE_OPTIONS="--max-old-space-size=8192"
