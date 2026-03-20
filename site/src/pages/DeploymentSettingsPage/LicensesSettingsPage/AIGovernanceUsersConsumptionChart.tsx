@@ -9,6 +9,7 @@ import {
 import { Link } from "components/Link/Link";
 import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 
 interface AIGovernanceUsersConsumptionProps {
@@ -47,7 +48,9 @@ export const AIGovernanceUsersConsumption: FC<
 
 	return (
 		<section
-			className={`border border-solid rounded ${isExceeded ? "border-border-destructive" : ""}`}
+			className={cn("border border-solid rounded", {
+				"border-border-destructive": isExceeded,
+			})}
 		>
 			<div className="p-4">
 				<Collapsible>
@@ -114,7 +117,9 @@ export const AIGovernanceUsersConsumption: FC<
 						<>
 							<div className="flex flex-col gap-2 text-center justify-center items-center">
 								<div
-									className={`text-3xl font-bold ${isExceeded ? "text-content-destructive" : ""}`}
+									className={cn("text-3xl font-bold", {
+										"text-content-destructive": isExceeded,
+									})}
 								>
 									{actual.toLocaleString()}
 								</div>
@@ -123,7 +128,10 @@ export const AIGovernanceUsersConsumption: FC<
 								</div>
 							</div>
 							<div
-								className={`text-sm ${isExceeded ? "text-content-destructive font-medium" : "text-content-secondary"}`}
+								className={cn("text-sm", {
+									"text-content-destructive font-medium": isExceeded,
+									"text-content-secondary": !isExceeded,
+								})}
 							>
 								{isExceeded ? "Add-on exceeded" : "Active"}
 							</div>
