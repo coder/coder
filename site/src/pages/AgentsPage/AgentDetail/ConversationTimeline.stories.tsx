@@ -158,6 +158,66 @@ where chat_id = 'story-chat'
 order by created_at asc;
 \`\`\``;
 
+const diffHeavyButtonPath = "site/src/components/Button.tsx";
+
+const diffHeavyButtonBefore = [
+	'import React from "react";',
+	"",
+	"interface ButtonProps {",
+	"  label: string;",
+	"  onClick: () => void;",
+	'  variant?: "primary" | "secondary";',
+	"  disabled?: boolean;",
+	"}",
+	"",
+	"export const Button: React.FC<ButtonProps> = ({",
+	"  label,",
+	"  onClick,",
+	'  variant = "primary",',
+	"  disabled = false,",
+	"}) => {",
+	"  return (",
+	"    <button",
+	"      className={`btn btn-${variant}`}",
+	"      onClick={onClick}",
+	"      disabled={disabled}",
+	"    >",
+	"      {label}",
+	"    </button>",
+	"  );",
+	"};",
+].join("\n");
+
+const diffHeavyButtonAfter = [
+	'import React from "react";',
+	"",
+	"interface ButtonProps {",
+	"  label: string;",
+	"  onClick: () => void;",
+	'  variant?: "primary" | "secondary";',
+	'  size?: "sm" | "md" | "lg";',
+	"  disabled?: boolean;",
+	"}",
+	"",
+	"export const Button: React.FC<ButtonProps> = ({",
+	"  label,",
+	"  onClick,",
+	'  variant = "primary",',
+	'  size = "md",',
+	"  disabled = false,",
+	"}) => {",
+	"  return (",
+	"    <button",
+	"      className={`btn btn-${variant} btn-${size}`}",
+	"      onClick={onClick}",
+	"      disabled={disabled}",
+	"    >",
+	"      {label}",
+	"    </button>",
+	"  );",
+	"};",
+].join("\n");
+
 const diffHeavyOutputMessages: ParsedMessageEntry[] = [
 	createParsedEntry({
 		id: 200,
@@ -178,12 +238,11 @@ const diffHeavyOutputMessages: ParsedMessageEntry[] = [
 					args: {
 						files: [
 							{
-								path: "src/components/Button.tsx",
+								path: diffHeavyButtonPath,
 								edits: [
 									{
-										search: "const Button = () => {",
-										replace:
-											'const Button: React.FC<ButtonProps> = ({ variant = "primary", size = "md" }) => {',
+										search: diffHeavyButtonBefore,
+										replace: diffHeavyButtonAfter,
 									},
 								],
 							},
@@ -221,12 +280,11 @@ const diffHeavyOutputMessages: ParsedMessageEntry[] = [
 					args: {
 						files: [
 							{
-								path: "src/components/Button.tsx",
+								path: diffHeavyButtonPath,
 								edits: [
 									{
-										search: "const Button = () => {",
-										replace:
-											'const Button: React.FC<ButtonProps> = ({ variant = "primary", size = "md" }) => {',
+										search: diffHeavyButtonBefore,
+										replace: diffHeavyButtonAfter,
 									},
 								],
 							},
