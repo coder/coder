@@ -8,6 +8,7 @@ description: "Guide for creating, updating, and following up on pull requests in
 ## When to Use This Skill
 
 Use this skill when asked to:
+
 - Create a pull request for the current branch.
 - Update an existing PR branch or description.
 - Rewrite a PR body.
@@ -67,6 +68,7 @@ type(scope): description
 ```
 
 Allowed types:
+
 - `feat`
 - `fix`
 - `docs`
@@ -80,14 +82,17 @@ Allowed types:
 - `revert`
 
 Scope rules:
+
 - The scope must be a real filesystem path containing all changed files.
 - Omit the scope when changes span multiple top-level directories.
 
 Examples:
+
 - `feat(coderd/chatd): add streaming support`
 - `fix: move contexts to appropriate locations`
 
 **Description rules:**
+
 - Default to a concise 1-2 paragraph description covering what changed and why.
 - For complex changes, use structured sections:
 
@@ -129,13 +134,14 @@ guidelines. There are no required fields to fill out.
 **Always watch CI checks after pushing.** Do not push and walk away — monitor checks until they pass or fail, and fix failures before reporting success.
 
 After pushing:
+
 - Monitor CI with `gh pr checks <PR_NUMBER>`.
 - Use `gh pr view <PR_NUMBER> --json statusCheckRollup` for programmatic check
   status.
 - Use `gh pr view <PR_NUMBER>` when you need a quick PR summary.
 
-
 If checks fail:
+
 1. Read the failing check logs.
 2. Fix the problem locally.
 3. Run `make pre-commit` again.
