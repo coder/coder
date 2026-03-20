@@ -56,8 +56,7 @@ Always install git hooks and run local validation before pushing.
   git config core.hooksPath scripts/githooks
   ```
 
-- Before pushing, always run `make pre-commit` or, at minimum, run both
-  `make lint` and `make fmt`.
+- Before pushing, always run `make pre-commit`.
 
 ## PR Title and Description
 
@@ -93,7 +92,7 @@ Examples:
 
 **Description rules:**
 
-- Default to a concise bulletted list covering what changed and why.
+- Default to a concise 1-2 paragraph description covering what changed and why.
 - For complex changes, use structured sections:
 
   ```markdown
