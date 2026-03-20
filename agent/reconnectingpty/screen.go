@@ -3,6 +3,8 @@ package reconnectingpty
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"io"
 	"net"
@@ -18,7 +20,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
-	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/pty"
 )
 
@@ -73,12 +74,13 @@ func newScreen(ctx context.Context, logger slog.Logger, execer agentexec.Execer,
 	// Socket paths are limited to around 100 characters on Linux and macOS which
 	// depending on the temporary directory can be a problem.  To give more leeway
 	// use a short ID.
-	id, err := cryptorand.HexString(8)
+	buf := make([]byte, 4)
+	_, err := rand.Read(buf)
 	if err != nil {
 		rpty.state.setState(StateDone, xerrors.Errorf("generate screen id: %w", err))
 		return rpty
 	}
-	rpty.id = id
+	rpty.id = hex.EncodeToString(buf)
 
 	settings := []string{
 		// Disable the startup message that appears for five seconds.

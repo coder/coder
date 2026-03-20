@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -891,7 +892,20 @@ func Permissions(perms map[string][]policy.Action) []Permission {
 // DeduplicatePermissions removes duplicate Permission entries while preserving
 // the original order of the first occurrence for deterministic evaluation.
 func DeduplicatePermissions(perms []Permission) []Permission {
-	return slice.Unique(perms)
+	if len(perms) == 0 {
+		return perms
+	}
+	seen := make(map[string]struct{}, len(perms))
+	deduped := make([]Permission, 0, len(perms))
+	for _, perm := range perms {
+		key := perm.ResourceType + "\x00" + string(perm.Action) + "\x00" + strconv.FormatBool(perm.Negate)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		deduped = append(deduped, perm)
+	}
+	return deduped
 }
 
 // PermissionsEqual compares two permission slices as sets.  Order and

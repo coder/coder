@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/quartz"
 )
 
@@ -55,7 +54,7 @@ func WithTestClock(clk quartz.Clock) Option {
 //     descending order.
 func New(cond Condition, interval time.Duration, countdown []time.Duration, opts ...Option) *Notifier {
 	// Ensure countdown is sorted in descending order and contains no duplicates.
-	ct := slice.Unique(countdown)
+	ct := unique(countdown)
 	sort.Slice(ct, func(i, j int) bool {
 		return ct[i] < ct[j]
 	})
@@ -119,4 +118,16 @@ func (n *Notifier) pollOnce() (_ error) {
 		return
 	}
 	return
+}
+
+func unique(ds []time.Duration) []time.Duration {
+	m := make(map[time.Duration]bool)
+	for _, d := range ds {
+		m[d] = true
+	}
+	var ks []time.Duration
+	for k := range m {
+		ks = append(ks, k)
+	}
+	return ks
 }
