@@ -1,7 +1,6 @@
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { updateProfile, user } from "api/queries/users";
 import type { UpdateUserProfileRequest } from "api/typesGenerated";
-import { isUUID } from "utils/uuid";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import type { FC } from "react";
@@ -9,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
+import { isUUID } from "utils/uuid";
 import { EditUserForm } from "./EditUserForm";
 
 const EditUserPage: FC = () => {
@@ -62,7 +62,7 @@ const EditUserPage: FC = () => {
 
 	return (
 		<Margins>
-			<title>{pageTitle(`Edit User – ${userData.username}`)}</title>
+			<title>{pageTitle("Edit User", `${userData.username}`)}</title>
 
 			<EditUserForm
 				error={updateProfileMutation.error}

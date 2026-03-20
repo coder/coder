@@ -540,7 +540,7 @@ class ApiMethods {
 
 	getUser = async (usernameOrId: string) => {
 		const response = await this.axios.get<TypesGen.User>(
-			`/api/v2/users/${usernameOrId}`,
+			`/api/v2/users/${encodeURIComponent(usernameOrId)}`,
 		);
 		return response.data;
 	};
