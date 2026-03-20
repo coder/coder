@@ -25,6 +25,7 @@ func DupClientCopyingHeaders(client *codersdk.Client, header http.Header) (*code
 		Transport: t.Clone(),
 		Header:    newHeader,
 	}
+	nc.Trace = client.Trace
 	return nc, nil
 }
 

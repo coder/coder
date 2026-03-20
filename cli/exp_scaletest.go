@@ -732,6 +732,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("create tracer provider: %w", err)
 			}
+			client.Trace = tracingFlags.tracePropagate
 			defer func() {
 				// Allow time for traces to flush even if command context is
 				// canceled. This is a no-op if tracing is not enabled.
@@ -1079,6 +1080,7 @@ func (r *RootCmd) scaletestWorkspaceUpdates() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("create tracer provider: %w", err)
 			}
+			client.Trace = tracingFlags.tracePropagate
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 
 			reg := prometheus.NewRegistry()
@@ -1337,6 +1339,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("create tracer provider: %w", err)
 			}
+			client.Trace = tracingFlags.tracePropagate
 			defer func() {
 				// Allow time for traces to flush even if command context is
 				// canceled. This is a no-op if tracing is not enabled.
@@ -1401,6 +1404,9 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 				// Setup our workspace agent connection.
 				config := workspacetraffic.Config{
 					AgentID:       agent.ID,
+					WorkspaceID:   ws.ID,
+					WorkspaceName: ws.Name,
+					AgentName:     agent.Name,
 					BytesPerTick:  bytesPerTick,
 					Duration:      strategy.timeout,
 					TickInterval:  tickInterval,
@@ -1440,22 +1446,33 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 			_, _ = fmt.Fprintln(inv.Stderr, "Running load test...")
 			testCtx, testCancel := strategy.toContext(ctx)
 			defer testCancel()
-			err = th.Run(testCtx)
-			if err != nil {
-				return xerrors.Errorf("run test harness (harness failure, not a test failure): %w", err)
-			}
-
-			// If the command was interrupted, skip stats.
-			if notifyCtx.Err() != nil {
-				return notifyCtx.Err()
-			}
+			runErr := th.Run(testCtx)
 
 			res := th.Results()
-			for _, o := range outputs {
-				err = o.write(res, inv.Stdout)
-				if err != nil {
-					return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
-				}
+
+			// Write full results to the configured output destination
+			// (default: text to stdout via --output flag).
+//			for _, o := range outputs {
+				_ = outputs
+//				if writeErr := o.write(res, os.Stdout); writeErr != nil {
+//					_, _ = fmt.Fprintf(os.Stderr, "Failed to write output %q to %q: %v\n", o.format, o.path, writeErr)
+//				}
+//			}
+
+			// Always write a summary to stderr for visibility in
+			// container logs. Full output goes to --output above.
+			// Limit to 10 failures to avoid exceeding kubelet log
+			// rotation limits.
+			res.PrintSummary(os.Stderr, 10)
+
+			if runErr != nil {
+				return xerrors.Errorf("run test harness (harness failure, not a test failure): %w", runErr)
+			}
+
+			// Check for interrupt after printing results so we always
+			// have visibility into what happened.
+			if notifyCtx.Err() != nil {
+				return notifyCtx.Err()
 			}
 
 			if res.TotalFail > 0 {
@@ -1563,6 +1580,7 @@ func (r *RootCmd) scaletestDashboard() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("create tracer provider: %w", err)
 			}
+			client.Trace = tracingFlags.tracePropagate
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 			outputs, err := output.parse()
 			if err != nil {
@@ -1800,6 +1818,7 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("create tracer provider: %w", err)
 			}
+			client.Trace = tracingFlags.tracePropagate
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 
 			setupBarrier := new(sync.WaitGroup)

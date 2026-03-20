@@ -146,3 +146,56 @@ func (r *Results) PrintText(w io.Writer) {
 	_, _ = fmt.Fprintf(w, "\tTotal duration: %s\n", time.Duration(r.Elapsed))
 	_, _ = fmt.Fprintf(w, "\tAvg. duration:  %s\n", totalDuration/time.Duration(r.TotalRuns))
 }
+
+// PrintSummary prints a summary of the results including stats and up to
+// maxFailed example failures. Use this instead of PrintText when output
+// size is constrained (e.g., container logs).
+func (r *Results) PrintSummary(w io.Writer, maxFailed int) {
+	var totalDuration time.Duration
+	keys := maps.Keys(r.Runs)
+	sort.Strings(keys)
+
+	printed := 0
+	for _, key := range keys {
+		run := r.Runs[key]
+		totalDuration += time.Duration(run.Duration)
+		if run.Error == nil {
+			continue
+		}
+		if printed < maxFailed {
+			_, _ = fmt.Fprintf(w, "\n== FAIL: %s\n\n", run.FullID)
+			_, _ = fmt.Fprintf(w, "\tError: %s\n\n", run.Error)
+
+			_, _ = fmt.Fprintf(w, "\tLog:\n")
+			rd := bufio.NewReader(strings.NewReader(run.Logs))
+			for {
+				line, err := rd.ReadBytes('\n')
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					_, _ = fmt.Fprintf(w, "\n\tLOG PRINT ERROR: %+v\n", err)
+				}
+				_, _ = fmt.Fprintf(w, "\t\t%s", line)
+			}
+			printed++
+		}
+	}
+
+	if r.TotalFail > maxFailed {
+		_, _ = fmt.Fprintf(w, "\n... and %d more failures omitted\n", r.TotalFail-maxFailed)
+	}
+
+	_, _ = fmt.Fprintln(w, "\n\nTest results:")
+	if r.TotalRuns == 0 {
+		_, _ = fmt.Fprintln(w, "\tNo tests run")
+		return
+	}
+	_, _ = fmt.Fprintf(w, "\tPass:  %d\n", r.TotalPass)
+	_, _ = fmt.Fprintf(w, "\tFail:  %d\n", r.TotalFail)
+	_, _ = fmt.Fprintf(w, "\tTotal: %d\n", r.TotalRuns)
+	_, _ = fmt.Fprintln(w, "")
+	_, _ = fmt.Fprintf(w, "\tTotal duration: %s\n", time.Duration(r.Elapsed))
+	_, _ = fmt.Fprintf(w, "\tAvg. duration:  %s\n", totalDuration/time.Duration(r.TotalRuns))
+}
+
