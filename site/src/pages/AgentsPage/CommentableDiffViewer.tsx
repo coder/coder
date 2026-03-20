@@ -9,7 +9,7 @@ import {
 	type FC,
 	type RefObject,
 	useCallback,
-	useEffect,
+	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
@@ -19,6 +19,7 @@ import { DiffViewer } from "./DiffViewer";
 import {
 	annotationLineForBox,
 	annotationSideForBox,
+	type CommentBoxState,
 	commentBoxFromRange,
 	contentRangeForBox,
 	selectedLinesForBox,
@@ -36,7 +37,7 @@ import {
  * numbers (using `hunk.deletionStart`). Context lines that fall
  * in range are included as well.
  */
-function extractDiffContent(
+export function extractDiffContent(
 	parsedFiles: readonly FileDiffMetadata[],
 	fileName: string,
 	startLine: number,
@@ -115,13 +116,8 @@ export const InlinePromptInput: FC<{
 	const [text, setText] = useState("");
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-	// Focus the textarea on mount. We use a ref callback via rAF
-	// rather than autoFocus because the component renders inside
-	// Shadow DOM where autoFocus is unreliable.
-	useEffect(() => {
-		requestAnimationFrame(() => {
-			textareaRef.current?.focus();
-		});
+	useLayoutEffect(() => {
+		textareaRef.current?.focus();
 	}, []);
 
 	return (
@@ -213,13 +209,8 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 	// ---------------------------------------------------------------
 	// Comment / annotation state
 	// ---------------------------------------------------------------
-	const [activeCommentBox, setActiveCommentBox] = useState<{
-		fileName: string;
-		start: number;
-		startSide: "additions" | "deletions";
-		end: number;
-		endSide: "additions" | "deletions";
-	} | null>(null);
+	const [activeCommentBox, setActiveCommentBox] =
+		useState<CommentBoxState | null>(null);
 
 	// ---------------------------------------------------------------
 	// Line interaction callbacks
@@ -341,13 +332,13 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 	// ---------------------------------------------------------------
 	return (
 		<DiffViewer
+			{...diffViewerProps}
 			parsedFiles={parsedFiles}
 			onLineNumberClick={handleLineNumberClick}
 			onLineSelected={handleLineSelected}
 			getLineAnnotations={getLineAnnotations}
 			getSelectedLines={getSelectedLines}
 			renderAnnotation={renderAnnotation}
-			{...diffViewerProps}
 		/>
 	);
 };

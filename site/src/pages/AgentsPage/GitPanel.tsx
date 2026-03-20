@@ -373,7 +373,7 @@ const LocalRepoContent: FC<{
 				isExpanded={isExpanded}
 				diffStyle={diffStyle}
 				chatInputRef={chatInputRef}
-			/>{" "}
+			/>
 		</div>
 	);
 };
