@@ -446,29 +446,47 @@ const AgentsPage: FC = () => {
 							return didUpdate ? nextChats : chats;
 						});
 					}
-					queryClient.setQueryData<TypesGen.Chat | undefined>(
-						chatKey(updatedChat.id),
-						(previousChat) => {
-							if (!previousChat) {
-								return previousChat;
-							}
-							return {
-								...previousChat,
-								...(isStatusEvent && { status: updatedChat.status }),
-								...(isTitleEvent && { title: updatedChat.title }),
-								...(isDiffStatusEvent && {
-									diff_status: updatedChat.diff_status,
-								}),
-								workspace_id:
-									updatedChat.workspace_id ?? previousChat.workspace_id,
-								updated_at:
+						queryClient.setQueryData<TypesGen.Chat | undefined>(
+							chatKey(updatedChat.id),
+							(previousChat) => {
+								if (!previousChat) {
+									return previousChat;
+								}
+								// Only create a new object if a field actually
+								// changed. Returning the same reference prevents
+								// react-query from notifying subscribers, avoiding
+								// unnecessary re-renders of AgentDetail during
+								// streaming when repeated status_change events
+								// carry the same "running" status.
+								const nextStatus = isStatusEvent ? updatedChat.status : previousChat.status;
+								const nextTitle = isTitleEvent ? updatedChat.title : previousChat.title;
+								const nextDiffStatus = isDiffStatusEvent ? updatedChat.diff_status : previousChat.diff_status;
+								const nextWorkspaceId = updatedChat.workspace_id ?? previousChat.workspace_id;
+								const nextUpdatedAt =
 									previousChat.updated_at > updatedChat.updated_at
 										? previousChat.updated_at
-										: updatedChat.updated_at,
-							};
-						},
-					);
-				});
+										: updatedChat.updated_at;
+
+								if (
+									nextStatus === previousChat.status &&
+									nextTitle === previousChat.title &&
+									nextDiffStatus === previousChat.diff_status &&
+									nextWorkspaceId === previousChat.workspace_id &&
+									nextUpdatedAt === previousChat.updated_at
+								) {
+									return previousChat;
+								}
+
+								return {
+									...previousChat,
+									status: nextStatus,
+									title: nextTitle,
+									diff_status: nextDiffStatus,
+									workspace_id: nextWorkspaceId,
+									updated_at: nextUpdatedAt,
+								};
+							},
+						);				});
 				return ws;
 			},
 			onOpen() {

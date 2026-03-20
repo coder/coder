@@ -291,13 +291,28 @@ const AgentDetail: FC = () => {
 			if (event.parseError) {
 				return;
 			}
-			if (event.parsedMessage.type === "data") {
-				queryClient.setQueryData(
-					workspaceByIdKey(workspaceId),
-					event.parsedMessage.data as TypesGen.Workspace,
-				);
-			}
-		});
+				if (event.parsedMessage.type === "data") {
+					const next = event.parsedMessage.data as TypesGen.Workspace;
+					queryClient.setQueryData<TypesGen.Workspace | undefined>(
+						workspaceByIdKey(workspaceId),
+						(prev) => {
+							// Return the same reference when nothing the UI
+							// reads has changed. This prevents react-query
+							// from notifying subscribers and avoids a full
+							// AgentDetail re-render on every heartbeat.
+							if (
+								prev &&
+								prev.latest_build.status === next.latest_build.status &&
+								prev.latest_build.resources === next.latest_build.resources &&
+								prev.name === next.name &&
+								prev.owner_name === next.owner_name
+							) {
+								return prev;
+							}
+							return next;
+						},
+					);
+				}		});
 		return () => socket.close();
 	}, [workspaceId, queryClient]);
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
