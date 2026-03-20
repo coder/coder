@@ -3,8 +3,9 @@ import {
 	File as FileViewer,
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
+import { CheckIcon, ClipboardIcon } from "lucide-react";
 import type { ComponentPropsWithRef, ReactNode } from "react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
 	type Components,
 	defaultRehypePlugins,
@@ -53,10 +54,18 @@ type MarkdownComponentProps = {
 	type?: string;
 	checked?: boolean;
 	disabled?: boolean;
-	className?: string;
+	className?: string[] | string;
 };
 
 type FileViewerThemeType = "light" | "dark";
+type FileViewerThemeName = (typeof fileViewerTheme)[FileViewerThemeType];
+
+type CodeBlockProps = {
+	content: string;
+	lang: string;
+	fileViewerThemeType: FileViewerThemeType;
+	viewerTheme: FileViewerThemeName;
+};
 
 /**
  * Recursively extracts text from a HAST node tree. This is plain
@@ -83,9 +92,98 @@ const getClassNames = (className: string[] | string | undefined): string[] => {
 	);
 };
 
+const CodeBlock = ({
+	content,
+	lang,
+	fileViewerThemeType,
+	viewerTheme,
+}: CodeBlockProps) => {
+	const [copied, setCopied] = useState(false);
+	const resetCopiedTimeoutRef = useRef<number | null>(null);
+	const showHeader = lang !== "text";
+
+	useEffect(() => {
+		return () => {
+			if (resetCopiedTimeoutRef.current !== null) {
+				window.clearTimeout(resetCopiedTimeoutRef.current);
+			}
+		};
+	}, []);
+
+	const handleCopy = async () => {
+		if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+			return;
+		}
+
+		try {
+			await navigator.clipboard.writeText(content);
+			setCopied(true);
+			if (resetCopiedTimeoutRef.current !== null) {
+				window.clearTimeout(resetCopiedTimeoutRef.current);
+			}
+			resetCopiedTimeoutRef.current = window.setTimeout(() => {
+				setCopied(false);
+			}, 1500);
+		} catch {
+			setCopied(false);
+		}
+	};
+
+	return (
+		<div className="my-4 overflow-hidden rounded-xl border border-solid border-border-default bg-surface-secondary/15 text-2xs">
+			{showHeader && (
+				<div className="flex items-center justify-between border-b border-solid border-border-default bg-surface-secondary px-3 py-1.5">
+					<span className="text-xs text-content-secondary">{lang}</span>
+					<div className="flex items-center gap-1.5">
+						<span
+							aria-live="polite"
+							className={cn(
+								"text-xs text-content-secondary transition-opacity",
+								copied ? "opacity-100" : "opacity-0",
+							)}
+						>
+							Copied!
+						</span>
+						<button
+							type="button"
+							onClick={handleCopy}
+							className="inline-flex size-7 items-center justify-center rounded-md text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-default"
+							aria-label={
+								copied ? "Code copied to clipboard" : `Copy ${lang} code block`
+							}
+						>
+							{copied ? (
+								<CheckIcon className="size-3.5" />
+							) : (
+								<ClipboardIcon className="size-3.5" />
+							)}
+						</button>
+					</div>
+				</div>
+			)}
+			<FileViewer
+				file={{
+					name: `block.${lang}`,
+					lang: lang as SupportedLanguages,
+					contents: content,
+					cacheKey: content,
+				}}
+				options={{
+					overflow: "scroll",
+					themeType: fileViewerThemeType,
+					disableFileHeader: true,
+					disableLineNumbers: true,
+					theme: viewerTheme,
+					unsafeCSS: fileViewerCSS,
+				}}
+			/>
+		</div>
+	);
+};
+
 const createComponents = (
 	fileViewerThemeType: FileViewerThemeType,
-	viewerTheme: (typeof fileViewerTheme)[FileViewerThemeType],
+	viewerTheme: FileViewerThemeName,
 ): Components => {
 	return {
 		a: ({ href, children }: MarkdownComponentProps) => (
@@ -130,6 +228,54 @@ const createComponents = (
 				{children}
 			</h6>
 		),
+		blockquote: ({ children }: MarkdownComponentProps) => (
+			<blockquote className="mx-0 my-3 border-l-2 border-content-secondary/30 pl-3 text-content-secondary [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+				{children}
+			</blockquote>
+		),
+		ol: ({ children, className }: MarkdownComponentProps) => (
+			<ol
+				className={cn(
+					"my-3 list-decimal pl-5 marker:text-content-secondary [&>li>ol]:mt-1 [&>li>ul]:mt-1",
+					"space-y-0.5",
+					className,
+				)}
+			>
+				{children}
+			</ol>
+		),
+		ul: ({ children, className }: MarkdownComponentProps) => {
+			const classes = getClassNames(className);
+			const isTaskList = classes.includes("contains-task-list");
+			return (
+				<ul
+					className={cn(
+						"my-3 space-y-0.5 [&>li>ol]:mt-1 [&>li>ul]:mt-1",
+						isTaskList
+							? "list-none pl-0"
+							: "list-disc pl-5 marker:text-content-secondary",
+						className,
+					)}
+				>
+					{children}
+				</ul>
+			);
+		},
+		li: ({ children, className }: MarkdownComponentProps) => {
+			const classes = getClassNames(className);
+			const isTaskListItem = classes.includes("task-list-item");
+			return (
+				<li
+					className={cn(
+						"leading-relaxed",
+						isTaskListItem && "list-none",
+						className,
+					)}
+				>
+					{children}
+				</li>
+			);
+		},
 		// GFM task-list checkboxes: render a styled replacement
 		// for the native <input type="checkbox" disabled> element.
 		input: ({ type, checked, disabled }: MarkdownComponentProps) => {
@@ -142,7 +288,7 @@ const createComponents = (
 					className={cn(
 						"mr-2 inline-flex size-4 shrink-0 items-center justify-center",
 						"rounded-sm border border-solid",
-						"align-middle relative -top-px",
+						"relative -top-px align-middle",
 						checked
 							? "border-content-link bg-content-link text-white"
 							: "border-border-default bg-surface-primary",
@@ -172,15 +318,26 @@ const createComponents = (
 		hr: () => (
 			<hr className="my-6 border-0 border-t border-solid border-border-default" />
 		),
+		table: ({ children }: MarkdownComponentProps) => (
+			<div className="my-4 overflow-x-auto">
+				<table className="w-full border-collapse text-xs">{children}</table>
+			</div>
+		),
+		thead: ({ children }: MarkdownComponentProps) => (
+			<thead className="bg-surface-secondary">{children}</thead>
+		),
 		// Table cells: streamdown defaults to text-sm (14px).
-		// Drop the explicit size so cells inherit the 13px base.
+		// Keep transcript tables compact so they read comfortably
+		// alongside prose and code blocks.
 		th: ({ children }: MarkdownComponentProps) => (
-			<th className="whitespace-nowrap px-4 py-2 text-left font-semibold">
+			<th className="border border-solid border-border-default bg-surface-secondary px-3 py-1.5 text-left text-xs font-medium">
 				{children}
 			</th>
 		),
 		td: ({ children }: MarkdownComponentProps) => (
-			<td className="px-4 py-2">{children}</td>
+			<td className="border border-solid border-border-default px-3 py-1.5 text-xs align-top">
+				{children}
+			</td>
 		),
 		// Inline code only — fenced blocks are handled by the pre override.
 		code: ({ children }: MarkdownComponentProps) => (
@@ -201,24 +358,12 @@ const createComponents = (
 				const content = getHastText(codeChild).trimEnd();
 				if (content) {
 					return (
-						<div className="my-4 overflow-hidden rounded-xl border border-solid border-border-default text-2xs">
-							<FileViewer
-								file={{
-									name: `block.${lang}`,
-									lang: lang as SupportedLanguages,
-									contents: content,
-									cacheKey: content,
-								}}
-								options={{
-									overflow: "scroll",
-									themeType: fileViewerThemeType,
-									disableFileHeader: true,
-									disableLineNumbers: true,
-									theme: viewerTheme,
-									unsafeCSS: fileViewerCSS,
-								}}
-							/>
-						</div>
+						<CodeBlock
+							content={content}
+							lang={lang}
+							fileViewerThemeType={fileViewerThemeType}
+							viewerTheme={viewerTheme}
+						/>
 					);
 				}
 			}
