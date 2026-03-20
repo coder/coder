@@ -27,12 +27,20 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 			{hasContent && (
 				<ChevronDownIcon
 					className={cn(
-						"h-3 w-3 shrink-0 text-content-secondary transition-transform",
+						"h-3.5 w-3.5 shrink-0 text-content-secondary transition-transform",
 						expanded ? "rotate-0" : "-rotate-90",
 					)}
 				/>
 			)}
 			<div className="min-w-0 flex flex-1 items-center gap-2">{header}</div>
+			{hasContent && (
+				<ChevronDownIcon
+					className={cn(
+						"h-3 w-3 shrink-0 text-content-secondary/50 transition-transform",
+						expanded ? "rotate-0" : "-rotate-90",
+					)}
+				/>
+			)}
 		</>
 	);
 
@@ -49,7 +57,7 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 					aria-expanded={expanded}
 					onClick={() => setExpanded(!expanded)}
 					className={cn(
-						"m-0 flex w-full cursor-pointer items-center gap-2 border-0 bg-surface-tertiary/40 px-3 py-1.5 text-left font-[inherit] text-[inherit] transition-colors hover:bg-surface-tertiary/50",
+						"m-0 flex w-full cursor-pointer items-center gap-2 border-0 bg-surface-tertiary px-3 py-1.5 text-left font-[inherit] text-[inherit] transition-colors hover:bg-surface-tertiary",
 						headerClassName,
 					)}
 				>
@@ -58,7 +66,7 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 			) : (
 				<div
 					className={cn(
-						"flex w-full items-center gap-2 bg-surface-tertiary/40 px-3 py-1.5",
+						"flex w-full items-center gap-2 bg-surface-tertiary px-3 py-1.5",
 						headerClassName,
 					)}
 				>
