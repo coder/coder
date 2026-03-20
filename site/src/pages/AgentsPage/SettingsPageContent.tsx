@@ -170,7 +170,8 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 	const startDateParam =
 		searchParams.get(usageStartDateSearchParam)?.trim() ?? "";
 	const endDateParam = searchParams.get(usageEndDateSearchParam)?.trim() ?? "";
-	let dateRange = getDefaultUsageDateRange(now);
+	const [defaultDateRange] = useState(() => getDefaultUsageDateRange(now));
+	let dateRange = defaultDateRange;
 	let hasExplicitDateRange = false;
 
 	if (startDateParam && endDateParam) {
