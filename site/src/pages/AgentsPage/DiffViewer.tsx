@@ -623,15 +623,31 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	// Pre-compute per-file line annotations for the same reason.
 	const perFileAnnotations = useMemo(() => {
 		if (!getLineAnnotations) return null;
-		const map = new Map<string, DiffLineAnnotation<string>[]>();
-		for (const file of sortedFiles) {
-			const annotations = getLineAnnotations(file.name);
-			if (annotations.length > 0) {
-				map.set(file.name, annotations);
-			}
-		}
-		return map;
+		return new Map(
+			sortedFiles
+				.map((f) => [f.name, getLineAnnotations(f.name)] as const)
+				.filter(
+					(entry): entry is [string, DiffLineAnnotation<string>[]] =>
+						entry[1].length > 0,
+				),
+		);
 	}, [sortedFiles, getLineAnnotations]);
+
+	// Pre-compute per-file selected lines so each LazyFileDiff
+	// receives a stable reference. Without this, calling
+	// getSelectedLines during render returns a new object every
+	// time, which busts the memo comparator and forces an
+	// expensive Shadow DOM + shiki re-highlight.
+	const perFileSelectedLines = useMemo(() => {
+		if (!getSelectedLines) return null;
+		return new Map(
+			sortedFiles
+				.map((f) => [f.name, getSelectedLines(f.name)] as const)
+				.filter(
+					(entry): entry is [string, SelectedLineRange] => entry[1] != null,
+				),
+		);
+	}, [sortedFiles, getSelectedLines]);
 
 	// ---------------------------------------------------------------
 	// Container width measurement via ResizeObserver so we can decide
@@ -889,7 +905,9 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 											}
 											lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
 											renderAnnotation={renderAnnotation}
-											selectedLines={getSelectedLines?.(fileDiff.name)}
+											selectedLines={
+												perFileSelectedLines?.get(fileDiff.name) ?? null
+											}
 										/>
 										{isLast && (
 											<div className="flex items-center justify-center py-4 text-xs text-content-secondary">
