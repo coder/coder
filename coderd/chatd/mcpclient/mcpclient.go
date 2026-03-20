@@ -16,6 +16,7 @@ import (
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -66,7 +67,6 @@ func ConnectAll(
 
 	var (
 		mu      sync.Mutex
-		wg      sync.WaitGroup
 		clients []*client.Client
 		tools   []fantasy.AgentTool
 	)
@@ -82,15 +82,13 @@ func ConnectAll(
 		clients = nil
 	}
 
+	var eg errgroup.Group
 	for _, cfg := range configs {
 		if !cfg.Enabled {
 			continue
 		}
 
-		wg.Add(1)
-		go func(cfg database.MCPServerConfig) {
-			defer wg.Done()
-
+		eg.Go(func() error {
 			serverTools, mcpClient, connectErr := connectOne(
 				ctx, logger, cfg, tokensByConfigID,
 			)
@@ -101,17 +99,22 @@ func ConnectAll(
 					slog.F("server_url", RedactURL(cfg.Url)),
 					slog.F("error", redactErrorURL(connectErr)),
 				)
-				return
+				// Connection failures are not propagated — the
+				// LLM simply won't have this server's tools.
+				return nil
 			}
 
 			mu.Lock()
 			clients = append(clients, mcpClient)
 			tools = append(tools, serverTools...)
 			mu.Unlock()
-		}(cfg)
+			return nil
+		})
 	}
 
-	wg.Wait()
+	// All goroutines return nil; error is intentionally
+	// discarded.
+	_ = eg.Wait()
 
 	return tools, cleanup
 }
