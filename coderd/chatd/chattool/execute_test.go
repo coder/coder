@@ -121,7 +121,7 @@ func TestExecuteTool(t *testing.T) {
 				// For foreground cases, ProcessOutput is polled.
 				exitCode := 0
 				mockConn.EXPECT().
-					ProcessOutput(gomock.Any(), "proc-1").
+					ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 					Return(workspacesdk.ProcessOutputResponse{
 						Running:  false,
 						ExitCode: &exitCode,
@@ -177,7 +177,7 @@ func TestExecuteTool(t *testing.T) {
 			})
 		exitCode := 0
 		mockConn.EXPECT().
-			ProcessOutput(gomock.Any(), "proc-1").
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 			Return(workspacesdk.ProcessOutputResponse{
 				Running:  false,
 				ExitCode: &exitCode,
@@ -213,7 +213,7 @@ func TestExecuteTool(t *testing.T) {
 			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
 		exitCode := 42
 		mockConn.EXPECT().
-			ProcessOutput(gomock.Any(), "proc-1").
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 			Return(workspacesdk.ProcessOutputResponse{
 				Running:  false,
 				ExitCode: &exitCode,
@@ -274,23 +274,27 @@ func TestExecuteTool(t *testing.T) {
 			StartProcess(gomock.Any(), gomock.Any()).
 			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
 
-		// ProcessOutput always returns running. The poll loop
-		// and the timeout-branch recovery call both hit this.
+		// First call (blocking wait) returns context error
+		// because the 50ms timeout expires.
 		mockConn.EXPECT().
-			ProcessOutput(gomock.Any(), "proc-1").
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			DoAndReturn(func(ctx context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+				<-ctx.Done()
+				return workspacesdk.ProcessOutputResponse{}, ctx.Err()
+			})
+		// Second call (snapshot fallback) returns partial output.
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 			Return(workspacesdk.ProcessOutputResponse{
 				Running: true,
 				Output:  "partial output",
-			}, nil).
-			AnyTimes()
-
+			}, nil)
 		tool := newExecuteTool(t, mockConn)
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		resp, err := tool.Run(ctx, fantasy.ToolCall{
 			ID:   "call-1",
 			Name: "execute",
-			// 50ms timeout expires before the 200ms poll interval,
-			// so the context-done branch fires first.
+			// 50ms timeout expires during the blocking wait.
 			Input: `{"command":"sleep 999","timeout":"50ms"}`,
 		})
 		require.NoError(t, err)
@@ -340,7 +344,7 @@ func TestExecuteTool(t *testing.T) {
 			StartProcess(gomock.Any(), gomock.Any()).
 			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
 		mockConn.EXPECT().
-			ProcessOutput(gomock.Any(), "proc-1").
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 			Return(workspacesdk.ProcessOutputResponse{}, xerrors.New("agent disconnected"))
 
 		tool := newExecuteTool(t, mockConn)
@@ -440,7 +444,7 @@ func TestDetectFileDump(t *testing.T) {
 				Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
 			exitCode := 0
 			mockConn.EXPECT().
-				ProcessOutput(gomock.Any(), "proc-1").
+				ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 				Return(workspacesdk.ProcessOutputResponse{
 					Running:  false,
 					ExitCode: &exitCode,

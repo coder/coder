@@ -208,6 +208,9 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		proc.exitCode = &code
 		proc.mu.Unlock()
 
+		// Wake any waiters blocked on new output or
+		// process exit before closing the done channel.
+		proc.buf.Close()
 		close(proc.done)
 	}()
 
@@ -318,6 +321,36 @@ func (m *manager) Close() error {
 	}
 
 	return nil
+}
+
+// waitForOutput blocks until the buffer is closed (process
+// exited) or the context is canceled. Returns nil when the
+// buffer closed, ctx.Err() when the context expired.
+func (p *process) waitForOutput(ctx context.Context) error {
+	p.buf.cond.L.Lock()
+	defer p.buf.cond.L.Unlock()
+
+	nevermind := make(chan struct{})
+	defer close(nevermind)
+	go func() {
+		select {
+		case <-ctx.Done():
+			// Acquire the lock before broadcasting to
+			// guarantee the waiter has entered cond.Wait()
+			// (which atomically releases the lock).
+			// Without this, a Broadcast between the loop
+			// predicate check and cond.Wait() is lost.
+			p.buf.cond.L.Lock()
+			defer p.buf.cond.L.Unlock()
+			p.buf.cond.Broadcast()
+		case <-nevermind:
+		}
+	}()
+
+	for ctx.Err() == nil && !p.buf.closed {
+		p.buf.cond.Wait()
+	}
+	return ctx.Err()
 }
 
 // resolveWorkDir returns the directory a process should start in.

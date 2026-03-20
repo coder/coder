@@ -3485,6 +3485,16 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := api.Database.DeleteChatProviderByID(ctx, providerID); err != nil {
+		if database.IsForeignKeyViolation(err,
+			database.ForeignKeyChatMessagesModelConfigID,
+			database.ForeignKeyChatsLastModelConfigID,
+		) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Provider models are still referenced by existing chats.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete chat provider.",
 			Detail:  err.Error(),

@@ -1590,7 +1590,7 @@ func TestPersistToolResultWithBinaryData(t *testing.T) {
 		}).
 		Times(1)
 	mockConn.EXPECT().
-		ProcessOutput(gomock.Any(), "proc-binary").
+		ProcessOutput(gomock.Any(), "proc-binary", gomock.Any()).
 		Return(workspacesdk.ProcessOutputResponse{
 			Output:   string(binaryOutput),
 			Running:  false,
