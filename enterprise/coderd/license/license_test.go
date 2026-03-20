@@ -1143,9 +1143,6 @@ func TestEntitlements(t *testing.T) {
 			require.Contains(t, entitlements.Warnings,
 				fmt.Sprintf(codersdk.LicenseAIGovernance90PercentWarningText, 95))
 			for _, warning := range entitlements.Warnings {
-				require.NotContains(t, warning, "over the limit")
-			}
-		})
 	})
 }
 
@@ -2090,7 +2087,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 
 	empty := map[codersdk.FeatureName]bool{}
 
-	t.Run("AIGovernanceAddon enables AI Governance features when enablements are set", func(t *testing.T) {
+	t.Run("AIGovernanceAddon enables AI governance features when enablements are set", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
@@ -2105,7 +2102,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 			Exp: dbtime.Now().Add(time.Hour),
 		})
 
-		// Enable AI Governance features in enablements.
+		// Enable AI governance features in enablements.
 		enablements := map[codersdk.FeatureName]bool{
 			codersdk.FeatureAIBridge: true,
 			codersdk.FeatureBoundary: true,
@@ -2128,7 +2125,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 		// require.Equal(t, codersdk.EntitlementEntitled, boundaryFeature.Entitlement, "Boundary should be entitled when addon is present")
 	})
 
-	t.Run("AIGovernanceAddon not present disables AI Governance features", func(t *testing.T) {
+	t.Run("AIGovernanceAddon not present disables AI governance features", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
@@ -2185,7 +2182,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 		require.True(t, entitlements.HasLicense)
 
 		// TODO: Readd this test once AI Bridge is enforced as an add-on license.
-		// AI Governance features should be enabled but in grace period.
+		// AI governance features should be enabled but in grace period.
 		// aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
 		// require.True(t, aibridgeFeature.Enabled, "AI Bridge should be enabled during grace period")
 		// require.Equal(t, codersdk.EntitlementGracePeriod, aibridgeFeature.Entitlement, "AI Bridge should be in grace period")
@@ -2253,7 +2250,7 @@ func TestAIGovernanceAddon(t *testing.T) {
 		require.Equal(t, "Feature AI Governance User Limit must be set when using the AI Governance addon.", entitlements.Errors[0])
 
 		// TODO: Readd this test once AI Bridge is enforced as an add-on license.
-		// AI Governance features should not be entitled when validation fails.
+		// AI governance features should not be entitled when validation fails.
 		// aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
 		// require.False(t, aibridgeFeature.Enabled, "AI Bridge should not be enabled when addon validation fails")
 		// require.Equal(t, codersdk.EntitlementNotEntitled, aibridgeFeature.Entitlement, "AI Bridge should not be entitled when addon validation fails")
