@@ -240,7 +240,7 @@ export const NotYetValid: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText(/Starts on/)).toBeInTheDocument();
+		await expect(canvas.getByText(/Not started/)).toBeInTheDocument();
 	},
 };
 
@@ -267,7 +267,7 @@ export const FutureAIGovernanceOverageShowsStartsOn: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText(/Starts on/)).toBeInTheDocument();
+		await expect(canvas.getByText(/Not started/)).toBeInTheDocument();
 		await expect(canvas.queryByText("Add-on exceeded")).not.toBeInTheDocument();
 		const seatsLabel = canvas.getByText("Seats");
 		const seatsValue = seatsLabel.nextElementSibling;

@@ -163,6 +163,7 @@ export const ShowsAddonUiForFutureLicenseBeforeNbf: Story = {
 		await expect(canvas.getByText(/add-ons/i)).toBeInTheDocument();
 		const aiGovernanceTitles = canvas.getAllByText(/^ai governance$/i);
 		await expect(aiGovernanceTitles.length).toBeGreaterThan(0);
-		await expect(canvas.getByText(/starts on/i)).toBeInTheDocument();
+		await expect(canvas.getByText(/not started/i)).toBeInTheDocument();
+		await expect(canvas.getByText(/valid from/i)).toBeInTheDocument();
 	},
 };
