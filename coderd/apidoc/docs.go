@@ -12348,10 +12348,7 @@ const docTemplate = `{
                 "reason": {
                     "$ref": "#/definitions/agentsdk.ReinitializationReason"
                 },
-                "user_id": {
-                    "type": "string"
-                },
-                "workspace_id": {
+                "workspaceID": {
                     "type": "string"
                 }
             }

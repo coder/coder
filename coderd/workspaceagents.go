@@ -1481,71 +1481,33 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 
 	log.Info(ctx, "agent waiting for reinit instruction")
 
+	reinitEvents := make(chan agentsdk.ReinitializationEvent, 1)
+
+	// If the workspace has already been claimed (i.e. the owner is no
+	// longer the prebuilds system user), verify the claim build completed
+	// successfully and send a reinit event immediately. This covers the
+	// case where the pubsub notification was missed before the agent
+	// connected.
 	if !workspace.IsPrebuild() {
-		// Workspace is not an unclaimed prebuild. Determine whether
-		// this agent needs a one-time reinit (pre-claim agent
-		// reconnecting after a missed pubsub event) or should stop
-		// connecting entirely (post-claim agent or
-		// never-a-prebuild workspace).
-		resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
-		if err != nil {
-			log.Error(ctx, "failed to get workspace resource", slog.Error(err))
-			httpapi.InternalServerError(rw, xerrors.New("failed to get workspace resource"))
-			return
-		}
 		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		if err != nil {
-			log.Error(ctx, "failed to get latest workspace build", slog.Error(err))
-			httpapi.InternalServerError(rw, xerrors.New("failed to get latest workspace build"))
-			return
-		}
-
-		if resource.JobID == latestBuild.JobID {
-			// This agent belongs to the latest build — it's either
-			// a post-claim agent that already reinitialized, or a
-			// workspace that was never a prebuild. No reinit needed.
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Workspace is not a prebuilt workspace waiting to be claimed.",
-				Detail:  "This endpoint is only for agents running in unclaimed prebuilt workspaces.",
-			})
-			return
-		}
-
-		// Agent belongs to an older build — this is a pre-claim agent
-		// reconnecting after missing the pubsub event. Check if the
-		// claim build completed before sending reinit.
-		job, err := api.Database.GetProvisionerJobByID(ctx, latestBuild.JobID)
-		if err != nil {
-			log.Error(ctx, "failed to get provisioner job for claim build", slog.Error(err))
-			httpapi.InternalServerError(rw, xerrors.New("failed to get provisioner job"))
-			return
-		}
-
-		if job.CompletedAt.Valid && !job.Error.Valid {
-			// Claim build succeeded — send a one-shot reinit event.
-			// Close the channel after seeding so the transmitter
-			// finishes after delivering the event.
-			reinitEvents := make(chan agentsdk.ReinitializationEvent, 1)
-			reinitEvents <- agentsdk.ReinitializationEvent{
-				WorkspaceID: workspace.ID,
-				Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
-				UserID:      workspace.OwnerID,
+			log.Error(ctx, "failed to get latest build for claimed workspace", slog.Error(err))
+		} else {
+			job, err := api.Database.GetProvisionerJobByID(ctx, latestBuild.JobID)
+			if err != nil {
+				log.Error(ctx, "failed to get provisioner job for claimed workspace", slog.Error(err))
+			} else if job.CompletedAt.Valid && !job.Error.Valid {
+				// Claim build succeeded — send reinit immediately so
+				// the agent picks up the new owner even if the
+				// original pubsub event was missed.
+				reinitEvents <- agentsdk.ReinitializationEvent{
+					WorkspaceID: workspace.ID,
+					Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+					UserID:      workspace.OwnerID,
+				}
 			}
-			close(reinitEvents)
-
-			transmitter := agentsdk.NewSSEAgentReinitTransmitter(log, rw, r)
-			_ = transmitter.Transmit(ctx, reinitEvents)
-			return
 		}
-
-		// Claim build still in progress or failed — fall through to
-		// subscribe to pubsub so the agent gets notified when it
-		// completes (the completion handler publishes the event).
 	}
-
-	// Unclaimed prebuild (or claimed with in-progress build): subscribe
-	// to pubsub and stream events via SSE.
-	reinitEvents := make(chan agentsdk.ReinitializationEvent, 1)
 
 	cancel, err = prebuilds.NewPubsubWorkspaceClaimListener(api.Pubsub, log).ListenForWorkspaceClaims(ctx, workspace.ID, reinitEvents)
 	if err != nil {
