@@ -33,7 +33,9 @@ const GroupPage: FC = () => {
 	const location = useLocation();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
-	const groupQuery = useQuery(group(organization, groupName));
+	const groupQuery = useQuery(
+		group(organization, groupName, { exclude_members: false }),
+	);
 	const groupData = groupQuery.data;
 	const { data: permissions } = useQuery({
 		...groupPermissions(groupData?.id ?? ""),
