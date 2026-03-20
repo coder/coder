@@ -298,7 +298,6 @@ ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
 	KUBECTX_VERSION=0.9.4 \
 	STRIPE_VERSION=1.14.5 \
 	TERRAGRUNT_VERSION=0.45.11 \
-	TRIVY_VERSION=0.41.0 \
 	SYFT_VERSION=1.20.0 \
 	COSIGN_VERSION=2.4.3 \
 	BUN_VERSION=1.2.15
@@ -337,9 +336,6 @@ RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_prox
 	# terragrunt for running Terraform and Terragrunt files
 	curl --silent --show-error --location --output /usr/local/bin/terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64" && \
 	chmod a=rx /usr/local/bin/terragrunt && \
-	# AquaSec Trivy for scanning container images for security issues
-	curl --silent --show-error --location "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/bin --file=- trivy && \
 	# Anchore Syft for SBOM generation
 	curl --silent --show-error --location "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- syft && \
