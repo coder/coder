@@ -484,14 +484,14 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 		);
 	};
 
-		const handleSaveChatWorkspaceTTL = (event: FormEvent) => {
-			event.preventDefault();
-			if (!isTTLDirty) return;
-			saveWorkspaceTTL(
-				{ workspace_ttl_ms: localTTLMs ?? 0 },
-				{ onSuccess: () => setLocalTTLMs(null) },
-			);
-		};
+	const handleSaveChatWorkspaceTTL = (event: FormEvent) => {
+		event.preventDefault();
+		if (!isTTLDirty) return;
+		saveWorkspaceTTL(
+			{ workspace_ttl_ms: localTTLMs ?? 0 },
+			{ onSuccess: () => setLocalTTLMs(null) },
+		);
+	};
 	return (
 		<div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 pt-8 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 			<div className="mx-auto w-full max-w-3xl">
