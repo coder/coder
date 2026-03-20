@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessageInputRef } from "./AgentChatInput";
 import {
 	draftInputStorageKeyPrefix,
+	resolveWorkspaceId,
 	useCachedWorkspaceId,
 	useConversationEditingState,
 } from "./AgentDetail";
@@ -87,6 +88,38 @@ describe("useCachedWorkspaceId", () => {
 		const { result } = renderCachedWorkspaceId(queryClient);
 
 		expect(result.current).toBeUndefined();
+	});
+});
+
+describe("resolveWorkspaceId", () => {
+	it("uses the live chat record once it is available", () => {
+		expect(
+			resolveWorkspaceId({
+				chatRecord: makeChat("chat-1", "workspace-live"),
+				cachedWorkspaceId: "workspace-cached",
+				hasResolvedChatQuery: true,
+			}),
+		).toBe("workspace-live");
+	});
+
+	it("uses the cached workspace while the chat query is still pending", () => {
+		expect(
+			resolveWorkspaceId({
+				chatRecord: undefined,
+				cachedWorkspaceId: "workspace-cached",
+				hasResolvedChatQuery: false,
+			}),
+		).toBe("workspace-cached");
+	});
+
+	it("drops the cached workspace once the chat query resolves without a record", () => {
+		expect(
+			resolveWorkspaceId({
+				chatRecord: undefined,
+				cachedWorkspaceId: "workspace-cached",
+				hasResolvedChatQuery: true,
+			}),
+		).toBeUndefined();
 	});
 });
 

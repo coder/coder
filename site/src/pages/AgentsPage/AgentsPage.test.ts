@@ -12,8 +12,8 @@ describe("chat query refetch policies", () => {
 		expect(infiniteChats().refetchOnWindowFocus).toBe(true);
 	});
 
-	it("disables window focus refetching for chat detail queries", () => {
-		expect(chat("test-id").refetchOnWindowFocus).toBe(false);
+	it("keeps chat detail queries refreshing on window focus", () => {
+		expect(chat("test-id").refetchOnWindowFocus).toBe(true);
 	});
 
 	it("disables window focus refetching for paginated chat messages", () => {

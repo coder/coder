@@ -146,9 +146,9 @@ export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 export const chat = (chatId: string) => ({
 	queryKey: chatKey(chatId),
 	queryFn: () => API.getChat(chatId),
-	// Agent detail state stays fresh via explicit invalidation and streaming
-	// updates. Focus refetches just add duplicate traffic when switching tabs.
-	refetchOnWindowFocus: false as const,
+	// Per-chat detail can go stale after transient watcher disconnects, so
+	// allow focus refetches to re-sync it when the tab becomes active again.
+	refetchOnWindowFocus: true as const,
 });
 
 const MESSAGES_PAGE_SIZE = 50;

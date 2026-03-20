@@ -253,6 +253,19 @@ export function useCachedWorkspaceId(agentId: string | undefined) {
 	)?.workspace_id;
 }
 
+/** @internal Exported for testing. */
+export const resolveWorkspaceId = (params: {
+	chatRecord: Pick<TypesGen.Chat, "workspace_id"> | undefined;
+	cachedWorkspaceId: string | undefined;
+	hasResolvedChatQuery: boolean;
+}) => {
+	const { chatRecord, cachedWorkspaceId, hasResolvedChatQuery } = params;
+	if (chatRecord) {
+		return chatRecord.workspace_id;
+	}
+	return hasResolvedChatQuery ? undefined : cachedWorkspaceId;
+};
+
 const AgentDetail: FC = () => {
 	const navigate = useNavigate();
 	const { agentId } = useParams<{ agentId: string }>();
@@ -310,6 +323,7 @@ const AgentDetail: FC = () => {
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
 	});
+	const chatRecord = chatQuery.data;
 	const chatMessagesQuery = useInfiniteQuery({
 		...chatMessagesForInfiniteScroll(agentId ?? ""),
 		enabled: Boolean(agentId),
@@ -319,7 +333,11 @@ const AgentDetail: FC = () => {
 		...chat(parentChatID ?? ""),
 		enabled: Boolean(parentChatID),
 	});
-	const workspaceId = chatQuery.data?.workspace_id ?? cachedWorkspaceId;
+	const workspaceId = resolveWorkspaceId({
+		chatRecord,
+		cachedWorkspaceId,
+		hasResolvedChatQuery: chatQuery.isFetched,
+	});
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
@@ -378,7 +396,6 @@ const AgentDetail: FC = () => {
 		[proxy.preferredWildcardHostname, workspaceAgent, workspace],
 	);
 
-	const chatRecord = chatQuery.data;
 	// Flatten paginated messages into chronological order.
 	// Pages arrive newest-first per page, and pages[0] is the
 	// most recent page.
