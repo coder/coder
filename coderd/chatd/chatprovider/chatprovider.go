@@ -1083,6 +1083,7 @@ func openAIProviderOptionsFromChatConfig(
 			SafetyIdentifier:  normalizedStringPointer(options.SafetyIdentifier),
 			ServiceTier:       openAIServiceTierFromChat(options.ServiceTier),
 			StrictJSONSchema:  options.StrictJSONSchema,
+			Store:             boolPtrOrDefault(options.Store, true),
 			TextVerbosity:     OpenAITextVerbosityFromChat(options.TextVerbosity),
 			User:              normalizedStringPointer(options.User),
 		}
@@ -1099,7 +1100,7 @@ func openAIProviderOptionsFromChatConfig(
 		MaxCompletionTokens: options.MaxCompletionTokens,
 		TextVerbosity:       normalizedStringPointer(options.TextVerbosity),
 		Prediction:          options.Prediction,
-		Store:               options.Store,
+		Store:               boolPtrOrDefault(options.Store, true),
 		Metadata:            options.Metadata,
 		PromptCacheKey:      normalizedStringPointer(options.PromptCacheKey),
 		SafetyIdentifier:    normalizedStringPointer(options.SafetyIdentifier),
@@ -1278,6 +1279,13 @@ func useOpenAIResponsesOptions(model fantasy.LanguageModel) bool {
 	default:
 		return false
 	}
+}
+
+func boolPtrOrDefault(value *bool, def bool) *bool {
+	if value != nil {
+		return value
+	}
+	return &def
 }
 
 func normalizedStringPointer(value *string) *string {

@@ -13,7 +13,7 @@ import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Spinner } from "components/Spinner/Spinner";
-import { type FC, type ReactNode, useMemo, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { cn } from "utils/cn";
 import { formatProviderLabel } from "../modelOptions";
@@ -98,104 +98,99 @@ const useProviderStates = (
 	modelConfigs: readonly TypesGen.ChatModelConfig[],
 	providerConfigsData: TypesGen.ChatProviderConfig[] | null | undefined,
 	catalogData: TypesGen.ChatModelsResponse | null | undefined,
-): readonly ProviderState[] =>
-	useMemo(() => {
-		const orderedProviders: string[] = [];
-		const seenProviders = new Set<string>();
-		const includeProvider = (providerValue: string) => {
-			const normalized = normalizeProvider(providerValue);
-			if (!normalized || seenProviders.has(normalized)) return;
-			seenProviders.add(normalized);
-			orderedProviders.push(normalized);
+): readonly ProviderState[] => {
+	const orderedProviders: string[] = [];
+	const seenProviders = new Set<string>();
+	const includeProvider = (providerValue: string) => {
+		const normalized = normalizeProvider(providerValue);
+		if (!normalized || seenProviders.has(normalized)) return;
+		seenProviders.add(normalized);
+		orderedProviders.push(normalized);
+	};
+
+	const catalogProviders = getCatalogProviders(catalogData);
+	const catalogProvidersByProvider = new Map<string, CatalogProvider>();
+	for (const cp of catalogProviders) {
+		const normalized = normalizeProvider(cp.provider);
+		if (!normalized) continue;
+		includeProvider(normalized);
+		catalogProvidersByProvider.set(normalized, cp);
+	}
+
+	for (const pc of providerConfigsData ?? []) {
+		includeProvider(pc.provider);
+	}
+	for (const mc of modelConfigs) {
+		includeProvider(mc.provider);
+	}
+
+	const providerConfigsByProvider = new Map<
+		string,
+		TypesGen.ChatProviderConfig
+	>();
+	for (const pc of providerConfigsData ?? []) {
+		const normalized = normalizeProvider(pc.provider);
+		if (!normalized) continue;
+		providerConfigsByProvider.set(normalized, pc);
+	}
+
+	const modelConfigsByProvider = new Map<string, TypesGen.ChatModelConfig[]>();
+	for (const mc of modelConfigs) {
+		const normalized = normalizeProvider(mc.provider);
+		if (!normalized) continue;
+		const existing = modelConfigsByProvider.get(normalized);
+		if (existing) {
+			existing.push(mc);
+		} else {
+			modelConfigsByProvider.set(normalized, [mc]);
+		}
+	}
+
+	return orderedProviders.map((provider) => {
+		const providerConfigEntry = providerConfigsByProvider.get(provider);
+		const providerConfigSource = getProviderConfigSource(providerConfigEntry);
+		const providerConfig = isDatabaseProviderConfig(
+			providerConfigEntry,
+			providerConfigSource,
+		)
+			? providerConfigEntry
+			: undefined;
+		const catalogProvider = catalogProvidersByProvider.get(provider);
+		const catalogProviderSource = readOptionalString(
+			(catalogProvider as CatalogProvider & { source?: string })?.source,
+		);
+		const hasManagedAPIKey = hasProviderAPIKey(providerConfig);
+		const hasProviderEntryAPIKey = hasProviderAPIKey(providerConfigEntry);
+		const hasCatalogAPIKey = catalogProvider
+			? providerHasCatalogAPIKey(catalogProvider)
+			: false;
+		const label =
+			readOptionalString(providerConfigEntry?.display_name) ??
+			formatProviderLabel(provider);
+		const modelConfigsForProvider = modelConfigsByProvider.get(provider) ?? [];
+		const isCatalogEnvPreset =
+			!providerConfig &&
+			envPresetProviders.has(provider) &&
+			(catalogProviderSource === "env" || hasCatalogAPIKey);
+		const isEnvPreset =
+			providerConfigSource === "env_preset" || isCatalogEnvPreset;
+
+		return {
+			provider,
+			label,
+			providerConfig,
+			modelConfigs: modelConfigsForProvider,
+			catalogModelCount: getProviderModels(catalogProvider).length,
+			hasManagedAPIKey,
+			hasCatalogAPIKey,
+			hasEffectiveAPIKey: providerConfigEntry
+				? hasProviderEntryAPIKey
+				: hasManagedAPIKey || hasCatalogAPIKey,
+			isEnvPreset,
+			baseURL: getProviderBaseURL(providerConfigEntry),
 		};
-
-		const catalogProviders = getCatalogProviders(catalogData);
-		const catalogProvidersByProvider = new Map<string, CatalogProvider>();
-		for (const cp of catalogProviders) {
-			const normalized = normalizeProvider(cp.provider);
-			if (!normalized) continue;
-			includeProvider(normalized);
-			catalogProvidersByProvider.set(normalized, cp);
-		}
-
-		for (const pc of providerConfigsData ?? []) {
-			includeProvider(pc.provider);
-		}
-		for (const mc of modelConfigs) {
-			includeProvider(mc.provider);
-		}
-
-		const providerConfigsByProvider = new Map<
-			string,
-			TypesGen.ChatProviderConfig
-		>();
-		for (const pc of providerConfigsData ?? []) {
-			const normalized = normalizeProvider(pc.provider);
-			if (!normalized) continue;
-			providerConfigsByProvider.set(normalized, pc);
-		}
-
-		const modelConfigsByProvider = new Map<
-			string,
-			TypesGen.ChatModelConfig[]
-		>();
-		for (const mc of modelConfigs) {
-			const normalized = normalizeProvider(mc.provider);
-			if (!normalized) continue;
-			const existing = modelConfigsByProvider.get(normalized);
-			if (existing) {
-				existing.push(mc);
-			} else {
-				modelConfigsByProvider.set(normalized, [mc]);
-			}
-		}
-
-		return orderedProviders.map((provider) => {
-			const providerConfigEntry = providerConfigsByProvider.get(provider);
-			const providerConfigSource = getProviderConfigSource(providerConfigEntry);
-			const providerConfig = isDatabaseProviderConfig(
-				providerConfigEntry,
-				providerConfigSource,
-			)
-				? providerConfigEntry
-				: undefined;
-			const catalogProvider = catalogProvidersByProvider.get(provider);
-			const catalogProviderSource = readOptionalString(
-				(catalogProvider as CatalogProvider & { source?: string })?.source,
-			);
-			const hasManagedAPIKey = hasProviderAPIKey(providerConfig);
-			const hasProviderEntryAPIKey = hasProviderAPIKey(providerConfigEntry);
-			const hasCatalogAPIKey = catalogProvider
-				? providerHasCatalogAPIKey(catalogProvider)
-				: false;
-			const label =
-				readOptionalString(providerConfigEntry?.display_name) ??
-				formatProviderLabel(provider);
-			const modelConfigsForProvider =
-				modelConfigsByProvider.get(provider) ?? [];
-			const isCatalogEnvPreset =
-				!providerConfig &&
-				envPresetProviders.has(provider) &&
-				(catalogProviderSource === "env" || hasCatalogAPIKey);
-			const isEnvPreset =
-				providerConfigSource === "env_preset" || isCatalogEnvPreset;
-
-			return {
-				provider,
-				label,
-				providerConfig,
-				modelConfigs: modelConfigsForProvider,
-				catalogModelCount: getProviderModels(catalogProvider).length,
-				hasManagedAPIKey,
-				hasCatalogAPIKey,
-				hasEffectiveAPIKey: providerConfigEntry
-					? hasProviderEntryAPIKey
-					: hasManagedAPIKey || hasCatalogAPIKey,
-				isEnvPreset,
-				baseURL: getProviderBaseURL(providerConfigEntry),
-			};
-		});
-	}, [modelConfigs, catalogData, providerConfigsData]);
+	});
+};
 
 // ── Component ──────────────────────────────────────────────────
 
@@ -245,14 +240,10 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	);
 
 	// ── Sorted model configs ───────────────────────────────────
-	const modelConfigs = useMemo(
-		() =>
-			(modelConfigsQuery.data ?? []).slice().sort((a, b) => {
-				const cmp = a.provider.localeCompare(b.provider);
-				return cmp !== 0 ? cmp : a.model.localeCompare(b.model);
-			}),
-		[modelConfigsQuery.data],
-	);
+	const modelConfigs = (modelConfigsQuery.data ?? []).slice().sort((a, b) => {
+		const cmp = a.provider.localeCompare(b.provider);
+		return cmp !== 0 ? cmp : a.model.localeCompare(b.model);
+	});
 
 	// ── Provider states ────────────────────────────────────────
 	const providerStates = useProviderStates(
@@ -264,25 +255,15 @@ export const ChatModelAdminPanel: FC<ChatModelAdminPanelProps> = ({
 	// Derive the effective selected provider from user intent + available
 	// providers. This avoids a useEffect + setState cycle that would cause
 	// an extra render with a stale value.
-	const selectedProvider = useMemo(() => {
-		if (
-			requestedProvider &&
-			providerStates.some((ps) => ps.provider === requestedProvider)
-		) {
-			return requestedProvider;
-		}
-		return providerStates[0]?.provider ?? null;
-	}, [requestedProvider, providerStates]);
+	const selectedProvider =
+		requestedProvider &&
+		providerStates.some((ps) => ps.provider === requestedProvider)
+			? requestedProvider
+			: (providerStates[0]?.provider ?? null);
 
-	const selectedProviderState = useMemo(
-		() =>
-			selectedProvider
-				? (providerStates.find((ps) => ps.provider === selectedProvider) ??
-					null)
-				: null,
-		[providerStates, selectedProvider],
-	);
-
+	const selectedProviderState = selectedProvider
+		? (providerStates.find((ps) => ps.provider === selectedProvider) ?? null)
+		: null;
 	// ── Derived state ──────────────────────────────────────────
 	const isLoading =
 		providerConfigsQuery.isLoading ||

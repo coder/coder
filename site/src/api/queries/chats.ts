@@ -139,14 +139,9 @@ export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 			});
 		},
 		refetchOnWindowFocus: true as const,
+		retry: 3,
 	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
 };
-
-export const chats = () => ({
-	queryKey: chatsKey,
-	queryFn: () => API.getChats(),
-	refetchOnWindowFocus: true as const,
-});
 
 export const chat = (chatId: string) => ({
 	queryKey: chatKey(chatId),
@@ -366,9 +361,9 @@ export const promoteChatQueuedMessage = (
 ) => ({
 	mutationFn: (queuedMessageId: number) =>
 		API.promoteChatQueuedMessage(chatId, queuedMessageId),
-	// No onSuccess invalidation needed: the per-chat WebSocket
-	// delivers the promoted message, queue update, and status
-	// change in real-time.
+	// No onSuccess invalidation needed: the caller upserts the
+	// promoted message from the response, and the per-chat
+	// WebSocket delivers queue and status updates in real-time.
 });
 
 export const chatDiffContentsKey = (chatId: string) =>
@@ -407,6 +402,22 @@ export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatDesktopEnabledKey,
+		});
+	},
+});
+
+const chatWorkspaceTTLKey = ["chat-workspace-ttl"] as const;
+
+export const chatWorkspaceTTL = () => ({
+	queryKey: chatWorkspaceTTLKey,
+	queryFn: () => API.getChatWorkspaceTTL(),
+});
+
+export const updateChatWorkspaceTTL = (queryClient: QueryClient) => ({
+	mutationFn: API.updateChatWorkspaceTTL,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatWorkspaceTTLKey,
 		});
 	},
 });
@@ -559,6 +570,17 @@ export const prInsights = (params?: {
 	staleTime: 60_000,
 });
 
+export const chatUsageLimitStatusKey = [
+	...chatsKey,
+	"usageLimitStatus",
+] as const;
+
+export const chatUsageLimitStatus = () => ({
+	queryKey: chatUsageLimitStatusKey,
+	queryFn: () => API.getChatUsageLimitStatus(),
+	refetchInterval: 60_000,
+});
+
 const chatUsageLimitConfigKey = [...chatsKey, "usageLimitConfig"] as const;
 
 export const chatUsageLimitConfig = () => ({
@@ -629,5 +651,46 @@ export const deleteChatUsageLimitGroupOverride = (
 		await queryClient.invalidateQueries({
 			queryKey: chatUsageLimitConfigKey,
 		});
+	},
+});
+
+// ── MCP Server Configs ───────────────────────────────────────
+
+const mcpServerConfigsKey = ["mcp-server-configs"] as const;
+
+export const mcpServerConfigs = () => ({
+	queryKey: mcpServerConfigsKey,
+	queryFn: (): Promise<TypesGen.MCPServerConfig[]> => API.getMCPServerConfigs(),
+});
+
+const invalidateMCPServerConfigQueries = async (queryClient: QueryClient) => {
+	await queryClient.invalidateQueries({ queryKey: mcpServerConfigsKey });
+};
+
+export const createMCPServerConfig = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.CreateMCPServerConfigRequest) =>
+		API.createMCPServerConfig(req),
+	onSuccess: async () => {
+		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+type UpdateMCPServerConfigMutationArgs = {
+	id: string;
+	req: TypesGen.UpdateMCPServerConfigRequest;
+};
+
+export const updateMCPServerConfig = (queryClient: QueryClient) => ({
+	mutationFn: ({ id, req }: UpdateMCPServerConfigMutationArgs) =>
+		API.updateMCPServerConfig(id, req),
+	onSuccess: async () => {
+		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
+	mutationFn: (id: string) => API.deleteMCPServerConfig(id),
+	onSuccess: async () => {
+		await invalidateMCPServerConfigQueries(queryClient);
 	},
 });

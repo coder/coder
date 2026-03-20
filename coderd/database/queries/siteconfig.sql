@@ -160,3 +160,19 @@ SET value = CASE
     ELSE 'false'
 END
 WHERE site_configs.key = 'agents_desktop_enabled';
+
+-- name: GetChatWorkspaceTTL :one
+-- Returns the global TTL for chat workspaces as a Go duration string.
+-- Returns "0s" (disabled) when no value has been configured.
+SELECT
+    COALESCE(
+        (SELECT value FROM site_configs WHERE key = 'agents_workspace_ttl'),
+        '0s'
+    )::text AS workspace_ttl;
+
+-- name: UpsertChatWorkspaceTTL :exec
+INSERT INTO site_configs (key, value)
+VALUES ('agents_workspace_ttl', @workspace_ttl::text)
+ON CONFLICT (key) DO UPDATE
+SET value = @workspace_ttl::text
+WHERE site_configs.key = 'agents_workspace_ttl';

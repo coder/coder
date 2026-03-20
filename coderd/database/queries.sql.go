@@ -3523,7 +3523,7 @@ WHERE
             $3::int
     )
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
 `
 
 type AcquireChatsParams struct {
@@ -3560,6 +3560,7 @@ func (q *sqlQuerier) AcquireChats(ctx context.Context, arg AcquireChatsParams) (
 			&i.Archived,
 			&i.LastError,
 			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
 		); err != nil {
 			return nil, err
 		}
@@ -3787,7 +3788,7 @@ func (q *sqlQuerier) DeleteChatUsageLimitUserOverride(ctx context.Context, userI
 
 const getChatByID = `-- name: GetChatByID :one
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
 FROM
     chats
 WHERE
@@ -3814,12 +3815,13 @@ func (q *sqlQuerier) GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
 	)
 	return i, err
 }
 
 const getChatByIDForUpdate = `-- name: GetChatByIDForUpdate :one
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode FROM chats WHERE id = $1::uuid FOR UPDATE
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids FROM chats WHERE id = $1::uuid FOR UPDATE
 `
 
 func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error) {
@@ -3842,6 +3844,7 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
 	)
 	return i, err
 }
@@ -4059,6 +4062,7 @@ WITH chat_cost_users AS (
         AND (
             $5::text = ''
             OR u.username ILIKE '%' || $5::text || '%'
+            OR u.name ILIKE '%' || $5::text || '%'
         )
     GROUP BY
         c.owner_id,
@@ -4681,7 +4685,7 @@ func (q *sqlQuerier) GetChatUsageLimitUserOverride(ctx context.Context, userID u
 
 const getChats = `-- name: GetChats :many
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
 FROM
     chats
 WHERE
@@ -4764,6 +4768,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]Chat, 
 			&i.Archived,
 			&i.LastError,
 			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
 		); err != nil {
 			return nil, err
 		}
@@ -4828,7 +4833,7 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 
 const getStaleChats = `-- name: GetStaleChats :many
 SELECT
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
 FROM
     chats
 WHERE
@@ -4864,6 +4869,7 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 			&i.Archived,
 			&i.LastError,
 			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
 		); err != nil {
 			return nil, err
 		}
@@ -4926,7 +4932,8 @@ INSERT INTO chats (
     root_chat_id,
     last_model_config_id,
     title,
-    mode
+    mode,
+    mcp_server_ids
 ) VALUES (
     $1::uuid,
     $2::uuid,
@@ -4934,10 +4941,11 @@ INSERT INTO chats (
     $4::uuid,
     $5::uuid,
     $6::text,
-    $7::chat_mode
+    $7::chat_mode,
+    COALESCE($8::uuid[], '{}'::uuid[])
 )
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
 `
 
 type InsertChatParams struct {
@@ -4948,6 +4956,7 @@ type InsertChatParams struct {
 	LastModelConfigID uuid.UUID     `db:"last_model_config_id" json:"last_model_config_id"`
 	Title             string        `db:"title" json:"title"`
 	Mode              NullChatMode  `db:"mode" json:"mode"`
+	MCPServerIDs      []uuid.UUID   `db:"mcp_server_ids" json:"mcp_server_ids"`
 }
 
 func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error) {
@@ -4959,6 +4968,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		arg.LastModelConfigID,
 		arg.Title,
 		arg.Mode,
+		pq.Array(arg.MCPServerIDs),
 	)
 	var i Chat
 	err := row.Scan(
@@ -4978,6 +4988,7 @@ func (q *sqlQuerier) InsertChat(ctx context.Context, arg InsertChatParams) (Chat
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
 	)
 	return i, err
 }
@@ -5368,7 +5379,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
 `
 
 type UpdateChatByIDParams struct {
@@ -5396,6 +5407,7 @@ func (q *sqlQuerier) UpdateChatByID(ctx context.Context, arg UpdateChatByIDParam
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
 	)
 	return i, err
 }
@@ -5424,6 +5436,48 @@ func (q *sqlQuerier) UpdateChatHeartbeat(ctx context.Context, arg UpdateChatHear
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const updateChatMCPServerIDs = `-- name: UpdateChatMCPServerIDs :one
+UPDATE
+    chats
+SET
+    mcp_server_ids = $1::uuid[],
+    updated_at = NOW()
+WHERE
+    id = $2::uuid
+RETURNING
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
+`
+
+type UpdateChatMCPServerIDsParams struct {
+	MCPServerIDs []uuid.UUID `db:"mcp_server_ids" json:"mcp_server_ids"`
+	ID           uuid.UUID   `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatMCPServerIDsParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, updateChatMCPServerIDs, pq.Array(arg.MCPServerIDs), arg.ID)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.Archived,
+		&i.LastError,
+		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
+	)
+	return i, err
 }
 
 const updateChatMessageByID = `-- name: UpdateChatMessageByID :one
@@ -5485,7 +5539,7 @@ SET
 WHERE
     id = $6::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
 `
 
 type UpdateChatStatusParams struct {
@@ -5524,6 +5578,7 @@ func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusP
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
 	)
 	return i, err
 }
@@ -5537,7 +5592,7 @@ SET
 WHERE
     id = $2::uuid
 RETURNING
-    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode
+    id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids
 `
 
 type UpdateChatWorkspaceParams struct {
@@ -5565,6 +5620,7 @@ func (q *sqlQuerier) UpdateChatWorkspace(ctx context.Context, arg UpdateChatWork
 		&i.Archived,
 		&i.LastError,
 		&i.Mode,
+		pq.Array(&i.MCPServerIDs),
 	)
 	return i, err
 }
@@ -7334,6 +7390,212 @@ func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, arg GetGroupM
 			&i.OrganizationID,
 			&i.GroupName,
 			&i.GroupID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getGroupMembersByGroupIDPaginated = `-- name: GetGroupMembersByGroupIDPaginated :many
+SELECT
+	user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_name, user_github_com_user_id, user_is_system, organization_id, group_name, group_id, COUNT(*) OVER() AS count
+FROM
+	group_members_expanded
+WHERE
+	group_members_expanded.group_id = $1
+	AND CASE
+		-- This allows using the last element on a page as effectively a cursor.
+		-- This is an important option for scripts that need to paginate without
+		-- duplicating or missing data.
+		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			-- The pagination cursor is the last ID of the previous page.
+			-- The query is ordered by the username field, so select all
+			-- rows after the cursor.
+			(LOWER(user_username)) > (
+				SELECT
+					LOWER(user_username)
+				FROM
+					group_members_expanded
+				WHERE
+					group_id = $1
+					AND user_id = $2
+			)
+		)
+		ELSE true
+	END
+	-- Start filters
+	-- Filter by email or username
+	AND CASE
+		WHEN $3 :: text != '' THEN (
+			user_email ILIKE concat('%', $3, '%')
+			OR user_username ILIKE concat('%', $3, '%')
+		)
+		ELSE true
+	END
+	-- Filter by name (display name)
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			user_name ILIKE concat('%', $4, '%')
+		ELSE true
+	END
+	-- Filter by status
+	AND CASE
+		-- @status needs to be a text because it can be empty, If it was
+		-- user_status enum, it would not.
+		WHEN cardinality($5 :: user_status[]) > 0 THEN
+			user_status = ANY($5 :: user_status[])
+		ELSE true
+	END
+	-- Filter by rbac_roles
+	AND CASE
+		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
+		-- everyone is a member.
+		WHEN cardinality($6 :: text[]) > 0 AND 'member' != ANY($6 :: text[]) THEN
+			user_rbac_roles && $6 :: text[]
+		ELSE true
+	END
+	-- Filter by last_seen
+	AND CASE
+		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			user_last_seen_at <= $7
+		ELSE true
+	END
+	AND CASE
+		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			user_last_seen_at >= $8
+		ELSE true
+	END
+	-- Filter by created_at
+	AND CASE
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			user_created_at <= $9
+		ELSE true
+	END
+	AND CASE
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			user_created_at >= $10
+		ELSE true
+	END
+	 -- Filter by system type
+	AND CASE
+		WHEN $11::bool THEN TRUE
+		ELSE user_is_system = false
+	END
+	AND CASE
+		WHEN $12 :: bigint != 0 THEN
+			user_github_com_user_id = $12
+		ELSE true
+	END
+	-- Filter by login_type
+	AND CASE
+		WHEN cardinality($13 :: login_type[]) > 0 THEN
+			user_login_type = ANY($13 :: login_type[])
+		ELSE true
+	END
+	-- End of filters
+ORDER BY
+	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
+	LOWER(user_username) ASC OFFSET $14
+LIMIT
+	-- A null limit means "no limit", so 0 means return all
+	NULLIF($15 :: int, 0)
+`
+
+type GetGroupMembersByGroupIDPaginatedParams struct {
+	GroupID         uuid.UUID    `db:"group_id" json:"group_id"`
+	AfterID         uuid.UUID    `db:"after_id" json:"after_id"`
+	Search          string       `db:"search" json:"search"`
+	Name            string       `db:"name" json:"name"`
+	Status          []UserStatus `db:"status" json:"status"`
+	RbacRole        []string     `db:"rbac_role" json:"rbac_role"`
+	LastSeenBefore  time.Time    `db:"last_seen_before" json:"last_seen_before"`
+	LastSeenAfter   time.Time    `db:"last_seen_after" json:"last_seen_after"`
+	CreatedBefore   time.Time    `db:"created_before" json:"created_before"`
+	CreatedAfter    time.Time    `db:"created_after" json:"created_after"`
+	IncludeSystem   bool         `db:"include_system" json:"include_system"`
+	GithubComUserID int64        `db:"github_com_user_id" json:"github_com_user_id"`
+	LoginType       []LoginType  `db:"login_type" json:"login_type"`
+	OffsetOpt       int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt        int32        `db:"limit_opt" json:"limit_opt"`
+}
+
+type GetGroupMembersByGroupIDPaginatedRow struct {
+	UserID                 uuid.UUID     `db:"user_id" json:"user_id"`
+	UserEmail              string        `db:"user_email" json:"user_email"`
+	UserUsername           string        `db:"user_username" json:"user_username"`
+	UserHashedPassword     []byte        `db:"user_hashed_password" json:"user_hashed_password"`
+	UserCreatedAt          time.Time     `db:"user_created_at" json:"user_created_at"`
+	UserUpdatedAt          time.Time     `db:"user_updated_at" json:"user_updated_at"`
+	UserStatus             UserStatus    `db:"user_status" json:"user_status"`
+	UserRbacRoles          []string      `db:"user_rbac_roles" json:"user_rbac_roles"`
+	UserLoginType          LoginType     `db:"user_login_type" json:"user_login_type"`
+	UserAvatarUrl          string        `db:"user_avatar_url" json:"user_avatar_url"`
+	UserDeleted            bool          `db:"user_deleted" json:"user_deleted"`
+	UserLastSeenAt         time.Time     `db:"user_last_seen_at" json:"user_last_seen_at"`
+	UserQuietHoursSchedule string        `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
+	UserName               string        `db:"user_name" json:"user_name"`
+	UserGithubComUserID    sql.NullInt64 `db:"user_github_com_user_id" json:"user_github_com_user_id"`
+	UserIsSystem           bool          `db:"user_is_system" json:"user_is_system"`
+	OrganizationID         uuid.UUID     `db:"organization_id" json:"organization_id"`
+	GroupName              string        `db:"group_name" json:"group_name"`
+	GroupID                uuid.UUID     `db:"group_id" json:"group_id"`
+	Count                  int64         `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetGroupMembersByGroupIDPaginated(ctx context.Context, arg GetGroupMembersByGroupIDPaginatedParams) ([]GetGroupMembersByGroupIDPaginatedRow, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembersByGroupIDPaginated,
+		arg.GroupID,
+		arg.AfterID,
+		arg.Search,
+		arg.Name,
+		pq.Array(arg.Status),
+		pq.Array(arg.RbacRole),
+		arg.LastSeenBefore,
+		arg.LastSeenAfter,
+		arg.CreatedBefore,
+		arg.CreatedAfter,
+		arg.IncludeSystem,
+		arg.GithubComUserID,
+		pq.Array(arg.LoginType),
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGroupMembersByGroupIDPaginatedRow
+	for rows.Next() {
+		var i GetGroupMembersByGroupIDPaginatedRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.UserEmail,
+			&i.UserUsername,
+			&i.UserHashedPassword,
+			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
+			&i.UserStatus,
+			pq.Array(&i.UserRbacRoles),
+			&i.UserLoginType,
+			&i.UserAvatarUrl,
+			&i.UserDeleted,
+			&i.UserLastSeenAt,
+			&i.UserQuietHoursSchedule,
+			&i.UserName,
+			&i.UserGithubComUserID,
+			&i.UserIsSystem,
+			&i.OrganizationID,
+			&i.GroupName,
+			&i.GroupID,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}
@@ -9380,6 +9642,800 @@ func (q *sqlQuerier) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock i
 	var pg_try_advisory_xact_lock bool
 	err := row.Scan(&pg_try_advisory_xact_lock)
 	return pg_try_advisory_xact_lock, err
+}
+
+const cleanupDeletedMCPServerIDsFromChats = `-- name: CleanupDeletedMCPServerIDsFromChats :exec
+UPDATE chats
+SET mcp_server_ids = (
+    SELECT COALESCE(array_agg(sid), '{}')
+    FROM unnest(chats.mcp_server_ids) AS sid
+    WHERE sid IN (SELECT id FROM mcp_server_configs)
+)
+WHERE mcp_server_ids != '{}'
+  AND NOT (mcp_server_ids <@ COALESCE((SELECT array_agg(id) FROM mcp_server_configs), '{}'))
+`
+
+func (q *sqlQuerier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, cleanupDeletedMCPServerIDsFromChats)
+	return err
+}
+
+const deleteMCPServerConfigByID = `-- name: DeleteMCPServerConfigByID :exec
+DELETE FROM
+    mcp_server_configs
+WHERE
+    id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteMCPServerConfigByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteMCPServerConfigByID, id)
+	return err
+}
+
+const deleteMCPServerUserToken = `-- name: DeleteMCPServerUserToken :exec
+DELETE FROM
+    mcp_server_user_tokens
+WHERE
+    mcp_server_config_id = $1::uuid
+    AND user_id = $2::uuid
+`
+
+type DeleteMCPServerUserTokenParams struct {
+	MCPServerConfigID uuid.UUID `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) DeleteMCPServerUserToken(ctx context.Context, arg DeleteMCPServerUserTokenParams) error {
+	_, err := q.db.ExecContext(ctx, deleteMCPServerUserToken, arg.MCPServerConfigID, arg.UserID)
+	return err
+}
+
+const getEnabledMCPServerConfigs = `-- name: GetEnabledMCPServerConfigs :many
+SELECT
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+FROM
+    mcp_server_configs
+WHERE
+    enabled = TRUE
+ORDER BY
+    display_name ASC
+`
+
+func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getEnabledMCPServerConfigs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MCPServerConfig
+	for rows.Next() {
+		var i MCPServerConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayName,
+			&i.Slug,
+			&i.Description,
+			&i.IconURL,
+			&i.Transport,
+			&i.Url,
+			&i.AuthType,
+			&i.OAuth2ClientID,
+			&i.OAuth2ClientSecret,
+			&i.OAuth2ClientSecretKeyID,
+			&i.OAuth2AuthURL,
+			&i.OAuth2TokenURL,
+			&i.OAuth2Scopes,
+			&i.APIKeyHeader,
+			&i.APIKeyValue,
+			&i.APIKeyValueKeyID,
+			&i.CustomHeaders,
+			&i.CustomHeadersKeyID,
+			pq.Array(&i.ToolAllowList),
+			pq.Array(&i.ToolDenyList),
+			&i.Availability,
+			&i.Enabled,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getForcedMCPServerConfigs = `-- name: GetForcedMCPServerConfigs :many
+SELECT
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+FROM
+    mcp_server_configs
+WHERE
+    enabled = TRUE
+    AND availability = 'force_on'
+ORDER BY
+    display_name ASC
+`
+
+func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getForcedMCPServerConfigs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MCPServerConfig
+	for rows.Next() {
+		var i MCPServerConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayName,
+			&i.Slug,
+			&i.Description,
+			&i.IconURL,
+			&i.Transport,
+			&i.Url,
+			&i.AuthType,
+			&i.OAuth2ClientID,
+			&i.OAuth2ClientSecret,
+			&i.OAuth2ClientSecretKeyID,
+			&i.OAuth2AuthURL,
+			&i.OAuth2TokenURL,
+			&i.OAuth2Scopes,
+			&i.APIKeyHeader,
+			&i.APIKeyValue,
+			&i.APIKeyValueKeyID,
+			&i.CustomHeaders,
+			&i.CustomHeadersKeyID,
+			pq.Array(&i.ToolAllowList),
+			pq.Array(&i.ToolDenyList),
+			&i.Availability,
+			&i.Enabled,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getMCPServerConfigByID = `-- name: GetMCPServerConfigByID :one
+SELECT
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+FROM
+    mcp_server_configs
+WHERE
+    id = $1::uuid
+`
+
+func (q *sqlQuerier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (MCPServerConfig, error) {
+	row := q.db.QueryRowContext(ctx, getMCPServerConfigByID, id)
+	var i MCPServerConfig
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayName,
+		&i.Slug,
+		&i.Description,
+		&i.IconURL,
+		&i.Transport,
+		&i.Url,
+		&i.AuthType,
+		&i.OAuth2ClientID,
+		&i.OAuth2ClientSecret,
+		&i.OAuth2ClientSecretKeyID,
+		&i.OAuth2AuthURL,
+		&i.OAuth2TokenURL,
+		&i.OAuth2Scopes,
+		&i.APIKeyHeader,
+		&i.APIKeyValue,
+		&i.APIKeyValueKeyID,
+		&i.CustomHeaders,
+		&i.CustomHeadersKeyID,
+		pq.Array(&i.ToolAllowList),
+		pq.Array(&i.ToolDenyList),
+		&i.Availability,
+		&i.Enabled,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getMCPServerConfigBySlug = `-- name: GetMCPServerConfigBySlug :one
+SELECT
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+FROM
+    mcp_server_configs
+WHERE
+    slug = $1::text
+`
+
+func (q *sqlQuerier) GetMCPServerConfigBySlug(ctx context.Context, slug string) (MCPServerConfig, error) {
+	row := q.db.QueryRowContext(ctx, getMCPServerConfigBySlug, slug)
+	var i MCPServerConfig
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayName,
+		&i.Slug,
+		&i.Description,
+		&i.IconURL,
+		&i.Transport,
+		&i.Url,
+		&i.AuthType,
+		&i.OAuth2ClientID,
+		&i.OAuth2ClientSecret,
+		&i.OAuth2ClientSecretKeyID,
+		&i.OAuth2AuthURL,
+		&i.OAuth2TokenURL,
+		&i.OAuth2Scopes,
+		&i.APIKeyHeader,
+		&i.APIKeyValue,
+		&i.APIKeyValueKeyID,
+		&i.CustomHeaders,
+		&i.CustomHeadersKeyID,
+		pq.Array(&i.ToolAllowList),
+		pq.Array(&i.ToolDenyList),
+		&i.Availability,
+		&i.Enabled,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getMCPServerConfigs = `-- name: GetMCPServerConfigs :many
+SELECT
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+FROM
+    mcp_server_configs
+ORDER BY
+    display_name ASC
+`
+
+func (q *sqlQuerier) GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getMCPServerConfigs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MCPServerConfig
+	for rows.Next() {
+		var i MCPServerConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayName,
+			&i.Slug,
+			&i.Description,
+			&i.IconURL,
+			&i.Transport,
+			&i.Url,
+			&i.AuthType,
+			&i.OAuth2ClientID,
+			&i.OAuth2ClientSecret,
+			&i.OAuth2ClientSecretKeyID,
+			&i.OAuth2AuthURL,
+			&i.OAuth2TokenURL,
+			&i.OAuth2Scopes,
+			&i.APIKeyHeader,
+			&i.APIKeyValue,
+			&i.APIKeyValueKeyID,
+			&i.CustomHeaders,
+			&i.CustomHeadersKeyID,
+			pq.Array(&i.ToolAllowList),
+			pq.Array(&i.ToolDenyList),
+			&i.Availability,
+			&i.Enabled,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getMCPServerConfigsByIDs = `-- name: GetMCPServerConfigsByIDs :many
+SELECT
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+FROM
+    mcp_server_configs
+WHERE
+    id = ANY($1::uuid[])
+ORDER BY
+    display_name ASC
+`
+
+func (q *sqlQuerier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]MCPServerConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getMCPServerConfigsByIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MCPServerConfig
+	for rows.Next() {
+		var i MCPServerConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayName,
+			&i.Slug,
+			&i.Description,
+			&i.IconURL,
+			&i.Transport,
+			&i.Url,
+			&i.AuthType,
+			&i.OAuth2ClientID,
+			&i.OAuth2ClientSecret,
+			&i.OAuth2ClientSecretKeyID,
+			&i.OAuth2AuthURL,
+			&i.OAuth2TokenURL,
+			&i.OAuth2Scopes,
+			&i.APIKeyHeader,
+			&i.APIKeyValue,
+			&i.APIKeyValueKeyID,
+			&i.CustomHeaders,
+			&i.CustomHeadersKeyID,
+			pq.Array(&i.ToolAllowList),
+			pq.Array(&i.ToolDenyList),
+			&i.Availability,
+			&i.Enabled,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getMCPServerUserToken = `-- name: GetMCPServerUserToken :one
+SELECT
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at
+FROM
+    mcp_server_user_tokens
+WHERE
+    mcp_server_config_id = $1::uuid
+    AND user_id = $2::uuid
+`
+
+type GetMCPServerUserTokenParams struct {
+	MCPServerConfigID uuid.UUID `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	UserID            uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) GetMCPServerUserToken(ctx context.Context, arg GetMCPServerUserTokenParams) (MCPServerUserToken, error) {
+	row := q.db.QueryRowContext(ctx, getMCPServerUserToken, arg.MCPServerConfigID, arg.UserID)
+	var i MCPServerUserToken
+	err := row.Scan(
+		&i.ID,
+		&i.MCPServerConfigID,
+		&i.UserID,
+		&i.AccessToken,
+		&i.AccessTokenKeyID,
+		&i.RefreshToken,
+		&i.RefreshTokenKeyID,
+		&i.TokenType,
+		&i.Expiry,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getMCPServerUserTokensByUserID = `-- name: GetMCPServerUserTokensByUserID :many
+SELECT
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at
+FROM
+    mcp_server_user_tokens
+WHERE
+    user_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]MCPServerUserToken, error) {
+	rows, err := q.db.QueryContext(ctx, getMCPServerUserTokensByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MCPServerUserToken
+	for rows.Next() {
+		var i MCPServerUserToken
+		if err := rows.Scan(
+			&i.ID,
+			&i.MCPServerConfigID,
+			&i.UserID,
+			&i.AccessToken,
+			&i.AccessTokenKeyID,
+			&i.RefreshToken,
+			&i.RefreshTokenKeyID,
+			&i.TokenType,
+			&i.Expiry,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertMCPServerConfig = `-- name: InsertMCPServerConfig :one
+INSERT INTO mcp_server_configs (
+    display_name,
+    slug,
+    description,
+    icon_url,
+    transport,
+    url,
+    auth_type,
+    oauth2_client_id,
+    oauth2_client_secret,
+    oauth2_client_secret_key_id,
+    oauth2_auth_url,
+    oauth2_token_url,
+    oauth2_scopes,
+    api_key_header,
+    api_key_value,
+    api_key_value_key_id,
+    custom_headers,
+    custom_headers_key_id,
+    tool_allow_list,
+    tool_deny_list,
+    availability,
+    enabled,
+    created_by,
+    updated_by
+) VALUES (
+    $1::text,
+    $2::text,
+    $3::text,
+    $4::text,
+    $5::text,
+    $6::text,
+    $7::text,
+    $8::text,
+    $9::text,
+    $10::text,
+    $11::text,
+    $12::text,
+    $13::text,
+    $14::text,
+    $15::text,
+    $16::text,
+    $17::text,
+    $18::text,
+    $19::text[],
+    $20::text[],
+    $21::text,
+    $22::boolean,
+    $23::uuid,
+    $24::uuid
+)
+RETURNING
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+`
+
+type InsertMCPServerConfigParams struct {
+	DisplayName             string         `db:"display_name" json:"display_name"`
+	Slug                    string         `db:"slug" json:"slug"`
+	Description             string         `db:"description" json:"description"`
+	IconURL                 string         `db:"icon_url" json:"icon_url"`
+	Transport               string         `db:"transport" json:"transport"`
+	Url                     string         `db:"url" json:"url"`
+	AuthType                string         `db:"auth_type" json:"auth_type"`
+	OAuth2ClientID          string         `db:"oauth2_client_id" json:"oauth2_client_id"`
+	OAuth2ClientSecret      string         `db:"oauth2_client_secret" json:"oauth2_client_secret"`
+	OAuth2ClientSecretKeyID sql.NullString `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
+	OAuth2AuthURL           string         `db:"oauth2_auth_url" json:"oauth2_auth_url"`
+	OAuth2TokenURL          string         `db:"oauth2_token_url" json:"oauth2_token_url"`
+	OAuth2Scopes            string         `db:"oauth2_scopes" json:"oauth2_scopes"`
+	APIKeyHeader            string         `db:"api_key_header" json:"api_key_header"`
+	APIKeyValue             string         `db:"api_key_value" json:"api_key_value"`
+	APIKeyValueKeyID        sql.NullString `db:"api_key_value_key_id" json:"api_key_value_key_id"`
+	CustomHeaders           string         `db:"custom_headers" json:"custom_headers"`
+	CustomHeadersKeyID      sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
+	ToolAllowList           []string       `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList            []string       `db:"tool_deny_list" json:"tool_deny_list"`
+	Availability            string         `db:"availability" json:"availability"`
+	Enabled                 bool           `db:"enabled" json:"enabled"`
+	CreatedBy               uuid.UUID      `db:"created_by" json:"created_by"`
+	UpdatedBy               uuid.UUID      `db:"updated_by" json:"updated_by"`
+}
+
+func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPServerConfigParams) (MCPServerConfig, error) {
+	row := q.db.QueryRowContext(ctx, insertMCPServerConfig,
+		arg.DisplayName,
+		arg.Slug,
+		arg.Description,
+		arg.IconURL,
+		arg.Transport,
+		arg.Url,
+		arg.AuthType,
+		arg.OAuth2ClientID,
+		arg.OAuth2ClientSecret,
+		arg.OAuth2ClientSecretKeyID,
+		arg.OAuth2AuthURL,
+		arg.OAuth2TokenURL,
+		arg.OAuth2Scopes,
+		arg.APIKeyHeader,
+		arg.APIKeyValue,
+		arg.APIKeyValueKeyID,
+		arg.CustomHeaders,
+		arg.CustomHeadersKeyID,
+		pq.Array(arg.ToolAllowList),
+		pq.Array(arg.ToolDenyList),
+		arg.Availability,
+		arg.Enabled,
+		arg.CreatedBy,
+		arg.UpdatedBy,
+	)
+	var i MCPServerConfig
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayName,
+		&i.Slug,
+		&i.Description,
+		&i.IconURL,
+		&i.Transport,
+		&i.Url,
+		&i.AuthType,
+		&i.OAuth2ClientID,
+		&i.OAuth2ClientSecret,
+		&i.OAuth2ClientSecretKeyID,
+		&i.OAuth2AuthURL,
+		&i.OAuth2TokenURL,
+		&i.OAuth2Scopes,
+		&i.APIKeyHeader,
+		&i.APIKeyValue,
+		&i.APIKeyValueKeyID,
+		&i.CustomHeaders,
+		&i.CustomHeadersKeyID,
+		pq.Array(&i.ToolAllowList),
+		pq.Array(&i.ToolDenyList),
+		&i.Availability,
+		&i.Enabled,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateMCPServerConfig = `-- name: UpdateMCPServerConfig :one
+UPDATE
+    mcp_server_configs
+SET
+    display_name = $1::text,
+    slug = $2::text,
+    description = $3::text,
+    icon_url = $4::text,
+    transport = $5::text,
+    url = $6::text,
+    auth_type = $7::text,
+    oauth2_client_id = $8::text,
+    oauth2_client_secret = $9::text,
+    oauth2_client_secret_key_id = $10::text,
+    oauth2_auth_url = $11::text,
+    oauth2_token_url = $12::text,
+    oauth2_scopes = $13::text,
+    api_key_header = $14::text,
+    api_key_value = $15::text,
+    api_key_value_key_id = $16::text,
+    custom_headers = $17::text,
+    custom_headers_key_id = $18::text,
+    tool_allow_list = $19::text[],
+    tool_deny_list = $20::text[],
+    availability = $21::text,
+    enabled = $22::boolean,
+    updated_by = $23::uuid,
+    updated_at = NOW()
+WHERE
+    id = $24::uuid
+RETURNING
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at
+`
+
+type UpdateMCPServerConfigParams struct {
+	DisplayName             string         `db:"display_name" json:"display_name"`
+	Slug                    string         `db:"slug" json:"slug"`
+	Description             string         `db:"description" json:"description"`
+	IconURL                 string         `db:"icon_url" json:"icon_url"`
+	Transport               string         `db:"transport" json:"transport"`
+	Url                     string         `db:"url" json:"url"`
+	AuthType                string         `db:"auth_type" json:"auth_type"`
+	OAuth2ClientID          string         `db:"oauth2_client_id" json:"oauth2_client_id"`
+	OAuth2ClientSecret      string         `db:"oauth2_client_secret" json:"oauth2_client_secret"`
+	OAuth2ClientSecretKeyID sql.NullString `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
+	OAuth2AuthURL           string         `db:"oauth2_auth_url" json:"oauth2_auth_url"`
+	OAuth2TokenURL          string         `db:"oauth2_token_url" json:"oauth2_token_url"`
+	OAuth2Scopes            string         `db:"oauth2_scopes" json:"oauth2_scopes"`
+	APIKeyHeader            string         `db:"api_key_header" json:"api_key_header"`
+	APIKeyValue             string         `db:"api_key_value" json:"api_key_value"`
+	APIKeyValueKeyID        sql.NullString `db:"api_key_value_key_id" json:"api_key_value_key_id"`
+	CustomHeaders           string         `db:"custom_headers" json:"custom_headers"`
+	CustomHeadersKeyID      sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
+	ToolAllowList           []string       `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList            []string       `db:"tool_deny_list" json:"tool_deny_list"`
+	Availability            string         `db:"availability" json:"availability"`
+	Enabled                 bool           `db:"enabled" json:"enabled"`
+	UpdatedBy               uuid.UUID      `db:"updated_by" json:"updated_by"`
+	ID                      uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPServerConfigParams) (MCPServerConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateMCPServerConfig,
+		arg.DisplayName,
+		arg.Slug,
+		arg.Description,
+		arg.IconURL,
+		arg.Transport,
+		arg.Url,
+		arg.AuthType,
+		arg.OAuth2ClientID,
+		arg.OAuth2ClientSecret,
+		arg.OAuth2ClientSecretKeyID,
+		arg.OAuth2AuthURL,
+		arg.OAuth2TokenURL,
+		arg.OAuth2Scopes,
+		arg.APIKeyHeader,
+		arg.APIKeyValue,
+		arg.APIKeyValueKeyID,
+		arg.CustomHeaders,
+		arg.CustomHeadersKeyID,
+		pq.Array(arg.ToolAllowList),
+		pq.Array(arg.ToolDenyList),
+		arg.Availability,
+		arg.Enabled,
+		arg.UpdatedBy,
+		arg.ID,
+	)
+	var i MCPServerConfig
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayName,
+		&i.Slug,
+		&i.Description,
+		&i.IconURL,
+		&i.Transport,
+		&i.Url,
+		&i.AuthType,
+		&i.OAuth2ClientID,
+		&i.OAuth2ClientSecret,
+		&i.OAuth2ClientSecretKeyID,
+		&i.OAuth2AuthURL,
+		&i.OAuth2TokenURL,
+		&i.OAuth2Scopes,
+		&i.APIKeyHeader,
+		&i.APIKeyValue,
+		&i.APIKeyValueKeyID,
+		&i.CustomHeaders,
+		&i.CustomHeadersKeyID,
+		pq.Array(&i.ToolAllowList),
+		pq.Array(&i.ToolDenyList),
+		&i.Availability,
+		&i.Enabled,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertMCPServerUserToken = `-- name: UpsertMCPServerUserToken :one
+INSERT INTO mcp_server_user_tokens (
+    mcp_server_config_id,
+    user_id,
+    access_token,
+    access_token_key_id,
+    refresh_token,
+    refresh_token_key_id,
+    token_type,
+    expiry
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::text,
+    $5::text,
+    $6::text,
+    $7::text,
+    $8::timestamptz
+)
+ON CONFLICT (mcp_server_config_id, user_id) DO UPDATE SET
+    access_token = $3::text,
+    access_token_key_id = $4::text,
+    refresh_token = $5::text,
+    refresh_token_key_id = $6::text,
+    token_type = $7::text,
+    expiry = $8::timestamptz,
+    updated_at = NOW()
+RETURNING
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at
+`
+
+type UpsertMCPServerUserTokenParams struct {
+	MCPServerConfigID uuid.UUID      `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	UserID            uuid.UUID      `db:"user_id" json:"user_id"`
+	AccessToken       string         `db:"access_token" json:"access_token"`
+	AccessTokenKeyID  sql.NullString `db:"access_token_key_id" json:"access_token_key_id"`
+	RefreshToken      string         `db:"refresh_token" json:"refresh_token"`
+	RefreshTokenKeyID sql.NullString `db:"refresh_token_key_id" json:"refresh_token_key_id"`
+	TokenType         string         `db:"token_type" json:"token_type"`
+	Expiry            sql.NullTime   `db:"expiry" json:"expiry"`
+}
+
+func (q *sqlQuerier) UpsertMCPServerUserToken(ctx context.Context, arg UpsertMCPServerUserTokenParams) (MCPServerUserToken, error) {
+	row := q.db.QueryRowContext(ctx, upsertMCPServerUserToken,
+		arg.MCPServerConfigID,
+		arg.UserID,
+		arg.AccessToken,
+		arg.AccessTokenKeyID,
+		arg.RefreshToken,
+		arg.RefreshTokenKeyID,
+		arg.TokenType,
+		arg.Expiry,
+	)
+	var i MCPServerUserToken
+	err := row.Scan(
+		&i.ID,
+		&i.MCPServerConfigID,
+		&i.UserID,
+		&i.AccessToken,
+		&i.AccessTokenKeyID,
+		&i.RefreshToken,
+		&i.RefreshTokenKeyID,
+		&i.TokenType,
+		&i.Expiry,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const acquireNotificationMessages = `-- name: AcquireNotificationMessages :many
@@ -15978,6 +17034,23 @@ func (q *sqlQuerier) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	return chat_system_prompt, err
 }
 
+const getChatWorkspaceTTL = `-- name: GetChatWorkspaceTTL :one
+SELECT
+    COALESCE(
+        (SELECT value FROM site_configs WHERE key = 'agents_workspace_ttl'),
+        '0s'
+    )::text AS workspace_ttl
+`
+
+// Returns the global TTL for chat workspaces as a Go duration string.
+// Returns "0s" (disabled) when no value has been configured.
+func (q *sqlQuerier) GetChatWorkspaceTTL(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatWorkspaceTTL)
+	var workspace_ttl string
+	err := row.Scan(&workspace_ttl)
+	return workspace_ttl, err
+}
+
 const getDERPMeshKey = `-- name: GetDERPMeshKey :one
 SELECT value FROM site_configs WHERE key = 'derp_mesh_key'
 `
@@ -15997,13 +17070,13 @@ SELECT
 
 type GetDefaultProxyConfigRow struct {
 	DisplayName string `db:"display_name" json:"display_name"`
-	IconUrl     string `db:"icon_url" json:"icon_url"`
+	IconURL     string `db:"icon_url" json:"icon_url"`
 }
 
 func (q *sqlQuerier) GetDefaultProxyConfig(ctx context.Context) (GetDefaultProxyConfigRow, error) {
 	row := q.db.QueryRowContext(ctx, getDefaultProxyConfig)
 	var i GetDefaultProxyConfigRow
-	err := row.Scan(&i.DisplayName, &i.IconUrl)
+	err := row.Scan(&i.DisplayName, &i.IconURL)
 	return i, err
 }
 
@@ -16192,6 +17265,19 @@ func (q *sqlQuerier) UpsertChatSystemPrompt(ctx context.Context, value string) e
 	return err
 }
 
+const upsertChatWorkspaceTTL = `-- name: UpsertChatWorkspaceTTL :exec
+INSERT INTO site_configs (key, value)
+VALUES ('agents_workspace_ttl', $1::text)
+ON CONFLICT (key) DO UPDATE
+SET value = $1::text
+WHERE site_configs.key = 'agents_workspace_ttl'
+`
+
+func (q *sqlQuerier) UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatWorkspaceTTL, workspaceTtl)
+	return err
+}
+
 const upsertDefaultProxy = `-- name: UpsertDefaultProxy :exec
 INSERT INTO site_configs (key, value)
 VALUES
@@ -16204,14 +17290,14 @@ DO UPDATE SET value = EXCLUDED.value WHERE site_configs.key = EXCLUDED.key
 
 type UpsertDefaultProxyParams struct {
 	DisplayName string `db:"display_name" json:"display_name"`
-	IconUrl     string `db:"icon_url" json:"icon_url"`
+	IconURL     string `db:"icon_url" json:"icon_url"`
 }
 
 // The default proxy is implied and not actually stored in the database.
 // So we need to store it's configuration here for display purposes.
 // The functional values are immutable and controlled implicitly.
 func (q *sqlQuerier) UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error {
-	_, err := q.db.ExecContext(ctx, upsertDefaultProxy, arg.DisplayName, arg.IconUrl)
+	_, err := q.db.ExecContext(ctx, upsertDefaultProxy, arg.DisplayName, arg.IconURL)
 	return err
 }
 

@@ -33,6 +33,15 @@ export function usersKey(req: UsersRequest) {
 	return ["users", req] as const;
 }
 
+export const userByNameKey = (username: string) => ["user", username] as const;
+
+export const userByName = (username: string): UseQueryOptions<User> => {
+	return {
+		queryKey: userByNameKey(username),
+		queryFn: () => API.getUser(username),
+	};
+};
+
 export function paginatedUsers(
 	searchParams: URLSearchParams,
 ): UsePaginatedQueryOptions<GetUsersResponse, UsersRequest> {

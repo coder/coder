@@ -57,18 +57,26 @@ type fakeContainerCLI struct {
 }
 
 func (f *fakeContainerCLI) List(_ context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.containers, f.listErr
 }
 
 func (f *fakeContainerCLI) DetectArchitecture(_ context.Context, _ string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.arch, f.archErr
 }
 
 func (f *fakeContainerCLI) Copy(ctx context.Context, name, src, dst string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.copyErr
 }
 
 func (f *fakeContainerCLI) ExecAs(ctx context.Context, name, user string, args ...string) ([]byte, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return nil, f.execErr
 }
 
@@ -2689,7 +2697,9 @@ func TestAPI(t *testing.T) {
 
 		// When: The container is recreated (new container ID) with config changes.
 		terraformContainer.ID = "new-container-id"
+		fCCLI.mu.Lock()
 		fCCLI.containers.Containers = []codersdk.WorkspaceAgentContainer{terraformContainer}
+		fCCLI.mu.Unlock()
 		fDCCLI.upID = terraformContainer.ID
 		fDCCLI.readConfig.MergedConfiguration.Customizations.Coder = []agentcontainers.CoderCustomization{{
 			Apps: []agentcontainers.SubAgentApp{{Slug: "app2"}}, // Changed app triggers recreation logic.
@@ -2821,7 +2831,9 @@ func TestAPI(t *testing.T) {
 		// Simulate container rebuild: new container ID, changed display apps.
 		newContainerID := "new-container-id"
 		terraformContainer.ID = newContainerID
+		fCCLI.mu.Lock()
 		fCCLI.containers.Containers = []codersdk.WorkspaceAgentContainer{terraformContainer}
+		fCCLI.mu.Unlock()
 		fDCCLI.upID = newContainerID
 		fDCCLI.readConfig.MergedConfiguration.Customizations.Coder = []agentcontainers.CoderCustomization{{
 			DisplayApps: map[codersdk.DisplayApp]bool{
@@ -4926,9 +4938,11 @@ func TestDevcontainerPrebuildSupport(t *testing.T) {
 	)
 	api.Start()
 
+	fCCLI.mu.Lock()
 	fCCLI.containers = codersdk.WorkspaceAgentListContainersResponse{
 		Containers: []codersdk.WorkspaceAgentContainer{testContainer},
 	}
+	fCCLI.mu.Unlock()
 
 	// Given: We allow the dev container to be created.
 	fDCCLI.upID = testContainer.ID

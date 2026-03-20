@@ -2,7 +2,7 @@ import { chatCostSummary } from "api/queries/chats";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import dayjs from "dayjs";
 import { BarChart3Icon } from "lucide-react";
-import { type FC, useMemo } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { SectionHeader } from "./SectionHeader";
@@ -28,7 +28,7 @@ export const AnalyticsPageContent: FC<AnalyticsPageContentProps> = ({
 	now,
 }) => {
 	const { user } = useAuthContext();
-	const dateRange = useMemo(() => createDateRange(now), [now]);
+	const dateRange = createDateRange(now);
 
 	const summaryQuery = useQuery({
 		...chatCostSummary(user?.id ?? "me", {

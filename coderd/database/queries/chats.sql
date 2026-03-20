@@ -180,7 +180,8 @@ INSERT INTO chats (
     root_chat_id,
     last_model_config_id,
     title,
-    mode
+    mode,
+    mcp_server_ids
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
@@ -188,7 +189,8 @@ INSERT INTO chats (
     sqlc.narg('root_chat_id')::uuid,
     @last_model_config_id::uuid,
     @title::text,
-    sqlc.narg('mode')::chat_mode
+    sqlc.narg('mode')::chat_mode,
+    COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[])
 )
 RETURNING
     *;
@@ -289,6 +291,17 @@ UPDATE
     chats
 SET
     workspace_id = sqlc.narg('workspace_id')::uuid,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: UpdateChatMCPServerIDs :one
+UPDATE
+    chats
+SET
+    mcp_server_ids = @mcp_server_ids::uuid[],
     updated_at = NOW()
 WHERE
     id = @id::uuid
@@ -712,6 +725,7 @@ WITH chat_cost_users AS (
         AND (
             @username::text = ''
             OR u.username ILIKE '%' || @username::text || '%'
+            OR u.name ILIKE '%' || @username::text || '%'
         )
     GROUP BY
         c.owner_id,

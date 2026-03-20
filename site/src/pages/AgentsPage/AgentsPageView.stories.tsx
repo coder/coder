@@ -5,7 +5,9 @@ import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { Chat } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import dayjs from "dayjs";
+import { useState } from "react";
 import {
 	expect,
 	fn,
@@ -113,6 +115,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	title: "Agent",
 	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
+	mcp_server_ids: [],
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
@@ -159,27 +162,43 @@ const meta: Meta<typeof AgentsPageView> = {
 		onCollapseSidebar: fn(),
 		isSidebarCollapsed: false,
 		onExpandSidebar: fn(),
-		outletContext: {
-			chatErrorReasons: {},
-			setChatErrorReason: fn(),
-			clearChatErrorReason: fn(),
-			requestArchiveAgent: fn(),
-			requestUnarchiveAgent: fn(),
-			requestArchiveAndDeleteWorkspace: fn(),
-			isSidebarCollapsed: false,
-			onToggleSidebarCollapsed: fn(),
-		},
+		chatErrorReasons: {},
+		setChatErrorReason: fn(),
+		clearChatErrorReason: fn(),
+		requestArchiveAgent: fn(),
+		requestUnarchiveAgent: fn(),
+		requestArchiveAndDeleteWorkspace: fn(),
+		onToggleSidebarCollapsed: fn(),
 		isAgentsAdmin: false,
 		analyticsNow: fixedAnalyticsNow,
 		archivedFilter: "active" as const,
 		onArchivedFilterChange: fn(),
+		hasNextPage: false,
+		onLoadMore: fn(),
 		isFetchingNextPage: false,
 		onCreateChat: fn(),
 		createError: undefined,
-		modelCatalog: undefined,
+		modelCatalog: {
+			providers: [
+				{
+					provider: "openai",
+					available: true,
+					models: [
+						{
+							id: "openai:gpt-4o",
+							provider: "openai",
+							model: "gpt-4o",
+							display_name: "GPT-4o",
+						},
+					],
+				},
+			],
+		},
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
 		modelCatalogError: undefined,
+		modelConfigIDByModelID: new Map(),
+		desktopEnabled: false,
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaces").mockResolvedValue({
@@ -273,16 +292,13 @@ export const SidebarCollapsed: Story = {
 				updated_at: todayTimestamp,
 			}),
 		],
-		outletContext: {
-			chatErrorReasons: {},
-			setChatErrorReason: fn(),
-			clearChatErrorReason: fn(),
-			requestArchiveAgent: fn(),
-			requestUnarchiveAgent: fn(),
-			requestArchiveAndDeleteWorkspace: fn(),
-			isSidebarCollapsed: true,
-			onToggleSidebarCollapsed: fn(),
-		},
+		chatErrorReasons: {},
+		setChatErrorReason: fn(),
+		clearChatErrorReason: fn(),
+		requestArchiveAgent: fn(),
+		requestUnarchiveAgent: fn(),
+		requestArchiveAndDeleteWorkspace: fn(),
+		onToggleSidebarCollapsed: fn(),
 	},
 };
 
@@ -321,6 +337,61 @@ export const ArchivingAgent: Story = {
 				updated_at: todayTimestamp,
 			}),
 		],
+	},
+};
+
+/**
+ * Standalone story for the delete-confirmation dialog with
+ * agents-specific copy (title, verb, info). The dialog now lives in
+ * AgentsPage (the container) rather than AgentsPageView, so we
+ * render it directly here to preserve interaction-test coverage.
+ */
+export const DeleteConfirmationDialog: Story = {
+	render: function Render() {
+		const [isOpen, setIsOpen] = useState(true);
+		const [isLoading, setIsLoading] = useState(false);
+		const onConfirm = fn();
+		return (
+			<DeleteDialog
+				key="my-workspace"
+				isOpen={isOpen}
+				onConfirm={() => {
+					onConfirm();
+					setIsLoading(true);
+				}}
+				onCancel={() => setIsOpen(false)}
+				entity="workspace"
+				name="my-workspace"
+				confirmLoading={isLoading}
+				title="Archive agent & delete workspace"
+				verb="Archiving and deleting"
+				info="This will archive the agent and permanently delete the associated workspace and all its resources."
+			/>
+		);
+	},
+	play: async () => {
+		const dialog = await screen.findByRole("dialog");
+		await expect(dialog).toBeInTheDocument();
+		await expect(
+			within(dialog).getByText("Archive agent & delete workspace"),
+		).toBeInTheDocument();
+
+		// Confirm button should be disabled before typing the workspace name.
+		const confirmButton = within(dialog).getByRole("button", {
+			name: /delete/i,
+		});
+		await expect(confirmButton).toBeDisabled();
+
+		// Type the workspace name to satisfy the confirmation guard.
+		const input = within(dialog).getByLabelText(/name of the workspace/i);
+		await userEvent.type(input, "my-workspace");
+		await expect(confirmButton).toBeEnabled();
+
+		// Click confirm and verify the callback fires, then enters loading state.
+		await userEvent.click(confirmButton);
+		await waitFor(() => {
+			expect(confirmButton).toBeDisabled();
+		});
 	},
 };
 
@@ -374,19 +445,16 @@ export const WithErrorReasons: Story = {
 				updated_at: todayTimestamp,
 			}),
 		],
-		outletContext: {
-			chatErrorReasons: {
-				"chat-1": { kind: "generic", message: "Model rate limited" },
-				"chat-3": { kind: "generic", message: "Context window exceeded" },
-			},
-			setChatErrorReason: fn(),
-			clearChatErrorReason: fn(),
-			requestArchiveAgent: fn(),
-			requestUnarchiveAgent: fn(),
-			requestArchiveAndDeleteWorkspace: fn(),
-			isSidebarCollapsed: false,
-			onToggleSidebarCollapsed: fn(),
+		chatErrorReasons: {
+			"chat-1": { kind: "generic", message: "Model rate limited" },
+			"chat-3": { kind: "generic", message: "Context window exceeded" },
 		},
+		setChatErrorReason: fn(),
+		clearChatErrorReason: fn(),
+		requestArchiveAgent: fn(),
+		requestUnarchiveAgent: fn(),
+		requestArchiveAndDeleteWorkspace: fn(),
+		onToggleSidebarCollapsed: fn(),
 	},
 };
 

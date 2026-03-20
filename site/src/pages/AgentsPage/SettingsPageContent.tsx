@@ -5,13 +5,17 @@ import {
 	chatDesktopEnabled,
 	chatSystemPrompt,
 	chatUserCustomPrompt,
+	chatWorkspaceTTL,
 	updateChatDesktopEnabled,
 	updateChatSystemPrompt,
+	updateChatWorkspaceTTL,
 	updateUserChatCustomPrompt,
 } from "api/queries/chats";
+import { userByName } from "api/queries/users";
 import type * as TypesGen from "api/typesGenerated";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
+import { DurationField } from "components/DurationField/DurationField";
 import { Link } from "components/Link/Link";
 import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
@@ -36,20 +40,23 @@ import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ChevronLeftIcon, ShieldIcon } from "lucide-react";
-import { type FC, type FormEvent, useCallback, useMemo, useState } from "react";
+import { type FC, type FormEvent, useState } from "react";
 import {
 	keepPreviousData,
 	useMutation,
 	useQuery,
 	useQueryClient,
 } from "react-query";
+import { useSearchParams } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatTokenCount } from "utils/analytics";
 import { formatCostMicros } from "utils/currency";
+import { humanDuration } from "utils/time";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { InsightsContent } from "./InsightsContent";
 import { LimitsTab } from "./LimitsTab";
+import { MCPServerAdminPanel } from "./MCPServerAdminPanel";
 import { SectionHeader } from "./SectionHeader";
 
 const AdminBadge: FC = () => (
@@ -121,12 +128,11 @@ interface UsageContentProps {
 }
 
 const UsageContent: FC<UsageContentProps> = ({ now }) => {
-	const [selectedUser, setSelectedUser] =
-		useState<TypesGen.ChatCostUserRollup | null>(null);
-	const [usernameFilter, setUsernameFilter] = useState("");
-	const debouncedUsername = useDebouncedValue(usernameFilter, 300);
+	const [searchParams, setSearchParams] = useSearchParams();
+	const [searchFilter, setSearchFilter] = useState("");
+	const debouncedSearch = useDebouncedValue(searchFilter, 300);
 	const [page, setPage] = useState(1);
-	const dateRange = useMemo(() => {
+	const dateRange = (() => {
 		const end = now ?? dayjs();
 		const start = end.subtract(30, "day");
 		return {
@@ -134,27 +140,34 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 			endDate: end.toISOString(),
 			rangeLabel: `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`,
 		};
-	}, [now]);
+	})();
 	const offset = (page - 1) * pageSize;
 
 	const usersQuery = useQuery({
 		...chatCostUsers({
 			start_date: dateRange.startDate,
 			end_date: dateRange.endDate,
-			username: debouncedUsername || undefined,
+			username: debouncedSearch || undefined,
 			limit: pageSize,
 			offset,
 		}),
 		placeholderData: keepPreviousData,
 	});
+
+	const selectedUserId = searchParams.get("user");
+	const selectedUserQuery = useQuery({
+		...userByName(selectedUserId ?? ""),
+		enabled: selectedUserId !== null,
+	});
+	const selectedUser = selectedUserQuery.data ?? null;
+
 	const summaryQuery = useQuery({
-		...chatCostSummary(selectedUser?.user_id ?? "me", {
+		...chatCostSummary(selectedUserId ?? "me", {
 			start_date: dateRange.startDate,
 			end_date: dateRange.endDate,
 		}),
-		enabled: selectedUser !== null,
+		enabled: selectedUserId !== null,
 	});
-
 	const totalCount = usersQuery.data?.count ?? 0;
 	const hasPreviousPage = page > 1;
 	const hasNextPage = offset + pageSize < totalCount;
@@ -163,7 +176,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 		<SectionHeader
 			label="Usage"
 			description={
-				selectedUser
+				selectedUserId
 					? "Review deployment chat usage for a specific user."
 					: "Review deployment chat usage and drill into individual users."
 			}
@@ -176,18 +189,72 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 		/>
 	);
 
-	if (selectedUser) {
+	if (selectedUserId) {
+		const clearUser = () => {
+			setSearchParams((prev) => {
+				const next = new URLSearchParams(prev);
+				next.delete("user");
+				return next;
+			});
+		};
+
+		const backButton = (
+			<button
+				type="button"
+				onClick={clearUser}
+				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
+			>
+				{" "}
+				<ChevronLeftIcon className="h-4 w-4" />
+				Back
+			</button>
+		);
+
+		if (selectedUserQuery.isLoading) {
+			return (
+				<div className="space-y-6">
+					<div>
+						{backButton}
+						{header}
+					</div>
+					<div className="flex min-h-[240px] items-center justify-center">
+						<Spinner size="lg" loading className="text-content-secondary" />
+					</div>
+				</div>
+			);
+		}
+
+		if (selectedUserQuery.isError || !selectedUser) {
+			return (
+				<div className="space-y-6">
+					<div>
+						{backButton}
+						{header}
+					</div>
+					<div className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
+						<p className="m-0 text-sm text-content-secondary">
+							{getErrorMessage(
+								selectedUserQuery.error,
+								"Failed to load user profile.",
+							)}
+						</p>
+						<Button
+							variant="outline"
+							size="sm"
+							type="button"
+							onClick={() => void selectedUserQuery.refetch()}
+						>
+							Retry
+						</Button>
+					</div>
+				</div>
+			);
+		}
+
 		return (
 			<div className="space-y-6">
 				<div>
-					<button
-						type="button"
-						onClick={() => setSelectedUser(null)}
-						className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
-					>
-						<ChevronLeftIcon className="h-4 w-4" />
-						Back
-					</button>
+					{backButton}
 					{header}
 				</div>
 				<div className="flex flex-wrap items-center gap-3 rounded-lg border border-border-default bg-surface-secondary px-4 py-3">
@@ -198,11 +265,10 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 						imgFallbackText={selectedUser.username}
 					/>
 					<div className="min-w-0 text-xs text-content-secondary">
-						<div>User ID: {selectedUser.user_id}</div>
+						<div>User ID: {selectedUser.id}</div>
 						<div>{dateRange.rangeLabel}</div>
 					</div>
 				</div>
-
 				<ChatCostSummaryView
 					summary={summaryQuery.data}
 					isLoading={summaryQuery.isLoading}
@@ -221,13 +287,13 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 			<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
 				<div className="w-full md:max-w-sm">
 					<SearchField
-						value={usernameFilter}
+						value={searchFilter}
 						onChange={(value) => {
-							setUsernameFilter(value);
+							setSearchFilter(value);
 							setPage(1);
 						}}
-						placeholder="Filter by username"
-						aria-label="Filter usage by username"
+						placeholder="Search by name or username"
+						aria-label="Search usage by name or username"
 					/>
 				</div>
 				{usersQuery.data && (
@@ -305,7 +371,9 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 										<UserRow
 											key={user.user_id}
 											user={user}
-											onSelect={setSelectedUser}
+											onSelect={(u) => {
+												setSearchParams({ user: u.user_id });
+											}}
 										/>
 									))}
 								</TableBody>
@@ -366,6 +434,13 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 		isError: isSaveDesktopEnabledError,
 	} = useMutation(updateChatDesktopEnabled(queryClient));
 
+	const workspaceTTLQuery = useQuery(chatWorkspaceTTL());
+	const {
+		mutate: saveWorkspaceTTL,
+		isPending: isSavingWorkspaceTTL,
+		isError: isSaveWorkspaceTTLError,
+	} = useMutation(updateChatWorkspaceTTL(queryClient));
+
 	const serverPrompt = systemPromptQuery.data?.system_prompt ?? "";
 	const [localEdit, setLocalEdit] = useState<string | null>(null);
 	const systemPromptDraft = localEdit ?? serverPrompt;
@@ -378,33 +453,45 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 	const isUserPromptDirty =
 		localUserEdit !== null && localUserEdit !== serverUserPrompt;
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
+	const serverTTLMs = workspaceTTLQuery.data?.workspace_ttl_ms ?? 0;
+	const [localTTLMs, setLocalTTLMs] = useState<number | null>(null);
+	const ttlMs = localTTLMs ?? serverTTLMs;
+	const isTTLDirty = localTTLMs !== null && localTTLMs !== serverTTLMs;
+	const maxTTLMs = 30 * 24 * 60 * 60_000; // 30 days
+	const isTTLOverMax = ttlMs > maxTTLMs;
 	const isDisabled =
-		isSavingSystemPrompt || isSavingUserPrompt || isSavingDesktopEnabled;
+		isSavingSystemPrompt ||
+		isSavingUserPrompt ||
+		isSavingDesktopEnabled ||
+		isSavingWorkspaceTTL;
+	const isTTLLoading = workspaceTTLQuery.isLoading;
 
-	const handleSaveSystemPrompt = useCallback(
-		(event: FormEvent) => {
-			event.preventDefault();
-			if (!isSystemPromptDirty) return;
-			saveSystemPrompt(
-				{ system_prompt: systemPromptDraft },
-				{ onSuccess: () => setLocalEdit(null) },
-			);
-		},
-		[isSystemPromptDirty, systemPromptDraft, saveSystemPrompt],
-	);
+	const handleSaveSystemPrompt = (event: FormEvent) => {
+		event.preventDefault();
+		if (!isSystemPromptDirty) return;
+		saveSystemPrompt(
+			{ system_prompt: systemPromptDraft },
+			{ onSuccess: () => setLocalEdit(null) },
+		);
+	};
 
-	const handleSaveUserPrompt = useCallback(
-		(event: FormEvent) => {
-			event.preventDefault();
-			if (!isUserPromptDirty) return;
-			saveUserPrompt(
-				{ custom_prompt: userPromptDraft },
-				{ onSuccess: () => setLocalUserEdit(null) },
-			);
-		},
-		[isUserPromptDirty, userPromptDraft, saveUserPrompt],
-	);
+	const handleSaveUserPrompt = (event: FormEvent) => {
+		event.preventDefault();
+		if (!isUserPromptDirty) return;
+		saveUserPrompt(
+			{ custom_prompt: userPromptDraft },
+			{ onSuccess: () => setLocalUserEdit(null) },
+		);
+	};
 
+	const handleSaveChatWorkspaceTTL = (event: FormEvent) => {
+		event.preventDefault();
+		if (!isTTLDirty) return;
+		saveWorkspaceTTL(
+			{ workspace_ttl_ms: localTTLMs ?? 0 },
+			{ onSuccess: () => setLocalTTLMs(null) },
+		);
+	};
 	return (
 		<div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 pt-8 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 			<div className="mx-auto w-full max-w-3xl">
@@ -551,6 +638,54 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 										</p>
 									)}
 								</div>
+								<hr className="my-5 border-0 border-t border-solid border-border" />
+								<form
+									className="space-y-2"
+									onSubmit={(event) => void handleSaveChatWorkspaceTTL(event)}
+								>
+									<div className="flex items-center gap-2">
+										<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+											Default Autostop
+										</h3>
+										<AdminBadge />
+									</div>
+									<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+										{ttlMs === 0
+											? "Workspaces linked to chats will be stopped as configured by their templates. Active chats continuously extend the deadline."
+											: `Workspaces linked to chats will be stopped after ${humanDuration(ttlMs)} of inactivity. Active chats continuously extend the deadline.`}
+									</p>
+									<DurationField
+										label="Default autostop"
+										valueMs={ttlMs}
+										onChange={(v) => setLocalTTLMs(v)}
+										disabled={isDisabled || isTTLLoading}
+										error={isTTLOverMax}
+										helperText={
+											isTTLOverMax
+												? "Must not exceed 30 days (720 hours)."
+												: undefined
+										}
+									/>
+									<div className="flex justify-end">
+										<Button
+											size="sm"
+											type="submit"
+											disabled={isDisabled || !isTTLDirty || isTTLOverMax}
+										>
+											Save
+										</Button>
+									</div>
+									{isSaveWorkspaceTTLError && (
+										<p className="m-0 text-xs text-content-destructive">
+											Failed to save autostop setting.
+										</p>
+									)}
+									{workspaceTTLQuery.isError && (
+										<p className="m-0 text-xs text-content-destructive">
+											Failed to load autostop setting.
+										</p>
+									)}
+								</form>
 							</>
 						)}
 					</>
@@ -568,6 +703,13 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 						section="models"
 						sectionLabel="Models"
 						sectionDescription="Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
+						sectionBadge={<AdminBadge />}
+					/>
+				)}
+				{activeSection === "mcp-servers" && canManageChatModelConfigs && (
+					<MCPServerAdminPanel
+						sectionLabel="MCP Servers"
+						sectionDescription="Configure external MCP servers that provide additional tools for AI chat sessions."
 						sectionBadge={<AdminBadge />}
 					/>
 				)}

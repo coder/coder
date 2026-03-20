@@ -1520,6 +1520,12 @@ const docTemplate = `{
                         "name": "group",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Exclude members from the response",
+                        "name": "exclude_members",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1603,6 +1609,65 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Group"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/groups/{group}/members": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get group members by group ID",
+                "operationId": "get-group-members-by-group-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Group id",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Member search query",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "After ID",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GroupMembersResponse"
                         }
                     }
                 },
@@ -3378,6 +3443,73 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Group"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/organizations/{organization}/groups/{groupName}/members": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get group members by organization and group name",
+                "operationId": "get-group-members-by-organization-and-group-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Group name",
+                        "name": "groupName",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Member search query",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "After ID",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GroupMembersResponse"
                         }
                     }
                 },
@@ -7826,6 +7958,29 @@ const docTemplate = `{
                 ]
             }
         },
+        "/users/me/session/token-to-cookie": {
+            "post": {
+                "description": "Converts the current session token into a Set-Cookie response.\nThis is used by embedded iframes (e.g. VS Code chat) that\nreceive a session token out-of-band via postMessage but need\ncookie-based auth for WebSocket connections.",
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Set session token cookie",
+                "operationId": "set-session-token-cookie",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/users/oauth2/github/callback": {
             "get": {
                 "tags": [
@@ -7860,6 +8015,31 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ExternalAuthDevice"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/users/oidc-claims": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get OIDC claims for the authenticated user",
+                "operationId": "get-oidc-claims-for-the-authenticated-user",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OIDCClaimsResponse"
                         }
                     }
                 },
@@ -12622,6 +12802,12 @@ const docTemplate = `{
         "codersdk.AIBridgeProxyConfig": {
             "type": "object",
             "properties": {
+                "allowed_private_cidrs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "cert_file": {
                     "type": "string"
                 },
@@ -15695,6 +15881,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.GroupMembersResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ReducedUser"
+                    }
+                }
+            }
+        },
         "codersdk.GroupSource": {
             "type": "string",
             "enum": [
@@ -16883,6 +17083,16 @@ const docTemplate = `{
                 },
                 "signInText": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.OIDCClaimsResponse": {
+            "type": "object",
+            "properties": {
+                "claims": {
+                    "description": "Claims are the merged claims from the OIDC provider. These\nare the union of the ID token claims and the userinfo claims,\nwhere userinfo claims take precedence on conflict.",
+                    "type": "object",
+                    "additionalProperties": true
                 }
             }
         },

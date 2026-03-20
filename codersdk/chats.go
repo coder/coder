@@ -49,6 +49,7 @@ type Chat struct {
 	CreatedAt         time.Time       `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time       `json:"updated_at" format:"date-time"`
 	Archived          bool            `json:"archived"`
+	MCPServerIDs      []uuid.UUID     `json:"mcp_server_ids" format:"uuid"`
 }
 
 // ChatMessage represents a single message in a chat.
@@ -267,6 +268,7 @@ type CreateChatRequest struct {
 	Content       []ChatInputPart `json:"content"`
 	WorkspaceID   *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
 	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  []uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -279,6 +281,7 @@ type UpdateChatRequest struct {
 type CreateChatMessageRequest struct {
 	Content       []ChatInputPart `json:"content"`
 	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  *[]uuid.UUID    `json:"mcp_server_ids,omitempty" format:"uuid"`
 }
 
 // EditChatMessageRequest is the request to edit a user message in a chat.
@@ -354,6 +357,42 @@ type ChatDesktopEnabledResponse struct {
 // UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
 type UpdateChatDesktopEnabledRequest struct {
 	EnableDesktop bool `json:"enable_desktop"`
+}
+
+// DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
+// Zero means disabled — the template's own autostop setting applies.
+const DefaultChatWorkspaceTTL = 0
+
+// ChatWorkspaceTTLResponse is the response for getting the chat
+// workspace TTL setting.
+type ChatWorkspaceTTLResponse struct {
+	// WorkspaceTTLMillis is the workspace TTL in milliseconds.
+	// Zero means disabled — the template's own autostop setting applies.
+	WorkspaceTTLMillis int64 `json:"workspace_ttl_ms"`
+}
+
+// UpdateChatWorkspaceTTLRequest is the request to update the chat
+// workspace TTL setting.
+type UpdateChatWorkspaceTTLRequest struct {
+	// WorkspaceTTLMillis is the workspace TTL in milliseconds.
+	// Zero means disabled — the template's own autostop setting applies.
+	WorkspaceTTLMillis int64 `json:"workspace_ttl_ms"`
+}
+
+// ParseChatWorkspaceTTL parses a stored TTL string, returning the
+// default when the value is empty.
+func ParseChatWorkspaceTTL(s string) (time.Duration, error) {
+	if s == "" {
+		return DefaultChatWorkspaceTTL, nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, xerrors.Errorf("invalid duration %q: %w", s, err)
+	}
+	if d < 0 {
+		return 0, xerrors.New("duration must be non-negative")
+	}
+	return d, nil
 }
 
 // ChatProviderConfigSource describes how a provider entry is sourced.
@@ -438,7 +477,7 @@ type ChatModelOpenAIProviderOptions struct {
 	MaxCompletionTokens *int64           `json:"max_completion_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
 	TextVerbosity       *string          `json:"text_verbosity,omitempty" description:"Controls the verbosity of the text response" enum:"low,medium,high"`
 	Prediction          map[string]any   `json:"prediction,omitempty" description:"Predicted output content to speed up responses" hidden:"true"`
-	Store               *bool            `json:"store,omitempty" description:"Whether to store the output for model distillation or evals" hidden:"true"`
+	Store               *bool            `json:"store,omitempty" description:"Whether to store the response on OpenAI for later retrieval via the API and dashboard logs"`
 	Metadata            map[string]any   `json:"metadata,omitempty" description:"Arbitrary metadata to attach to the request" hidden:"true"`
 	PromptCacheKey      *string          `json:"prompt_cache_key,omitempty" description:"Key for enabling cross-request prompt caching"`
 	SafetyIdentifier    *string          `json:"safety_identifier,omitempty" description:"Developer-specific safety identifier for the request" hidden:"true"`
@@ -1323,6 +1362,33 @@ func (c *Client) GetChatDesktopEnabled(ctx context.Context) (ChatDesktopEnabledR
 // UpdateChatDesktopEnabled updates the deployment-wide desktop setting.
 func (c *Client) UpdateChatDesktopEnabled(ctx context.Context, req UpdateChatDesktopEnabledRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/desktop-enabled", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// GetChatWorkspaceTTL returns the configured chat workspace TTL.
+func (c *Client) GetChatWorkspaceTTL(ctx context.Context) (ChatWorkspaceTTLResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/workspace-ttl", nil)
+	if err != nil {
+		return ChatWorkspaceTTLResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatWorkspaceTTLResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatWorkspaceTTLResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatWorkspaceTTL updates the chat workspace TTL setting.
+func (c *Client) UpdateChatWorkspaceTTL(ctx context.Context, req UpdateChatWorkspaceTTLRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/workspace-ttl", req)
 	if err != nil {
 		return err
 	}

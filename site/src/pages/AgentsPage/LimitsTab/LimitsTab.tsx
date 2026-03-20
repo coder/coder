@@ -18,7 +18,7 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { ShieldIcon } from "lucide-react";
-import { type FC, type ReactNode, useMemo, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	dollarsToMicros,
@@ -128,7 +128,7 @@ export const LimitsTab: FC = () => {
 	const [selectedUser, setSelectedUser] = useState<User | null>(null);
 	const [userOverrideAmount, setUserOverrideAmount] = useState("");
 
-	const defaultLimitValues = useMemo<DefaultLimitFormValues>(() => {
+	const defaultLimitValues: DefaultLimitFormValues = (() => {
 		const spendLimitMicros = configQuery.data?.spend_limit_micros;
 		const enabled = spendLimitMicros !== null && spendLimitMicros !== undefined;
 
@@ -140,27 +140,19 @@ export const LimitsTab: FC = () => {
 					? microsToDollars(spendLimitMicros).toString()
 					: "",
 		};
-	}, [configQuery.data?.period, configQuery.data?.spend_limit_micros]);
-	const defaultLimitKey = useMemo(
-		() =>
-			JSON.stringify({
-				spend_limit_micros: configQuery.data?.spend_limit_micros ?? null,
-				period: defaultLimitValues.period,
-			}),
-		[configQuery.data?.spend_limit_micros, defaultLimitValues.period],
+	})();
+	const defaultLimitKey = JSON.stringify({
+		spend_limit_micros: configQuery.data?.spend_limit_micros ?? null,
+		period: defaultLimitValues.period,
+	});
+	const existingGroupIds = new Set(
+		(configQuery.data?.group_overrides ?? []).map((g) => g.group_id),
 	);
-	const existingGroupIds = useMemo(
-		() =>
-			new Set((configQuery.data?.group_overrides ?? []).map((g) => g.group_id)),
-		[configQuery.data?.group_overrides],
+	const existingUserIds = new Set(
+		(configQuery.data?.overrides ?? []).map((o) => o.user_id),
 	);
-	const existingUserIds = useMemo(
-		() => new Set((configQuery.data?.overrides ?? []).map((o) => o.user_id)),
-		[configQuery.data?.overrides],
-	);
-	const availableGroups = useMemo(
-		() => (groupsQuery.data ?? []).filter((g) => !existingGroupIds.has(g.id)),
-		[groupsQuery.data, existingGroupIds],
+	const availableGroups = (groupsQuery.data ?? []).filter(
+		(g) => !existingGroupIds.has(g.id),
 	);
 	const selectedUserAlreadyOverridden = selectedUser
 		? existingUserIds.has(selectedUser.id)

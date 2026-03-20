@@ -37,6 +37,33 @@ type UsersRequest struct {
 	Pagination
 }
 
+func (req UsersRequest) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		var params []string
+		if req.Search != "" {
+			params = append(params, req.Search)
+		}
+		if req.Name != "" {
+			params = append(params, "name:"+req.Name)
+		}
+		if req.Status != "" {
+			params = append(params, "status:"+string(req.Status))
+		}
+		if req.Role != "" {
+			params = append(params, "role:"+req.Role)
+		}
+		if req.SearchQuery != "" {
+			params = append(params, req.SearchQuery)
+		}
+		for _, lt := range req.LoginType {
+			params = append(params, "login_type:"+string(lt))
+		}
+		q.Set("q", strings.Join(params, " "))
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
 // MinimalUser is the minimal information needed to identify a user and show
 // them on the UI.
 type MinimalUser struct {
@@ -337,6 +364,14 @@ type OIDCAuthMethod struct {
 	AuthMethod
 	SignInText string `json:"signInText"`
 	IconURL    string `json:"iconUrl"`
+}
+
+// OIDCClaimsResponse represents the merged OIDC claims for a user.
+type OIDCClaimsResponse struct {
+	// Claims are the merged claims from the OIDC provider. These
+	// are the union of the ID token claims and the userinfo claims,
+	// where userinfo claims take precedence on conflict.
+	Claims map[string]interface{} `json:"claims"`
 }
 
 type UserParameter struct {
@@ -723,6 +758,20 @@ func (c *Client) UserRoles(ctx context.Context, user string) (UserRoles, error) 
 	return roles, json.NewDecoder(res.Body).Decode(&roles)
 }
 
+// UserOIDCClaims returns the merged OIDC claims for the authenticated user.
+func (c *Client) UserOIDCClaims(ctx context.Context) (OIDCClaimsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users/oidc-claims", nil)
+	if err != nil {
+		return OIDCClaimsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OIDCClaimsResponse{}, ReadBodyAsError(res)
+	}
+	var resp OIDCClaimsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 // LoginWithPassword creates a session token authenticating with an email and password.
 // Call `SetSessionToken()` to apply the newly acquired token to the client.
 func (c *Client) LoginWithPassword(ctx context.Context, req LoginWithPasswordRequest) (LoginWithPasswordResponse, error) {
@@ -859,30 +908,7 @@ func (c *Client) UpdateUserQuietHoursSchedule(ctx context.Context, userIdent str
 func (c *Client) Users(ctx context.Context, req UsersRequest) (GetUsersResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users", nil,
 		req.Pagination.asRequestOption(),
-		func(r *http.Request) {
-			q := r.URL.Query()
-			var params []string
-			if req.Search != "" {
-				params = append(params, req.Search)
-			}
-			if req.Name != "" {
-				params = append(params, "name:"+req.Name)
-			}
-			if req.Status != "" {
-				params = append(params, "status:"+string(req.Status))
-			}
-			if req.Role != "" {
-				params = append(params, "role:"+req.Role)
-			}
-			if req.SearchQuery != "" {
-				params = append(params, req.SearchQuery)
-			}
-			for _, lt := range req.LoginType {
-				params = append(params, "login_type:"+string(lt))
-			}
-			q.Set("q", strings.Join(params, " "))
-			r.URL.RawQuery = q.Encode()
-		},
+		req.asRequestOption(),
 	)
 	if err != nil {
 		return GetUsersResponse{}, err

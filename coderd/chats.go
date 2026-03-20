@@ -284,6 +284,41 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate MCP server IDs exist.
+	if len(req.MCPServerIDs) > 0 {
+		//nolint:gocritic // Need to validate MCP server IDs exist.
+		existingConfigs, err := api.Database.GetMCPServerConfigsByIDs(dbauthz.AsSystemRestricted(ctx), req.MCPServerIDs)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to validate MCP server IDs.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if len(existingConfigs) != len(req.MCPServerIDs) {
+			found := make(map[uuid.UUID]struct{}, len(existingConfigs))
+			for _, c := range existingConfigs {
+				found[c.ID] = struct{}{}
+			}
+			var missing []string
+			for _, id := range req.MCPServerIDs {
+				if _, ok := found[id]; !ok {
+					missing = append(missing, id.String())
+				}
+			}
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "One or more MCP server IDs are invalid.",
+				Detail:  fmt.Sprintf("Invalid IDs: %s", strings.Join(missing, ", ")),
+			})
+			return
+		}
+	}
+
+	mcpServerIDs := req.MCPServerIDs
+	if mcpServerIDs == nil {
+		mcpServerIDs = []uuid.UUID{}
+	}
+
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
@@ -291,6 +326,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		ModelConfigID:      modelConfigID,
 		SystemPrompt:       api.resolvedChatSystemPrompt(ctx),
 		InitialUserContent: contentBlocks,
+		MCPServerIDs:       mcpServerIDs,
 	})
 	if err != nil {
 		if maybeWriteLimitErr(ctx, rw, err) {
@@ -1456,6 +1492,36 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate MCP server IDs exist.
+	if req.MCPServerIDs != nil && len(*req.MCPServerIDs) > 0 {
+		//nolint:gocritic // Need to validate MCP server IDs exist.
+		existingConfigs, err := api.Database.GetMCPServerConfigsByIDs(dbauthz.AsSystemRestricted(ctx), *req.MCPServerIDs)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to validate MCP server IDs.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if len(existingConfigs) != len(*req.MCPServerIDs) {
+			found := make(map[uuid.UUID]struct{}, len(existingConfigs))
+			for _, c := range existingConfigs {
+				found[c.ID] = struct{}{}
+			}
+			var missing []string
+			for _, id := range *req.MCPServerIDs {
+				if _, ok := found[id]; !ok {
+					missing = append(missing, id.String())
+				}
+			}
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "One or more MCP server IDs are invalid.",
+				Detail:  fmt.Sprintf("Invalid IDs: %s", strings.Join(missing, ", ")),
+			})
+			return
+		}
+	}
+
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
@@ -1464,6 +1530,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			Content:       contentBlocks,
 			ModelConfigID: req.ModelConfigID,
 			BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+			MCPServerIDs:  req.MCPServerIDs,
 		},
 	)
 	if sendErr != nil {
@@ -2601,6 +2668,91 @@ func (api *API) putChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	raw, err := api.Database.GetChatWorkspaceTTL(ctx)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace TTL setting.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	// Validate/default the stored value so callers always receive a
+	// well-formed duration string.
+	d, err := codersdk.ParseChatWorkspaceTTL(raw)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Stored workspace TTL is invalid.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatWorkspaceTTLResponse{
+		WorkspaceTTLMillis: d.Milliseconds(),
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.UpdateChatWorkspaceTTLRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Validate before converting to avoid int64 overflow in the
+	// multiplication by time.Millisecond.
+	if req.WorkspaceTTLMillis < 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Workspace TTL must be non-negative.",
+		})
+		return
+	}
+
+	// Convert milliseconds to duration.
+	d := time.Duration(req.WorkspaceTTLMillis) * time.Millisecond
+
+	// Technically a duplication of validWorkspaceTTL but this is not scoped to templates.
+	if d > 0 && d < ttlMinimum {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Workspace TTL must not be less than 1 minute.",
+		})
+		return
+	}
+	if d > ttlMaximum {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Workspace TTL must not exceed 30 days.",
+		})
+		return
+	}
+
+	// Store the canonicalized duration string.
+	if err := api.Database.UpsertChatWorkspaceTTL(ctx, d.String()); httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	} else if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating workspace TTL setting.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -2979,6 +3131,10 @@ func truncateRunes(value string, maxLen int) string {
 }
 
 func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
+	mcpServerIDs := c.MCPServerIDs
+	if mcpServerIDs == nil {
+		mcpServerIDs = []uuid.UUID{}
+	}
 	chat := codersdk.Chat{
 		ID:                c.ID,
 		OwnerID:           c.OwnerID,
@@ -2988,6 +3144,7 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 		Archived:          c.Archived,
 		CreatedAt:         c.CreatedAt,
 		UpdatedAt:         c.UpdatedAt,
+		MCPServerIDs:      mcpServerIDs,
 	}
 	if c.LastError.Valid {
 		chat.LastError = &c.LastError.String
@@ -3413,6 +3570,16 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := api.Database.DeleteChatProviderByID(ctx, providerID); err != nil {
+		if database.IsForeignKeyViolation(err,
+			database.ForeignKeyChatMessagesModelConfigID,
+			database.ForeignKeyChatsLastModelConfigID,
+		) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Provider models are still referenced by existing chats.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete chat provider.",
 			Detail:  err.Error(),
