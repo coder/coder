@@ -28,6 +28,7 @@ import (
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	agplconnectionlog "github.com/coder/coder/v2/coderd/connectionlog"
+	"github.com/coder/coder/v2/coderd/connectionlogbatcher"
 	"github.com/coder/coder/v2/coderd/database"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -144,8 +145,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	if options.ConnectionLogger == nil {
+		connLogBatcher := connectionlogbatcher.New(
+			ctx,
+			options.Database,
+			connectionlogbatcher.WithLogger(options.Logger),
+		)
 		options.ConnectionLogger = connectionlog.NewConnectionLogger(
-			connectionlog.NewDBBackend(options.Database),
+			connectionlog.NewBatchDBBackend(connLogBatcher),
 			connectionlog.NewSlogBackend(options.Logger),
 		)
 	}
