@@ -111,7 +111,7 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 												size="sm"
 												type="button"
 												onClick={() => onEditUserOverride(override)}
-												disabled={deletePending}
+												disabled={deletePending || upsertPending}
 											>
 												Edit
 											</Button>
@@ -185,7 +185,8 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 									id={userOverrideAmountId}
 									type="number"
 									step="0.01"
-									min="0"
+									min="0.01"
+									disabled={upsertPending}
 									className="h-9 min-w-0 text-[13px]"
 									value={userOverrideAmount}
 									onChange={(event) =>
@@ -223,6 +224,7 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 										onSelectedUserChange(null);
 										onUserOverrideAmountChange("");
 									}}
+									disabled={upsertPending}
 								>
 									Cancel
 								</Button>

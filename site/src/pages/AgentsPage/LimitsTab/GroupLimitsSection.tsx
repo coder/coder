@@ -124,7 +124,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 												size="sm"
 												type="button"
 												onClick={() => onEditGroupOverride(override)}
-												disabled={deletePending}
+												disabled={deletePending || upsertPending}
 											>
 												Edit
 											</Button>
@@ -229,7 +229,8 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 									id={groupAmountId}
 									type="number"
 									step="0.01"
-									min="0"
+									min="0.01"
+									disabled={upsertPending}
 									className="h-9 min-w-0 text-[13px]"
 									value={groupAmount}
 									onChange={(event) => onGroupAmountChange(event.target.value)}
@@ -264,6 +265,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 										onSelectedGroupChange(null);
 										onGroupAmountChange("");
 									}}
+									disabled={upsertPending}
 								>
 									Cancel
 								</Button>

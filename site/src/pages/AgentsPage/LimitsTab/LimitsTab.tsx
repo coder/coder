@@ -205,6 +205,8 @@ export const LimitsTab: FC = () => {
 		avatar_url: string;
 		spend_limit_micros: number | null;
 	}) => {
+		setShowGroupForm(false);
+		setEditingGroupOverride(null);
 		setEditingUserOverride({
 			user_id: override.user_id,
 			name: override.name,
@@ -228,6 +230,8 @@ export const LimitsTab: FC = () => {
 		member_count: number;
 		spend_limit_micros: number | null;
 	}) => {
+		setShowUserForm(false);
+		setEditingUserOverride(null);
 		setEditingGroupOverride({
 			group_id: override.group_id,
 			group_display_name: override.group_display_name,
