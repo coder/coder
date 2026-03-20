@@ -82,7 +82,7 @@ export const RestrictToServiceAccountsDialog: Story = {
 		const user = userEvent.setup();
 		const body = within(canvasElement.ownerDocument.body);
 		const radio = await body.findByRole("radio", {
-			name: /service accounts only/i,
+			name: /only service accounts/i,
 		});
 		await user.click(radio);
 	},
