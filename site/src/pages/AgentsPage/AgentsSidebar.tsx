@@ -643,6 +643,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		}
 		if (toExpand.length > 0) {
 			setExpandedById((prev) => {
+				// Bail out if all ancestors are already expanded.
+				if (toExpand.every((id) => prev[id])) {
+					return prev;
+				}
 				const next = { ...prev };
 				for (const id of toExpand) {
 					next[id] = true;
