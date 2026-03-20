@@ -5,8 +5,10 @@ import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { type ComponentProps, useRef } from "react";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import type { ChatMessageInputRef } from "./AgentChatInput";
 import { createChatStore } from "./AgentDetail/ChatContext";
 import {
 	AgentDetailLoadingView,
@@ -75,12 +77,28 @@ const agentsRouting = [
 	...{ path: string; useStoryElement: boolean }[],
 ];
 
+const AgentDetailViewStoryHarness = (
+	args: ComponentProps<typeof AgentDetailView>,
+) => {
+	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
+
+	return (
+		<AgentDetailView
+			{...args}
+			editing={{ ...args.editing, chatInputRef }}
+			scrollContainerRef={scrollContainerRef}
+		/>
+	);
+};
+
 // ---------------------------------------------------------------------------
 // Meta
 // ---------------------------------------------------------------------------
 const meta: Meta<typeof AgentDetailView> = {
 	title: "pages/AgentsPage/AgentDetailView",
 	component: AgentDetailView,
+	render: (args) => <AgentDetailViewStoryHarness {...args} />,
 	decorators: [withAuthProvider, withDashboardProvider],
 	parameters: {
 		layout: "fullscreen",
@@ -136,7 +154,6 @@ const meta: Meta<typeof AgentDetailView> = {
 		handleArchiveAgentAction: fn(),
 		handleUnarchiveAgentAction: fn(),
 		handleArchiveAndDeleteWorkspaceAction: fn(),
-		scrollContainerRef: { current: null },
 	},
 };
 
