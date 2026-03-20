@@ -390,13 +390,15 @@ const AgentsPage: FC = () => {
 					const chatEvent = sse.data;
 					const updatedChat = chatEvent.chat;
 
-					// Read the previous status from the query cache, which
-					// is synchronously updated by both the per-chat WebSocket
-					// (via updateSidebarChat) and this handler. This avoids
-					// the async-lag of a useEffect-based status map.
-					const prevStatus = queryClient.getQueryData<TypesGen.Chat>(
-						chatKey(updatedChat.id),
-					)?.status; // Only play the chime for top-level chats, not sub-agents.
+					// Read the previous status from the infinite chat list
+					// cache before we write the update below. The per-chat
+					// query cache (chatKey) only exists for chats the user
+					// has opened, so reading from the list cache ensures
+					// prevStatus is available for background agents too.
+					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
+						(c) => c.id === updatedChat.id,
+					)?.status;
+					// Only play the chime for top-level chats, not sub-agents.
 					if (!updatedChat.parent_chat_id) {
 						maybePlayChime(
 							prevStatus,
