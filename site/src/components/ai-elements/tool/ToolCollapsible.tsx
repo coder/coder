@@ -1,4 +1,4 @@
-import { ChevronDownIcon, WrenchIcon } from "lucide-react";
+import { ChevronDownIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { useState } from "react";
 import { cn } from "utils/cn";
@@ -20,7 +20,7 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 	defaultExpanded = false,
 	className,
 	headerClassName,
-	icon = <WrenchIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />,
+	icon = null,
 }) => {
 	const [expanded, setExpanded] = useState(defaultExpanded);
 
@@ -42,7 +42,7 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 	return (
 		<div
 			className={cn(
-				"overflow-hidden rounded-lg border border-solid border-border-default/40 bg-surface-secondary/30",
+				"overflow-hidden rounded-lg border border-solid border-border-default/30 bg-surface-secondary/20",
 				className,
 			)}
 		>
@@ -52,7 +52,7 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 					aria-expanded={expanded}
 					onClick={() => setExpanded(!expanded)}
 					className={cn(
-						"m-0 flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2 text-left font-[inherit] text-[inherit] transition-colors hover:bg-surface-tertiary/30",
+						"m-0 flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-1.5 text-left font-[inherit] text-[inherit] transition-colors hover:bg-surface-tertiary/30",
 						headerClassName,
 					)}
 				>
@@ -61,7 +61,7 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 			) : (
 				<div
 					className={cn(
-						"flex w-full items-center gap-2 px-3 py-2",
+						"flex w-full items-center gap-2 px-3 py-1.5",
 						headerClassName,
 					)}
 				>

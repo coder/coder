@@ -74,7 +74,10 @@ export const WriteFileTool: React.FC<{
 				>
 					<FileDiff
 						fileDiff={diff}
-						options={getDiffViewerOptions(isDark)}
+						options={{
+							...getDiffViewerOptions(isDark),
+							disableFileHeader: true,
+						}}
 						style={DIFFS_FONT_STYLE}
 					/>
 				</ScrollArea>
