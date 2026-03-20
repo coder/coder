@@ -629,21 +629,27 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	);
 
 	// Auto-expand ancestors of the active chat so it's always visible.
+	// Only runs when activeChatId changes — not on every parentById
+	// recalculation — so user-initiated collapse is preserved.
+	const parentByIdRef = useRef(chatTree.parentById);
+	useEffect(() => {
+		parentByIdRef.current = chatTree.parentById;
+	});
 	useEffect(() => {
 		if (!activeChatId) {
 			return;
 		}
+		const parentById = parentByIdRef.current;
 		const toExpand: string[] = [];
-		let cursor = chatTree.parentById.get(activeChatId);
+		let cursor = parentById.get(activeChatId);
 		const seen = new Set<string>();
 		while (cursor && !seen.has(cursor)) {
 			seen.add(cursor);
 			toExpand.push(cursor);
-			cursor = chatTree.parentById.get(cursor);
+			cursor = parentById.get(cursor);
 		}
 		if (toExpand.length > 0) {
 			setExpandedById((prev) => {
-				// Bail out if all ancestors are already expanded.
 				if (toExpand.every((id) => prev[id])) {
 					return prev;
 				}
@@ -654,8 +660,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				return next;
 			});
 		}
-	}, [activeChatId, chatTree.parentById]);
-
+	}, [activeChatId]);
 	const toggleExpanded = (chatID: string) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
 	};

@@ -6,6 +6,7 @@
 	"ignoreBinaries": ["protoc"],
 	"ignoreDependencies": [
 		"@types/react-virtualized-auto-sizer",
+		"babel-plugin-react-compiler",
 		"jest_workaround",
 		"ts-proto"
 	],
