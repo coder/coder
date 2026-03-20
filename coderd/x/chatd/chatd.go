@@ -1980,7 +1980,17 @@ func (p *Server) Subscribe(
 					}:
 					}
 				}
-				if notify.Error != "" {
+				if notify.ErrorPayload != nil {
+					select {
+					case <-mergedCtx.Done():
+						return
+					case mergedEvents <- codersdk.ChatStreamEvent{
+						Type:   codersdk.ChatStreamEventTypeError,
+						ChatID: chatID,
+						Error:  notify.ErrorPayload,
+					}:
+					}
+				} else if notify.Error != "" {
 					select {
 					case <-mergedCtx.Done():
 						return
@@ -2209,7 +2219,8 @@ func (p *Server) publishError(chatID uuid.UUID, classified chaterror.ClassifiedE
 		Error: payload,
 	})
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
-		Error: payload.Message,
+		ErrorPayload: payload,
+		Error:        payload.Message,
 	})
 }
 

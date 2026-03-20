@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
@@ -451,7 +452,11 @@ func TestSubscribeDeliversRetryEventViaPubsubOnce(t *testing.T) {
 	expected := &codersdk.ChatStreamRetry{
 		Attempt:    1,
 		DelayMs:    (1500 * time.Millisecond).Milliseconds(),
-		Error:      "rate limit exceeded",
+		Error:      "OpenAI is rate limiting requests (HTTP 429). Please try again later.",
+		Kind:       chaterror.KindRateLimit,
+		Provider:   "openai",
+		Retryable:  true,
+		StatusCode: 429,
 		RetryingAt: retryingAt,
 	}
 
@@ -459,6 +464,81 @@ func TestSubscribeDeliversRetryEventViaPubsubOnce(t *testing.T) {
 
 	event := requireStreamRetryEvent(t, events)
 	require.Equal(t, expected, event.Retry)
+	requireNoStreamEvent(t, events, 200*time.Millisecond)
+}
+
+func TestSubscribePrefersStructuredErrorPayloadViaPubsub(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusPending}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return(nil, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+	)
+
+	server := newSubscribeTestServer(t, db)
+	_, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	classified := chaterror.ClassifiedError{
+		Message:    "OpenAI is rate limiting requests (HTTP 429). Please try again later.",
+		Kind:       chaterror.KindRateLimit,
+		Provider:   "openai",
+		Retryable:  true,
+		StatusCode: 429,
+	}
+	server.publishError(chatID, classified)
+
+	event := requireStreamErrorEvent(t, events)
+	require.Equal(t, chaterror.StreamErrorPayload(classified), event.Error)
+	requireNoStreamEvent(t, events, 200*time.Millisecond)
+}
+
+func TestSubscribeFallsBackToLegacyErrorStringViaPubsub(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusPending}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return(nil, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+	)
+
+	server := newSubscribeTestServer(t, db)
+	_, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	server.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
+		Error: "legacy error only",
+	})
+
+	event := requireStreamErrorEvent(t, events)
+	require.Equal(t, &codersdk.ChatStreamError{Message: "legacy error only"}, event.Error)
 	requireNoStreamEvent(t, events, 200*time.Millisecond)
 }
 
@@ -501,17 +581,17 @@ func requireStreamRetryEvent(t *testing.T, events <-chan codersdk.ChatStreamEven
 	}
 }
 
-func requireStreamRetryEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent) codersdk.ChatStreamEvent {
+func requireStreamErrorEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent) codersdk.ChatStreamEvent {
 	t.Helper()
 
 	select {
 	case event, ok := <-events:
 		require.True(t, ok, "chat stream closed before delivering an event")
-		require.Equal(t, codersdk.ChatStreamEventTypeRetry, event.Type)
-		require.NotNil(t, event.Retry)
+		require.Equal(t, codersdk.ChatStreamEventTypeError, event.Type)
+		require.NotNil(t, event.Error)
 		return event
 	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for chat stream retry event")
+		t.Fatal("timed out waiting for chat stream error event")
 		return codersdk.ChatStreamEvent{}
 	}
 }
