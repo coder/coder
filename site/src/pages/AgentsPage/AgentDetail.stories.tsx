@@ -17,6 +17,7 @@ import {
 	chatMessagesKey,
 	chatModelsKey,
 	chatsKey,
+	infiniteChats,
 } from "api/queries/chats";
 import { workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
@@ -228,6 +229,46 @@ const buildQueries = (
  */
 const wrapSSE = (payload: unknown): string =>
 	JSON.stringify({ type: "data", data: payload });
+
+const buildInfiniteChatsQuery = (chat: TypesGen.Chat) => ({
+	key: infiniteChats().queryKey,
+	data: {
+		pages: [[chat]],
+		pageParams: [0],
+	},
+});
+
+const buildLongConversationMessages = (
+	count: number,
+): TypesGen.ChatMessage[] => {
+	const startTime = Date.parse("2026-02-18T00:00:00.000Z");
+
+	return Array.from({ length: count }, (_, index) => {
+		const turn = Math.floor(index / 2) + 1;
+		const isUser = index % 2 === 0;
+		const text = isUser
+			? `Turn ${turn}: walk me through the next migration step and call out any edge cases for batch ${turn}.`
+			: [
+					`### Turn ${turn} summary`,
+					"",
+					`- Reviewed migration batch ${turn}.`,
+					`- Captured validation checkpoints for service ${turn}.`,
+					"- Documented rollback guardrails before rollout.",
+					"",
+					"```ts",
+					`const batch${turn} = { status: "ready", index: ${turn} };`,
+					"```",
+				].join("\n");
+
+		return {
+			id: index + 1,
+			chat_id: CHAT_ID,
+			created_at: new Date(startTime + index * 30_000).toISOString(),
+			role: isUser ? "user" : "assistant",
+			content: [{ type: "text", text }],
+		};
+	});
+};
 
 // ---------------------------------------------------------------------------
 // Meta
@@ -583,6 +624,79 @@ export const WithMessageHistory: Story = {
 						],
 					},
 				],
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+};
+
+/** Warm cache path with chat metadata already available before render. */
+export const CachedData: Story = {
+	parameters: {
+		queries: [
+			...buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Warm cache workspace metadata",
+					status: "completed",
+				},
+				{
+					messages: [
+						{
+							id: 1,
+							chat_id: CHAT_ID,
+							created_at: "2026-02-18T00:01:00.000Z",
+							role: "user",
+							content: [
+								{
+									type: "text",
+									text: "Use cached chat metadata to open the workspace panel without waiting for a fresh detail fetch.",
+								},
+							],
+						},
+						{
+							id: 2,
+							chat_id: CHAT_ID,
+							created_at: "2026-02-18T00:01:30.000Z",
+							role: "assistant",
+							content: [
+								{
+									type: "text",
+									text: "Workspace metadata is already cached, so the detail view can kick off workspace loading immediately.",
+								},
+							],
+						},
+					],
+					queued_messages: [],
+					has_more: false,
+				},
+				{ diffUrl: undefined },
+			),
+			buildInfiniteChatsQuery({
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Warm cache workspace metadata",
+				status: "completed",
+			}),
+		],
+	},
+};
+
+/** Long transcript for scrolling and transcript rendering inspection. */
+export const LongConversation: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Long conversation transcript",
+				status: "completed",
+			},
+			{
+				messages: buildLongConversationMessages(60),
 				queued_messages: [],
 				has_more: false,
 			},

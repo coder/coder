@@ -2,6 +2,7 @@ import { API, watchWorkspace } from "api/api";
 import { isApiError } from "api/errors";
 import {
 	chat,
+	chatKey,
 	chatMessagesForInfiniteScroll,
 	chats,
 	createChatMessage,
@@ -9,6 +10,7 @@ import {
 	editChatMessage,
 	interruptChat,
 	promoteChatQueuedMessage,
+	readInfiniteChatsCache,
 } from "api/queries/chats";
 import { deploymentSSHConfig } from "api/queries/deployment";
 import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
@@ -234,6 +236,24 @@ export function useConversationEditingState(deps: {
 	};
 }
 
+/** @internal Exported for testing. */
+export function useCachedWorkspaceId(agentId: string | undefined) {
+	const queryClient = useQueryClient();
+
+	if (!agentId) {
+		return undefined;
+	}
+
+	const cachedChat = queryClient.getQueryData<TypesGen.Chat>(chatKey(agentId));
+	if (cachedChat) {
+		return cachedChat.workspace_id;
+	}
+
+	return readInfiniteChatsCache(queryClient)?.find(
+		(chat) => chat.id === agentId,
+	)?.workspace_id;
+}
+
 const AgentDetail: FC = () => {
 	const navigate = useNavigate();
 	const { agentId } = useParams<{ agentId: string }>();
@@ -286,6 +306,7 @@ const AgentDetail: FC = () => {
 		[],
 	);
 
+	const cachedWorkspaceId = useCachedWorkspaceId(agentId);
 	const chatQuery = useQuery({
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
@@ -295,7 +316,7 @@ const AgentDetail: FC = () => {
 		enabled: Boolean(agentId),
 	});
 	const chatsQuery = useQuery(chats());
-	const workspaceId = chatQuery.data?.workspace_id;
+	const workspaceId = chatQuery.data?.workspace_id ?? cachedWorkspaceId;
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),

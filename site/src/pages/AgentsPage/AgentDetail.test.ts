@@ -1,11 +1,94 @@
+import { createTestQueryClient } from "testHelpers/renderHelpers";
 import { act, renderHook } from "@testing-library/react";
-import { createRef } from "react";
+import { chatKey, infiniteChats } from "api/queries/chats";
+import type * as TypesGen from "api/typesGenerated";
+import { createElement, createRef, type ReactNode } from "react";
+import { QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessageInputRef } from "./AgentChatInput";
 import {
 	draftInputStorageKeyPrefix,
+	useCachedWorkspaceId,
 	useConversationEditingState,
 } from "./AgentDetail";
+
+const makeChat = (chatID: string, workspaceID?: string): TypesGen.Chat => ({
+	id: chatID,
+	owner_id: "owner-1",
+	workspace_id: workspaceID,
+	last_model_config_id: "model-1",
+	mcp_server_ids: [],
+	title: "test",
+	status: "running",
+	created_at: "2025-01-01T00:00:00.000Z",
+	updated_at: "2025-01-01T00:00:00.000Z",
+	archived: false,
+	last_error: null,
+});
+
+const createQueryClientWrapper = (
+	queryClient: ReturnType<typeof createTestQueryClient>,
+) => {
+	return ({ children }: { children: ReactNode }) =>
+		createElement(QueryClientProvider, { client: queryClient }, children);
+};
+
+describe("useCachedWorkspaceId", () => {
+	const chatID = "chat-abc-123";
+	const workspaceID = "workspace-abc-123";
+
+	const renderCachedWorkspaceId = (
+		queryClient = createTestQueryClient(),
+		id: string | undefined = chatID,
+	) => {
+		return renderHook(() => useCachedWorkspaceId(id), {
+			wrapper: createQueryClientWrapper(queryClient),
+		});
+	};
+
+	it("returns the workspace_id from the per-chat cache", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatKey(chatID), makeChat(chatID, workspaceID));
+
+		const { result } = renderCachedWorkspaceId(queryClient);
+
+		expect(result.current).toBe(workspaceID);
+	});
+
+	it("falls back to the infinite chats cache when the per-chat cache is empty", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(infiniteChats().queryKey, {
+			pages: [[makeChat(chatID, workspaceID)]],
+			pageParams: [0],
+		});
+
+		const { result } = renderCachedWorkspaceId(queryClient);
+
+		expect(result.current).toBe(workspaceID);
+	});
+
+	it("returns undefined when the chat is missing from every cache", () => {
+		const { result } = renderCachedWorkspaceId();
+
+		expect(result.current).toBeUndefined();
+	});
+
+	it("does not leak workspace IDs from other cached chats", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(
+			chatKey("chat-other"),
+			makeChat("chat-other", "workspace-other"),
+		);
+		queryClient.setQueryData(infiniteChats().queryKey, {
+			pages: [[makeChat("chat-other", "workspace-other")]],
+			pageParams: [0],
+		});
+
+		const { result } = renderCachedWorkspaceId(queryClient);
+
+		expect(result.current).toBeUndefined();
+	});
+});
 
 describe("useConversationEditingState", () => {
 	const chatID = "chat-abc-123";
