@@ -5,9 +5,8 @@ import { Button } from "components/Button/Button";
 import { ArchiveIcon, ArrowDownIcon } from "lucide-react";
 import {
 	type FC,
-	lazy,
+	type ReactNode,
 	type RefObject,
-	Suspense,
 	useCallback,
 	useEffect,
 	useRef,
@@ -36,6 +35,12 @@ export type AgentDetailSidebarModules = [
 	typeof import("./GitPanel"),
 ];
 
+export interface AgentDetailSidebarComponents {
+	RightPanel: typeof import("./RightPanel")["RightPanel"];
+	SidebarTabView: typeof import("./SidebarTabView")["SidebarTabView"];
+	GitPanel: typeof import("./GitPanel")["GitPanel"];
+}
+
 export const createAgentDetailSidebarModulesLoader = (
 	loadModules: () => Promise<AgentDetailSidebarModules> = () =>
 		Promise.all([
@@ -48,10 +53,9 @@ export const createAgentDetailSidebarModulesLoader = (
 
 	return () => {
 		if (!modulesPromise) {
-			// React will invoke each lazy loader independently. Cache the shared
-			// sidebar import sequence so opening the panel only builds one
-			// Promise chain for all three modules. Clear the cache if the shared
-			// import fails so a later open can retry.
+			// Share a single deferred import across the sidebar modules. If the
+			// import fails, clear the cached Promise so a later sidebar open can
+			// retry instead of reusing a rejected load.
 			try {
 				modulesPromise = loadModules().catch((error) => {
 					modulesPromise = undefined;
@@ -67,25 +71,92 @@ export const createAgentDetailSidebarModulesLoader = (
 	};
 };
 
-const loadAgentDetailSidebarModules = createAgentDetailSidebarModulesLoader();
+const createAgentDetailSidebarComponentsLoader = (
+	loadModules: () => Promise<AgentDetailSidebarModules> = () =>
+		Promise.all([
+			import("./RightPanel"),
+			import("./SidebarTabView"),
+			import("./GitPanel"),
+		]) as Promise<AgentDetailSidebarModules>,
+) => {
+	const loadSidebarModules = createAgentDetailSidebarModulesLoader(loadModules);
 
-const RightPanel = lazy(() =>
-	loadAgentDetailSidebarModules().then(([module]) => ({
-		default: module.RightPanel,
-	})),
-);
+	return async (): Promise<AgentDetailSidebarComponents> => {
+		const [rightPanelModule, sidebarTabViewModule, gitPanelModule] =
+			await loadSidebarModules();
 
-const SidebarTabView = lazy(() =>
-	loadAgentDetailSidebarModules().then(([, module]) => ({
-		default: module.SidebarTabView,
-	})),
-);
+		return {
+			RightPanel: rightPanelModule.RightPanel,
+			SidebarTabView: sidebarTabViewModule.SidebarTabView,
+			GitPanel: gitPanelModule.GitPanel,
+		};
+	};
+};
 
-const GitPanel = lazy(() =>
-	loadAgentDetailSidebarModules().then(([, , module]) => ({
-		default: module.GitPanel,
-	})),
-);
+const loadAgentDetailSidebarComponents =
+	createAgentDetailSidebarComponentsLoader();
+
+interface DeferredAgentDetailSidebarProps {
+	isOpen: boolean;
+	loadSidebarComponents?: () => Promise<AgentDetailSidebarComponents>;
+	fallback?: ReactNode;
+	children: (components: AgentDetailSidebarComponents) => ReactNode;
+}
+
+export const DeferredAgentDetailSidebar: FC<
+	DeferredAgentDetailSidebarProps
+> = ({
+	isOpen,
+	loadSidebarComponents = loadAgentDetailSidebarComponents,
+	fallback = <AgentDetailSidebarPanelLoadingFallback />,
+	children,
+}) => {
+	const [sidebarComponents, setSidebarComponents] =
+		useState<AgentDetailSidebarComponents>();
+	const [sidebarLoadFailed, setSidebarLoadFailed] = useState(false);
+
+	useEffect(() => {
+		if (isOpen || !sidebarLoadFailed) {
+			return;
+		}
+
+		setSidebarLoadFailed(false);
+	}, [isOpen, sidebarLoadFailed]);
+
+	useEffect(() => {
+		if (!isOpen || sidebarComponents || sidebarLoadFailed) {
+			return;
+		}
+
+		let cancelled = false;
+
+		loadSidebarComponents()
+			.then((components) => {
+				if (!cancelled) {
+					setSidebarComponents(components);
+				}
+			})
+			.catch(() => {
+				if (!cancelled) {
+					setSidebarLoadFailed(true);
+				}
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [isOpen, loadSidebarComponents, sidebarComponents, sidebarLoadFailed]);
+
+	if (!isOpen) {
+		return null;
+	}
+
+	if (!sidebarComponents) {
+		return <>{fallback}</>;
+	}
+
+	return <>{children(sidebarComponents)}</>;
+};
 
 export const AgentDetailSidebarPanelLoadingFallback: FC = () => (
 	<div className="relative flex h-full w-[100vw] min-w-0 flex-col border-0 border-l border-solid border-border-default sm:w-[480px] sm:min-w-[360px] sm:max-w-[70vw]">
@@ -382,8 +453,8 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 					/>
 				</div>
 			</div>
-			{shouldShowSidebar && (
-				<Suspense fallback={<AgentDetailSidebarPanelLoadingFallback />}>
+			<DeferredAgentDetailSidebar isOpen={shouldShowSidebar}>
+				{({ RightPanel, SidebarTabView, GitPanel }) => (
 					<RightPanel
 						isOpen={shouldShowSidebar}
 						isExpanded={isRightPanelExpanded}
@@ -424,8 +495,8 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							desktopChatId={desktopChatId}
 						/>
 					</RightPanel>
-				</Suspense>
-			)}
+				)}
+			</DeferredAgentDetailSidebar>
 		</div>
 	);
 };
