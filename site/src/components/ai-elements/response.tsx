@@ -161,22 +161,24 @@ const CodeBlock = ({
 					</div>
 				</div>
 			)}
-			<FileViewer
-				file={{
-					name: `block.${lang}`,
-					lang: lang as SupportedLanguages,
-					contents: content,
-					cacheKey: content,
-				}}
-				options={{
-					overflow: "scroll",
-					themeType: fileViewerThemeType,
-					disableFileHeader: true,
-					disableLineNumbers: true,
-					theme: viewerTheme,
-					unsafeCSS: fileViewerCSS,
-				}}
-			/>
+			<div className="max-h-96 overflow-auto">
+				<FileViewer
+					file={{
+						name: `block.${lang}`,
+						lang: lang as SupportedLanguages,
+						contents: content,
+						cacheKey: content,
+					}}
+					options={{
+						overflow: "scroll",
+						themeType: fileViewerThemeType,
+						disableFileHeader: true,
+						disableLineNumbers: content.split("\n").length <= 3,
+						theme: viewerTheme,
+						unsafeCSS: fileViewerCSS,
+					}}
+				/>
+			</div>
 		</div>
 	);
 };

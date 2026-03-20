@@ -25,7 +25,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { FileTextIcon, PencilIcon } from "lucide-react";
+import { BotIcon, FileTextIcon, PencilIcon, UserIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -184,9 +184,9 @@ type RenderBlockListResult = {
 const ASSISTANT_CONTENT_CLASSES = "whitespace-normal";
 const BLOCK_STACK_CLASSES = "space-y-2";
 const TOOL_SHELL_CLASSES =
-	"rounded-md border-l-2 border-border-default bg-surface-secondary/50 py-1 pl-3 pr-1";
+	"rounded-lg border border-border-default/60 bg-surface-secondary/40 p-3";
 const THINKING_SHELL_CLASSES =
-	"rounded-md border-l-2 border-content-secondary/40 bg-surface-secondary/30 py-1.5 pl-3 pr-1";
+	"rounded-lg border border-content-secondary/20 bg-surface-secondary/20 p-3";
 const FILE_REFERENCE_SHELL_CLASSES =
 	"rounded-md border-l-2 border-border-default/70 bg-surface-secondary/40 py-1.5 pl-3 pr-1";
 
@@ -341,6 +341,24 @@ function renderBlockList({
 	return { elements, renderedToolIDs };
 }
 
+const RoleIndicator: FC<{
+	label: string;
+	turnRole: "user" | "assistant";
+}> = ({ label, turnRole }) => {
+	const Icon = turnRole === "assistant" ? BotIcon : UserIcon;
+
+	return (
+		<div className="mb-1.5 flex items-center gap-1.5 select-none text-xs font-medium text-content-secondary">
+			<Icon className="h-3.5 w-3.5" />
+			<span>{label}</span>
+		</div>
+	);
+};
+
+const TurnSeparator = () => (
+	<hr aria-hidden className="border-0 border-t border-border-default/40" />
+);
+
 // Shared wrapper providing consistent chrome for every transcript turn.
 // Supplies: deep-link anchor, role label, and the standard
 // ConversationItem → Message → MessageContent stack.
@@ -361,9 +379,7 @@ const TurnChrome: FC<{
 }) => (
 	<ConversationItem id={id} role={turnRole}>
 		<Message className={cn("w-full", messageClassName)}>
-			<span className="mb-1 select-none text-xs font-medium text-content-secondary">
-				{label}
-			</span>
+			<RoleIndicator label={label} turnRole={turnRole} />
 			<MessageContent className={contentClassName}>{children}</MessageContent>
 		</Message>
 	</ConversationItem>
@@ -465,9 +481,7 @@ const ChatMessageItem = memo<{
 				{isUser ? (
 					<ConversationItem {...userConversationItemProps}>
 						<Message className="w-full max-w-none">
-							<span className="mb-1 select-none text-xs font-medium text-content-secondary">
-								You
-							</span>
+							<RoleIndicator label="You" turnRole="user" />
 							<MessageContent
 								className={cn(
 									"group/msg rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
@@ -596,14 +610,15 @@ const ChatMessageItem = memo<{
 						<div className={BLOCK_STACK_CLASSES}>
 							{orderedBlocks}
 							{remainingTools.map((tool) => (
-								<Tool
-									key={tool.id}
-									name={tool.name}
-									args={tool.args}
-									result={tool.result}
-									status={tool.status}
-									isError={tool.isError}
-								/>
+								<div key={tool.id} className={TOOL_SHELL_CLASSES}>
+									<Tool
+										name={tool.name}
+										args={tool.args}
+										result={tool.result}
+										status={tool.status}
+										isError={tool.isError}
+									/>
+								</div>
 							))}
 							{!hasRenderableContent && (
 								<div className="text-xs text-content-secondary">
@@ -688,16 +703,17 @@ export const StreamingOutput = memo<{
 						</div>
 					) : null}
 					{remainingTools.map((tool) => (
-						<Tool
-							key={tool.id}
-							name={tool.name}
-							args={tool.args}
-							result={tool.result}
-							status={tool.status}
-							isError={tool.isError}
-							subagentTitles={subagentTitles}
-							subagentStatusOverrides={subagentStatusOverrides}
-						/>
+						<div key={tool.id} className={TOOL_SHELL_CLASSES}>
+							<Tool
+								name={tool.name}
+								args={tool.args}
+								result={tool.result}
+								status={tool.status}
+								isError={tool.isError}
+								subagentTitles={subagentTitles}
+								subagentStatusOverrides={subagentStatusOverrides}
+							/>
+						</div>
 					))}
 				</div>
 			</TurnChrome>
@@ -1039,38 +1055,42 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 				</div>
 			) : (
 				<div className="flex flex-col gap-3">
-					{parsedMessages.map(({ message, parsed }) =>
-						message.role === "user" ? (
-							<StickyUserMessage
-								key={message.id}
-								message={message}
-								parsed={parsed}
-								onEditUserMessage={onEditUserMessage}
-								editingMessageId={editingMessageId}
-								savingMessageId={savingMessageId}
-								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-							/>
-						) : (
-							<ChatMessageItem
-								key={message.id}
-								message={message}
-								parsed={parsed}
-								savingMessageId={savingMessageId}
-								urlTransform={urlTransform}
-								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-							/>
-						),
-					)}
+					{parsedMessages.map(({ message, parsed }, index) => (
+						<Fragment key={message.id}>
+							{message.role === "user" ? (
+								<StickyUserMessage
+									message={message}
+									parsed={parsed}
+									onEditUserMessage={onEditUserMessage}
+									editingMessageId={editingMessageId}
+									savingMessageId={savingMessageId}
+									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+								/>
+							) : (
+								<ChatMessageItem
+									message={message}
+									parsed={parsed}
+									savingMessageId={savingMessageId}
+									urlTransform={urlTransform}
+									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+								/>
+							)}
+							{index < parsedMessages.length - 1 && <TurnSeparator />}
+						</Fragment>
+					))}
 					{shouldRenderStreamAfterMessages && (
-						<StreamingOutput
-							streamState={streamState}
-							streamTools={streamTools}
-							subagentTitles={subagentTitles}
-							subagentStatusOverrides={subagentStatusOverrides}
-							showInitialPlaceholder={isAwaitingFirstStreamChunk}
-							retryState={retryState}
-							urlTransform={urlTransform}
-						/>
+						<>
+							<TurnSeparator />
+							<StreamingOutput
+								streamState={streamState}
+								streamTools={streamTools}
+								subagentTitles={subagentTitles}
+								subagentStatusOverrides={subagentStatusOverrides}
+								showInitialPlaceholder={isAwaitingFirstStreamChunk}
+								retryState={retryState}
+								urlTransform={urlTransform}
+							/>
+						</>
 					)}
 					{hasStreamOutput && parsedMessages.length === 0 && (
 						<StreamingOutput
