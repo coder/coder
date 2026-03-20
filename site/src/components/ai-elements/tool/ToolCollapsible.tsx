@@ -36,20 +36,28 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 		</>
 	);
 
+	const containerClasses = hasContent
+		? expanded
+			? "overflow-hidden rounded-lg border border-solid border-border-default/50 bg-surface-secondary/20"
+			: "rounded-lg border border-solid border-border-default/30 bg-surface-secondary/20"
+		: "rounded-lg bg-surface-secondary/30";
+
+	const headerBg = hasContent
+		? expanded
+			? "bg-surface-tertiary"
+			: "bg-surface-tertiary/50"
+		: "";
+
 	return (
-		<div
-			className={cn(
-				"overflow-hidden rounded-lg border border-solid border-border-default/50 bg-surface-secondary/20",
-				className,
-			)}
-		>
+		<div className={cn(containerClasses, className)}>
 			{hasContent ? (
 				<button
 					type="button"
 					aria-expanded={expanded}
 					onClick={() => setExpanded(!expanded)}
 					className={cn(
-						"m-0 flex w-full cursor-pointer items-center gap-2 border-0 bg-surface-tertiary px-3 py-1.5 text-left font-[inherit] text-[inherit] transition-colors hover:bg-surface-tertiary",
+						"m-0 flex w-full cursor-pointer items-center gap-2 border-0 px-3 py-1.5 text-left font-[inherit] text-[inherit] transition-colors hover:bg-surface-tertiary/60",
+						headerBg,
 						headerClassName,
 					)}
 				>
@@ -58,7 +66,8 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 			) : (
 				<div
 					className={cn(
-						"flex w-full items-center gap-2 bg-surface-tertiary px-3 py-1.5",
+						"flex w-full items-center gap-2 px-3 py-1.5",
+						headerBg,
 						headerClassName,
 					)}
 				>
