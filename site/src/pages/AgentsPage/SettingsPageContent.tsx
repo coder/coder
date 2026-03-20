@@ -40,7 +40,7 @@ import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ChevronLeftIcon, ShieldIcon } from "lucide-react";
-import { type FC, type FormEvent, useCallback, useMemo, useState } from "react";
+import { type FC, type FormEvent, useState } from "react";
 import {
 	keepPreviousData,
 	useMutation,
@@ -170,79 +170,58 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 	const startDateParam =
 		searchParams.get(usageStartDateSearchParam)?.trim() ?? "";
 	const endDateParam = searchParams.get(usageEndDateSearchParam)?.trim() ?? "";
-	const { dateRange, hasExplicitDateRange } = useMemo(() => {
-		if (startDateParam && endDateParam) {
-			const parsedStartDate = new Date(startDateParam);
-			const parsedEndDate = new Date(endDateParam);
+	let dateRange = getDefaultUsageDateRange(now);
+	let hasExplicitDateRange = false;
 
-			if (
-				!Number.isNaN(parsedStartDate.getTime()) &&
-				!Number.isNaN(parsedEndDate.getTime()) &&
-				parsedStartDate.getTime() <= parsedEndDate.getTime()
-			) {
-				return {
-					dateRange: {
-						startDate: parsedStartDate,
-						endDate: parsedEndDate,
-					},
-					hasExplicitDateRange: true,
-				};
+	if (startDateParam && endDateParam) {
+		const parsedStartDate = new Date(startDateParam);
+		const parsedEndDate = new Date(endDateParam);
+
+		if (
+			!Number.isNaN(parsedStartDate.getTime()) &&
+			!Number.isNaN(parsedEndDate.getTime()) &&
+			parsedStartDate.getTime() <= parsedEndDate.getTime()
+		) {
+			dateRange = {
+				startDate: parsedStartDate,
+				endDate: parsedEndDate,
+			};
+			hasExplicitDateRange = true;
+		}
+	}
+
+	const dateRangeParams = {
+		start_date: dateRange.startDate.toISOString(),
+		end_date: dateRange.endDate.toISOString(),
+	};
+	const { endDate } = dateRange;
+	const isExclusiveMidnightEnd =
+		hasExplicitDateRange &&
+		endDate.getHours() === 0 &&
+		endDate.getMinutes() === 0 &&
+		endDate.getSeconds() === 0 &&
+		endDate.getMilliseconds() === 0;
+	const displayDateRange = isExclusiveMidnightEnd
+		? {
+				startDate: dateRange.startDate,
+				endDate: new Date(endDate.getTime() - 1),
 			}
-		}
-
-		return {
-			dateRange: getDefaultUsageDateRange(now),
-			hasExplicitDateRange: false,
-		};
-	}, [startDateParam, endDateParam, now]);
-	const startDateTime = dateRange.startDate.getTime();
-	const endDateTime = dateRange.endDate.getTime();
-	const dateRangeParams = useMemo(
-		() => ({
-			start_date: new Date(startDateTime).toISOString(),
-			end_date: new Date(endDateTime).toISOString(),
-		}),
-		[startDateTime, endDateTime],
-	);
-	const displayDateRange = useMemo(() => {
-		const { endDate } = dateRange;
-		const isExclusiveMidnightEnd =
-			hasExplicitDateRange &&
-			endDate.getHours() === 0 &&
-			endDate.getMinutes() === 0 &&
-			endDate.getSeconds() === 0 &&
-			endDate.getMilliseconds() === 0;
-
-		if (!isExclusiveMidnightEnd) {
-			return dateRange;
-		}
-
-		// Custom full-day selections store the end boundary as the following
-		// midnight. Shift the display value back into the selected day without
-		// changing the raw query params.
-		return {
-			startDate: dateRange.startDate,
-			endDate: new Date(endDate.getTime() - 1),
-		};
-	}, [dateRange, hasExplicitDateRange]);
+		: dateRange;
 	const dateRangeLabel = formatUsageDateRange(dateRange, {
 		endDateIsExclusive: hasExplicitDateRange,
 	});
 	const offset = (page - 1) * pageSize;
 
-	const onDateRangeChange = useCallback(
-		(value: DateRangeValue) => {
-			// Reset pagination but preserve user selection and other params.
-			setPage(1);
-			setSearchParams((prev) => {
-				const next = new URLSearchParams(prev);
-				next.set(usageStartDateSearchParam, value.startDate.toISOString());
-				next.set(usageEndDateSearchParam, value.endDate.toISOString());
-				return next;
-			});
-		},
-		[setSearchParams],
-	);
+	const onDateRangeChange = (value: DateRangeValue) => {
+		// Reset pagination but preserve user selection and other params.
+		setPage(1);
+		setSearchParams((prev) => {
+			const next = new URLSearchParams(prev);
+			next.set(usageStartDateSearchParam, value.startDate.toISOString());
+			next.set(usageEndDateSearchParam, value.endDate.toISOString());
+			return next;
+		});
+	};
 
 	const usersQuery = useQuery({
 		...chatCostUsers({
