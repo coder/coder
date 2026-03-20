@@ -479,7 +479,6 @@ export const useChatStore = (
 	// its snapshot, defeating pagination.
 	const initialDataLoaded = chatMessages !== undefined;
 
-
 	useEffect(() => {
 		// When the active chat changes, clear stale messages immediately
 		// so the previous chat's messages aren't briefly visible while

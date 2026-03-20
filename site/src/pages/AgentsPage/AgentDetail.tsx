@@ -92,7 +92,8 @@ export function useConversationEditingState(deps: {
 	useLayoutEffect(() => {
 		if (!initialSyncDone.current && editorInitialValue) {
 			initialSyncDone.current = true;
-			(inputValueRef as React.MutableRefObject<string>).current = editorInitialValue;
+			(inputValueRef as React.MutableRefObject<string>).current =
+				editorInitialValue;
 		}
 	}, [editorInitialValue, inputValueRef]);
 
