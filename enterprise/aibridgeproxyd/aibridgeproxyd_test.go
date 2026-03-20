@@ -153,6 +153,7 @@ type testProxyConfig struct {
 	aibridgeProviderFromHost func(string) string
 	upstreamProxy            string
 	upstreamProxyCA          string
+	allowedPrivateCIDRs      []string
 	metrics                  *aibridgeproxyd.Metrics
 }
 
@@ -200,6 +201,12 @@ func withUpstreamProxyCA(upstreamProxyCA string) testProxyOption {
 	}
 }
 
+func withAllowedPrivateCIDRs(cidrs ...string) testProxyOption {
+	return func(cfg *testProxyConfig) {
+		cfg.allowedPrivateCIDRs = cidrs
+	}
+}
+
 func withMetrics(metrics *aibridgeproxyd.Metrics) testProxyOption {
 	return func(cfg *testProxyConfig) {
 		cfg.metrics = metrics
@@ -223,6 +230,9 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 		listenAddr:      "127.0.0.1:0",
 		coderAccessURL:  "http://localhost:3000",
 		domainAllowlist: []string{"127.0.0.1", "localhost"},
+		// Allow 127.0.0.1 by default so test servers, which always listen on
+		// loopback, are reachable. Tests that verify IP blocking override this.
+		allowedPrivateCIDRs: []string{"127.0.0.1/32"},
 		aibridgeProviderFromHost: func(host string) string {
 			return "test-provider"
 		},
@@ -246,6 +256,7 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 		AIBridgeProviderFromHost: cfg.aibridgeProviderFromHost,
 		UpstreamProxy:            cfg.upstreamProxy,
 		UpstreamProxyCA:          cfg.upstreamProxyCA,
+		AllowedPrivateCIDRs:      cfg.allowedPrivateCIDRs,
 		Metrics:                  cfg.metrics,
 	}
 	if cfg.certStore != nil {
@@ -291,11 +302,12 @@ func getProxyCertPool(t *testing.T) *x509.CertPool {
 
 // newProxyClient creates an HTTP(S) client configured to use the proxy.
 // It adds a Proxy-Authorization header with the provided token for authentication.
-// The certPool parameter specifies which certificates the client should trust:
+// The certPool and insecureSkipVerify parameters control TLS verification:
 //   - If the proxy listener is TLS, include the listener certificate.
 //   - For MITM'd requests, include the proxy's MITM certificate.
 //   - For tunneled requests, include the target server's certificate.
-func newProxyClient(t *testing.T, srv *aibridgeproxyd.Server, proxyAuth string, certPool *x509.CertPool) *http.Client {
+//   - Set insecureSkipVerify when the target cert SANs do not match the hostname.
+func newProxyClient(t *testing.T, srv *aibridgeproxyd.Server, proxyAuth string, certPool *x509.CertPool, insecureSkipVerify bool) *http.Client {
 	t.Helper()
 
 	// Create an HTTP(S) client configured to use the proxy.
@@ -309,8 +321,9 @@ func newProxyClient(t *testing.T, srv *aibridgeproxyd.Server, proxyAuth string, 
 	transport := &http.Transport{
 		Proxy: http.ProxyURL(proxyURL),
 		TLSClientConfig: &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			RootCAs:    certPool,
+			MinVersion:         tls.VersionTLS12,
+			RootCAs:            certPool,
+			InsecureSkipVerify: insecureSkipVerify, //nolint:gosec
 		},
 	}
 
@@ -523,6 +536,60 @@ func TestNew(t *testing.T) {
 		require.Contains(t, err.Error(), "invalid coder access URL")
 	})
 
+	t.Run("CoderAccessURLDefaultHTTPPort", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost",
+			MITMCertFile:    mitmCertFile,
+			MITMKeyFile:     mitmKeyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "localhost", srv.CoderAccessURL().Hostname())
+		require.Equal(t, "80", srv.CoderAccessURL().Port())
+	})
+
+	t.Run("CoderAccessURLDefaultHTTPSPort", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "https://localhost",
+			MITMCertFile:    mitmCertFile,
+			MITMKeyFile:     mitmKeyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "localhost", srv.CoderAccessURL().Hostname())
+		require.Equal(t, "443", srv.CoderAccessURL().Port())
+	})
+
+	t.Run("CoderAccessURLExplicitPort", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:      "127.0.0.1:0",
+			CoderAccessURL:  "http://localhost:3000",
+			MITMCertFile:    mitmCertFile,
+			MITMKeyFile:     mitmKeyFile,
+			DomainAllowlist: []string{aibridgeproxyd.HostAnthropic},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "localhost", srv.CoderAccessURL().Hostname())
+		require.Equal(t, "3000", srv.CoderAccessURL().Port())
+	})
+
 	t.Run("MissingCertFile", func(t *testing.T) {
 		t.Parallel()
 
@@ -708,6 +775,24 @@ func TestNew(t *testing.T) {
 		require.Contains(t, err.Error(), "invalid credentials: both username and password are empty")
 	})
 
+	t.Run("InvalidAllowedPrivateCIDR", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		logger := slogtest.Make(t, nil)
+
+		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:          "127.0.0.1:0",
+			CoderAccessURL:      "http://localhost:3000",
+			MITMCertFile:        mitmCertFile,
+			MITMKeyFile:         mitmKeyFile,
+			DomainAllowlist:     []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AllowedPrivateCIDRs: []string{"not-a-cidr"},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid allowed private CIDR")
+	})
+
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 
@@ -877,6 +962,24 @@ func TestNew(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, srv)
 	})
+
+	t.Run("SuccessWithAllowedPrivateCIDRs", func(t *testing.T) {
+		t.Parallel()
+
+		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
+		logger := slogtest.Make(t, nil)
+
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:          "127.0.0.1:0",
+			CoderAccessURL:      "http://localhost:3000",
+			MITMCertFile:        mitmCertFile,
+			MITMKeyFile:         mitmKeyFile,
+			DomainAllowlist:     []string{aibridgeproxyd.HostAnthropic, aibridgeproxyd.HostOpenAI},
+			AllowedPrivateCIDRs: []string{"127.0.0.1/32"},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, srv)
+	})
 }
 
 func TestClose(t *testing.T) {
@@ -1006,7 +1109,7 @@ func TestProxy_CertCaching(t *testing.T) {
 			}
 
 			// Make a request through the proxy to the target server.
-			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), certPool)
+			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), certPool, false)
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetURL.String(), nil)
 			require.NoError(t, err)
 			resp, err := client.Do(req)
@@ -1082,7 +1185,7 @@ func TestProxy_PortValidation(t *testing.T) {
 			)
 
 			// Make a request through the proxy to the target server.
-			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), getProxyCertPool(t))
+			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), getProxyCertPool(t), false)
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetURL.String(), nil)
 			require.NoError(t, err)
 
@@ -1159,7 +1262,7 @@ func TestProxy_Authentication(t *testing.T) {
 
 			if tt.expectSuccess {
 				// Use the standard HTTP client for successful requests.
-				client := newProxyClient(t, srv, tt.proxyAuth, getProxyCertPool(t))
+				client := newProxyClient(t, srv, tt.proxyAuth, getProxyCertPool(t), false)
 				req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetURL.String(), nil)
 				require.NoError(t, err)
 				resp, err := client.Do(req)
@@ -1325,7 +1428,7 @@ func TestProxy_MITM(t *testing.T) {
 			}
 
 			// Make a request through the proxy to the target URL.
-			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), certPool)
+			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), certPool, false)
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, targetURL, strings.NewReader(`{}`))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
@@ -1448,7 +1551,7 @@ func TestListenerTLS(t *testing.T) {
 			}
 			certPool.AppendCertsFromPEM(listenerCertPEM)
 
-			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), certPool)
+			client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), certPool, false)
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, targetURL.String(), nil)
 			require.NoError(t, err)
 			resp, err := client.Do(req)
@@ -1835,7 +1938,7 @@ func TestUpstreamProxy(t *testing.T) {
 			}
 
 			// Create HTTP client configured to use aiproxy.
-			client := newProxyClient(t, srv, makeProxyAuthHeader("test-coder-token"), certPool)
+			client := newProxyClient(t, srv, makeProxyAuthHeader("test-coder-token"), certPool, false)
 
 			// Make request through aiproxy.
 			requestBody := `{"test": "data", "foo": "bar"}`
@@ -1885,6 +1988,147 @@ func TestUpstreamProxy(t *testing.T) {
 				expectedAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte(tt.upstreamProxyAuth))
 				require.Equal(t, expectedAuth, upstreamProxyAuthHeader,
 					"Proxy-Authorization header should contain correct credentials")
+			}
+		})
+	}
+}
+
+func TestProxy_PrivateIPBlocking(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		targetHostname   string
+		useUpstreamProxy bool
+		allowedCIDRs     []string
+		coderAccessURLFn func(targetHostname, port string) string
+		expectBlocked    bool
+	}{
+		{
+			// Direct IP: by default, all private/reserved IPs are blocked.
+			name:           "BlockedDirectDial",
+			targetHostname: "127.0.0.1",
+			expectBlocked:  true,
+		},
+		{
+			// Hostname: DNS resolves to 127.0.0.1, which is then blocked.
+			name:           "BlockedDirectDialByHostname",
+			targetHostname: "localhost",
+			expectBlocked:  true,
+		},
+		{
+			// Direct IP: block applies even with an upstream proxy configured.
+			name:             "BlockedViaUpstreamProxy",
+			targetHostname:   "127.0.0.1",
+			useUpstreamProxy: true,
+			expectBlocked:    true,
+		},
+		{
+			// Hostname: DNS resolves to 127.0.0.1, which is then blocked.
+			name:             "BlockedViaUpstreamProxyByHostname",
+			targetHostname:   "localhost",
+			useUpstreamProxy: true,
+			expectBlocked:    true,
+		},
+		{
+			// Direct IP: a configured CIDR exception allows the range.
+			name:           "AllowedByPrivateCIDR",
+			targetHostname: "127.0.0.1",
+			allowedCIDRs:   []string{"127.0.0.1/32"},
+			expectBlocked:  false,
+		},
+		{
+			// Hostname: DNS resolves to 127.0.0.1, which is allowed by the CIDR exception.
+			name:           "AllowedByPrivateCIDRByHostname",
+			targetHostname: "localhost",
+			allowedCIDRs:   []string{"127.0.0.1/32"},
+			expectBlocked:  false,
+		},
+		{
+			// Direct IP: the Coder access URL host:port is always exempt.
+			name:           "AllowedByCoderAccessURL",
+			targetHostname: "127.0.0.1",
+			coderAccessURLFn: func(targetHostname, port string) string {
+				return fmt.Sprintf("http://%s:%s", targetHostname, port)
+			},
+			expectBlocked: false,
+		},
+		{
+			// Hostname: DNS resolves to 127.0.0.1, which is exempt as the Coder access URL.
+			name:           "AllowedByCoderAccessURLByHostname",
+			targetHostname: "localhost",
+			coderAccessURLFn: func(targetHostname, port string) string {
+				return fmt.Sprintf("http://%s:%s", targetHostname, port)
+			},
+			expectBlocked: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// The target server always listens on 127.0.0.1. When targetHostname is
+			// "localhost", the proxy resolves it to 127.0.0.1 via DNS, exercising
+			// the hostname resolution path of the IP check.
+			targetServer, targetURL := newTargetServer(t, func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("hello from target"))
+			})
+
+			// Build the CONNECT target using the configured hostname.
+			connectTarget := fmt.Sprintf("%s:%s", tt.targetHostname, targetURL.Port())
+
+			// Use a domain allowlist that excludes the target so CONNECT requests
+			// go through the tunnel path rather than being MITM'd.
+			opts := []testProxyOption{
+				withDomainAllowlist(aibridgeproxyd.HostAnthropic),
+				withAllowedPorts(targetURL.Port()),
+			}
+
+			if tt.useUpstreamProxy {
+				// A minimal upstream proxy server is sufficient here: the IP check
+				// fires inside ConnectDial before any connection reaches it.
+				upstreamProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
+				t.Cleanup(upstreamProxy.Close)
+				opts = append(opts, withUpstreamProxy(upstreamProxy.URL))
+			}
+
+			// Always override the default allowedPrivateCIDRs so blocked cases
+			// are not accidentally exempted by the loopback default.
+			opts = append(opts, withAllowedPrivateCIDRs(tt.allowedCIDRs...))
+			if tt.coderAccessURLFn != nil {
+				opts = append(opts, withCoderAccessURL(tt.coderAccessURLFn(tt.targetHostname, targetURL.Port())))
+			}
+
+			srv := newTestProxy(t, opts...)
+
+			if tt.expectBlocked {
+				// Use a raw CONNECT to observe the 502 returned when ConnectDial fails.
+				// Go's HTTP client does not expose the response for non-2xx CONNECT results.
+				resp := sendConnect(t, srv.Addr(), connectTarget, makeProxyAuthHeader("test-token"))
+				defer resp.Body.Close()
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Equal(t, http.StatusBadGateway, resp.StatusCode)
+				require.Equal(t, "Bad Gateway", string(body), "error details should not be leaked to the client")
+			} else {
+				certPool := x509.NewCertPool()
+				certPool.AddCert(targetServer.Certificate())
+				// InsecureSkipVerify is needed for "localhost": by default the cert SAN is 127.0.0.1.
+				client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), certPool, tt.targetHostname != "127.0.0.1")
+
+				reqURL := fmt.Sprintf("https://%s/", connectTarget)
+				req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, reqURL, nil)
+				require.NoError(t, err)
+				resp, err := client.Do(req)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				require.Equal(t, "hello from target", string(body))
 			}
 		})
 	}

@@ -92,6 +92,7 @@ export interface AIBridgeProxyConfig {
 	readonly domain_allowlist: string;
 	readonly upstream_proxy: string;
 	readonly upstream_proxy_ca: string;
+	readonly allowed_private_cidrs: string;
 }
 
 // From codersdk/aibridge.go
