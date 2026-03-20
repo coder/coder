@@ -158,6 +158,14 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 
 ## Performance
 
+- `src/pages/AgentsPage/` and `src/components/ai-elements/` are opted
+  into React Compiler via `babel-plugin-react-compiler`. The compiler
+  automatically memoizes values, callbacks, and JSX at build time. Do
+  not add `useMemo`, `useCallback`, or `memo()` in these directories
+  — the compiler handles it. The only exception is `memo()` on
+  list-item components rendered in a `.map()` (e.g. `ChatMessageItem`,
+  `Tool`, `ChatTreeNode`, `LazyFileDiff`) because the compiler does
+  not add `React.memo()` behavior across component boundaries.
 - When adding state that changes frequently (scroll position, hover,
   animation frame), **extract the state and its dependent UI into a child
   component** rather than keeping it in a parent that renders a large
