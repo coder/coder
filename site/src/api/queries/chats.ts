@@ -139,14 +139,9 @@ export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 			});
 		},
 		refetchOnWindowFocus: true as const,
+		retry: 3,
 	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
 };
-
-export const chats = () => ({
-	queryKey: chatsKey,
-	queryFn: () => API.getChats(),
-	refetchOnWindowFocus: true as const,
-});
 
 export const chat = (chatId: string) => ({
 	queryKey: chatKey(chatId),
@@ -411,6 +406,22 @@ export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatWorkspaceTTLKey = ["chat-workspace-ttl"] as const;
+
+export const chatWorkspaceTTL = () => ({
+	queryKey: chatWorkspaceTTLKey,
+	queryFn: () => API.getChatWorkspaceTTL(),
+});
+
+export const updateChatWorkspaceTTL = (queryClient: QueryClient) => ({
+	mutationFn: API.updateChatWorkspaceTTL,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatWorkspaceTTLKey,
+		});
+	},
+});
+
 const chatUserCustomPromptKey = ["chat-user-custom-prompt"] as const;
 
 export const chatUserCustomPrompt = () => ({
@@ -557,6 +568,17 @@ export const prInsights = (params?: {
 	queryKey: prInsightsKey(params),
 	queryFn: () => API.getPRInsights(params),
 	staleTime: 60_000,
+});
+
+export const chatUsageLimitStatusKey = [
+	...chatsKey,
+	"usageLimitStatus",
+] as const;
+
+export const chatUsageLimitStatus = () => ({
+	queryKey: chatUsageLimitStatusKey,
+	queryFn: () => API.getChatUsageLimitStatus(),
+	refetchInterval: 60_000,
 });
 
 const chatUsageLimitConfigKey = [...chatsKey, "usageLimitConfig"] as const;

@@ -127,6 +127,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 									license={license}
 									userLimitActual={userLimitActual}
 									userLimitLimit={userLimitLimit}
+									aiGovernanceUserFeature={aiGovernanceUserFeature}
 									isRemoving={isRemovingLicense}
 									onRemove={removeLicense}
 								/>

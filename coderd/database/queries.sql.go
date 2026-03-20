@@ -4062,6 +4062,7 @@ WITH chat_cost_users AS (
         AND (
             $5::text = ''
             OR u.username ILIKE '%' || $5::text || '%'
+            OR u.name ILIKE '%' || $5::text || '%'
         )
     GROUP BY
         c.owner_id,
@@ -7389,6 +7390,212 @@ func (q *sqlQuerier) GetGroupMembersByGroupID(ctx context.Context, arg GetGroupM
 			&i.OrganizationID,
 			&i.GroupName,
 			&i.GroupID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getGroupMembersByGroupIDPaginated = `-- name: GetGroupMembersByGroupIDPaginated :many
+SELECT
+	user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_name, user_github_com_user_id, user_is_system, organization_id, group_name, group_id, COUNT(*) OVER() AS count
+FROM
+	group_members_expanded
+WHERE
+	group_members_expanded.group_id = $1
+	AND CASE
+		-- This allows using the last element on a page as effectively a cursor.
+		-- This is an important option for scripts that need to paginate without
+		-- duplicating or missing data.
+		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			-- The pagination cursor is the last ID of the previous page.
+			-- The query is ordered by the username field, so select all
+			-- rows after the cursor.
+			(LOWER(user_username)) > (
+				SELECT
+					LOWER(user_username)
+				FROM
+					group_members_expanded
+				WHERE
+					group_id = $1
+					AND user_id = $2
+			)
+		)
+		ELSE true
+	END
+	-- Start filters
+	-- Filter by email or username
+	AND CASE
+		WHEN $3 :: text != '' THEN (
+			user_email ILIKE concat('%', $3, '%')
+			OR user_username ILIKE concat('%', $3, '%')
+		)
+		ELSE true
+	END
+	-- Filter by name (display name)
+	AND CASE
+		WHEN $4 :: text != '' THEN
+			user_name ILIKE concat('%', $4, '%')
+		ELSE true
+	END
+	-- Filter by status
+	AND CASE
+		-- @status needs to be a text because it can be empty, If it was
+		-- user_status enum, it would not.
+		WHEN cardinality($5 :: user_status[]) > 0 THEN
+			user_status = ANY($5 :: user_status[])
+		ELSE true
+	END
+	-- Filter by rbac_roles
+	AND CASE
+		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
+		-- everyone is a member.
+		WHEN cardinality($6 :: text[]) > 0 AND 'member' != ANY($6 :: text[]) THEN
+			user_rbac_roles && $6 :: text[]
+		ELSE true
+	END
+	-- Filter by last_seen
+	AND CASE
+		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			user_last_seen_at <= $7
+		ELSE true
+	END
+	AND CASE
+		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			user_last_seen_at >= $8
+		ELSE true
+	END
+	-- Filter by created_at
+	AND CASE
+		WHEN $9 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			user_created_at <= $9
+		ELSE true
+	END
+	AND CASE
+		WHEN $10 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			user_created_at >= $10
+		ELSE true
+	END
+	 -- Filter by system type
+	AND CASE
+		WHEN $11::bool THEN TRUE
+		ELSE user_is_system = false
+	END
+	AND CASE
+		WHEN $12 :: bigint != 0 THEN
+			user_github_com_user_id = $12
+		ELSE true
+	END
+	-- Filter by login_type
+	AND CASE
+		WHEN cardinality($13 :: login_type[]) > 0 THEN
+			user_login_type = ANY($13 :: login_type[])
+		ELSE true
+	END
+	-- End of filters
+ORDER BY
+	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
+	LOWER(user_username) ASC OFFSET $14
+LIMIT
+	-- A null limit means "no limit", so 0 means return all
+	NULLIF($15 :: int, 0)
+`
+
+type GetGroupMembersByGroupIDPaginatedParams struct {
+	GroupID         uuid.UUID    `db:"group_id" json:"group_id"`
+	AfterID         uuid.UUID    `db:"after_id" json:"after_id"`
+	Search          string       `db:"search" json:"search"`
+	Name            string       `db:"name" json:"name"`
+	Status          []UserStatus `db:"status" json:"status"`
+	RbacRole        []string     `db:"rbac_role" json:"rbac_role"`
+	LastSeenBefore  time.Time    `db:"last_seen_before" json:"last_seen_before"`
+	LastSeenAfter   time.Time    `db:"last_seen_after" json:"last_seen_after"`
+	CreatedBefore   time.Time    `db:"created_before" json:"created_before"`
+	CreatedAfter    time.Time    `db:"created_after" json:"created_after"`
+	IncludeSystem   bool         `db:"include_system" json:"include_system"`
+	GithubComUserID int64        `db:"github_com_user_id" json:"github_com_user_id"`
+	LoginType       []LoginType  `db:"login_type" json:"login_type"`
+	OffsetOpt       int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt        int32        `db:"limit_opt" json:"limit_opt"`
+}
+
+type GetGroupMembersByGroupIDPaginatedRow struct {
+	UserID                 uuid.UUID     `db:"user_id" json:"user_id"`
+	UserEmail              string        `db:"user_email" json:"user_email"`
+	UserUsername           string        `db:"user_username" json:"user_username"`
+	UserHashedPassword     []byte        `db:"user_hashed_password" json:"user_hashed_password"`
+	UserCreatedAt          time.Time     `db:"user_created_at" json:"user_created_at"`
+	UserUpdatedAt          time.Time     `db:"user_updated_at" json:"user_updated_at"`
+	UserStatus             UserStatus    `db:"user_status" json:"user_status"`
+	UserRbacRoles          []string      `db:"user_rbac_roles" json:"user_rbac_roles"`
+	UserLoginType          LoginType     `db:"user_login_type" json:"user_login_type"`
+	UserAvatarUrl          string        `db:"user_avatar_url" json:"user_avatar_url"`
+	UserDeleted            bool          `db:"user_deleted" json:"user_deleted"`
+	UserLastSeenAt         time.Time     `db:"user_last_seen_at" json:"user_last_seen_at"`
+	UserQuietHoursSchedule string        `db:"user_quiet_hours_schedule" json:"user_quiet_hours_schedule"`
+	UserName               string        `db:"user_name" json:"user_name"`
+	UserGithubComUserID    sql.NullInt64 `db:"user_github_com_user_id" json:"user_github_com_user_id"`
+	UserIsSystem           bool          `db:"user_is_system" json:"user_is_system"`
+	OrganizationID         uuid.UUID     `db:"organization_id" json:"organization_id"`
+	GroupName              string        `db:"group_name" json:"group_name"`
+	GroupID                uuid.UUID     `db:"group_id" json:"group_id"`
+	Count                  int64         `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetGroupMembersByGroupIDPaginated(ctx context.Context, arg GetGroupMembersByGroupIDPaginatedParams) ([]GetGroupMembersByGroupIDPaginatedRow, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembersByGroupIDPaginated,
+		arg.GroupID,
+		arg.AfterID,
+		arg.Search,
+		arg.Name,
+		pq.Array(arg.Status),
+		pq.Array(arg.RbacRole),
+		arg.LastSeenBefore,
+		arg.LastSeenAfter,
+		arg.CreatedBefore,
+		arg.CreatedAfter,
+		arg.IncludeSystem,
+		arg.GithubComUserID,
+		pq.Array(arg.LoginType),
+		arg.OffsetOpt,
+		arg.LimitOpt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGroupMembersByGroupIDPaginatedRow
+	for rows.Next() {
+		var i GetGroupMembersByGroupIDPaginatedRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.UserEmail,
+			&i.UserUsername,
+			&i.UserHashedPassword,
+			&i.UserCreatedAt,
+			&i.UserUpdatedAt,
+			&i.UserStatus,
+			pq.Array(&i.UserRbacRoles),
+			&i.UserLoginType,
+			&i.UserAvatarUrl,
+			&i.UserDeleted,
+			&i.UserLastSeenAt,
+			&i.UserQuietHoursSchedule,
+			&i.UserName,
+			&i.UserGithubComUserID,
+			&i.UserIsSystem,
+			&i.OrganizationID,
+			&i.GroupName,
+			&i.GroupID,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}
@@ -16827,6 +17034,23 @@ func (q *sqlQuerier) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	return chat_system_prompt, err
 }
 
+const getChatWorkspaceTTL = `-- name: GetChatWorkspaceTTL :one
+SELECT
+    COALESCE(
+        (SELECT value FROM site_configs WHERE key = 'agents_workspace_ttl'),
+        '0s'
+    )::text AS workspace_ttl
+`
+
+// Returns the global TTL for chat workspaces as a Go duration string.
+// Returns "0s" (disabled) when no value has been configured.
+func (q *sqlQuerier) GetChatWorkspaceTTL(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChatWorkspaceTTL)
+	var workspace_ttl string
+	err := row.Scan(&workspace_ttl)
+	return workspace_ttl, err
+}
+
 const getDERPMeshKey = `-- name: GetDERPMeshKey :one
 SELECT value FROM site_configs WHERE key = 'derp_mesh_key'
 `
@@ -17038,6 +17262,19 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat
 
 func (q *sqlQuerier) UpsertChatSystemPrompt(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatSystemPrompt, value)
+	return err
+}
+
+const upsertChatWorkspaceTTL = `-- name: UpsertChatWorkspaceTTL :exec
+INSERT INTO site_configs (key, value)
+VALUES ('agents_workspace_ttl', $1::text)
+ON CONFLICT (key) DO UPDATE
+SET value = $1::text
+WHERE site_configs.key = 'agents_workspace_ttl'
+`
+
+func (q *sqlQuerier) UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error {
+	_, err := q.db.ExecContext(ctx, upsertChatWorkspaceTTL, workspaceTtl)
 	return err
 }
 

@@ -76,11 +76,11 @@ replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-202603091
 // https://github.com/spf13/afero/pull/487
 replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713-f06e86036696
 
-// Forked for two reasons:
-// 1) Adds thinking effort to Anthropic provider
-// 2) Downgraded to Go 1.25 due to issue with Windows CI
-// https://github.com/kylecarbs/fantasy/compare/main...kylecarbs:fantasy:cj/go1.25
-replace charm.land/fantasy => github.com/kylecarbs/fantasy v0.0.0-20260319151840-18e18e661ed4
+// Forked from kylecarbs/fantasy (cj/go1.25 branch) which adds:
+// 1) Anthropic computer use + thinking effort
+// 2) Go 1.25 downgrade for Windows CI compat
+// 3) ibetitsmike/fantasy#4 — skip ephemeral replay items when store=false
+replace charm.land/fantasy => github.com/kylecarbs/fantasy v0.0.0-20260320175225-7bcfc3d2021a
 
 replace github.com/charmbracelet/anthropic-sdk-go => github.com/kylecarbs/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab
 
@@ -530,7 +530,7 @@ require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
 	github.com/bits-and-blooms/bitset v1.24.4 // indirect
-	github.com/buger/jsonparser v1.1.1 // indirect
+	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/charmbracelet/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab // indirect
 	github.com/charmbracelet/x/exp/slice v0.0.0-20250904123553-b4e2667e5ad5 // indirect

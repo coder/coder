@@ -5,14 +5,17 @@ import {
 	chatDesktopEnabled,
 	chatSystemPrompt,
 	chatUserCustomPrompt,
+	chatWorkspaceTTL,
 	updateChatDesktopEnabled,
 	updateChatSystemPrompt,
+	updateChatWorkspaceTTL,
 	updateUserChatCustomPrompt,
 } from "api/queries/chats";
 import { userByName } from "api/queries/users";
 import type * as TypesGen from "api/typesGenerated";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
+import { DurationField } from "components/DurationField/DurationField";
 import { Link } from "components/Link/Link";
 import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
@@ -37,7 +40,7 @@ import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ChevronLeftIcon, ShieldIcon } from "lucide-react";
-import { type FC, type FormEvent, useCallback, useMemo, useState } from "react";
+import { type FC, type FormEvent, useState } from "react";
 import {
 	keepPreviousData,
 	useMutation,
@@ -48,6 +51,7 @@ import { useSearchParams } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatTokenCount } from "utils/analytics";
 import { formatCostMicros } from "utils/currency";
+import { humanDuration } from "utils/time";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { InsightsContent } from "./InsightsContent";
@@ -125,10 +129,10 @@ interface UsageContentProps {
 
 const UsageContent: FC<UsageContentProps> = ({ now }) => {
 	const [searchParams, setSearchParams] = useSearchParams();
-	const [usernameFilter, setUsernameFilter] = useState("");
-	const debouncedUsername = useDebouncedValue(usernameFilter, 300);
+	const [searchFilter, setSearchFilter] = useState("");
+	const debouncedSearch = useDebouncedValue(searchFilter, 300);
 	const [page, setPage] = useState(1);
-	const dateRange = useMemo(() => {
+	const dateRange = (() => {
 		const end = now ?? dayjs();
 		const start = end.subtract(30, "day");
 		return {
@@ -136,14 +140,14 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 			endDate: end.toISOString(),
 			rangeLabel: `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`,
 		};
-	}, [now]);
+	})();
 	const offset = (page - 1) * pageSize;
 
 	const usersQuery = useQuery({
 		...chatCostUsers({
 			start_date: dateRange.startDate,
 			end_date: dateRange.endDate,
-			username: debouncedUsername || undefined,
+			username: debouncedSearch || undefined,
 			limit: pageSize,
 			offset,
 		}),
@@ -283,13 +287,13 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 			<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
 				<div className="w-full md:max-w-sm">
 					<SearchField
-						value={usernameFilter}
+						value={searchFilter}
 						onChange={(value) => {
-							setUsernameFilter(value);
+							setSearchFilter(value);
 							setPage(1);
 						}}
-						placeholder="Filter by username"
-						aria-label="Filter usage by username"
+						placeholder="Search by name or username"
+						aria-label="Search usage by name or username"
 					/>
 				</div>
 				{usersQuery.data && (
@@ -430,6 +434,13 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 		isError: isSaveDesktopEnabledError,
 	} = useMutation(updateChatDesktopEnabled(queryClient));
 
+	const workspaceTTLQuery = useQuery(chatWorkspaceTTL());
+	const {
+		mutate: saveWorkspaceTTL,
+		isPending: isSavingWorkspaceTTL,
+		isError: isSaveWorkspaceTTLError,
+	} = useMutation(updateChatWorkspaceTTL(queryClient));
+
 	const serverPrompt = systemPromptQuery.data?.system_prompt ?? "";
 	const [localEdit, setLocalEdit] = useState<string | null>(null);
 	const systemPromptDraft = localEdit ?? serverPrompt;
@@ -442,33 +453,45 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 	const isUserPromptDirty =
 		localUserEdit !== null && localUserEdit !== serverUserPrompt;
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
+	const serverTTLMs = workspaceTTLQuery.data?.workspace_ttl_ms ?? 0;
+	const [localTTLMs, setLocalTTLMs] = useState<number | null>(null);
+	const ttlMs = localTTLMs ?? serverTTLMs;
+	const isTTLDirty = localTTLMs !== null && localTTLMs !== serverTTLMs;
+	const maxTTLMs = 30 * 24 * 60 * 60_000; // 30 days
+	const isTTLOverMax = ttlMs > maxTTLMs;
 	const isDisabled =
-		isSavingSystemPrompt || isSavingUserPrompt || isSavingDesktopEnabled;
+		isSavingSystemPrompt ||
+		isSavingUserPrompt ||
+		isSavingDesktopEnabled ||
+		isSavingWorkspaceTTL;
+	const isTTLLoading = workspaceTTLQuery.isLoading;
 
-	const handleSaveSystemPrompt = useCallback(
-		(event: FormEvent) => {
-			event.preventDefault();
-			if (!isSystemPromptDirty) return;
-			saveSystemPrompt(
-				{ system_prompt: systemPromptDraft },
-				{ onSuccess: () => setLocalEdit(null) },
-			);
-		},
-		[isSystemPromptDirty, systemPromptDraft, saveSystemPrompt],
-	);
+	const handleSaveSystemPrompt = (event: FormEvent) => {
+		event.preventDefault();
+		if (!isSystemPromptDirty) return;
+		saveSystemPrompt(
+			{ system_prompt: systemPromptDraft },
+			{ onSuccess: () => setLocalEdit(null) },
+		);
+	};
 
-	const handleSaveUserPrompt = useCallback(
-		(event: FormEvent) => {
-			event.preventDefault();
-			if (!isUserPromptDirty) return;
-			saveUserPrompt(
-				{ custom_prompt: userPromptDraft },
-				{ onSuccess: () => setLocalUserEdit(null) },
-			);
-		},
-		[isUserPromptDirty, userPromptDraft, saveUserPrompt],
-	);
+	const handleSaveUserPrompt = (event: FormEvent) => {
+		event.preventDefault();
+		if (!isUserPromptDirty) return;
+		saveUserPrompt(
+			{ custom_prompt: userPromptDraft },
+			{ onSuccess: () => setLocalUserEdit(null) },
+		);
+	};
 
+	const handleSaveChatWorkspaceTTL = (event: FormEvent) => {
+		event.preventDefault();
+		if (!isTTLDirty) return;
+		saveWorkspaceTTL(
+			{ workspace_ttl_ms: localTTLMs ?? 0 },
+			{ onSuccess: () => setLocalTTLMs(null) },
+		);
+	};
 	return (
 		<div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 pt-8 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 			<div className="mx-auto w-full max-w-3xl">
@@ -615,6 +638,54 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 										</p>
 									)}
 								</div>
+								<hr className="my-5 border-0 border-t border-solid border-border" />
+								<form
+									className="space-y-2"
+									onSubmit={(event) => void handleSaveChatWorkspaceTTL(event)}
+								>
+									<div className="flex items-center gap-2">
+										<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+											Default Autostop
+										</h3>
+										<AdminBadge />
+									</div>
+									<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+										{ttlMs === 0
+											? "Workspaces linked to chats will be stopped as configured by their templates. Active chats continuously extend the deadline."
+											: `Workspaces linked to chats will be stopped after ${humanDuration(ttlMs)} of inactivity. Active chats continuously extend the deadline.`}
+									</p>
+									<DurationField
+										label="Default autostop"
+										valueMs={ttlMs}
+										onChange={(v) => setLocalTTLMs(v)}
+										disabled={isDisabled || isTTLLoading}
+										error={isTTLOverMax}
+										helperText={
+											isTTLOverMax
+												? "Must not exceed 30 days (720 hours)."
+												: undefined
+										}
+									/>
+									<div className="flex justify-end">
+										<Button
+											size="sm"
+											type="submit"
+											disabled={isDisabled || !isTTLDirty || isTTLOverMax}
+										>
+											Save
+										</Button>
+									</div>
+									{isSaveWorkspaceTTLError && (
+										<p className="m-0 text-xs text-content-destructive">
+											Failed to save autostop setting.
+										</p>
+									)}
+									{workspaceTTLQuery.isError && (
+										<p className="m-0 text-xs text-content-destructive">
+											Failed to load autostop setting.
+										</p>
+									)}
+								</form>
 							</>
 						)}
 					</>

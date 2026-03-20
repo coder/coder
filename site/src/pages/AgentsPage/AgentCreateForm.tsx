@@ -21,14 +21,7 @@ import {
 } from "components/Popover/Popover";
 import { Check, MonitorIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { AgentChatInput } from "./AgentChatInput";
@@ -76,7 +69,7 @@ export function useEmptyStateDraft() {
 	const inputValueRef = useRef(initialInputValue);
 	const sentRef = useRef(false);
 
-	const handleContentChange = useCallback((content: string) => {
+	const handleContentChange = (content: string) => {
 		inputValueRef.current = content;
 		if (typeof window !== "undefined" && !sentRef.current) {
 			if (content) {
@@ -85,20 +78,20 @@ export function useEmptyStateDraft() {
 				localStorage.removeItem(emptyInputStorageKey);
 			}
 		}
-	}, []);
+	};
 
-	const submitDraft = useCallback(() => {
+	const submitDraft = () => {
 		// Mark as sent so that editor change events firing during
 		// the async gap cannot re-persist the draft.
 		sentRef.current = true;
 		localStorage.removeItem(emptyInputStorageKey);
-	}, []);
+	};
 
-	const resetDraft = useCallback(() => {
+	const resetDraft = () => {
 		sentRef.current = false;
-	}, []);
+	};
 
-	const getCurrentContent = useCallback(() => inputValueRef.current, []);
+	const getCurrentContent = () => inputValueRef.current;
 
 	return {
 		initialInputValue,
@@ -143,7 +136,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
 	});
-	const modelIDByConfigID = useMemo(() => {
+	const modelIDByConfigID = (() => {
 		const optionIDByRef = new Map<string, string>();
 		for (const option of modelOptions) {
 			const provider = option.provider.trim().toLowerCase();
@@ -170,20 +163,17 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			byConfigID.set(config.id, modelID);
 		}
 		return byConfigID;
-	}, [modelConfigs, modelOptions]);
-	const lastUsedModelID = useMemo(() => {
-		if (!initialLastModelConfigID) {
-			return "";
-		}
-		return modelIDByConfigID.get(initialLastModelConfigID) ?? "";
-	}, [initialLastModelConfigID, modelIDByConfigID]);
-	const defaultModelID = useMemo(() => {
+	})();
+	const lastUsedModelID = initialLastModelConfigID
+		? (modelIDByConfigID.get(initialLastModelConfigID) ?? "")
+		: "";
+	const defaultModelID = (() => {
 		const defaultModelConfig = modelConfigs.find((config) => config.is_default);
 		if (!defaultModelConfig) {
 			return "";
 		}
 		return modelIDByConfigID.get(defaultModelConfig.id) ?? "";
-	}, [modelConfigs, modelIDByConfigID]);
+	})();
 	const preferredModelID =
 		lastUsedModelID || defaultModelID || (modelOptions[0]?.id ?? "");
 	const [userSelectedModel, setUserSelectedModel] = useState("");
@@ -249,9 +239,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// that the onSend callback always sees the latest values without
 	// the shared input component re-rendering on every change.
 	const selectedWorkspaceIdRef = useRef(selectedWorkspaceId);
-	selectedWorkspaceIdRef.current = selectedWorkspaceId;
 	const selectedModelRef = useRef(selectedModel);
-	selectedModelRef.current = selectedModel;
+	useEffect(() => {
+		selectedWorkspaceIdRef.current = selectedWorkspaceId;
+		selectedModelRef.current = selectedModel;
+	});
 
 	const handleWorkspaceChange = (value: string) => {
 		if (value === autoCreateWorkspaceValue) {
@@ -267,27 +259,24 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	};
 
-	const handleModelChange = useCallback((value: string) => {
+	const handleModelChange = (value: string) => {
 		setHasUserSelectedModel(true);
 		setUserSelectedModel(value);
-	}, []);
+	};
 
-	const handleSend = useCallback(
-		async (message: string, fileIDs?: string[]) => {
-			submitDraft();
-			await onCreateChat({
-				message,
-				fileIDs,
-				workspaceId: selectedWorkspaceIdRef.current ?? undefined,
-				model: selectedModelRef.current || undefined,
-			}).catch(() => {
-				// Re-enable draft persistence so the user can edit
-				// and retry after a failed send attempt.
-				resetDraft();
-			});
-		},
-		[submitDraft, resetDraft, onCreateChat],
-	);
+	const handleSend = async (message: string, fileIDs?: string[]) => {
+		submitDraft();
+		await onCreateChat({
+			message,
+			fileIDs,
+			workspaceId: selectedWorkspaceIdRef.current ?? undefined,
+			model: selectedModelRef.current || undefined,
+		}).catch(() => {
+			// Re-enable draft persistence so the user can edit
+			// and retry after a failed send attempt.
+			resetDraft();
+		});
+	};
 
 	const selectedWorkspace = selectedWorkspaceId
 		? workspaceOptions.find((ws) => ws.id === selectedWorkspaceId)
@@ -305,34 +294,32 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		resetAttachments,
 	} = useFileAttachments(organizations[0]?.id);
 
-	const handleSendWithAttachments = useCallback(
-		async (message: string) => {
-			const fileIds: string[] = [];
-			let skippedErrors = 0;
-			for (const file of attachments) {
-				const state = uploadStates.get(file);
-				if (state?.status === "error") {
-					skippedErrors++;
-					continue;
-				}
-				if (state?.status === "uploaded" && state.fileId) {
-					fileIds.push(state.fileId);
-				}
+	const handleSendWithAttachments = async (message: string) => {
+		const fileIds: string[] = [];
+		let skippedErrors = 0;
+		for (const file of attachments) {
+			const state = uploadStates.get(file);
+			if (state?.status === "error") {
+				skippedErrors++;
+				continue;
 			}
-			if (skippedErrors > 0) {
-				toast.warning(
-					`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
-				);
+			if (state?.status === "uploaded" && state.fileId) {
+				fileIds.push(state.fileId);
 			}
-			try {
-				await handleSend(message, fileIds.length > 0 ? fileIds : undefined);
-				resetAttachments();
-			} catch {
-				// Attachments preserved for retry on failure.
-			}
-		},
-		[attachments, handleSend, resetAttachments, uploadStates],
-	);
+		}
+		if (skippedErrors > 0) {
+			toast.warning(
+				`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+			);
+		}
+		const fileArg = fileIds.length > 0 ? fileIds : undefined;
+		try {
+			await handleSend(message, fileArg);
+			resetAttachments();
+		} catch {
+			// Attachments preserved for retry on failure.
+		}
+	};
 
 	return (
 		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">

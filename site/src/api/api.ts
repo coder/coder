@@ -425,6 +425,7 @@ type Claims = {
 	all_features: boolean;
 	// feature_set is omitted on legacy licenses
 	feature_set?: string;
+	addons?: string[];
 	version: number;
 	features: Record<string, number>;
 	require_telemetry?: boolean;
@@ -3137,6 +3138,20 @@ class ApiMethods {
 		await this.axios.put("/api/experimental/chats/config/desktop-enabled", req);
 	};
 
+	getChatWorkspaceTTL =
+		async (): Promise<TypesGen.ChatWorkspaceTTLResponse> => {
+			const response = await this.axios.get<TypesGen.ChatWorkspaceTTLResponse>(
+				"/api/experimental/chats/config/workspace-ttl",
+			);
+			return response.data;
+		};
+
+	updateChatWorkspaceTTL = async (
+		req: TypesGen.UpdateChatWorkspaceTTLRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/workspace-ttl", req);
+	};
+
 	getUserChatCustomPrompt =
 		async (): Promise<TypesGen.UserChatCustomPrompt> => {
 			const response = await this.axios.get<TypesGen.UserChatCustomPrompt>(
@@ -3304,6 +3319,14 @@ class ApiMethods {
 				await this.axios.get<TypesGen.ChatUsageLimitConfigResponse>(
 					"/api/experimental/chats/usage-limits",
 				);
+			return response.data;
+		};
+
+	getChatUsageLimitStatus =
+		async (): Promise<TypesGen.ChatUsageLimitStatus> => {
+			const response = await this.axios.get<TypesGen.ChatUsageLimitStatus>(
+				"/api/experimental/chats/usage-limits/status",
+			);
 			return response.data;
 		};
 

@@ -34,14 +34,7 @@ import {
 	ServerIcon,
 	XIcon,
 } from "lucide-react";
-import {
-	type FC,
-	type ReactNode,
-	useCallback,
-	useId,
-	useMemo,
-	useState,
-} from "react";
+import { type FC, type ReactNode, useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { cn } from "utils/cn";
@@ -890,60 +883,57 @@ export const MCPServerAdminPanel: FC<MCPServerAdminPanelProps> = ({
 	const updateMut = useMutation(updateMCPServerConfigMutation(queryClient));
 	const deleteMut = useMutation(deleteMCPServerConfigMutation(queryClient));
 
-	const servers = useMemo(
-		() =>
-			(serversQuery.data ?? [])
-				.slice()
-				.sort((a, b) => a.display_name.localeCompare(b.display_name)),
-		[serversQuery.data],
-	);
+	const servers = (serversQuery.data ?? [])
+		.slice()
+		.sort((a, b) => a.display_name.localeCompare(b.display_name));
 
-	const editingServer = useMemo(
-		() =>
-			serverId && serverId !== "new"
-				? (servers.find((s) => s.id === serverId) ?? null)
-				: null,
-		[serverId, servers],
-	);
+	const editingServer =
+		serverId && serverId !== "new"
+			? (servers.find((s) => s.id === serverId) ?? null)
+			: null;
 	const isFormView = serverId !== null;
 	const isCreating = serverId === "new";
 
-	const handleSave = useCallback(
-		async (req: TypesGen.CreateMCPServerConfigRequest, id?: string) => {
+	const handleSave = async (
+		req: TypesGen.CreateMCPServerConfigRequest,
+		id?: string,
+	) => {
+		if (id) {
+			const updateReq: TypesGen.UpdateMCPServerConfigRequest = {
+				...req,
+				tool_allow_list: req.tool_allow_list
+					? [...req.tool_allow_list]
+					: undefined,
+				tool_deny_list: req.tool_deny_list
+					? [...req.tool_deny_list]
+					: undefined,
+			};
 			try {
-				if (id) {
-					const updateReq: TypesGen.UpdateMCPServerConfigRequest = {
-						...req,
-						tool_allow_list: req.tool_allow_list
-							? [...req.tool_allow_list]
-							: undefined,
-						tool_deny_list: req.tool_deny_list
-							? [...req.tool_deny_list]
-							: undefined,
-					};
-					await updateMut.mutateAsync({ id, req: updateReq });
-				} else {
-					await createMut.mutateAsync(req);
-				}
-				setSearchParams({});
+				await updateMut.mutateAsync({ id, req: updateReq });
 			} catch {
 				// Error surfaced via mutation error state.
+				return;
 			}
-		},
-		[createMut, updateMut, setSearchParams],
-	);
+		} else {
+			try {
+				await createMut.mutateAsync(req);
+			} catch {
+				// Error surfaced via mutation error state.
+				return;
+			}
+		}
+		setSearchParams({});
+	};
 
-	const handleDelete = useCallback(
-		async (id: string) => {
-			try {
-				await deleteMut.mutateAsync(id);
-				setSearchParams({});
-			} catch {
-				// Error surfaced via mutation error state.
-			}
-		},
-		[deleteMut, setSearchParams],
-	);
+	const handleDelete = async (id: string) => {
+		try {
+			await deleteMut.mutateAsync(id);
+		} catch {
+			// Error surfaced via mutation error state.
+			return;
+		}
+		setSearchParams({});
+	};
 
 	if (serversQuery.isLoading) {
 		return <Spinner loading className="h-4 w-4" />;

@@ -60,10 +60,8 @@ import {
 	createContext,
 	type FC,
 	memo,
-	useCallback,
 	useContext,
 	useEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -72,6 +70,7 @@ import { cn } from "utils/cn";
 import { shortRelativeTime } from "utils/time";
 import { getNormalizedModelRef } from "./modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "./timeGroups";
+import { UsageIndicator } from "./UsageIndicator";
 
 type SidebarView =
 	| { panel: "chats" }
@@ -580,7 +579,6 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 		</div>
 	);
 });
-ChatTreeNode.displayName = "ChatTreeNode";
 
 export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const {
@@ -619,39 +617,42 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 
-	const chatTree = useMemo(() => buildChatTree(chats), [chats]);
-	const chatById = useMemo(() => {
-		return new Map(chats.map((chat) => [chat.id, chat] as const));
-	}, [chats]);
-	const visibleChatIDs = useMemo(
-		() =>
-			collectVisibleChatIDs({
-				chats,
-				search: normalizedSearch,
-				tree: chatTree,
-			}),
-		[chats, chatTree],
-	);
-	const visibleRootIDs = useMemo(
-		() => chatTree.rootIds.filter((chatID) => visibleChatIDs.has(chatID)),
-		[chatTree.rootIds, visibleChatIDs],
+	const chatTree = buildChatTree(chats);
+	const chatById = new Map(chats.map((chat) => [chat.id, chat] as const));
+	const visibleChatIDs = collectVisibleChatIDs({
+		chats,
+		search: normalizedSearch,
+		tree: chatTree,
+	});
+	const visibleRootIDs = chatTree.rootIds.filter((chatID) =>
+		visibleChatIDs.has(chatID),
 	);
 
 	// Auto-expand ancestors of the active chat so it's always visible.
+	// Only runs when activeChatId changes — not on every parentById
+	// recalculation — so user-initiated collapse is preserved.
+	const parentByIdRef = useRef(chatTree.parentById);
+	useEffect(() => {
+		parentByIdRef.current = chatTree.parentById;
+	});
 	useEffect(() => {
 		if (!activeChatId) {
 			return;
 		}
+		const parentById = parentByIdRef.current;
 		const toExpand: string[] = [];
-		let cursor = chatTree.parentById.get(activeChatId);
+		let cursor = parentById.get(activeChatId);
 		const seen = new Set<string>();
 		while (cursor && !seen.has(cursor)) {
 			seen.add(cursor);
 			toExpand.push(cursor);
-			cursor = chatTree.parentById.get(cursor);
+			cursor = parentById.get(cursor);
 		}
 		if (toExpand.length > 0) {
 			setExpandedById((prev) => {
+				if (toExpand.every((id) => prev[id])) {
+					return prev;
+				}
 				const next = { ...prev };
 				for (const id of toExpand) {
 					next[id] = true;
@@ -659,45 +660,27 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				return next;
 			});
 		}
-	}, [activeChatId, chatTree.parentById]);
-
-	const toggleExpanded = useCallback((chatID: string) => {
+	}, [activeChatId]);
+	const toggleExpanded = (chatID: string) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
-	}, []);
+	};
 
-	const chatTreeCtx = useMemo<ChatTreeContextValue>(
-		() => ({
-			chatTree,
-			chatById,
-			visibleChatIDs,
-			normalizedSearch,
-			expandedById,
-			modelOptions,
-			modelConfigs,
-			chatErrorReasons,
-			isArchiving,
-			archivingChatId,
-			toggleExpanded,
-			onArchiveAgent,
-			onUnarchiveAgent,
-			onArchiveAndDeleteWorkspace,
-		}),
-		[
-			chatTree,
-			chatById,
-			visibleChatIDs,
-			expandedById,
-			modelOptions,
-			modelConfigs,
-			chatErrorReasons,
-			isArchiving,
-			archivingChatId,
-			toggleExpanded,
-			onArchiveAgent,
-			onUnarchiveAgent,
-			onArchiveAndDeleteWorkspace,
-		],
-	);
+	const chatTreeCtx: ChatTreeContextValue = {
+		chatTree,
+		chatById,
+		visibleChatIDs,
+		normalizedSearch,
+		expandedById,
+		modelOptions,
+		modelConfigs,
+		chatErrorReasons,
+		isArchiving,
+		archivingChatId,
+		toggleExpanded,
+		onArchiveAgent,
+		onUnarchiveAgent,
+		onArchiveAndDeleteWorkspace,
+	};
 
 	const subNavTitle = "Settings";
 
@@ -898,8 +881,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					</div>
 				</ScrollArea>
 				<div className="hidden border-0 border-t border-solid md:block">
-					<div className="flex items-center">
+					<div className="flex items-stretch">
 						<DropdownMenu>
+							{" "}
 							<DropdownMenuTrigger asChild>
 								<button
 									type="button"
@@ -932,11 +916,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								/>
 							</DropdownMenuContent>
 						</DropdownMenu>
+						<UsageIndicator />
 					</div>
 				</div>
 			</div>
-
-			{/* ── Panel 2: Sub-navigation (Settings) ── */}
+			{/* ── Panel 2: Sub-navigation (Settings) ── */}{" "}
 			<div
 				className={cn(
 					"absolute inset-0 flex flex-col transition-transform duration-200 ease-in-out",
@@ -1108,8 +1092,10 @@ const LoadMoreSentinel: FC<{
 	// Keep refs in sync with the latest prop values so the
 	// observer callback always reads current state without
 	// needing to tear down and re-create the observer.
-	onLoadMoreRef.current = onLoadMore;
-	isFetchingNextPageRef.current = isFetchingNextPage;
+	useEffect(() => {
+		onLoadMoreRef.current = onLoadMore;
+		isFetchingNextPageRef.current = isFetchingNextPage;
+	}, [onLoadMore, isFetchingNextPage]);
 
 	useEffect(() => {
 		const el = sentinelRef.current;

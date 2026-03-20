@@ -251,8 +251,8 @@ github.com/bramvdbogaerde/go-scp v1.6.0 h1:lDh0lUuz1dbIhJqlKLwWT7tzIRONCp1Mtx3pg
 github.com/bramvdbogaerde/go-scp v1.6.0/go.mod h1:on2aH5AxaFb2G0N5Vsdy6B0Ml7k9HuHSwfo1y0QzAbQ=
 github.com/brianvoe/gofakeit/v7 v7.14.0 h1:R8tmT/rTDJmD2ngpqBL9rAKydiL7Qr2u3CXPqRt59pk=
 github.com/brianvoe/gofakeit/v7 v7.14.0/go.mod h1:QXuPeBw164PJCzCUZVmgpgHJ3Llj49jSLVkKPMtxtxA=
-github.com/buger/jsonparser v1.1.1 h1:2PnMjfWD7wBILjqQbt530v576A/cAbQvEW9gGIpYMUs=
-github.com/buger/jsonparser v1.1.1/go.mod h1:6RYKKt7H4d4+iWqouImQ9R2FZql3VbhNgx27UK13J/0=
+github.com/buger/jsonparser v1.1.2 h1:frqHqw7otoVbk5M8LlE/L7HTnIq2v9RX6EJ48i9AxJk=
+github.com/buger/jsonparser v1.1.2/go.mod h1:6RYKKt7H4d4+iWqouImQ9R2FZql3VbhNgx27UK13J/0=
 github.com/bytecodealliance/wasmtime-go/v39 v39.0.1 h1:RibaT47yiyCRxMOj/l2cvL8cWiWBSqDXHyqsa9sGcCE=
 github.com/bytecodealliance/wasmtime-go/v39 v39.0.1/go.mod h1:miR4NYIEBXeDNamZIzpskhJ0z/p8al+lwMWylQ/ZJb4=
 github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5 h1:BjkPE3785EwPhhyuFkbINB+2a1xATwk8SNDWnJiD41g=
@@ -815,8 +815,8 @@ github.com/kylecarbs/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab h1:5UMY
 github.com/kylecarbs/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab/go.mod h1:hqlYqR7uPKOKfnNeicUbZp0Ps0GeYFlKYtwh5HGDCx8=
 github.com/kylecarbs/chroma/v2 v2.0.0-20240401211003-9e036e0631f3 h1:Z9/bo5PSeMutpdiKYNt/TTSfGM1Ll0naj3QzYX9VxTc=
 github.com/kylecarbs/chroma/v2 v2.0.0-20240401211003-9e036e0631f3/go.mod h1:BUGjjsD+ndS6eX37YgTchSEG+Jg9Jv1GiZs9sqPqztk=
-github.com/kylecarbs/fantasy v0.0.0-20260319151840-18e18e661ed4 h1:DO0b5G0yfrtKkzlJofnPxEcRlS157lzQyPiUSDkzfcU=
-github.com/kylecarbs/fantasy v0.0.0-20260319151840-18e18e661ed4/go.mod h1:I/i6LkVAWnSVdFZ37SbcR0IZz6eBhu4P9IK3XHTX6Gk=
+github.com/kylecarbs/fantasy v0.0.0-20260320175225-7bcfc3d2021a h1:0BNb2AYtzWYH0xAscOICIRInvQylXlF2tuxOjmWhlvE=
+github.com/kylecarbs/fantasy v0.0.0-20260320175225-7bcfc3d2021a/go.mod h1:I/i6LkVAWnSVdFZ37SbcR0IZz6eBhu4P9IK3XHTX6Gk=
 github.com/kylecarbs/openai-go/v3 v3.0.0-20260319113850-9477dcaedcae h1:xlFZNX4nnxpj9Cf6mTwD3pirXGNtBJ/6COsf9iZmsL0=
 github.com/kylecarbs/openai-go/v3 v3.0.0-20260319113850-9477dcaedcae/go.mod h1:cdufnVK14cWcT9qA1rRtrXx4FTRsgbDPW7Ia7SS5cZo=
 github.com/kylecarbs/spinner v1.18.2-0.20220329160715-20702b5af89e h1:OP0ZMFeZkUnOzTFRfpuK3m7Kp4fNvC6qN+exwj7aI4M=

@@ -1,7 +1,7 @@
 import type { DiffLineAnnotation, SelectedLineRange } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, waitFor } from "storybook/test";
 import type { DiffStyle } from "./DiffViewer";
 import { DiffViewer } from "./DiffViewer";
 import { InlinePromptInput } from "./RemoteDiffPanel";
@@ -149,4 +149,256 @@ export const WithAnnotation: Story = {
 			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
 		),
 	},
+};
+
+// Diff with a change block (both deletions and additions) for
+// testing cross-side selection in split view.
+// biome-ignore format: raw diff string must preserve exact whitespace
+const changeDiff = [
+"diff --git a/src/config.ts b/src/config.ts",
+"index abc1234..def5678 100644",
+"--- a/src/config.ts",
+"+++ b/src/config.ts",
+"@@ -1,5 +1,5 @@",
+" const config = {",
+"-  port: 3000,",
+"-  host: \"localhost\",",
+"+  port: 8080,",
+"+  host: \"0.0.0.0\",",
+"   debug: false,",
+" };",
+].join("\n");
+const changeFiles = parsePatchFiles(changeDiff).flatMap((p) => p.files);
+const changeFileName = changeFiles[0]?.name ?? "";
+
+// Regression test: in split view, selecting from one side to the
+// other can produce a range where start === end numerically but
+// the sides differ (e.g. deletions line 2 → additions line 2).
+// Previously this was incorrectly treated as a single-line click
+// and the annotation was never shown.
+export const CrossSideAnnotation: Story = {
+	args: {
+		parsedFiles: changeFiles,
+		diffStyle: "split",
+		getSelectedLines: (fileName: string): SelectedLineRange | null => {
+			if (fileName === changeFileName) {
+				return {
+					start: 2,
+					end: 2,
+					side: "deletions",
+					endSide: "additions",
+				};
+			}
+			return null;
+		},
+		getLineAnnotations: (fileName: string): DiffLineAnnotation<string>[] => {
+			if (fileName === changeFileName) {
+				return [
+					{
+						lineNumber: 2,
+						side: "additions",
+						metadata: "active-input",
+					},
+				];
+			}
+			return [];
+		},
+		renderAnnotation: () => (
+			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
+		),
+	},
+	play: async ({ canvasElement }) => {
+		// The annotation renders via a slot in the light DOM of the
+		// web component, so we can find the textarea directly.
+		await waitFor(() => {
+			const textarea = canvasElement.querySelector("textarea");
+			expect(textarea).not.toBeNull();
+		});
+	},
+};
+
+// Same regression scenario in unified view to ensure the
+// annotation also renders when diffStyle is "unified".
+export const CrossSideAnnotationUnified: Story = {
+	args: {
+		...CrossSideAnnotation.args,
+		diffStyle: "unified",
+	},
+	play: CrossSideAnnotation.play,
+};
+
+// -------------------------------------------------------------------
+// Edge-case stories
+// -------------------------------------------------------------------
+
+// Play function shared by all annotation edge-case stories.
+const expectAnnotationTextarea = async ({
+	canvasElement,
+}: {
+	canvasElement: HTMLElement;
+}) => {
+	await waitFor(() => {
+		const textarea = canvasElement.querySelector("textarea");
+		expect(textarea).not.toBeNull();
+	});
+};
+
+// Diff where deletion and addition line numbers are wildly
+// different (hunk header: @@ -508,4 +218,4 @@). Deletion
+// lines are 509-510, addition lines are 219-220.
+// biome-ignore format: raw diff string must preserve exact whitespace
+const mismatchedLinesDiff = [
+"diff --git a/src/big.ts b/src/big.ts",
+"index abc1234..def5678 100644",
+"--- a/src/big.ts",
+"+++ b/src/big.ts",
+"@@ -508,6 +218,6 @@ function process() {",
+"   return result;",
+"-  const old1 = true;",
+"-  const old2 = false;",
+"+  const new1 = true;",
+"+  const new2 = false;",
+"   cleanup();",
+" }",
+].join("\n");
+const mismatchedFiles = parsePatchFiles(mismatchedLinesDiff).flatMap(
+	(p) => p.files,
+);
+const mismatchedFileName = mismatchedFiles[0]?.name ?? "";
+
+// Cross-side selection where deletion line 509 maps to addition
+// line 219. The old code would Math.min/max these into a
+// nonsensical 290-line range.
+export const CrossSideMismatchedLineNumbers: Story = {
+	args: {
+		parsedFiles: mismatchedFiles,
+		diffStyle: "split",
+		getSelectedLines: (fileName: string): SelectedLineRange | null => {
+			if (fileName === mismatchedFileName) {
+				return {
+					start: 509,
+					end: 219,
+					side: "deletions",
+					endSide: "additions",
+				};
+			}
+			return null;
+		},
+		getLineAnnotations: (fileName: string): DiffLineAnnotation<string>[] => {
+			if (fileName === mismatchedFileName) {
+				return [
+					{
+						lineNumber: 219,
+						side: "additions",
+						metadata: "active-input",
+					},
+				];
+			}
+			return [];
+		},
+		renderAnnotation: () => (
+			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
+		),
+	},
+	play: expectAnnotationTextarea,
+};
+
+// Same mismatched-line-number scenario in unified view.
+export const CrossSideMismatchedLineNumbersUnified: Story = {
+	args: {
+		...CrossSideMismatchedLineNumbers.args,
+		diffStyle: "unified",
+	},
+	play: expectAnnotationTextarea,
+};
+
+// Backward same-side selection (start > end). The user clicks
+// line 9 then shift-clicks line 5 on the additions side.
+// biome-ignore format: raw diff string must preserve exact whitespace
+const backwardSelectionDiff = [
+"diff --git a/src/utils.ts b/src/utils.ts",
+"index abc1234..def5678 100644",
+"--- a/src/utils.ts",
+"+++ b/src/utils.ts",
+"@@ -3,4 +3,9 @@",
+" import { foo } from \"./foo\";",
+" import { bar } from \"./bar\";",
+"+import { baz } from \"./baz\";",
+"+import { qux } from \"./qux\";",
+"+import { quux } from \"./quux\";",
+"+import { corge } from \"./corge\";",
+"+import { grault } from \"./grault\";",
+" ",
+" export function main() {",
+].join("\n");
+const backwardFiles = parsePatchFiles(backwardSelectionDiff).flatMap(
+	(p) => p.files,
+);
+const backwardFileName = backwardFiles[0]?.name ?? "";
+
+// Backward selection: start=9 > end=5 on the same side.
+// The annotation should appear at line 5 (the end point).
+export const BackwardSameSideSelection: Story = {
+	args: {
+		parsedFiles: backwardFiles,
+		diffStyle: "unified",
+		getSelectedLines: (fileName: string): SelectedLineRange | null => {
+			if (fileName === backwardFileName) {
+				return { start: 9, end: 5, side: "additions" };
+			}
+			return null;
+		},
+		getLineAnnotations: (fileName: string): DiffLineAnnotation<string>[] => {
+			if (fileName === backwardFileName) {
+				return [
+					{
+						lineNumber: 5,
+						side: "additions",
+						metadata: "active-input",
+					},
+				];
+			}
+			return [];
+		},
+		renderAnnotation: () => (
+			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
+		),
+	},
+	play: expectAnnotationTextarea,
+};
+
+// Cross-side selection going additions -> deletions (the
+// reverse of the typical del -> add direction).
+export const CrossSideAdditionsToDeletions: Story = {
+	args: {
+		parsedFiles: changeFiles,
+		diffStyle: "split",
+		getSelectedLines: (fileName: string): SelectedLineRange | null => {
+			if (fileName === changeFileName) {
+				return {
+					start: 2,
+					end: 3,
+					side: "additions",
+					endSide: "deletions",
+				};
+			}
+			return null;
+		},
+		getLineAnnotations: (fileName: string): DiffLineAnnotation<string>[] => {
+			if (fileName === changeFileName) {
+				return [
+					{
+						lineNumber: 3,
+						side: "deletions",
+						metadata: "active-input",
+					},
+				];
+			}
+			return [];
+		},
+		renderAnnotation: () => (
+			<InlinePromptInput onSubmit={fn()} onCancel={fn()} />
+		),
+	},
+	play: expectAnnotationTextarea,
 };

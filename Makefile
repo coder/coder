@@ -522,6 +522,10 @@ RESET := $(shell tput sgr0 2>/dev/null)
 fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/biome fmt/markdown
 .PHONY: fmt
 
+# Subset of fmt that does not require Go or Node toolchains.
+fmt-light: fmt/shfmt fmt/terraform fmt/markdown
+.PHONY: fmt-light
+
 fmt/go:
 ifdef FILE
 	# Format single file
@@ -628,6 +632,10 @@ endif
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
 lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
+
+# Subset of lint that does not require Go or Node toolchains.
+lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos
+.PHONY: lint-light
 
 lint/site-icons:
 	./scripts/check_site_icons.sh
@@ -771,6 +779,25 @@ pre-commit:
 	echo "$(GREEN)✓ pre-commit passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
 .PHONY: pre-commit
 
+# Lightweight pre-commit for changes that don't touch Go or
+# TypeScript. Skips gen, lint/go, lint/ts, fmt/go, fmt/ts, and
+# the binary build. Used by the pre-commit hook when only docs,
+# shell, terraform, helm, or other fast-to-check files changed.
+pre-commit-light:
+	start=$$(date +%s)
+	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-commit-light.XXXXXX")
+	echo "$(BOLD)pre-commit-light$(RESET) ($$logdir)"
+	echo "fmt:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir fmt-light
+	$(check-unstaged)
+	echo "lint:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir lint-light
+	$(check-unstaged)
+	$(check-untracked)
+	rm -rf $$logdir
+	echo "$(GREEN)✓ pre-commit-light passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
+.PHONY: pre-commit-light
+
 pre-push:
 	start=$$(date +%s)
 	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-push.XXXXXX")
@@ -779,6 +806,7 @@ pre-push:
 	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
 		test \
 		test-js \
+		test-storybook \
 		site/out/index.html
 	rm -rf $$logdir
 	echo "$(GREEN)✓ pre-push passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
@@ -1312,6 +1340,11 @@ test-js: site/node_modules/.installed
 	cd site/
 	pnpm test:ci
 .PHONY: test-js
+
+test-storybook: site/node_modules/.installed
+	cd site/
+	pnpm exec vitest run --project=storybook
+.PHONY: test-storybook
 
 # sqlc-cloud-is-setup will fail if no SQLc auth token is set. Use this as a
 # dependency for any sqlc-cloud related targets.

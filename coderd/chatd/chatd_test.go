@@ -17,6 +17,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	mcpgo "github.com/mark3labs/mcp-go/mcp"
+	mcpserver "github.com/mark3labs/mcp-go/server"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -30,9 +33,12 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
@@ -1586,7 +1592,7 @@ func TestPersistToolResultWithBinaryData(t *testing.T) {
 		}).
 		Times(1)
 	mockConn.EXPECT().
-		ProcessOutput(gomock.Any(), "proc-binary").
+		ProcessOutput(gomock.Any(), "proc-binary", gomock.Any()).
 		Return(workspacesdk.ProcessOutputResponse{
 			Output:   string(binaryOutput),
 			Running:  false,
@@ -2187,19 +2193,51 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 		return chattest.OpenAIResponse{StreamingChunks: chunks}
 	}))
 
-	// Create a workspace that will be linked to the chat later,
-	// simulating the normal flow where a chat is created first
-	// and then creates a workspace via create_workspace.
+	// Create a workspace with a full build chain so we can verify
+	// both last_used_at (dormancy) and deadline (autostop) bumps.
 	org := dbgen.Organization(t, db, database.Organization{})
-	tmpl := dbgen.Template(t, db, database.Template{
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 	})
+	tmpl := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: tv.ID,
+		CreatedBy:       user.ID,
+	})
+	require.NoError(t, db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+		ID:                tmpl.ID,
+		UpdatedAt:         dbtime.Now(),
+		AllowUserAutostop: true,
+		ActivityBump:      int64(time.Hour),
+	}))
 	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID:        user.ID,
 		OrganizationID: org.ID,
 		TemplateID:     tmpl.ID,
+		Ttl:            sql.NullInt64{Valid: true, Int64: int64(8 * time.Hour)},
 	})
+	pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		CompletedAt: sql.NullTime{
+			Valid: true,
+			Time:  dbtime.Now().Add(-30 * time.Minute),
+		},
+	})
+	// Build deadline is 30 minutes in the past — close enough to
+	// be bumped by the default 1-hour activity bump.
+	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       ws.ID,
+		TemplateVersionID: tv.ID,
+		JobID:             pj.ID,
+		Transition:        database.WorkspaceTransitionStart,
+		Deadline:          dbtime.Now().Add(-30 * time.Minute),
+	})
+	originalDeadline := build.Deadline
 
 	// Set up a short heartbeat interval and a UsageTracker that
 	// flushes frequently so last_used_at gets updated in the DB.
@@ -2212,9 +2250,13 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 	t.Cleanup(func() { tracker.Close() })
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	// Wrap the database with dbauthz so the chatd server's
+	// AsChatd context is enforced on every query, matching
+	// production behavior.
+	authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
-		Database:                   db,
+		Database:                   authzDB,
 		ReplicaID:                  uuid.New(),
 		Pubsub:                     ps,
 		PendingChatAcquireInterval: 10 * time.Millisecond,
@@ -2227,7 +2269,11 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 	})
 
 	// Create a chat WITHOUT a workspace, the normal starting state.
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+	// In production, CreateChat is called from the HTTP handler with
+	// the authenticated user's context. Here we use AsChatd since
+	// the chatd server processes everything under that role.
+	chatCtx := dbauthz.AsChatd(ctx)
+	chat, err := server.CreateChat(chatCtx, chatd.CreateOptions{
 		OwnerID:            user.ID,
 		Title:              "usage-tracking-test",
 		ModelConfigID:      model.ID,
@@ -2285,6 +2331,22 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, updatedWs.LastUsedAt.After(ws.LastUsedAt),
 		"workspace last_used_at should have been bumped")
+
+	// Verify the workspace build deadline was also extended.
+	// The SQL only writes when 5% of the deadline has elapsed —
+	// most calls perform a read-only CTE lookup. Wider ±2
+	// minute tolerance than activitybump_test.go because the bump
+	// happens asynchronously via the heartbeat goroutine.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		updatedBuild, buildErr := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, ws.ID)
+		if buildErr != nil || !updatedBuild.Deadline.After(originalDeadline) {
+			return false
+		}
+		now := dbtime.Now()
+		return updatedBuild.Deadline.After(now.Add(time.Hour-2*time.Minute)) &&
+			updatedBuild.Deadline.Before(now.Add(time.Hour+2*time.Minute))
+	}, testutil.IntervalFast,
+		"workspace build deadline should have been bumped to ~now+1h")
 }
 
 func TestHeartbeatNoWorkspaceNoBump(t *testing.T) {
@@ -3451,4 +3513,198 @@ func (d *panicOnInTxDB) InTx(f func(database.Store) error, opts *database.TxOpti
 		panic("intentional test panic")
 	}
 	return d.Store.InTx(f, opts)
+}
+
+// TestMCPServerToolInvocation verifies that when a chat has
+// mcp_server_ids set, the chat loop connects to those MCP servers,
+// discovers their tools, and the LLM can invoke them.
+//
+// NOTE: This test uses a raw database.Store (no dbauthz wrapper).
+// The chatd RBAC authorization of GetMCPServerConfigsByIDs (which
+// requires ActionRead on ResourceDeploymentConfig) is covered by
+// the chatd role definition tests, not here.
+func TestMCPServerToolInvocation(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Start a real MCP server that exposes an "echo" tool.
+	mcpSrv := mcpserver.NewMCPServer("test-mcp", "1.0.0")
+	mcpSrv.AddTools(mcpserver.ServerTool{
+		Tool: mcpgo.NewTool("echo",
+			mcpgo.WithDescription("Echoes the input"),
+			mcpgo.WithString("input",
+				mcpgo.Description("The input string"),
+				mcpgo.Required(),
+			),
+		),
+		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+			input, _ := req.GetArguments()["input"].(string)
+			return mcpgo.NewToolResultText("echo: " + input), nil
+		},
+	})
+	mcpHTTP := mcpserver.NewStreamableHTTPServer(mcpSrv)
+	mcpTS := httptest.NewServer(mcpHTTP)
+	t.Cleanup(mcpTS.Close)
+
+	// Track which tool names are sent to the LLM and capture
+	// whether the MCP tool result appears in the second call.
+	var (
+		callCount      atomic.Int32
+		llmToolNames   []string
+		llmToolsMu     sync.Mutex
+		foundMCPResult atomic.Bool
+	)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+
+		// Record tool names from the first streamed call.
+		if callCount.Add(1) == 1 {
+			names := make([]string, 0, len(req.Tools))
+			for _, tool := range req.Tools {
+				names = append(names, tool.Function.Name)
+			}
+			llmToolsMu.Lock()
+			llmToolNames = names
+			llmToolsMu.Unlock()
+
+			// Ask the LLM to call the MCP echo tool.
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk(
+					"test-mcp__echo",
+					`{"input":"hello from LLM"}`,
+				),
+			)
+		}
+
+		// Second call: verify the tool result was fed back.
+		for _, msg := range req.Messages {
+			if msg.Role == "tool" && strings.Contains(msg.Content, "echo: hello from LLM") {
+				foundMCPResult.Store(true)
+			}
+		}
+
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Got it!")...,
+		)
+	})
+
+	user, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+
+	// Seed the MCP server config in the database. This must
+	// happen after seedChatDependencies so user.ID exists for
+	// the foreign key.
+	mcpConfig, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+		DisplayName:   "Test MCP",
+		Slug:          "test-mcp",
+		Url:           mcpTS.URL,
+		Transport:     "streamable_http",
+		AuthType:      "none",
+		Availability:  "default_off",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+		CreatedBy:     user.ID,
+		UpdatedBy:     user.ID,
+	})
+	require.NoError(t, err)
+
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(workspacesdk.LSResponse{}, nil).AnyTimes()
+	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:       user.ID,
+		Title:         "mcp-tool-test",
+		ModelConfigID: model.ID,
+		WorkspaceID:   uuid.NullUUID{UUID: ws.ID, Valid: true},
+		MCPServerIDs:  []uuid.UUID{mcpConfig.ID},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Echo something via MCP."),
+		},
+	})
+	require.NoError(t, err)
+
+	// Verify MCPServerIDs were persisted on the chat record.
+	dbChat, getErr := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, getErr)
+	require.Equal(t, []uuid.UUID{mcpConfig.ID}, dbChat.MCPServerIDs)
+
+	// Wait for the chat to finish processing.
+	var chatResult database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat failed", "last_error=%q", chatResult.LastError.String)
+	}
+
+	// The MCP tool (test-mcp__echo) should appear in the tool
+	// list sent to the LLM.
+	llmToolsMu.Lock()
+	recordedNames := append([]string(nil), llmToolNames...)
+	llmToolsMu.Unlock()
+	require.Contains(t, recordedNames, "test-mcp__echo",
+		"MCP tool should be in the tool list sent to the LLM")
+
+	// The tool result from the MCP server ("echo: hello from
+	// LLM") should have been fed back to the LLM as a tool
+	// message in the second call.
+	require.True(t, foundMCPResult.Load(),
+		"MCP tool result should appear in the second LLM call")
+
+	// Verify the tool result was persisted in the database.
+	var foundToolMessage bool
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		messages, dbErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		if dbErr != nil {
+			return false
+		}
+		for _, msg := range messages {
+			if msg.Role != database.ChatMessageRoleTool {
+				continue
+			}
+			parts, parseErr := chatprompt.ParseContent(msg)
+			if parseErr != nil || len(parts) == 0 {
+				continue
+			}
+			for _, part := range parts {
+				if part.Type == codersdk.ChatMessagePartTypeToolResult &&
+					part.ToolName == "test-mcp__echo" &&
+					strings.Contains(string(part.Result), "echo: hello from LLM") {
+					foundToolMessage = true
+					return true
+				}
+			}
+		}
+		return false
+	}, testutil.IntervalFast)
+	require.True(t, foundToolMessage,
+		"MCP tool result should be persisted as a tool message in the database")
 }
