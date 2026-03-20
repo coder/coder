@@ -67,7 +67,6 @@ const ReasoningDisclosure: FC<{
 	return (
 		<ToolCollapsible
 			className="w-full"
-			icon={null}
 			hasContent={hasText}
 			header={
 				<span className="text-[11px] font-medium text-content-secondary">
@@ -111,7 +110,6 @@ const FileReferenceDisclosure: FC<{
 	return (
 		<ToolCollapsible
 			className="w-full"
-			icon={null}
 			hasContent={hasContent}
 			header={
 				<span

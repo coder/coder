@@ -10,7 +10,6 @@ interface ToolCollapsibleProps {
 	defaultExpanded?: boolean;
 	className?: string;
 	headerClassName?: string;
-	icon?: ReactNode | null;
 }
 
 export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
@@ -20,14 +19,11 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 	defaultExpanded = false,
 	className,
 	headerClassName,
-	icon = null,
 }) => {
 	const [expanded, setExpanded] = useState(defaultExpanded);
 
 	const headerContent = (
 		<>
-			{icon}
-			<div className="min-w-0 flex flex-1 items-center gap-2">{header}</div>
 			{hasContent && (
 				<ChevronDownIcon
 					className={cn(
@@ -36,13 +32,14 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 					)}
 				/>
 			)}
+			<div className="min-w-0 flex flex-1 items-center gap-2">{header}</div>
 		</>
 	);
 
 	return (
 		<div
 			className={cn(
-				"overflow-hidden rounded-lg border border-solid border-border-default/30 bg-surface-secondary/20",
+				"overflow-hidden rounded-lg border border-solid border-border-default/50 bg-surface-secondary/20",
 				className,
 			)}
 		>
@@ -52,7 +49,7 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 					aria-expanded={expanded}
 					onClick={() => setExpanded(!expanded)}
 					className={cn(
-						"m-0 flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-1.5 text-left font-[inherit] text-[inherit] transition-colors hover:bg-surface-tertiary/30",
+						"m-0 flex w-full cursor-pointer items-center gap-2 border-0 bg-surface-tertiary/40 px-3 py-1.5 text-left font-[inherit] text-[inherit] transition-colors hover:bg-surface-tertiary/50",
 						headerClassName,
 					)}
 				>
@@ -61,7 +58,7 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 			) : (
 				<div
 					className={cn(
-						"flex w-full items-center gap-2 px-3 py-1.5",
+						"flex w-full items-center gap-2 bg-surface-tertiary/40 px-3 py-1.5",
 						headerClassName,
 					)}
 				>
