@@ -90,9 +90,49 @@ describe("AgentDetailSidebarPanelLoadingFallback", () => {
 			"--panel-width": `${RIGHT_PANEL_DEFAULT_WIDTH}px`,
 		});
 	});
+
+	it("renders a close path when the panel can be dismissed", () => {
+		const onClose = vi.fn();
+
+		render(<AgentDetailSidebarPanelLoadingFallback onClose={onClose} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
+		expect(onClose).toHaveBeenCalledTimes(1);
+	});
 });
 
 describe("DeferredAgentDetailSidebar", () => {
+	it("keeps a close path available while the sidebar modules load", async () => {
+		const loadSidebarComponents = vi.fn(
+			() => new Promise<AgentDetailSidebarComponents>(() => {}),
+		);
+
+		const SidebarHarness = () => {
+			const [isOpen, setIsOpen] = useState(true);
+
+			return (
+				<DeferredAgentDetailSidebar
+					isOpen={isOpen}
+					onClose={() => setIsOpen(false)}
+					loadSidebarComponents={loadSidebarComponents}
+				>
+					{() => <div>loaded sidebar</div>}
+				</DeferredAgentDetailSidebar>
+			);
+		};
+
+		render(<SidebarHarness />);
+
+		await waitFor(() => expect(loadSidebarComponents).toHaveBeenCalledTimes(1));
+		fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
+		await waitFor(() => {
+			expect(
+				screen.queryByRole("button", { name: "Close panel" }),
+			).not.toBeInTheDocument();
+		});
+		expect(screen.queryByText("loaded sidebar")).not.toBeInTheDocument();
+	});
+
 	it("offers a close path after a failed sidebar load and retries on reopen", async () => {
 		const sidebarComponents = makeSidebarComponents();
 		const loadSidebarComponents = vi

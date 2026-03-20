@@ -2,7 +2,7 @@ import type * as TypesGen from "api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
-import { ArchiveIcon, ArrowDownIcon } from "lucide-react";
+import { ArchiveIcon, ArrowDownIcon, XIcon } from "lucide-react";
 import {
 	type FC,
 	type ReactNode,
@@ -97,11 +97,21 @@ const createAgentDetailSidebarComponentsLoader = (
 const loadAgentDetailSidebarComponents =
 	createAgentDetailSidebarComponentsLoader();
 
+type DeferredAgentDetailSidebarFallbackControls = Readonly<{
+	close?: () => void;
+}>;
+
 interface DeferredAgentDetailSidebarProps {
 	isOpen: boolean;
+	onClose?: () => void;
 	loadSidebarComponents?: () => Promise<AgentDetailSidebarComponents>;
-	fallback?: ReactNode;
-	loadFailureFallback?: (controls: { retry: () => void }) => ReactNode;
+	fallback?:
+		| ReactNode
+		| ((controls: DeferredAgentDetailSidebarFallbackControls) => ReactNode);
+	loadFailureFallback?: (controls: {
+		retry: () => void;
+		close?: () => void;
+	}) => ReactNode;
 	children: (components: AgentDetailSidebarComponents) => ReactNode;
 }
 
@@ -109,10 +119,13 @@ export const DeferredAgentDetailSidebar: FC<
 	DeferredAgentDetailSidebarProps
 > = ({
 	isOpen,
+	onClose,
 	loadSidebarComponents = loadAgentDetailSidebarComponents,
-	fallback = <AgentDetailSidebarPanelLoadingFallback />,
-	loadFailureFallback = ({ retry }) => (
-		<AgentDetailSidebarPanelLoadErrorFallback onRetry={retry} />
+	fallback = ({ close }) => (
+		<AgentDetailSidebarPanelLoadingFallback onClose={close} />
+	),
+	loadFailureFallback = ({ retry, close }) => (
+		<AgentDetailSidebarPanelLoadErrorFallback onRetry={retry} onClose={close} />
 	),
 	children,
 }) => {
@@ -160,11 +173,21 @@ export const DeferredAgentDetailSidebar: FC<
 	}
 
 	if (sidebarLoadFailed) {
-		return <>{loadFailureFallback({ retry: handleRetrySidebarLoad })}</>;
+		return (
+			<>
+				{loadFailureFallback({ retry: handleRetrySidebarLoad, close: onClose })}
+			</>
+		);
 	}
 
 	if (!sidebarComponents) {
-		return <>{fallback}</>;
+		return (
+			<>
+				{typeof fallback === "function"
+					? fallback({ close: onClose })
+					: fallback}
+			</>
+		);
 	}
 
 	return <>{children(sidebarComponents)}</>;
@@ -185,10 +208,29 @@ const AgentDetailSidebarPanelShell: FC<{ children: ReactNode }> = ({
 	);
 };
 
-export const AgentDetailSidebarPanelLoadingFallback: FC = () => {
+type AgentDetailSidebarPanelLoadingFallbackProps = Readonly<{
+	onClose?: () => void;
+}>;
+
+export const AgentDetailSidebarPanelLoadingFallback: FC<
+	AgentDetailSidebarPanelLoadingFallbackProps
+> = ({ onClose }) => {
 	return (
 		<AgentDetailSidebarPanelShell>
-			<RightPanelSkeleton />
+			<div className="relative h-full">
+				{onClose && (
+					<Button
+						variant="subtle"
+						size="icon"
+						onClick={onClose}
+						aria-label="Close panel"
+						className="absolute right-3 top-1 z-10 h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary md:hidden"
+					>
+						<XIcon />
+					</Button>
+				)}
+				<RightPanelSkeleton />
+			</div>
 		</AgentDetailSidebarPanelShell>
 	);
 };
@@ -518,12 +560,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 			</div>
 			<DeferredAgentDetailSidebar
 				isOpen={shouldShowSidebar}
-				loadFailureFallback={({ retry }) => (
-					<AgentDetailSidebarPanelLoadErrorFallback
-						onRetry={retry}
-						onClose={() => onSetShowSidebarPanel(false)}
-					/>
-				)}
+				onClose={() => onSetShowSidebarPanel(false)}
 			>
 				{({ RightPanel, SidebarTabView, GitPanel }) => (
 					<RightPanel
