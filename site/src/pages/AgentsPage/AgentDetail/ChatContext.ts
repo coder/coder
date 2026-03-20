@@ -135,6 +135,7 @@ type ChatStoreState = {
 type ChatStore = {
 	getSnapshot: () => ChatStoreState;
 	subscribe: (listener: () => void) => () => void;
+	batch: (fn: () => void) => void;
 	replaceMessages: (
 		messages: readonly TypesGen.ChatMessage[] | undefined,
 	) => void;
@@ -142,6 +143,7 @@ type ChatStore = {
 		isDuplicate: boolean;
 		changed: boolean;
 	};
+	upsertDurableMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
 	applyMessagePart: (part: TypesGen.ChatMessagePart) => void;
 	applyMessageParts: (parts: readonly TypesGen.ChatMessagePart[]) => void;
 	setQueuedMessages: (
@@ -181,6 +183,25 @@ export const createChatStore = (): ChatStore => {
 		}
 	};
 
+	// Batching: suppress emit() during a batch and fire once
+	// at the end. This collapses N store mutations from a
+	// single WebSocket message into one subscriber notification.
+	let batchDepth = 0;
+	let batchDirty = false;
+
+	const batch = (fn: () => void): void => {
+		batchDepth += 1;
+		try {
+			fn();
+		} finally {
+			batchDepth -= 1;
+			if (batchDepth === 0 && batchDirty) {
+				batchDirty = false;
+				emit();
+			}
+		}
+	};
+
 	const setState = (
 		updater: (current: ChatStoreState) => ChatStoreState,
 	): void => {
@@ -189,7 +210,11 @@ export const createChatStore = (): ChatStore => {
 			return;
 		}
 		state = next;
-		emit();
+		if (batchDepth > 0) {
+			batchDirty = true;
+		} else {
+			emit();
+		}
 	};
 
 	const replaceMessages = (
@@ -265,6 +290,43 @@ export const createChatStore = (): ChatStore => {
 		return { isDuplicate, changed: actuallyChanged };
 	};
 
+	// Bulk variant that applies all messages in a single pass —
+	// one Map copy and one sort instead of N copies and N sorts.
+	const upsertDurableMessages = (
+		messages: readonly TypesGen.ChatMessage[],
+	): void => {
+		if (messages.length === 0) {
+			return;
+		}
+		setState((current) => {
+			let nextMessagesByID: Map<number, TypesGen.ChatMessage> | null = null;
+			for (const message of messages) {
+				const map = nextMessagesByID ?? current.messagesByID;
+				const existing = map.get(message.id);
+				if (existing && chatMessagesEqualByValue(existing, message)) {
+					continue;
+				}
+				// Lazily copy the map on first actual change.
+				if (!nextMessagesByID) {
+					nextMessagesByID = new Map(current.messagesByID);
+				}
+				nextMessagesByID.set(message.id, message);
+			}
+			if (!nextMessagesByID) {
+				return current;
+			}
+			const needsReorder = nextMessagesByID.size !== current.messagesByID.size;
+			const nextOrderedMessageIDs = needsReorder
+				? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
+				: current.orderedMessageIDs;
+			return {
+				...current,
+				messagesByID: nextMessagesByID,
+				orderedMessageIDs: nextOrderedMessageIDs,
+			};
+		});
+	};
+
 	const applyMessageParts = (parts: readonly TypesGen.ChatMessagePart[]) => {
 		if (parts.length === 0) {
 			return;
@@ -293,8 +355,10 @@ export const createChatStore = (): ChatStore => {
 				listeners.delete(listener);
 			};
 		},
+		batch,
 		replaceMessages,
 		upsertDurableMessage,
+		upsertDurableMessages,
 		applyMessagePart: (part) => applyMessageParts([part]),
 		applyMessageParts,
 		setQueuedMessages: (queuedMessages) => {
@@ -688,9 +752,6 @@ export const useChatStore = (
 					if (activeChatIDRef.current !== currentChatID) {
 						return;
 					}
-					// Re-check status at execution time. A status
-					// event processed between scheduling and running
-					// this callback may have cleared stream state.
 					if (!shouldApplyMessagePart()) {
 						return;
 					}
@@ -698,129 +759,142 @@ export const useChatStore = (
 				});
 			};
 
-			for (const streamEvent of streamEvents) {
-				if (streamEvent.type === "message_part") {
-					if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+			// Collect durable messages for bulk upsert so the
+			// entire batch produces one Map copy + one sort
+			// instead of N copies and N sorts.
+			const pendingMessages: TypesGen.ChatMessage[] = [];
+			let needsStreamReset = false;
+
+			// Wrap all store mutations in a batch so subscribers
+			// are notified exactly once at the end, not per event.
+			store.batch(() => {
+				for (const streamEvent of streamEvents) {
+					if (streamEvent.type === "message_part") {
+						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+							continue;
+						}
+						if (!shouldApplyMessagePart()) {
+							continue;
+						}
+						const part = streamEvent.message_part?.part;
+						if (part) {
+							cancelScheduledStreamReset();
+							pendingMessageParts.push(part);
+						}
 						continue;
 					}
-					if (!shouldApplyMessagePart()) {
-						continue;
+					flushMessageParts();
+
+					switch (streamEvent.type) {
+						case "message": {
+							const message = streamEvent.message;
+							if (!message) {
+								continue;
+							}
+							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+								continue;
+							}
+							pendingMessages.push(message);
+							if (
+								message.id !== undefined &&
+								(lastMessageIdRef.current === undefined ||
+									message.id > lastMessageIdRef.current)
+							) {
+								lastMessageIdRef.current = message.id;
+							}
+							if (message.role === "assistant") {
+								needsStreamReset = true;
+							}
+							continue;
+						}
+						case "queue_update":
+							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+								continue;
+							}
+							wsQueueUpdateReceivedRef.current = true;
+							store.setQueuedMessages(streamEvent.queued_messages);
+							updateChatQueuedMessages(streamEvent.queued_messages);
+							continue;
+						case "status": {
+							const nextStatus = streamEvent.status?.status;
+							if (!nextStatus) {
+								continue;
+							}
+							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+								store.setSubagentStatusOverride(
+									streamEvent.chat_id,
+									nextStatus,
+								);
+								continue;
+							}
+							store.setChatStatus(nextStatus);
+							if (nextStatus === "pending" || nextStatus === "waiting") {
+								store.clearStreamState();
+								store.clearRetryState();
+							}
+							if (nextStatus === "running") {
+								store.clearRetryState();
+							}
+							if (nextStatus !== "error") {
+								clearChatErrorReasonRef.current(chatID);
+							}
+							updateSidebarChat((chat) =>
+								chat.status === nextStatus
+									? chat
+									: { ...chat, status: nextStatus },
+							);
+							continue;
+						}
+						case "error": {
+							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+								continue;
+							}
+							const reason =
+								streamEvent.error?.message.trim() || "Chat processing failed.";
+							store.setChatStatus("error");
+							store.setStreamError(reason);
+							store.clearRetryState();
+							setChatErrorReasonRef.current(chatID, {
+								kind: "generic",
+								message: reason,
+							});
+							updateSidebarChat((chat) =>
+								chat.status === "error" ? chat : { ...chat, status: "error" },
+							);
+							continue;
+						}
+						case "retry": {
+							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+								continue;
+							}
+							const retry = streamEvent.retry;
+							if (retry) {
+								store.clearStreamState();
+								store.setRetryState({
+									attempt: retry.attempt,
+									error: retry.error,
+								});
+							}
+							continue;
+						}
+						default:
+							continue;
 					}
-					const part = streamEvent.message_part?.part;
-					if (part) {
-						cancelScheduledStreamReset();
-						pendingMessageParts.push(part);
-					}
-					continue;
 				}
+
 				flushMessageParts();
 
-				switch (streamEvent.type) {
-					case "message": {
-						const message = streamEvent.message;
-						if (!message) {
-							continue;
-						}
-						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
-							continue;
-						}
-						const { changed } = store.upsertDurableMessage(message);
-						// Keep lastMessageIdRef in sync with
-						// stream-delivered messages so reconnections use
-						// the correct after_id and don't re-fetch or
-						// miss events.
-						if (
-							message.id !== undefined &&
-							(lastMessageIdRef.current === undefined ||
-								message.id > lastMessageIdRef.current)
-						) {
-							lastMessageIdRef.current = message.id;
-						}
-						if (changed && message.role === "assistant") {
-							scheduleStreamReset();
-						}
-						// Do not update updated_at here. The global
-						// chat-list WebSocket delivers the authoritative
-						// server timestamp; fabricating a client-side
-						// value causes the chat to flicker between time
-						// groups when the two sources race.
-						continue;
-					}
-					case "queue_update":
-						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
-							continue;
-						}
-						wsQueueUpdateReceivedRef.current = true;
-						store.setQueuedMessages(streamEvent.queued_messages);
-						updateChatQueuedMessages(streamEvent.queued_messages);
-						continue;
-					case "status": {
-						const nextStatus = streamEvent.status?.status;
-						if (!nextStatus) {
-							continue;
-						}
-
-						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
-							store.setSubagentStatusOverride(streamEvent.chat_id, nextStatus);
-							continue;
-						}
-
-						store.setChatStatus(nextStatus);
-						if (nextStatus === "pending" || nextStatus === "waiting") {
-							store.clearStreamState();
-							store.clearRetryState();
-						}
-						if (nextStatus === "running") {
-							store.clearRetryState();
-						}
-							if (nextStatus !== "error") {
-								clearChatErrorReasonRef.current(chatID);						}
-						updateSidebarChat((chat) =>
-							chat.status === nextStatus
-								? chat
-								: { ...chat, status: nextStatus },
-						);
-						continue;
-					}
-					case "error": {
-						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
-							continue;
-						}
-						const reason =
-							streamEvent.error?.message.trim() || "Chat processing failed.";
-						store.setChatStatus("error");
-						store.setStreamError(reason);
-						store.clearRetryState();
-						setChatErrorReasonRef.current(chatID, {
-							kind: "generic",
-							message: reason,
-						});
-						updateSidebarChat((chat) =>
-							chat.status === "error" ? chat : { ...chat, status: "error" },
-						);
-						continue;
-					}
-					case "retry": {
-						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
-							continue;
-						}
-						const retry = streamEvent.retry;
-						if (retry) {
-							store.clearStreamState();
-							store.setRetryState({
-								attempt: retry.attempt,
-								error: retry.error,
-							});
-						}
-						continue;
-					}
-					default:
-						continue;
+				// Bulk-upsert all collected durable messages in one
+				// pass: one Map copy + one sort instead of N each.
+				if (pendingMessages.length > 0) {
+					store.upsertDurableMessages(pendingMessages);
 				}
-			}
-			flushMessageParts();
-		};
+			});
 
+			if (needsStreamReset) {
+				scheduleStreamReset();
+			}
+		};
 		const disposeSocket = createReconnectingWebSocket({
 			connect() {
 				// Use the latest known message ID so the server only
@@ -860,12 +934,7 @@ export const useChatStore = (
 			cancelScheduledStreamReset();
 			activeChatIDRef.current = null;
 		};
-		}, [
-			chatID,
-			initialDataLoaded,
-			queryClient,
-			store,
-		]);
+	}, [chatID, initialDataLoaded, queryClient, store]);
 	return {
 		store,
 		clearStreamError: () => {
