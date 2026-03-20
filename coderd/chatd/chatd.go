@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
@@ -63,6 +64,14 @@ const (
 	// recovery loop runs relative to the stale threshold. A value
 	// of 5 means recovery runs at 1/5 of the stale-after duration.
 	staleRecoveryIntervalDivisor = 5
+
+	// streamDropWarnInterval controls how often WARN-level logs are
+	// emitted when stream events are dropped. Between intervals the
+	// drop is logged at DEBUG to avoid log spam. This uses a
+	// timestamp comparison rather than a quartz.Ticker because the
+	// state is per-chat — a ticker per chat would require extra
+	// goroutines and lifecycle management.
+	streamDropWarnInterval = 10 * time.Second
 
 	// DefaultMaxChatsPerAcquire is the maximum number of chats to
 	// acquire in a single processOnce call. Batching avoids
@@ -326,6 +335,19 @@ type chatStreamState struct {
 	durableMessages      []codersdk.ChatStreamEvent
 	durableEvictedBefore int64 // highest message ID evicted from durable cache
 	subscribers          map[uuid.UUID]chan codersdk.ChatStreamEvent
+	bufferDropCount      int64
+	bufferLastWarnAt     time.Time
+	subscriberDropCount  int64
+	subscriberLastWarnAt time.Time
+}
+
+// resetDropCounters zeroes the rate-limiting state for both buffer
+// and subscriber drop warnings. The caller must hold s.mu.
+func (s *chatStreamState) resetDropCounters() {
+	s.bufferDropCount = 0
+	s.bufferLastWarnAt = time.Time{}
+	s.subscriberDropCount = 0
+	s.subscriberLastWarnAt = time.Time{}
 }
 
 // MaxQueueSize is the maximum number of queued user messages per chat.
@@ -1498,8 +1520,17 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 			return
 		}
 		if len(state.buffer) >= maxStreamBufferSize {
-			p.logger.Warn(context.Background(), "chat stream buffer full, dropping oldest event",
-				slog.F("chat_id", chatID), slog.F("buffer_size", len(state.buffer)))
+			state.bufferDropCount++
+			now := p.clock.Now()
+			if now.Sub(state.bufferLastWarnAt) >= streamDropWarnInterval {
+				p.logger.Warn(context.Background(), "chat stream buffer full, dropping oldest event",
+					slog.F("chat_id", chatID),
+					slog.F("buffer_size", len(state.buffer)),
+					slog.F("dropped_count", state.bufferDropCount),
+				)
+				state.bufferDropCount = 0
+				state.bufferLastWarnAt = now
+			}
 			state.buffer = state.buffer[1:]
 		}
 		state.buffer = append(state.buffer, event)
@@ -1510,19 +1541,32 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 	}
 	state.mu.Unlock()
 
+	var subDropped int64
 	for _, ch := range subscribers {
 		select {
 		case ch <- event:
 		default:
-			p.logger.Warn(context.Background(), "dropping chat stream event",
-				slog.F("chat_id", chatID), slog.F("type", event.Type))
+			subDropped++
 		}
 	}
 
-	// Clean up the stream entry if it was created by
-	// getOrCreateStreamState but has no subscribers and is not
-	// actively buffering (e.g. publish with no watchers).
+	// Re-acquire the lock once for both subscriber-drop logging and
+	// idle cleanup. Merging these avoids an unnecessary unlock/re-lock
+	// gap between the two sections.
 	state.mu.Lock()
+	if subDropped > 0 {
+		state.subscriberDropCount += subDropped
+		now := p.clock.Now()
+		if now.Sub(state.subscriberLastWarnAt) >= streamDropWarnInterval {
+			p.logger.Warn(context.Background(), "dropping chat stream event",
+				slog.F("chat_id", chatID),
+				slog.F("type", event.Type),
+				slog.F("dropped_count", state.subscriberDropCount),
+			)
+			state.subscriberDropCount = 0
+			state.subscriberLastWarnAt = now
+		}
+	}
 	p.cleanupStreamIfIdle(chatID, state)
 	state.mu.Unlock()
 }
@@ -1651,8 +1695,9 @@ func (p *Server) Subscribe(
 	var allCancels []func()
 	allCancels = append(allCancels, localCancel)
 
-	// Subscribe to pubsub for durable events (status, messages,
-	// queue updates, errors). When pubsub is nil (e.g. in-memory
+	// Subscribe to pubsub for durable and structured control
+	// events (status, messages, queue updates, retry, errors).
+	// When pubsub is nil (e.g. in-memory
 	// single-instance) we skip this and deliver all local events.
 	//
 	// This MUST happen before the DB queries below so that any
@@ -1920,6 +1965,17 @@ func (p *Server) Subscribe(
 						}
 					}
 				}
+				if notify.Retry != nil {
+					select {
+					case <-mergedCtx.Done():
+						return
+					case mergedEvents <- codersdk.ChatStreamEvent{
+						Type:   codersdk.ChatStreamEventTypeRetry,
+						ChatID: chatID,
+						Retry:  notify.Retry,
+					}:
+					}
+				}
 				if notify.Error != "" {
 					select {
 					case <-mergedCtx.Done():
@@ -2028,7 +2084,8 @@ func (p *Server) publishStatus(chatID uuid.UUID, status database.ChatStatus, wor
 }
 
 // publishChatStreamNotify broadcasts a per-chat stream notification via
-// PostgreSQL pubsub so that all replicas can read updates from the database.
+// PostgreSQL pubsub so that all replicas can merge durable database updates
+// with transient control events.
 func (p *Server) publishChatStreamNotify(chatID uuid.UUID, notify coderdpubsub.ChatStreamNotifyMessage) {
 	if p.pubsub == nil {
 		return
@@ -2123,6 +2180,19 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID) 
 	sdkStatus := db2sdk.ChatDiffStatus(chatID, &dbStatus)
 	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindDiffStatusChange, &sdkStatus)
 	return nil
+}
+
+func (p *Server) publishRetry(chatID uuid.UUID, payload *codersdk.ChatStreamRetry) {
+	if payload == nil {
+		return
+	}
+	p.publishEvent(chatID, codersdk.ChatStreamEvent{
+		Type:  codersdk.ChatStreamEventTypeRetry,
+		Retry: payload,
+	})
+	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
+		Retry: payload,
+	})
 }
 
 func (p *Server) publishError(chatID uuid.UUID, message string) {
@@ -2447,11 +2517,13 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	streamState := p.getOrCreateStreamState(chat.ID)
 	streamState.mu.Lock()
 	streamState.buffer = nil
+	streamState.resetDropCounters()
 	streamState.buffering = true
 	streamState.mu.Unlock()
 	defer func() {
 		streamState.mu.Lock()
 		streamState.buffer = nil
+		streamState.resetDropCounters()
 		streamState.buffering = false
 		p.cleanupStreamIfIdle(chat.ID, streamState)
 		streamState.mu.Unlock()
@@ -2871,19 +2943,19 @@ func (p *Server) runChat(
 		var usageForCost codersdk.ChatMessageUsage
 		if hasUsage {
 			if step.Usage.InputTokens != 0 {
-				usageForCost.InputTokens = int64Ptr(step.Usage.InputTokens)
+				usageForCost.InputTokens = ptr.Ref(step.Usage.InputTokens)
 			}
 			if step.Usage.OutputTokens != 0 {
-				usageForCost.OutputTokens = int64Ptr(step.Usage.OutputTokens)
+				usageForCost.OutputTokens = ptr.Ref(step.Usage.OutputTokens)
 			}
 			if step.Usage.ReasoningTokens != 0 {
-				usageForCost.ReasoningTokens = int64Ptr(step.Usage.ReasoningTokens)
+				usageForCost.ReasoningTokens = ptr.Ref(step.Usage.ReasoningTokens)
 			}
 			if step.Usage.CacheCreationTokens != 0 {
-				usageForCost.CacheCreationTokens = int64Ptr(step.Usage.CacheCreationTokens)
+				usageForCost.CacheCreationTokens = ptr.Ref(step.Usage.CacheCreationTokens)
 			}
 			if step.Usage.CacheReadTokens != 0 {
-				usageForCost.CacheReadTokens = int64Ptr(step.Usage.CacheReadTokens)
+				usageForCost.CacheReadTokens = ptr.Ref(step.Usage.CacheReadTokens)
 			}
 		}
 		totalCostMicros := chatcost.CalculateTotalCostMicros(usageForCost, callConfig.Cost)
@@ -2997,6 +3069,7 @@ func (p *Server) runChat(
 			if ss, ok := val.(*chatStreamState); ok {
 				ss.mu.Lock()
 				ss.buffer = nil
+				ss.resetDropCounters()
 				ss.mu.Unlock()
 			}
 		}
@@ -3207,6 +3280,7 @@ func (p *Server) runChat(
 				if rs, ok := val.(*chatStreamState); ok {
 					rs.mu.Lock()
 					rs.buffer = nil
+					rs.resetDropCounters()
 					rs.mu.Unlock()
 				}
 			}
@@ -3215,15 +3289,11 @@ func (p *Server) runChat(
 				slog.F("delay", delay.String()),
 				slog.Error(retryErr),
 			)
-			p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
-				Type:   codersdk.ChatStreamEventTypeRetry,
-				ChatID: chat.ID,
-				Retry: &codersdk.ChatStreamRetry{
-					Attempt:    attempt,
-					DelayMs:    delay.Milliseconds(),
-					Error:      retryErr.Error(),
-					RetryingAt: time.Now().Add(delay),
-				},
+			p.publishRetry(chat.ID, &codersdk.ChatStreamRetry{
+				Attempt:    attempt,
+				DelayMs:    delay.Milliseconds(),
+				Error:      retryErr.Error(),
+				RetryingAt: time.Now().Add(delay),
 			})
 		},
 
@@ -3483,10 +3553,6 @@ func (p *Server) resolveModelConfig(
 		)
 	}
 	return defaultConfig, nil
-}
-
-func int64Ptr(value int64) *int64 {
-	return &value
 }
 
 func refreshChatWorkspaceSnapshot(

@@ -11,6 +11,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -19,6 +20,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestRefreshChatWorkspaceSnapshot_NoReloadWhenWorkspacePresent(t *testing.T) {
@@ -417,6 +420,47 @@ func TestSubscribeFullRefreshStillUsesDatabaseCatchup(t *testing.T) {
 	requireNoStreamEvent(t, events, 200*time.Millisecond)
 }
 
+func TestSubscribeDeliversRetryEventViaPubsubOnce(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusPending}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return(nil, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+	)
+
+	server := newSubscribeTestServer(t, db)
+	_, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	retryingAt := time.Unix(1_700_000_000, 0).UTC()
+	expected := &codersdk.ChatStreamRetry{
+		Attempt:    1,
+		DelayMs:    (1500 * time.Millisecond).Milliseconds(),
+		Error:      "rate limit exceeded",
+		RetryingAt: retryingAt,
+	}
+
+	server.publishRetry(chatID, expected)
+
+	event := requireStreamRetryEvent(t, events)
+	require.Equal(t, expected, event.Retry)
+	requireNoStreamEvent(t, events, 200*time.Millisecond)
+}
+
 func newSubscribeTestServer(t *testing.T, db database.Store) *Server {
 	t.Helper()
 
@@ -442,6 +486,21 @@ func requireStreamMessageEvent(t *testing.T, events <-chan codersdk.ChatStreamEv
 	}
 }
 
+func requireStreamRetryEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent) codersdk.ChatStreamEvent {
+	t.Helper()
+
+	select {
+	case event, ok := <-events:
+		require.True(t, ok, "chat stream closed before delivering an event")
+		require.Equal(t, codersdk.ChatStreamEventTypeRetry, event.Type)
+		require.NotNil(t, event.Retry)
+		return event
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for chat stream retry event")
+		return codersdk.ChatStreamEvent{}
+	}
+}
+
 func requireNoStreamEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent, wait time.Duration) {
 	t.Helper()
 
@@ -453,4 +512,109 @@ func requireNoStreamEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent, 
 		t.Fatalf("unexpected chat stream event: %+v", event)
 	case <-time.After(wait):
 	}
+}
+
+// TestPublishToStream_DropWarnRateLimiting walks through a
+// realistic lifecycle: buffer fills up, subscriber channel fills
+// up, counters get reset between steps. It verifies that WARN
+// logs are rate-limited to at most once per streamDropWarnInterval
+// and that counter resets re-enable an immediate WARN.
+func TestPublishToStream_DropWarnRateLimiting(t *testing.T) {
+	t.Parallel()
+
+	sink := testutil.NewFakeSink(t)
+	mClock := quartz.NewMock(t)
+
+	server := &Server{
+		logger: sink.Logger(),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+	subCh := make(chan codersdk.ChatStreamEvent, 1)
+	subCh <- codersdk.ChatStreamEvent{} // pre-fill so sends always drop
+
+	// Set up state that mirrors a running chat: buffer at capacity,
+	// buffering enabled, one saturated subscriber.
+	state := &chatStreamState{
+		buffering: true,
+		buffer:    make([]codersdk.ChatStreamEvent, maxStreamBufferSize),
+		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{
+			uuid.New(): subCh,
+		},
+	}
+	server.chatStreams.Store(chatID, state)
+
+	bufferMsg := "chat stream buffer full, dropping oldest event"
+	subMsg := "dropping chat stream event"
+
+	filter := func(level slog.Level, msg string) func(slog.SinkEntry) bool {
+		return func(e slog.SinkEntry) bool {
+			return e.Level == level && e.Message == msg
+		}
+	}
+
+	// --- Phase 1: buffer-full rate limiting ---
+	// message_part events hit both the buffer-full and subscriber-full
+	// paths. The first publish triggers a WARN for each; the rest
+	// within the window are DEBUG.
+	partEvent := codersdk.ChatStreamEvent{
+		Type:        codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{},
+	}
+	for i := 0; i < 50; i++ {
+		server.publishToStream(chatID, partEvent)
+	}
+
+	require.Len(t, sink.Entries(filter(slog.LevelWarn, bufferMsg)), 1)
+	require.Empty(t, sink.Entries(filter(slog.LevelDebug, bufferMsg)))
+	requireFieldValue(t, sink.Entries(filter(slog.LevelWarn, bufferMsg))[0], "dropped_count", int64(1))
+
+	// Subscriber also saw 50 drops (one per publish).
+	require.Len(t, sink.Entries(filter(slog.LevelWarn, subMsg)), 1)
+	require.Empty(t, sink.Entries(filter(slog.LevelDebug, subMsg)))
+	requireFieldValue(t, sink.Entries(filter(slog.LevelWarn, subMsg))[0], "dropped_count", int64(1))
+
+	// --- Phase 2: clock advance triggers second WARN with count ---
+	mClock.Advance(streamDropWarnInterval + time.Second)
+	server.publishToStream(chatID, partEvent)
+
+	bufWarn := sink.Entries(filter(slog.LevelWarn, bufferMsg))
+	require.Len(t, bufWarn, 2)
+	requireFieldValue(t, bufWarn[1], "dropped_count", int64(50))
+
+	subWarn := sink.Entries(filter(slog.LevelWarn, subMsg))
+	require.Len(t, subWarn, 2)
+	requireFieldValue(t, subWarn[1], "dropped_count", int64(50))
+
+	// --- Phase 3: counter reset (simulates step persist) ---
+	state.mu.Lock()
+	state.buffer = make([]codersdk.ChatStreamEvent, maxStreamBufferSize)
+	state.resetDropCounters()
+	state.mu.Unlock()
+
+	// The very next drop should WARN immediately — the reset zeroed
+	// lastWarnAt so the interval check passes.
+	server.publishToStream(chatID, partEvent)
+
+	bufWarn = sink.Entries(filter(slog.LevelWarn, bufferMsg))
+	require.Len(t, bufWarn, 3, "expected WARN immediately after counter reset")
+	requireFieldValue(t, bufWarn[2], "dropped_count", int64(1))
+
+	subWarn = sink.Entries(filter(slog.LevelWarn, subMsg))
+	require.Len(t, subWarn, 3, "expected subscriber WARN immediately after counter reset")
+	requireFieldValue(t, subWarn[2], "dropped_count", int64(1))
+}
+
+// requireFieldValue asserts that a SinkEntry contains a field with
+// the given name and value.
+func requireFieldValue(t *testing.T, entry slog.SinkEntry, name string, expected interface{}) {
+	t.Helper()
+	for _, f := range entry.Fields {
+		if f.Name == name {
+			require.Equal(t, expected, f.Value, "field %q value mismatch", name)
+			return
+		}
+	}
+	t.Fatalf("field %q not found in log entry", name)
 }

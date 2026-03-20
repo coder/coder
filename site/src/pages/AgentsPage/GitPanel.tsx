@@ -290,6 +290,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						onCommit={onCommit}
 						isExpanded={isExpanded}
 						diffStyle={diffStyle}
+						chatInputRef={chatInputRef}
 					/>
 				)}
 			</div>
@@ -345,7 +346,16 @@ const LocalRepoContent: FC<{
 	onCommit: (repoRoot: string) => void;
 	isExpanded?: boolean;
 	diffStyle: DiffStyle;
-}> = ({ repoRoot, repo, diffStats, onCommit, isExpanded, diffStyle }) => {
+	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+}> = ({
+	repoRoot,
+	repo,
+	diffStats,
+	onCommit,
+	isExpanded,
+	diffStyle,
+	chatInputRef,
+}) => {
 	if (!repo) {
 		return null;
 	}
@@ -362,6 +372,7 @@ const LocalRepoContent: FC<{
 				repo={repo}
 				isExpanded={isExpanded}
 				diffStyle={diffStyle}
+				chatInputRef={chatInputRef}
 			/>
 		</div>
 	);

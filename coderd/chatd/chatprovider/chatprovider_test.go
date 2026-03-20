@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -25,37 +26,37 @@ func TestReasoningEffortFromChat(t *testing.T) {
 		{
 			name:     "OpenAICaseInsensitive",
 			provider: "openai",
-			input:    stringPtr(" HIGH "),
-			want:     stringPtr(string(fantasyopenai.ReasoningEffortHigh)),
+			input:    ptr.Ref(" HIGH "),
+			want:     ptr.Ref(string(fantasyopenai.ReasoningEffortHigh)),
 		},
 		{
 			name:     "AnthropicEffort",
 			provider: "anthropic",
-			input:    stringPtr("max"),
-			want:     stringPtr(string(fantasyanthropic.EffortMax)),
+			input:    ptr.Ref("max"),
+			want:     ptr.Ref(string(fantasyanthropic.EffortMax)),
 		},
 		{
 			name:     "OpenRouterEffort",
 			provider: "openrouter",
-			input:    stringPtr("medium"),
-			want:     stringPtr(string(fantasyopenrouter.ReasoningEffortMedium)),
+			input:    ptr.Ref("medium"),
+			want:     ptr.Ref(string(fantasyopenrouter.ReasoningEffortMedium)),
 		},
 		{
 			name:     "VercelEffort",
 			provider: "vercel",
-			input:    stringPtr("xhigh"),
-			want:     stringPtr(string(fantasyvercel.ReasoningEffortXHigh)),
+			input:    ptr.Ref("xhigh"),
+			want:     ptr.Ref(string(fantasyvercel.ReasoningEffortXHigh)),
 		},
 		{
 			name:     "InvalidEffortReturnsNil",
 			provider: "openai",
-			input:    stringPtr("unknown"),
+			input:    ptr.Ref("unknown"),
 			want:     nil,
 		},
 		{
 			name:     "UnsupportedProviderReturnsNil",
 			provider: "bedrock",
-			input:    stringPtr("high"),
+			input:    ptr.Ref("high"),
 			want:     nil,
 		},
 		{
@@ -83,7 +84,7 @@ func TestMergeMissingProviderOptions_OpenRouterNested(t *testing.T) {
 	options := &codersdk.ChatModelProviderOptions{
 		OpenRouter: &codersdk.ChatModelOpenRouterProviderOptions{
 			Reasoning: &codersdk.ChatModelReasoningOptions{
-				Enabled: boolPtr(true),
+				Enabled: ptr.Ref(true),
 			},
 			Provider: &codersdk.ChatModelOpenRouterProvider{
 				Order: []string{"openai"},
@@ -93,21 +94,21 @@ func TestMergeMissingProviderOptions_OpenRouterNested(t *testing.T) {
 	defaults := &codersdk.ChatModelProviderOptions{
 		OpenRouter: &codersdk.ChatModelOpenRouterProviderOptions{
 			Reasoning: &codersdk.ChatModelReasoningOptions{
-				Enabled:   boolPtr(false),
-				Exclude:   boolPtr(true),
-				MaxTokens: int64Ptr(123),
-				Effort:    stringPtr("high"),
+				Enabled:   ptr.Ref(false),
+				Exclude:   ptr.Ref(true),
+				MaxTokens: ptr.Ref[int64](123),
+				Effort:    ptr.Ref("high"),
 			},
-			IncludeUsage: boolPtr(true),
+			IncludeUsage: ptr.Ref(true),
 			Provider: &codersdk.ChatModelOpenRouterProvider{
 				Order:             []string{"anthropic"},
-				AllowFallbacks:    boolPtr(true),
-				RequireParameters: boolPtr(false),
-				DataCollection:    stringPtr("allow"),
+				AllowFallbacks:    ptr.Ref(true),
+				RequireParameters: ptr.Ref(false),
+				DataCollection:    ptr.Ref("allow"),
 				Only:              []string{"openai"},
 				Ignore:            []string{"foo"},
 				Quantizations:     []string{"int8"},
-				Sort:              stringPtr("latency"),
+				Sort:              ptr.Ref("latency"),
 			},
 		},
 	}
@@ -135,16 +136,4 @@ func TestMergeMissingProviderOptions_OpenRouterNested(t *testing.T) {
 	require.Equal(t, []string{"foo"}, options.OpenRouter.Provider.Ignore)
 	require.Equal(t, []string{"int8"}, options.OpenRouter.Provider.Quantizations)
 	require.Equal(t, "latency", *options.OpenRouter.Provider.Sort)
-}
-
-func stringPtr(value string) *string {
-	return &value
-}
-
-func boolPtr(value bool) *bool {
-	return &value
-}
-
-func int64Ptr(value int64) *int64 {
-	return &value
 }

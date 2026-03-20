@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
 # Pre-commit hook that runs CI-equivalent checks locally.
-# Runs `make pre-commit` (gen, fmt, lint, typos, build) which
-# catches most CI failures without needing Docker or Playwright.
-# Heavier checks (tests, site build) run via the pre-push hook.
+# Classifies staged files by type and only runs relevant make
+# targets. Falls back to the full `make pre-commit` when the
+# Makefile changed or CODER_HOOK_RUN_ALL=1 is set.
 #
 # Installation (worktree-compatible):
 #
@@ -20,4 +20,21 @@ unset GIT_DIR
 if [[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]]; then
 	git config --worktree core.hooksPath scripts/githooks
 fi
-exec make pre-commit
+
+if [[ ${CODER_HOOK_RUN_ALL:-} == 1 ]]; then
+	exec make pre-commit
+fi
+
+staged=$(git diff --cached --name-only --diff-filter=d)
+if [[ -z $staged ]]; then
+	echo "pre-commit: no staged changes, skipping"
+	exit 0
+fi
+
+# If Go, TS, or build-system files changed, run the full
+# pre-commit. Otherwise run the lightweight target that
+# covers everything except gen, Go/TS fmt+lint, and binary build.
+if echo "$staged" | grep -qE '\.(go|ts|tsx|sql|proto)$|^go\.(mod|sum)$|^site/|^Makefile$'; then
+	exec make pre-commit
+fi
+exec make pre-commit-light

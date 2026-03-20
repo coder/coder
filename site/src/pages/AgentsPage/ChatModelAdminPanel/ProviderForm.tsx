@@ -49,6 +49,13 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	const apiKeyInputId = useId();
 	const baseURLInputId = useId();
 
+	// Providers backed by the OpenAI SDK expect /v1 in the base
+	// URL, while others (e.g. Anthropic) do not.
+	const baseURLPlaceholder =
+		provider === "anthropic" || provider === "bedrock" || provider === "google"
+			? "https://api.example.com"
+			: "https://api.example.com/v1";
+
 	// Initial values are snapshotted when the provider config changes
 	// so we can detect dirty state.
 	const [initialValues] = useState(() => ({
@@ -241,7 +248,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								id={baseURLInputId}
 								name="provider_base_url"
 								className="h-9 text-[13px]"
-								placeholder="https://api.example.com/v1"
+								placeholder={baseURLPlaceholder}
 								autoComplete="off"
 								value={baseURLValue}
 								onChange={(e) => setBaseURLValue(e.target.value)}
