@@ -1095,7 +1095,7 @@ const LoadMoreSentinel: FC<{
 	useEffect(() => {
 		onLoadMoreRef.current = onLoadMore;
 		isFetchingNextPageRef.current = isFetchingNextPage;
-	});
+	}, [onLoadMore, isFetchingNextPage]);
 
 	useEffect(() => {
 		const el = sentinelRef.current;

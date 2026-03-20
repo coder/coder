@@ -526,7 +526,7 @@ const ScrollAnchoredContainer: FC<{
 	useEffect(() => {
 		isFetchingRef.current = isFetchingMoreMessages;
 		onFetchRef.current = onFetchMoreMessages;
-	});
+	}, [isFetchingMoreMessages, onFetchMoreMessages]);
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
 	// Sentinel observer — triggers loading older messages.

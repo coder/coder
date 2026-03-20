@@ -82,4 +82,6 @@ for (const f of failures) {
 
 if (failures.length === 0) {
 	console.log("✓ All files compile cleanly.");
+} else {
+	process.exitCode = 1;
 }
