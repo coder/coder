@@ -224,7 +224,7 @@ narrowly scoped.
 ### Add workspace context with AGENTS.md
 
 Create an `AGENTS.md` file in the home directory (`~/.coder/AGENTS.md`) or
-the repository root of your workspace to provide persistent context to the
+the workspace agent's working directory to provide persistent context to the
 agent. This file is automatically read and included in the system prompt
 for every chat that uses that workspace.
 
