@@ -243,13 +243,43 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 				)}
 			>
 				{sidebarView.panel === "settings" ? (
-					<SettingsPageContent
-						activeSection={sidebarView.section}
-						canManageChatModelConfigs={isAgentsAdmin}
-						canSetSystemPrompt={isAgentsAdmin}
-					/>
+					<>
+						{isSidebarCollapsed && (
+							<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
+								<Button
+									variant="subtle"
+									size="icon"
+									onClick={onExpandSidebar}
+									aria-label="Expand sidebar"
+									className="hidden h-7 w-7 min-w-0 shrink-0 md:inline-flex"
+								>
+									<PanelLeftIcon />
+								</Button>
+							</div>
+						)}
+						<SettingsPageContent
+							activeSection={sidebarView.section}
+							canManageChatModelConfigs={isAgentsAdmin}
+							canSetSystemPrompt={isAgentsAdmin}
+						/>
+					</>
 				) : sidebarView.panel === "analytics" ? (
-					<AnalyticsPageContent now={analyticsNow} />
+					<>
+						{isSidebarCollapsed && (
+							<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
+								<Button
+									variant="subtle"
+									size="icon"
+									onClick={onExpandSidebar}
+									aria-label="Expand sidebar"
+									className="hidden h-7 w-7 min-w-0 shrink-0 md:inline-flex"
+								>
+									<PanelLeftIcon />
+								</Button>
+							</div>
+						)}
+						<AnalyticsPageContent now={analyticsNow} />
+					</>
 				) : agentId ? (
 					<Outlet key={agentId} context={outletContextValue} />
 				) : (

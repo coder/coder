@@ -302,6 +302,32 @@ export const SidebarCollapsed: Story = {
 	},
 };
 
+export const SettingsSidebarCollapsed: Story = {
+	args: {
+		isSidebarCollapsed: true,
+		isAgentsAdmin: true,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/behavior" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const AnalyticsSidebarCollapsed: Story = {
+	args: {
+		isSidebarCollapsed: true,
+		isAgentsAdmin: true,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/analytics" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
 export const WithToolbarEndContent: Story = {
 	args: {
 		isAgentsAdmin: true,
