@@ -1,41 +1,13 @@
 # Quickstart
 
-Follow the steps in this guide to get your first Coder development environment
-running in under 10 minutes. This guide covers the essential concepts and walks
-you through creating your first workspace and running VS Code from it. You can
-also get Claude Code up and running in the background!
-
-## What You'll Build
-
-In this quickstart, you'll:
-
-- ✅ Install Coder server
-- ✅ Create a **template** (blueprint for dev environments)
-- ✅ Launch a **workspace** (your actual dev environment)
-- ✅ Connect from your favorite IDE
-- ✅ Optionally setup a **task** running Claude Code
-
-## Understanding Coder: 30-Second Overview
-
-Before diving in, here are the core concepts that power Coder explained through
-a cooking analogy:
-
-| Component      | What It Is                                                                           | Real-World Analogy                          |
-|----------------|--------------------------------------------------------------------------------------|---------------------------------------------|
-| **You**        | The engineer/developer/builder working                                               | The head chef cooking the meal              |
-| **Templates**  | A Terraform blueprint that defines your dev environment (OS, tools, resources)       | Recipe for a meal                           |
-| **Workspaces** | The actual running environment created from the template                             | The cooked meal                             |
-| **Tasks**      | AI-powered coding agents that run inside a workspace                                 | Smart kitchen appliance that helps you cook |
-| **Users**      | A developer who launches the workspace from a template and does their work inside it | The people eating the meal                  |
-
-**Putting it Together:** Coder separates who _defines_ environments from who _uses_ them. Admins create and manage Templates, the recipes, while developers use those Templates to launch Workspaces, the meals. Inside those Workspaces, developers can also run Tasks, the smart kitchen appliance, to help speed up day-to-day work.
+Get your first Coder workspace running in under 10 minutes.
 
 ## Prerequisites
 
 - A machine with 2+ CPU cores and 4GB+ RAM
-- 10 minutes of your time
+- Docker installed and running
 
-## Step 1: Install Docker and Setup Permissions
+## Step 1: Install Docker
 
 <div class="tabs">
 
@@ -47,301 +19,135 @@ a cooking analogy:
    curl -sSL https://get.docker.com | sh
    ```
 
-   For more details, visit:
-   - [Linux instructions](https://docs.docker.com/desktop/install/linux-install/)
-   - [Mac instructions](https://docs.docker.com/desktop/install/mac-install/)
-
-1. Assign your user to the Docker group:
+1. Add your user to the Docker group:
 
    ```shell
-   sudo usermod -aG docker $USER
+   sudo usermod -aG docker $USER && newgrp docker
    ```
-
-1. Run `newgrp` to activate the groups changes:
-
-   ```shell
-   newgrp docker
-   ```
-
-   You might need to log out and back in or restart the machine for changes to
-   take effect.
 
 ### Windows
 
-If you plan to use the built-in PostgreSQL database, ensure that the
-[Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
-is installed.
+1. [Install Docker Desktop](https://docs.docker.com/desktop/install/windows-install/).
 
-1. [Install Docker](https://docs.docker.com/desktop/install/windows-install/).
+1. Install the
+   [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
+   (required for the built-in PostgreSQL database).
 
 </div>
 
 ## Step 2: Install & Start Coder
 
-Install the `coder` CLI to get started:
-
 <div class="tabs">
 
 ### Linux/macOS
 
-1. Install Coder:
+```shell
+curl -L https://coder.com/install.sh | sh
+coder server
+```
 
-   ```shell
-   curl -L https://coder.com/install.sh | sh
-   ```
-
-   - For standalone binaries, system packages, or other alternate installation
-     methods, refer to the
-     [latest release on GitHub](https://github.com/coder/coder/releases/latest).
-
-1. Start Coder:
-
-   ```shell
-   coder server
-   ```
+For alternate installation methods, see the
+[latest GitHub release](https://github.com/coder/coder/releases/latest).
 
 ### Windows
 
-If you plan to use the built-in PostgreSQL database, ensure that the
-[Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
-is installed.
-
-1. Use the
-   [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
-   package manager to install Coder:
-
-   ```powershell
-   winget install Coder.Coder
-   ```
-
-1. Start Coder:
-
-   ```shell
-   coder server
-   ```
+```powershell
+winget install Coder.Coder
+coder server
+```
 
 </div>
 
-Coder will attempt to open the setup page in your browser. If it doesn't open
-automatically, go to <http://localhost:3000>.
+Open <http://localhost:3000> in your browser. If your server is on a remote
+machine, find the tunnel URL in the terminal output
+(`https://<ID>.try.coder.app`).
 
-- If you get a browser warning similar to `Secure Site Not Available`, you can
-  ignore the warning and continue to the setup page.
+## Step 3: Create Your Admin Account
 
-If your Coder server is on a network or cloud device, or you are having trouble
-viewing the page, locate the web UI URL in Coder logs in your terminal. It looks
-like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`. It's one of the first
-lines of output, so you might have to scroll up to find it.
+Create your first user account or select **Continue with GitHub**. The first
+user is automatically granted admin permissions.
 
-## Step 3: Initial Setup
+![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)
 
-1. **Create your admin account:**
-   - Username: `yourname` (lowercase, no spaces)
-   - Email: `your.email@example.com`
-   - Password: Choose a strong password
+## Step 4: Create a Template and Workspace
 
-   You can also choose to **Continue with GitHub** instead of creating an admin
-   account. The first user that signs in is automatically granted admin
-   permissions.
+1. Go to **Templates** → **New Template**.
 
-   ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)
+1. Select **Docker Containers** and click **Use template**.
 
-## Step 4: Create your First Template and Workspace
-
-Templates define what's in your development environment. Let's start simple:
-
-1. Click **"Templates"** → **"New Template"**
-
-1. **Choose a starter template:**
-
-   | Starter                             | Best For                                                | Includes                                               |
-   |-------------------------------------|---------------------------------------------------------|--------------------------------------------------------|
-   | **Docker Containers** (Recommended) | Getting started quickly, local development, prototyping | Ubuntu container with common dev tools, Docker runtime |
-   | **Kubernetes (Deployment)**         | Cloud-native teams, scalable workspaces                 | Pod-based workspaces, Kubernetes orchestration         |
-   | **AWS EC2 (Linux)**                 | Teams needing full VMs, AWS-native infrastructure       | Full EC2 instances with AWS integration                |
-
-1. Click **"Use template"** on **Docker Containers**. Note: running this template requires Docker to be running in the background, so make sure Docker is running!
-
-1. **Name your template:**
-   - Name: `quickstart`
-   - Display name: `quickstart doc template`
-   - Description: `Provision Docker containers as Coder workspaces`
-
-1. Click **"Save"**
+1. Name it (e.g. `quickstart`) and click **Save**.
 
    ![Create template](../images/screenshots/create-template.png)
 
-**What just happened?** You defined a template — a reusable blueprint for dev
-environments — in your Coder deployment. It's now stored in your organization's
-template list, where you and any teammates in the same org can create workspaces
-from it. Let's launch one.
+1. Click **Create Workspace**, give it a name, and click **Create Workspace**.
 
-## Step 5: Launch your Workspace
+   ![Workspace is running](../images/screenshots/workspace-running-with-topbar.png)
 
-1. After the template is ready, select **Create Workspace**.
+## Step 5: Connect Your IDE
 
-1. Give the workspace a name and select **Create Workspace**.
+Click **VS Code Desktop** in the workspace dashboard to install the Coder
+extension and connect. Once connected, use **Open Folder** or
+**Clone Repository** to start working.
 
-1. Coder starts your new workspace:
+![VS Code connected to Coder](../images/screenshots/change-directory-vscode.png)
 
-   ![getting-started-workspace is running](../images/screenshots/workspace-running-with-topbar.png)_Workspace
-   is running_
+You're done! You now have a running Coder workspace accessible from VS Code.
 
-## Step 6: Connect your IDE
+## Optional: Run Coder Tasks with Claude Code
 
-Select **VS Code Desktop** to install the Coder extension and connect to your
-Coder workspace.
+Coder Tasks let you run AI coding agents like Claude Code inside a workspace.
 
-After VS Code loads the remote environment, you can select **Open Folder** to
-explore directories in the Docker container or work on something new.
+1. Get an [Anthropic API key](https://console.anthropic.com/).
 
-![Changing directories in VS Code](../images/screenshots/change-directory-vscode.png)
+1. Clone the registry and push the tasks template:
 
-To clone an existing repository:
-
-1. Select **Clone Repository** and enter the repository URL.
-
-   For example, to clone the Coder repo, enter
-   `https://github.com/coder/coder.git`.
-
-   Learn more about how to find the repository URL in the
-   [GitHub documentation](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository).
-
-1. Choose the folder to which VS Code should clone the repo. It will be in its
-   own directory within this folder.
-
-   Note that you cannot create a new parent directory in this step.
-
-1. After VS Code completes the clone, select **Open** to open the directory.
-
-1. You are now using VS Code in your Coder environment!
-
-## Success! You're Coding in Coder
-
-You now have:
-
-- **Coder server** running locally
-- **A template** defining your environment
-- **A workspace** running that environment
-- **IDE access** to code remotely
-
-### What's Next?
-
-Now that you have your own workspace running, you can start exploring more
-advanced capabilities that Coder offers.
-
-- [Learn more about running Coder Tasks and our recommended Best Practices](https://coder.com/docs/ai-coder/best-practices)
-
-- [Read about managing Workspaces for your team](https://coder.com/docs/user-guides/workspace-management)
-
-- [Read about implementing monitoring tools for your Coder Deployment](https://coder.com/docs/admin/monitoring)
-
-### Get Coder Tasks Running
-
-Coder Tasks is an interface that allows you to run and manage coding agents like
-Claude Code within a given Workspace. Tasks become available when a Workspace Template has the `coder_ai_task` resource defined in its source code.
-In other words, any existing template can become a Task template by adding in that
-resource and parameter.
-
-Coder maintains the [Tasks on Docker](https://registry.coder.com/templates/coder-labs/tasks-docker?_gl=1*19yewmn*_gcl_au*MTc0MzUwMTQ2NC4xNzU2MzA3MDkxLjk3NTM3MjgyNy4xNzU3Njg2NDY2LjE3NTc2ODc0Mzc.*_ga*NzUxMDI1NjIxLjE3NTYzMDcwOTE.*_ga_FTQQJCDWDM*czE3NTc3MDg4MDkkbzQ1JGcxJHQxNzU3NzA4ODE4JGo1MSRsMCRoMA..) template which has Anthropic's Claude Code agent built in with a sample application. Let's try using this template by pulling it from Coder's Registry of public templates, and pushing it to your local server:
-
-1. In the upper right hand corner, click **Use this template**
-1. Open a terminal on your machine
-1. Ensure your CLI is authenticated with your Coder deployment by [logging in](https://coder.com/docs/reference/cli/login)
-1. Create an [API Key with Anthropic](https://console.anthropic.com/)
-1. Head to the [Tasks on Docker](https://registry.coder.com/templates/coder-labs/tasks-docker?_gl=1*19yewmn*_gcl_au*MTc0MzUwMTQ2NC4xNzU2MzA3MDkxLjk3NTM3MjgyNy4xNzU3Njg2NDY2LjE3NTc2ODc0Mzc.*_ga*NzUxMDI1NjIxLjE3NTYzMDcwOTE.*_ga_FTQQJCDWDM*czE3NTc3MDg4MDkkbzQ1JGcxJHQxNzU3NzA4ODE4JGo1MSRsMCRoMA..) template
-1. Clone the Coder Registry repo to your local machine
-
-   ```hcl
+   ```shell
    git clone https://github.com/coder/registry.git
-   ```
-
-1. Switch to the template directory
-
-   ```hcl
    cd registry/registry/coder-labs/templates/tasks-docker
-   ```
-
-1. Push the template to your Coder deployment. Note: this command differs from the registry since we're defining the Anthropic API Key as an environment variable
-
-   ```hcl
    coder template push tasks-docker -d . --variable anthropic_api_key="your-api-key"
    ```
 
-1. **Create a Task**
-   1. In your Coder deployment, click **Tasks** in the navigation
-   1. In the "Prompt your AI agent to start a task" box, enter a prompt like "Make the background yellow"
-   1. Select the **tasks-docker** template from the dropdown and click the submit button
-1. **See Tasks in action**
-   1. Your task will appear in the table below. Click on it to open the task view where you can follow the initialization
-   1. Once active, you'll see Claude Code on the left panel and can preview the sample application or interact with the code in code-server on the right. You might need to wait for Claude Code to finish changing the background color of the application.
-   1. Try typing in a new request to Claude Code: "make the background red"
-   1. Click the back arrow to return to the task overview (you can also see all your tasks in the sidebar)
-   1. You can start a new task from the prompt box at the top of the page
+1. In your Coder deployment, go to **Tasks**, enter a prompt (e.g. "Make the
+   background yellow"), select the **tasks-docker** template, and submit.
 
-   ![Tasks changing background color of demo application](../images/screenshots/quickstart-tasks-background-change.png)
+1. Click on your task to watch Claude Code work. You can interact with Claude
+   Code in the left panel and preview the app on the right.
 
-Congratulation! You now have a Coder Task running. This demo has shown you how to spin up a task, and prompt Claude Code to change parts of your application. Learn more specifics about Coder Tasks [here](https://coder.com/docs/ai-coder/tasks).
+   ![Tasks changing background color](../images/screenshots/quickstart-tasks-background-change.png)
+
+Learn more about [Coder Tasks](https://coder.com/docs/ai-coder/tasks) and
+[best practices](https://coder.com/docs/ai-coder/best-practices).
+
+## Next Steps
+
+- [Workspace management](https://coder.com/docs/user-guides/workspace-management)
+- [Monitoring your deployment](https://coder.com/docs/admin/monitoring)
 
 ## Troubleshooting
 
 ### Cannot connect to the Docker daemon
 
-> Error: Error pinging Docker server: Cannot connect to the Docker daemon at
+> Error: Cannot connect to the Docker daemon at
 > unix:///var/run/docker.sock. Is the docker daemon running?
 
-1. Install Docker for your system:
-
-   ```shell
-   curl -sSL https://get.docker.com | sh
-   ```
-
-1. Set up the Docker daemon in rootless mode for your user to run Docker as a
-   non-privileged user:
-
-   ```shell
-   dockerd-rootless-setuptool.sh install
-   ```
-
-   Depending on your system's dependencies, you might need to run other commands
-   before you retry this step. Read the output of this command for further
-   instructions.
-
-1. Assign your user to the Docker group:
-
-   ```shell
-   sudo usermod -aG docker $USER
-   ```
-
-1. Confirm that the user has been added:
-
-   ```console
-   $ groups
-   docker sudo users
-   ```
-
-   - Ubuntu users might not see the group membership update. In that case, run
-     the following command or reboot the machine:
-
-     ```shell
-     newgrp docker
-     ```
-
-### Can't start Coder server: Address already in use
-
 ```shell
-Encountered an error running "coder server", see "coder server --help" for more information
-error: configure http(s): listen tcp 127.0.0.1:3000: bind: address already in use
+# Install Docker
+curl -sSL https://get.docker.com | sh
+
+# Run rootless setup
+dockerd-rootless-setuptool.sh install
+
+# Add user to docker group
+sudo usermod -aG docker $USER
+newgrp docker
 ```
 
-1. Stop the process:
+### Address already in use
 
-   ```shell
-   sudo systemctl stop coder
-   ```
+```shell
+# Stop any existing Coder process
+sudo systemctl stop coder
 
-1. Start Coder:
-
-   ```shell
-   coder server
-   ```
+# Restart
+coder server
+```
