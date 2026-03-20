@@ -4,10 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
-
-	"github.com/google/uuid"
 
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
