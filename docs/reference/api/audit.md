@@ -67,6 +67,7 @@ curl -X GET http://coder-server:8080/api/v2/audit?limit=0 \
         "created_at": "2019-08-24T14:15:22Z",
         "email": "user@example.com",
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "is_service_account": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
         "name": "string",

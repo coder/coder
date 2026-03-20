@@ -191,7 +191,7 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			const select = screen.getByRole("button");
+			const select = screen.getByRole("combobox");
 			await waitFor(async () => {
 				await userEvent.click(select);
 			});
@@ -211,7 +211,7 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			const select = screen.getByRole("button");
+			const select = screen.getByRole("combobox");
 			await waitFor(async () => {
 				await userEvent.click(select);
 			});
@@ -703,7 +703,7 @@ describe("DynamicParameter", () => {
 				/>,
 			);
 
-			expect(screen.getByRole("button")).toBeInTheDocument();
+			expect(screen.getByRole("combobox")).toBeInTheDocument();
 		});
 
 		it("handles null/undefined values", () => {

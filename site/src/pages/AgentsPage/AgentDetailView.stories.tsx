@@ -1,17 +1,17 @@
 import { MockUserOwner } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ChatDiffStatusResponse } from "api/api";
+import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
+import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { fn } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { createChatStore } from "./AgentDetail/ChatContext";
 import {
 	AgentDetailLoadingView,
 	AgentDetailNotFoundView,
 	AgentDetailView,
-	RIGHT_PANEL_OPEN_KEY,
 } from "./AgentDetailView";
 
 // ---------------------------------------------------------------------------
@@ -36,6 +36,7 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	title: "Help me refactor",
 	status: "completed",
 	last_model_config_id: "model-config-1",
+	mcp_server_ids: [],
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
@@ -47,11 +48,7 @@ const defaultEditing = {
 	chatInputRef: { current: null },
 	editorInitialValue: "",
 	editingMessageId: null,
-	editingFileBlocks: [] as readonly {
-		mediaType: string;
-		data?: string;
-		fileId?: string;
-	}[],
+	editingFileBlocks: [] as readonly ChatMessagePart[],
 	handleEditUserMessage: fn(),
 	handleCancelHistoryEdit: fn(),
 	editingQueuedMessageID: null,
@@ -119,6 +116,8 @@ const meta: Meta<typeof AgentDetailView> = {
 		isInterruptPending: false,
 		isSidebarCollapsed: false,
 		onToggleSidebarCollapsed: fn(),
+		showSidebarPanel: false,
+		onSetShowSidebarPanel: fn(),
 		prNumber: undefined,
 		diffStatusData: undefined,
 		gitWatcher: defaultGitWatcher,
@@ -172,7 +171,9 @@ export const WithParentChat: Story = {
 /** Persisted error reason shown in the timeline area. */
 export const WithError: Story = {
 	args: {
-		chatErrorReasons: { [AGENT_ID]: "Model rate limited" },
+		chatErrorReasons: {
+			[AGENT_ID]: { kind: "generic", message: "Model rate limited" },
+		},
 	},
 };
 
@@ -192,20 +193,34 @@ export const SubmissionPending: Story = {
 
 /** Right sidebar panel is open with diff status data. */
 export const WithSidebarPanel: Story = {
-	beforeEach: () => {
-		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
-		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
-	},
 	args: {
+		showSidebarPanel: true,
 		prNumber: 123,
 		diffStatusData: {
 			chat_id: AGENT_ID,
 			url: "https://github.com/coder/coder/pull/123",
+			pull_request_title: "fix: resolve race condition in workspace builds",
+			pull_request_draft: false,
 			changes_requested: false,
 			additions: 42,
 			deletions: 7,
 			changed_files: 5,
-		} satisfies ChatDiffStatusResponse,
+		} satisfies ChatDiffStatus,
+	},
+	beforeEach: () => {
+		spyOn(API, "getChatDiffContents").mockResolvedValue({
+			chat_id: AGENT_ID,
+			diff: `diff --git a/src/main.ts b/src/main.ts
+index abc1234..def5678 100644
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -1,3 +1,5 @@
+ import { start } from "./server";
++import { logger } from "./logger";
+ const port = 3000;
++logger.info("Starting server...");
+ start(port);`,
+		});
 	},
 };
 
@@ -254,6 +269,7 @@ export const Loading: Story = {
 			modelCatalogStatusMessage={null}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
+			showRightPanel={false}
 		/>
 	),
 };
@@ -273,6 +289,26 @@ export const LoadingWithModelOptions: Story = {
 			modelCatalogStatusMessage={null}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
+			showRightPanel={false}
+		/>
+	),
+};
+/** Loading state with the right panel pre-opened. */
+export const LoadingWithRightPanel: Story = {
+	render: () => (
+		<AgentDetailLoadingView
+			titleElement={<title>Loading — Agents</title>}
+			isInputDisabled
+			effectiveSelectedModel="openai:gpt-4o"
+			setSelectedModel={fn()}
+			modelOptions={defaultModelOptions}
+			modelSelectorPlaceholder="Select a model"
+			hasModelOptions
+			inputStatusText={null}
+			modelCatalogStatusMessage={null}
+			isSidebarCollapsed={false}
+			onToggleSidebarCollapsed={fn()}
+			showRightPanel
 		/>
 	),
 };
@@ -292,8 +328,80 @@ export const LoadingSidebarCollapsed: Story = {
 			modelCatalogStatusMessage={null}
 			isSidebarCollapsed
 			onToggleSidebarCollapsed={fn()}
+			showRightPanel={false}
 		/>
 	),
+};
+
+// ---------------------------------------------------------------------------
+// Helpers for seeding stores with messages
+// ---------------------------------------------------------------------------
+
+const buildMessage = (
+	id: number,
+	role: TypesGen.ChatMessageRole,
+	text: string,
+): TypesGen.ChatMessage => ({
+	id,
+	chat_id: AGENT_ID,
+	created_at: new Date(Date.now() - (10 - id) * 60_000).toISOString(),
+	role,
+	content: [{ type: "text", text }],
+});
+
+const buildStoreWithMessages = (
+	msgs: TypesGen.ChatMessage[],
+	status: TypesGen.ChatStatus = "completed",
+) => {
+	const store = createChatStore();
+	store.replaceMessages(msgs);
+	store.setChatStatus(status);
+	return store;
+};
+
+// ---------------------------------------------------------------------------
+// Editing flow stories
+// ---------------------------------------------------------------------------
+
+const editingMessages = [
+	buildMessage(1, "user", "Say hi back"),
+	buildMessage(2, "assistant", "Hi!"),
+	buildMessage(3, "user", "Now tell me a joke"),
+	buildMessage(
+		4,
+		"assistant",
+		"Why did the developer quit? Because they didn't get arrays.",
+	),
+	buildMessage(5, "user", "That was terrible, try again"),
+];
+
+/** Editing a message in the middle of the conversation — shows the warning
+ *  border on the edited message, faded subsequent messages, and the editing
+ *  banner + outline on the chat input. */
+export const EditingMessage: Story = {
+	args: {
+		store: buildStoreWithMessages(editingMessages),
+		editing: {
+			...defaultEditing,
+			editingMessageId: 3,
+			editorInitialValue: "Now tell me a joke",
+		},
+	},
+};
+
+/** The saving state while an edit is in progress — shows the pending
+ *  indicator on the message being saved. */
+export const EditingSaving: Story = {
+	args: {
+		store: buildStoreWithMessages(editingMessages),
+		editing: {
+			...defaultEditing,
+			editingMessageId: 3,
+			editorInitialValue: "Now tell me a better joke",
+		},
+		pendingEditMessageId: 3,
+		isSubmissionPending: true,
+	},
 };
 
 // ---------------------------------------------------------------------------
@@ -320,4 +428,94 @@ export const NotFoundSidebarCollapsed: Story = {
 			onToggleSidebarCollapsed={fn()}
 		/>
 	),
+};
+
+// ---------------------------------------------------------------------------
+// Scroll-to-bottom button stories
+// ---------------------------------------------------------------------------
+
+/** Generate a long conversation so the scroll container overflows. */
+const buildLongConversation = (count: number): TypesGen.ChatMessage[] => {
+	const messages: TypesGen.ChatMessage[] = [];
+	for (let i = 1; i <= count; i++) {
+		const role: TypesGen.ChatMessageRole = i % 2 === 1 ? "user" : "assistant";
+		const text =
+			role === "user"
+				? `Question ${Math.ceil(i / 2)}: Can you explain concept ${Math.ceil(i / 2)} in detail?`
+				: `Sure! Here is a detailed explanation of concept ${Math.floor(i / 2)}. `.repeat(
+						4,
+					);
+		messages.push(buildMessage(i, role, text));
+	}
+	return messages;
+};
+
+/** Scroll-to-bottom button appears after scrolling up in a long
+ *  conversation, and clicking it returns to the bottom. */
+export const ScrollToBottomButton: Story = {
+	args: {
+		store: buildStoreWithMessages(buildLongConversation(40)),
+	},
+	decorators: [
+		(Story) => (
+			<div
+				style={{
+					height: "600px",
+					display: "flex",
+					flexDirection: "column",
+				}}
+			>
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// The button should be hidden initially — it has aria-hidden="true"
+		// when not shown, so queryByRole correctly returns null.
+		expect(
+			canvas.queryByRole("button", { name: "Scroll to bottom" }),
+		).toBeNull();
+
+		// Find the scroll container via data-testid.
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		// Wait for content to render and create overflow.
+		await waitFor(() => {
+			expect(scrollContainer.scrollHeight).toBeGreaterThan(
+				scrollContainer.clientHeight,
+			);
+		});
+
+		// Scroll up. In flex-col-reverse containers, Chrome uses
+		// negative scrollTop values when scrolled away from the
+		// bottom. Try negative first, fall back to positive for
+		// other engines.
+		const maxScroll =
+			scrollContainer.scrollHeight - scrollContainer.clientHeight;
+		scrollContainer.scrollTop = -maxScroll;
+		if (Math.abs(scrollContainer.scrollTop) < 100) {
+			scrollContainer.scrollTop = maxScroll;
+		}
+		scrollContainer.dispatchEvent(new Event("scroll"));
+
+		// Button should become visible (enters the accessibility tree).
+		const button = await waitFor(() => {
+			const btn = canvas.getByRole("button", { name: "Scroll to bottom" });
+			expect(btn).toBeVisible();
+			return btn;
+		});
+
+		// Click the button to scroll back to the bottom.
+		await userEvent.click(button);
+
+		// Button should be hidden again. The click handler immediately
+		// hides it, so this doesn't depend on smooth scroll completing.
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: "Scroll to bottom" }),
+			).toBeNull();
+		});
+	},
 };

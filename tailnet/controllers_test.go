@@ -1075,6 +1075,84 @@ func TestController_Disconnects(t *testing.T) {
 	_ = testutil.TryReceive(testCtx, t, uut.Closed())
 }
 
+func TestController_RetriesWrappedDeadlineExceeded(t *testing.T) {
+	t.Parallel()
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	ctx, cancel := context.WithCancel(testCtx)
+	defer cancel()
+
+	logger := testutil.Logger(t)
+	dialer := &scriptedDialer{
+		attempts: make(chan int, 10),
+		dialFn: func(ctx context.Context, attempt int) (tailnet.ControlProtocolClients, error) {
+			if attempt == 1 {
+				return tailnet.ControlProtocolClients{}, &net.OpError{
+					Op:  "dial",
+					Net: "tcp",
+					Err: context.DeadlineExceeded,
+				}
+			}
+
+			<-ctx.Done()
+			return tailnet.ControlProtocolClients{}, ctx.Err()
+		},
+	}
+
+	uut := tailnet.NewController(logger.Named("ctrl"), dialer)
+	uut.Run(ctx)
+
+	require.Equal(t, 1, testutil.TryReceive(testCtx, t, dialer.attempts))
+	require.Equal(t, 2, testutil.TryReceive(testCtx, t, dialer.attempts))
+
+	select {
+	case <-uut.Closed():
+		t.Fatal("controller exited after wrapped deadline exceeded")
+	default:
+	}
+
+	cancel()
+	_ = testutil.TryReceive(testCtx, t, uut.Closed())
+}
+
+func TestController_DoesNotRedialAfterCancel(t *testing.T) {
+	t.Parallel()
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	ctx, cancel := context.WithCancel(testCtx)
+	logger := testutil.Logger(t)
+
+	fClient := newFakeWorkspaceUpdateClient(testCtx, t)
+	dialer := &scriptedDialer{
+		attempts: make(chan int, 10),
+		dialFn: func(_ context.Context, _ int) (tailnet.ControlProtocolClients, error) {
+			return tailnet.ControlProtocolClients{
+				WorkspaceUpdates: fClient,
+				Closer:           fakeCloser{},
+			}, nil
+		},
+	}
+	fCtrl := newFakeUpdatesController(testCtx, t)
+
+	uut := tailnet.NewController(logger.Named("ctrl"), dialer)
+	uut.WorkspaceUpdatesCtrl = fCtrl
+	uut.Run(ctx)
+
+	require.Equal(t, 1, testutil.TryReceive(testCtx, t, dialer.attempts))
+	call := testutil.TryReceive(testCtx, t, fCtrl.calls)
+	require.Equal(t, fClient, call.client)
+	testutil.RequireSend[tailnet.CloserWaiter](testCtx, t, call.resp, newFakeCloserWaiter())
+
+	cancel()
+	closeCall := testutil.TryReceive(testCtx, t, fClient.close)
+	testutil.RequireSend(testCtx, t, closeCall, nil)
+	_ = testutil.TryReceive(testCtx, t, uut.Closed())
+
+	select {
+	case attempt := <-dialer.attempts:
+		t.Fatalf("unexpected redial attempt after cancel: %d", attempt)
+	default:
+	}
+}
+
 func TestController_TelemetrySuccess(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -2068,6 +2146,31 @@ func newFakeCloserWaiter() *fakeCloserWaiter {
 		closeCalls: make(chan chan error),
 		errCh:      make(chan error, 1),
 	}
+}
+
+type scriptedDialer struct {
+	attempts chan int
+	dialFn   func(context.Context, int) (tailnet.ControlProtocolClients, error)
+
+	mu       sync.Mutex
+	attemptN int
+}
+
+func (d *scriptedDialer) Dial(ctx context.Context, _ tailnet.ResumeTokenController) (tailnet.ControlProtocolClients, error) {
+	d.mu.Lock()
+	d.attemptN++
+	attempt := d.attemptN
+	d.mu.Unlock()
+
+	if d.attempts != nil {
+		select {
+		case d.attempts <- attempt:
+		case <-ctx.Done():
+			return tailnet.ControlProtocolClients{}, ctx.Err()
+		}
+	}
+
+	return d.dialFn(ctx, attempt)
 }
 
 type fakeWorkspaceUpdatesDialer struct {

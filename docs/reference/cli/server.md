@@ -1813,17 +1813,6 @@ The model to use when making requests to the AWS Bedrock API.
 
 The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
 
-### --aibridge-inject-coder-mcp-tools
-
-|             |                                                     |
-|-------------|-----------------------------------------------------|
-| Type        | <code>bool</code>                                   |
-| Environment | <code>$CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS</code> |
-| YAML        | <code>aibridge.inject_coder_mcp_tools</code>        |
-| Default     | <code>false</code>                                  |
-
-Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the "oauth2" and "mcp-server-http" experiments to be enabled).
-
 ### --aibridge-retention
 
 |             |                                        |
@@ -1971,6 +1960,16 @@ URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests throu
 | YAML        | <code>aibridgeproxy.upstream_proxy_ca</code>   |
 
 Path to a PEM-encoded CA certificate to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream proxies with certificates not trusted by the system. If not provided, the system certificate pool is used.
+
+### --aibridge-proxy-allowed-private-cidrs
+
+|             |                                                          |
+|-------------|----------------------------------------------------------|
+| Type        | <code>string-array</code>                                |
+| Environment | <code>$CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS</code> |
+| YAML        | <code>aibridgeproxy.allowed_private_cidrs</code>         |
+
+Comma-separated list of CIDR ranges that are permitted even though they fall within blocked private/reserved IP ranges. By default all private ranges are blocked to prevent SSRF attacks. Use this to allow access to specific internal networks.
 
 ### --audit-logs-retention
 

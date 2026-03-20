@@ -137,9 +137,9 @@
 					"icon_path": "./images/icons/cloud.svg",
 					"children": [
 						{
-							"title": "AWS EC2",
-							"description": "Install Coder on AWS EC2",
-							"path": "./install/cloud/ec2.md"
+							"title": "AWS Marketplace",
+							"description": "Install Coder via AWS Marketplace",
+							"path": "./install/cloud/aws-marketplace.md"
 						},
 						{
 							"title": "GCP Compute Engine",
@@ -628,6 +628,11 @@
 									"title": "Resource Persistence",
 									"description": "Control resource persistence",
 									"path": "./admin/templates/extending-templates/resource-persistence.md"
+								},
+								{
+									"title": "Environment Variables",
+									"description": "Inject environment variables into workspaces using coder_env",
+									"path": "./admin/templates/extending-templates/environment-variables.md"
 								},
 								{
 									"title": "Terraform Variables",
@@ -1194,6 +1199,12 @@
 					"state": ["early access"],
 					"children": [
 						{
+							"title": "Early Access",
+							"description": "About the Coder Agents Early Access program",
+							"path": "./ai-coder/agents/early-access.md",
+							"state": ["early access"]
+						},
+						{
 							"title": "Architecture",
 							"description": "How the agent in the control plane communicates with workspaces",
 							"path": "./ai-coder/agents/architecture.md",
@@ -1208,13 +1219,21 @@
 						{
 							"title": "Platform Controls",
 							"description": "How platform teams control agent behavior, models, and policies",
-							"path": "./ai-coder/agents/platform-controls.md",
-							"state": ["early access"]
+							"path": "./ai-coder/agents/platform-controls/index.md",
+							"state": ["early access"],
+							"children": [
+								{
+									"title": "Template Optimization",
+									"description": "Best practices for creating templates that are discoverable and useful to Coder Agents",
+									"path": "./ai-coder/agents/platform-controls/template-optimization.md",
+									"state": ["early access"]
+								}
+							]
 						},
 						{
-							"title": "Early Access",
-							"description": "About the Coder Agents Early Access program",
-							"path": "./ai-coder/agents/early-access.md",
+							"title": "Chats API",
+							"description": "Programmatic access to Coder Agents via the experimental Chats API",
+							"path": "./ai-coder/agents/chats-api.md",
 							"state": ["early access"]
 						}
 					]
@@ -1409,6 +1428,10 @@
 						{
 							"title": "Builds",
 							"path": "./reference/api/builds.md"
+						},
+						{
+							"title": "Chats",
+							"path": "./reference/api/chats.md"
 						},
 						{
 							"title": "Debug",

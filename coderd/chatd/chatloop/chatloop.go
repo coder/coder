@@ -42,6 +42,11 @@ type PersistedStep struct {
 	Content      []fantasy.Content
 	Usage        fantasy.Usage
 	ContextLimit sql.NullInt64
+	// Runtime is the wall-clock duration of this step,
+	// covering LLM streaming, tool execution, and retries.
+	// Zero indicates the duration was not measured (e.g.
+	// interrupted steps).
+	Runtime time.Duration
 }
 
 // RunOptions configures a single streaming chat loop run.
@@ -63,15 +68,16 @@ type RunOptions struct {
 	// of the provider, which lives in chatd, not chatloop.
 	ProviderOptions fantasy.ProviderOptions
 
-	// ProviderTools are provider-native tools (like web search)
-	// that are passed directly to the provider API alongside
-	// function tool definitions. These are not necessarily
-	// executed server-side; handling is provider-specific.
-	ProviderTools []fantasy.Tool
+	// ProviderTools are provider-native tools (like web search
+	// and computer use) whose definitions are passed directly
+	// to the provider API. When a ProviderTool has a non-nil
+	// Runner, tool calls are executed locally; otherwise the
+	// provider handles execution (e.g. web search).
+	ProviderTools []ProviderTool
 
 	PersistStep        func(context.Context, PersistedStep) error
 	PublishMessagePart func(
-		role fantasy.MessageRole,
+		role codersdk.ChatMessageRole,
 		part codersdk.ChatMessagePart,
 	)
 	Compaction     *CompactionOptions
@@ -86,6 +92,16 @@ type RunOptions struct {
 	OnRetry chatretry.OnRetryFn
 
 	OnInterruptedPersistError func(error)
+}
+
+// ProviderTool pairs a provider-native tool definition with an
+// optional local executor. When Runner is nil the tool is fully
+// provider-executed (e.g. web search). When Runner is non-nil
+// the definition is sent to the API but execution is handled
+// locally (e.g. computer use).
+type ProviderTool struct {
+	Definition fantasy.Tool
+	Runner     fantasy.AgentTool
 }
 
 // stepResult holds the accumulated output of a single streaming
@@ -111,7 +127,7 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 		switch c.GetType() {
 		case fantasy.ContentTypeText:
 			text, ok := fantasy.AsContentType[fantasy.TextContent](c)
-			if !ok {
+			if !ok || strings.TrimSpace(text.Text) == "" {
 				continue
 			}
 			assistantParts = append(assistantParts, fantasy.TextPart{
@@ -120,7 +136,7 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 			})
 		case fantasy.ContentTypeReasoning:
 			reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](c)
-			if !ok {
+			if !ok || strings.TrimSpace(reasoning.Text) == "" {
 				continue
 			}
 			assistantParts = append(assistantParts, fantasy.ReasoningPart{
@@ -158,12 +174,23 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 			if !ok {
 				continue
 			}
-			toolParts = append(toolParts, fantasy.ToolResultPart{
+			part := fantasy.ToolResultPart{
 				ToolCallID:       result.ToolCallID,
 				Output:           result.Result,
 				ProviderExecuted: result.ProviderExecuted,
 				ProviderOptions:  fantasy.ProviderOptions(result.ProviderMetadata),
-			})
+			}
+			// Provider-executed tool results (e.g. web_search)
+			// must stay in the assistant message so the result
+			// block appears inline after the corresponding
+			// server_tool_use block. This matches the persistence
+			// layer in chatd.go which keeps them in
+			// assistantBlocks.
+			if result.ProviderExecuted {
+				assistantParts = append(assistantParts, part)
+			} else {
+				toolParts = append(toolParts, part)
+			}
 		default:
 			continue
 		}
@@ -205,7 +232,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 		opts.MaxSteps = 1
 	}
 
-	publishMessagePart := func(role fantasy.MessageRole, part codersdk.ChatMessagePart) {
+	publishMessagePart := func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 		if opts.PublishMessagePart == nil {
 			return
 		}
@@ -238,6 +265,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 
 		for step := 0; totalSteps < opts.MaxSteps; step++ {
 			totalSteps++
+			stepStart := time.Now()
 			// Copy messages so that provider-specific caching
 			// mutations don't leak back to the caller's slice.
 			// copy copies Message structs by value, so field
@@ -304,17 +332,29 @@ func Run(ctx context.Context, opts RunOptions) error {
 					return ctx.Err()
 				}
 
-				toolResults = executeTools(ctx, opts.Tools, result.toolCalls, func(tr fantasy.ToolResultContent) {
+				toolResults = executeTools(ctx, opts.Tools, opts.ProviderTools, result.toolCalls, func(tr fantasy.ToolResultContent) {
 					publishMessagePart(
-						fantasy.MessageRoleTool,
+						codersdk.ChatMessageRoleTool,
 						chatprompt.PartFromContent(tr),
 					)
 				})
 				for _, tr := range toolResults {
 					result.content = append(result.content, tr)
 				}
-			}
 
+				// Check for interruption after tool execution.
+				// Tools that were canceled mid-flight produce error
+				// results via ctx cancellation. Persist the full
+				// step (assistant blocks + tool results) through
+				// the interrupt-safe path so nothing is lost.
+				if ctx.Err() != nil {
+					if errors.Is(context.Cause(ctx), ErrInterrupted) {
+						persistInterruptedStep(ctx, opts, &result)
+						return ErrInterrupted
+					}
+					return ctx.Err()
+				}
+			}
 			// Extract context limit from provider metadata.
 			contextLimit := extractContextLimit(result.providerMetadata)
 			if !contextLimit.Valid && opts.ContextLimitFallback > 0 {
@@ -323,15 +363,22 @@ func Run(ctx context.Context, opts RunOptions) error {
 					Valid: true,
 				}
 			}
-			// Persist the step — errors propagate directly.
+			// Persist the step. If persistence fails because
+			// the chat was interrupted between the previous
+			// check and here, fall back to the interrupt-safe
+			// path so partial content is not lost.
 			if err := opts.PersistStep(ctx, PersistedStep{
 				Content:      result.content,
 				Usage:        result.usage,
 				ContextLimit: contextLimit,
+				Runtime:      time.Since(stepStart),
 			}); err != nil {
+				if errors.Is(err, ErrInterrupted) {
+					persistInterruptedStep(ctx, opts, &result)
+					return ErrInterrupted
+				}
 				return xerrors.Errorf("persist step: %w", err)
 			}
-
 			lastUsage = result.usage
 			lastProviderMetadata = result.providerMetadata
 
@@ -426,7 +473,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 func processStepStream(
 	ctx context.Context,
 	stream fantasy.StreamResponse,
-	publishMessagePart func(fantasy.MessageRole, codersdk.ChatMessagePart),
+	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
 ) (stepResult, error) {
 	var result stepResult
 
@@ -445,10 +492,7 @@ func processStepStream(
 			if _, exists := activeTextContent[part.ID]; exists {
 				activeTextContent[part.ID] += part.Delta
 			}
-			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-				Type: codersdk.ChatMessagePartTypeText,
-				Text: part.Delta,
-			})
+			publishMessagePart(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText(part.Delta))
 
 		case fantasy.StreamPartTypeTextEnd:
 			if text, exists := activeTextContent[part.ID]; exists {
@@ -471,10 +515,7 @@ func processStepStream(
 				active.options = part.ProviderMetadata
 				activeReasoningContent[part.ID] = active
 			}
-			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
-				Type: codersdk.ChatMessagePartTypeReasoning,
-				Text: part.Delta,
-			})
+			publishMessagePart(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageReasoning(part.Delta))
 
 		case fantasy.StreamPartTypeReasoningEnd:
 			if active, exists := activeReasoningContent[part.ID]; exists {
@@ -506,7 +547,7 @@ func processStepStream(
 				providerExecuted = toolCall.ProviderExecuted
 			}
 			toolName := toolNames[part.ID]
-			publishMessagePart(fantasy.MessageRoleAssistant, codersdk.ChatMessagePart{
+			publishMessagePart(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{
 				Type:             codersdk.ChatMessagePartTypeToolCall,
 				ToolCallID:       part.ID,
 				ToolName:         toolName,
@@ -534,7 +575,7 @@ func processStepStream(
 			delete(activeToolCalls, part.ID)
 
 			publishMessagePart(
-				fantasy.MessageRoleAssistant,
+				codersdk.ChatMessageRoleAssistant,
 				chatprompt.PartFromContent(tc),
 			)
 
@@ -548,7 +589,7 @@ func processStepStream(
 			}
 			result.content = append(result.content, sourceContent)
 			publishMessagePart(
-				fantasy.MessageRoleAssistant,
+				codersdk.ChatMessageRoleAssistant,
 				chatprompt.PartFromContent(sourceContent),
 			)
 
@@ -566,7 +607,7 @@ func processStepStream(
 				}
 				result.content = append(result.content, tr)
 				publishMessagePart(
-					fantasy.MessageRoleTool,
+					codersdk.ChatMessageRoleTool,
 					chatprompt.PartFromContent(tr),
 				)
 			}
@@ -576,10 +617,12 @@ func processStepStream(
 			result.providerMetadata = part.ProviderMetadata
 
 		case fantasy.StreamPartTypeError:
-			// Detect interruption: context canceled with
-			// ErrInterrupted as the cause.
-			if errors.Is(part.Error, context.Canceled) &&
-				errors.Is(context.Cause(ctx), ErrInterrupted) {
+			// Detect interruption: the stream may surface the
+			// cancel as context.Canceled or propagate the
+			// ErrInterrupted cause directly, depending on
+			// the provider implementation.
+			if errors.Is(context.Cause(ctx), ErrInterrupted) &&
+				(errors.Is(part.Error, context.Canceled) || errors.Is(part.Error, ErrInterrupted)) {
 				// Flush in-progress content so that
 				// persistInterruptedStep has access to partial
 				// text, reasoning, and tool calls that were
@@ -595,6 +638,23 @@ func processStepStream(
 			}
 			return result, part.Error
 		}
+	}
+
+	// The stream iterator may stop yielding parts without
+	// producing a StreamPartTypeError when the context is
+	// canceled (e.g. some providers close the response body
+	// silently). Detect this case and flush partial content
+	// so that persistInterruptedStep can save it.
+	if ctx.Err() != nil &&
+		errors.Is(context.Cause(ctx), ErrInterrupted) {
+		flushActiveState(
+			&result,
+			activeTextContent,
+			activeReasoningContent,
+			activeToolCalls,
+			toolNames,
+		)
+		return result, ErrInterrupted
 	}
 
 	hasLocalToolCalls := false
@@ -616,6 +676,7 @@ func processStepStream(
 func executeTools(
 	ctx context.Context,
 	allTools []fantasy.AgentTool,
+	providerTools []ProviderTool,
 	toolCalls []fantasy.ToolCallContent,
 	onResult func(fantasy.ToolResultContent),
 ) []fantasy.ToolResultContent {
@@ -640,6 +701,13 @@ func executeTools(
 	toolMap := make(map[string]fantasy.AgentTool, len(allTools))
 	for _, t := range allTools {
 		toolMap[t.Info().Name] = t
+	}
+	// Include runners from provider tools so locally-executed
+	// provider tools (e.g. computer use) can be dispatched.
+	for _, pt := range providerTools {
+		if pt.Runner != nil {
+			toolMap[pt.Runner.Info().Name] = pt.Runner
+		}
 	}
 
 	results := make([]fantasy.ToolResultContent, len(localToolCalls))
@@ -840,15 +908,16 @@ func persistInterruptedStep(
 // buildToolDefinitions converts AgentTool definitions into the
 // fantasy.Tool slice expected by fantasy.Call. When activeTools
 // is non-empty, only function tools whose name appears in the
-// list are included. Provider tools bypass this filter and are
-// always appended unconditionally.
-func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, providerTools []fantasy.Tool) []fantasy.Tool {
-	prepared := make([]fantasy.Tool, 0, len(tools))
+// list are included. Provider tool definitions are always
+// appended unconditionally.
+func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, providerTools []ProviderTool) []fantasy.Tool {
+	prepared := make([]fantasy.Tool, 0, len(tools)+len(providerTools))
 	for _, tool := range tools {
 		info := tool.Info()
 		if len(activeTools) > 0 && !slices.Contains(activeTools, info.Name) {
 			continue
 		}
+
 		inputSchema := map[string]any{
 			"type":       "object",
 			"properties": info.Parameters,
@@ -862,7 +931,9 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 			ProviderOptions: tool.ProviderOptions(),
 		})
 	}
-	prepared = append(prepared, providerTools...)
+	for _, pt := range providerTools {
+		prepared = append(prepared, pt.Definition)
+	}
 	return prepared
 }
 

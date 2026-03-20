@@ -19,31 +19,36 @@ func IsInitProcess() bool {
 	return os.Getpid() == 1
 }
 
-func catchSignals(logger slog.Logger, pid int, sigs []os.Signal) {
+// startSignalForwarding registers signal handlers synchronously
+// then forwards caught signals to the child in a background
+// goroutine. Registering before the goroutine starts ensures no
+// signal is lost between ForkExec and the handler being ready.
+func startSignalForwarding(logger slog.Logger, pid int, sigs []os.Signal) {
 	if len(sigs) == 0 {
 		return
 	}
 
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, sigs...)
-	defer signal.Stop(sc)
 
 	logger.Info(context.Background(), "reaper catching signals",
 		slog.F("signals", sigs),
 		slog.F("child_pid", pid),
 	)
 
-	for {
-		s := <-sc
-		sig, ok := s.(syscall.Signal)
-		if ok {
-			logger.Info(context.Background(), "reaper caught signal, killing child process",
-				slog.F("signal", sig.String()),
-				slog.F("child_pid", pid),
-			)
-			_ = syscall.Kill(pid, sig)
+	go func() {
+		defer signal.Stop(sc)
+		for s := range sc {
+			sig, ok := s.(syscall.Signal)
+			if ok {
+				logger.Info(context.Background(), "reaper caught signal, killing child process",
+					slog.F("signal", sig.String()),
+					slog.F("child_pid", pid),
+				)
+				_ = syscall.Kill(pid, sig)
+			}
 		}
-	}
+	}()
 }
 
 // ForkReap spawns a goroutine that reaps children. In order to avoid
@@ -64,7 +69,12 @@ func ForkReap(opt ...Option) (int, error) {
 		o(opts)
 	}
 
-	go reap.ReapChildren(opts.PIDs, nil, opts.Done, nil)
+	go func() {
+		reap.ReapChildren(opts.PIDs, nil, opts.ReaperStop, opts.ReapLock)
+		if opts.ReaperStopped != nil {
+			close(opts.ReaperStopped)
+		}
+	}()
 
 	pwd, err := os.Getwd()
 	if err != nil {
@@ -90,7 +100,7 @@ func ForkReap(opt ...Option) (int, error) {
 		return 1, xerrors.Errorf("fork exec: %w", err)
 	}
 
-	go catchSignals(opts.Logger, pid, opts.CatchSignals)
+	startSignalForwarding(opts.Logger, pid, opts.CatchSignals)
 
 	var wstatus syscall.WaitStatus
 	_, err = syscall.Wait4(pid, &wstatus, 0, nil)

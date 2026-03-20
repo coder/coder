@@ -1,4 +1,4 @@
-import type { ChatQueuedMessage } from "api/typesGenerated";
+import type { ChatMessagePart, ChatQueuedMessage } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Spinner } from "components/Spinner/Spinner";
 import {
@@ -9,101 +9,59 @@ import {
 import {
 	ArrowUpIcon,
 	CornerDownLeftIcon,
+	ImageIcon,
 	PencilIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { type FC, useCallback, useEffect, useMemo, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import { cn } from "utils/cn";
 
 interface QueuedMessagesListProps {
 	messages: readonly ChatQueuedMessage[];
 	onDelete: (id: number) => Promise<void> | void;
 	onPromote: (id: number) => Promise<void> | void;
-	onEdit?: (id: number, text: string) => void;
+	onEdit?: (
+		id: number,
+		text: string,
+		fileBlocks: readonly ChatMessagePart[],
+	) => void;
 	editingMessageID?: number | null;
 	className?: string;
 }
 
-const asRecord = (value: unknown): Record<string, unknown> | undefined => {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		return undefined;
-	}
-	return value as Record<string, unknown>;
-};
+interface QueuedMessageInfo {
+	displayText: string;
+	rawText: string;
+	attachmentCount: number;
+	fileBlocks: readonly ChatMessagePart[];
+}
 
-const extractBlockText = (value: unknown): string | undefined => {
-	if (typeof value === "string") {
-		return value;
-	}
-	const record = asRecord(value);
-	if (!record) {
-		return undefined;
-	}
-	if (typeof record.text === "string") {
-		return record.text;
-	}
-	const data = asRecord(record.data);
-	if (data && typeof data.text === "string") {
-		return data.text;
-	}
-	return undefined;
-};
+export const getQueuedMessageInfo = (
+	message: ChatQueuedMessage,
+): QueuedMessageInfo => {
+	const { content } = message;
+	const fileBlocks = content.filter((p) => p.type === "file");
+	const rawText = content
+		.filter((p) => p.type === "text")
+		.map((p) => p.text)
+		.filter((t): t is string => Boolean(t?.trim()))
+		.join(" ")
+		.trim();
 
-const extractQueuedContentText = (value: unknown): string => {
-	if (typeof value === "string") {
-		const trimmed = value.trim();
-		if (trimmed === "") {
-			return "";
-		}
-		if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
-			try {
-				return extractQueuedContentText(JSON.parse(trimmed));
-			} catch {
-				return value;
-			}
-		}
-		return value;
+	if (rawText) {
+		return {
+			displayText: rawText,
+			rawText,
+			attachmentCount: fileBlocks.length,
+			fileBlocks,
+		};
 	}
-
-	if (Array.isArray(value)) {
-		const texts = value
-			.map(extractBlockText)
-			.filter((text): text is string => Boolean(text?.trim()));
-		if (texts.length > 0) {
-			return texts.join(" ");
-		}
-		try {
-			return JSON.stringify(value);
-		} catch {
-			return "";
-		}
-	}
-
-	const record = asRecord(value);
-	if (record) {
-		const text = extractBlockText(record);
-		if (text?.trim()) {
-			return text;
-		}
-		if ("content" in record) {
-			const nested = extractQueuedContentText(record.content);
-			if (nested.trim()) {
-				return nested;
-			}
-		}
-		try {
-			return JSON.stringify(record);
-		} catch {
-			return "";
-		}
-	}
-
-	return "";
-};
-
-const getQueuedMessageText = (message: ChatQueuedMessage): string => {
-	const text = extractQueuedContentText(message.content).trim();
-	return text || "Queued message";
+	return {
+		displayText: "[Queued message]",
+		rawText: "",
+		attachmentCount: fileBlocks.length,
+		fileBlocks,
+	};
 };
 
 export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
@@ -114,14 +72,17 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	editingMessageID = null,
 	className,
 }) => {
-	const items = useMemo(
-		() =>
-			messages.map((message) => ({
-				id: message.id,
-				text: getQueuedMessageText(message),
-			})),
-		[messages],
-	);
+	const items = messages.map((message) => {
+		const { displayText, rawText, attachmentCount, fileBlocks } =
+			getQueuedMessageInfo(message);
+		return {
+			id: message.id,
+			displayText,
+			rawText,
+			attachmentCount,
+			fileBlocks,
+		};
+	});
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
 	// Tracks which item has an async action in flight and what kind.
@@ -133,7 +94,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 		ReadonlySet<number>
 	>(new Set());
 
-	const hideItemOptimistically = useCallback((id: number) => {
+	const hideItemOptimistically = (id: number) => {
 		setOptimisticallyHiddenIDs((current) => {
 			if (current.has(id)) {
 				return current;
@@ -142,9 +103,9 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 			next.add(id);
 			return next;
 		});
-	}, []);
+	};
 
-	const restoreHiddenItem = useCallback((id: number) => {
+	const restoreHiddenItem = (id: number) => {
 		setOptimisticallyHiddenIDs((current) => {
 			if (!current.has(id)) {
 				return current;
@@ -153,7 +114,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 			next.delete(id);
 			return next;
 		});
-	}, []);
+	};
 
 	useEffect(() => {
 		const liveIDs = new Set(messages.map((message) => message.id));
@@ -174,35 +135,29 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 		});
 	}, [messages]);
 
-	const handleDelete = useCallback(
-		async (id: number) => {
-			setBusyItem({ id, action: "delete" });
-			hideItemOptimistically(id);
-			try {
-				await onDelete(id);
-			} catch {
-				restoreHiddenItem(id);
-			} finally {
-				setBusyItem((current) => (current?.id === id ? null : current));
-			}
-		},
-		[hideItemOptimistically, onDelete, restoreHiddenItem],
-	);
+	const handleDelete = async (id: number) => {
+		setBusyItem({ id, action: "delete" });
+		hideItemOptimistically(id);
+		try {
+			await onDelete(id);
+			setBusyItem((current) => (current?.id === id ? null : current));
+		} catch {
+			restoreHiddenItem(id);
+			setBusyItem((current) => (current?.id === id ? null : current));
+		}
+	};
 
-	const handlePromote = useCallback(
-		async (id: number) => {
-			setBusyItem({ id, action: "promote" });
-			hideItemOptimistically(id);
-			try {
-				await onPromote(id);
-			} catch {
-				restoreHiddenItem(id);
-			} finally {
-				setBusyItem((current) => (current?.id === id ? null : current));
-			}
-		},
-		[hideItemOptimistically, onPromote, restoreHiddenItem],
-	);
+	const handlePromote = async (id: number) => {
+		setBusyItem({ id, action: "promote" });
+		hideItemOptimistically(id);
+		try {
+			await onPromote(id);
+			setBusyItem((current) => (current?.id === id ? null : current));
+		} catch {
+			restoreHiddenItem(id);
+			setBusyItem((current) => (current?.id === id ? null : current));
+		}
+	};
 
 	const visibleItems = items.filter(
 		(item) => !optimisticallyHiddenIDs.has(item.id),
@@ -240,9 +195,19 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 					>
 						<div className="flex items-center gap-2 rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-sm">
 							<span className="min-w-0 flex-1 truncate">
-								{item.text.split("\n")[0]}
-								{item.text.includes("\n") ? "…" : ""}
+								{item.displayText.split("\n")[0]}
+								{item.displayText.includes("\n") ? "…" : ""}
 							</span>
+							{item.attachmentCount > 0 && (
+								<span
+									role="img"
+									aria-label={`${item.attachmentCount} image attachment${item.attachmentCount !== 1 ? "s" : ""}`}
+									className="flex shrink-0 items-center gap-1 text-xs text-content-secondary"
+								>
+									<ImageIcon className="h-3 w-3" aria-hidden="true" />
+									<span aria-hidden="true">{item.attachmentCount}</span>
+								</span>
+							)}
 							{isFirst && (
 								<span
 									className={cn(
@@ -268,7 +233,9 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 												size="icon"
 												aria-label="Edit"
 												disabled={isBusy}
-												onClick={() => onEdit(item.id, item.text)}
+												onClick={() =>
+													onEdit(item.id, item.rawText, item.fileBlocks)
+												}
 												className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
 											>
 												<PencilIcon className="h-3.5 w-3.5" />

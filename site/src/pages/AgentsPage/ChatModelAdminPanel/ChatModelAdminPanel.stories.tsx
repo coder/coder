@@ -39,6 +39,7 @@ const createModelConfig = (
 	is_default: overrides.is_default ?? false,
 	context_limit: overrides.context_limit ?? 200000,
 	compression_threshold: overrides.compression_threshold ?? 70,
+	model_config: overrides.model_config,
 	created_at: overrides.created_at ?? now,
 	updated_at: overrides.updated_at ?? now,
 });
@@ -125,6 +126,7 @@ const setupChatSpies = (state: {
 				Number.isFinite(req.compression_threshold)
 					? req.compression_threshold
 					: 70,
+			model_config: req.model_config,
 		});
 		state.modelConfigs = [...state.modelConfigs, created];
 		return created;
@@ -419,7 +421,7 @@ export const NoModelConfigByDefault: Story = {
 				model: "gpt-5-pro",
 			}),
 		);
-		// The request should not include a model_config key.
+		// Blank pricing fields should remain unset in the payload.
 		const callArgs = (
 			API.createChatModelConfig as unknown as ReturnType<typeof spyOn>
 		).mock.calls[0][0] as Record<string, unknown>;
@@ -618,6 +620,39 @@ export const ModelFormBedrock: Story = {
 			await body.findByLabelText(/Send Reasoning/i),
 		).toBeInTheDocument();
 		await expect(await body.findByLabelText(/Effort/i)).toBeInTheDocument();
+	},
+};
+
+export const ModelPricingWarningInList: Story = {
+	args: { section: "models" as ChatModelAdminSection },
+	beforeEach: () => {
+		setupChatSpies({
+			providerConfigs: [
+				createProviderConfig({
+					id: "provider-openai",
+					provider: "openai",
+					display_name: "OpenAI",
+					source: "database",
+					has_api_key: true,
+				}),
+			],
+			modelConfigs: [
+				createModelConfig({
+					id: "model-warning",
+					provider: "openai",
+					model: "gpt-4.1",
+					display_name: "GPT-4.1",
+				}),
+			],
+			modelCatalog: { providers: [] },
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await expect(await body.findByText("GPT-4.1")).toBeInTheDocument();
+		await expect(
+			body.getByText("Model pricing is not defined"),
+		).toBeInTheDocument();
 	},
 };
 

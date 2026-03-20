@@ -39,7 +39,7 @@ export const DashboardLayout: FC = () => {
 				</a>
 				<Navbar />
 
-				<div
+				<main
 					id="main-content"
 					tabIndex={-1}
 					className={cn(
@@ -50,7 +50,7 @@ export const DashboardLayout: FC = () => {
 					<Suspense fallback={<Loader />}>
 						<Outlet />
 					</Suspense>
-				</div>
+				</main>
 
 				<DeploymentBanner />
 

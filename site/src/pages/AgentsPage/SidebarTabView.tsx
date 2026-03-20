@@ -8,15 +8,10 @@ import {
 	XIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useId,
-	useRef,
-	useState,
-} from "react";
+import { type FC, useEffect, useId, useRef, useState } from "react";
 import { cn } from "utils/cn";
+import { DesktopPanel } from "./DesktopPanel";
+import type { UseDesktopConnectionResult } from "./useDesktopConnection";
 
 /** A single tab definition for the sidebar panel. */
 export interface SidebarTab {
@@ -46,6 +41,10 @@ interface SidebarTabViewProps {
 	chatTitle?: string;
 	/** Callback to close the panel (used on mobile). */
 	onClose?: () => void;
+	/** Desktop chat ID. Omitted if desktop is not available. */
+	desktopChatId?: string;
+	/** Optional override for the desktop connection. Used in stories. */
+	desktopConnectionOverride?: UseDesktopConnectionResult;
 }
 
 /** How far (px) each chevron click scrolls the tab strip. */
@@ -60,16 +59,14 @@ function useTabScroll() {
 	const [canScrollLeft, setCanScrollLeft] = useState(false);
 	const [canScrollRight, setCanScrollRight] = useState(false);
 
-	const update = useCallback(() => {
-		const el = ref.current;
-		if (!el) return;
-		setCanScrollLeft(el.scrollLeft > 0);
-		setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
-	}, []);
-
 	useEffect(() => {
 		const el = ref.current;
 		if (!el) return;
+
+		const update = () => {
+			setCanScrollLeft(el.scrollLeft > 0);
+			setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+		};
 
 		// Initial check.
 		update();
@@ -85,21 +82,21 @@ function useTabScroll() {
 			el.removeEventListener("scroll", update);
 			ro.disconnect();
 		};
-	}, [update]);
+	}, []);
 
-	const scrollLeft = useCallback(() => {
+	const scrollLeft = () => {
 		ref.current?.scrollBy({
 			left: -TAB_SCROLL_AMOUNT,
 			behavior: "smooth",
 		});
-	}, []);
+	};
 
-	const scrollRight = useCallback(() => {
+	const scrollRight = () => {
 		ref.current?.scrollBy({
 			left: TAB_SCROLL_AMOUNT,
 			behavior: "smooth",
 		});
-	}, []);
+	};
 
 	return { ref, canScrollLeft, canScrollRight, scrollLeft, scrollRight };
 }
@@ -112,26 +109,43 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	onToggleSidebarCollapsed,
 	chatTitle,
 	onClose,
+	desktopChatId,
+	desktopConnectionOverride,
 }) => {
 	const tabIdPrefix = useId();
 	const [activeTabId, setActiveTabId] = useState<string | null>(
 		tabs.length > 0 ? tabs[0].id : null,
 	);
 
+	// Build the full list of tab IDs including the desktop tab
+	// so that effectiveTabId validation covers it.
+	const allTabIds = new Set(tabs.map((t) => t.id));
+	if (desktopChatId) {
+		allTabIds.add("desktop");
+	}
+
 	// Derive the effective tab. Fall back to the first tab if
 	// the stored activeTabId no longer matches any tab in the list.
 	const effectiveTabId =
-		activeTabId !== null && tabs.some((t) => t.id === activeTabId)
+		activeTabId !== null && allTabIds.has(activeTabId)
 			? activeTabId
 			: tabs.length > 0
 				? tabs[0].id
-				: null;
+				: desktopChatId
+					? "desktop"
+					: null;
 
 	const activeTab = tabs.find((t) => t.id === effectiveTabId) ?? null;
 
-	const tabScroll = useTabScroll();
+	const {
+		ref: tabScrollRef,
+		canScrollLeft,
+		canScrollRight,
+		scrollLeft: scrollTabsLeft,
+		scrollRight: scrollTabsRight,
+	} = useTabScroll();
 
-	if (tabs.length === 0) {
+	if (tabs.length === 0 && !desktopChatId) {
 		return (
 			<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 				{/* Tab bar – always visible for the expand button. */}
@@ -195,10 +209,10 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				)}
 				{/* Scrollable tab strip with overlay chevrons */}
 				<div className="relative min-w-0 flex-1">
-					{tabScroll.canScrollLeft && (
+					{canScrollLeft && (
 						<button
 							type="button"
-							onClick={tabScroll.scrollLeft}
+							onClick={scrollTabsLeft}
 							aria-label="Scroll tabs left"
 							className="absolute left-0 top-0 z-10 flex h-full w-8 cursor-pointer items-center justify-start border-none p-0 pl-1 text-content-primary [background:linear-gradient(to_right,hsl(var(--surface-primary))_50%,transparent)]"
 						>
@@ -206,7 +220,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						</button>
 					)}
 					<div
-						ref={tabScroll.ref}
+						ref={tabScrollRef}
 						className="flex w-full items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 					>
 						{tabs.map((tab) => {
@@ -218,10 +232,10 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 									role="tab"
 									aria-selected={isActive}
 									onClick={() => setActiveTabId(tab.id)}
-									variant="subtle"
+									variant="outline"
 									size="lg"
 									className={cn(
-										"shrink-0 h-6 border border-solid border-transparent min-w-0 gap-3 px-2 py-0 bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
+										"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
 										isActive &&
 											"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
 										tab.badge && "pr-0",
@@ -242,11 +256,28 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 								</Button>
 							);
 						})}
+						{desktopChatId && (
+							<Button
+								id={`${tabIdPrefix}-tab-desktop`}
+								role="tab"
+								aria-selected={effectiveTabId === "desktop"}
+								onClick={() => setActiveTabId("desktop")}
+								variant="outline"
+								size="lg"
+								className={cn(
+									"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
+									effectiveTabId === "desktop" &&
+										"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
+								)}
+							>
+								Desktop
+							</Button>
+						)}
 					</div>
-					{tabScroll.canScrollRight && (
+					{canScrollRight && (
 						<button
 							type="button"
-							onClick={tabScroll.scrollRight}
+							onClick={scrollTabsRight}
 							aria-label="Scroll tabs right"
 							className="absolute right-0 top-0 z-10 flex h-full w-8 cursor-pointer items-center justify-end border-none p-0 pr-1 text-content-primary [background:linear-gradient(to_left,hsl(var(--surface-primary))_50%,transparent)]"
 						>
@@ -292,7 +323,15 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				}
 				className="min-h-0 flex-1"
 			>
-				{activeTab?.content}
+				{effectiveTabId === "desktop" && desktopChatId ? (
+					<DesktopPanel
+						chatId={desktopChatId}
+						isExpanded={isExpanded}
+						connectionOverride={desktopConnectionOverride}
+					/>
+				) : (
+					activeTab?.content
+				)}
 			</div>
 		</div>
 	);

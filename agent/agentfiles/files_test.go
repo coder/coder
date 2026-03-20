@@ -14,6 +14,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"testing/iotest"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -399,6 +400,83 @@ func TestWriteFile(t *testing.T) {
 	}
 }
 
+func TestWriteFile_ReportsIOError(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	fs := afero.NewMemMapFs()
+	api := agentfiles.NewAPI(logger, fs, nil)
+
+	tmpdir := os.TempDir()
+	path := filepath.Join(tmpdir, "write-io-error")
+	err := afero.WriteFile(fs, path, []byte("original"), 0o644)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	// A reader that always errors simulates a failed body read
+	// (e.g. network interruption). The atomic write should leave
+	// the original file intact.
+	body := iotest.ErrReader(xerrors.New("simulated I/O error"))
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		fmt.Sprintf("/write-file?path=%s", path), body)
+	api.Routes().ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	got := &codersdk.Error{}
+	err = json.NewDecoder(w.Body).Decode(got)
+	require.NoError(t, err)
+	require.ErrorContains(t, got, "simulated I/O error")
+
+	// The original file must survive the failed write.
+	data, err := afero.ReadFile(fs, path)
+	require.NoError(t, err)
+	require.Equal(t, "original", string(data))
+}
+
+func TestWriteFile_PreservesPermissions(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("file permissions are not reliably supported on Windows")
+	}
+
+	dir := t.TempDir()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	osFs := afero.NewOsFs()
+	api := agentfiles.NewAPI(logger, osFs, nil)
+
+	path := filepath.Join(dir, "script.sh")
+	err := afero.WriteFile(osFs, path, []byte("#!/bin/sh\necho hello\n"), 0o755)
+	require.NoError(t, err)
+
+	info, err := osFs.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o755), info.Mode().Perm())
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	// Overwrite the file with new content.
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		fmt.Sprintf("/write-file?path=%s", path),
+		bytes.NewReader([]byte("#!/bin/sh\necho world\n")))
+	api.Routes().ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	data, err := afero.ReadFile(osFs, path)
+	require.NoError(t, err)
+	require.Equal(t, "#!/bin/sh\necho world\n", string(data))
+
+	info, err = osFs.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o755), info.Mode().Perm(),
+		"write_file should preserve the original file's permissions")
+}
+
 func TestEditFiles(t *testing.T) {
 	t.Parallel()
 
@@ -558,6 +636,8 @@ func TestEditFiles(t *testing.T) {
 			},
 			errCode: http.StatusInternalServerError,
 			errors:  []string{"rename failed"},
+			// Original file must survive the failed rename.
+			expected: map[string]string{failRenameFilePath: "foo bar"},
 		},
 		{
 			name:     "Edit1",
@@ -576,7 +656,9 @@ func TestEditFiles(t *testing.T) {
 			expected: map[string]string{filepath.Join(tmpdir, "edit1"): "bar bar"},
 		},
 		{
-			name:     "EditEdit", // Edits affect previous edits.
+			// When the second edit creates ambiguity (two "bar"
+			// occurrences), it should fail.
+			name:     "EditEditAmbiguous",
 			contents: map[string]string{filepath.Join(tmpdir, "edit-edit"): "foo bar"},
 			edits: []workspacesdk.FileEdits{
 				{
@@ -593,7 +675,33 @@ func TestEditFiles(t *testing.T) {
 					},
 				},
 			},
-			expected: map[string]string{filepath.Join(tmpdir, "edit-edit"): "qux qux"},
+			errCode: http.StatusBadRequest,
+			errors:  []string{"matches 2 occurrences"},
+			// File should not be modified on error.
+			expected: map[string]string{filepath.Join(tmpdir, "edit-edit"): "foo bar"},
+		},
+		{
+			// With replace_all the cascading edit replaces
+			// both occurrences.
+			name:     "EditEditReplaceAll",
+			contents: map[string]string{filepath.Join(tmpdir, "edit-edit-ra"): "foo bar"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "edit-edit-ra"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo",
+							Replace: "bar",
+						},
+						{
+							Search:     "bar",
+							Replace:    "qux",
+							ReplaceAll: true,
+						},
+					},
+				},
+			},
+			expected: map[string]string{filepath.Join(tmpdir, "edit-edit-ra"): "qux qux"},
 		},
 		{
 			name:     "Multiline",
@@ -720,7 +828,7 @@ func TestEditFiles(t *testing.T) {
 			expected: map[string]string{filepath.Join(tmpdir, "exact-preferred"): "goodbye world"},
 		},
 		{
-			name:     "NoMatchStillSucceeds",
+			name:     "NoMatchErrors",
 			contents: map[string]string{filepath.Join(tmpdir, "no-match"): "original content"},
 			edits: []workspacesdk.FileEdits{
 				{
@@ -733,8 +841,45 @@ func TestEditFiles(t *testing.T) {
 					},
 				},
 			},
+			errCode: http.StatusBadRequest,
+			errors:  []string{"search string not found in file"},
 			// File should remain unchanged.
 			expected: map[string]string{filepath.Join(tmpdir, "no-match"): "original content"},
+		},
+		{
+			name:     "AmbiguousExactMatch",
+			contents: map[string]string{filepath.Join(tmpdir, "ambig-exact"): "foo bar foo baz foo"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "ambig-exact"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:  "foo",
+							Replace: "qux",
+						},
+					},
+				},
+			},
+			errCode:  http.StatusBadRequest,
+			errors:   []string{"matches 3 occurrences"},
+			expected: map[string]string{filepath.Join(tmpdir, "ambig-exact"): "foo bar foo baz foo"},
+		},
+		{
+			name:     "ReplaceAllExact",
+			contents: map[string]string{filepath.Join(tmpdir, "ra-exact"): "foo bar foo baz foo"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "ra-exact"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:     "foo",
+							Replace:    "qux",
+							ReplaceAll: true,
+						},
+					},
+				},
+			},
+			expected: map[string]string{filepath.Join(tmpdir, "ra-exact"): "qux bar qux baz qux"},
 		},
 		{
 			name:     "MixedWhitespaceMultiline",
@@ -840,6 +985,67 @@ func TestEditFiles(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEditFiles_PreservesPermissions(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("file permissions are not reliably supported on Windows")
+	}
+
+	dir := t.TempDir()
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	osFs := afero.NewOsFs()
+	api := agentfiles.NewAPI(logger, osFs, nil)
+
+	path := filepath.Join(dir, "script.sh")
+	err := afero.WriteFile(osFs, path, []byte("#!/bin/sh\necho hello\n"), 0o755)
+	require.NoError(t, err)
+
+	// Sanity-check the initial mode.
+	info, err := osFs.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o755), info.Mode().Perm())
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	body := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{
+			{
+				Path: path,
+				Edits: []workspacesdk.FileEdit{
+					{
+						Search:  "hello",
+						Replace: "world",
+					},
+				},
+			},
+		},
+	}
+	buf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	err = enc.Encode(body)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+	api.Routes().ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	// Verify content was updated.
+	data, err := afero.ReadFile(osFs, path)
+	require.NoError(t, err)
+	require.Equal(t, "#!/bin/sh\necho world\n", string(data))
+
+	// Verify permissions are preserved after the
+	// temp-file-and-rename cycle.
+	info, err = osFs.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o755), info.Mode().Perm(),
+		"edit_files should preserve the original file's permissions")
 }
 
 func TestHandleWriteFile_ChatHeaders_UpdatesPathStore(t *testing.T) {

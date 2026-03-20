@@ -1,4 +1,3 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import type {
 	DERPNodeReport,
 	DERPRegionReport,
@@ -6,6 +5,7 @@ import type {
 	HealthSeverity,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { Table, TableBody, TableCell, TableRow } from "components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
@@ -26,10 +26,16 @@ import {
 	Logs,
 	Main,
 	Pill,
+	StatusIcon,
 } from "./Content";
 
+interface NodeCheckRow {
+	label: string;
+	description: string;
+	value: boolean | null;
+}
+
 const DERPRegionPage: FC = () => {
-	const theme = useTheme();
 	const healthStatus = useOutletContext<HealthcheckReport>();
 	const params = useParams() as { regionId: string };
 	const regionId = Number(params.regionId);
@@ -40,37 +46,26 @@ const DERPRegionPage: FC = () => {
 		severity,
 	} = healthStatus.derp.regions[regionId] as DERPRegionReport;
 
+	if (!region) {
+		return null;
+	}
+
 	return (
 		<>
-			<title>{pageTitle(region!.RegionName, "Health")}</title>
+			<title>{pageTitle(region.RegionName, "Health")}</title>
 
 			<Header>
 				<hgroup>
 					<Link
-						css={{
-							fontSize: 12,
-							textDecoration: "none",
-							color: theme.palette.text.secondary,
-							fontWeight: 500,
-							display: "inline-flex",
-							alignItems: "center",
-							"&:hover": {
-								color: theme.palette.text.primary,
-							},
-							marginBottom: 8,
-							lineHeight: "1.2",
-						}}
+						className="text-xs no-underline text-content-secondary font-medium inline-flex items-center hover:text-content-primary mb-2 leading-tight"
 						to="/health/derp"
 					>
-						<ChevronLeftIcon
-							className="size-icon-xs"
-							css={{ verticalAlign: "middle", marginRight: 8 }}
-						/>
+						<ChevronLeftIcon className="size-icon-xs align-middle mr-2" />
 						Back to DERP
 					</Link>
 					<HeaderTitle>
 						<HealthyDot severity={severity as HealthSeverity} />
-						{region!.RegionName}
+						{region.RegionName}
 					</HeaderTitle>
 				</hgroup>
 			</Header>
@@ -90,11 +85,11 @@ const DERPRegionPage: FC = () => {
 				})}
 
 				<section>
-					<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+					<div className="flex flex-wrap gap-3">
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Pill icon={<HashIcon className="size-icon-sm" />}>
-									{region!.RegionID}
+									{region.RegionID}
 								</Pill>
 							</TooltipTrigger>
 							<TooltipContent side="bottom">Region ID</TooltipContent>
@@ -102,70 +97,119 @@ const DERPRegionPage: FC = () => {
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Pill icon={<CodeIcon className="size-icon-sm" />}>
-									{region!.RegionCode}
+									{region.RegionCode}
 								</Pill>
 							</TooltipTrigger>
 							<TooltipContent side="bottom">Region Code</TooltipContent>
 						</Tooltip>
-						<BooleanPill value={region!.EmbeddedRelay}>
-							Embedded Relay
-						</BooleanPill>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<BooleanPill value={region.EmbeddedRelay}>
+									Embedded Relay
+								</BooleanPill>
+							</TooltipTrigger>
+							<TooltipContent side="bottom">
+								Whether this region uses a relay server embedded in the Coder
+								deployment.
+							</TooltipContent>
+						</Tooltip>
 					</div>
 				</section>
 
-				{reports.map((report) => {
-					report = report as DERPNodeReport; // Can technically be null
+				{reports.map((rawReport) => {
+					if (!rawReport) {
+						return null;
+					}
+					const report = rawReport as DERPNodeReport;
 					const { node, client_logs: logs } = report;
+					if (!node) {
+						return null;
+					}
+
 					const latencyColor = getLatencyColor(report.round_trip_ping_ms);
 					const latencyBackground = getLatencyColor(
 						report.round_trip_ping_ms,
 						"background",
 					);
+					const checks: NodeCheckRow[] = [
+						{
+							label: "Exchange Messages",
+							description:
+								"Whether DERP clients can relay messages through this node.",
+							value: report.can_exchange_messages,
+						},
+						{
+							label: "Direct HTTP Upgrade",
+							description:
+								"Whether the connection used a direct HTTP upgrade instead of falling back to WebSocket. Fallback may indicate the DERP upgrade header is being blocked.",
+							value: !report.uses_websocket,
+						},
+						{
+							label: "STUN Enabled",
+							description: "Whether STUN is enabled on this node.",
+							value: report.stun.Enabled,
+						},
+						{
+							label: "STUN Reachable",
+							description:
+								"Whether this node responded to a STUN request successfully.",
+							value: report.stun.CanSTUN,
+						},
+					];
 					return (
 						<section
-							key={node!.HostName}
-							css={{
-								border: `1px solid ${theme.palette.divider}`,
-								borderRadius: 8,
-								fontSize: 14,
-							}}
+							key={node.HostName}
+							className="border border-solid border-border rounded-lg overflow-hidden text-sm"
 						>
-							<header css={reportStyles.header}>
+							<header className="p-6 flex justify-between items-center">
 								<div>
-									<h4 css={reportStyles.title}>{node!.HostName}</h4>
-									<div css={reportStyles.ports}>
-										<span>DERP Port: {node!.DERPPort ?? "None"}</span>
-										<span>STUN Port: {node!.STUNPort ?? "None"}</span>
+									<h4 className="font-medium m-0 leading-none">
+										{node.HostName}
+									</h4>
+									<div className="flex items-center gap-2 text-content-secondary text-xs leading-tight mt-2">
+										<span>DERP Port: {node.DERPPort ?? "None"}</span>
+										<span>STUN Port: {node.STUNPort ?? "None"}</span>
 									</div>
 								</div>
 
-								<div css={reportStyles.pills}>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<Pill
-												className={latencyColor}
-												icon={<StatusCircle background={latencyBackground} />}
-											>
-												{report.round_trip_ping_ms}ms
-											</Pill>
-										</TooltipTrigger>
-										<TooltipContent side="bottom">
-											Round trip ping
-										</TooltipContent>
-									</Tooltip>
-									<BooleanPill value={report.can_exchange_messages}>
-										Exchange Messages
-									</BooleanPill>
-									<BooleanPill value={report.uses_websocket}>
-										Websocket
-									</BooleanPill>
-								</div>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Pill
+											className={latencyColor}
+											icon={<StatusCircle background={latencyBackground} />}
+										>
+											{report.round_trip_ping_ms}ms
+										</Pill>
+									</TooltipTrigger>
+									<TooltipContent side="bottom">Round trip ping</TooltipContent>
+								</Tooltip>
 							</header>
-							<Logs lines={logs?.flat() ?? []} css={reportStyles.logs} />
+
+							<Table>
+								<TableBody className="[&>tr>td:first-of-type]:border-l-0 [&>tr>td:last-child]:border-r-0 [&>tr:last-child>td]:border-b-0 [&>tr>td]:!rounded-none">
+									{checks.map((check) => (
+										<TableRow key={check.label}>
+											<TableCell className="w-8">
+												<StatusIcon value={check.value} />
+											</TableCell>
+											<TableCell className="font-medium whitespace-nowrap w-40">
+												{check.label}
+											</TableCell>
+											<TableCell className="text-content-secondary">
+												{check.description}
+											</TableCell>
+										</TableRow>
+									))}
+								</TableBody>
+							</Table>
+							<Logs
+								lines={logs?.flat() ?? []}
+								className="border-0 border-t border-solid border-border"
+							/>
 							{report.client_errs.length > 0 && (
 								<Logs
 									lines={report.client_errs.flat()}
-									css={[reportStyles.logs, reportStyles.clientErrors]}
+									className="border-0 border-t border-solid border-border bg-surface-destructive text-content-destructive"
 								/>
 							)}
 						</section>
@@ -185,46 +229,5 @@ const StatusCircle: FC<StatusCircleProps> = ({ background }) => {
 		</div>
 	);
 };
-
-const reportStyles = {
-	header: {
-		padding: 24,
-		display: "flex",
-		justifyContent: "space-between",
-		alignItems: "center",
-	},
-	title: {
-		fontWeight: 500,
-		margin: 0,
-		lineHeight: "1",
-	},
-	pills: {
-		display: "flex",
-		gap: 8,
-		alignItems: "center",
-	},
-	ports: (theme) => ({
-		display: "flex",
-		alignItems: "center",
-		gap: 8,
-		color: theme.palette.text.secondary,
-		fontSize: 12,
-		lineHeight: "1.2",
-		marginTop: 8,
-	}),
-	divider: (theme) => ({
-		height: 1,
-		backgroundColor: theme.palette.divider,
-	}),
-	logs: (theme) => ({
-		borderBottomLeftRadius: 8,
-		borderBottomRightRadius: 8,
-		borderTop: `1px solid ${theme.palette.divider}`,
-	}),
-	clientErrors: (theme) => ({
-		background: theme.roles.error.background,
-		color: theme.roles.error.text,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default DERPRegionPage;

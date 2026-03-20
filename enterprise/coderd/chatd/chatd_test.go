@@ -5,18 +5,19 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	osschatd "github.com/coder/coder/v2/coderd/chatd"
+	"github.com/coder/coder/v2/coderd/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -98,6 +99,50 @@ func seedChatDependencies(
 	return user, model
 }
 
+func newActiveWorkerServer(
+	t *testing.T,
+	db database.Store,
+	ps dbpubsub.Pubsub,
+	replicaID uuid.UUID,
+) *osschatd.Server {
+	t.Helper()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := osschatd.New(osschatd.Config{
+		Logger:                     logger,
+		Database:                   db,
+		ReplicaID:                  replicaID,
+		Pubsub:                     ps,
+		PendingChatAcquireInterval: 10 * time.Millisecond,
+		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+	})
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+	return server
+}
+
+func setOpenAIProviderBaseURL(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	baseURL string,
+) {
+	t.Helper()
+
+	provider, err := db.GetChatProviderByProvider(ctx, "openai")
+	require.NoError(t, err)
+
+	_, err = db.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
+		ID:          provider.ID,
+		DisplayName: provider.DisplayName,
+		APIKey:      provider.APIKey,
+		BaseUrl:     baseURL,
+		ApiKeyKeyID: provider.ApiKeyKeyID,
+		Enabled:     provider.Enabled,
+	})
+	require.NoError(t, err)
+}
+
 func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 	t.Parallel()
 
@@ -118,7 +163,7 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 				Type: codersdk.ChatStreamEventTypeMessagePart,
 				MessagePart: &codersdk.ChatStreamMessagePart{
 					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "first-relay"},
+					Part: codersdk.ChatMessageText("first-relay"),
 				},
 			}
 			close(ch)
@@ -128,7 +173,7 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 				Type: codersdk.ChatStreamEventTypeMessagePart,
 				MessagePart: &codersdk.ChatStreamMessagePart{
 					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "second-relay"},
+					Part: codersdk.ChatMessageText("second-relay"),
 				},
 			}
 			// Don't close — keep alive so the subscriber stays connected.
@@ -152,7 +197,7 @@ func TestSubscribeRelayReconnectsOnDrop(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "relay-reconnect",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -246,7 +291,7 @@ func TestSubscribeRelayAsyncDoesNotBlock(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "relay-async-nonblock",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -320,14 +365,14 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 				Type: codersdk.ChatStreamEventTypeMessagePart,
 				MessagePart: &codersdk.ChatStreamMessagePart{
 					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "snap-one"},
+					Part: codersdk.ChatMessageText("snap-one"),
 				},
 			},
 			{
 				Type: codersdk.ChatStreamEventTypeMessagePart,
 				MessagePart: &codersdk.ChatStreamMessagePart{
 					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "snap-two"},
+					Part: codersdk.ChatMessageText("snap-two"),
 				},
 			},
 		}
@@ -337,7 +382,7 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 			Type: codersdk.ChatStreamEventTypeMessagePart,
 			MessagePart: &codersdk.ChatStreamMessagePart{
 				Role: "assistant",
-				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "live-part"},
+				Part: codersdk.ChatMessageText("live-part"),
 			},
 		}
 		return snapshot, ch, func() {}, nil
@@ -353,7 +398,7 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "relay-snapshot",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -401,6 +446,129 @@ func TestSubscribeRelaySnapshotDelivered(t *testing.T) {
 	require.True(t, hasStatus, "initial snapshot should contain status event")
 }
 
+func TestSubscribeRetryEventAcrossInstances(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	workerID := uuid.New()
+	subscriberID := uuid.New()
+
+	var streamCalls atomic.Int32
+	firstStreamStarted := make(chan struct{})
+	allowFirstFailure := make(chan struct{})
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("retry-across-instances")
+		}
+		if streamCalls.Add(1) == 1 {
+			select {
+			case <-firstStreamStarted:
+			default:
+				close(firstStreamStarted)
+			}
+			<-allowFirstFailure
+			return chattest.OpenAIRateLimitResponse()
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("retry", " complete")...)
+	})
+
+	worker := newActiveWorkerServer(t, db, ps, workerID)
+	subscriber := newTestServer(t, db, ps, subscriberID, func(
+		ctx context.Context,
+		chatID uuid.UUID,
+		targetWorkerID uuid.UUID,
+		requestHeader http.Header,
+	) (
+		[]codersdk.ChatStreamEvent,
+		<-chan codersdk.ChatStreamEvent,
+		func(),
+		error,
+	) {
+		if targetWorkerID != workerID {
+			return nil, nil, nil, xerrors.Errorf("unexpected relay target %s", targetWorkerID)
+		}
+		snapshot, events, cancel, ok := worker.Subscribe(ctx, chatID, requestHeader, math.MaxInt64)
+		if !ok {
+			return nil, nil, nil, xerrors.New("worker subscribe failed")
+		}
+		return snapshot, events, cancel, nil
+	}, nil)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependencies(ctx, t, db)
+	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
+
+	chat, err := worker.CreateChat(ctx, osschatd.CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "retry-across-instances",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusRunning &&
+			fromDB.WorkerID.Valid && fromDB.WorkerID.UUID == workerID
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	select {
+	case <-firstStreamStarted:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for first streaming attempt")
+	}
+
+	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	close(allowFirstFailure)
+
+	var retryEvent *codersdk.ChatStreamRetry
+	var waitingSeen bool
+	var waitingBeforeRetry bool
+	var assistantMessageBeforeRetry bool
+	require.Eventually(t, func() bool {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				return false
+			}
+			switch event.Type {
+			case codersdk.ChatStreamEventTypeRetry:
+				retryEvent = event.Retry
+			case codersdk.ChatStreamEventTypeMessage:
+				if event.Message != nil && event.Message.Role == codersdk.ChatMessageRoleAssistant {
+					if retryEvent == nil {
+						assistantMessageBeforeRetry = true
+					}
+				}
+			case codersdk.ChatStreamEventTypeStatus:
+				if event.Status != nil && event.Status.Status == codersdk.ChatStatusWaiting {
+					if retryEvent == nil {
+						waitingBeforeRetry = true
+					}
+					waitingSeen = true
+				}
+			}
+			return retryEvent != nil && waitingSeen
+		default:
+			return false
+		}
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	require.NotNil(t, retryEvent)
+	require.Equal(t, 1, retryEvent.Attempt)
+	require.Greater(t, retryEvent.DelayMs, int64(0))
+	require.Contains(t, retryEvent.Error, "Rate limit exceeded")
+	require.False(t, assistantMessageBeforeRetry)
+	require.False(t, waitingBeforeRetry)
+	require.GreaterOrEqual(t, streamCalls.Load(), int32(2))
+}
+
 // TestSubscribeRelayStaleDialDiscardedAfterInterrupt verifies that when a
 // user interrupts a streaming chat and sends a new message (which gets
 // picked up by a different replica), an in-flight relay dial to the
@@ -440,7 +608,7 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 				Type: codersdk.ChatStreamEventTypeMessagePart,
 				MessagePart: &codersdk.ChatStreamMessagePart{
 					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "stale-part"},
+					Part: codersdk.ChatMessageText("stale-part"),
 				},
 			}
 			close(ch)
@@ -451,7 +619,7 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 			Type: codersdk.ChatStreamEventTypeMessagePart,
 			MessagePart: &codersdk.ChatStreamMessagePart{
 				Role: "assistant",
-				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "new-worker-part"},
+				Part: codersdk.ChatMessageText("new-worker-part"),
 			},
 		}
 		return nil, ch, func() {}, nil
@@ -466,7 +634,7 @@ func TestSubscribeRelayStaleDialDiscardedAfterInterrupt(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "stale-dial-test",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -629,7 +797,7 @@ func TestSubscribeCancelDuringInFlightDial(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "cancel-inflight-dial",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -712,7 +880,7 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 			Type: codersdk.ChatStreamEventTypeMessagePart,
 			MessagePart: &codersdk.ChatStreamMessagePart{
 				Role: "assistant",
-				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "worker-b-part"},
+				Part: codersdk.ChatMessageText("worker-b-part"),
 			},
 		}
 		return nil, ch, func() {}, nil
@@ -727,7 +895,7 @@ func TestSubscribeRelayRunningToRunningSwitch(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "running-to-running",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -827,7 +995,7 @@ func TestSubscribeRelayFailedDialRetries(t *testing.T) {
 			Type: codersdk.ChatStreamEventTypeMessagePart,
 			MessagePart: &codersdk.ChatStreamMessagePart{
 				Role: "assistant",
-				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "retry-success"},
+				Part: codersdk.ChatMessageText("retry-success"),
 			},
 		}
 		return nil, ch, func() {}, nil
@@ -849,7 +1017,7 @@ func TestSubscribeRelayFailedDialRetries(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "failed-dial-retry",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -940,7 +1108,7 @@ func TestSubscribeRunningLocalWorkerClosesRelay(t *testing.T) {
 				Type: codersdk.ChatStreamEventTypeMessagePart,
 				MessagePart: &codersdk.ChatStreamMessagePart{
 					Role: "assistant",
-					Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "remote-part"},
+					Part: codersdk.ChatMessageText("remote-part"),
 				},
 			}
 			// Keep channel open so the relay stays active.
@@ -959,7 +1127,7 @@ func TestSubscribeRunningLocalWorkerClosesRelay(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "local-worker-closes-relay",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
@@ -1067,7 +1235,7 @@ func TestSubscribeRelayMultipleReconnects(t *testing.T) {
 		OwnerID:            user.ID,
 		Title:              "multiple-reconnects",
 		ModelConfigID:      model.ID,
-		InitialUserContent: []fantasy.Content{fantasy.TextContent{Text: "hello"}},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 

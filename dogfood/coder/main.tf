@@ -37,6 +37,11 @@ locals {
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
   repo_dir       = replace(try(module.git-clone[0].repo_dir, ""), "/^~\\//", "/home/coder/")
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+
+  // Derive a stable per-workspace hour and minute from the workspace ID
+  // so that cache cleanup crons don't all hit the filesystem at once.
+  cache_cleanup_hour   = parseint(substr(data.coder_workspace.me.id, 0, 2), 16) % 24
+  cache_cleanup_minute = parseint(substr(data.coder_workspace.me.id, 2, 2), 16) % 60
 }
 
 data "coder_workspace_preset" "pittsburgh" {
@@ -337,7 +342,7 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.3.2"
+  version  = "1.4.0"
   agent_id = coder_agent.dev.id
 }
 
@@ -373,15 +378,17 @@ module "personalize" {
 }
 
 module "mux" {
-  count           = data.coder_workspace.me.start_count
-  source          = "registry.coder.com/coder/mux/coder"
-  version         = "1.4.0"
-  agent_id        = coder_agent.dev.id
-  subdomain       = true
-  display_name    = "Mux"
-  add_project     = local.repo_dir
-  install_version = "next"
-  package_manager = "bun"
+  count                = data.coder_workspace.me.start_count
+  source               = "registry.coder.com/coder/mux/coder"
+  version              = "1.4.3"
+  agent_id             = coder_agent.dev.id
+  subdomain            = true
+  display_name         = "Mux"
+  add_project          = local.repo_dir
+  install_version      = "next"
+  package_manager      = "bun"
+  restart_on_kill      = true
+  max_restart_attempts = 10
 }
 
 module "code-server" {
@@ -464,6 +471,12 @@ module "devcontainers-cli" {
   agent_id = coder_agent.dev.id
 }
 
+module "portabledesktop" {
+  source   = "dev.registry.coder.com/coder/portabledesktop/coder"
+  version  = "0.1.0"
+  agent_id = coder_agent.dev.id
+}
+
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
@@ -520,7 +533,7 @@ resource "coder_agent" "dev" {
     display_name = "/var/lib/docker Usage"
     key          = "var_lib_docker_usage"
     order        = 3
-    script       = "sudo du -sh /var/lib/docker | awk '{print $1}'"
+    script       = "sudo du -sh /var/lib/docker 2>/dev/null | awk '{print $1}'"
     interval     = 3600 # 1h to avoid thrashing disk
     timeout      = 60   # Longer than this is likely problematic
   }
@@ -616,6 +629,17 @@ resource "coder_agent" "dev" {
     #   - all build cache
     docker system prune -a -f
 
+    # Remove dangling named volumes that are older than KEEP_DAYS. Using
+    # 30 here as a conservative default (vacation, holidays, etc.).
+    KEEP_DAYS=30
+    docker volume ls -qf dangling=true \
+      | xargs -r docker volume inspect \
+      | jq -r --argjson days "$KEEP_DAYS" '.[] | select(.CreatedAt != null) | ((now - (.CreatedAt | fromdateiso8601)) / 86400 | floor) as $a | select($a >= $days) | "\($a)\t\(.Name)"' \
+      | while IFS=$'\t' read -r age name; do
+      echo "Removing volume $name ($age d)"
+      docker volume rm "$name" >/dev/null
+    done
+
     # Stop the Docker service to prevent errors during workspace destroy.
     sudo service docker stop
   EOT
@@ -638,6 +662,26 @@ resource "coder_script" "install-deps" {
     # We want to use the playwright version from site/package.json
     cd "${local.repo_dir}" && make clean
     cd "${local.repo_dir}/site" && pnpm install
+  EOT
+}
+
+resource "coder_script" "go-cache-cleanup-cron" {
+  agent_id     = coder_agent.dev.id
+  display_name = "Go Build Cache Cleanup Cron"
+  icon         = "${data.coder_workspace.me.access_url}/emojis/1f9f9.png" // 🧹
+  cron         = "0 ${local.cache_cleanup_minute} ${local.cache_cleanup_hour} * * *"
+  script       = <<-EOT
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    cache_dir=$(go env GOCACHE)
+    echo "Cleaning Go build cache entries not used in the last 2 days..."
+    before=$(du -s "$cache_dir" 2>/dev/null | awk '{print $1}')
+    find "$cache_dir" -type f -mtime +2 -delete
+    find "$cache_dir" -type d -empty -delete
+    after=$(du -s "$cache_dir" 2>/dev/null | awk '{print $1}')
+    freed=$(( (before - after) / 1024 ))
+    echo "Freed $${freed}MB from Go build cache."
   EOT
 }
 
@@ -873,7 +917,7 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.8.0"
+  version             = "4.8.1"
   enable_boundary     = true
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
@@ -904,7 +948,6 @@ resource "coder_app" "develop_sh" {
   icon         = "${data.coder_workspace.me.access_url}/emojis/1f4bb.png" // 💻
   command      = "screen -x develop_sh"
   share        = "authenticated"
-  subdomain    = true
   open_in      = "tab"
   order        = 0
 }

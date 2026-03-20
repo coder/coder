@@ -612,7 +612,7 @@ func secureHeaders() *secure.Secure {
 		"geolocation=()",
 		"gyroscope=()",
 		"magnetometer=()",
-		"microphone=()",
+		"microphone=(self)",
 		"midi=()",
 		"payment=()",
 		"usb=()",

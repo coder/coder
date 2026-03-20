@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/sqlc-dev/pqtype"
@@ -22,6 +21,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
@@ -195,13 +195,14 @@ func MinimalUserFromVisibleUser(user database.VisibleUser) codersdk.MinimalUser 
 
 func ReducedUser(user database.User) codersdk.ReducedUser {
 	return codersdk.ReducedUser{
-		MinimalUser: MinimalUser(user),
-		Email:       user.Email,
-		CreatedAt:   user.CreatedAt,
-		UpdatedAt:   user.UpdatedAt,
-		LastSeenAt:  user.LastSeenAt,
-		Status:      codersdk.UserStatus(user.Status),
-		LoginType:   codersdk.LoginType(user.LoginType),
+		MinimalUser:      MinimalUser(user),
+		Email:            user.Email,
+		CreatedAt:        user.CreatedAt,
+		UpdatedAt:        user.UpdatedAt,
+		LastSeenAt:       user.LastSeenAt,
+		Status:           codersdk.UserStatus(user.Status),
+		LoginType:        codersdk.LoginType(user.LoginType),
+		IsServiceAccount: user.IsServiceAccount,
 	}
 }
 
@@ -1069,10 +1070,10 @@ func ChatMessage(m database.ChatMessage) codersdk.ChatMessage {
 		CreatedBy:     createdBy,
 		ModelConfigID: modelConfigID,
 		CreatedAt:     m.CreatedAt,
-		Role:          m.Role,
+		Role:          codersdk.ChatMessageRole(m.Role),
 	}
 	if m.Content.Valid {
-		parts, err := chatMessageParts(m.Role, m.Content)
+		parts, err := chatMessageParts(m)
 		if err == nil {
 			msg.Content = parts
 		}
@@ -1114,9 +1115,15 @@ func chatMessageUsage(m database.ChatMessage) *codersdk.ChatMessageUsage {
 
 // ChatQueuedMessage converts a queued message to its SDK representation.
 func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMessage {
-	parts, err := chatMessageParts(string(fantasy.MessageRoleUser), pqtype.NullRawMessage{
-		RawMessage: message.Content,
-		Valid:      len(message.Content) > 0,
+	// Queued messages are always written by current code via
+	// MarshalParts, so they are always current content version.
+	parts, err := chatMessageParts(database.ChatMessage{
+		Role: database.ChatMessageRoleUser,
+		Content: pqtype.NullRawMessage{
+			RawMessage: message.Content,
+			Valid:      len(message.Content) > 0,
+		},
+		ContentVersion: chatprompt.CurrentContentVersion,
 	})
 	if err != nil {
 		parts = nil
@@ -1140,250 +1147,16 @@ func ChatQueuedMessages(messages []database.ChatQueuedMessage) []codersdk.ChatQu
 	return out
 }
 
-func chatMessageParts(role string, raw pqtype.NullRawMessage) ([]codersdk.ChatMessagePart, error) {
-	switch role {
-	case string(fantasy.MessageRoleSystem):
-		content, err := parseSystemContent(raw)
-		if err != nil {
-			return nil, err
-		}
-		if strings.TrimSpace(content) == "" {
-			return nil, nil
-		}
-		return []codersdk.ChatMessagePart{{
-			Type: codersdk.ChatMessagePartTypeText,
-			Text: content,
-		}}, nil
-	case string(fantasy.MessageRoleUser), string(fantasy.MessageRoleAssistant):
-		content, err := parseContentBlocks(role, raw)
-		if err != nil {
-			return nil, err
-		}
-
-		var rawBlocks []json.RawMessage
-		_ = json.Unmarshal(raw.RawMessage, &rawBlocks)
-
-		parts := make([]codersdk.ChatMessagePart, 0, len(content))
-		for i, block := range content {
-			part := contentBlockToPart(block)
-			if part.Type == "" {
-				continue
-			}
-			if i < len(rawBlocks) {
-				if part.Type == codersdk.ChatMessagePartTypeFile {
-					if fid, err := chatprompt.ExtractFileID(rawBlocks[i]); err == nil {
-						part.FileID = uuid.NullUUID{UUID: fid, Valid: true}
-					}
-					// When a file_id is present, omit inline data
-					// from the response. Clients fetch content via
-					// the GET /chats/files/{id} endpoint instead.
-					if part.FileID.Valid {
-						part.Data = nil
-					}
-				}
-			}
-			parts = append(parts, part)
-		}
-		return parts, nil
-	case string(fantasy.MessageRoleTool):
-		results, err := parseToolResults(raw)
-		if err != nil {
-			return nil, err
-		}
-		parts := make([]codersdk.ChatMessagePart, 0, len(results))
-		for _, result := range results {
-			parts = append(parts, codersdk.ChatMessagePart{
-				Type:             codersdk.ChatMessagePartTypeToolResult,
-				ToolCallID:       result.ToolCallID,
-				ToolName:         result.ToolName,
-				Result:           result.Result,
-				IsError:          result.IsError,
-				ProviderExecuted: result.ProviderExecuted,
-			})
-		}
-		return parts, nil
-	default:
-		return nil, nil
+func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error) {
+	parts, err := chatprompt.ParseContent(m)
+	if err != nil {
+		return nil, err
 	}
-}
-
-func parseSystemContent(raw pqtype.NullRawMessage) (string, error) {
-	if !raw.Valid || len(raw.RawMessage) == 0 {
-		return "", nil
+	// Strip internal-only fields before API responses.
+	for i := range parts {
+		parts[i].StripInternal()
 	}
-	var content string
-	if err := json.Unmarshal(raw.RawMessage, &content); err != nil {
-		return "", xerrors.Errorf("parse system content: %w", err)
-	}
-	return content, nil
-}
-
-func parseContentBlocks(role string, raw pqtype.NullRawMessage) ([]fantasy.Content, error) {
-	if !raw.Valid || len(raw.RawMessage) == 0 {
-		return nil, nil
-	}
-
-	if role == string(fantasy.MessageRoleUser) {
-		var text string
-		if err := json.Unmarshal(raw.RawMessage, &text); err == nil {
-			return []fantasy.Content{
-				fantasy.TextContent{Text: text},
-			}, nil
-		}
-	}
-
-	var blocks []json.RawMessage
-	if err := json.Unmarshal(raw.RawMessage, &blocks); err != nil {
-		return nil, xerrors.Errorf("parse content blocks: %w", err)
-	}
-
-	content := make([]fantasy.Content, 0, len(blocks))
-	for _, block := range blocks {
-		decoded, err := fantasy.UnmarshalContent(block)
-		if err != nil {
-			return nil, xerrors.Errorf("parse content block: %w", err)
-		}
-		content = append(content, decoded)
-	}
-
-	return content, nil
-}
-
-// toolResultRow is used only for extracting top-level fields from
-// persisted tool result JSON. The result payload is kept as raw JSON.
-type toolResultRow struct {
-	ToolCallID       string          `json:"tool_call_id"`
-	ToolName         string          `json:"tool_name"`
-	Result           json.RawMessage `json:"result"`
-	IsError          bool            `json:"is_error,omitempty"`
-	ProviderExecuted bool            `json:"provider_executed,omitempty"`
-}
-
-func parseToolResults(raw pqtype.NullRawMessage) ([]toolResultRow, error) {
-	if !raw.Valid || len(raw.RawMessage) == 0 {
-		return nil, nil
-	}
-
-	var results []toolResultRow
-	if err := json.Unmarshal(raw.RawMessage, &results); err != nil {
-		return nil, xerrors.Errorf("parse tool results: %w", err)
-	}
-	return results, nil
-}
-
-func contentBlockToPart(block fantasy.Content) codersdk.ChatMessagePart {
-	switch value := block.(type) {
-	case fantasy.TextContent:
-		return codersdk.ChatMessagePart{
-			Type: codersdk.ChatMessagePartTypeText,
-			Text: value.Text,
-		}
-	case *fantasy.TextContent:
-		return codersdk.ChatMessagePart{
-			Type: codersdk.ChatMessagePartTypeText,
-			Text: value.Text,
-		}
-	case fantasy.ReasoningContent:
-		return codersdk.ChatMessagePart{
-			Type: codersdk.ChatMessagePartTypeReasoning,
-			Text: value.Text,
-		}
-	case *fantasy.ReasoningContent:
-		return codersdk.ChatMessagePart{
-			Type: codersdk.ChatMessagePartTypeReasoning,
-			Text: value.Text,
-		}
-	case fantasy.ToolCallContent:
-		return codersdk.ChatMessagePart{
-			Type:             codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID:       value.ToolCallID,
-			ToolName:         value.ToolName,
-			Args:             []byte(value.Input),
-			ProviderExecuted: value.ProviderExecuted,
-		}
-	case *fantasy.ToolCallContent:
-		return codersdk.ChatMessagePart{
-			Type:             codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID:       value.ToolCallID,
-			ToolName:         value.ToolName,
-			Args:             []byte(value.Input),
-			ProviderExecuted: value.ProviderExecuted,
-		}
-	case fantasy.SourceContent:
-		return codersdk.ChatMessagePart{
-			Type:     codersdk.ChatMessagePartTypeSource,
-			SourceID: value.ID,
-			URL:      value.URL,
-			Title:    value.Title,
-		}
-	case *fantasy.SourceContent:
-		return codersdk.ChatMessagePart{
-			Type:     codersdk.ChatMessagePartTypeSource,
-			SourceID: value.ID,
-			URL:      value.URL,
-			Title:    value.Title,
-		}
-	case fantasy.FileContent:
-		return codersdk.ChatMessagePart{
-			Type:      codersdk.ChatMessagePartTypeFile,
-			MediaType: value.MediaType,
-			Data:      value.Data,
-		}
-	case *fantasy.FileContent:
-		return codersdk.ChatMessagePart{
-			Type:      codersdk.ChatMessagePartTypeFile,
-			MediaType: value.MediaType,
-			Data:      value.Data,
-		}
-	case fantasy.ToolResultContent:
-		return chatprompt.ToolResultToPart(
-			value.ToolCallID,
-			value.ToolName,
-			toolResultOutputToRawJSON(value.Result),
-			toolResultOutputIsError(value.Result),
-		)
-	case *fantasy.ToolResultContent:
-		return chatprompt.ToolResultToPart(
-			value.ToolCallID,
-			value.ToolName,
-			toolResultOutputToRawJSON(value.Result),
-			toolResultOutputIsError(value.Result),
-		)
-	default:
-		return codersdk.ChatMessagePart{}
-	}
-}
-
-func toolResultOutputToRawJSON(output fantasy.ToolResultOutputContent) json.RawMessage {
-	switch v := output.(type) {
-	case fantasy.ToolResultOutputContentError:
-		if v.Error != nil {
-			data, _ := json.Marshal(map[string]any{"error": v.Error.Error()})
-			return data
-		}
-		return json.RawMessage(`{"error":""}`)
-	case fantasy.ToolResultOutputContentText:
-		raw := json.RawMessage(v.Text)
-		if json.Valid(raw) {
-			return raw
-		}
-		data, _ := json.Marshal(map[string]any{"output": v.Text})
-		return data
-	case fantasy.ToolResultOutputContentMedia:
-		data, _ := json.Marshal(map[string]any{
-			"data":      v.Data,
-			"mime_type": v.MediaType,
-			"text":      v.Text,
-		})
-		return data
-	default:
-		return json.RawMessage(`{}`)
-	}
-}
-
-func toolResultOutputIsError(output fantasy.ToolResultOutputContent) bool {
-	_, ok := output.(fantasy.ToolResultOutputContentError)
-	return ok
+	return parts, nil
 }
 
 func nullInt64Ptr(v sql.NullInt64) *int64 {
@@ -1392,4 +1165,87 @@ func nullInt64Ptr(v sql.NullInt64) *int64 {
 	}
 	value := v.Int64
 	return &value
+}
+
+// ChatDiffStatus converts a database.ChatDiffStatus to a
+// codersdk.ChatDiffStatus. When status is nil an empty value
+// containing only the chatID is returned.
+func ChatDiffStatus(chatID uuid.UUID, status *database.ChatDiffStatus) codersdk.ChatDiffStatus {
+	result := codersdk.ChatDiffStatus{
+		ChatID: chatID,
+	}
+	if status == nil {
+		return result
+	}
+
+	result.ChatID = status.ChatID
+	if status.Url.Valid {
+		u := strings.TrimSpace(status.Url.String)
+		if u != "" {
+			result.URL = &u
+		}
+	}
+	if result.URL == nil {
+		// Try to build a branch URL from the stored origin.
+		// Since this function does not have access to the API
+		// instance, we construct a GitHub provider directly as
+		// a best-effort fallback.
+		// TODO: This uses the default github.com API base URL,
+		// so branch URLs for GitHub Enterprise instances will
+		// be incorrect. To fix this, this function would need
+		// access to the external auth configs.
+		gp := gitprovider.New("github", "", nil)
+		if gp != nil {
+			if owner, repo, _, ok := gp.ParseRepositoryOrigin(status.GitRemoteOrigin); ok {
+				branchURL := gp.BuildBranchURL(owner, repo, status.GitBranch)
+				if branchURL != "" {
+					result.URL = &branchURL
+				}
+			}
+		}
+	}
+	if status.PullRequestState.Valid {
+		pullRequestState := strings.TrimSpace(status.PullRequestState.String)
+		if pullRequestState != "" {
+			result.PullRequestState = &pullRequestState
+		}
+	}
+	result.PullRequestTitle = status.PullRequestTitle
+	result.PullRequestDraft = status.PullRequestDraft
+	result.ChangesRequested = status.ChangesRequested
+	result.Additions = status.Additions
+	result.Deletions = status.Deletions
+	result.ChangedFiles = status.ChangedFiles
+	if status.AuthorLogin.Valid {
+		result.AuthorLogin = &status.AuthorLogin.String
+	}
+	if status.AuthorAvatarUrl.Valid {
+		result.AuthorAvatarURL = &status.AuthorAvatarUrl.String
+	}
+	if status.BaseBranch.Valid {
+		result.BaseBranch = &status.BaseBranch.String
+	}
+	if status.HeadBranch.Valid {
+		result.HeadBranch = &status.HeadBranch.String
+	}
+	if status.PrNumber.Valid {
+		result.PRNumber = &status.PrNumber.Int32
+	}
+	if status.Commits.Valid {
+		result.Commits = &status.Commits.Int32
+	}
+	if status.Approved.Valid {
+		result.Approved = &status.Approved.Bool
+	}
+	if status.ReviewerCount.Valid {
+		result.ReviewerCount = &status.ReviewerCount.Int32
+	}
+	if status.RefreshedAt.Valid {
+		refreshedAt := status.RefreshedAt.Time
+		result.RefreshedAt = &refreshedAt
+	}
+	staleAt := status.StaleAt
+	result.StaleAt = &staleAt
+
+	return result
 }

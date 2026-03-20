@@ -113,6 +113,7 @@ type OpenAICompletion struct {
 // openAIServer is a test server that mocks the OpenAI API.
 type openAIServer struct {
 	mu      sync.Mutex
+	t       testing.TB
 	server  *httptest.Server
 	handler OpenAIHandler
 	request *OpenAIRequest
@@ -126,6 +127,7 @@ func NewOpenAI(t testing.TB, handler OpenAIHandler) string {
 	t.Helper()
 
 	s := &openAIServer{
+		t:       t,
 		handler: handler,
 	}
 
@@ -176,7 +178,7 @@ func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
 
 func (s *openAIServer) writeChatCompletionsResponse(w http.ResponseWriter, req *OpenAIRequest, resp OpenAIResponse) {
 	if resp.Error != nil {
-		writeErrorResponse(w, resp.Error)
+		writeErrorResponse(s.t, w, resp.Error)
 		return
 	}
 
@@ -205,7 +207,7 @@ func (s *openAIServer) writeChatCompletionsResponse(w http.ResponseWriter, req *
 
 func (s *openAIServer) writeResponsesAPIResponse(w http.ResponseWriter, req *OpenAIRequest, resp OpenAIResponse) {
 	if resp.Error != nil {
-		writeErrorResponse(w, resp.Error)
+		writeErrorResponse(s.t, w, resp.Error)
 		return
 	}
 
@@ -226,7 +228,7 @@ func (s *openAIServer) writeResponsesAPIResponse(w http.ResponseWriter, req *Ope
 		http.Error(w, "handler returned streaming response for non-streaming request", http.StatusInternalServerError)
 		return
 	case hasStreaming:
-		writeResponsesAPIStreaming(w, req.Request, resp.StreamingChunks)
+		writeResponsesAPIStreaming(s.t, w, req.Request, resp.StreamingChunks)
 	default:
 		s.writeResponsesAPINonStreaming(w, resp.Response)
 	}
@@ -318,7 +320,7 @@ func writeSSEEvent(w http.ResponseWriter, v interface{}) error {
 	return err
 }
 
-func writeResponsesAPIStreaming(w http.ResponseWriter, r *http.Request, chunks <-chan OpenAIChunk) {
+func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Request, chunks <-chan OpenAIChunk) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -345,19 +347,28 @@ func writeResponsesAPIStreaming(w http.ResponseWriter, r *http.Request, chunks <
 				// the fantasy client closes open text
 				// blocks and persists the step content.
 				for outputIndex, itemID := range itemIDs {
-					_ = writeSSEEvent(w, responses.ResponseTextDoneEvent{
+					if err := writeSSEEvent(w, responses.ResponseTextDoneEvent{
 						ItemID:      itemID,
 						OutputIndex: int64(outputIndex),
-					})
-					_ = writeSSEEvent(w, responses.ResponseOutputItemDoneEvent{
+					}); err != nil {
+						t.Logf("writeResponsesAPIStreaming: failed to write ResponseTextDoneEvent: %v", err)
+						return
+					}
+					if err := writeSSEEvent(w, responses.ResponseOutputItemDoneEvent{
 						OutputIndex: int64(outputIndex),
 						Item: responses.ResponseOutputItemUnion{
 							ID:   itemID,
 							Type: "message",
 						},
-					})
+					}); err != nil {
+						t.Logf("writeResponsesAPIStreaming: failed to write ResponseOutputItemDoneEvent: %v", err)
+						return
+					}
 				}
-				_ = writeSSEEvent(w, responses.ResponseCompletedEvent{})
+				if err := writeSSEEvent(w, responses.ResponseCompletedEvent{}); err != nil {
+					t.Logf("writeResponsesAPIStreaming: failed to write ResponseCompletedEvent: %v", err)
+					return
+				}
 				flusher.Flush()
 				return
 			}
@@ -382,6 +393,7 @@ func writeResponsesAPIStreaming(w http.ResponseWriter, r *http.Request, chunks <
 						Type: "message",
 					},
 				}); err != nil {
+					t.Logf("writeResponsesAPIStreaming: failed to write ResponseOutputItemAddedEvent: %v", err)
 					return
 				}
 				flusher.Flush()
@@ -399,10 +411,12 @@ func writeResponsesAPIStreaming(w http.ResponseWriter, r *http.Request, chunks <
 
 			chunkBytes, err := json.Marshal(chunkData)
 			if err != nil {
+				t.Logf("writeResponsesAPIStreaming: failed to marshal chunk data: %v", err)
 				return
 			}
 
 			if _, err := fmt.Fprintf(w, "data: %s\n\n", chunkBytes); err != nil {
+				t.Logf("writeResponsesAPIStreaming: failed to write chunk data: %v", err)
 				return
 			}
 			flusher.Flush()
@@ -411,13 +425,13 @@ func writeResponsesAPIStreaming(w http.ResponseWriter, r *http.Request, chunks <
 }
 
 func (s *openAIServer) writeChatCompletionsNonStreaming(w http.ResponseWriter, resp *OpenAICompletion) {
-	_ = s // receiver unused but kept for consistency
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resp)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		s.t.Errorf("writeChatCompletionsNonStreaming: failed to encode response: %v", err)
+	}
 }
 
 func (s *openAIServer) writeResponsesAPINonStreaming(w http.ResponseWriter, resp *OpenAICompletion) {
-	_ = s // receiver unused but kept for consistency
 	// Convert all choices to output format
 	outputs := make([]map[string]interface{}, len(resp.Choices))
 	for i, choice := range resp.Choices {
@@ -443,7 +457,9 @@ func (s *openAIServer) writeResponsesAPINonStreaming(w http.ResponseWriter, resp
 		"usage":   resp.Usage,
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		s.t.Errorf("writeResponsesAPINonStreaming: failed to encode response: %v", err)
+	}
 }
 
 // OpenAIStreamingResponse creates a streaming response from chunks.

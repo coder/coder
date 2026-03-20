@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -104,20 +102,11 @@ func TestSyncCommands_Golden(t *testing.T) {
 		require.NoError(t, err)
 		client.Close()
 
-		// Use a writer that signals when the "Waiting" message has been
-		// written, so the goroutine can complete the dependency at the
-		// right time without relying on time.Sleep.
-		outBuf := newSyncWriter("Waiting")
-
-		// Start a goroutine to complete the dependency once the start
-		// command has printed its waiting message.
+		outBuf := testutil.NewWaitBuffer()
 		done := make(chan error, 1)
 		go func() {
-			// Block until the command prints the waiting message.
-			select {
-			case <-outBuf.matched:
-			case <-ctx.Done():
-				done <- ctx.Err()
+			if err := outBuf.WaitFor(ctx, "Waiting"); err != nil {
+				done <- err
 				return
 			}
 
@@ -338,37 +327,4 @@ func TestSyncCommands_Golden(t *testing.T) {
 
 		clitest.TestGoldenFile(t, "TestSyncCommands_Golden/status_json_format", outBuf.Bytes(), nil)
 	})
-}
-
-// syncWriter is a thread-safe io.Writer that wraps a bytes.Buffer and
-// closes a channel when the written content contains a signal string.
-type syncWriter struct {
-	mu        sync.Mutex
-	buf       bytes.Buffer
-	signal    string
-	matched   chan struct{}
-	closeOnce sync.Once
-}
-
-func newSyncWriter(signal string) *syncWriter {
-	return &syncWriter{
-		signal:  signal,
-		matched: make(chan struct{}),
-	}
-}
-
-func (w *syncWriter) Write(p []byte) (int, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	n, err := w.buf.Write(p)
-	if w.signal != "" && strings.Contains(w.buf.String(), w.signal) {
-		w.closeOnce.Do(func() { close(w.matched) })
-	}
-	return n, err
-}
-
-func (w *syncWriter) Bytes() []byte {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.buf.Bytes()
 }

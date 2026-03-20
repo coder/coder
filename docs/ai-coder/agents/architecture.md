@@ -106,6 +106,11 @@ Tools are how the agent takes action. Each tool call from the LLM translates to
 a concrete operation — either inside a workspace or within the control plane
 itself.
 
+The agent is restricted to the tool set defined in this section. It has no
+direct access to the Coder API beyond what these tools expose and cannot
+execute arbitrary operations against the control plane. If a capability is
+not represented by a tool, the agent cannot perform it.
+
 ### Workspace connection lifecycle
 
 The connection to a workspace is **lazy**. It is not established when a chat
@@ -135,13 +140,16 @@ They traverse the same Tailnet tunnel used by web terminals and IDE connections.
 ### Platform tools
 
 These tools run entirely within the control plane. They do not require a
-workspace connection.
+workspace connection. Platform and orchestration tools are only available to
+root chats — sub-agents spawned by `spawn_agent` do not have access to them
+and cannot create workspaces or spawn further sub-agents.
 
-| Tool               | What it does                                                      |
-|--------------------|-------------------------------------------------------------------|
-| `list_templates`   | Browses available workspace templates, sorted by popularity.      |
-| `read_template`    | Gets template details and configurable parameters.                |
-| `create_workspace` | Creates a workspace from a template and waits for it to be ready. |
+| Tool               | What it does                                                                           |
+|--------------------|----------------------------------------------------------------------------------------|
+| `list_templates`   | Browses available workspace templates, sorted by popularity.                           |
+| `read_template`    | Gets template details and configurable parameters.                                     |
+| `create_workspace` | Creates a workspace from a template and waits for it to be ready.                      |
+| `start_workspace`  | Starts the chat's workspace if it is currently stopped. Idempotent if already running. |
 
 ### Orchestration tools
 
@@ -154,6 +162,16 @@ parallel.
 | `wait_agent`    | Waits for a sub-agent to finish and collects its result.     |
 | `message_agent` | Sends a follow-up message to a running sub-agent.            |
 | `close_agent`   | Stops a running sub-agent.                                   |
+
+### Provider tools
+
+These tools are executed server-side by the LLM provider, not by the control
+plane or workspace. They are conditionally available based on the model
+configuration set by an administrator.
+
+| Tool         | What it does                                                                                                                                     |
+|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `web_search` | Searches the internet for up-to-date information. Available when web search is enabled for the configured Anthropic, OpenAI, or Google provider. |
 
 ## What runs where
 
@@ -243,6 +261,22 @@ is tied to the user who submitted the prompt. There is no shared bot account or
 anonymous identity. If a developer submits a prompt that results in a pull
 request, that pull request is attributed to them via the git authentication
 already configured in your Coder deployment.
+
+### Permission boundaries
+
+The agent operates with the exact same permissions as the user who submitted
+the prompt. If a user cannot access a template, workspace, or API endpoint
+through the Coder dashboard or CLI, the agent cannot access it either. There
+is no privilege escalation.
+
+This extends to workspace isolation: the agent can only interact with
+workspaces owned by the user who started the chat. It cannot read files,
+execute commands, or connect to workspaces belonging to other users.
+
+Template visibility follows the same rule. When the agent lists available
+templates, it sees only the templates the user is authorized to access.
+The agent cannot provision a workspace from a template the user does not
+have permission to use.
 
 ## Scaling and resource impact
 

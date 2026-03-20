@@ -109,7 +109,7 @@ func TestWatchChatGit(t *testing.T) {
 
 		// And: We mount the HTTP handler.
 		r.With(httpmw.ExtractChatParam(mDB)).
-			Get("/chats/{chat}/git/watch", api.watchChatGit)
+			Get("/chats/{chat}/stream/git", api.watchChatGit)
 
 		// Given: We create the HTTP server.
 		srv := httptest.NewServer(r)
@@ -117,7 +117,7 @@ func TestWatchChatGit(t *testing.T) {
 
 		// When: We make a request.
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-			fmt.Sprintf("%s/chats/%s/git/watch", srv.URL, chatID), nil)
+			fmt.Sprintf("%s/chats/%s/stream/git", srv.URL, chatID), nil)
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
@@ -165,7 +165,7 @@ func TestWatchChatGit(t *testing.T) {
 
 		// And: We mount the HTTP handler.
 		r.With(httpmw.ExtractChatParam(mDB)).
-			Get("/chats/{chat}/git/watch", api.watchChatGit)
+			Get("/chats/{chat}/stream/git", api.watchChatGit)
 
 		// Given: We create the HTTP server.
 		srv := httptest.NewServer(r)
@@ -173,7 +173,7 @@ func TestWatchChatGit(t *testing.T) {
 
 		// When: We make a request.
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-			fmt.Sprintf("%s/chats/%s/git/watch", srv.URL, chatID), nil)
+			fmt.Sprintf("%s/chats/%s/stream/git", srv.URL, chatID), nil)
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
@@ -242,7 +242,7 @@ func TestWatchChatGit(t *testing.T) {
 
 		// And: We mount the HTTP handler.
 		r.With(httpmw.ExtractChatParam(mDB)).
-			Get("/chats/{chat}/git/watch", api.watchChatGit)
+			Get("/chats/{chat}/stream/git", api.watchChatGit)
 
 		// Given: We create the HTTP server.
 		srv := httptest.NewServer(r)
@@ -250,7 +250,7 @@ func TestWatchChatGit(t *testing.T) {
 
 		// When: We make a request.
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-			fmt.Sprintf("%s/chats/%s/git/watch", srv.URL, chatID), nil)
+			fmt.Sprintf("%s/chats/%s/stream/git", srv.URL, chatID), nil)
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
@@ -376,7 +376,7 @@ func TestWatchChatGit(t *testing.T) {
 			})
 		// And: We mount the HTTP handler.
 		r.With(httpmw.ExtractChatParam(mDB)).
-			Get("/chats/{chat}/git/watch", api.watchChatGit)
+			Get("/chats/{chat}/stream/git", api.watchChatGit)
 
 		// Given: We create the HTTP server.
 		coderdSrv := httptest.NewServer(r)
@@ -384,7 +384,7 @@ func TestWatchChatGit(t *testing.T) {
 
 		// And: Dial the WebSocket as a client.
 		wsURL := strings.Replace(coderdSrv.URL, "http://", "ws://", 1)
-		clientConn, resp, err := websocket.Dial(ctx, fmt.Sprintf("%s/chats/%s/git/watch", wsURL, chatID), nil)
+		clientConn, resp, err := websocket.Dial(ctx, fmt.Sprintf("%s/chats/%s/stream/git", wsURL, chatID), nil)
 		require.NoError(t, err)
 		if resp.Body != nil {
 			defer resp.Body.Close()
@@ -538,7 +538,7 @@ func TestWatchChatGit(t *testing.T) {
 			})
 		// And: We mount the HTTP handler.
 		r.With(httpmw.ExtractChatParam(mDB)).
-			Get("/chats/{chat}/git/watch", api.watchChatGit)
+			Get("/chats/{chat}/stream/git", api.watchChatGit)
 
 		// Given: We create the HTTP server.
 		coderdSrv := httptest.NewServer(r)
@@ -546,7 +546,7 @@ func TestWatchChatGit(t *testing.T) {
 
 		// And: Dial the WebSocket as a client.
 		wsURL := strings.Replace(coderdSrv.URL, "http://", "ws://", 1)
-		clientConn, resp, err := websocket.Dial(ctx, fmt.Sprintf("%s/chats/%s/git/watch", wsURL, chatID), nil)
+		clientConn, resp, err := websocket.Dial(ctx, fmt.Sprintf("%s/chats/%s/stream/git", wsURL, chatID), nil)
 		require.NoError(t, err)
 		if resp.Body != nil {
 			defer resp.Body.Close()

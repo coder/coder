@@ -70,7 +70,7 @@ type AgentConn interface {
 	ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error)
 	Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport, error)
 	Ping(ctx context.Context) (time.Duration, bool, *ipnstate.PingResult, error)
-	ProcessOutput(ctx context.Context, id string) (ProcessOutputResponse, error)
+	ProcessOutput(ctx context.Context, id string, opts *ProcessOutputOptions) (ProcessOutputResponse, error)
 	PrometheusMetrics(ctx context.Context) ([]byte, error)
 	ReconnectingPTY(ctx context.Context, id uuid.UUID, height uint16, width uint16, command string, initOpts ...AgentReconnectingPTYInitOption) (net.Conn, error)
 	DeleteDevcontainer(ctx context.Context, devcontainerID string) error
@@ -89,6 +89,8 @@ type AgentConn interface {
 	Speedtest(ctx context.Context, direction speedtest.Direction, duration time.Duration) ([]speedtest.Result, error)
 	WatchContainers(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error)
 	WatchGit(ctx context.Context, logger slog.Logger, chatID uuid.UUID) (*wsjson.Stream[codersdk.WorkspaceAgentGitServerMessage, codersdk.WorkspaceAgentGitClientMessage], error)
+	ConnectDesktopVNC(ctx context.Context) (net.Conn, error)
+	ExecuteDesktopAction(ctx context.Context, action DesktopAction) (DesktopActionResponse, error)
 }
 
 // AgentConn represents a connection to a workspace agent.
@@ -530,6 +532,112 @@ func (c *agentConn) WatchGit(ctx context.Context, logger slog.Logger, chatID uui
 	](conn, websocket.MessageText, websocket.MessageText, logger), nil
 }
 
+// ConnectDesktopVNC opens a WebSocket to the agent's desktop endpoint and
+// returns a net.Conn carrying raw RFB (VNC) binary data.
+func (c *agentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
+
+	dialOpts := &websocket.DialOptions{
+		HTTPClient:      c.apiClient(),
+		CompressionMode: websocket.CompressionDisabled,
+	}
+	c.headersMu.RLock()
+	if len(c.extraHeaders) > 0 {
+		dialOpts.HTTPHeader = c.extraHeaders.Clone()
+	}
+	c.headersMu.RUnlock()
+
+	url := fmt.Sprintf("http://%s/api/v0/desktop/vnc", host)
+	conn, res, err := websocket.Dial(ctx, url, dialOpts)
+	if err != nil {
+		if res == nil {
+			return nil, err
+		}
+		return nil, codersdk.ReadBodyAsError(res)
+	}
+	if res != nil && res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	// No read limit — RFB framebuffer updates can be large.
+	conn.SetReadLimit(-1)
+
+	return websocket.NetConn(ctx, conn, websocket.MessageBinary), nil
+}
+
+// DesktopAction is the request body for the desktop action
+// endpoint.
+type DesktopAction struct {
+	Action          string  `json:"action"`
+	Coordinate      *[2]int `json:"coordinate,omitempty"`
+	StartCoordinate *[2]int `json:"start_coordinate,omitempty"`
+	Text            *string `json:"text,omitempty"`
+	Duration        *int    `json:"duration,omitempty"`
+	ScrollAmount    *int    `json:"scroll_amount,omitempty"`
+	ScrollDirection *string `json:"scroll_direction,omitempty"`
+	ScaledWidth     *int    `json:"scaled_width,omitempty"`
+	ScaledHeight    *int    `json:"scaled_height,omitempty"`
+}
+
+// DesktopActionResponse is the response from the desktop action
+// endpoint.
+type DesktopActionResponse struct {
+	Output           string `json:"output,omitempty"`
+	ScreenshotData   string `json:"screenshot_data,omitempty"`
+	ScreenshotWidth  int    `json:"screenshot_width,omitempty"`
+	ScreenshotHeight int    `json:"screenshot_height,omitempty"`
+}
+
+// ExecuteDesktopAction executes a mouse/keyboard/scroll action on the
+// agent's desktop.
+func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopAction) (DesktopActionResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	host := net.JoinHostPort(
+		c.agentAddress().String(),
+		strconv.Itoa(AgentHTTPAPIServerPort),
+	)
+
+	body, err := json.Marshal(action)
+	if err != nil {
+		return DesktopActionResponse{}, xerrors.Errorf("marshal action: %w", err)
+	}
+
+	url := fmt.Sprintf("http://%s/api/v0/desktop/action", host)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return DesktopActionResponse{}, xerrors.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	c.headersMu.RLock()
+	if len(c.extraHeaders) > 0 {
+		for k, v := range c.extraHeaders {
+			req.Header[k] = v
+		}
+	}
+	c.headersMu.RUnlock()
+
+	resp, err := c.apiClient().Do(req)
+	if err != nil {
+		return DesktopActionResponse{}, xerrors.Errorf("action request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return DesktopActionResponse{}, codersdk.ReadBodyAsError(resp)
+	}
+
+	var result DesktopActionResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return DesktopActionResponse{}, xerrors.Errorf("decode action response: %w", err)
+	}
+	return result, nil
+}
+
 // DeleteDevcontainer deletes the provided devcontainer.
 // This is a blocking call and will wait for the container to be deleted.
 func (c *agentConn) DeleteDevcontainer(ctx context.Context, devcontainerID string) error {
@@ -605,6 +713,14 @@ type ProcessOutputResponse struct {
 	Truncated *ProcessTruncation `json:"truncated,omitempty"`
 	Running   bool               `json:"running"`
 	ExitCode  *int               `json:"exit_code,omitempty"`
+}
+
+// ProcessOutputOptions configures blocking behavior for
+// process output retrieval.
+type ProcessOutputOptions struct {
+	// Wait enables blocking mode. When true, the request
+	// blocks until the process exits or the context expires.
+	Wait bool
 }
 
 // ProcessTruncation describes how process output was truncated.
@@ -791,8 +907,9 @@ func DefaultReadFileLinesLimits() ReadFileLinesLimits {
 }
 
 type FileEdit struct {
-	Search  string `json:"search"`
-	Replace string `json:"replace"`
+	Search     string `json:"search"`
+	Replace    string `json:"replace"`
+	ReplaceAll bool   `json:"replace_all,omitempty"`
 }
 
 type FileEdits struct {
@@ -837,10 +954,14 @@ func (c *agentConn) ListProcesses(ctx context.Context) (ListProcessesResponse, e
 }
 
 // ProcessOutput returns the output of a tracked process on the agent.
-func (c *agentConn) ProcessOutput(ctx context.Context, id string) (ProcessOutputResponse, error) {
+func (c *agentConn) ProcessOutput(ctx context.Context, id string, opts *ProcessOutputOptions) (ProcessOutputResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/processes/"+id+"/output", nil)
+	path := "/api/v0/processes/" + id + "/output"
+	if opts != nil && opts.Wait {
+		path += "?wait=true"
+	}
+	res, err := c.apiRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return ProcessOutputResponse{}, xerrors.Errorf("do request: %w", err)
 	}

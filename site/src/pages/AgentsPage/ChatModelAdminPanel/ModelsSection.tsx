@@ -17,13 +17,16 @@ import {
 	ChevronRightIcon,
 	PlusIcon,
 	StarIcon,
+	TriangleAlertIcon,
 } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import type { FC, ReactNode } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { cn } from "utils/cn";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelForm } from "./ModelForm";
 import { ProviderIcon } from "./ProviderIcon";
+import { hasCustomPricing } from "./pricingFields";
 
 type ModelView =
 	| { mode: "list" }
@@ -70,7 +73,61 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	onUpdateModel,
 	onDeleteModel,
 }) => {
-	const [view, setView] = useState<ModelView>({ mode: "list" });
+	const [searchParams, setSearchParams] = useSearchParams();
+	const navigate = useNavigate();
+	const location = useLocation();
+
+	// Whether the current form entry was pushed by an in-app click
+	// (as opposed to a direct-entry URL like a bookmark or shared link).
+	// When true, navigate(-1) is safe; otherwise we fall back to
+	// clearing params with replace to avoid leaving the app.
+	const canGoBack =
+		(location.state as { pushed?: boolean } | null)?.pushed === true;
+
+	// Derive the current view from URL search params so that
+	// browser back/forward navigation works as expected.
+	const view: ModelView = (() => {
+		const editModelId = searchParams.get("model");
+		if (editModelId) {
+			const model = modelConfigs.find((m) => m.id === editModelId);
+			return model ? { mode: "edit", model } : { mode: "list" };
+		}
+		const addProvider = searchParams.get("newModel");
+		if (addProvider) {
+			return { mode: "add", provider: addProvider };
+		}
+		return { mode: "list" };
+	})();
+
+	// Clear model-related search params and return to the list.
+	const clearModelView = () => {
+		setSearchParams((prev) => {
+			const next = new URLSearchParams(prev);
+			next.delete("model");
+			next.delete("newModel");
+			return next;
+		});
+	};
+
+	// Navigate back to the list after a destructive or
+	// completion action (create/delete) where the form entry
+	// is stale. Uses navigate(-1) when safe, otherwise clears
+	// the params with replace.
+	const exitModelView = () => {
+		if (canGoBack) {
+			navigate(-1);
+		} else {
+			setSearchParams(
+				(prev) => {
+					const next = new URLSearchParams(prev);
+					next.delete("model");
+					next.delete("newModel");
+					return next;
+				},
+				{ replace: true },
+			);
+		}
+	};
 
 	// When the form is open it takes over the full panel.
 	if (view.mode === "add" || view.mode === "edit") {
@@ -104,18 +161,18 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				isDeleting={isDeleting}
 				onCreateModel={async (req) => {
 					await onCreateModel(req);
-					setView({ mode: "list" });
+					exitModelView();
 				}}
 				onUpdateModel={async (id, req) => {
 					await onUpdateModel(id, req);
-					setView({ mode: "list" });
+					clearModelView();
 				}}
-				onCancel={() => setView({ mode: "list" })}
+				onCancel={clearModelView}
 				onDeleteModel={
 					editingModel
 						? async (id) => {
 								await onDeleteModel(id);
-								setView({ mode: "list" });
+								exitModelView();
 							}
 						: undefined
 				}
@@ -134,7 +191,6 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button size="sm" className="gap-1.5" aria-label="Add model">
-					{" "}
 					<PlusIcon className="h-4 w-4" />
 					Add
 					<ChevronDownIcon className="h-3.5 w-3.5 text-content-secondary" />
@@ -146,7 +202,10 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 						key={ps.provider}
 						onClick={() => {
 							onSelectedProviderChange(ps.provider);
-							setView({ mode: "add", provider: ps.provider });
+							setSearchParams(
+								{ newModel: ps.provider },
+								{ state: { pushed: true } },
+							);
 						}}
 						className="gap-2"
 					>
@@ -190,79 +249,95 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 				</div>
 			) : (
 				<div className="divide-y divide-border/50">
-					{modelConfigs.map((modelConfig) => (
-						<div
-							key={modelConfig.id}
-							className="flex items-center gap-3.5 px-3 py-3"
-						>
-							{" "}
-							{/* Star for default */}
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<button
-										type="button"
-										onClick={(e) => {
-											e.stopPropagation();
-											handleSetDefault(modelConfig);
-										}}
-										aria-disabled={isUpdating || modelConfig.is_default}
-										aria-label={
-											modelConfig.is_default
-												? "Default model"
-												: "Set as default model"
-										}
-										className={cn(
-											"flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-transparent border-0 p-0 transition-colors",
-											modelConfig.is_default
-												? "text-yellow-400"
-												: "cursor-pointer text-content-secondary/30 hover:text-content-secondary",
-										)}
-									>
-										<StarIcon
-											className={cn(
-												"h-4 w-4",
-												modelConfig.is_default && "fill-current",
-											)}
-										/>
-									</button>
-								</TooltipTrigger>
-								<TooltipContent side="right">
-									{modelConfig.is_default
-										? "Default model for new chats"
-										: "Set as default for new chats"}
-								</TooltipContent>
-							</Tooltip>
-							{/* Clickable row content */}
-							<button
-								type="button"
-								onClick={() => setView({ mode: "edit", model: modelConfig })}
-								className="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 bg-transparent border-0 p-0 text-left transition-colors hover:opacity-80"
+					{modelConfigs.map((modelConfig) => {
+						const showPricingWarning = !hasCustomPricing(
+							modelConfig.model_config,
+						);
+
+						return (
+							<div
+								key={modelConfig.id}
+								className="flex items-center gap-3.5 px-3 py-3"
 							>
-								<ProviderIcon
-									provider={modelConfig.provider}
-									className="h-8 w-8 shrink-0"
-								/>
-								<div className="min-w-0 flex-1">
-									<span
-										className={cn(
-											"block truncate text-[15px] font-medium",
-											modelConfig.enabled === false
-												? "text-content-secondary"
-												: "text-content-primary",
+								{/* Star for default */}
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<button
+											type="button"
+											onClick={(e) => {
+												e.stopPropagation();
+												handleSetDefault(modelConfig);
+											}}
+											aria-disabled={isUpdating || modelConfig.is_default}
+											aria-label={
+												modelConfig.is_default
+													? "Default model"
+													: "Set as default model"
+											}
+											className={cn(
+												"flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-transparent border-0 p-0 transition-colors",
+												modelConfig.is_default
+													? "text-yellow-400"
+													: "cursor-pointer text-content-secondary/30 hover:text-content-secondary",
+											)}
+										>
+											<StarIcon
+												className={cn(
+													"h-4 w-4",
+													modelConfig.is_default && "fill-current",
+												)}
+											/>
+										</button>
+									</TooltipTrigger>
+									<TooltipContent side="right">
+										{modelConfig.is_default
+											? "Default model for new chats"
+											: "Set as default for new chats"}
+									</TooltipContent>
+								</Tooltip>
+								{/* Clickable row content */}
+								<button
+									type="button"
+									onClick={() =>
+										setSearchParams(
+											{ model: modelConfig.id },
+											{ state: { pushed: true } },
+										)
+									}
+									className="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 bg-transparent border-0 p-0 text-left transition-colors hover:opacity-80"
+								>
+									<ProviderIcon
+										provider={modelConfig.provider}
+										className="h-8 w-8 shrink-0"
+									/>
+									<div className="min-w-0 flex-1">
+										<span
+											className={cn(
+												"block truncate text-[15px] font-medium",
+												modelConfig.enabled === false
+													? "text-content-secondary"
+													: "text-content-primary",
+											)}
+										>
+											{modelConfig.display_name || modelConfig.model}
+										</span>
+										{showPricingWarning && (
+											<span className="mt-1 flex items-center gap-1 text-xs text-content-warning">
+												<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0" />
+												Model pricing is not defined
+											</span>
 										)}
-									>
-										{modelConfig.display_name || modelConfig.model}
-									</span>
-								</div>
-								{modelConfig.enabled === false && (
-									<Badge size="xs" variant="warning">
-										disabled
-									</Badge>
-								)}
-								<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />
-							</button>{" "}
-						</div>
-					))}
+									</div>
+									{modelConfig.enabled === false && (
+										<Badge size="xs" variant="warning">
+											disabled
+										</Badge>
+									)}
+									<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />
+								</button>
+							</div>
+						);
+					})}
 				</div>
 			)}
 		</>

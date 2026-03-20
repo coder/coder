@@ -54,11 +54,11 @@ const DeploymentSettingsLayout: FC = () => {
 				<section className="px-10 max-w-screen-2xl mx-auto">
 					<div className="flex flex-row gap-28 py-10">
 						<DeploymentSidebar />
-						<main css={{ flexGrow: 1 }}>
+						<div css={{ flexGrow: 1 }}>
 							<Suspense fallback={<Loader />}>
 								<Outlet />
 							</Suspense>
-						</main>
+						</div>
 					</div>
 				</section>
 			</div>

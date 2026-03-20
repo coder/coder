@@ -205,6 +205,32 @@ describe("extractModelConfigFormState", () => {
 		expect(result.frequencyPenalty).toBe("0.3");
 	});
 
+	it("extracts pricing fields", () => {
+		const model: TypesGen.ChatModelConfig = {
+			...baseChatModelConfig,
+			model_config: {
+				cost: {
+					input_price_per_million_tokens: "0.15",
+					output_price_per_million_tokens: "0.6",
+					cache_read_price_per_million_tokens: "0.03",
+					cache_write_price_per_million_tokens: "0.3",
+				},
+			},
+		};
+		const result = extractModelConfigFormState(model);
+		expect(deepGet(result, ["cost", "inputPricePerMillionTokens"])).toBe(
+			"0.15",
+		);
+		expect(deepGet(result, ["cost", "outputPricePerMillionTokens"])).toBe(
+			"0.6",
+		);
+		expect(deepGet(result, ["cost", "cacheReadPricePerMillionTokens"])).toBe(
+			"0.03",
+		);
+		expect(deepGet(result, ["cost", "cacheWritePricePerMillionTokens"])).toBe(
+			"0.3",
+		);
+	});
 	it("extracts OpenAI provider options", () => {
 		const model: TypesGen.ChatModelConfig = {
 			...baseChatModelConfig,
@@ -217,6 +243,7 @@ describe("extractModelConfigFormState", () => {
 						service_tier: "auto",
 						reasoning_summary: "concise",
 						user: "test-user",
+						prompt_cache_key: "my-cache-key",
 					},
 				},
 			},
@@ -229,6 +256,7 @@ describe("extractModelConfigFormState", () => {
 		expect(openai.serviceTier).toBe("auto");
 		expect(openai.reasoningSummary).toBe("concise");
 		expect(openai.user).toBe("test-user");
+		expect(openai.promptCacheKey).toBe("my-cache-key");
 	});
 
 	it("extracts Anthropic provider options with thinking", () => {
@@ -511,6 +539,41 @@ describe("buildModelConfigFromForm", () => {
 		});
 	});
 
+	describe("pricing fields", () => {
+		it("builds config with valid pricing fields", () => {
+			const result = buildModelConfigFromForm(
+				"openai",
+				formWith({
+					cost: {
+						inputPricePerMillionTokens: "0.15",
+						outputPricePerMillionTokens: "0.6",
+						cacheReadPricePerMillionTokens: "0.03",
+						cacheWritePricePerMillionTokens: "0.3",
+					},
+				}),
+			);
+			expect(result.fieldErrors).toEqual({});
+			expect(result.modelConfig).toMatchObject({
+				cost: {
+					input_price_per_million_tokens: "0.15",
+					output_price_per_million_tokens: "0.6",
+					cache_read_price_per_million_tokens: "0.03",
+					cache_write_price_per_million_tokens: "0.3",
+				},
+			});
+		});
+
+		it("reports error for negative pricing fields", () => {
+			const result = buildModelConfigFromForm(
+				"openai",
+				formWith({ cost: { inputPricePerMillionTokens: "-0.5" } }),
+			);
+			expect(result.fieldErrors["cost.inputPricePerMillionTokens"]).toContain(
+				"must be zero or greater",
+			);
+			expect(result.modelConfig).toBeUndefined();
+		});
+	});
 	describe("OpenAI / Azure provider", () => {
 		it("builds OpenAI provider options with reasoning effort", () => {
 			const result = buildModelConfigFromForm(
@@ -545,6 +608,7 @@ describe("buildModelConfigFromForm", () => {
 						serviceTier: "auto",
 						reasoningSummary: "concise",
 						user: "user-123",
+						promptCacheKey: "cache-key-1",
 					},
 				}),
 			);
@@ -559,6 +623,7 @@ describe("buildModelConfigFromForm", () => {
 			expect(openai.service_tier).toBe("auto");
 			expect(openai.reasoning_summary).toBe("concise");
 			expect(openai.user).toBe("user-123");
+			expect(openai.prompt_cache_key).toBe("cache-key-1");
 		});
 
 		it("reports error for invalid reasoning effort option", () => {

@@ -16,7 +16,7 @@ import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
 } from "lucide-react";
-import { type FC, useMemo, useState } from "react";
+import { type FC, useState } from "react";
 import { cn } from "utils/cn";
 import { getFormHelpers } from "utils/formUtils";
 
@@ -25,6 +25,7 @@ import type { ProviderState } from "./ChatModelAdminPanel";
 import {
 	GeneralModelConfigFields,
 	ModelConfigFields,
+	PricingModelConfigFields,
 } from "./ModelConfigFields";
 import {
 	buildInitialModelFormValues,
@@ -93,6 +94,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	onDeleteModel,
 }) => {
 	const isEditing = Boolean(editingModel);
+	const [showPricing, setShowPricing] = useState(false);
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -184,13 +186,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 	const getFieldHelpers = getFormHelpers(form);
 
-	const modelConfigFormBuildResult = useMemo(
-		() =>
-			buildModelConfigFromForm(
-				selectedProviderState?.provider,
-				form.values.config,
-			),
-		[selectedProviderState?.provider, form.values.config],
+	const modelConfigFormBuildResult = buildModelConfigFromForm(
+		selectedProviderState?.provider,
+		form.values.config,
 	);
 
 	const hasFieldErrors =
@@ -242,7 +240,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				>
 					<ChevronLeftIcon className="h-4 w-4" />
 					Back
-				</button>{" "}
+				</button>
 				<h2 className="m-0 text-lg font-medium text-content-primary">
 					{isEditing ? "Edit Model" : "Add Model"}
 				</h2>
@@ -266,7 +264,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				</button>
 				<h2 className="m-0 text-lg font-medium text-content-primary">
 					Add Model
-				</h2>{" "}
+				</h2>
 				<hr className="my-4 border-0 border-t border-solid border-border" />
 				<div className="space-y-3">
 					{providerSelect}
@@ -316,7 +314,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 							isEditing ? (editingModel?.model ?? "Model name") : "Model name"
 						}
 					/>
-				</div>{" "}
+				</div>
 			</div>
 			<hr className="my-4 border-0 border-t border-solid border-border" />
 
@@ -407,68 +405,104 @@ export const ModelForm: FC<ModelFormProps> = ({
 						disabled={isSaving}
 					/>
 
-					{/* Advanced — toggle */}
-					<div>
-						<button
-							type="button"
-							onClick={() => setShowAdvanced((v) => !v)}
-							className="inline-flex cursor-pointer items-center gap-1 bg-transparent border-0 p-0 text-sm font-medium text-content-secondary transition-colors hover:text-content-primary"
-						>
-							{showAdvanced ? (
-								<ChevronDownIcon className="h-4 w-4" />
-							) : (
-								<ChevronRightIcon className="h-4 w-4" />
-							)}
-							Advanced
-						</button>{" "}
-						{showAdvanced && (
-							<div className="mt-4 space-y-5">
-								<div className="grid grid-cols-2 gap-3">
-									<GeneralModelConfigFields
-										provider={selectedProviderState.provider}
-										form={form}
-										fieldErrors={modelConfigFormBuildResult.fieldErrors}
-										disabled={isSaving}
-									/>
-								</div>
-								<div className="flex flex-col gap-1.5">
-									<Label
-										htmlFor={compressionThresholdField.id}
-										className="text-sm font-medium text-content-primary"
-									>
-										Compression Threshold
-									</Label>
-									<p className="m-0 text-xs text-content-secondary">
-										Percentage at which context is compressed.
-									</p>
-									<Input
-										id={compressionThresholdField.id}
-										name={compressionThresholdField.name}
-										className={cn(
-											"h-9 text-[13px] placeholder:text-content-disabled",
-											compressionThresholdField.error &&
-												"border-content-destructive",
-										)}
-										placeholder="70"
-										value={compressionThresholdField.value}
-										onChange={compressionThresholdField.onChange}
-										onBlur={compressionThresholdField.onBlur}
-										disabled={isSaving}
-										aria-invalid={compressionThresholdField.error}
-									/>
-									{compressionThresholdField.error && (
-										<p className="m-0 text-xs text-content-destructive">
-											{compressionThresholdField.helperText}
+					<div className="space-y-5">
+						{/* Pricing — toggle */}
+						<div>
+							<button
+								type="button"
+								onClick={() => setShowPricing((v) => !v)}
+								className="inline-flex cursor-pointer items-center gap-1 bg-transparent border-0 p-0 text-sm font-medium text-content-secondary transition-colors hover:text-content-primary"
+							>
+								{showPricing ? (
+									<ChevronDownIcon className="h-4 w-4" />
+								) : (
+									<ChevronRightIcon className="h-4 w-4" />
+								)}
+								Pricing
+							</button>
+							{showPricing && (
+								<div className="mt-4 space-y-3">
+									<div>
+										<p className="m-0 text-xs text-content-secondary">
+											Optional USD pricing metadata per 1M tokens. Leave any
+											field blank to keep pricing unset and use provider or
+											profile defaults when available.
 										</p>
-									)}
+									</div>
+									<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+										<PricingModelConfigFields
+											provider={selectedProviderState.provider}
+											form={form}
+											fieldErrors={modelConfigFormBuildResult.fieldErrors}
+											disabled={isSaving}
+										/>
+									</div>
 								</div>
-							</div>
-						)}
+							)}
+						</div>
+
+						{/* Advanced — toggle */}
+						<div>
+							<button
+								type="button"
+								onClick={() => setShowAdvanced((v) => !v)}
+								className="inline-flex cursor-pointer items-center gap-1 bg-transparent border-0 p-0 text-sm font-medium text-content-secondary transition-colors hover:text-content-primary"
+							>
+								{showAdvanced ? (
+									<ChevronDownIcon className="h-4 w-4" />
+								) : (
+									<ChevronRightIcon className="h-4 w-4" />
+								)}
+								Advanced
+							</button>
+							{showAdvanced && (
+								<div className="mt-4 space-y-5">
+									<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+										<GeneralModelConfigFields
+											provider={selectedProviderState.provider}
+											form={form}
+											fieldErrors={modelConfigFormBuildResult.fieldErrors}
+											disabled={isSaving}
+										/>
+									</div>
+									<div className="flex flex-col gap-1.5">
+										<Label
+											htmlFor={compressionThresholdField.id}
+											className="text-sm font-medium text-content-primary"
+										>
+											Compression Threshold
+										</Label>
+										<p className="m-0 text-xs text-content-secondary">
+											Percentage at which context is compressed.
+										</p>
+										<Input
+											id={compressionThresholdField.id}
+											name={compressionThresholdField.name}
+											className={cn(
+												"h-9 text-[13px] placeholder:text-content-disabled",
+												compressionThresholdField.error &&
+													"border-content-destructive",
+											)}
+											placeholder="70"
+											value={compressionThresholdField.value}
+											onChange={compressionThresholdField.onChange}
+											onBlur={compressionThresholdField.onBlur}
+											disabled={isSaving}
+											aria-invalid={compressionThresholdField.error}
+										/>
+										{compressionThresholdField.error && (
+											<p className="m-0 text-xs text-content-destructive">
+												{compressionThresholdField.helperText}
+											</p>
+										)}
+									</div>
+								</div>
+							)}
+						</div>
 					</div>
 				</div>
-
 				{/* Footer — pushed to bottom */}
-				<div className="mt-auto pt-6">
+				<div className="mt-auto py-6">
 					<hr className="mb-4 border-0 border-t border-solid border-border" />
 					{confirmingDelete && onDeleteModel && editingModel ? (
 						<div className="flex items-center gap-3">
@@ -493,7 +527,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 									onClick={() => void onDeleteModel(editingModel.id)}
 								>
 									{isDeleting && <Spinner className="h-4 w-4" loading />}
-									Delete model{" "}
+									Delete model
 								</Button>
 							</div>
 						</div>
@@ -519,14 +553,14 @@ export const ModelForm: FC<ModelFormProps> = ({
 								>
 									Cancel
 								</Button>
-							)}{" "}
+							)}
 							<Button
 								size="lg"
 								type="submit"
 								disabled={isSaving || !form.isValid || hasFieldErrors}
 							>
 								{isSaving && <Spinner className="h-4 w-4" loading />}{" "}
-								{isEditing ? "Save" : "Add model"}{" "}
+								{isEditing ? "Save" : "Add model"}
 							</Button>
 						</div>
 					)}

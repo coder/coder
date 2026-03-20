@@ -21,7 +21,7 @@ jobs:
       pull-requests: write # required to post PR review comments by the action
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@5ef0c079ce82195b2a36a210272d6b661572d83e # v2.14.2
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
         with:
           egress-policy: audit
 
@@ -29,6 +29,22 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+
+      - name: Rewrite same-repo links for PR branch
+        if: github.event_name == 'pull_request'
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Rewrite same-repo blob/tree main links to the PR head SHA
+          # so that files or directories introduced in the PR are
+          # reachable during link checking.
+          {
+            echo 'replacementPatterns:'
+            echo "  - pattern: \"https://github.com/coder/coder/blob/main/\""
+            echo "    replacement: \"https://github.com/coder/coder/blob/${HEAD_SHA}/\""
+            echo "  - pattern: \"https://github.com/coder/coder/tree/main/\""
+            echo "    replacement: \"https://github.com/coder/coder/tree/${HEAD_SHA}/\""
+          } >> .github/.linkspector.yml
 
       - name: Check Markdown links
         uses: umbrelladocs/action-linkspector@652f85bc57bb1e7d4327260decc10aa68f7694c3 # v1.4.0

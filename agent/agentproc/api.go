@@ -1,10 +1,13 @@
 package agentproc
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -17,6 +20,13 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
+const (
+	// maxWaitDuration is the maximum time a blocking
+	// process output request can wait, regardless of
+	// what the client requests.
+	maxWaitDuration = 5 * time.Minute
+)
+
 // API exposes process-related operations through the agent.
 type API struct {
 	logger    slog.Logger
@@ -25,10 +35,10 @@ type API struct {
 }
 
 // NewAPI creates a new process API handler.
-func NewAPI(logger slog.Logger, execer agentexec.Execer, updateEnv func(current []string) (updated []string, err error), pathStore *agentgit.PathStore) *API {
+func NewAPI(logger slog.Logger, execer agentexec.Execer, updateEnv func(current []string) (updated []string, err error), pathStore *agentgit.PathStore, workingDir func() string) *API {
 	return &API{
 		logger:    logger,
-		manager:   newManager(logger, execer, updateEnv),
+		manager:   newManager(logger, execer, updateEnv, workingDir),
 		pathStore: pathStore,
 	}
 }
@@ -69,7 +79,12 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	proc, err := api.manager.start(req)
+	var chatID string
+	if id, _, ok := agentgit.ExtractChatContext(r); ok {
+		chatID = id.String()
+	}
+
+	proc, err := api.manager.start(req, chatID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to start process.",
@@ -105,7 +120,28 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 func (api *API) handleListProcesses(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	infos := api.manager.list()
+	var chatID string
+	if id, _, ok := agentgit.ExtractChatContext(r); ok {
+		chatID = id.String()
+	}
+
+	infos := api.manager.list(chatID)
+
+	// Sort by running state (running first), then by started_at
+	// descending so the most recent processes appear first.
+	sort.Slice(infos, func(i, j int) bool {
+		if infos[i].Running != infos[j].Running {
+			return infos[i].Running
+		}
+		return infos[i].StartedAt > infos[j].StartedAt
+	})
+
+	// Cap the response to avoid bloating LLM context.
+	const maxListProcesses = 10
+	if len(infos) > maxListProcesses {
+		infos = infos[:maxListProcesses]
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.ListProcessesResponse{
 		Processes: infos,
 	})
@@ -124,6 +160,44 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Enforce chat ID isolation. If the request carries
+	// a chat context, only allow access to processes
+	// belonging to that chat.
+	if chatID, _, ok := agentgit.ExtractChatContext(r); ok {
+		if proc.chatID != "" && proc.chatID != chatID.String() {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("Process %q not found.", id),
+			})
+			return
+		}
+	}
+
+	// Check for blocking mode via query params.
+	waitStr := r.URL.Query().Get("wait")
+	wantWait := waitStr == "true"
+
+	if wantWait {
+		// Extend the write deadline so the HTTP server's
+		// WriteTimeout does not kill the connection while
+		// we block.
+		rc := http.NewResponseController(rw)
+		// Add headroom beyond the wait timeout so there's time to
+		// write the response after the blocking wait completes.
+		if err := rc.SetWriteDeadline(time.Now().Add(maxWaitDuration + 30*time.Second)); err != nil {
+			api.logger.Error(ctx, "extend write deadline for blocking process output",
+				slog.Error(err),
+			)
+		}
+
+		// Cap the wait at maxWaitDuration regardless of
+		// client-supplied timeout.
+		waitCtx, waitCancel := context.WithTimeout(ctx, maxWaitDuration)
+		defer waitCancel()
+
+		_ = proc.waitForOutput(waitCtx)
+		// Fall through to read snapshot below.
+	}
+
 	output, truncated := proc.output()
 	info := proc.info()
 
@@ -140,6 +214,17 @@ func (api *API) handleSignalProcess(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	id := chi.URLParam(r, "id")
+
+	// Enforce chat ID isolation.
+	if chatID, _, ok := agentgit.ExtractChatContext(r); ok {
+		proc, procOK := api.manager.get(id)
+		if procOK && proc.chatID != "" && proc.chatID != chatID.String() {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: fmt.Sprintf("Process %q not found.", id),
+			})
+			return
+		}
+	}
 
 	var req workspacesdk.SignalProcessRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

@@ -33,6 +33,15 @@ export function usersKey(req: UsersRequest) {
 	return ["users", req] as const;
 }
 
+export const userByNameKey = (username: string) => ["user", username] as const;
+
+export const userByName = (username: string): UseQueryOptions<User> => {
+	return {
+		queryKey: userByNameKey(username),
+		queryFn: () => API.getUser(username),
+	};
+};
+
 export function paginatedUsers(
 	searchParams: URLSearchParams,
 ): UsePaginatedQueryOptions<GetUsersResponse, UsersRequest> {
@@ -179,7 +188,7 @@ export const login = (
 		mutationFn: async (credentials: { email: string; password: string }) =>
 			loginFn({ ...credentials, authorization }),
 		onSuccess: async (data: Awaited<ReturnType<typeof loginFn>>) => {
-			queryClient.setQueryData(["me"], data.user);
+			queryClient.setQueryData(meKey, data.user);
 			queryClient.setQueryData(
 				getAuthorizationKey(authorization),
 				data.permissions,

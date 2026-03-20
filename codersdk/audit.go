@@ -45,6 +45,7 @@ const (
 	// connection log.
 	ResourceTypeWorkspaceApp ResourceType = "workspace_app"
 	ResourceTypeTask         ResourceType = "task"
+	ResourceTypeAISeat       ResourceType = "ai_seat"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -103,6 +104,8 @@ func (r ResourceType) FriendlyString() string {
 		return "workspace app"
 	case ResourceTypeTask:
 		return "task"
+	case ResourceTypeAISeat:
+		return "ai seat"
 	default:
 		return "unknown"
 	}

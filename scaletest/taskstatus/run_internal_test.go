@@ -196,10 +196,11 @@ func TestRunner_Run(t *testing.T) {
 		updater:     fUpdater,
 		cfg:         cfg,
 		clock:       mClock,
+		randFloat64: func() float64 { return 0.5 }, // not random in tests
 		reportTimes: make(map[int]time.Time),
 	}
 
-	reportTickerTrap := mClock.Trap().TickerFunc("reportTaskStatus")
+	reportTickerTrap := mClock.Trap().NewTimer("reportTaskStatus")
 	defer reportTickerTrap.Close()
 	sinceTrap := mClock.Trap().Since("watchWorkspaceUpdates")
 	defer sinceTrap.Close()
@@ -318,10 +319,11 @@ func TestRunner_RunMissedUpdate(t *testing.T) {
 		updater:     fUpdater,
 		cfg:         cfg,
 		clock:       mClock,
+		randFloat64: func() float64 { return 0.5 }, // not random in tests
 		reportTimes: make(map[int]time.Time),
 	}
 
-	tickerTrap := mClock.Trap().TickerFunc("reportTaskStatus")
+	tickerTrap := mClock.Trap().NewTimer("reportTaskStatus")
 	defer tickerTrap.Close()
 	sinceTrap := mClock.Trap().Since("watchWorkspaceUpdates")
 	defer sinceTrap.Close()
@@ -443,10 +445,11 @@ func TestRunner_Run_WithErrors(t *testing.T) {
 		updater:     fUpdater,
 		cfg:         cfg,
 		clock:       mClock,
+		randFloat64: func() float64 { return 0.5 }, // not random in tests
 		reportTimes: make(map[int]time.Time),
 	}
 
-	tickerTrap := mClock.Trap().TickerFunc("reportTaskStatus")
+	tickerTrap := mClock.Trap().NewTimer("reportTaskStatus")
 	defer tickerTrap.Close()
 	buildTickerTrap := mClock.Trap().TickerFunc("createExternalWorkspace")
 	defer buildTickerTrap.Close()
@@ -544,6 +547,7 @@ func TestRunner_Run_BuildFailed(t *testing.T) {
 		updater:     fUpdater,
 		cfg:         cfg,
 		clock:       mClock,
+		randFloat64: func() float64 { return 0.5 }, // not random in tests
 		reportTimes: make(map[int]time.Time),
 	}
 
@@ -673,10 +677,11 @@ func TestRunner_Cleanup(t *testing.T) {
 	}
 
 	runner := &Runner{
-		client:  fakeClient,
-		updater: newFakeAppStatusUpdater(t),
-		cfg:     cfg,
-		clock:   quartz.NewMock(t),
+		client:      fakeClient,
+		updater:     newFakeAppStatusUpdater(t),
+		cfg:         cfg,
+		clock:       quartz.NewMock(t),
+		randFloat64: func() float64 { return 0.5 }, // not random in tests
 	}
 
 	logWriter := testutil.NewTestLogWriter(t)

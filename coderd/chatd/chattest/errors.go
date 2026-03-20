@@ -3,6 +3,7 @@ package chattest
 import (
 	"encoding/json"
 	"net/http"
+	"testing"
 )
 
 // ErrorResponse describes an HTTP error that a test server should return
@@ -15,7 +16,7 @@ type ErrorResponse struct {
 
 // writeErrorResponse writes a JSON error response matching the common
 // provider error format used by both Anthropic and OpenAI.
-func writeErrorResponse(w http.ResponseWriter, errResp *ErrorResponse) {
+func writeErrorResponse(t testing.TB, w http.ResponseWriter, errResp *ErrorResponse) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(errResp.StatusCode)
 	body := map[string]interface{}{
@@ -24,7 +25,9 @@ func writeErrorResponse(w http.ResponseWriter, errResp *ErrorResponse) {
 			"message": errResp.Message,
 		},
 	}
-	_ = json.NewEncoder(w).Encode(body)
+	if err := json.NewEncoder(w).Encode(body); err != nil {
+		t.Errorf("writeErrorResponse: failed to encode error response: %v", err)
+	}
 }
 
 // AnthropicErrorResponse returns an AnthropicResponse that causes the

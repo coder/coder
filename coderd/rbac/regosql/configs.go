@@ -126,6 +126,30 @@ func NoACLConverter() *sqltypes.VariableConverter {
 	return matcher
 }
 
+// ChatConverter should be used for the chats table, which has no
+// organization_id, group_acl, or user_acl columns.
+func ChatConverter() *sqltypes.VariableConverter {
+	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
+		resourceIDMatcher(),
+		// The chats table has no organization_id column. Map org_owner
+		// to a literal empty string so that:
+		//  - User-level ownership checks (org_owner = '') activate correctly.
+		//  - Org-scoped permissions never match (org_owner will never equal
+		//    a real org UUID), which is intentional since chats are not
+		//    org-scoped resources.
+		// Note: custom org roles that include "chat" permissions will
+		// silently have no effect because of this mapping.
+		sqltypes.StringVarMatcher("''", []string{"input", "object", "org_owner"}),
+		userOwnerMatcher(),
+	)
+	matcher.RegisterMatcher(
+		sqltypes.AlwaysFalse(groupACLMatcher(matcher)),
+		sqltypes.AlwaysFalse(userACLMatcher(matcher)),
+	)
+
+	return matcher
+}
+
 func DefaultVariableConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),

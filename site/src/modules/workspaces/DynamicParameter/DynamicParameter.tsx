@@ -7,14 +7,6 @@ import type {
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { Checkbox } from "components/Checkbox/Checkbox";
-import {
-	Combobox,
-	ComboboxButton,
-	ComboboxContent,
-	ComboboxItem,
-	ComboboxList,
-	ComboboxTrigger,
-} from "components/Combobox/Combobox";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
@@ -24,6 +16,13 @@ import {
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "components/Select/Select";
 import { Slider } from "components/Slider/Slider";
 import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
@@ -335,41 +334,25 @@ const ParameterField: FC<ParameterFieldProps> = ({
 		}
 
 		case "dropdown": {
-			const selectedOption = parameter.options.find(
-				(opt) => opt.value.value === value,
-			);
 			return (
-				<Combobox
+				<Select
 					value={value}
 					onValueChange={(newValue) => onChange(newValue ?? "")}
+					disabled={disabled}
 				>
-					<ComboboxTrigger asChild>
-						<ComboboxButton
-							selectedOption={
-								selectedOption
-									? {
-											label: selectedOption.name,
-											value: selectedOption.value.value,
-										}
-									: undefined
-							}
+					<SelectTrigger>
+						<SelectValue
 							placeholder={parameter.styling?.placeholder || "Select option"}
-							disabled={disabled}
 						/>
-					</ComboboxTrigger>
-					<ComboboxContent>
-						<ComboboxList>
-							{parameter.options.map((option) => (
-								<ComboboxItem
-									key={option.value.value}
-									value={option.value.value}
-								>
-									{option.name}
-								</ComboboxItem>
-							))}
-						</ComboboxList>
-					</ComboboxContent>
-				</Combobox>
+					</SelectTrigger>
+					<SelectContent>
+						{parameter.options.map((option) => (
+							<SelectItem key={option.value.value} value={option.value.value}>
+								{option.name}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 			);
 		}
 
