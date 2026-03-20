@@ -896,7 +896,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	}
 
 	return (
-		<div className="mx-auto w-full max-w-3xl py-6">
+		<div className="mx-auto w-full max-w-3xl space-y-3 py-6">
 			{isEmpty && !hasStreamOutput ? (
 				<div className="py-12 text-center text-content-secondary">
 					<p className="text-sm">Start a conversation with your agent.</p>
