@@ -588,8 +588,8 @@ const ScrollAnchoredContainer: FC<{
 		const handleScroll = () => {
 			if (rafId !== null) return;
 			rafId = requestAnimationFrame(() => {
-				const isAtBottom = Math.abs(container.scrollTop) < SCROLL_THRESHOLD;
-				setShowScrollToBottom(!isAtBottom);
+				const shouldShow = Math.abs(container.scrollTop) >= SCROLL_THRESHOLD;
+				setShowScrollToBottom((prev) => (prev === shouldShow ? prev : shouldShow));
 				rafId = null;
 			});
 		};
