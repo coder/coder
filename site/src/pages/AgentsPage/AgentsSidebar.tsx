@@ -797,6 +797,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
 	}, []);
 
+	// Keep these callbacks stable for the memoized tree rows while still
+	// dispatching to the latest parent handlers.
 	const archiveCallbacksRef = useRef({
 		onArchiveAgent,
 		onUnarchiveAgent,

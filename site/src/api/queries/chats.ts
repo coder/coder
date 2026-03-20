@@ -152,6 +152,8 @@ export const chats = () => ({
 export const chat = (chatId: string) => ({
 	queryKey: chatKey(chatId),
 	queryFn: () => API.getChat(chatId),
+	// Agent detail state stays fresh via explicit invalidation and streaming
+	// updates. Focus refetches just add duplicate traffic when switching tabs.
 	refetchOnWindowFocus: false as const,
 });
 
