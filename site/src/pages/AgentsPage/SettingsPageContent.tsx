@@ -52,6 +52,10 @@ import TextareaAutosize from "react-textarea-autosize";
 import { formatTokenCount } from "utils/analytics";
 import { formatCostMicros } from "utils/currency";
 import { humanDuration } from "utils/time";
+import {
+	DateRange,
+	type DateRangeValue,
+} from "../TemplatePage/TemplateInsightsPage/DateRange";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { InsightsContent } from "./InsightsContent";
@@ -76,6 +80,37 @@ const AdminBadge: FC = () => (
 );
 
 const pageSize = 10;
+
+const usageStartDateSearchParam = "startDate";
+const usageEndDateSearchParam = "endDate";
+
+const getDefaultUsageDateRange = (now?: dayjs.Dayjs): DateRangeValue => {
+	const end = now ?? dayjs();
+	return {
+		startDate: end.subtract(30, "day").toDate(),
+		endDate: end.toDate(),
+	};
+};
+
+const formatUsageDateRange = (
+	value: DateRangeValue,
+	options?: {
+		endDateIsExclusive?: boolean;
+	},
+) => {
+	// Custom ranges keep the raw API end boundary, which can be midnight on
+	// the following day for full-day selections. Show the inclusive day in
+	// the drill-in label without changing the query params.
+	const displayEndDate =
+		options?.endDateIsExclusive &&
+		dayjs(value.endDate).isSame(dayjs(value.endDate).startOf("day"))
+			? dayjs(value.endDate).subtract(1, "day")
+			: dayjs(value.endDate);
+
+	return `${dayjs(value.startDate).format("MMM D")} – ${displayEndDate.format(
+		"MMM D, YYYY",
+	)}`;
+};
 
 const UserRow: FC<{
 	user: TypesGen.ChatCostUserRollup;
@@ -132,21 +167,66 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 	const [searchFilter, setSearchFilter] = useState("");
 	const debouncedSearch = useDebouncedValue(searchFilter, 300);
 	const [page, setPage] = useState(1);
-	const dateRange = (() => {
-		const end = now ?? dayjs();
-		const start = end.subtract(30, "day");
-		return {
-			startDate: start.toISOString(),
-			endDate: end.toISOString(),
-			rangeLabel: `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`,
-		};
-	})();
+	const startDateParam =
+		searchParams.get(usageStartDateSearchParam)?.trim() ?? "";
+	const endDateParam = searchParams.get(usageEndDateSearchParam)?.trim() ?? "";
+	const [defaultDateRange] = useState(() => getDefaultUsageDateRange(now));
+	let dateRange = defaultDateRange;
+	let hasExplicitDateRange = false;
+
+	if (startDateParam && endDateParam) {
+		const parsedStartDate = new Date(startDateParam);
+		const parsedEndDate = new Date(endDateParam);
+
+		if (
+			!Number.isNaN(parsedStartDate.getTime()) &&
+			!Number.isNaN(parsedEndDate.getTime()) &&
+			parsedStartDate.getTime() <= parsedEndDate.getTime()
+		) {
+			dateRange = {
+				startDate: parsedStartDate,
+				endDate: parsedEndDate,
+			};
+			hasExplicitDateRange = true;
+		}
+	}
+
+	const dateRangeParams = {
+		start_date: dateRange.startDate.toISOString(),
+		end_date: dateRange.endDate.toISOString(),
+	};
+	const { endDate } = dateRange;
+	const isExclusiveMidnightEnd =
+		hasExplicitDateRange &&
+		endDate.getHours() === 0 &&
+		endDate.getMinutes() === 0 &&
+		endDate.getSeconds() === 0 &&
+		endDate.getMilliseconds() === 0;
+	const displayDateRange = isExclusiveMidnightEnd
+		? {
+				startDate: dateRange.startDate,
+				endDate: new Date(endDate.getTime() - 1),
+			}
+		: dateRange;
+	const dateRangeLabel = formatUsageDateRange(dateRange, {
+		endDateIsExclusive: hasExplicitDateRange,
+	});
 	const offset = (page - 1) * pageSize;
+
+	const onDateRangeChange = (value: DateRangeValue) => {
+		// Reset pagination but preserve user selection and other params.
+		setPage(1);
+		setSearchParams((prev) => {
+			const next = new URLSearchParams(prev);
+			next.set(usageStartDateSearchParam, value.startDate.toISOString());
+			next.set(usageEndDateSearchParam, value.endDate.toISOString());
+			return next;
+		});
+	};
 
 	const usersQuery = useQuery({
 		...chatCostUsers({
-			start_date: dateRange.startDate,
-			end_date: dateRange.endDate,
+			...dateRangeParams,
 			username: debouncedSearch || undefined,
 			limit: pageSize,
 			offset,
@@ -162,10 +242,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 	const selectedUser = selectedUserQuery.data ?? null;
 
 	const summaryQuery = useQuery({
-		...chatCostSummary(selectedUserId ?? "me", {
-			start_date: dateRange.startDate,
-			end_date: dateRange.endDate,
-		}),
+		...chatCostSummary(selectedUserId ?? "me", dateRangeParams),
 		enabled: selectedUserId !== null,
 	});
 	const totalCount = usersQuery.data?.count ?? 0;
@@ -182,9 +259,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 			}
 			badge={<AdminBadge />}
 			action={
-				<span className="text-xs text-content-secondary">
-					{dateRange.rangeLabel}
-				</span>
+				<DateRange value={displayDateRange} onChange={onDateRangeChange} />
 			}
 		/>
 	);
@@ -266,7 +341,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 					/>
 					<div className="min-w-0 text-xs text-content-secondary">
 						<div>User ID: {selectedUser.id}</div>
-						<div>{dateRange.rangeLabel}</div>
+						<div>{dateRangeLabel}</div>
 					</div>
 				</div>
 				<ChatCostSummaryView
@@ -331,64 +406,80 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 				</div>
 			)}
 
-			{usersQuery.data &&
-				(usersQuery.data.users.length === 0 ? (
-					<p className="py-12 text-center text-content-secondary">
-						No usage data for this period.
-					</p>
-				) : (
-					<>
-						<div className="overflow-hidden rounded-lg border border-border-default">
-							<Table>
-								<TableHeader>
-									<TableRow className="text-left text-xs uppercase tracking-wide text-content-secondary">
-										<TableHead className="px-4 py-3">User</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Total Cost
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Messages
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Chats
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Input Tokens
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Output Tokens
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Cache Read
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Cache Write
-										</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{usersQuery.data.users.map((user) => (
-										<UserRow
-											key={user.user_id}
-											user={user}
-											onSelect={(u) => {
-												setSearchParams({ user: u.user_id });
-											}}
-										/>
-									))}
-								</TableBody>
-							</Table>
+			{usersQuery.data && (
+				<div className="relative">
+					{usersQuery.isFetching && !usersQuery.isLoading && (
+						<div
+							role="status"
+							aria-label="Refreshing usage"
+							className="absolute inset-0 z-10 flex items-center justify-center bg-surface-primary/50"
+						>
+							<Spinner size="lg" loading className="text-content-secondary" />
 						</div>
-						<PaginationWidgetBase
-							totalRecords={usersQuery.data.count}
-							currentPage={page}
-							pageSize={pageSize}
-							onPageChange={setPage}
-							hasPreviousPage={hasPreviousPage}
-							hasNextPage={hasNextPage}
-						/>
-					</>
-				))}
+					)}
+					{usersQuery.data.users.length === 0 ? (
+						<p className="py-12 text-center text-content-secondary">
+							No usage data for this period.
+						</p>
+					) : (
+						<>
+							<div className="overflow-hidden rounded-lg border border-border-default">
+								<Table>
+									<TableHeader>
+										<TableRow className="text-left text-xs uppercase tracking-wide text-content-secondary">
+											<TableHead className="px-4 py-3">User</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Total Cost
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Messages
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Chats
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Input Tokens
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Output Tokens
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Cache Read
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Cache Write
+											</TableHead>
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{usersQuery.data.users.map((user) => (
+											<UserRow
+												key={user.user_id}
+												user={user}
+												onSelect={(u) => {
+													setSearchParams((prev) => {
+														const next = new URLSearchParams(prev);
+														next.set("user", u.user_id);
+														return next;
+													});
+												}}
+											/>
+										))}
+									</TableBody>
+								</Table>
+							</div>
+							<PaginationWidgetBase
+								totalRecords={usersQuery.data.count}
+								currentPage={page}
+								pageSize={pageSize}
+								onPageChange={setPage}
+								hasPreviousPage={hasPreviousPage}
+								hasNextPage={hasNextPage}
+							/>
+						</>
+					)}
+				</div>
+			)}
 		</div>
 	);
 };

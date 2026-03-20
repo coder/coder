@@ -114,6 +114,17 @@ const setupUsageSpies = (opts?: {
 	spyOn(API, "getChatCostSummary").mockResolvedValue(mockCostSummary);
 };
 
+const getChatCostUsersCalls = () =>
+	(
+		API.getChatCostUsers as typeof API.getChatCostUsers & {
+			mock: {
+				calls: Array<[Parameters<typeof API.getChatCostUsers>[0]]>;
+			};
+		}
+	).mock.calls;
+
+const fixedNow = dayjs("2026-03-12T00:00:00Z");
+
 // ── Meta ───────────────────────────────────────────────────────
 
 const meta = {
@@ -124,7 +135,7 @@ const meta = {
 		activeSection: "behavior",
 		canManageChatModelConfigs: false,
 		canSetSystemPrompt: true,
-		now: dayjs("2026-03-12T00:00:00Z"),
+		now: fixedNow,
 	},
 	parameters: {
 		user: MockUserOwner,
@@ -317,6 +328,120 @@ export const UsageUserList: Story = {
 		await expect(
 			canvas.getByPlaceholderText("Search by name or username"),
 		).toBeInTheDocument();
+	},
+};
+
+export const UsageDateFilter: Story = {
+	args: {
+		activeSection: "usage",
+		canManageChatModelConfigs: true,
+	},
+	beforeEach: () => {
+		setupUsageSpies();
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const defaultStartDate = fixedNow.subtract(30, "day").toISOString();
+		const defaultStartLabel = fixedNow
+			.subtract(30, "day")
+			.format("MMM D, YYYY");
+		const defaultEndLabel = fixedNow.format("MMM D, YYYY");
+
+		await waitFor(() => {
+			expect(API.getChatCostUsers).toHaveBeenCalled();
+		});
+		const initialCallCount = getChatCostUsersCalls().length;
+
+		const dateRangeTrigger = await canvas.findByRole("button", {
+			name: new RegExp(`${defaultStartLabel}.*${defaultEndLabel}`),
+		});
+
+		await userEvent.click(dateRangeTrigger);
+		const last7Days = await body.findByRole("button", {
+			name: "Last 7 days",
+		});
+
+		await userEvent.click(last7Days);
+
+		await waitFor(() => {
+			expect(body.queryByRole("button", { name: "Last 7 days" })).toBeNull();
+			const calls = getChatCostUsersCalls();
+			expect(calls.length).toBeGreaterThan(initialCallCount);
+
+			const latestCall = calls.at(-1)?.[0];
+			expect(latestCall).toBeDefined();
+			if (!latestCall) {
+				throw new Error("Expected getChatCostUsers to be called with params.");
+			}
+
+			expect(latestCall.start_date).not.toBe(defaultStartDate);
+		});
+	},
+};
+
+export const UsageDateFilterRefetchOverlay: Story = {
+	args: {
+		activeSection: "usage",
+		canManageChatModelConfigs: true,
+	},
+	beforeEach: () => {
+		let requestCount = 0;
+		let resolveRefetch:
+			| ((value: TypesGen.ChatCostUsersResponse) => void)
+			| undefined;
+		const refetchPromise = new Promise<TypesGen.ChatCostUsersResponse>(
+			(resolve) => {
+				resolveRefetch = resolve;
+			},
+		);
+
+		spyOn(API, "getChatCostUsers").mockImplementation(async () => {
+			requestCount += 1;
+			if (requestCount === 1) {
+				return mockUsersResponse;
+			}
+
+			return refetchPromise;
+		});
+		spyOn(API, "getUser").mockResolvedValue(mockUserProfile);
+		spyOn(API, "getChatCostSummary").mockResolvedValue(mockCostSummary);
+
+		return () => {
+			resolveRefetch?.({
+				...mockUsersResponse,
+				start_date: "2026-03-06T00:00:00Z",
+				end_date: "2026-03-12T00:00:00Z",
+			});
+		};
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const defaultStartLabel = fixedNow
+			.subtract(30, "day")
+			.format("MMM D, YYYY");
+		const defaultEndLabel = fixedNow.format("MMM D, YYYY");
+
+		await canvas.findByText("Alice Liddell");
+
+		await step(
+			"show a refetch overlay after changing the date range",
+			async () => {
+				const dateRangeTrigger = await canvas.findByRole("button", {
+					name: new RegExp(`${defaultStartLabel}.*${defaultEndLabel}`),
+				});
+
+				await userEvent.click(dateRangeTrigger);
+				await userEvent.click(
+					await body.findByRole("button", { name: "Last 7 days" }),
+				);
+
+				await expect(
+					await canvas.findByRole("status", { name: "Refreshing usage" }),
+				).toBeInTheDocument();
+			},
+		);
 	},
 };
 
