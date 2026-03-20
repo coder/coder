@@ -4,20 +4,23 @@ import { Margins } from "components/Margins/Margins";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { useNavigate } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { EditUserForm } from "./EditUserForm";
 
 const EditUserPage: FC = () => {
+	const { userId } = useParams() as { userId: string };
 	const navigate = useNavigate();
-	const userQuery = useQuery(user());
+	const userQuery = useQuery(user(userId));
 
 	return (
 		<Margins>
 			<title>{pageTitle("Edit User")}</title>
 
-			<EditUserForm
+			<h1>{userQuery.data?.name}</h1>
+
+			{/*<EditUserForm
 				error={createUserMutation.error}
 				isLoading={createUserMutation.isPending}
 				onSubmit={async (user) => {
@@ -53,9 +56,7 @@ const EditUserPage: FC = () => {
 				onCancel={() => {
 					navigate("..", { relative: "path" });
 				}}
-				authMethods={authMethodsQuery.data}
-				showOrganizations={showOrganizations}
-			/>
+			/>*/}
 		</Margins>
 	);
 };

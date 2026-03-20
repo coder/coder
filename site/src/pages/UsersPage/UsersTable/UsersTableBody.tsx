@@ -33,9 +33,9 @@ import {
 	UserLockIcon,
 } from "lucide-react";
 import type { FC } from "react";
+import { useNavigate } from "react-router";
 import { UserRoleCell } from "../../OrganizationSettingsPage/UserTable/UserRoleCell";
 import { UserGroupsCell } from "./UserGroupsCell";
-import { useNavigate } from "react-router";
 
 dayjs.extend(relativeTime);
 
