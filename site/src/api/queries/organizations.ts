@@ -10,7 +10,6 @@ import type {
 	PaginatedMembersRequest,
 	PaginatedMembersResponse,
 	RoleSyncSettings,
-	ShareableWorkspaceOwners,
 	UpdateOrganizationRequest,
 	UpdateWorkspaceSharingSettingsRequest,
 } from "api/typesGenerated";
