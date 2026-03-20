@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
 	chat,
 	chatMessagesForInfiniteScroll,
-	chats,
 	infiniteChats,
 } from "../../api/queries/chats";
 import { emptyInputStorageKey, useEmptyStateDraft } from "./AgentCreateForm";
@@ -11,7 +10,6 @@ import { emptyInputStorageKey, useEmptyStateDraft } from "./AgentCreateForm";
 describe("chat query refetch policies", () => {
 	it("keeps chat list queries refreshing on window focus", () => {
 		expect(infiniteChats().refetchOnWindowFocus).toBe(true);
-		expect(chats().refetchOnWindowFocus).toBe(true);
 	});
 
 	it("disables window focus refetching for chat detail queries", () => {

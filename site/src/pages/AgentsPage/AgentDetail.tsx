@@ -4,7 +4,6 @@ import {
 	chat,
 	chatKey,
 	chatMessagesForInfiniteScroll,
-	chats,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
@@ -315,7 +314,11 @@ const AgentDetail: FC = () => {
 		...chatMessagesForInfiniteScroll(agentId ?? ""),
 		enabled: Boolean(agentId),
 	});
-	const chatsQuery = useQuery(chats());
+	const parentChatID = getParentChatID(chatQuery.data);
+	const parentChatQuery = useQuery({
+		...chat(parentChatID ?? ""),
+		enabled: Boolean(parentChatID),
+	});
 	const workspaceId = chatQuery.data?.workspace_id ?? cachedWorkspaceId;
 	const workspaceQuery = useQuery({
 		...workspaceById(workspaceId ?? ""),
@@ -727,10 +730,7 @@ const AgentDetail: FC = () => {
 		</title>
 	);
 
-	const parentChatID = getParentChatID(chatQuery.data);
-	const parentChat = parentChatID
-		? chatsQuery.data?.find((chat) => chat.id === parentChatID)
-		: undefined;
+	const parentChat = parentChatQuery.data;
 	const workspaceRoute = workspace
 		? `/@${workspace.owner_name}/${workspace.name}`
 		: null;

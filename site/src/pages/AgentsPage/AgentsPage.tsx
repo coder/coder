@@ -54,6 +54,7 @@ import { useAgentsPWA } from "./useAgentsPWA";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 const nilUUID = "00000000-0000-0000-0000-000000000000";
+const EMPTY_MODEL_CONFIGS: TypesGen.ChatModelConfig[] = [];
 
 // Type guard for SSE events from the chat list watch endpoint.
 function isChatListSSEEvent(
@@ -249,7 +250,10 @@ const AgentsPage: FC = () => {
 			return next;
 		});
 	}, []);
-	const chatList = chatsQuery.data?.pages.flat() ?? [];
+	const chatList = useMemo(
+		() => chatsQuery.data?.pages.flat() ?? [],
+		[chatsQuery.data],
+	);
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
 	const archivingChatId =
@@ -386,14 +390,15 @@ const AgentsPage: FC = () => {
 					const chatEvent = sse.data;
 					const updatedChat = chatEvent.chat;
 
-					// Read the previous status from the query cache, which
-					// is synchronously updated by both the per-chat WebSocket
-					// (via updateSidebarChat) and this handler. This avoids
-					// the async-lag of a useEffect-based status map.
-					const currentChats = readInfiniteChatsCache(queryClient);
-					const prevStatus = currentChats?.find(
+					// Read the previous status from the infinite chat list
+					// cache before we write the update below. The per-chat
+					// query cache (chatKey) only exists for chats the user
+					// has opened, so reading from the list cache ensures
+					// prevStatus is available for background agents too.
+					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
 						(c) => c.id === updatedChat.id,
-					)?.status; // Only play the chime for top-level chats, not sub-agents.
+					)?.status;
+					// Only play the chime for top-level chats, not sub-agents.
 					if (!updatedChat.parent_chat_id) {
 						maybePlayChime(
 							prevStatus,
@@ -522,7 +527,7 @@ const AgentsPage: FC = () => {
 				agentId={agentId}
 				chatList={chatList}
 				catalogModelOptions={catalogModelOptions}
-				modelConfigs={chatModelConfigsQuery.data ?? []}
+				modelConfigs={chatModelConfigsQuery.data ?? EMPTY_MODEL_CONFIGS}
 				logoUrl={appearance.logo_url}
 				handleNewAgent={handleNewAgent}
 				isCreating={createMutation.isPending}

@@ -143,12 +143,6 @@ export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
 };
 
-export const chats = () => ({
-	queryKey: chatsKey,
-	queryFn: () => API.getChats(),
-	refetchOnWindowFocus: true as const,
-});
-
 export const chat = (chatId: string) => ({
 	queryKey: chatKey(chatId),
 	queryFn: () => API.getChat(chatId),
