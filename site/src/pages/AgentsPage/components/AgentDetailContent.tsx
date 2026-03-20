@@ -291,7 +291,7 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 		);
 		const files = fileBlocks.map((block, i) => {
 			const mt = block.media_type ?? "application/octet-stream";
-			const ext = mt.split("/")[1] ?? "png";
+			const ext = mt === "text/plain" ? "txt" : (mt.split("/")[1] ?? "png");
 			// Empty File used as a Map key only, its content is never
 			// read because the existing file_id is reused at send time.
 			return new File([], `attachment-${i}.${ext}`, { type: mt });
