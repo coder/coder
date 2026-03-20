@@ -850,9 +850,10 @@ type querier struct {
 	heartbeats *heartbeats
 	updates    <-chan hbUpdate
 
-	mu      sync.Mutex
-	mappers map[mKey]*mapper
-	healthy bool
+	mu             sync.Mutex
+	mappers        map[mKey]*mapper
+	tunnelsByPeer  map[uuid.UUID]map[mKey]struct{} // remote peer → local mapper keys with tunnels
+	healthy        bool
 }
 
 func newQuerier(ctx context.Context,
@@ -879,6 +880,7 @@ func newQuerier(ctx context.Context,
 		workQ:            newWorkQ[querierWorkKey](ctx),
 		heartbeats:       newHeartbeats(ctx, logger, ps, store, self, updates, firstHeartbeat, clk),
 		mappers:          make(map[mKey]*mapper),
+		tunnelsByPeer:    make(map[uuid.UUID]map[mKey]struct{}),
 		updates:          updates,
 		healthy:          true, // assume we start healthy
 	}
@@ -961,6 +963,28 @@ func (q *querier) isHealthy() bool {
 	return q.healthy
 }
 
+// addTunnelPeerLocked adds mk to the set of local mappers interested in
+// updates for the given remote peer. Caller must hold q.mu.
+func (q *querier) addTunnelPeerLocked(peer uuid.UUID, mk mKey) {
+	s, ok := q.tunnelsByPeer[peer]
+	if !ok {
+		s = make(map[mKey]struct{})
+		q.tunnelsByPeer[peer] = s
+	}
+	s[mk] = struct{}{}
+}
+
+// removeTunnelsByMapperLocked removes mk from every entry in
+// tunnelsByPeer, cleaning up empty sets. Caller must hold q.mu.
+func (q *querier) removeTunnelsByMapperLocked(mk mKey) {
+	for peer, s := range q.tunnelsByPeer {
+		delete(s, mk)
+		if len(s) == 0 {
+			delete(q.tunnelsByPeer, peer)
+		}
+	}
+}
+
 func (q *querier) cleanupConn(c *connIO) {
 	logger := q.logger.With(slog.F("peer_id", c.UniqueID()))
 	q.mu.Lock()
@@ -980,6 +1004,7 @@ func (q *querier) cleanupConn(c *connIO) {
 		logger.Error(q.ctx, "failed to close connIO", slog.Error(err))
 	}
 	delete(q.mappers, mk)
+	q.removeTunnelsByMapperLocked(mk)
 	q.logger.Debug(q.ctx, "removed mapper", slog.F("peer_id", c.UniqueID()))
 }
 
@@ -1028,6 +1053,14 @@ func (q *querier) peerUpdate(peer uuid.UUID) error {
 		return err
 	}
 	logger.Debug(q.ctx, "queried peers that share a tunnel", slog.F("num_peers", len(others)))
+	q.mu.Lock()
+	for _, other := range others {
+		mk := mKey(other.PeerID)
+		if _, ok := q.mappers[mk]; ok {
+			q.addTunnelPeerLocked(peer, mk)
+		}
+	}
+	q.mu.Unlock()
 	for _, other := range others {
 		logger.Debug(q.ctx, "got tunnel peer", slog.F("other_id", other.PeerID))
 		q.workQ.enqueue(querierWorkKey{mappingQuery: mKey(other.PeerID)})
@@ -1204,6 +1237,19 @@ func (q *querier) listenPeer(_ context.Context, msg []byte, err error) {
 	logger := q.logger.With(slog.F("peer_id", peer))
 	logger.Debug(q.ctx, "got peer update")
 
+	// Fast path: skip the peer update entirely when this coordinator has
+	// no local mapper for the peer and no known tunnel partners that are
+	// local mappers. Without local interest the resulting DB query and
+	// enqueued mapping queries would all be no-ops.
+	q.mu.Lock()
+	_, isLocalMapper := q.mappers[mKey(peer)]
+	_, hasTunnelPartners := q.tunnelsByPeer[peer]
+	q.mu.Unlock()
+	if !isLocalMapper && !hasTunnelPartners {
+		logger.Debug(q.ctx, "skipping peer update: no local interest")
+		return
+	}
+
 	// we know that this peer has an updated node mapping, but we don't yet know who to send that
 	// update to. We need to query the database to find all the other peers that share a tunnel with
 	// this one, and then run mapping queries against all of them.
@@ -1227,6 +1273,19 @@ func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 		return
 	}
 	q.logger.Debug(q.ctx, "got tunnel update", slog.F("peers", peers))
+	// Update the reverse tunnel index so listenPeer knows which remote
+	// peers have local interest.
+	if len(peers) == 2 {
+		q.mu.Lock()
+		for i := 0; i < 2; i++ {
+			other := 1 - i
+			mk := mKey(peers[i])
+			if _, ok := q.mappers[mk]; ok {
+				q.addTunnelPeerLocked(peers[other], mk)
+			}
+		}
+		q.mu.Unlock()
+	}
 	for _, peer := range peers {
 		mk := mKey(peer)
 		q.mu.Lock()
@@ -1274,6 +1333,9 @@ func (q *querier) listenReadyForHandshake(_ context.Context, msg []byte, err err
 func (q *querier) resyncPeerMappings() {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	// Clear the reverse tunnel index; it will be repopulated organically
+	// as peerUpdate and listenTunnel callbacks fire.
+	q.tunnelsByPeer = make(map[uuid.UUID]map[mKey]struct{})
 	for mk := range q.mappers {
 		q.workQ.enqueue(querierWorkKey{mappingQuery: mk})
 	}
