@@ -27,6 +27,7 @@ import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
 } from "./AgentsSkeletons";
+import { loadPersistedRightPanelWidth } from "./rightPanelState";
 import type { ChatDetailError } from "./usageLimitMessage";
 
 export type AgentDetailSidebarModules = [
@@ -158,11 +159,18 @@ export const DeferredAgentDetailSidebar: FC<
 	return <>{children(sidebarComponents)}</>;
 };
 
-export const AgentDetailSidebarPanelLoadingFallback: FC = () => (
-	<div className="relative flex h-full w-[100vw] min-w-0 flex-col border-0 border-l border-solid border-border-default sm:w-[480px] sm:min-w-[360px] sm:max-w-[70vw]">
-		<RightPanelSkeleton />
-	</div>
-);
+export const AgentDetailSidebarPanelLoadingFallback: FC = () => {
+	const width = loadPersistedRightPanelWidth();
+
+	return (
+		<div
+			style={{ "--panel-width": `${width}px` } as React.CSSProperties}
+			className="relative flex h-full w-[100vw] min-w-0 flex-col border-0 border-l border-solid border-border-default sm:w-[var(--panel-width)] sm:min-w-[360px] sm:max-w-[70vw]"
+		>
+			<RightPanelSkeleton />
+		</div>
+	);
+};
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 

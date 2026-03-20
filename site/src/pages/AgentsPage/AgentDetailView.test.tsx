@@ -1,11 +1,16 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	type AgentDetailSidebarComponents,
 	type AgentDetailSidebarModules,
+	AgentDetailSidebarPanelLoadingFallback,
 	createAgentDetailSidebarModulesLoader,
 	DeferredAgentDetailSidebar,
 } from "./AgentDetailView";
+import {
+	RIGHT_PANEL_DEFAULT_WIDTH,
+	RIGHT_PANEL_WIDTH_STORAGE_KEY,
+} from "./rightPanelState";
 
 const makeModules = () => [{}, {}, {}] as unknown as AgentDetailSidebarModules;
 
@@ -18,6 +23,10 @@ const makeSidebarComponents = () =>
 		GitPanel: (() =>
 			null) as unknown as AgentDetailSidebarComponents["GitPanel"],
 	}) satisfies AgentDetailSidebarComponents;
+
+beforeEach(() => {
+	localStorage.clear();
+});
 
 describe("createAgentDetailSidebarModulesLoader", () => {
 	it("reuses the same in-flight import promise", async () => {
@@ -57,6 +66,28 @@ describe("createAgentDetailSidebarModulesLoader", () => {
 		await expect(loadSidebarModules()).resolves.toBe(modules);
 		await expect(loadSidebarModules()).resolves.toBe(modules);
 		expect(loadModules).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("AgentDetailSidebarPanelLoadingFallback", () => {
+	it("uses the persisted right panel width", () => {
+		localStorage.setItem(RIGHT_PANEL_WIDTH_STORAGE_KEY, "640");
+
+		const { container } = render(<AgentDetailSidebarPanelLoadingFallback />);
+		const fallback = container.firstElementChild;
+
+		expect(fallback).toHaveStyle({ "--panel-width": "640px" });
+	});
+
+	it("falls back to the default width for invalid persisted values", () => {
+		localStorage.setItem(RIGHT_PANEL_WIDTH_STORAGE_KEY, "120");
+
+		const { container } = render(<AgentDetailSidebarPanelLoadingFallback />);
+		const fallback = container.firstElementChild;
+
+		expect(fallback).toHaveStyle({
+			"--panel-width": `${RIGHT_PANEL_DEFAULT_WIDTH}px`,
+		});
 	});
 });
 

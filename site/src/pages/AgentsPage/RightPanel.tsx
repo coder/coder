@@ -7,35 +7,15 @@ import {
 	useState,
 } from "react";
 import { cn } from "utils/cn";
-
-const STORAGE_KEY = "agents.right-panel-width";
-const MIN_WIDTH = 360;
-const MAX_WIDTH_RATIO = 0.7;
-const DEFAULT_WIDTH = 480;
+import {
+	getRightPanelMaxWidth,
+	loadPersistedRightPanelWidth,
+	RIGHT_PANEL_DEFAULT_WIDTH,
+	RIGHT_PANEL_MIN_WIDTH,
+	RIGHT_PANEL_WIDTH_STORAGE_KEY,
+} from "./rightPanelState";
 
 const SNAP_THRESHOLD = 80;
-
-function getMaxWidth(): number {
-	if (typeof window === "undefined") {
-		return 960;
-	}
-	return Math.max(MIN_WIDTH, Math.floor(window.innerWidth * MAX_WIDTH_RATIO));
-}
-
-function loadPersistedWidth(): number {
-	if (typeof window === "undefined") {
-		return DEFAULT_WIDTH;
-	}
-	const stored = localStorage.getItem(STORAGE_KEY);
-	if (!stored) {
-		return DEFAULT_WIDTH;
-	}
-	const parsed = Number.parseInt(stored, 10);
-	if (Number.isNaN(parsed) || parsed < MIN_WIDTH || parsed > getMaxWidth()) {
-		return DEFAULT_WIDTH;
-	}
-	return parsed;
-}
 
 interface RightPanelProps {
 	isOpen: boolean;
@@ -95,7 +75,7 @@ function useResizableDrag({
 			startWidth.current = isExpanded
 				? ((e.target as HTMLElement).closest(
 						"[data-testid='agents-right-panel']",
-					)?.parentElement?.clientWidth ?? getMaxWidth())
+					)?.parentElement?.clientWidth ?? getRightPanelMaxWidth())
 				: width;
 			(e.target as HTMLElement).setPointerCapture(e.pointerId);
 		},
@@ -109,7 +89,7 @@ function useResizableDrag({
 			}
 			const delta = startX.current - e.clientX;
 			const raw = startWidth.current + delta;
-			const maxWidth = getMaxWidth();
+			const maxWidth = getRightPanelMaxWidth();
 
 			// Collapse/uncollapse the sidebar live when the pointer
 			// reaches the left edge of the viewport.
@@ -131,11 +111,11 @@ function useResizableDrag({
 			let nextSnap: "normal" | "expanded" | "closed";
 			if (raw > maxWidth + SNAP_THRESHOLD) {
 				nextSnap = "expanded";
-			} else if (raw < MIN_WIDTH - SNAP_THRESHOLD) {
+			} else if (raw < RIGHT_PANEL_MIN_WIDTH - SNAP_THRESHOLD) {
 				nextSnap = "closed";
 			} else {
 				nextSnap = "normal";
-				setWidth(Math.min(maxWidth, Math.max(MIN_WIDTH, raw)));
+				setWidth(Math.min(maxWidth, Math.max(RIGHT_PANEL_MIN_WIDTH, raw)));
 			}
 			setDragSnap(nextSnap);
 
@@ -204,13 +184,13 @@ export const RightPanel = ({
 	onToggleSidebarCollapsed,
 	children,
 }: RightPanelProps) => {
-	const [width, setWidth] = useState(loadPersistedWidth);
+	const [width, setWidth] = useState(loadPersistedRightPanelWidth);
 
 	// Clamp width when the viewport shrinks so the panel
 	// doesn't overflow and take over the whole page.
 	useEffect(() => {
 		const handleResize = () => {
-			setWidth((prev) => Math.min(prev, getMaxWidth()));
+			setWidth((prev) => Math.min(prev, getRightPanelMaxWidth()));
 		};
 		window.addEventListener("resize", handleResize);
 		return () => window.removeEventListener("resize", handleResize);
@@ -221,7 +201,7 @@ export const RightPanel = ({
 			if (snap === "expanded" && !isExpanded) {
 				onToggleExpanded();
 			} else if (snap === "closed") {
-				setWidth(DEFAULT_WIDTH);
+				setWidth(RIGHT_PANEL_DEFAULT_WIDTH);
 				if (isExpanded) {
 					onToggleExpanded();
 				}
@@ -252,7 +232,7 @@ export const RightPanel = ({
 
 	useEffect(() => {
 		if (typeof window !== "undefined") {
-			localStorage.setItem(STORAGE_KEY, String(width));
+			localStorage.setItem(RIGHT_PANEL_WIDTH_STORAGE_KEY, String(width));
 		}
 	}, [width]);
 
