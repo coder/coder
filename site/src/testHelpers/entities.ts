@@ -2980,6 +2980,20 @@ export const MockGroup: TypesGen.Group = {
 	total_member_count: 2,
 };
 
+export const MockGroupWithoutMembers: TypesGen.Group = {
+	id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
+	name: "Front-End",
+	display_name: "Front-End",
+	avatar_url: "https://example.com",
+	organization_id: MockOrganization.id,
+	organization_name: MockOrganization.name,
+	organization_display_name: MockOrganization.display_name,
+	members: [],
+	quota_allowance: 5,
+	source: "user",
+	total_member_count: 2,
+};
+
 export const MockGroup2: TypesGen.Group = {
 	id: "13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
 	name: "developer",
