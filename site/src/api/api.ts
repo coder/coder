@@ -2181,6 +2181,17 @@ class ApiMethods {
 		return response.data;
 	};
 
+	addMembers = async (groupId: string, userIds: string[]) => {
+		return this.patchGroup(groupId, {
+			name: "",
+			add_users: userIds,
+			remove_users: [],
+			display_name: null,
+			avatar_url: null,
+			quota_allowance: null,
+		});
+	};
+
 	addMember = async (groupId: string, userId: string) => {
 		return this.patchGroup(groupId, {
 			name: "",
