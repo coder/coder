@@ -76,6 +76,26 @@ resource "coder_agent" "main" {
     # Append "-s -- --version x.x.x" to install a specific version of code-server.
     curl -fsSL https://code-server.dev/install.sh | sh
 
+    # Remove old code-server cached archives to save disk space.
+    # https://github.com/coder/coder/issues/23356
+    if command -v code-server >/dev/null 2>&1; then
+      CS_VERSION=$(code-server --version | head -1)
+      for old_tar in "$${XDG_CACHE_HOME:-$HOME/.cache}"/code-server/code-server-*.tar.gz; do
+        [ -f "$old_tar" ] || continue
+        case "$old_tar" in
+          *"$CS_VERSION"*) continue ;;
+        esac
+        rm -f "$old_tar"
+      done
+      for old_pkg in "$${XDG_CACHE_HOME:-$HOME/.cache}"/code-server/code-server_*.deb "$${XDG_CACHE_HOME:-$HOME/.cache}"/code-server/code-server-*.rpm; do
+        [ -f "$old_pkg" ] || continue
+        case "$old_pkg" in
+          *"$CS_VERSION"*) continue ;;
+        esac
+        rm -f "$old_pkg"
+      done
+    fi
+
     # Start code-server.
     code-server --auth none --port 13337
     EOF

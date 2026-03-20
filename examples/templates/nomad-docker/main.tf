@@ -95,6 +95,24 @@ resource "coder_agent" "main" {
     set -e
     # install and start code-server
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
+
+    # Remove old code-server versions and cached tarballs to save disk space.
+    # https://github.com/coder/coder/issues/23356
+    for old_dir in /tmp/code-server/lib/code-server-*; do
+      [ -d "$old_dir" ] || continue
+      case "$old_dir" in
+        *"$(/tmp/code-server/bin/code-server --version | head -1)"*) continue ;;
+      esac
+      rm -rf "$old_dir"
+    done
+    for old_tar in "$${XDG_CACHE_HOME:-$HOME/.cache}"/code-server/code-server-*.tar.gz; do
+      [ -f "$old_tar" ] || continue
+      case "$old_tar" in
+        *"$(/tmp/code-server/bin/code-server --version | head -1)"*) continue ;;
+      esac
+      rm -f "$old_tar"
+    done
+
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
 
