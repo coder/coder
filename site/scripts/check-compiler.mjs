@@ -1,15 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { createRequire } from "node:module";
 import { join, relative } from "node:path";
-
-// Resolve @babel/core and the TS syntax plugin through
-// @vitejs/plugin-react's dependency tree — they are transitive
-// deps, not direct deps, so pnpm won't resolve bare imports.
-const require = createRequire(import.meta.url);
-const pluginReactPath = require.resolve("@vitejs/plugin-react");
-const innerRequire = createRequire(pluginReactPath);
-const { transformSync } = innerRequire("@babel/core");
-const syntaxTSPlugin = innerRequire.resolve("@babel/plugin-syntax-typescript");
+import { transformSync } from "@babel/core";
 
 const siteDir = new URL("..", import.meta.url).pathname;
 
@@ -49,7 +40,7 @@ for (const file of files) {
 	try {
 		const result = transformSync(code, {
 			plugins: [
-				[syntaxTSPlugin, { isTSX }],
+				["@babel/plugin-syntax-typescript", { isTSX }],
 				["babel-plugin-react-compiler", {
 					logger: {
 						logEvent(_filename, event) {
