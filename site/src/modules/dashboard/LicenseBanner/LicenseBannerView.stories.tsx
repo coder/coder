@@ -1,6 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { LicenseManagedAgentLimitExceededWarningText } from "#/api/typesGenerated";
+import { expect, within } from "storybook/test";
+import {
+	LicenseAIGovernance90PercentWarningText,
+	LicenseManagedAgentLimitExceededWarningText,
+	LicenseTelemetryRequiredErrorText,
+} from "#/api/typesGenerated";
 import { chromatic } from "#/testHelpers/chromatic";
+import { docs } from "#/utils/docs";
 import { LicenseBannerView } from "./LicenseBannerView";
 
 const meta: Meta<typeof LicenseBannerView> = {
@@ -14,43 +20,184 @@ type Story = StoryObj<typeof LicenseBannerView>;
 
 export const OneWarning: Story = {
 	args: {
-		errors: [],
-		warnings: ["You have exceeded the number of seats in your license."],
+		messages: [
+			{
+				message: "You have exceeded the number of seats in your license.",
+				variant: "warningProminent",
+				link: {
+					href: "mailto:sales@coder.com",
+					label: "Contact sales@coder.com.",
+					showExternalIcon: false,
+				},
+			},
+		],
 	},
 };
 
 export const TwoWarnings: Story = {
 	args: {
-		errors: [],
-		warnings: [
-			"You have exceeded the number of seats in your license.",
-			"You are flying too close to the sun.",
+		messages: [
+			{
+				message: "You have exceeded the number of seats in your license.",
+				variant: "warningProminent",
+			},
+			{
+				message: "You are flying too close to the sun.",
+				variant: "warningProminent",
+			},
 		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.queryByRole("button", { name: "Show more" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const ThreeWarnings: Story = {
+	args: {
+		messages: [
+			{
+				message: "You have exceeded the number of seats in your license.",
+				variant: "warningProminent",
+			},
+			{
+				message: "You are flying too close to the sun.",
+				variant: "warningProminent",
+			},
+			{
+				message: "Another warning that should be hidden until expanded.",
+				variant: "warningProminent",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("button", { name: "Show more" }),
+		).toBeInTheDocument();
 	},
 };
 
 export const OneError: Story = {
 	args: {
-		errors: [
-			"You have multiple replicas but high availability is an Enterprise feature. You will be unable to connect to workspaces.",
+		messages: [
+			{
+				message:
+					"You have multiple replicas but high availability is an Enterprise feature. You will be unable to connect to workspaces.",
+				variant: "error",
+			},
 		],
-		warnings: [],
+	},
+};
+
+export const TelemetryRequiredError: Story = {
+	args: {
+		messages: [
+			{
+				message: LicenseTelemetryRequiredErrorText,
+				variant: "error",
+				link: {
+					href: "mailto:sales@coder.com",
+					label: "Contact sales@coder.com if you need an exception.",
+					showExternalIcon: false,
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("alert")).toHaveTextContent(
+			LicenseTelemetryRequiredErrorText,
+		);
+		await expect(
+			canvas.getByRole("link", {
+				name: /Contact sales@coder\.com if you need an exception\./i,
+			}),
+		).toHaveAttribute("href", "mailto:sales@coder.com");
 	},
 };
 
 export const ManagedAgentLimitExceeded: Story = {
 	args: {
-		errors: [],
-		warnings: [LicenseManagedAgentLimitExceededWarningText],
+		messages: [
+			{
+				message: LicenseManagedAgentLimitExceededWarningText,
+				variant: "warningProminent",
+				link: {
+					href: docs("/ai-coder/ai-governance"),
+					label: "View AI Governance",
+					showExternalIcon: true,
+					target: "_blank",
+				},
+			},
+		],
 	},
 };
 
 export const ManagedAgentLimitExceededWithOtherWarnings: Story = {
 	args: {
-		errors: [],
-		warnings: [
-			LicenseManagedAgentLimitExceededWarningText,
-			"You have exceeded the number of seats in your license.",
+		messages: [
+			{
+				message: LicenseManagedAgentLimitExceededWarningText,
+				variant: "warningProminent",
+			},
+			{
+				message: "You have exceeded the number of seats in your license.",
+				variant: "warningProminent",
+			},
 		],
+	},
+};
+
+export const AIGovernanceNearLimit: Story = {
+	args: {
+		messages: [
+			{
+				message: LicenseAIGovernance90PercentWarningText,
+				variant: "warning",
+				link: {
+					href: "mailto:sales@coder.com",
+					label: "Contact sales@coder.com.",
+					showExternalIcon: false,
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("alert")).toHaveTextContent(
+			LicenseAIGovernance90PercentWarningText,
+		);
+		await expect(
+			canvas.getByRole("link", { name: /Contact sales@coder\.com/i }),
+		).toHaveAttribute("href", "mailto:sales@coder.com");
+	},
+};
+
+export const AIGovernanceOverLimit: Story = {
+	args: {
+		messages: [
+			{
+				message:
+					"Your organization is using 110 / 100 AI Governance user seats (10% over the limit).",
+				variant: "warningProminent",
+				link: {
+					href: "mailto:sales@coder.com",
+					label: "Contact sales@coder.com.",
+					showExternalIcon: false,
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("alert")).toHaveTextContent(
+			/110 \/ 100 AI Governance user seats \(10% over the limit\)/,
+		);
+		await expect(
+			canvas.getByRole("link", { name: /Contact sales@coder\.com/i }),
+		).toHaveAttribute("href", "mailto:sales@coder.com");
 	},
 };
