@@ -76,11 +76,12 @@ replace github.com/aquasecurity/trivy => github.com/coder/trivy v0.0.0-202603091
 // https://github.com/spf13/afero/pull/487
 replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713-f06e86036696
 
-// Forked for two reasons:
-// 1) Adds thinking effort to Anthropic provider
-// 2) Downgraded to Go 1.25 due to issue with Windows CI
-// https://github.com/kylecarbs/fantasy/compare/main...kylecarbs:fantasy:cj/go1.25
-replace charm.land/fantasy => github.com/kylecarbs/fantasy v0.0.0-20260319151840-18e18e661ed4
+// Forked from kylecarbs/fantasy (cj/go1.25 branch) which adds:
+// 1) Anthropic computer use + thinking effort
+// 2) Go 1.25 downgrade for Windows CI compat
+// Additionally fixes ephemeral OpenAI item ID replay when store=false.
+// https://github.com/ibetitsmike/fantasy/pull/4
+replace charm.land/fantasy => github.com/ibetitsmike/fantasy v0.0.0-20260320131846-71989eacb229
 
 replace github.com/charmbracelet/anthropic-sdk-go => github.com/kylecarbs/anthropic-sdk-go v0.0.0-20260223140439-63879b0b8dab
 
