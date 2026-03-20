@@ -1695,8 +1695,9 @@ func (p *Server) Subscribe(
 	var allCancels []func()
 	allCancels = append(allCancels, localCancel)
 
-	// Subscribe to pubsub for durable events (status, messages,
-	// queue updates, errors). When pubsub is nil (e.g. in-memory
+	// Subscribe to pubsub for durable and structured control
+	// events (status, messages, queue updates, retry, errors).
+	// When pubsub is nil (e.g. in-memory
 	// single-instance) we skip this and deliver all local events.
 	//
 	// This MUST happen before the DB queries below so that any
@@ -1964,6 +1965,17 @@ func (p *Server) Subscribe(
 						}
 					}
 				}
+				if notify.Retry != nil {
+					select {
+					case <-mergedCtx.Done():
+						return
+					case mergedEvents <- codersdk.ChatStreamEvent{
+						Type:   codersdk.ChatStreamEventTypeRetry,
+						ChatID: chatID,
+						Retry:  notify.Retry,
+					}:
+					}
+				}
 				if notify.Error != "" {
 					select {
 					case <-mergedCtx.Done():
@@ -2072,7 +2084,8 @@ func (p *Server) publishStatus(chatID uuid.UUID, status database.ChatStatus, wor
 }
 
 // publishChatStreamNotify broadcasts a per-chat stream notification via
-// PostgreSQL pubsub so that all replicas can read updates from the database.
+// PostgreSQL pubsub so that all replicas can merge durable database updates
+// with transient control events.
 func (p *Server) publishChatStreamNotify(chatID uuid.UUID, notify coderdpubsub.ChatStreamNotifyMessage) {
 	if p.pubsub == nil {
 		return
@@ -2167,6 +2180,19 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID) 
 	sdkStatus := db2sdk.ChatDiffStatus(chatID, &dbStatus)
 	p.publishChatPubsubEvent(chat, coderdpubsub.ChatEventKindDiffStatusChange, &sdkStatus)
 	return nil
+}
+
+func (p *Server) publishRetry(chatID uuid.UUID, payload *codersdk.ChatStreamRetry) {
+	if payload == nil {
+		return
+	}
+	p.publishEvent(chatID, codersdk.ChatStreamEvent{
+		Type:  codersdk.ChatStreamEventTypeRetry,
+		Retry: payload,
+	})
+	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
+		Retry: payload,
+	})
 }
 
 func (p *Server) publishError(chatID uuid.UUID, message string) {
@@ -3263,15 +3289,11 @@ func (p *Server) runChat(
 				slog.F("delay", delay.String()),
 				slog.Error(retryErr),
 			)
-			p.publishEvent(chat.ID, codersdk.ChatStreamEvent{
-				Type:   codersdk.ChatStreamEventTypeRetry,
-				ChatID: chat.ID,
-				Retry: &codersdk.ChatStreamRetry{
-					Attempt:    attempt,
-					DelayMs:    delay.Milliseconds(),
-					Error:      retryErr.Error(),
-					RetryingAt: time.Now().Add(delay),
-				},
+			p.publishRetry(chat.ID, &codersdk.ChatStreamRetry{
+				Attempt:    attempt,
+				DelayMs:    delay.Milliseconds(),
+				Error:      retryErr.Error(),
+				RetryingAt: time.Now().Add(delay),
 			})
 		},
 
