@@ -127,7 +127,7 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 		switch c.GetType() {
 		case fantasy.ContentTypeText:
 			text, ok := fantasy.AsContentType[fantasy.TextContent](c)
-			if !ok {
+			if !ok || strings.TrimSpace(text.Text) == "" {
 				continue
 			}
 			assistantParts = append(assistantParts, fantasy.TextPart{
@@ -136,7 +136,7 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 			})
 		case fantasy.ContentTypeReasoning:
 			reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](c)
-			if !ok {
+			if !ok || strings.TrimSpace(reasoning.Text) == "" {
 				continue
 			}
 			assistantParts = append(assistantParts, fantasy.ReasoningPart{

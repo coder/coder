@@ -1,6 +1,7 @@
 import type * as TypesGen from "api/typesGenerated";
 import { CheckCircleIcon, ChevronRightIcon, CircleIcon } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { type FC, type ReactNode, useMemo } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { cn } from "utils/cn";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
@@ -39,18 +40,39 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 	onDeleteProvider,
 	onSelectedProviderChange,
 }) => {
-	const [view, setView] = useState<ProviderView>({ mode: "list" });
+	const [searchParams, setSearchParams] = useSearchParams();
+	const navigate = useNavigate();
+	const location = useLocation();
+	const canGoBack =
+		(location.state as { pushed?: boolean } | null)?.pushed === true;
+
+	// Derive the current view from URL search params so that
+	// browser back/forward navigation works as expected.
+	const view: ProviderView = useMemo(() => {
+		const providerParam = searchParams.get("provider");
+		if (providerParam) {
+			const exists = providerStates.some((ps) => ps.provider === providerParam);
+			return exists
+				? { mode: "detail", provider: providerParam }
+				: { mode: "list" };
+		}
+		return { mode: "list" };
+	}, [searchParams, providerStates]);
+
+	// Clear provider search param and return to the list.
+	const clearProviderView = () => {
+		setSearchParams((prev) => {
+			const next = new URLSearchParams(prev);
+			next.delete("provider");
+			return next;
+		});
+	};
 
 	// ── Detail view ───────────────────────────────────────────
 	const detailProvider =
 		view.mode === "detail"
 			? providerStates.find((ps) => ps.provider === view.provider)
 			: undefined;
-
-	// Provider disappeared (e.g. data refreshed) — fall back to list.
-	if (view.mode === "detail" && !detailProvider) {
-		setView({ mode: "list" });
-	}
 
 	if (view.mode === "detail" && detailProvider) {
 		return (
@@ -62,9 +84,20 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 				onUpdateProvider={onUpdateProvider}
 				onDeleteProvider={async (id) => {
 					await onDeleteProvider(id);
-					setView({ mode: "list" });
+					if (canGoBack) {
+						navigate(-1);
+					} else {
+						setSearchParams(
+							(prev) => {
+								const next = new URLSearchParams(prev);
+								next.delete("provider");
+								return next;
+							},
+							{ replace: true },
+						);
+					}
 				}}
-				onBack={() => setView({ mode: "list" })}
+				onBack={clearProviderView}
 			/>
 		);
 	}
@@ -98,10 +131,10 @@ export const ProvidersSection: FC<ProvidersSectionProps> = ({
 						aria-label={providerState.label}
 						onClick={() => {
 							onSelectedProviderChange(providerState.provider);
-							setView({
-								mode: "detail",
-								provider: providerState.provider,
-							});
+							setSearchParams(
+								{ provider: providerState.provider },
+								{ state: { pushed: true } },
+							);
 						}}
 						className={cn(
 							"flex w-full cursor-pointer items-center gap-3.5 bg-transparent border-0 p-0 px-3 py-3 text-left transition-colors hover:bg-surface-secondary/30",

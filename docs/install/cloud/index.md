@@ -9,7 +9,7 @@ cloud of choice.
 
 We publish Coder Community Edition on the AWS Marketplace. Follow the tutorial here:
 
-- [Install Coder Community Edition from AWS Marketplace](./aws-mktplc-ce.md)
+- [Install Coder Community Edition from AWS Marketplace](./aws-marketplace.md)
 
 Alternatively, install the [CLI binary](../cli.md) on any Linux machine or
 follow our [Kubernetes](../kubernetes.md) documentation to install Coder on an

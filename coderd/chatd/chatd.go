@@ -1400,11 +1400,19 @@ func (p *Server) start(ctx context.Context) {
 	// to handle chats orphaned by crashed or redeployed workers.
 	p.recoverStaleChats(ctx)
 
-	acquireTicker := time.NewTicker(p.pendingChatAcquireInterval)
+	acquireTicker := p.clock.NewTicker(
+		p.pendingChatAcquireInterval,
+		"chatd",
+		"acquire",
+	)
 	defer acquireTicker.Stop()
 
 	staleRecoveryInterval := p.inFlightChatStaleAfter / staleRecoveryIntervalDivisor
-	staleTicker := time.NewTicker(staleRecoveryInterval)
+	staleTicker := p.clock.NewTicker(
+		staleRecoveryInterval,
+		"chatd",
+		"stale-recovery",
+	)
 	defer staleTicker.Stop()
 
 	for {
@@ -2343,11 +2351,12 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 }
 
 // trackWorkspaceUsage bumps the workspace's last_used_at via the
-// usage tracker. If wsID is not yet valid, it re-reads the chat
-// from the DB to pick up late associations (e.g. create_workspace
-// linking a workspace mid-conversation). The caller should store
-// the returned value so that subsequent calls skip the DB lookup
-// once a workspace has been found.
+// usage tracker and extends the workspace's autostop deadline. If
+// wsID is not yet valid, it re-reads the chat from the DB to pick
+// up late associations (e.g. create_workspace linking a workspace
+// mid-conversation). The caller should store the returned value so
+// that subsequent calls skip the DB lookup once a workspace has
+// been found.
 func (p *Server) trackWorkspaceUsage(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -2367,6 +2376,22 @@ func (p *Server) trackWorkspaceUsage(
 	}
 	if wsID.Valid {
 		p.usageTracker.Add(wsID.UUID)
+		// Bump the workspace autostop deadline. We pass time.Time{}
+		// for nextAutostart since we don't have access to
+		// TemplateScheduleStore here. The activity bump logic
+		// defaults to the template's activity_bump duration
+		// (typically 1 hour). Chat workspaces are never prebuilds,
+		// so no prebuild guard is needed (unlike reporter.go).
+		//
+		// This fires every heartbeat (~30s) but the SQL only
+		// writes when 5% of the deadline has elapsed — most calls
+		// perform a read-only CTE lookup with no UPDATE.
+		//
+		// Scaling note: for 10,000 active chats, this could lead to
+		// approx. 333 CTE queries/second. A cheap fix for this could
+		// be to heartbeat every Nth query. Leaving as potential future
+		// low-hanging fruit if needed.
+		workspacestats.ActivityBumpWorkspace(ctx, logger.Named("activity_bump"), p.db, wsID.UUID, time.Time{})
 	}
 	return wsID
 }
