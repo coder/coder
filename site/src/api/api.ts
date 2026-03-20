@@ -385,6 +385,11 @@ type SearchParamOptions = TypesGen.Pagination & {
 	q?: string;
 };
 
+type InfiniteScrollParamOptions = TypesGen.Pagination & {
+	// after_id is already defined in Pagination
+	before_id?: string;
+};
+
 type RestartWorkspaceParameters = Readonly<{
 	workspace: TypesGen.Workspace;
 	buildParameters?: TypesGen.WorkspaceBuildParameter[];
@@ -2972,6 +2977,26 @@ class ApiMethods {
 		);
 		const response =
 			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(url);
+		return response.data;
+	};
+
+	getAIBridgeSessionList = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams("/api/v2/aibridge/sessions", options);
+		const response =
+			await this.axios.get<TypesGen.AIBridgeListSessionsResponse>(url);
+		return response.data;
+	};
+
+	getAIBridgeSession = async (
+		sessionId: string,
+		options: InfiniteScrollParamOptions,
+	) => {
+		const url = getURLWithSearchParams(
+			`/api/v2/aibridge/sessions/${sessionId}`,
+			options,
+		);
+		const response =
+			await this.axios.get<TypesGen.AIBridgeSessionThreadsResponse>(url);
 		return response.data;
 	};
 
