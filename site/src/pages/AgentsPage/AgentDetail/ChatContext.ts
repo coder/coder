@@ -712,42 +712,61 @@ export const useChatStore = (
 		const activeChatID = chatID;
 		// Local disposed flag so the message handler (which lives
 		// outside the utility) can bail out after cleanup.
-		let disposed = false;
+			let disposed = false;
 
-		const handleMessage = (
-			payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
-		) => {
-			if (disposed) {
-				return;
-			}
-			if (payload.parseError || !payload.parsedMessage) {
-				store.setStreamError("Failed to parse chat stream update.");
-				return;
-			}
-			if (payload.parsedMessage.type !== "data") {
-				return;
-			}
-
-			const streamEvents = toChatStreamEvents(payload.parsedMessage.data);
-			if (streamEvents.length === 0) {
-				return;
-			}
+			// Parts buffer lives at the effect scope so it persists
+			// across WebSocket messages. A rAF-based flush coalesces
+			// parts from multiple WS messages into a single render,
+			// capping stream renders to once per animation frame.
+			const partsBuf: TypesGen.ChatMessagePart[] = [];
+			let partsFlushId: number | null = null;
 
 			const shouldApplyMessagePart = (): boolean => {
 				const currentStatus = store.getSnapshot().chatStatus;
 				return currentStatus !== "pending" && currentStatus !== "waiting";
 			};
 
-			const pendingMessageParts: TypesGen.ChatMessagePart[] = [];
-			const flushMessageParts = () => {
-				if (pendingMessageParts.length === 0) {
+			const schedulePartsFlush = () => {
+				if (partsFlushId !== null || partsBuf.length === 0) {
 					return;
 				}
 				cancelScheduledStreamReset();
-				const parts = pendingMessageParts.splice(0, pendingMessageParts.length);
-				const currentChatID = chatID;
+				partsFlushId = requestAnimationFrame(() => {
+					partsFlushId = null;
+					const parts = partsBuf.splice(0);
+					if (parts.length === 0 || disposed) {
+						return;
+					}
+					if (!shouldApplyMessagePart()) {
+						return;
+					}
+					startTransition(() => {
+						if (activeChatIDRef.current !== chatID) {
+							return;
+						}
+						if (!shouldApplyMessagePart()) {
+							return;
+						}
+						store.applyMessageParts(parts);
+					});
+				});
+			};
+
+			// Immediate flush for non-message_part events that need
+			// the parts applied before they execute (e.g. a status
+			// change right after the last part).
+			const flushMessageParts = () => {
+				if (partsBuf.length === 0) {
+					return;
+				}
+				if (partsFlushId !== null) {
+					cancelAnimationFrame(partsFlushId);
+					partsFlushId = null;
+				}
+				cancelScheduledStreamReset();
+				const parts = partsBuf.splice(0);
 				startTransition(() => {
-					if (activeChatIDRef.current !== currentChatID) {
+					if (activeChatIDRef.current !== chatID) {
 						return;
 					}
 					if (!shouldApplyMessagePart()) {
@@ -757,6 +776,24 @@ export const useChatStore = (
 				});
 			};
 
+			const handleMessage = (
+				payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
+			) => {
+				if (disposed) {
+					return;
+				}
+				if (payload.parseError || !payload.parsedMessage) {
+					store.setStreamError("Failed to parse chat stream update.");
+					return;
+				}
+				if (payload.parsedMessage.type !== "data") {
+					return;
+				}
+
+				const streamEvents = toChatStreamEvents(payload.parsedMessage.data);
+				if (streamEvents.length === 0) {
+					return;
+				}
 			// Collect durable messages for bulk upsert so the
 			// entire batch produces one Map copy + one sort
 			// instead of N copies and N sorts.
@@ -775,11 +812,10 @@ export const useChatStore = (
 							continue;
 						}
 						const part = streamEvent.message_part?.part;
-						if (part) {
-							cancelScheduledStreamReset();
-							pendingMessageParts.push(part);
-						}
-						continue;
+							if (part) {
+								cancelScheduledStreamReset();
+								partsBuf.push(part);
+							}						continue;
 					}
 					flushMessageParts();
 
@@ -880,15 +916,17 @@ export const useChatStore = (
 					}
 				}
 
-				flushMessageParts();
+					// Schedule a rAF-coalesced flush for any remaining
+					// parts. If parts were already flushed by a
+					// non-message_part event above, this is a no-op.
+					schedulePartsFlush();
 
-				// Bulk-upsert all collected durable messages in one
-				// pass: one Map copy + one sort instead of N each.
-				if (pendingMessages.length > 0) {
-					store.upsertDurableMessages(pendingMessages);
-				}
-			});
-
+					// Bulk-upsert all collected durable messages in one
+					// pass: one Map copy + one sort instead of N each.
+					if (pendingMessages.length > 0) {
+						store.upsertDurableMessages(pendingMessages);
+					}
+				});
 			if (needsStreamReset) {
 				scheduleStreamReset();
 			}
@@ -926,13 +964,15 @@ export const useChatStore = (
 			},
 		});
 
-		return () => {
-			disposed = true;
-			disposeSocket();
-			cancelScheduledStreamReset();
-			activeChatIDRef.current = null;
-		};
-	}, [chatID, initialDataLoaded, queryClient, store]);
+			return () => {
+				disposed = true;
+				disposeSocket();
+				cancelScheduledStreamReset();
+				if (partsFlushId !== null) {
+					cancelAnimationFrame(partsFlushId);
+				}
+				activeChatIDRef.current = null;
+			};	}, [chatID, initialDataLoaded, queryClient, store]);
 	return {
 		store,
 		clearStreamError: () => {
