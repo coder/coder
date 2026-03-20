@@ -43,6 +43,12 @@ type Story = StoryObj<typeof OrganizationMembersPageView>;
 
 export const Default: Story = {};
 
+export const WithAISeatColumn: Story = {
+	args: {
+		showAISeatColumn: true,
+	},
+};
+
 export const NoMembers: Story = {
 	args: {
 		members: [],

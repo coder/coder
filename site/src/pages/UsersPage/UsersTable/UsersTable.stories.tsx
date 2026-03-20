@@ -38,6 +38,16 @@ export const Example: Story = {
 	},
 };
 
+export const ExampleWithAISeatColumn: Story = {
+	args: {
+		users: [MockUserOwner, MockUserMember],
+		roles: MockAssignableSiteRoles,
+		canEditUsers: false,
+		groupsByUserId: mockGroupsByUserId,
+		showAISeatColumn: true,
+	},
+};
+
 export const Editable: Story = {
 	args: {
 		users: [
@@ -75,6 +85,47 @@ export const Editable: Story = {
 		canEditUsers: true,
 		canViewActivity: true,
 		groupsByUserId: mockGroupsByUserId,
+	},
+};
+
+export const EditableWithAISeatColumn: Story = {
+	args: {
+		users: [
+			MockUserOwner,
+			MockUserMember,
+			{
+				...MockUserOwner,
+				username: "John Doe",
+				email: "john.doe@coder.com",
+				roles: [
+					MockUserAdminRole,
+					MockTemplateAdminRole,
+					MockMemberRole,
+					MockAuditorRole,
+				],
+				status: "dormant",
+			},
+			{
+				...MockUserOwner,
+				username: "Roger Moore",
+				email: "roger.moore@coder.com",
+				roles: [],
+				status: "suspended",
+			},
+			{
+				...MockUserOwner,
+				username: "OIDC User",
+				email: "oidc.user@coder.com",
+				roles: [],
+				status: "active",
+				login_type: "oidc",
+			},
+		],
+		roles: MockAssignableSiteRoles,
+		canEditUsers: true,
+		canViewActivity: true,
+		groupsByUserId: mockGroupsByUserId,
+		showAISeatColumn: true,
 	},
 };
 
