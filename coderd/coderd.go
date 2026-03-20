@@ -45,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
+	"github.com/coder/coder/v2/coderd/agentconnectionbatcher"
 	"github.com/coder/coder/v2/coderd/aiseats"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
@@ -250,7 +251,8 @@ type Options struct {
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
 
-	MetadataBatcherOptions []metadatabatcher.Option
+	MetadataBatcherOptions    []metadatabatcher.Option
+	ConnectionBatcherOptions []agentconnectionbatcher.Option
 
 	ProvisionerdServerMetrics *provisionerdserver.Metrics
 	WorkspaceBuilderMetrics   *wsbuilder.Metrics
@@ -857,6 +859,17 @@ func New(options *Options) *API {
 	if err != nil {
 		api.Logger.Fatal(context.Background(), "failed to initialize metadata batcher", slog.Error(err))
 	}
+
+	// Initialize the connection batcher for batching agent heartbeat writes.
+	connBatcherOpts := []agentconnectionbatcher.Option{
+		agentconnectionbatcher.WithLogger(options.Logger.Named("connection_batcher")),
+	}
+	connBatcherOpts = append(connBatcherOpts, options.ConnectionBatcherOptions...)
+	api.connectionBatcher = agentconnectionbatcher.New(
+		api.ctx,
+		options.Database,
+		connBatcherOpts...,
+	)
 
 	workspaceAppsLogger := options.Logger.Named("workspaceapps")
 	if options.WorkspaceAppsStatsCollectorOptions.Logger == nil {
@@ -2080,7 +2093,8 @@ type API struct {
 	healthCheckProgress healthcheck.Progress
 
 	statsReporter    *workspacestats.Reporter
-	metadataBatcher  *metadatabatcher.Batcher
+	metadataBatcher    *metadatabatcher.Batcher
+	connectionBatcher *agentconnectionbatcher.Batcher
 	lifecycleMetrics *agentapi.LifecycleMetrics
 
 	Acquirer *provisionerdserver.Acquirer
@@ -2160,6 +2174,9 @@ func (api *API) Close() error {
 	_ = api.statsReporter.Close()
 	if api.metadataBatcher != nil {
 		api.metadataBatcher.Close()
+	}
+	if api.connectionBatcher != nil {
+		api.connectionBatcher.Close()
 	}
 	_ = api.NetworkTelemetryBatcher.Close()
 	_ = api.OIDCConvertKeyCache.Close()
