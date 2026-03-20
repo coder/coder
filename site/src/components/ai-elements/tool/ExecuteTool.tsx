@@ -44,7 +44,7 @@ export const ExecuteTool: React.FC<{
 	};
 
 	return (
-		<div className="group/exec w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
+		<div className="group/exec w-full overflow-hidden rounded-lg border border-solid border-border-default/40 bg-surface-secondary/30">
 			{/* Header: $ command + copy button */}
 			<div className="flex w-full items-center justify-between gap-2 px-2.5 py-0.5">
 				<div className="flex min-w-0 flex-1 items-center gap-2">

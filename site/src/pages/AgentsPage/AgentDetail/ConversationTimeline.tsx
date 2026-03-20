@@ -183,8 +183,7 @@ type RenderBlockListResult = {
 
 const ASSISTANT_CONTENT_CLASSES = "whitespace-normal";
 const BLOCK_STACK_CLASSES = "space-y-2";
-const TOOL_SHELL_CLASSES =
-	"rounded-lg border border-border-default/60 bg-surface-secondary/40 p-3";
+const TOOL_SHELL_CLASSES = "";
 const THINKING_SHELL_CLASSES =
 	"rounded-lg border border-content-secondary/20 bg-surface-secondary/20 p-3";
 const FILE_REFERENCE_SHELL_CLASSES =

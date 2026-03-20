@@ -40,25 +40,37 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 	);
 
 	return (
-		<div className={className}>
+		<div
+			className={cn(
+				"overflow-hidden rounded-lg border border-solid border-border-default/40 bg-surface-secondary/30",
+				className,
+			)}
+		>
 			{hasContent ? (
 				<button
 					type="button"
 					aria-expanded={expanded}
 					onClick={() => setExpanded(!expanded)}
 					className={cn(
-						"m-0 flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-[inherit]",
+						"m-0 flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 py-2 text-left font-[inherit] text-[inherit] transition-colors hover:bg-surface-tertiary/30",
 						headerClassName,
 					)}
 				>
 					{headerContent}
 				</button>
 			) : (
-				<div className={cn("flex w-full items-center gap-2", headerClassName)}>
+				<div
+					className={cn(
+						"flex w-full items-center gap-2 px-3 py-2",
+						headerClassName,
+					)}
+				>
 					{headerContent}
 				</div>
 			)}
-			{expanded && hasContent && children}
+			{expanded && hasContent && (
+				<div className="border-t border-border-default/20">{children}</div>
+			)}
 		</div>
 	);
 };

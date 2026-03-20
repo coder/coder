@@ -84,12 +84,12 @@ export const EditFilesTool: React.FC<{
 				</>
 			}
 		>
-			<div className="mt-1.5 space-y-1.5">
+			<div className="space-y-px">
 				{diffs.map((diff, i) =>
 					diff ? (
 						<ScrollArea
 							key={files[i].path}
-							className="rounded-md border border-solid border-border-default text-2xs"
+							className="text-2xs"
 							viewportClassName="max-h-64"
 							scrollBarClassName="w-1.5"
 						>

@@ -68,7 +68,7 @@ export const WriteFileTool: React.FC<{
 		>
 			{hasDiff && (
 				<ScrollArea
-					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+					className="text-2xs"
 					viewportClassName="max-h-64"
 					scrollBarClassName="w-1.5"
 				>
