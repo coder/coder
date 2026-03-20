@@ -118,7 +118,7 @@ export const OrganizationMembersPageView: FC<
 										<TableColumnHelpTooltip variant="roles" />
 									</Stack>
 								</TableHead>
-								<TableHead className="w-2/6">
+								<TableHead className="w-1/6">
 									<Stack direction="row" spacing={1} alignItems="center">
 										<span>Groups</span>
 										<TableColumnHelpTooltip variant="groups" />
