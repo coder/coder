@@ -126,7 +126,7 @@ const meta: Meta<typeof AgentDetailView> = {
 		sshCommand: undefined,
 		handleOpenInEditor: fn(),
 		handleViewWorkspace: fn(),
-		handleOpenTerminal: fn(),
+		terminalHref: null,
 		handleCommit: fn(),
 		onNavigateToChat: fn(),
 		handleInterrupt: fn(),

@@ -15,11 +15,7 @@ import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
 import type { ChatMessagePart } from "api/typesGenerated";
 import { useProxy } from "contexts/ProxyContext";
-import {
-	getTerminalHref,
-	getVSCodeHref,
-	openAppInNewWindow,
-} from "modules/apps/apps";
+import { getTerminalHref, getVSCodeHref } from "modules/apps/apps";
 import {
 	type FC,
 	useCallback,
@@ -765,13 +761,6 @@ const AgentDetail: FC = () => {
 		window.open(workspaceRoute, "_blank");
 	};
 
-	const handleOpenTerminal = () => {
-		if (!terminalHref) {
-			return;
-		}
-		openAppInNewWindow(terminalHref);
-	};
-
 	const handleArchiveAgentAction = () => {
 		if (!agentId || isArchived) {
 			return;
@@ -857,7 +846,7 @@ const AgentDetail: FC = () => {
 			sshCommand={sshCommand}
 			handleOpenInEditor={handleOpenInEditor}
 			handleViewWorkspace={handleViewWorkspace}
-			handleOpenTerminal={handleOpenTerminal}
+			terminalHref={terminalHref}
 			handleCommit={handleCommit}
 			onNavigateToChat={(chatId) => navigate(`/agents/${chatId}`)}
 			handleInterrupt={handleInterrupt}

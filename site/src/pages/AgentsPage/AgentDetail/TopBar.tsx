@@ -20,7 +20,6 @@ import {
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
-	TerminalIcon,
 	Trash2Icon,
 } from "lucide-react";
 import type { FC } from "react";
@@ -41,7 +40,6 @@ interface WorkspaceActions {
 	canOpenWorkspace: boolean;
 	onOpenInEditor: (editor: "cursor" | "vscode") => void;
 	onViewWorkspace: () => void;
-	onOpenTerminal: () => void;
 	sshCommand: string | undefined;
 }
 
@@ -195,14 +193,6 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 							>
 								<ExternalLinkIcon className="h-3.5 w-3.5" />
 								Open in VS Code
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								// You can think of the web terminal as an editor if you squint.
-								disabled={!workspace.canOpenEditors}
-								onSelect={workspace.onOpenTerminal}
-							>
-								<TerminalIcon className="h-3.5 w-3.5" />
-								Open Terminal
 							</DropdownMenuItem>
 							<DropdownMenuItem
 								disabled={!workspace.sshCommand}

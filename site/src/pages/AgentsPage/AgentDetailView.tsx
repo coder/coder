@@ -2,7 +2,7 @@ import type * as TypesGen from "api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
-import { ArchiveIcon, ArrowDownIcon } from "lucide-react";
+import { ArchiveIcon, ArrowDownIcon, TerminalIcon } from "lucide-react";
 import {
 	type FC,
 	type RefObject,
@@ -29,6 +29,7 @@ import {
 import { GitPanel } from "./GitPanel";
 import { RightPanel } from "./RightPanel";
 import { SidebarTabView } from "./SidebarTabView";
+import { TerminalPanel } from "./TerminalPanel";
 import type { ChatDetailError } from "./usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -111,8 +112,8 @@ interface AgentDetailViewProps {
 	sshCommand: string | undefined;
 	handleOpenInEditor: (editor: "cursor" | "vscode") => void;
 	handleViewWorkspace: () => void;
-	handleOpenTerminal: () => void;
 	handleCommit: (repoRoot: string) => void;
+	terminalHref: string | null;
 
 	// Navigation.
 	onNavigateToChat: (chatId: string) => void;
@@ -176,8 +177,8 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	sshCommand,
 	handleOpenInEditor,
 	handleViewWorkspace,
-	handleOpenTerminal,
 	handleCommit,
+	terminalHref,
 	onNavigateToChat,
 	handleInterrupt,
 	handleDeleteQueuedMessage,
@@ -238,7 +239,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							canOpenWorkspace,
 							onOpenInEditor: handleOpenInEditor,
 							onViewWorkspace: handleViewWorkspace,
-							onOpenTerminal: handleOpenTerminal,
 							sshCommand,
 						}}
 						onArchiveAgent={handleArchiveAgentAction}
@@ -349,10 +349,20 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 									chatInputRef={editing.chatInputRef}
 								/>
 							),
-						},
-					]}
-					onClose={() => onSetShowSidebarPanel(false)}
-					isExpanded={visualExpanded}
+							},
+							{
+								id: "terminal",
+								label: "Terminal",
+								icon: <TerminalIcon className="!size-3.5" />,
+								content: (
+									<TerminalPanel
+										terminalHref={terminalHref}
+										isExpanded={visualExpanded}
+									/>
+								),
+							},						]}
+						onClose={() => onSetShowSidebarPanel(false)}
+						isExpanded={visualExpanded}
 					onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
@@ -412,7 +422,6 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 						canOpenWorkspace: false,
 						onOpenInEditor: () => {},
 						onViewWorkspace: () => {},
-						onOpenTerminal: () => {},
 						sshCommand: undefined,
 					}}
 					onOpenParentChat={() => {}}
@@ -486,7 +495,6 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
 					canOpenWorkspace: false,
 					onOpenInEditor: () => {},
 					onViewWorkspace: () => {},
-					onOpenTerminal: () => {},
 					sshCommand: undefined,
 				}}
 				onOpenParentChat={() => {}}
