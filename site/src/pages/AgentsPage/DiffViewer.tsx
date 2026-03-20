@@ -432,6 +432,17 @@ const LazyFileDiff = memo<{
 	selectedLines,
 }) => {
 		console.log("[RENDER] LazyFileDiff");
+		// --- DEBUG: detect which props changed ---
+		const debugProps: any = { fileDiff, options, lineAnnotations, renderAnnotationProp, selectedLines };
+		const prevRef = (LazyFileDiff as any).__debugPrevProps ??= new WeakMap();
+		const prevForThis = prevRef.get(fileDiff);
+		if (prevForThis) {
+			const changed = Object.keys(debugProps).filter((k: string) => debugProps[k] !== prevForThis[k]);
+			if (changed.length) console.log("  [PROPS CHANGED]", changed);
+			else console.log("  [PROPS CHANGED] (none — memo bypassed?)");
+		}
+		prevRef.set(fileDiff, debugProps);
+		// --- END DEBUG ---
 		const placeholderRef = useRef<HTMLDivElement>(null);
 		const [visible, setVisible] = useState(false);
 

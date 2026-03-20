@@ -782,9 +782,34 @@ const AgentDetail: FC = () => {
 			/>
 		);
 	}
+	// --- DEBUG: track which AgentDetailView props change between renders ---
+	const __debugViewProps: any = {
+		agentId, chatTitle, parentChat, chatErrorReasons, chatRecord,
+		isArchived, workspaceId: Boolean(workspaceId), store, editing,
+		pendingEditMessageId, effectiveSelectedModel, modelOptions,
+		modelSelectorPlaceholder, hasModelOptions, inputStatusText,
+		modelCatalogStatusMessage, compressionThreshold, isInputDisabled,
+		isSubmissionPending, isInterruptPending: interruptMutation.isPending,
+		isSidebarCollapsed, showSidebarPanel, prNumber,
+		diffStatusData: chatQuery.data?.diff_status,
+		gitWatcher, canOpenEditors, canOpenWorkspace, sshCommand,
+		urlTransform, hasMoreMessages: chatMessagesQuery.hasNextPage ?? false,
+		isFetchingMoreMessages: chatMessagesQuery.isFetchingNextPage,
+		onFetchMoreMessages: chatMessagesQuery.fetchNextPage,
+		desktopChatId: desktopEnabled ? agentId : undefined,
+	};
+	const __debugPrevRef = useRef(__debugViewProps);
+	const __debugChanged = Object.keys(__debugViewProps).filter(
+		(k) => __debugViewProps[k] !== __debugPrevRef.current[k],
+	);
+	if (__debugChanged.length > 0) {
+		console.log("[AgentDetail→AgentDetailView PROPS CHANGED]", __debugChanged);
+	}
+	__debugPrevRef.current = __debugViewProps;
+	// --- END DEBUG ---
+
 	return (
-		<AgentDetailView
-			agentId={agentId}
+			<AgentDetailView			agentId={agentId}
 			chatTitle={chatTitle}
 			parentChat={parentChat}
 			chatErrorReasons={chatErrorReasons}

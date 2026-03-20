@@ -270,10 +270,19 @@ const ChatMessageItem = memo<{
 		isAfterEditingMessage = false,
 		fadeFromBottom = false,
 		urlTransform,
-	}) => {
-		console.log("[RENDER] ChatMessageItem");
-		const isUser = message.role === "user";
-		const isSavingMessage = savingMessageId === message.id;
+		}) => {
+			console.log("[RENDER] ChatMessageItem");
+			// --- DEBUG: detect which props changed ---
+		const debugProps: any = { message, parsed, onEditUserMessage, editingMessageId, savingMessageId, isAfterEditingMessage, fadeFromBottom, urlTransform };
+		const prevRef = (ChatMessageItem as any).__debugPrevProps ??= new WeakMap();
+		const prevForThis = prevRef.get(message);
+		if (prevForThis) {
+			const changed = Object.keys(debugProps).filter((k: string) => debugProps[k] !== prevForThis[k]);
+			if (changed.length) console.log("  [PROPS CHANGED]", changed);				else console.log("  [PROPS CHANGED] (none — parent re-rendered, memo not applied?)");
+			}
+				prevRef.set(message, debugProps);
+				// --- END DEBUG ---
+				const isUser = message.role === "user";		const isSavingMessage = savingMessageId === message.id;
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const toolByID = new Map(parsed.tools.map((tool) => [tool.id, tool]));
 
