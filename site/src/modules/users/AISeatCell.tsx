@@ -10,9 +10,15 @@ export const AISeatCell: FC<AISeatCellProps> = ({ hasAISeat }) => {
 	return (
 		<TableCell>
 			{hasAISeat ? (
-				<CircleCheck className="size-5 text-content-success" />
+				<CircleCheck
+					className="size-5 text-content-success"
+					aria-label="Consuming AI seat"
+				/>
 			) : (
-				<X className="size-5 text-content-disabled" />
+				<X
+					className="size-5 text-content-disabled"
+					aria-label="Not consuming AI seat"
+				/>
 			)}
 		</TableCell>
 	);

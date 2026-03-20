@@ -13,7 +13,7 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "hooks";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useState } from "react";
@@ -30,9 +30,15 @@ const OrganizationMembersPage: FC = () => {
 		organization: string;
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
+	const { entitlements } = useDashboard();
 	const searchParamsResult = useSearchParams();
-	const featureVisibility = useFeatureVisibility();
-	const showAISeatColumn = featureVisibility.ai_governance_user_limit ?? false;
+	const aiGovernanceUserFeature =
+		entitlements.features.ai_governance_user_limit;
+	const showAISeatColumn =
+		entitlements.has_license &&
+		aiGovernanceUserFeature.enabled &&
+		(aiGovernanceUserFeature.entitlement === "entitled" ||
+			aiGovernanceUserFeature.entitlement === "grace_period");
 
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
 	const groupsByUserIdQuery = useQuery(
