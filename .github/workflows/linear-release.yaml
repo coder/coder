@@ -52,7 +52,7 @@ jobs:
 
       - name: Complete release
         id: complete
-        uses: linear/linear-release-action@f64cdc603e6eb7a7ef934bc5492ae929f88c8d1a # v0
+        uses: linear/linear-release-action@5cbaabc187ceb63eee9d446e62e68e5c29a03ae8 # v0
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: complete
