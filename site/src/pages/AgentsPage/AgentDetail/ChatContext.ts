@@ -490,8 +490,11 @@ export const useChatStore = (
 				if (chat.id !== chatID) {
 					return chat;
 				}
-				didUpdate = true;
-				return updater(chat);
+				const updated = updater(chat);
+				if (updated !== chat) {
+					didUpdate = true;
+				}
+				return updated;
 			});
 			return didUpdate ? nextChats : chats;
 		});
@@ -760,10 +763,11 @@ export const useChatStore = (
 						if (nextStatus !== "error") {
 							clearChatErrorReason(chatID);
 						}
-						updateSidebarChat((chat) => ({
-							...chat,
-							status: nextStatus,
-						}));
+						updateSidebarChat((chat) =>
+							chat.status === nextStatus
+								? chat
+								: { ...chat, status: nextStatus },
+						);
 						continue;
 					}
 					case "error": {
@@ -779,10 +783,11 @@ export const useChatStore = (
 							kind: "generic",
 							message: reason,
 						});
-						updateSidebarChat((chat) => ({
-							...chat,
-							status: "error",
-						}));
+						updateSidebarChat((chat) =>
+							chat.status === "error"
+								? chat
+								: { ...chat, status: "error" },
+						);
 						continue;
 					}
 					case "retry": {
