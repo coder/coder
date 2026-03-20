@@ -539,9 +539,8 @@ type sqlcQuerier interface {
 	// inclusive.
 	GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg GetTotalUsageDCManagedAgentsV1Params) (int64, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
-	// Returns user IDs that are consuming an AI seat.
-	// A user consumes an AI seat if they have AI bridge interceptions
-	// or own a workspace with AI tasks.
+	// Returns user IDs from the provided list that have an entry in
+	// ai_seat_state, meaning they are consuming an AI seat.
 	GetUserAISeatStates(ctx context.Context, userIds []uuid.UUID) ([]uuid.UUID, error)
 	// GetUserActivityInsights returns the ranking with top active users.
 	// The result can be filtered on template_ids, meaning only user data
