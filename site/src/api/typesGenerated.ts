@@ -1947,7 +1947,7 @@ export interface ChatUsageLimitStatus {
  */
 export interface ChatWorkspaceTTLResponse {
 	/**
-	 * WorkspaceTTLMs is the workspace TTL in milliseconds.
+	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
 	 * Zero means disabled — the template's own autostop setting applies.
 	 */
 	readonly workspace_ttl_ms: number;
@@ -6910,7 +6910,7 @@ export interface UpdateChatUsageLimitOverrideRequest {
  */
 export interface UpdateChatWorkspaceTTLRequest {
 	/**
-	 * WorkspaceTTLMs is the workspace TTL in milliseconds.
+	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
 	 * Zero means disabled — the template's own autostop setting applies.
 	 */
 	readonly workspace_ttl_ms: number;

@@ -366,17 +366,17 @@ const DefaultChatWorkspaceTTL = 0
 // ChatWorkspaceTTLResponse is the response for getting the chat
 // workspace TTL setting.
 type ChatWorkspaceTTLResponse struct {
-	// WorkspaceTTLMs is the workspace TTL in milliseconds.
+	// WorkspaceTTLMillis is the workspace TTL in milliseconds.
 	// Zero means disabled — the template's own autostop setting applies.
-	WorkspaceTTLMs int64 `json:"workspace_ttl_ms"`
+	WorkspaceTTLMillis int64 `json:"workspace_ttl_ms"`
 }
 
 // UpdateChatWorkspaceTTLRequest is the request to update the chat
 // workspace TTL setting.
 type UpdateChatWorkspaceTTLRequest struct {
-	// WorkspaceTTLMs is the workspace TTL in milliseconds.
+	// WorkspaceTTLMillis is the workspace TTL in milliseconds.
 	// Zero means disabled — the template's own autostop setting applies.
-	WorkspaceTTLMs int64 `json:"workspace_ttl_ms"`
+	WorkspaceTTLMillis int64 `json:"workspace_ttl_ms"`
 }
 
 // ParseChatWorkspaceTTL parses a stored TTL string, returning the
