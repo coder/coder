@@ -555,49 +555,47 @@ export const useChatStore = (
 	const initialDataLoaded = chatMessages !== undefined;
 
 	useEffect(() => {
-		// When the active chat changes, clear stale messages immediately
-		// so the previous chat's messages aren't briefly visible while
-		// the new chat's query resolves.
-		if (prevChatIDRef.current !== chatID) {
-			prevChatIDRef.current = chatID;
-			lastSyncedMessagesRef.current = [];
-			store.replaceMessages([]);
-		}
-		// Merge REST-fetched messages into the store one-by-one instead
-		// of replacing the entire map. This preserves any messages the
-		// WebSocket delivered via upsertDurableMessage that haven't
-		// appeared in a REST page yet.
-		//
-		// However, if the fetched set is missing message IDs the store
-		// already has (e.g. after an edit truncation), a full replace
-		// is needed because upsert can only add/update, not remove.
-		// We must only do this when the fetched messages actually
-		// changed (new elements from a refetch), not when an
-		// unrelated field like queued_messages caused the query
-		// data reference to update. Without this guard, a
-		// queue_update WebSocket event would trigger
-		// replaceMessages with the stale REST data, wiping any
-		// message the WebSocket just delivered.
-		if (chatMessages) {
-			const prev = lastSyncedMessagesRef.current;
-			const contentChanged =
-				chatMessages.length !== prev.length ||
-				chatMessages.some((m, i) => m !== prev[i]);
-			lastSyncedMessagesRef.current = chatMessages;
+		store.batch(() => {
+			// When the active chat changes, clear stale messages
+			// immediately so the previous chat's messages aren't
+			// briefly visible while the new chat's query resolves.
+			if (prevChatIDRef.current !== chatID) {
+				prevChatIDRef.current = chatID;
+				lastSyncedMessagesRef.current = [];
+				store.replaceMessages([]);
+			}
+			// Merge REST-fetched messages into the store, preserving
+			// any messages the WebSocket delivered that haven't
+			// appeared in a REST page yet.
+			//
+			// If the fetched set is missing message IDs the store
+			// already has (e.g. after an edit truncation), a full
+			// replace is needed. We must only do this when the
+			// fetched messages actually changed (new elements from
+			// a refetch), not when an unrelated field like
+			// queued_messages caused the query data reference to
+			// update.
+			if (chatMessages) {
+				const prev = lastSyncedMessagesRef.current;
+				const contentChanged =
+					chatMessages.length !== prev.length ||
+					chatMessages.some((m, i) => m !== prev[i]);
+				lastSyncedMessagesRef.current = chatMessages;
 
-			const storeSnap = store.getSnapshot();
-			const fetchedIDs = new Set(chatMessages.map((m) => m.id));
-			const hasStaleEntries =
-				contentChanged &&
-				storeSnap.orderedMessageIDs.some((id) => !fetchedIDs.has(id));
-			if (hasStaleEntries) {
-				store.replaceMessages(chatMessages);
-			} else {
-				for (const message of chatMessages) {
-					store.upsertDurableMessage(message);
+				const storeSnap = store.getSnapshot();
+				const fetchedIDs = new Set(chatMessages.map((m) => m.id));
+				const hasStaleEntries =
+					contentChanged &&
+					storeSnap.orderedMessageIDs.some(
+						(id) => !fetchedIDs.has(id),
+					);
+				if (hasStaleEntries) {
+					store.replaceMessages(chatMessages);
+				} else {
+					store.upsertDurableMessages(chatMessages);
 				}
 			}
-		}
+		});
 	}, [chatID, chatMessages, store]);
 
 	useEffect(() => {
