@@ -371,6 +371,9 @@ const AIBridgeSessionsLayout = lazy(
 const AIBridgeListSessionsPage = lazy(
 	() => import("./pages/AIBridgePage/ListSessionsPage/ListSessionsPage"),
 );
+const AIBridgeSessionThreadsPage = lazy(
+	() => import("./pages/AIBridgePage/SessionThreadsPage/SessionThreadsPage"),
+);
 
 const GlobalLayout = () => {
 	return (
@@ -606,6 +609,7 @@ export const router = createBrowserRouter(
 
 					<Route path="/aibridge/sessions" element={<AIBridgeSessionsLayout />}>
 						<Route index element={<AIBridgeListSessionsPage />} />
+						<Route path=":sessionId" element={<AIBridgeSessionThreadsPage />} />
 					</Route>
 
 					<Route path="/health" element={<HealthLayout />}>
