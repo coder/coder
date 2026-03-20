@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -557,6 +558,9 @@ type RootCmd struct {
 	// clock is used for time-dependent operations. Initialized to
 	// quartz.NewReal() in Command() if not set via SetClock.
 	clock quartz.Clock
+
+	// derpTLSConfig is an optional TLS config for DERP connections.
+	derpTLSConfig *tls.Config
 }
 
 // SetClock sets the clock used for time-dependent operations.
@@ -622,6 +626,9 @@ func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) 
 	if r.disableDirect {
 		clientOpts = append(clientOpts, codersdk.WithDisableDirectConnections())
 	}
+	if r.derpTLSConfig != nil {
+		clientOpts = append(clientOpts, codersdk.WithDERPTLSConfig(r.derpTLSConfig))
+	}
 
 	if r.debugHTTP {
 		clientOpts = append(clientOpts,
@@ -683,6 +690,9 @@ func (r *RootCmd) TryInitClient(inv *serpent.Invocation) (*codersdk.Client, erro
 
 		if r.disableDirect {
 			clientOpts = append(clientOpts, codersdk.WithDisableDirectConnections())
+		}
+		if r.derpTLSConfig != nil {
+			clientOpts = append(clientOpts, codersdk.WithDERPTLSConfig(r.derpTLSConfig))
 		}
 
 		if r.debugHTTP {

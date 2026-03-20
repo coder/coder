@@ -2,6 +2,7 @@ package tailnet
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -92,6 +93,8 @@ type Options struct {
 	Addresses  []netip.Prefix
 	DERPMap    *tailcfg.DERPMap
 	DERPHeader *http.Header
+	// DERPTLSConfig is an optional TLS config for DERP connections.
+	DERPTLSConfig *tls.Config
 	// DERPForceWebSockets determines whether websockets is always used for DERP
 	// connections, rather than trying `Upgrade: derp` first and potentially
 	// falling back. This is useful for misbehaving proxies that prevent
@@ -238,6 +241,9 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	magicConn.SetBlockEndpoints(options.BlockEndpoints)
 	if options.DERPHeader != nil {
 		magicConn.SetDERPHeader(options.DERPHeader.Clone())
+	}
+	if options.DERPTLSConfig != nil {
+		magicConn.SetDERPTLSConfig(options.DERPTLSConfig)
 	}
 	if options.ForceNetworkUp {
 		magicConn.SetNetworkUp(true)
