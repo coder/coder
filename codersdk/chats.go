@@ -49,6 +49,7 @@ type Chat struct {
 	CreatedAt         time.Time       `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time       `json:"updated_at" format:"date-time"`
 	Archived          bool            `json:"archived"`
+	MCPServerIDs      []uuid.UUID     `json:"mcp_server_ids" format:"uuid"`
 }
 
 // ChatMessage represents a single message in a chat.
@@ -267,6 +268,7 @@ type CreateChatRequest struct {
 	Content       []ChatInputPart `json:"content"`
 	WorkspaceID   *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
 	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  []uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -279,6 +281,7 @@ type UpdateChatRequest struct {
 type CreateChatMessageRequest struct {
 	Content       []ChatInputPart `json:"content"`
 	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  *[]uuid.UUID    `json:"mcp_server_ids,omitempty" format:"uuid"`
 }
 
 // EditChatMessageRequest is the request to edit a user message in a chat.
@@ -438,7 +441,7 @@ type ChatModelOpenAIProviderOptions struct {
 	MaxCompletionTokens *int64           `json:"max_completion_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
 	TextVerbosity       *string          `json:"text_verbosity,omitempty" description:"Controls the verbosity of the text response" enum:"low,medium,high"`
 	Prediction          map[string]any   `json:"prediction,omitempty" description:"Predicted output content to speed up responses" hidden:"true"`
-	Store               *bool            `json:"store,omitempty" description:"Whether to store the output for model distillation or evals" hidden:"true"`
+	Store               *bool            `json:"store,omitempty" description:"Whether to store the response on OpenAI for later retrieval via the API and dashboard logs"`
 	Metadata            map[string]any   `json:"metadata,omitempty" description:"Arbitrary metadata to attach to the request" hidden:"true"`
 	PromptCacheKey      *string          `json:"prompt_cache_key,omitempty" description:"Key for enabling cross-request prompt caching"`
 	SafetyIdentifier    *string          `json:"safety_identifier,omitempty" description:"Developer-specific safety identifier for the request" hidden:"true"`

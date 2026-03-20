@@ -379,6 +379,7 @@ type CreateOptions struct {
 	ChatMode           database.NullChatMode
 	SystemPrompt       string
 	InitialUserContent []codersdk.ChatMessagePart
+	MCPServerIDs       []uuid.UUID
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -401,6 +402,7 @@ type SendMessageOptions struct {
 	Content       []codersdk.ChatMessagePart
 	ModelConfigID *uuid.UUID
 	BusyBehavior  SendMessageBusyBehavior
+	MCPServerIDs  *[]uuid.UUID
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -450,6 +452,12 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if len(opts.InitialUserContent) == 0 {
 		return database.Chat{}, xerrors.New("initial user content is required")
 	}
+	// Ensure MCPServerIDs is non-nil so pq.Array produces '{}'
+	// instead of SQL NULL, which violates the NOT NULL column
+	// constraint.
+	if opts.MCPServerIDs == nil {
+		opts.MCPServerIDs = []uuid.UUID{}
+	}
 
 	var chat database.Chat
 	txErr := p.db.InTx(func(tx database.Store) error {
@@ -465,6 +473,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			LastModelConfigID: opts.ModelConfigID,
 			Title:             opts.Title,
 			Mode:              opts.ChatMode,
+			MCPServerIDs:      opts.MCPServerIDs,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)
@@ -594,6 +603,17 @@ func (p *Server) SendMessage(
 		modelConfigID := lockedChat.LastModelConfigID
 		if opts.ModelConfigID != nil {
 			modelConfigID = *opts.ModelConfigID
+		}
+
+		// Update MCP server IDs on the chat when explicitly provided.
+		if opts.MCPServerIDs != nil {
+			lockedChat, err = tx.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{
+				ID:           opts.ChatID,
+				MCPServerIDs: *opts.MCPServerIDs,
+			})
+			if err != nil {
+				return xerrors.Errorf("update chat mcp server ids: %w", err)
+			}
 		}
 
 		existingQueued, err := tx.GetChatQueuedMessages(ctx, opts.ChatID)
@@ -1380,11 +1400,19 @@ func (p *Server) start(ctx context.Context) {
 	// to handle chats orphaned by crashed or redeployed workers.
 	p.recoverStaleChats(ctx)
 
-	acquireTicker := time.NewTicker(p.pendingChatAcquireInterval)
+	acquireTicker := p.clock.NewTicker(
+		p.pendingChatAcquireInterval,
+		"chatd",
+		"acquire",
+	)
 	defer acquireTicker.Stop()
 
 	staleRecoveryInterval := p.inFlightChatStaleAfter / staleRecoveryIntervalDivisor
-	staleTicker := time.NewTicker(staleRecoveryInterval)
+	staleTicker := p.clock.NewTicker(
+		staleRecoveryInterval,
+		"chatd",
+		"stale-recovery",
+	)
 	defer staleTicker.Stop()
 
 	for {
@@ -2323,11 +2351,12 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 }
 
 // trackWorkspaceUsage bumps the workspace's last_used_at via the
-// usage tracker. If wsID is not yet valid, it re-reads the chat
-// from the DB to pick up late associations (e.g. create_workspace
-// linking a workspace mid-conversation). The caller should store
-// the returned value so that subsequent calls skip the DB lookup
-// once a workspace has been found.
+// usage tracker and extends the workspace's autostop deadline. If
+// wsID is not yet valid, it re-reads the chat from the DB to pick
+// up late associations (e.g. create_workspace linking a workspace
+// mid-conversation). The caller should store the returned value so
+// that subsequent calls skip the DB lookup once a workspace has
+// been found.
 func (p *Server) trackWorkspaceUsage(
 	ctx context.Context,
 	chatID uuid.UUID,
@@ -2347,6 +2376,22 @@ func (p *Server) trackWorkspaceUsage(
 	}
 	if wsID.Valid {
 		p.usageTracker.Add(wsID.UUID)
+		// Bump the workspace autostop deadline. We pass time.Time{}
+		// for nextAutostart since we don't have access to
+		// TemplateScheduleStore here. The activity bump logic
+		// defaults to the template's activity_bump duration
+		// (typically 1 hour). Chat workspaces are never prebuilds,
+		// so no prebuild guard is needed (unlike reporter.go).
+		//
+		// This fires every heartbeat (~30s) but the SQL only
+		// writes when 5% of the deadline has elapsed — most calls
+		// perform a read-only CTE lookup with no UPDATE.
+		//
+		// Scaling note: for 10,000 active chats, this could lead to
+		// approx. 333 CTE queries/second. A cheap fix for this could
+		// be to heartbeat every Nth query. Leaving as potential future
+		// low-hanging fruit if needed.
+		workspacestats.ActivityBumpWorkspace(ctx, logger.Named("activity_bump"), p.db, wsID.UUID, time.Time{})
 	}
 	return wsID
 }

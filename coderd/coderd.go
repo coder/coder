@@ -1044,10 +1044,12 @@ func New(options *Options) *API {
 
 	// OAuth2 metadata endpoint for RFC 8414 discovery
 	r.Route("/.well-known/oauth-authorization-server", func(r chi.Router) {
+		r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2))
 		r.Get("/*", api.oauth2AuthorizationServerMetadata())
 	})
 	// OAuth2 protected resource metadata endpoint for RFC 9728 discovery
 	r.Route("/.well-known/oauth-protected-resource", func(r chi.Router) {
+		r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2))
 		r.Get("/*", api.oauth2ProtectedResourceMetadata())
 	})
 
@@ -1231,10 +1233,27 @@ func New(options *Options) *API {
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),
 			)
+			// MCP server configuration endpoints.
+			r.Route("/servers", func(r chi.Router) {
+				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentAgents))
+				r.Get("/", api.listMCPServerConfigs)
+				r.Post("/", api.createMCPServerConfig)
+				r.Route("/{mcpServer}", func(r chi.Router) {
+					r.Get("/", api.getMCPServerConfig)
+					r.Patch("/", api.updateMCPServerConfig)
+					r.Delete("/", api.deleteMCPServerConfig)
+					// OAuth2 user flow
+					r.Get("/oauth2/connect", api.mcpServerOAuth2Connect)
+					r.Get("/oauth2/callback", api.mcpServerOAuth2Callback)
+					r.Delete("/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
+				})
+			})
 			// MCP HTTP transport endpoint with mandatory authentication
-			r.Mount("/http", api.mcpHTTPHandler())
+			r.Route("/http", func(r chi.Router) {
+				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP))
+				r.Mount("/", api.mcpHTTPHandler())
+			})
 		})
 		r.Route("/watch-all-workspacebuilds", func(r chi.Router) {
 			r.Use(
@@ -1496,6 +1515,7 @@ func New(options *Options) *API {
 				r.Post("/", api.postUser)
 				r.Get("/", api.users)
 				r.Post("/logout", api.postLogout)
+				r.Post("/me/session/token-to-cookie", api.postSessionTokenCookie)
 				r.Get("/oidc-claims", api.userOIDCClaims)
 				// These routes query information about site wide roles.
 				r.Route("/roles", func(r chi.Router) {

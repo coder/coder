@@ -642,7 +642,7 @@ export const AgentChatInput = memo<AgentChatInputProps>(
 								<PencilIcon className="h-3.5 w-3.5" />
 								{isLoading
 									? "Saving edit..."
-									: "Editing message \u2014 all subsequent messages will be deleted"}
+									: "Editing will delete all subsequent messages and restart the conversation here."}
 							</span>
 							<Button
 								type="button"

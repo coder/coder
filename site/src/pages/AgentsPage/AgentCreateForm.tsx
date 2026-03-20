@@ -35,6 +35,7 @@ import { AgentChatInput } from "./AgentChatInput";
 import {
 	getModelCatalogStatusMessage,
 	getModelSelectorPlaceholder,
+	getNormalizedModelRef,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
 import { formatUsageLimitMessage, isUsageLimitData } from "./usageLimitMessage";
@@ -158,8 +159,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 
 		const byConfigID = new Map<string, string>();
 		for (const config of modelConfigs) {
-			const provider = config.provider.trim().toLowerCase();
-			const model = config.model.trim();
+			const { provider, model } = getNormalizedModelRef(config);
 			if (!provider || !model) {
 				continue;
 			}

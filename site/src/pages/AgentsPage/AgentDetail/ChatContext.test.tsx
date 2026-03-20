@@ -183,6 +183,7 @@ const makeChat = (chatID: string): TypesGen.Chat => ({
 	id: chatID,
 	owner_id: "owner-1",
 	last_model_config_id: "model-1",
+	mcp_server_ids: [],
 	title: "test",
 	status: "running",
 	created_at: "2025-01-01T00:00:00.000Z",
@@ -2336,6 +2337,222 @@ describe("useChatStore", () => {
 		// IDs not present in the fetched set.
 		await waitFor(() => {
 			expect(result.current.orderedMessageIDs).toEqual([1]);
+		});
+	});
+
+	it("does not wipe WebSocket-delivered message when queue_update triggers cache change", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-queue-promote";
+		const msg1 = makeMessage(chatID, 1, "user", "hello");
+		const msg2 = makeMessage(chatID, 2, "assistant", "hi");
+		// The promoted message that will arrive via WebSocket.
+		const promotedMsg = makeMessage(chatID, 3, "user", "follow-up");
+
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper: FC<PropsWithChildren> = ({ children }) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const queuedMsg = makeQueuedMessage(chatID, 10, "follow-up");
+		const initialMessages = [msg1, msg2];
+
+		const initialOptions = {
+			chatID,
+			chatMessages: initialMessages,
+			chatRecord: makeChat(chatID),
+			chatMessagesData: {
+				messages: initialMessages,
+				queued_messages: [queuedMsg],
+				has_more: false,
+			},
+			chatQueuedMessages: [queuedMsg],
+			setChatErrorReason,
+			clearChatErrorReason,
+		};
+
+		const { result, rerender } = renderHook(
+			(options: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(options);
+				return {
+					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+					queuedMessages: useChatSelector(store, selectQueuedMessages),
+				};
+			},
+			{ initialProps: initialOptions, wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2]);
+			expect(result.current.queuedMessages).toHaveLength(1);
+		});
+
+		// Simulate the WebSocket delivering the promoted message
+		// followed by a queue_update in the same batch (as the server
+		// does when auto-promoting or when the promote endpoint runs).
+		act(() => {
+			mockSocket.emitOpen();
+		});
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message",
+					chat_id: chatID,
+					message: promotedMsg,
+				},
+				{
+					type: "queue_update",
+					chat_id: chatID,
+					queued_messages: [],
+				},
+			]);
+		});
+
+		// The promoted message should appear in the store and the
+		// queue should be empty. Before the fix, the queue_update
+		// caused updateChatQueuedMessages to mutate the React Query
+		// cache, giving chatMessages a new reference that triggered
+		// the sync effect. The effect detected the promoted message
+		// as a "stale entry" (present in store but not in the REST
+		// data) and called replaceMessages, wiping it.
+		//
+		// Now re-render so the updated query cache flows through
+		// the chatMessages prop (simulating React rerender after
+		// the query cache mutation).
+		rerender({
+			...initialOptions,
+			// chatMessages still comes from REST (not refetched), so
+			// it only has [msg1, msg2]. The promoted message lives
+			// only in the store via the WebSocket delivery.
+			//
+			// Spread into a new array to simulate what actually
+			// happens: updateChatQueuedMessages mutates the React
+			// Query cache (changing queued_messages), which gives
+			// chatMessagesQuery.data a new reference, causing the
+			// chatMessagesList useMemo to return a new array with
+			// the same elements. The new reference triggers the
+			// sync effect.
+			chatMessages: [...initialMessages],
+			chatMessagesData: {
+				messages: [...initialMessages],
+				queued_messages: [],
+				has_more: false,
+			},
+			chatQueuedMessages: [],
+		});
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+			expect(result.current.queuedMessages).toHaveLength(0);
+		});
+	});
+
+	it("does not wipe in-progress stream state when user message arrives in batch", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-promote-stream";
+		const msg1 = makeMessage(chatID, 1, "user", "hello");
+		const msg2 = makeMessage(chatID, 2, "assistant", "hi");
+
+		const mockSocket = createMockSocket();
+		vi.mocked(watchChat).mockReturnValue(mockSocket as never);
+
+		const queryClient = createTestQueryClient();
+		const wrapper: FC<PropsWithChildren> = ({ children }) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const queuedMsg = makeQueuedMessage(chatID, 10, "follow-up");
+		const initialMessages = [msg1, msg2];
+
+		const initialOptions = {
+			chatID,
+			chatMessages: initialMessages,
+			chatRecord: makeChat(chatID),
+			chatMessagesData: {
+				messages: initialMessages,
+				queued_messages: [queuedMsg],
+				has_more: false,
+			},
+			chatQueuedMessages: [queuedMsg],
+			setChatErrorReason,
+			clearChatErrorReason,
+		};
+
+		const { result } = renderHook(
+			(options: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(options);
+				return {
+					store,
+					streamState: useChatSelector(store, selectStreamState),
+					chatStatus: useChatSelector(store, selectChatStatus),
+					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ initialProps: initialOptions, wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2]);
+		});
+
+		// Open the WebSocket and set the chat to running.
+		act(() => {
+			mockSocket.emitOpen();
+		});
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "running" },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.chatStatus).toBe("running");
+		});
+
+		// Deliver a batch containing trailing message_parts for
+		// the current response followed by the promoted user
+		// message. The batch loop flushes pending parts when it
+		// hits the message event (building stream state). Before
+		// the fix, scheduleStreamReset would fire for the user
+		// message because it only checked `changed`, and with
+		// immediateAnimationFrame the RAF fires synchronously,
+		// wiping the stream state that was just built.
+		const promotedUser = makeMessage(chatID, 3, "user", "follow-up");
+
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						part: { type: "text", text: "I am helping you" },
+					},
+				},
+				{
+					type: "message",
+					chat_id: chatID,
+					message: promotedUser,
+				},
+			]);
+		});
+
+		// The stream state must survive: the promoted user message
+		// should not wipe the in-progress assistant stream.
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toContain(3);
+			expect(result.current.streamState).not.toBeNull();
+			const blocks = result.current.streamState?.blocks ?? [];
+			const textBlock = blocks.find((b) => b.type === "response");
+			expect(textBlock).toBeDefined();
 		});
 	});
 });

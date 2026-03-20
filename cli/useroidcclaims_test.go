@@ -21,19 +21,25 @@ import (
 func TestUserOIDCClaims(t *testing.T) {
 	t.Parallel()
 
-	fake := oidctest.NewFakeIDP(t,
-		oidctest.WithServing(),
-	)
-	cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
-		cfg.AllowSignups = true
-	})
-	ownerClient := coderdtest.New(t, &coderdtest.Options{
-		OIDCConfig: cfg,
-	})
+	newOIDCTest := func(t *testing.T) (*oidctest.FakeIDP, *codersdk.Client) {
+		t.Helper()
+
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+		ownerClient := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+		return fake, ownerClient
+	}
 
 	t.Run("OwnClaims", func(t *testing.T) {
 		t.Parallel()
 
+		fake, ownerClient := newOIDCTest(t)
 		claims := jwt.MapClaims{
 			"email":          "alice@coder.com",
 			"email_verified": true,
@@ -61,6 +67,7 @@ func TestUserOIDCClaims(t *testing.T) {
 	t.Run("Table", func(t *testing.T) {
 		t.Parallel()
 
+		fake, ownerClient := newOIDCTest(t)
 		claims := jwt.MapClaims{
 			"email":          "bob@coder.com",
 			"email_verified": true,
@@ -102,20 +109,22 @@ func TestUserOIDCClaims(t *testing.T) {
 	t.Run("OnlyOwnClaims", func(t *testing.T) {
 		t.Parallel()
 
+		aliceFake, aliceOwnerClient := newOIDCTest(t)
 		aliceClaims := jwt.MapClaims{
 			"email":          "alice-isolation@coder.com",
 			"email_verified": true,
 			"sub":            uuid.NewString(),
 		}
-		aliceClient, aliceLoginResp := fake.Login(t, ownerClient, aliceClaims)
+		aliceClient, aliceLoginResp := aliceFake.Login(t, aliceOwnerClient, aliceClaims)
 		defer aliceLoginResp.Body.Close()
 
+		bobFake, bobOwnerClient := newOIDCTest(t)
 		bobClaims := jwt.MapClaims{
 			"email":          "bob-isolation@coder.com",
 			"email_verified": true,
 			"sub":            uuid.NewString(),
 		}
-		bobClient, bobLoginResp := fake.Login(t, ownerClient, bobClaims)
+		bobClient, bobLoginResp := bobFake.Login(t, bobOwnerClient, bobClaims)
 		defer bobLoginResp.Body.Close()
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -134,6 +143,7 @@ func TestUserOIDCClaims(t *testing.T) {
 	t.Run("ClaimsNeverNull", func(t *testing.T) {
 		t.Parallel()
 
+		fake, ownerClient := newOIDCTest(t)
 		// Use minimal claims — just enough for OIDC login.
 		claims := jwt.MapClaims{
 			"email":          "minimal@coder.com",

@@ -448,6 +448,16 @@ export const useChatStore = (
 	const wsQueueUpdateReceivedRef = useRef(false);
 	const activeChatIDRef = useRef<string | null>(null);
 	const prevChatIDRef = useRef<string | undefined>(chatID);
+	// Snapshot of the chatMessages elements from the last sync effect
+	// run. Used to detect whether chatMessages actually changed (e.g.
+	// after a refetch producing new objects) vs. just getting a new
+	// array reference because an unrelated field like queued_messages
+	// was updated in the query cache. Element-level reference
+	// comparison works because useMemo(flatMap) preserves message
+	// object references when only non-message fields change in the
+	// page, while a genuine refetch returns new objects from the
+	// server.
+	const lastSyncedMessagesRef = useRef<readonly TypesGen.ChatMessage[]>([]);
 
 	const store = storeRef.current;
 
@@ -544,6 +554,7 @@ export const useChatStore = (
 		// the new chat's query resolves.
 		if (prevChatIDRef.current !== chatID) {
 			prevChatIDRef.current = chatID;
+			lastSyncedMessagesRef.current = [];
 			store.replaceMessages([]);
 		}
 		// Merge REST-fetched messages into the store one-by-one instead
@@ -554,12 +565,25 @@ export const useChatStore = (
 		// However, if the fetched set is missing message IDs the store
 		// already has (e.g. after an edit truncation), a full replace
 		// is needed because upsert can only add/update, not remove.
+		// We must only do this when the fetched messages actually
+		// changed (new elements from a refetch), not when an
+		// unrelated field like queued_messages caused the query
+		// data reference to update. Without this guard, a
+		// queue_update WebSocket event would trigger
+		// replaceMessages with the stale REST data, wiping any
+		// message the WebSocket just delivered.
 		if (chatMessages) {
-			const fetchedIDs = new Set(chatMessages.map((m) => m.id));
+			const prev = lastSyncedMessagesRef.current;
+			const contentChanged =
+				chatMessages.length !== prev.length ||
+				chatMessages.some((m, i) => m !== prev[i]);
+			lastSyncedMessagesRef.current = chatMessages;
+
 			const storeSnap = store.getSnapshot();
-			const hasStaleEntries = storeSnap.orderedMessageIDs.some(
-				(id) => !fetchedIDs.has(id),
-			);
+			const fetchedIDs = new Set(chatMessages.map((m) => m.id));
+			const hasStaleEntries =
+				contentChanged &&
+				storeSnap.orderedMessageIDs.some((id) => !fetchedIDs.has(id));
 			if (hasStaleEntries) {
 				store.replaceMessages(chatMessages);
 			} else {
@@ -701,7 +725,7 @@ export const useChatStore = (
 						) {
 							lastMessageIdRef.current = message.id;
 						}
-						if (changed) {
+						if (changed && message.role === "assistant") {
 							scheduleStreamReset();
 						}
 						// Do not update updated_at here. The global

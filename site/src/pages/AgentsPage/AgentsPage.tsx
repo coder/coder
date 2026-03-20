@@ -2,6 +2,7 @@ import { API, watchChats } from "api/api";
 import { getErrorMessage } from "api/errors";
 import {
 	archiveChat,
+	chatDesktopEnabled,
 	chatDiffContentsKey,
 	chatKey,
 	chatModelConfigs,
@@ -14,7 +15,9 @@ import {
 	unarchiveChat,
 	updateInfiniteChatsCache,
 } from "api/queries/chats";
+import { workspaceById } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
@@ -39,9 +42,12 @@ import {
 	emptyInputStorageKey,
 } from "./AgentCreateForm";
 import { maybePlayChime } from "./AgentDetail/useAgentChime";
-import type { AgentsOutletContext } from "./AgentsPageView";
 import { AgentsPageView } from "./AgentsPageView";
-import { getModelOptionsFromCatalog } from "./modelOptions";
+import { resolveArchiveAndDeleteAction } from "./agentWorkspaceUtils";
+import {
+	getModelOptionsFromCatalog,
+	getNormalizedModelRef,
+} from "./modelOptions";
 import type { ChatDetailError } from "./usageLimitMessage";
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 import { useAgentsPWA } from "./useAgentsPWA";
@@ -128,6 +134,7 @@ const AgentsPage: FC = () => {
 	);
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const createMutation = useMutation(createChat(queryClient));
 	const archiveChatBase = archiveChat(queryClient);
 	const archiveAgentMutation = useMutation({
@@ -164,6 +171,10 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
 		},
 	});
+	const [pendingArchiveAndDelete, setPendingArchiveAndDelete] = useState<{
+		chatId: string;
+		workspaceId: string;
+	} | null>(null);
 	const unarchiveChatBase = unarchiveChat(queryClient);
 	const unarchiveAgentMutation = useMutation({
 		...unarchiveChatBase,
@@ -187,8 +198,7 @@ const AgentsPage: FC = () => {
 	const modelConfigIDByModelID = useMemo(() => {
 		const byModelID = new Map<string, string>();
 		for (const config of chatModelConfigsQuery.data ?? []) {
-			const provider = config.provider.trim().toLowerCase();
-			const model = config.model.trim();
+			const { provider, model } = getNormalizedModelRef(config);
 			if (!provider || !model) {
 				continue;
 			}
@@ -258,13 +268,48 @@ const AgentsPage: FC = () => {
 		[isArchiving, archiveAgentMutation],
 	);
 	const requestArchiveAndDeleteWorkspace = useCallback(
-		(chatId: string, workspaceId: string) => {
-			if (!isArchiving) {
-				archiveAndDeleteMutation.mutate({ chatId, workspaceId });
+		async (chatId: string, workspaceId: string) => {
+			if (isArchiving) {
+				return;
+			}
+			try {
+				const action = await resolveArchiveAndDeleteAction(
+					() => queryClient.fetchQuery(workspaceById(workspaceId)),
+					() =>
+						readInfiniteChatsCache(queryClient)?.find((c) => c.id === chatId)
+							?.created_at,
+				);
+				if (action === "proceed") {
+					archiveAndDeleteMutation.mutate(
+						{ chatId, workspaceId },
+						{
+							onSettled: () => navigate("/agents"),
+						},
+					);
+				} else {
+					setPendingArchiveAndDelete({ chatId, workspaceId });
+				}
+			} catch {
+				toast.error("Failed to look up workspace for deletion.");
 			}
 		},
-		[isArchiving, archiveAndDeleteMutation],
+		[isArchiving, queryClient, archiveAndDeleteMutation, navigate],
 	);
+	const handleConfirmArchiveAndDelete = useCallback(() => {
+		if (pendingArchiveAndDelete && !isArchiving) {
+			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete, {
+				onSettled: () => {
+					setPendingArchiveAndDelete(null);
+					navigate("/agents");
+				},
+			});
+		}
+	}, [
+		pendingArchiveAndDelete,
+		isArchiving,
+		archiveAndDeleteMutation,
+		navigate,
+	]);
 	const requestUnarchiveAgent = useCallback(
 		(chatId: string) => {
 			unarchiveAgentMutation.mutate(chatId);
@@ -274,28 +319,6 @@ const AgentsPage: FC = () => {
 	const handleToggleSidebarCollapsed = useCallback(
 		() => setIsSidebarCollapsed((prev) => !prev),
 		[],
-	);
-	const outletContext: AgentsOutletContext = useMemo(
-		() => ({
-			chatErrorReasons,
-			setChatErrorReason,
-			clearChatErrorReason,
-			requestArchiveAgent,
-			requestUnarchiveAgent,
-			requestArchiveAndDeleteWorkspace,
-			isSidebarCollapsed,
-			onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
-		}),
-		[
-			chatErrorReasons,
-			setChatErrorReason,
-			clearChatErrorReason,
-			requestArchiveAgent,
-			requestUnarchiveAgent,
-			requestArchiveAndDeleteWorkspace,
-			isSidebarCollapsed,
-			handleToggleSidebarCollapsed,
-		],
 	);
 	const handleCreateChat = async (options: CreateChatOptions) => {
 		const { message, fileIDs, workspaceId, model } = options;
@@ -432,6 +455,9 @@ const AgentsPage: FC = () => {
 									...(isDiffStatusEvent && {
 										diff_status: updatedChat.diff_status,
 									}),
+									// workspace_id can arrive on any event kind once
+									// the workspace is associated with the chat.
+									workspace_id: updatedChat.workspace_id ?? c.workspace_id,
 									updated_at:
 										c.updated_at > updatedChat.updated_at
 											? c.updated_at
@@ -454,6 +480,8 @@ const AgentsPage: FC = () => {
 								...(isDiffStatusEvent && {
 									diff_status: updatedChat.diff_status,
 								}),
+								workspace_id:
+									updatedChat.workspace_id ?? previousChat.workspace_id,
 								updated_at:
 									previousChat.updated_at > updatedChat.updated_at
 										? previousChat.updated_at
@@ -462,7 +490,6 @@ const AgentsPage: FC = () => {
 						},
 					);
 				});
-
 				return ws;
 			},
 			onOpen() {
@@ -475,38 +502,73 @@ const AgentsPage: FC = () => {
 		onNewAgent: handleNewAgent,
 	});
 
+	// Fetch workspace name for the confirmation dialog. Only
+	// enabled when pendingArchiveAndDelete is set (i.e. the
+	// resolve step determined confirmation is needed). The
+	// workspace data is usually already cached from the
+	// fetchQuery in requestArchiveAndDeleteWorkspace.
+	const pendingWorkspaceQuery = useQuery({
+		...workspaceById(pendingArchiveAndDelete?.workspaceId ?? ""),
+		enabled: Boolean(pendingArchiveAndDelete?.workspaceId),
+	});
+	const pendingWorkspaceName = pendingWorkspaceQuery.data?.name ?? "";
+
+	const deleteDialogOpen =
+		pendingArchiveAndDelete !== null && Boolean(pendingWorkspaceName);
+
 	return (
-		<AgentsPageView
-			agentId={agentId}
-			chatList={chatList}
-			catalogModelOptions={catalogModelOptions}
-			modelConfigs={chatModelConfigsQuery.data ?? []}
-			logoUrl={appearance.logo_url}
-			handleNewAgent={handleNewAgent}
-			isCreating={createMutation.isPending}
-			isArchiving={isArchiving}
-			archivingChatId={archivingChatId}
-			isChatsLoading={chatsQuery.isLoading}
-			chatsLoadError={chatsQuery.error}
-			onRetryChatsLoad={() => void chatsQuery.refetch()}
-			onCollapseSidebar={() => setIsSidebarCollapsed(true)}
-			isSidebarCollapsed={isSidebarCollapsed}
-			onExpandSidebar={() => setIsSidebarCollapsed(false)}
-			outletContext={outletContext}
-			onCreateChat={handleCreateChat}
-			createError={createMutation.error}
-			modelCatalog={chatModelsQuery.data}
-			isModelCatalogLoading={chatModelsQuery.isLoading}
-			isModelConfigsLoading={chatModelConfigsQuery.isLoading}
-			modelCatalogError={chatModelsQuery.error}
-			isAgentsAdmin={isAgentsAdmin}
-			hasNextPage={chatsQuery.hasNextPage}
-			onLoadMore={() => void chatsQuery.fetchNextPage()}
-			isFetchingNextPage={chatsQuery.isFetchingNextPage}
-			archivedFilter={archivedFilter}
-			onArchivedFilterChange={setArchivedFilter}
-		/>
+		<>
+			<AgentsPageView
+				agentId={agentId}
+				chatList={chatList}
+				catalogModelOptions={catalogModelOptions}
+				modelConfigs={chatModelConfigsQuery.data ?? []}
+				logoUrl={appearance.logo_url}
+				handleNewAgent={handleNewAgent}
+				isCreating={createMutation.isPending}
+				isArchiving={isArchiving}
+				archivingChatId={archivingChatId}
+				isChatsLoading={chatsQuery.isLoading}
+				chatsLoadError={chatsQuery.error}
+				onRetryChatsLoad={() => void chatsQuery.refetch()}
+				onCollapseSidebar={() => setIsSidebarCollapsed(true)}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onExpandSidebar={() => setIsSidebarCollapsed(false)}
+				chatErrorReasons={chatErrorReasons}
+				setChatErrorReason={setChatErrorReason}
+				clearChatErrorReason={clearChatErrorReason}
+				requestArchiveAgent={requestArchiveAgent}
+				requestUnarchiveAgent={requestUnarchiveAgent}
+				requestArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
+				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
+				onCreateChat={handleCreateChat}
+				createError={createMutation.error}
+				modelCatalog={chatModelsQuery.data}
+				isModelCatalogLoading={chatModelsQuery.isLoading}
+				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
+				modelCatalogError={chatModelsQuery.error}
+				modelConfigIDByModelID={modelConfigIDByModelID}
+				desktopEnabled={desktopEnabledQuery.data?.enable_desktop ?? false}
+				isAgentsAdmin={isAgentsAdmin}
+				hasNextPage={chatsQuery.hasNextPage}
+				onLoadMore={() => void chatsQuery.fetchNextPage()}
+				isFetchingNextPage={chatsQuery.isFetchingNextPage}
+				archivedFilter={archivedFilter}
+				onArchivedFilterChange={setArchivedFilter}
+			/>
+			<DeleteDialog
+				key={pendingWorkspaceName}
+				isOpen={deleteDialogOpen}
+				onConfirm={handleConfirmArchiveAndDelete}
+				onCancel={() => setPendingArchiveAndDelete(null)}
+				entity="workspace"
+				name={pendingWorkspaceName}
+				confirmLoading={archiveAndDeleteMutation.isPending}
+				title="Archive agent & delete workspace"
+				verb="Archiving and deleting"
+				info="This will archive the agent and permanently delete the associated workspace and all its resources."
+			/>
+		</>
 	);
 };
-
 export default AgentsPage;

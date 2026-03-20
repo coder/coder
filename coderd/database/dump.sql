@@ -1393,7 +1393,8 @@ CREATE TABLE chats (
     last_model_config_id uuid NOT NULL,
     archived boolean DEFAULT false NOT NULL,
     last_error text,
-    mode chat_mode
+    mode chat_mode,
+    mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL
 );
 
 CREATE TABLE connection_logs (
@@ -1669,6 +1670,53 @@ CREATE SEQUENCE licenses_id_seq
     CACHE 1;
 
 ALTER SEQUENCE licenses_id_seq OWNED BY licenses.id;
+
+CREATE TABLE mcp_server_configs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    display_name text NOT NULL,
+    slug text NOT NULL,
+    description text DEFAULT ''::text NOT NULL,
+    icon_url text DEFAULT ''::text NOT NULL,
+    transport text DEFAULT 'streamable_http'::text NOT NULL,
+    url text NOT NULL,
+    auth_type text DEFAULT 'none'::text NOT NULL,
+    oauth2_client_id text DEFAULT ''::text NOT NULL,
+    oauth2_client_secret text DEFAULT ''::text NOT NULL,
+    oauth2_client_secret_key_id text,
+    oauth2_auth_url text DEFAULT ''::text NOT NULL,
+    oauth2_token_url text DEFAULT ''::text NOT NULL,
+    oauth2_scopes text DEFAULT ''::text NOT NULL,
+    api_key_header text DEFAULT 'Authorization'::text NOT NULL,
+    api_key_value text DEFAULT ''::text NOT NULL,
+    api_key_value_key_id text,
+    custom_headers text DEFAULT '{}'::text NOT NULL,
+    custom_headers_key_id text,
+    tool_allow_list text[] DEFAULT '{}'::text[] NOT NULL,
+    tool_deny_list text[] DEFAULT '{}'::text[] NOT NULL,
+    availability text DEFAULT 'default_off'::text NOT NULL,
+    enabled boolean DEFAULT false NOT NULL,
+    created_by uuid,
+    updated_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text]))),
+    CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
+    CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
+);
+
+CREATE TABLE mcp_server_user_tokens (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    mcp_server_config_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    access_token text NOT NULL,
+    access_token_key_id text,
+    refresh_token text DEFAULT ''::text NOT NULL,
+    refresh_token_key_id text,
+    token_type text DEFAULT 'Bearer'::text NOT NULL,
+    expiry timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
 
 CREATE TABLE notification_messages (
     id uuid NOT NULL,
@@ -3343,6 +3391,18 @@ ALTER TABLE ONLY licenses
 ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_slug_key UNIQUE (slug);
+
+ALTER TABLE ONLY mcp_server_user_tokens
+    ADD CONSTRAINT mcp_server_user_tokens_mcp_server_config_id_user_id_key UNIQUE (mcp_server_config_id, user_id);
+
+ALTER TABLE ONLY mcp_server_user_tokens
+    ADD CONSTRAINT mcp_server_user_tokens_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY notification_messages
     ADD CONSTRAINT notification_messages_pkey PRIMARY KEY (id);
 
@@ -3691,6 +3751,12 @@ CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USIN
 
 CREATE INDEX idx_inbox_notifications_user_id_template_id_targets ON inbox_notifications USING btree (user_id, template_id, targets);
 
+CREATE INDEX idx_mcp_server_configs_enabled ON mcp_server_configs USING btree (enabled) WHERE (enabled = true);
+
+CREATE INDEX idx_mcp_server_configs_forced ON mcp_server_configs USING btree (enabled, availability) WHERE ((enabled = true) AND (availability = 'force_on'::text));
+
+CREATE INDEX idx_mcp_server_user_tokens_user_id ON mcp_server_user_tokens USING btree (user_id);
+
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
 
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
@@ -4014,6 +4080,33 @@ ALTER TABLE ONLY jfrog_xray_scans
 
 ALTER TABLE ONLY jfrog_xray_scans
     ADD CONSTRAINT jfrog_xray_scans_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_api_key_value_key_id_fkey FOREIGN KEY (api_key_value_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_custom_headers_key_id_fkey FOREIGN KEY (custom_headers_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_oauth2_client_secret_key_id_fkey FOREIGN KEY (oauth2_client_secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY mcp_server_user_tokens
+    ADD CONSTRAINT mcp_server_user_tokens_access_token_key_id_fkey FOREIGN KEY (access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY mcp_server_user_tokens
+    ADD CONSTRAINT mcp_server_user_tokens_mcp_server_config_id_fkey FOREIGN KEY (mcp_server_config_id) REFERENCES mcp_server_configs(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY mcp_server_user_tokens
+    ADD CONSTRAINT mcp_server_user_tokens_refresh_token_key_id_fkey FOREIGN KEY (refresh_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY mcp_server_user_tokens
+    ADD CONSTRAINT mcp_server_user_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY notification_messages
     ADD CONSTRAINT notification_messages_notification_template_id_fkey FOREIGN KEY (notification_template_id) REFERENCES notification_templates(id) ON DELETE CASCADE;

@@ -7826,6 +7826,29 @@ const docTemplate = `{
                 ]
             }
         },
+        "/users/me/session/token-to-cookie": {
+            "post": {
+                "description": "Converts the current session token into a Set-Cookie response.\nThis is used by embedded iframes (e.g. VS Code chat) that\nreceive a session token out-of-band via postMessage but need\ncookie-based auth for WebSocket connections.",
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Set session token cookie",
+                "operationId": "set-session-token-cookie",
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/users/oauth2/github/callback": {
             "get": {
                 "tags": [

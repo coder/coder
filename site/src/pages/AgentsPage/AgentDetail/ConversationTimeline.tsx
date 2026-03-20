@@ -366,6 +366,7 @@ const ChatMessageItem = memo<{
 																fileName={block.file_name}
 																startLine={block.start_line}
 																endLine={block.end_line}
+																className="mx-1"
 															/>
 														),
 													)

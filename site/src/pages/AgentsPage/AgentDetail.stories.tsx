@@ -44,10 +44,56 @@ const AgentDetailLayout: FC = () => {
 							setChatErrorReason: () => {},
 							clearChatErrorReason: () => {},
 							requestArchiveAgent: () => {},
-							requestArchiveAndDeleteWorkspace: () => {},
+							requestArchiveAndDeleteWorkspace: (
+								_chatId: string,
+								_workspaceId: string,
+							) => {},
 							requestUnarchiveAgent: () => {},
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
+							modelOptions: [
+								{
+									id: "openai:gpt-4o",
+									provider: "openai",
+									model: "gpt-4o",
+									displayName: "GPT-4o",
+								},
+							],
+							modelConfigIDByModelID: new Map([["openai:gpt-4o", "config-1"]]),
+							modelIDByConfigID: new Map([["config-1", "openai:gpt-4o"]]),
+							modelConfigs: [
+								{
+									id: "config-1",
+									provider: "openai",
+									model: "gpt-4o",
+									display_name: "GPT-4o",
+									enabled: true,
+									is_default: false,
+									context_limit: 200000,
+									compression_threshold: 70,
+									created_at: "2026-01-01T00:00:00Z",
+									updated_at: "2026-01-01T00:00:00Z",
+								},
+							],
+							modelCatalog: {
+								providers: [
+									{
+										provider: "openai",
+										available: true,
+										models: [
+											{
+												id: "openai:gpt-4o",
+												provider: "openai",
+												model: "gpt-4o",
+												display_name: "GPT-4o",
+											},
+										],
+									},
+								],
+							},
+							isModelCatalogLoading: false,
+							modelCatalogError: null,
+							desktopEnabled: false,
 						} satisfies AgentsOutletContext
 					}
 				/>
@@ -106,6 +152,7 @@ const baseChatFields = {
 	owner_id: "owner-id",
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: "model-config-1",
+	mcp_server_ids: [],
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 	archived: false,
@@ -207,7 +254,9 @@ const meta: Meta<typeof AgentDetailLayout> = {
 		}),
 	},
 	beforeEach: () => {
+		localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 	},
 };
 
@@ -581,22 +630,6 @@ export const CompletedWithDiffPanel: Story = {
 		expect(body.getByText("Open in VS Code")).toBeInTheDocument();
 		expect(body.getByText("View Workspace")).toBeInTheDocument();
 		expect(body.getByText("Archive Agent")).toBeInTheDocument();
-	},
-};
-
-/** Right panel stays closed when no diff-status URL exists. */
-export const NoDiffUrl: Story = {
-	parameters: {
-		queries: buildQueries(
-			{
-				id: CHAT_ID,
-				...baseChatFields,
-				title: "No diff yet",
-				status: "completed",
-			},
-			{ messages: [], queued_messages: [], has_more: false },
-			{ diffUrl: undefined },
-		),
 	},
 };
 

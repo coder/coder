@@ -2,10 +2,7 @@ import { API, watchWorkspace } from "api/api";
 import { isApiError } from "api/errors";
 import {
 	chat,
-	chatDesktopEnabled,
 	chatMessagesForInfiniteScroll,
-	chatModelConfigs,
-	chatModels,
 	chats,
 	createChatMessage,
 	deleteChatQueuedMessage,
@@ -55,7 +52,6 @@ import {
 import type { AgentsOutletContext } from "./AgentsPage";
 import {
 	getModelCatalogStatusMessage,
-	getModelOptionsFromCatalog,
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
@@ -257,6 +253,14 @@ const AgentDetail: FC = () => {
 		onOpenAnalytics,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
+		modelOptions,
+		modelConfigIDByModelID,
+		modelIDByConfigID,
+		modelConfigs,
+		modelCatalog,
+		isModelCatalogLoading,
+		modelCatalogError,
+		desktopEnabled,
 	} = outletContext;
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
@@ -317,9 +321,6 @@ const AgentDetail: FC = () => {
 		});
 		return () => socket.close();
 	}, [workspaceId, queryClient]);
-	const chatModelsQuery = useQuery(chatModels());
-	const chatModelConfigsQuery = useQuery(chatModelConfigs());
-	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspace = workspaceQuery.data;
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
@@ -383,43 +384,6 @@ const AgentDetail: FC = () => {
 		}, [chatMessagesList, chatQueuedMessages, chatMessagesQuery.data]);
 	const isArchived = chatRecord?.archived ?? false;
 	const chatLastModelConfigID = chatRecord?.last_model_config_id;
-
-	const modelOptions = useMemo(
-		() =>
-			getModelOptionsFromCatalog(
-				chatModelsQuery.data,
-				chatModelConfigsQuery.data,
-			),
-		[chatModelsQuery.data, chatModelConfigsQuery.data],
-	);
-	const modelConfigIDByModelID = useMemo(() => {
-		const byModelID = new Map<string, string>();
-		for (const config of chatModelConfigsQuery.data ?? []) {
-			const provider = config.provider.trim().toLowerCase();
-			const model = config.model.trim();
-			if (!provider || !model) {
-				continue;
-			}
-			const colonRef = `${provider}:${model}`;
-			if (!byModelID.has(colonRef)) {
-				byModelID.set(colonRef, config.id);
-			}
-			const slashRef = `${provider}/${model}`;
-			if (!byModelID.has(slashRef)) {
-				byModelID.set(slashRef, config.id);
-			}
-		}
-		return byModelID;
-	}, [chatModelConfigsQuery.data]);
-	const modelIDByConfigID = useMemo(() => {
-		const byConfigID = new Map<string, string>();
-		for (const [modelID, configID] of modelConfigIDByModelID.entries()) {
-			if (!byConfigID.has(configID)) {
-				byConfigID.set(configID, modelID);
-			}
-		}
-		return byConfigID;
-	}, [modelConfigIDByModelID]);
 
 	const sendMutation = useMutation(
 		createChatMessage(queryClient, agentId ?? ""),
@@ -501,25 +465,21 @@ const AgentDetail: FC = () => {
 		if (!chatLastModelConfigID) {
 			return undefined;
 		}
-		const config = chatModelConfigsQuery.data?.find(
-			(c) => c.id === chatLastModelConfigID,
-		);
+		const config = modelConfigs.find((c) => c.id === chatLastModelConfigID);
 		return config?.compression_threshold;
-	}, [chatLastModelConfigID, chatModelConfigsQuery.data]);
+	}, [chatLastModelConfigID, modelConfigs]);
 	const hasModelOptions = modelOptions.length > 0;
-	const hasConfiguredModels = hasConfiguredModelsInCatalog(
-		chatModelsQuery.data,
-	);
+	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
-		chatModelsQuery.isLoading,
+		isModelCatalogLoading,
 		hasConfiguredModels,
 	);
 	const modelCatalogStatusMessage = getModelCatalogStatusMessage(
-		chatModelsQuery.data,
+		modelCatalog,
 		modelOptions,
-		chatModelsQuery.isLoading,
-		Boolean(chatModelsQuery.error),
+		isModelCatalogLoading,
+		Boolean(modelCatalogError),
 	);
 	const inputStatusText = hasModelOptions
 		? null
@@ -709,7 +669,11 @@ const AgentDetail: FC = () => {
 			store.clearStreamError();
 			store.setChatStatus("pending");
 			try {
-				await promoteQueuedMutation.mutateAsync(id);
+				const promotedMessage = await promoteQueuedMutation.mutateAsync(id);
+				// Insert the promoted message into the store immediately
+				// so it appears in the timeline without waiting for the
+				// WebSocket to deliver it.
+				store.upsertDurableMessage(promotedMessage);
 			} catch (error) {
 				store.setQueuedMessages(previousQueuedMessages);
 				store.setChatStatus(previousChatStatus);
@@ -909,9 +873,7 @@ const AgentDetail: FC = () => {
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
-			desktopChatId={
-				desktopEnabledQuery.data?.enable_desktop ? agentId : undefined
-			}
+			desktopChatId={desktopEnabled ? agentId : undefined}
 		/>
 	);
 };

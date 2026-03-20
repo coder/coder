@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -30,9 +31,12 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
@@ -41,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	proto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
@@ -878,6 +883,8 @@ func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing
 func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	t.Parallel()
 
+	const acquireInterval = 10 * time.Millisecond
+
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -887,6 +894,10 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 		Period:             string(codersdk.ChatUsageLimitPeriodDay),
 	})
 	require.NoError(t, err)
+
+	clock := quartz.NewMock(t)
+	acquireTrap := clock.Trap().NewTicker("chatd", "acquire")
+	defer acquireTrap.Close()
 
 	streamStarted := make(chan struct{})
 	interrupted := make(chan struct{})
@@ -921,18 +932,12 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 		)
 	})
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := chatd.New(chatd.Config{
-		Logger:                     logger,
-		Database:                   db,
-		ReplicaID:                  uuid.New(),
-		Pubsub:                     ps,
-		PendingChatAcquireInterval: 10 * time.Millisecond,
-		InFlightChatStaleAfter:     testutil.WaitSuperLong,
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.Clock = clock
+		cfg.PendingChatAcquireInterval = acquireInterval
+		cfg.InFlightChatStaleAfter = testutil.WaitSuperLong
 	})
-	t.Cleanup(func() {
-		require.NoError(t, server.Close())
-	})
+	acquireTrap.MustWait(ctx).MustRelease(ctx)
 
 	user, model := seedChatDependencies(ctx, t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
@@ -945,13 +950,7 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
-		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
-		if dbErr != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusRunning && fromDB.WorkerID.Valid
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	clock.Advance(acquireInterval).MustWait(ctx)
 
 	require.Eventually(t, func() bool {
 		select {
@@ -971,19 +970,6 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	require.True(t, queuedResult.Queued)
 	require.NotNil(t, queuedResult.QueuedMessage)
 
-	// Send "later queued" immediately after "queued" while the first
-	// message is still in chat_queued_messages. The existing backlog
-	// (len(existingQueued) > 0) guarantees this is queued regardless
-	// of chat status, avoiding a race where the auto-promoted "queued"
-	// message finishes processing before we can send this.
-	laterQueuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:  chat.ID,
-		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("later queued")},
-	})
-	require.NoError(t, err)
-	require.True(t, laterQueuedResult.Queued)
-	require.NotNil(t, laterQueuedResult.QueuedMessage)
-
 	require.Eventually(t, func() bool {
 		select {
 		case <-interrupted:
@@ -992,6 +978,32 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 			return false
 		}
 	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	close(allowFinish)
+
+	require.Eventually(t, func() bool {
+		queued, dbErr := db.GetChatQueuedMessages(ctx, chat.ID)
+		if dbErr != nil || len(queued) != 0 {
+			return false
+		}
+
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusPending && !fromDB.WorkerID.Valid
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	// Keep the acquire loop frozen here so "queued" stays pending.
+	// That makes the later send queue because the chat is still busy,
+	// rather than because the scheduler happened to be slow.
+	laterQueuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:  chat.ID,
+		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("later queued")},
+	})
+	require.NoError(t, err)
+	require.True(t, laterQueuedResult.Queued)
+	require.NotNil(t, laterQueuedResult.QueuedMessage)
 
 	spendChat, err := db.InsertChat(ctx, database.InsertChatParams{
 		OwnerID:           user.ID,
@@ -1030,7 +1042,25 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	close(allowFinish)
+	clock.Advance(acquireInterval).MustWait(ctx)
+	require.Eventually(t, func() bool {
+		return requestCount.Load() >= 2
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	require.Eventually(t, func() bool {
+		queued, dbErr := db.GetChatQueuedMessages(ctx, chat.ID)
+		if dbErr != nil || len(queued) != 0 {
+			return false
+		}
+
+		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
+		if dbErr != nil {
+			return false
+		}
+		return fromDB.Status == database.ChatStatusPending && !fromDB.WorkerID.Valid
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	clock.Advance(acquireInterval).MustWait(ctx)
 
 	require.Eventually(t, func() bool {
 		queued, dbErr := db.GetChatQueuedMessages(ctx, chat.ID)
@@ -1065,7 +1095,10 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 		if len(userTexts) != 3 {
 			return false
 		}
-		return userTexts[0] == "hello" && userTexts[1] == "queued" && userTexts[2] == "later queued"
+		return requestCount.Load() >= 3 &&
+			userTexts[0] == "hello" &&
+			userTexts[1] == "queued" &&
+			userTexts[2] == "later queued"
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
@@ -2158,19 +2191,51 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 		return chattest.OpenAIResponse{StreamingChunks: chunks}
 	}))
 
-	// Create a workspace that will be linked to the chat later,
-	// simulating the normal flow where a chat is created first
-	// and then creates a workspace via create_workspace.
+	// Create a workspace with a full build chain so we can verify
+	// both last_used_at (dormancy) and deadline (autostop) bumps.
 	org := dbgen.Organization(t, db, database.Organization{})
-	tmpl := dbgen.Template(t, db, database.Template{
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 	})
+	tmpl := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: tv.ID,
+		CreatedBy:       user.ID,
+	})
+	require.NoError(t, db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+		ID:                tmpl.ID,
+		UpdatedAt:         dbtime.Now(),
+		AllowUserAutostop: true,
+		ActivityBump:      int64(time.Hour),
+	}))
 	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID:        user.ID,
 		OrganizationID: org.ID,
 		TemplateID:     tmpl.ID,
+		Ttl:            sql.NullInt64{Valid: true, Int64: int64(8 * time.Hour)},
 	})
+	pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		CompletedAt: sql.NullTime{
+			Valid: true,
+			Time:  dbtime.Now().Add(-30 * time.Minute),
+		},
+	})
+	// Build deadline is 30 minutes in the past — close enough to
+	// be bumped by the default 1-hour activity bump.
+	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       ws.ID,
+		TemplateVersionID: tv.ID,
+		JobID:             pj.ID,
+		Transition:        database.WorkspaceTransitionStart,
+		Deadline:          dbtime.Now().Add(-30 * time.Minute),
+	})
+	originalDeadline := build.Deadline
 
 	// Set up a short heartbeat interval and a UsageTracker that
 	// flushes frequently so last_used_at gets updated in the DB.
@@ -2183,9 +2248,13 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 	t.Cleanup(func() { tracker.Close() })
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	// Wrap the database with dbauthz so the chatd server's
+	// AsChatd context is enforced on every query, matching
+	// production behavior.
+	authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
-		Database:                   db,
+		Database:                   authzDB,
 		ReplicaID:                  uuid.New(),
 		Pubsub:                     ps,
 		PendingChatAcquireInterval: 10 * time.Millisecond,
@@ -2198,7 +2267,11 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 	})
 
 	// Create a chat WITHOUT a workspace, the normal starting state.
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+	// In production, CreateChat is called from the HTTP handler with
+	// the authenticated user's context. Here we use AsChatd since
+	// the chatd server processes everything under that role.
+	chatCtx := dbauthz.AsChatd(ctx)
+	chat, err := server.CreateChat(chatCtx, chatd.CreateOptions{
 		OwnerID:            user.ID,
 		Title:              "usage-tracking-test",
 		ModelConfigID:      model.ID,
@@ -2256,6 +2329,22 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, updatedWs.LastUsedAt.After(ws.LastUsedAt),
 		"workspace last_used_at should have been bumped")
+
+	// Verify the workspace build deadline was also extended.
+	// The SQL only writes when 5% of the deadline has elapsed —
+	// most calls perform a read-only CTE lookup. Wider ±2
+	// minute tolerance than activitybump_test.go because the bump
+	// happens asynchronously via the heartbeat goroutine.
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		updatedBuild, buildErr := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, ws.ID)
+		if buildErr != nil || !updatedBuild.Deadline.After(originalDeadline) {
+			return false
+		}
+		now := dbtime.Now()
+		return updatedBuild.Deadline.After(now.Add(time.Hour-2*time.Minute)) &&
+			updatedBuild.Deadline.Before(now.Add(time.Hour+2*time.Minute))
+	}, testutil.IntervalFast,
+		"workspace build deadline should have been bumped to ~now+1h")
 }
 
 func TestHeartbeatNoWorkspaceNoBump(t *testing.T) {
@@ -3342,4 +3431,84 @@ func TestInterruptChatPersistsPartialResponse(t *testing.T) {
 	}
 	require.Contains(t, foundText, "hello world",
 		"partial assistant response should contain the streamed text")
+}
+
+func TestProcessChatPanicRecovery(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+
+	// Wrap the database so we can trigger a panic on the main
+	// goroutine of processChat. The chatloop's executeTools has
+	// its own recover, so panicking inside a tool goroutine won't
+	// reach the processChat-level recovery. Instead, we panic
+	// during PersistStep's InTx call, which runs synchronously on
+	// the processChat goroutine.
+	panicWrapper := &panicOnInTxDB{Store: db}
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("Panic recovery test")
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("hello")...,
+		)
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, model := seedChatDependenciesWithProvider(ctx, t, db, "openai-compat", openAIURL)
+
+	// Pass the panic wrapper to the server, but use the real
+	// database for seeding so those operations don't panic.
+	server := newActiveTestServer(t, panicWrapper, ps)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:       user.ID,
+		Title:         "panic-recovery",
+		ModelConfigID: model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("hello"),
+		},
+	})
+	require.NoError(t, err)
+
+	// Enable the panic now that CreateChat's InTx has completed.
+	// The next InTx call is PersistStep inside the chatloop,
+	// running synchronously on the processChat goroutine.
+	panicWrapper.enablePanic()
+
+	// Wait for the panic to be recovered and the chat to
+	// transition to error status.
+	var chatResult database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	require.True(t, chatResult.LastError.Valid, "LastError should be set")
+	require.Contains(t, chatResult.LastError.String, "chat processing panicked")
+	require.Contains(t, chatResult.LastError.String, "intentional test panic")
+}
+
+// panicOnInTxDB wraps a database.Store and panics on the first InTx
+// call after enablePanic is called. Subsequent calls pass through
+// so the processChat cleanup defer can update the chat status.
+type panicOnInTxDB struct {
+	database.Store
+	active   atomic.Bool
+	panicked atomic.Bool
+}
+
+func (d *panicOnInTxDB) enablePanic() { d.active.Store(true) }
+
+func (d *panicOnInTxDB) InTx(f func(database.Store) error, opts *database.TxOptions) error {
+	if d.active.Load() && !d.panicked.Load() {
+		d.panicked.Store(true)
+		panic("intentional test panic")
+	}
+	return d.Store.InTx(f, opts)
 }

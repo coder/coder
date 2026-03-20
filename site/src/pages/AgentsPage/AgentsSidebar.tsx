@@ -7,6 +7,7 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { asString } from "components/ai-elements/runtimeTypeUtils";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -69,7 +70,9 @@ import {
 import { Link, NavLink, useLocation, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { shortRelativeTime } from "utils/time";
+import { getNormalizedModelRef } from "./modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "./timeGroups";
+import { UsageIndicator } from "./UsageIndicator";
 
 type SidebarView =
 	| { panel: "chats" }
@@ -187,10 +190,10 @@ const getModelDisplayName = (
 	if (!modelConfig) {
 		return "Default model";
 	}
-	const provider = modelConfig.provider.trim().toLowerCase();
-	const model = modelConfig.model.trim();
+	const { provider, model } = getNormalizedModelRef(modelConfig);
+	const displayName = asString(modelConfig.display_name).trim();
 	if (!provider || !model) {
-		return modelConfig.display_name.trim() || "Default model";
+		return displayName || "Default model";
 	}
 
 	// Try to find a matching option with a display name.
@@ -203,8 +206,8 @@ const getModelDisplayName = (
 		return match.displayName;
 	}
 
-	if (modelConfig.display_name.trim()) {
-		return modelConfig.display_name.trim();
+	if (displayName) {
+		return displayName;
 	}
 
 	return model;
@@ -896,8 +899,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					</div>
 				</ScrollArea>
 				<div className="hidden border-0 border-t border-solid md:block">
-					<div className="flex items-center">
+					<div className="flex items-stretch">
 						<DropdownMenu>
+							{" "}
 							<DropdownMenuTrigger asChild>
 								<button
 									type="button"
@@ -930,11 +934,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								/>
 							</DropdownMenuContent>
 						</DropdownMenu>
+						<UsageIndicator />
 					</div>
 				</div>
 			</div>
-
-			{/* ── Panel 2: Sub-navigation (Settings) ── */}
+			{/* ── Panel 2: Sub-navigation (Settings) ── */}{" "}
 			<div
 				className={cn(
 					"absolute inset-0 flex flex-col transition-transform duration-200 ease-in-out",

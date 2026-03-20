@@ -236,6 +236,28 @@ sql:
           aibridge_token_usage: AIBridgeTokenUsage
           aibridge_user_prompt: AIBridgeUserPrompt
           aibridge_model_thought: AIBridgeModelThought
+          mcp_server_config: MCPServerConfig
+          mcp_server_configs: MCPServerConfigs
+          mcp_server_user_token: MCPServerUserToken
+          mcp_server_user_tokens: MCPServerUserTokens
+          mcp_server_tool_snapshot: MCPServerToolSnapshot
+          mcp_server_tool_snapshots: MCPServerToolSnapshots
+          mcp_server_config_id: MCPServerConfigID
+          mcp_server_ids: MCPServerIDs
+          icon_url: IconURL
+          oauth2_client_id: OAuth2ClientID
+          oauth2_client_secret: OAuth2ClientSecret
+          oauth2_client_secret_key_id: OAuth2ClientSecretKeyID
+          oauth2_auth_url: OAuth2AuthURL
+          oauth2_token_url: OAuth2TokenURL
+          oauth2_scopes: OAuth2Scopes
+          api_key_header: APIKeyHeader
+          api_key_value: APIKeyValue
+          api_key_value_key_id: APIKeyValueKeyID
+          custom_headers_key_id: CustomHeadersKeyID
+          tools_json: ToolsJSON
+          access_token_key_id: AccessTokenKeyID
+          refresh_token_key_id: RefreshTokenKeyID
 rules:
   - name: do-not-use-public-schema-in-queries
     message: "do not use public schema in queries"

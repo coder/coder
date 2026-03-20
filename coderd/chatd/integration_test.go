@@ -272,6 +272,156 @@ func logMessages(t *testing.T, msgs []codersdk.ChatMessage) {
 	}
 }
 
+// TestOpenAIReasoningRoundTrip is an integration test that verifies
+// reasoning items from OpenAI's Responses API survive the full
+// persist → reconstruct → re-send cycle when Store: true. It sends
+// a query to a reasoning model, waits for completion, then sends a
+// follow-up message. If reasoning items are sent back without their
+// required following output item, the API rejects the second request:
+//
+//	Item 'rs_xxx' of type 'reasoning' was provided without its
+//	required following item.
+//
+// The test requires OPENAI_API_KEY to be set.
+func TestOpenAIReasoningRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	if apiKey == "" {
+		t.Skip("OPENAI_API_KEY not set; skipping OpenAI integration test")
+	}
+	baseURL := os.Getenv("OPENAI_BASE_URL")
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	// Stand up a full coderd with the agents experiment.
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
+	client := coderdtest.New(t, &coderdtest.Options{
+		DeploymentValues: deploymentValues,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	// Configure an OpenAI provider with the real API key.
+	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		Provider: "openai",
+		APIKey:   apiKey,
+		BaseURL:  baseURL,
+	})
+	require.NoError(t, err)
+
+	// Create a model config for a reasoning model with Store: true
+	// (the default). Using o4-mini because it always produces
+	// reasoning items.
+	contextLimit := int64(200000)
+	isDefault := true
+	reasoningSummary := "auto"
+	_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		Provider:     "openai",
+		Model:        "o4-mini",
+		ContextLimit: &contextLimit,
+		IsDefault:    &isDefault,
+		ModelConfig: &codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+					Store:            ptr.Ref(true),
+					ReasoningSummary: &reasoningSummary,
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// --- Step 1: Send a message that triggers reasoning ---
+	t.Log("Creating chat with reasoning query...")
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		Content: []codersdk.ChatInputPart{
+			{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "What is 2+2? Be brief.",
+			},
+		},
+	})
+	require.NoError(t, err)
+	t.Logf("Chat created: %s (status=%s)", chat.ID, chat.Status)
+
+	// Stream events until the chat reaches a terminal status.
+	events, closer, err := client.StreamChat(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	defer closer.Close()
+
+	waitForChatDone(ctx, t, events, "step 1")
+
+	// Verify the chat completed and messages were persisted.
+	chatData, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	chatMsgs, err := client.GetChatMessages(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	t.Logf("Chat status after step 1: %s, messages: %d",
+		chatData.Status, len(chatMsgs.Messages))
+	logMessages(t, chatMsgs.Messages)
+
+	require.Equal(t, codersdk.ChatStatusWaiting, chatData.Status,
+		"chat should be in waiting status after step 1")
+
+	// Verify the assistant message has reasoning content.
+	assistantMsg := findAssistantWithText(t, chatMsgs.Messages)
+	require.NotNil(t, assistantMsg,
+		"expected an assistant message with text content after step 1")
+
+	partTypes := partTypeSet(assistantMsg.Content)
+	require.Contains(t, partTypes, codersdk.ChatMessagePartTypeReasoning,
+		"assistant message should contain reasoning parts from o4-mini")
+	require.Contains(t, partTypes, codersdk.ChatMessagePartTypeText,
+		"assistant message should contain a text part")
+
+	// --- Step 2: Send a follow-up message ---
+	// This is the critical test: if reasoning items are sent back
+	// without their required following item, the API will reject
+	// the request with:
+	//   Item 'rs_xxx' of type 'reasoning' was provided without its
+	//   required following item.
+	t.Log("Sending follow-up message...")
+	_, err = client.CreateChatMessage(ctx, chat.ID,
+		codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "And what is 3+3? Be brief.",
+				},
+			},
+		})
+	require.NoError(t, err)
+
+	// Stream the follow-up response.
+	events2, closer2, err := client.StreamChat(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	defer closer2.Close()
+
+	waitForChatDone(ctx, t, events2, "step 2")
+
+	// Verify the follow-up completed and produced content.
+	chatData2, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	chatMsgs2, err := client.GetChatMessages(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	t.Logf("Chat status after step 2: %s, messages: %d",
+		chatData2.Status, len(chatMsgs2.Messages))
+	logMessages(t, chatMsgs2.Messages)
+
+	require.Equal(t, codersdk.ChatStatusWaiting, chatData2.Status,
+		"chat should be in waiting status after step 2")
+	require.Greater(t, len(chatMsgs2.Messages), len(chatMsgs.Messages),
+		"follow-up should have added more messages")
+
+	// The last assistant message should have text.
+	lastAssistant := findLastAssistantWithText(t, chatMsgs2.Messages)
+	require.NotNil(t, lastAssistant,
+		"expected an assistant message with text in the follow-up")
+
+	t.Log("OpenAI reasoning round-trip test passed.")
+}
+
 // partTypeSet returns the set of part types present in a message.
 func partTypeSet(parts []codersdk.ChatMessagePart) map[codersdk.ChatMessagePartType]struct{} {
 	set := make(map[codersdk.ChatMessagePartType]struct{}, len(parts))
