@@ -9,6 +9,7 @@ import {
 import { Link } from "components/Link/Link";
 import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 
 interface AIGovernanceUsersConsumptionProps {
@@ -42,8 +43,15 @@ export const AIGovernanceUsersConsumption: FC<
 		return <ErrorAlert error="Invalid license usage limits" />;
 	}
 
+	const actual = aiGovernanceUserFeature.actual;
+	const isExceeded = actual !== undefined && actual > limit;
+
 	return (
-		<section className="border border-solid rounded">
+		<section
+			className={cn("border border-solid rounded", {
+				"border-border-destructive": isExceeded,
+			})}
+		>
 			<div className="p-4">
 				<Collapsible>
 					<header className="flex flex-col gap-2 items-start">
@@ -105,13 +113,44 @@ export const AIGovernanceUsersConsumption: FC<
 
 			<div className="px-6 py-12 border-0 border-t border-solid">
 				<div className="flex flex-col gap-4 text-center justify-center items-center">
-					<div className="flex flex-col gap-2 text-center justify-center items-center">
-						<div className="text-3xl font-bold">{limit.toLocaleString()}</div>
-						<div className="text-sm text-content-secondary">Users Entitled</div>
-					</div>
-					<div className="text-sm text-content-secondary">
-						Additional analytics and measurements coming soon
-					</div>
+					{actual !== undefined ? (
+						<>
+							<div className="flex flex-col gap-2 text-center justify-center items-center">
+								<div
+									className={cn("text-3xl font-bold", {
+										"text-content-destructive": isExceeded,
+									})}
+								>
+									{actual.toLocaleString()}
+								</div>
+								<div className="text-sm text-content-secondary">
+									of {limit.toLocaleString()} Users Entitled
+								</div>
+							</div>
+							<div
+								className={cn("text-sm", {
+									"text-content-destructive font-medium": isExceeded,
+									"text-content-secondary": !isExceeded,
+								})}
+							>
+								{isExceeded ? "Add-on exceeded" : "Active"}
+							</div>
+						</>
+					) : (
+						<>
+							<div className="flex flex-col gap-2 text-center justify-center items-center">
+								<div className="text-3xl font-bold">
+									{limit.toLocaleString()}
+								</div>
+								<div className="text-sm text-content-secondary">
+									Users Entitled
+								</div>
+							</div>
+							<div className="text-sm text-content-secondary">
+								Additional analytics and measurements coming soon
+							</div>
+						</>
+					)}
 				</div>
 			</div>
 		</section>

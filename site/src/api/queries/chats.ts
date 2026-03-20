@@ -406,6 +406,22 @@ export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatWorkspaceTTLKey = ["chat-workspace-ttl"] as const;
+
+export const chatWorkspaceTTL = () => ({
+	queryKey: chatWorkspaceTTLKey,
+	queryFn: () => API.getChatWorkspaceTTL(),
+});
+
+export const updateChatWorkspaceTTL = (queryClient: QueryClient) => ({
+	mutationFn: API.updateChatWorkspaceTTL,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatWorkspaceTTLKey,
+		});
+	},
+});
+
 const chatUserCustomPromptKey = ["chat-user-custom-prompt"] as const;
 
 export const chatUserCustomPrompt = () => ({
