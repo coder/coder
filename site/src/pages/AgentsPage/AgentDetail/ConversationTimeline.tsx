@@ -1,3 +1,5 @@
+import { useTheme } from "@emotion/react";
+import { File as FileViewer } from "@pierre/diffs/react";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import {
@@ -9,15 +11,21 @@ import {
 	Tool,
 } from "components/ai-elements";
 import { WebSearchSources } from "components/ai-elements/tool";
+import { ToolCollapsible } from "components/ai-elements/tool/ToolCollapsible";
+import {
+	DIFFS_FONT_STYLE,
+	getFileViewerOptionsMinimal,
+} from "components/ai-elements/tool/utils";
 import { Button } from "components/Button/Button";
 import { FileReferenceChip } from "components/ChatMessageInput/FileReferenceNode";
+import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { PencilIcon } from "lucide-react";
+import { FileTextIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -56,27 +64,84 @@ const ReasoningDisclosure: FC<{
 	const displayText = isStreaming ? visibleText : text;
 	const hasText = displayText.trim().length > 0;
 
-	if (hasText) {
-		return (
-			<div className="w-full">
+	return (
+		<ToolCollapsible
+			className="w-full"
+			icon={null}
+			hasContent={hasText}
+			header={
+				<span className="text-[11px] font-medium text-content-secondary">
+					{hasText ? (
+						"Reasoning"
+					) : isStreaming ? (
+						<Shimmer as="span">Thinking...</Shimmer>
+					) : (
+						"Thinking"
+					)}
+				</span>
+			}
+		>
+			<div className="pt-1.5 pr-2">
 				<Response
-					className="text-[11px] text-content-secondary"
+					className="text-[13px] text-content-secondary"
 					urlTransform={urlTransform}
 				>
 					{displayText}
 				</Response>
 			</div>
-		);
-	}
+		</ToolCollapsible>
+	);
+};
+
+const FileReferenceDisclosure: FC<{
+	fileName: string;
+	startLine: number;
+	endLine: number;
+	content: string;
+}> = ({ fileName, startLine, endLine, content }) => {
+	const theme = useTheme();
+	const isDark = theme.palette.mode === "dark";
+	const shortFileName = fileName.split("/").pop() || fileName;
+	const lineLabel =
+		startLine === endLine
+			? `line ${startLine}`
+			: `lines ${startLine}-${endLine}`;
+	const hasContent = content.trim().length > 0;
 
 	return (
-		<div className="w-full">
-			<div className="flex items-center gap-2 text-content-secondary transition-colors hover:text-content-primary">
-				<span className="text-sm">
-					{isStreaming ? <Shimmer as="span">Thinking...</Shimmer> : "Thinking"}
+		<ToolCollapsible
+			className="w-full"
+			icon={null}
+			hasContent={hasContent}
+			header={
+				<span
+					className={cn(
+						"inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md",
+						"border border-border-default bg-surface-secondary px-2.5 py-1",
+						"text-xs font-mono text-content-primary",
+					)}
+				>
+					<FileTextIcon className="h-3 w-3 shrink-0 text-content-secondary" />
+					<span className="truncate">{shortFileName}</span>
+					<span className="shrink-0 text-content-secondary">({lineLabel})</span>
 				</span>
-			</div>
-		</div>
+			}
+		>
+			<ScrollArea
+				className="mt-2 rounded-md border border-solid border-border-default text-2xs"
+				viewportClassName="max-h-64"
+				scrollBarClassName="w-1.5"
+			>
+				<FileViewer
+					file={{
+						name: fileName,
+						contents: content,
+					}}
+					options={getFileViewerOptionsMinimal(isDark)}
+					style={DIFFS_FONT_STYLE}
+				/>
+			</ScrollArea>
+		</ToolCollapsible>
 	);
 };
 
@@ -120,6 +185,10 @@ const ASSISTANT_CONTENT_CLASSES = "whitespace-normal";
 const BLOCK_STACK_CLASSES = "space-y-2";
 const TOOL_SHELL_CLASSES =
 	"rounded-md border-l-2 border-border-default bg-surface-secondary/50 py-1 pl-3 pr-1";
+const THINKING_SHELL_CLASSES =
+	"rounded-md border-l-2 border-content-secondary/40 bg-surface-secondary/30 py-1.5 pl-3 pr-1";
+const FILE_REFERENCE_SHELL_CLASSES =
+	"rounded-md border-l-2 border-border-default/70 bg-surface-secondary/40 py-1.5 pl-3 pr-1";
 
 // Per-block-type visual wrapper applied inside renderBlockList().
 function blockShell(type: string, key: string, children: ReactNode): ReactNode {
@@ -132,14 +201,19 @@ function blockShell(type: string, key: string, children: ReactNode): ReactNode {
 			);
 		case "thinking":
 			return (
-				<div key={key} className="mt-1">
+				<div key={key} className={THINKING_SHELL_CLASSES}>
 					{children}
 				</div>
 			);
 		case "sources":
+			return (
+				<div key={key} className="text-content-secondary">
+					{children}
+				</div>
+			);
 		case "file-reference":
 			return (
-				<div key={key} className="mt-1 text-content-secondary">
+				<div key={key} className={FILE_REFERENCE_SHELL_CLASSES}>
 					{children}
 				</div>
 			);
@@ -188,14 +262,12 @@ function renderBlockList({
 					break;
 				case "file-reference":
 					element = (
-						<div className="my-1 flex items-start gap-2 rounded-md border border-content-link/20 bg-content-link/5 px-2.5 py-1.5">
-							<span className="shrink-0 text-xs font-medium text-content-link">
-								{block.file_name}:
-								{block.start_line === block.end_line
-									? block.start_line
-									: `${block.start_line}\u2013${block.end_line}`}
-							</span>
-						</div>
+						<FileReferenceDisclosure
+							fileName={block.file_name}
+							startLine={block.start_line}
+							endLine={block.end_line}
+							content={block.content}
+						/>
 					);
 					break;
 				case "tool": {

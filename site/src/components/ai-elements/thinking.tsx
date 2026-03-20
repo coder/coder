@@ -8,7 +8,7 @@ export const Thinking = ({ className, ref, ...props }: ThinkingProps) => {
 		<div
 			ref={ref}
 			className={cn(
-				"rounded-lg border border-border bg-surface-primary px-3 py-2 text-xs text-content-secondary",
+				"rounded-md border-l-2 border-content-secondary/40 bg-surface-secondary/30 px-3 py-1.5 text-[13px] text-content-secondary",
 				className,
 			)}
 			{...props}
