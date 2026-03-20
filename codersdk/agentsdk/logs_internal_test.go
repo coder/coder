@@ -274,6 +274,50 @@ func TestLogSender_InvalidUTF8(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+func TestLogSender_NullBytes(t *testing.T) {
+	t.Parallel()
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	ctx, cancel := context.WithCancel(testCtx)
+	logger := testutil.Logger(t)
+	fDest := newFakeLogDest()
+	uut := NewLogSender(logger)
+
+	t0 := dbtime.Now()
+	ls1 := uuid.UUID{0x11}
+
+	uut.Enqueue(ls1,
+		Log{
+			CreatedAt: t0,
+			Output:    "test\x00log with\x00null bytes",
+			Level:     codersdk.LogLevelInfo,
+		},
+		Log{
+			CreatedAt: t0,
+			Output:    "normal log",
+			Level:     codersdk.LogLevelInfo,
+		})
+
+	loopErr := make(chan error, 1)
+	go func() {
+		err := uut.SendLoop(ctx, fDest)
+		loopErr <- err
+	}()
+
+	req := testutil.TryReceive(ctx, t, fDest.reqs)
+	require.NotNil(t, req)
+	require.Len(t, req.Logs, 2, "it should strip null bytes, but still send")
+	// null bytes (0x00) should be stripped since PostgreSQL TEXT columns don't support them
+	require.Equal(t, "testlog withnull bytes", req.Logs[0].GetOutput())
+	require.Equal(t, proto.Log_INFO, req.Logs[0].GetLevel())
+	require.Equal(t, "normal log", req.Logs[1].GetOutput())
+	require.Equal(t, proto.Log_INFO, req.Logs[1].GetLevel())
+	testutil.RequireSend(ctx, t, fDest.resps, &proto.BatchCreateLogsResponse{})
+
+	cancel()
+	err := testutil.TryReceive(testCtx, t, loopErr)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func TestLogSender_Batch(t *testing.T) {
 	t.Parallel()
 	testCtx := testutil.Context(t, testutil.WaitShort)

@@ -426,4 +426,67 @@ func TestBatchCreateLogs(t *testing.T) {
 		require.True(t, publishWorkspaceUpdateCalled)
 		require.False(t, publishWorkspaceAgentLogsUpdateCalled)
 	})
+
+	t.Run("StripsNullBytes", func(t *testing.T) {
+		t.Parallel()
+
+		dbM := dbmock.NewMockStore(gomock.NewController(t))
+
+		publishWorkspaceUpdateCalled := false
+		publishWorkspaceAgentLogsUpdateCalled := false
+		now := dbtime.Now()
+		api := &agentapi.LogsAPI{
+			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
+				return agent, nil
+			},
+			Database: dbM,
+			Log:      testutil.Logger(t),
+			PublishWorkspaceUpdateFn: func(ctx context.Context, _ uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
+				publishWorkspaceUpdateCalled = true
+				return nil
+			},
+			PublishWorkspaceAgentLogsUpdateFn: func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage) {
+				publishWorkspaceAgentLogsUpdateCalled = true
+			},
+			TimeNowFn: func() time.Time { return now },
+		}
+
+		// Input with null bytes (0x00) that PostgreSQL doesn't support in TEXT columns
+		req := &agentproto.BatchCreateLogsRequest{
+			LogSourceId: logSource.ID[:],
+			Logs: []*agentproto.Log{
+				{
+					CreatedAt: timestamppb.New(now),
+					Level:     agentproto.Log_INFO,
+					Output:    "hello\x00world with\x00null bytes",
+				},
+			},
+		}
+
+		// Expect the null bytes to be stripped in the DB insert
+		expectedParams := database.InsertWorkspaceAgentLogsParams{
+			AgentID:      agent.ID,
+			LogSourceID:  logSource.ID,
+			CreatedAt:    now,
+			Output:       []string{"helloworld withnull bytes"},
+			Level:        []database.LogLevel{database.LogLevelInfo},
+			OutputLength: int32(len("helloworld withnull bytes")),
+		}
+		dbM.EXPECT().InsertWorkspaceAgentLogs(gomock.Any(), expectedParams).Return([]database.WorkspaceAgentLog{
+			{
+				AgentID:     agent.ID,
+				CreatedAt:   now,
+				ID:          1,
+				Output:      "helloworld withnull bytes",
+				Level:       database.LogLevelInfo,
+				LogSourceID: logSource.ID,
+			},
+		}, nil)
+
+		resp, err := api.BatchCreateLogs(context.Background(), req)
+		require.NoError(t, err)
+		require.Equal(t, &agentproto.BatchCreateLogsResponse{}, resp)
+		require.True(t, publishWorkspaceUpdateCalled)
+		require.True(t, publishWorkspaceAgentLogsUpdateCalled)
+	})
 }

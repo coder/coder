@@ -374,9 +374,15 @@ func ProtoFromLog(log Log) (*proto.Log, error) {
 	if !ok {
 		return nil, xerrors.Errorf("unknown log level: %s", log.Level)
 	}
+	// Sanitize the log output:
+	// 1. Replace invalid UTF-8 sequences with the replacement character
+	// 2. Strip null bytes (0x00) which are technically valid UTF-8 but not supported
+	//    by PostgreSQL TEXT columns and can cause "invalid byte sequence for encoding UTF8: 0x00"
+	output := strings.ToValidUTF8(log.Output, "❌")
+	output = strings.ReplaceAll(output, "\x00", "")
 	return &proto.Log{
 		CreatedAt: timestamppb.New(log.CreatedAt),
-		Output:    strings.ToValidUTF8(log.Output, "❌"),
+		Output:    output,
 		Level:     proto.Log_Level(lvl),
 	}, nil
 }
