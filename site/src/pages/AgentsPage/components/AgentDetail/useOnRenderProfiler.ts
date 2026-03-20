@@ -8,27 +8,44 @@ const SLOW_RENDER_THRESHOLD_MS = 16;
 // id, to avoid flooding the console during rapid streaming updates.
 const WARN_THROTTLE_MS = 2000;
 
+// Cap the number of performance.measure entries to avoid unbounded
+// memory growth during long streaming sessions. When the cap is
+// reached, only this profiler's entries are cleared by name
+// and counting restarts.
+const MAX_MEASURE_ENTRIES = 500;
+
 /**
  * Returns a stable onRender callback for React's <Profiler> component.
- * When a render exceeds SLOW_RENDER_THRESHOLD_MS, it logs a
- * console.warn with timing details and emits a performance.measure()
- * entry visible in browser devtools (including Safari Timeline).
+ * Every render emits a performance.measure() entry visible in browser
+ * devtools (including Safari Timeline). Renders exceeding
+ * SLOW_RENDER_THRESHOLD_MS additionally log a console.warn with
+ * timing details (throttled per profiler id).
  *
- * The <Profiler> onRender callback is a no-op in standard production
- * builds. It only receives timing data when the app is built with
- * react-dom/profiling (enabled via CODER_REACT_PROFILING=true).
+ * In standard production builds, React does not call the onRender
+ * callback with timing data, so the hook is effectively inert. It
+ * only produces output when built with react-dom/profiling (enabled
+ * via CODER_REACT_PROFILING=true).
  */
 export function useOnRenderProfiler(): ProfilerOnRenderCallback {
-	const lastWarnTime = useRef<Record<string, number>>({});
+	const lastWarnTime = useRef(0);
+	const measureCount = useRef(0);
+	const measureNames = useRef(new Set<string>());
 
 	return useCallback<ProfilerOnRenderCallback>(
 		(id, phase, actualDuration, baseDuration, startTime, commitTime) => {
-			// Emit a performance.measure entry for every render so it
-			// appears in the browser's Performance/Timeline panel
-			// regardless of whether it's "slow". The entry name uses a
-			// React atom symbol to make it easy to filter.
+			// In standard production builds the Profiler callback
+			// receives zero for all timing values. Bail out early to
+			// avoid creating garbage performance entries.
+			if (actualDuration <= 0) {
+				return;
+			}
+
+			// Emit a performance.measure entry for every render so
+			// the Performance/Timeline panel shows the full render
+			// timeline when investigating jank, not just outliers.
+			const measureName = `⚛ ${id} (${phase})`;
 			try {
-				performance.measure(`⚛ ${id} (${phase})`, {
+				performance.measure(measureName, {
 					start: startTime,
 					duration: actualDuration,
 				});
@@ -36,18 +53,29 @@ export function useOnRenderProfiler(): ProfilerOnRenderCallback {
 				// performance.measure can throw if startTime is invalid
 				// (e.g. negative or before time origin). Safe to ignore.
 			}
+			measureNames.current.add(measureName);
+			measureCount.current++;
+			if (measureCount.current >= MAX_MEASURE_ENTRIES) {
+				for (const name of measureNames.current) {
+					performance.clearMeasures(name);
+				}
+				measureNames.current.clear();
+				measureCount.current = 0;
+			}
 
 			if (actualDuration <= SLOW_RENDER_THRESHOLD_MS) {
 				return;
 			}
 
 			const now = performance.now();
-			const last = lastWarnTime.current[id] ?? 0;
-			if (now - last < WARN_THROTTLE_MS) {
+			if (now - lastWarnTime.current < WARN_THROTTLE_MS) {
 				return;
 			}
-			lastWarnTime.current[id] = now;
+			lastWarnTime.current = now;
 
+			// actualDuration covers the render phase only. The commit
+			// offset (commitTime - startTime) includes yield/suspend
+			// time in concurrent React, so it can be larger.
 			console.warn(
 				`[Slow render] %c${id}%c ${phase}: ` +
 					`${actualDuration.toFixed(1)}ms actual, ` +
