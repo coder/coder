@@ -1502,7 +1502,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: This is a strange error since it occurs after the mutatation.
+	// TODO: This is a strange error since it occurs after the mutation.
 	// An example of why we should join in fields to prevent this forbidden error
 	// from being sent, when the action did succeed.
 	if len(data.templates) == 0 {
