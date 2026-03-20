@@ -226,7 +226,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	api.SubAgentAPI = &SubAgentAPI{
 		OwnerID:        opts.OwnerID,
 		OrganizationID: opts.OrganizationID,
-		Agent:          agent,
+		AgentFn:        api.agent,
 		Log:            opts.Log,
 		Clock:          opts.Clock,
 		Database:       opts.Database,
