@@ -623,14 +623,14 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	// Pre-compute per-file line annotations for the same reason.
 	const perFileAnnotations = useMemo(() => {
 		if (!getLineAnnotations) return null;
-		const map = new Map<string, DiffLineAnnotation<string>[]>();
-		for (const file of sortedFiles) {
-			const annotations = getLineAnnotations(file.name);
-			if (annotations.length > 0) {
-				map.set(file.name, annotations);
-			}
-		}
-		return map;
+		return new Map(
+			sortedFiles
+				.map((f) => [f.name, getLineAnnotations(f.name)] as const)
+				.filter(
+					(entry): entry is [string, DiffLineAnnotation<string>[]] =>
+						entry[1].length > 0,
+				),
+		);
 	}, [sortedFiles, getLineAnnotations]);
 
 	// Pre-compute per-file selected lines so each LazyFileDiff
@@ -640,14 +640,13 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	// expensive Shadow DOM + shiki re-highlight.
 	const perFileSelectedLines = useMemo(() => {
 		if (!getSelectedLines) return null;
-		const map = new Map<string, SelectedLineRange>();
-		for (const file of sortedFiles) {
-			const sel = getSelectedLines(file.name);
-			if (sel) {
-				map.set(file.name, sel);
-			}
-		}
-		return map;
+		return new Map(
+			sortedFiles
+				.map((f) => [f.name, getSelectedLines(f.name)] as const)
+				.filter(
+					(entry): entry is [string, SelectedLineRange] => entry[1] != null,
+				),
+		);
 	}, [sortedFiles, getSelectedLines]);
 
 	// ---------------------------------------------------------------
