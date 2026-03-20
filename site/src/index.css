@@ -57,6 +57,10 @@
 		--highlight-sky: 195, 61%, 22%;
 		--highlight-red: 0 74% 42%;
 		--highlight-magenta: 295, 68%, 40%;
+		--syntax-key: 211 95% 33%;
+		--syntax-string: 0 77% 36%;
+		--syntax-number: 158 88% 28%;
+		--syntax-boolean: 240 100% 50%;
 		--git-added: 142 72% 29%;
 		--git-deleted: 0 74% 42%;
 		--git-modified: 17 88% 40%;
@@ -125,6 +129,10 @@
 		--highlight-sky: 188, 75%, 80%;
 		--highlight-red: 0 91% 71%;
 		--highlight-magenta: 292, 100%, 78%;
+		--syntax-key: 201 98% 80%;
+		--syntax-string: 18 47% 64%;
+		--syntax-number: 100 28% 73%;
+		--syntax-boolean: 207 61% 59%;
 		--git-added: 142 77% 73%;
 		--git-deleted: 0 94% 82%;
 		--git-modified: 31 97% 72%;
