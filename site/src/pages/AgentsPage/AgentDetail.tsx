@@ -243,14 +243,15 @@ export function useCachedWorkspaceId(agentId: string | undefined) {
 		return undefined;
 	}
 
-	const cachedChat = queryClient.getQueryData<TypesGen.Chat>(chatKey(agentId));
-	if (cachedChat) {
-		return cachedChat.workspace_id;
-	}
-
-	return readInfiniteChatsCache(queryClient)?.find(
-		(chat) => chat.id === agentId,
+	const cachedWorkspaceId = queryClient.getQueryData<TypesGen.Chat>(
+		chatKey(agentId),
 	)?.workspace_id;
+
+	return (
+		cachedWorkspaceId ??
+		readInfiniteChatsCache(queryClient)?.find((chat) => chat.id === agentId)
+			?.workspace_id
+	);
 }
 
 /** @internal Exported for testing. */

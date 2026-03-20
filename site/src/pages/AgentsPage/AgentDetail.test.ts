@@ -56,6 +56,19 @@ describe("useCachedWorkspaceId", () => {
 		expect(result.current).toBe(workspaceID);
 	});
 
+	it("falls back to the infinite chats cache when the per-chat cache lacks a workspace_id", () => {
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(chatKey(chatID), makeChat(chatID));
+		queryClient.setQueryData(infiniteChats().queryKey, {
+			pages: [[makeChat(chatID, workspaceID)]],
+			pageParams: [0],
+		});
+
+		const { result } = renderCachedWorkspaceId(queryClient);
+
+		expect(result.current).toBe(workspaceID);
+	});
+
 	it("falls back to the infinite chats cache when the per-chat cache is empty", () => {
 		const queryClient = createTestQueryClient();
 		queryClient.setQueryData(infiniteChats().queryKey, {
