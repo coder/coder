@@ -737,3 +737,249 @@ export const ArchivedAgentUnarchiveOption: Story = {
 		).not.toBeInTheDocument();
 	},
 };
+
+const largeListTargetRootId = "large-root-0";
+const largeListTargetRootTitle = "Release train follow-up 1";
+const largeListTargetChildTitle = "Implement retry backoff 1.1";
+const largeListArchivedRootTitle = "Archived runbook cleanup 1";
+
+const largeListTitleTemplates = [
+	"Release train follow-up",
+	"Investigate flaky workspace build",
+	"Draft rollout checklist",
+	"Audit agent permissions",
+	"Refine staging smoke tests",
+	"Review MCP server health",
+	"Triage support escalations",
+	"Plan regression coverage",
+	"Improve deployment observability",
+	"Document migration steps",
+] as const;
+
+const largeListChildTitleTemplates = [
+	"Implement retry backoff",
+	"Review generated diff",
+	"Validate CI signal",
+	"Prepare rollback plan",
+	"Verify ownership mapping",
+	"Capture profiling snapshot",
+	"Patch failing assertion",
+	"Confirm release notes",
+] as const;
+
+const getLargeListTitle = (
+	templates: readonly string[],
+	index: number,
+	suffix: string,
+): string => {
+	const template = templates[index % templates.length];
+	return `${template} ${suffix}`;
+};
+
+const getLargeListTimestamp = (index: number): string => {
+	const now = Date.now();
+	const hour = 60 * 60 * 1000;
+	const day = 24 * hour;
+	const offsets = [
+		(index % 13) * hour,
+		(24 + (index % 13)) * hour,
+		(2 + (index % 4)) * day,
+		(7 + (index % 3) * 7) * day,
+		(30 + (index % 6) * 30) * day,
+	] as const;
+
+	return new Date(now - offsets[index % offsets.length]).toISOString();
+};
+
+const maybeBuildLargeListDiffStatus = (
+	chatId: string,
+	title: string,
+	index: number,
+): Chat["diff_status"] => {
+	if (index % 6 !== 0) {
+		return undefined;
+	}
+
+	const pullRequestStates = ["open", "merged", "closed"] as const;
+	return {
+		chat_id: chatId,
+		url: `https://github.com/coder/coder/pull/${800 + index}`,
+		pull_request_state: pullRequestStates[index % pullRequestStates.length],
+		pull_request_title: title,
+		pull_request_draft: index % 12 === 0,
+		changes_requested: index % 9 === 0,
+		additions: 12 + index,
+		deletions: 3 + (index % 17),
+		changed_files: 1 + (index % 8),
+	};
+};
+
+const generateLargeChats = (): Chat[] => {
+	const chats: Chat[] = [];
+
+	for (let rootIndex = 0; rootIndex < 50; rootIndex += 1) {
+		const rootId = `large-root-${rootIndex}`;
+		const rootTitle = getLargeListTitle(
+			largeListTitleTemplates,
+			rootIndex,
+			String(rootIndex + 1),
+		);
+		const rootUpdatedAt = getLargeListTimestamp(rootIndex);
+		const isTargetRoot = rootId === largeListTargetRootId;
+
+		chats.push(
+			buildChat({
+				id: rootId,
+				title: rootTitle,
+				status: isTargetRoot || rootIndex % 7 !== 0 ? "completed" : "running",
+				updated_at: rootUpdatedAt,
+				created_at: rootUpdatedAt,
+				diff_status: maybeBuildLargeListDiffStatus(
+					rootId,
+					rootTitle,
+					rootIndex,
+				),
+			}),
+		);
+
+		const childCount = [5, 4, 5, 2][rootIndex % 4];
+		for (let childIndex = 0; childIndex < childCount; childIndex += 1) {
+			const childId = `${rootId}-child-${childIndex}`;
+			const childTitle = getLargeListTitle(
+				largeListChildTitleTemplates,
+				rootIndex + childIndex,
+				`${rootIndex + 1}.${childIndex + 1}`,
+			);
+			const childUpdatedAt = getLargeListTimestamp(rootIndex + childIndex + 1);
+
+			chats.push(
+				buildChat({
+					id: childId,
+					title: childTitle,
+					status:
+						isTargetRoot || childIndex % 3 !== 0 ? "completed" : "running",
+					parent_chat_id: rootId,
+					root_chat_id: rootId,
+					updated_at: childUpdatedAt,
+					created_at: childUpdatedAt,
+					diff_status: maybeBuildLargeListDiffStatus(
+						childId,
+						childTitle,
+						rootIndex * 10 + childIndex,
+					),
+				}),
+			);
+		}
+	}
+
+	for (let standaloneIndex = 0; standaloneIndex < 30; standaloneIndex += 1) {
+		const chatId = `large-standalone-${standaloneIndex}`;
+		const title = getLargeListTitle(
+			largeListTitleTemplates,
+			standaloneIndex + 50,
+			`${standaloneIndex + 1} (solo)`,
+		);
+		const updatedAt = getLargeListTimestamp(standaloneIndex + 50);
+
+		chats.push(
+			buildChat({
+				id: chatId,
+				title,
+				status: standaloneIndex % 5 === 0 ? "waiting" : "completed",
+				updated_at: updatedAt,
+				created_at: updatedAt,
+				diff_status: maybeBuildLargeListDiffStatus(
+					chatId,
+					title,
+					standaloneIndex + 200,
+				),
+			}),
+		);
+	}
+
+	for (let archivedIndex = 0; archivedIndex < 10; archivedIndex += 1) {
+		const chatId = `large-archived-${archivedIndex}`;
+		const title =
+			archivedIndex === 0
+				? largeListArchivedRootTitle
+				: `Archived runbook cleanup ${archivedIndex + 1}`;
+		const updatedAt = getLargeListTimestamp(archivedIndex + 300);
+
+		chats.push(
+			buildChat({
+				id: chatId,
+				title,
+				archived: true,
+				updated_at: updatedAt,
+				created_at: updatedAt,
+				diff_status: maybeBuildLargeListDiffStatus(
+					chatId,
+					title,
+					archivedIndex + 300,
+				),
+			}),
+		);
+	}
+
+	return chats;
+};
+
+export const LargeList: Story = {
+	args: {
+		chats: generateLargeChats(),
+		archivedFilter: "active",
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			expect(canvas.getByText(largeListTargetRootTitle)).toBeInTheDocument();
+			expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
+		});
+		expect(
+			canvas.queryByText(largeListArchivedRootTitle),
+		).not.toBeInTheDocument();
+
+		const toggle = canvas.getByTestId(
+			`agents-tree-toggle-${largeListTargetRootId}`,
+		);
+		expect(
+			canvas.queryByText(largeListTargetChildTitle),
+		).not.toBeInTheDocument();
+
+		await userEvent.click(toggle);
+		await waitFor(() => {
+			expect(canvas.getByText(largeListTargetChildTitle)).toBeInTheDocument();
+			expect(toggle).toHaveAttribute("aria-expanded", "true");
+		});
+	},
+};
+
+export const LargeListArchived: Story = {
+	args: {
+		chats: generateLargeChats(),
+		archivedFilter: "archived",
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			expect(canvas.getByText(largeListArchivedRootTitle)).toBeInTheDocument();
+		});
+		expect(
+			canvas.queryByText(largeListTargetRootTitle),
+		).not.toBeInTheDocument();
+	},
+};
