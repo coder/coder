@@ -8,15 +8,15 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { ArrowDownIcon, ArrowUpIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 import { AIBridgeClientIcon } from "pages/AIBridgePage/RequestLogsPage/icons/AIBridgeClientIcon";
 import { AIBridgeProviderIcon } from "pages/AIBridgePage/RequestLogsPage/icons/AIBridgeProviderIcon";
 import type { FC } from "react";
 import { DATE_FORMAT, formatDateTime } from "utils/time";
+import { TokenBadges } from "../TokenBadges";
 import {
 	getProviderDisplayName,
 	getProviderIconName,
-	roundTokenDisplay,
 } from "../utils";
 
 type ListSessionsRowProps = {
@@ -110,43 +110,12 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 				</div>
 			</TableCell>
 			<TableCell className="w-32">
-				<div className="flex items-center">
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Badge className="gap-0 rounded-e-none">
-									<ArrowDownIcon className="size-icon-lg flex-shrink-0" />
-									<span className="truncate min-w-0 w-full">
-										{roundTokenDisplay(
-											session.token_usage_summary.input_tokens,
-										)}
-									</span>
-								</Badge>
-							</TooltipTrigger>
-							<TooltipContent>
-								{session.token_usage_summary.input_tokens} Input Tokens
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Badge className="gap-0 bg-surface-tertiary rounded-s-none">
-									<ArrowUpIcon className="size-icon-lg flex-shrink-0" />
-									<span className="truncate min-w-0 w-full">
-										{roundTokenDisplay(
-											session.token_usage_summary.output_tokens,
-										)}
-									</span>
-								</Badge>
-							</TooltipTrigger>
-							<TooltipContent>
-								{session.token_usage_summary.output_tokens} Output Tokens
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-				</div>
+				<TokenBadges
+					inputTokens={session.token_usage_summary.input_tokens}
+					outputTokens={session.token_usage_summary.output_tokens}
+				/>
 			</TableCell>
+
 			<TableCell className="w-32">
 				<Badge className="bg-surface-secondary align-end">
 					{session.threads}
