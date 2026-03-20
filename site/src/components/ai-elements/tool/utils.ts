@@ -147,6 +147,19 @@ export const formatResultOutput = (result: unknown): string | null => {
 	return String(result);
 };
 
+export const splitPath = (
+	fullPath: string,
+): { directory: string; filename: string } => {
+	const lastSlashIndex = fullPath.lastIndexOf("/");
+	if (lastSlashIndex === -1) {
+		return { directory: "", filename: fullPath };
+	}
+	return {
+		directory: fullPath.slice(0, lastSlashIndex + 1),
+		filename: fullPath.slice(lastSlashIndex + 1),
+	};
+};
+
 export const fileViewerCSS =
 	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; }";
 
@@ -229,11 +242,31 @@ const SEPARATOR_CSS = [
 	"}",
 ].join(" ");
 
+// These selectors depend on @pierre/diffs DOM hooks and should
+// be verified against rendered output when the library changes.
+const GUTTER_INDICATOR_CSS = [
+	"[data-diff-indicator] {",
+	"  width: 3px !important;",
+	"  min-width: 3px !important;",
+	"}",
+].join(" ");
+
+const INLINE_TOKEN_HIGHLIGHT_CSS = [
+	"[data-diff-highlight='added'] {",
+	"  background-color: hsl(var(--content-link) / 0.18) !important;",
+	"}",
+	"[data-diff-highlight='removed'] {",
+	"  background-color: hsl(var(--highlight-red) / 0.18) !important;",
+	"}",
+].join(" ");
+
 export const diffViewerCSS = [
 	"pre, [data-line]:not([data-selected-line]), [data-diffs-header] { background-color: transparent !important; }",
 	"[data-diffs-header] { border-left: 1px solid var(--border); }",
 	SELECTION_OVERRIDE_CSS,
 	SEPARATOR_CSS,
+	GUTTER_INDICATOR_CSS,
+	INLINE_TOKEN_HIGHLIGHT_CSS,
 ].join(" ");
 
 // Theme-aware option factories shared across tool renderers.
@@ -436,6 +469,31 @@ export const buildEditDiff = (
 	const parsed = parsePatchFiles(stripSvnIndexHeaders(patches.join("")));
 	if (!parsed.length || !parsed[0].files.length) return null;
 	return parsed[0].files[0];
+};
+
+type DiffStatContent = {
+	type: "context" | "addition" | "deletion" | "change";
+	additions?: number;
+	deletions?: number;
+};
+
+export const computeDiffStats = (
+	diff: FileDiffMetadata | null,
+): { additions: number; deletions: number } => {
+	let additions = 0;
+	let deletions = 0;
+
+	for (const hunk of diff?.hunks ?? []) {
+		for (const content of hunk.hunkContent as DiffStatContent[]) {
+			if (content.type === "context") {
+				continue;
+			}
+			additions += content.additions ?? 0;
+			deletions += content.deletions ?? 0;
+		}
+	}
+
+	return { additions, deletions };
 };
 
 // Re-export runtime type utils used by sub-components so they

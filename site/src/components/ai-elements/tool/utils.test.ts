@@ -5,6 +5,7 @@ import {
 	buildWriteFileDiff,
 	COLLAPSED_OUTPUT_HEIGHT,
 	COLLAPSED_REPORT_HEIGHT,
+	computeDiffStats,
 	DIFFS_FONT_STYLE,
 	diffViewerCSS,
 	fileViewerCSS,
@@ -22,6 +23,7 @@ import {
 	parseArgs,
 	parseEditFilesArgs,
 	shortDurationMs,
+	splitPath,
 	stripSvnIndexHeaders,
 	toProviderLabel,
 } from "./utils";
@@ -268,6 +270,33 @@ describe("formatResultOutput", () => {
 	it("returns String representation for non-object/non-string primitives", () => {
 		expect(formatResultOutput(42)).toBe("42");
 		expect(formatResultOutput(true)).toBe("true");
+	});
+});
+
+describe("splitPath", () => {
+	it("splits a nested path into directory and filename", () => {
+		expect(splitPath("src/components/Foo.tsx")).toEqual({
+			directory: "src/components/",
+			filename: "Foo.tsx",
+		});
+	});
+
+	it("returns an empty directory for single-segment paths", () => {
+		expect(splitPath("file.ts")).toEqual({
+			directory: "",
+			filename: "file.ts",
+		});
+	});
+
+	it("keeps all parent segments in the directory", () => {
+		expect(splitPath("a/b/c/d.ts")).toEqual({
+			directory: "a/b/c/",
+			filename: "d.ts",
+		});
+	});
+
+	it("handles empty paths", () => {
+		expect(splitPath("")).toEqual({ directory: "", filename: "" });
 	});
 });
 
@@ -605,6 +634,30 @@ describe("buildEditDiff", () => {
 	});
 });
 
+describe("computeDiffStats", () => {
+	it("counts additions in write_file diffs", () => {
+		const diff = buildWriteFileDiff("test.ts", "line1\nline2\nline3\n");
+		const stats = computeDiffStats(diff);
+
+		expect(stats.additions).toBeGreaterThan(0);
+		expect(stats.deletions).toBe(0);
+	});
+
+	it("counts additions and deletions in edit diffs", () => {
+		const diff = buildEditDiff("test.ts", [
+			{ search: "const x = 1;", replace: "const x = 2;" },
+		]);
+		const stats = computeDiffStats(diff);
+
+		expect(stats.additions).toBeGreaterThan(0);
+		expect(stats.deletions).toBeGreaterThan(0);
+	});
+
+	it("returns zero stats for null diffs", () => {
+		expect(computeDiffStats(null)).toEqual({ additions: 0, deletions: 0 });
+	});
+});
+
 describe("stripSvnIndexHeaders", () => {
 	it("removes Index: headers from SVN-style patches", () => {
 		const input = [
@@ -691,6 +744,14 @@ describe("constants", () => {
 	it("fileViewerCSS is a non-empty string", () => {
 		expect(typeof fileViewerCSS).toBe("string");
 		expect(fileViewerCSS.length).toBeGreaterThan(0);
+	});
+
+	it("diffViewerCSS includes gutter indicator overrides", () => {
+		expect(diffViewerCSS).toContain("data-diff-indicator");
+	});
+
+	it("diffViewerCSS includes inline token highlight overrides", () => {
+		expect(diffViewerCSS).toContain("data-diff-highlight");
 	});
 
 	it("diffViewerCSS includes border-left style", () => {
