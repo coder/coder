@@ -1646,3 +1646,125 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 		require.Equal(t, "has\x00nul", decoded[1].Text)
 	})
 }
+
+func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T) {
+	t.Parallel()
+
+	// Helper to build a DB message from SDK parts.
+	makeMsg := func(t *testing.T, role database.ChatMessageRole, parts []codersdk.ChatMessagePart) database.ChatMessage {
+		t.Helper()
+		encoded, err := chatprompt.MarshalParts(parts)
+		require.NoError(t, err)
+		return database.ChatMessage{
+			Role:           role,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content:        encoded,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		}
+	}
+
+	t.Run("UserRole", func(t *testing.T) {
+		t.Parallel()
+
+		parts := []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(""),                     // empty — filtered
+			codersdk.ChatMessageText("   \t\n "),             // whitespace — filtered
+			codersdk.ChatMessageReasoning(""),                // empty — filtered
+			codersdk.ChatMessageReasoning("  \n"),            // whitespace — filtered
+			codersdk.ChatMessageText("hello"),                // kept
+			codersdk.ChatMessageText("  hello  "),            // kept with original whitespace
+			codersdk.ChatMessageReasoning("thinking deeply"), // kept
+			codersdk.ChatMessageToolCall("call-1", "my_tool", json.RawMessage(`{"x":1}`)),
+			codersdk.ChatMessageToolResult("call-1", "my_tool", json.RawMessage(`{"ok":true}`), false),
+		}
+
+		prompt, err := chatprompt.ConvertMessagesWithFiles(
+			context.Background(),
+			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleUser, parts)},
+			nil,
+			slogtest.Make(t, nil),
+		)
+		require.NoError(t, err)
+		require.Len(t, prompt, 1)
+
+		resultParts := prompt[0].Content
+		require.Len(t, resultParts, 5, "expected 5 parts after filtering empty text/reasoning")
+
+		textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](resultParts[0])
+		require.True(t, ok, "expected TextPart at index 0")
+		require.Equal(t, "hello", textPart.Text)
+
+		// Leading/trailing whitespace is preserved — only
+		// all-whitespace parts are dropped.
+		paddedPart, ok := fantasy.AsMessagePart[fantasy.TextPart](resultParts[1])
+		require.True(t, ok, "expected TextPart at index 1")
+		require.Equal(t, "  hello  ", paddedPart.Text)
+
+		reasoningPart, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](resultParts[2])
+		require.True(t, ok, "expected ReasoningPart at index 2")
+		require.Equal(t, "thinking deeply", reasoningPart.Text)
+
+		toolCallPart, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](resultParts[3])
+		require.True(t, ok, "expected ToolCallPart at index 3")
+		require.Equal(t, "call-1", toolCallPart.ToolCallID)
+
+		toolResultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](resultParts[4])
+		require.True(t, ok, "expected ToolResultPart at index 4")
+		require.Equal(t, "call-1", toolResultPart.ToolCallID)
+	})
+
+	t.Run("AssistantRole", func(t *testing.T) {
+		t.Parallel()
+
+		parts := []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(""),          // empty — filtered
+			codersdk.ChatMessageText(" "),         // whitespace — filtered
+			codersdk.ChatMessageReasoning(""),     // empty — filtered
+			codersdk.ChatMessageText("  reply  "), // kept with whitespace
+			codersdk.ChatMessageToolCall("tc-1", "read_file", json.RawMessage(`{"path":"x"}`)),
+		}
+
+		prompt, err := chatprompt.ConvertMessagesWithFiles(
+			context.Background(),
+			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleAssistant, parts)},
+			nil,
+			slogtest.Make(t, nil),
+		)
+		require.NoError(t, err)
+		// 2 messages: assistant + synthetic tool result injected
+		// by injectMissingToolResults for the unmatched tool call.
+		require.Len(t, prompt, 2)
+
+		resultParts := prompt[0].Content
+		require.Len(t, resultParts, 2, "expected text + tool-call after filtering")
+
+		textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](resultParts[0])
+		require.True(t, ok, "expected TextPart")
+		require.Equal(t, "  reply  ", textPart.Text)
+
+		tcPart, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](resultParts[1])
+		require.True(t, ok, "expected ToolCallPart")
+		require.Equal(t, "tc-1", tcPart.ToolCallID)
+	})
+
+	t.Run("AllEmptyDropsMessage", func(t *testing.T) {
+		t.Parallel()
+
+		// When every part is filtered, the message itself should
+		// be dropped rather than appending an empty-content message.
+		parts := []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(""),
+			codersdk.ChatMessageText("   "),
+			codersdk.ChatMessageReasoning(""),
+		}
+
+		prompt, err := chatprompt.ConvertMessagesWithFiles(
+			context.Background(),
+			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleAssistant, parts)},
+			nil,
+			slogtest.Make(t, nil),
+		)
+		require.NoError(t, err)
+		require.Empty(t, prompt, "all-empty message should be dropped entirely")
+	})
+}

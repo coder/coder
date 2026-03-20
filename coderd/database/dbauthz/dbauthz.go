@@ -705,7 +705,7 @@ var (
 				DisplayName: "Chat Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceChat.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceWorkspace.Type:        {policy.ActionRead},
+					rbac.ResourceWorkspace.Type:        {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead},
 					rbac.ResourceUser.Type:             {policy.ActionReadPersonal},
 				}),

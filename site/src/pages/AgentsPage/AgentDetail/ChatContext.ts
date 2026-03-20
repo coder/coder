@@ -725,7 +725,7 @@ export const useChatStore = (
 						) {
 							lastMessageIdRef.current = message.id;
 						}
-						if (changed) {
+						if (changed && message.role === "assistant") {
 							scheduleStreamReset();
 						}
 						// Do not update updated_at here. The global

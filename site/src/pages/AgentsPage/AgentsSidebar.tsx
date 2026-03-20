@@ -72,6 +72,7 @@ import { cn } from "utils/cn";
 import { shortRelativeTime } from "utils/time";
 import { getNormalizedModelRef } from "./modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "./timeGroups";
+import { UsageIndicator } from "./UsageIndicator";
 
 type SidebarView =
 	| { panel: "chats" }
@@ -898,8 +899,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					</div>
 				</ScrollArea>
 				<div className="hidden border-0 border-t border-solid md:block">
-					<div className="flex items-center">
+					<div className="flex items-stretch">
 						<DropdownMenu>
+							{" "}
 							<DropdownMenuTrigger asChild>
 								<button
 									type="button"
@@ -932,11 +934,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								/>
 							</DropdownMenuContent>
 						</DropdownMenu>
+						<UsageIndicator />
 					</div>
 				</div>
 			</div>
-
-			{/* ── Panel 2: Sub-navigation (Settings) ── */}
+			{/* ── Panel 2: Sub-navigation (Settings) ── */}{" "}
 			<div
 				className={cn(
 					"absolute inset-0 flex flex-col transition-transform duration-200 ease-in-out",

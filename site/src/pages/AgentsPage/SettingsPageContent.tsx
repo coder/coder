@@ -9,6 +9,7 @@ import {
 	updateChatSystemPrompt,
 	updateUserChatCustomPrompt,
 } from "api/queries/chats";
+import { userByName } from "api/queries/users";
 import type * as TypesGen from "api/typesGenerated";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
@@ -43,6 +44,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
+import { useSearchParams } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatTokenCount } from "utils/analytics";
 import { formatCostMicros } from "utils/currency";
@@ -50,6 +52,7 @@ import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { InsightsContent } from "./InsightsContent";
 import { LimitsTab } from "./LimitsTab";
+import { MCPServerAdminPanel } from "./MCPServerAdminPanel";
 import { SectionHeader } from "./SectionHeader";
 
 const AdminBadge: FC = () => (
@@ -121,10 +124,9 @@ interface UsageContentProps {
 }
 
 const UsageContent: FC<UsageContentProps> = ({ now }) => {
-	const [selectedUser, setSelectedUser] =
-		useState<TypesGen.ChatCostUserRollup | null>(null);
-	const [usernameFilter, setUsernameFilter] = useState("");
-	const debouncedUsername = useDebouncedValue(usernameFilter, 300);
+	const [searchParams, setSearchParams] = useSearchParams();
+	const [searchFilter, setSearchFilter] = useState("");
+	const debouncedSearch = useDebouncedValue(searchFilter, 300);
 	const [page, setPage] = useState(1);
 	const dateRange = useMemo(() => {
 		const end = now ?? dayjs();
@@ -141,20 +143,27 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 		...chatCostUsers({
 			start_date: dateRange.startDate,
 			end_date: dateRange.endDate,
-			username: debouncedUsername || undefined,
+			username: debouncedSearch || undefined,
 			limit: pageSize,
 			offset,
 		}),
 		placeholderData: keepPreviousData,
 	});
+
+	const selectedUserId = searchParams.get("user");
+	const selectedUserQuery = useQuery({
+		...userByName(selectedUserId ?? ""),
+		enabled: selectedUserId !== null,
+	});
+	const selectedUser = selectedUserQuery.data ?? null;
+
 	const summaryQuery = useQuery({
-		...chatCostSummary(selectedUser?.user_id ?? "me", {
+		...chatCostSummary(selectedUserId ?? "me", {
 			start_date: dateRange.startDate,
 			end_date: dateRange.endDate,
 		}),
-		enabled: selectedUser !== null,
+		enabled: selectedUserId !== null,
 	});
-
 	const totalCount = usersQuery.data?.count ?? 0;
 	const hasPreviousPage = page > 1;
 	const hasNextPage = offset + pageSize < totalCount;
@@ -163,7 +172,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 		<SectionHeader
 			label="Usage"
 			description={
-				selectedUser
+				selectedUserId
 					? "Review deployment chat usage for a specific user."
 					: "Review deployment chat usage and drill into individual users."
 			}
@@ -176,18 +185,72 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 		/>
 	);
 
-	if (selectedUser) {
+	if (selectedUserId) {
+		const clearUser = () => {
+			setSearchParams((prev) => {
+				const next = new URLSearchParams(prev);
+				next.delete("user");
+				return next;
+			});
+		};
+
+		const backButton = (
+			<button
+				type="button"
+				onClick={clearUser}
+				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
+			>
+				{" "}
+				<ChevronLeftIcon className="h-4 w-4" />
+				Back
+			</button>
+		);
+
+		if (selectedUserQuery.isLoading) {
+			return (
+				<div className="space-y-6">
+					<div>
+						{backButton}
+						{header}
+					</div>
+					<div className="flex min-h-[240px] items-center justify-center">
+						<Spinner size="lg" loading className="text-content-secondary" />
+					</div>
+				</div>
+			);
+		}
+
+		if (selectedUserQuery.isError || !selectedUser) {
+			return (
+				<div className="space-y-6">
+					<div>
+						{backButton}
+						{header}
+					</div>
+					<div className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
+						<p className="m-0 text-sm text-content-secondary">
+							{getErrorMessage(
+								selectedUserQuery.error,
+								"Failed to load user profile.",
+							)}
+						</p>
+						<Button
+							variant="outline"
+							size="sm"
+							type="button"
+							onClick={() => void selectedUserQuery.refetch()}
+						>
+							Retry
+						</Button>
+					</div>
+				</div>
+			);
+		}
+
 		return (
 			<div className="space-y-6">
 				<div>
-					<button
-						type="button"
-						onClick={() => setSelectedUser(null)}
-						className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
-					>
-						<ChevronLeftIcon className="h-4 w-4" />
-						Back
-					</button>
+					{backButton}
 					{header}
 				</div>
 				<div className="flex flex-wrap items-center gap-3 rounded-lg border border-border-default bg-surface-secondary px-4 py-3">
@@ -198,11 +261,10 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 						imgFallbackText={selectedUser.username}
 					/>
 					<div className="min-w-0 text-xs text-content-secondary">
-						<div>User ID: {selectedUser.user_id}</div>
+						<div>User ID: {selectedUser.id}</div>
 						<div>{dateRange.rangeLabel}</div>
 					</div>
 				</div>
-
 				<ChatCostSummaryView
 					summary={summaryQuery.data}
 					isLoading={summaryQuery.isLoading}
@@ -221,13 +283,13 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 			<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
 				<div className="w-full md:max-w-sm">
 					<SearchField
-						value={usernameFilter}
+						value={searchFilter}
 						onChange={(value) => {
-							setUsernameFilter(value);
+							setSearchFilter(value);
 							setPage(1);
 						}}
-						placeholder="Filter by username"
-						aria-label="Filter usage by username"
+						placeholder="Search by name or username"
+						aria-label="Search usage by name or username"
 					/>
 				</div>
 				{usersQuery.data && (
@@ -305,7 +367,9 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 										<UserRow
 											key={user.user_id}
 											user={user}
-											onSelect={setSelectedUser}
+											onSelect={(u) => {
+												setSearchParams({ user: u.user_id });
+											}}
 										/>
 									))}
 								</TableBody>
@@ -568,6 +632,13 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 						section="models"
 						sectionLabel="Models"
 						sectionDescription="Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
+						sectionBadge={<AdminBadge />}
+					/>
+				)}
+				{activeSection === "mcp-servers" && canManageChatModelConfigs && (
+					<MCPServerAdminPanel
+						sectionLabel="MCP Servers"
+						sectionDescription="Configure external MCP servers that provide additional tools for AI chat sessions."
 						sectionBadge={<AdminBadge />}
 					/>
 				)}

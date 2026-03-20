@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ChatMessageInputRef } from "components/ChatMessageInput/ChatMessageInput";
+import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { AgentChatInput, type UploadState } from "./AgentChatInput";
 
@@ -258,6 +260,72 @@ export const WithAttachmentError: Story = {
 			initialValue: "Upload had an error",
 		};
 	})(),
+};
+
+/** File reference chip rendered inline with text in the editor. */
+export const WithFileReference: Story = {
+	render: (args) => {
+		const ref = useRef<ChatMessageInputRef>(null);
+
+		useEffect(() => {
+			const handle = ref.current;
+			if (!handle) return;
+			handle.addFileReference({
+				fileName: "site/src/components/Button.tsx",
+				startLine: 42,
+				endLine: 42,
+				content: "export const Button = ...",
+			});
+		}, []);
+
+		return <AgentChatInput {...args} inputRef={ref} />;
+	},
+	args: {
+		initialValue: "Can you refactor ",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText(/Button\.tsx/)).toBeInTheDocument();
+		});
+	},
+};
+
+/** Multiple file reference chips rendered inline with text. */
+export const WithMultipleFileReferences: Story = {
+	render: (args) => {
+		const ref = useRef<ChatMessageInputRef>(null);
+
+		useEffect(() => {
+			const handle = ref.current;
+			if (!handle) return;
+			handle.addFileReference({
+				fileName: "api/handler.go",
+				startLine: 1,
+				endLine: 50,
+				content: "...",
+			});
+			handle.insertText(" and ");
+			handle.addFileReference({
+				fileName: "api/handler_test.go",
+				startLine: 10,
+				endLine: 30,
+				content: "...",
+			});
+		}, []);
+
+		return <AgentChatInput {...args} inputRef={ref} />;
+	},
+	args: {
+		initialValue: "Compare ",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText(/handler\.go/)).toBeInTheDocument();
+			expect(canvas.getByText(/handler_test\.go/)).toBeInTheDocument();
+		});
+	},
 };
 
 export const AttachmentsOnly: Story = {

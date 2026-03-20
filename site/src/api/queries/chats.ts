@@ -139,6 +139,7 @@ export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 			});
 		},
 		refetchOnWindowFocus: true as const,
+		retry: 3,
 	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
 };
 
@@ -559,6 +560,17 @@ export const prInsights = (params?: {
 	staleTime: 60_000,
 });
 
+export const chatUsageLimitStatusKey = [
+	...chatsKey,
+	"usageLimitStatus",
+] as const;
+
+export const chatUsageLimitStatus = () => ({
+	queryKey: chatUsageLimitStatusKey,
+	queryFn: () => API.getChatUsageLimitStatus(),
+	refetchInterval: 60_000,
+});
+
 const chatUsageLimitConfigKey = [...chatsKey, "usageLimitConfig"] as const;
 
 export const chatUsageLimitConfig = () => ({
@@ -629,5 +641,46 @@ export const deleteChatUsageLimitGroupOverride = (
 		await queryClient.invalidateQueries({
 			queryKey: chatUsageLimitConfigKey,
 		});
+	},
+});
+
+// ── MCP Server Configs ───────────────────────────────────────
+
+const mcpServerConfigsKey = ["mcp-server-configs"] as const;
+
+export const mcpServerConfigs = () => ({
+	queryKey: mcpServerConfigsKey,
+	queryFn: (): Promise<TypesGen.MCPServerConfig[]> => API.getMCPServerConfigs(),
+});
+
+const invalidateMCPServerConfigQueries = async (queryClient: QueryClient) => {
+	await queryClient.invalidateQueries({ queryKey: mcpServerConfigsKey });
+};
+
+export const createMCPServerConfig = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.CreateMCPServerConfigRequest) =>
+		API.createMCPServerConfig(req),
+	onSuccess: async () => {
+		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+type UpdateMCPServerConfigMutationArgs = {
+	id: string;
+	req: TypesGen.UpdateMCPServerConfigRequest;
+};
+
+export const updateMCPServerConfig = (queryClient: QueryClient) => ({
+	mutationFn: ({ id, req }: UpdateMCPServerConfigMutationArgs) =>
+		API.updateMCPServerConfig(id, req),
+	onSuccess: async () => {
+		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
+	mutationFn: (id: string) => API.deleteMCPServerConfig(id),
+	onSuccess: async () => {
+		await invalidateMCPServerConfigQueries(queryClient);
 	},
 });

@@ -425,4 +425,194 @@ describe("useGitWatcher", () => {
 		});
 		expect(result.current.repositories.has("/home/user/project-x")).toBe(true);
 	});
+
+	it("stale close event after re-mount does not create duplicate connections", () => {
+		vi.useFakeTimers();
+
+		try {
+			const socket1 = createMockSocket();
+
+			const { result, rerender } = renderHook(
+				({ chatId }: { chatId: string | undefined }) =>
+					useGitWatcher({ chatId, agentStatus: "connected" }),
+				{ initialProps: { chatId: "chat-aaa" as string | undefined } },
+			);
+
+			act(() => socket1.simulateOpen());
+			expect(mockWatchChatGit).toHaveBeenCalledTimes(1);
+
+			// Prepare socket2 for the re-mount triggered by chatId change.
+			const socket2 = createMockSocket();
+			rerender({ chatId: "chat-bbb" });
+
+			expect(socket1.close).toHaveBeenCalled();
+			expect(mockWatchChatGit).toHaveBeenCalledTimes(2);
+
+			// Simulate socket1's close event arriving late (stale).
+			// This must NOT clobber socketRef or schedule a reconnect.
+			act(() => socket1.simulateClose());
+
+			expect(mockWatchChatGit).toHaveBeenCalledTimes(2);
+
+			// Advance timers to prove no reconnect was scheduled.
+			act(() => vi.advanceTimersByTime(60_000));
+			expect(mockWatchChatGit).toHaveBeenCalledTimes(2);
+
+			// socket2 should still work: open sets isConnected,
+			// messages update repositories.
+			act(() => socket2.simulateOpen());
+			expect(result.current.isConnected).toBe(true);
+
+			act(() => {
+				socket2.simulateMessage({
+					type: "changes",
+					repositories: [{ repo_root: "/repo", branch: "main" }],
+				});
+			});
+			expect(result.current.repositories.size).toBe(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("preserves reference on duplicate messages", () => {
+		const socket = createMockSocket();
+
+		const { result } = renderHook(() =>
+			useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
+		);
+
+		act(() => socket.simulateOpen());
+
+		const message = {
+			type: "changes" as const,
+			repositories: [
+				{
+					repo_root: "/repo",
+					branch: "main",
+					unified_diff: "diff1",
+				},
+			],
+		};
+
+		act(() => socket.simulateMessage(message));
+		const ref1 = result.current.repositories;
+		expect(ref1.size).toBe(1);
+
+		// Sending the exact same data should not produce a new reference.
+		act(() => socket.simulateMessage(message));
+		expect(result.current.repositories).toBe(ref1);
+	});
+
+	it("single field change triggers update", () => {
+		const socket = createMockSocket();
+
+		const { result } = renderHook(() =>
+			useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
+		);
+
+		act(() => socket.simulateOpen());
+
+		const base = {
+			repo_root: "/repo",
+			branch: "main",
+			remote_origin: "git@github.com:org/repo.git",
+			unified_diff: "diff1",
+		};
+
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				repositories: [base],
+			});
+		});
+		let ref = result.current.repositories;
+		expect(ref.get("/repo")?.branch).toBe("main");
+
+		// Changing only branch.
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				repositories: [{ ...base, branch: "feature" }],
+			});
+		});
+		expect(result.current.repositories).not.toBe(ref);
+		expect(result.current.repositories.get("/repo")?.branch).toBe("feature");
+		ref = result.current.repositories;
+
+		// Changing only remote_origin.
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				repositories: [
+					{
+						...base,
+						branch: "feature",
+						remote_origin: "https://github.com/org/repo",
+					},
+				],
+			});
+		});
+		expect(result.current.repositories).not.toBe(ref);
+		ref = result.current.repositories;
+
+		// Changing only unified_diff.
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				repositories: [
+					{
+						...base,
+						branch: "feature",
+						remote_origin: "https://github.com/org/repo",
+						unified_diff: "diff2",
+					},
+				],
+			});
+		});
+		expect(result.current.repositories).not.toBe(ref);
+		expect(result.current.repositories.get("/repo")?.unified_diff).toBe(
+			"diff2",
+		);
+	});
+
+	it("removing unknown repo preserves reference", () => {
+		const socket = createMockSocket();
+
+		const { result } = renderHook(() =>
+			useGitWatcher({ chatId: "chat-123", agentStatus: "connected" }),
+		);
+
+		act(() => socket.simulateOpen());
+
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				repositories: [
+					{
+						repo_root: "/repo",
+						branch: "main",
+						unified_diff: "diff1",
+					},
+				],
+			});
+		});
+		const ref1 = result.current.repositories;
+		expect(ref1.size).toBe(1);
+
+		// Removing a repo_root that was never added should be a no-op.
+		act(() => {
+			socket.simulateMessage({
+				type: "changes",
+				repositories: [
+					{
+						repo_root: "/unknown",
+						branch: "",
+						removed: true,
+					},
+				],
+			});
+		});
+		expect(result.current.repositories).toBe(ref1);
+	});
 });

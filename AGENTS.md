@@ -208,6 +208,11 @@ seems like it should use `time.Sleep`, read through https://github.com/coder/qua
 
 - Follow [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md)
 - Commit format: `type(scope): message`
+- PR titles follow the same `type(scope): message` format.
+- When you use a scope, it must be a real filesystem path containing every
+  changed file.
+- Use a broader path scope, or omit the scope, for cross-cutting changes.
+- Example: `fix(coderd/chatd): ...` for changes only in `coderd/chatd/`.
 
 ### Frontend Patterns
 

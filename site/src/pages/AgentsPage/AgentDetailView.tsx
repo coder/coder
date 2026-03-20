@@ -423,14 +423,14 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 					isSidebarCollapsed={isSidebarCollapsed}
 					onToggleSidebarCollapsed={onToggleSidebarCollapsed}
 				/>
-				<div className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden">
+				<div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 					<div className="px-4">
 						<div className="mx-auto w-full max-w-3xl py-6">
 							<ChatConversationSkeleton />
 						</div>
 					</div>
 				</div>
-				<div className="shrink-0 px-4">
+				<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<AgentChatInput
 						onSend={() => {}}
 						initialValue=""

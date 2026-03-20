@@ -32,38 +32,44 @@ function getRightPanelState(): { open: boolean; width: number } {
  */
 export const AgentsPageSkeleton: FC = () => (
 	<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
-		<div className="shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default md:h-full md:w-[320px] md:min-h-0 md:border-b-0">
-			<div className="flex h-full w-full min-h-0 flex-col border-0 border-r border-solid">
-				<div className="border-b border-border-default px-3 pb-3 pt-1.5 md:px-3.5">
-					<Skeleton className="mb-2.5 h-6 w-6 rounded" />
-					<div className="flex flex-col gap-2.5">
-						<Skeleton className="h-9 w-full rounded-lg" />
-						<Skeleton className="h-9 w-full rounded-lg" />
-					</div>
-				</div>
-				<div className="flex flex-col gap-2 px-2 py-3">
-					<Skeleton className="ml-2.5 h-3.5 w-16" />
-					<div className="flex flex-col gap-0.5">
-						{Array.from({ length: 6 }, (_, i) => (
-							<div
-								key={i}
-								className="flex items-start gap-2 rounded-md px-2 py-1"
-							>
-								<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
-								<div className="min-w-0 flex-1 space-y-1.5">
-									<Skeleton
-										className="h-3.5"
-										style={{ width: `${55 + ((i * 17) % 35)}%` }}
-									/>
-									<Skeleton className="h-3 w-20" />
-								</div>
+		<div className="order-2 md:order-none flex-1 min-h-0 border-t border-border-default md:flex-none md:border-t-0 md:h-full md:w-[320px] md:min-h-0 md:border-b-0">
+			<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
+				<div className="absolute inset-0 flex flex-col">
+					<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 md:block">
+						<div className="mb-2.5 flex items-center justify-between">
+							<Skeleton className="h-6 w-6 rounded" />
+							<div className="flex items-center gap-0.5 -mr-1.5">
+								<Skeleton className="h-7 w-7 rounded" />
+								<Skeleton className="h-7 w-7 rounded" />
+								<Skeleton className="h-7 w-7 rounded" />
 							</div>
-						))}
+						</div>
+						<Skeleton className="h-9 w-full rounded-md" />
+					</div>
+					<div className="flex flex-col gap-2 px-2 py-3">
+						<Skeleton className="ml-2.5 h-3.5 w-16" />
+						<div className="flex flex-col gap-0.5">
+							{Array.from({ length: 6 }, (_, i) => (
+								<div
+									key={i}
+									className="flex items-start gap-2 rounded-md px-2 py-1"
+								>
+									<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
+									<div className="min-w-0 flex-1 space-y-1.5">
+										<Skeleton
+											className="h-3.5"
+											style={{ width: `${55 + ((i * 17) % 35)}%` }}
+										/>
+										<Skeleton className="h-3 w-20" />
+									</div>
+								</div>
+							))}
+						</div>
 					</div>
 				</div>
 			</div>
 		</div>
-		<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary" />
+		<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary order-1 md:order-none" />
 	</div>
 );
 
@@ -105,7 +111,7 @@ export const ChatConversationSkeleton: FC = () => (
 export const RightPanelSkeleton: FC = () => (
 	<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 		{/* Skeleton tab bar */}
-		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1.5">
+		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1">
 			<Skeleton className="h-6 w-12 rounded-md" />
 			<div className="flex-1" />
 		</div>
@@ -133,14 +139,15 @@ export const AgentDetailSkeleton: FC = () => {
 				rightPanel.open && "flex-row",
 			)}
 		>
-			<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-				<div className="flex shrink-0 items-center gap-2 px-4 py-2">
+			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
+				<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
 					<Skeleton className="h-7 w-7 rounded" />
 					<Skeleton className="h-4 w-32" />
 					<div className="flex-1" />
-					<Skeleton className="h-8 w-8 rounded-full" />
+					<Skeleton className="h-7 w-7 rounded" />
+					<Skeleton className="h-7 w-7 rounded" />
 				</div>
-				<div className="flex h-full flex-col-reverse overflow-hidden">
+				<div className="flex min-h-0 flex-1 flex-col-reverse overflow-hidden">
 					<div className="px-4">
 						<div className="mx-auto w-full max-w-3xl py-6">
 							<ChatConversationSkeleton />
