@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -2757,6 +2758,13 @@ func (p *Server) runChat(
 		messages     []database.ChatMessage
 	)
 
+	// Load MCP server configs and user tokens in parallel with
+	// model resolution and message loading. These queries have
+	// no dependencies on each other and all hit different tables.
+	var (
+		mcpConfigs []database.MCPServerConfig
+		mcpTokens  []database.MCPServerUserToken
+	)
 	var g errgroup.Group
 	g.Go(func() error {
 		var err error
@@ -2779,6 +2787,39 @@ func (p *Server) runChat(
 		}
 		return nil
 	})
+	if len(chat.MCPServerIDs) > 0 {
+		g.Go(func() error {
+			var err error
+			mcpConfigs, err = p.db.GetMCPServerConfigsByIDs(
+				ctx, chat.MCPServerIDs,
+			)
+			if err != nil {
+				logger.Warn(ctx,
+					"failed to load MCP server configs",
+					slog.Error(err),
+				)
+			}
+			return nil
+		})
+		g.Go(func() error {
+			var err error
+			// If token loading fails, ConnectAll will still
+			// proceed but oauth2-authenticated servers will
+			// attempt to connect without credentials. Those
+			// connections may succeed or fail depending on
+			// the remote server's auth requirements.
+			mcpTokens, err = p.db.GetMCPServerUserTokensByUserID(
+				ctx, chat.OwnerID,
+			)
+			if err != nil {
+				logger.Warn(ctx,
+					"failed to load MCP user tokens",
+					slog.Error(err),
+				)
+			}
+			return nil
+		})
+	}
 	if err := g.Wait(); err != nil {
 		return result, err
 	}
@@ -2840,7 +2881,15 @@ func (p *Server) runChat(
 	}
 	defer workspaceCtx.close()
 
-	var instruction, resolvedUserPrompt string
+	// Connect to MCP servers in parallel with instruction
+	// resolution. ConnectAll only depends on mcpConfigs and
+	// mcpTokens which are available after g.Wait() above.
+	var (
+		instruction        string
+		resolvedUserPrompt string
+		mcpTools           []fantasy.AgentTool
+		mcpCleanup         func()
+	)
 	var g2 errgroup.Group
 	g2.Go(func() error {
 		instruction = p.resolveInstructions(
@@ -2855,7 +2904,19 @@ func (p *Server) runChat(
 		resolvedUserPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
 		return nil
 	})
+	if len(mcpConfigs) > 0 {
+		g2.Go(func() error {
+			mcpTools, mcpCleanup = mcpclient.ConnectAll(
+				ctx, logger, mcpConfigs, mcpTokens,
+			)
+			return nil
+		})
+	}
+	// All g2 goroutines return nil; error is discarded.
 	_ = g2.Wait()
+	if mcpCleanup != nil {
+		defer mcpCleanup()
+	}
 
 	if instruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, instruction)
@@ -3138,7 +3199,6 @@ func (p *Server) runChat(
 		model = cuModel
 	}
 
-	// Here are all the tools we have for the chat.
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -3198,6 +3258,11 @@ func (p *Server) runChat(
 			return chat
 		})...)
 	}
+
+	// Append tools from external MCP servers. These appear
+	// after the built-in tools so the LLM sees them as
+	// additional capabilities.
+	tools = append(tools, mcpTools...)
 
 	// Build provider-native tools (e.g., web search) based on
 	// the model configuration.
