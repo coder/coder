@@ -1542,16 +1542,15 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if job.CompletedAt.Valid && !job.Error.Valid {
-			// Claim build succeeded — one-shot reinit.
+			// Claim build succeeded — pre-seed the channel and
+			// close it so the transmitter below delivers exactly
+			// one reinit event then exits cleanly.
 			reinitEvents <- agentsdk.ReinitializationEvent{
 				WorkspaceID: workspace.ID,
 				Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
 				UserID:      workspace.OwnerID,
 			}
 			close(reinitEvents)
-			transmitter := agentsdk.NewSSEAgentReinitTransmitter(log, rw, r)
-			_ = transmitter.Transmit(ctx, reinitEvents)
-			return
 		}
 
 		// Claim build still in progress or failed — fall through
