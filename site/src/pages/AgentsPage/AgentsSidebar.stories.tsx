@@ -926,7 +926,7 @@ const generateLargeChats = (): Chat[] => {
 
 export const LargeList: Story = {
 	args: {
-		chats: generateLargeChats(),
+		chats: generateLargeChats().filter((chat) => !chat.archived),
 		archivedFilter: "active",
 	},
 	parameters: {
@@ -963,7 +963,7 @@ export const LargeList: Story = {
 
 export const LargeListArchived: Story = {
 	args: {
-		chats: generateLargeChats(),
+		chats: generateLargeChats().filter((chat) => chat.archived),
 		archivedFilter: "archived",
 	},
 	parameters: {
