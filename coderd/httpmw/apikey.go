@@ -250,10 +250,15 @@ func PrecheckAPIKey(cfg ValidateAPIKeyConfig) func(http.Handler) http.Handler {
 func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Request) (*ValidateAPIKeyResult, *ValidateAPIKeyError) {
 	key, resp, ok := APIKeyFromRequest(ctx, cfg.DB, cfg.SessionTokenFunc, r)
 	if !ok {
-		return nil, &ValidateAPIKeyError{
+		valErr := &ValidateAPIKeyError{
 			Code:     http.StatusUnauthorized,
 			Response: resp,
 		}
+		if resp.Message == internalErrorMessage {
+			valErr.Code = http.StatusInternalServerError
+			valErr.Hard = true
+		}
+		return nil, valErr
 	}
 
 	// Log the API key ID for all requests that have a valid key
@@ -475,7 +480,7 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
 	if err != nil {
 		return nil, &ValidateAPIKeyError{
-			Code: http.StatusUnauthorized,
+			Code: http.StatusInternalServerError,
 			Response: codersdk.Response{
 				Message: internalErrorMessage,
 				Detail:  fmt.Sprintf("Internal error fetching user's roles. %s", err.Error()),
