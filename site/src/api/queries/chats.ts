@@ -152,6 +152,7 @@ export const chats = () => ({
 export const chat = (chatId: string) => ({
 	queryKey: chatKey(chatId),
 	queryFn: () => API.getChat(chatId),
+	refetchOnWindowFocus: false as const,
 });
 
 const MESSAGES_PAGE_SIZE = 50;
@@ -173,6 +174,7 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 		// Use its ID as the cursor for the next (older) page.
 		return lastPage.messages[lastPage.messages.length - 1].id;
 	},
+	refetchOnWindowFocus: false as const,
 });
 
 export const archiveChat = (queryClient: QueryClient) => ({

@@ -1,6 +1,29 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
+import {
+	chat,
+	chatMessagesForInfiniteScroll,
+	chats,
+	infiniteChats,
+} from "../../api/queries/chats";
 import { emptyInputStorageKey, useEmptyStateDraft } from "./AgentCreateForm";
+
+describe("chat query refetch policies", () => {
+	it("keeps chat list queries refreshing on window focus", () => {
+		expect(infiniteChats().refetchOnWindowFocus).toBe(true);
+		expect(chats().refetchOnWindowFocus).toBe(true);
+	});
+
+	it("disables window focus refetching for chat detail queries", () => {
+		expect(chat("test-id").refetchOnWindowFocus).toBe(false);
+	});
+
+	it("disables window focus refetching for paginated chat messages", () => {
+		expect(chatMessagesForInfiniteScroll("test-id").refetchOnWindowFocus).toBe(
+			false,
+		);
+	});
+});
 
 describe("useEmptyStateDraft", () => {
 	beforeEach(() => {
