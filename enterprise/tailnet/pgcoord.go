@@ -1376,6 +1376,7 @@ type workQ[K queueKey] struct {
 
 	cond       *sync.Cond
 	pending    []K
+	pendingSet map[K]struct{}
 	inProgress map[K]bool
 }
 
@@ -1383,6 +1384,7 @@ func newWorkQ[K queueKey](ctx context.Context) *workQ[K] {
 	q := &workQ[K]{
 		ctx:        ctx,
 		cond:       sync.NewCond(&sync.Mutex{}),
+		pendingSet: make(map[K]struct{}),
 		inProgress: make(map[K]bool),
 	}
 	// wake up all waiting workers when context is done
@@ -1399,13 +1401,12 @@ func newWorkQ[K queueKey](ctx context.Context) *workQ[K] {
 func (q *workQ[K]) enqueue(key K) {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
-	for _, mk := range q.pending {
-		if mk == key {
-			// already pending, no-op
-			return
-		}
+	if _, ok := q.pendingSet[key]; ok {
+		// already pending, no-op
+		return
 	}
 	q.pending = append(q.pending, key)
+	q.pendingSet[key] = struct{}{}
 	q.cond.Signal()
 }
 
@@ -1425,6 +1426,7 @@ func (q *workQ[K]) acquire() (key K, err error) {
 		_, ok := q.inProgress[mk]
 		if !ok {
 			q.pending = append(q.pending[:i], q.pending[i+1:]...)
+			delete(q.pendingSet, mk)
 			q.inProgress[mk] = true
 			return mk, nil
 		}
