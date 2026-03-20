@@ -181,16 +181,24 @@ export function daysAgo(count: number) {
  * milliseconds. Handles hours (h), minutes (m), seconds (s),
  * and milliseconds (ms). Fractional values (e.g. "1.5h") are
  * supported. Microseconds (µs/us) and nanoseconds (ns) are
- * parsed but truncated to 0 ms.
+ * parsed but truncated to 0 ms. Negative durations are supported.
+ * Leading and trailing whitespace is ignored.
  */
 export function goDurationToMs(duration: string): number {
+	let norm = duration.trim();
 	let total = 0;
+
+	let mult = 1;
+	if (norm.startsWith("-")) {
+		mult = -1;
+		norm = norm.slice(1);
+	}
 
 	// Match numeric value + unit pairs. Multi-character units (ms,
 	// µs, us, ns) must appear before single-character ones so that
 	// e.g. "10ms" is treated as milliseconds, not "10m" + "s".
 	const pattern = /([\d.]+)\s*(h|ms|µs|us|ns|m|s)/g;
-	for (const match of duration.matchAll(pattern)) {
+	for (const match of norm.matchAll(pattern)) {
 		const value = Number.parseFloat(match[1]);
 		if (Number.isNaN(value)) continue;
 
@@ -213,7 +221,7 @@ export function goDurationToMs(duration: string): number {
 		}
 	}
 
-	return Math.round(total);
+	return Math.round(total * mult);
 }
 
 // Date comparison functions

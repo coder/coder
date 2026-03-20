@@ -139,6 +139,13 @@ describe("goDurationToMs", () => {
 		["0.5s", 500],
 		["1.5m", 90_000],
 	])("%j → %d ms", (input, expected) => {
+		// Positive
 		expect(goDurationToMs(input)).toBe(expected);
+		// Positive+whitespace
+		expect(goDurationToMs(` ${input} `)).toBe(expected);
+		// Negative
+		expect(goDurationToMs(`-${input}`)).toBe(-expected);
+		// Negative+whitespace
+		expect(goDurationToMs(` -${input} `)).toBe(-expected);
 	});
 });
