@@ -2801,6 +2801,10 @@ export interface DeploymentValues {
 	readonly http_address?: string;
 	readonly autobuild_poll_interval?: number;
 	readonly job_hang_detector_interval?: number;
+	readonly tailnet_querier_workers?: number;
+	readonly tailnet_binder_workers?: number;
+	readonly tailnet_tunneler_workers?: number;
+	readonly tailnet_handshaker_workers?: number;
 	readonly derp?: DERP;
 	readonly prometheus?: PrometheusConfig;
 	readonly pprof?: PprofConfig;

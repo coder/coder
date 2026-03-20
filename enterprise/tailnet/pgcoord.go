@@ -1008,6 +1008,11 @@ func (q *querier) cleanupConn(c *connIO) {
 	q.logger.Debug(q.ctx, "removed mapper", slog.F("peer_id", c.UniqueID()))
 }
 
+// maxBatchSize is the maximum number of keys to process in a single batch
+// query.  The first key is acquired via the blocking acquire() call, and up to
+// maxBatchSize-1 additional same-type keys are grabbed opportunistically.
+const maxBatchSize = 50
+
 func (q *querier) worker() {
 	defer q.wg.Done()
 	defer q.logger.Debug(q.ctx, "worker exited")
@@ -1021,14 +1026,36 @@ func (q *querier) worker() {
 			// context expired
 			return
 		}
+		// Try to batch same-type work items together to reduce DB
+		// round trips under load.
+		extras := q.acquireSameType(qk)
+		allKeys := append([]querierWorkKey{qk}, extras...)
 		err = backoff.Retry(func() error {
-			return q.query(qk)
+			return q.queryBatch(allKeys)
 		}, bkoff)
 		if err != nil {
 			bkoff.Reset()
 		}
-		q.workQ.done(qk)
+		for _, k := range allKeys {
+			q.workQ.done(k)
+		}
 	}
+}
+
+// acquireSameType grabs up to maxBatchSize-1 additional pending keys of the
+// same type (peerUpdate or mappingQuery) as the given key.
+func (q *querier) acquireSameType(qk querierWorkKey) []querierWorkKey {
+	if qk.peerUpdate != uuid.Nil {
+		return q.workQ.acquireBatch(func(k querierWorkKey) bool {
+			return k.peerUpdate != uuid.Nil
+		}, maxBatchSize-1)
+	}
+	if uuid.UUID(qk.mappingQuery) != uuid.Nil {
+		return q.workQ.acquireBatch(func(k querierWorkKey) bool {
+			return uuid.UUID(k.mappingQuery) != uuid.Nil
+		}, maxBatchSize-1)
+	}
+	return nil
 }
 
 func (q *querier) query(qk querierWorkKey) error {
@@ -1040,6 +1067,37 @@ func (q *querier) query(qk querierWorkKey) error {
 	}
 	q.logger.Critical(q.ctx, "bad querierWorkKey", slog.F("work_key", qk))
 	return backoff.Permanent(xerrors.Errorf("bad querierWorkKey %v", qk))
+}
+
+// queryBatch dispatches a batch of same-type work keys to the appropriate batch
+// handler.  Falls back to single-key queries when the batch has only one item.
+func (q *querier) queryBatch(keys []querierWorkKey) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	// All keys in the batch are the same type (enforced by acquireSameType).
+	first := keys[0]
+	if first.peerUpdate != uuid.Nil {
+		peers := make([]uuid.UUID, 0, len(keys))
+		for _, k := range keys {
+			peers = append(peers, k.peerUpdate)
+		}
+		if len(peers) == 1 {
+			return q.peerUpdate(peers[0])
+		}
+		return q.peerUpdateBatch(peers)
+	}
+	if uuid.UUID(first.mappingQuery) != uuid.Nil {
+		mkeys := make([]mKey, 0, len(keys))
+		for _, k := range keys {
+			mkeys = append(mkeys, k.mappingQuery)
+		}
+		if len(mkeys) == 1 {
+			return q.mappingQuery(mkeys[0])
+		}
+		return q.mappingQueryBatch(mkeys)
+	}
+	return q.query(first)
 }
 
 // peerUpdate is work scheduled in response to a new peer->binding.  We need to find out all the
@@ -1103,6 +1161,108 @@ func (q *querier) mappingQuery(peer mKey) error {
 	}
 	logger.Debug(q.ctx, "sending mappings", slog.F("mapping_len", len(mappings)))
 	return agpl.SendCtx(mpr.ctx, mpr.mappings, mappings)
+}
+
+// peerUpdateBatch is the batched version of peerUpdate.  It queries tunnel
+// peers for multiple peer IDs in a single DB round trip.
+func (q *querier) peerUpdateBatch(peers []uuid.UUID) error {
+	q.logger.Debug(q.ctx, "batch querying peers that share tunnels",
+		slog.F("num_peers", len(peers)))
+	others, err := q.store.GetTailnetTunnelPeerIDsBatch(q.ctx, peers)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return xerrors.Errorf("get tunnel peer IDs batch: %w", err)
+	}
+	q.logger.Debug(q.ctx, "batch queried tunnel peers",
+		slog.F("num_results", len(others)))
+	for _, other := range others {
+		q.workQ.enqueue(querierWorkKey{mappingQuery: mKey(other.PeerID)})
+	}
+	return nil
+}
+
+// mappingQueryBatch is the batched version of mappingQuery.  It queries
+// bindings for multiple peers in a single DB round trip and dispatches each
+// peer's mappings to its mapper.
+func (q *querier) mappingQueryBatch(peers []mKey) error {
+	// Filter to peers with active mappers before hitting the DB.
+	q.mu.Lock()
+	active := make([]uuid.UUID, 0, len(peers))
+	activeKeys := make([]mKey, 0, len(peers))
+	for _, p := range peers {
+		if _, ok := q.mappers[p]; ok {
+			active = append(active, uuid.UUID(p))
+			activeKeys = append(activeKeys, p)
+		}
+	}
+	q.mu.Unlock()
+	if len(active) == 0 {
+		q.logger.Debug(q.ctx, "batch mapping query: no active mappers")
+		return nil
+	}
+
+	q.logger.Debug(q.ctx, "batch querying mappings",
+		slog.F("num_peers", len(active)))
+	bindings, err := q.store.GetTailnetTunnelPeerBindingsBatch(q.ctx, active)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return xerrors.Errorf("get tunnel peer bindings batch: %w", err)
+	}
+	q.logger.Debug(q.ctx, "batch queried mappings",
+		slog.F("num_bindings", len(bindings)))
+
+	// Group bindings by lookup_id (the peer that needs the mapping).
+	grouped := make(map[uuid.UUID][]database.GetTailnetTunnelPeerBindingsBatchRow)
+	for _, b := range bindings {
+		grouped[b.LookupID] = append(grouped[b.LookupID], b)
+	}
+
+	// Dispatch each peer's mappings to its mapper.
+	for _, mk := range activeKeys {
+		peerID := uuid.UUID(mk)
+		rows := grouped[peerID]
+		mappings, err := q.batchBindingsToMappings(rows)
+		if err != nil {
+			q.logger.Debug(q.ctx, "failed to convert batch mappings",
+				slog.F("peer_id", peerID), slog.Error(err))
+			return err
+		}
+		q.mu.Lock()
+		mpr, ok := q.mappers[mk]
+		q.mu.Unlock()
+		if !ok {
+			continue
+		}
+		if err := agpl.SendCtx(mpr.ctx, mpr.mappings, mappings); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// batchBindingsToMappings converts batch binding rows to mappings, analogous
+// to bindingsToMappings but for the batch row type.
+func (q *querier) batchBindingsToMappings(bindings []database.GetTailnetTunnelPeerBindingsBatchRow) ([]mapping, error) {
+	slog.Helper()
+	mappings := make([]mapping, 0, len(bindings))
+	for _, binding := range bindings {
+		node := new(proto.Node)
+		err := gProto.Unmarshal(binding.Node, node)
+		if err != nil {
+			q.logger.Error(q.ctx, "failed to unmarshal node", slog.Error(err))
+			return nil, backoff.Permanent(err)
+		}
+		kind := proto.CoordinateResponse_PeerUpdate_NODE
+		if binding.Status == database.TailnetStatusLost {
+			kind = proto.CoordinateResponse_PeerUpdate_LOST
+		}
+		mappings = append(mappings, mapping{
+			peer:        binding.PeerID,
+			coordinator: binding.CoordinatorID,
+			updatedAt:   binding.UpdatedAt,
+			node:        node,
+			kind:        kind,
+		})
+	}
+	return mappings, nil
 }
 
 func (q *querier) bindingsToMappings(bindings []database.GetTailnetTunnelPeerBindingsRow) ([]mapping, error) {
@@ -1534,6 +1694,31 @@ func (q *workQ[K]) acquire() (key K, err error) {
 }
 
 // workAvailable returns true if there is work we can do.  Must be called while holding q.cond.L
+// acquireBatch acquires up to max additional pending keys matching matchFn, moving them to
+// inProgress.  Must be called without holding the lock.  Returns nil if none match.  Caller must
+// call done() for each returned key.
+func (q *workQ[K]) acquireBatch(matchFn func(K) bool, max int) []K {
+	q.cond.L.Lock()
+	defer q.cond.L.Unlock()
+	var batch []K
+	remaining := make([]K, 0, len(q.pending))
+	for _, k := range q.pending {
+		if len(batch) >= max {
+			remaining = append(remaining, k)
+			continue
+		}
+		if _, inProg := q.inProgress[k]; !inProg && matchFn(k) {
+			batch = append(batch, k)
+			q.inProgress[k] = true
+			delete(q.pendingSet, k)
+		} else {
+			remaining = append(remaining, k)
+		}
+	}
+	q.pending = remaining
+	return batch
+}
+
 func (q workQ[K]) workAvailable() bool {
 	for _, mk := range q.pending {
 		_, ok := q.inProgress[mk]
