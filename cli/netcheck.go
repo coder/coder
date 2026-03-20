@@ -37,7 +37,7 @@ func (r *RootCmd) netcheck() *serpent.Command {
 			var derpReport derphealth.Report
 			derpReport.Run(ctx, &derphealth.ReportOptions{
 				DERPMap:       connInfo.DERPMap,
-				DERPTLSConfig: r.derpTLSConfig,
+				DERPTLSConfig: r.tlsConfig,
 			})
 
 			ifReport, err := healthsdk.RunInterfacesReport()

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -73,13 +74,19 @@ const (
 	varDisableDirect           = "disable-direct-connections"
 	varDisableNetworkTelemetry = "disable-network-telemetry"
 	varUseKeyring              = "use-keyring"
+	varClientTLSCAFile         = "client-tls-ca-file"
+	varClientTLSCertFile       = "client-tls-cert-file"
+	varClientTLSKeyFile        = "client-tls-key-file"
 
 	notLoggedInMessage = "You are not logged in. Try logging in using '%s login <url>'."
 
-	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
-	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
-	envSessionToken     = "CODER_SESSION_TOKEN"
-	envUseKeyring       = "CODER_USE_KEYRING"
+	envNoVersionCheck    = "CODER_NO_VERSION_WARNING"
+	envNoFeatureWarning  = "CODER_NO_FEATURE_WARNING"
+	envSessionToken      = "CODER_SESSION_TOKEN"
+	envUseKeyring        = "CODER_USE_KEYRING"
+	envClientTLSCAFile   = "CODER_CLIENT_TLS_CA_FILE"
+	envClientTLSCertFile = "CODER_CLIENT_TLS_CERT_FILE"
+	envClientTLSKeyFile  = "CODER_CLIENT_TLS_KEY_FILE"
 	//nolint:gosec
 	envAgentToken = "CODER_AGENT_TOKEN"
 	//nolint:gosec
@@ -492,6 +499,27 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Group:       globalGroup,
 		},
 		{
+			Flag:        varClientTLSCAFile,
+			Env:         envClientTLSCAFile,
+			Description: "Path to a CA certificate file to trust for API and DERP connections.",
+			Value:       serpent.StringOf(&r.tlsCAFile),
+			Group:       globalGroup,
+		},
+		{
+			Flag:        varClientTLSCertFile,
+			Env:         envClientTLSCertFile,
+			Description: "Path to a client certificate file for mTLS authentication with API and DERP. Requires --client-tls-key-file.",
+			Value:       serpent.StringOf(&r.tlsClientCertFile),
+			Group:       globalGroup,
+		},
+		{
+			Flag:        varClientTLSKeyFile,
+			Env:         envClientTLSKeyFile,
+			Description: "Path to a client private key file for mTLS authentication with API and DERP. Requires --client-tls-cert-file.",
+			Value:       serpent.StringOf(&r.tlsClientKeyFile),
+			Group:       globalGroup,
+		},
+		{
 			Flag: varUseKeyring,
 			Env:  envUseKeyring,
 			Description: "Store and retrieve session tokens using the operating system " +
@@ -559,8 +587,11 @@ type RootCmd struct {
 	// quartz.NewReal() in Command() if not set via SetClock.
 	clock quartz.Clock
 
-	// derpTLSConfig is an optional TLS config for DERP connections.
-	derpTLSConfig *tls.Config
+	// TLS configuration for custom CA or client certificates.
+	tlsCAFile         string
+	tlsClientCertFile string
+	tlsClientKeyFile  string
+	tlsConfig         *tls.Config
 }
 
 // SetClock sets the clock used for time-dependent operations.
@@ -591,6 +622,55 @@ func (r *RootCmd) ensureClientURL() error {
 	return err
 }
 
+// ensureTLSConfig loads the TLS configuration from files if specified.
+// The resulting config is used for both API requests and DERP connections.
+// If tlsConfig is already set programmatically, file-based configuration is skipped.
+func (r *RootCmd) ensureTLSConfig() error {
+	// Already loaded or programmatically set - skip file loading
+	if r.tlsConfig != nil {
+		return nil
+	}
+
+	// No TLS config needed
+	if r.tlsCAFile == "" && r.tlsClientCertFile == "" && r.tlsClientKeyFile == "" {
+		return nil
+	}
+
+	// Validate that cert and key are specified together
+	if (r.tlsClientCertFile == "") != (r.tlsClientKeyFile == "") {
+		return xerrors.Errorf("--%s and --%s must be specified together", varClientTLSCertFile, varClientTLSKeyFile)
+	}
+
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
+
+	// Load CA certificate if specified
+	if r.tlsCAFile != "" {
+		caData, err := os.ReadFile(r.tlsCAFile)
+		if err != nil {
+			return xerrors.Errorf("read TLS CA file %q: %w", r.tlsCAFile, err)
+		}
+		caPool := x509.NewCertPool()
+		if !caPool.AppendCertsFromPEM(caData) {
+			return xerrors.Errorf("failed to parse CA certificate in %q", r.tlsCAFile)
+		}
+		tlsConfig.RootCAs = caPool
+	}
+
+	// Load client certificate if specified
+	if r.tlsClientCertFile != "" && r.tlsClientKeyFile != "" {
+		cert, err := tls.LoadX509KeyPair(r.tlsClientCertFile, r.tlsClientKeyFile)
+		if err != nil {
+			return xerrors.Errorf("load TLS client certificate: %w", err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+
+	r.tlsConfig = tlsConfig
+	return nil
+}
+
 // InitClient creates and configures a new client with authentication, telemetry,
 // and version checks.
 func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) {
@@ -612,6 +692,11 @@ func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) 
 		}
 	}
 
+	// Load TLS config from files if specified
+	if err := r.ensureTLSConfig(); err != nil {
+		return nil, err
+	}
+
 	// Configure HTTP client with transport wrappers
 	httpClient, err := r.createHTTPClient(inv.Context(), r.clientURL, inv)
 	if err != nil {
@@ -626,8 +711,8 @@ func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) 
 	if r.disableDirect {
 		clientOpts = append(clientOpts, codersdk.WithDisableDirectConnections())
 	}
-	if r.derpTLSConfig != nil {
-		clientOpts = append(clientOpts, codersdk.WithDERPTLSConfig(r.derpTLSConfig))
+	if r.tlsConfig != nil {
+		clientOpts = append(clientOpts, codersdk.WithDERPTLSConfig(r.tlsConfig))
 	}
 
 	if r.debugHTTP {
@@ -677,6 +762,11 @@ func (r *RootCmd) TryInitClient(inv *serpent.Invocation) (*codersdk.Client, erro
 
 	// Only configure the client if we have a URL
 	if r.clientURL != nil && r.clientURL.String() != "" {
+		// Load TLS config from files if specified
+		if err := r.ensureTLSConfig(); err != nil {
+			return nil, err
+		}
+
 		// Configure HTTP client with transport wrappers
 		httpClient, err := r.createHTTPClient(inv.Context(), r.clientURL, inv)
 		if err != nil {
@@ -691,8 +781,8 @@ func (r *RootCmd) TryInitClient(inv *serpent.Invocation) (*codersdk.Client, erro
 		if r.disableDirect {
 			clientOpts = append(clientOpts, codersdk.WithDisableDirectConnections())
 		}
-		if r.derpTLSConfig != nil {
-			clientOpts = append(clientOpts, codersdk.WithDERPTLSConfig(r.derpTLSConfig))
+		if r.tlsConfig != nil {
+			clientOpts = append(clientOpts, codersdk.WithDERPTLSConfig(r.tlsConfig))
 		}
 
 		if r.debugHTTP {
@@ -716,7 +806,20 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 }
 
 func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*http.Client, error) {
-	transport := http.DefaultTransport
+	var transport http.RoundTripper = http.DefaultTransport
+
+	// Apply custom TLS config if specified
+	if r.tlsConfig != nil {
+		// Clone the default transport and apply TLS config
+		defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+		if !ok {
+			return nil, xerrors.New("cannot apply TLS config: http.DefaultTransport is not *http.Transport")
+		}
+		customTransport := defaultTransport.Clone()
+		customTransport.TLSClientConfig = r.tlsConfig
+		transport = customTransport
+	}
+
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
 	transport = wrapTransportWithUserAgentHeader(transport, inv)
 	if !r.noVersionCheck {
@@ -744,6 +847,10 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 }
 
 func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*codersdk.Client, error) {
+	// Load TLS config for login and other unauthenticated requests
+	if err := r.ensureTLSConfig(); err != nil {
+		return nil, err
+	}
 	httpClient, err := r.createHTTPClient(ctx, serverURL, inv)
 	if err != nil {
 		return nil, err
