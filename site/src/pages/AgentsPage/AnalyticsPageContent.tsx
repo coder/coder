@@ -1,11 +1,9 @@
 import { chatCostSummary } from "api/queries/chats";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import dayjs from "dayjs";
-import { BarChart3Icon } from "lucide-react";
 import { type FC, useMemo } from "react";
 import { useQuery } from "react-query";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
-import { SectionHeader } from "./SectionHeader";
 
 const createDateRange = (now?: dayjs.Dayjs) => {
 	const end = now ?? dayjs();
@@ -13,14 +11,10 @@ const createDateRange = (now?: dayjs.Dayjs) => {
 	return {
 		startDate: start.toISOString(),
 		endDate: end.toISOString(),
-		rangeLabel: `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`,
 	};
 };
 
 interface AnalyticsPageContentProps {
-	/** Override the current time for date range calculation.
-	 * Used for deterministic Storybook snapshots.
-	 */
 	now?: dayjs.Dayjs;
 }
 
@@ -39,19 +33,16 @@ export const AnalyticsPageContent: FC<AnalyticsPageContentProps> = ({
 	});
 
 	return (
-		<div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 pt-8 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
-			<div className="mx-auto w-full max-w-3xl">
-				<SectionHeader
-					label="Analytics"
-					description="Review your personal chat usage and cost breakdowns."
-					action={
-						<div className="flex items-center gap-2 text-xs text-content-secondary">
-							<BarChart3Icon className="h-4 w-4" />
-							<span>{dateRange.rangeLabel}</span>
-						</div>
-					}
-				/>
-
+		<div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 pt-10 pb-16 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+			<div className="mx-auto w-full max-w-4xl">
+				<div className="mb-8">
+					<h1 className="text-2xl font-semibold text-content-primary">
+						Analytics
+					</h1>
+					<p className="mt-0.5 text-sm text-content-secondary">
+						Personal usage over the last 30 days
+					</p>
+				</div>
 				<ChatCostSummaryView
 					summary={summaryQuery.data}
 					isLoading={summaryQuery.isLoading}

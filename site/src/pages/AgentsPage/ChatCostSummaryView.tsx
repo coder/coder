@@ -1,20 +1,19 @@
 import { getErrorMessage } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { Spinner } from "components/Spinner/Spinner";
 import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "components/Table/Table";
+	type ChartConfig,
+	ChartContainer,
+	ChartTooltip,
+	ChartTooltipContent,
+} from "components/Chart/Chart";
+import { Spinner } from "components/Spinner/Spinner";
 import dayjs from "dayjs";
-import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
+import { Link } from "react-router";
+import { Cell, Pie, PieChart } from "recharts";
 import { formatTokenCount } from "utils/analytics";
-import { formatCostMicros } from "utils/currency";
+import { formatCostMicros, microsToDollars } from "utils/currency";
 
 interface ChatCostSummaryViewProps {
 	summary: TypesGen.ChatCostSummary | undefined;
@@ -25,13 +24,27 @@ interface ChatCostSummaryViewProps {
 	emptyMessage: string;
 }
 
+const MODEL_COLORS = [
+	"hsl(var(--highlight-purple))",
+	"hsl(var(--highlight-sky))",
+	"hsl(var(--highlight-green))",
+	"hsl(var(--highlight-orange))",
+	"hsl(var(--highlight-red))",
+	"hsl(var(--highlight-magenta))",
+] as const;
+
+const SURFACE_COLORS = [
+	"hsl(var(--surface-purple))",
+	"hsl(var(--surface-sky))",
+	"hsl(var(--surface-green))",
+	"hsl(var(--surface-orange))",
+	"hsl(var(--surface-red))",
+	"hsl(var(--surface-magenta))",
+] as const;
+
 export const getUsageLimitPeriodLabel = (
 	period: TypesGen.ChatUsageLimitPeriod | undefined,
 ): string => {
-	if (!period) {
-		return "";
-	}
-
 	switch (period) {
 		case "day":
 			return "Daily";
@@ -42,6 +55,23 @@ export const getUsageLimitPeriodLabel = (
 		default:
 			return "";
 	}
+};
+
+const formatBigTokens = (n: number): { short: string; full: string } => {
+	const full = n.toLocaleString("en-US");
+	if (n >= 1_000_000_000) {
+		const b = n / 1_000_000_000;
+		return { short: `${b % 1 === 0 ? b.toFixed(0) : b.toFixed(1)}B`, full };
+	}
+	if (n >= 1_000_000) {
+		const m = n / 1_000_000;
+		return { short: `${m % 1 === 0 ? m.toFixed(0) : m.toFixed(1)}M`, full };
+	}
+	if (n >= 1_000) {
+		const k = n / 1_000;
+		return { short: `${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}K`, full };
+	}
+	return { short: String(n), full };
 };
 
 export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
@@ -57,7 +87,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 			<div
 				role="status"
 				aria-label={loadingLabel}
-				className="flex min-h-[240px] items-center justify-center"
+				className="flex min-h-[300px] items-center justify-center"
 			>
 				<Spinner size="lg" loading />
 			</div>
@@ -66,7 +96,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 
 	if (error != null) {
 		return (
-			<div className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
+			<div className="flex min-h-[300px] flex-col items-center justify-center gap-3 text-center">
 				<p className="m-0 text-sm text-content-secondary">
 					{getErrorMessage(error, "Failed to load usage details.")}
 				</p>
@@ -81,277 +111,297 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 		return null;
 	}
 
+	const totalMessages =
+		summary.priced_message_count + summary.unpriced_message_count;
+	const totalTokens =
+		summary.total_input_tokens +
+		summary.total_output_tokens +
+		summary.total_cache_read_tokens +
+		summary.total_cache_creation_tokens;
+	const heroTokens = formatBigTokens(totalTokens);
+
 	const usageLimit = summary.usage_limit;
-	const showUsageLimitCard = usageLimit?.is_limited === true;
-	const usageLimitCurrentSpend = usageLimit?.current_spend ?? 0;
-	const usageLimitSpendMicros = usageLimit?.spend_limit_micros ?? 0;
-	const usageLimitPeriodLabel = usageLimit
-		? getUsageLimitPeriodLabel(usageLimit.period)
-		: "";
-	const usageProgressPercentage =
-		showUsageLimitCard && usageLimitSpendMicros > 0
-			? Math.min((usageLimitCurrentSpend / usageLimitSpendMicros) * 100, 100)
+	const showUsageLimit = usageLimit?.is_limited === true;
+	const limitSpend = usageLimit?.current_spend ?? 0;
+	const limitCap = usageLimit?.spend_limit_micros ?? 0;
+	const limitPct =
+		showUsageLimit && limitCap > 0
+			? Math.min((limitSpend / limitCap) * 100, 100)
 			: 0;
-	const usageProgressBarClass =
-		usageProgressPercentage > 90
-			? "bg-surface-red"
-			: usageProgressPercentage >= 75
-				? "bg-surface-orange"
-				: "bg-surface-green";
-	const usageLimitExceeded =
-		showUsageLimitCard && usageLimitCurrentSpend >= usageLimitSpendMicros;
-	const usageLimitStatusText = usageLimitExceeded
-		? "Limit exceeded"
-		: `${formatCostMicros(
-				Math.max(usageLimitSpendMicros - usageLimitCurrentSpend, 0),
-			)} remaining`;
-	const usageLimitCurrentPeriod =
-		showUsageLimitCard && usageLimit?.period_start && usageLimit?.period_end
-			? `Current period: ${dayjs(usageLimit.period_start).format("MMM D")} – ${dayjs(
-					usageLimit.period_end,
-				).format("MMM D")}`
-			: "";
-	const usageLimitResetAt =
-		showUsageLimitCard && usageLimit?.period_end
-			? dayjs(usageLimit.period_end).format("MMM D, YYYY h:mm A")
+	const limitExceeded = showUsageLimit && limitSpend >= limitCap;
+	const limitPeriodLabel = getUsageLimitPeriodLabel(usageLimit?.period);
+	const limitResetAt =
+		showUsageLimit && usageLimit?.period_end
+			? dayjs(usageLimit.period_end).format("MMM D")
 			: "";
 
+	const ringRadius = 40;
+	const ringCircumference = 2 * Math.PI * ringRadius;
+	const ringOffset = ringCircumference * (1 - limitPct / 100);
+	const ringColor = limitExceeded
+		? "hsl(var(--highlight-red))"
+		: limitPct >= 75
+			? "hsl(var(--highlight-orange))"
+			: "hsl(var(--highlight-green))";
+
+	const sortedModels = [...summary.by_model].sort(
+		(a, b) => b.total_cost_micros - a.total_cost_micros,
+	);
+	const totalModelCost = sortedModels.reduce(
+		(sum, m) => sum + m.total_cost_micros,
+		0,
+	);
+	const pieData = sortedModels.map((m) => ({
+		name: m.display_name || m.model,
+		value: microsToDollars(m.total_cost_micros),
+	}));
+	const chartConfig: ChartConfig = {};
+	for (let i = 0; i < sortedModels.length; i++) {
+		const m = sortedModels[i];
+		chartConfig[m.model_config_id] = {
+			label: m.display_name || m.model,
+			color: MODEL_COLORS[i % MODEL_COLORS.length],
+		};
+	}
+
+	const topChats = [...summary.by_chat]
+		.sort((a, b) => b.total_cost_micros - a.total_cost_micros)
+		.slice(0, 8);
+	const maxChatCost = topChats.length > 0 ? topChats[0].total_cost_micros : 0;
+
+	const hasBreakdownData =
+		summary.by_model.length > 0 || summary.by_chat.length > 0;
+
 	return (
-		<div className="space-y-6">
-			<div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-						Total Cost
+		<div className="space-y-5">
+			{/* Overview */}
+			<div className="flex flex-col gap-6 pb-1 md:flex-row md:items-start md:justify-between">
+				{/* Left — hero */}
+				<div className="shrink-0">
+					<p className="m-0 text-5xl font-bold leading-none tracking-tight text-content-primary">
+						{heroTokens.short}{" "}
+						<span className="text-2xl font-medium text-content-secondary">
+							tokens
+						</span>
 					</p>
-					<p className="mt-1 text-2xl font-semibold text-content-primary">
-						{formatCostMicros(summary.total_cost_micros)}
-					</p>
-				</div>
-				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-						Input Tokens
-					</p>
-					<p className="mt-1 text-2xl font-semibold text-content-primary">
-						{formatTokenCount(summary.total_input_tokens)}
+					<p className="m-0 mt-1 text-sm text-content-secondary">
+						{totalMessages.toLocaleString()} messages ·{" "}
+						{summary.by_chat.length.toLocaleString()} chats
 					</p>
 				</div>
-				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-						Output Tokens
-					</p>
-					<p className="mt-1 text-2xl font-semibold text-content-primary">
-						{formatTokenCount(summary.total_output_tokens)}
-					</p>
-				</div>
-				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-						Cache Read
-					</p>
-					<p className="mt-1 text-2xl font-semibold text-content-primary">
-						{formatTokenCount(summary.total_cache_read_tokens)}
-					</p>
-				</div>
-				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-						Cache Write
-					</p>
-					<p className="mt-1 text-2xl font-semibold text-content-primary">
-						{formatTokenCount(summary.total_cache_creation_tokens)}
-					</p>
-				</div>
-				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-						Messages
-					</p>
-					<p className="mt-1 text-2xl font-semibold text-content-primary">
-						{(
-							summary.priced_message_count + summary.unpriced_message_count
-						).toLocaleString()}
-					</p>
+
+				{/* Right — breakdowns + usage limit */}
+				<div className="flex flex-col gap-3 md:items-end">
+					<div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+						<div className="flex items-center justify-between gap-4">
+							<span className="text-content-secondary">Input</span>
+							<span className="font-medium text-content-primary">
+								{formatTokenCount(summary.total_input_tokens)}
+							</span>
+						</div>
+						<div className="flex items-center justify-between gap-4">
+							<span className="text-content-secondary">Output</span>
+							<span className="font-medium text-content-primary">
+								{formatTokenCount(summary.total_output_tokens)}
+							</span>
+						</div>
+						<div className="flex items-center justify-between gap-4">
+							<span className="text-content-secondary">Cache read</span>
+							<span className="font-medium text-content-primary">
+								{formatTokenCount(summary.total_cache_read_tokens)}
+							</span>
+						</div>
+						<div className="flex items-center justify-between gap-4">
+							<span className="text-content-secondary">Cache write</span>
+							<span className="font-medium text-content-primary">
+								{formatTokenCount(summary.total_cache_creation_tokens)}
+							</span>
+						</div>
+					</div>
+
+					{showUsageLimit && usageLimit && (
+						<div className="flex items-center gap-3 rounded-full bg-surface-secondary py-1.5 pr-4 pl-1.5">
+							<div className="relative h-8 w-8 shrink-0">
+								<svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
+									<circle
+										cx="50"
+										cy="50"
+										r={ringRadius}
+										fill="none"
+										stroke="hsl(var(--surface-tertiary))"
+										strokeWidth="12"
+									/>
+									<circle
+										cx="50"
+										cy="50"
+										r={ringRadius}
+										fill="none"
+										stroke={ringColor}
+										strokeWidth="12"
+										strokeLinecap="round"
+										strokeDasharray={ringCircumference}
+										strokeDashoffset={ringOffset}
+										className="transition-[stroke-dashoffset] duration-500"
+									/>
+								</svg>
+							</div>
+							<div className="text-xs">
+								<span className="font-medium text-content-primary">
+									{formatCostMicros(limitSpend)}
+								</span>
+								<span className="text-content-secondary">
+									{" "}/ {formatCostMicros(limitCap)}{" "}
+									{limitPeriodLabel.toLowerCase()}
+								</span>
+								{limitResetAt && (
+									<span className="text-content-secondary">
+										{" "}· resets {limitResetAt}
+									</span>
+								)}
+							</div>
+						</div>
+					)}
 				</div>
 			</div>
 
-			{showUsageLimitCard && usageLimit && (
-				<div className="rounded-lg border border-border-default bg-surface-secondary p-4">
-					<div className="flex flex-col gap-4">
-						<div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-							<div>
-								<p className="text-xs font-medium uppercase tracking-wide text-content-secondary">
-									{usageLimitPeriodLabel} Spend Limit
-								</p>
-								{usageLimitCurrentPeriod && (
-									<p className="mt-1 text-sm text-content-secondary">
-										{usageLimitCurrentPeriod}
-									</p>
-								)}
-								<p className="mt-1 text-2xl font-semibold text-content-primary">
-									{formatCostMicros(usageLimitCurrentSpend)} /{" "}
-									{formatCostMicros(usageLimitSpendMicros)}
-								</p>
-							</div>
-							<p className="text-sm text-content-secondary">
-								{Math.round(usageProgressPercentage)}% used
-							</p>
-						</div>
-						<div
-							role="progressbar"
-							aria-label={`${usageLimitPeriodLabel} spend usage`}
-							aria-valuemin={0}
-							aria-valuemax={100}
-							aria-valuenow={Math.round(usageProgressPercentage)}
-							className="h-2 overflow-hidden rounded-full bg-surface-tertiary"
-						>
-							<div
-								className={`h-full rounded-full ${usageProgressBarClass}`}
-								style={{ width: `${usageProgressPercentage}%` }}
-							/>
-						</div>
-						<div className="flex flex-col gap-1 text-sm md:flex-row md:items-center md:justify-between">
-							<p
-								className={
-									usageLimitExceeded
-										? "text-content-destructive"
-										: "text-content-secondary"
-								}
-							>
-								{usageLimitStatusText}
-							</p>
-							<p className="text-content-secondary">
-								Resets {usageLimitResetAt}
-							</p>
-						</div>
-					</div>
-				</div>
-			)}
-
-			{summary.unpriced_message_count > 0 && (
-				<div className="flex items-start gap-3 rounded-lg border border-border-warning bg-surface-warning p-4 text-sm text-content-primary">
-					<TriangleAlertIcon className="h-5 w-5 shrink-0 text-content-warning" />
-					<span>
-						{summary.unpriced_message_count} message
-						{summary.unpriced_message_count === 1 ? "" : "s"} could not be
-						priced because model pricing data was unavailable.
-					</span>
-				</div>
-			)}
-
-			{summary.by_model.length === 0 && summary.by_chat.length === 0 ? (
-				<p className="py-12 text-center text-content-secondary">
+			{!hasBreakdownData ? (
+				<p className="py-12 text-center text-sm text-content-secondary">
 					{emptyMessage}
 				</p>
 			) : (
 				<>
-					<div className="overflow-x-auto rounded-lg border border-border-default">
-						<Table className="text-sm" aria-label="Cost breakdown by model">
-							<TableHeader>
-								<TableRow className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
-									<TableHead className="px-4 py-3">Model</TableHead>
-									<TableHead className="px-4 py-3">Provider</TableHead>
-									<TableHead className="px-4 py-3 text-right">Cost</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Messages
-									</TableHead>
-									<TableHead className="px-4 py-3 text-right">Input</TableHead>
-									<TableHead className="px-4 py-3 text-right">Output</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Cache Read
-									</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Cache Write
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{summary.by_model.map((model) => (
-									<TableRow
-										key={model.model_config_id}
-										className="border-t border-border-default"
-									>
-										<TableCell className="px-4 py-3">
-											{model.display_name || model.model}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-content-secondary">
-											{model.provider}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatCostMicros(model.total_cost_micros)}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{model.message_count.toLocaleString()}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatTokenCount(model.total_input_tokens)}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatTokenCount(model.total_output_tokens)}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatTokenCount(model.total_cache_read_tokens)}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatTokenCount(model.total_cache_creation_tokens)}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</div>
-
-					<div className="overflow-x-auto rounded-lg border border-border-default">
-						<Table className="text-sm" aria-label="Cost breakdown by chat">
-							<TableHeader>
-								<TableRow className="text-left text-xs font-medium uppercase tracking-wide text-content-secondary">
-									<TableHead className="px-4 py-3">Chat</TableHead>
-									<TableHead className="px-4 py-3 text-right">Cost</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Messages
-									</TableHead>
-									<TableHead className="px-4 py-3 text-right">Input</TableHead>
-									<TableHead className="px-4 py-3 text-right">Output</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Cache Read
-									</TableHead>
-									<TableHead className="px-4 py-3 text-right">
-										Cache Write
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{summary.by_chat.map((chat) => (
-									<TableRow
-										key={chat.root_chat_id}
-										className="border-t border-border-default"
-									>
-										<TableCell className="px-4 py-3">
-											{chat.chat_title || (
-												<span className="italic text-content-secondary">
-													Untitled chat
+					{/* Models */}
+					{sortedModels.length > 0 && (
+						<div>
+							<p className="m-0 mb-3 text-sm font-medium text-content-primary">
+								Models
+							</p>
+							<div className="flex flex-col items-center gap-5 md:flex-row">
+								<ChartContainer
+									config={chartConfig}
+									className="aspect-square h-44 w-44 shrink-0"
+								>
+									<PieChart>
+										<ChartTooltip
+											cursor={false}
+											content={
+												<ChartTooltipContent
+													formatter={(value) => {
+														const d = Number(value);
+														return <span>${d.toFixed(2)}</span>;
+													}}
+													hideLabel={false}
+												/>
+											}
+										/>
+										<Pie
+											data={pieData}
+											dataKey="value"
+											nameKey="name"
+											cx="50%"
+											cy="50%"
+											innerRadius="60%"
+											outerRadius="90%"
+											paddingAngle={2}
+											strokeWidth={0}
+										>
+											{pieData.map((_entry, i) => (
+												<Cell
+													key={sortedModels[i].model_config_id}
+													fill={MODEL_COLORS[i % MODEL_COLORS.length]}
+												/>
+											))}
+										</Pie>
+									</PieChart>
+								</ChartContainer>
+								<div className="flex-1 space-y-0.5">
+									{sortedModels.map((model, i) => {
+										const pct =
+											totalModelCost > 0
+												? (model.total_cost_micros / totalModelCost) * 100
+												: 0;
+										return (
+											<div
+												key={model.model_config_id}
+												className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 hover:bg-surface-secondary"
+											>
+												<span
+													className="h-2.5 w-2.5 shrink-0 rounded-full"
+													style={{
+														backgroundColor:
+															MODEL_COLORS[i % MODEL_COLORS.length],
+													}}
+												/>
+												<span className="min-w-0 flex-1 truncate text-sm text-content-primary">
+													{model.display_name || model.model}
+													<span className="ml-1 text-content-secondary">
+														{model.provider}
+													</span>
 												</span>
-											)}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatCostMicros(chat.total_cost_micros)}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{chat.message_count.toLocaleString()}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatTokenCount(chat.total_input_tokens)}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatTokenCount(chat.total_output_tokens)}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatTokenCount(chat.total_cache_read_tokens)}
-										</TableCell>
-										<TableCell className="px-4 py-3 text-right">
-											{formatTokenCount(chat.total_cache_creation_tokens)}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</div>
+												<span
+													className="rounded-full px-1.5 py-px text-xs font-medium"
+													style={{
+														backgroundColor:
+															SURFACE_COLORS[i % SURFACE_COLORS.length],
+														color: MODEL_COLORS[i % MODEL_COLORS.length],
+													}}
+												>
+													{pct.toFixed(1)}%
+												</span>
+												<span className="w-16 text-right text-sm text-content-primary">
+													{formatCostMicros(model.total_cost_micros)}
+												</span>
+											</div>
+										);
+									})}
+								</div>
+							</div>
+						</div>
+					)}
+
+					{/* Top chats */}
+					{topChats.length > 0 && (
+						<div>
+							<p className="m-0 mb-3 text-sm font-medium text-content-primary">
+								Top chats
+							</p>
+							<div className="divide-y divide-border-default rounded-xl border border-border-default">
+								{topChats.map((chat, i) => {
+									const barPct =
+										maxChatCost > 0
+											? (chat.total_cost_micros / maxChatCost) * 100
+											: 0;
+									return (
+										<div
+											key={chat.root_chat_id}
+											className="group relative flex items-center gap-3 px-3 py-2.5"
+										>
+											<div
+												className="pointer-events-none absolute inset-y-0 left-0 bg-surface-purple opacity-[0.07] transition-opacity group-hover:opacity-[0.13]"
+												style={{ width: `${barPct}%` }}
+											/>
+											<span className="relative z-10 w-5 shrink-0 text-right text-xs text-content-secondary">
+												{i + 1}
+											</span>
+											<Link
+												to={`/agents/${chat.root_chat_id}`}
+												className="relative z-10 min-w-0 flex-1 truncate text-sm text-content-primary no-underline hover:underline"
+											>
+												{chat.chat_title || (
+													<span className="italic text-content-secondary">
+														Untitled
+													</span>
+												)}
+											</Link>
+											<span className="relative z-10 shrink-0 text-sm text-content-primary">
+												{formatCostMicros(chat.total_cost_micros)}
+											</span>
+										</div>
+									);
+								})}
+							</div>
+						</div>
+					)}
 				</>
 			)}
 		</div>
