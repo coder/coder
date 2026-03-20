@@ -510,7 +510,6 @@ export const StreamingOutput: FC<{
 		retryState,
 		urlTransform,
 	}) => {
-		console.log("[RENDER] StreamingOutput");
 		const conversationItemProps = { role: "assistant" as const };
 		const toolByID = new Map(streamTools.map((tool) => [tool.id, tool]));
 		const blocks = streamState?.blocks ?? [];
@@ -876,7 +875,6 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	savingMessageId,
 	urlTransform,
 }) => {
-	console.log("[RENDER] ConversationTimeline");
 	const shouldRenderStreamAfterMessages =
 		hasStreamOutput && parsedMessages.length > 0;
 	const isUsageLimitError = detailError?.kind === "usage-limit";

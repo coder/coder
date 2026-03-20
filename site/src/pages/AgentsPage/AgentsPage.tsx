@@ -94,7 +94,6 @@ function isChatListSSEEvent(
 export type { AgentsOutletContext } from "./AgentsPageView";
 
 const AgentsPage: FC = () => {
-	console.log("[RENDER] AgentsPage");
 	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -386,7 +385,6 @@ const AgentsPage: FC = () => {
 					}
 						const chatEvent = sse.data;
 						const updatedChat = chatEvent.chat;
-						console.log("[WS:chatList]", chatEvent.kind, updatedChat.id?.slice(0, 8), updatedChat.status);
 					// Read the previous status from the infinite chat list
 					// cache before we write the update below. The per-chat
 					// query cache (chatKey) only exists for chats the user

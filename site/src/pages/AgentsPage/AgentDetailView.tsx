@@ -191,7 +191,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	urlTransform,
 	desktopChatId,
 }) => {
-	console.log("[RENDER] AgentDetailView");
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,

@@ -124,7 +124,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	onArchivedFilterChange,
 	analyticsNow,
 }) => {
-	console.log("[RENDER] AgentsPageView");
 	const location = useLocation();
 	const navigate = useNavigate();
 	const sidebarView = sidebarViewFromPath(location.pathname);

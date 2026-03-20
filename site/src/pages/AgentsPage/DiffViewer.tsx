@@ -433,7 +433,6 @@ const LazyFileDiff = memo<{
 	renderAnnotation: renderAnnotationProp,
 	selectedLines,
 }) => {
-		console.log("[RENDER] LazyFileDiff");
 		const placeholderRef = useRef<HTMLDivElement>(null);
 		const [visible, setVisible] = useState(false);
 
@@ -504,7 +503,6 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	scrollToFile,
 	onScrollToFileComplete,
 }) => {
-	console.log("[RENDER] DiffViewer");
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
 

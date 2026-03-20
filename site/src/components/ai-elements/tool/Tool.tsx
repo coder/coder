@@ -527,7 +527,6 @@ export const Tool = memo(({
 	ref,
 	...props
 }: ToolProps) => {
-	console.log("[RENDER] Tool");
 	const Renderer = toolRenderers[name] ?? GenericToolRenderer;
 
 	return (

@@ -209,7 +209,6 @@ export function useConversationEditingState(deps: {
 }
 
 const AgentDetail: FC = () => {
-	console.trace("[RENDER] AgentDetail");
 	const navigate = useNavigate();
 	const { agentId } = useParams<{ agentId: string }>();
 	const outletContext = useOutletContext<AgentsOutletContext>();

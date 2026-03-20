@@ -355,7 +355,6 @@ interface ChatTreeNodeProps {
 }
 
 const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
-	console.log("[RENDER] ChatTreeNode");
 	const {
 		chatTree,
 		chatById,
@@ -582,7 +581,6 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 	});
 
 export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
-	console.log("[RENDER] AgentsSidebar");
 	const {
 		chats,
 		chatErrorReasons,

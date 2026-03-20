@@ -65,7 +65,6 @@ const MessageListProvider: FC<AgentDetailTimelineProps> = ({
 	savingMessageId,
 	urlTransform,
 }) => {
-	console.log("[RENDER] MessageListProvider");
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const chatStatus = useChatSelector(store, selectChatStatus);
@@ -149,7 +148,6 @@ const StreamingBridge: FC<{
 	savingMessageId,
 	urlTransform,
 }) => {
-	console.log("[RENDER] StreamingBridge");
 	const streamState = useChatSelector(store, selectStreamState);
 	const streamTools = buildStreamTools(streamState);
 	const isAwaitingFirstStreamChunk =
@@ -180,7 +178,6 @@ const StreamingBridge: FC<{
 };
 
 export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = (props) => {
-	console.log("[RENDER] AgentDetailTimeline");
 	return <MessageListProvider {...props} />;
 };
 
@@ -247,7 +244,6 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	onCancelHistoryEdit,
 	editingFileBlocks,
 }) => {
-	console.log("[RENDER] AgentDetailInput");
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);

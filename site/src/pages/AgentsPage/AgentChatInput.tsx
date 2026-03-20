@@ -349,7 +349,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		uploadStates,
 		previewUrls,
 	}) => {
-		console.log("[RENDER] AgentChatInput");
 		const internalRef = useRef<ChatMessageInputRef>(null);
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 
