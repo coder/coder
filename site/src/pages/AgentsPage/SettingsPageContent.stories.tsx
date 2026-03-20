@@ -2,7 +2,7 @@ import { MockUserOwner } from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
-import { userByNameKey } from "api/queries/users";
+import { userKey } from "api/queries/users";
 import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
@@ -351,7 +351,7 @@ export const UsageUserDrillIn: Story = {
 		canManageChatModelConfigs: true,
 	},
 	parameters: {
-		queries: [{ key: userByNameKey("user-1"), data: mockUserProfile }],
+		queries: [{ key: userKey("user-1"), data: mockUserProfile }],
 	},
 	beforeEach: () => {
 		setupUsageSpies();
@@ -390,7 +390,7 @@ export const UsageUserDrillInAndBack: Story = {
 		canManageChatModelConfigs: true,
 	},
 	parameters: {
-		queries: [{ key: userByNameKey("user-1"), data: mockUserProfile }],
+		queries: [{ key: userKey("user-1"), data: mockUserProfile }],
 	},
 	beforeEach: () => {
 		setupUsageSpies();
