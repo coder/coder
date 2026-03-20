@@ -1,34 +1,53 @@
-import { readFileSync } from "node:fs";
-import { execSync } from "node:child_process";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync, readdirSync } from "node:fs";
+import { createRequire } from "node:module";
+import { join, relative } from "node:path";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const siteDir = resolve(__dirname, "..");
+// Resolve @babel/core and the TS syntax plugin through
+// @vitejs/plugin-react's dependency tree — they are transitive
+// deps, not direct deps, so pnpm won't resolve bare imports.
+const require = createRequire(import.meta.url);
+const pluginReactPath = require.resolve("@vitejs/plugin-react");
+const innerRequire = createRequire(pluginReactPath);
+const { transformSync } = innerRequire("@babel/core");
+const syntaxTSPlugin = innerRequire.resolve("@babel/plugin-syntax-typescript");
 
-const babel = await import(
-	resolve(siteDir, "node_modules/.pnpm/@babel+core@7.28.5/node_modules/@babel/core/lib/index.js")
-);
-const syntaxTSPlugin = resolve(
-	siteDir,
-	"node_modules/.pnpm/@babel+plugin-syntax-typescript@7.24.7_@babel+core@7.28.5/node_modules/@babel/plugin-syntax-typescript/lib/index.js",
-);
+const siteDir = new URL("..", import.meta.url).pathname;
 
-const files = execSync(
-	"find src/pages/AgentsPage src/components/ai-elements -type f \\( -name '*.tsx' -o -name '*.ts' \\) ! -name '*.test.*' ! -name '*.stories.*' ! -name '*.jest.*'",
-	{ encoding: "utf-8", cwd: siteDir },
-).trim().split("\n").filter(Boolean);
+const targetDirs = [
+	"src/pages/AgentsPage",
+	"src/components/ai-elements",
+];
+
+const skipPatterns = [".test.", ".stories.", ".jest."];
+
+function collectFiles(dir) {
+	const results = [];
+	for (const entry of readdirSync(dir, { withFileTypes: true })) {
+		const full = join(dir, entry.name);
+		if (entry.isDirectory()) {
+			results.push(...collectFiles(full));
+		} else if (
+			(entry.name.endsWith(".ts") || entry.name.endsWith(".tsx")) &&
+			!skipPatterns.some((p) => entry.name.includes(p))
+		) {
+			results.push(relative(siteDir, full));
+		}
+	}
+	return results;
+}
+
+const files = targetDirs.flatMap((d) => collectFiles(join(siteDir, d)));
 
 let totalCompiled = 0;
 const failures = [];
 
 for (const file of files) {
-	const code = readFileSync(resolve(siteDir, file), "utf-8");
+	const code = readFileSync(join(siteDir, file), "utf-8");
 	const isTSX = file.endsWith(".tsx");
 	const diagnostics = [];
 
 	try {
-		const result = babel.transformSync(code, {
+		const result = transformSync(code, {
 			plugins: [
 				[syntaxTSPlugin, { isTSX }],
 				["babel-plugin-react-compiler", {
