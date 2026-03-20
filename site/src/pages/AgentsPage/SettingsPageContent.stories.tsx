@@ -114,6 +114,17 @@ const setupUsageSpies = (opts?: {
 	spyOn(API, "getChatCostSummary").mockResolvedValue(mockCostSummary);
 };
 
+const getChatCostUsersCalls = () =>
+	(
+		API.getChatCostUsers as typeof API.getChatCostUsers & {
+			mock: {
+				calls: Array<[Parameters<typeof API.getChatCostUsers>[0]]>;
+			};
+		}
+	).mock.calls;
+
+const fixedNow = dayjs("2026-03-12T00:00:00Z");
+
 // ── Meta ───────────────────────────────────────────────────────
 
 const meta = {
@@ -124,7 +135,7 @@ const meta = {
 		activeSection: "behavior",
 		canManageChatModelConfigs: false,
 		canSetSystemPrompt: true,
-		now: dayjs("2026-03-12T00:00:00Z"),
+		now: fixedNow,
 	},
 	parameters: {
 		user: MockUserOwner,
@@ -317,6 +328,57 @@ export const UsageUserList: Story = {
 		await expect(
 			canvas.getByPlaceholderText("Search by name or username"),
 		).toBeInTheDocument();
+	},
+};
+
+export const UsageDateFilter: Story = {
+	args: {
+		activeSection: "usage",
+		canManageChatModelConfigs: true,
+	},
+	beforeEach: () => {
+		setupUsageSpies();
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const defaultStartDate = fixedNow.subtract(30, "day").toISOString();
+		const defaultStartLabel = fixedNow
+			.subtract(30, "day")
+			.format("MMM D, YYYY");
+		const defaultEndLabel = fixedNow.format("MMM D, YYYY");
+
+		await waitFor(() => {
+			expect(API.getChatCostUsers).toHaveBeenCalled();
+		});
+		const initialCallCount = getChatCostUsersCalls().length;
+
+		const dateRangeTrigger = await canvas.findByRole("button", {
+			name: new RegExp(`${defaultStartLabel}.*${defaultEndLabel}`),
+		});
+
+		await userEvent.click(dateRangeTrigger);
+		const last7Days = await body.findByRole("button", {
+			name: "Last 7 days",
+		});
+
+		// The shared DateRange component requires a start and end selection
+		// before it closes and triggers the updated query.
+		await userEvent.click(last7Days);
+		await userEvent.click(last7Days);
+
+		await waitFor(() => {
+			const calls = getChatCostUsersCalls();
+			expect(calls.length).toBeGreaterThan(initialCallCount);
+
+			const latestCall = calls.at(-1)?.[0];
+			expect(latestCall).toBeDefined();
+			if (!latestCall) {
+				throw new Error("Expected getChatCostUsers to be called with params.");
+			}
+
+			expect(latestCall.start_date).not.toBe(defaultStartDate);
+		});
 	},
 };
 
