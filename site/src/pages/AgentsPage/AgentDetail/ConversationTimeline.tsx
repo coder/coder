@@ -25,7 +25,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { FileTextIcon, PencilIcon } from "lucide-react";
+import { ChevronDownIcon, FileTextIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -55,6 +55,7 @@ const ReasoningDisclosure: FC<{
 	isStreaming?: boolean;
 	urlTransform?: UrlTransform;
 }> = ({ id, text, isStreaming = false, urlTransform }) => {
+	const [expanded, setExpanded] = useState(false);
 	const { visibleText } = useSmoothStreamingText({
 		fullText: text,
 		isStreaming,
@@ -65,30 +66,41 @@ const ReasoningDisclosure: FC<{
 	const hasText = displayText.trim().length > 0;
 
 	return (
-		<ToolCollapsible
-			className="w-full"
-			hasContent={hasText}
-			header={
-				<span className="text-[11px] font-medium text-content-secondary">
-					{hasText ? (
-						"Reasoning"
-					) : isStreaming ? (
-						<Shimmer as="span">Thinking...</Shimmer>
-					) : (
-						"Thinking"
-					)}
-				</span>
-			}
-		>
-			<div className="pt-1.5 pr-2">
-				<Response
-					className="text-[13px] text-content-secondary"
-					urlTransform={urlTransform}
+		<div className="w-full">
+			{hasText ? (
+				<button
+					type="button"
+					onClick={() => setExpanded(!expanded)}
+					className="m-0 inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 font-[inherit] text-[11px] font-medium text-content-secondary/70 transition-colors hover:text-content-secondary"
 				>
-					{displayText}
-				</Response>
-			</div>
-		</ToolCollapsible>
+					<ChevronDownIcon
+						className={cn(
+							"h-3 w-3 shrink-0 transition-transform",
+							expanded ? "rotate-0" : "-rotate-90",
+						)}
+					/>
+					Reasoning
+				</button>
+			) : isStreaming ? (
+				<span className="inline-flex items-center gap-1 text-[11px] font-medium text-content-secondary/70">
+					<Shimmer as="span">Thinking...</Shimmer>
+				</span>
+			) : (
+				<span className="text-[11px] font-medium text-content-secondary/70">
+					Thinking
+				</span>
+			)}
+			{expanded && hasText && (
+				<div className="mt-1.5 pl-4">
+					<Response
+						className="text-[13px] text-content-secondary/70"
+						urlTransform={urlTransform}
+					>
+						{displayText}
+					</Response>
+				</div>
+			)}
+		</div>
 	);
 };
 
@@ -182,8 +194,6 @@ type RenderBlockListResult = {
 const ASSISTANT_CONTENT_CLASSES = "whitespace-normal";
 const BLOCK_STACK_CLASSES = "space-y-2";
 const TOOL_SHELL_CLASSES = "";
-const THINKING_SHELL_CLASSES =
-	"rounded-lg border border-content-secondary/20 bg-surface-secondary/20 p-3";
 const FILE_REFERENCE_SHELL_CLASSES =
 	"rounded-md border-l-2 border-border-default/70 bg-surface-secondary/40 py-1.5 pl-3 pr-1";
 
@@ -197,11 +207,7 @@ function blockShell(type: string, key: string, children: ReactNode): ReactNode {
 				</div>
 			);
 		case "thinking":
-			return (
-				<div key={key} className={THINKING_SHELL_CLASSES}>
-					{children}
-				</div>
-			);
+			return <Fragment key={key}>{children}</Fragment>;
 		case "sources":
 			return (
 				<div key={key} className="text-content-secondary">
