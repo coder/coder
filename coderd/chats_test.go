@@ -3716,6 +3716,35 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 		require.Equal(t, "Chat usage limit override not found.", sdkErr.Message)
 	})
 
+	t.Run("UpdateUserOverride", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		_, err := client.UpsertChatUsageLimitOverride(ctx, member.ID, codersdk.UpsertChatUsageLimitOverrideRequest{
+			SpendLimitMicros: 5_000_000,
+		})
+		require.NoError(t, err)
+
+		override, err := client.UpsertChatUsageLimitOverride(ctx, member.ID, codersdk.UpsertChatUsageLimitOverrideRequest{
+			SpendLimitMicros: 10_000_000,
+		})
+		require.NoError(t, err)
+		require.Equal(t, member.ID, override.UserID)
+		require.NotNil(t, override.SpendLimitMicros)
+		require.EqualValues(t, 10_000_000, *override.SpendLimitMicros)
+
+		config, err := client.GetChatUsageLimitConfig(ctx)
+		require.NoError(t, err)
+		require.Len(t, config.Overrides, 1)
+		require.Equal(t, member.ID, config.Overrides[0].UserID)
+		require.NotNil(t, config.Overrides[0].SpendLimitMicros)
+		require.EqualValues(t, 10_000_000, *config.Overrides[0].SpendLimitMicros)
+	})
+
 	t.Run("UpsertGroupOverrideIncludesMemberCount", func(t *testing.T) {
 		t.Parallel()
 
@@ -3748,6 +3777,40 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 		}
 		require.NotNil(t, listed)
 		require.EqualValues(t, 1, listed.MemberCount)
+	})
+
+	t.Run("UpdateGroupOverride", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: firstUser.UserID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: member.ID})
+
+		_, err := client.UpsertChatUsageLimitGroupOverride(ctx, group.ID, codersdk.UpsertChatUsageLimitGroupOverrideRequest{
+			SpendLimitMicros: 5_000_000,
+		})
+		require.NoError(t, err)
+
+		override, err := client.UpsertChatUsageLimitGroupOverride(ctx, group.ID, codersdk.UpsertChatUsageLimitGroupOverrideRequest{
+			SpendLimitMicros: 10_000_000,
+		})
+		require.NoError(t, err)
+		require.Equal(t, group.ID, override.GroupID)
+		require.EqualValues(t, 2, override.MemberCount)
+		require.NotNil(t, override.SpendLimitMicros)
+		require.EqualValues(t, 10_000_000, *override.SpendLimitMicros)
+
+		config, err := client.GetChatUsageLimitConfig(ctx)
+		require.NoError(t, err)
+		require.Len(t, config.GroupOverrides, 1)
+		require.Equal(t, group.ID, config.GroupOverrides[0].GroupID)
+		require.EqualValues(t, 2, config.GroupOverrides[0].MemberCount)
+		require.NotNil(t, config.GroupOverrides[0].SpendLimitMicros)
+		require.EqualValues(t, 10_000_000, *config.GroupOverrides[0].SpendLimitMicros)
 	})
 
 	t.Run("UpsertGroupOverrideMissingGroup", func(t *testing.T) {
