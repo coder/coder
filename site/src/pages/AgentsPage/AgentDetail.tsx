@@ -7,6 +7,7 @@ import {
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
 	chatModels,
+	chatUIMessagesForInfiniteScroll,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
@@ -23,7 +24,7 @@ import {
 	getVSCodeHref,
 	openAppInNewWindow,
 } from "modules/apps/apps";
-import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type FC, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -43,6 +44,7 @@ import {
 	getParentChatID,
 	getWorkspaceAgent,
 } from "./components/AgentDetail/chatHelpers";
+import { getWorkingBlocksEnabled } from "./components/AgentDetail/useWorkingBlocks";
 import { useWorkspaceCreationWatcher } from "./components/AgentDetail/useWorkspaceCreationWatcher";
 import {
 	AgentDetailLoadingView,
@@ -279,8 +281,20 @@ const AgentDetail: FC = () => {
 		...chat(agentId ?? ""),
 		enabled: Boolean(agentId),
 	});
+	const workingBlocksEnabled = useMemo(
+		() => getWorkingBlocksEnabled(),
+		[],
+	);
+	// When collapsed mode is on we fetch from the ui-messages
+	// endpoint; otherwise the standard messages endpoint. Both
+	// share the same page shape except for working_blocks, which
+	// is only accessed through a guarded "in" check.
 	const chatMessagesQuery = useInfiniteQuery({
-		...chatMessagesForInfiniteScroll(agentId ?? ""),
+		...((workingBlocksEnabled
+			? chatUIMessagesForInfiniteScroll(agentId ?? "")
+			: chatMessagesForInfiniteScroll(
+					agentId ?? "",
+				)) as ReturnType<typeof chatUIMessagesForInfiniteScroll>),
 		enabled: Boolean(agentId),
 	});
 	const parentChatID = getParentChatID(chatQuery.data);
@@ -403,6 +417,18 @@ const AgentDetail: FC = () => {
 	// Queued messages are only in the first page (most recent).
 	const chatQueuedMessages = chatMessagesQuery.data?.pages[0]?.queued_messages;
 
+	// Working blocks describe collapsed tool-call ranges to render
+	// as "Working" indicators between boundary messages.
+	const workingBlocks = useMemo(() => {
+		if (!workingBlocksEnabled) return [];
+		const pages = chatMessagesQuery.data?.pages;
+		if (!pages) return [];
+		return pages.flatMap((p) =>
+			"working_blocks" in p
+				? (p as TypesGen.ChatUIMessagesResponse).working_blocks
+				: [],
+		);
+	}, [chatMessagesQuery.data, workingBlocksEnabled]);
 	// Build a synthetic ChatMessagesResponse from the flattened
 	// data for backward compat with useChatStore.
 	const chatMessagesData: TypesGen.ChatMessagesResponse | undefined =
@@ -849,6 +875,8 @@ const AgentDetail: FC = () => {
 			isArchived={isArchived}
 			hasWorkspace={Boolean(workspaceId)}
 			store={store}
+			workingBlocks={workingBlocks}
+			workingBlocksEnabled={workingBlocksEnabled}
 			editing={editing}
 			pendingEditMessageId={pendingEditMessageId}
 			effectiveSelectedModel={effectiveSelectedModel}

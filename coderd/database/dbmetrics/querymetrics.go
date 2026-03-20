@@ -1192,6 +1192,14 @@ func (m queryMetricsStore) GetChatSystemPrompt(ctx context.Context) (string, err
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatUIMessages(ctx context.Context, arg database.GetChatUIMessagesParams) ([]database.GetChatUIMessagesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatUIMessages(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatUIMessages").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatUIMessages").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatUsageLimitConfig(ctx)

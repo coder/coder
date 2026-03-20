@@ -2655,6 +2655,14 @@ func (q *querier) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	return q.db.GetChatSystemPrompt(ctx)
 }
 
+func (q *querier) GetChatUIMessages(ctx context.Context, arg database.GetChatUIMessagesParams) ([]database.GetChatUIMessagesRow, error) {
+	_, err := q.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatUIMessages(ctx, arg)
+}
+
 func (q *querier) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return database.ChatUsageLimitConfig{}, err

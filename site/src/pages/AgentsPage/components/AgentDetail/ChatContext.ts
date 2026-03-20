@@ -843,6 +843,7 @@ export const useChatStore = (
 							store.setChatStatus(nextStatus);
 							if (nextStatus === "pending" || nextStatus === "waiting") {
 								store.clearStreamState();
+								queryClient.invalidateQueries({ queryKey: ["chatUIMessages", chatID] });
 								store.clearRetryState();
 							}
 							if (nextStatus === "running") {

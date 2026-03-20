@@ -169,6 +169,29 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 	},
 });
 
+export const chatUIMessagesForInfiniteScroll = (chatId: string) => ({
+	queryKey: ["chatUIMessages", chatId],
+	queryFn: async ({ pageParam }: { pageParam?: number }) => {
+		return API.experimental.getChatUIMessages(chatId, {
+			before: pageParam,
+			limit: 20,
+		});
+	},
+	getNextPageParam: (lastPage: TypesGen.ChatUIMessagesResponse) => {
+		if (!lastPage.has_more) return undefined;
+		// Find the oldest user message ID for cursor.
+		const userMessages = lastPage.messages.filter(
+			(m) => m.role === "user",
+		);
+		if (userMessages.length === 0) return undefined;
+		// Messages are ordered by turn (newest first), so the last user
+		// message in the array is the oldest turn's user message.
+		return userMessages[userMessages.length - 1].id;
+	},
+	initialPageParam: undefined as number | undefined,
+	enabled: !!chatId,
+});
+
 export const archiveChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { archived: true }),

@@ -4628,6 +4628,192 @@ func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID
 	return items, nil
 }
 
+const getChatUIMessages = `-- name: GetChatUIMessages :many
+WITH paginated_users AS (
+    SELECT
+        cm.id AS user_msg_id,
+        COALESCE(
+            (SELECT MIN(cm2.id)
+             FROM chat_messages cm2
+             WHERE cm2.chat_id = $1
+               AND cm2.role = 'user'
+               AND cm2.id > cm.id
+               AND cm2.visibility IN ('user', 'both')
+               AND cm2.deleted = false),
+            0
+        ) AS turn_end_id
+    FROM chat_messages cm
+    WHERE cm.chat_id = $1
+      AND cm.role = 'user'
+      AND cm.visibility IN ('user', 'both')
+      AND cm.deleted = false
+      AND CASE WHEN $2::bigint > 0 THEN cm.id < $2 ELSE true END
+    ORDER BY cm.id DESC
+    LIMIT COALESCE(NULLIF($3::int, 0), 20)
+),
+turn_data AS (
+    SELECT
+        pu.user_msg_id,
+        pu.turn_end_id,
+        fa.id AS first_assistant_id,
+        la.id AS last_assistant_id,
+        COALESCE(ws.interior_count, 0)::bigint AS interior_count,
+        EXTRACT(EPOCH FROM ws.work_started_at)::bigint AS work_started_at_epoch,
+        EXTRACT(EPOCH FROM ws.work_ended_at)::bigint AS work_ended_at_epoch
+    FROM paginated_users pu
+    LEFT JOIN LATERAL (
+        SELECT id FROM chat_messages
+        WHERE chat_id = $1 AND role = 'assistant'
+          AND id > pu.user_msg_id
+          AND (pu.turn_end_id = 0 OR id < pu.turn_end_id)
+          AND visibility IN ('user', 'both') AND deleted = false
+        ORDER BY id ASC LIMIT 1
+    ) fa ON TRUE
+    LEFT JOIN LATERAL (
+        SELECT id FROM chat_messages
+        WHERE chat_id = $1 AND role = 'assistant'
+          AND id > pu.user_msg_id
+          AND (pu.turn_end_id = 0 OR id < pu.turn_end_id)
+          AND id != COALESCE(fa.id, 0)
+          AND NOT content @> '[{"type":"tool-call"}]'::jsonb
+          AND visibility IN ('user', 'both') AND deleted = false
+        ORDER BY id DESC LIMIT 1
+    ) la ON TRUE
+    LEFT JOIN LATERAL (
+        SELECT
+            COUNT(*) AS interior_count,
+            MIN(created_at) AS work_started_at,
+            MAX(created_at) AS work_ended_at
+        FROM chat_messages
+        WHERE chat_id = $1
+          AND id > COALESCE(fa.id, pu.user_msg_id)
+          AND id < COALESCE(
+              la.id,
+              CASE WHEN pu.turn_end_id = 0 THEN 9223372036854775807 ELSE pu.turn_end_id END
+          )
+          AND visibility IN ('user', 'both') AND deleted = false
+          AND role != 'user'
+    ) ws ON ws.interior_count > 0
+)
+SELECT
+    cm.id,
+    cm.chat_id,
+    cm.model_config_id,
+    cm.created_at,
+    cm.role,
+    cm.content,
+    cm.visibility,
+    cm.input_tokens,
+    cm.output_tokens,
+    cm.total_tokens,
+    cm.reasoning_tokens,
+    cm.cache_creation_tokens,
+    cm.cache_read_tokens,
+    cm.context_limit,
+    cm.compressed,
+    cm.created_by,
+    cm.content_version,
+    cm.total_cost_micros,
+    cm.runtime_ms,
+    cm.deleted,
+    td.user_msg_id AS turn_user_msg_id,
+    td.interior_count,
+    COALESCE(td.work_started_at_epoch, 0)::bigint AS work_started_at_epoch,
+    COALESCE(td.work_ended_at_epoch, 0)::bigint AS work_ended_at_epoch
+FROM turn_data td
+JOIN chat_messages cm ON (
+    cm.id = td.user_msg_id
+    OR (td.first_assistant_id IS NOT NULL AND cm.id = td.first_assistant_id)
+    OR (td.last_assistant_id IS NOT NULL AND cm.id = td.last_assistant_id)
+)
+ORDER BY td.user_msg_id DESC, cm.id ASC
+`
+
+type GetChatUIMessagesParams struct {
+	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
+	BeforeID int64     `db:"before_id" json:"before_id"`
+	LimitVal int32     `db:"limit_val" json:"limit_val"`
+}
+
+type GetChatUIMessagesRow struct {
+	ID                  int64                 `db:"id" json:"id"`
+	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
+	ModelConfigID       uuid.NullUUID         `db:"model_config_id" json:"model_config_id"`
+	CreatedAt           time.Time             `db:"created_at" json:"created_at"`
+	Role                ChatMessageRole       `db:"role" json:"role"`
+	Content             pqtype.NullRawMessage `db:"content" json:"content"`
+	Visibility          ChatMessageVisibility `db:"visibility" json:"visibility"`
+	InputTokens         sql.NullInt64         `db:"input_tokens" json:"input_tokens"`
+	OutputTokens        sql.NullInt64         `db:"output_tokens" json:"output_tokens"`
+	TotalTokens         sql.NullInt64         `db:"total_tokens" json:"total_tokens"`
+	ReasoningTokens     sql.NullInt64         `db:"reasoning_tokens" json:"reasoning_tokens"`
+	CacheCreationTokens sql.NullInt64         `db:"cache_creation_tokens" json:"cache_creation_tokens"`
+	CacheReadTokens     sql.NullInt64         `db:"cache_read_tokens" json:"cache_read_tokens"`
+	ContextLimit        sql.NullInt64         `db:"context_limit" json:"context_limit"`
+	Compressed          bool                  `db:"compressed" json:"compressed"`
+	CreatedBy           uuid.NullUUID         `db:"created_by" json:"created_by"`
+	ContentVersion      int16                 `db:"content_version" json:"content_version"`
+	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
+	RuntimeMs           sql.NullInt64         `db:"runtime_ms" json:"runtime_ms"`
+	Deleted             bool                  `db:"deleted" json:"deleted"`
+	TurnUserMsgID       int64                 `db:"turn_user_msg_id" json:"turn_user_msg_id"`
+	InteriorCount       int64                 `db:"interior_count" json:"interior_count"`
+	WorkStartedAtEpoch  int64                 `db:"work_started_at_epoch" json:"work_started_at_epoch"`
+	WorkEndedAtEpoch    int64                 `db:"work_ended_at_epoch" json:"work_ended_at_epoch"`
+}
+
+// Returns boundary messages (user, first assistant, last pure-text assistant)
+// for each "turn" in a chat, plus lightweight working-block metadata.
+// Interior tool-call/tool-result messages are omitted for efficiency.
+// Pagination is by turn (user message ID) rather than raw message ID.
+func (q *sqlQuerier) GetChatUIMessages(ctx context.Context, arg GetChatUIMessagesParams) ([]GetChatUIMessagesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatUIMessages, arg.ChatID, arg.BeforeID, arg.LimitVal)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatUIMessagesRow
+	for rows.Next() {
+		var i GetChatUIMessagesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.ModelConfigID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.Content,
+			&i.Visibility,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.TotalTokens,
+			&i.ReasoningTokens,
+			&i.CacheCreationTokens,
+			&i.CacheReadTokens,
+			&i.ContextLimit,
+			&i.Compressed,
+			&i.CreatedBy,
+			&i.ContentVersion,
+			&i.TotalCostMicros,
+			&i.RuntimeMs,
+			&i.Deleted,
+			&i.TurnUserMsgID,
+			&i.InteriorCount,
+			&i.WorkStartedAtEpoch,
+			&i.WorkEndedAtEpoch,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatUsageLimitConfig = `-- name: GetChatUsageLimitConfig :one
 SELECT id, singleton, enabled, default_limit_micros, period, created_at, updated_at FROM chat_usage_limit_config WHERE singleton = TRUE LIMIT 1
 `

@@ -70,6 +70,110 @@ ORDER BY
 LIMIT
     COALESCE(NULLIF(@limit_val::int, 0), 50);
 
+-- name: GetChatUIMessages :many
+-- Returns boundary messages (user, first assistant, last pure-text assistant)
+-- for each "turn" in a chat, plus lightweight working-block metadata.
+-- Interior tool-call/tool-result messages are omitted for efficiency.
+-- Pagination is by turn (user message ID) rather than raw message ID.
+WITH paginated_users AS (
+    SELECT
+        cm.id AS user_msg_id,
+        COALESCE(
+            (SELECT MIN(cm2.id)
+             FROM chat_messages cm2
+             WHERE cm2.chat_id = @chat_id
+               AND cm2.role = 'user'
+               AND cm2.id > cm.id
+               AND cm2.visibility IN ('user', 'both')
+               AND cm2.deleted = false),
+            0
+        ) AS turn_end_id
+    FROM chat_messages cm
+    WHERE cm.chat_id = @chat_id
+      AND cm.role = 'user'
+      AND cm.visibility IN ('user', 'both')
+      AND cm.deleted = false
+      AND CASE WHEN @before_id::bigint > 0 THEN cm.id < @before_id ELSE true END
+    ORDER BY cm.id DESC
+    LIMIT COALESCE(NULLIF(@limit_val::int, 0), 20)
+),
+turn_data AS (
+    SELECT
+        pu.user_msg_id,
+        pu.turn_end_id,
+        fa.id AS first_assistant_id,
+        la.id AS last_assistant_id,
+        COALESCE(ws.interior_count, 0)::bigint AS interior_count,
+        EXTRACT(EPOCH FROM ws.work_started_at)::bigint AS work_started_at_epoch,
+        EXTRACT(EPOCH FROM ws.work_ended_at)::bigint AS work_ended_at_epoch
+    FROM paginated_users pu
+    LEFT JOIN LATERAL (
+        SELECT id FROM chat_messages
+        WHERE chat_id = @chat_id AND role = 'assistant'
+          AND id > pu.user_msg_id
+          AND (pu.turn_end_id = 0 OR id < pu.turn_end_id)
+          AND visibility IN ('user', 'both') AND deleted = false
+        ORDER BY id ASC LIMIT 1
+    ) fa ON TRUE
+    LEFT JOIN LATERAL (
+        SELECT id FROM chat_messages
+        WHERE chat_id = @chat_id AND role = 'assistant'
+          AND id > pu.user_msg_id
+          AND (pu.turn_end_id = 0 OR id < pu.turn_end_id)
+          AND id != COALESCE(fa.id, 0)
+          AND NOT content @> '[{"type":"tool-call"}]'::jsonb
+          AND visibility IN ('user', 'both') AND deleted = false
+        ORDER BY id DESC LIMIT 1
+    ) la ON TRUE
+    LEFT JOIN LATERAL (
+        SELECT
+            COUNT(*) AS interior_count,
+            MIN(created_at) AS work_started_at,
+            MAX(created_at) AS work_ended_at
+        FROM chat_messages
+        WHERE chat_id = @chat_id
+          AND id > COALESCE(fa.id, pu.user_msg_id)
+          AND id < COALESCE(
+              la.id,
+              CASE WHEN pu.turn_end_id = 0 THEN 9223372036854775807 ELSE pu.turn_end_id END
+          )
+          AND visibility IN ('user', 'both') AND deleted = false
+          AND role != 'user'
+    ) ws ON ws.interior_count > 0
+)
+SELECT
+    cm.id,
+    cm.chat_id,
+    cm.model_config_id,
+    cm.created_at,
+    cm.role,
+    cm.content,
+    cm.visibility,
+    cm.input_tokens,
+    cm.output_tokens,
+    cm.total_tokens,
+    cm.reasoning_tokens,
+    cm.cache_creation_tokens,
+    cm.cache_read_tokens,
+    cm.context_limit,
+    cm.compressed,
+    cm.created_by,
+    cm.content_version,
+    cm.total_cost_micros,
+    cm.runtime_ms,
+    cm.deleted,
+    td.user_msg_id AS turn_user_msg_id,
+    td.interior_count,
+    COALESCE(td.work_started_at_epoch, 0)::bigint AS work_started_at_epoch,
+    COALESCE(td.work_ended_at_epoch, 0)::bigint AS work_ended_at_epoch
+FROM turn_data td
+JOIN chat_messages cm ON (
+    cm.id = td.user_msg_id
+    OR (td.first_assistant_id IS NOT NULL AND cm.id = td.first_assistant_id)
+    OR (td.last_assistant_id IS NOT NULL AND cm.id = td.last_assistant_id)
+)
+ORDER BY td.user_msg_id DESC, cm.id ASC;
+
 -- name: GetChatMessagesForPromptByChatID :many
 WITH latest_compressed_summary AS (
     SELECT
