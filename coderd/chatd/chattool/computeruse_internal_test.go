@@ -15,11 +15,11 @@ func TestComputeScaledScreenshotSize(t *testing.T) {
 		wantW, wantH  int
 	}{
 		{
-			name:   "1920x1080_scales_down",
+			name:   "1920x1080_prefers_standard_1280x720",
 			width:  1920,
 			height: 1080,
-			wantW:  1429,
-			wantH:  804,
+			wantW:  1280,
+			wantH:  720,
 		},
 		{
 			name:   "1280x800_no_scaling",
@@ -29,18 +29,18 @@ func TestComputeScaledScreenshotSize(t *testing.T) {
 			wantH:  800,
 		},
 		{
-			name:   "3840x2160_large_display",
+			name:   "3840x2160_prefers_standard_1280x720",
 			width:  3840,
 			height: 2160,
-			wantW:  1429,
-			wantH:  804,
+			wantW:  1280,
+			wantH:  720,
 		},
 		{
-			name:   "1568x1000_pixel_cap_applies",
+			name:   "1568x1000_prefers_standard_1280x816",
 			width:  1568,
 			height: 1000,
-			wantW:  1342,
-			wantH:  856,
+			wantW:  1280,
+			wantH:  816,
 		},
 		{
 			name:   "100x100_small_display",
@@ -50,14 +50,18 @@ func TestComputeScaledScreenshotSize(t *testing.T) {
 			wantH:  100,
 		},
 		{
-			name:  "4000x3000_stays_within_limits",
-			width: 4000,
-			// Both constraints apply. The function should keep
-			// the result within maxLongEdge=1568 and
-			// totalPixels<=1,150,000.
+			name:   "4000x3000_prefers_standard_1024x768",
+			width:  4000,
 			height: 3000,
-			wantW:  1238,
-			wantH:  928,
+			wantW:  1024,
+			wantH:  768,
+		},
+		{
+			name:   "1920x1200_prefers_standard_1280x800",
+			width:  1920,
+			height: 1200,
+			wantW:  1280,
+			wantH:  800,
 		},
 	}
 

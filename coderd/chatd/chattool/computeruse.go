@@ -3,7 +3,6 @@ package chattool
 import (
 	"context"
 	"fmt"
-	"math"
 	"time"
 
 	"charm.land/fantasy"
@@ -25,23 +24,25 @@ const (
 // computerUseTool implements fantasy.AgentTool and
 // chatloop.ToolDefiner for Anthropic computer use.
 type computerUseTool struct {
-	displayWidth     int
-	displayHeight    int
+	declaredWidth    int
+	declaredHeight   int
 	getWorkspaceConn func(ctx context.Context) (workspacesdk.AgentConn, error)
 	providerOptions  fantasy.ProviderOptions
 	clock            quartz.Clock
 }
 
-// NewComputerUseTool creates a computer use AgentTool that
-// delegates to the agent's desktop endpoints.
+// NewComputerUseTool creates a computer use AgentTool that delegates to the
+// agent's desktop endpoints. declaredWidth and declaredHeight are the
+// model-facing desktop dimensions advertised to Anthropic and requested for
+// screenshots.
 func NewComputerUseTool(
-	displayWidth, displayHeight int,
+	declaredWidth, declaredHeight int,
 	getWorkspaceConn func(ctx context.Context) (workspacesdk.AgentConn, error),
 	clock quartz.Clock,
 ) fantasy.AgentTool {
 	return &computerUseTool{
-		displayWidth:     displayWidth,
-		displayHeight:    displayHeight,
+		declaredWidth:    declaredWidth,
+		declaredHeight:   declaredHeight,
 		getWorkspaceConn: getWorkspaceConn,
 		clock:            clock,
 	}
@@ -56,14 +57,13 @@ func (*computerUseTool) Info() fantasy.ToolInfo {
 	}
 }
 
-// ComputerUseProviderTool creates the provider-defined tool
-// definition for Anthropic computer use. This is passed via
-// ProviderTools so the API receives the correct wire format.
-func ComputerUseProviderTool(displayWidth, displayHeight int) fantasy.Tool {
+// ComputerUseProviderTool creates the provider-defined Anthropic computer-use
+// tool definition using the declared model-facing desktop geometry.
+func ComputerUseProviderTool(declaredWidth, declaredHeight int) fantasy.Tool {
 	return fantasyanthropic.NewComputerUseTool(
 		fantasyanthropic.ComputerUseToolOptions{
-			DisplayWidthPx:  int64(displayWidth),
-			DisplayHeightPx: int64(displayHeight),
+			DisplayWidthPx:  int64(declaredWidth),
+			DisplayHeightPx: int64(declaredHeight),
 			ToolVersion:     fantasyanthropic.ComputerUse20251124,
 		},
 	)
@@ -92,10 +92,7 @@ func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fanta
 		), nil
 	}
 
-	// Compute scaled screenshot size for Anthropic constraints.
-	scaledW, scaledH := computeScaledScreenshotSize(
-		t.displayWidth, t.displayHeight,
-	)
+	declaredWidth, declaredHeight := t.declaredActionDimensions()
 
 	// For wait actions, sleep then return a screenshot.
 	if input.Action == fantasyanthropic.ActionWait {
@@ -111,8 +108,8 @@ func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fanta
 		}
 		screenshotAction := workspacesdk.DesktopAction{
 			Action:       "screenshot",
-			ScaledWidth:  &scaledW,
-			ScaledHeight: &scaledH,
+			ScaledWidth:  &declaredWidth,
+			ScaledHeight: &declaredHeight,
 		}
 		screenResp, sErr := conn.ExecuteDesktopAction(ctx, screenshotAction)
 		if sErr != nil {
@@ -129,8 +126,8 @@ func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fanta
 	if input.Action == fantasyanthropic.ActionScreenshot {
 		screenshotAction := workspacesdk.DesktopAction{
 			Action:       "screenshot",
-			ScaledWidth:  &scaledW,
-			ScaledHeight: &scaledH,
+			ScaledWidth:  &declaredWidth,
+			ScaledHeight: &declaredHeight,
 		}
 		screenResp, sErr := conn.ExecuteDesktopAction(ctx, screenshotAction)
 		if sErr != nil {
@@ -146,8 +143,8 @@ func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fanta
 	// Build the action request.
 	action := workspacesdk.DesktopAction{
 		Action:       string(input.Action),
-		ScaledWidth:  &scaledW,
-		ScaledHeight: &scaledH,
+		ScaledWidth:  &declaredWidth,
+		ScaledHeight: &declaredHeight,
 	}
 	if input.Coordinate != ([2]int64{}) {
 		coord := [2]int{int(input.Coordinate[0]), int(input.Coordinate[1])}
@@ -183,8 +180,8 @@ func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fanta
 	// Take a screenshot after every action (Anthropic pattern).
 	screenshotAction := workspacesdk.DesktopAction{
 		Action:       "screenshot",
-		ScaledWidth:  &scaledW,
-		ScaledHeight: &scaledH,
+		ScaledWidth:  &declaredWidth,
+		ScaledHeight: &declaredHeight,
 	}
 	screenResp, sErr := conn.ExecuteDesktopAction(ctx, screenshotAction)
 	if sErr != nil {
@@ -198,23 +195,17 @@ func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fanta
 	), nil
 }
 
-// computeScaledScreenshotSize computes the target screenshot
-// dimensions to fit within Anthropic's constraints.
-func computeScaledScreenshotSize(width, height int) (scaledWidth int, scaledHeight int) {
-	const maxLongEdge = 1568
-	const maxTotalPixels = 1_150_000
-
-	longEdge := max(width, height)
-	totalPixels := width * height
-	longEdgeScale := float64(maxLongEdge) / float64(longEdge)
-	totalPixelsScale := math.Sqrt(
-		float64(maxTotalPixels) / float64(totalPixels),
-	)
-	scale := min(1.0, longEdgeScale, totalPixelsScale)
-
-	if scale >= 1.0 {
-		return width, height
+func (t *computerUseTool) declaredActionDimensions() (declaredWidth, declaredHeight int) {
+	if t.declaredWidth <= 0 || t.declaredHeight <= 0 {
+		geometry := workspacesdk.DefaultDesktopGeometry()
+		return geometry.DeclaredWidth, geometry.DeclaredHeight
 	}
-	return max(1, int(float64(width)*scale)),
-		max(1, int(float64(height)*scale))
+	return t.declaredWidth, t.declaredHeight
+}
+
+// computeScaledScreenshotSize preserves the historical helper name while using
+// the shared declared-geometry selection logic.
+func computeScaledScreenshotSize(width, height int) (scaledWidth int, scaledHeight int) {
+	geometry := workspacesdk.NewDesktopGeometry(width, height)
+	return geometry.DeclaredWidth, geometry.DeclaredHeight
 }
