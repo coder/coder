@@ -273,7 +273,7 @@ const ChatMessageItem = memo<{
 		fadeFromBottom = false,
 		urlTransform,
 		}) => {
-			console.log("[RENDER] ChatMessageItem");
+
 			const isUser = message.role === "user";
 			const isSavingMessage = savingMessageId === message.id;
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
