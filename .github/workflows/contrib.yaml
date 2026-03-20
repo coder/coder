@@ -36,7 +36,7 @@ jobs:
       - name: Add community label
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
-          github-token: ${{ secrets.CDRCI2_GITHUB_TOKEN }}
+          github-token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           script: |
             const params = {
               issue_number: context.issue.number,
