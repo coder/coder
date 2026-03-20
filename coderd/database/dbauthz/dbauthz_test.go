@@ -1188,6 +1188,15 @@ func (s *MethodTestSuite) TestGroup() {
 		check.Args(arg).Asserts(gm, policy.ActionRead)
 	}))
 
+	s.Run("GetGroupMembersByGroupIDPaginated", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		g := testutil.Fake(s.T(), faker, database.Group{})
+		u := testutil.Fake(s.T(), faker, database.User{})
+		gm := testutil.Fake(s.T(), faker, database.GetGroupMembersByGroupIDPaginatedRow{GroupID: g.ID, UserID: u.ID})
+		arg := database.GetGroupMembersByGroupIDPaginatedParams{GroupID: g.ID, IncludeSystem: false}
+		dbm.EXPECT().GetGroupMembersByGroupIDPaginated(gomock.Any(), arg).Return([]database.GetGroupMembersByGroupIDPaginatedRow{gm}, nil).AnyTimes()
+		check.Args(arg).Asserts(gm, policy.ActionRead)
+	}))
+
 	s.Run("GetGroupMembersCountByGroupID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		g := testutil.Fake(s.T(), faker, database.Group{})
 		arg := database.GetGroupMembersCountByGroupIDParams{GroupID: g.ID, IncludeSystem: false}
