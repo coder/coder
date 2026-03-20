@@ -16,6 +16,7 @@ import {
 import dayjs from "dayjs";
 import { ChevronDownIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
 import { type FC, useState } from "react";
+import { cn } from "utils/cn";
 import { AIGovernanceAddOnCard } from "./AIGovernanceAddOnCard";
 
 type LicenseCardProps = {
@@ -97,7 +98,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		: isExpired
 			? "Expired"
 			: isNotYetValid
-				? `Starts on ${dayjs.unix(license.claims.nbf ?? 0).format("MMMM D, YYYY")}`
+				? `Not started`
 				: "Active";
 	const hasCollapsibleContent = isPremium && hasExplicitAiGovernanceAddOn;
 	const headerContent = (
@@ -128,7 +129,12 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 				{license.claims.nbf && (
 					<div className="flex flex-col items-center">
 						<span className="text-content-secondary">Valid From</span>
-						<span className="text-content-primary license-valid-from">
+						<span
+							className={cn("license-valid-from", {
+								"text-content-warning": statusText === "Not started",
+								"text-content-primary": statusText !== "Not started",
+							})}
+						>
 							{dayjs.unix(license.claims.nbf).format("MMMM D, YYYY")}
 						</span>
 					</div>
