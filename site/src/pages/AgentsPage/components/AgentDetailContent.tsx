@@ -1,7 +1,7 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { type FC, useEffect } from "react";
+import { type FC, Profiler, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -32,6 +32,7 @@ import {
 } from "./AgentDetail/messageParsing";
 import { buildStreamTools } from "./AgentDetail/streamState";
 import type { ParsedMessageEntry } from "./AgentDetail/types";
+import { useOnRenderProfiler } from "./AgentDetail/useOnRenderProfiler";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
@@ -145,6 +146,7 @@ const StreamingBridge: FC<{
 }) => {
 	const streamState = useChatSelector(store, selectStreamState);
 	const streamTools = buildStreamTools(streamState);
+	const onRenderProfiler = useOnRenderProfiler();
 	const isAwaitingFirstStreamChunk =
 		!streamState &&
 		(chatStatus === "running" || chatStatus === "pending") &&
@@ -152,22 +154,24 @@ const StreamingBridge: FC<{
 	const hasStreamOutput = Boolean(streamState) || isAwaitingFirstStreamChunk;
 
 	return (
-		<ConversationTimeline
-			isEmpty={isEmpty}
-			parsedMessages={parsedMessages}
-			hasStreamOutput={hasStreamOutput}
-			streamState={streamState}
-			streamTools={streamTools}
-			subagentTitles={subagentTitles}
-			subagentStatusOverrides={subagentStatusOverrides}
-			retryState={retryState}
-			isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-			detailError={detailError}
-			onEditUserMessage={onEditUserMessage}
-			editingMessageId={editingMessageId}
-			savingMessageId={savingMessageId}
-			urlTransform={urlTransform}
-		/>
+		<Profiler id="AgentChat" onRender={onRenderProfiler}>
+			<ConversationTimeline
+				isEmpty={isEmpty}
+				parsedMessages={parsedMessages}
+				hasStreamOutput={hasStreamOutput}
+				streamState={streamState}
+				streamTools={streamTools}
+				subagentTitles={subagentTitles}
+				subagentStatusOverrides={subagentStatusOverrides}
+				retryState={retryState}
+				isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+				detailError={detailError}
+				onEditUserMessage={onEditUserMessage}
+				editingMessageId={editingMessageId}
+				savingMessageId={savingMessageId}
+				urlTransform={urlTransform}
+			/>
+		</Profiler>
 	);
 };
 
