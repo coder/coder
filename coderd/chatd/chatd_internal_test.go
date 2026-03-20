@@ -617,8 +617,7 @@ func TestPublishToStream_BufferClearResetsWarnCadence(t *testing.T) {
 	// Simulate a buffer clear (as processChat does between steps).
 	state.mu.Lock()
 	state.buffer = make([]codersdk.ChatStreamEvent, maxStreamBufferSize)
-	state.bufferDropCount = 0
-	state.bufferLastWarnAt = time.Time{}
+	state.resetDropCounters()
 	state.mu.Unlock()
 
 	// The very next drop should WARN immediately — the reset
