@@ -64,6 +64,14 @@ const (
 	// of 5 means recovery runs at 1/5 of the stale-after duration.
 	staleRecoveryIntervalDivisor = 5
 
+	// streamDropWarnInterval controls how often WARN-level logs are
+	// emitted when stream events are dropped. Between intervals the
+	// drop is logged at DEBUG to avoid log spam. This uses a
+	// timestamp comparison rather than a quartz.Ticker because the
+	// state is per-chat — a ticker per chat would require extra
+	// goroutines and lifecycle management.
+	streamDropWarnInterval = 10 * time.Second
+
 	// DefaultMaxChatsPerAcquire is the maximum number of chats to
 	// acquire in a single processOnce call. Batching avoids
 	// waiting a full polling interval between acquisitions
@@ -326,6 +334,19 @@ type chatStreamState struct {
 	durableMessages      []codersdk.ChatStreamEvent
 	durableEvictedBefore int64 // highest message ID evicted from durable cache
 	subscribers          map[uuid.UUID]chan codersdk.ChatStreamEvent
+	bufferDropCount      int64
+	bufferLastWarnAt     time.Time
+	subscriberDropCount  int64
+	subscriberLastWarnAt time.Time
+}
+
+// resetDropCounters zeroes the rate-limiting state for both buffer
+// and subscriber drop warnings. The caller must hold s.mu.
+func (s *chatStreamState) resetDropCounters() {
+	s.bufferDropCount = 0
+	s.bufferLastWarnAt = time.Time{}
+	s.subscriberDropCount = 0
+	s.subscriberLastWarnAt = time.Time{}
 }
 
 // MaxQueueSize is the maximum number of queued user messages per chat.
@@ -1498,8 +1519,17 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 			return
 		}
 		if len(state.buffer) >= maxStreamBufferSize {
-			p.logger.Warn(context.Background(), "chat stream buffer full, dropping oldest event",
-				slog.F("chat_id", chatID), slog.F("buffer_size", len(state.buffer)))
+			state.bufferDropCount++
+			now := p.clock.Now()
+			if now.Sub(state.bufferLastWarnAt) >= streamDropWarnInterval {
+				p.logger.Warn(context.Background(), "chat stream buffer full, dropping oldest event",
+					slog.F("chat_id", chatID),
+					slog.F("buffer_size", len(state.buffer)),
+					slog.F("dropped_count", state.bufferDropCount),
+				)
+				state.bufferDropCount = 0
+				state.bufferLastWarnAt = now
+			}
 			state.buffer = state.buffer[1:]
 		}
 		state.buffer = append(state.buffer, event)
@@ -1510,19 +1540,32 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 	}
 	state.mu.Unlock()
 
+	var subDropped int64
 	for _, ch := range subscribers {
 		select {
 		case ch <- event:
 		default:
-			p.logger.Warn(context.Background(), "dropping chat stream event",
-				slog.F("chat_id", chatID), slog.F("type", event.Type))
+			subDropped++
 		}
 	}
 
-	// Clean up the stream entry if it was created by
-	// getOrCreateStreamState but has no subscribers and is not
-	// actively buffering (e.g. publish with no watchers).
+	// Re-acquire the lock once for both subscriber-drop logging and
+	// idle cleanup. Merging these avoids an unnecessary unlock/re-lock
+	// gap between the two sections.
 	state.mu.Lock()
+	if subDropped > 0 {
+		state.subscriberDropCount += subDropped
+		now := p.clock.Now()
+		if now.Sub(state.subscriberLastWarnAt) >= streamDropWarnInterval {
+			p.logger.Warn(context.Background(), "dropping chat stream event",
+				slog.F("chat_id", chatID),
+				slog.F("type", event.Type),
+				slog.F("dropped_count", state.subscriberDropCount),
+			)
+			state.subscriberDropCount = 0
+			state.subscriberLastWarnAt = now
+		}
+	}
 	p.cleanupStreamIfIdle(chatID, state)
 	state.mu.Unlock()
 }
@@ -2447,11 +2490,13 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 	streamState := p.getOrCreateStreamState(chat.ID)
 	streamState.mu.Lock()
 	streamState.buffer = nil
+	streamState.resetDropCounters()
 	streamState.buffering = true
 	streamState.mu.Unlock()
 	defer func() {
 		streamState.mu.Lock()
 		streamState.buffer = nil
+		streamState.resetDropCounters()
 		streamState.buffering = false
 		p.cleanupStreamIfIdle(chat.ID, streamState)
 		streamState.mu.Unlock()
@@ -2997,6 +3042,7 @@ func (p *Server) runChat(
 			if ss, ok := val.(*chatStreamState); ok {
 				ss.mu.Lock()
 				ss.buffer = nil
+				ss.resetDropCounters()
 				ss.mu.Unlock()
 			}
 		}
@@ -3207,6 +3253,7 @@ func (p *Server) runChat(
 				if rs, ok := val.(*chatStreamState); ok {
 					rs.mu.Lock()
 					rs.buffer = nil
+					rs.resetDropCounters()
 					rs.mu.Unlock()
 				}
 			}
