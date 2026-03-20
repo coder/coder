@@ -56,7 +56,7 @@ After pushing:
 
 If checks fail:
 
-1. Find the failed run ID from `gh pr checks`.
+1. Find the failed run ID from the `gh pr checks` output.
 2. Read the logs with `gh run view <run-id> --log-failed`.
 3. Fix the problem locally.
 4. Run `make pre-commit`.
