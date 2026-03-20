@@ -16,7 +16,7 @@ const HeaderCoderAuth = "X-Coder-Token"
 // that Authorization and X-Api-Key can carry the user's own LLM
 // credentials. When present, AI Bridge forwards the user's LLM
 // headers unchanged instead of injecting the centralized key.
-const HeaderCoderBYOKToken = "X-Coder-AI-Governance-BYOK-Token"
+const HeaderCoderBYOKToken = "X-Coder-AI-Governance-BYOK-Token" //nolint:gosec // This is a header name, not a credential.
 
 // IsBYOK reports whether the request is using BYOK mode, determined
 // by the presence of the X-Coder-AI-Governance-BYOK-Token header.
