@@ -6,13 +6,6 @@ import type {
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuRadioGroup,
-	DropdownMenuRadioItem,
-	DropdownMenuTrigger,
-} from "components/DropdownMenu/DropdownMenu";
 import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { StatusIndicatorDot } from "components/StatusIndicator/StatusIndicator";
@@ -213,7 +206,7 @@ const ToolCallBlock: FC<ToolCallBlockProps> = ({
 						outputTokens={outputTokens}
 						tokenUsageMetadata={tokenUsageMetadata}
 					/>
-					<pre className="bg-surface-secondary rounded-md m-4 p-4 text-xs font-mono text-content-primary overflow-x-auto m-0">
+					<pre className="bg-surface-secondary rounded-md p-4 text-xs font-mono text-content-primary overflow-x-auto m-0">
 						{tool} {prettyFormatJSON(input)}
 					</pre>
 				</>
@@ -300,12 +293,17 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 	const durationInMs =
 		new Date(thread.ended_at ?? Date.now()).getTime() -
 		new Date(thread.started_at).getTime();
+	const toolCallCount =
+		thread.agentic_actions?.reduce(
+			(acc, action) => acc + (action.tool_calls?.length ?? 0),
+			0,
+		) ?? 0;
 
 	return (
 		<>
 			<div className="border border-border border-solid rounded-md flex flex-col lg:flex-row gap-4 p-4">
 				{/* left column: avatar and username */}
-				<div className="flex flex-row items-items-start gap-2">
+				<div className="flex flex-row items-start gap-2">
 					<Avatar
 						src={initiator.avatar_url}
 						fallback={initiator.name ?? initiator.username}
@@ -354,7 +352,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 					<AgenticLoopTable
 						className="lg:max-w-64 flex-1 m-4"
 						duration={durationInMs}
-						toolCalls={thread.agentic_actions?.length ?? 0}
+						toolCalls={toolCallCount}
 						inputTokens={thread.token_usage.input_tokens}
 						outputTokens={thread.token_usage.output_tokens}
 					/>
@@ -400,7 +398,6 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 	onFetchNextPage,
 }) => {
 	const sentinelRef = useRef<HTMLDivElement>(null);
-	const [sort, setSort] = useState<"oldest" | "newest">("oldest");
 
 	useEffect(() => {
 		const sentinel = sentinelRef.current;
@@ -439,36 +436,9 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				<span className="text-content-secondary ml-4">Session started</span>
 			</div>
 
-			{/* row 2: vertical line and timeline sort dropdown */}
+			{/* row 2: vertical line */}
 			<div className="row-start-2 col-start-3 border-0 border-l border-solid border-surface-secondary">
 				{/* vertical line */}
-			</div>
-			<div className="invisible md:visible row-start-2 col-start-4 col-span-2 text-right">
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							variant="outline"
-							size="sm"
-							className="text-xs text-content-secondary"
-						>
-							{sort === "oldest" ? "Sort by oldest" : "Sort by newest"}
-							<ChevronDownIcon />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						<DropdownMenuRadioGroup
-							value={sort}
-							onValueChange={(v) => setSort(v as "oldest" | "newest")}
-						>
-							<DropdownMenuRadioItem value="oldest">
-								Sort by oldest
-							</DropdownMenuRadioItem>
-							<DropdownMenuRadioItem value="newest">
-								Sort by newest
-							</DropdownMenuRadioItem>
-						</DropdownMenuRadioGroup>
-					</DropdownMenuContent>
-				</DropdownMenu>
 			</div>
 
 			{/* row 3: sized intentionally to create the visual space above the timeline border */}

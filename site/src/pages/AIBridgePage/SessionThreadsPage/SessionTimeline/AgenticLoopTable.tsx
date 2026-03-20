@@ -4,7 +4,7 @@ import { TokenBadges } from "../../TokenBadges";
 import { roundDurationDisplay } from "../../utils";
 
 interface AgenticLoopTableProps {
-	duration: number; // in seconds
+	duration: number; // in milliseconds
 	toolCalls: number;
 	inputTokens: number;
 	outputTokens: number;

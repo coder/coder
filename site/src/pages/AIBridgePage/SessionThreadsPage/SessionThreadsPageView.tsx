@@ -13,6 +13,7 @@ import {
 import { ArrowLeftIcon, InfoIcon } from "lucide-react";
 import type { FC, PropsWithChildren } from "react";
 import { Link as RouterLink } from "react-router";
+import { docs } from "utils/docs";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
 
@@ -28,7 +29,7 @@ const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
 					session key issued by the client.
 				</p>
 				<p>
-					<Link href="TODO docs page" target="_blank">
+					<Link href={docs("/ai-coder/ai-bridge")} target="_blank">
 						View session terminology
 					</Link>
 				</p>
@@ -54,9 +55,15 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 	isFetchingNextPage,
 	onFetchNextPage,
 }) => {
-	// calculate the total number of tool calls across all loaded threads
+	// Sum tool_calls within each agentic action, since each action can have
+	// multiple tool calls.
+	const threadToolCallCount = (thread: AIBridgeThread) =>
+		thread.agentic_actions?.reduce(
+			(acc, action) => acc + (action.tool_calls?.length ?? 0),
+			0,
+		) ?? 0;
 	const toolCallCount = threads.reduce(
-		(acc, thread) => acc + (thread.agentic_actions?.length ?? 0),
+		(acc, thread) => acc + threadToolCallCount(thread),
 		0,
 	);
 

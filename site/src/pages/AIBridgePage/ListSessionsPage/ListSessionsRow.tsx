@@ -14,10 +14,7 @@ import { AIBridgeProviderIcon } from "pages/AIBridgePage/RequestLogsPage/icons/A
 import type { FC } from "react";
 import { DATE_FORMAT, formatDateTime } from "utils/time";
 import { TokenBadges } from "../TokenBadges";
-import {
-	getProviderDisplayName,
-	getProviderIconName,
-} from "../utils";
+import { getProviderDisplayName, getProviderIconName } from "../utils";
 
 type ListSessionsRowProps = {
 	session: AIBridgeSession;

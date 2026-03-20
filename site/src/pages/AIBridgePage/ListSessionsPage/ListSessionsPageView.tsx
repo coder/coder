@@ -50,8 +50,7 @@ const ThreadTooltip: FC<PropsWithChildren> = ({ children }) => (
 					an initial human prompt and a subsequent agentic loop.
 				</p>
 				<p>
-					{/* FIXME need real docs url */}
-					<Link href="#" target="_blank">
+					<Link href={docs("/ai-coder/ai-bridge")} target="_blank">
 						View session terminology
 					</Link>
 				</p>

@@ -19,7 +19,7 @@ export const getProviderDisplayName = (provider: string) => {
 		case "openai":
 			return "OpenAI";
 		case "copilot":
-			return "Github";
+			return "GitHub";
 		default:
 			return "Unknown";
 	}
