@@ -28,7 +28,7 @@ Use the canonical docs for shared conventions and validation guidance:
 1. **Check for an existing PR** before creating a new one:
 
    ```bash
-   gh pr list --head "$(git branch --show-current)" --json number --jq '.[0].number // empty'
+   gh pr list --head "$(git branch --show-current)" --author @me --json number --jq '.[0].number // empty'
    ```
 
    If that returns a number, update that PR. If it returns empty output,
