@@ -626,18 +626,17 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	// parent.
 	// ---------------------------------------------------------------
 	const [containerWidth, setContainerWidth] = useState(0);
-	const containerRef = useRef<HTMLDivElement | null>(null);
+	const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
 
 	useEffect(() => {
-		const el = containerRef.current;
-		if (!el) return;
-		setContainerWidth(el.getBoundingClientRect().width);
+		if (!containerEl) return;
+		setContainerWidth(containerEl.getBoundingClientRect().width);
 		const ro = new ResizeObserver(([entry]) => {
 			setContainerWidth(entry.contentRect.width);
 		});
-		ro.observe(el);
+		ro.observe(containerEl);
 		return () => ro.disconnect();
-	}, []);
+	}, [containerEl]);
 
 	const showTree =
 		(isExpanded || containerWidth >= FILE_TREE_THRESHOLD) &&
@@ -760,11 +759,10 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	// lands during commit — before useEffect-based scroll logic.
 	// ---------------------------------------------------------------
 	const [viewportHeight, setViewportHeight] = useState(0);
-	const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+	const [scrollAreaEl, setScrollAreaEl] = useState<HTMLDivElement | null>(null);
 
 	useEffect(() => {
-		const node = scrollAreaRef.current;
-		const vp = node?.querySelector<HTMLElement>(
+		const vp = scrollAreaEl?.querySelector<HTMLElement>(
 			"[data-radix-scroll-area-viewport]",
 		);
 		diffViewportRef.current = vp ?? null;
@@ -778,7 +776,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			ro.disconnect();
 			diffViewportRef.current = null;
 		};
-	}, []);
+	}, [scrollAreaEl]);
 
 	// ---------------------------------------------------------------
 	// Loading state
@@ -816,7 +814,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	// ---------------------------------------------------------------
 	return (
 		<div
-			ref={containerRef}
+			ref={setContainerEl}
 			className="flex h-full min-w-0 flex-col overflow-hidden"
 		>
 			{/* Diff contents */}
@@ -855,7 +853,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 						)}
 						scrollBarClassName="w-1.5"
 						viewportClassName="[&>div]:!block"
-						ref={scrollAreaRef}
+						ref={setScrollAreaEl}
 					>
 						<div className="min-w-0 text-xs">
 							{sortedFiles.map((fileDiff, i) => {
