@@ -16,6 +16,7 @@ import {
 	COMMAND_PRIORITY_HIGH,
 	FORMAT_ELEMENT_COMMAND,
 	FORMAT_TEXT_COMMAND,
+	KEY_DOWN_COMMAND,
 	KEY_ENTER_COMMAND,
 	type LexicalEditor,
 	PASTE_COMMAND,
@@ -71,103 +72,129 @@ const DisableFormattingPlugin: FC = memo(function DisableFormattingPlugin() {
 // stripping any rich-text formatting. Image files and large pasted text
 // are forwarded to the parent via the onFilePaste callback instead.
 //
-// Lexical dispatches PASTE_COMMAND from both native ClipboardEvent paste
-// and beforeinput-based shortcuts (Cmd/Ctrl+Shift+V fires InputEvent
-// with inputType "insertFromPaste"). We fully handle ClipboardEvents
-// (sanitise + large-paste detection). For InputEvents we only intercept
-// large pastes that should become attachments — small text is left to
-// Lexical’s default paste flow so the editor stays in a consistent
-// reconciliation state.
+// Cmd/Ctrl+Shift+V ("paste and match style") is treated as an explicit
+// user intent to paste inline, so the large-paste-to-attachment
+// conversion is bypassed for that shortcut.
 const PasteSanitizationPlugin: FC<{
 	onFilePaste?: (file: File) => void;
 }> = memo(function PasteSanitizationPlugin({ onFilePaste }) {
 	const [editor] = useLexicalComposerContext();
+	const plainTextPasteRef = useRef(false);
 
 	useEffect(() => {
-		return editor.registerCommand(
-			PASTE_COMMAND,
-			(event: PasteCommandEvent | null) => {
-				if (!event) return false;
+		return mergeRegister(
+			// Detect Cmd/Ctrl+Shift+V so the PASTE_COMMAND handler
+			// can bypass attachment conversion for that shortcut.
+			editor.registerCommand(
+				KEY_DOWN_COMMAND,
+				(event: KeyboardEvent) => {
+					if (
+						event.shiftKey &&
+						(event.metaKey || event.ctrlKey) &&
+						event.key.toLowerCase() === "v"
+					) {
+						plainTextPasteRef.current = true;
+						setTimeout(() => {
+							plainTextPasteRef.current = false;
+						}, 500);
+					}
+					return false;
+				},
+				COMMAND_PRIORITY_HIGH,
+			),
 
-				const isNativePaste = "clipboardData" in event;
-				const dataTransfer = getPasteDataTransfer(event);
+			editor.registerCommand(
+				PASTE_COMMAND,
+				(event: PasteCommandEvent | null) => {
+					if (!event) return false;
 
-				// For beforeinput-based paste shortcuts (InputEvent),
-				// only intercept large pastes that should become
-				// attachments. Return false for everything else so
-				// Lexical handles normal text insertion.
-				if (!isNativePaste) {
-					if (onFilePaste) {
-						const text = getPastedPlainText(event, dataTransfer);
-						if (text && isLargePaste(text)) {
+					const isNativePaste = "clipboardData" in event;
+					const dataTransfer = getPasteDataTransfer(event);
+					const isPlainTextPaste = plainTextPasteRef.current;
+
+					// For beforeinput-based paste (InputEvent from
+					// Cmd+Shift+V or Cmd+V), let Lexical handle
+					// insertion unless it's a large paste via normal
+					// Cmd+V that should become an attachment.
+					if (!isNativePaste) {
+						if (!isPlainTextPaste && onFilePaste) {
+							const text = getPastedPlainText(event, dataTransfer);
+							if (text && isLargePaste(text)) {
+								event.preventDefault();
+								onFilePaste(createPasteFile(text));
+								return true;
+							}
+						}
+						return false;
+					}
+
+					// Native paste event (ClipboardEvent).
+
+					// Check for image files in the clipboard (e.g.
+					// pasted screenshots). Forward them to the parent
+					// via callback instead of inserting text.
+					if (onFilePaste && dataTransfer?.files.length) {
+						const images = Array.from(dataTransfer.files).filter((f) =>
+							f.type.startsWith("image/"),
+						);
+						if (images.length > 0) {
 							event.preventDefault();
-							onFilePaste(createPasteFile(text));
+							for (const file of images) {
+								onFilePaste(file);
+							}
 							return true;
 						}
 					}
-					return false;
-				}
 
-				// Native paste event (ClipboardEvent) — full handling.
+					const text = getPastedPlainText(event, dataTransfer);
+					if (!text) return false;
 
-				// Check for image files in the clipboard (e.g. pasted
-				// screenshots). Forward them to the parent via callback
-				// instead of inserting text.
-				if (onFilePaste && dataTransfer?.files.length) {
-					const images = Array.from(dataTransfer.files).filter((f) =>
-						f.type.startsWith("image/"),
-					);
-					if (images.length > 0) {
+					// Convert large pastes to file attachments, but
+					// only for normal Cmd+V. Cmd+Shift+V is the
+					// user’s explicit "paste inline" escape hatch.
+					if (!isPlainTextPaste && onFilePaste && isLargePaste(text)) {
+						plainTextPasteRef.current = false;
 						event.preventDefault();
-						for (const file of images) {
-							onFilePaste(file);
-						}
+						onFilePaste(createPasteFile(text));
 						return true;
 					}
-				}
 
-				const text = getPastedPlainText(event, dataTransfer);
-				if (!text) return false;
-
-				if (onFilePaste && isLargePaste(text)) {
+					// Small paste (or Cmd+Shift+V): insert as plain text.
+					plainTextPasteRef.current = false;
 					event.preventDefault();
-					onFilePaste(createPasteFile(text));
-					return true;
-				}
 
-				event.preventDefault();
-
-				editor.update(() => {
-					const selection = $getSelection();
-					if ($isRangeSelection(selection)) {
-						selection.insertText(text);
-					} else {
-						const root = $getRoot();
-						const lastChild = root.getLastChild();
-						if (lastChild) {
-							if (lastChild.getType() === "paragraph") {
-								const paragraph = lastChild as ParagraphNode;
+					editor.update(() => {
+						const selection = $getSelection();
+						if ($isRangeSelection(selection)) {
+							selection.insertText(text);
+						} else {
+							const root = $getRoot();
+							const lastChild = root.getLastChild();
+							if (lastChild) {
+								if (lastChild.getType() === "paragraph") {
+									const paragraph = lastChild as ParagraphNode;
+									const textNode = $createTextNode(text);
+									paragraph.append(textNode);
+									textNode.selectEnd();
+								} else {
+									const textNode = $createTextNode(text);
+									lastChild.insertAfter(textNode);
+									textNode.selectEnd();
+								}
+							} else {
+								const paragraph = $createParagraphNode();
 								const textNode = $createTextNode(text);
 								paragraph.append(textNode);
-								textNode.selectEnd();
-							} else {
-								const textNode = $createTextNode(text);
-								lastChild.insertAfter(textNode);
+								root.append(paragraph);
 								textNode.selectEnd();
 							}
-						} else {
-							const paragraph = $createParagraphNode();
-							const textNode = $createTextNode(text);
-							paragraph.append(textNode);
-							root.append(paragraph);
-							textNode.selectEnd();
 						}
-					}
-				});
+					});
 
-				return true;
-			},
-			COMMAND_PRIORITY_HIGH,
+					return true;
+				},
+				COMMAND_PRIORITY_HIGH,
+			),
 		);
 	}, [editor, onFilePaste]);
 
