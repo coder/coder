@@ -43,11 +43,16 @@ type ServerResult = { current: MockWebSocketServer | undefined };
 type MountHookOptions = Readonly<{
 	initialAgentId: string;
 	enabled?: boolean;
+	maxLogs?: number;
 }>;
 
 type MountHookResult = Readonly<{
 	serverResult: ServerResult;
-	rerender: (props: { agentId: string; enabled: boolean }) => void;
+	rerender: (props: {
+		agentId: string;
+		enabled: boolean;
+		maxLogs?: number;
+	}) => void;
 	toastError: jest.SpyInstance;
 
 	// Note: the `current` property is only "halfway" readonly; the value is
@@ -64,7 +69,7 @@ type ManualAgentLogSocket = Readonly<{
 }>;
 
 function mountHook(options: MountHookOptions): MountHookResult {
-	const { initialAgentId, enabled = true } = options;
+	const { initialAgentId, enabled = true, maxLogs } = options;
 	const serverResult: ServerResult = { current: undefined };
 
 	jest
@@ -89,10 +94,17 @@ function mountHook(options: MountHookOptions): MountHookResult {
 
 	const { result: hookResult, rerender } = renderHook(
 		(props) => useAgentLogs(props),
-		{ initialProps: { enabled, agentId: initialAgentId } },
+		{ initialProps: { enabled, agentId: initialAgentId, maxLogs } },
 	);
+	const rerenderHook = (props: {
+		agentId: string;
+		enabled: boolean;
+		maxLogs?: number;
+	}) => {
+		rerender({ ...props, maxLogs: props.maxLogs });
+	};
 
-	return { rerender, serverResult, hookResult, toastError };
+	return { rerender: rerenderHook, serverResult, hookResult, toastError };
 }
 
 function createManualAgentLogSocket(): ManualAgentLogSocket {
@@ -191,12 +203,29 @@ describe("useAgentLogs", () => {
 		await waitFor(() => expect(hookResult.current).toEqual(logs));
 	});
 
-	it("retains only the newest bounded number of logs", async () => {
+	it("keeps the full log history by default", async () => {
 		const { hookResult, serverResult } = mountHook({
 			initialAgentId: MockWorkspaceAgent.id,
 		});
 
 		const logs = generateMockLogs(MAX_LOGS + 25, new Date("April 9, 2001"));
+
+		await act(async () => {
+			serverResult.current?.publishMessage(
+				new MessageEvent("message", { data: JSON.stringify(logs) }),
+			);
+		});
+
+		await waitFor(() => expect(hookResult.current).toEqual(logs));
+	});
+
+	it("retains only the newest bounded number of logs when requested", async () => {
+		const { hookResult, serverResult } = mountHook({
+			initialAgentId: MockWorkspaceAgent.id,
+			maxLogs: MAX_LOGS,
+		});
+
+		const logs = generateMockLogs(MAX_LOGS + 25, new Date("April 10, 2001"));
 		const retainedLogs = logs.slice(-MAX_LOGS);
 
 		await act(async () => {

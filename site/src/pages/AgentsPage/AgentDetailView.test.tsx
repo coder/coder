@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	type AgentDetailSidebarComponents,
@@ -92,35 +93,57 @@ describe("AgentDetailSidebarPanelLoadingFallback", () => {
 });
 
 describe("DeferredAgentDetailSidebar", () => {
-	it("retries a failed sidebar load after the panel is reopened", async () => {
+	it("offers a close path after a failed sidebar load and retries on reopen", async () => {
 		const sidebarComponents = makeSidebarComponents();
 		const loadSidebarComponents = vi
 			.fn<() => Promise<AgentDetailSidebarComponents>>()
 			.mockRejectedValueOnce(new Error("chunk load failed"))
 			.mockResolvedValueOnce(sidebarComponents);
 
-		const renderSidebar = (isOpen: boolean) => (
-			<DeferredAgentDetailSidebar
-				isOpen={isOpen}
-				loadSidebarComponents={loadSidebarComponents}
-				fallback={<div>loading sidebar</div>}
-			>
-				{() => <div>loaded sidebar</div>}
-			</DeferredAgentDetailSidebar>
-		);
+		const SidebarHarness = () => {
+			const [isOpen, setIsOpen] = useState(true);
 
-		const { rerender } = render(renderSidebar(true));
+			return (
+				<>
+					<button type="button" onClick={() => setIsOpen(true)}>
+						Reopen sidebar
+					</button>
+					<DeferredAgentDetailSidebar
+						isOpen={isOpen}
+						loadSidebarComponents={loadSidebarComponents}
+						fallback={<div>loading sidebar</div>}
+						loadFailureFallback={({ retry }) => (
+							<div>
+								<button type="button" onClick={retry}>
+									Retry sidebar
+								</button>
+								<button type="button" onClick={() => setIsOpen(false)}>
+									Close panel
+								</button>
+							</div>
+						)}
+					>
+						{() => <div>loaded sidebar</div>}
+					</DeferredAgentDetailSidebar>
+				</>
+			);
+		};
+
+		render(<SidebarHarness />);
 
 		expect(screen.getByText("loading sidebar")).toBeInTheDocument();
 		await waitFor(() => expect(loadSidebarComponents).toHaveBeenCalledTimes(1));
+		await screen.findByRole("button", { name: "Close panel" });
+		expect(screen.queryByText("loaded sidebar")).not.toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
 		await waitFor(() => {
-			expect(screen.queryByText("loaded sidebar")).not.toBeInTheDocument();
+			expect(
+				screen.queryByRole("button", { name: "Close panel" }),
+			).not.toBeInTheDocument();
 		});
 
-		rerender(renderSidebar(false));
-		expect(screen.queryByText("loading sidebar")).not.toBeInTheDocument();
-
-		rerender(renderSidebar(true));
+		fireEvent.click(screen.getByRole("button", { name: "Reopen sidebar" }));
 		await waitFor(() => expect(loadSidebarComponents).toHaveBeenCalledTimes(2));
 		await screen.findByText("loaded sidebar");
 	});

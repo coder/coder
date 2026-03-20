@@ -101,6 +101,7 @@ interface DeferredAgentDetailSidebarProps {
 	isOpen: boolean;
 	loadSidebarComponents?: () => Promise<AgentDetailSidebarComponents>;
 	fallback?: ReactNode;
+	loadFailureFallback?: (controls: { retry: () => void }) => ReactNode;
 	children: (components: AgentDetailSidebarComponents) => ReactNode;
 }
 
@@ -110,11 +111,17 @@ export const DeferredAgentDetailSidebar: FC<
 	isOpen,
 	loadSidebarComponents = loadAgentDetailSidebarComponents,
 	fallback = <AgentDetailSidebarPanelLoadingFallback />,
+	loadFailureFallback = ({ retry }) => (
+		<AgentDetailSidebarPanelLoadErrorFallback onRetry={retry} />
+	),
 	children,
 }) => {
 	const [sidebarComponents, setSidebarComponents] =
 		useState<AgentDetailSidebarComponents>();
 	const [sidebarLoadFailed, setSidebarLoadFailed] = useState(false);
+	const handleRetrySidebarLoad = useCallback(() => {
+		setSidebarLoadFailed(false);
+	}, []);
 
 	useEffect(() => {
 		if (isOpen || !sidebarLoadFailed) {
@@ -152,6 +159,10 @@ export const DeferredAgentDetailSidebar: FC<
 		return null;
 	}
 
+	if (sidebarLoadFailed) {
+		return <>{loadFailureFallback({ retry: handleRetrySidebarLoad })}</>;
+	}
+
 	if (!sidebarComponents) {
 		return <>{fallback}</>;
 	}
@@ -159,7 +170,9 @@ export const DeferredAgentDetailSidebar: FC<
 	return <>{children(sidebarComponents)}</>;
 };
 
-export const AgentDetailSidebarPanelLoadingFallback: FC = () => {
+const AgentDetailSidebarPanelShell: FC<{ children: ReactNode }> = ({
+	children,
+}) => {
 	const width = loadPersistedRightPanelWidth();
 
 	return (
@@ -167,8 +180,50 @@ export const AgentDetailSidebarPanelLoadingFallback: FC = () => {
 			style={{ "--panel-width": `${width}px` } as React.CSSProperties}
 			className="relative flex h-full w-[100vw] min-w-0 flex-col border-0 border-l border-solid border-border-default sm:w-[var(--panel-width)] sm:min-w-[360px] sm:max-w-[70vw]"
 		>
-			<RightPanelSkeleton />
+			{children}
 		</div>
+	);
+};
+
+export const AgentDetailSidebarPanelLoadingFallback: FC = () => {
+	return (
+		<AgentDetailSidebarPanelShell>
+			<RightPanelSkeleton />
+		</AgentDetailSidebarPanelShell>
+	);
+};
+
+type AgentDetailSidebarPanelLoadErrorFallbackProps = Readonly<{
+	onRetry: () => void;
+	onClose?: () => void;
+}>;
+
+const AgentDetailSidebarPanelLoadErrorFallback: FC<
+	AgentDetailSidebarPanelLoadErrorFallbackProps
+> = ({ onRetry, onClose }) => {
+	return (
+		<AgentDetailSidebarPanelShell>
+			<div className="flex h-full flex-col gap-4 px-4 py-6 sm:px-6">
+				<div className="space-y-1">
+					<h2 className="m-0 text-sm font-medium text-content-primary">
+						Unable to load the sidebar.
+					</h2>
+					<p className="m-0 text-sm text-content-secondary">
+						Check your connection and try again.
+					</p>
+				</div>
+				<div className="flex flex-wrap gap-2">
+					<Button size="sm" onClick={onRetry}>
+						Retry
+					</Button>
+					{onClose && (
+						<Button size="sm" variant="outline" onClick={onClose}>
+							Close panel
+						</Button>
+					)}
+				</div>
+			</div>
+		</AgentDetailSidebarPanelShell>
 	);
 };
 
@@ -461,7 +516,15 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 					/>
 				</div>
 			</div>
-			<DeferredAgentDetailSidebar isOpen={shouldShowSidebar}>
+			<DeferredAgentDetailSidebar
+				isOpen={shouldShowSidebar}
+				loadFailureFallback={({ retry }) => (
+					<AgentDetailSidebarPanelLoadErrorFallback
+						onRetry={retry}
+						onClose={() => onSetShowSidebarPanel(false)}
+					/>
+				)}
+			>
 				{({ RightPanel, SidebarTabView, GitPanel }) => (
 					<RightPanel
 						isOpen={shouldShowSidebar}

@@ -1,6 +1,6 @@
 import { watchWorkspaceAgentLogs } from "api/api";
 import type { WorkspaceAgentLog } from "api/typesGenerated";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 
@@ -9,13 +9,17 @@ export const MAX_LOGS = 1_000;
 type UseAgentLogsOptions = Readonly<{
 	agentId: string;
 	enabled?: boolean;
+	maxLogs?: number;
 }>;
 
 export function useAgentLogs(
 	options: UseAgentLogsOptions,
 ): readonly WorkspaceAgentLog[] {
-	const { agentId, enabled = true } = options;
+	const { agentId, enabled = true, maxLogs } = options;
 	const [logs, setLogs] = useState<readonly WorkspaceAgentLog[]>([]);
+
+	const maxLogsRef = useRef(maxLogs);
+	maxLogsRef.current = maxLogs;
 
 	// Clean up the logs when the agent is not enabled, using a mid-render
 	// sync to remove any risk of screen flickering. Clearing the logs helps
@@ -64,9 +68,14 @@ export function useAgentLogs(
 					return d1 - d2;
 				});
 
-				// Keep the newest logs only so long-running streams do not retain an
-				// unbounded log history in memory.
-				return nextLogs.slice(-MAX_LOGS);
+				const retainedLogCount = maxLogsRef.current;
+				if (retainedLogCount === undefined) {
+					return nextLogs;
+				}
+
+				// Keep the newest logs only when a caller opts into bounding
+				// long-running streams in memory.
+				return nextLogs.slice(-retainedLogCount);
 			});
 		};
 

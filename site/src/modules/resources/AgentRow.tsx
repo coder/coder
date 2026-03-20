@@ -39,7 +39,7 @@ import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { useAgentContainers } from "./useAgentContainers";
-import { useAgentLogs } from "./useAgentLogs";
+import { MAX_LOGS, useAgentLogs } from "./useAgentLogs";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { WildcardHostnameWarning } from "./WildcardHostnameWarning";
 
@@ -116,7 +116,11 @@ export const AgentRow: FC<AgentRowProps> = ({
 		["starting", "start_timeout"].includes(agent.lifecycle_state) &&
 			hasStartupFeatures,
 	);
-	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
+	const agentLogs = useAgentLogs({
+		agentId: agent.id,
+		enabled: showLogs,
+		maxLogs: MAX_LOGS,
+	});
 	const logListRef = useRef<List>(null);
 	const logListDivRef = useRef<HTMLDivElement>(null);
 	const [bottomOfLogs, setBottomOfLogs] = useState(true);
