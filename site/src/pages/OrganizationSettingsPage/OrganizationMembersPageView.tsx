@@ -132,7 +132,7 @@ export const OrganizationMembersPageView: FC<
 										</Stack>
 									</TableHead>
 								)}
-								<TableHead className="w-auto" />
+								<TableHead className="w-px whitespace-nowrap text-right" />
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -174,29 +174,31 @@ export const OrganizationMembersPageView: FC<
 										{showAISeatColumn && (
 											<AISeatCell hasAISeat={member.has_ai_seat} />
 										)}
-										<TableCell>
-											{member.user_id !== me.id && canEditMembers && (
-												<DropdownMenu>
-													<DropdownMenuTrigger asChild>
-														<Button
-															size="icon-lg"
-															variant="subtle"
-															aria-label="Open menu"
-														>
-															<EllipsisVertical aria-hidden="true" />
-															<span className="sr-only">Open menu</span>
-														</Button>
-													</DropdownMenuTrigger>
-													<DropdownMenuContent align="end">
-														<DropdownMenuItem
-															className="text-content-destructive focus:text-content-destructive"
-															onClick={() => removeMember(member)}
-														>
-															Remove
-														</DropdownMenuItem>
-													</DropdownMenuContent>
-												</DropdownMenu>
-											)}
+										<TableCell className="w-px whitespace-nowrap text-right">
+											<div className="flex justify-end">
+												{member.user_id !== me.id && canEditMembers && (
+													<DropdownMenu>
+														<DropdownMenuTrigger asChild>
+															<Button
+																size="icon-lg"
+																variant="subtle"
+																aria-label="Open menu"
+															>
+																<EllipsisVertical aria-hidden="true" />
+																<span className="sr-only">Open menu</span>
+															</Button>
+														</DropdownMenuTrigger>
+														<DropdownMenuContent align="end">
+															<DropdownMenuItem
+																className="text-content-destructive focus:text-content-destructive"
+																onClick={() => removeMember(member)}
+															>
+																Remove
+															</DropdownMenuItem>
+														</DropdownMenuContent>
+													</DropdownMenu>
+												)}
+											</div>
 										</TableCell>
 									</TableRow>
 								))
