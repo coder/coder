@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -181,7 +180,12 @@ func (api *API) organizationMember(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	aiSeatSet := getAISeatSetByUserIDs(ctx, api.Logger, api.Database, []uuid.UUID{member.UserID})
+	//nolint:gocritic // Member responses need system-restricted reads across user IDs.
+	aiSeatSet, err := getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, []uuid.UUID{member.UserID})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
 
 	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, rows, aiSeatSet)
 	if err != nil {
@@ -235,7 +239,12 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 	for _, member := range members {
 		userIDs = append(userIDs, member.OrganizationMember.UserID)
 	}
-	aiSeatSet := getAISeatSetByUserIDs(ctx, api.Logger, api.Database, userIDs)
+	//nolint:gocritic // Member responses need system-restricted reads across user IDs.
+	aiSeatSet, err := getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, userIDs)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
 
 	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, members, aiSeatSet)
 	if err != nil {
@@ -309,7 +318,12 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 	for _, member := range memberRows {
 		userIDs = append(userIDs, member.OrganizationMember.UserID)
 	}
-	aiSeatSet := getAISeatSetByUserIDs(ctx, api.Logger, api.Database, userIDs)
+	//nolint:gocritic // Member responses need system-restricted reads across user IDs.
+	aiSeatSet, err := getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, userIDs)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
 
 	members, err := convertOrganizationMembersWithUserData(ctx, api.Database, memberRows, aiSeatSet)
 	if err != nil {
@@ -324,14 +338,13 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-func getAISeatSetByUserIDs(ctx context.Context, logger slog.Logger, db database.Store, userIDs []uuid.UUID) map[uuid.UUID]struct{} {
+func getAISeatSetByUserIDs(ctx context.Context, db database.Store, userIDs []uuid.UUID) (map[uuid.UUID]struct{}, error) {
 	aiSeatUserIDs, err := db.GetUserAISeatStates(ctx, userIDs)
 	if xerrors.Is(err, sql.ErrNoRows) {
 		err = nil
 	}
 	if err != nil {
-		logger.Warn(ctx, "failed to fetch AI seat states", slog.Error(err))
-		return map[uuid.UUID]struct{}{}
+		return nil, err
 	}
 
 	aiSeatSet := make(map[uuid.UUID]struct{}, len(aiSeatUserIDs))
@@ -339,7 +352,7 @@ func getAISeatSetByUserIDs(ctx context.Context, logger slog.Logger, db database.
 		aiSeatSet[uid] = struct{}{}
 	}
 
-	return aiSeatSet
+	return aiSeatSet, nil
 }
 
 // @Summary Assign role to organization member

@@ -1306,12 +1306,20 @@ SELECT
 	ais.user_id
 FROM
 	ai_seat_state ais
+JOIN
+	users u
+ON
+	ais.user_id = u.id
 WHERE
 	ais.user_id = ANY($1::uuid[])
+	AND u.status = 'active'::user_status
+	AND u.deleted = false
+	AND u.is_system = false
 `
 
-// Returns user IDs from the provided list that have an entry in
-// ai_seat_state, meaning they are consuming an AI seat.
+// Returns user IDs from the provided list that are consuming an AI seat.
+// Filters to active, non-deleted, non-system users to match the canonical
+// seat count query (GetActiveAISeatCount).
 func (q *sqlQuerier) GetUserAISeatStates(ctx context.Context, userIds []uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, getUserAISeatStates, pq.Array(userIds))
 	if err != nil {
