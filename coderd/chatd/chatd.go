@@ -1568,6 +1568,9 @@ func (p *Server) logRateLimitedDrop(
 	delta int64,
 	msg string, fields []slog.Field,
 ) {
+	if p.clock == nil {
+		p.clock = quartz.NewReal()
+	}
 	*count += delta
 	now := p.clock.Now()
 	if now.Sub(*lastWarn) >= streamDropWarnInterval {
