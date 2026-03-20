@@ -40,6 +40,39 @@ const (
 	CloseErrUnhealthy      = "coordinator unhealthy"
 )
 
+// PGCoordOptions contains optional configuration for the PG coordinator.
+// A nil value or zero-value fields will use the defaults above.
+type PGCoordOptions struct {
+	QuerierWorkers    int
+	BinderWorkers     int
+	TunnelerWorkers   int
+	HandshakerWorkers int
+}
+
+func (o *PGCoordOptions) withDefaults() PGCoordOptions {
+	d := PGCoordOptions{
+		QuerierWorkers:    numQuerierWorkers,
+		BinderWorkers:     numBinderWorkers,
+		TunnelerWorkers:   numTunnelerWorkers,
+		HandshakerWorkers: numHandshakerWorkers,
+	}
+	if o != nil {
+		if o.QuerierWorkers > 0 {
+			d.QuerierWorkers = o.QuerierWorkers
+		}
+		if o.BinderWorkers > 0 {
+			d.BinderWorkers = o.BinderWorkers
+		}
+		if o.TunnelerWorkers > 0 {
+			d.TunnelerWorkers = o.TunnelerWorkers
+		}
+		if o.HandshakerWorkers > 0 {
+			d.HandshakerWorkers = o.HandshakerWorkers
+		}
+	}
+	return d
+}
+
 // pgCoord is a postgres-backed coordinator
 //
 //	                 ┌────────────┐
@@ -115,20 +148,21 @@ var pgCoordSubject = rbac.Subject{
 
 // NewPGCoord creates a high-availability coordinator that stores state in the PostgreSQL database and
 // receives notifications of updates via the pubsub.
-func NewPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store) (agpl.Coordinator, error) {
-	return newPGCoordInternal(ctx, logger, ps, store, quartz.NewReal())
+func NewPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, opts *PGCoordOptions) (agpl.Coordinator, error) {
+	return newPGCoordInternal(ctx, logger, ps, store, quartz.NewReal(), opts)
 }
 
 // NewTestPGCoord is only used in testing to pass a clock.Clock in.
 func NewTestPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk quartz.Clock) (agpl.Coordinator, error) {
-	return newPGCoordInternal(ctx, logger, ps, store, clk)
+	return newPGCoordInternal(ctx, logger, ps, store, clk, nil)
 }
 
 func newPGCoordInternal(
-	ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk quartz.Clock,
+	ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store database.Store, clk quartz.Clock, opts *PGCoordOptions,
 ) (
 	*pgCoord, error,
 ) {
+	resolved := opts.withDefaults()
 	ctx, cancel := context.WithCancel(dbauthz.As(ctx, pgCoordSubject))
 	id := uuid.New()
 	logger = logger.Named("pgcoord").With(slog.F("coordinator_id", id))
@@ -150,16 +184,16 @@ func newPGCoordInternal(
 		logger:           logger,
 		pubsub:           ps,
 		store:            store,
-		binder:           newBinder(ctx, logger, id, store, bCh, fHB),
+		binder:           newBinder(ctx, logger, id, store, bCh, fHB, resolved.BinderWorkers),
 		bindings:         bCh,
 		newConnections:   cCh,
 		closeConnections: ccCh,
-		tunneler:         newTunneler(ctx, logger, id, store, sCh, fHB),
+		tunneler:         newTunneler(ctx, logger, id, store, sCh, fHB, resolved.TunnelerWorkers),
 		tunnelerCh:       sCh,
-		handshaker:       newHandshaker(ctx, logger, id, ps, rfhCh, fHB),
+		handshaker:       newHandshaker(ctx, logger, id, ps, rfhCh, fHB, resolved.HandshakerWorkers),
 		handshakerCh:     rfhCh,
 		id:               id,
-		querier:          newQuerier(ctx, logger, id, ps, store, id, cCh, ccCh, numQuerierWorkers, fHB, clk),
+		querier:          newQuerier(ctx, logger, id, ps, store, id, cCh, ccCh, resolved.QuerierWorkers, fHB, clk),
 		closed:           make(chan struct{}),
 	}
 	logger.Info(ctx, "starting coordinator")
@@ -286,6 +320,7 @@ func newTunneler(ctx context.Context,
 	store database.Store,
 	updates <-chan tunnel,
 	startWorkers <-chan struct{},
+	numWorkers int,
 ) *tunneler {
 	s := &tunneler{
 		ctx:           ctx,
@@ -299,10 +334,10 @@ func newTunneler(ctx context.Context,
 	go s.handle()
 	// add to the waitgroup immediately to avoid any races waiting for it before
 	// the workers start.
-	s.workerWG.Add(numTunnelerWorkers)
+	s.workerWG.Add(numWorkers)
 	go func() {
 		<-startWorkers
-		for i := 0; i < numTunnelerWorkers; i++ {
+		for i := 0; i < numWorkers; i++ {
 			go s.worker()
 		}
 	}()
@@ -473,6 +508,7 @@ func newBinder(ctx context.Context,
 	store database.Store,
 	bindings <-chan binding,
 	startWorkers <-chan struct{},
+	numWorkers int,
 ) *binder {
 	b := &binder{
 		ctx:           ctx,
@@ -487,10 +523,10 @@ func newBinder(ctx context.Context,
 	go b.handleBindings()
 	// add to the waitgroup immediately to avoid any races waiting for it before
 	// the workers start.
-	b.workerWG.Add(numBinderWorkers)
+	b.workerWG.Add(numWorkers)
 	go func() {
 		<-startWorkers
-		for i := 0; i < numBinderWorkers; i++ {
+		for i := 0; i < numWorkers; i++ {
 			go b.worker()
 		}
 	}()

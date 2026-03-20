@@ -942,7 +942,12 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		if initial, changed, enabled := featureChanged(codersdk.FeatureHighAvailability); shouldUpdate(initial, changed, enabled) {
 			var coordinator agpltailnet.Coordinator
 			if enabled {
-				haCoordinator, err := tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
+				haCoordinator, err := tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database, &tailnet.PGCoordOptions{
+					QuerierWorkers:    int(api.DeploymentValues.TailnetQuerierWorkers.Value()),
+					BinderWorkers:     int(api.DeploymentValues.TailnetBinderWorkers.Value()),
+					TunnelerWorkers:   int(api.DeploymentValues.TailnetTunnelerWorkers.Value()),
+					HandshakerWorkers: int(api.DeploymentValues.TailnetHandshakerWorkers.Value()),
+				})
 				if err != nil {
 					api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
 					// If we try to setup the HA coordinator and it fails, nothing
