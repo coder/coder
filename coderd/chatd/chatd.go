@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
@@ -2916,19 +2917,19 @@ func (p *Server) runChat(
 		var usageForCost codersdk.ChatMessageUsage
 		if hasUsage {
 			if step.Usage.InputTokens != 0 {
-				usageForCost.InputTokens = int64Ptr(step.Usage.InputTokens)
+				usageForCost.InputTokens = ptr.Ref(step.Usage.InputTokens)
 			}
 			if step.Usage.OutputTokens != 0 {
-				usageForCost.OutputTokens = int64Ptr(step.Usage.OutputTokens)
+				usageForCost.OutputTokens = ptr.Ref(step.Usage.OutputTokens)
 			}
 			if step.Usage.ReasoningTokens != 0 {
-				usageForCost.ReasoningTokens = int64Ptr(step.Usage.ReasoningTokens)
+				usageForCost.ReasoningTokens = ptr.Ref(step.Usage.ReasoningTokens)
 			}
 			if step.Usage.CacheCreationTokens != 0 {
-				usageForCost.CacheCreationTokens = int64Ptr(step.Usage.CacheCreationTokens)
+				usageForCost.CacheCreationTokens = ptr.Ref(step.Usage.CacheCreationTokens)
 			}
 			if step.Usage.CacheReadTokens != 0 {
-				usageForCost.CacheReadTokens = int64Ptr(step.Usage.CacheReadTokens)
+				usageForCost.CacheReadTokens = ptr.Ref(step.Usage.CacheReadTokens)
 			}
 		}
 		totalCostMicros := chatcost.CalculateTotalCostMicros(usageForCost, callConfig.Cost)
@@ -3530,10 +3531,6 @@ func (p *Server) resolveModelConfig(
 		)
 	}
 	return defaultConfig, nil
-}
-
-func int64Ptr(value int64) *int64 {
-	return &value
 }
 
 func refreshChatWorkspaceSnapshot(

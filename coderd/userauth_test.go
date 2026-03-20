@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/promoauth"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
@@ -405,7 +406,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				AuthenticatedUser: func(ctx context.Context, _ *http.Client) (*github.User, error) {
 					return &github.User{
 						AvatarURL: github.String("/hello-world"),
-						ID:        i64ptr(1234),
+						ID:        ptr.Ref[int64](1234),
 						Login:     github.String("kyle"),
 						Name:      github.String("Kylium Carbonate"),
 					}, nil
@@ -473,7 +474,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				AuthenticatedUser: func(_ context.Context, _ *http.Client) (*github.User, error) {
 					return &github.User{
 						AvatarURL: github.String("/hello-world"),
-						ID:        i64ptr(1234),
+						ID:        ptr.Ref[int64](1234),
 						Login:     github.String("kyle"),
 						Name:      github.String(" " + strings.Repeat("a", 129) + " "),
 					}, nil
@@ -2523,10 +2524,6 @@ func oauth2Callback(t *testing.T, client *codersdk.Client, opts ...func(*http.Re
 		_ = res.Body.Close()
 	})
 	return res
-}
-
-func i64ptr(i int64) *int64 {
-	return &i
 }
 
 func authCookieValue(cookies []*http.Cookie) string {
