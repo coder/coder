@@ -25,7 +25,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { BotIcon, FileTextIcon, PencilIcon, UserIcon } from "lucide-react";
+import { FileTextIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -338,45 +338,18 @@ function renderBlockList({
 	return { elements, renderedToolIDs };
 }
 
-const RoleIndicator: FC<{
-	label: string;
-	turnRole: "user" | "assistant";
-}> = ({ label, turnRole }) => {
-	const Icon = turnRole === "assistant" ? BotIcon : UserIcon;
-
-	return (
-		<div className="mb-1.5 flex items-center gap-1.5 select-none text-xs font-medium text-content-secondary">
-			<Icon className="h-3.5 w-3.5" />
-			<span>{label}</span>
-		</div>
-	);
-};
-
-const TurnSeparator = () => (
-	<hr aria-hidden className="border-0 border-t border-border-default/40" />
-);
-
 // Shared wrapper providing consistent chrome for every transcript turn.
-// Supplies: deep-link anchor, role label, and the standard
-// ConversationItem → Message → MessageContent stack.
+// Supplies: deep-link anchor and the standard ConversationItem →
+// Message → MessageContent stack.
 const TurnChrome: FC<{
 	id?: string;
 	turnRole: "user" | "assistant";
-	label: string;
 	messageClassName?: string;
 	contentClassName?: string;
 	children: ReactNode;
-}> = ({
-	id,
-	turnRole,
-	label,
-	messageClassName,
-	contentClassName,
-	children,
-}) => (
+}> = ({ id, turnRole, messageClassName, contentClassName, children }) => (
 	<ConversationItem id={id} role={turnRole}>
 		<Message className={cn("w-full", messageClassName)}>
-			<RoleIndicator label={label} turnRole={turnRole} />
 			<MessageContent className={contentClassName}>{children}</MessageContent>
 		</Message>
 	</ConversationItem>
@@ -478,7 +451,6 @@ const ChatMessageItem = memo<{
 				{isUser ? (
 					<ConversationItem {...userConversationItemProps}>
 						<Message className="w-full max-w-none">
-							<RoleIndicator label="You" turnRole="user" />
 							<MessageContent
 								className={cn(
 									"group/msg rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
@@ -601,7 +573,6 @@ const ChatMessageItem = memo<{
 					<TurnChrome
 						id={`message-${message.id}`}
 						turnRole="assistant"
-						label="Assistant"
 						contentClassName={ASSISTANT_CONTENT_CLASSES}
 					>
 						<div className={BLOCK_STACK_CLASSES}>
@@ -674,7 +645,6 @@ export const StreamingOutput = memo<{
 			<TurnChrome
 				id="agent-message-stream"
 				turnRole="assistant"
-				label="Assistant"
 				contentClassName={ASSISTANT_CONTENT_CLASSES}
 			>
 				<div className={BLOCK_STACK_CLASSES}>
@@ -1052,7 +1022,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 				</div>
 			) : (
 				<div className="flex flex-col gap-3">
-					{parsedMessages.map(({ message, parsed }, index) => (
+					{parsedMessages.map(({ message, parsed }) => (
 						<Fragment key={message.id}>
 							{message.role === "user" ? (
 								<StickyUserMessage
@@ -1072,22 +1042,18 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 								/>
 							)}
-							{index < parsedMessages.length - 1 && <TurnSeparator />}
 						</Fragment>
 					))}
 					{shouldRenderStreamAfterMessages && (
-						<>
-							<TurnSeparator />
-							<StreamingOutput
-								streamState={streamState}
-								streamTools={streamTools}
-								subagentTitles={subagentTitles}
-								subagentStatusOverrides={subagentStatusOverrides}
-								showInitialPlaceholder={isAwaitingFirstStreamChunk}
-								retryState={retryState}
-								urlTransform={urlTransform}
-							/>
-						</>
+						<StreamingOutput
+							streamState={streamState}
+							streamTools={streamTools}
+							subagentTitles={subagentTitles}
+							subagentStatusOverrides={subagentStatusOverrides}
+							showInitialPlaceholder={isAwaitingFirstStreamChunk}
+							retryState={retryState}
+							urlTransform={urlTransform}
+						/>
 					)}
 					{hasStreamOutput && parsedMessages.length === 0 && (
 						<StreamingOutput

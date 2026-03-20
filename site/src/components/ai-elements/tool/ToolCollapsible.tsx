@@ -33,14 +33,6 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 				/>
 			)}
 			<div className="min-w-0 flex flex-1 items-center gap-2">{header}</div>
-			{hasContent && (
-				<ChevronDownIcon
-					className={cn(
-						"h-3 w-3 shrink-0 text-content-secondary/50 transition-transform",
-						expanded ? "rotate-0" : "-rotate-90",
-					)}
-				/>
-			)}
 		</>
 	);
 
