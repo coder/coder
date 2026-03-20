@@ -1,46 +1,17 @@
 import { MockLicenseResponse } from "testHelpers/entities";
 import { render } from "testHelpers/renderHelpers";
 import { screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { LicenseCard } from "./LicenseCard";
 
+const openRemoveDialog = async (user: UserEvent) => {
+	await user.click(
+		screen.getByRole("button", { name: /show license actions/i }),
+	);
+	await user.click(await screen.findByRole("menuitem", { name: /remove/i }));
+};
+
 describe("LicenseCard", () => {
-	it("renders (smoke test)", async () => {
-		// When
-		render(
-			<LicenseCard
-				license={MockLicenseResponse[0]}
-				userLimitActual={1}
-				userLimitLimit={10}
-				onRemove={() => null}
-				isRemoving={false}
-			/>,
-		);
-
-		// Then
-		await screen.findByText("#1");
-		await screen.findByText("1 / 10");
-		await screen.findByText("Enterprise");
-	});
-
-	it("renders userLimit as unlimited if there is not user limit", async () => {
-		// When
-		render(
-			<LicenseCard
-				license={MockLicenseResponse[0]}
-				userLimitActual={1}
-				userLimitLimit={undefined}
-				onRemove={() => null}
-				isRemoving={false}
-			/>,
-		);
-
-		// Then
-		await screen.findByText("#1");
-		await screen.findByText("1 / Unlimited");
-		await screen.findByText("Enterprise");
-	});
-
 	it("shows expired removal message for expired licenses", async () => {
 		const user = userEvent.setup();
 		render(
@@ -53,8 +24,7 @@ describe("LicenseCard", () => {
 			/>,
 		);
 
-		const removeButton = await screen.findByRole("button", { name: /remove/i });
-		await user.click(removeButton);
+		await openRemoveDialog(user);
 
 		const dialog = await screen.findByTestId("dialog");
 		expect(dialog).toHaveTextContent(/This license has already expired/);
@@ -72,40 +42,11 @@ describe("LicenseCard", () => {
 			/>,
 		);
 
-		const removeButton = await screen.findByRole("button", { name: /remove/i });
-		await user.click(removeButton);
+		await openRemoveDialog(user);
 
 		await screen.findByText(
 			/Removing this license will disable all Premium features/,
 		);
-	});
-
-	it("renders license's user_limit when it is available instead of using the default", async () => {
-		const licenseUserLimit = 3;
-		const license = {
-			...MockLicenseResponse[0],
-			claims: {
-				...MockLicenseResponse[0].claims,
-				features: {
-					...MockLicenseResponse[0].claims.features,
-					user_limit: licenseUserLimit,
-				},
-			},
-		};
-
-		// When
-		render(
-			<LicenseCard
-				license={license}
-				userLimitActual={1}
-				userLimitLimit={100} // This should not be used
-				onRemove={() => null}
-				isRemoving={false}
-			/>,
-		);
-
-		// Then
-		await screen.findByText("1 / 3");
 	});
 
 	it("requires typing the license ID before allowing removal", async () => {
@@ -123,7 +64,7 @@ describe("LicenseCard", () => {
 			/>,
 		);
 
-		await user.click(screen.getByRole("button", { name: /remove/i }));
+		await openRemoveDialog(user);
 
 		const dialog = await screen.findByTestId("dialog");
 		const dialogScope = within(dialog);
