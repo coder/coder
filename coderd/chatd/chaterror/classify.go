@@ -91,40 +91,52 @@ func Classify(err error) ClassifiedError {
 	}
 
 	deadline := errors.Is(err, context.DeadlineExceeded) || strings.Contains(lower, "context deadline exceeded")
+	overloadedMatch := statusCode == 529 || containsAny(lower, overloadedPatterns...)
+	authStrong := statusCode == 401 || containsAny(lower, authStrongPatterns...)
+	configMatch := containsAny(lower, configPatterns...)
+	authWeak := statusCode == 403 || containsAny(lower, authWeakPatterns...)
+	rateLimitMatch := statusCode == 429 || containsAny(lower, rateLimitPatterns...)
+	timeoutMatch := deadline || statusCode == 408 || statusCode == 502 ||
+		statusCode == 503 || statusCode == 504 ||
+		containsAny(lower, timeoutPatterns...)
+	genericRetryableMatch := statusCode == 500 || containsAny(lower, genericRetryablePatterns...)
 	rules := []struct {
 		match     bool
 		kind      string
 		retryable bool
 	}{
 		{
-			match:     statusCode == 529 || containsAny(lower, overloadedPatterns...),
+			match:     overloadedMatch,
 			kind:      KindOverloaded,
 			retryable: true,
 		},
 		{
-			match:     statusCode == 401 || statusCode == 403 || containsAny(lower, authPatterns...),
+			match:     authStrong,
 			kind:      KindAuth,
 			retryable: false,
 		},
 		{
-			match:     statusCode == 429 || containsAny(lower, rateLimitPatterns...),
+			match:     authWeak && !configMatch,
+			kind:      KindAuth,
+			retryable: false,
+		},
+		{
+			match:     rateLimitMatch,
 			kind:      KindRateLimit,
 			retryable: true,
 		},
 		{
-			match: deadline || statusCode == 408 || statusCode == 502 ||
-				statusCode == 503 || statusCode == 504 ||
-				containsAny(lower, timeoutPatterns...),
+			match:     timeoutMatch,
 			kind:      KindTimeout,
 			retryable: !deadline,
 		},
 		{
-			match:     containsAny(lower, configPatterns...),
+			match:     configMatch,
 			kind:      KindConfig,
 			retryable: false,
 		},
 		{
-			match:     statusCode == 500 || containsAny(lower, genericRetryablePatterns...),
+			match:     genericRetryableMatch,
 			kind:      KindGeneric,
 			retryable: true,
 		},

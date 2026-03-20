@@ -33,11 +33,11 @@ func TestClassify(t *testing.T) {
 			name: "ExplicitAnthropicOverload",
 			err:  xerrors.New("anthropic overloaded_error"),
 			want: chaterror.ClassifiedError{
-				Message:    "Anthropic is temporarily overloaded (HTTP 529). Please try again later.",
+				Message:    "Anthropic is temporarily overloaded. Please try again later.",
 				Kind:       chaterror.KindOverloaded,
 				Provider:   "anthropic",
 				Retryable:  true,
-				StatusCode: 529,
+				StatusCode: 0,
 			},
 		},
 		{
@@ -63,14 +63,47 @@ func TestClassify(t *testing.T) {
 			},
 		},
 		{
-			name: "ForbiddenContextLengthClassifiesAsAuth",
-			err:  xerrors.New("forbidden: context length exceeded"),
+			name: "BareForbiddenClassifiesAsAuth",
+			err:  xerrors.New("forbidden"),
+			want: chaterror.ClassifiedError{
+				Message:    "Authentication with the AI provider failed. Check the API key, permissions, and billing settings.",
+				Kind:       chaterror.KindAuth,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 0,
+			},
+		},
+		{
+			name: "ExplicitStatus401ClassifiesAsAuth",
+			err:  xerrors.New("status 401 from upstream"),
+			want: chaterror.ClassifiedError{
+				Message:    "Authentication with the AI provider failed. Check the API key, permissions, and billing settings.",
+				Kind:       chaterror.KindAuth,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 401,
+			},
+		},
+		{
+			name: "ExplicitStatus403ClassifiesAsAuth",
+			err:  xerrors.New("status 403 from upstream"),
 			want: chaterror.ClassifiedError{
 				Message:    "Authentication with the AI provider failed. Check the API key, permissions, and billing settings.",
 				Kind:       chaterror.KindAuth,
 				Provider:   "",
 				Retryable:  false,
 				StatusCode: 403,
+			},
+		},
+		{
+			name: "ForbiddenContextLengthClassifiesAsConfig",
+			err:  xerrors.New("forbidden: context length exceeded"),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Kind:       chaterror.KindConfig,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 0,
 			},
 		},
 		{

@@ -24,7 +24,7 @@ func TestIsRetryableDelegatesToClassification(t *testing.T) {
 		retryable bool
 	}{
 		{name: "Nil", err: nil, retryable: false},
-		{name: "RetryableStatus", err: xerrors.New("received status 429 from upstream"), retryable: true},
+		{name: "RetryableExplicitStatus429", err: xerrors.New("received status 429 from upstream"), retryable: true},
 		{name: "RetryableTimeout", err: xerrors.New("service unavailable"), retryable: true},
 		{name: "NonRetryableAuth", err: xerrors.New("invalid api key"), retryable: false},
 		{name: "NonRetryableGeneric", err: xerrors.New("boom"), retryable: false},

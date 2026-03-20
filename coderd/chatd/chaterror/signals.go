@@ -10,24 +10,11 @@ type providerHint struct {
 	provider string
 	patterns []string
 }
-type statusHint struct {
-	statusCode int
-	patterns   []string
-}
 
 var (
 	statusCodePattern       = regexp.MustCompile(`(?i)(?:status(?:\s+code)?|http)\s*[:=]?\s*(\d{3})`)
 	standaloneStatusPattern = regexp.MustCompile(`\b(?:401|403|408|429|500|502|503|504|529)\b`)
-	statusHints             = []statusHint{
-		{statusCode: 429, patterns: []string{"too many requests"}},
-		{statusCode: 401, patterns: []string{"unauthorized", "invalid api key", "invalid_api_key"}},
-		{statusCode: 403, patterns: []string{"forbidden"}},
-		{statusCode: 504, patterns: []string{"gateway timeout"}},
-		{statusCode: 502, patterns: []string{"bad gateway"}},
-		{statusCode: 503, patterns: []string{"service unavailable"}},
-		{statusCode: 529, patterns: []string{"overloaded"}},
-	}
-	providerHints = []providerHint{
+	providerHints           = []providerHint{
 		{provider: "openai-compat", patterns: []string{"openai-compat", "openai compatible"}},
 		{provider: "azure", patterns: []string{"azure openai", "azure-openai"}},
 		{provider: "openrouter", patterns: []string{"openrouter"}},
@@ -37,7 +24,7 @@ var (
 		{provider: "google", patterns: []string{"google", "gemini", "vertex"}},
 		{provider: "openai", patterns: []string{"openai"}},
 	}
-	overloadedPatterns = []string{"overloaded", "overloaded_error"}
+	overloadedPatterns = []string{"overloaded"}
 	rateLimitPatterns  = []string{"rate limit", "rate_limit", "rate limited", "rate-limited", "too many requests"}
 	timeoutPatterns    = []string{
 		"timeout",
@@ -51,10 +38,9 @@ var (
 		"bad gateway",
 		"gateway timeout",
 	}
-	authPatterns = []string{
+	authStrongPatterns = []string{
 		"authentication",
 		"unauthorized",
-		"forbidden",
 		"invalid api key",
 		"invalid_api_key",
 		"quota",
@@ -62,7 +48,8 @@ var (
 		"insufficient_quota",
 		"payment required",
 	}
-	configPatterns = []string{
+	authWeakPatterns = []string{"forbidden"}
+	configPatterns   = []string{
 		"invalid model",
 		"model not found",
 		"model_not_found",
@@ -89,11 +76,6 @@ func extractStatusCode(lower string) int {
 			return code
 		}
 		return 0
-	}
-	for _, hint := range statusHints {
-		if containsAny(lower, hint.patterns...) {
-			return hint.statusCode
-		}
 	}
 	return 0
 }
