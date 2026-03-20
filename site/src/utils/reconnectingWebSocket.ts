@@ -43,8 +43,22 @@ const RECONNECT_FACTOR = 2;
  */
 interface Closable {
 	addEventListener(event: string, handler: (...args: unknown[]) => void): void;
+	removeEventListener(
+		event: string,
+		handler: (...args: unknown[]) => void,
+	): void;
 	close(...args: unknown[]): void;
 }
+
+type SocketListeners = Readonly<{
+	handleDisconnect: () => void;
+	handleOpen: () => void;
+}>;
+
+type ActiveConnection<TSocket extends Closable> = Readonly<{
+	listeners: SocketListeners;
+	socket: TSocket;
+}>;
 
 /**
  * Configuration for {@link createReconnectingWebSocket}.
@@ -126,7 +140,40 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 	let disposed = false;
 	let reconnectAttempt = 0;
 	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-	let activeSocket: TSocket | null = null;
+	let activeConnection: ActiveConnection<TSocket> | null = null;
+
+	const clearReconnectTimer = () => {
+		if (reconnectTimer === null) {
+			return;
+		}
+
+		clearTimeout(reconnectTimer);
+		reconnectTimer = null;
+	};
+
+	const detachSocketListeners = (connection: ActiveConnection<TSocket>) => {
+		const { socket, listeners } = connection;
+		socket.removeEventListener("open", listeners.handleOpen);
+		socket.removeEventListener("error", listeners.handleDisconnect);
+		socket.removeEventListener("close", listeners.handleDisconnect);
+	};
+
+	const cleanupConnection = (
+		connection: ActiveConnection<TSocket> | null,
+		options: { closeSocket: boolean },
+	) => {
+		if (!connection) {
+			return;
+		}
+
+		detachSocketListeners(connection);
+		if (activeConnection === connection) {
+			activeConnection = null;
+		}
+		if (options.closeSocket) {
+			connection.socket.close();
+		}
+	};
 
 	// Schedule a reconnect with capped exponential backoff.
 	// Does nothing if the connection has been disposed.
@@ -134,46 +181,55 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 		if (disposed) {
 			return;
 		}
-		if (reconnectTimer !== null) {
-			clearTimeout(reconnectTimer);
-		}
+
+		clearReconnectTimer();
 		const delay = Math.min(baseMs * factor ** reconnectAttempt, maxMs);
 		reconnectAttempt += 1;
-		reconnectTimer = setTimeout(connect, delay);
+		reconnectTimer = setTimeout(() => {
+			reconnectTimer = null;
+			connect();
+		}, delay);
 	};
 
 	function connect() {
 		if (disposed) {
 			return;
 		}
-		if (activeSocket) {
-			activeSocket.close();
-		}
+
+		cleanupConnection(activeConnection, { closeSocket: true });
 
 		const socket = connectFn();
-		activeSocket = socket;
+		let connection: ActiveConnection<TSocket>;
 
-		const handleOpen = () => {
-			// Connection succeeded — reset backoff.
-			reconnectAttempt = 0;
-			onOpen?.(socket);
+		const listeners: SocketListeners = {
+			handleOpen: () => {
+				if (disposed || activeConnection?.socket !== socket) {
+					return;
+				}
+
+				// Connection succeeded — reset backoff.
+				reconnectAttempt = 0;
+				onOpen?.(socket);
+			},
+			handleDisconnect: () => {
+				// Guard against duplicate calls: browsers fire both
+				// "error" and "close" on a failed WebSocket, so we
+				// only process the first event per socket instance.
+				if (disposed || activeConnection?.socket !== socket) {
+					return;
+				}
+
+				cleanupConnection(connection, { closeSocket: false });
+				onDisconnect?.(reconnectAttempt);
+				scheduleReconnect();
+			},
 		};
 
-		const handleDisconnect = () => {
-			// Guard against duplicate calls: browsers fire both
-			// "error" and "close" on a failed WebSocket, so we
-			// only process the first event per socket instance.
-			if (activeSocket !== socket || disposed) {
-				return;
-			}
-			activeSocket = null;
-			onDisconnect?.(reconnectAttempt);
-			scheduleReconnect();
-		};
-
-		socket.addEventListener("open", handleOpen);
-		socket.addEventListener("error", handleDisconnect);
-		socket.addEventListener("close", handleDisconnect);
+		connection = { socket, listeners };
+		activeConnection = connection;
+		socket.addEventListener("open", listeners.handleOpen);
+		socket.addEventListener("error", listeners.handleDisconnect);
+		socket.addEventListener("close", listeners.handleDisconnect);
 	}
 
 	// Kick off the first connection.
@@ -181,12 +237,12 @@ export function createReconnectingWebSocket<TSocket extends Closable>(
 
 	// Return a dispose function that tears everything down.
 	return () => {
+		if (disposed) {
+			return;
+		}
+
 		disposed = true;
-		if (reconnectTimer !== null) {
-			clearTimeout(reconnectTimer);
-		}
-		if (activeSocket) {
-			activeSocket.close();
-		}
+		clearReconnectTimer();
+		cleanupConnection(activeConnection, { closeSocket: true });
 	};
 }

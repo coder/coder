@@ -2,6 +2,9 @@ import { watchWorkspaceAgentLogs } from "api/api";
 import type { WorkspaceAgentLog } from "api/typesGenerated";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
+
+export const MAX_LOGS = 1_000;
 
 type UseAgentLogsOptions = Readonly<{
 	agentId: string;
@@ -32,42 +35,68 @@ export function useAgentLogs(
 			return;
 		}
 
+		let disposed = false;
+
 		// Always fetch the logs from the beginning. We may want to optimize
 		// this in the future, but it would add some complexity in the code
 		// that might not be worth it.
 		const socket = watchWorkspaceAgentLogs(agentId, { after: 0 });
-		socket.addEventListener("message", (e) => {
+
+		const handleMessage = (
+			e: OneWayMessageEvent<readonly WorkspaceAgentLog[]>,
+		) => {
+			if (disposed) {
+				return;
+			}
 			if (e.parseError) {
 				console.warn("Error parsing agent log: ", e.parseError);
 				return;
 			}
-
 			if (e.parsedMessage.length === 0) {
 				return;
 			}
 
 			setLogs((logs) => {
-				const newLogs = [...logs, ...e.parsedMessage];
-				newLogs.sort((l1, l2) => {
+				const nextLogs = [...logs, ...e.parsedMessage];
+				nextLogs.sort((l1, l2) => {
 					const d1 = new Date(l1.created_at).getTime();
 					const d2 = new Date(l2.created_at).getTime();
 					return d1 - d2;
 				});
-				return newLogs;
-			});
-		});
 
-		socket.addEventListener("error", (error) => {
+				// Keep the newest logs only so long-running streams do not retain an
+				// unbounded log history in memory.
+				return nextLogs.slice(-MAX_LOGS);
+			});
+		};
+
+		const cleanupSocket = () => {
+			if (disposed) {
+				return;
+			}
+
+			disposed = true;
+			socket.removeEventListener("message", handleMessage);
+			socket.removeEventListener("error", handleError);
+			socket.close();
+		};
+
+		const handleError = (error: Event) => {
+			if (disposed) {
+				return;
+			}
+
 			console.error("Error in agent log socket: ", error);
 			toast.error(`Unable to watch "${agentId}" agent logs.`, {
 				description: "Please try refreshing the browser.",
 			});
-			socket.close();
-		});
-
-		return () => {
-			socket.close();
+			cleanupSocket();
 		};
+
+		socket.addEventListener("message", handleMessage);
+		socket.addEventListener("error", handleError);
+
+		return cleanupSocket;
 	}, [agentId, enabled]);
 
 	return logs;

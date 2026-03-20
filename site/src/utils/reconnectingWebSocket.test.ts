@@ -2,26 +2,40 @@ import { createReconnectingWebSocket } from "./reconnectingWebSocket";
 
 /**
  * Minimal mock that satisfies the {@link Closable} interface used by
- * the reconnection utility. Each instance records every
- * `addEventListener` call and exposes helpers to fire those events.
+ * the reconnection utility. Each instance records lifecycle listeners
+ * and exposes helpers to inspect and fire those events.
  */
 function createMockSocket() {
-	const listeners: Record<string, Array<(...args: unknown[]) => void>> = {};
+	const listeners: Record<string, Set<(...args: unknown[]) => void>> = {};
 	const socket = {
 		addEventListener: vi.fn(
 			(event: string, handler: (...args: unknown[]) => void) => {
 				if (!listeners[event]) {
-					listeners[event] = [];
+					listeners[event] = new Set();
 				}
-				listeners[event].push(handler);
+				listeners[event].add(handler);
+			},
+		),
+		removeEventListener: vi.fn(
+			(event: string, handler: (...args: unknown[]) => void) => {
+				listeners[event]?.delete(handler);
 			},
 		),
 		close: vi.fn(),
 		/** Fire all handlers registered for the given event type. */
 		emit(event: string) {
-			for (const handler of listeners[event] ?? []) {
+			for (const handler of [...(listeners[event] ?? new Set())]) {
 				handler();
 			}
+		},
+		getListenerCount(event?: string) {
+			if (event) {
+				return listeners[event]?.size ?? 0;
+			}
+			return Object.values(listeners).reduce(
+				(total, handlers) => total + handlers.size,
+				0,
+			);
 		},
 	};
 	return socket;
@@ -195,37 +209,48 @@ describe("createReconnectingWebSocket", () => {
 		expect(connect).toHaveBeenCalledTimes(2);
 	});
 
-	it("closes previous socket when reconnecting", () => {
-		let activeSocket = createMockSocket();
+	it("does not accumulate lifecycle listeners across reconnects", () => {
 		const sockets: ReturnType<typeof createMockSocket>[] = [];
 		const connect = vi.fn(() => {
-			activeSocket = createMockSocket();
-			sockets.push(activeSocket);
-			return activeSocket;
+			const socket = createMockSocket();
+			sockets.push(socket);
+			return socket;
 		});
 
 		createReconnectingWebSocket({ connect });
 
 		const firstSocket = sockets[0];
-		firstSocket.emit("close");
-		vi.runOnlyPendingTimers();
+		expect(firstSocket.getListenerCount()).toBe(3);
 
-		// The connect function creates a new socket. The old socket
-		// was already "closed" by the browser, but on a fresh
-		// reconnection the utility closes the previous one if it's
-		// still the active reference.
-		expect(connect).toHaveBeenCalledTimes(2);
+		firstSocket.emit("close");
+		expect(firstSocket.getListenerCount()).toBe(0);
+		expect(vi.getTimerCount()).toBe(1);
+
+		vi.runOnlyPendingTimers();
+		const secondSocket = sockets[1];
+		expect(secondSocket.getListenerCount()).toBe(3);
+
+		secondSocket.emit("error");
+		expect(secondSocket.getListenerCount()).toBe(0);
+
+		vi.runOnlyPendingTimers();
+		const thirdSocket = sockets[2];
+		expect(thirdSocket.getListenerCount()).toBe(3);
+		expect(firstSocket.getListenerCount()).toBe(0);
+		expect(secondSocket.getListenerCount()).toBe(0);
 	});
 
-	it("dispose stops reconnection and closes the socket", () => {
+	it("dispose stops reconnection, detaches listeners, and closes the socket", () => {
 		const socket = createMockSocket();
 		const connect = vi.fn(() => socket);
 
 		const dispose = createReconnectingWebSocket({ connect });
+		expect(socket.getListenerCount()).toBe(3);
 
 		dispose();
 
-		expect(socket.close).toHaveBeenCalled();
+		expect(socket.close).toHaveBeenCalledTimes(1);
+		expect(socket.getListenerCount()).toBe(0);
 
 		// Simulating events after dispose should not cause errors or
 		// additional connect calls.
@@ -246,9 +271,11 @@ describe("createReconnectingWebSocket", () => {
 		// Trigger a disconnect so a timer is scheduled.
 		activeSocket.emit("close");
 		expect(connect).toHaveBeenCalledTimes(1);
+		expect(vi.getTimerCount()).toBe(1);
 
 		// Dispose before the timer fires.
 		dispose();
+		expect(vi.getTimerCount()).toBe(0);
 		vi.runAllTimers();
 
 		// No reconnection should have occurred.
@@ -269,6 +296,7 @@ describe("createReconnectingWebSocket", () => {
 		// multiple times is harmless. The important thing is that
 		// no reconnection is scheduled after the first dispose.
 		expect(connect).toHaveBeenCalledTimes(1);
+		expect(socket.close).toHaveBeenCalledTimes(1);
 	});
 
 	it("passes socket to onOpen callback", () => {

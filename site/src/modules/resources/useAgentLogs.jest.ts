@@ -8,8 +8,11 @@ import * as apiModule from "api/api";
 import type { WorkspaceAgentLog } from "api/typesGenerated";
 import { act } from "react";
 import { toast } from "sonner";
-import { OneWayWebSocket } from "utils/OneWayWebSocket";
-import { useAgentLogs } from "./useAgentLogs";
+import {
+	type OneWayMessageEvent,
+	OneWayWebSocket,
+} from "utils/OneWayWebSocket";
+import { MAX_LOGS, useAgentLogs } from "./useAgentLogs";
 
 const millisecondsInOneMinute = 60_000;
 
@@ -52,6 +55,14 @@ type MountHookResult = Readonly<{
 	hookResult: { current: readonly WorkspaceAgentLog[] };
 }>;
 
+type ManualAgentLogSocket = Readonly<{
+	socket: OneWayWebSocket<WorkspaceAgentLog[]>;
+	publishMessage: (logs: readonly WorkspaceAgentLog[]) => void;
+	publishError: (event: Event) => void;
+	getListenerCount: (eventType: "error" | "message") => number;
+	close: jest.Mock;
+}>;
+
 function mountHook(options: MountHookOptions): MountHookResult {
 	const { initialAgentId, enabled = true } = options;
 	const serverResult: ServerResult = { current: undefined };
@@ -84,6 +95,83 @@ function mountHook(options: MountHookOptions): MountHookResult {
 	return { rerender, serverResult, hookResult, toastError };
 }
 
+function createManualAgentLogSocket(): ManualAgentLogSocket {
+	const listeners = {
+		error: new Set<(event: Event) => void>(),
+		message: new Set<
+			(event: OneWayMessageEvent<readonly WorkspaceAgentLog[]>) => void
+		>(),
+	};
+	const close = jest.fn();
+
+	const socket = {
+		addEventListener: jest.fn(
+			(
+				eventType: "error" | "message",
+				callback:
+					| ((event: Event) => void)
+					| ((event: OneWayMessageEvent<readonly WorkspaceAgentLog[]>) => void),
+			) => {
+				if (eventType === "message") {
+					listeners.message.add(
+						callback as (
+							event: OneWayMessageEvent<readonly WorkspaceAgentLog[]>,
+						) => void,
+					);
+					return;
+				}
+				listeners.error.add(callback as (event: Event) => void);
+			},
+		),
+		removeEventListener: jest.fn(
+			(
+				eventType: "error" | "message",
+				callback:
+					| ((event: Event) => void)
+					| ((event: OneWayMessageEvent<readonly WorkspaceAgentLog[]>) => void),
+			) => {
+				if (eventType === "message") {
+					listeners.message.delete(
+						callback as (
+							event: OneWayMessageEvent<readonly WorkspaceAgentLog[]>,
+						) => void,
+					);
+					return;
+				}
+				listeners.error.delete(callback as (event: Event) => void);
+			},
+		),
+		close,
+	} as unknown as OneWayWebSocket<WorkspaceAgentLog[]>;
+
+	return {
+		socket,
+		publishMessage: (logs) => {
+			const event: OneWayMessageEvent<readonly WorkspaceAgentLog[]> = {
+				sourceEvent: new MessageEvent("message", {
+					data: JSON.stringify(logs),
+				}),
+				parseError: undefined,
+				parsedMessage: logs,
+			};
+			for (const listener of [...listeners.message]) {
+				listener(event);
+			}
+		},
+		publishError: (event) => {
+			for (const listener of [...listeners.error]) {
+				listener(event);
+			}
+		},
+		getListenerCount: (eventType) => listeners[eventType].size,
+		close,
+	};
+}
+
+afterEach(() => {
+	jest.restoreAllMocks();
+});
+
 describe("useAgentLogs", () => {
 	it("Automatically sorts logs that are received out of order", async () => {
 		const { hookResult, serverResult } = mountHook({
@@ -101,6 +189,23 @@ describe("useAgentLogs", () => {
 			});
 		}
 		await waitFor(() => expect(hookResult.current).toEqual(logs));
+	});
+
+	it("retains only the newest bounded number of logs", async () => {
+		const { hookResult, serverResult } = mountHook({
+			initialAgentId: MockWorkspaceAgent.id,
+		});
+
+		const logs = generateMockLogs(MAX_LOGS + 25, new Date("April 9, 2001"));
+		const retainedLogs = logs.slice(-MAX_LOGS);
+
+		await act(async () => {
+			serverResult.current?.publishMessage(
+				new MessageEvent("message", { data: JSON.stringify(logs) }),
+			);
+		});
+
+		await waitFor(() => expect(hookResult.current).toEqual(retainedLogs));
 	});
 
 	it("Never creates a connection if hook is disabled on mount", () => {
@@ -122,6 +227,41 @@ describe("useAgentLogs", () => {
 		await waitFor(() => {
 			expect(serverResult.current?.isConnectionOpen).toBe(false);
 		});
+	});
+
+	it("Stops processing log updates after cleanup runs", async () => {
+		const manualSocket = createManualAgentLogSocket();
+		jest
+			.spyOn(apiModule, "watchWorkspaceAgentLogs")
+			.mockReturnValue(manualSocket.socket);
+
+		const { result, rerender } = renderHook(
+			(props: { agentId: string; enabled: boolean }) => useAgentLogs(props),
+			{
+				initialProps: {
+					agentId: MockWorkspaceAgent.id,
+					enabled: true,
+				},
+			},
+		);
+
+		const initialLogs = generateMockLogs(2, new Date("June 1, 2002"));
+		await act(async () => {
+			manualSocket.publishMessage(initialLogs);
+		});
+		await waitFor(() => expect(result.current).toEqual(initialLogs));
+
+		rerender({ agentId: MockWorkspaceAgent.id, enabled: false });
+		await waitFor(() => expect(result.current).toHaveLength(0));
+		expect(manualSocket.close).toHaveBeenCalledTimes(1);
+		expect(manualSocket.getListenerCount("message")).toBe(0);
+		expect(manualSocket.getListenerCount("error")).toBe(0);
+
+		const lateLogs = generateMockLogs(1, new Date("June 2, 2002"));
+		await act(async () => {
+			manualSocket.publishMessage(lateLogs);
+		});
+		expect(result.current).toEqual([]);
 	});
 
 	it("Automatically closes the old connection when the agent ID changes", () => {
