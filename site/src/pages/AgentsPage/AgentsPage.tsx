@@ -55,6 +55,29 @@ const nilUUID = "00000000-0000-0000-0000-000000000000";
 const EMPTY_MODEL_CONFIGS: TypesGen.ChatModelConfig[] = [];
 
 // Type guard for SSE events from the chat list watch endpoint.
+// Shallow-compare two ChatDiffStatus objects by their meaningful
+// fields, ignoring refreshed_at/stale_at which change on every poll.
+function diffStatusEqual(
+	a: TypesGen.ChatDiffStatus | undefined,
+	b: TypesGen.ChatDiffStatus | undefined,
+): boolean {
+	if (a === b) return true;
+	if (!a || !b) return false;
+	return (
+		a.url === b.url &&
+		a.pull_request_state === b.pull_request_state &&
+		a.pull_request_title === b.pull_request_title &&
+		a.pull_request_draft === b.pull_request_draft &&
+		a.changes_requested === b.changes_requested &&
+		a.additions === b.additions &&
+		a.deletions === b.deletions &&
+		a.changed_files === b.changed_files &&
+		a.pr_number === b.pr_number &&
+		a.approved === b.approved &&
+		a.commits === b.commits
+	);
+}
+
 function isChatListSSEEvent(
 	data: unknown,
 ): data is { kind: string; chat: TypesGen.Chat } {
@@ -437,7 +460,7 @@ const AgentsPage: FC = () => {
 							if (
 								nextStatus === c.status &&
 								nextTitle === c.title &&
-								nextDiffStatus === c.diff_status &&
+								diffStatusEqual(nextDiffStatus, c.diff_status) &&
 								nextWorkspaceId === c.workspace_id
 							) {
 								return c;
@@ -478,7 +501,7 @@ const AgentsPage: FC = () => {
 									if (
 										nextStatus === previousChat.status &&
 										nextTitle === previousChat.title &&
-										nextDiffStatus === previousChat.diff_status &&
+										diffStatusEqual(nextDiffStatus, previousChat.diff_status) &&
 										nextWorkspaceId === previousChat.workspace_id
 									) {
 										return previousChat;
