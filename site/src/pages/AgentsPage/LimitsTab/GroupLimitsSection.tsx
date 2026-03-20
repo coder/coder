@@ -135,7 +135,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 												onClick={() =>
 													void onDeleteGroupOverride(override.group_id)
 												}
-												disabled={deletePending}
+												disabled={deletePending || upsertPending}
 											>
 												Delete
 											</Button>

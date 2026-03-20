@@ -120,7 +120,7 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 												size="sm"
 												type="button"
 												onClick={() => void onDeleteOverride(override.user_id)}
-												disabled={deletePending}
+												disabled={deletePending || upsertPending}
 											>
 												Delete
 											</Button>
