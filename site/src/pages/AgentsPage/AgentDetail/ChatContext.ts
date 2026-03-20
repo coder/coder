@@ -472,6 +472,17 @@ export const useChatStore = (
 				: undefined;
 	});
 
+	// Keep error-reason callbacks in refs so the WebSocket effect
+	// can call them without including them in its dependency array.
+	// This prevents the socket from tearing down when the parent
+	// re-renders with new callback identities.
+	const setChatErrorReasonRef = useRef(setChatErrorReason);
+	const clearChatErrorReasonRef = useRef(clearChatErrorReason);
+	useEffect(() => {
+		setChatErrorReasonRef.current = setChatErrorReason;
+		clearChatErrorReasonRef.current = clearChatErrorReason;
+	}, [setChatErrorReason, clearChatErrorReason]);
+
 	// True once the initial REST page has resolved for the current
 	// chat. The WebSocket effect gates on this so that
 	// lastMessageIdRef is populated before the socket opens;
@@ -762,9 +773,8 @@ export const useChatStore = (
 						if (nextStatus === "running") {
 							store.clearRetryState();
 						}
-						if (nextStatus !== "error") {
-							clearChatErrorReason(chatID);
-						}
+							if (nextStatus !== "error") {
+								clearChatErrorReasonRef.current(chatID);						}
 						updateSidebarChat((chat) =>
 							chat.status === nextStatus
 								? chat
@@ -781,7 +791,7 @@ export const useChatStore = (
 						store.setChatStatus("error");
 						store.setStreamError(reason);
 						store.clearRetryState();
-						setChatErrorReason(chatID, {
+						setChatErrorReasonRef.current(chatID, {
 							kind: "generic",
 							message: reason,
 						});
@@ -850,15 +860,12 @@ export const useChatStore = (
 			cancelScheduledStreamReset();
 			activeChatIDRef.current = null;
 		};
-	}, [
-		chatID,
-		clearChatErrorReason,
-		initialDataLoaded,
-		setChatErrorReason,
-		queryClient,
-		store,
-	]);
-
+		}, [
+			chatID,
+			initialDataLoaded,
+			queryClient,
+			store,
+		]);
 	return {
 		store,
 		clearStreamError: () => {
