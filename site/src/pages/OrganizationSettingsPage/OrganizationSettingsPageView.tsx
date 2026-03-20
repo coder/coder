@@ -301,7 +301,7 @@ export const OrganizationSettingsPageView: FC<
 			<DisableWorkspaceSharingDialog
 				isOpen={pendingSharingChange !== null}
 				organizationId={organization.id}
-				targetValue={pendingSharingChange ?? "none"}
+				newSetting={pendingSharingChange ?? "none"}
 				onConfirm={async () => {
 					if (pendingSharingChange !== null) {
 						await onChangeShareableOwners(pendingSharingChange);

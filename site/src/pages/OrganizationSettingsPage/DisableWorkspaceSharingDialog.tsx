@@ -17,8 +17,7 @@ import { useQuery } from "react-query";
 interface DisableWorkspaceSharingDialogProps {
 	isOpen: boolean;
 	organizationId: string;
-	/** The sharing level being transitioned to. */
-	targetValue: ShareableWorkspaceOwners;
+	newSetting: ShareableWorkspaceOwners;
 	onConfirm: () => void;
 	onCancel: () => void;
 	isLoading?: boolean;
@@ -29,7 +28,7 @@ export const DisableWorkspaceSharingDialog: FC<
 > = ({
 	isOpen,
 	organizationId,
-	targetValue,
+	newSetting: targetValue,
 	onConfirm,
 	onCancel,
 	isLoading,
