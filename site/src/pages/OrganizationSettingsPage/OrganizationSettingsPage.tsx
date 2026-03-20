@@ -16,6 +16,12 @@ import { toast } from "sonner";
 import { pageTitle } from "utils/page";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
+const sharingUpdatedToastLabels: Record<ShareableWorkspaceOwners, string> = {
+	none: "Workspace sharing disabled.",
+	service_accounts: "Workspace sharing restricted to service accounts.",
+	everyone: "Workspace sharing enabled for all users.",
+};
+
 const OrganizationSettingsPage: FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
@@ -65,14 +71,10 @@ const OrganizationSettingsPage: FC = () => {
 		const mutation = patchSharingSettingsMutation.mutateAsync({
 			shareable_workspace_owners: value,
 		});
-		const labels: Record<ShareableWorkspaceOwners, string> = {
-			none: "Workspace sharing disabled.",
-			service_accounts: "Workspace sharing restricted to service accounts.",
-			everyone: "Workspace sharing enabled for all users.",
-		};
+
 		toast.promise(mutation, {
 			loading: "Updating workspace sharing settings...",
-			success: labels[value],
+			success: sharingUpdatedToastLabels[value],
 			error: (error) => ({
 				message: "Failed to update workspace sharing settings.",
 				description: getErrorDetail(error),

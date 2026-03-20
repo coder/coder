@@ -49,26 +49,24 @@ export const DisableWorkspaceSharingDialog: FC<
 
 	const sharedCount = sharedWorkspacesQuery.data ?? 0;
 	const isLoadingCount = sharedWorkspacesQuery.isLoading;
-
 	const isRestrictingToServiceAccounts = targetValue === "service_accounts";
-	const title = isRestrictingToServiceAccounts
-		? "Restrict sharing to service accounts"
-		: "Disable workspace sharing";
-	const description = isRestrictingToServiceAccounts
-		? "Restricting workspace sharing to service accounts only will immediately unshare any workspaces currently shared by non-service accounts."
-		: "Disabling workspace sharing will immediately remove all existing workspace sharing permissions for all users in this organization.";
-	const confirmLabel = isRestrictingToServiceAccounts
-		? "Restrict sharing"
-		: "Disable sharing";
 
 	return (
 		<Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
 			<DialogContent variant="destructive" className="max-w-xl">
 				<DialogHeader>
-					<DialogTitle>{title}</DialogTitle>
+					<DialogTitle>
+						{isRestrictingToServiceAccounts
+							? "Restrict sharing to service accounts"
+							: "Disable workspace sharing"}
+					</DialogTitle>
 					<DialogDescription asChild>
 						<div className="flex flex-col gap-4">
-							<p>{description}</p>
+							<p>
+								{isRestrictingToServiceAccounts
+									? "Restricting workspace sharing to service accounts only will immediately unshare any workspaces currently shared by non-service accounts."
+									: "Disabling workspace sharing will immediately remove all existing workspace sharing permissions for all users in this organization."}
+							</p>
 							{isLoadingCount ? (
 								<Skeleton className="h-6 w-4/5" />
 							) : sharedCount > 0 ? (
@@ -102,7 +100,9 @@ export const DisableWorkspaceSharingDialog: FC<
 						disabled={isLoading}
 					>
 						<Spinner loading={isLoading} />
-						{confirmLabel}
+						{isRestrictingToServiceAccounts
+							? "Restrict sharing"
+							: "Disable sharing"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

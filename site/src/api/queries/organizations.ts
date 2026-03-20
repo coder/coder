@@ -274,13 +274,8 @@ export const patchWorkspaceSharingSettings = (
 	queryClient: QueryClient,
 ) => {
 	return {
-		mutationFn: (request: {
-			shareable_workspace_owners: ShareableWorkspaceOwners;
-		}) =>
-			API.patchWorkspaceSharingSettings(
-				organization,
-				request as UpdateWorkspaceSharingSettingsRequest,
-			),
+		mutationFn: (request: UpdateWorkspaceSharingSettingsRequest) =>
+			API.patchWorkspaceSharingSettings(organization, request),
 		onSuccess: async () =>
 			await queryClient.invalidateQueries({
 				queryKey: getWorkspaceSharingSettingsKey(organization),

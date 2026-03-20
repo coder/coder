@@ -7186,7 +7186,7 @@ export interface UpdateWorkspaceSharingSettingsRequest {
 	 * purposes.
 	 * Deprecated: use `ShareableWorkspaceOwners` instead
 	 */
-	readonly sharing_disabled: boolean;
+	readonly sharing_disabled?: boolean;
 	/**
 	 * ShareableWorkspaceOwners controls whose workspaces can be shared
 	 * within the organization.

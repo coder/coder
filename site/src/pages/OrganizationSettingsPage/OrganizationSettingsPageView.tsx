@@ -209,8 +209,9 @@ export const OrganizationSettingsPageView: FC<
 												value={shareableWorkspaceOwners}
 												onValueChange={(value) => {
 													const newValue = value as ShareableWorkspaceOwners;
-													// Transitioning from "everyone" to
-													// "service_accounts" is destructive.
+													// Transitioning from "everyone" to "service_accounts"
+													// is destructive, so show the warning dialog.
+													// Otherwise, just change.
 													if (
 														shareableWorkspaceOwners === "everyone" &&
 														newValue === "service_accounts"
