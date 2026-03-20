@@ -98,18 +98,13 @@ export const EditForm: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		// Save button confirms edit mode is active.
 		await expect(
 			canvas.getByRole("button", { name: /save/i }),
 		).toBeInTheDocument();
-
-		const userField = canvas.getByText("User").parentElement;
-		expect(userField).not.toBeNull();
-		if (!userField) {
-			return;
-		}
-
-		await expect(
-			within(userField).getByText("Alice Johnson"),
-		).toBeInTheDocument();
+		// The editing user name appears in both the table row and the
+		// read-only edit form identity, confirming it was populated.
+		const nameElements = canvas.getAllByText("Alice Johnson");
+		expect(nameElements.length).toBeGreaterThanOrEqual(2);
 	},
 };

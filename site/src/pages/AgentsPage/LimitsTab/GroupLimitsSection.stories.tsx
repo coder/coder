@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { Group } from "api/typesGenerated";
-import { expect, fn, screen, within } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import { GroupLimitsSection } from "./GroupLimitsSection";
 
 const mockGroupOverrides = [
@@ -119,12 +119,15 @@ export const EditForm: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-
+		// Save button confirms edit mode is active.
 		await expect(
-			screen.getByRole("button", { name: /save/i }),
+			canvas.getByRole("button", { name: /save/i }),
 		).toBeInTheDocument();
-		await expect(
-			canvas.getByText(editingGroupOverride.group_display_name),
-		).toBeInTheDocument();
+		// The editing group name appears in both the table row and the
+		// read-only edit form identity, confirming it was populated.
+		const nameElements = canvas.getAllByText(
+			editingGroupOverride.group_display_name,
+		);
+		expect(nameElements.length).toBeGreaterThanOrEqual(2);
 	},
 };
