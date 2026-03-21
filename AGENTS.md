@@ -301,9 +301,11 @@ If your agent tool does not auto-load `@`-referenced files, read these
 manually before starting work:
 
 **Always read:**
+
 - `.claude/docs/WORKFLOWS.md` — dev server, git workflow, hooks
 
 **Read when relevant to your task:**
+
 - `.claude/docs/GO.md` — Go patterns and modern Go usage (any Go changes)
 - `.claude/docs/TESTING.md` — testing patterns, race conditions (any test changes)
 - `.claude/docs/DATABASE.md` — migrations, SQLC, audit table (any DB changes)
