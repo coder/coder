@@ -74,7 +74,6 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "merge_strategy": "replace",
             "name": "ENV_1",
             "value": "Env 1"
           },
@@ -88,7 +87,6 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "merge_strategy": "replace",
             "name": "ENV_2",
             "value": "Env 2"
           },
@@ -102,7 +100,6 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "merge_strategy": "replace",
             "name": "ENV_3",
             "value": "Env 3"
           },
@@ -238,7 +235,6 @@
         ],
         "before": null,
         "after": {
-          "merge_strategy": "replace",
           "name": "ENV_1",
           "value": "Env 1"
         },
@@ -262,7 +258,6 @@
         ],
         "before": null,
         "after": {
-          "merge_strategy": "replace",
           "name": "ENV_2",
           "value": "Env 2"
         },
@@ -286,7 +281,6 @@
         ],
         "before": null,
         "after": {
-          "merge_strategy": "replace",
           "name": "ENV_3",
           "value": "Env 3"
         },
