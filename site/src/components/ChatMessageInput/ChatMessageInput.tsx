@@ -112,22 +112,51 @@ const PasteSanitizationPlugin: FC<{
 					const dataTransfer = getPasteDataTransfer(event);
 					const isPlainTextPaste = plainTextPasteRef.current;
 
-					// For beforeinput-based paste (InputEvent from
-					// Cmd+Shift+V or Cmd+V), let Lexical handle
-					// insertion unless it's a large paste via normal
-					// Cmd+V that should become an attachment.
+					// Some browsers deliver paste as beforeinput with
+					// payload on `event.data` / `dataTransfer` instead of
+					// a native ClipboardEvent. Consume that payload here so
+					// plain-text paste shortcuts never become a no-op.
 					if (!isNativePaste) {
-						if (!isPlainTextPaste && onFilePaste) {
-							const text = getPastedPlainText(event, dataTransfer);
-							if (text && isLargePaste(text)) {
-								event.preventDefault();
-								onFilePaste(createPasteFile(text));
-								return true;
-							}
+						const text = getPastedPlainText(event, dataTransfer);
+						if (!text) {
+							return false;
 						}
-						return false;
+						if (!isPlainTextPaste && onFilePaste && isLargePaste(text)) {
+							event.preventDefault();
+							onFilePaste(createPasteFile(text));
+							return true;
+						}
+						plainTextPasteRef.current = false;
+						event.preventDefault();
+						editor.update(() => {
+							const selection = $getSelection();
+							if ($isRangeSelection(selection)) {
+								selection.insertText(text);
+								return;
+							}
+							const root = $getRoot();
+							const lastChild = root.getLastChild();
+							if (lastChild) {
+								if (lastChild.getType() === "paragraph") {
+									const paragraph = lastChild as ParagraphNode;
+									const textNode = $createTextNode(text);
+									paragraph.append(textNode);
+									textNode.selectEnd();
+								} else {
+									const textNode = $createTextNode(text);
+									lastChild.insertAfter(textNode);
+									textNode.selectEnd();
+								}
+							} else {
+								const paragraph = $createParagraphNode();
+								const textNode = $createTextNode(text);
+								paragraph.append(textNode);
+								root.append(paragraph);
+								textNode.selectEnd();
+							}
+						});
+						return true;
 					}
-
 					// Native paste event (ClipboardEvent).
 
 					// Check for image files in the clipboard (e.g.

@@ -271,7 +271,7 @@ export const AttachmentPreview: FC<{
 	onPreview?: (url: string) => void;
 	textContents?: Map<File, string>;
 	onTextPreview?: (content: string, fileName: string) => void;
-	onInlineText?: (index: number) => void;
+	onInlineText?: (index: number, content?: string) => void;
 }> = ({
 	attachments,
 	onRemove,
@@ -290,6 +290,11 @@ export const AttachmentPreview: FC<{
 				const uploadState = uploadStates?.get(file);
 				const previewUrl = previewUrls?.get(file) ?? "";
 				const textContent = textContents?.get(file);
+				const textFileId =
+					uploadState?.status === "uploaded" ? uploadState.fileId : undefined;
+				const hasTextAttachment =
+					file.type === "text/plain" &&
+					(textContent !== undefined || textFileId !== undefined);
 				return (
 					<div
 						// Key combines file metadata with index as a fallback for
@@ -305,14 +310,28 @@ export const AttachmentPreview: FC<{
 							>
 								<ImageThumbnail previewUrl={previewUrl} name={file.name} />
 							</button>
-						) : file.type === "text/plain" && textContent !== undefined ? (
+						) : hasTextAttachment ? (
 							<button
 								type="button"
 								className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary"
-								onClick={() => onTextPreview?.(textContent, file.name)}
+								onClick={async () => {
+									let nextContent = textContent;
+									if (nextContent === undefined && textFileId) {
+										const response = await fetch(
+											`/api/experimental/chats/files/${textFileId}`,
+										);
+										if (!response.ok) {
+											return;
+										}
+										nextContent = await response.text();
+									}
+									if (nextContent !== undefined) {
+										onTextPreview?.(nextContent, file.name);
+									}
+								}}
 							>
 								<span className="line-clamp-3 w-full font-mono text-2xs text-content-secondary">
-									{textContent.slice(0, 150)}
+									{(textContent ?? "Pasted text").slice(0, 150)}
 								</span>
 							</button>
 						) : (
@@ -320,10 +339,22 @@ export const AttachmentPreview: FC<{
 								{file.name.split(".").pop()?.toUpperCase() || "FILE"}
 							</div>
 						)}
-						{file.type === "text/plain" && textContent !== undefined && (
+						{hasTextAttachment && (
 							<button
 								type="button"
-								onClick={() => onInlineText?.(index)}
+								onClick={async () => {
+									let nextContent = textContent;
+									if (nextContent === undefined && textFileId) {
+										const response = await fetch(
+											`/api/experimental/chats/files/${textFileId}`,
+										);
+										if (!response.ok) {
+											return;
+										}
+										nextContent = await response.text();
+									}
+									onInlineText?.(index, nextContent);
+								}}
 								className="absolute -bottom-2 -right-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
 								aria-label="Paste inline"
 								tabIndex={-1}
@@ -449,10 +480,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		onAttach?.([file]);
 	};
 
-	const handleInlineText = (index: number) => {
+	const handleInlineText = (index: number, nextContent?: string) => {
 		const file = attachments[index];
 		if (!file) return;
-		const content = textContents?.get(file);
+		const content = nextContent ?? textContents?.get(file);
 		if (content === undefined) return;
 		internalRef.current?.insertText(content);
 		onRemoveAttachment?.(index);
