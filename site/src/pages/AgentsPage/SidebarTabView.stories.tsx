@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
-import { mockAttach, mockDesktopConnection } from "./desktopStoryUtils";
 import type { SidebarTab } from "./SidebarTabView";
 import { SidebarTabView } from "./SidebarTabView";
 
@@ -107,32 +106,4 @@ export const NarrowPanel: Story = {
 			</div>
 		),
 	],
-};
-
-export const DesktopConnecting: Story = {
-	args: {
-		tabs: [],
-		desktopChatId: "test-chat-id",
-		desktopConnectionOverride: mockDesktopConnection({ status: "connecting" }),
-	},
-};
-
-export const DesktopConnected: Story = {
-	args: {
-		tabs: [],
-		desktopChatId: "test-chat-id",
-		desktopConnectionOverride: mockDesktopConnection({
-			status: "connected",
-			hasConnected: true,
-			attach: mockAttach(),
-		}),
-	},
-};
-
-export const DesktopError: Story = {
-	args: {
-		tabs: [],
-		desktopChatId: "test-chat-id",
-		desktopConnectionOverride: mockDesktopConnection({ status: "error" }),
-	},
 };
