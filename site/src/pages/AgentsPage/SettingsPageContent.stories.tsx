@@ -59,7 +59,6 @@ const mockUserProfile: TypesGen.User = {
 	roles: [],
 	last_seen_at: "2026-03-11T10:00:00Z",
 	login_type: "password",
-	has_ai_seat: false,
 };
 
 const mockCostSummary: TypesGen.ChatCostSummary = {

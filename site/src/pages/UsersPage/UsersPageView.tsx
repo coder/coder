@@ -17,7 +17,7 @@ import { UsersFilter } from "./UsersFilter";
 import { UsersTable } from "./UsersTable/UsersTable";
 
 interface UsersPageViewProps {
-	users?: readonly TypesGen.User[];
+	users?: readonly TypesGen.UserWithAISeat[];
 	roles?: TypesGen.AssignableRoles[];
 	isUpdatingUserRoles?: boolean;
 	canEditUsers: boolean;

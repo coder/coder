@@ -40,7 +40,7 @@ import { UserGroupsCell } from "./UserGroupsCell";
 dayjs.extend(relativeTime);
 
 interface UsersTableBodyProps {
-	users: readonly TypesGen.User[] | undefined;
+	users: readonly TypesGen.UserWithAISeat[] | undefined;
 	groupsByUserId: GroupsByUserId | undefined;
 	authMethods?: TypesGen.AuthMethods;
 	roles?: TypesGen.AssignableRoles[];

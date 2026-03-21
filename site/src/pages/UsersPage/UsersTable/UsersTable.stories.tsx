@@ -31,7 +31,10 @@ type Story = StoryObj<typeof UsersTable>;
 
 export const Example: Story = {
 	args: {
-		users: [MockUserOwner, MockUserMember],
+		users: [
+			{ ...MockUserOwner, has_ai_seat: false },
+			{ ...MockUserMember, has_ai_seat: false },
+		],
 		roles: MockAssignableSiteRoles,
 		canEditUsers: false,
 		groupsByUserId: mockGroupsByUserId,
@@ -40,7 +43,10 @@ export const Example: Story = {
 
 export const ExampleWithAISeatColumn: Story = {
 	args: {
-		users: [MockUserOwner, MockUserMember],
+		users: [
+			{ ...MockUserOwner, has_ai_seat: false },
+			{ ...MockUserMember, has_ai_seat: false },
+		],
 		roles: MockAssignableSiteRoles,
 		canEditUsers: false,
 		groupsByUserId: mockGroupsByUserId,
@@ -51,8 +57,8 @@ export const ExampleWithAISeatColumn: Story = {
 export const Editable: Story = {
 	args: {
 		users: [
-			MockUserOwner,
-			MockUserMember,
+			{ ...MockUserOwner, has_ai_seat: false },
+			{ ...MockUserMember, has_ai_seat: false },
 			{
 				...MockUserOwner,
 				username: "John Doe",
@@ -64,6 +70,7 @@ export const Editable: Story = {
 					MockAuditorRole,
 				],
 				status: "dormant",
+				has_ai_seat: false,
 			},
 			{
 				...MockUserOwner,
@@ -71,6 +78,7 @@ export const Editable: Story = {
 				email: "roger.moore@coder.com",
 				roles: [],
 				status: "suspended",
+				has_ai_seat: false,
 			},
 			{
 				...MockUserOwner,
@@ -79,6 +87,7 @@ export const Editable: Story = {
 				roles: [],
 				status: "active",
 				login_type: "oidc",
+				has_ai_seat: false,
 			},
 		],
 		roles: MockAssignableSiteRoles,
@@ -91,8 +100,8 @@ export const Editable: Story = {
 export const EditableWithAISeatColumn: Story = {
 	args: {
 		users: [
-			MockUserOwner,
-			MockUserMember,
+			{ ...MockUserOwner, has_ai_seat: false },
+			{ ...MockUserMember, has_ai_seat: false },
 			{
 				...MockUserOwner,
 				username: "John Doe",
@@ -104,6 +113,7 @@ export const EditableWithAISeatColumn: Story = {
 					MockAuditorRole,
 				],
 				status: "dormant",
+				has_ai_seat: false,
 			},
 			{
 				...MockUserOwner,
@@ -111,6 +121,7 @@ export const EditableWithAISeatColumn: Story = {
 				email: "roger.moore@coder.com",
 				roles: [],
 				status: "suspended",
+				has_ai_seat: false,
 			},
 			{
 				...MockUserOwner,
@@ -119,6 +130,7 @@ export const EditableWithAISeatColumn: Story = {
 				roles: [],
 				status: "active",
 				login_type: "oidc",
+				has_ai_seat: false,
 			},
 		],
 		roles: MockAssignableSiteRoles,

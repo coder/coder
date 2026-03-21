@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"slices"
@@ -2039,9 +2040,78 @@ func TestUsersFilter(t *testing.T) {
 				}
 			}
 
-			require.ElementsMatch(t, exp, matched.Users, "expected users returned")
+			require.ElementsMatch(t, exp, usersWithAISeatToUsers(matched.Users), "expected users returned")
 		})
 	}
+}
+
+func TestUserHasAISeatFieldExposure(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := coderdtest.New(t, nil)
+	first := coderdtest.CreateFirstUser(t, client)
+	_, member := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+	assertNoAISeatField := func(t *testing.T, res *http.Response, wantStatusCode int) {
+		t.Helper()
+		defer res.Body.Close()
+
+		require.Equal(t, wantStatusCode, res.StatusCode)
+
+		var body map[string]any
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+		_, hasAISeat := body["has_ai_seat"]
+		require.False(t, hasAISeat)
+	}
+
+	res, err := client.Request(ctx, http.MethodGet, "/api/v2/users", nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+
+	require.Equal(t, http.StatusOK, res.StatusCode)
+
+	var listBody struct {
+		Users []map[string]any `json:"users"`
+	}
+	require.NoError(t, json.NewDecoder(res.Body).Decode(&listBody))
+	require.NotEmpty(t, listBody.Users)
+
+	for _, user := range listBody.Users {
+		_, hasAISeat := user["has_ai_seat"]
+		require.True(t, hasAISeat)
+	}
+
+	res, err = client.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s", first.UserID), nil)
+	require.NoError(t, err)
+	assertNoAISeatField(t, res, http.StatusOK)
+
+	res, err = client.Request(ctx, http.MethodGet, "/api/v2/users/me", nil)
+	require.NoError(t, err)
+	assertNoAISeatField(t, res, http.StatusOK)
+
+	res, err = client.Request(ctx, http.MethodPost, "/api/v2/users", codersdk.CreateUserRequestWithOrgs{
+		Email:           "seat-check-create@coder.com",
+		Username:        "seat-check-create",
+		Password:        "MySecurePassword!",
+		OrganizationIDs: []uuid.UUID{first.OrganizationID},
+	})
+	require.NoError(t, err)
+	assertNoAISeatField(t, res, http.StatusCreated)
+
+	me, err := client.User(ctx, codersdk.Me)
+	require.NoError(t, err)
+
+	res, err = client.Request(ctx, http.MethodPut, "/api/v2/users/me/profile", codersdk.UpdateUserProfileRequest{
+		Username: me.Username,
+		Name:     me.Name,
+	})
+	require.NoError(t, err)
+	assertNoAISeatField(t, res, http.StatusOK)
+
+	res, err = client.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/status/suspend", member.ID), nil)
+	require.NoError(t, err)
+	assertNoAISeatField(t, res, http.StatusOK)
 }
 
 func TestGetUsers(t *testing.T) {
@@ -2108,7 +2178,7 @@ func TestGetUsers(t *testing.T) {
 			Status: codersdk.UserStatusActive,
 		})
 		require.NoError(t, err)
-		require.ElementsMatch(t, active, res.Users)
+		require.ElementsMatch(t, active, usersWithAISeatToUsers(res.Users))
 	})
 	t.Run("GithubComUserID", func(t *testing.T) {
 		t.Parallel()
@@ -2189,7 +2259,7 @@ func TestGetUsers(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Users, 2)
-		require.ElementsMatch(t, filtered, res.Users)
+		require.ElementsMatch(t, filtered, usersWithAISeatToUsers(res.Users))
 	})
 
 	t.Run("DormantUserWithLoginTypeNone", func(t *testing.T) {
@@ -2714,7 +2784,7 @@ func TestSuspendedPagination(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, expected, page.Users, "expected page")
+	require.Equal(t, expected, usersWithAISeatToUsers(page.Users), "expected page")
 }
 
 func TestUserAutofillParameters(t *testing.T) {
@@ -3006,6 +3076,12 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 	}
 }
 
+func usersWithAISeatToUsers(users []codersdk.UserWithAISeat) []codersdk.User {
+	return slice.List(users, func(user codersdk.UserWithAISeat) codersdk.User {
+		return user.User
+	})
+}
+
 // sortUsers sorts by (created_at, id)
 func sortUsers(users []codersdk.User) {
 	slices.SortFunc(users, func(a, b codersdk.User) int {
@@ -3019,11 +3095,13 @@ func sortDatabaseUsers(users []database.User) {
 	})
 }
 
-func onlyUsernames[U codersdk.User | database.User](users []U) []string {
+func onlyUsernames[U codersdk.User | codersdk.UserWithAISeat | database.User](users []U) []string {
 	var out []string
 	for _, u := range users {
 		switch u := (any(u)).(type) {
 		case codersdk.User:
+			out = append(out, u.Username)
+		case codersdk.UserWithAISeat:
 			out = append(out, u.Username)
 		case database.User:
 			out = append(out, u.Username)

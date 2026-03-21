@@ -1,4 +1,4 @@
-import type { LoginType, User, UserStatus } from "api/typesGenerated";
+import type { LoginType, UserStatus, UserWithAISeat } from "api/typesGenerated";
 
 // The following username, name, and email are generated using ChatGPT to avoid
 // exposing real user data in mock values. While libraries like faker.js could
@@ -115,7 +115,7 @@ const fakeUserData = [
 // These values were retrieved from the Coder API. Sensitive information such as
 // usernames, names, and emails has been replaced with fake user data to protect
 // privacy.
-export const MockUsers: User[] = [
+export const MockUsers: UserWithAISeat[] = [
 	{
 		id: "a73425d1-53a7-43d3-b6ae-cae9ba59b92b",
 		created_at: "2022-08-10T16:57:11.04414Z",

@@ -2126,7 +2126,7 @@ func getScaletestUsers(ctx context.Context, client *codersdk.Client) ([]codersdk
 		pageUsers := make([]codersdk.User, 0, len(page.Users))
 		for _, u := range page.Users {
 			if loadtestutil.IsScaleTestUser(u.Username, u.Email) {
-				pageUsers = append(pageUsers, u)
+				pageUsers = append(pageUsers, u.User)
 			}
 		}
 		users = append(users, pageUsers...)

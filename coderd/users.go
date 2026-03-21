@@ -1717,13 +1717,15 @@ func findUserAdmins(ctx context.Context, store database.Store) ([]database.GetUs
 	return userAdmins, nil
 }
 
-func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID, aiSeatSet map[uuid.UUID]struct{}) []codersdk.User {
-	converted := make([]codersdk.User, 0, len(users))
+func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID, aiSeatSet map[uuid.UUID]struct{}) []codersdk.UserWithAISeat {
+	converted := make([]codersdk.UserWithAISeat, 0, len(users))
 	for _, u := range users {
 		userOrganizationIDs := organizationIDsByUserID[u.ID]
-		convertedUser := db2sdk.User(u, userOrganizationIDs)
-		_, convertedUser.HasAISeat = aiSeatSet[u.ID]
-		converted = append(converted, convertedUser)
+		_, hasAISeat := aiSeatSet[u.ID]
+		converted = append(converted, codersdk.UserWithAISeat{
+			User:      db2sdk.User(u, userOrganizationIDs),
+			HasAISeat: hasAISeat,
+		})
 	}
 	return converted
 }

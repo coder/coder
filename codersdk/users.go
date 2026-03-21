@@ -71,12 +71,17 @@ type User struct {
 
 	OrganizationIDs []uuid.UUID `json:"organization_ids" format:"uuid"`
 	Roles           []SlimRole  `json:"roles"`
-	HasAISeat       bool        `json:"has_ai_seat"`
+}
+
+// UserWithAISeat is a user returned by list endpoints with AI seat metadata.
+type UserWithAISeat struct {
+	User      `table:"u,recursive_inline"`
+	HasAISeat bool `json:"has_ai_seat"`
 }
 
 type GetUsersResponse struct {
-	Users []User `json:"users"`
-	Count int    `json:"count"`
+	Users []UserWithAISeat `json:"users"`
+	Count int              `json:"count"`
 }
 
 // @typescript-ignore LicensorTrialRequest

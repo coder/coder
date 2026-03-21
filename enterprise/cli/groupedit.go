@@ -125,7 +125,7 @@ func (r *RootCmd) groupEdit() *serpent.Command {
 
 // convertToUserIDs accepts a list of users in the form of IDs or email addresses
 // and translates any emails to the matching user ID.
-func convertToUserIDs(userList []string, users []codersdk.User) ([]string, error) {
+func convertToUserIDs(userList []string, users []codersdk.UserWithAISeat) ([]string, error) {
 	converted := make([]string, 0, len(userList))
 
 	for _, user := range userList {

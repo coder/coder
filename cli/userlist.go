@@ -15,7 +15,7 @@ import (
 
 func (r *RootCmd) userList() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]codersdk.User{}, []string{"username", "email", "created at", "status"}),
+		cliui.TableFormat([]codersdk.UserWithAISeat{}, []string{"username", "email", "created at", "status"}),
 		cliui.JSONFormat(),
 	)
 	var githubUserID int64

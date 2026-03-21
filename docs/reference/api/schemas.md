@@ -1178,7 +1178,6 @@
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
     "email": "user@example.com",
-    "has_ai_seat": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "is_service_account": true,
     "last_seen_at": "2019-08-24T14:15:22Z",
@@ -1270,7 +1269,6 @@
         "avatar_url": "http://example.com",
         "created_at": "2019-08-24T14:15:22Z",
         "email": "user@example.com",
-        "has_ai_seat": true,
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "is_service_account": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
@@ -1621,7 +1619,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "avatar_url": "http://example.com",
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
-      "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
@@ -1698,7 +1695,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "avatar_url": "http://example.com",
           "created_at": "2019-08-24T14:15:22Z",
           "email": "user@example.com",
-          "has_ai_seat": true,
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "is_service_account": true,
           "last_seen_at": "2019-08-24T14:15:22Z",
@@ -1768,7 +1764,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "avatar_url": "http://example.com",
     "created_at": "2019-08-24T14:15:22Z",
     "email": "user@example.com",
-    "has_ai_seat": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "is_service_account": true,
     "last_seen_at": "2019-08-24T14:15:22Z",
@@ -4432,10 +4427,10 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name    | Type                                    | Required | Restrictions | Description |
-|---------|-----------------------------------------|----------|--------------|-------------|
-| `count` | integer                                 | false    |              |             |
-| `users` | array of [codersdk.User](#codersdkuser) | false    |              |             |
+| Name    | Type                                                        | Required | Restrictions | Description |
+|---------|-------------------------------------------------------------|----------|--------------|-------------|
+| `count` | integer                                                     | false    |              |             |
+| `users` | array of [codersdk.UserWithAISeat](#codersdkuserwithaiseat) | false    |              |             |
 
 ## codersdk.GitSSHKey
 
@@ -8900,7 +8895,6 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "avatar_url": "http://example.com",
       "created_at": "2019-08-24T14:15:22Z",
       "email": "user@example.com",
-      "has_ai_seat": true,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
@@ -9350,7 +9344,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
-  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
@@ -9381,7 +9374,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `avatar_url`         | string                                          | false    |              |                                                                                            |
 | `created_at`         | string                                          | true     |              |                                                                                            |
 | `email`              | string                                          | true     |              |                                                                                            |
-| `has_ai_seat`        | boolean                                         | false    |              |                                                                                            |
 | `id`                 | string                                          | true     |              |                                                                                            |
 | `is_service_account` | boolean                                         | false    |              |                                                                                            |
 | `last_seen_at`       | string                                          | false    |              |                                                                                            |
@@ -10248,7 +10240,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "avatar_url": "http://example.com",
   "created_at": "2019-08-24T14:15:22Z",
   "email": "user@example.com",
-  "has_ai_seat": true,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
@@ -10278,7 +10269,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `avatar_url`         | string                                          | false    |              |                                                                                            |
 | `created_at`         | string                                          | true     |              |                                                                                            |
 | `email`              | string                                          | true     |              |                                                                                            |
-| `has_ai_seat`        | boolean                                         | false    |              |                                                                                            |
 | `id`                 | string                                          | true     |              |                                                                                            |
 | `is_service_account` | boolean                                         | false    |              |                                                                                            |
 | `last_seen_at`       | string                                          | false    |              |                                                                                            |
@@ -10609,6 +10599,62 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |---------|---------|----------|--------------|-------------|
 | `count` | integer | false    |              |             |
 | `date`  | string  | false    |              |             |
+
+## codersdk.UserWithAISeat
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "created_at": "2019-08-24T14:15:22Z",
+  "email": "user@example.com",
+  "has_ai_seat": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_service_account": true,
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "login_type": "",
+  "name": "string",
+  "organization_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "roles": [
+    {
+      "display_name": "string",
+      "name": "string",
+      "organization_id": "string"
+    }
+  ],
+  "status": "active",
+  "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type                                            | Required | Restrictions | Description                                                                                |
+|----------------------|-------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------|
+| `avatar_url`         | string                                          | false    |              |                                                                                            |
+| `created_at`         | string                                          | true     |              |                                                                                            |
+| `email`              | string                                          | true     |              |                                                                                            |
+| `has_ai_seat`        | boolean                                         | false    |              |                                                                                            |
+| `id`                 | string                                          | true     |              |                                                                                            |
+| `is_service_account` | boolean                                         | false    |              |                                                                                            |
+| `last_seen_at`       | string                                          | false    |              |                                                                                            |
+| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |                                                                                            |
+| `name`               | string                                          | false    |              |                                                                                            |
+| `organization_ids`   | array of string                                 | false    |              |                                                                                            |
+| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |                                                                                            |
+| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |                                                                                            |
+| `theme_preference`   | string                                          | false    |              | Deprecated: this value should be retrieved from `codersdk.UserPreferenceSettings` instead. |
+| `updated_at`         | string                                          | false    |              |                                                                                            |
+| `username`           | string                                          | true     |              |                                                                                            |
+
+#### Enumerated Values
+
+| Property | Value(s)              |
+|----------|-----------------------|
+| `status` | `active`, `suspended` |
 
 ## codersdk.ValidateUserPasswordRequest
 
