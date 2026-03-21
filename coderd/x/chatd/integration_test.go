@@ -3,6 +3,7 @@ package chatd_test
 import (
 	"context"
 	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -716,7 +717,9 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, storeMode openAI
 	for _, part := range assistantMsg.Content {
 		switch part.Type {
 		case codersdk.ChatMessagePartTypeReasoning:
-			if part.Text == "thinking about the question" {
+			// fantasy emits a leading newline when the reasoning summary part is
+			// added, so match the persisted summary text after trimming whitespace.
+			if strings.TrimSpace(part.Text) == "thinking about the question" {
 				foundReasoning = true
 			}
 		case codersdk.ChatMessagePartTypeToolCall:
