@@ -4,56 +4,82 @@ import {
 	getPasteDataTransfer,
 	getPastedPlainText,
 	isLargePaste,
-	type PasteCommandEvent,
 } from "./pasteHelpers";
+
+type DataTransferLike = Pick<DataTransfer, "getData" | "files">;
+
+const createDataTransfer = (
+	values: Record<string, string> = {},
+): DataTransfer => {
+	const input = document.createElement("input");
+	input.type = "file";
+	return {
+		getData: (type: string) => values[type] ?? "",
+		files: input.files!,
+	} as DataTransfer;
+};
+
+const createClipboardPasteEvent = (
+	clipboardData: DataTransferLike,
+): ClipboardEvent => {
+	const event = new Event("paste") as ClipboardEvent;
+	Object.defineProperty(event, "clipboardData", {
+		value: clipboardData,
+	});
+	return event;
+};
+
+const createBeforeInputEvent = (
+	data?: string,
+	dataTransfer?: DataTransferLike,
+): InputEvent => {
+	const event = new Event("beforeinput") as InputEvent;
+	Object.defineProperty(event, "data", {
+		value: data ?? null,
+	});
+	if (dataTransfer) {
+		Object.defineProperty(event, "dataTransfer", {
+			value: dataTransfer,
+		});
+	}
+	return event;
+};
 
 describe("getPasteDataTransfer", () => {
 	it("prefers clipboardData from clipboard events", () => {
-		const clipboardData = {
-			getData: () => "from clipboard",
-			files: [],
-		} as unknown as DataTransfer;
-		const event = {
-			clipboardData,
-		} as PasteCommandEvent;
+		const clipboardData = createDataTransfer({
+			"text/plain": "from clipboard",
+		});
+		const event = createClipboardPasteEvent(clipboardData);
 		expect(getPasteDataTransfer(event)).toBe(clipboardData);
 	});
 
 	it("falls back to dataTransfer for beforeinput paste events", () => {
-		const dataTransfer = {
-			getData: () => "from beforeinput",
-			files: [],
-		} as unknown as DataTransfer;
-		const event = {
-			dataTransfer,
-		} as PasteCommandEvent;
+		const dataTransfer = createDataTransfer({
+			"text/plain": "from beforeinput",
+		});
+		const event = createBeforeInputEvent(undefined, dataTransfer);
 		expect(getPasteDataTransfer(event)).toBe(dataTransfer);
 	});
 });
 
 describe("getPastedPlainText", () => {
 	it("reads plain text from clipboard data when available", () => {
-		const dataTransfer = {
-			getData: (type: string) => (type === "text/plain" ? "clipboard" : ""),
-		} as unknown as DataTransfer;
-		const event = {
-			clipboardData: dataTransfer,
-		} as PasteCommandEvent;
+		const dataTransfer = createDataTransfer({
+			"text/plain": "clipboard",
+		});
+		const event = createClipboardPasteEvent(dataTransfer);
 		expect(getPastedPlainText(event, dataTransfer)).toBe("clipboard");
 	});
 
 	it("falls back to InputEvent.data for plain-text paste shortcuts", () => {
-		const event = {
-			data: "paste as plain text",
-		} as PasteCommandEvent;
+		const event = createBeforeInputEvent("paste as plain text");
 		expect(getPastedPlainText(event, null)).toBe("paste as plain text");
 	});
 
 	it("returns empty string when no plain text is available", () => {
-		const dataTransfer = {
-			getData: () => "",
-		} as unknown as DataTransfer;
-		const event = {} as PasteCommandEvent;
+		const dataTransfer = createDataTransfer();
+		const event = createBeforeInputEvent();
 		expect(getPastedPlainText(event, dataTransfer)).toBe("");
 	});
 });
