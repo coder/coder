@@ -3080,6 +3080,9 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	if mediaType, _, err := mime.ParseMediaType(detected); err == nil {
 		detected = mediaType
 	}
+	if contentType == "text/plain" && strings.HasPrefix(detected, "text/") {
+		detected = "text/plain"
+	}
 	if allowed, ok := allowedChatFileMIMETypes[detected]; !ok || !allowed {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unsupported file type.",
