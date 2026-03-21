@@ -250,9 +250,12 @@ describe("useDesktopConnection", () => {
 			act(() => vi.advanceTimersByTime(1000));
 			const rfb2 = getLastRFBInstance();
 
-			// Reconnect succeeds — counter should reset.
+			// Reconnect succeeds — counter resets after stability period.
 			act(() => rfb2.simulateEvent("connect"));
 			expect(result.current.status).toBe("connected");
+
+			// Advance past the stability period so the counter resets.
+			act(() => vi.advanceTimersByTime(3000));
 
 			// Next disconnect should use 1000ms again (not 2000ms).
 			act(() => rfb2.simulateEvent("disconnect", { clean: false }));
@@ -566,9 +569,12 @@ describe("useDesktopConnection", () => {
 				rfb = getLastRFBInstance();
 			}
 
-			// This reconnect succeeds — counter resets.
+			// This reconnect succeeds — counter resets after stability period.
 			act(() => rfb.simulateEvent("connect"));
 			expect(result.current.status).toBe("connected");
+
+			// Advance past the stability period so the counter resets.
+			act(() => vi.advanceTimersByTime(3000));
 
 			// Another drop + failed reconnect should NOT hit the cap
 			// because the counter was reset.
@@ -577,6 +583,85 @@ describe("useDesktopConnection", () => {
 			rfb = getLastRFBInstance();
 			act(() => rfb.simulateEvent("disconnect", { clean: false }));
 			expect(result.current.status).toBe("disconnected");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not reset reconnect counter when connection drops before stability period", () => {
+		vi.useFakeTimers();
+
+		try {
+			const { result } = renderHook(() =>
+				useDesktopConnection({ chatId: "chat-1" }),
+			);
+
+			act(() => result.current.connect());
+			let rfb = getLastRFBInstance();
+			act(() => rfb.simulateEvent("connect"));
+			expect(result.current.status).toBe("connected");
+
+			// Drop the connection immediately — before the 3s
+			// stability window elapses. The counter should NOT
+			// reset, preventing an infinite 1s reconnect loop.
+			act(() => rfb.simulateEvent("disconnect", { clean: false }));
+			expect(result.current.status).toBe("disconnected");
+
+			// First retry at 1000ms (attempt 0).
+			act(() => vi.advanceTimersByTime(1000));
+			rfb = getLastRFBInstance();
+
+			// This reconnect also "succeeds" briefly then drops.
+			act(() => rfb.simulateEvent("connect"));
+			act(() => rfb.simulateEvent("disconnect", { clean: false }));
+
+			// The next retry should use 2000ms (attempt 1), NOT
+			// 1000ms. If the counter had been reset on connect,
+			// this would be 1000ms, creating an infinite loop.
+			mockWatchChatDesktop.mockClear();
+			act(() => vi.advanceTimersByTime(1999));
+			expect(mockWatchChatDesktop).not.toHaveBeenCalled();
+			act(() => vi.advanceTimersByTime(1));
+			expect(mockWatchChatDesktop).toHaveBeenCalledTimes(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("gives up when connection keeps flapping (connect then immediate disconnect)", () => {
+		vi.useFakeTimers();
+
+		try {
+			const { result } = renderHook(() =>
+				useDesktopConnection({ chatId: "chat-1" }),
+			);
+
+			act(() => result.current.connect());
+			let rfb = getLastRFBInstance();
+			act(() => rfb.simulateEvent("connect"));
+			expect(result.current.status).toBe("connected");
+
+			// Simulate 10 flapping cycles: each reconnect attempt
+			// briefly connects then immediately disconnects. Since
+			// the stability timer never fires, the attempt counter
+			// keeps incrementing.
+			for (let i = 0; i < 10; i++) {
+				act(() => rfb.simulateEvent("disconnect", { clean: false }));
+				const delay = Math.min(1000 * 2 ** i, 30_000);
+				act(() => vi.advanceTimersByTime(delay));
+				rfb = getLastRFBInstance();
+				// Brief connect then immediate disconnect.
+				act(() => rfb.simulateEvent("connect"));
+			}
+
+			// The 11th disconnect should give up.
+			act(() => rfb.simulateEvent("disconnect", { clean: false }));
+			expect(result.current.status).toBe("error");
+
+			// No more retries.
+			mockWatchChatDesktop.mockClear();
+			act(() => vi.advanceTimersByTime(60_000));
+			expect(mockWatchChatDesktop).not.toHaveBeenCalled();
 		} finally {
 			vi.useRealTimers();
 		}

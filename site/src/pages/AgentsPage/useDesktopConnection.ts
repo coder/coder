@@ -40,6 +40,7 @@ export interface UseDesktopConnectionResult {
 
 const MAX_BACKOFF_MS = 30_000;
 const MAX_RECONNECT_ATTEMPTS = 10;
+const STABLE_CONNECTION_MS = 3_000;
 
 export function useDesktopConnection({
 	chatId,
@@ -47,39 +48,57 @@ export function useDesktopConnection({
 	const [status, setStatus] = useState<DesktopConnectionStatus>("idle");
 	const [hasConnected, setHasConnected] = useState(false);
 
+	// rfbRef provides synchronous access for cleanup and event
+	// handlers. rfbInstance (state) provides reactivity so consumers
+	// re-render when the RFB instance changes.
 	const [rfbInstance, setRfbInstance] = useState<RFB | null>(null);
 	const rfbRef = useRef<RFB | null>(null);
+
 	const offscreenContainerRef = useRef<HTMLElement | null>(null);
 	const reconnectAttemptRef = useRef(0);
 	const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const reconnectStableTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
 	const disposedRef = useRef(false);
 	// Track whether connect() has been called at least once.
 	const connectRequestedRef = useRef(false);
-	// Ref mirror of hasConnected so disconnect handlers can read
-	// the latest value without stale closures.
+	// Ref mirror of hasConnected. Reading the hasConnected *state*
+	// inside doConnect's event-handler closures would make React
+	// Compiler track it as a reactive dependency of connect(),
+	// giving connect a new identity whenever hasConnected changes.
+	// That would re-fire DesktopPanel's useEffect([connect,
+	// disconnect]) and tear down a working connection. The ref
+	// lets event handlers read the latest value without becoming
+	// a dependency.
 	const hasConnectedRef = useRef(false);
 
-	const cleanupRfbRef = useRef(() => {});
-	useEffect(() => {
-		cleanupRfbRef.current = () => {
-			if (rfbRef.current) {
-				try {
-					rfbRef.current.disconnect();
-				} catch {
-					// Ignore errors during disconnect.
-				}
-				rfbRef.current = null;
-				setRfbInstance(null);
+	// Disconnect and clear the current RFB instance. Only reads
+	// refs and stable setters, so React Compiler memoizes this as
+	// a singleton — no effect needed.
+	const cleanupRfb = () => {
+		if (rfbRef.current) {
+			try {
+				rfbRef.current.disconnect();
+			} catch {
+				// Ignore errors during disconnect.
 			}
-		};
-	});
+			rfbRef.current = null;
+			setRfbInstance(null);
+		}
+	};
 
 	const doConnect = () => {
 		if (!chatId || disposedRef.current) {
 			return;
 		}
 
-		cleanupRfbRef.current();
+		if (reconnectStableTimerRef.current !== null) {
+			clearTimeout(reconnectStableTimerRef.current);
+			reconnectStableTimerRef.current = null;
+		}
+
+		cleanupRfb();
 		setStatus("connecting");
 
 		// Temporary offscreen container for the RFB canvas; moved into
@@ -108,11 +127,21 @@ export function useDesktopConnection({
 				setStatus("connected");
 				setHasConnected(true);
 				hasConnectedRef.current = true;
-				reconnectAttemptRef.current = 0;
+				// Only reset the reconnect counter after the connection
+				// has been stable for a minimum duration. This prevents
+				// infinite reconnect loops when the VNC handshake succeeds
+				// but the connection drops immediately (exit code 1006).
+				reconnectStableTimerRef.current = setTimeout(() => {
+					reconnectAttemptRef.current = 0;
+				}, STABLE_CONNECTION_MS);
 			});
 
 			rfb.addEventListener("disconnect", () => {
 				if (disposedRef.current) return;
+				if (reconnectStableTimerRef.current !== null) {
+					clearTimeout(reconnectStableTimerRef.current);
+					reconnectStableTimerRef.current = null;
+				}
 				rfbRef.current = null;
 				setRfbInstance(null);
 
@@ -170,7 +199,11 @@ export function useDesktopConnection({
 			clearTimeout(reconnectTimerRef.current);
 			reconnectTimerRef.current = null;
 		}
-		cleanupRfbRef.current();
+		if (reconnectStableTimerRef.current !== null) {
+			clearTimeout(reconnectStableTimerRef.current);
+			reconnectStableTimerRef.current = null;
+		}
+		cleanupRfb();
 		offscreenContainerRef.current = null;
 		setStatus("idle");
 		connectRequestedRef.current = false;
@@ -195,7 +228,11 @@ export function useDesktopConnection({
 				clearTimeout(reconnectTimerRef.current);
 				reconnectTimerRef.current = null;
 			}
-			cleanupRfbRef.current();
+			if (reconnectStableTimerRef.current !== null) {
+				clearTimeout(reconnectStableTimerRef.current);
+				reconnectStableTimerRef.current = null;
+			}
+			cleanupRfb();
 			offscreenContainerRef.current = null;
 			setStatus("idle");
 			setHasConnected(false);

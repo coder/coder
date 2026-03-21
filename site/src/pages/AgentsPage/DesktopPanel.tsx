@@ -76,7 +76,14 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({
 				<span className="text-sm">
 					Failed to connect to the desktop session.
 				</span>
-				<Button variant="outline" size="sm" onClick={() => connect()}>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => {
+						disconnect();
+						connect();
+					}}
+				>
 					Reconnect
 				</Button>
 			</div>
