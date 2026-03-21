@@ -1379,6 +1379,84 @@ func TestProxy_MITM(t *testing.T) {
 	}
 }
 
+// TestProxy_MITM_BYOKInjection verifies that the proxy sets the BYOK header
+// when Authorization carries a bearer token different from the Coder session
+// token. This handles clients like Copilot that send per-user LLM credentials
+// but cannot set custom headers.
+func TestProxy_MITM_BYOKInjection(t *testing.T) {
+	t.Parallel()
+
+	coderToken := "coder-session-token"
+
+	tests := []struct {
+		name          string
+		authzHeader   string
+		expectBYOK    bool
+		expectBYOKVal string
+	}{
+		{
+			name:        "no Authorization header",
+			authzHeader: "",
+			expectBYOK:  false,
+		},
+		{
+			name:        "Authorization matches Coder token",
+			authzHeader: "Bearer " + coderToken,
+			expectBYOK:  false,
+		},
+		{
+			name:          "Authorization differs from Coder token (Copilot)",
+			authzHeader:   "Bearer ghu_copilot-user-token",
+			expectBYOK:    true,
+			expectBYOKVal: coderToken,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var receivedBYOKHeader, receivedCoderToken string
+
+			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedCoderToken = r.Header.Get(agplaibridge.HeaderCoderAuth)
+				receivedBYOKHeader = r.Header.Get(agplaibridge.HeaderCoderBYOKToken)
+				w.WriteHeader(http.StatusOK)
+			}))
+			t.Cleanup(aibridgedServer.Close)
+
+			srv := newTestProxy(t,
+				withCoderAccessURL(aibridgedServer.URL),
+				withDomainAllowlist(aibridgeproxyd.HostCopilot),
+				withAIBridgeProviderFromHost(nil),
+			)
+
+			certPool := getProxyCertPool(t)
+			client := newProxyClient(t, srv, makeProxyAuthHeader(coderToken), certPool)
+
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://"+aibridgeproxyd.HostCopilot+"/chat/completions", strings.NewReader(`{}`))
+			require.NoError(t, err)
+			req.Header.Set("Content-Type", "application/json")
+			if tt.authzHeader != "" {
+				req.Header.Set("Authorization", tt.authzHeader)
+			}
+
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, coderToken, receivedCoderToken, "X-Coder-Token must always be set")
+
+			if tt.expectBYOK {
+				require.Equal(t, tt.expectBYOKVal, receivedBYOKHeader, "BYOK header must be set when Authorization differs from Coder token")
+			} else {
+				require.Empty(t, receivedBYOKHeader, "BYOK header must not be set")
+			}
+		})
+	}
+}
+
 // TestListenerTLS verifies that the proxy works correctly when its listener is wrapped in TLS.
 // It tests both tunneled and MITM'd requests through an HTTPS proxy listener.
 func TestListenerTLS(t *testing.T) {

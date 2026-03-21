@@ -622,6 +622,17 @@ func extractCoderTokenFromProxyAuth(proxyAuth string) string {
 	return credentials[1]
 }
 
+// extractCoderTokenFromBearerAuth extracts the bearer token from an
+// Authorization header. Returns empty string if the header is not a
+// valid "Bearer <token>" value.
+func extractCoderTokenFromBearerAuth(auth string) string {
+	parts := strings.Fields(auth)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		return ""
+	}
+	return parts[1]
+}
+
 // newProxyAuthRequiredResponse creates a 407 Proxy Authentication Required
 // response with the appropriate challenge header. This is used both during
 // CONNECT handling and for decrypted requests missing authentication.
@@ -758,6 +769,19 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	// Using a separate header preserves the original request headers,
 	// which are forwarded to upstream providers.
 	req.Header.Set(agplaibridge.HeaderCoderAuth, reqCtx.CoderToken)
+
+	// If Authorization carries a bearer token that differs from the
+	// Coder session token, the client is using its own LLM credentials
+	// (e.g. Copilot's per-user GitHub token). Set the BYOK header to
+	// indicate that this request is using BYOK mode. Clients that
+	// support custom headers (Claude Code, Codex) set the BYOK header
+	// themselves; this handles clients that cannot.
+	if auth := req.Header.Get("Authorization"); auth != "" {
+		bearer := extractCoderTokenFromBearerAuth(auth)
+		if bearer != "" && bearer != reqCtx.CoderToken {
+			req.Header.Set(agplaibridge.HeaderCoderBYOKToken, reqCtx.CoderToken)
+		}
+	}
 
 	// Set custom header for cross-service log correlation.
 	// This allows correlating aibridgeproxyd logs with aibridged logs.
