@@ -132,7 +132,8 @@ const decodeInlineTextAttachment = (content: string): string => {
 		const decoded = atob(content);
 		const bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0));
 		return new TextDecoder().decode(bytes);
-	} catch {
+	} catch (err) {
+		console.warn("Failed to decode inline text attachment:", err);
 		return content;
 	}
 };

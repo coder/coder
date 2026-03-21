@@ -343,10 +343,9 @@ export const AttachmentPreview: FC<{
 								}}
 							>
 								<span className="line-clamp-3 w-full font-mono text-2xs text-content-secondary">
-									{(textContent ?? "Pasted text").slice(
-										0,
-										TEXT_ATTACHMENT_PREVIEW_LENGTH,
-									)}
+									{Array.from(textContent ?? "Pasted text")
+										.slice(0, TEXT_ATTACHMENT_PREVIEW_LENGTH)
+										.join("")}
 								</span>
 							</button>
 						) : (
