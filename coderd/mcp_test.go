@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -428,6 +429,174 @@ func TestMCPServerConfigsOAuth2Disconnect(t *testing.T) {
 	// Disconnect should succeed even when no token exists (idempotent).
 	err = memberClient.MCPServerOAuth2Disconnect(ctx, created.ID)
 	require.NoError(t, err)
+}
+
+func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Stand up a mock auth server that serves RFC 8414 metadata and
+		// a RFC 7591 dynamic client registration endpoint.
+		authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-authorization-server":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"issuer": "` + r.Host + `",
+					"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
+					"token_endpoint": "` + "http://" + r.Host + `/token",
+					"registration_endpoint": "` + "http://" + r.Host + `/register",
+					"response_types_supported": ["code"],
+					"scopes_supported": ["read", "write"]
+				}`))
+			case "/register":
+				if r.Method != http.MethodPost {
+					http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(`{
+					"client_id": "auto-discovered-client-id",
+					"client_secret": "auto-discovered-client-secret"
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(authServer.Close)
+
+		// Stand up a mock MCP server that serves RFC 9728 Protected
+		// Resource Metadata pointing to the auth server above.
+		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/.well-known/oauth-protected-resource" {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"resource": "` + "http://" + r.Host + `",
+					"authorization_servers": ["` + authServer.URL + `"]
+				}`))
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		t.Cleanup(mcpServer.Close)
+
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		// Create config with auth_type=oauth2 but no OAuth2 fields —
+		// the server should auto-discover them.
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:   "Auto-Discovery Server",
+			Slug:          "auto-discovery",
+			Transport:     "streamable_http",
+			URL:           mcpServer.URL + "/v1/mcp",
+			AuthType:      "oauth2",
+			Availability:  "default_on",
+			Enabled:       true,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "auto-discovered-client-id", created.OAuth2ClientID)
+		require.True(t, created.HasOAuth2Secret)
+		require.Equal(t, authServer.URL+"/authorize", created.OAuth2AuthURL)
+		require.Equal(t, authServer.URL+"/token", created.OAuth2TokenURL)
+		require.Equal(t, "read write", created.OAuth2Scopes)
+	})
+
+	t.Run("PartialOAuth2FieldsRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		// Provide client_id but omit auth_url and token_url.
+		_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:    "Partial Fields",
+			Slug:           "partial-oauth2",
+			Transport:      "streamable_http",
+			URL:            "https://mcp.example.com/partial",
+			AuthType:       "oauth2",
+			OAuth2ClientID: "only-client-id",
+			Availability:   "default_on",
+			Enabled:        true,
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "automatic discovery")
+	})
+
+	t.Run("DiscoveryFailure", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// MCP server that returns 404 for the well-known endpoint and
+		// a non-401 status for the root — discovery has nothing to latch
+		// onto.
+		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "not found", http.StatusNotFound)
+		}))
+		t.Cleanup(mcpServer.Close)
+
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:   "Will Fail",
+			Slug:          "discovery-fail",
+			Transport:     "streamable_http",
+			URL:           mcpServer.URL + "/v1/mcp",
+			AuthType:      "oauth2",
+			Availability:  "default_on",
+			Enabled:       true,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "auto-discovery failed")
+	})
+
+	t.Run("ManualConfigStillWorks", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		// Providing all three OAuth2 fields bypasses discovery entirely.
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:    "Manual Config",
+			Slug:           "manual-oauth2",
+			Transport:      "streamable_http",
+			URL:            "https://mcp.example.com/manual",
+			AuthType:       "oauth2",
+			OAuth2ClientID: "manual-client-id",
+			OAuth2AuthURL:  "https://auth.example.com/authorize",
+			OAuth2TokenURL: "https://auth.example.com/token",
+			Availability:   "default_on",
+			Enabled:        true,
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "manual-client-id", created.OAuth2ClientID)
+		require.Equal(t, "https://auth.example.com/authorize", created.OAuth2AuthURL)
+		require.Equal(t, "https://auth.example.com/token", created.OAuth2TokenURL)
+	})
 }
 
 func TestChatWithMCPServerIDs(t *testing.T) {

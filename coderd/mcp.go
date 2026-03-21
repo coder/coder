@@ -6,12 +6,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/mark3labs/mcp-go/client/transport"
 	"golang.org/x/oauth2"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -107,9 +111,37 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	// Validate auth-type-dependent fields.
 	switch req.AuthType {
 	case "oauth2":
-		if req.OAuth2ClientID == "" || req.OAuth2AuthURL == "" || req.OAuth2TokenURL == "" {
+		// When the admin does not provide OAuth2 credentials, attempt
+		// automatic discovery and Dynamic Client Registration (RFC 7591)
+		// using the MCP server URL.  This follows the MCP authorization
+		// spec: discover the authorization server via Protected Resource
+		// Metadata (RFC 9728) and Authorization Server Metadata
+		// (RFC 8414), then register a client dynamically.
+		if req.OAuth2ClientID == "" && req.OAuth2AuthURL == "" && req.OAuth2TokenURL == "" {
+			callbackURL := fmt.Sprintf("%s/api/experimental/mcp/servers/{id}/oauth2/callback", api.AccessURL.String())
+			result, err := discoverAndRegisterMCPOAuth2(ctx, strings.TrimSpace(req.URL), callbackURL)
+			if err != nil {
+				api.Logger.Warn(ctx, "mcp oauth2 auto-discovery failed",
+					slog.F("url", req.URL),
+					slog.Error(err),
+				)
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "OAuth2 auto-discovery failed. Provide oauth2_client_id, oauth2_auth_url, and oauth2_token_url manually, or ensure the MCP server supports RFC 9728 (Protected Resource Metadata) and RFC 7591 (Dynamic Client Registration).",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			req.OAuth2ClientID = result.clientID
+			req.OAuth2ClientSecret = result.clientSecret
+			req.OAuth2AuthURL = result.authURL
+			req.OAuth2TokenURL = result.tokenURL
+			if req.OAuth2Scopes == "" {
+				req.OAuth2Scopes = result.scopes
+			}
+		} else if req.OAuth2ClientID == "" || req.OAuth2AuthURL == "" || req.OAuth2TokenURL == "" {
+			// Partial manual config: all three fields are required together.
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "OAuth2 auth type requires oauth2_client_id, oauth2_auth_url, and oauth2_token_url.",
+				Message: "OAuth2 auth type requires either all of oauth2_client_id, oauth2_auth_url, and oauth2_token_url (manual configuration), or none of them (automatic discovery via RFC 7591).",
 			})
 			return
 		}
@@ -918,4 +950,67 @@ func coalesceStringSlice(ss []string) []string {
 		return []string{}
 	}
 	return ss
+}
+
+// mcpOAuth2Discovery holds the result of MCP OAuth2 auto-discovery
+// and Dynamic Client Registration.
+type mcpOAuth2Discovery struct {
+	clientID     string
+	clientSecret string
+	authURL      string
+	tokenURL     string
+	scopes       string // space-separated
+}
+
+// discoverAndRegisterMCPOAuth2 uses the mcp-go library's OAuthHandler to
+// perform the MCP OAuth2 discovery and Dynamic Client Registration flow:
+//
+//  1. Discover the authorization server via Protected Resource Metadata
+//     (RFC 9728) and Authorization Server Metadata (RFC 8414).
+//  2. Register a client via Dynamic Client Registration (RFC 7591).
+//  3. Return the discovered endpoints and generated credentials.
+func discoverAndRegisterMCPOAuth2(ctx context.Context, mcpServerURL, callbackURL string) (*mcpOAuth2Discovery, error) {
+	// Per the MCP spec, the authorization base URL is the MCP server
+	// URL with the path component discarded (scheme + host only).
+	parsed, err := url.Parse(mcpServerURL)
+	if err != nil {
+		return nil, xerrors.Errorf("parse MCP server URL: %w", err)
+	}
+	origin := fmt.Sprintf("%s://%s", parsed.Scheme, parsed.Host)
+
+	oauthHandler := transport.NewOAuthHandler(transport.OAuthConfig{
+		RedirectURI: callbackURL,
+		TokenStore:  transport.NewMemoryTokenStore(),
+	})
+	oauthHandler.SetBaseURL(origin)
+
+	// Step 1: Discover authorization server metadata (RFC 9728 + RFC 8414).
+	metadata, err := oauthHandler.GetServerMetadata(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("discover authorization server: %w", err)
+	}
+	if metadata.AuthorizationEndpoint == "" {
+		return nil, xerrors.New("authorization server metadata missing authorization_endpoint")
+	}
+	if metadata.TokenEndpoint == "" {
+		return nil, xerrors.New("authorization server metadata missing token_endpoint")
+	}
+	if metadata.RegistrationEndpoint == "" {
+		return nil, xerrors.New("authorization server does not advertise a registration_endpoint (dynamic client registration may not be supported)")
+	}
+
+	// Step 2: Register a client via Dynamic Client Registration (RFC 7591).
+	if err := oauthHandler.RegisterClient(ctx, "Coder"); err != nil {
+		return nil, xerrors.Errorf("dynamic client registration: %w", err)
+	}
+
+	scopes := strings.Join(metadata.ScopesSupported, " ")
+
+	return &mcpOAuth2Discovery{
+		clientID:     oauthHandler.GetClientID(),
+		clientSecret: oauthHandler.GetClientSecret(),
+		authURL:      metadata.AuthorizationEndpoint,
+		tokenURL:     metadata.TokenEndpoint,
+		scopes:       scopes,
+	}, nil
 }
