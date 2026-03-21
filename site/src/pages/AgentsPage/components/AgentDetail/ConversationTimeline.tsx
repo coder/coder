@@ -324,7 +324,7 @@ function renderBlockList({
 						if (block.file_id) {
 							return (
 								<TextAttachmentButton
-									key={`${keyPrefix}-file-${index}`}
+									key={`${keyPrefix}-file-${block.file_id}`}
 									fileId={block.file_id}
 									onPreview={onTextFileClick}
 								/>
@@ -333,7 +333,7 @@ function renderBlockList({
 						if (block.data != null) {
 							return (
 								<InlineTextAttachmentButton
-									key={`${keyPrefix}-file-${index}`}
+									key={`${keyPrefix}-file-inline-${index}`}
 									content={decodeInlineTextAttachment(block.data)}
 									onPreview={onTextFileClick}
 								/>
@@ -557,7 +557,7 @@ const ChatMessageItem = memo<{
 														if (block.file_id) {
 															return (
 																<TextAttachmentButton
-																	key={`user-file-${i}`}
+																	key={`user-file-${block.file_id}`}
 																	fileId={block.file_id}
 																	onPreview={(content) =>
 																		setPreviewText(content)
@@ -568,7 +568,7 @@ const ChatMessageItem = memo<{
 														if (block.data != null) {
 															return (
 																<InlineTextAttachmentButton
-																	key={`user-file-${i}`}
+																	key={`user-file-inline-${i}`}
 																	content={decodeInlineTextAttachment(
 																		block.data,
 																	)}

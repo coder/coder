@@ -71,12 +71,13 @@ export function useFileAttachments(
 						fileId: result.id,
 					}),
 				);
-				// Pre-warm the browser HTTP cache so the timeline
-				// can render this image instantly after send. The
-				// server responds with Cache-Control: private,
-				// immutable, so the <img src> never hits the
-				// network again.
-				void fetch(`/api/experimental/chats/files/${result.id}`);
+				// Pre-warm the browser HTTP cache for images so the
+				// timeline can render them instantly after send. We
+				// intentionally skip text attachments because the
+				// composer already has the text content locally.
+				if (file.type.startsWith("image/")) {
+					void fetch(`/api/experimental/chats/files/${result.id}`);
+				}
 			} catch (err: unknown) {
 				const message = getErrorMessage(err, "Upload failed");
 				const detail = getErrorDetail(err);
