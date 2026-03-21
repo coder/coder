@@ -648,7 +648,7 @@ const ChatMessageItem = memo<{
 						onClose={() => setPreviewImage(null)}
 					/>
 				)}
-				{previewText && (
+				{previewText !== null && (
 					<TextPreviewDialog
 						content={previewText}
 						onClose={() => setPreviewText(null)}
