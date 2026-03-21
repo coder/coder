@@ -446,6 +446,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const [previewText, setPreviewText] = useState<string | null>(null);
 
 	const [hasFileReferences, setHasFileReferences] = useState(false);
+	const selectedModelOption = modelOptions.find(
+		(option) => option.id === selectedModel,
+	);
+	const allowTextAttachmentPaste = selectedModelOption?.provider === "google";
 
 	const speech = useSpeechRecognition();
 	const [preRecordingValue, setPreRecordingValue] = useState<string>("");
@@ -729,6 +733,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				<ChatMessageInput
 					ref={internalRef}
 					onFilePaste={onAttach ? handleFilePaste : undefined}
+					allowTextAttachmentPaste={allowTextAttachmentPaste}
 					aria-label="Chat message"
 					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 					placeholder={placeholder}

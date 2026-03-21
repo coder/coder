@@ -77,7 +77,11 @@ const DisableFormattingPlugin: FC = memo(function DisableFormattingPlugin() {
 // conversion is bypassed for that shortcut.
 const PasteSanitizationPlugin: FC<{
 	onFilePaste?: (file: File) => void;
-}> = memo(function PasteSanitizationPlugin({ onFilePaste }) {
+	allowTextAttachmentPaste?: boolean;
+}> = memo(function PasteSanitizationPlugin({
+	onFilePaste,
+	allowTextAttachmentPaste = true,
+}) {
 	const [editor] = useLexicalComposerContext();
 	const plainTextPasteRef = useRef(false);
 
@@ -121,7 +125,12 @@ const PasteSanitizationPlugin: FC<{
 						if (!text) {
 							return false;
 						}
-						if (!isPlainTextPaste && onFilePaste && isLargePaste(text)) {
+						if (
+							!isPlainTextPaste &&
+							allowTextAttachmentPaste &&
+							onFilePaste &&
+							isLargePaste(text)
+						) {
 							event.preventDefault();
 							onFilePaste(createPasteFile(text));
 							return true;
@@ -181,7 +190,12 @@ const PasteSanitizationPlugin: FC<{
 					// Convert large pastes to file attachments, but
 					// only for normal Cmd+V. Cmd+Shift+V is the
 					// user’s explicit "paste inline" escape hatch.
-					if (!isPlainTextPaste && onFilePaste && isLargePaste(text)) {
+					if (
+						!isPlainTextPaste &&
+						allowTextAttachmentPaste &&
+						onFilePaste &&
+						isLargePaste(text)
+					) {
 						plainTextPasteRef.current = false;
 						event.preventDefault();
 						onFilePaste(createPasteFile(text));
@@ -225,7 +239,7 @@ const PasteSanitizationPlugin: FC<{
 				COMMAND_PRIORITY_HIGH,
 			),
 		);
-	}, [editor, onFilePaste]);
+	}, [allowTextAttachmentPaste, editor, onFilePaste]);
 
 	return null;
 });
@@ -380,6 +394,7 @@ interface ChatMessageInputProps
 	rows?: number;
 	onEnter?: () => void;
 	onFilePaste?: (file: File) => void;
+	allowTextAttachmentPaste?: boolean;
 	disabled?: boolean;
 	autoFocus?: boolean;
 	"aria-label"?: string;
@@ -409,6 +424,7 @@ const ChatMessageInput = memo(
 		rows,
 		onEnter,
 		onFilePaste,
+		allowTextAttachmentPaste,
 		disabled,
 		autoFocus,
 		"aria-label": ariaLabel,
