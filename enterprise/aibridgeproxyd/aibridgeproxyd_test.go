@@ -1535,7 +1535,7 @@ func TestProxy_MITM_BYOKInjection(t *testing.T) {
 			)
 
 			certPool := getProxyCertPool(t)
-			client := newProxyClient(t, srv, makeProxyAuthHeader(coderToken), certPool)
+			client := newProxyClient(t, srv, makeProxyAuthHeader(coderToken), certPool, false)
 
 			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://"+aibridgeproxyd.HostCopilot+"/chat/completions", strings.NewReader(`{}`))
 			require.NoError(t, err)
