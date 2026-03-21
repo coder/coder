@@ -641,7 +641,10 @@ const ChatMessageInput = memo(
 					/>
 					<HistoryPlugin />
 					<DisableFormattingPlugin />
-					<PasteSanitizationPlugin onFilePaste={onFilePaste} />
+					<PasteSanitizationPlugin
+						onFilePaste={onFilePaste}
+						allowTextAttachmentPaste={allowTextAttachmentPaste}
+					/>
 					<EnterKeyPlugin onEnter={disabled ? undefined : onEnter} />
 					<ContentChangePlugin onChange={handleContentChange} />
 					<ValueSyncPlugin initialValue={initialValue} />
