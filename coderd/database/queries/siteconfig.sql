@@ -140,3 +140,39 @@ SELECT
 -- name: UpsertChatSystemPrompt :exec
 INSERT INTO site_configs (key, value) VALUES ('agents_chat_system_prompt', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_system_prompt';
+
+-- name: GetChatDesktopEnabled :one
+SELECT
+	COALESCE((SELECT value = 'true' FROM site_configs WHERE key = 'agents_desktop_enabled'), false) :: boolean AS enable_desktop;
+
+-- name: UpsertChatDesktopEnabled :exec
+INSERT INTO site_configs (key, value)
+VALUES (
+    'agents_desktop_enabled',
+    CASE
+        WHEN sqlc.arg(enable_desktop)::bool THEN 'true'
+        ELSE 'false'
+    END
+)
+ON CONFLICT (key) DO UPDATE
+SET value = CASE
+    WHEN sqlc.arg(enable_desktop)::bool THEN 'true'
+    ELSE 'false'
+END
+WHERE site_configs.key = 'agents_desktop_enabled';
+
+-- name: GetChatWorkspaceTTL :one
+-- Returns the global TTL for chat workspaces as a Go duration string.
+-- Returns "0s" (disabled) when no value has been configured.
+SELECT
+    COALESCE(
+        (SELECT value FROM site_configs WHERE key = 'agents_workspace_ttl'),
+        '0s'
+    )::text AS workspace_ttl;
+
+-- name: UpsertChatWorkspaceTTL :exec
+INSERT INTO site_configs (key, value)
+VALUES ('agents_workspace_ttl', @workspace_ttl::text)
+ON CONFLICT (key) DO UPDATE
+SET value = @workspace_ttl::text
+WHERE site_configs.key = 'agents_workspace_ttl';

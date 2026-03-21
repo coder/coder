@@ -1,11 +1,9 @@
-import type { DiffLineAnnotation, FileDiffMetadata } from "@pierre/diffs";
+import type { FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import { chatDiffContents } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
-import { Button } from "components/Button/Button";
 import {
 	ArrowLeftIcon,
-	CornerDownLeftIcon,
 	ExternalLinkIcon,
 	GitBranchIcon,
 	GitMergeIcon,
@@ -13,101 +11,17 @@ import {
 	GitPullRequestDraftIcon,
 	GitPullRequestIcon,
 } from "lucide-react";
-import {
-	type FC,
-	type RefObject,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { type FC, type RefObject, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { cn } from "utils/cn";
 import type { ChatMessageInputRef } from "./AgentChatInput";
+import { CommentableDiffViewer } from "./CommentableDiffViewer";
 import { DiffStatBadge } from "./DiffStats";
 import type { DiffStyle } from "./DiffViewer";
-import { DiffViewer } from "./DiffViewer";
+import { parsePullRequestUrl } from "./pullRequest";
 
-// -------------------------------------------------------------------
-// Diff content extraction
-// -------------------------------------------------------------------
+export { InlinePromptInput } from "./CommentableDiffViewer";
 
-/**
- * Walk the parsed hunks for a file and collect code lines that fall
- * within `startLine..endLine` on the given side. For "additions"
- * lines are matched against addition line numbers (using
- * `hunk.additionStart`); for "deletions" against deletion line
- * numbers (using `hunk.deletionStart`). Context lines that fall
- * in range are included as well.
- */
-function extractDiffContent(
-	parsedFiles: readonly FileDiffMetadata[],
-	fileName: string,
-	startLine: number,
-	endLine: number,
-	side: "additions" | "deletions",
-): string {
-	const file = parsedFiles.find((f) => f.name === fileName);
-	if (!file) return "";
-
-	const lines = side === "additions" ? file.additionLines : file.deletionLines;
-	const collected: string[] = [];
-	for (const hunk of file.hunks) {
-		let addLine = hunk.additionStart;
-		let delLine = hunk.deletionStart;
-
-		for (const block of hunk.hunkContent) {
-			if (block.type === "context") {
-				for (let i = 0; i < block.lines; i++) {
-					const ln = side === "additions" ? addLine : delLine;
-					if (ln >= startLine && ln <= endLine) {
-						const idx =
-							side === "additions"
-								? block.additionLineIndex + i
-								: block.deletionLineIndex + i;
-						if (lines[idx] != null) collected.push(lines[idx]);
-					}
-					addLine++;
-					delLine++;
-				}
-			} else {
-				// ChangeContent block.
-				if (side === "deletions") {
-					for (let i = 0; i < block.deletions; i++) {
-						if (delLine >= startLine && delLine <= endLine) {
-							const line = lines[block.deletionLineIndex + i];
-							if (line != null) collected.push(line);
-						}
-						delLine++;
-					}
-					// Addition lines in a change block still advance
-					// the addition counter.
-					addLine += block.additions;
-				} else {
-					// side === "additions"
-					// Deletion lines in a change block still advance
-					// the deletion counter.
-					delLine += block.deletions;
-					for (let i = 0; i < block.additions; i++) {
-						if (addLine >= startLine && addLine <= endLine) {
-							const line = lines[block.additionLineIndex + i];
-							if (line != null) collected.push(line);
-						}
-						addLine++;
-					}
-				}
-			}
-		}
-	}
-
-	return collected.join("\n");
-}
-
-/**
- * Parses a GitHub PR URL into its components.
- * Returns null if parsing fails.
- */
 // -------------------------------------------------------------------
 // PR state badge
 // -------------------------------------------------------------------
@@ -147,97 +61,6 @@ const PullRequestStateBadge: FC<{
 	);
 };
 
-function parsePullRequestUrl(url: string): {
-	owner: string;
-	repo: string;
-	number: string;
-} | null {
-	try {
-		const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
-		if (match) {
-			return { owner: match[1], repo: match[2], number: match[3] };
-		}
-	} catch {
-		// Fall through.
-	}
-	return null;
-}
-
-// -------------------------------------------------------------------
-// Inline prompt input
-// -------------------------------------------------------------------
-
-/**
- * Inline input rendered as a diff annotation under the selected
- * line(s). Supports multiline via Shift+Enter. Enter submits,
- * Escape dismisses.
- */
-const InlinePromptInput: FC<{
-	onSubmit: (text: string) => void;
-	onCancel: () => void;
-}> = ({ onSubmit, onCancel }) => {
-	const [text, setText] = useState("");
-	const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-	// Focus the textarea on mount. We use a ref callback via rAF
-	// rather than autoFocus because the component renders inside
-	// Shadow DOM where autoFocus is unreliable.
-	useEffect(() => {
-		requestAnimationFrame(() => {
-			textareaRef.current?.focus();
-		});
-	}, []);
-
-	return (
-		<div className="px-2 py-1.5">
-			<div className="rounded-lg border border-border-default bg-surface-secondary p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40">
-				<textarea
-					ref={textareaRef}
-					className="w-full resize-none border-none bg-transparent px-2.5 py-1.5 font-sans text-[13px] leading-5 text-content-primary placeholder:text-content-secondary outline-none ring-0 focus:outline-none focus:ring-0"
-					placeholder="Add a comment to include with this reference..."
-					rows={1}
-					value={text}
-					onChange={(e) => setText(e.target.value)}
-					onKeyDown={(e) => {
-						if (e.key === "Enter" && !e.shiftKey) {
-							e.preventDefault();
-							if (text.trim()) {
-								onSubmit(text.trim());
-							} else {
-								onCancel();
-							}
-						}
-						if (e.key === "Escape") {
-							e.preventDefault();
-							onCancel();
-						}
-					}}
-				/>
-				<div className="flex items-center justify-end px-1.5 pb-1">
-					<Button
-						size="sm"
-						variant="subtle"
-						className="h-6 gap-1.5 px-2 text-xs text-content-secondary hover:text-content-primary"
-						disabled={!text.trim()}
-						onMouseDown={(e: React.MouseEvent) => {
-							// Prevent blur from firing before click.
-							e.preventDefault();
-						}}
-						onClick={() => {
-							if (text.trim()) {
-								onSubmit(text.trim());
-							}
-						}}
-					>
-						<CornerDownLeftIcon className="size-3" />
-						Add to chat
-					</Button>
-				</div>
-			</div>
-		</div>
-	);
-};
-
 // -------------------------------------------------------------------
 // Main component
 // -------------------------------------------------------------------
@@ -258,16 +81,6 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	diffStatus,
 }) => {
 	// ---------------------------------------------------------------
-	// Comment / annotation state
-	// ---------------------------------------------------------------
-	const [activeCommentBox, setActiveCommentBox] = useState<{
-		fileName: string;
-		startLine: number;
-		endLine: number;
-		side: "additions" | "deletions";
-	} | null>(null);
-
-	// ---------------------------------------------------------------
 	// Data fetching
 	// ---------------------------------------------------------------
 	const diffContentsQuery = useQuery({
@@ -275,135 +88,40 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 		enabled: Boolean(diffStatus?.url),
 	});
 
-	const parsedFiles = useMemo(() => {
-		const diff = diffContentsQuery.data?.diff;
-		if (!diff) {
-			return [];
+	const diffContent = diffContentsQuery.data?.diff;
+	const [diffVersion, setDiffVersion] = useState(0);
+	const [prevDiffContent, setPrevDiffContent] = useState<string | undefined>(
+		undefined,
+	);
+	if (diffContent !== prevDiffContent) {
+		setPrevDiffContent(diffContent);
+		setDiffVersion((v) => v + 1);
+	}
+
+	const parsedFiles = (() => {
+		if (!diffContent) {
+			return [] as FileDiffMetadata[];
 		}
 		try {
 			// The cacheKeyPrefix enables the worker pool's LRU cache
 			// so highlighted ASTs are reused across re-renders instead
-			// of being re-computed on every render cycle. We include
-			// dataUpdatedAt so that when the diff content changes
-			// (e.g. new commits pushed) the old cached highlight AST
-			// is not reused with mismatched line indices, which would
-			// cause DiffHunksRenderer.processDiffResult to throw.
+			// of being re-computed on every render cycle. We include a
+			// version counter derived from the diff content so that when
+			// the diff changes (e.g. new commits pushed) the old cached
+			// highlight AST is not reused with mismatched line indices,
+			// which would cause DiffHunksRenderer.processDiffResult to
+			// throw. Unlike dataUpdatedAt, this counter only increments
+			// when the actual diff string changes, avoiding unnecessary
+			// recomputation on refetches with identical content.
 			const patches = parsePatchFiles(
-				diff,
-				`chat-${chatId}-${diffContentsQuery.dataUpdatedAt}`,
+				diffContent,
+				`chat-${chatId}-v${diffVersion}`,
 			);
 			return patches.flatMap((p) => p.files);
 		} catch {
-			return [];
+			return [] as FileDiffMetadata[];
 		}
-	}, [diffContentsQuery.data?.diff, diffContentsQuery.dataUpdatedAt, chatId]);
-
-	// ---------------------------------------------------------------
-	// Line interaction callbacks
-	// ---------------------------------------------------------------
-	const handleLineNumberClick = useCallback(
-		(
-			fileName: string,
-			props: {
-				lineNumber: number;
-				annotationSide: "additions" | "deletions";
-			},
-		) => {
-			setActiveCommentBox({
-				fileName,
-				startLine: props.lineNumber,
-				endLine: props.lineNumber,
-				side: props.annotationSide,
-			});
-		},
-		[],
-	);
-
-	const handleLineSelected = useCallback(
-		(
-			fileName: string,
-			range: {
-				start: number;
-				end: number;
-				side?: "additions" | "deletions";
-			} | null,
-		) => {
-			if (!range || range.start === range.end) return;
-			const side = range.side ?? "additions";
-			setActiveCommentBox({
-				fileName,
-				startLine: Math.min(range.start, range.end),
-				endLine: Math.max(range.start, range.end),
-				side,
-			});
-		},
-		[],
-	);
-
-	// ---------------------------------------------------------------
-	// Annotation helpers
-	// ---------------------------------------------------------------
-	const getLineAnnotations = useCallback(
-		(fileName: string): DiffLineAnnotation<string>[] => {
-			if (activeCommentBox && activeCommentBox.fileName === fileName) {
-				return [
-					{
-						side: activeCommentBox.side,
-						lineNumber: activeCommentBox.startLine,
-						metadata: "active-input",
-					},
-				];
-			}
-			return [];
-		},
-		[activeCommentBox],
-	);
-
-	const handleCancelComment = useCallback(() => {
-		setActiveCommentBox(null);
-	}, []);
-
-	const handleSubmitComment = useCallback(
-		(text: string) => {
-			if (!activeCommentBox) return;
-			const content = extractDiffContent(
-				parsedFiles,
-				activeCommentBox.fileName,
-				activeCommentBox.startLine,
-				activeCommentBox.endLine,
-				activeCommentBox.side,
-			);
-			// Single imperative call — chip inserted atomically
-			// in one Lexical update. No rAF hack needed.
-			chatInputRef?.current?.addFileReference({
-				fileName: activeCommentBox.fileName,
-				startLine: activeCommentBox.startLine,
-				endLine: activeCommentBox.endLine,
-				content,
-			});
-			if (text.trim()) {
-				chatInputRef?.current?.insertText(text);
-			}
-			setActiveCommentBox(null);
-		},
-		[activeCommentBox, chatInputRef, parsedFiles],
-	);
-
-	const renderAnnotation = useCallback(
-		(annotation: DiffLineAnnotation<string>) => {
-			if (annotation.metadata === "active-input") {
-				if (!activeCommentBox) return null;
-				return (
-					<InlinePromptInput
-						onSubmit={handleSubmitComment}
-						onCancel={handleCancelComment}
-					/>
-				);
-			}
-			return null;
-		},
-		[activeCommentBox, handleSubmitComment, handleCancelComment],
-	);
+	})();
 
 	// ---------------------------------------------------------------
 	// Scroll-to-file from chat input chip clicks
@@ -420,9 +138,9 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 		return () => window.removeEventListener("file-reference-click", handler);
 	}, []);
 
-	const handleScrollComplete = useCallback(() => {
+	const handleScrollComplete = () => {
 		setScrollTarget(null);
-	}, []);
+	};
 
 	// ---------------------------------------------------------------
 	// Header content
@@ -480,16 +198,13 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 					</div>
 				</div>
 			)}
-			<DiffViewer
+			<CommentableDiffViewer
 				parsedFiles={parsedFiles}
 				isExpanded={isExpanded}
 				diffStyle={diffStyle}
 				isLoading={diffContentsQuery.isLoading}
 				error={diffContentsQuery.isError ? diffContentsQuery.error : undefined}
-				onLineNumberClick={handleLineNumberClick}
-				onLineSelected={handleLineSelected}
-				getLineAnnotations={getLineAnnotations}
-				renderAnnotation={renderAnnotation}
+				chatInputRef={chatInputRef}
 				scrollToFile={scrollTarget}
 				onScrollToFileComplete={handleScrollComplete}
 			/>

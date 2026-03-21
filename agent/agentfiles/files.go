@@ -14,7 +14,6 @@ import (
 	"syscall"
 
 	"github.com/google/uuid"
-	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -333,25 +332,18 @@ func (api *API) writeFile(ctx context.Context, r *http.Request, path string) (HT
 		return status, err
 	}
 
-	f, err := api.filesystem.Create(path)
-	if err != nil {
-		status := http.StatusInternalServerError
-		switch {
-		case errors.Is(err, os.ErrPermission):
-			status = http.StatusForbidden
-		case errors.Is(err, syscall.EISDIR):
-			status = http.StatusBadRequest
+	// Check if the target already exists so we can preserve its
+	// permissions on the temp file before rename.
+	var mode *os.FileMode
+	if stat, serr := api.filesystem.Stat(path); serr == nil {
+		if stat.IsDir() {
+			return http.StatusBadRequest, xerrors.Errorf("open %s: is a directory", path)
 		}
-		return status, err
-	}
-	defer f.Close()
-
-	_, err = io.Copy(f, r.Body)
-	if err != nil && !errors.Is(err, io.EOF) && ctx.Err() == nil {
-		api.logger.Error(ctx, "workspace agent write file", slog.Error(err))
+		m := stat.Mode()
+		mode = &m
 	}
 
-	return 0, nil
+	return api.atomicWrite(ctx, path, mode, r.Body)
 }
 
 func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
@@ -454,24 +446,65 @@ func (api *API) editFile(ctx context.Context, path string, edits []workspacesdk.
 		}
 	}
 
-	// Create an adjacent file to ensure it will be on the same device and can be
-	// moved atomically.
-	tmpfile, err := afero.TempFile(api.filesystem, filepath.Dir(path), filepath.Base(path))
-	if err != nil {
-		return http.StatusInternalServerError, err
-	}
-	defer tmpfile.Close()
+	m := stat.Mode()
+	return api.atomicWrite(ctx, path, &m, strings.NewReader(content))
+}
 
-	if _, err := tmpfile.Write([]byte(content)); err != nil {
-		if rerr := api.filesystem.Remove(tmpfile.Name()); rerr != nil {
-			api.logger.Warn(ctx, "unable to clean up temp file", slog.Error(rerr))
+// atomicWrite writes content from r to path via a temp file in the
+// same directory. If the target exists, its permissions are preserved.
+// On failure the temp file is cleaned up and the original is
+// untouched.
+func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode, r io.Reader) (int, error) {
+	dir := filepath.Dir(path)
+	tmpName := filepath.Join(dir, fmt.Sprintf(".%s.tmp.%s", filepath.Base(path), uuid.New().String()[:8]))
+
+	tmpfile, err := api.filesystem.OpenFile(tmpName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o666)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, os.ErrPermission) {
+			status = http.StatusForbidden
 		}
-		return http.StatusInternalServerError, xerrors.Errorf("edit %s: %w", path, err)
+		return status, err
 	}
 
-	err = api.filesystem.Rename(tmpfile.Name(), path)
+	cleanup := func() {
+		if err := api.filesystem.Remove(tmpName); err != nil {
+			api.logger.Warn(ctx, "unable to clean up temp file", slog.Error(err))
+		}
+	}
+
+	_, err = io.Copy(tmpfile, r)
 	if err != nil {
-		return http.StatusInternalServerError, err
+		_ = tmpfile.Close()
+		cleanup()
+		return http.StatusInternalServerError, xerrors.Errorf("write %s: %w", path, err)
+	}
+
+	// Close before rename to flush buffered data and catch write
+	// errors (e.g. delayed allocation failures).
+	if err := tmpfile.Close(); err != nil {
+		cleanup()
+		return http.StatusInternalServerError, xerrors.Errorf("write %s: %w", path, err)
+	}
+
+	// Set permissions on the temp file before rename so there is
+	// no window where the target has wrong permissions.
+	if mode != nil {
+		if err := api.filesystem.Chmod(tmpName, *mode); err != nil {
+			api.logger.Warn(ctx, "unable to set file permissions",
+				slog.F("path", path),
+				slog.Error(err),
+			)
+		}
+	}
+
+	if err := api.filesystem.Rename(tmpName, path); err != nil {
+		cleanup()
+		status := http.StatusInternalServerError
+		if errors.Is(err, os.ErrPermission) {
+			status = http.StatusForbidden
+		}
+		return status, xerrors.Errorf("write %s: %w", path, err)
 	}
 
 	return 0, nil

@@ -5,12 +5,22 @@ WHERE id = @id OR root_chat_id = @id;
 -- name: UnarchiveChatByID :exec
 UPDATE chats SET archived = false, updated_at = NOW() WHERE id = @id::uuid;
 
--- name: DeleteChatMessagesAfterID :exec
-DELETE FROM
+-- name: SoftDeleteChatMessagesAfterID :exec
+UPDATE
     chat_messages
+SET
+    deleted = true
 WHERE
     chat_id = @chat_id::uuid
     AND id > @after_id::bigint;
+
+-- name: SoftDeleteChatMessageByID :exec
+UPDATE
+    chat_messages
+SET
+    deleted = true
+WHERE
+    id = @id::bigint;
 
 -- name: GetChatByID :one
 SELECT
@@ -26,7 +36,8 @@ SELECT
 FROM
     chat_messages
 WHERE
-    id = @id::bigint;
+    id = @id::bigint
+    AND deleted = false;
 
 -- name: GetChatMessagesByChatID :many
 SELECT
@@ -37,6 +48,7 @@ WHERE
     chat_id = @chat_id::uuid
     AND id > @after_id::bigint
     AND visibility IN ('user', 'both')
+    AND deleted = false
 ORDER BY
     created_at ASC;
 
@@ -52,6 +64,7 @@ WHERE
         ELSE true
     END
     AND visibility IN ('user', 'both')
+    AND deleted = false
 ORDER BY
     id DESC
 LIMIT
@@ -66,6 +79,7 @@ WITH latest_compressed_summary AS (
     WHERE
         chat_id = @chat_id::uuid
         AND compressed = TRUE
+        AND deleted = false
         AND visibility = 'model'
     ORDER BY
         created_at DESC,
@@ -80,6 +94,7 @@ FROM
 WHERE
     chat_id = @chat_id::uuid
     AND visibility IN ('model', 'both')
+    AND deleted = false
     AND (
         (
             role = 'system'
@@ -165,7 +180,8 @@ INSERT INTO chats (
     root_chat_id,
     last_model_config_id,
     title,
-    mode
+    mode,
+    mcp_server_ids
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
@@ -173,21 +189,40 @@ INSERT INTO chats (
     sqlc.narg('root_chat_id')::uuid,
     @last_model_config_id::uuid,
     @title::text,
-    sqlc.narg('mode')::chat_mode
+    sqlc.narg('mode')::chat_mode,
+    COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[])
 )
 RETURNING
     *;
 
--- name: InsertChatMessage :one
+-- name: InsertChatMessages :many
 WITH updated_chat AS (
     UPDATE
         chats
     SET
-        last_model_config_id = sqlc.narg('model_config_id')::uuid
+        last_model_config_id = (
+            SELECT val
+            FROM UNNEST(@model_config_id::uuid[])
+                WITH ORDINALITY AS t(val, ord)
+            WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
+            ORDER BY ord DESC
+            LIMIT 1
+        )
     WHERE
         id = @chat_id::uuid
-        AND sqlc.narg('model_config_id')::uuid IS NOT NULL
-        AND chats.last_model_config_id IS DISTINCT FROM sqlc.narg('model_config_id')::uuid
+        AND EXISTS (
+            SELECT 1
+            FROM UNNEST(@model_config_id::uuid[])
+            WHERE unnest != '00000000-0000-0000-0000-000000000000'::uuid
+        )
+        AND chats.last_model_config_id IS DISTINCT FROM (
+            SELECT val
+            FROM UNNEST(@model_config_id::uuid[])
+                WITH ORDINALITY AS t(val, ord)
+            WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
+            ORDER BY ord DESC
+            LIMIT 1
+        )
 )
 INSERT INTO chat_messages (
     chat_id,
@@ -205,25 +240,27 @@ INSERT INTO chat_messages (
     cache_read_tokens,
     context_limit,
     compressed,
-    total_cost_micros
-) VALUES (
-    @chat_id::uuid,
-    sqlc.narg('created_by')::uuid,
-    sqlc.narg('model_config_id')::uuid,
-    @role::chat_message_role,
-    sqlc.narg('content')::jsonb,
-    @content_version::smallint,
-    @visibility::chat_message_visibility,
-    sqlc.narg('input_tokens')::bigint,
-    sqlc.narg('output_tokens')::bigint,
-    sqlc.narg('total_tokens')::bigint,
-    sqlc.narg('reasoning_tokens')::bigint,
-    sqlc.narg('cache_creation_tokens')::bigint,
-    sqlc.narg('cache_read_tokens')::bigint,
-    sqlc.narg('context_limit')::bigint,
-    COALESCE(sqlc.narg('compressed')::boolean, FALSE),
-    sqlc.narg('total_cost_micros')::bigint
+    total_cost_micros,
+    runtime_ms
 )
+SELECT
+    @chat_id::uuid,
+    NULLIF(UNNEST(@created_by::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(UNNEST(@model_config_id::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
+    UNNEST(@role::chat_message_role[]),
+    UNNEST(@content::text[])::jsonb,
+    UNNEST(@content_version::smallint[]),
+    UNNEST(@visibility::chat_message_visibility[]),
+    NULLIF(UNNEST(@input_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@output_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@total_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@reasoning_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@cache_creation_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@cache_read_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@context_limit::bigint[]), 0),
+    UNNEST(@compressed::boolean[]),
+    NULLIF(UNNEST(@total_cost_micros::bigint[]), 0),
+    NULLIF(UNNEST(@runtime_ms::bigint[]), 0)
 RETURNING
     *;
 
@@ -254,6 +291,17 @@ UPDATE
     chats
 SET
     workspace_id = sqlc.narg('workspace_id')::uuid,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: UpdateChatMCPServerIDs :one
+UPDATE
+    chats
+SET
+    mcp_server_ids = @mcp_server_ids::uuid[],
     updated_at = NOW()
 WHERE
     id = @id::uuid
@@ -476,6 +524,7 @@ FROM
 WHERE
     chat_id = @chat_id::uuid
     AND role = @role::chat_message_role
+    AND deleted = false
 ORDER BY
     created_at DESC, id DESC
 LIMIT
@@ -676,6 +725,7 @@ WITH chat_cost_users AS (
         AND (
             @username::text = ''
             OR u.username ILIKE '%' || @username::text || '%'
+            OR u.name ILIKE '%' || @username::text || '%'
         )
     GROUP BY
         c.owner_id,

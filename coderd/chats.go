@@ -22,6 +22,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -283,6 +284,41 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate MCP server IDs exist.
+	if len(req.MCPServerIDs) > 0 {
+		//nolint:gocritic // Need to validate MCP server IDs exist.
+		existingConfigs, err := api.Database.GetMCPServerConfigsByIDs(dbauthz.AsSystemRestricted(ctx), req.MCPServerIDs)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to validate MCP server IDs.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if len(existingConfigs) != len(req.MCPServerIDs) {
+			found := make(map[uuid.UUID]struct{}, len(existingConfigs))
+			for _, c := range existingConfigs {
+				found[c.ID] = struct{}{}
+			}
+			var missing []string
+			for _, id := range req.MCPServerIDs {
+				if _, ok := found[id]; !ok {
+					missing = append(missing, id.String())
+				}
+			}
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "One or more MCP server IDs are invalid.",
+				Detail:  fmt.Sprintf("Invalid IDs: %s", strings.Join(missing, ", ")),
+			})
+			return
+		}
+	}
+
+	mcpServerIDs := req.MCPServerIDs
+	if mcpServerIDs == nil {
+		mcpServerIDs = []uuid.UUID{}
+	}
+
 	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
 		OwnerID:            apiKey.UserID,
 		WorkspaceID:        workspaceSelection.WorkspaceID,
@@ -290,6 +326,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		ModelConfigID:      modelConfigID,
 		SystemPrompt:       api.resolvedChatSystemPrompt(ctx),
 		InitialUserContent: contentBlocks,
+		MCPServerIDs:       mcpServerIDs,
 	})
 	if err != nil {
 		if maybeWriteLimitErr(ctx, rw, err) {
@@ -1455,6 +1492,36 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate MCP server IDs exist.
+	if req.MCPServerIDs != nil && len(*req.MCPServerIDs) > 0 {
+		//nolint:gocritic // Need to validate MCP server IDs exist.
+		existingConfigs, err := api.Database.GetMCPServerConfigsByIDs(dbauthz.AsSystemRestricted(ctx), *req.MCPServerIDs)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to validate MCP server IDs.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if len(existingConfigs) != len(*req.MCPServerIDs) {
+			found := make(map[uuid.UUID]struct{}, len(existingConfigs))
+			for _, c := range existingConfigs {
+				found[c.ID] = struct{}{}
+			}
+			var missing []string
+			for _, id := range *req.MCPServerIDs {
+				if _, ok := found[id]; !ok {
+					missing = append(missing, id.String())
+				}
+			}
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "One or more MCP server IDs are invalid.",
+				Detail:  fmt.Sprintf("Invalid IDs: %s", strings.Join(missing, ", ")),
+			})
+			return
+		}
+	}
+
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
@@ -1463,6 +1530,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			Content:       contentBlocks,
 			ModelConfigID: req.ModelConfigID,
 			BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+			MCPServerIDs:  req.MCPServerIDs,
 		},
 	)
 	if sendErr != nil {
@@ -2557,6 +2625,134 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	enabled, err := api.Database.GetChatDesktopEnabled(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching desktop setting.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatDesktopEnabledResponse{
+		EnableDesktop: enabled,
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatDesktopEnabled(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.UpdateChatDesktopEnabledRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if err := api.Database.UpsertChatDesktopEnabled(ctx, req.EnableDesktop); httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	} else if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating desktop setting.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	raw, err := api.Database.GetChatWorkspaceTTL(ctx)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace TTL setting.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	// Validate/default the stored value so callers always receive a
+	// well-formed duration string.
+	d, err := codersdk.ParseChatWorkspaceTTL(raw)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Stored workspace TTL is invalid.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatWorkspaceTTLResponse{
+		WorkspaceTTLMillis: d.Milliseconds(),
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.UpdateChatWorkspaceTTLRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Validate before converting to avoid int64 overflow in the
+	// multiplication by time.Millisecond.
+	if req.WorkspaceTTLMillis < 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Workspace TTL must be non-negative.",
+		})
+		return
+	}
+
+	// Convert milliseconds to duration.
+	d := time.Duration(req.WorkspaceTTLMillis) * time.Millisecond
+
+	// Technically a duplication of validWorkspaceTTL but this is not scoped to templates.
+	if d > 0 && d < ttlMinimum {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Workspace TTL must not be less than 1 minute.",
+		})
+		return
+	}
+	if d > ttlMaximum {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Workspace TTL must not exceed 30 days.",
+		})
+		return
+	}
+
+	// Store the canonicalized duration string.
+	if err := api.Database.UpsertChatWorkspaceTTL(ctx, d.String()); httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	} else if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating workspace TTL setting.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -2935,6 +3131,10 @@ func truncateRunes(value string, maxLen int) string {
 }
 
 func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.Chat {
+	mcpServerIDs := c.MCPServerIDs
+	if mcpServerIDs == nil {
+		mcpServerIDs = []uuid.UUID{}
+	}
 	chat := codersdk.Chat{
 		ID:                c.ID,
 		OwnerID:           c.OwnerID,
@@ -2944,6 +3144,7 @@ func convertChat(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.
 		Archived:          c.Archived,
 		CreatedAt:         c.CreatedAt,
 		UpdatedAt:         c.UpdatedAt,
+		MCPServerIDs:      mcpServerIDs,
 	}
 	if c.LastError.Valid {
 		chat.LastError = &c.LastError.String
@@ -3369,6 +3570,16 @@ func (api *API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := api.Database.DeleteChatProviderByID(ctx, providerID); err != nil {
+		if database.IsForeignKeyViolation(err,
+			database.ForeignKeyChatMessagesModelConfigID,
+			database.ForeignKeyChatsLastModelConfigID,
+		) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Provider models are still referenced by existing chats.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete chat provider.",
 			Detail:  err.Error(),
@@ -4135,4 +4346,222 @@ func (api *API) hasEffectiveProviderAPIKey(ctx context.Context, provider databas
 		enabledConfiguredProviders,
 	)
 	return effectiveKeys.APIKey(provider.Provider) != ""
+}
+
+// @Summary Get PR insights
+// @ID get-pr-insights
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param start_date query string true "Start date (RFC3339)"
+// @Param end_date query string true "End date (RFC3339)"
+// @Success 200 {object} codersdk.PRInsightsResponse
+// @Router /chats/insights/pull-requests [get]
+// @x-apidocgen {"skip": true}
+func (api *API) prInsights(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Admin-only endpoint.
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	// Parse date range.
+	now := time.Now()
+	defaultStart := now.AddDate(0, 0, -30)
+
+	qp := r.URL.Query()
+	p := httpapi.NewQueryParamParser()
+	startDate := p.Time(qp, defaultStart, "start_date", time.RFC3339)
+	endDate := p.Time(qp, now, "end_date", time.RFC3339)
+	p.ErrorExcessParams(qp)
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
+	// Calculate previous period of equal length for trend comparison.
+	duration := endDate.Sub(startDate)
+	prevStart := startDate.Add(-duration)
+
+	// No owner filter — admin sees all data.
+	ownerID := uuid.NullUUID{}
+
+	// Run all queries in parallel.
+	var (
+		currentSummary  database.GetPRInsightsSummaryRow
+		previousSummary database.GetPRInsightsSummaryRow
+		timeSeries      []database.GetPRInsightsTimeSeriesRow
+		byModel         []database.GetPRInsightsPerModelRow
+		recentPRs       []database.GetPRInsightsRecentPRsRow
+	)
+
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.SetLimit(5)
+
+	eg.Go(func() error {
+		var err error
+		currentSummary, err = api.Database.GetPRInsightsSummary(egCtx, database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   ownerID,
+		})
+		return err
+	})
+
+	eg.Go(func() error {
+		var err error
+		previousSummary, err = api.Database.GetPRInsightsSummary(egCtx, database.GetPRInsightsSummaryParams{
+			StartDate: prevStart,
+			EndDate:   startDate,
+			OwnerID:   ownerID,
+		})
+		return err
+	})
+
+	eg.Go(func() error {
+		var err error
+		timeSeries, err = api.Database.GetPRInsightsTimeSeries(egCtx, database.GetPRInsightsTimeSeriesParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   ownerID,
+		})
+		return err
+	})
+
+	eg.Go(func() error {
+		var err error
+		byModel, err = api.Database.GetPRInsightsPerModel(egCtx, database.GetPRInsightsPerModelParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   ownerID,
+		})
+		return err
+	})
+
+	eg.Go(func() error {
+		var err error
+		recentPRs, err = api.Database.GetPRInsightsRecentPRs(egCtx, database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   ownerID,
+			LimitVal:  20,
+		})
+		return err
+	})
+
+	if err := eg.Wait(); err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	// Build summary with computed fields.
+	summary := codersdk.PRInsightsSummary{
+		TotalPRsCreated:     currentSummary.TotalPrsCreated,
+		TotalPRsMerged:      currentSummary.TotalPrsMerged,
+		TotalAdditions:      currentSummary.TotalAdditions,
+		TotalDeletions:      currentSummary.TotalDeletions,
+		TotalCostMicros:     currentSummary.TotalCostMicros,
+		PrevTotalPRsCreated: previousSummary.TotalPrsCreated,
+		PrevTotalPRsMerged:  previousSummary.TotalPrsMerged,
+	}
+	if summary.TotalPRsCreated > 0 {
+		summary.MergeRate = float64(summary.TotalPRsMerged) / float64(summary.TotalPRsCreated)
+	}
+	if summary.TotalPRsMerged > 0 {
+		summary.CostPerMergedPRMicros = currentSummary.MergedCostMicros / summary.TotalPRsMerged
+	}
+	if summary.PrevTotalPRsCreated > 0 {
+		summary.PrevMergeRate = float64(summary.PrevTotalPRsMerged) / float64(summary.PrevTotalPRsCreated)
+	}
+	if summary.PrevTotalPRsMerged > 0 {
+		summary.PrevCostPerMergedPRMicros = previousSummary.MergedCostMicros / summary.PrevTotalPRsMerged
+	}
+
+	// Convert time series.
+	tsEntries := make([]codersdk.PRInsightsTimeSeriesEntry, 0, len(timeSeries))
+	for _, ts := range timeSeries {
+		tsEntries = append(tsEntries, codersdk.PRInsightsTimeSeriesEntry{
+			Date:       ts.Date,
+			PRsCreated: ts.PrsCreated,
+			PRsMerged:  ts.PrsMerged,
+			PRsClosed:  ts.PrsClosed,
+		})
+	}
+
+	// Convert model breakdown.
+	modelEntries := make([]codersdk.PRInsightsModelBreakdown, 0, len(byModel))
+	for _, m := range byModel {
+		entry := codersdk.PRInsightsModelBreakdown{
+			ModelConfigID:   m.ModelConfigID.UUID,
+			DisplayName:     m.DisplayName,
+			Provider:        m.Provider,
+			TotalPRs:        m.TotalPrs,
+			MergedPRs:       m.MergedPrs,
+			TotalAdditions:  m.TotalAdditions,
+			TotalDeletions:  m.TotalDeletions,
+			TotalCostMicros: m.TotalCostMicros,
+		}
+		if entry.TotalPRs > 0 {
+			entry.MergeRate = float64(entry.MergedPRs) / float64(entry.TotalPRs)
+		}
+		if entry.MergedPRs > 0 {
+			entry.CostPerMergedPRMicros = m.MergedCostMicros / entry.MergedPRs
+		}
+		modelEntries = append(modelEntries, entry)
+	}
+
+	// Convert recent PRs.
+	prEntries := make([]codersdk.PRInsightsPullRequest, 0, len(recentPRs))
+	for _, pr := range recentPRs {
+		entry := codersdk.PRInsightsPullRequest{
+			ChatID:           pr.ChatID,
+			PRTitle:          pr.PrTitle,
+			Draft:            pr.Draft,
+			Additions:        pr.Additions,
+			Deletions:        pr.Deletions,
+			ChangedFiles:     pr.ChangedFiles,
+			ChangesRequested: pr.ChangesRequested,
+			BaseBranch:       pr.BaseBranch,
+			ModelDisplayName: pr.ModelDisplayName,
+			CostMicros:       pr.CostMicros,
+			CreatedAt:        pr.CreatedAt,
+		}
+		if pr.PrUrl.Valid {
+			entry.PRURL = &pr.PrUrl.String
+		}
+		if pr.PrNumber.Valid {
+			entry.PRNumber = &pr.PrNumber.Int32
+		}
+		if pr.State.Valid {
+			entry.State = pr.State.String
+		}
+		if pr.Commits.Valid {
+			entry.Commits = &pr.Commits.Int32
+		}
+		if pr.Approved.Valid {
+			entry.Approved = &pr.Approved.Bool
+		}
+		if pr.ReviewerCount.Valid {
+			entry.ReviewerCount = &pr.ReviewerCount.Int32
+		}
+		if pr.AuthorLogin.Valid {
+			entry.AuthorLogin = &pr.AuthorLogin.String
+		}
+		if pr.AuthorAvatarUrl.Valid {
+			entry.AuthorAvatarURL = &pr.AuthorAvatarUrl.String
+		}
+		prEntries = append(prEntries, entry)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.PRInsightsResponse{
+		Summary:    summary,
+		TimeSeries: tsEntries,
+		ByModel:    modelEntries,
+		RecentPRs:  prEntries,
+	})
 }

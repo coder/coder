@@ -3,8 +3,9 @@ import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
+import type { Dayjs } from "dayjs";
 import { PanelLeftIcon } from "lucide-react";
-import { type FC, useCallback, useMemo } from "react";
+import type { FC } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
@@ -28,9 +29,17 @@ export interface AgentsOutletContext {
 		chatId: string,
 		workspaceId: string,
 	) => void;
-	onOpenAnalytics?: () => void;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
+	onOpenAnalytics?: () => void;
+	modelOptions: readonly ModelSelectorOption[];
+	modelConfigIDByModelID: ReadonlyMap<string, string>;
+	modelIDByConfigID: ReadonlyMap<string, string>;
+	modelConfigs: readonly TypesGen.ChatModelConfig[];
+	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
+	isModelCatalogLoading: boolean;
+	modelCatalogError: unknown;
+	desktopEnabled: boolean;
 }
 
 interface AgentsPageViewProps {
@@ -49,7 +58,16 @@ interface AgentsPageViewProps {
 	onCollapseSidebar: () => void;
 	isSidebarCollapsed: boolean;
 	onExpandSidebar: () => void;
-	outletContext: AgentsOutletContext;
+	chatErrorReasons: Record<string, ChatDetailError>;
+	setChatErrorReason: (chatId: string, reason: ChatDetailError) => void;
+	clearChatErrorReason: (chatId: string) => void;
+	requestArchiveAgent: (chatId: string) => void;
+	requestUnarchiveAgent: (chatId: string) => void;
+	requestArchiveAndDeleteWorkspace: (
+		chatId: string,
+		workspaceId: string,
+	) => void;
+	onToggleSidebarCollapsed: () => void;
 	isAgentsAdmin: boolean;
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
 	createError: unknown;
@@ -57,11 +75,14 @@ interface AgentsPageViewProps {
 	isModelCatalogLoading: boolean;
 	isModelConfigsLoading: boolean;
 	modelCatalogError: unknown;
+	modelConfigIDByModelID: ReadonlyMap<string, string>;
+	desktopEnabled: boolean;
 	hasNextPage: boolean | undefined;
 	onLoadMore: () => void;
 	isFetchingNextPage: boolean;
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange: (filter: "active" | "archived") => void;
+	analyticsNow?: Dayjs;
 }
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
@@ -80,7 +101,13 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	onCollapseSidebar,
 	isSidebarCollapsed,
 	onExpandSidebar,
-	outletContext,
+	chatErrorReasons,
+	setChatErrorReason,
+	clearChatErrorReason,
+	requestArchiveAgent,
+	requestUnarchiveAgent,
+	requestArchiveAndDeleteWorkspace,
+	onToggleSidebarCollapsed,
 	isAgentsAdmin,
 	onCreateChat,
 	createError,
@@ -88,43 +115,61 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	isModelCatalogLoading,
 	isModelConfigsLoading,
 	modelCatalogError,
+	modelConfigIDByModelID,
+	desktopEnabled,
 	hasNextPage,
 	onLoadMore,
 	isFetchingNextPage,
 	archivedFilter,
 	onArchivedFilterChange,
+	analyticsNow,
 }) => {
-	const {
-		chatErrorReasons,
-		requestArchiveAgent,
-		requestUnarchiveAgent,
-		requestArchiveAndDeleteWorkspace,
-	} = outletContext;
 	const location = useLocation();
 	const navigate = useNavigate();
 	const sidebarView = sidebarViewFromPath(location.pathname);
 
-	const handleOpenAnalytics = useCallback(() => {
+	const handleOpenAnalytics = () => {
 		navigate("/agents/analytics");
-	}, [navigate]);
+	};
 
 	// The sidebar expects plain string error messages, but the outlet
 	// context now carries structured ChatDetailError objects.
-	const sidebarChatErrorReasons = useMemo(
-		() =>
-			Object.fromEntries(
-				Object.entries(chatErrorReasons).map(([chatId, error]) => [
-					chatId,
-					error.message,
-				]),
-			),
-		[chatErrorReasons],
+	const sidebarChatErrorReasons = Object.fromEntries(
+		Object.entries(chatErrorReasons).map(([chatId, error]) => [
+			chatId,
+			error.message,
+		]),
 	);
 
-	const outletContextValue = useMemo(
-		() => ({ ...outletContext, onOpenAnalytics: handleOpenAnalytics }),
-		[outletContext, handleOpenAnalytics],
-	);
+	const modelIDByConfigID = (() => {
+		const byConfigID = new Map<string, string>();
+		for (const [modelID, configID] of modelConfigIDByModelID.entries()) {
+			if (!byConfigID.has(configID)) {
+				byConfigID.set(configID, modelID);
+			}
+		}
+		return byConfigID;
+	})();
+
+	const outletContextValue: AgentsOutletContext = {
+		chatErrorReasons,
+		setChatErrorReason,
+		clearChatErrorReason,
+		requestArchiveAgent,
+		requestUnarchiveAgent,
+		requestArchiveAndDeleteWorkspace,
+		isSidebarCollapsed,
+		onToggleSidebarCollapsed,
+		onOpenAnalytics: handleOpenAnalytics,
+		modelOptions: catalogModelOptions,
+		modelConfigIDByModelID,
+		modelIDByConfigID,
+		modelConfigs,
+		modelCatalog,
+		isModelCatalogLoading,
+		modelCatalogError,
+		desktopEnabled,
+	};
 
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
@@ -179,7 +224,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 						canSetSystemPrompt={isAgentsAdmin}
 					/>
 				) : sidebarView.panel === "analytics" ? (
-					<AnalyticsPageContent />
+					<AnalyticsPageContent now={analyticsNow} />
 				) : agentId ? (
 					<Outlet key={agentId} context={outletContextValue} />
 				) : (

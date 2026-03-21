@@ -1,11 +1,6 @@
-import { asString } from "components/ai-elements/runtimeTypeUtils";
+import type * as TypesGen from "api/typesGenerated";
 import { appendTextBlock } from "./blockUtils";
-import {
-	asOptionalTitle,
-	ensureToolBlock,
-	normalizeBlockType,
-	parseToolResultIsError,
-} from "./messageParsing";
+import { ensureToolBlock, parseToolResultIsError } from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
 import type { MergedTool, RenderBlock, StreamState } from "./types";
 
@@ -18,58 +13,43 @@ export const createEmptyStreamState = (): StreamState => ({
 	sources: [],
 });
 
-/** Streaming variant — uses direct concatenation (the default joinText). */
-const appendStreamTextBlock = appendTextBlock;
-
 export const applyMessagePartToStreamState = (
 	prev: StreamState | null,
-	part: Record<string, unknown>,
+	part: TypesGen.ChatMessagePart,
 ): StreamState | null => {
-	const partType = normalizeBlockType(part.type);
 	const nextState: StreamState = prev ?? createEmptyStreamState();
 
-	switch (partType) {
+	switch (part.type) {
 		case "text": {
-			const text = asString(part.text);
-			if (!text) {
+			if (!part.text) {
 				return prev;
 			}
 			return {
 				...nextState,
-				blocks: appendStreamTextBlock(nextState.blocks, "response", text),
+				blocks: appendTextBlock(nextState.blocks, "response", part.text),
 			};
 		}
-		case "reasoning":
-		case "thinking": {
-			const text = asString(part.text);
-			if (!text) {
+		case "reasoning": {
+			if (!part.text) {
 				return prev;
 			}
-			const title = asOptionalTitle(part.title);
 			return {
 				...nextState,
-				blocks: appendStreamTextBlock(
-					nextState.blocks,
-					"thinking",
-					text,
-					title,
-				),
+				blocks: appendTextBlock(nextState.blocks, "thinking", part.text),
 			};
 		}
-		case "tool-call":
-		case "toolcall": {
+		case "tool-call": {
 			// Provider-executed tool calls (e.g. web_search) are
 			// handled natively by the provider — skip rendering them
 			// as tool cards.
 			if (part.provider_executed) {
 				return prev;
 			}
-			const toolName = asString(part.tool_name);
 			const existingByName = Object.values(nextState.toolCalls).find(
-				(call) => call.name === toolName,
+				(call) => call.name === part.tool_name,
 			);
 			const toolCallID =
-				asString(part.tool_call_id) ||
+				part.tool_call_id ||
 				(existingByName && !existingByName.args ? existingByName.id : null) ||
 				`tool-call-${Object.keys(nextState.toolCalls).length + 1}-${++nextFallbackID}`;
 			const existing = nextState.toolCalls[toolCallID];
@@ -87,28 +67,26 @@ export const applyMessagePartToStreamState = (
 					...nextState.toolCalls,
 					[toolCallID]: {
 						id: toolCallID,
-						name: toolName || existing?.name || "Tool",
+						name: part.tool_name || existing?.name || "Tool",
 						args: nextArgs.value,
 						argsRaw: nextArgs.rawText,
 					},
 				},
 			};
 		}
-		case "tool-result":
-		case "toolresult": {
+		case "tool-result": {
 			// Skip synthetic results for provider-executed tools.
 			if (part.provider_executed) {
 				return prev;
 			}
-			const toolName = asString(part.tool_name);
 			const existingByName = Object.values(nextState.toolResults).find(
-				(result) => result.name === toolName,
+				(result) => result.name === part.tool_name,
 			);
 			const existingCallByName = Object.values(nextState.toolCalls).find(
-				(call) => call.name === toolName,
+				(call) => call.name === part.tool_name,
 			);
 			const toolCallID =
-				asString(part.tool_call_id) ||
+				part.tool_call_id ||
 				(existingByName && !existingByName.result ? existingByName.id : null) ||
 				(existingCallByName && !nextState.toolResults[existingCallByName.id]
 					? existingCallByName.id
@@ -119,9 +97,9 @@ export const applyMessagePartToStreamState = (
 				existing?.result,
 				existing?.resultRaw,
 				part.result,
-				part.result_delta,
+				undefined, // no delta: tool results arrive complete, not streamed incrementally
 			);
-			const nextToolName = toolName || existing?.name || "Tool";
+			const nextToolName = part.tool_name || existing?.name || "Tool";
 			const nextIsError =
 				existing?.isError ||
 				parseToolResultIsError(nextToolName, part, nextResult.value);
@@ -141,26 +119,22 @@ export const applyMessagePartToStreamState = (
 				},
 			};
 		}
-		case "file":
-			if (!part.media_type || (!part.data && !part.file_id)) {
+		case "file": {
+			if (!part.data && !part.file_id) {
 				return prev;
 			}
 			return {
 				...nextState,
-				blocks: [
-					...nextState.blocks,
-					part as Extract<RenderBlock, { type: "file" }>,
-				],
+				blocks: [...nextState.blocks, part],
 			};
+		}
 		case "source": {
-			const url = asString(part.url);
-			const title = asString(part.title);
-			if (!url) {
+			if (!part.url) {
 				return prev;
 			}
-			const source = { url, title: title || url };
+			const source = { url: part.url, title: part.title || part.url };
 			// Still populate the flat list for backward compat.
-			if (nextState.sources.some((s) => s.url === url)) {
+			if (nextState.sources.some((s) => s.url === part.url)) {
 				return prev;
 			}
 			const newSources = [...nextState.sources, source];
@@ -187,8 +161,14 @@ export const applyMessagePartToStreamState = (
 				blocks: newBlocks,
 			};
 		}
-		default:
+		// file-reference parts only appear in persisted messages
+		// from user input, never via SSE streaming.
+		case "file-reference":
 			return prev;
+		default: {
+			const _exhaustive: never = part;
+			return prev;
+		}
 	}
 };
 

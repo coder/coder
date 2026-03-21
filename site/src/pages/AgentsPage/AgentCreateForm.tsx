@@ -7,30 +7,28 @@ import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import {
-	Combobox,
-	ComboboxContent,
-	ComboboxEmpty,
-	ComboboxInput,
-	ComboboxItem,
-	ComboboxList,
-	ComboboxTrigger,
-} from "components/Combobox/Combobox";
-import { MonitorIcon } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "components/Command/Command";
 import {
-	type FC,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
+import { Check, MonitorIcon } from "lucide-react";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { AgentChatInput } from "./AgentChatInput";
 import {
 	getModelCatalogStatusMessage,
 	getModelSelectorPlaceholder,
+	getNormalizedModelRef,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
 import { formatUsageLimitMessage, isUsageLimitData } from "./usageLimitMessage";
@@ -71,7 +69,7 @@ export function useEmptyStateDraft() {
 	const inputValueRef = useRef(initialInputValue);
 	const sentRef = useRef(false);
 
-	const handleContentChange = useCallback((content: string) => {
+	const handleContentChange = (content: string) => {
 		inputValueRef.current = content;
 		if (typeof window !== "undefined" && !sentRef.current) {
 			if (content) {
@@ -80,20 +78,20 @@ export function useEmptyStateDraft() {
 				localStorage.removeItem(emptyInputStorageKey);
 			}
 		}
-	}, []);
+	};
 
-	const submitDraft = useCallback(() => {
+	const submitDraft = () => {
 		// Mark as sent so that editor change events firing during
 		// the async gap cannot re-persist the draft.
 		sentRef.current = true;
 		localStorage.removeItem(emptyInputStorageKey);
-	}, []);
+	};
 
-	const resetDraft = useCallback(() => {
+	const resetDraft = () => {
 		sentRef.current = false;
-	}, []);
+	};
 
-	const getCurrentContent = useCallback(() => inputValueRef.current, []);
+	const getCurrentContent = () => inputValueRef.current;
 
 	return {
 		initialInputValue,
@@ -138,7 +136,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
 	});
-	const modelIDByConfigID = useMemo(() => {
+	const modelIDByConfigID = (() => {
 		const optionIDByRef = new Map<string, string>();
 		for (const option of modelOptions) {
 			const provider = option.provider.trim().toLowerCase();
@@ -154,8 +152,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 
 		const byConfigID = new Map<string, string>();
 		for (const config of modelConfigs) {
-			const provider = config.provider.trim().toLowerCase();
-			const model = config.model.trim();
+			const { provider, model } = getNormalizedModelRef(config);
 			if (!provider || !model) {
 				continue;
 			}
@@ -166,20 +163,17 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			byConfigID.set(config.id, modelID);
 		}
 		return byConfigID;
-	}, [modelConfigs, modelOptions]);
-	const lastUsedModelID = useMemo(() => {
-		if (!initialLastModelConfigID) {
-			return "";
-		}
-		return modelIDByConfigID.get(initialLastModelConfigID) ?? "";
-	}, [initialLastModelConfigID, modelIDByConfigID]);
-	const defaultModelID = useMemo(() => {
+	})();
+	const lastUsedModelID = initialLastModelConfigID
+		? (modelIDByConfigID.get(initialLastModelConfigID) ?? "")
+		: "";
+	const defaultModelID = (() => {
 		const defaultModelConfig = modelConfigs.find((config) => config.is_default);
 		if (!defaultModelConfig) {
 			return "";
 		}
 		return modelIDByConfigID.get(defaultModelConfig.id) ?? "";
-	}, [modelConfigs, modelIDByConfigID]);
+	})();
 	const preferredModelID =
 		lastUsedModelID || defaultModelID || (modelOptions[0]?.id ?? "");
 	const [userSelectedModel, setUserSelectedModel] = useState("");
@@ -191,6 +185,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
 			? userSelectedModel
 			: preferredModelID;
+	const [workspacePopoverOpen, setWorkspacePopoverOpen] = useState(false);
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
 		() => {
@@ -244,9 +239,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// that the onSend callback always sees the latest values without
 	// the shared input component re-rendering on every change.
 	const selectedWorkspaceIdRef = useRef(selectedWorkspaceId);
-	selectedWorkspaceIdRef.current = selectedWorkspaceId;
 	const selectedModelRef = useRef(selectedModel);
-	selectedModelRef.current = selectedModel;
+	useEffect(() => {
+		selectedWorkspaceIdRef.current = selectedWorkspaceId;
+		selectedModelRef.current = selectedModel;
+	});
 
 	const handleWorkspaceChange = (value: string) => {
 		if (value === autoCreateWorkspaceValue) {
@@ -262,27 +259,24 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	};
 
-	const handleModelChange = useCallback((value: string) => {
+	const handleModelChange = (value: string) => {
 		setHasUserSelectedModel(true);
 		setUserSelectedModel(value);
-	}, []);
+	};
 
-	const handleSend = useCallback(
-		async (message: string, fileIDs?: string[]) => {
-			submitDraft();
-			await onCreateChat({
-				message,
-				fileIDs,
-				workspaceId: selectedWorkspaceIdRef.current ?? undefined,
-				model: selectedModelRef.current || undefined,
-			}).catch(() => {
-				// Re-enable draft persistence so the user can edit
-				// and retry after a failed send attempt.
-				resetDraft();
-			});
-		},
-		[submitDraft, resetDraft, onCreateChat],
-	);
+	const handleSend = async (message: string, fileIDs?: string[]) => {
+		submitDraft();
+		await onCreateChat({
+			message,
+			fileIDs,
+			workspaceId: selectedWorkspaceIdRef.current ?? undefined,
+			model: selectedModelRef.current || undefined,
+		}).catch(() => {
+			// Re-enable draft persistence so the user can edit
+			// and retry after a failed send attempt.
+			resetDraft();
+		});
+	};
 
 	const selectedWorkspace = selectedWorkspaceId
 		? workspaceOptions.find((ws) => ws.id === selectedWorkspaceId)
@@ -300,34 +294,32 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		resetAttachments,
 	} = useFileAttachments(organizations[0]?.id);
 
-	const handleSendWithAttachments = useCallback(
-		async (message: string) => {
-			const fileIds: string[] = [];
-			let skippedErrors = 0;
-			for (const file of attachments) {
-				const state = uploadStates.get(file);
-				if (state?.status === "error") {
-					skippedErrors++;
-					continue;
-				}
-				if (state?.status === "uploaded" && state.fileId) {
-					fileIds.push(state.fileId);
-				}
+	const handleSendWithAttachments = async (message: string) => {
+		const fileIds: string[] = [];
+		let skippedErrors = 0;
+		for (const file of attachments) {
+			const state = uploadStates.get(file);
+			if (state?.status === "error") {
+				skippedErrors++;
+				continue;
 			}
-			if (skippedErrors > 0) {
-				toast.warning(
-					`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
-				);
+			if (state?.status === "uploaded" && state.fileId) {
+				fileIds.push(state.fileId);
 			}
-			try {
-				await handleSend(message, fileIds.length > 0 ? fileIds : undefined);
-				resetAttachments();
-			} catch {
-				// Attachments preserved for retry on failure.
-			}
-		},
-		[attachments, handleSend, resetAttachments, uploadStates],
-	);
+		}
+		if (skippedErrors > 0) {
+			toast.warning(
+				`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+			);
+		}
+		const fileArg = fileIds.length > 0 ? fileIds : undefined;
+		try {
+			await handleSend(message, fileArg);
+			resetAttachments();
+		} catch {
+			// Attachments preserved for retry on failure.
+		}
+	};
 
 	return (
 		<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
@@ -377,46 +369,65 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					uploadStates={uploadStates}
 					previewUrls={previewUrls}
 					leftActions={
-						<Combobox
-							value={selectedWorkspaceId ?? autoCreateWorkspaceValue}
-							onValueChange={(value) =>
-								handleWorkspaceChange(value ?? autoCreateWorkspaceValue)
-							}
+						<Popover
+							open={workspacePopoverOpen}
+							onOpenChange={setWorkspacePopoverOpen}
 						>
-							<ComboboxTrigger asChild>
+							{/* pointer-events-auto overrides the pointer-events:none
+									   that Radix Select's DismissableLayer sets on
+									   document.body when the Model Selector is open.
+									   Without it the first click only dismisses the
+									   Select and a second click is needed to open
+									   the popover. */}
+							<PopoverTrigger asChild>
 								<button
 									type="button"
 									disabled={isCreating || workspacesQuery.isLoading}
-									className="group flex h-8 items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:bg-transparent hover:text-content-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+									className="pointer-events-auto group flex h-8 items-center gap-1.5 rounded-md border-none bg-transparent px-1 text-xs text-content-secondary shadow-none ring-offset-background transition-colors hover:bg-transparent hover:text-content-primary focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
 								>
 									<MonitorIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary transition-colors group-hover:text-content-primary" />
 									<span>{selectedWorkspaceLabel ?? "Workspace"}</span>
 									<ChevronDownIcon className="size-icon-sm text-content-secondary transition-colors group-hover:text-content-primary" />
 								</button>
-							</ComboboxTrigger>
-							<ComboboxContent
-								side="top"
-								align="center"
-								className="w-72 [&_[cmdk-item]]:text-xs"
-							>
-								<ComboboxInput placeholder="Search workspaces..." />
-								<ComboboxList>
-									<ComboboxItem value={autoCreateWorkspaceValue}>
-										Auto-create Workspace
-									</ComboboxItem>
-									{workspaceOptions.map((workspace) => (
-										<ComboboxItem
-											key={workspace.id}
-											value={workspace.id}
-											keywords={[workspace.owner_name, workspace.name]}
-										>
-											{workspace.owner_name}/{workspace.name}
-										</ComboboxItem>
-									))}
-								</ComboboxList>
-								<ComboboxEmpty>No workspaces found</ComboboxEmpty>
-							</ComboboxContent>
-						</Combobox>
+							</PopoverTrigger>
+							<PopoverContent side="top" align="start" className="w-72 p-0">
+								<Command loop>
+									<CommandInput placeholder="Search workspaces..." />
+									<CommandList>
+										<CommandEmpty>No workspaces found</CommandEmpty>
+										<CommandGroup>
+											<CommandItem
+												value="Auto-create Workspace"
+												onSelect={() => {
+													handleWorkspaceChange(autoCreateWorkspaceValue);
+													setWorkspacePopoverOpen(false);
+												}}
+											>
+												Auto-create Workspace
+												{selectedWorkspaceId == null && (
+													<Check className="ml-auto size-icon-sm shrink-0" />
+												)}
+											</CommandItem>
+											{workspaceOptions.map((workspace) => (
+												<CommandItem
+													key={workspace.id}
+													value={`${workspace.owner_name}/${workspace.name}`}
+													onSelect={() => {
+														handleWorkspaceChange(workspace.id);
+														setWorkspacePopoverOpen(false);
+													}}
+												>
+													{workspace.owner_name}/{workspace.name}
+													{selectedWorkspaceId === workspace.id && (
+														<Check className="ml-auto size-icon-sm shrink-0" />
+													)}
+												</CommandItem>
+											))}
+										</CommandGroup>
+									</CommandList>
+								</Command>
+							</PopoverContent>
+						</Popover>
 					}
 				/>
 				<p className="mt-1 text-center text-xs text-content-secondary/50">

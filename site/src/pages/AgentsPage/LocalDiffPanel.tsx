@@ -1,20 +1,24 @@
 import { parsePatchFiles } from "@pierre/diffs";
 import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
-import { type FC, useMemo } from "react";
-import { type DiffStyle, DiffViewer } from "./DiffViewer";
+import type { FC, RefObject } from "react";
+import type { ChatMessageInputRef } from "./AgentChatInput";
+import { CommentableDiffViewer } from "./CommentableDiffViewer";
+import type { DiffStyle } from "./DiffViewer";
 
 interface LocalDiffPanelProps {
 	repo: WorkspaceAgentRepoChanges;
 	isExpanded?: boolean;
 	diffStyle: DiffStyle;
+	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 }
 
 export const LocalDiffPanel: FC<LocalDiffPanelProps> = ({
 	repo,
 	isExpanded,
 	diffStyle,
+	chatInputRef,
 }) => {
-	const parsedFiles = useMemo(() => {
+	const parsedFiles = (() => {
 		const diff = repo.unified_diff;
 		if (!diff) {
 			return [];
@@ -25,14 +29,15 @@ export const LocalDiffPanel: FC<LocalDiffPanelProps> = ({
 		} catch {
 			return [];
 		}
-	}, [repo.unified_diff]);
+	})();
 
 	return (
-		<DiffViewer
+		<CommentableDiffViewer
 			parsedFiles={parsedFiles}
 			isExpanded={isExpanded}
 			emptyMessage="No file changes."
 			diffStyle={diffStyle}
+			chatInputRef={chatInputRef}
 		/>
 	);
 };

@@ -44,10 +44,56 @@ const AgentDetailLayout: FC = () => {
 							setChatErrorReason: () => {},
 							clearChatErrorReason: () => {},
 							requestArchiveAgent: () => {},
-							requestArchiveAndDeleteWorkspace: () => {},
+							requestArchiveAndDeleteWorkspace: (
+								_chatId: string,
+								_workspaceId: string,
+							) => {},
 							requestUnarchiveAgent: () => {},
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
+							modelOptions: [
+								{
+									id: "openai:gpt-4o",
+									provider: "openai",
+									model: "gpt-4o",
+									displayName: "GPT-4o",
+								},
+							],
+							modelConfigIDByModelID: new Map([["openai:gpt-4o", "config-1"]]),
+							modelIDByConfigID: new Map([["config-1", "openai:gpt-4o"]]),
+							modelConfigs: [
+								{
+									id: "config-1",
+									provider: "openai",
+									model: "gpt-4o",
+									display_name: "GPT-4o",
+									enabled: true,
+									is_default: false,
+									context_limit: 200000,
+									compression_threshold: 70,
+									created_at: "2026-01-01T00:00:00Z",
+									updated_at: "2026-01-01T00:00:00Z",
+								},
+							],
+							modelCatalog: {
+								providers: [
+									{
+										provider: "openai",
+										available: true,
+										models: [
+											{
+												id: "openai:gpt-4o",
+												provider: "openai",
+												model: "gpt-4o",
+												display_name: "GPT-4o",
+											},
+										],
+									},
+								],
+							},
+							isModelCatalogLoading: false,
+							modelCatalogError: null,
+							desktopEnabled: false,
 						} satisfies AgentsOutletContext
 					}
 				/>
@@ -106,6 +152,7 @@ const baseChatFields = {
 	owner_id: "owner-id",
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: "model-config-1",
+	mcp_server_ids: [],
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 	archived: false,
@@ -207,7 +254,9 @@ const meta: Meta<typeof AgentDetailLayout> = {
 		}),
 	},
 	beforeEach: () => {
+		localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 	},
 };
 
@@ -584,22 +633,6 @@ export const CompletedWithDiffPanel: Story = {
 	},
 };
 
-/** Right panel stays closed when no diff-status URL exists. */
-export const NoDiffUrl: Story = {
-	parameters: {
-		queries: buildQueries(
-			{
-				id: CHAT_ID,
-				...baseChatFields,
-				title: "No diff yet",
-				status: "completed",
-			},
-			{ messages: [], queued_messages: [], has_more: false },
-			{ diffUrl: undefined },
-		),
-	},
-};
-
 /** Subagent tool-call/result messages render subagent cards. */
 export const WithSubagentCards: Story = {
 	parameters: {
@@ -653,8 +686,8 @@ export const WithSubagentCards: Story = {
 	},
 };
 
-/** Reasoning part renders collapsed and can be expanded on click. */
-export const WithReasoningCollapsed: Story = {
+/** Completed reasoning part renders inline. */
+export const WithReasoningInline: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
@@ -673,7 +706,6 @@ export const WithReasoningCollapsed: Story = {
 						content: [
 							{
 								type: "reasoning",
-								title: "Plan migration",
 								text: "Reasoning body",
 							},
 						],
@@ -687,17 +719,10 @@ export const WithReasoningCollapsed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const user = userEvent.setup();
 
-		const reasoningToggle = await canvas.findByRole("button", {
-			name: "Plan migration",
-		});
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "false");
-
-		await user.click(reasoningToggle);
-
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "true");
+		// Reasoning text renders inline.
 		expect(canvas.getByText("Reasoning body")).toBeInTheDocument();
+		expect(canvas.queryByRole("button", { name: "Thinking" })).toBeNull();
 	},
 };
 
@@ -772,7 +797,7 @@ export const SidebarWithPRAndRepos: Story = {
 			{ diffUrl: "https://github.com/coder/coder/pull/456" },
 		),
 		webSocket: {
-			"/git/watch": [
+			"/stream/git": [
 				{
 					event: "message",
 					data: JSON.stringify({
@@ -953,7 +978,7 @@ export const SidebarWithSingleRepo: Story = {
 			{ diffUrl: undefined },
 		),
 		webSocket: {
-			"/git/watch": [
+			"/stream/git": [
 				{
 					event: "message",
 					data: JSON.stringify({
@@ -999,10 +1024,9 @@ export const SidebarWithSingleRepo: Story = {
 	},
 };
 /**
- * Streaming reasoning part via WebSocket — renders collapsed and
- * can be expanded on click.
+ * Streaming reasoning part via WebSocket — renders inline text.
  */
-export const StreamedReasoningCollapsed: Story = {
+export const StreamedReasoning: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
@@ -1023,7 +1047,6 @@ export const StreamedReasoningCollapsed: Story = {
 						message_part: {
 							part: {
 								type: "reasoning",
-								title: "Plan migration",
 								text: "Streaming reasoning body",
 							},
 						},
@@ -1034,16 +1057,7 @@ export const StreamedReasoningCollapsed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const user = userEvent.setup();
 
-		const reasoningToggle = await canvas.findByRole("button", {
-			name: "Plan migration",
-		});
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "false");
-
-		await user.click(reasoningToggle);
-
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "true");
 		await expect(
 			canvas.findByText("Streaming reasoning body"),
 		).resolves.toBeInTheDocument();

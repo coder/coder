@@ -30,26 +30,13 @@ export type RenderBlock =
 	| {
 			type: "thinking";
 			text: string;
-			title?: string;
 	  }
 	| {
 			type: "tool";
 			id: string;
 	  }
-	| {
-			type: "file";
-			media_type: string;
-			data?: string; // base64, absent when file_id is available
-			file_id?: string;
-	  }
-	| {
-			type: "file-reference";
-			fileName: string;
-			startLine: number;
-			endLine: number;
-			content: string;
-			text: string;
-	  }
+	| TypesGen.ChatFilePart
+	| TypesGen.ChatFileReferencePart
 	| {
 			type: "sources";
 			sources: Array<{ url: string; title: string }>;

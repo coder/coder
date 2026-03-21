@@ -1,5 +1,5 @@
 import { ExternalLinkIcon, GlobeIcon } from "lucide-react";
-import { type FC, useMemo } from "react";
+import type { FC } from "react";
 import { cn } from "utils/cn";
 import { ToolCollapsible } from "./ToolCollapsible";
 
@@ -14,7 +14,7 @@ interface WebSearchSourcesProps {
  */
 const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
 	// Deduplicate sources by URL, keeping the first occurrence.
-	const unique = useMemo(() => {
+	const unique = (() => {
 		const seen = new Set<string>();
 		return sources.filter((s) => {
 			if (!s.url || seen.has(s.url)) {
@@ -23,7 +23,7 @@ const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
 			seen.add(s.url);
 			return true;
 		});
-	}, [sources]);
+	})();
 
 	if (unique.length === 0) {
 		return null;

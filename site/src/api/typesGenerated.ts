@@ -92,6 +92,7 @@ export interface AIBridgeProxyConfig {
 	readonly domain_allowlist: string;
 	readonly upstream_proxy: string;
 	readonly upstream_proxy_ca: string;
+	readonly allowed_private_cidrs: string;
 }
 
 // From codersdk/aibridge.go
@@ -136,6 +137,7 @@ export interface AIBridgeUserPrompt {
 export interface AIConfig {
 	readonly bridge?: AIBridgeConfig;
 	readonly aibridge_proxy?: AIBridgeProxyConfig;
+	readonly chat?: ChatConfig;
 }
 
 // From codersdk/allowlist.go
@@ -1069,6 +1071,12 @@ export interface Chat {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly archived: boolean;
+	readonly mcp_server_ids: readonly string[];
+}
+
+// From codersdk/deployment.go
+export interface ChatConfig {
+	readonly acquire_batch_size: number;
 }
 
 // From codersdk/chats.go
@@ -1172,6 +1180,14 @@ export interface ChatCostUsersResponse {
 
 // From codersdk/chats.go
 /**
+ * ChatDesktopEnabledResponse is the response for getting the desktop setting.
+ */
+export interface ChatDesktopEnabledResponse {
+	readonly enable_desktop: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * ChatDiffContents represents the resolved diff text for a chat.
  */
 export interface ChatDiffContents {
@@ -1209,6 +1225,26 @@ export interface ChatDiffStatus {
 	readonly reviewer_count?: number;
 	readonly refreshed_at?: string;
 	readonly stale_at?: string;
+}
+
+// From codersdk/chats.go
+export interface ChatFilePart {
+	readonly type: "file";
+	readonly media_type: string;
+	readonly data?: string;
+	readonly file_id?: string;
+}
+
+// From codersdk/chats.go
+export interface ChatFileReferencePart {
+	readonly type: "file-reference";
+	readonly file_name: string;
+	readonly start_line: number;
+	readonly end_line: number;
+	/**
+	 * The code content from the diff that was commented on.
+	 */
+	readonly content: string;
 }
 
 // From codersdk/chats.go
@@ -1280,41 +1316,30 @@ export interface ChatMessage {
  * changes, and omitempty behavior all affect backward-compatible
  * deserialization of stored rows. Treat changes to this struct
  * with the same care as a database migration.
+ *
+ * The variants struct tag declares which discriminated-union
+ * variants include each field in the generated TypeScript. Bare
+ * name = required, ? suffix = optional. Fields without a variants
+ * tag are excluded from the generated union. See
+ * scripts/apitypings/main.go for the codegen that reads these.
+ *
+ * omitempty rules (enforced by TestChatMessagePartVariantTags):
+ *   - If a field is required (no ? suffix) in ANY variant, it
+ *     must NOT use omitempty. Go would silently drop zero values
+ *     that TypeScript expects to always be present.
+ *   - If a field is optional (? suffix) in ALL of its variants,
+ *     it MUST use omitempty. Sending zero values for fields that
+ *     the frontend does not expect adds noise to the wire format
+ *     and wastes space in persisted chat_messages rows.
  */
-export interface ChatMessagePart {
-	readonly type: ChatMessagePartType;
-	readonly text?: string;
-	readonly signature?: string;
-	readonly tool_call_id?: string;
-	readonly tool_name?: string;
-	readonly args?: Record<string, string>;
-	readonly args_delta?: string;
-	readonly result?: Record<string, string>;
-	readonly result_delta?: string;
-	readonly is_error?: boolean;
-	readonly source_id?: string;
-	readonly url?: string;
-	readonly title?: string;
-	readonly media_type?: string;
-	readonly data?: string;
-	readonly file_id?: string;
-	/**
-	 * The following fields are only set when Type is
-	 * ChatInputPartTypeFileReference.
-	 */
-	readonly file_name?: string;
-	readonly start_line?: number;
-	readonly end_line?: number;
-	/**
-	 * The code content from the diff that was commented on.
-	 */
-	readonly content?: string;
-	/**
-	 * ProviderExecuted indicates the tool call was executed by
-	 * the provider (e.g. Anthropic computer use).
-	 */
-	readonly provider_executed?: boolean;
-}
+export type ChatMessagePart =
+	| ChatTextPart
+	| ChatReasoningPart
+	| ChatToolCallPart
+	| ChatToolResultPart
+	| ChatSourcePart
+	| ChatFilePart
+	| ChatFileReferencePart;
 
 // From codersdk/chats.go
 export type ChatMessagePartType =
@@ -1666,6 +1691,20 @@ export interface ChatQueuedMessage {
 }
 
 // From codersdk/chats.go
+export interface ChatReasoningPart {
+	readonly type: "reasoning";
+	readonly text: string;
+}
+
+// From codersdk/chats.go
+export interface ChatSourcePart {
+	readonly type: "source";
+	readonly url: string;
+	readonly source_id?: string;
+	readonly title?: string;
+}
+
+// From codersdk/chats.go
 export type ChatStatus =
 	| "completed"
 	| "error"
@@ -1775,6 +1814,40 @@ export interface ChatSystemPrompt {
 }
 
 // From codersdk/chats.go
+export interface ChatTextPart {
+	readonly type: "text";
+	readonly text: string;
+}
+
+// From codersdk/chats.go
+export interface ChatToolCallPart {
+	readonly type: "tool-call";
+	readonly tool_call_id?: string;
+	readonly tool_name?: string;
+	readonly args?: Record<string, string>;
+	readonly args_delta?: string;
+	/**
+	 * ProviderExecuted indicates the tool call was executed by
+	 * the provider (e.g. Anthropic computer use).
+	 */
+	readonly provider_executed?: boolean;
+}
+
+// From codersdk/chats.go
+export interface ChatToolResultPart {
+	readonly type: "tool-result";
+	readonly tool_call_id?: string;
+	readonly tool_name?: string;
+	readonly result?: Record<string, string>;
+	readonly is_error?: boolean;
+	/**
+	 * ProviderExecuted indicates the tool call was executed by
+	 * the provider (e.g. Anthropic computer use).
+	 */
+	readonly provider_executed?: boolean;
+}
+
+// From codersdk/chats.go
 /**
  * ChatUsageLimitConfig is the deployment-wide default usage limit config.
  */
@@ -1866,6 +1939,19 @@ export interface ChatUsageLimitStatus {
 	readonly current_spend: number;
 	readonly period_start?: string;
 	readonly period_end?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatWorkspaceTTLResponse is the response for getting the chat
+ * workspace TTL setting.
+ */
+export interface ChatWorkspaceTTLResponse {
+	/**
+	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
+	 * Zero means disabled — the template's own autostop setting applies.
+	 */
+	readonly workspace_ttl_ms: number;
 }
 
 // From codersdk/client.go
@@ -2005,6 +2091,7 @@ export interface ConvertLoginRequest {
 export interface CreateChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
 	readonly model_config_id?: string;
+	readonly mcp_server_ids?: string[];
 }
 
 // From codersdk/chats.go
@@ -2052,6 +2139,7 @@ export interface CreateChatRequest {
 	readonly content: readonly ChatInputPart[];
 	readonly workspace_id?: string;
 	readonly model_config_id?: string;
+	readonly mcp_server_ids?: readonly string[];
 }
 
 // From codersdk/users.go
@@ -2090,6 +2178,32 @@ export interface CreateGroupRequest {
 	readonly display_name: string;
 	readonly avatar_url: string;
 	readonly quota_allowance: number;
+}
+
+// From codersdk/mcp.go
+/**
+ * CreateMCPServerConfigRequest is the request to create a new MCP server config.
+ */
+export interface CreateMCPServerConfigRequest {
+	readonly display_name: string;
+	readonly slug: string;
+	readonly description: string;
+	readonly icon_url: string;
+	readonly transport: string;
+	readonly url: string;
+	readonly auth_type: string;
+	readonly oauth2_client_id?: string;
+	readonly oauth2_client_secret?: string;
+	readonly oauth2_auth_url?: string;
+	readonly oauth2_token_url?: string;
+	readonly oauth2_scopes?: string;
+	readonly api_key_header?: string;
+	readonly api_key_value?: string;
+	readonly custom_headers?: Record<string, string>;
+	readonly tool_allow_list?: readonly string[];
+	readonly tool_deny_list?: readonly string[];
+	readonly availability: string;
+	readonly enabled: boolean;
 }
 
 // From codersdk/organizations.go
@@ -2614,6 +2728,13 @@ export interface DebugProfileOptions {
 	 */
 	readonly Profiles: readonly string[];
 }
+
+// From codersdk/chats.go
+/**
+ * DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
+ * Zero means disabled — the template's own autostop setting applies.
+ */
+export const DefaultChatWorkspaceTTL = 0;
 
 // From codersdk/externalauth.go
 export interface DeleteExternalAuthByIDResponse {
@@ -3231,6 +3352,17 @@ export interface GroupArguments {
 }
 
 // From codersdk/groups.go
+export interface GroupMembersResponse {
+	readonly users: readonly ReducedUser[];
+	readonly count: number;
+}
+
+// From codersdk/groups.go
+export interface GroupRequest {
+	readonly exclude_members: boolean;
+}
+
+// From codersdk/groups.go
 export type GroupSource = "oidc" | "user";
 
 export const GroupSources: GroupSource[] = ["oidc", "user"];
@@ -3619,6 +3751,51 @@ export interface LoginWithPasswordRequest {
  */
 export interface LoginWithPasswordResponse {
 	readonly session_token: string;
+}
+
+// From codersdk/mcp.go
+/**
+ * MCPServerConfig represents an admin-configured MCP server.
+ */
+export interface MCPServerConfig {
+	readonly id: string;
+	readonly display_name: string;
+	readonly slug: string;
+	readonly description: string;
+	readonly icon_url: string;
+	readonly transport: string; // "streamable_http" or "sse"
+	readonly url: string;
+	readonly auth_type: string; // "none", "oauth2", "api_key", "custom_headers"
+	/**
+	 * OAuth2 fields (only populated for admins).
+	 */
+	readonly oauth2_client_id?: string;
+	readonly has_oauth2_secret: boolean;
+	readonly oauth2_auth_url?: string;
+	readonly oauth2_token_url?: string;
+	readonly oauth2_scopes?: string;
+	/**
+	 * API key fields (only populated for admins).
+	 */
+	readonly api_key_header?: string;
+	readonly has_api_key: boolean;
+	readonly has_custom_headers: boolean;
+	/**
+	 * Tool governance.
+	 */
+	readonly tool_allow_list: readonly string[];
+	readonly tool_deny_list: readonly string[];
+	/**
+	 * Availability policy set by admin.
+	 */
+	readonly availability: string; // "force_on", "default_on", "default_off"
+	readonly enabled: boolean;
+	readonly created_at: string;
+	readonly updated_at: string;
+	/**
+	 * Per-user state (populated for non-admin requests).
+	 */
+	readonly auth_connected: boolean;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -4268,6 +4445,20 @@ export interface OIDCAuthMethod extends AuthMethod {
 	readonly iconUrl: string;
 }
 
+// From codersdk/users.go
+/**
+ * OIDCClaimsResponse represents the merged OIDC claims for a user.
+ */
+export interface OIDCClaimsResponse {
+	/**
+	 * Claims are the merged claims from the OIDC provider. These
+	 * are the union of the ID token claims and the userinfo claims,
+	 * where userinfo claims take precedence on conflict.
+	 */
+	// empty interface{} type, falling back to unknown
+	readonly claims: Record<string, unknown>;
+}
+
 // From codersdk/deployment.go
 export interface OIDCConfig {
 	readonly allow_signups: boolean;
@@ -4406,6 +4597,93 @@ export interface OrganizationSyncSettings {
 	 * for every user, regardless of their claims. This preserves legacy behavior.
 	 */
 	readonly organization_assign_default: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * PRInsightsModelBreakdown contains PR metrics for a single model.
+ */
+export interface PRInsightsModelBreakdown {
+	readonly model_config_id: string;
+	readonly display_name: string;
+	readonly provider: string;
+	readonly total_prs: number;
+	readonly merged_prs: number;
+	readonly merge_rate: number;
+	readonly total_additions: number;
+	readonly total_deletions: number;
+	readonly total_cost_micros: number;
+	readonly cost_per_merged_pr_micros: number;
+}
+
+// From codersdk/chats.go
+/**
+ * PRInsightsPullRequest represents a single PR in the recent PRs
+ * table.
+ */
+export interface PRInsightsPullRequest {
+	readonly chat_id: string;
+	readonly pr_title: string;
+	readonly pr_url?: string;
+	readonly pr_number?: number;
+	readonly state: string;
+	readonly draft: boolean;
+	readonly additions: number;
+	readonly deletions: number;
+	readonly changed_files: number;
+	readonly commits?: number;
+	readonly approved?: boolean;
+	readonly changes_requested: boolean;
+	readonly reviewer_count?: number;
+	readonly author_login?: string;
+	readonly author_avatar_url?: string;
+	readonly base_branch: string;
+	readonly model_display_name: string;
+	readonly cost_micros: number;
+	readonly created_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * PRInsightsResponse is the response from the PR insights endpoint.
+ */
+export interface PRInsightsResponse {
+	readonly summary: PRInsightsSummary;
+	readonly time_series: readonly PRInsightsTimeSeriesEntry[];
+	readonly by_model: readonly PRInsightsModelBreakdown[];
+	readonly recent_prs: readonly PRInsightsPullRequest[];
+}
+
+// From codersdk/chats.go
+/**
+ * PRInsightsSummary contains aggregate PR metrics for a time period,
+ * plus the previous period's metrics for trend calculation.
+ */
+export interface PRInsightsSummary {
+	readonly total_prs_created: number;
+	readonly total_prs_merged: number;
+	readonly merge_rate: number;
+	readonly total_additions: number;
+	readonly total_deletions: number;
+	readonly total_cost_micros: number;
+	readonly cost_per_merged_pr_micros: number;
+	readonly approval_rate: number;
+	readonly prev_total_prs_created: number;
+	readonly prev_total_prs_merged: number;
+	readonly prev_merge_rate: number;
+	readonly prev_cost_per_merged_pr_micros: number;
+}
+
+// From codersdk/chats.go
+/**
+ * PRInsightsTimeSeriesEntry is a single data point in the PR
+ * activity time series chart.
+ */
+export interface PRInsightsTimeSeriesEntry {
+	readonly date: string;
+	readonly prs_created: number;
+	readonly prs_merged: number;
+	readonly prs_closed: number;
 }
 
 // From codersdk/organizations.go
@@ -5157,6 +5435,7 @@ export interface ReducedUser extends MinimalUser {
 	readonly last_seen_at?: string;
 	readonly status: UserStatus;
 	readonly login_type: LoginType;
+	readonly is_service_account?: boolean;
 	/**
 	 * Deprecated: this value should be retrieved from
 	 * `codersdk.UserPreferenceSettings` instead.
@@ -5706,6 +5985,15 @@ export interface SessionLifetime {
  * SessionTokenHeader is the custom header to use for authentication.
  */
 export const SessionTokenHeader = "Coder-Session-Token";
+
+// From codersdk/workspacesharing.go
+export type ShareableWorkspaceOwners = "everyone" | "none" | "service_accounts";
+
+export const ShareableWorkspaceOwnerses: ShareableWorkspaceOwners[] = [
+	"everyone",
+	"none",
+	"service_accounts",
+];
 
 // From codersdk/workspaces.go
 export interface SharedWorkspaceActor {
@@ -6570,6 +6858,14 @@ export interface UpdateAppearanceConfig {
 
 // From codersdk/chats.go
 /**
+ * UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
+ */
+export interface UpdateChatDesktopEnabledRequest {
+	readonly enable_desktop: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * UpdateChatModelConfigRequest updates a chat model config.
  */
 export interface UpdateChatModelConfigRequest {
@@ -6619,6 +6915,19 @@ export interface UpdateChatUsageLimitOverrideRequest {
 	readonly spend_limit_micros: number; // Must be greater than 0.
 }
 
+// From codersdk/chats.go
+/**
+ * UpdateChatWorkspaceTTLRequest is the request to update the chat
+ * workspace TTL setting.
+ */
+export interface UpdateChatWorkspaceTTLRequest {
+	/**
+	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
+	 * Zero means disabled — the template's own autostop setting applies.
+	 */
+	readonly workspace_ttl_ms: number;
+}
+
 // From codersdk/updatecheck.go
 /**
  * UpdateCheckResponse contains information on the latest release of Coder.
@@ -6652,6 +6961,32 @@ export interface UpdateInboxNotificationReadStatusRequest {
 export interface UpdateInboxNotificationReadStatusResponse {
 	readonly notification: InboxNotification;
 	readonly unread_count: number;
+}
+
+// From codersdk/mcp.go
+/**
+ * UpdateMCPServerConfigRequest is the request to update an MCP server config.
+ */
+export interface UpdateMCPServerConfigRequest {
+	readonly display_name?: string;
+	readonly slug?: string;
+	readonly description?: string;
+	readonly icon_url?: string;
+	readonly transport?: string;
+	readonly url?: string;
+	readonly auth_type?: string;
+	readonly oauth2_client_id?: string;
+	readonly oauth2_client_secret?: string;
+	readonly oauth2_auth_url?: string;
+	readonly oauth2_token_url?: string;
+	readonly oauth2_scopes?: string;
+	readonly api_key_header?: string;
+	readonly api_key_value?: string;
+	readonly custom_headers?: Record<string, string>;
+	readonly tool_allow_list?: string[];
+	readonly tool_deny_list?: string[];
+	readonly availability?: string;
+	readonly enabled?: boolean;
 }
 
 // From codersdk/notifications.go
@@ -6891,7 +7226,17 @@ export interface UpdateWorkspaceRequest {
  * that can be updated for an organization.
  */
 export interface UpdateWorkspaceSharingSettingsRequest {
+	/**
+	 * SharingDisabled is deprecated and left for backward compatibility
+	 * purposes.
+	 * Deprecated: use `ShareableWorkspaceOwners` instead
+	 */
 	readonly sharing_disabled: boolean;
+	/**
+	 * ShareableWorkspaceOwners controls whose workspaces can be shared
+	 * within the organization.
+	 */
+	readonly shareable_workspace_owners?: ShareableWorkspaceOwners;
 }
 
 // From codersdk/workspaces.go
@@ -8043,7 +8388,17 @@ export interface WorkspaceSharingSettings {
 	 * organization because of a deployment-wide setting.
 	 */
 	readonly sharing_globally_disabled: boolean;
+	/**
+	 * SharingDisabled is deprecated and left for backward compatibility
+	 * purposes.
+	 * Deprecated: use `ShareableWorkspaceOwners` instead
+	 */
 	readonly sharing_disabled: boolean;
+	/**
+	 * ShareableWorkspaceOwners controls whose workspaces can be shared
+	 * within the organization.
+	 */
+	readonly shareable_workspace_owners: ShareableWorkspaceOwners;
 }
 
 // From codersdk/workspacebuilds.go

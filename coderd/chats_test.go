@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"mime"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -127,22 +128,24 @@ func insertAssistantCostMessage(
 	})
 	require.NoError(t, err)
 
-	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
+	_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
 		ChatID:              chatID,
-		ModelConfigID:       uuid.NullUUID{UUID: modelConfigID, Valid: true},
-		Role:                database.ChatMessageRoleAssistant,
-		ContentVersion:      chatprompt.CurrentContentVersion,
-		Content:             assistantContent,
-		Visibility:          database.ChatMessageVisibilityBoth,
-		InputTokens:         sql.NullInt64{},
-		OutputTokens:        sql.NullInt64{},
-		TotalTokens:         sql.NullInt64{},
-		ReasoningTokens:     sql.NullInt64{},
-		CacheCreationTokens: sql.NullInt64{},
-		CacheReadTokens:     sql.NullInt64{},
-		ContextLimit:        sql.NullInt64{},
-		Compressed:          sql.NullBool{},
-		TotalCostMicros:     sql.NullInt64{Int64: totalCostMicros, Valid: true},
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfigID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+		Content:             []string{string(assistantContent.RawMessage)},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{totalCostMicros},
+		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
 }
@@ -2660,7 +2663,9 @@ func TestPatchChatMessage(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Equal(t, userMessageID, edited.ID)
+		// The edited message is soft-deleted and a new one is inserted,
+		// so the returned ID will differ from the original.
+		require.NotEqual(t, userMessageID, edited.ID)
 		require.Equal(t, codersdk.ChatMessageRoleUser, edited.Role)
 
 		foundEditedText := false
@@ -2750,7 +2755,9 @@ func TestPatchChatMessage(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Equal(t, userMessageID, edited.ID)
+		// The edited message is soft-deleted and a new one is inserted,
+		// so the returned ID will differ from the original.
+		require.NotEqual(t, userMessageID, edited.ID)
 
 		// Assert the edit response preserves the file_id.
 		var foundText, foundFile bool
@@ -3709,6 +3716,35 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 		require.Equal(t, "Chat usage limit override not found.", sdkErr.Message)
 	})
 
+	t.Run("UpdateUserOverride", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		_, err := client.UpsertChatUsageLimitOverride(ctx, member.ID, codersdk.UpsertChatUsageLimitOverrideRequest{
+			SpendLimitMicros: 5_000_000,
+		})
+		require.NoError(t, err)
+
+		override, err := client.UpsertChatUsageLimitOverride(ctx, member.ID, codersdk.UpsertChatUsageLimitOverrideRequest{
+			SpendLimitMicros: 10_000_000,
+		})
+		require.NoError(t, err)
+		require.Equal(t, member.ID, override.UserID)
+		require.NotNil(t, override.SpendLimitMicros)
+		require.EqualValues(t, 10_000_000, *override.SpendLimitMicros)
+
+		config, err := client.GetChatUsageLimitConfig(ctx)
+		require.NoError(t, err)
+		require.Len(t, config.Overrides, 1)
+		require.Equal(t, member.ID, config.Overrides[0].UserID)
+		require.NotNil(t, config.Overrides[0].SpendLimitMicros)
+		require.EqualValues(t, 10_000_000, *config.Overrides[0].SpendLimitMicros)
+	})
+
 	t.Run("UpsertGroupOverrideIncludesMemberCount", func(t *testing.T) {
 		t.Parallel()
 
@@ -3741,6 +3777,40 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 		}
 		require.NotNil(t, listed)
 		require.EqualValues(t, 1, listed.MemberCount)
+	})
+
+	t.Run("UpdateGroupOverride", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: firstUser.UserID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: member.ID})
+
+		_, err := client.UpsertChatUsageLimitGroupOverride(ctx, group.ID, codersdk.UpsertChatUsageLimitGroupOverrideRequest{
+			SpendLimitMicros: 5_000_000,
+		})
+		require.NoError(t, err)
+
+		override, err := client.UpsertChatUsageLimitGroupOverride(ctx, group.ID, codersdk.UpsertChatUsageLimitGroupOverrideRequest{
+			SpendLimitMicros: 10_000_000,
+		})
+		require.NoError(t, err)
+		require.Equal(t, group.ID, override.GroupID)
+		require.EqualValues(t, 2, override.MemberCount)
+		require.NotNil(t, override.SpendLimitMicros)
+		require.EqualValues(t, 10_000_000, *override.SpendLimitMicros)
+
+		config, err := client.GetChatUsageLimitConfig(ctx)
+		require.NoError(t, err)
+		require.Len(t, config.GroupOverrides, 1)
+		require.Equal(t, group.ID, config.GroupOverrides[0].GroupID)
+		require.EqualValues(t, 2, config.GroupOverrides[0].MemberCount)
+		require.NotNil(t, config.GroupOverrides[0].SpendLimitMicros)
+		require.EqualValues(t, 10_000_000, *config.GroupOverrides[0].SpendLimitMicros)
 	})
 
 	t.Run("UpsertGroupOverrideMissingGroup", func(t *testing.T) {
@@ -3984,6 +4054,30 @@ func TestGetChatFile(t *testing.T) {
 		require.NotContains(t, cd, strings.Repeat("a", 256))
 	})
 
+	t.Run("UnicodeFilename", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		// Upload with a non-ASCII filename using RFC 5987 encoding,
+		// which is what the frontend sends for Unicode filenames.
+		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "スクリーンショット.png", bytes.NewReader(data))
+		require.NoError(t, err)
+
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/files/%s", uploaded.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		cd := res.Header.Get("Content-Disposition")
+		require.Contains(t, cd, "inline")
+		_, params, err := mime.ParseMediaType(cd)
+		require.NoError(t, err)
+		require.Equal(t, "スクリーンショット.png", params["filename"])
+	})
+
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -4057,24 +4151,35 @@ func seedChatCostFixture(t *testing.T) chatCostTestFixture {
 	})
 	require.NoError(t, err)
 
-	var earliestCreatedAt time.Time
-	var latestCreatedAt time.Time
-	for i := 0; i < 2; i++ {
-		message, err := db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
-			ChatID:          chat.ID,
-			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-			Role:            "assistant",
-			Visibility:      database.ChatMessageVisibilityBoth,
-			InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
-			OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-			TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
-		})
-		require.NoError(t, err)
-		if i == 0 || message.CreatedAt.Before(earliestCreatedAt) {
-			earliestCreatedAt = message.CreatedAt
+	results, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil, uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfig.ID, modelConfig.ID},
+		Role:                []database.ChatMessageRole{"assistant", "assistant"},
+		Content:             []string{"null", "null"},
+		ContentVersion:      []int16{0, 0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{100, 100},
+		OutputTokens:        []int64{50, 50},
+		TotalTokens:         []int64{0, 0},
+		ReasoningTokens:     []int64{0, 0},
+		CacheCreationTokens: []int64{0, 0},
+		CacheReadTokens:     []int64{0, 0},
+		ContextLimit:        []int64{0, 0},
+		Compressed:          []bool{false, false},
+		TotalCostMicros:     []int64{500, 500},
+		RuntimeMs:           []int64{0, 0},
+	})
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+	earliestCreatedAt := results[0].CreatedAt
+	latestCreatedAt := results[0].CreatedAt
+	for _, msg := range results {
+		if msg.CreatedAt.Before(earliestCreatedAt) {
+			earliestCreatedAt = msg.CreatedAt
 		}
-		if i == 0 || message.CreatedAt.After(latestCreatedAt) {
-			latestCreatedAt = message.CreatedAt
+		if msg.CreatedAt.After(latestCreatedAt) {
+			latestCreatedAt = msg.CreatedAt
 		}
 	}
 
@@ -4162,16 +4267,27 @@ func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	message, err := db.InsertChatMessage(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessageParams{
-		ChatID:          chat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            "assistant",
-		Visibility:      database.ChatMessageVisibilityBoth,
-		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 100, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 750, Valid: true},
+	results, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfig.ID},
+		Role:                []database.ChatMessageRole{"assistant"},
+		Content:             []string{"null"},
+		ContentVersion:      []int16{0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{200},
+		OutputTokens:        []int64{100},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{750},
+		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
+	message := results[0]
 	options := codersdk.ChatCostSummaryOptions{
 		// Pad the DB-assigned timestamp so the query window cannot race it.
 		StartDate: message.CreatedAt.Add(-time.Minute),
@@ -4217,14 +4333,24 @@ func TestChatCostUsers(t *testing.T) {
 		Title:             "admin chat",
 	})
 	require.NoError(t, err)
-	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessageParams{
-		ChatID:          adminChat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            "assistant",
-		Visibility:      database.ChatMessageVisibilityBoth,
-		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 300, Valid: true},
+	_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessagesParams{
+		ChatID:              adminChat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfig.ID},
+		Role:                []database.ChatMessageRole{"assistant"},
+		Content:             []string{"null"},
+		ContentVersion:      []int16{0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{100},
+		OutputTokens:        []int64{50},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{300},
+		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
 
@@ -4234,14 +4360,24 @@ func TestChatCostUsers(t *testing.T) {
 		Title:             "member chat",
 	})
 	require.NoError(t, err)
-	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessageParams{
-		ChatID:          memberChat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            "assistant",
-		Visibility:      database.ChatMessageVisibilityBoth,
-		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 100, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 800, Valid: true},
+	_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessagesParams{
+		ChatID:              memberChat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfig.ID},
+		Role:                []database.ChatMessageRole{"assistant"},
+		Content:             []string{"null"},
+		ContentVersion:      []int16{0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{200},
+		OutputTokens:        []int64{100},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{800},
+		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
 
@@ -4308,14 +4444,24 @@ func TestChatCostSummary_DateRange(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = db.InsertChatMessage(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessageParams{
-		ChatID:          chat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            "assistant",
-		Visibility:      database.ChatMessageVisibilityBoth,
-		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
+	_, err = db.InsertChatMessages(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfig.ID},
+		Role:                []database.ChatMessageRole{"assistant"},
+		Content:             []string{"null"},
+		ContentVersion:      []int16{0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{100},
+		OutputTokens:        []int64{50},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{500},
+		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
 
@@ -4363,27 +4509,49 @@ func TestChatCostSummary_UnpricedMessages(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	pricedMessage, err := db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
-		ChatID:          chat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            "assistant",
-		Visibility:      database.ChatMessageVisibilityBoth,
-		InputTokens:     sql.NullInt64{Int64: 100, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 50, Valid: true},
-		TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
+	pricedResults, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfig.ID},
+		Role:                []database.ChatMessageRole{"assistant"},
+		Content:             []string{"null"},
+		ContentVersion:      []int16{0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{100},
+		OutputTokens:        []int64{50},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{500},
+		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
+	pricedMessage := pricedResults[0]
 
-	unpricedMessage, err := db.InsertChatMessage(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessageParams{
-		ChatID:          chat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
-		Role:            "assistant",
-		Visibility:      database.ChatMessageVisibilityBoth,
-		InputTokens:     sql.NullInt64{Int64: 200, Valid: true},
-		OutputTokens:    sql.NullInt64{Int64: 75, Valid: true},
-		TotalCostMicros: sql.NullInt64{},
+	unpricedResults, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfig.ID},
+		Role:                []database.ChatMessageRole{"assistant"},
+		Content:             []string{"null"},
+		ContentVersion:      []int16{0},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{200},
+		OutputTokens:        []int64{75},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{0},
+		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
+	unpricedMessage := unpricedResults[0]
 
 	earliestCreatedAt := pricedMessage.CreatedAt
 	latestCreatedAt := pricedMessage.CreatedAt
@@ -4462,7 +4630,7 @@ func TestWatchChatDesktop(t *testing.T) {
 		res, err := client.Request(
 			ctx,
 			http.MethodGet,
-			fmt.Sprintf("/api/experimental/chats/%s/desktop", createdChat.ID),
+			fmt.Sprintf("/api/experimental/chats/%s/stream/desktop", createdChat.ID),
 			nil,
 		)
 		require.NoError(t, err)
@@ -4566,6 +4734,196 @@ func TestChatSystemPrompt(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "System prompt exceeds maximum length.", sdkErr.Message)
 	})
+}
+
+func TestChatDesktopEnabled(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ReturnsFalseWhenUnset", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient)
+
+		resp, err := adminClient.GetChatDesktopEnabled(ctx)
+		require.NoError(t, err)
+		require.False(t, resp.EnableDesktop)
+	})
+
+	t.Run("AdminCanSetTrue", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient)
+
+		err := adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
+			EnableDesktop: true,
+		})
+		require.NoError(t, err)
+
+		resp, err := adminClient.GetChatDesktopEnabled(ctx)
+		require.NoError(t, err)
+		require.True(t, resp.EnableDesktop)
+	})
+
+	t.Run("AdminCanSetFalse", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient)
+
+		// Set true first, then set false.
+		err := adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
+			EnableDesktop: true,
+		})
+		require.NoError(t, err)
+
+		err = adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
+			EnableDesktop: false,
+		})
+		require.NoError(t, err)
+
+		resp, err := adminClient.GetChatDesktopEnabled(ctx)
+		require.NoError(t, err)
+		require.False(t, resp.EnableDesktop)
+	})
+
+	t.Run("NonAdminCanRead", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		err := adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
+			EnableDesktop: true,
+		})
+		require.NoError(t, err)
+
+		resp, err := memberClient.GetChatDesktopEnabled(ctx)
+		require.NoError(t, err)
+		require.True(t, resp.EnableDesktop)
+	})
+
+	t.Run("NonAdminWriteFails", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		err := memberClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
+			EnableDesktop: true,
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("UnauthenticatedFails", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		adminClient := newChatClient(t)
+		coderdtest.CreateFirstUser(t, adminClient)
+
+		anonClient := codersdk.New(adminClient.URL)
+		_, err := anonClient.GetChatDesktopEnabled(ctx)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+	})
+}
+
+func TestChatWorkspaceTTL(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	adminClient := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	anonClient := codersdk.New(adminClient.URL)
+
+	// Default value is 0 (disabled) when nothing has been configured.
+	resp, err := adminClient.GetChatWorkspaceTTL(ctx)
+	require.NoError(t, err, "get default")
+	require.Equal(t, int64(0), resp.WorkspaceTTLMillis, "default should be 0")
+
+	// Admin can set a positive TTL (2h = 7_200_000 ms).
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: 7_200_000,
+	})
+	require.NoError(t, err, "admin set 2h")
+
+	resp, err = adminClient.GetChatWorkspaceTTL(ctx)
+	require.NoError(t, err, "get after set")
+	require.Equal(t, int64(7_200_000), resp.WorkspaceTTLMillis, "should return 7200000 ms (2h)")
+
+	// Non-admin can read the value.
+	resp, err = memberClient.GetChatWorkspaceTTL(ctx)
+	require.NoError(t, err, "member get")
+	require.Equal(t, int64(7_200_000), resp.WorkspaceTTLMillis, "member should see same value")
+
+	// Admin can set back to zero (disabled / template default).
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: 0,
+	})
+	require.NoError(t, err, "admin set 0")
+
+	resp, err = adminClient.GetChatWorkspaceTTL(ctx)
+	require.NoError(t, err, "get after zero")
+	require.Equal(t, int64(0), resp.WorkspaceTTLMillis, "should be 0 after reset")
+
+	// Non-admin write is forbidden.
+	err = memberClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: 3_600_000,
+	})
+	requireSDKError(t, err, http.StatusForbidden)
+
+	// Unauthenticated read is rejected.
+	_, err = anonClient.GetChatWorkspaceTTL(ctx)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr, "anon get")
+	require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode(), "anon should get 401")
+
+	// Validation: negative duration.
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: -3_600_000,
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
+
+	// Validation: less than 1 minute (30s = 30_000 ms).
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: 30_000,
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
+
+	// Boundary: just under 1 minute should be rejected (59_999 ms).
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: 59_999,
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
+
+	// Boundary: exactly 1 minute should succeed (60_000 ms).
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: 60_000,
+	})
+	require.NoError(t, err, "exactly 1 minute should be accepted")
+
+	// Boundary: exactly 30 days should succeed (720h = 2_592_000_000 ms).
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: 2_592_000_000,
+	})
+	require.NoError(t, err, "720h (exactly 30 days) should be accepted")
+
+	// Validation: exceeds 30-day maximum (721h = 2_595_600_000 ms).
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: 2_595_600_000,
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
 }
 
 func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Error {

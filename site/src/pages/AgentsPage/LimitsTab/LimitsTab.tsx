@@ -18,7 +18,7 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { ShieldIcon } from "lucide-react";
-import { type FC, type ReactNode, useMemo, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	dollarsToMicros,
@@ -29,8 +29,6 @@ import { DefaultLimitSection } from "./DefaultLimitSection";
 import { GroupLimitsSection } from "./GroupLimitsSection";
 import { normalizeChatUsageLimitPeriod } from "./limitsFormLogic";
 import { UserOverridesSection } from "./UserOverridesSection";
-
-const sectionPanelClassName = "space-y-4 rounded-lg border border-border p-4";
 
 interface DefaultLimitFormValues {
 	enabled: boolean;
@@ -129,8 +127,21 @@ export const LimitsTab: FC = () => {
 	const [showUserForm, setShowUserForm] = useState(false);
 	const [selectedUser, setSelectedUser] = useState<User | null>(null);
 	const [userOverrideAmount, setUserOverrideAmount] = useState("");
+	const [editingUserOverride, setEditingUserOverride] = useState<{
+		user_id: string;
+		name: string;
+		username: string;
+		avatar_url: string;
+	} | null>(null);
+	const [editingGroupOverride, setEditingGroupOverride] = useState<{
+		group_id: string;
+		group_display_name: string;
+		group_name: string;
+		group_avatar_url: string;
+		member_count: number;
+	} | null>(null);
 
-	const defaultLimitValues = useMemo<DefaultLimitFormValues>(() => {
+	const defaultLimitValues: DefaultLimitFormValues = (() => {
 		const spendLimitMicros = configQuery.data?.spend_limit_micros;
 		const enabled = spendLimitMicros !== null && spendLimitMicros !== undefined;
 
@@ -142,27 +153,19 @@ export const LimitsTab: FC = () => {
 					? microsToDollars(spendLimitMicros).toString()
 					: "",
 		};
-	}, [configQuery.data?.period, configQuery.data?.spend_limit_micros]);
-	const defaultLimitKey = useMemo(
-		() =>
-			JSON.stringify({
-				spend_limit_micros: configQuery.data?.spend_limit_micros ?? null,
-				period: defaultLimitValues.period,
-			}),
-		[configQuery.data?.spend_limit_micros, defaultLimitValues.period],
+	})();
+	const defaultLimitKey = JSON.stringify({
+		spend_limit_micros: configQuery.data?.spend_limit_micros ?? null,
+		period: defaultLimitValues.period,
+	});
+	const existingGroupIds = new Set(
+		(configQuery.data?.group_overrides ?? []).map((g) => g.group_id),
 	);
-	const existingGroupIds = useMemo(
-		() =>
-			new Set((configQuery.data?.group_overrides ?? []).map((g) => g.group_id)),
-		[configQuery.data?.group_overrides],
+	const existingUserIds = new Set(
+		(configQuery.data?.overrides ?? []).map((o) => o.user_id),
 	);
-	const existingUserIds = useMemo(
-		() => new Set((configQuery.data?.overrides ?? []).map((o) => o.user_id)),
-		[configQuery.data?.overrides],
-	);
-	const availableGroups = useMemo(
-		() => (groupsQuery.data ?? []).filter((g) => !existingGroupIds.has(g.id)),
-		[groupsQuery.data, existingGroupIds],
+	const availableGroups = (groupsQuery.data ?? []).filter(
+		(g) => !existingGroupIds.has(g.id),
 	);
 	const selectedUserAlreadyOverridden = selectedUser
 		? existingUserIds.has(selectedUser.id)
@@ -179,6 +182,70 @@ export const LimitsTab: FC = () => {
 		if (!updateConfigMutation.isPending) {
 			updateConfigMutation.reset();
 		}
+	};
+
+	const handleShowUserFormChange = (show: boolean) => {
+		setShowUserForm(show);
+		if (!show) {
+			setEditingUserOverride(null);
+		}
+	};
+
+	const handleShowGroupFormChange = (show: boolean) => {
+		setShowGroupForm(show);
+		if (!show) {
+			setEditingGroupOverride(null);
+		}
+	};
+
+	const handleEditUserOverride = (override: {
+		user_id: string;
+		name: string;
+		username: string;
+		avatar_url: string;
+		spend_limit_micros: number | null;
+	}) => {
+		setShowGroupForm(false);
+		setEditingGroupOverride(null);
+		setEditingUserOverride({
+			user_id: override.user_id,
+			name: override.name,
+			username: override.username,
+			avatar_url: override.avatar_url,
+		});
+		setSelectedUser(null);
+		setUserOverrideAmount(
+			override.spend_limit_micros !== null
+				? microsToDollars(override.spend_limit_micros).toString()
+				: "",
+		);
+		setShowUserForm(true);
+	};
+
+	const handleEditGroupOverride = (override: {
+		group_id: string;
+		group_display_name: string;
+		group_name: string;
+		group_avatar_url: string;
+		member_count: number;
+		spend_limit_micros: number | null;
+	}) => {
+		setShowUserForm(false);
+		setEditingUserOverride(null);
+		setEditingGroupOverride({
+			group_id: override.group_id,
+			group_display_name: override.group_display_name,
+			group_name: override.group_name,
+			group_avatar_url: override.group_avatar_url,
+			member_count: override.member_count,
+		});
+		setSelectedGroup(null);
+		setGroupAmount(
+			override.spend_limit_micros !== null
+				? microsToDollars(override.spend_limit_micros).toString()
+				: "",
+		);
+		setShowGroupForm(true);
 	};
 
 	const handleSaveDefault = async ({
@@ -199,14 +266,17 @@ export const LimitsTab: FC = () => {
 	};
 
 	const handleAddOverride = async () => {
-		if (!selectedUser || !isPositiveFiniteDollarAmount(userOverrideAmount)) {
+		const targetUserID = editingUserOverride?.user_id ?? selectedUser?.id;
+
+		if (!targetUserID || !isPositiveFiniteDollarAmount(userOverrideAmount)) {
 			return;
 		}
 		try {
 			await upsertOverrideMutation.mutateAsync({
-				userID: selectedUser.id,
+				userID: targetUserID,
 				req: { spend_limit_micros: dollarsToMicros(userOverrideAmount) },
 			});
+			setEditingUserOverride(null);
 			setSelectedUser(null);
 			setUserOverrideAmount("");
 			setShowUserForm(false);
@@ -216,14 +286,17 @@ export const LimitsTab: FC = () => {
 	};
 
 	const handleAddGroupOverride = async () => {
-		if (!selectedGroup || !isPositiveFiniteDollarAmount(groupAmount)) {
+		const targetGroupID = editingGroupOverride?.group_id ?? selectedGroup?.id;
+
+		if (!targetGroupID || !isPositiveFiniteDollarAmount(groupAmount)) {
 			return;
 		}
 		try {
 			await upsertGroupOverrideMutation.mutateAsync({
-				groupID: selectedGroup.id,
+				groupID: targetGroupID,
 				req: { spend_limit_micros: dollarsToMicros(groupAmount) },
 			});
+			setEditingGroupOverride(null);
 			setSelectedGroup(null);
 			setGroupAmount("");
 			setShowGroupForm(false);
@@ -305,8 +378,8 @@ export const LimitsTab: FC = () => {
 					saveDefault,
 				}) => (
 					<>
-						<div className="flex-1 overflow-y-auto px-6 py-5 pb-24 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
-							<div className="space-y-6">
+						<div className="flex-1 overflow-y-auto pb-24 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
+							<div className="space-y-10">
 								<DefaultLimitSection
 									adminBadge={<AdminBadge />}
 									enabled={enabled}
@@ -325,14 +398,11 @@ export const LimitsTab: FC = () => {
 										onAmountDollarsChange(nextAmountDollars);
 									}}
 									unpricedModelCount={unpricedModelCount}
-									panelClassName={sectionPanelClassName}
 								/>
-
 								<GroupLimitsSection
 									groupOverrides={groupOverrides}
-									panelClassName={sectionPanelClassName}
 									showGroupForm={showGroupForm}
-									onShowGroupFormChange={setShowGroupForm}
+									onShowGroupFormChange={handleShowGroupFormChange}
 									selectedGroup={selectedGroup}
 									onSelectedGroupChange={setSelectedGroup}
 									groupAmount={groupAmount}
@@ -342,6 +412,8 @@ export const LimitsTab: FC = () => {
 										groupAutocompleteNoOptionsText
 									}
 									groupsLoading={groupsQuery.isLoading}
+									editingGroupOverride={editingGroupOverride}
+									onEditGroupOverride={handleEditGroupOverride}
 									onAddGroupOverride={handleAddGroupOverride}
 									onDeleteGroupOverride={handleDeleteGroupOverride}
 									upsertPending={upsertGroupOverrideMutation.isPending}
@@ -358,17 +430,19 @@ export const LimitsTab: FC = () => {
 									}
 									groupsError={groupsQuery.isError ? groupsQuery.error : null}
 								/>
-
 								<UserOverridesSection
 									overrides={overrides}
-									panelClassName={sectionPanelClassName}
 									showUserForm={showUserForm}
-									onShowUserFormChange={setShowUserForm}
+									onShowUserFormChange={handleShowUserFormChange}
 									selectedUser={selectedUser}
 									onSelectedUserChange={setSelectedUser}
 									userOverrideAmount={userOverrideAmount}
 									onUserOverrideAmountChange={setUserOverrideAmount}
-									selectedUserAlreadyOverridden={selectedUserAlreadyOverridden}
+									selectedUserAlreadyOverridden={
+										editingUserOverride ? false : selectedUserAlreadyOverridden
+									}
+									editingUserOverride={editingUserOverride}
+									onEditUserOverride={handleEditUserOverride}
 									onAddOverride={handleAddOverride}
 									onDeleteOverride={handleDeleteOverride}
 									upsertPending={upsertOverrideMutation.isPending}
@@ -387,7 +461,7 @@ export const LimitsTab: FC = () => {
 							</div>
 						</div>
 
-						<div className="sticky bottom-0 flex shrink-0 flex-col gap-2 border-t border-border bg-surface-primary px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
+						<div className="sticky bottom-0 flex shrink-0 flex-col gap-2 border-t border-border bg-surface-primary py-3 sm:flex-row sm:items-center sm:justify-between">
 							<div className="min-h-4 text-xs">
 								{updateConfigMutation.isError && (
 									<p className="m-0 text-content-destructive">

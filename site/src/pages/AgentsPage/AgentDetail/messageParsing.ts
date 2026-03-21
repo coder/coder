@@ -1,6 +1,6 @@
 import type * as TypesGen from "api/typesGenerated";
 import { asRecord, asString } from "components/ai-elements/runtimeTypeUtils";
-import { appendTextBlock, asNonEmptyString } from "./blockUtils";
+import { appendTextBlock } from "./blockUtils";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -17,12 +17,6 @@ const appendText = (current: string, next: string): string => {
 	}
 	return `${current}${next}`;
 };
-
-export const asOptionalTitle = (value: unknown): string | undefined =>
-	asNonEmptyString(value);
-
-export const normalizeBlockType = (value: unknown): string =>
-	asString(value).toLowerCase().replace(/_/g, "-");
 
 const isSubagentToolName = (name: string): boolean =>
 	name === "spawn_agent" || name === "wait_agent" || name === "message_agent";
@@ -75,15 +69,6 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	sources: [],
 });
 
-/** Wraps appendTextBlock using the same direct concatenation as
- *  the streaming path so both produce identical markdown. */
-const appendParsedTextBlock = (
-	blocks: RenderBlock[],
-	type: "response" | "thinking",
-	text: string,
-	title?: string,
-): RenderBlock[] => appendTextBlock(blocks, type, text, title);
-
 export const ensureToolBlock = (
 	blocks: RenderBlock[],
 	id: string,
@@ -130,197 +115,101 @@ export const mergeTools = (
 	return merged;
 };
 
-export const parseMessageContent = (content: unknown): ParsedMessageContent => {
-	if (typeof content === "string") {
-		return {
-			...emptyParsedMessageContent(),
-			markdown: content,
-		};
-	}
-
-	if (Array.isArray(content)) {
-		const parsed = emptyParsedMessageContent();
-		for (const [index, block] of content.entries()) {
-			if (typeof block === "string") {
-				parsed.markdown = appendText(parsed.markdown, block);
-				parsed.blocks = appendParsedTextBlock(parsed.blocks, "response", block);
-				continue;
-			}
-
-			const typedBlock = asRecord(block);
-			if (!typedBlock) {
-				continue;
-			}
-
-			switch (normalizeBlockType(typedBlock.type)) {
-				case "text": {
-					const text = asString(typedBlock.text);
-					parsed.markdown = appendText(parsed.markdown, text);
-					parsed.blocks = appendParsedTextBlock(
-						parsed.blocks,
-						"response",
-						text,
-					);
-					break;
-				}
-				case "reasoning":
-				case "thinking": {
-					const text = asString(typedBlock.text);
-					const title = asOptionalTitle(typedBlock.title);
-					parsed.reasoning = appendText(parsed.reasoning, text);
-					parsed.blocks = appendParsedTextBlock(
-						parsed.blocks,
-						"thinking",
-						text,
-						title,
-					);
-					break;
-				}
-				case "tool-call":
-				case "toolcall": {
-					// Provider-executed tool calls (e.g. web_search) are
-					// handled by the provider itself — hide them from the
-					// tool card UI and let the sources component render
-					// their results.
-					if (typedBlock.provider_executed) {
-						break;
-					}
-					const name =
-						asString(typedBlock.tool_name) || asString(typedBlock.name);
-					const id =
-						asString(typedBlock.tool_call_id) ||
-						asString(typedBlock.id) ||
-						`tool-call-${index}`;
-					parsed.toolCalls.push({
-						id,
-						name: name || "Tool",
-						args: typedBlock.args ?? typedBlock.input ?? typedBlock.arguments,
-					});
-					parsed.blocks = ensureToolBlock(parsed.blocks, id);
-					break;
-				}
-				case "file-reference": {
-					const text = asString(typedBlock.text);
-					const fileName = asString(typedBlock.file_name);
-					const startLine =
-						Number(typedBlock.start_line ?? typedBlock.line_number) || 0;
-					const endLine =
-						Number(typedBlock.end_line ?? typedBlock.line_number) || startLine;
-					const contentStr = asString(typedBlock.content);
-					parsed.blocks.push({
-						type: "file-reference",
-						fileName,
-						startLine,
-						endLine,
-						content: contentStr,
-						text,
-					});
-					break;
-				}
-				case "tool-result":
-				case "toolresult": {
-					// Skip synthetic results for provider-executed tools.
-					if (typedBlock.provider_executed) {
-						break;
-					}
-					const name =
-						asString(typedBlock.tool_name) || asString(typedBlock.name);
-					const id =
-						asString(typedBlock.tool_call_id) ||
-						asString(typedBlock.id) ||
-						`tool-result-${index}`;
-					const result =
-						typedBlock.result ??
-						typedBlock.output ??
-						typedBlock.content ??
-						typedBlock.data;
-					parsed.toolResults.push({
-						id,
-						name: name || "Tool",
-						result,
-						isError: parseToolResultIsError(name, typedBlock, result),
-					});
-					parsed.blocks = ensureToolBlock(parsed.blocks, id);
-					break;
-				}
-				case "file":
-					if (
-						typedBlock.media_type &&
-						(typedBlock.data || typedBlock.file_id)
-					) {
-						parsed.blocks = [
-							...parsed.blocks,
-							typedBlock as Extract<RenderBlock, { type: "file" }>,
-						];
-					}
-					break;
-				case "source": {
-					const url = asString(typedBlock.url);
-					const title = asString(typedBlock.title);
-					if (url) {
-						const source = { url, title: title || url };
-						// Still populate the flat list for backward compat.
-						if (!parsed.sources.some((s) => s.url === url)) {
-							parsed.sources.push(source);
-						}
-						// Group consecutive sources into a single
-						// inline block at this position.
-						const lastBlock = parsed.blocks[parsed.blocks.length - 1];
-						if (
-							lastBlock &&
-							lastBlock.type === "sources" &&
-							!lastBlock.sources.some((s) => s.url === url)
-						) {
-							lastBlock.sources.push(source);
-						} else if (!lastBlock || lastBlock.type !== "sources") {
-							parsed.blocks.push({
-								type: "sources",
-								sources: [source],
-							});
-						}
-					}
-					break;
-				}
-				default: {
-					const text = asString(typedBlock.text);
-					parsed.markdown = appendText(parsed.markdown, text);
-					parsed.blocks = appendParsedTextBlock(
-						parsed.blocks,
-						"response",
-						text,
-					);
-					break;
-				}
-			}
-		}
-		return parsed;
-	}
-
-	if (content === null || content === undefined) {
+export const parseMessageContent = (
+	content: readonly TypesGen.ChatMessagePart[] | undefined,
+): ParsedMessageContent => {
+	if (!content || content.length === 0) {
 		return emptyParsedMessageContent();
 	}
 
-	const typedContent = asRecord(content);
-	if (!typedContent) {
-		const markdown = String(content);
-		return {
-			...emptyParsedMessageContent(),
-			markdown,
-			blocks: appendParsedTextBlock([], "response", markdown),
-		};
+	const parsed = emptyParsedMessageContent();
+	for (const [index, part] of content.entries()) {
+		switch (part.type) {
+			case "text": {
+				parsed.markdown = appendText(parsed.markdown, part.text);
+				parsed.blocks = appendTextBlock(parsed.blocks, "response", part.text);
+				break;
+			}
+			case "reasoning": {
+				parsed.reasoning = appendText(parsed.reasoning, part.text);
+				parsed.blocks = appendTextBlock(parsed.blocks, "thinking", part.text);
+				break;
+			}
+			case "tool-call": {
+				// Provider-executed tool calls (e.g. web_search) are
+				// handled by the provider itself — hide them from the
+				// tool card UI and let the sources component render
+				// their results.
+				if (part.provider_executed) {
+					break;
+				}
+				const id = part.tool_call_id || `tool-call-${index}`;
+				parsed.toolCalls.push({
+					id,
+					name: part.tool_name || "Tool",
+					args: part.args,
+				});
+				parsed.blocks = ensureToolBlock(parsed.blocks, id);
+				break;
+			}
+			case "file-reference": {
+				parsed.blocks.push(part);
+				break;
+			}
+			case "tool-result": {
+				// Skip synthetic results for provider-executed tools.
+				if (part.provider_executed) {
+					break;
+				}
+				const id = part.tool_call_id || `tool-result-${index}`;
+				const name = part.tool_name || "Tool";
+				parsed.toolResults.push({
+					id,
+					name,
+					result: part.result,
+					isError: parseToolResultIsError(name, part, part.result),
+				});
+				parsed.blocks = ensureToolBlock(parsed.blocks, id);
+				break;
+			}
+			case "file": {
+				if (part.data || part.file_id) {
+					parsed.blocks = [...parsed.blocks, part];
+				}
+				break;
+			}
+			case "source": {
+				if (part.url) {
+					const source = { url: part.url, title: part.title || part.url };
+					// Still populate the flat list for backward compat.
+					if (!parsed.sources.some((s) => s.url === part.url)) {
+						parsed.sources.push(source);
+					}
+					// Group consecutive sources into a single
+					// inline block at this position.
+					const lastBlock = parsed.blocks[parsed.blocks.length - 1];
+					if (
+						lastBlock &&
+						lastBlock.type === "sources" &&
+						!lastBlock.sources.some((s) => s.url === part.url)
+					) {
+						lastBlock.sources.push(source);
+					} else if (!lastBlock || lastBlock.type !== "sources") {
+						parsed.blocks.push({
+							type: "sources",
+							sources: [source],
+						});
+					}
+				}
+				break;
+			}
+			default: {
+				const _exhaustive: never = part;
+				break;
+			}
+		}
 	}
-
-	if (typedContent.type) {
-		return parseMessageContent([typedContent]);
-	}
-
-	const markdown =
-		asString(typedContent.text) || asString(typedContent.content);
-	return {
-		...emptyParsedMessageContent(),
-		markdown,
-		blocks: appendParsedTextBlock([], "response", markdown),
-	};
+	return parsed;
 };
 
 export const parseMessagesWithMergedTools = (

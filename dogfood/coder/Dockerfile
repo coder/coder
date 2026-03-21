@@ -214,7 +214,11 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 # Install Google Chrome directly from Google. Ubuntu 22.04 ships
 # chromium-browser as a snap-only package, which does not work in
 # Docker containers.
-RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+# configure-chrome-flags.sh is automatically run after dpkg operations
+# by dogfood/coder/files/etc/apt/apt.conf.d/99-chrome-flags.
+COPY configure-chrome-flags.sh /usr/local/bin/configure-chrome-flags.sh
+RUN chmod a+x /usr/local/bin/configure-chrome-flags.sh && \
+	wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
 	apt-get install --yes ./google-chrome-stable_current_amd64.deb && \
 	rm google-chrome-stable_current_amd64.deb
 
@@ -312,7 +316,6 @@ ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
 	KUBECTX_VERSION=0.9.4 \
 	STRIPE_VERSION=1.14.5 \
 	TERRAGRUNT_VERSION=0.45.11 \
-	TRIVY_VERSION=0.69.2 \
 	SYFT_VERSION=1.20.0 \
 	COSIGN_VERSION=2.4.3 \
 	BUN_VERSION=1.2.15
@@ -351,9 +354,6 @@ RUN curl --silent --show-error --location --fail --output /usr/local/bin/cloud_s
 	# terragrunt for running Terraform and Terragrunt files
 	curl --silent --show-error --location --fail --output /usr/local/bin/terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64" && \
 	chmod a=rx /usr/local/bin/terragrunt && \
-	# AquaSec Trivy for scanning container images for security issues
-	curl --silent --show-error --location --fail "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/bin --file=- trivy && \
 	# Anchore Syft for SBOM generation
 	curl --silent --show-error --location --fail "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- syft && \

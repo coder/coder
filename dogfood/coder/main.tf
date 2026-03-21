@@ -533,7 +533,7 @@ resource "coder_agent" "dev" {
     display_name = "/var/lib/docker Usage"
     key          = "var_lib_docker_usage"
     order        = 3
-    script       = "sudo du -sh /var/lib/docker | awk '{print $1}'"
+    script       = "sudo du -sh /var/lib/docker 2>/dev/null | awk '{print $1}'"
     interval     = 3600 # 1h to avoid thrashing disk
     timeout      = 60   # Longer than this is likely problematic
   }

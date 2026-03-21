@@ -7,6 +7,7 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { asString } from "components/ai-elements/runtimeTypeUtils";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -51,6 +52,7 @@ import {
 	SquarePenIcon,
 	Trash2Icon,
 	UserIcon,
+	WandSparklesIcon,
 } from "lucide-react";
 import { UserDropdownContent } from "modules/dashboard/Navbar/UserDropdown/UserDropdownContent";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -58,17 +60,17 @@ import {
 	createContext,
 	type FC,
 	memo,
-	useCallback,
 	useContext,
 	useEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
 import { Link, NavLink, useLocation, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { shortRelativeTime } from "utils/time";
+import { getNormalizedModelRef } from "./modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "./timeGroups";
+import { UsageIndicator } from "./UsageIndicator";
 
 type SidebarView =
 	| { panel: "chats" }
@@ -186,10 +188,10 @@ const getModelDisplayName = (
 	if (!modelConfig) {
 		return "Default model";
 	}
-	const provider = modelConfig.provider.trim().toLowerCase();
-	const model = modelConfig.model.trim();
+	const { provider, model } = getNormalizedModelRef(modelConfig);
+	const displayName = asString(modelConfig.display_name).trim();
 	if (!provider || !model) {
-		return modelConfig.display_name.trim() || "Default model";
+		return displayName || "Default model";
 	}
 
 	// Try to find a matching option with a display name.
@@ -202,8 +204,8 @@ const getModelDisplayName = (
 		return match.displayName;
 	}
 
-	if (modelConfig.display_name.trim()) {
-		return modelConfig.display_name.trim();
+	if (displayName) {
+		return displayName;
 	}
 
 	return model;
@@ -412,7 +414,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 			<div
 				data-testid={`agents-tree-node-${chat.id}`}
 				className={cn(
-					"group relative flex min-w-0 items-start gap-1.5 rounded-md pr-1 text-content-secondary",
+					"group relative flex min-w-0 items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
 					"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
 					"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 					isChildNode &&
@@ -504,7 +506,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 						</>
 					)}
 				</NavLink>
-				<div className="relative mr-1 mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
+				<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
 					{isArchivingThisChat ? (
 						<Spinner className="h-3.5 w-3.5 text-content-secondary" loading />
 					) : (
@@ -577,7 +579,6 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 		</div>
 	);
 });
-ChatTreeNode.displayName = "ChatTreeNode";
 
 export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const {
@@ -616,39 +617,42 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 
-	const chatTree = useMemo(() => buildChatTree(chats), [chats]);
-	const chatById = useMemo(() => {
-		return new Map(chats.map((chat) => [chat.id, chat] as const));
-	}, [chats]);
-	const visibleChatIDs = useMemo(
-		() =>
-			collectVisibleChatIDs({
-				chats,
-				search: normalizedSearch,
-				tree: chatTree,
-			}),
-		[chats, chatTree],
-	);
-	const visibleRootIDs = useMemo(
-		() => chatTree.rootIds.filter((chatID) => visibleChatIDs.has(chatID)),
-		[chatTree.rootIds, visibleChatIDs],
+	const chatTree = buildChatTree(chats);
+	const chatById = new Map(chats.map((chat) => [chat.id, chat] as const));
+	const visibleChatIDs = collectVisibleChatIDs({
+		chats,
+		search: normalizedSearch,
+		tree: chatTree,
+	});
+	const visibleRootIDs = chatTree.rootIds.filter((chatID) =>
+		visibleChatIDs.has(chatID),
 	);
 
 	// Auto-expand ancestors of the active chat so it's always visible.
+	// Only runs when activeChatId changes — not on every parentById
+	// recalculation — so user-initiated collapse is preserved.
+	const parentByIdRef = useRef(chatTree.parentById);
+	useEffect(() => {
+		parentByIdRef.current = chatTree.parentById;
+	});
 	useEffect(() => {
 		if (!activeChatId) {
 			return;
 		}
+		const parentById = parentByIdRef.current;
 		const toExpand: string[] = [];
-		let cursor = chatTree.parentById.get(activeChatId);
+		let cursor = parentById.get(activeChatId);
 		const seen = new Set<string>();
 		while (cursor && !seen.has(cursor)) {
 			seen.add(cursor);
 			toExpand.push(cursor);
-			cursor = chatTree.parentById.get(cursor);
+			cursor = parentById.get(cursor);
 		}
 		if (toExpand.length > 0) {
 			setExpandedById((prev) => {
+				if (toExpand.every((id) => prev[id])) {
+					return prev;
+				}
 				const next = { ...prev };
 				for (const id of toExpand) {
 					next[id] = true;
@@ -656,45 +660,27 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				return next;
 			});
 		}
-	}, [activeChatId, chatTree.parentById]);
-
-	const toggleExpanded = useCallback((chatID: string) => {
+	}, [activeChatId]);
+	const toggleExpanded = (chatID: string) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
-	}, []);
+	};
 
-	const chatTreeCtx = useMemo<ChatTreeContextValue>(
-		() => ({
-			chatTree,
-			chatById,
-			visibleChatIDs,
-			normalizedSearch,
-			expandedById,
-			modelOptions,
-			modelConfigs,
-			chatErrorReasons,
-			isArchiving,
-			archivingChatId,
-			toggleExpanded,
-			onArchiveAgent,
-			onUnarchiveAgent,
-			onArchiveAndDeleteWorkspace,
-		}),
-		[
-			chatTree,
-			chatById,
-			visibleChatIDs,
-			expandedById,
-			modelOptions,
-			modelConfigs,
-			chatErrorReasons,
-			isArchiving,
-			archivingChatId,
-			toggleExpanded,
-			onArchiveAgent,
-			onUnarchiveAgent,
-			onArchiveAndDeleteWorkspace,
-		],
-	);
+	const chatTreeCtx: ChatTreeContextValue = {
+		chatTree,
+		chatById,
+		visibleChatIDs,
+		normalizedSearch,
+		expandedById,
+		modelOptions,
+		modelConfigs,
+		chatErrorReasons,
+		isArchiving,
+		archivingChatId,
+		toggleExpanded,
+		onArchiveAgent,
+		onUnarchiveAgent,
+		onArchiveAndDeleteWorkspace,
+	};
 
 	const subNavTitle = "Settings";
 
@@ -709,7 +695,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				aria-hidden={sidebarView.panel === "settings"}
 				inert={sidebarView.panel === "settings" ? true : undefined}
 			>
-				<div className="hidden border-b border-border-default px-3 pb-3 pt-1.5 md:block md:px-3.5">
+				<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 md:block">
 					<div className="mb-2.5 flex items-center justify-between">
 						<NavLink to="/workspaces" className="inline-flex">
 							{logoUrl ? (
@@ -895,8 +881,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					</div>
 				</ScrollArea>
 				<div className="hidden border-0 border-t border-solid md:block">
-					<div className="flex items-center">
+					<div className="flex items-stretch">
 						<DropdownMenu>
+							{" "}
 							<DropdownMenuTrigger asChild>
 								<button
 									type="button"
@@ -929,11 +916,11 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								/>
 							</DropdownMenuContent>
 						</DropdownMenu>
+						<UsageIndicator />
 					</div>
 				</div>
 			</div>
-
-			{/* ── Panel 2: Sub-navigation (Settings) ── */}
+			{/* ── Panel 2: Sub-navigation (Settings) ── */}{" "}
 			<div
 				className={cn(
 					"absolute inset-0 flex flex-col transition-transform duration-200 ease-in-out",
@@ -961,7 +948,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							label="Behavior"
 							active={sidebarView.section === "behavior"}
 							to="/agents/settings/behavior"
-							replace
 							state={location.state}
 						/>
 						{isAdmin && (
@@ -971,7 +957,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Providers"
 									active={sidebarView.section === "providers"}
 									to="/agents/settings/providers"
-									replace
 									state={location.state}
 									adminOnly
 								/>
@@ -980,7 +965,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Models"
 									active={sidebarView.section === "models"}
 									to="/agents/settings/models"
-									replace
 									state={location.state}
 									adminOnly
 								/>
@@ -989,7 +973,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Limits"
 									active={sidebarView.section === "limits"}
 									to="/agents/settings/limits"
-									replace
 									state={location.state}
 									adminOnly
 								/>
@@ -998,10 +981,17 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									label="Usage"
 									active={sidebarView.section === "usage"}
 									to="/agents/settings/usage"
-									replace
 									state={location.state}
 									adminOnly
 								/>
+								<SettingsNavItem
+									icon={WandSparklesIcon}
+									label="Analytics"
+									active={sidebarView.section === "insights"}
+									to="/agents/settings/insights"
+									state={location.state}
+									adminOnly
+								/>{" "}
 							</>
 						)}
 					</nav>
@@ -1104,11 +1094,8 @@ const LoadMoreSentinel: FC<{
 	// needing to tear down and re-create the observer.
 	useEffect(() => {
 		onLoadMoreRef.current = onLoadMore;
-	}, [onLoadMore]);
-
-	useEffect(() => {
 		isFetchingNextPageRef.current = isFetchingNextPage;
-	}, [isFetchingNextPage]);
+	}, [onLoadMore, isFetchingNextPage]);
 
 	useEffect(() => {
 		const el = sentinelRef.current;

@@ -1,6 +1,6 @@
 import { Button } from "components/Button/Button";
 import { Spinner } from "components/Spinner/Spinner";
-import { type FC, useCallback, useEffect, useRef } from "react";
+import { type FC, useEffect, useRef } from "react";
 import {
 	type UseDesktopConnectionResult,
 	useDesktopConnection,
@@ -27,15 +27,12 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({
 		connectionOverride ?? hookResult;
 	const containerRef = useRef<HTMLDivElement | null>(null);
 
-	const attachToContainer = useCallback(
-		(el: HTMLDivElement | null) => {
-			containerRef.current = el;
-			if (el) {
-				attach(el);
-			}
-		},
-		[attach],
-	);
+	const attachToContainer = (el: HTMLDivElement | null) => {
+		containerRef.current = el;
+		if (el) {
+			attach(el);
+		}
+	};
 
 	// Connect on mount, disconnect on unmount. This drives the
 	// visibility-based lifecycle: DesktopPanel is only rendered
@@ -79,7 +76,14 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({
 				<span className="text-sm">
 					Failed to connect to the desktop session.
 				</span>
-				<Button variant="outline" size="sm" onClick={() => connect()}>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => {
+						disconnect();
+						connect();
+					}}
+				>
 					Reconnect
 				</Button>
 			</div>

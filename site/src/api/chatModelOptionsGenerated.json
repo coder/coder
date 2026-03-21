@@ -318,10 +318,9 @@
 					"json_name": "store",
 					"go_name": "Store",
 					"type": "boolean",
-					"description": "Whether to store the output for model distillation or evals",
+					"description": "Whether to store the response on OpenAI for later retrieval via the API and dashboard logs",
 					"required": false,
-					"input_type": "select",
-					"hidden": true
+					"input_type": "select"
 				},
 				{
 					"json_name": "metadata",
@@ -338,8 +337,7 @@
 					"type": "string",
 					"description": "Key for enabling cross-request prompt caching",
 					"required": false,
-					"input_type": "input",
-					"hidden": true
+					"input_type": "input"
 				},
 				{
 					"json_name": "safety_identifier",

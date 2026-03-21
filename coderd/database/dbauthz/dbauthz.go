@@ -705,7 +705,7 @@ var (
 				DisplayName: "Chat Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceChat.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceWorkspace.Type:        {policy.ActionRead},
+					rbac.ResourceWorkspace.Type:        {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead},
 					rbac.ResourceUser.Type:             {policy.ActionReadPersonal},
 				}),
@@ -769,6 +769,9 @@ func AsSubAgentAPI(ctx context.Context, orgID uuid.UUID, userID uuid.UUID) conte
 
 // AsSystemRestricted returns a context with an actor that has permissions
 // required for various system operations (login, logout, metrics cache).
+// DO NOT USE THIS UNLESS YOU HAVE ABSOLUTELY NO OTHER CHOICE. Prefer using a
+// more specific As* helper above (or adding a new, narrowly-scoped one) so
+// that permissions remain limited to the operation you need.
 func AsSystemRestricted(ctx context.Context) context.Context {
 	return As(ctx, subjectSystemRestricted)
 }
@@ -1264,7 +1267,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID uuid.UUID, added, re
 			// System roles are stored in the database but have a fixed, code-defined
 			// meaning. Do not rewrite the name for them so the static "who can assign
 			// what" mapping applies.
-			if !rbac.SystemRoleName(roleName.Name) {
+			if !rolestore.IsSystemRoleName(roleName.Name) {
 				// To support a dynamic mapping of what roles can assign what, we need
 				// to store this in the database. For now, just use a static role so
 				// owners and org admins can assign roles.
@@ -1691,6 +1694,13 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 	return q.db.CleanTailnetTunnels(ctx)
 }
 
+func (q *querier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return err
+	}
+	return q.db.CleanupDeletedMCPServerIDsFromChats(ctx)
+}
+
 func (q *querier) CountAIBridgeInterceptions(ctx context.Context, arg database.CountAIBridgeInterceptionsParams) (int64, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
@@ -1824,18 +1834,6 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
 }
 
-func (q *querier) DeleteChatMessagesAfterID(ctx context.Context, arg database.DeleteChatMessagesAfterIDParams) error {
-	// Authorize update on the parent chat.
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.DeleteChatMessagesAfterID(ctx, arg)
-}
-
 func (q *querier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
@@ -1930,6 +1928,20 @@ func (q *querier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 		return -1, err
 	}
 	return id, nil
+}
+
+func (q *querier) DeleteMCPServerConfigByID(ctx context.Context, id uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.DeleteMCPServerConfigByID(ctx, id)
+}
+
+func (q *querier) DeleteMCPServerUserToken(ctx context.Context, arg database.DeleteMCPServerUserTokenParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.DeleteMCPServerUserToken(ctx, arg)
 }
 
 func (q *querier) DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error {
@@ -2145,12 +2157,12 @@ func (q *querier) DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) erro
 	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.DeleteWorkspaceACLByID)(ctx, id)
 }
 
-func (q *querier) DeleteWorkspaceACLsByOrganization(ctx context.Context, organizationID uuid.UUID) error {
+func (q *querier) DeleteWorkspaceACLsByOrganization(ctx context.Context, params database.DeleteWorkspaceACLsByOrganizationParams) error {
 	// This is a system-only function.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.DeleteWorkspaceACLsByOrganization(ctx, organizationID)
+	return q.db.DeleteWorkspaceACLsByOrganization(ctx, params)
 }
 
 func (q *querier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
@@ -2482,6 +2494,17 @@ func (q *querier) GetChatCostSummary(ctx context.Context, arg database.GetChatCo
 	return q.db.GetChatCostSummary(ctx, arg)
 }
 
+func (q *querier) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
+	// The desktop-enabled flag is a deployment-wide setting read by any
+	// authenticated chat user and by chatd when deciding whether to expose
+	// computer-use tooling. We only require that an explicit actor is present
+	// in the context so unauthenticated calls fail closed.
+	if _, ok := ActorFromContext(ctx); !ok {
+		return false, ErrNoActor
+	}
+	return q.db.GetChatDesktopEnabled(ctx)
+}
+
 func (q *querier) GetChatDiffStatusByChatID(ctx context.Context, chatID uuid.UUID) (database.ChatDiffStatus, error) {
 	// Authorize read on the parent chat.
 	_, err := q.GetChatByID(ctx, chatID)
@@ -2653,6 +2676,16 @@ func (q *querier) GetChatUsageLimitUserOverride(ctx context.Context, userID uuid
 	return q.db.GetChatUsageLimitUserOverride(ctx, userID)
 }
 
+func (q *querier) GetChatWorkspaceTTL(ctx context.Context) (string, error) {
+	// The workspace-TTL setting is a deployment-wide value read by any
+	// authenticated chat user. We only require that an explicit actor is
+	// present in the context so unauthenticated calls fail closed.
+	if _, ok := ActorFromContext(ctx); !ok {
+		return "", ErrNoActor
+	}
+	return q.db.GetChatWorkspaceTTL(ctx)
+}
+
 func (q *querier) GetChats(ctx context.Context, arg database.GetChatsParams) ([]database.Chat, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceChat.Type)
 	if err != nil {
@@ -2764,6 +2797,13 @@ func (q *querier) GetEnabledChatProviders(ctx context.Context) ([]database.ChatP
 	return q.db.GetEnabledChatProviders(ctx)
 }
 
+func (q *querier) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetEnabledMCPServerConfigs(ctx)
+}
+
 func (q *querier) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetExternalAuthLink)(ctx, arg)
 }
@@ -2822,6 +2862,13 @@ func (q *querier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetFilteredInboxNotificationsByUserID)(ctx, arg)
 }
 
+func (q *querier) GetForcedMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetForcedMCPServerConfigs(ctx)
+}
+
 func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetGitSSHKey)(ctx, userID)
 }
@@ -2843,6 +2890,10 @@ func (q *querier) GetGroupMembers(ctx context.Context, includeSystem bool) ([]da
 
 func (q *querier) GetGroupMembersByGroupID(ctx context.Context, arg database.GetGroupMembersByGroupIDParams) ([]database.GroupMember, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupMembersByGroupID)(ctx, arg)
+}
+
+func (q *querier) GetGroupMembersByGroupIDPaginated(ctx context.Context, arg database.GetGroupMembersByGroupIDPaginatedParams) ([]database.GetGroupMembersByGroupIDPaginatedRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetGroupMembersByGroupIDPaginated)(ctx, arg)
 }
 
 func (q *querier) GetGroupMembersCountByGroupID(ctx context.Context, arg database.GetGroupMembersCountByGroupIDParams) (int64, error) {
@@ -2960,6 +3011,48 @@ func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {
 func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetLogoURL(ctx)
+}
+
+func (q *querier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	return q.db.GetMCPServerConfigByID(ctx, id)
+}
+
+func (q *querier) GetMCPServerConfigBySlug(ctx context.Context, slug string) (database.MCPServerConfig, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	return q.db.GetMCPServerConfigBySlug(ctx, slug)
+}
+
+func (q *querier) GetMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetMCPServerConfigs(ctx)
+}
+
+func (q *querier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.MCPServerConfig, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetMCPServerConfigsByIDs(ctx, ids)
+}
+
+func (q *querier) GetMCPServerUserToken(ctx context.Context, arg database.GetMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	return q.db.GetMCPServerUserToken(ctx, arg)
+}
+
+func (q *querier) GetMCPServerUserTokensByUserID(ctx context.Context, userID uuid.UUID) ([]database.MCPServerUserToken, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetMCPServerUserTokensByUserID(ctx, userID)
 }
 
 func (q *querier) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
@@ -3146,6 +3239,34 @@ func (q *querier) GetOrganizationsWithPrebuildStatus(ctx context.Context, arg da
 		return nil, err
 	}
 	return q.db.GetOrganizationsWithPrebuildStatus(ctx, arg)
+}
+
+func (q *querier) GetPRInsightsPerModel(ctx context.Context, arg database.GetPRInsightsPerModelParams) ([]database.GetPRInsightsPerModelRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetPRInsightsPerModel(ctx, arg)
+}
+
+func (q *querier) GetPRInsightsRecentPRs(ctx context.Context, arg database.GetPRInsightsRecentPRsParams) ([]database.GetPRInsightsRecentPRsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetPRInsightsRecentPRs(ctx, arg)
+}
+
+func (q *querier) GetPRInsightsSummary(ctx context.Context, arg database.GetPRInsightsSummaryParams) (database.GetPRInsightsSummaryRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return database.GetPRInsightsSummaryRow{}, err
+	}
+	return q.db.GetPRInsightsSummary(ctx, arg)
+}
+
+func (q *querier) GetPRInsightsTimeSeries(ctx context.Context, arg database.GetPRInsightsTimeSeriesParams) ([]database.GetPRInsightsTimeSeriesRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetPRInsightsTimeSeries(ctx, arg)
 }
 
 func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
@@ -4564,16 +4685,16 @@ func (q *querier) InsertChatFile(ctx context.Context, arg database.InsertChatFil
 	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertChatFile)(ctx, arg)
 }
 
-func (q *querier) InsertChatMessage(ctx context.Context, arg database.InsertChatMessageParams) (database.ChatMessage, error) {
+func (q *querier) InsertChatMessages(ctx context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
 	// Authorize create on the parent chat (using update permission).
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
-		return database.ChatMessage{}, err
+		return nil, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.ChatMessage{}, err
+		return nil, err
 	}
-	return q.db.InsertChatMessage(ctx, arg)
+	return q.db.InsertChatMessages(ctx, arg)
 }
 
 func (q *querier) InsertChatModelConfig(ctx context.Context, arg database.InsertChatModelConfigParams) (database.ChatModelConfig, error) {
@@ -4698,6 +4819,13 @@ func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseP
 		return database.License{}, err
 	}
 	return q.db.InsertLicense(ctx, arg)
+}
+
+func (q *querier) InsertMCPServerConfig(ctx context.Context, arg database.InsertMCPServerConfigParams) (database.MCPServerConfig, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	return q.db.InsertMCPServerConfig(ctx, arg)
 }
 
 func (q *querier) InsertMemoryResourceMonitor(ctx context.Context, arg database.InsertMemoryResourceMonitorParams) (database.WorkspaceAgentMemoryResourceMonitor, error) {
@@ -5352,6 +5480,32 @@ func (q *querier) SelectUsageEventsForPublishing(ctx context.Context, arg time.T
 	return q.db.SelectUsageEventsForPublishing(ctx, arg)
 }
 
+func (q *querier) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
+	msg, err := q.db.GetChatMessageByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	chat, err := q.db.GetChatByID(ctx, msg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.SoftDeleteChatMessageByID(ctx, id)
+}
+
+func (q *querier) SoftDeleteChatMessagesAfterID(ctx context.Context, arg database.SoftDeleteChatMessagesAfterIDParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.SoftDeleteChatMessagesAfterID(ctx, arg)
+}
+
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
 	return q.db.TryAcquireLock(ctx, id)
 }
@@ -5431,6 +5585,17 @@ func (q *querier) UpdateChatHeartbeat(ctx context.Context, arg database.UpdateCh
 		return 0, err
 	}
 	return q.db.UpdateChatHeartbeat(ctx, arg)
+}
+
+func (q *querier) UpdateChatMCPServerIDs(ctx context.Context, arg database.UpdateChatMCPServerIDsParams) (database.Chat, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.Chat{}, err
+	}
+	return q.db.UpdateChatMCPServerIDs(ctx, arg)
 }
 
 func (q *querier) UpdateChatMessageByID(ctx context.Context, arg database.UpdateChatMessageByIDParams) (database.ChatMessage, error) {
@@ -5595,6 +5760,13 @@ func (q *querier) UpdateInboxNotificationReadStatus(ctx context.Context, args da
 	}
 
 	return update(q.log, q.auth, fetchFunc, q.db.UpdateInboxNotificationReadStatus)(ctx, args)
+}
+
+func (q *querier) UpdateMCPServerConfig(ctx context.Context, arg database.UpdateMCPServerConfigParams) (database.MCPServerConfig, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	return q.db.UpdateMCPServerConfig(ctx, arg)
 }
 
 func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemberRolesParams) (database.OrganizationMember, error) {
@@ -6548,6 +6720,13 @@ func (q *querier) UpsertBoundaryUsageStats(ctx context.Context, arg database.Ups
 	return q.db.UpsertBoundaryUsageStats(ctx, arg)
 }
 
+func (q *querier) UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bool) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatDesktopEnabled(ctx, enableDesktop)
+}
+
 func (q *querier) UpsertChatDiffStatus(ctx context.Context, arg database.UpsertChatDiffStatusParams) (database.ChatDiffStatus, error) {
 	// Authorize update on the parent chat.
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
@@ -6600,6 +6779,14 @@ func (q *querier) UpsertChatUsageLimitUserOverride(ctx context.Context, arg data
 	return q.db.UpsertChatUsageLimitUserOverride(ctx, arg)
 }
 
+//nolint:revive // Parameter name matches the generated querier interface.
+func (q *querier) UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatWorkspaceTTL(ctx, workspaceTtl)
+}
+
 func (q *querier) UpsertConnectionLog(ctx context.Context, arg database.UpsertConnectionLogParams) (database.ConnectionLog, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceConnectionLog); err != nil {
 		return database.ConnectionLog{}, err
@@ -6633,6 +6820,13 @@ func (q *querier) UpsertLogoURL(ctx context.Context, value string) error {
 		return err
 	}
 	return q.db.UpsertLogoURL(ctx, value)
+}
+
+func (q *querier) UpsertMCPServerUserToken(ctx context.Context, arg database.UpsertMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	return q.db.UpsertMCPServerUserToken(ctx, arg)
 }
 
 func (q *querier) UpsertNotificationReportGeneratorLog(ctx context.Context, arg database.UpsertNotificationReportGeneratorLogParams) error {
@@ -6785,6 +6979,13 @@ func (q *querier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg databa
 		return false, err
 	}
 	return q.db.UpsertWorkspaceAppAuditSession(ctx, arg)
+}
+
+func (q *querier) UsageEventExistsByID(ctx context.Context, id string) (bool, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUsageEvent); err != nil {
+		return false, err
+	}
+	return q.db.UsageEventExistsByID(ctx, id)
 }
 
 func (q *querier) ValidateGroupIDs(ctx context.Context, groupIDs []uuid.UUID) (database.ValidateGroupIDsRow, error) {

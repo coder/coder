@@ -3131,6 +3131,67 @@ func AllResourceTypeValues() []ResourceType {
 	}
 }
 
+type ShareableWorkspaceOwners string
+
+const (
+	ShareableWorkspaceOwnersNone            ShareableWorkspaceOwners = "none"
+	ShareableWorkspaceOwnersEveryone        ShareableWorkspaceOwners = "everyone"
+	ShareableWorkspaceOwnersServiceAccounts ShareableWorkspaceOwners = "service_accounts"
+)
+
+func (e *ShareableWorkspaceOwners) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ShareableWorkspaceOwners(s)
+	case string:
+		*e = ShareableWorkspaceOwners(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ShareableWorkspaceOwners: %T", src)
+	}
+	return nil
+}
+
+type NullShareableWorkspaceOwners struct {
+	ShareableWorkspaceOwners ShareableWorkspaceOwners `json:"shareable_workspace_owners"`
+	Valid                    bool                     `json:"valid"` // Valid is true if ShareableWorkspaceOwners is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullShareableWorkspaceOwners) Scan(value interface{}) error {
+	if value == nil {
+		ns.ShareableWorkspaceOwners, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ShareableWorkspaceOwners.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullShareableWorkspaceOwners) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ShareableWorkspaceOwners), nil
+}
+
+func (e ShareableWorkspaceOwners) Valid() bool {
+	switch e {
+	case ShareableWorkspaceOwnersNone,
+		ShareableWorkspaceOwnersEveryone,
+		ShareableWorkspaceOwnersServiceAccounts:
+		return true
+	}
+	return false
+}
+
+func AllShareableWorkspaceOwnersValues() []ShareableWorkspaceOwners {
+	return []ShareableWorkspaceOwners{
+		ShareableWorkspaceOwnersNone,
+		ShareableWorkspaceOwnersEveryone,
+		ShareableWorkspaceOwnersServiceAccounts,
+	}
+}
+
 type StartupScriptBehavior string
 
 const (
@@ -4106,6 +4167,7 @@ type Chat struct {
 	Archived          bool           `db:"archived" json:"archived"`
 	LastError         sql.NullString `db:"last_error" json:"last_error"`
 	Mode              NullChatMode   `db:"mode" json:"mode"`
+	MCPServerIDs      []uuid.UUID    `db:"mcp_server_ids" json:"mcp_server_ids"`
 }
 
 type ChatDiffStatus struct {
@@ -4163,6 +4225,8 @@ type ChatMessage struct {
 	CreatedBy           uuid.NullUUID         `db:"created_by" json:"created_by"`
 	ContentVersion      int16                 `db:"content_version" json:"content_version"`
 	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
+	RuntimeMs           sql.NullInt64         `db:"runtime_ms" json:"runtime_ms"`
+	Deleted             bool                  `db:"deleted" json:"deleted"`
 }
 
 type ChatModelConfig struct {
@@ -4389,6 +4453,50 @@ type License struct {
 	UUID uuid.UUID `db:"uuid" json:"uuid"`
 }
 
+type MCPServerConfig struct {
+	ID                      uuid.UUID      `db:"id" json:"id"`
+	DisplayName             string         `db:"display_name" json:"display_name"`
+	Slug                    string         `db:"slug" json:"slug"`
+	Description             string         `db:"description" json:"description"`
+	IconURL                 string         `db:"icon_url" json:"icon_url"`
+	Transport               string         `db:"transport" json:"transport"`
+	Url                     string         `db:"url" json:"url"`
+	AuthType                string         `db:"auth_type" json:"auth_type"`
+	OAuth2ClientID          string         `db:"oauth2_client_id" json:"oauth2_client_id"`
+	OAuth2ClientSecret      string         `db:"oauth2_client_secret" json:"oauth2_client_secret"`
+	OAuth2ClientSecretKeyID sql.NullString `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
+	OAuth2AuthURL           string         `db:"oauth2_auth_url" json:"oauth2_auth_url"`
+	OAuth2TokenURL          string         `db:"oauth2_token_url" json:"oauth2_token_url"`
+	OAuth2Scopes            string         `db:"oauth2_scopes" json:"oauth2_scopes"`
+	APIKeyHeader            string         `db:"api_key_header" json:"api_key_header"`
+	APIKeyValue             string         `db:"api_key_value" json:"api_key_value"`
+	APIKeyValueKeyID        sql.NullString `db:"api_key_value_key_id" json:"api_key_value_key_id"`
+	CustomHeaders           string         `db:"custom_headers" json:"custom_headers"`
+	CustomHeadersKeyID      sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
+	ToolAllowList           []string       `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList            []string       `db:"tool_deny_list" json:"tool_deny_list"`
+	Availability            string         `db:"availability" json:"availability"`
+	Enabled                 bool           `db:"enabled" json:"enabled"`
+	CreatedBy               uuid.NullUUID  `db:"created_by" json:"created_by"`
+	UpdatedBy               uuid.NullUUID  `db:"updated_by" json:"updated_by"`
+	CreatedAt               time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time      `db:"updated_at" json:"updated_at"`
+}
+
+type MCPServerUserToken struct {
+	ID                uuid.UUID      `db:"id" json:"id"`
+	MCPServerConfigID uuid.UUID      `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	UserID            uuid.UUID      `db:"user_id" json:"user_id"`
+	AccessToken       string         `db:"access_token" json:"access_token"`
+	AccessTokenKeyID  sql.NullString `db:"access_token_key_id" json:"access_token_key_id"`
+	RefreshToken      string         `db:"refresh_token" json:"refresh_token"`
+	RefreshTokenKeyID sql.NullString `db:"refresh_token_key_id" json:"refresh_token_key_id"`
+	TokenType         string         `db:"token_type" json:"token_type"`
+	Expiry            sql.NullTime   `db:"expiry" json:"expiry"`
+	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
+}
+
 type NotificationMessage struct {
 	ID                     uuid.UUID                 `db:"id" json:"id"`
 	NotificationTemplateID uuid.UUID                 `db:"notification_template_id" json:"notification_template_id"`
@@ -4535,16 +4643,17 @@ type OAuth2ProviderAppToken struct {
 }
 
 type Organization struct {
-	ID                       uuid.UUID `db:"id" json:"id"`
-	Name                     string    `db:"name" json:"name"`
-	Description              string    `db:"description" json:"description"`
-	CreatedAt                time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt                time.Time `db:"updated_at" json:"updated_at"`
-	IsDefault                bool      `db:"is_default" json:"is_default"`
-	DisplayName              string    `db:"display_name" json:"display_name"`
-	Icon                     string    `db:"icon" json:"icon"`
-	Deleted                  bool      `db:"deleted" json:"deleted"`
-	WorkspaceSharingDisabled bool      `db:"workspace_sharing_disabled" json:"workspace_sharing_disabled"`
+	ID          uuid.UUID `db:"id" json:"id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	IsDefault   bool      `db:"is_default" json:"is_default"`
+	DisplayName string    `db:"display_name" json:"display_name"`
+	Icon        string    `db:"icon" json:"icon"`
+	Deleted     bool      `db:"deleted" json:"deleted"`
+	// Controls whose workspaces can be shared: none, everyone, or service_accounts.
+	ShareableWorkspaceOwners ShareableWorkspaceOwners `db:"shareable_workspace_owners" json:"shareable_workspace_owners"`
 }
 
 type OrganizationMember struct {

@@ -650,34 +650,26 @@ func Organization(t testing.TB, db database.Store, orig database.Organization) d
 	})
 	require.NoError(t, err, "insert organization")
 
-	// Populate the placeholder organization-member system role (created by
-	// DB trigger/migration) so org members have expected permissions.
-	//nolint:gocritic // ReconcileOrgMemberRole needs the system:update
+	// Populate the placeholder system roles (created by DB
+	// trigger/migration) so org members have expected permissions.
+	//nolint:gocritic // ReconcileSystemRole needs the system:update
 	// permission that `genCtx` does not have.
 	sysCtx := dbauthz.AsSystemRestricted(genCtx)
-	_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, db, database.CustomRole{
-		Name: rbac.RoleOrgMember(),
-		OrganizationID: uuid.NullUUID{
-			UUID:  org.ID,
-			Valid: true,
-		},
-	}, org.WorkspaceSharingDisabled)
-
-	if errors.Is(err, sql.ErrNoRows) {
-		// The trigger that creates the placeholder role didn't run (e.g.,
-		// triggers were disabled in the test). Create the role manually.
-		err = rolestore.CreateOrgMemberRole(sysCtx, db, org)
-		require.NoError(t, err, "create organization-member role")
-
-		_, _, err = rolestore.ReconcileOrgMemberRole(sysCtx, db, database.CustomRole{
-			Name: rbac.RoleOrgMember(),
-			OrganizationID: uuid.NullUUID{
-				UUID:  org.ID,
-				Valid: true,
-			},
-		}, org.WorkspaceSharingDisabled)
+	for roleName := range rolestore.SystemRoleNames {
+		role := database.CustomRole{
+			Name:           roleName,
+			OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		}
+		_, _, err = rolestore.ReconcileSystemRole(sysCtx, db, role, org)
+		if errors.Is(err, sql.ErrNoRows) {
+			// The trigger that creates the placeholder role didn't run (e.g.,
+			// triggers were disabled in the test). Create the role manually.
+			err = rolestore.CreateSystemRole(sysCtx, db, org, roleName)
+			require.NoError(t, err, "create role "+roleName)
+			_, _, err = rolestore.ReconcileSystemRole(sysCtx, db, role, org)
+		}
+		require.NoError(t, err, "reconcile role "+roleName)
 	}
-	require.NoError(t, err, "reconcile organization-member role")
 
 	return org
 }

@@ -32,16 +32,12 @@ type ManifestAPI struct {
 	DerpForceWebSockets      bool
 	WorkspaceID              uuid.UUID
 
-	AgentFn   func(context.Context) (database.WorkspaceAgent, error)
+	AgentFn   func(ctx context.Context) (database.WorkspaceAgent, error)
 	Database  database.Store
 	DerpMapFn func() *tailcfg.DERPMap
 }
 
 func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
-	workspaceAgent, err := a.AgentFn(ctx)
-	if err != nil {
-		return nil, err
-	}
 	var (
 		dbApps        []database.WorkspaceApp
 		scripts       []database.WorkspaceAgentScript
@@ -49,6 +45,11 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		workspace     database.Workspace
 		devcontainers []database.WorkspaceAgentDevcontainer
 	)
+
+	workspaceAgent, err := a.AgentFn(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("getting workspace agent: %w", err)
+	}
 
 	var eg errgroup.Group
 	eg.Go(func() (err error) {

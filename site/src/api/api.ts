@@ -160,11 +160,13 @@ export const watchChats = (): OneWayWebSocket<TypesGen.ServerSentEvent> => {
 };
 
 export const watchChatGit = (chatId: string): WebSocket => {
-	return createWebSocket(`/api/experimental/chats/${chatId}/git/watch`);
+	return createWebSocket(`/api/experimental/chats/${chatId}/stream/git`);
 };
 
 export const watchChatDesktop = (chatId: string): WebSocket => {
-	const socket = createWebSocket(`/api/experimental/chats/${chatId}/desktop`);
+	const socket = createWebSocket(
+		`/api/experimental/chats/${chatId}/stream/desktop`,
+	);
 	// RFB is a binary protocol — noVNC expects arraybuffer, not blob.
 	socket.binaryType = "arraybuffer";
 	return socket;
@@ -400,6 +402,7 @@ export type DeploymentConfig = Readonly<{
 
 const chatProviderConfigsPath = "/api/experimental/chats/providers";
 const chatModelConfigsPath = "/api/experimental/chats/model-configs";
+const mcpServerConfigsPath = "/api/experimental/mcp/servers";
 
 type ChatCostDateParams = {
 	start_date?: string;
@@ -422,6 +425,7 @@ type Claims = {
 	all_features: boolean;
 	// feature_set is omitted on legacy licenses
 	feature_set?: string;
+	addons?: string[];
 	version: number;
 	features: Record<string, number>;
 	require_telemetry?: boolean;
@@ -621,6 +625,13 @@ class ApiMethods {
 			{ signal },
 		);
 
+		return response.data;
+	};
+
+	getUser = async (userIdOrName: string): Promise<TypesGen.User> => {
+		const response = await this.axios.get<TypesGen.User>(
+			`/api/v2/users/${encodeURIComponent(userIdOrName)}`,
+		);
 		return response.data;
 	};
 
@@ -1481,6 +1492,35 @@ class ApiMethods {
 		await this.waitForBuild(startBuild);
 	};
 
+	/**
+	 * Starts a workspace, but if the last build was a failed start,
+	 * stops it first to give it a clean slate and the best chance
+	 * of success.
+	 */
+	retryWorkspace = async (
+		workspace: TypesGen.Workspace,
+		templateVersionId: string,
+		logLevel?: TypesGen.ProvisionerLogLevel,
+		buildParameters?: TypesGen.WorkspaceBuildParameter[],
+	): Promise<TypesGen.WorkspaceBuild> => {
+		if (
+			workspace.latest_build.status === "failed" &&
+			workspace.latest_build.transition === "start"
+		) {
+			const stopBuild = await this.stopWorkspace(workspace.id, logLevel);
+			const awaitedStop = await this.waitForBuild(stopBuild);
+			if (awaitedStop?.status === "canceled") {
+				throw new Error("Cleanup stop was canceled");
+			}
+		}
+		return this.startWorkspace(
+			workspace.id,
+			templateVersionId,
+			logLevel,
+			buildParameters,
+		);
+	};
+
 	cancelTemplateVersionBuild = async (
 		templateVersionId: string,
 	): Promise<TypesGen.Response> => {
@@ -2310,7 +2350,11 @@ class ApiMethods {
 			{
 				headers: {
 					"Content-Type": file.type || "application/octet-stream",
-					"Content-Disposition": `attachment; filename="${file.name}"`,
+					// Use RFC 5987 encoding for the filename to support
+					// non-ASCII characters. Placing the raw name directly in
+					// the header causes XMLHttpRequest to throw because HTTP
+					// headers only allow ISO-8859-1 code points.
+					"Content-Disposition": `attachment; filename="file"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
 				},
 			},
 		);
@@ -3079,6 +3123,35 @@ class ApiMethods {
 		await this.axios.put("/api/experimental/chats/config/system-prompt", req);
 	};
 
+	getChatDesktopEnabled =
+		async (): Promise<TypesGen.ChatDesktopEnabledResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatDesktopEnabledResponse>(
+					"/api/experimental/chats/config/desktop-enabled",
+				);
+			return response.data;
+		};
+
+	updateChatDesktopEnabled = async (
+		req: TypesGen.UpdateChatDesktopEnabledRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/desktop-enabled", req);
+	};
+
+	getChatWorkspaceTTL =
+		async (): Promise<TypesGen.ChatWorkspaceTTLResponse> => {
+			const response = await this.axios.get<TypesGen.ChatWorkspaceTTLResponse>(
+				"/api/experimental/chats/config/workspace-ttl",
+			);
+			return response.data;
+		};
+
+	updateChatWorkspaceTTL = async (
+		req: TypesGen.UpdateChatWorkspaceTTLRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/workspace-ttl", req);
+	};
+
 	getUserChatCustomPrompt =
 		async (): Promise<TypesGen.UserChatCustomPrompt> => {
 			const response = await this.axios.get<TypesGen.UserChatCustomPrompt>(
@@ -3164,6 +3237,40 @@ class ApiMethods {
 			`${chatModelConfigsPath}/${encodeURIComponent(modelConfigId)}`,
 		);
 	};
+
+	getMCPServerConfigs = async (): Promise<TypesGen.MCPServerConfig[]> => {
+		const response =
+			await this.axios.get<TypesGen.MCPServerConfig[]>(mcpServerConfigsPath);
+		return response.data;
+	};
+
+	createMCPServerConfig = async (
+		req: TypesGen.CreateMCPServerConfigRequest,
+	): Promise<TypesGen.MCPServerConfig> => {
+		const response = await this.axios.post<TypesGen.MCPServerConfig>(
+			mcpServerConfigsPath,
+			req,
+		);
+		return response.data;
+	};
+
+	updateMCPServerConfig = async (
+		id: string,
+		req: TypesGen.UpdateMCPServerConfigRequest,
+	): Promise<TypesGen.MCPServerConfig> => {
+		const response = await this.axios.patch<TypesGen.MCPServerConfig>(
+			`${mcpServerConfigsPath}/${encodeURIComponent(id)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteMCPServerConfig = async (id: string): Promise<void> => {
+		await this.axios.delete(
+			`${mcpServerConfigsPath}/${encodeURIComponent(id)}`,
+		);
+	};
+
 	getAIBridgeModels = async (options: SearchParamOptions) => {
 		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
 
@@ -3194,12 +3301,32 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getPRInsights = async (params?: {
+		start_date?: string;
+		end_date?: string;
+	}): Promise<TypesGen.PRInsightsResponse> => {
+		const url = getURLWithSearchParams(
+			"/api/experimental/chats/insights/pull-requests",
+			params,
+		);
+		const response = await this.axios.get<TypesGen.PRInsightsResponse>(url);
+		return response.data;
+	};
+
 	getChatUsageLimitConfig =
 		async (): Promise<TypesGen.ChatUsageLimitConfigResponse> => {
 			const response =
 				await this.axios.get<TypesGen.ChatUsageLimitConfigResponse>(
 					"/api/experimental/chats/usage-limits",
 				);
+			return response.data;
+		};
+
+	getChatUsageLimitStatus =
+		async (): Promise<TypesGen.ChatUsageLimitStatus> => {
+			const response = await this.axios.get<TypesGen.ChatUsageLimitStatus>(
+				"/api/experimental/chats/usage-limits/status",
+			);
 			return response.data;
 		};
 

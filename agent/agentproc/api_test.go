@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -76,6 +78,22 @@ func getOutput(t *testing.T, handler http.Handler, id string) *httptest.Response
 	return w
 }
 
+// getOutputWithHeaders sends a GET /{id}/output request with
+// custom headers and returns the recorder.
+func getOutputWithHeaders(t *testing.T, handler http.Handler, id string, headers http.Header) *httptest.ResponseRecorder {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	path := fmt.Sprintf("/%s/output", id)
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, path, nil)
+	for k, v := range headers {
+		req.Header[k] = v
+	}
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	return w
+}
+
 // postSignal sends a POST /{id}/signal request and returns
 // the recorder.
 func postSignal(t *testing.T, handler http.Handler, id string, req workspacesdk.SignalProcessRequest) *httptest.ResponseRecorder {
@@ -97,18 +115,25 @@ func postSignal(t *testing.T, handler http.Handler, id string, req workspacesdk.
 // execer, returning the handler and API.
 func newTestAPI(t *testing.T) http.Handler {
 	t.Helper()
-	return newTestAPIWithUpdateEnv(t, nil)
+	return newTestAPIWithOptions(t, nil, nil)
 }
 
 // newTestAPIWithUpdateEnv creates a new API with an optional
 // updateEnv hook for testing environment injection.
 func newTestAPIWithUpdateEnv(t *testing.T, updateEnv func([]string) ([]string, error)) http.Handler {
 	t.Helper()
+	return newTestAPIWithOptions(t, updateEnv, nil)
+}
+
+// newTestAPIWithOptions creates a new API with optional
+// updateEnv and workingDir hooks.
+func newTestAPIWithOptions(t *testing.T, updateEnv func([]string) ([]string, error), workingDir func() string) http.Handler {
+	t.Helper()
 
 	logger := slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
 	}).Leveled(slog.LevelDebug)
-	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, updateEnv, nil)
+	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, updateEnv, nil, workingDir)
 	t.Cleanup(func() {
 		_ = api.Close()
 	})
@@ -251,6 +276,100 @@ func TestStartProcess(t *testing.T) {
 		require.NotNil(t, resp.ExitCode)
 		require.Equal(t, 0, *resp.ExitCode)
 		require.Contains(t, resp.Output, "marker.txt")
+	})
+
+	t.Run("DefaultWorkDirIsHome", func(t *testing.T) {
+		t.Parallel()
+
+		// No working directory closure, so the process
+		// should fall back to $HOME. We verify through
+		// the process list API which reports the resolved
+		// working directory using native OS paths,
+		// avoiding shell path format mismatches on
+		// Windows (Git Bash returns POSIX paths).
+		handler := newTestAPI(t)
+
+		homeDir, err := os.UserHomeDir()
+		require.NoError(t, err)
+
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command: "echo ok",
+		})
+
+		resp := waitForExit(t, handler, id)
+		require.NotNil(t, resp.ExitCode)
+		require.Equal(t, 0, *resp.ExitCode)
+
+		w := getList(t, handler)
+		require.Equal(t, http.StatusOK, w.Code)
+		var listResp workspacesdk.ListProcessesResponse
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&listResp))
+		var proc *workspacesdk.ProcessInfo
+		for i := range listResp.Processes {
+			if listResp.Processes[i].ID == id {
+				proc = &listResp.Processes[i]
+				break
+			}
+		}
+		require.NotNil(t, proc, "process not found in list")
+		require.Equal(t, homeDir, proc.WorkDir)
+	})
+
+	t.Run("DefaultWorkDirFromClosure", func(t *testing.T) {
+		t.Parallel()
+
+		// The closure provides a valid directory, so the
+		// process should start there. Use the marker file
+		// pattern to avoid path format mismatches on
+		// Windows.
+		tmpDir := t.TempDir()
+		handler := newTestAPIWithOptions(t, nil, func() string {
+			return tmpDir
+		})
+
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command: "touch marker.txt && ls marker.txt",
+		})
+
+		resp := waitForExit(t, handler, id)
+		require.NotNil(t, resp.ExitCode)
+		require.Equal(t, 0, *resp.ExitCode)
+		require.Contains(t, resp.Output, "marker.txt")
+	})
+
+	t.Run("DefaultWorkDirClosureNonExistentFallsBackToHome", func(t *testing.T) {
+		t.Parallel()
+
+		// The closure returns a path that doesn't exist,
+		// so the process should fall back to $HOME.
+		handler := newTestAPIWithOptions(t, nil, func() string {
+			return "/tmp/nonexistent-dir-" + fmt.Sprintf("%d", time.Now().UnixNano())
+		})
+
+		homeDir, err := os.UserHomeDir()
+		require.NoError(t, err)
+
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command: "echo ok",
+		})
+
+		resp := waitForExit(t, handler, id)
+		require.NotNil(t, resp.ExitCode)
+		require.Equal(t, 0, *resp.ExitCode)
+
+		w := getList(t, handler)
+		require.Equal(t, http.StatusOK, w.Code)
+		var listResp workspacesdk.ListProcessesResponse
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&listResp))
+		var proc *workspacesdk.ProcessInfo
+		for i := range listResp.Processes {
+			if listResp.Processes[i].ID == id {
+				proc = &listResp.Processes[i]
+				break
+			}
+		}
+		require.NotNil(t, proc, "process not found in list")
+		require.Equal(t, homeDir, proc.WorkDir)
 	})
 
 	t.Run("CustomEnv", func(t *testing.T) {
@@ -637,6 +756,161 @@ func TestProcessOutput(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, resp.Message, "not found")
 	})
+
+	t.Run("ChatIDEnforcement", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+
+		// Start a process with chat-a.
+		chatA := uuid.New()
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command:    "echo secret",
+			Background: true,
+		}, http.Header{
+			workspacesdk.CoderChatIDHeader: {chatA.String()},
+		})
+		waitForExit(t, handler, id)
+
+		// Chat-b should NOT see this process.
+		chatB := uuid.New()
+		w1 := getOutputWithHeaders(t, handler, id, http.Header{
+			workspacesdk.CoderChatIDHeader: {chatB.String()},
+		})
+		require.Equal(t, http.StatusNotFound, w1.Code)
+
+		// Without any chat ID header, should return 200
+		// (backwards compatible).
+		w2 := getOutput(t, handler, id)
+		require.Equal(t, http.StatusOK, w2.Code)
+	})
+
+	t.Run("WaitForExit", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command: "echo hello-wait && sleep 0.1",
+		})
+
+		w := getOutputWithWait(t, handler, id)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var resp workspacesdk.ProcessOutputResponse
+		err := json.NewDecoder(w.Body).Decode(&resp)
+		require.NoError(t, err)
+		require.False(t, resp.Running)
+		require.NotNil(t, resp.ExitCode)
+		require.Equal(t, 0, *resp.ExitCode)
+		require.Contains(t, resp.Output, "hello-wait")
+	})
+
+	t.Run("WaitAlreadyExited", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command: "echo done",
+		})
+
+		waitForExit(t, handler, id)
+
+		w := getOutputWithWait(t, handler, id)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var resp workspacesdk.ProcessOutputResponse
+		err := json.NewDecoder(w.Body).Decode(&resp)
+		require.NoError(t, err)
+		require.False(t, resp.Running)
+		require.Contains(t, resp.Output, "done")
+	})
+
+	t.Run("WaitTimeout", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command:    "sleep 300",
+			Background: true,
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.IntervalMedium)
+		defer cancel()
+
+		w := getOutputWithWaitCtx(ctx, t, handler, id)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var resp workspacesdk.ProcessOutputResponse
+		err := json.NewDecoder(w.Body).Decode(&resp)
+		require.NoError(t, err)
+		require.True(t, resp.Running)
+
+		// Kill and wait for the process so cleanup does
+		// not hang.
+		postSignal(
+			t, handler, id,
+			workspacesdk.SignalProcessRequest{Signal: "kill"},
+		)
+		waitForExit(t, handler, id)
+	})
+
+	t.Run("ConcurrentWaiters", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{
+			Command:    "sleep 300",
+			Background: true,
+		})
+
+		var (
+			wg    sync.WaitGroup
+			resps [2]workspacesdk.ProcessOutputResponse
+			codes [2]int
+		)
+		for i := range 2 {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				w := getOutputWithWait(t, handler, id)
+				codes[i] = w.Code
+				_ = json.NewDecoder(w.Body).Decode(&resps[i])
+			}()
+		}
+
+		// Signal the process to exit so both waiters unblock.
+		postSignal(
+			t, handler, id,
+			workspacesdk.SignalProcessRequest{Signal: "kill"},
+		)
+
+		wg.Wait()
+
+		for i := range 2 {
+			require.Equal(t, http.StatusOK, codes[i], "waiter %d", i)
+			require.False(t, resps[i].Running, "waiter %d", i)
+		}
+	})
+}
+
+func getOutputWithWait(t *testing.T, handler http.Handler, id string) *httptest.ResponseRecorder {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	return getOutputWithWaitCtx(ctx, t, handler, id)
+}
+
+func getOutputWithWaitCtx(ctx context.Context, t *testing.T, handler http.Handler, id string) *httptest.ResponseRecorder {
+	t.Helper()
+	path := fmt.Sprintf("/%s/output?wait=true", id)
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, path, nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	return w
 }
 
 func TestSignalProcess(t *testing.T) {
@@ -781,7 +1055,7 @@ func TestHandleStartProcess_ChatHeaders_EmptyWorkDir_StillNotifies(t *testing.T)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, func(current []string) ([]string, error) {
 		return current, nil
-	}, pathStore)
+	}, pathStore, nil)
 	defer api.Close()
 
 	routes := api.Routes()
