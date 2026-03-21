@@ -220,6 +220,8 @@ export const UserMessageWithTextAttachment: Story = {
 			name: "View text attachment",
 		});
 		expect(textButton).toBeInTheDocument();
+		expect(textButton).toHaveTextContent(/Pasted text/i);
+		await userEvent.click(textButton);
 		expect(
 			await canvas.findByText(/Quarterly revenue increased 18%/i),
 		).toBeInTheDocument();
@@ -285,6 +287,11 @@ export const UserMessageWithTextAttachmentOnly: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const textButton = await canvas.findByRole("button", {
+			name: "View text attachment",
+		});
+		expect(textButton).toHaveTextContent(/Pasted text/i);
+		await userEvent.click(textButton);
 		expect(
 			await canvas.findByText(/Runbook note: restart the worker/i),
 		).toBeInTheDocument();

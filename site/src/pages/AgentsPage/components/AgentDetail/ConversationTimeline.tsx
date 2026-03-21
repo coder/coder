@@ -23,7 +23,6 @@ import {
 	Fragment,
 	memo,
 	type ReactNode,
-	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -178,22 +177,9 @@ const TextAttachmentButton: FC<{
 }> = ({ fileId, onPreview }) => {
 	const [content, setContent] = useState<string | null>(null);
 
-	useEffect(() => {
-		const controller = new AbortController();
-		void fetchTextAttachmentContent(fileId, controller.signal)
-			.then(setContent)
-			.catch((err) => {
-				if (err instanceof DOMException && err.name === "AbortError") {
-					return;
-				}
-				console.error("Failed to load text attachment preview:", err);
-			});
-		return () => controller.abort();
-	}, [fileId]);
-
 	return (
 		<InlineTextAttachmentButton
-			content={content ?? ""}
+			content={content ?? "Pasted text"}
 			onPreview={async () => {
 				if (content !== null) {
 					onPreview?.(content);
