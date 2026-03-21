@@ -147,6 +147,10 @@ export const watchChat = (
 	if (afterMessageId !== undefined && afterMessageId > 0) {
 		params.set("after_id", afterMessageId.toString());
 	}
+	const token = API.getSessionToken();
+	if (token) {
+		params.set(SessionTokenCookie, token);
+	}
 	const query = params.toString();
 	const route = `/api/experimental/chats/${chatId}/stream${query ? `?${query}` : ""}`;
 	return new OneWayWebSocket({
@@ -155,8 +159,14 @@ export const watchChat = (
 };
 
 export const watchChats = (): OneWayWebSocket<TypesGen.ServerSentEvent> => {
+	const searchParams: Record<string, string> = {};
+	const token = API.getSessionToken();
+	if (token) {
+		searchParams[SessionTokenCookie] = token;
+	}
 	return new OneWayWebSocket({
 		apiRoute: "/api/experimental/chats/watch",
+		searchParams,
 	});
 };
 
@@ -3473,6 +3483,14 @@ function createWebSocket(
 	path: string,
 	params: URLSearchParams = new URLSearchParams(),
 ) {
+	// When running in an embedded context (e.g. VS Code webview),
+	// the session token is set via the API header but browsers
+	// cannot attach custom headers to WebSocket connections.
+	// Pass it as a query parameter instead.
+	const token = API.getSessionToken();
+	if (token) {
+		params.set(SessionTokenCookie, token);
+	}
 	const protocol = location.protocol === "https:" ? "wss:" : "ws:";
 	const socket = new WebSocket(
 		`${protocol}//${location.host}${path}?${params}`,
@@ -3485,6 +3503,7 @@ function createWebSocket(
 interface ClientApi extends ApiMethods {
 	getCsrfToken: () => string;
 	setSessionToken: (token: string) => void;
+	getSessionToken: () => string | undefined;
 	setHost: (host: string | undefined) => void;
 	getAxiosInstance: () => AxiosInstance;
 }
@@ -3506,6 +3525,12 @@ export class Api extends ApiMethods implements ClientApi {
 
 	setSessionToken = (token: string): void => {
 		this.axios.defaults.headers.common["Coder-Session-Token"] = token;
+	};
+
+	getSessionToken = (): string | undefined => {
+		return this.axios.defaults.headers.common["Coder-Session-Token"] as
+			| string
+			| undefined;
 	};
 
 	setHost = (host: string | undefined): void => {
