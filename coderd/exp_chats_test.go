@@ -3941,7 +3941,8 @@ func TestPostChatFile(t *testing.T) {
 
 		// Header says PNG but body is plain text.
 		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader([]byte("hello world")))
-		requireSDKError(t, err, http.StatusBadRequest)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "does not match")
 	})
 
 	t.Run("TooLarge", func(t *testing.T) {

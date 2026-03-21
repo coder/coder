@@ -34,6 +34,10 @@ import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import { ImageThumbnail } from "../AgentChatInput";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
+import {
+	fetchTextAttachmentContent,
+	TEXT_ATTACHMENT_PREVIEW_LENGTH,
+} from "../../utils/fetchTextAttachment";
 import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
@@ -112,23 +116,6 @@ const SmoothedResponse: FC<{
 		streamKey,
 	});
 	return <Response urlTransform={urlTransform}>{visibleText}</Response>;
-};
-
-// Roughly 1-2 lines of typical code at normal terminal width.
-// Short enough to fit in the button without excessive wrapping.
-const TEXT_ATTACHMENT_PREVIEW_LENGTH = 150;
-
-const fetchTextAttachmentContent = async (
-	fileId: string,
-	signal?: AbortSignal,
-): Promise<string> => {
-	const response = await fetch(`/api/experimental/chats/files/${fileId}`, {
-		signal,
-	});
-	if (!response.ok) {
-		throw new Error("Failed to fetch file");
-	}
-	return response.text();
 };
 
 const formatTextAttachmentPreview = (content: string | null): string => {

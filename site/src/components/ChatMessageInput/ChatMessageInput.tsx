@@ -34,16 +34,16 @@ import {
 } from "react";
 import { cn } from "utils/cn";
 import {
+	$createFileReferenceNode,
+	FileReferenceNode,
+} from "./FileReferenceNode";
+import {
 	createPasteFile,
 	getPasteDataTransfer,
 	getPastedPlainText,
 	isLargePaste,
 	type PasteCommandEvent,
-} from "../../pages/AgentsPage/utils/pasteHelpers";
-import {
-	$createFileReferenceNode,
-	FileReferenceNode,
-} from "./FileReferenceNode";
+} from "./pasteHelpers";
 
 // Blocks Cmd+B/I/U and element formatting shortcuts so the editor
 // stays plain-text only.

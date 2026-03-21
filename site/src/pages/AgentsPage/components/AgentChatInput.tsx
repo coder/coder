@@ -43,6 +43,10 @@ import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerPicker } from "./MCPServerPicker";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
+import {
+	fetchTextAttachmentContent,
+	TEXT_ATTACHMENT_PREVIEW_LENGTH,
+} from "./utils/fetchTextAttachment";
 
 export type { ChatMessageInputRef } from "components/ChatMessageInput/ChatMessageInput";
 
@@ -284,6 +288,20 @@ export const AttachmentPreview: FC<{
 }) => {
 	if (attachments.length === 0) return null;
 
+	const loadTextAttachmentContent = async (
+		content: string | undefined,
+		fileId: string | undefined,
+	): Promise<string | undefined> => {
+		if (content !== undefined || !fileId) {
+			return content;
+		}
+		try {
+			return await fetchTextAttachmentContent(fileId);
+		} catch {
+			return undefined;
+		}
+	};
+
 	return (
 		<div className="flex gap-2 overflow-x-auto border-b border-border-default/50 px-3 py-2">
 			{attachments.map((file, index) => {
@@ -315,23 +333,20 @@ export const AttachmentPreview: FC<{
 								type="button"
 								className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary"
 								onClick={async () => {
-									let nextContent = textContent;
-									if (nextContent === undefined && textFileId) {
-										const response = await fetch(
-											`/api/experimental/chats/files/${textFileId}`,
-										);
-										if (!response.ok) {
-											return;
-										}
-										nextContent = await response.text();
-									}
+									const nextContent = await loadTextAttachmentContent(
+										textContent,
+										textFileId,
+									);
 									if (nextContent !== undefined) {
 										onTextPreview?.(nextContent, file.name);
 									}
 								}}
 							>
 								<span className="line-clamp-3 w-full font-mono text-2xs text-content-secondary">
-									{(textContent ?? "Pasted text").slice(0, 150)}
+									{(textContent ?? "Pasted text").slice(
+										0,
+										TEXT_ATTACHMENT_PREVIEW_LENGTH,
+									)}
 								</span>
 							</button>
 						) : (
@@ -343,20 +358,13 @@ export const AttachmentPreview: FC<{
 							<button
 								type="button"
 								onClick={async () => {
-									let nextContent = textContent;
-									if (nextContent === undefined && textFileId) {
-										const response = await fetch(
-											`/api/experimental/chats/files/${textFileId}`,
-										);
-										if (!response.ok) {
-											return;
-										}
-										nextContent = await response.text();
-									}
+									const nextContent = await loadTextAttachmentContent(
+										textContent,
+										textFileId,
+									);
 									onInlineText?.(file, nextContent);
 								}}
 								className="absolute -bottom-2 -right-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
-								aria-hidden="true"
 								aria-label="Paste inline"
 								tabIndex={-1}
 							>
@@ -446,10 +454,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const [previewText, setPreviewText] = useState<string | null>(null);
 
 	const [hasFileReferences, setHasFileReferences] = useState(false);
-	const selectedModelOption = modelOptions.find(
-		(option) => option.id === selectedModel,
-	);
-	const allowTextAttachmentPaste = selectedModelOption?.provider === "google";
+	const allowTextAttachmentPaste = true;
 
 	const speech = useSpeechRecognition();
 	const [preRecordingValue, setPreRecordingValue] = useState<string>("");

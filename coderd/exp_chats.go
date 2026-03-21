@@ -3090,6 +3090,12 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// The mismatch check below is security-critical: it prevents a text
+	// body from being uploaded under an image Content-Type (or vice
+	// versa) now that both text/plain and image types are in the
+	// allowlist. Combined with the X-Content-Type-Options: nosniff
+	// header applied globally, this ensures browsers respect the
+	// stored MIME type.
 	if detected != contentType {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "File content type does not match Content-Type header.",

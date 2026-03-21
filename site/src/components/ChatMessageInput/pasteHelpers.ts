@@ -41,6 +41,9 @@ export function getPastedPlainText(
 export function isLargePaste(text: string): boolean {
 	const LINE_THRESHOLD = 10;
 	const CHAR_THRESHOLD = 1000;
+	// A trailing newline intentionally counts as another line here.
+	// Users can use Cmd/Ctrl+Shift+V when they need to force an
+	// inline paste instead of creating an attachment.
 	const lineCount = text.split("\n").length;
 	return lineCount >= LINE_THRESHOLD || text.length >= CHAR_THRESHOLD;
 }
