@@ -68,7 +68,7 @@ export const getGroupMembersQueryKey = (
 	groupName: string,
 	req?: UsersRequest,
 ) => {
-	const base = getRootGroupQueryKey(organization, groupName)
+	const base = [...getRootGroupQueryKey(organization, groupName), "members"];
 	return req ? [...base, req] : base;
 };
 
