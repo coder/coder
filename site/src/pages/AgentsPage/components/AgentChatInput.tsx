@@ -271,7 +271,7 @@ export const AttachmentPreview: FC<{
 	onPreview?: (url: string) => void;
 	textContents?: Map<File, string>;
 	onTextPreview?: (content: string, fileName: string) => void;
-	onInlineText?: (index: number, content?: string) => void;
+	onInlineText?: (file: File, content?: string) => void;
 }> = ({
 	attachments,
 	onRemove,
@@ -353,9 +353,10 @@ export const AttachmentPreview: FC<{
 										}
 										nextContent = await response.text();
 									}
-									onInlineText?.(index, nextContent);
+									onInlineText?.(file, nextContent);
 								}}
 								className="absolute -bottom-2 -right-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+								aria-hidden="true"
 								aria-label="Paste inline"
 								tabIndex={-1}
 							>
@@ -480,9 +481,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		onAttach?.([file]);
 	};
 
-	const handleInlineText = (index: number, nextContent?: string) => {
-		const file = attachments[index];
-		if (!file) return;
+	const handleInlineText = (file: File, nextContent?: string) => {
+		const index = attachments.indexOf(file);
+		if (index === -1) return;
 		const content = nextContent ?? textContents?.get(file);
 		if (content === undefined) return;
 		internalRef.current?.insertText(content);
