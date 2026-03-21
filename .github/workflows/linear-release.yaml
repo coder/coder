@@ -93,6 +93,7 @@ jobs:
 
   code-freeze:
     name: Move Linear release to Code Freeze
+    needs: sync-release-branch
     if: >
       github.event_name == 'push' &&
       startsWith(github.ref, 'refs/heads/release/') &&
