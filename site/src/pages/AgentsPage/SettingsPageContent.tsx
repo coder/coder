@@ -39,6 +39,7 @@ import {
 import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { useUnsavedChangesWarning } from "hooks/useUnsavedChangesWarning";
 import { ChevronLeftIcon, ShieldIcon } from "lucide-react";
 import { type FC, type FormEvent, useState } from "react";
 import {
@@ -556,6 +557,10 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 		isSavingDesktopEnabled ||
 		isSavingWorkspaceTTL;
 	const isTTLLoading = workspaceTTLQuery.isLoading;
+
+	useUnsavedChangesWarning(
+		isSystemPromptDirty || isUserPromptDirty || isTTLDirty,
+	);
 
 	const handleSaveSystemPrompt = (event: FormEvent) => {
 		event.preventDefault();

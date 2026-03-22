@@ -8,6 +8,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { useUnsavedChangesWarning } from "hooks/useUnsavedChangesWarning";
 import { ChevronLeftIcon, InfoIcon } from "lucide-react";
 import { type FC, type FormEvent, useId, useState } from "react";
 import { formatProviderLabel } from "../modelOptions";
@@ -83,6 +84,8 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		displayName.trim() !== initialValues.displayName ||
 		effectiveApiKey !== "" ||
 		baseURLValue.trim() !== initialValues.baseURL.trim();
+
+	useUnsavedChangesWarning(isDirty);
 
 	const canSave =
 		!providerConfigsUnavailable &&

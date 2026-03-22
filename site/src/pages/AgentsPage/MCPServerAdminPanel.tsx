@@ -25,6 +25,7 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
+import { useUnsavedChangesWarning } from "hooks/useUnsavedChangesWarning";
 import {
 	CheckCircleIcon,
 	ChevronLeftIcon,
@@ -338,6 +339,8 @@ const ServerForm: FC<ServerFormProps> = ({
 			await onSave(req, server?.id);
 		},
 	});
+
+	useUnsavedChangesWarning(form.dirty);
 
 	const isDisabled = isSaving || isDeleting;
 	const canSubmit =
