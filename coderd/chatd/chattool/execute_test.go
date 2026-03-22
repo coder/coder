@@ -121,7 +121,7 @@ func TestExecuteTool(t *testing.T) {
 				// For foreground cases, ProcessOutput is polled.
 				exitCode := 0
 				mockConn.EXPECT().
-					ProcessOutput(gomock.Any(), "proc-1").
+					ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 					Return(workspacesdk.ProcessOutputResponse{
 						Running:  false,
 						ExitCode: &exitCode,
@@ -177,7 +177,7 @@ func TestExecuteTool(t *testing.T) {
 			})
 		exitCode := 0
 		mockConn.EXPECT().
-			ProcessOutput(gomock.Any(), "proc-1").
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 			Return(workspacesdk.ProcessOutputResponse{
 				Running:  false,
 				ExitCode: &exitCode,
@@ -213,7 +213,7 @@ func TestExecuteTool(t *testing.T) {
 			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
 		exitCode := 42
 		mockConn.EXPECT().
-			ProcessOutput(gomock.Any(), "proc-1").
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 			Return(workspacesdk.ProcessOutputResponse{
 				Running:  false,
 				ExitCode: &exitCode,
@@ -274,23 +274,27 @@ func TestExecuteTool(t *testing.T) {
 			StartProcess(gomock.Any(), gomock.Any()).
 			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
 
-		// ProcessOutput always returns running. The poll loop
-		// and the timeout-branch recovery call both hit this.
+		// First call (blocking wait) returns context error
+		// because the 50ms timeout expires.
 		mockConn.EXPECT().
-			ProcessOutput(gomock.Any(), "proc-1").
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			DoAndReturn(func(ctx context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+				<-ctx.Done()
+				return workspacesdk.ProcessOutputResponse{}, ctx.Err()
+			})
+		// Second call (snapshot fallback) returns partial output.
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 			Return(workspacesdk.ProcessOutputResponse{
 				Running: true,
 				Output:  "partial output",
-			}, nil).
-			AnyTimes()
-
+			}, nil)
 		tool := newExecuteTool(t, mockConn)
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		resp, err := tool.Run(ctx, fantasy.ToolCall{
 			ID:   "call-1",
 			Name: "execute",
-			// 50ms timeout expires before the 200ms poll interval,
-			// so the context-done branch fires first.
+			// 50ms timeout expires during the blocking wait.
 			Input: `{"command":"sleep 999","timeout":"50ms"}`,
 		})
 		require.NoError(t, err)
@@ -339,8 +343,13 @@ func TestExecuteTool(t *testing.T) {
 		mockConn.EXPECT().
 			StartProcess(gomock.Any(), gomock.Any()).
 			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		// First call: blocking wait fails.
 		mockConn.EXPECT().
-			ProcessOutput(gomock.Any(), "proc-1").
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{}, xerrors.New("agent disconnected"))
+		// Second call: snapshot fallback also fails.
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 			Return(workspacesdk.ProcessOutputResponse{}, xerrors.New("agent disconnected"))
 
 		tool := newExecuteTool(t, mockConn)
@@ -357,6 +366,89 @@ func TestExecuteTool(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 		assert.False(t, result.Success)
 		assert.Contains(t, result.Error, "agent disconnected")
+		// Snapshot fallback should provide the process ID
+		// so the agent can retry manually.
+		assert.Equal(t, "proc-1", result.BackgroundProcessID)
+	})
+
+	t.Run("TransportErrorRecoveryProcessDone", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		exitCode := 0
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		// Blocking wait fails with transport error.
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{}, xerrors.New("EOF"))
+		// Snapshot fallback finds the process completed.
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Output:   "hello\n",
+				Running:  false,
+				ExitCode: &exitCode,
+			}, nil)
+
+		tool := newExecuteTool(t, mockConn)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hello"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		// Transparent recovery: success with real output.
+		assert.True(t, result.Success)
+		assert.Equal(t, 0, result.ExitCode)
+		assert.Equal(t, "hello\n", result.Output)
+		assert.Empty(t, result.BackgroundProcessID)
+	})
+
+	t.Run("TransportErrorProcessStillRunning", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		// Blocking wait fails with transport error.
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{}, xerrors.New("EOF"))
+		// Snapshot fallback: process still running.
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Output:  "partial output",
+				Running: true,
+			}, nil)
+
+		tool := newExecuteTool(t, mockConn)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"sleep 60"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.False(t, result.Success)
+		assert.Contains(t, result.Error, "process still running")
+		assert.Contains(t, result.Error, "process_output")
+		assert.Equal(t, "partial output", result.Output)
+		assert.Equal(t, "proc-1", result.BackgroundProcessID)
 	})
 
 	t.Run("GetWorkspaceConnNil", func(t *testing.T) {
@@ -440,7 +532,7 @@ func TestDetectFileDump(t *testing.T) {
 				Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
 			exitCode := 0
 			mockConn.EXPECT().
-				ProcessOutput(gomock.Any(), "proc-1").
+				ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 				Return(workspacesdk.ProcessOutputResponse{
 					Running:  false,
 					ExitCode: &exitCode,

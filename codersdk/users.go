@@ -37,6 +37,33 @@ type UsersRequest struct {
 	Pagination
 }
 
+func (req UsersRequest) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		var params []string
+		if req.Search != "" {
+			params = append(params, req.Search)
+		}
+		if req.Name != "" {
+			params = append(params, "name:"+req.Name)
+		}
+		if req.Status != "" {
+			params = append(params, "status:"+string(req.Status))
+		}
+		if req.Role != "" {
+			params = append(params, "role:"+req.Role)
+		}
+		if req.SearchQuery != "" {
+			params = append(params, req.SearchQuery)
+		}
+		for _, lt := range req.LoginType {
+			params = append(params, "login_type:"+string(lt))
+		}
+		q.Set("q", strings.Join(params, " "))
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
 // MinimalUser is the minimal information needed to identify a user and show
 // them on the UI.
 type MinimalUser struct {
@@ -693,6 +720,25 @@ func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UU
 	return members, json.NewDecoder(res.Body).Decode(&members)
 }
 
+// OrganizationMembers lists filtered and paginated members in an organization
+func (c *Client) OrganizationMembersPaginated(ctx context.Context, organizationID uuid.UUID, req UsersRequest) (PaginatedMembersResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/paginated-members", organizationID),
+		nil,
+		req.Pagination.asRequestOption(),
+		req.asRequestOption(),
+	)
+	if err != nil {
+		return PaginatedMembersResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return PaginatedMembersResponse{}, ReadBodyAsError(res)
+	}
+	var membersRes PaginatedMembersResponse
+	return membersRes, json.NewDecoder(res.Body).Decode(&membersRes)
+}
+
 // UpdateUserRoles grants the userID the specified roles.
 // Include ALL roles the user has.
 func (c *Client) UpdateUserRoles(ctx context.Context, user string, req UpdateRoles) (User, error) {
@@ -887,30 +933,7 @@ func (c *Client) UpdateUserQuietHoursSchedule(ctx context.Context, userIdent str
 func (c *Client) Users(ctx context.Context, req UsersRequest) (GetUsersResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/users", nil,
 		req.Pagination.asRequestOption(),
-		func(r *http.Request) {
-			q := r.URL.Query()
-			var params []string
-			if req.Search != "" {
-				params = append(params, req.Search)
-			}
-			if req.Name != "" {
-				params = append(params, "name:"+req.Name)
-			}
-			if req.Status != "" {
-				params = append(params, "status:"+string(req.Status))
-			}
-			if req.Role != "" {
-				params = append(params, "role:"+req.Role)
-			}
-			if req.SearchQuery != "" {
-				params = append(params, req.SearchQuery)
-			}
-			for _, lt := range req.LoginType {
-				params = append(params, "login_type:"+string(lt))
-			}
-			q.Set("q", strings.Join(params, " "))
-			r.URL.RawQuery = q.Encode()
-		},
+		req.asRequestOption(),
 	)
 	if err != nil {
 		return GetUsersResponse{}, err

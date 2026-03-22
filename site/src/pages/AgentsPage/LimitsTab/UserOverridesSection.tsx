@@ -33,6 +33,15 @@ interface UserOverridesSectionProps {
 	userOverrideAmount: string;
 	onUserOverrideAmountChange: (amount: string) => void;
 	selectedUserAlreadyOverridden: boolean;
+	editingUserOverride: {
+		user_id: string;
+		name: string;
+		username: string;
+		avatar_url: string;
+	} | null;
+	onEditUserOverride: (
+		override: UserOverridesSectionProps["overrides"][number],
+	) => void;
 	onAddOverride: () => void;
 	onDeleteOverride: (userID: string) => void;
 	upsertPending: boolean;
@@ -50,6 +59,8 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 	userOverrideAmount,
 	onUserOverrideAmountChange,
 	selectedUserAlreadyOverridden,
+	editingUserOverride,
+	onEditUserOverride,
 	onAddOverride,
 	onDeleteOverride,
 	upsertPending,
@@ -58,6 +69,7 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 	deleteError,
 }) => {
 	const userOverrideAmountId = useId();
+	const isEditing = editingUserOverride !== null;
 
 	return (
 		<section className="space-y-4">
@@ -73,7 +85,7 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 							<TableRow>
 								<TableHead>User</TableHead>
 								<TableHead>Spend Limit</TableHead>
-								<TableHead className="w-[80px]">Actions</TableHead>
+								<TableHead className="w-[160px]">Actions</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -93,15 +105,26 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 											: "Unlimited"}
 									</TableCell>
 									<TableCell>
-										<Button
-											variant="outline"
-											size="sm"
-											type="button"
-											onClick={() => void onDeleteOverride(override.user_id)}
-											disabled={deletePending}
-										>
-											Delete
-										</Button>
+										<div className="flex gap-2">
+											<Button
+												variant="outline"
+												size="sm"
+												type="button"
+												onClick={() => onEditUserOverride(override)}
+												disabled={deletePending || upsertPending}
+											>
+												Edit
+											</Button>
+											<Button
+												variant="outline"
+												size="sm"
+												type="button"
+												onClick={() => void onDeleteOverride(override.user_id)}
+												disabled={deletePending || upsertPending || isEditing}
+											>
+												Delete
+											</Button>
+										</div>
 									</TableCell>
 								</TableRow>
 							))}
@@ -125,18 +148,36 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 						size="sm"
 						type="button"
 						onClick={() => onShowUserFormChange(true)}
+						disabled={isEditing}
 					>
 						Add User
 					</Button>
 				) : (
 					<div className="space-y-3 rounded-lg border border-border bg-surface-secondary/40 p-4">
 						<div className="flex flex-col gap-3 md:flex-row md:items-end">
-							<div className="flex-1">
-								<UserAutocomplete
-									value={selectedUser}
-									onChange={onSelectedUserChange}
-									label="User"
-								/>
+							<div className="flex-1 space-y-1">
+								{editingUserOverride ? (
+									<>
+										<Label>User</Label>
+										<div className="rounded-md border border-border bg-surface-primary p-2">
+											<AvatarData
+												title={
+													editingUserOverride.name ||
+													editingUserOverride.username
+												}
+												subtitle={`@${editingUserOverride.username}`}
+												src={editingUserOverride.avatar_url}
+												imgFallbackText={editingUserOverride.username}
+											/>
+										</div>
+									</>
+								) : (
+									<UserAutocomplete
+										value={selectedUser}
+										onChange={onSelectedUserChange}
+										label="User"
+									/>
+								)}
 							</div>
 							<div className="flex-1 space-y-1">
 								<Label htmlFor={userOverrideAmountId}>Spend Limit ($)</Label>
@@ -144,7 +185,8 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 									id={userOverrideAmountId}
 									type="number"
 									step="0.01"
-									min="0"
+									min="0.01"
+									disabled={upsertPending}
 									className="h-9 min-w-0 text-[13px]"
 									value={userOverrideAmount}
 									onChange={(event) =>
@@ -159,16 +201,19 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 									type="button"
 									onClick={() => void onAddOverride()}
 									disabled={
-										upsertPending ||
-										!selectedUser ||
-										selectedUserAlreadyOverridden ||
-										!isPositiveFiniteDollarAmount(userOverrideAmount)
+										isEditing
+											? upsertPending ||
+												!isPositiveFiniteDollarAmount(userOverrideAmount)
+											: upsertPending ||
+												!selectedUser ||
+												selectedUserAlreadyOverridden ||
+												!isPositiveFiniteDollarAmount(userOverrideAmount)
 									}
 								>
 									{upsertPending ? (
 										<Spinner loading className="h-4 w-4" />
 									) : null}
-									Add
+									{isEditing ? "Save" : "Add"}
 								</Button>
 								<Button
 									variant="outline"
@@ -179,6 +224,7 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 										onSelectedUserChange(null);
 										onUserOverrideAmountChange("");
 									}}
+									disabled={upsertPending}
 								>
 									Cancel
 								</Button>
@@ -186,7 +232,7 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 						</div>
 					</div>
 				)}
-				{selectedUserAlreadyOverridden && (
+				{!isEditing && selectedUserAlreadyOverridden && (
 					<p className="text-xs text-content-warning">
 						This user already has an override.
 					</p>

@@ -3716,6 +3716,35 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 		require.Equal(t, "Chat usage limit override not found.", sdkErr.Message)
 	})
 
+	t.Run("UpdateUserOverride", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		_, err := client.UpsertChatUsageLimitOverride(ctx, member.ID, codersdk.UpsertChatUsageLimitOverrideRequest{
+			SpendLimitMicros: 5_000_000,
+		})
+		require.NoError(t, err)
+
+		override, err := client.UpsertChatUsageLimitOverride(ctx, member.ID, codersdk.UpsertChatUsageLimitOverrideRequest{
+			SpendLimitMicros: 10_000_000,
+		})
+		require.NoError(t, err)
+		require.Equal(t, member.ID, override.UserID)
+		require.NotNil(t, override.SpendLimitMicros)
+		require.EqualValues(t, 10_000_000, *override.SpendLimitMicros)
+
+		config, err := client.GetChatUsageLimitConfig(ctx)
+		require.NoError(t, err)
+		require.Len(t, config.Overrides, 1)
+		require.Equal(t, member.ID, config.Overrides[0].UserID)
+		require.NotNil(t, config.Overrides[0].SpendLimitMicros)
+		require.EqualValues(t, 10_000_000, *config.Overrides[0].SpendLimitMicros)
+	})
+
 	t.Run("UpsertGroupOverrideIncludesMemberCount", func(t *testing.T) {
 		t.Parallel()
 
@@ -3748,6 +3777,40 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 		}
 		require.NotNil(t, listed)
 		require.EqualValues(t, 1, listed.MemberCount)
+	})
+
+	t.Run("UpdateGroupOverride", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: firstUser.UserID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: member.ID})
+
+		_, err := client.UpsertChatUsageLimitGroupOverride(ctx, group.ID, codersdk.UpsertChatUsageLimitGroupOverrideRequest{
+			SpendLimitMicros: 5_000_000,
+		})
+		require.NoError(t, err)
+
+		override, err := client.UpsertChatUsageLimitGroupOverride(ctx, group.ID, codersdk.UpsertChatUsageLimitGroupOverrideRequest{
+			SpendLimitMicros: 10_000_000,
+		})
+		require.NoError(t, err)
+		require.Equal(t, group.ID, override.GroupID)
+		require.EqualValues(t, 2, override.MemberCount)
+		require.NotNil(t, override.SpendLimitMicros)
+		require.EqualValues(t, 10_000_000, *override.SpendLimitMicros)
+
+		config, err := client.GetChatUsageLimitConfig(ctx)
+		require.NoError(t, err)
+		require.Len(t, config.GroupOverrides, 1)
+		require.Equal(t, group.ID, config.GroupOverrides[0].GroupID)
+		require.EqualValues(t, 2, config.GroupOverrides[0].MemberCount)
+		require.NotNil(t, config.GroupOverrides[0].SpendLimitMicros)
+		require.EqualValues(t, 10_000_000, *config.GroupOverrides[0].SpendLimitMicros)
 	})
 
 	t.Run("UpsertGroupOverrideMissingGroup", func(t *testing.T) {
@@ -4773,6 +4836,94 @@ func TestChatDesktopEnabled(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
 	})
+}
+
+func TestChatWorkspaceTTL(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	adminClient := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	anonClient := codersdk.New(adminClient.URL)
+
+	// Default value is 0 (disabled) when nothing has been configured.
+	resp, err := adminClient.GetChatWorkspaceTTL(ctx)
+	require.NoError(t, err, "get default")
+	require.Equal(t, int64(0), resp.WorkspaceTTLMillis, "default should be 0")
+
+	// Admin can set a positive TTL (2h = 7_200_000 ms).
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: 7_200_000,
+	})
+	require.NoError(t, err, "admin set 2h")
+
+	resp, err = adminClient.GetChatWorkspaceTTL(ctx)
+	require.NoError(t, err, "get after set")
+	require.Equal(t, int64(7_200_000), resp.WorkspaceTTLMillis, "should return 7200000 ms (2h)")
+
+	// Non-admin can read the value.
+	resp, err = memberClient.GetChatWorkspaceTTL(ctx)
+	require.NoError(t, err, "member get")
+	require.Equal(t, int64(7_200_000), resp.WorkspaceTTLMillis, "member should see same value")
+
+	// Admin can set back to zero (disabled / template default).
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: 0,
+	})
+	require.NoError(t, err, "admin set 0")
+
+	resp, err = adminClient.GetChatWorkspaceTTL(ctx)
+	require.NoError(t, err, "get after zero")
+	require.Equal(t, int64(0), resp.WorkspaceTTLMillis, "should be 0 after reset")
+
+	// Non-admin write is forbidden.
+	err = memberClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: 3_600_000,
+	})
+	requireSDKError(t, err, http.StatusForbidden)
+
+	// Unauthenticated read is rejected.
+	_, err = anonClient.GetChatWorkspaceTTL(ctx)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr, "anon get")
+	require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode(), "anon should get 401")
+
+	// Validation: negative duration.
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: -3_600_000,
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
+
+	// Validation: less than 1 minute (30s = 30_000 ms).
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: 30_000,
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
+
+	// Boundary: just under 1 minute should be rejected (59_999 ms).
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: 59_999,
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
+
+	// Boundary: exactly 1 minute should succeed (60_000 ms).
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: 60_000,
+	})
+	require.NoError(t, err, "exactly 1 minute should be accepted")
+
+	// Boundary: exactly 30 days should succeed (720h = 2_592_000_000 ms).
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: 2_592_000_000,
+	})
+	require.NoError(t, err, "720h (exactly 30 days) should be accepted")
+
+	// Validation: exceeds 30-day maximum (721h = 2_595_600_000 ms).
+	err = adminClient.UpdateChatWorkspaceTTL(ctx, codersdk.UpdateChatWorkspaceTTLRequest{
+		WorkspaceTTLMillis: 2_595_600_000,
+	})
+	requireSDKError(t, err, http.StatusBadRequest)
 }
 
 func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Error {

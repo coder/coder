@@ -3,14 +3,7 @@ import type { ChatDiffStatus, ChatMessagePart } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { Button } from "components/Button/Button";
 import { ArchiveIcon, ArrowDownIcon } from "lucide-react";
-import {
-	type FC,
-	type RefObject,
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { type FC, type RefObject, useEffect, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
@@ -529,9 +522,11 @@ const ScrollAnchoredContainer: FC<{
 	const sentinelRef = useRef<HTMLDivElement>(null);
 	const observerRef = useRef<IntersectionObserver | null>(null);
 	const isFetchingRef = useRef(isFetchingMoreMessages);
-	isFetchingRef.current = isFetchingMoreMessages;
 	const onFetchRef = useRef(onFetchMoreMessages);
-	onFetchRef.current = onFetchMoreMessages;
+	useEffect(() => {
+		isFetchingRef.current = isFetchingMoreMessages;
+		onFetchRef.current = onFetchMoreMessages;
+	}, [isFetchingMoreMessages, onFetchMoreMessages]);
 	const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
 	// Sentinel observer — triggers loading older messages.
@@ -593,8 +588,10 @@ const ScrollAnchoredContainer: FC<{
 		const handleScroll = () => {
 			if (rafId !== null) return;
 			rafId = requestAnimationFrame(() => {
-				const isAtBottom = Math.abs(container.scrollTop) < SCROLL_THRESHOLD;
-				setShowScrollToBottom(!isAtBottom);
+				const shouldShow = Math.abs(container.scrollTop) >= SCROLL_THRESHOLD;
+				setShowScrollToBottom((prev) =>
+					prev === shouldShow ? prev : shouldShow,
+				);
 				rafId = null;
 			});
 		};
@@ -608,7 +605,7 @@ const ScrollAnchoredContainer: FC<{
 		};
 	}, [scrollContainerRef]);
 
-	const handleScrollToBottom = useCallback(() => {
+	const handleScrollToBottom = () => {
 		const container = scrollContainerRef.current;
 		if (!container) return;
 		container.scrollTo({ top: 0, behavior: "smooth" });
@@ -617,7 +614,7 @@ const ScrollAnchoredContainer: FC<{
 		// before it reaches the bottom, the scroll handler will
 		// re-show the button.
 		setShowScrollToBottom(false);
-	}, [scrollContainerRef]);
+	};
 
 	return (
 		<div className="relative flex min-h-0 flex-1 flex-col">

@@ -19,7 +19,7 @@ import {
 	StarIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { type FC, type ReactNode, useMemo } from "react";
+import type { FC, ReactNode } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { cn } from "utils/cn";
 import { SectionHeader } from "../SectionHeader";
@@ -86,7 +86,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 
 	// Derive the current view from URL search params so that
 	// browser back/forward navigation works as expected.
-	const view: ModelView = useMemo(() => {
+	const view: ModelView = (() => {
 		const editModelId = searchParams.get("model");
 		if (editModelId) {
 			const model = modelConfigs.find((m) => m.id === editModelId);
@@ -97,7 +97,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 			return { mode: "add", provider: addProvider };
 		}
 		return { mode: "list" };
-	}, [searchParams, modelConfigs]);
+	})();
 
 	// Clear model-related search params and return to the list.
 	const clearModelView = () => {

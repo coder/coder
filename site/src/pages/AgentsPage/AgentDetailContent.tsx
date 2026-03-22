@@ -1,7 +1,7 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { type FC, useEffect, useMemo } from "react";
+import { type FC, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import {
@@ -29,6 +29,7 @@ import {
 	parseMessagesWithMergedTools,
 } from "./AgentDetail/messageParsing";
 import { buildStreamTools } from "./AgentDetail/streamState";
+import type { ParsedMessageEntry } from "./AgentDetail/types";
 import type { ChatDetailError } from "./usageLimitMessage";
 import { useFileAttachments } from "./useFileAttachments";
 
@@ -52,7 +53,10 @@ interface AgentDetailTimelineProps {
 	urlTransform?: UrlTransform;
 }
 
-export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
+// Reads only message-related store state (stable during streaming).
+// Computes parsedMessages once and passes them to ConversationTimeline
+// via a memo boundary so that streaming ticks don't re-parse history.
+const MessageListProvider: FC<AgentDetailTimelineProps> = ({
 	store,
 	persistedErrorReason,
 	onOpenAnalytics,
@@ -63,7 +67,6 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
-	const streamState = useChatSelector(store, selectStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const streamError = useChatSelector(store, selectStreamError);
 	const subagentStatusOverrides = useChatSelector(
@@ -72,25 +75,11 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	);
 	const retryState = useChatSelector(store, selectRetryState);
 
-	const messages = useMemo(
-		() =>
-			orderedMessageIDs
-				.map((messageID) => messagesByID.get(messageID))
-				.filter(isChatMessage),
-		[messagesByID, orderedMessageIDs],
-	);
-	const streamTools = useMemo(
-		() => buildStreamTools(streamState),
-		[streamState],
-	);
-	const parsedMessages = useMemo(
-		() => parseMessagesWithMergedTools(messages),
-		[messages],
-	);
-	const subagentTitles = useMemo(
-		() => buildSubagentTitles(parsedMessages),
-		[parsedMessages],
-	);
+	const messages = orderedMessageIDs
+		.map((messageID) => messagesByID.get(messageID))
+		.filter(isChatMessage);
+	const parsedMessages = parseMessagesWithMergedTools(messages);
+	const subagentTitles = buildSubagentTitles(parsedMessages);
 	const detailError: ChatDetailError | undefined =
 		(persistedErrorReason?.kind === "usage-limit" || chatStatus === "error"
 			? persistedErrorReason
@@ -101,6 +90,66 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 	const latestMessage = messages[messages.length - 1];
 	const latestMessageNeedsAssistantResponse =
 		!latestMessage || latestMessage.role !== "assistant";
+
+	return (
+		<StreamingBridge
+			store={store}
+			isEmpty={messages.length === 0}
+			parsedMessages={parsedMessages}
+			subagentTitles={subagentTitles}
+			subagentStatusOverrides={subagentStatusOverrides}
+			retryState={retryState}
+			detailError={detailError}
+			latestMessageNeedsAssistantResponse={latestMessageNeedsAssistantResponse}
+			chatStatus={chatStatus}
+			onOpenAnalytics={onOpenAnalytics}
+			onEditUserMessage={onEditUserMessage}
+			editingMessageId={editingMessageId}
+			savingMessageId={savingMessageId}
+			urlTransform={urlTransform}
+		/>
+	);
+};
+
+// Reads stream-specific store state (changes every token). Isolated
+// so that streamState changes don't invalidate parsedMessages above.
+const StreamingBridge: FC<{
+	store: ChatStoreHandle;
+	isEmpty: boolean;
+	parsedMessages: ParsedMessageEntry[];
+	subagentTitles: Map<string, string>;
+	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
+	retryState: { attempt: number; error: string } | null;
+	detailError: ChatDetailError | undefined;
+	latestMessageNeedsAssistantResponse: boolean;
+	chatStatus: TypesGen.ChatStatus | null;
+	onOpenAnalytics?: () => void;
+	onEditUserMessage?: (
+		messageId: number,
+		text: string,
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+	) => void;
+	editingMessageId?: number | null;
+	savingMessageId?: number | null;
+	urlTransform?: UrlTransform;
+}> = ({
+	store,
+	isEmpty,
+	parsedMessages,
+	subagentTitles,
+	subagentStatusOverrides,
+	retryState,
+	detailError,
+	latestMessageNeedsAssistantResponse,
+	chatStatus,
+	onOpenAnalytics,
+	onEditUserMessage,
+	editingMessageId,
+	savingMessageId,
+	urlTransform,
+}) => {
+	const streamState = useChatSelector(store, selectStreamState);
+	const streamTools = buildStreamTools(streamState);
 	const isAwaitingFirstStreamChunk =
 		!streamState &&
 		(chatStatus === "running" || chatStatus === "pending") &&
@@ -109,7 +158,7 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 
 	return (
 		<ConversationTimeline
-			isEmpty={messages.length === 0}
+			isEmpty={isEmpty}
 			parsedMessages={parsedMessages}
 			hasStreamOutput={hasStreamOutput}
 			streamState={streamState}
@@ -126,6 +175,10 @@ export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = ({
 			urlTransform={urlTransform}
 		/>
 	);
+};
+
+export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = (props) => {
+	return <MessageListProvider {...props} />;
 };
 
 interface AgentDetailInputProps {
@@ -197,22 +250,18 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const queuedMessages = useChatSelector(store, selectQueuedMessages);
 
-	const messages = useMemo(
-		() =>
-			orderedMessageIDs
-				.map((messageID) => messagesByID.get(messageID))
-				.filter(isChatMessage),
-		[messagesByID, orderedMessageIDs],
-	);
+	const messages = orderedMessageIDs
+		.map((messageID) => messagesByID.get(messageID))
+		.filter(isChatMessage);
 	const { organizations } = useDashboard();
 	const organizationId = organizations[0]?.id;
-	const latestContextUsage = useMemo(() => {
+	const latestContextUsage = (() => {
 		const usage = getLatestContextUsage(messages);
 		if (!usage) {
 			return usage;
 		}
 		return { ...usage, compressionThreshold };
-	}, [messages, compressionThreshold]);
+	})();
 	const {
 		attachments,
 		uploadStates,
@@ -273,31 +322,33 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 		<AgentChatInput
 			onSend={(message) => {
 				void (async () => {
+					// Collect file IDs from already-uploaded attachments.
+					// Skip files in error state (e.g. too large).
+					const fileIds: string[] = [];
+					let skippedErrors = 0;
+					for (const file of attachments) {
+						const state = uploadStates.get(file);
+						if (state?.status === "error") {
+							skippedErrors++;
+							continue;
+						}
+						if (state?.status === "uploaded" && state.fileId) {
+							fileIds.push(state.fileId);
+						}
+					}
+					if (skippedErrors > 0) {
+						toast.warning(
+							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+						);
+					}
+					const fileArg = fileIds.length > 0 ? fileIds : undefined;
 					try {
-						// Collect file IDs from already-uploaded attachments.
-						// Skip files in error state (e.g. too large).
-						const fileIds: string[] = [];
-						let skippedErrors = 0;
-						for (const file of attachments) {
-							const state = uploadStates.get(file);
-							if (state?.status === "error") {
-								skippedErrors++;
-								continue;
-							}
-							if (state?.status === "uploaded" && state.fileId) {
-								fileIds.push(state.fileId);
-							}
-						}
-						if (skippedErrors > 0) {
-							toast.warning(
-								`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
-							);
-						}
-						await onSend(message, fileIds.length > 0 ? fileIds : undefined);
-						resetAttachments();
+						await onSend(message, fileArg);
 					} catch {
 						// Attachments preserved for retry on failure.
+						return;
 					}
+					resetAttachments();
 				})();
 			}}
 			attachments={attachments}

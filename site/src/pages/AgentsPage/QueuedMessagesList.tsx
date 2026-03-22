@@ -13,7 +13,7 @@ import {
 	PencilIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { type FC, useCallback, useEffect, useMemo, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import { cn } from "utils/cn";
 
 interface QueuedMessagesListProps {
@@ -72,21 +72,17 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	editingMessageID = null,
 	className,
 }) => {
-	const items = useMemo(
-		() =>
-			messages.map((message) => {
-				const { displayText, rawText, attachmentCount, fileBlocks } =
-					getQueuedMessageInfo(message);
-				return {
-					id: message.id,
-					displayText,
-					rawText,
-					attachmentCount,
-					fileBlocks,
-				};
-			}),
-		[messages],
-	);
+	const items = messages.map((message) => {
+		const { displayText, rawText, attachmentCount, fileBlocks } =
+			getQueuedMessageInfo(message);
+		return {
+			id: message.id,
+			displayText,
+			rawText,
+			attachmentCount,
+			fileBlocks,
+		};
+	});
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
 	// Tracks which item has an async action in flight and what kind.
@@ -98,7 +94,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 		ReadonlySet<number>
 	>(new Set());
 
-	const hideItemOptimistically = useCallback((id: number) => {
+	const hideItemOptimistically = (id: number) => {
 		setOptimisticallyHiddenIDs((current) => {
 			if (current.has(id)) {
 				return current;
@@ -107,9 +103,9 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 			next.add(id);
 			return next;
 		});
-	}, []);
+	};
 
-	const restoreHiddenItem = useCallback((id: number) => {
+	const restoreHiddenItem = (id: number) => {
 		setOptimisticallyHiddenIDs((current) => {
 			if (!current.has(id)) {
 				return current;
@@ -118,7 +114,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 			next.delete(id);
 			return next;
 		});
-	}, []);
+	};
 
 	useEffect(() => {
 		const liveIDs = new Set(messages.map((message) => message.id));
@@ -139,35 +135,29 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 		});
 	}, [messages]);
 
-	const handleDelete = useCallback(
-		async (id: number) => {
-			setBusyItem({ id, action: "delete" });
-			hideItemOptimistically(id);
-			try {
-				await onDelete(id);
-			} catch {
-				restoreHiddenItem(id);
-			} finally {
-				setBusyItem((current) => (current?.id === id ? null : current));
-			}
-		},
-		[hideItemOptimistically, onDelete, restoreHiddenItem],
-	);
+	const handleDelete = async (id: number) => {
+		setBusyItem({ id, action: "delete" });
+		hideItemOptimistically(id);
+		try {
+			await onDelete(id);
+			setBusyItem((current) => (current?.id === id ? null : current));
+		} catch {
+			restoreHiddenItem(id);
+			setBusyItem((current) => (current?.id === id ? null : current));
+		}
+	};
 
-	const handlePromote = useCallback(
-		async (id: number) => {
-			setBusyItem({ id, action: "promote" });
-			hideItemOptimistically(id);
-			try {
-				await onPromote(id);
-			} catch {
-				restoreHiddenItem(id);
-			} finally {
-				setBusyItem((current) => (current?.id === id ? null : current));
-			}
-		},
-		[hideItemOptimistically, onPromote, restoreHiddenItem],
-	);
+	const handlePromote = async (id: number) => {
+		setBusyItem({ id, action: "promote" });
+		hideItemOptimistically(id);
+		try {
+			await onPromote(id);
+			setBusyItem((current) => (current?.id === id ? null : current));
+		} catch {
+			restoreHiddenItem(id);
+			setBusyItem((current) => (current?.id === id ? null : current));
+		}
+	};
 
 	const visibleItems = items.filter(
 		(item) => !optimisticallyHiddenIDs.has(item.id),

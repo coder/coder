@@ -3,7 +3,6 @@ import { getErrorDetail, getErrorMessage } from "api/errors";
 import {
 	type Dispatch,
 	type SetStateAction,
-	useCallback,
 	useEffect,
 	useRef,
 	useState,
@@ -34,7 +33,9 @@ export function useFileAttachments(
 
 	// Revoke blob URLs on unmount to prevent memory leaks.
 	const previewUrlsRef = useRef(previewUrls);
-	previewUrlsRef.current = previewUrls;
+	useEffect(() => {
+		previewUrlsRef.current = previewUrls;
+	});
 	useEffect(() => {
 		return () => {
 			for (const [, url] of previewUrlsRef.current) {
@@ -43,79 +44,71 @@ export function useFileAttachments(
 		};
 	}, []);
 
-	const startUpload = useCallback(
-		(file: File) => {
-			if (!organizationId) {
+	const startUpload = (file: File) => {
+		if (!organizationId) {
+			setUploadStates((prev) =>
+				new Map(prev).set(file, {
+					status: "error",
+					error: "Unable to upload: no organization context.",
+				}),
+			);
+			return;
+		}
+		setUploadStates((prev) => new Map(prev).set(file, { status: "uploading" }));
+		void (async () => {
+			try {
+				const result = await API.uploadChatFile(file, organizationId);
+				setUploadStates((prev) =>
+					new Map(prev).set(file, {
+						status: "uploaded",
+						fileId: result.id,
+					}),
+				);
+				// Pre-warm the browser HTTP cache so the timeline
+				// can render this image instantly after send. The
+				// server responds with Cache-Control: private,
+				// immutable, so the <img src> never hits the
+				// network again.
+				void fetch(`/api/experimental/chats/files/${result.id}`);
+			} catch (err: unknown) {
+				const message = getErrorMessage(err, "Upload failed");
+				const detail = getErrorDetail(err);
+				const errorMessage = detail ? `${message} ${detail}` : message;
 				setUploadStates((prev) =>
 					new Map(prev).set(file, {
 						status: "error",
-						error: "Unable to upload: no organization context.",
+						error: errorMessage,
 					}),
 				);
-				return;
 			}
-			setUploadStates((prev) =>
-				new Map(prev).set(file, { status: "uploading" }),
-			);
-			void (async () => {
-				try {
-					const result = await API.uploadChatFile(file, organizationId);
-					setUploadStates((prev) =>
-						new Map(prev).set(file, {
-							status: "uploaded",
-							fileId: result.id,
-						}),
-					);
-					// Pre-warm the browser HTTP cache so the timeline
-					// can render this image instantly after send. The
-					// server responds with Cache-Control: private,
-					// immutable, so the <img src> never hits the
-					// network again.
-					void fetch(`/api/experimental/chats/files/${result.id}`);
-				} catch (err: unknown) {
-					const message = getErrorMessage(err, "Upload failed");
-					const detail = getErrorDetail(err);
-					const errorMessage = detail ? `${message} ${detail}` : message;
-					setUploadStates((prev) =>
-						new Map(prev).set(file, {
-							status: "error",
-							error: errorMessage,
-						}),
-					);
-				}
-			})();
-		},
-		[organizationId],
-	);
+		})();
+	};
 
-	const handleAttach = useCallback(
-		(files: File[]) => {
-			const maxSize = 10 * 1024 * 1024; // 10 MB
-			setAttachments((prev) => [...prev, ...files]);
-			setPreviewUrls((prev) => {
-				const next = new Map(prev);
-				for (const file of files) {
-					next.set(file, URL.createObjectURL(file));
-				}
-				return next;
-			});
+	const handleAttach = (files: File[]) => {
+		const maxSize = 10 * 1024 * 1024; // 10 MB
+		setAttachments((prev) => [...prev, ...files]);
+		setPreviewUrls((prev) => {
+			const next = new Map(prev);
 			for (const file of files) {
-				if (file.size > maxSize) {
-					setUploadStates((prev) =>
-						new Map(prev).set(file, {
-							status: "error" as const,
-							error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 10 MB.`,
-						}),
-					);
-				} else {
-					startUpload(file);
-				}
+				next.set(file, URL.createObjectURL(file));
 			}
-		},
-		[startUpload],
-	);
+			return next;
+		});
+		for (const file of files) {
+			if (file.size > maxSize) {
+				setUploadStates((prev) =>
+					new Map(prev).set(file, {
+						status: "error" as const,
+						error: `File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 10 MB.`,
+					}),
+				);
+			} else {
+				startUpload(file);
+			}
+		}
+	};
 
-	const handleRemoveAttachment = useCallback((index: number) => {
+	const handleRemoveAttachment = (index: number) => {
 		setAttachments((prev) => {
 			const removed = prev[index];
 			if (removed) {
@@ -134,16 +127,16 @@ export function useFileAttachments(
 			}
 			return prev.filter((_, i) => i !== index);
 		});
-	}, []);
+	};
 
-	const resetAttachments = useCallback(() => {
+	const resetAttachments = () => {
 		for (const [, url] of previewUrlsRef.current) {
 			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
 		}
 		setPreviewUrls(new Map());
 		setUploadStates(new Map());
 		setAttachments([]);
-	}, []);
+	};
 
 	return {
 		attachments,

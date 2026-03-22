@@ -873,6 +873,12 @@ aibridgeproxy:
   # by the system. If not provided, the system certificate pool is used.
   # (default: <unset>, type: string)
   upstream_proxy_ca: ""
+  # Comma-separated list of CIDR ranges that are permitted even though they fall
+  # within blocked private/reserved IP ranges. By default all private ranges are
+  # blocked to prevent SSRF attacks. Use this to allow access to specific internal
+  # networks.
+  # (default: <unset>, type: string-array)
+  allowed_private_cidrs: []
 # Configure data retention policies for various database tables. Retention
 # policies automatically purge old data to reduce database size and improve
 # performance. Setting a retention duration to 0 disables automatic purging for

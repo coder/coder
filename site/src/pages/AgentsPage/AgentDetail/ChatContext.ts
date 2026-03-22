@@ -2,13 +2,7 @@ import { watchChat } from "api/api";
 import { chatMessagesKey, updateInfiniteChatsCache } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 
-import {
-	startTransition,
-	useCallback,
-	useEffect,
-	useRef,
-	useSyncExternalStore,
-} from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { type InfiniteData, useQueryClient } from "react-query";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
@@ -135,6 +129,7 @@ type ChatStoreState = {
 type ChatStore = {
 	getSnapshot: () => ChatStoreState;
 	subscribe: (listener: () => void) => () => void;
+	batch: (fn: () => void) => void;
 	replaceMessages: (
 		messages: readonly TypesGen.ChatMessage[] | undefined,
 	) => void;
@@ -142,6 +137,7 @@ type ChatStore = {
 		isDuplicate: boolean;
 		changed: boolean;
 	};
+	upsertDurableMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
 	applyMessagePart: (part: TypesGen.ChatMessagePart) => void;
 	applyMessageParts: (parts: readonly TypesGen.ChatMessagePart[]) => void;
 	setQueuedMessages: (
@@ -181,6 +177,25 @@ export const createChatStore = (): ChatStore => {
 		}
 	};
 
+	// Batching: suppress emit() during a batch and fire once
+	// at the end. This collapses N store mutations from a
+	// single WebSocket message into one subscriber notification.
+	let batchDepth = 0;
+	let batchDirty = false;
+
+	const batch = (fn: () => void): void => {
+		batchDepth += 1;
+		try {
+			fn();
+		} finally {
+			batchDepth -= 1;
+			if (batchDepth === 0 && batchDirty) {
+				batchDirty = false;
+				emit();
+			}
+		}
+	};
+
 	const setState = (
 		updater: (current: ChatStoreState) => ChatStoreState,
 	): void => {
@@ -189,7 +204,11 @@ export const createChatStore = (): ChatStore => {
 			return;
 		}
 		state = next;
-		emit();
+		if (batchDepth > 0) {
+			batchDirty = true;
+		} else {
+			emit();
+		}
 	};
 
 	const replaceMessages = (
@@ -265,6 +284,43 @@ export const createChatStore = (): ChatStore => {
 		return { isDuplicate, changed: actuallyChanged };
 	};
 
+	// Bulk variant that applies all messages in a single pass —
+	// one Map copy and one sort instead of N copies and N sorts.
+	const upsertDurableMessages = (
+		messages: readonly TypesGen.ChatMessage[],
+	): void => {
+		if (messages.length === 0) {
+			return;
+		}
+		setState((current) => {
+			let nextMessagesByID: Map<number, TypesGen.ChatMessage> | null = null;
+			for (const message of messages) {
+				const map = nextMessagesByID ?? current.messagesByID;
+				const existing = map.get(message.id);
+				if (existing && chatMessagesEqualByValue(existing, message)) {
+					continue;
+				}
+				// Lazily copy the map on first actual change.
+				if (!nextMessagesByID) {
+					nextMessagesByID = new Map(current.messagesByID);
+				}
+				nextMessagesByID.set(message.id, message);
+			}
+			if (!nextMessagesByID) {
+				return current;
+			}
+			const needsReorder = nextMessagesByID.size !== current.messagesByID.size;
+			const nextOrderedMessageIDs = needsReorder
+				? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
+				: current.orderedMessageIDs;
+			return {
+				...current,
+				messagesByID: nextMessagesByID,
+				orderedMessageIDs: nextOrderedMessageIDs,
+			};
+		});
+	};
+
 	const applyMessageParts = (parts: readonly TypesGen.ChatMessagePart[]) => {
 		if (parts.length === 0) {
 			return;
@@ -293,8 +349,10 @@ export const createChatStore = (): ChatStore => {
 				listeners.delete(listener);
 			};
 		},
+		batch,
 		replaceMessages,
 		upsertDurableMessage,
+		upsertDurableMessages,
 		applyMessagePart: (part) => applyMessageParts([part]),
 		applyMessageParts,
 		setQueuedMessages: (queuedMessages) => {
@@ -436,7 +494,7 @@ export const useChatStore = (
 	} = options;
 
 	const queryClient = useQueryClient();
-	const storeRef = useRef<ChatStore>(createChatStore());
+	const [store] = useState(createChatStore);
 	const streamResetFrameRef = useRef<number | null>(null);
 	const queuedMessagesHydratedChatIDRef = useRef<string | null>(null);
 	// Tracks whether the WebSocket has delivered a queue_update for the
@@ -459,18 +517,29 @@ export const useChatStore = (
 	// server.
 	const lastSyncedMessagesRef = useRef<readonly TypesGen.ChatMessage[]>([]);
 
-	const store = storeRef.current;
-
 	// Compute the last REST-fetched message ID so the stream can
 	// skip messages the client already has. We use a ref so the
 	// socket effect can read the latest value without including
 	// chatMessages in its dependency array (which would cause
 	// unnecessary reconnections).
 	const lastMessageIdRef = useRef<number | undefined>(undefined);
-	lastMessageIdRef.current =
-		chatMessages && chatMessages.length > 0
-			? chatMessages[chatMessages.length - 1].id
-			: undefined;
+	useEffect(() => {
+		lastMessageIdRef.current =
+			chatMessages && chatMessages.length > 0
+				? chatMessages[chatMessages.length - 1].id
+				: undefined;
+	});
+
+	// Keep error-reason callbacks in refs so the WebSocket effect
+	// can call them without including them in its dependency array.
+	// This prevents the socket from tearing down when the parent
+	// re-renders with new callback identities.
+	const setChatErrorReasonRef = useRef(setChatErrorReason);
+	const clearChatErrorReasonRef = useRef(clearChatErrorReason);
+	useEffect(() => {
+		setChatErrorReasonRef.current = setChatErrorReason;
+		clearChatErrorReasonRef.current = clearChatErrorReason;
+	}, [setChatErrorReason, clearChatErrorReason]);
 
 	// True once the initial REST page has resolved for the current
 	// chat. The WebSocket effect gates on this so that
@@ -479,119 +548,46 @@ export const useChatStore = (
 	// its snapshot, defeating pagination.
 	const initialDataLoaded = chatMessages !== undefined;
 
-	const updateSidebarChat = useCallback(
-		(updater: (chat: TypesGen.Chat) => TypesGen.Chat) => {
-			if (!chatID) {
-				return;
-			}
-			updateInfiniteChatsCache(queryClient, (chats) => {
-				let didUpdate = false;
-				const nextChats = chats.map((chat) => {
-					if (chat.id !== chatID) {
-						return chat;
-					}
-					didUpdate = true;
-					return updater(chat);
-				});
-				return didUpdate ? nextChats : chats;
-			});
-		},
-		[chatID, queryClient],
-	);
-
-	const cancelScheduledStreamReset = useCallback(() => {
-		if (streamResetFrameRef.current === null) {
-			return;
-		}
-		window.cancelAnimationFrame(streamResetFrameRef.current);
-		streamResetFrameRef.current = null;
-	}, []);
-
-	const scheduleStreamReset = useCallback(() => {
-		cancelScheduledStreamReset();
-		streamResetFrameRef.current = window.requestAnimationFrame(() => {
-			store.clearStreamState();
-			streamResetFrameRef.current = null;
-		});
-	}, [cancelScheduledStreamReset, store]);
-
-	const updateChatQueuedMessages = useCallback(
-		(queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined) => {
-			if (!chatID) {
-				return;
-			}
-			const nextQueuedMessages = queuedMessages ?? [];
-			queryClient.setQueryData<
-				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
-			>(chatMessagesKey(chatID), (currentData) => {
-				if (!currentData?.pages?.length) {
-					return currentData;
-				}
-				const firstPage = currentData.pages[0];
-				if (
-					chatQueuedMessagesEqualByID(
-						firstPage.queued_messages,
-						nextQueuedMessages,
-					)
-				) {
-					return currentData;
-				}
-				return {
-					...currentData,
-					pages: [
-						{ ...firstPage, queued_messages: nextQueuedMessages },
-						...currentData.pages.slice(1),
-					],
-				};
-			});
-		},
-		[chatID, queryClient],
-	);
-
 	useEffect(() => {
-		// When the active chat changes, clear stale messages immediately
-		// so the previous chat's messages aren't briefly visible while
-		// the new chat's query resolves.
-		if (prevChatIDRef.current !== chatID) {
-			prevChatIDRef.current = chatID;
-			lastSyncedMessagesRef.current = [];
-			store.replaceMessages([]);
-		}
-		// Merge REST-fetched messages into the store one-by-one instead
-		// of replacing the entire map. This preserves any messages the
-		// WebSocket delivered via upsertDurableMessage that haven't
-		// appeared in a REST page yet.
-		//
-		// However, if the fetched set is missing message IDs the store
-		// already has (e.g. after an edit truncation), a full replace
-		// is needed because upsert can only add/update, not remove.
-		// We must only do this when the fetched messages actually
-		// changed (new elements from a refetch), not when an
-		// unrelated field like queued_messages caused the query
-		// data reference to update. Without this guard, a
-		// queue_update WebSocket event would trigger
-		// replaceMessages with the stale REST data, wiping any
-		// message the WebSocket just delivered.
-		if (chatMessages) {
-			const prev = lastSyncedMessagesRef.current;
-			const contentChanged =
-				chatMessages.length !== prev.length ||
-				chatMessages.some((m, i) => m !== prev[i]);
-			lastSyncedMessagesRef.current = chatMessages;
+		store.batch(() => {
+			// When the active chat changes, clear stale messages
+			// immediately so the previous chat's messages aren't
+			// briefly visible while the new chat's query resolves.
+			if (prevChatIDRef.current !== chatID) {
+				prevChatIDRef.current = chatID;
+				lastSyncedMessagesRef.current = [];
+				store.replaceMessages([]);
+			}
+			// Merge REST-fetched messages into the store, preserving
+			// any messages the WebSocket delivered that haven't
+			// appeared in a REST page yet.
+			//
+			// If the fetched set is missing message IDs the store
+			// already has (e.g. after an edit truncation), a full
+			// replace is needed. We must only do this when the
+			// fetched messages actually changed (new elements from
+			// a refetch), not when an unrelated field like
+			// queued_messages caused the query data reference to
+			// update.
+			if (chatMessages) {
+				const prev = lastSyncedMessagesRef.current;
+				const contentChanged =
+					chatMessages.length !== prev.length ||
+					chatMessages.some((m, i) => m !== prev[i]);
+				lastSyncedMessagesRef.current = chatMessages;
 
-			const storeSnap = store.getSnapshot();
-			const fetchedIDs = new Set(chatMessages.map((m) => m.id));
-			const hasStaleEntries =
-				contentChanged &&
-				storeSnap.orderedMessageIDs.some((id) => !fetchedIDs.has(id));
-			if (hasStaleEntries) {
-				store.replaceMessages(chatMessages);
-			} else {
-				for (const message of chatMessages) {
-					store.upsertDurableMessage(message);
+				const storeSnap = store.getSnapshot();
+				const fetchedIDs = new Set(chatMessages.map((m) => m.id));
+				const hasStaleEntries =
+					contentChanged &&
+					storeSnap.orderedMessageIDs.some((id) => !fetchedIDs.has(id));
+				if (hasStaleEntries) {
+					store.replaceMessages(chatMessages);
+				} else {
+					store.upsertDurableMessages(chatMessages);
 				}
 			}
-		}
+		});
 	}, [chatID, chatMessages, store]);
 
 	useEffect(() => {
@@ -627,6 +623,75 @@ export const useChatStore = (
 	}, [chatMessagesData, chatID, chatQueuedMessages, store]);
 
 	useEffect(() => {
+		const updateSidebarChat = (
+			updater: (chat: TypesGen.Chat) => TypesGen.Chat,
+		) => {
+			if (!chatID) {
+				return;
+			}
+			updateInfiniteChatsCache(queryClient, (chats) => {
+				let didUpdate = false;
+				const nextChats = chats.map((chat) => {
+					if (chat.id !== chatID) {
+						return chat;
+					}
+					const updated = updater(chat);
+					if (updated !== chat) {
+						didUpdate = true;
+					}
+					return updated;
+				});
+				return didUpdate ? nextChats : chats;
+			});
+		};
+
+		const cancelScheduledStreamReset = () => {
+			if (streamResetFrameRef.current === null) {
+				return;
+			}
+			window.cancelAnimationFrame(streamResetFrameRef.current);
+			streamResetFrameRef.current = null;
+		};
+
+		const scheduleStreamReset = () => {
+			cancelScheduledStreamReset();
+			streamResetFrameRef.current = window.requestAnimationFrame(() => {
+				store.clearStreamState();
+				streamResetFrameRef.current = null;
+			});
+		};
+
+		const updateChatQueuedMessages = (
+			queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+		) => {
+			if (!chatID) {
+				return;
+			}
+			const nextQueuedMessages = queuedMessages ?? [];
+			queryClient.setQueryData<
+				InfiniteData<TypesGen.ChatMessagesResponse> | undefined
+			>(chatMessagesKey(chatID), (currentData) => {
+				if (!currentData?.pages?.length) {
+					return currentData;
+				}
+				const firstPage = currentData.pages[0];
+				if (
+					chatQueuedMessagesEqualByID(
+						firstPage.queued_messages,
+						nextQueuedMessages,
+					)
+				) {
+					return currentData;
+				}
+				return {
+					...currentData,
+					pages: [
+						{ ...firstPage, queued_messages: nextQueuedMessages },
+						...currentData.pages.slice(1),
+					],
+				};
+			});
+		};
 		cancelScheduledStreamReset();
 		store.resetTransientState();
 		activeChatIDRef.current = chatID ?? null;
@@ -641,6 +706,54 @@ export const useChatStore = (
 		// outside the utility) can bail out after cleanup.
 		let disposed = false;
 
+		// Parts buffer lives at the effect scope so it persists
+		// across WebSocket messages. A rAF-based flush coalesces
+		// parts from multiple WS messages into a single render,
+		// capping stream renders to once per animation frame.
+		const partsBuf: TypesGen.ChatMessagePart[] = [];
+		let partsFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+		const shouldApplyMessagePart = (): boolean => {
+			const currentStatus = store.getSnapshot().chatStatus;
+			return currentStatus !== "pending" && currentStatus !== "waiting";
+		};
+
+		const schedulePartsFlush = () => {
+			if (partsFlushTimer !== null || partsBuf.length === 0) {
+				return;
+			}
+			cancelScheduledStreamReset();
+			partsFlushTimer = setTimeout(() => {
+				partsFlushTimer = null;
+				if (disposed || activeChatIDRef.current !== chatID) {
+					return;
+				}
+				const parts = partsBuf.splice(0);
+				if (parts.length === 0 || !shouldApplyMessagePart()) {
+					return;
+				}
+				store.applyMessageParts(parts);
+			}, 0);
+		};
+
+		// Immediate flush for non-message_part events that need
+		// the parts applied before they execute (e.g. a status
+		// change right after the last part).
+		const flushMessageParts = () => {
+			if (partsBuf.length === 0) {
+				return;
+			}
+			if (partsFlushTimer !== null) {
+				clearTimeout(partsFlushTimer);
+				partsFlushTimer = null;
+			}
+			cancelScheduledStreamReset();
+			const parts = partsBuf.splice(0);
+			if (activeChatIDRef.current !== chatID || !shouldApplyMessagePart()) {
+				return;
+			}
+			store.applyMessageParts(parts);
+		};
 		const handleMessage = (
 			payload: OneWayMessageEvent<TypesGen.ServerSentEvent>,
 		) => {
@@ -659,158 +772,144 @@ export const useChatStore = (
 			if (streamEvents.length === 0) {
 				return;
 			}
+			// Collect durable messages for bulk upsert so the
+			// entire batch produces one Map copy + one sort
+			// instead of N copies and N sorts.
+			const pendingMessages: TypesGen.ChatMessage[] = [];
+			let needsStreamReset = false;
 
-			const shouldApplyMessagePart = (): boolean => {
-				const currentStatus = store.getSnapshot().chatStatus;
-				return currentStatus !== "pending" && currentStatus !== "waiting";
-			};
-
-			const pendingMessageParts: TypesGen.ChatMessagePart[] = [];
-			const flushMessageParts = () => {
-				if (pendingMessageParts.length === 0) {
-					return;
-				}
-				cancelScheduledStreamReset();
-				const parts = pendingMessageParts.splice(0, pendingMessageParts.length);
-				const currentChatID = chatID;
-				startTransition(() => {
-					if (activeChatIDRef.current !== currentChatID) {
-						return;
-					}
-					// Re-check status at execution time. A status
-					// event processed between scheduling and running
-					// this callback may have cleared stream state.
-					if (!shouldApplyMessagePart()) {
-						return;
-					}
-					store.applyMessageParts(parts);
-				});
-			};
-
-			for (const streamEvent of streamEvents) {
-				if (streamEvent.type === "message_part") {
-					if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
-						continue;
-					}
-					if (!shouldApplyMessagePart()) {
-						continue;
-					}
-					const part = streamEvent.message_part?.part;
-					if (part) {
-						cancelScheduledStreamReset();
-						pendingMessageParts.push(part);
-					}
-					continue;
-				}
-				flushMessageParts();
-
-				switch (streamEvent.type) {
-					case "message": {
-						const message = streamEvent.message;
-						if (!message) {
-							continue;
-						}
+			// Wrap all store mutations in a batch so subscribers
+			// are notified exactly once at the end, not per event.
+			store.batch(() => {
+				for (const streamEvent of streamEvents) {
+					if (streamEvent.type === "message_part") {
 						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 							continue;
 						}
-						const { changed } = store.upsertDurableMessage(message);
-						// Keep lastMessageIdRef in sync with
-						// stream-delivered messages so reconnections use
-						// the correct after_id and don't re-fetch or
-						// miss events.
-						if (
-							message.id !== undefined &&
-							(lastMessageIdRef.current === undefined ||
-								message.id > lastMessageIdRef.current)
-						) {
-							lastMessageIdRef.current = message.id;
+						if (!shouldApplyMessagePart()) {
+							continue;
 						}
-						if (changed && message.role === "assistant") {
-							scheduleStreamReset();
+						const part = streamEvent.message_part?.part;
+						if (part) {
+							cancelScheduledStreamReset();
+							partsBuf.push(part);
 						}
-						// Do not update updated_at here. The global
-						// chat-list WebSocket delivers the authoritative
-						// server timestamp; fabricating a client-side
-						// value causes the chat to flicker between time
-						// groups when the two sources race.
 						continue;
 					}
-					case "queue_update":
-						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
-							continue;
-						}
-						wsQueueUpdateReceivedRef.current = true;
-						store.setQueuedMessages(streamEvent.queued_messages);
-						updateChatQueuedMessages(streamEvent.queued_messages);
-						continue;
-					case "status": {
-						const nextStatus = streamEvent.status?.status;
-						if (!nextStatus) {
-							continue;
-						}
+					flushMessageParts();
 
-						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
-							store.setSubagentStatusOverride(streamEvent.chat_id, nextStatus);
+					switch (streamEvent.type) {
+						case "message": {
+							const message = streamEvent.message;
+							if (!message) {
+								continue;
+							}
+							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+								continue;
+							}
+							pendingMessages.push(message);
+							if (
+								message.id !== undefined &&
+								(lastMessageIdRef.current === undefined ||
+									message.id > lastMessageIdRef.current)
+							) {
+								lastMessageIdRef.current = message.id;
+							}
+							if (message.role === "assistant") {
+								needsStreamReset = true;
+							}
 							continue;
 						}
-
-						store.setChatStatus(nextStatus);
-						if (nextStatus === "pending" || nextStatus === "waiting") {
-							store.clearStreamState();
+						case "queue_update":
+							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+								continue;
+							}
+							wsQueueUpdateReceivedRef.current = true;
+							store.setQueuedMessages(streamEvent.queued_messages);
+							updateChatQueuedMessages(streamEvent.queued_messages);
+							continue;
+						case "status": {
+							const nextStatus = streamEvent.status?.status;
+							if (!nextStatus) {
+								continue;
+							}
+							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+								store.setSubagentStatusOverride(
+									streamEvent.chat_id,
+									nextStatus,
+								);
+								continue;
+							}
+							store.setChatStatus(nextStatus);
+							if (nextStatus === "pending" || nextStatus === "waiting") {
+								store.clearStreamState();
+								store.clearRetryState();
+							}
+							if (nextStatus === "running") {
+								store.clearRetryState();
+							}
+							if (nextStatus !== "error") {
+								clearChatErrorReasonRef.current(chatID);
+							}
+							updateSidebarChat((chat) =>
+								chat.status === nextStatus
+									? chat
+									: { ...chat, status: nextStatus },
+							);
+							continue;
+						}
+						case "error": {
+							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+								continue;
+							}
+							const reason =
+								streamEvent.error?.message.trim() || "Chat processing failed.";
+							store.setChatStatus("error");
+							store.setStreamError(reason);
 							store.clearRetryState();
-						}
-						if (nextStatus === "running") {
-							store.clearRetryState();
-						}
-						if (nextStatus !== "error") {
-							clearChatErrorReason(chatID);
-						}
-						updateSidebarChat((chat) => ({
-							...chat,
-							status: nextStatus,
-						}));
-						continue;
-					}
-					case "error": {
-						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
-							continue;
-						}
-						const reason =
-							streamEvent.error?.message.trim() || "Chat processing failed.";
-						store.setChatStatus("error");
-						store.setStreamError(reason);
-						store.clearRetryState();
-						setChatErrorReason(chatID, {
-							kind: "generic",
-							message: reason,
-						});
-						updateSidebarChat((chat) => ({
-							...chat,
-							status: "error",
-						}));
-						continue;
-					}
-					case "retry": {
-						if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
-							continue;
-						}
-						const retry = streamEvent.retry;
-						if (retry) {
-							store.clearStreamState();
-							store.setRetryState({
-								attempt: retry.attempt,
-								error: retry.error,
+							setChatErrorReasonRef.current(chatID, {
+								kind: "generic",
+								message: reason,
 							});
+							updateSidebarChat((chat) =>
+								chat.status === "error" ? chat : { ...chat, status: "error" },
+							);
+							continue;
 						}
-						continue;
+						case "retry": {
+							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
+								continue;
+							}
+							const retry = streamEvent.retry;
+							if (retry) {
+								store.clearStreamState();
+								store.setRetryState({
+									attempt: retry.attempt,
+									error: retry.error,
+								});
+							}
+							continue;
+						}
+						default:
+							continue;
 					}
-					default:
-						continue;
 				}
-			}
-			flushMessageParts();
-		};
 
+				// Schedule a rAF-coalesced flush for any remaining
+				// parts. If parts were already flushed by a
+				// non-message_part event above, this is a no-op.
+				schedulePartsFlush();
+
+				// Bulk-upsert all collected durable messages in one
+				// pass: one Map copy + one sort instead of N each.
+				if (pendingMessages.length > 0) {
+					store.upsertDurableMessages(pendingMessages);
+				}
+			});
+			if (needsStreamReset) {
+				scheduleStreamReset();
+			}
+		};
 		const disposeSocket = createReconnectingWebSocket({
 			connect() {
 				// Use the latest known message ID so the server only
@@ -848,25 +947,17 @@ export const useChatStore = (
 			disposed = true;
 			disposeSocket();
 			cancelScheduledStreamReset();
+			if (partsFlushTimer !== null) {
+				clearTimeout(partsFlushTimer);
+			}
 			activeChatIDRef.current = null;
 		};
-	}, [
-		cancelScheduledStreamReset,
-		chatID,
-		clearChatErrorReason,
-		initialDataLoaded,
-		scheduleStreamReset,
-		setChatErrorReason,
-		store,
-		updateChatQueuedMessages,
-		updateSidebarChat,
-	]);
-
+	}, [chatID, initialDataLoaded, queryClient, store]);
 	return {
 		store,
-		clearStreamError: useCallback(() => {
+		clearStreamError: () => {
 			store.clearStreamError();
-		}, [store]),
+		},
 	};
 };
 
@@ -874,9 +965,6 @@ export const useChatSelector = <T>(
 	store: ChatStore,
 	selector: (state: ChatStoreState) => T,
 ): T => {
-	const getSnapshot = useCallback(
-		() => selector(store.getSnapshot()),
-		[selector, store],
-	);
+	const getSnapshot = () => selector(store.getSnapshot());
 	return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
 };

@@ -114,6 +114,17 @@ const setupUsageSpies = (opts?: {
 	spyOn(API, "getChatCostSummary").mockResolvedValue(mockCostSummary);
 };
 
+const getChatCostUsersCalls = () =>
+	(
+		API.getChatCostUsers as typeof API.getChatCostUsers & {
+			mock: {
+				calls: Array<[Parameters<typeof API.getChatCostUsers>[0]]>;
+			};
+		}
+	).mock.calls;
+
+const fixedNow = dayjs("2026-03-12T00:00:00Z");
+
 // ── Meta ───────────────────────────────────────────────────────
 
 const meta = {
@@ -124,7 +135,7 @@ const meta = {
 		activeSection: "behavior",
 		canManageChatModelConfigs: false,
 		canSetSystemPrompt: true,
-		now: dayjs("2026-03-12T00:00:00Z"),
+		now: fixedNow,
 	},
 	parameters: {
 		user: MockUserOwner,
@@ -145,6 +156,10 @@ const meta = {
 		spyOn(API, "updateUserChatCustomPrompt").mockResolvedValue({
 			custom_prompt: "",
 		});
+		spyOn(API, "getChatWorkspaceTTL").mockResolvedValue({
+			workspace_ttl_ms: 0,
+		});
+		spyOn(API, "updateChatWorkspaceTTL").mockResolvedValue();
 	},
 } satisfies Meta<typeof SettingsPageContent>;
 
@@ -181,6 +196,114 @@ export const TogglesDesktop: Story = {
 	},
 };
 
+export const DefaultAutostopDefault: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await canvas.findByText("Default Autostop");
+		// When disabled (0s), shows template-default copy.
+		await canvas.findByText(/stopped as configured by their templates/i);
+
+		// DurationField renders a text input labeled "Default autostop".
+		const durationInput = await canvas.findByLabelText("Default autostop");
+
+		// Default is "0s" → 0 hours (disabled).
+		expect(durationInput).toHaveValue("0");
+
+		// Save button should be disabled (no local change).
+		const ttlForm = durationInput.closest("form")!;
+		const saveButton = within(ttlForm).getByRole("button", { name: "Save" });
+		expect(saveButton).toBeDisabled();
+	},
+};
+
+export const DefaultAutostopCustomValue: Story = {
+	beforeEach: () => {
+		// 2h = 2 hours exactly, shows cleanly in DurationField.
+		spyOn(API, "getChatWorkspaceTTL").mockResolvedValue({
+			workspace_ttl_ms: 7_200_000,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const durationInput = await canvas.findByLabelText("Default autostop");
+
+		// Shows 2 hours from the mock.
+		expect(durationInput).toHaveValue("2");
+
+		// When non-zero, shows the duration in the description.
+		await canvas.findByText(/stopped after 2 hours of inactivity/i);
+	},
+};
+
+export const DefaultAutostopSave: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const durationInput = await canvas.findByLabelText("Default autostop");
+		const ttlForm = durationInput.closest("form")!;
+		const saveButton = within(ttlForm).getByRole("button", { name: "Save" });
+
+		// Change to 3 hours.
+		await userEvent.clear(durationInput);
+		await userEvent.type(durationInput, "3");
+
+		// Save button should now be enabled.
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+
+		await userEvent.click(saveButton);
+		await waitFor(() => {
+			expect(API.updateChatWorkspaceTTL).toHaveBeenCalledWith({
+				workspace_ttl_ms: 10_800_000,
+			});
+		});
+	},
+};
+
+export const DefaultAutostopExceedsMax: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const durationInput = await canvas.findByLabelText("Default autostop");
+		const ttlForm = durationInput.closest("form")!;
+		const saveButton = within(ttlForm).getByRole("button", { name: "Save" });
+
+		// Enter 721 hours (exceeds 30-day / 720h limit).
+		await userEvent.clear(durationInput);
+		await userEvent.type(durationInput, "721");
+
+		// Error helper text should appear.
+		await waitFor(() => {
+			expect(canvas.getByText(/must not exceed 30 days/i)).toBeInTheDocument();
+		});
+
+		// Save button should be disabled despite the field being dirty.
+		expect(saveButton).toBeDisabled();
+	},
+};
+
+export const DefaultAutostopNotVisibleToNonAdmin: Story = {
+	args: {
+		canSetSystemPrompt: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Personal Instructions should be visible.
+		await canvas.findByText("Personal Instructions");
+
+		// Admin-only sections should not be present.
+		const ttlHeading = canvas.queryByText("Default Autostop");
+		expect(ttlHeading).toBeNull();
+
+		const desktopHeading = canvas.queryByText("Virtual Desktop");
+		expect(desktopHeading).toBeNull();
+	},
+};
+
 // ── Usage tab stories ──────────────────────────────────────────
 
 export const UsageUserList: Story = {
@@ -205,6 +328,120 @@ export const UsageUserList: Story = {
 		await expect(
 			canvas.getByPlaceholderText("Search by name or username"),
 		).toBeInTheDocument();
+	},
+};
+
+export const UsageDateFilter: Story = {
+	args: {
+		activeSection: "usage",
+		canManageChatModelConfigs: true,
+	},
+	beforeEach: () => {
+		setupUsageSpies();
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const defaultStartDate = fixedNow.subtract(30, "day").toISOString();
+		const defaultStartLabel = fixedNow
+			.subtract(30, "day")
+			.format("MMM D, YYYY");
+		const defaultEndLabel = fixedNow.format("MMM D, YYYY");
+
+		await waitFor(() => {
+			expect(API.getChatCostUsers).toHaveBeenCalled();
+		});
+		const initialCallCount = getChatCostUsersCalls().length;
+
+		const dateRangeTrigger = await canvas.findByRole("button", {
+			name: new RegExp(`${defaultStartLabel}.*${defaultEndLabel}`),
+		});
+
+		await userEvent.click(dateRangeTrigger);
+		const last7Days = await body.findByRole("button", {
+			name: "Last 7 days",
+		});
+
+		await userEvent.click(last7Days);
+
+		await waitFor(() => {
+			expect(body.queryByRole("button", { name: "Last 7 days" })).toBeNull();
+			const calls = getChatCostUsersCalls();
+			expect(calls.length).toBeGreaterThan(initialCallCount);
+
+			const latestCall = calls.at(-1)?.[0];
+			expect(latestCall).toBeDefined();
+			if (!latestCall) {
+				throw new Error("Expected getChatCostUsers to be called with params.");
+			}
+
+			expect(latestCall.start_date).not.toBe(defaultStartDate);
+		});
+	},
+};
+
+export const UsageDateFilterRefetchOverlay: Story = {
+	args: {
+		activeSection: "usage",
+		canManageChatModelConfigs: true,
+	},
+	beforeEach: () => {
+		let requestCount = 0;
+		let resolveRefetch:
+			| ((value: TypesGen.ChatCostUsersResponse) => void)
+			| undefined;
+		const refetchPromise = new Promise<TypesGen.ChatCostUsersResponse>(
+			(resolve) => {
+				resolveRefetch = resolve;
+			},
+		);
+
+		spyOn(API, "getChatCostUsers").mockImplementation(async () => {
+			requestCount += 1;
+			if (requestCount === 1) {
+				return mockUsersResponse;
+			}
+
+			return refetchPromise;
+		});
+		spyOn(API, "getUser").mockResolvedValue(mockUserProfile);
+		spyOn(API, "getChatCostSummary").mockResolvedValue(mockCostSummary);
+
+		return () => {
+			resolveRefetch?.({
+				...mockUsersResponse,
+				start_date: "2026-03-06T00:00:00Z",
+				end_date: "2026-03-12T00:00:00Z",
+			});
+		};
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const defaultStartLabel = fixedNow
+			.subtract(30, "day")
+			.format("MMM D, YYYY");
+		const defaultEndLabel = fixedNow.format("MMM D, YYYY");
+
+		await canvas.findByText("Alice Liddell");
+
+		await step(
+			"show a refetch overlay after changing the date range",
+			async () => {
+				const dateRangeTrigger = await canvas.findByRole("button", {
+					name: new RegExp(`${defaultStartLabel}.*${defaultEndLabel}`),
+				});
+
+				await userEvent.click(dateRangeTrigger);
+				await userEvent.click(
+					await body.findByRole("button", { name: "Last 7 days" }),
+				);
+
+				await expect(
+					await canvas.findByRole("status", { name: "Refreshing usage" }),
+				).toBeInTheDocument();
+			},
+		);
 	},
 };
 

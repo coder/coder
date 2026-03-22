@@ -16,7 +16,7 @@ import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
 } from "lucide-react";
-import { type FC, useMemo, useState } from "react";
+import { type FC, useState } from "react";
 import { cn } from "utils/cn";
 import { getFormHelpers } from "utils/formUtils";
 
@@ -186,13 +186,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 	const getFieldHelpers = getFormHelpers(form);
 
-	const modelConfigFormBuildResult = useMemo(
-		() =>
-			buildModelConfigFromForm(
-				selectedProviderState?.provider,
-				form.values.config,
-			),
-		[selectedProviderState?.provider, form.values.config],
+	const modelConfigFormBuildResult = buildModelConfigFromForm(
+		selectedProviderState?.provider,
+		form.values.config,
 	);
 
 	const hasFieldErrors =

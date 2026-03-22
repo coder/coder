@@ -1,7 +1,6 @@
 import {
 	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
-	useCallback,
 	useEffect,
 	useRef,
 	useState,
@@ -85,96 +84,77 @@ function useResizableDrag({
 		"normal" | "expanded" | "closed" | null
 	>(null);
 
-	const handlePointerDown = useCallback(
-		(e: ReactPointerEvent<HTMLDivElement>) => {
-			e.preventDefault();
-			isDragging.current = true;
-			setDragSnap(null);
-			sidebarCollapsedByDrag.current = false;
-			startX.current = e.clientX;
-			startWidth.current = isExpanded
-				? ((e.target as HTMLElement).closest(
-						"[data-testid='agents-right-panel']",
-					)?.parentElement?.clientWidth ?? getMaxWidth())
-				: width;
-			(e.target as HTMLElement).setPointerCapture(e.pointerId);
-		},
-		[width, isExpanded],
-	);
+	const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+		e.preventDefault();
+		isDragging.current = true;
+		setDragSnap(null);
+		sidebarCollapsedByDrag.current = false;
+		startX.current = e.clientX;
+		startWidth.current = isExpanded
+			? ((e.target as HTMLElement).closest("[data-testid='agents-right-panel']")
+					?.parentElement?.clientWidth ?? getMaxWidth())
+			: width;
+		(e.target as HTMLElement).setPointerCapture(e.pointerId);
+	};
 
-	const handlePointerMove = useCallback(
-		(e: ReactPointerEvent<HTMLDivElement>) => {
-			if (!isDragging.current) {
-				return;
+	const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+		if (!isDragging.current) {
+			return;
+		}
+		const delta = startX.current - e.clientX;
+		const raw = startWidth.current + delta;
+		const maxWidth = getMaxWidth();
+
+		// Collapse/uncollapse the sidebar live when the pointer
+		// reaches the left edge of the viewport.
+		if (e.clientX < SNAP_THRESHOLD && !sidebarCollapsedByDrag.current) {
+			if (!isSidebarCollapsed && onToggleSidebarCollapsed) {
+				onToggleSidebarCollapsed();
+				sidebarCollapsedByDrag.current = true;
 			}
-			const delta = startX.current - e.clientX;
-			const raw = startWidth.current + delta;
-			const maxWidth = getMaxWidth();
-
-			// Collapse/uncollapse the sidebar live when the pointer
-			// reaches the left edge of the viewport.
-			if (e.clientX < SNAP_THRESHOLD && !sidebarCollapsedByDrag.current) {
-				if (!isSidebarCollapsed && onToggleSidebarCollapsed) {
-					onToggleSidebarCollapsed();
-					sidebarCollapsedByDrag.current = true;
-				}
-			} else if (
-				e.clientX >= SNAP_THRESHOLD &&
-				sidebarCollapsedByDrag.current
-			) {
-				if (onToggleSidebarCollapsed) {
-					onToggleSidebarCollapsed();
-					sidebarCollapsedByDrag.current = false;
-				}
+		} else if (e.clientX >= SNAP_THRESHOLD && sidebarCollapsedByDrag.current) {
+			if (onToggleSidebarCollapsed) {
+				onToggleSidebarCollapsed();
+				sidebarCollapsedByDrag.current = false;
 			}
+		}
 
-			let nextSnap: "normal" | "expanded" | "closed";
-			if (raw > maxWidth + SNAP_THRESHOLD) {
-				nextSnap = "expanded";
-			} else if (raw < MIN_WIDTH - SNAP_THRESHOLD) {
-				nextSnap = "closed";
-			} else {
-				nextSnap = "normal";
-				setWidth(Math.min(maxWidth, Math.max(MIN_WIDTH, raw)));
-			}
-			setDragSnap(nextSnap);
+		let nextSnap: "normal" | "expanded" | "closed";
+		if (raw > maxWidth + SNAP_THRESHOLD) {
+			nextSnap = "expanded";
+		} else if (raw < MIN_WIDTH - SNAP_THRESHOLD) {
+			nextSnap = "closed";
+		} else {
+			nextSnap = "normal";
+			setWidth(Math.min(maxWidth, Math.max(MIN_WIDTH, raw)));
+		}
+		setDragSnap(nextSnap);
 
-			// Notify parent of the live visual expanded state so
-			// sibling content reacts during the drag.
-			const nextVisualExpanded =
-				nextSnap === "expanded" ||
-				(nextSnap !== "normal" && nextSnap !== "closed" && isExpanded);
-			onVisualExpandedChange?.(nextVisualExpanded);
-		},
-		[
-			setWidth,
-			isExpanded,
-			onVisualExpandedChange,
-			isSidebarCollapsed,
-			onToggleSidebarCollapsed,
-		],
-	);
+		// Notify parent of the live visual expanded state so
+		// sibling content reacts during the drag.
+		const nextVisualExpanded =
+			nextSnap === "expanded" ||
+			(nextSnap !== "normal" && nextSnap !== "closed" && isExpanded);
+		onVisualExpandedChange?.(nextVisualExpanded);
+	};
 
-	const handlePointerUp = useCallback(
-		(e: ReactPointerEvent<HTMLDivElement>) => {
-			if (!isDragging.current) {
-				return;
-			}
-			const snap = dragSnap;
-			isDragging.current = false;
-			setDragSnap(null);
-			(e.target as HTMLElement).releasePointerCapture(e.pointerId);
+	const handlePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+		if (!isDragging.current) {
+			return;
+		}
+		const snap = dragSnap;
+		isDragging.current = false;
+		setDragSnap(null);
+		(e.target as HTMLElement).releasePointerCapture(e.pointerId);
 
-			// Clear the drag override so parent falls back to its
-			// own committed expanded state.
-			onVisualExpandedChange?.(null);
+		// Clear the drag override so parent falls back to its
+		// own committed expanded state.
+		onVisualExpandedChange?.(null);
 
-			if (snap) {
-				onSnapCommit(snap);
-			}
-		},
-		[dragSnap, onSnapCommit, onVisualExpandedChange],
-	);
+		if (snap) {
+			onSnapCommit(snap);
+		}
+	};
 
 	// Derive visual state: during a drag the snap overrides the
 	// committed parent state so the panel reacts live.
@@ -216,22 +196,19 @@ export const RightPanel = ({
 		return () => window.removeEventListener("resize", handleResize);
 	}, []);
 
-	const handleSnapCommit = useCallback(
-		(snap: "normal" | "expanded" | "closed") => {
-			if (snap === "expanded" && !isExpanded) {
-				onToggleExpanded();
-			} else if (snap === "closed") {
-				setWidth(DEFAULT_WIDTH);
-				if (isExpanded) {
-					onToggleExpanded();
-				}
-				onClose();
-			} else if (snap === "normal" && isExpanded) {
+	const handleSnapCommit = (snap: "normal" | "expanded" | "closed") => {
+		if (snap === "expanded" && !isExpanded) {
+			onToggleExpanded();
+		} else if (snap === "closed") {
+			setWidth(DEFAULT_WIDTH);
+			if (isExpanded) {
 				onToggleExpanded();
 			}
-		},
-		[isExpanded, onToggleExpanded, onClose],
-	);
+			onClose();
+		} else if (snap === "normal" && isExpanded) {
+			onToggleExpanded();
+		}
+	};
 
 	const {
 		visualExpanded,

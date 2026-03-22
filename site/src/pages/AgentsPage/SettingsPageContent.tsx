@@ -5,14 +5,17 @@ import {
 	chatDesktopEnabled,
 	chatSystemPrompt,
 	chatUserCustomPrompt,
+	chatWorkspaceTTL,
 	updateChatDesktopEnabled,
 	updateChatSystemPrompt,
+	updateChatWorkspaceTTL,
 	updateUserChatCustomPrompt,
 } from "api/queries/chats";
 import { userByName } from "api/queries/users";
 import type * as TypesGen from "api/typesGenerated";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
+import { DurationField } from "components/DurationField/DurationField";
 import { Link } from "components/Link/Link";
 import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
@@ -37,7 +40,7 @@ import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ChevronLeftIcon, ShieldIcon } from "lucide-react";
-import { type FC, type FormEvent, useCallback, useMemo, useState } from "react";
+import { type FC, type FormEvent, useState } from "react";
 import {
 	keepPreviousData,
 	useMutation,
@@ -48,6 +51,11 @@ import { useSearchParams } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatTokenCount } from "utils/analytics";
 import { formatCostMicros } from "utils/currency";
+import { humanDuration } from "utils/time";
+import {
+	DateRange,
+	type DateRangeValue,
+} from "../TemplatePage/TemplateInsightsPage/DateRange";
 import { ChatCostSummaryView } from "./ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
 import { InsightsContent } from "./InsightsContent";
@@ -72,6 +80,37 @@ const AdminBadge: FC = () => (
 );
 
 const pageSize = 10;
+
+const usageStartDateSearchParam = "startDate";
+const usageEndDateSearchParam = "endDate";
+
+const getDefaultUsageDateRange = (now?: dayjs.Dayjs): DateRangeValue => {
+	const end = now ?? dayjs();
+	return {
+		startDate: end.subtract(30, "day").toDate(),
+		endDate: end.toDate(),
+	};
+};
+
+const formatUsageDateRange = (
+	value: DateRangeValue,
+	options?: {
+		endDateIsExclusive?: boolean;
+	},
+) => {
+	// Custom ranges keep the raw API end boundary, which can be midnight on
+	// the following day for full-day selections. Show the inclusive day in
+	// the drill-in label without changing the query params.
+	const displayEndDate =
+		options?.endDateIsExclusive &&
+		dayjs(value.endDate).isSame(dayjs(value.endDate).startOf("day"))
+			? dayjs(value.endDate).subtract(1, "day")
+			: dayjs(value.endDate);
+
+	return `${dayjs(value.startDate).format("MMM D")} – ${displayEndDate.format(
+		"MMM D, YYYY",
+	)}`;
+};
 
 const UserRow: FC<{
 	user: TypesGen.ChatCostUserRollup;
@@ -128,21 +167,66 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 	const [searchFilter, setSearchFilter] = useState("");
 	const debouncedSearch = useDebouncedValue(searchFilter, 300);
 	const [page, setPage] = useState(1);
-	const dateRange = useMemo(() => {
-		const end = now ?? dayjs();
-		const start = end.subtract(30, "day");
-		return {
-			startDate: start.toISOString(),
-			endDate: end.toISOString(),
-			rangeLabel: `${start.format("MMM D")} – ${end.format("MMM D, YYYY")}`,
-		};
-	}, [now]);
+	const startDateParam =
+		searchParams.get(usageStartDateSearchParam)?.trim() ?? "";
+	const endDateParam = searchParams.get(usageEndDateSearchParam)?.trim() ?? "";
+	const [defaultDateRange] = useState(() => getDefaultUsageDateRange(now));
+	let dateRange = defaultDateRange;
+	let hasExplicitDateRange = false;
+
+	if (startDateParam && endDateParam) {
+		const parsedStartDate = new Date(startDateParam);
+		const parsedEndDate = new Date(endDateParam);
+
+		if (
+			!Number.isNaN(parsedStartDate.getTime()) &&
+			!Number.isNaN(parsedEndDate.getTime()) &&
+			parsedStartDate.getTime() <= parsedEndDate.getTime()
+		) {
+			dateRange = {
+				startDate: parsedStartDate,
+				endDate: parsedEndDate,
+			};
+			hasExplicitDateRange = true;
+		}
+	}
+
+	const dateRangeParams = {
+		start_date: dateRange.startDate.toISOString(),
+		end_date: dateRange.endDate.toISOString(),
+	};
+	const { endDate } = dateRange;
+	const isExclusiveMidnightEnd =
+		hasExplicitDateRange &&
+		endDate.getHours() === 0 &&
+		endDate.getMinutes() === 0 &&
+		endDate.getSeconds() === 0 &&
+		endDate.getMilliseconds() === 0;
+	const displayDateRange = isExclusiveMidnightEnd
+		? {
+				startDate: dateRange.startDate,
+				endDate: new Date(endDate.getTime() - 1),
+			}
+		: dateRange;
+	const dateRangeLabel = formatUsageDateRange(dateRange, {
+		endDateIsExclusive: hasExplicitDateRange,
+	});
 	const offset = (page - 1) * pageSize;
+
+	const onDateRangeChange = (value: DateRangeValue) => {
+		// Reset pagination but preserve user selection and other params.
+		setPage(1);
+		setSearchParams((prev) => {
+			const next = new URLSearchParams(prev);
+			next.set(usageStartDateSearchParam, value.startDate.toISOString());
+			next.set(usageEndDateSearchParam, value.endDate.toISOString());
+			return next;
+		});
+	};
 
 	const usersQuery = useQuery({
 		...chatCostUsers({
-			start_date: dateRange.startDate,
-			end_date: dateRange.endDate,
+			...dateRangeParams,
 			username: debouncedSearch || undefined,
 			limit: pageSize,
 			offset,
@@ -158,10 +242,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 	const selectedUser = selectedUserQuery.data ?? null;
 
 	const summaryQuery = useQuery({
-		...chatCostSummary(selectedUserId ?? "me", {
-			start_date: dateRange.startDate,
-			end_date: dateRange.endDate,
-		}),
+		...chatCostSummary(selectedUserId ?? "me", dateRangeParams),
 		enabled: selectedUserId !== null,
 	});
 	const totalCount = usersQuery.data?.count ?? 0;
@@ -178,9 +259,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 			}
 			badge={<AdminBadge />}
 			action={
-				<span className="text-xs text-content-secondary">
-					{dateRange.rangeLabel}
-				</span>
+				<DateRange value={displayDateRange} onChange={onDateRangeChange} />
 			}
 		/>
 	);
@@ -262,7 +341,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 					/>
 					<div className="min-w-0 text-xs text-content-secondary">
 						<div>User ID: {selectedUser.id}</div>
-						<div>{dateRange.rangeLabel}</div>
+						<div>{dateRangeLabel}</div>
 					</div>
 				</div>
 				<ChatCostSummaryView
@@ -327,64 +406,80 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 				</div>
 			)}
 
-			{usersQuery.data &&
-				(usersQuery.data.users.length === 0 ? (
-					<p className="py-12 text-center text-content-secondary">
-						No usage data for this period.
-					</p>
-				) : (
-					<>
-						<div className="overflow-hidden rounded-lg border border-border-default">
-							<Table>
-								<TableHeader>
-									<TableRow className="text-left text-xs uppercase tracking-wide text-content-secondary">
-										<TableHead className="px-4 py-3">User</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Total Cost
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Messages
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Chats
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Input Tokens
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Output Tokens
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Cache Read
-										</TableHead>
-										<TableHead className="px-4 py-3 text-right">
-											Cache Write
-										</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{usersQuery.data.users.map((user) => (
-										<UserRow
-											key={user.user_id}
-											user={user}
-											onSelect={(u) => {
-												setSearchParams({ user: u.user_id });
-											}}
-										/>
-									))}
-								</TableBody>
-							</Table>
+			{usersQuery.data && (
+				<div className="relative">
+					{usersQuery.isFetching && !usersQuery.isLoading && (
+						<div
+							role="status"
+							aria-label="Refreshing usage"
+							className="absolute inset-0 z-10 flex items-center justify-center bg-surface-primary/50"
+						>
+							<Spinner size="lg" loading className="text-content-secondary" />
 						</div>
-						<PaginationWidgetBase
-							totalRecords={usersQuery.data.count}
-							currentPage={page}
-							pageSize={pageSize}
-							onPageChange={setPage}
-							hasPreviousPage={hasPreviousPage}
-							hasNextPage={hasNextPage}
-						/>
-					</>
-				))}
+					)}
+					{usersQuery.data.users.length === 0 ? (
+						<p className="py-12 text-center text-content-secondary">
+							No usage data for this period.
+						</p>
+					) : (
+						<>
+							<div className="overflow-hidden rounded-lg border border-border-default">
+								<Table>
+									<TableHeader>
+										<TableRow className="text-left text-xs uppercase tracking-wide text-content-secondary">
+											<TableHead className="px-4 py-3">User</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Total Cost
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Messages
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Chats
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Input Tokens
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Output Tokens
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Cache Read
+											</TableHead>
+											<TableHead className="px-4 py-3 text-right">
+												Cache Write
+											</TableHead>
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{usersQuery.data.users.map((user) => (
+											<UserRow
+												key={user.user_id}
+												user={user}
+												onSelect={(u) => {
+													setSearchParams((prev) => {
+														const next = new URLSearchParams(prev);
+														next.set("user", u.user_id);
+														return next;
+													});
+												}}
+											/>
+										))}
+									</TableBody>
+								</Table>
+							</div>
+							<PaginationWidgetBase
+								totalRecords={usersQuery.data.count}
+								currentPage={page}
+								pageSize={pageSize}
+								onPageChange={setPage}
+								hasPreviousPage={hasPreviousPage}
+								hasNextPage={hasNextPage}
+							/>
+						</>
+					)}
+				</div>
+			)}
 		</div>
 	);
 };
@@ -430,6 +525,13 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 		isError: isSaveDesktopEnabledError,
 	} = useMutation(updateChatDesktopEnabled(queryClient));
 
+	const workspaceTTLQuery = useQuery(chatWorkspaceTTL());
+	const {
+		mutate: saveWorkspaceTTL,
+		isPending: isSavingWorkspaceTTL,
+		isError: isSaveWorkspaceTTLError,
+	} = useMutation(updateChatWorkspaceTTL(queryClient));
+
 	const serverPrompt = systemPromptQuery.data?.system_prompt ?? "";
 	const [localEdit, setLocalEdit] = useState<string | null>(null);
 	const systemPromptDraft = localEdit ?? serverPrompt;
@@ -442,33 +544,45 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 	const isUserPromptDirty =
 		localUserEdit !== null && localUserEdit !== serverUserPrompt;
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
+	const serverTTLMs = workspaceTTLQuery.data?.workspace_ttl_ms ?? 0;
+	const [localTTLMs, setLocalTTLMs] = useState<number | null>(null);
+	const ttlMs = localTTLMs ?? serverTTLMs;
+	const isTTLDirty = localTTLMs !== null && localTTLMs !== serverTTLMs;
+	const maxTTLMs = 30 * 24 * 60 * 60_000; // 30 days
+	const isTTLOverMax = ttlMs > maxTTLMs;
 	const isDisabled =
-		isSavingSystemPrompt || isSavingUserPrompt || isSavingDesktopEnabled;
+		isSavingSystemPrompt ||
+		isSavingUserPrompt ||
+		isSavingDesktopEnabled ||
+		isSavingWorkspaceTTL;
+	const isTTLLoading = workspaceTTLQuery.isLoading;
 
-	const handleSaveSystemPrompt = useCallback(
-		(event: FormEvent) => {
-			event.preventDefault();
-			if (!isSystemPromptDirty) return;
-			saveSystemPrompt(
-				{ system_prompt: systemPromptDraft },
-				{ onSuccess: () => setLocalEdit(null) },
-			);
-		},
-		[isSystemPromptDirty, systemPromptDraft, saveSystemPrompt],
-	);
+	const handleSaveSystemPrompt = (event: FormEvent) => {
+		event.preventDefault();
+		if (!isSystemPromptDirty) return;
+		saveSystemPrompt(
+			{ system_prompt: systemPromptDraft },
+			{ onSuccess: () => setLocalEdit(null) },
+		);
+	};
 
-	const handleSaveUserPrompt = useCallback(
-		(event: FormEvent) => {
-			event.preventDefault();
-			if (!isUserPromptDirty) return;
-			saveUserPrompt(
-				{ custom_prompt: userPromptDraft },
-				{ onSuccess: () => setLocalUserEdit(null) },
-			);
-		},
-		[isUserPromptDirty, userPromptDraft, saveUserPrompt],
-	);
+	const handleSaveUserPrompt = (event: FormEvent) => {
+		event.preventDefault();
+		if (!isUserPromptDirty) return;
+		saveUserPrompt(
+			{ custom_prompt: userPromptDraft },
+			{ onSuccess: () => setLocalUserEdit(null) },
+		);
+	};
 
+	const handleSaveChatWorkspaceTTL = (event: FormEvent) => {
+		event.preventDefault();
+		if (!isTTLDirty) return;
+		saveWorkspaceTTL(
+			{ workspace_ttl_ms: localTTLMs ?? 0 },
+			{ onSuccess: () => setLocalTTLMs(null) },
+		);
+	};
 	return (
 		<div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 pt-8 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 			<div className="mx-auto w-full max-w-3xl">
@@ -615,6 +729,54 @@ export const SettingsPageContent: FC<SettingsPageContentProps> = ({
 										</p>
 									)}
 								</div>
+								<hr className="my-5 border-0 border-t border-solid border-border" />
+								<form
+									className="space-y-2"
+									onSubmit={(event) => void handleSaveChatWorkspaceTTL(event)}
+								>
+									<div className="flex items-center gap-2">
+										<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+											Default Autostop
+										</h3>
+										<AdminBadge />
+									</div>
+									<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+										{ttlMs === 0
+											? "Workspaces linked to chats will be stopped as configured by their templates. Active chats continuously extend the deadline."
+											: `Workspaces linked to chats will be stopped after ${humanDuration(ttlMs)} of inactivity. Active chats continuously extend the deadline.`}
+									</p>
+									<DurationField
+										label="Default autostop"
+										valueMs={ttlMs}
+										onChange={(v) => setLocalTTLMs(v)}
+										disabled={isDisabled || isTTLLoading}
+										error={isTTLOverMax}
+										helperText={
+											isTTLOverMax
+												? "Must not exceed 30 days (720 hours)."
+												: undefined
+										}
+									/>
+									<div className="flex justify-end">
+										<Button
+											size="sm"
+											type="submit"
+											disabled={isDisabled || !isTTLDirty || isTTLOverMax}
+										>
+											Save
+										</Button>
+									</div>
+									{isSaveWorkspaceTTLError && (
+										<p className="m-0 text-xs text-content-destructive">
+											Failed to save autostop setting.
+										</p>
+									)}
+									{workspaceTTLQuery.isError && (
+										<p className="m-0 text-xs text-content-destructive">
+											Failed to load autostop setting.
+										</p>
+									)}
+								</form>
 							</>
 						)}
 					</>

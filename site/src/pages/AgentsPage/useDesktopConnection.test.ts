@@ -23,13 +23,20 @@ interface MockRFBInstance {
 
 const { FakeRFB, lastInstance } = vi.hoisted(() => {
 	const ref: { current: MockRFBInstance | null } = { current: null };
+	// When true, the constructor throws to simulate failures
+	// like missing WebGL support.
+	let shouldThrow = false;
 
-	class FakeRFB {
+	class FakeRFB implements MockRFBInstance {
+		static set throwOnConstruct(v: boolean) {
+			shouldThrow = v;
+		}
+
 		scaleViewport = false;
 		resizeSession = true;
 		disconnect = vi.fn();
 		addEventListener = vi.fn((type: string, handler: (ev: unknown) => void) => {
-			(this as unknown as MockRFBInstance).listeners.set(type, handler);
+			this.listeners.set(type, handler);
 		});
 		listeners = new Map<string, (ev: unknown) => void>();
 
@@ -43,10 +50,12 @@ const { FakeRFB, lastInstance } = vi.hoisted(() => {
 		}
 
 		constructor() {
-			ref.current = this as unknown as MockRFBInstance;
+			if (shouldThrow) {
+				throw new Error("WebGL not supported");
+			}
+			ref.current = this;
 		}
 	}
-
 	return { FakeRFB, lastInstance: ref };
 });
 
@@ -68,7 +77,9 @@ function getLastRFBInstance(): MockRFBInstance {
 }
 
 function createMockSocket(): WebSocket {
-	return { binaryType: "arraybuffer" } as unknown as WebSocket;
+	const socket = new WebSocket("ws://localhost");
+	vi.spyOn(socket, "close").mockImplementation(() => {});
+	return socket;
 }
 
 // ---- tests -----------------------------------------------------------------
@@ -78,15 +89,16 @@ describe("useDesktopConnection", () => {
 		mockWatchChatDesktop.mockReset();
 		mockWatchChatDesktop.mockReturnValue(createMockSocket());
 		lastInstance.current = null;
+		FakeRFB.throwOnConstruct = false;
 	});
 
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
 
-	it("starts in idle status and does not connect automatically", () => {
+	it("does nothing when chatId is undefined", () => {
 		const { result } = renderHook(() =>
-			useDesktopConnection({ chatId: "chat-1" }),
+			useDesktopConnection({ chatId: undefined }),
 		);
 
 		expect(result.current.status).toBe("idle");
@@ -95,29 +107,15 @@ describe("useDesktopConnection", () => {
 		expect(mockWatchChatDesktop).not.toHaveBeenCalled();
 	});
 
-	it("does nothing when chatId is undefined and connect() is called", () => {
-		const { result } = renderHook(() =>
-			useDesktopConnection({ chatId: undefined }),
-		);
-
-		act(() => result.current.connect());
-
-		expect(result.current.status).toBe("idle");
-		expect(mockWatchChatDesktop).not.toHaveBeenCalled();
-	});
-
-	it("transitions to connecting then connected on connect()", () => {
+	it("auto-connects on mount when chatId is set", () => {
 		const { result } = renderHook(() =>
 			useDesktopConnection({ chatId: "chat-1" }),
 		);
 
-		act(() => result.current.connect());
-		const rfb = getLastRFBInstance();
-
 		expect(mockWatchChatDesktop).toHaveBeenCalledWith("chat-1");
 		expect(result.current.status).toBe("connecting");
-		expect(result.current.hasConnected).toBe(false);
 
+		const rfb = getLastRFBInstance();
 		act(() => rfb.simulateEvent("connect"));
 
 		expect(result.current.status).toBe("connected");
@@ -125,45 +123,11 @@ describe("useDesktopConnection", () => {
 	});
 
 	it("sets scaleViewport and resizeSession on the RFB instance", () => {
-		const { result } = renderHook(() =>
-			useDesktopConnection({ chatId: "chat-1" }),
-		);
-
-		act(() => result.current.connect());
+		renderHook(() => useDesktopConnection({ chatId: "chat-1" }));
 		const rfb = getLastRFBInstance();
 
 		expect(rfb.scaleViewport).toBe(true);
 		expect(rfb.resizeSession).toBe(false);
-	});
-
-	it("connect() is a no-op when already connecting", () => {
-		const { result } = renderHook(() =>
-			useDesktopConnection({ chatId: "chat-1" }),
-		);
-
-		act(() => result.current.connect());
-		expect(result.current.status).toBe("connecting");
-
-		mockWatchChatDesktop.mockClear();
-
-		act(() => result.current.connect());
-		expect(mockWatchChatDesktop).not.toHaveBeenCalled();
-	});
-
-	it("connect() is a no-op when already connected", () => {
-		const { result } = renderHook(() =>
-			useDesktopConnection({ chatId: "chat-1" }),
-		);
-
-		act(() => result.current.connect());
-		const rfb = getLastRFBInstance();
-		act(() => rfb.simulateEvent("connect"));
-		expect(result.current.status).toBe("connected");
-
-		mockWatchChatDesktop.mockClear();
-
-		act(() => result.current.connect());
-		expect(mockWatchChatDesktop).not.toHaveBeenCalled();
 	});
 
 	it("transitions to error on securityfailure", () => {
@@ -171,7 +135,6 @@ describe("useDesktopConnection", () => {
 			useDesktopConnection({ chatId: "chat-1" }),
 		);
 
-		act(() => result.current.connect());
 		const rfb = getLastRFBInstance();
 		act(() =>
 			rfb.simulateEvent("securityfailure", {
@@ -191,7 +154,6 @@ describe("useDesktopConnection", () => {
 				useDesktopConnection({ chatId: "chat-1" }),
 			);
 
-			act(() => result.current.connect());
 			const rfb1 = getLastRFBInstance();
 			act(() => rfb1.simulateEvent("connect"));
 			expect(result.current.status).toBe("connected");
@@ -207,9 +169,9 @@ describe("useDesktopConnection", () => {
 			expect(mockWatchChatDesktop).toHaveBeenCalledTimes(1);
 			const rfb2 = getLastRFBInstance();
 
-			// Reconnect attempt fails (no "connect" event) but desktop
-			// was previously reachable, so it retries.
+			// Reconnect succeeds then drops again.
 			// attempt 1 → 2000ms delay.
+			act(() => rfb2.simulateEvent("connect"));
 			act(() => rfb2.simulateEvent("disconnect", { clean: false }));
 			expect(result.current.status).toBe("disconnected");
 
@@ -221,6 +183,7 @@ describe("useDesktopConnection", () => {
 			const rfb3 = getLastRFBInstance();
 
 			// attempt 2 → 4000ms delay.
+			act(() => rfb3.simulateEvent("connect"));
 			act(() => rfb3.simulateEvent("disconnect", { clean: false }));
 
 			mockWatchChatDesktop.mockClear();
@@ -241,7 +204,6 @@ describe("useDesktopConnection", () => {
 				useDesktopConnection({ chatId: "chat-1" }),
 			);
 
-			act(() => result.current.connect());
 			const rfb1 = getLastRFBInstance();
 			act(() => rfb1.simulateEvent("connect"));
 
@@ -250,9 +212,12 @@ describe("useDesktopConnection", () => {
 			act(() => vi.advanceTimersByTime(1000));
 			const rfb2 = getLastRFBInstance();
 
-			// Reconnect succeeds — counter should reset.
+			// Reconnect succeeds — counter resets after stability period.
 			act(() => rfb2.simulateEvent("connect"));
 			expect(result.current.status).toBe("connected");
+
+			// Advance past the stability period so the counter resets.
+			act(() => vi.advanceTimersByTime(3000));
 
 			// Next disconnect should use 1000ms again (not 2000ms).
 			act(() => rfb2.simulateEvent("disconnect", { clean: false }));
@@ -271,22 +236,18 @@ describe("useDesktopConnection", () => {
 		vi.useFakeTimers();
 
 		try {
-			const { result } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1" }),
-			);
+			renderHook(() => useDesktopConnection({ chatId: "chat-1" }));
 
-			act(() => result.current.connect());
 			let rfb = getLastRFBInstance();
 			act(() => rfb.simulateEvent("connect"));
 
 			// Burn through attempts: 1s, 2s, 4s, 8s, 16s.
-			// Reconnect attempts fail (no "connect" event) but the
-			// desktop was previously reachable so backoff accumulates.
 			const delays = [1000, 2000, 4000, 8000, 16000];
 			for (const delay of delays) {
 				act(() => rfb.simulateEvent("disconnect", { clean: false }));
 				act(() => vi.advanceTimersByTime(delay));
 				rfb = getLastRFBInstance();
+				act(() => rfb.simulateEvent("connect"));
 			}
 
 			// Attempt 5 — should be capped at 30_000, not 32_000.
@@ -302,60 +263,14 @@ describe("useDesktopConnection", () => {
 		}
 	});
 
-	it("disconnect() cleans up and resets to idle", () => {
-		const { result } = renderHook(() =>
-			useDesktopConnection({ chatId: "chat-1" }),
-		);
-
-		act(() => result.current.connect());
-		const rfb = getLastRFBInstance();
-		act(() => rfb.simulateEvent("connect"));
-		expect(result.current.status).toBe("connected");
-
-		act(() => result.current.disconnect());
-
-		expect(rfb.disconnect).toHaveBeenCalled();
-		expect(result.current.status).toBe("idle");
-	});
-
-	it("disconnect() cancels pending reconnect timers", () => {
-		vi.useFakeTimers();
-
-		try {
-			const { result } = renderHook(() =>
-				useDesktopConnection({ chatId: "chat-1" }),
-			);
-
-			act(() => result.current.connect());
-			const rfb = getLastRFBInstance();
-			act(() => rfb.simulateEvent("connect"));
-
-			// Trigger reconnect timer.
-			act(() => rfb.simulateEvent("disconnect", { clean: false }));
-			expect(result.current.status).toBe("disconnected");
-
-			// Manually disconnect before timer fires.
-			act(() => result.current.disconnect());
-			expect(result.current.status).toBe("idle");
-
-			// Timer should be cancelled — no reconnect.
-			mockWatchChatDesktop.mockClear();
-			act(() => vi.advanceTimersByTime(60_000));
-			expect(mockWatchChatDesktop).not.toHaveBeenCalled();
-		} finally {
-			vi.useRealTimers();
-		}
-	});
-
 	it("cleans up on unmount and does not reconnect", () => {
 		vi.useFakeTimers();
 
 		try {
-			const { result, unmount } = renderHook(() =>
+			const { unmount } = renderHook(() =>
 				useDesktopConnection({ chatId: "chat-1" }),
 			);
 
-			act(() => result.current.connect());
 			const rfb = getLastRFBInstance();
 			act(() => rfb.simulateEvent("connect"));
 
@@ -371,24 +286,28 @@ describe("useDesktopConnection", () => {
 		}
 	});
 
-	it("resets state when chatId changes", () => {
+	it("tears down and reconnects when chatId changes", () => {
 		const { result, rerender } = renderHook(
 			({ chatId }: { chatId: string | undefined }) =>
 				useDesktopConnection({ chatId }),
 			{ initialProps: { chatId: "chat-aaa" as string | undefined } },
 		);
 
-		act(() => result.current.connect());
 		const rfb1 = getLastRFBInstance();
 		act(() => rfb1.simulateEvent("connect"));
 		expect(result.current.status).toBe("connected");
 		expect(result.current.hasConnected).toBe(true);
 
+		mockWatchChatDesktop.mockClear();
 		rerender({ chatId: "chat-bbb" });
 
+		// Old RFB was torn down.
 		expect(rfb1.disconnect).toHaveBeenCalled();
-		expect(result.current.status).toBe("idle");
 		expect(result.current.hasConnected).toBe(false);
+
+		// Auto-reconnected with the new chatId.
+		expect(mockWatchChatDesktop).toHaveBeenCalledWith("chat-bbb");
+		expect(result.current.status).toBe("connecting");
 	});
 
 	it("attach() appends the offscreen container to the target", () => {
@@ -396,7 +315,6 @@ describe("useDesktopConnection", () => {
 			useDesktopConnection({ chatId: "chat-1" }),
 		);
 
-		act(() => result.current.connect());
 		const rfb = getLastRFBInstance();
 		act(() => rfb.simulateEvent("connect"));
 
@@ -412,7 +330,6 @@ describe("useDesktopConnection", () => {
 			useDesktopConnection({ chatId: "chat-1" }),
 		);
 
-		act(() => result.current.connect());
 		const rfb = getLastRFBInstance();
 		act(() => rfb.simulateEvent("connect"));
 
@@ -428,7 +345,7 @@ describe("useDesktopConnection", () => {
 		expect(container2.children[0]).toBe(screen);
 		expect(container1.children.length).toBe(0);
 
-		// WebSocket was only opened once.
+		// WebSocket was only opened once (plus the initial auto-connect).
 		expect(mockWatchChatDesktop).toHaveBeenCalledTimes(1);
 	});
 
@@ -440,11 +357,9 @@ describe("useDesktopConnection", () => {
 				useDesktopConnection({ chatId: "chat-1" }),
 			);
 
-			act(() => result.current.connect());
 			const rfb = getLastRFBInstance();
 
-			// Disconnect fires before connect — e.g. agent returned 424
-			// because portabledesktop is not installed.
+			// Disconnect fires before connect — e.g. agent returned 424.
 			act(() => rfb.simulateEvent("disconnect", { clean: false }));
 
 			expect(result.current.status).toBe("error");
@@ -458,7 +373,7 @@ describe("useDesktopConnection", () => {
 		}
 	});
 
-	it("retries when reconnect attempt fails but desktop was previously reachable", () => {
+	it("does not retry when reconnect attempt fails before handshake completes", () => {
 		vi.useFakeTimers();
 
 		try {
@@ -466,8 +381,6 @@ describe("useDesktopConnection", () => {
 				useDesktopConnection({ chatId: "chat-1" }),
 			);
 
-			// Establish a successful connection first.
-			act(() => result.current.connect());
 			const rfb1 = getLastRFBInstance();
 			act(() => rfb1.simulateEvent("connect"));
 			expect(result.current.status).toBe("connected");
@@ -480,15 +393,14 @@ describe("useDesktopConnection", () => {
 			act(() => vi.advanceTimersByTime(1000));
 			const rfb2 = getLastRFBInstance();
 
-			// Reconnect attempt fails (disconnect before connect), but
-			// desktop was previously reachable — should keep retrying.
+			// Reconnect attempt fails (disconnect before handshake).
 			act(() => rfb2.simulateEvent("disconnect", { clean: false }));
-			expect(result.current.status).toBe("disconnected");
+			expect(result.current.status).toBe("error");
 
-			// Another retry should be scheduled.
+			// No further retry should be scheduled.
 			mockWatchChatDesktop.mockClear();
-			act(() => vi.advanceTimersByTime(2000));
-			expect(mockWatchChatDesktop).toHaveBeenCalledTimes(1);
+			act(() => vi.advanceTimersByTime(60_000));
+			expect(mockWatchChatDesktop).not.toHaveBeenCalled();
 		} finally {
 			vi.useRealTimers();
 		}
@@ -499,7 +411,6 @@ describe("useDesktopConnection", () => {
 			useDesktopConnection({ chatId: "chat-1" }),
 		);
 
-		act(() => result.current.connect());
 		const rfb = getLastRFBInstance();
 		act(() => rfb.simulateEvent("connect"));
 
@@ -519,13 +430,10 @@ describe("useDesktopConnection", () => {
 				useDesktopConnection({ chatId: "chat-1" }),
 			);
 
-			act(() => result.current.connect());
 			let rfb = getLastRFBInstance();
 			act(() => rfb.simulateEvent("connect"));
 			expect(result.current.status).toBe("connected");
 
-			// Burn through 10 reconnect attempts that all fail before
-			// the handshake completes.
 			for (let i = 0; i < 10; i++) {
 				act(() => rfb.simulateEvent("disconnect", { clean: false }));
 				const delay = Math.min(1000 * 2 ** i, 30_000);
@@ -537,7 +445,6 @@ describe("useDesktopConnection", () => {
 			act(() => rfb.simulateEvent("disconnect", { clean: false }));
 			expect(result.current.status).toBe("error");
 
-			// No more retries.
 			mockWatchChatDesktop.mockClear();
 			act(() => vi.advanceTimersByTime(60_000));
 			expect(mockWatchChatDesktop).not.toHaveBeenCalled();
@@ -554,29 +461,361 @@ describe("useDesktopConnection", () => {
 				useDesktopConnection({ chatId: "chat-1" }),
 			);
 
-			act(() => result.current.connect());
 			let rfb = getLastRFBInstance();
 			act(() => rfb.simulateEvent("connect"));
 
-			// 9 failed reconnects (just under the cap).
 			for (let i = 0; i < 9; i++) {
+				act(() => rfb.simulateEvent("disconnect", { clean: false }));
+				const delay = Math.min(1000 * 2 ** i, 30_000);
+				act(() => vi.advanceTimersByTime(delay));
+				rfb = getLastRFBInstance();
+				act(() => rfb.simulateEvent("connect"));
+			}
+
+			expect(result.current.status).toBe("connected");
+
+			// Advance past the stability period so the counter resets.
+			act(() => vi.advanceTimersByTime(3000));
+
+			act(() => rfb.simulateEvent("disconnect", { clean: false }));
+			act(() => vi.advanceTimersByTime(1000));
+			rfb = getLastRFBInstance();
+			act(() => rfb.simulateEvent("connect"));
+			act(() => rfb.simulateEvent("disconnect", { clean: false }));
+			expect(result.current.status).toBe("disconnected");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not reset reconnect counter when connection drops before stability period", () => {
+		vi.useFakeTimers();
+
+		try {
+			const { result } = renderHook(() =>
+				useDesktopConnection({ chatId: "chat-1" }),
+			);
+
+			let rfb = getLastRFBInstance();
+			act(() => rfb.simulateEvent("connect"));
+			expect(result.current.status).toBe("connected");
+
+			act(() => rfb.simulateEvent("disconnect", { clean: false }));
+			expect(result.current.status).toBe("disconnected");
+
+			act(() => vi.advanceTimersByTime(1000));
+			rfb = getLastRFBInstance();
+
+			act(() => rfb.simulateEvent("connect"));
+			act(() => rfb.simulateEvent("disconnect", { clean: false }));
+
+			// Should use 2000ms (attempt 1), not 1000ms.
+			mockWatchChatDesktop.mockClear();
+			act(() => vi.advanceTimersByTime(1999));
+			expect(mockWatchChatDesktop).not.toHaveBeenCalled();
+			act(() => vi.advanceTimersByTime(1));
+			expect(mockWatchChatDesktop).toHaveBeenCalledTimes(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("gives up when connection keeps flapping (connect then immediate disconnect)", () => {
+		vi.useFakeTimers();
+
+		try {
+			const { result } = renderHook(() =>
+				useDesktopConnection({ chatId: "chat-1" }),
+			);
+
+			let rfb = getLastRFBInstance();
+			act(() => rfb.simulateEvent("connect"));
+			expect(result.current.status).toBe("connected");
+
+			for (let i = 0; i < 10; i++) {
+				act(() => rfb.simulateEvent("disconnect", { clean: false }));
+				const delay = Math.min(1000 * 2 ** i, 30_000);
+				act(() => vi.advanceTimersByTime(delay));
+				rfb = getLastRFBInstance();
+				act(() => rfb.simulateEvent("connect"));
+			}
+
+			act(() => rfb.simulateEvent("disconnect", { clean: false }));
+			expect(result.current.status).toBe("error");
+
+			mockWatchChatDesktop.mockClear();
+			act(() => vi.advanceTimersByTime(60_000));
+			expect(mockWatchChatDesktop).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not retry after securityfailure even if desktop was previously reachable", () => {
+		vi.useFakeTimers();
+
+		try {
+			const { result } = renderHook(() =>
+				useDesktopConnection({ chatId: "chat-1" }),
+			);
+
+			const rfb1 = getLastRFBInstance();
+			act(() => rfb1.simulateEvent("connect"));
+			expect(result.current.status).toBe("connected");
+
+			act(() => rfb1.simulateEvent("disconnect", { clean: false }));
+			act(() => vi.advanceTimersByTime(1000));
+			const rfb2 = getLastRFBInstance();
+
+			act(() =>
+				rfb2.simulateEvent("securityfailure", {
+					status: 1,
+					reason: "Insufficient resources",
+				}),
+			);
+			act(() => rfb2.simulateEvent("disconnect", { clean: false }));
+
+			expect(result.current.status).toBe("error");
+
+			mockWatchChatDesktop.mockClear();
+			act(() => vi.advanceTimersByTime(60_000));
+			expect(mockWatchChatDesktop).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	// -- Generation counter ---------------------------------------------------
+
+	it("stale event handlers from previous session are ignored after reconnect", () => {
+		vi.useFakeTimers();
+
+		try {
+			const { result } = renderHook(() =>
+				useDesktopConnection({ chatId: "chat-1" }),
+			);
+
+			const rfb1 = getLastRFBInstance();
+			act(() => rfb1.simulateEvent("connect"));
+			expect(result.current.status).toBe("connected");
+
+			act(() => rfb1.simulateEvent("disconnect", { clean: false }));
+			expect(result.current.status).toBe("disconnected");
+
+			// Timer fires, doConnect() runs and bumps generation.
+			act(() => vi.advanceTimersByTime(1000));
+			expect(result.current.status).toBe("connecting");
+
+			// Old rfb1 fires a late "disconnect" — should be ignored.
+			act(() => rfb1.simulateEvent("disconnect", { clean: false }));
+			expect(result.current.status).toBe("connecting");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	// -- Connection timeout ---------------------------------------------------
+
+	it("transitions to error when connection times out", () => {
+		vi.useFakeTimers();
+
+		try {
+			const { result } = renderHook(() =>
+				useDesktopConnection({ chatId: "chat-1" }),
+			);
+
+			expect(result.current.status).toBe("connecting");
+
+			act(() => vi.advanceTimersByTime(29_999));
+			expect(result.current.status).toBe("connecting");
+
+			act(() => vi.advanceTimersByTime(1));
+			expect(result.current.status).toBe("error");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("clears timeout when connection succeeds before deadline", () => {
+		vi.useFakeTimers();
+
+		try {
+			const { result } = renderHook(() =>
+				useDesktopConnection({ chatId: "chat-1" }),
+			);
+
+			const rfb = getLastRFBInstance();
+			expect(result.current.status).toBe("connecting");
+
+			act(() => vi.advanceTimersByTime(15_000));
+			expect(result.current.status).toBe("connecting");
+
+			act(() => rfb.simulateEvent("connect"));
+			expect(result.current.status).toBe("connected");
+
+			act(() => vi.advanceTimersByTime(20_000));
+			expect(result.current.status).toBe("connected");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	// -- Reconnect button -----------------------------------------------------
+
+	it("reconnect() tears down and restarts the connection", () => {
+		vi.useFakeTimers();
+
+		try {
+			const { result } = renderHook(() =>
+				useDesktopConnection({ chatId: "chat-1" }),
+			);
+
+			const rfb = getLastRFBInstance();
+
+			// Disconnect before handshake → error.
+			act(() => rfb.simulateEvent("disconnect", { clean: false }));
+			expect(result.current.status).toBe("error");
+
+			// User clicks Reconnect.
+			mockWatchChatDesktop.mockClear();
+			act(() => result.current.reconnect());
+
+			expect(mockWatchChatDesktop).toHaveBeenCalledWith("chat-1");
+			expect(result.current.status).toBe("connecting");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("reconnect() resets the attempt counter after hitting the cap", () => {
+		vi.useFakeTimers();
+
+		try {
+			const { result } = renderHook(() =>
+				useDesktopConnection({ chatId: "chat-1" }),
+			);
+
+			let rfb = getLastRFBInstance();
+			act(() => rfb.simulateEvent("connect"));
+
+			// Exhaust all 10 reconnect attempts.
+			for (let i = 0; i < 10; i++) {
 				act(() => rfb.simulateEvent("disconnect", { clean: false }));
 				const delay = Math.min(1000 * 2 ** i, 30_000);
 				act(() => vi.advanceTimersByTime(delay));
 				rfb = getLastRFBInstance();
 			}
 
-			// This reconnect succeeds — counter resets.
+			act(() => rfb.simulateEvent("disconnect", { clean: false }));
+			expect(result.current.status).toBe("error");
+
+			// Reconnect should work — counter was reset.
+			mockWatchChatDesktop.mockClear();
+			act(() => result.current.reconnect());
+
+			expect(result.current.status).toBe("connecting");
+			rfb = getLastRFBInstance();
 			act(() => rfb.simulateEvent("connect"));
 			expect(result.current.status).toBe("connected");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 
-			// Another drop + failed reconnect should NOT hit the cap
-			// because the counter was reset.
-			act(() => rfb.simulateEvent("disconnect", { clean: false }));
-			act(() => vi.advanceTimersByTime(1000));
-			rfb = getLastRFBInstance();
+	// -- chatId transitions ---------------------------------------------------
+
+	it("resets to idle when chatId becomes undefined", () => {
+		const { result, rerender } = renderHook(
+			({ chatId }: { chatId: string | undefined }) =>
+				useDesktopConnection({ chatId }),
+			{ initialProps: { chatId: "chat-1" as string | undefined } },
+		);
+
+		const rfb = getLastRFBInstance();
+		act(() => rfb.simulateEvent("connect"));
+		expect(result.current.status).toBe("connected");
+
+		rerender({ chatId: undefined });
+
+		expect(rfb.disconnect).toHaveBeenCalled();
+		expect(result.current.status).toBe("idle");
+		expect(result.current.hasConnected).toBe(false);
+	});
+
+	it("cancels pending reconnect timer on chatId change", () => {
+		vi.useFakeTimers();
+
+		try {
+			const { result, rerender } = renderHook(
+				({ chatId }: { chatId: string | undefined }) =>
+					useDesktopConnection({ chatId }),
+				{ initialProps: { chatId: "chat-aaa" as string | undefined } },
+			);
+
+			const rfb = getLastRFBInstance();
+			act(() => rfb.simulateEvent("connect"));
+
+			// Drop → reconnect timer pending.
 			act(() => rfb.simulateEvent("disconnect", { clean: false }));
 			expect(result.current.status).toBe("disconnected");
+
+			// chatId changes before timer fires.
+			mockWatchChatDesktop.mockClear();
+			rerender({ chatId: "chat-bbb" });
+
+			// Should connect with new chatId, not fire old timer.
+			expect(mockWatchChatDesktop).toHaveBeenCalledWith("chat-bbb");
+			expect(result.current.status).toBe("connecting");
+
+			// Old timer should be cancelled — no extra connect.
+			mockWatchChatDesktop.mockClear();
+			act(() => vi.advanceTimersByTime(60_000));
+			expect(mockWatchChatDesktop).not.toHaveBeenCalled();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	// -- Constructor failure --------------------------------------------------
+
+	it("closes socket and sets error when RFB constructor throws", () => {
+		const mockSocket = createMockSocket();
+		mockWatchChatDesktop.mockReturnValue(mockSocket);
+		FakeRFB.throwOnConstruct = true;
+
+		const { result } = renderHook(() =>
+			useDesktopConnection({ chatId: "chat-1" }),
+		);
+
+		expect(result.current.status).toBe("error");
+		expect(mockSocket.close).toHaveBeenCalled();
+	});
+
+	// -- Stale connect event --------------------------------------------------
+
+	it("ignores stale connect event from a previous session", () => {
+		vi.useFakeTimers();
+
+		try {
+			const { result, rerender } = renderHook(
+				({ chatId }: { chatId: string | undefined }) =>
+					useDesktopConnection({ chatId }),
+				{ initialProps: { chatId: "chat-aaa" as string | undefined } },
+			);
+
+			const rfb1 = getLastRFBInstance();
+			// Don't fire connect yet — switch chatId first.
+
+			rerender({ chatId: "chat-bbb" });
+			expect(result.current.status).toBe("connecting");
+
+			// Old rfb1 fires a late "connect" — should be ignored.
+			act(() => rfb1.simulateEvent("connect"));
+
+			// hasConnected should still be false — the connect was
+			// from the stale session.
+			expect(result.current.hasConnected).toBe(false);
+			expect(result.current.status).toBe("connecting");
 		} finally {
 			vi.useRealTimers();
 		}

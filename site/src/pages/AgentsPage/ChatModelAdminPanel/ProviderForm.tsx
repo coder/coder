@@ -49,6 +49,13 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	const apiKeyInputId = useId();
 	const baseURLInputId = useId();
 
+	// Providers backed by the OpenAI SDK expect /v1 in the base
+	// URL, while others (e.g. Anthropic) do not.
+	const baseURLPlaceholder =
+		provider === "anthropic" || provider === "bedrock" || provider === "google"
+			? "https://api.example.com"
+			: "https://api.example.com/v1";
+
 	// Initial values are snapshotted when the provider config changes
 	// so we can detect dirty state.
 	const [initialValues] = useState(() => ({
@@ -97,48 +104,55 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		const trimmedDisplayName = displayName.trim();
 		const trimmedBaseURL = baseURLValue.trim();
 
-		try {
-			if (providerConfig) {
-				const currentDisplayName =
-					readOptionalString(providerConfig.display_name) ?? "";
-				const currentBaseURL = baseURL.trim();
-				const req: TypesGen.UpdateChatProviderConfigRequest = {
-					...(trimmedDisplayName !== currentDisplayName && {
-						display_name: trimmedDisplayName,
-					}),
-					...(effectiveApiKey && { api_key: effectiveApiKey }),
-					...(trimmedBaseURL !== currentBaseURL && {
-						base_url: trimmedBaseURL,
-					}),
-				};
+		if (providerConfig) {
+			const currentDisplayName =
+				readOptionalString(providerConfig.display_name) ?? "";
+			const currentBaseURL = baseURL.trim();
+			const req: TypesGen.UpdateChatProviderConfigRequest = {
+				...(trimmedDisplayName !== currentDisplayName && {
+					display_name: trimmedDisplayName,
+				}),
+				...(effectiveApiKey && { api_key: effectiveApiKey }),
+				...(trimmedBaseURL !== currentBaseURL && {
+					base_url: trimmedBaseURL,
+				}),
+			};
 
-				if (!req.display_name && !req.api_key && !req.base_url) {
-					return;
-				}
-
-				await onUpdateProvider(providerConfig.id, req);
-			} else {
-				if (!effectiveApiKey) {
-					return;
-				}
-
-				const req: TypesGen.CreateChatProviderConfigRequest = {
-					provider,
-					api_key: effectiveApiKey,
-					...(trimmedDisplayName && {
-						display_name: trimmedDisplayName,
-					}),
-					...(trimmedBaseURL && { base_url: trimmedBaseURL }),
-				};
-
-				await onCreateProvider(req);
+			if (!req.display_name && !req.api_key && !req.base_url) {
+				return;
 			}
 
-			setApiKeyTouched(false);
-		} catch {
-			// Error is surfaced via the mutation's error state
-			// in ChatModelAdminPanel, no toast needed.
+			try {
+				await onUpdateProvider(providerConfig.id, req);
+			} catch {
+				// Error is surfaced via the mutation's error state
+				// in ChatModelAdminPanel, no toast needed.
+				return;
+			}
+		} else {
+			if (!effectiveApiKey) {
+				return;
+			}
+
+			const req: TypesGen.CreateChatProviderConfigRequest = {
+				provider,
+				api_key: effectiveApiKey,
+				...(trimmedDisplayName && {
+					display_name: trimmedDisplayName,
+				}),
+				...(trimmedBaseURL && { base_url: trimmedBaseURL }),
+			};
+
+			try {
+				await onCreateProvider(req);
+			} catch {
+				// Error is surfaced via the mutation's error state
+				// in ChatModelAdminPanel, no toast needed.
+				return;
+			}
 		}
+
+		setApiKeyTouched(false);
 	};
 
 	const handleApiKeyFocus = () => {
@@ -241,7 +255,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								id={baseURLInputId}
 								name="provider_base_url"
 								className="h-9 text-[13px]"
-								placeholder="https://api.example.com/v1"
+								placeholder={baseURLPlaceholder}
 								autoComplete="off"
 								value={baseURLValue}
 								onChange={(e) => setBaseURLValue(e.target.value)}

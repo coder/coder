@@ -5,7 +5,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import type { Dayjs } from "dayjs";
 import { PanelLeftIcon } from "lucide-react";
-import { type FC, useCallback, useMemo } from "react";
+import type { FC } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
@@ -128,24 +128,20 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	const navigate = useNavigate();
 	const sidebarView = sidebarViewFromPath(location.pathname);
 
-	const handleOpenAnalytics = useCallback(() => {
+	const handleOpenAnalytics = () => {
 		navigate("/agents/analytics");
-	}, [navigate]);
+	};
 
 	// The sidebar expects plain string error messages, but the outlet
 	// context now carries structured ChatDetailError objects.
-	const sidebarChatErrorReasons = useMemo(
-		() =>
-			Object.fromEntries(
-				Object.entries(chatErrorReasons).map(([chatId, error]) => [
-					chatId,
-					error.message,
-				]),
-			),
-		[chatErrorReasons],
+	const sidebarChatErrorReasons = Object.fromEntries(
+		Object.entries(chatErrorReasons).map(([chatId, error]) => [
+			chatId,
+			error.message,
+		]),
 	);
 
-	const modelIDByConfigID = useMemo(() => {
+	const modelIDByConfigID = (() => {
 		const byConfigID = new Map<string, string>();
 		for (const [modelID, configID] of modelConfigIDByModelID.entries()) {
 			if (!byConfigID.has(configID)) {
@@ -153,48 +149,27 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 			}
 		}
 		return byConfigID;
-	}, [modelConfigIDByModelID]);
+	})();
 
-	const outletContextValue: AgentsOutletContext = useMemo(
-		() => ({
-			chatErrorReasons,
-			setChatErrorReason,
-			clearChatErrorReason,
-			requestArchiveAgent,
-			requestUnarchiveAgent,
-			requestArchiveAndDeleteWorkspace,
-			isSidebarCollapsed,
-			onToggleSidebarCollapsed,
-			onOpenAnalytics: handleOpenAnalytics,
-			modelOptions: catalogModelOptions,
-			modelConfigIDByModelID,
-			modelIDByConfigID,
-			modelConfigs,
-			modelCatalog,
-			isModelCatalogLoading,
-			modelCatalogError,
-			desktopEnabled,
-		}),
-		[
-			chatErrorReasons,
-			setChatErrorReason,
-			clearChatErrorReason,
-			requestArchiveAgent,
-			requestUnarchiveAgent,
-			requestArchiveAndDeleteWorkspace,
-			isSidebarCollapsed,
-			onToggleSidebarCollapsed,
-			handleOpenAnalytics,
-			catalogModelOptions,
-			modelConfigIDByModelID,
-			modelIDByConfigID,
-			modelConfigs,
-			modelCatalog,
-			isModelCatalogLoading,
-			modelCatalogError,
-			desktopEnabled,
-		],
-	);
+	const outletContextValue: AgentsOutletContext = {
+		chatErrorReasons,
+		setChatErrorReason,
+		clearChatErrorReason,
+		requestArchiveAgent,
+		requestUnarchiveAgent,
+		requestArchiveAndDeleteWorkspace,
+		isSidebarCollapsed,
+		onToggleSidebarCollapsed,
+		onOpenAnalytics: handleOpenAnalytics,
+		modelOptions: catalogModelOptions,
+		modelConfigIDByModelID,
+		modelIDByConfigID,
+		modelConfigs,
+		modelCatalog,
+		isModelCatalogLoading,
+		modelCatalogError,
+		desktopEnabled,
+	};
 
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">

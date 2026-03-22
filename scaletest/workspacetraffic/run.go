@@ -182,6 +182,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) (err error) 
 	wchRef, rchRef := wch, rch
 	for {
 		if wchRef == nil && rchRef == nil {
+			logger.Info(ctx, "reading and writing to agent complete! Closing connection")
 			return nil
 		}
 

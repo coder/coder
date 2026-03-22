@@ -1,14 +1,17 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { DesktopPanel } from "./DesktopPanel";
-import { mockAttach, mockDesktopConnection } from "./desktopStoryUtils";
+import { fn } from "storybook/test";
+import { DesktopPanelView, type DesktopPanelViewProps } from "./DesktopPanel";
 
-const meta: Meta<typeof DesktopPanel> = {
+const defaults: DesktopPanelViewProps = {
+	status: "idle",
+	reconnect: fn(),
+	attach: fn(),
+};
+
+const meta: Meta<typeof DesktopPanelView> = {
 	title: "pages/AgentsPage/DesktopPanel",
-	component: DesktopPanel,
-	args: {
-		isExpanded: false,
-		chatId: "test-chat-id",
-	},
+	component: DesktopPanelView,
+	args: defaults,
 	decorators: [
 		(Story) => (
 			<div style={{ height: 400, width: 480, border: "1px solid #333" }}>
@@ -18,35 +21,22 @@ const meta: Meta<typeof DesktopPanel> = {
 	],
 };
 export default meta;
-type Story = StoryObj<typeof DesktopPanel>;
+type Story = StoryObj<typeof DesktopPanelView>;
 
-export const Connected: Story = {
-	args: {
-		connectionOverride: mockDesktopConnection({
-			status: "connected",
-			hasConnected: true,
-			attach: mockAttach(),
-		}),
-	},
-};
+export const Idle: Story = {};
 
 export const Connecting: Story = {
-	args: {
-		connectionOverride: mockDesktopConnection({ status: "connecting" }),
-	},
+	args: { status: "connecting" },
 };
 
-export const ErrorState: Story = {
-	args: {
-		connectionOverride: mockDesktopConnection({ status: "error" }),
-	},
+export const Connected: Story = {
+	args: { status: "connected" },
 };
 
 export const Disconnected: Story = {
-	args: {
-		connectionOverride: mockDesktopConnection({
-			status: "disconnected",
-			hasConnected: true,
-		}),
-	},
+	args: { status: "disconnected" },
+};
+
+export const ErrorState: Story = {
+	args: { status: "error" },
 };

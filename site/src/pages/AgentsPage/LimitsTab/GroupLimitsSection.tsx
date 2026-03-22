@@ -38,6 +38,16 @@ interface GroupLimitsSectionProps {
 	availableGroups: Group[];
 	groupAutocompleteNoOptionsText: string;
 	groupsLoading: boolean;
+	editingGroupOverride: {
+		group_id: string;
+		group_display_name: string;
+		group_name: string;
+		group_avatar_url: string;
+		member_count: number;
+	} | null;
+	onEditGroupOverride: (
+		override: GroupLimitsSectionProps["groupOverrides"][number],
+	) => void;
 	onAddGroupOverride: () => void;
 	onDeleteGroupOverride: (groupID: string) => void;
 	upsertPending: boolean;
@@ -58,6 +68,8 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 	availableGroups,
 	groupAutocompleteNoOptionsText,
 	groupsLoading,
+	editingGroupOverride,
+	onEditGroupOverride,
 	onAddGroupOverride,
 	onDeleteGroupOverride,
 	upsertPending,
@@ -68,6 +80,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 }) => {
 	const groupAutocompleteId = useId();
 	const groupAmountId = useId();
+	const isEditing = editingGroupOverride !== null;
 
 	return (
 		<section className="space-y-4">
@@ -84,7 +97,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 								<TableHead>Group</TableHead>
 								<TableHead>Members</TableHead>
 								<TableHead>Spend Limit</TableHead>
-								<TableHead className="w-[80px]">Actions</TableHead>
+								<TableHead className="w-[160px]">Actions</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -105,17 +118,28 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 											: "Unlimited"}
 									</TableCell>
 									<TableCell>
-										<Button
-											variant="outline"
-											size="sm"
-											type="button"
-											onClick={() =>
-												void onDeleteGroupOverride(override.group_id)
-											}
-											disabled={deletePending}
-										>
-											Delete
-										</Button>
+										<div className="flex gap-2">
+											<Button
+												variant="outline"
+												size="sm"
+												type="button"
+												onClick={() => onEditGroupOverride(override)}
+												disabled={deletePending || upsertPending}
+											>
+												Edit
+											</Button>
+											<Button
+												variant="outline"
+												size="sm"
+												type="button"
+												onClick={() =>
+													void onDeleteGroupOverride(override.group_id)
+												}
+												disabled={deletePending || upsertPending || isEditing}
+											>
+												Delete
+											</Button>
+										</div>
 									</TableCell>
 								</TableRow>
 							))}
@@ -139,7 +163,9 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 						size="sm"
 						type="button"
 						onClick={() => onShowGroupFormChange(true)}
-						disabled={groupsLoading || availableGroups.length === 0}
+						disabled={
+							isEditing || groupsLoading || availableGroups.length === 0
+						}
 					>
 						Add Group
 					</Button>
@@ -147,34 +173,55 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 					<div className="space-y-3 rounded-lg border border-border bg-surface-secondary/40 p-4">
 						<div className="flex flex-col gap-3 md:flex-row md:items-end">
 							<div className="flex-1 space-y-1">
-								<Label htmlFor={groupAutocompleteId}>Group</Label>
-								<Autocomplete
-									id={groupAutocompleteId}
-									value={selectedGroup}
-									onChange={onSelectedGroupChange}
-									options={availableGroups}
-									getOptionValue={(group) => group.id}
-									getOptionLabel={(group) => group.display_name || group.name}
-									isOptionEqualToValue={(option, optionValue) =>
-										option.id === optionValue.id
-									}
-									renderOption={(option, isSelected) => (
-										<div className="flex w-full items-center justify-between gap-2">
+								{editingGroupOverride ? (
+									<>
+										<Label>Group</Label>
+										<div className="rounded-md border border-border bg-surface-primary p-2">
 											<AvatarData
-												title={option.display_name || option.name}
-												subtitle={getGroupSubtitle(option)}
-												src={option.avatar_url}
-												imgFallbackText={option.name}
+												title={
+													editingGroupOverride.group_display_name ||
+													editingGroupOverride.group_name
+												}
+												subtitle={editingGroupOverride.group_name}
+												src={editingGroupOverride.group_avatar_url}
+												imgFallbackText={editingGroupOverride.group_name}
 											/>
-											{isSelected && <Check className="size-4 shrink-0" />}
 										</div>
-									)}
-									placeholder="Search groups..."
-									noOptionsText={groupAutocompleteNoOptionsText}
-									loading={groupsLoading}
-									disabled={groupsLoading}
-									className="w-full"
-								/>
+									</>
+								) : (
+									<>
+										<Label htmlFor={groupAutocompleteId}>Group</Label>
+										<Autocomplete
+											id={groupAutocompleteId}
+											value={selectedGroup}
+											onChange={onSelectedGroupChange}
+											options={availableGroups}
+											getOptionValue={(group) => group.id}
+											getOptionLabel={(group) =>
+												group.display_name || group.name
+											}
+											isOptionEqualToValue={(option, optionValue) =>
+												option.id === optionValue.id
+											}
+											renderOption={(option, isSelected) => (
+												<div className="flex w-full items-center justify-between gap-2">
+													<AvatarData
+														title={option.display_name || option.name}
+														subtitle={getGroupSubtitle(option)}
+														src={option.avatar_url}
+														imgFallbackText={option.name}
+													/>
+													{isSelected && <Check className="size-4 shrink-0" />}
+												</div>
+											)}
+											placeholder="Search groups..."
+											noOptionsText={groupAutocompleteNoOptionsText}
+											loading={groupsLoading}
+											disabled={groupsLoading}
+											className="w-full"
+										/>
+									</>
+								)}
 							</div>
 							<div className="flex-1 space-y-1">
 								<Label htmlFor={groupAmountId}>Spend Limit ($)</Label>
@@ -182,7 +229,8 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 									id={groupAmountId}
 									type="number"
 									step="0.01"
-									min="0"
+									min="0.01"
+									disabled={upsertPending}
 									className="h-9 min-w-0 text-[13px]"
 									value={groupAmount}
 									onChange={(event) => onGroupAmountChange(event.target.value)}
@@ -195,15 +243,18 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 									type="button"
 									onClick={() => void onAddGroupOverride()}
 									disabled={
-										upsertPending ||
-										selectedGroup === null ||
-										!isPositiveFiniteDollarAmount(groupAmount)
+										isEditing
+											? upsertPending ||
+												!isPositiveFiniteDollarAmount(groupAmount)
+											: upsertPending ||
+												selectedGroup === null ||
+												!isPositiveFiniteDollarAmount(groupAmount)
 									}
 								>
 									{upsertPending ? (
 										<Spinner loading className="h-4 w-4" />
 									) : null}
-									Add
+									{isEditing ? "Save" : "Add"}
 								</Button>
 								<Button
 									variant="outline"
@@ -214,6 +265,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 										onSelectedGroupChange(null);
 										onGroupAmountChange("");
 									}}
+									disabled={upsertPending}
 								>
 									Cancel
 								</Button>
