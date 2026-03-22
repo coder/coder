@@ -7119,6 +7119,15 @@ export interface UpdateUserAppearanceSettingsRequest {
 	readonly terminal_font: TerminalFontName;
 }
 
+// From codersdk/chats.go
+/**
+ * UpdateUserChatCompactionThresholdRequest sets a user's per-model
+ * chat compaction threshold override.
+ */
+export interface UpdateUserChatCompactionThresholdRequest {
+	readonly threshold_percent: number;
+}
+
 // From codersdk/notifications.go
 export interface UpdateUserNotificationPreferences {
 	readonly template_disabled_map: Record<string, boolean>;
@@ -7369,6 +7378,25 @@ export interface UserActivityInsightsResponse {
 export interface UserAppearanceSettings {
 	readonly theme_preference: string;
 	readonly terminal_font: TerminalFontName;
+}
+
+// From codersdk/chats.go
+/**
+ * UserChatCompactionThreshold is a user's per-model chat compaction
+ * threshold override.
+ */
+export interface UserChatCompactionThreshold {
+	readonly model_config_id: string;
+	readonly threshold_percent: number;
+}
+
+// From codersdk/chats.go
+/**
+ * UserChatCompactionThresholds wraps the user's per-model chat
+ * compaction threshold overrides.
+ */
+export interface UserChatCompactionThresholds {
+	readonly thresholds: readonly UserChatCompactionThreshold[];
 }
 
 // From codersdk/chats.go

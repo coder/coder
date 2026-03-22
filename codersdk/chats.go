@@ -349,6 +349,25 @@ type UserChatCustomPrompt struct {
 	CustomPrompt string `json:"custom_prompt"`
 }
 
+// UserChatCompactionThreshold is a user's per-model chat compaction
+// threshold override.
+type UserChatCompactionThreshold struct {
+	ModelConfigID    uuid.UUID `json:"model_config_id" format:"uuid"`
+	ThresholdPercent int32     `json:"threshold_percent"`
+}
+
+// UserChatCompactionThresholds wraps the user's per-model chat
+// compaction threshold overrides.
+type UserChatCompactionThresholds struct {
+	Thresholds []UserChatCompactionThreshold `json:"thresholds"`
+}
+
+// UpdateUserChatCompactionThresholdRequest sets a user's per-model
+// chat compaction threshold override.
+type UpdateUserChatCompactionThresholdRequest struct {
+	ThresholdPercent int32 `json:"threshold_percent" validate:"min=0,max=100"`
+}
+
 // ChatDesktopEnabledResponse is the response for getting the desktop setting.
 type ChatDesktopEnabledResponse struct {
 	EnableDesktop bool `json:"enable_desktop"`
@@ -1411,6 +1430,50 @@ func (c *ExperimentalClient) UpdateUserChatCustomPrompt(ctx context.Context, req
 	}
 	var resp UserChatCustomPrompt
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetUserChatCompactionThresholds fetches the user's per-model chat
+// compaction thresholds.
+func (c *Client) GetUserChatCompactionThresholds(ctx context.Context) (UserChatCompactionThresholds, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-compaction-thresholds", nil)
+	if err != nil {
+		return UserChatCompactionThresholds{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatCompactionThresholds{}, ReadBodyAsError(res)
+	}
+	var thresholds UserChatCompactionThresholds
+	return thresholds, json.NewDecoder(res.Body).Decode(&thresholds)
+}
+
+// UpdateUserChatCompactionThreshold updates the user's per-model chat
+// compaction threshold.
+func (c *Client) UpdateUserChatCompactionThreshold(ctx context.Context, modelConfigID uuid.UUID, req UpdateUserChatCompactionThresholdRequest) (UserChatCompactionThreshold, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/config/user-compaction-thresholds/%s", modelConfigID), req)
+	if err != nil {
+		return UserChatCompactionThreshold{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserChatCompactionThreshold{}, ReadBodyAsError(res)
+	}
+	var threshold UserChatCompactionThreshold
+	return threshold, json.NewDecoder(res.Body).Decode(&threshold)
+}
+
+// DeleteUserChatCompactionThreshold deletes the user's per-model chat
+// compaction threshold override.
+func (c *Client) DeleteUserChatCompactionThreshold(ctx context.Context, modelConfigID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/config/user-compaction-thresholds/%s", modelConfigID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // CreateChat creates a new chat.

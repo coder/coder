@@ -2542,6 +2542,22 @@ func normalizeChatCompressionThreshold(
 	return threshold, nil
 }
 
+func compactionThresholdKey(modelConfigID uuid.UUID) string {
+	return "chat_compaction_threshold:" + modelConfigID.String()
+}
+
+func parseCompactionThresholdKey(key string) (uuid.UUID, error) {
+	const prefix = "chat_compaction_threshold:"
+	if !strings.HasPrefix(key, prefix) {
+		return uuid.Nil, xerrors.Errorf("invalid compaction threshold key: %q", key)
+	}
+	id, err := uuid.Parse(key[len(prefix):])
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("invalid model config ID in key %q: %w", key, err)
+	}
+	return id, nil
+}
+
 const (
 	// maxChatFileSize is the maximum size of a chat file upload (10 MB).
 	maxChatFileSize = 10 << 20
@@ -2814,6 +2830,179 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPrompt{
 		CustomPrompt: updatedConfig.Value,
 	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Get user chat compaction thresholds
+// @ID get-user-chat-compaction-thresholds
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chats
+// @Success 200 {object} codersdk.UserChatCompactionThresholds
+// @Router /chats/config/user-compaction-thresholds [get]
+// @x-apidocgen {"skip": true}
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getUserChatCompactionThresholds(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	rows, err := api.Database.ListUserChatCompactionThresholds(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error listing user chat compaction thresholds.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	resp := codersdk.UserChatCompactionThresholds{
+		Thresholds: make([]codersdk.UserChatCompactionThreshold, 0, len(rows)),
+	}
+	for _, row := range rows {
+		modelConfigID, err := parseCompactionThresholdKey(row.Key)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "User chat compaction threshold is malformed.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		thresholdPercent, err := strconv.ParseInt(row.Value, 10, 32)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "User chat compaction threshold is malformed.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if thresholdPercent < int64(minChatContextCompressionThreshold) ||
+			thresholdPercent > int64(maxChatContextCompressionThreshold) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "User chat compaction threshold is out of range.",
+				Detail: fmt.Sprintf(
+					"threshold_percent must be between %d and %d, got %d.",
+					minChatContextCompressionThreshold,
+					maxChatContextCompressionThreshold,
+					thresholdPercent,
+				),
+			})
+			return
+		}
+
+		resp.Thresholds = append(resp.Thresholds, codersdk.UserChatCompactionThreshold{
+			ModelConfigID:    modelConfigID,
+			ThresholdPercent: int32(thresholdPercent),
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Set user chat compaction threshold for a model config
+// @ID put-user-chat-compaction-threshold
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Chats
+// @Param modelConfig path string true "Model config ID" format(uuid)
+// @Param request body codersdk.UpdateUserChatCompactionThresholdRequest true "Threshold request"
+// @Success 200 {object} codersdk.UserChatCompactionThreshold
+// @Router /chats/config/user-compaction-thresholds/{modelConfig} [put]
+// @x-apidocgen {"skip": true}
+func (api *API) putUserChatCompactionThreshold(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	modelConfigID, ok := parseChatModelConfigID(rw, r)
+	if !ok {
+		return
+	}
+
+	var req codersdk.UpdateUserChatCompactionThresholdRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	modelConfig, err := api.Database.GetChatModelConfigByID(ctx, modelConfigID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat model config.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !modelConfig.Enabled {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Model config is disabled.",
+		})
+		return
+	}
+
+	_, err = api.Database.UpdateUserChatCompactionThreshold(ctx, database.UpdateUserChatCompactionThresholdParams{
+		UserID:           apiKey.UserID,
+		Key:              compactionThresholdKey(modelConfigID),
+		ThresholdPercent: req.ThresholdPercent,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error updating user chat compaction threshold.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCompactionThreshold{
+		ModelConfigID:    modelConfigID,
+		ThresholdPercent: req.ThresholdPercent,
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Delete user chat compaction threshold for a model config
+// @ID delete-user-chat-compaction-threshold
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param modelConfig path string true "Model config ID" format(uuid)
+// @Success 204
+// @Router /chats/config/user-compaction-thresholds/{modelConfig} [delete]
+// @x-apidocgen {"skip": true}
+func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	modelConfigID, ok := parseChatModelConfigID(rw, r)
+	if !ok {
+		return
+	}
+
+	if err := api.Database.DeleteUserChatCompactionThreshold(ctx, database.DeleteUserChatCompactionThresholdParams{
+		UserID: apiKey.UserID,
+		Key:    compactionThresholdKey(modelConfigID),
+	}); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error deleting user chat compaction threshold.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {
