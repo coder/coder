@@ -3730,7 +3730,7 @@ func (p *Server) resolveInstructions(
 // compaction threshold override. Returns the override value and
 // true if one exists and is valid, or 0 and false otherwise.
 func (p *Server) resolveUserCompactionThreshold(ctx context.Context, userID uuid.UUID, modelConfigID uuid.UUID) (int32, bool) {
-	key := "chat_compaction_threshold:" + modelConfigID.String()
+	key := codersdk.ChatCompactionThresholdKeyPrefix + modelConfigID.String()
 	raw, err := p.db.GetUserChatCompactionThreshold(ctx, database.GetUserChatCompactionThresholdParams{
 		UserID: userID,
 		Key:    key,

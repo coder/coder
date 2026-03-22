@@ -2543,15 +2543,14 @@ func normalizeChatCompressionThreshold(
 }
 
 func compactionThresholdKey(modelConfigID uuid.UUID) string {
-	return "chat_compaction_threshold:" + modelConfigID.String()
+	return codersdk.ChatCompactionThresholdKeyPrefix + modelConfigID.String()
 }
 
 func parseCompactionThresholdKey(key string) (uuid.UUID, error) {
-	const prefix = "chat_compaction_threshold:"
-	if !strings.HasPrefix(key, prefix) {
+	if !strings.HasPrefix(key, codersdk.ChatCompactionThresholdKeyPrefix) {
 		return uuid.Nil, xerrors.Errorf("invalid compaction threshold key: %q", key)
 	}
-	id, err := uuid.Parse(key[len(prefix):])
+	id, err := uuid.Parse(key[len(codersdk.ChatCompactionThresholdKeyPrefix):])
 	if err != nil {
 		return uuid.Nil, xerrors.Errorf("invalid model config ID in key %q: %w", key, err)
 	}

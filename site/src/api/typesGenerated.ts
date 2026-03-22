@@ -1074,6 +1074,13 @@ export interface Chat {
 	readonly mcp_server_ids: readonly string[];
 }
 
+// From codersdk/chats.go
+/**
+ * ChatCompactionThresholdKeyPrefix scopes per-model chat compaction
+ * threshold settings.
+ */
+export const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold:";
+
 // From codersdk/deployment.go
 export interface ChatConfig {
 	readonly acquire_batch_size: number;

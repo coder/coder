@@ -22,6 +22,10 @@ import (
 	"github.com/coder/websocket/wsjson"
 )
 
+// ChatCompactionThresholdKeyPrefix scopes per-model chat compaction
+// threshold settings.
+const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold:"
+
 // ChatStatus represents the status of a chat.
 type ChatStatus string
 
