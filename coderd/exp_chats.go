@@ -2864,33 +2864,30 @@ func (api *API) getUserChatCompactionThresholds(rw http.ResponseWriter, r *http.
 	for _, row := range rows {
 		modelConfigID, err := parseCompactionThresholdKey(row.Key)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "User chat compaction threshold is malformed.",
-				Detail:  err.Error(),
-			})
-			return
+			api.Logger.Warn(ctx, "skipping malformed user chat compaction threshold key",
+				slog.F("key", row.Key),
+				slog.F("value", row.Value),
+				slog.Error(err),
+			)
+			continue
 		}
 
 		thresholdPercent, err := strconv.ParseInt(row.Value, 10, 32)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "User chat compaction threshold is malformed.",
-				Detail:  err.Error(),
-			})
-			return
+			api.Logger.Warn(ctx, "skipping malformed user chat compaction threshold value",
+				slog.F("key", row.Key),
+				slog.F("value", row.Value),
+				slog.Error(err),
+			)
+			continue
 		}
 		if thresholdPercent < int64(minChatContextCompressionThreshold) ||
 			thresholdPercent > int64(maxChatContextCompressionThreshold) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "User chat compaction threshold is out of range.",
-				Detail: fmt.Sprintf(
-					"threshold_percent must be between %d and %d, got %d.",
-					minChatContextCompressionThreshold,
-					maxChatContextCompressionThreshold,
-					thresholdPercent,
-				),
-			})
-			return
+			api.Logger.Warn(ctx, "skipping out-of-range user chat compaction threshold",
+				slog.F("key", row.Key),
+				slog.F("value", row.Value),
+			)
+			continue
 		}
 
 		resp.Thresholds = append(resp.Thresholds, codersdk.UserChatCompactionThreshold{
@@ -2928,6 +2925,19 @@ func (api *API) putUserChatCompactionThreshold(rw http.ResponseWriter, r *http.R
 
 	var req codersdk.UpdateUserChatCompactionThresholdRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if req.ThresholdPercent < minChatContextCompressionThreshold ||
+		req.ThresholdPercent > maxChatContextCompressionThreshold {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "threshold_percent is out of range.",
+			Detail: fmt.Sprintf(
+				"threshold_percent must be between %d and %d, got %d.",
+				minChatContextCompressionThreshold,
+				maxChatContextCompressionThreshold,
+				req.ThresholdPercent,
+			),
+		})
 		return
 	}
 
