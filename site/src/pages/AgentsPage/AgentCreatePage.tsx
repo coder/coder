@@ -32,8 +32,12 @@ const AgentCreatePage: FC = () => {
 		chatModelConfigsQuery.data,
 	);
 
-	const handleCreateChat = async (options: CreateChatOptions) => {
-		const { message, fileIDs, workspaceId, model } = options;
+	const handleCreateChat = async ({
+		message,
+		fileIDs,
+		workspaceId,
+		model,
+	}: CreateChatOptions) => {
 		const modelConfigID =
 			(model && modelConfigIDByModelID.get(model)) || nilUUID;
 		const content: TypesGen.ChatInputPart[] = [];
