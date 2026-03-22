@@ -17,12 +17,10 @@ import {
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import AgentAnalyticsPage from "./AgentAnalyticsPage";
 import AgentCreatePage from "./AgentCreatePage";
+import AgentSettingsPage from "./AgentSettingsPage";
 import { AgentsPageView } from "./AgentsPageView";
-import {
-	AgentsAnalyticsRoute,
-	AgentsSettingsRoute,
-} from "./AgentsRouteElements";
 
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
@@ -128,9 +126,9 @@ const agentsRouting = {
 	path: "/agents",
 	useStoryElement: true,
 	children: [
-		{ path: "settings", element: <AgentsSettingsRoute /> },
-		{ path: "settings/:section", element: <AgentsSettingsRoute /> },
-		{ path: "analytics", element: <AgentsAnalyticsRoute /> },
+		{ path: "settings", element: <AgentSettingsPage /> },
+		{ path: "settings/:section", element: <AgentSettingsPage /> },
+		{ path: "analytics", element: <AgentAnalyticsPage /> },
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
 	],

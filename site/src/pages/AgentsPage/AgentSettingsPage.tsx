@@ -1,10 +1,9 @@
 import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useParams } from "react-router";
-import { AnalyticsPageContent } from "./AnalyticsPageContent";
 import { SettingsPageContent } from "./SettingsPageContent";
 
-export const AgentsSettingsRoute: FC = () => {
+const AgentSettingsPage: FC = () => {
 	const { section } = useParams();
 	const { permissions, user } = useAuthenticated();
 	const isAgentsAdmin =
@@ -19,6 +18,4 @@ export const AgentsSettingsRoute: FC = () => {
 	);
 };
 
-export const AgentsAnalyticsRoute: FC = () => {
-	return <AnalyticsPageContent />;
-};
+export default AgentSettingsPage;

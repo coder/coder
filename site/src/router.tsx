@@ -352,15 +352,11 @@ const AgentEmbedPage = lazy(() => import("./pages/AgentsPage/AgentEmbedPage"));
 const AgentCreatePage = lazy(
 	() => import("./pages/AgentsPage/AgentCreatePage"),
 );
-const AgentsSettingsRoute = lazy(() =>
-	import("./pages/AgentsPage/AgentsRouteElements").then((m) => ({
-		default: m.AgentsSettingsRoute,
-	})),
+const AgentSettingsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsPage"),
 );
-const AgentsAnalyticsRoute = lazy(() =>
-	import("./pages/AgentsPage/AgentsRouteElements").then((m) => ({
-		default: m.AgentsAnalyticsRoute,
-	})),
+const AgentAnalyticsPage = lazy(
+	() => import("./pages/AgentsPage/AgentAnalyticsPage"),
 );
 
 import {
@@ -659,9 +655,9 @@ export const router = createBrowserRouter(
 					}
 				>
 					<Route index element={<AgentCreatePage />} />
-					<Route path="settings" element={<AgentsSettingsRoute />} />
-					<Route path="settings/:section" element={<AgentsSettingsRoute />} />
-					<Route path="analytics" element={<AgentsAnalyticsRoute />} />
+					<Route path="settings" element={<AgentSettingsPage />} />
+					<Route path="settings/:section" element={<AgentSettingsPage />} />
+					<Route path="analytics" element={<AgentAnalyticsPage />} />{" "}
 					<Route
 						path=":agentId"
 						element={
