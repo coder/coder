@@ -4,6 +4,8 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useEffect } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
+import { useFileAttachments } from "../hooks/useFileAttachments";
+import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -30,8 +32,6 @@ import {
 } from "./AgentDetail/messageParsing";
 import { buildStreamTools } from "./AgentDetail/streamState";
 import type { ParsedMessageEntry } from "./AgentDetail/types";
-import type { ChatDetailError } from "./usageLimitMessage";
-import { useFileAttachments } from "./useFileAttachments";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 

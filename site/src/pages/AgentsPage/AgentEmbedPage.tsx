@@ -9,8 +9,11 @@ import { type FC, useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Outlet, useParams } from "react-router";
 import type { AgentsOutletContext } from "./AgentsPage";
-import { bootstrapChatEmbedSession, EmbedProvider } from "./EmbedContext";
-import type { ChatDetailError } from "./usageLimitMessage";
+import {
+	bootstrapChatEmbedSession,
+	EmbedProvider,
+} from "./components/EmbedContext";
+import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type BootstrapMessage = {
 	type: "coder:vscode-auth-bootstrap";

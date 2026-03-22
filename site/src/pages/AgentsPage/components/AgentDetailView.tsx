@@ -7,6 +7,7 @@ import { type FC, type RefObject, useEffect, useRef, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
+import type { ChatDetailError } from "../utils/usageLimitMessage";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 import {
 	selectChatStatus,
@@ -19,10 +20,9 @@ import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
 } from "./AgentsSkeletons";
-import { GitPanel } from "./GitPanel";
-import { RightPanel } from "./RightPanel";
-import { SidebarTabView } from "./SidebarTabView";
-import type { ChatDetailError } from "./usageLimitMessage";
+import { GitPanel } from "./GitPanel/GitPanel";
+import { RightPanel } from "./RightPanel/RightPanel";
+import { SidebarTabView } from "./Sidebar/SidebarTabView";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 

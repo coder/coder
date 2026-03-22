@@ -2,9 +2,9 @@ import type { DiffLineAnnotation, SelectedLineRange } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, waitFor } from "storybook/test";
-import type { DiffStyle } from "./DiffViewer";
-import { DiffViewer } from "./DiffViewer";
-import { InlinePromptInput } from "./RemoteDiffPanel";
+import type { DiffStyle } from "../DiffViewer/DiffViewer";
+import { DiffViewer } from "../DiffViewer/DiffViewer";
+import { InlinePromptInput } from "../DiffViewer/RemoteDiffPanel";
 
 // biome-ignore format: raw diff string must preserve exact whitespace
 const sampleDiff = [

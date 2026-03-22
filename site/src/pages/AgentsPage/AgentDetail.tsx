@@ -36,16 +36,20 @@ import type { UrlTransform } from "streamdown";
 import { isMobileViewport } from "utils/mobile";
 import { pageTitle } from "utils/page";
 import { portForwardURL } from "utils/portForward";
-import type { ChatMessageInputRef } from "./AgentChatInput";
-import { useChatStore } from "./AgentDetail/ChatContext";
-import { getParentChatID, getWorkspaceAgent } from "./AgentDetail/chatHelpers";
-import { useWorkspaceCreationWatcher } from "./AgentDetail/useWorkspaceCreationWatcher";
+import type { AgentsOutletContext } from "./AgentsPage";
+import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import { useChatStore } from "./components/AgentDetail/ChatContext";
+import {
+	getParentChatID,
+	getWorkspaceAgent,
+} from "./components/AgentDetail/chatHelpers";
+import { useWorkspaceCreationWatcher } from "./components/AgentDetail/useWorkspaceCreationWatcher";
 import {
 	AgentDetailLoadingView,
 	AgentDetailNotFoundView,
 	AgentDetailView,
-} from "./AgentDetailView";
-import type { AgentsOutletContext } from "./AgentsPage";
+} from "./components/AgentDetailView";
+import { useGitWatcher } from "./hooks/useGitWatcher";
 import {
 	buildModelConfigIDByModelID,
 	buildModelIDByConfigID,
@@ -53,10 +57,12 @@ import {
 	getModelOptionsFromCatalog,
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
-} from "./modelOptions";
-import { parsePullRequestUrl } from "./pullRequest";
-import { formatUsageLimitMessage, isUsageLimitData } from "./usageLimitMessage";
-import { useGitWatcher } from "./useGitWatcher";
+} from "./utils/modelOptions";
+import { parsePullRequestUrl } from "./utils/pullRequest";
+import {
+	formatUsageLimitMessage,
+	isUsageLimitData,
+} from "./utils/usageLimitMessage";
 
 /** localStorage key controlling whether the right panel is visible. */
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";

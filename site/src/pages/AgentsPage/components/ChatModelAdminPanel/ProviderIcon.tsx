@@ -2,7 +2,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { ServerIcon } from "lucide-react";
 import type { FC } from "react";
 import { cn } from "utils/cn";
-import { formatProviderLabel } from "../modelOptions";
+import { formatProviderLabel } from "../../utils/modelOptions";
 import { normalizeProvider } from "./helpers";
 
 const providerIconMap: Record<string, string> = {

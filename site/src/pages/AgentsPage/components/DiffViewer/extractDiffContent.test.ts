@@ -1,6 +1,6 @@
 import { parsePatchFiles } from "@pierre/diffs";
 import { describe, expect, it } from "vitest";
-import { extractDiffContent } from "./CommentableDiffViewer";
+import { extractDiffContent } from "../DiffViewer/CommentableDiffViewer";
 
 function parse(diffStr: string) {
 	return parsePatchFiles(diffStr).flatMap((p) => p.files);

@@ -10,7 +10,7 @@ import {
 import type { ReactNode } from "react";
 import { type FC, useEffect, useId, useRef, useState } from "react";
 import { cn } from "utils/cn";
-import { DesktopPanel } from "./DesktopPanel";
+import { DesktopPanel } from "../RightPanel/DesktopPanel";
 
 /** A single tab definition for the sidebar panel. */
 export interface SidebarTab {

@@ -36,8 +36,8 @@ import {
 } from "react";
 import { cn } from "utils/cn";
 import { isMobileViewport } from "utils/mobile";
+import { formatProviderLabel } from "../utils/modelOptions";
 import { ImageLightbox } from "./ImageLightbox";
-import { formatProviderLabel } from "./modelOptions";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 
 export type { ChatMessageInputRef } from "components/ChatMessageInput/ChatMessageInput";

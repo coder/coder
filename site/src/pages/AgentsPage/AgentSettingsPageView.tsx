@@ -56,12 +56,12 @@ import {
 	DateRange,
 	type DateRangeValue,
 } from "../TemplatePage/TemplateInsightsPage/DateRange";
-import { ChatCostSummaryView } from "./ChatCostSummaryView";
-import { ChatModelAdminPanel } from "./ChatModelAdminPanel/ChatModelAdminPanel";
-import { InsightsContent } from "./InsightsContent";
-import { LimitsTab } from "./LimitsTab";
-import { MCPServerAdminPanel } from "./MCPServerAdminPanel";
-import { SectionHeader } from "./SectionHeader";
+import { ChatCostSummaryView } from "./components/ChatCostSummaryView";
+import { ChatModelAdminPanel } from "./components/ChatModelAdminPanel/ChatModelAdminPanel";
+import { InsightsContent } from "./components/InsightsContent";
+import { LimitsTab } from "./components/LimitsTab";
+import { MCPServerAdminPanel } from "./components/MCPServerAdminPanel";
+import { SectionHeader } from "./components/SectionHeader";
 
 const AdminBadge: FC = () => (
 	<TooltipProvider delayDuration={0}>

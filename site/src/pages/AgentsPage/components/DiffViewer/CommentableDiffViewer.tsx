@@ -12,9 +12,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import type { ChatMessageInputRef } from "./AgentChatInput";
-import type { DiffStyle } from "./DiffViewer";
-import { DiffViewer } from "./DiffViewer";
 import {
 	annotationLineForBox,
 	annotationSideForBox,
@@ -22,7 +19,10 @@ import {
 	commentBoxFromRange,
 	contentRangeForBox,
 	selectedLinesForBox,
-} from "./diffCommentSelection";
+} from "../../utils/diffCommentSelection";
+import type { ChatMessageInputRef } from "../AgentChatInput";
+import type { DiffStyle } from "../DiffViewer/DiffViewer";
+import { DiffViewer } from "../DiffViewer/DiffViewer";
 
 // -------------------------------------------------------------------
 // Diff content extraction

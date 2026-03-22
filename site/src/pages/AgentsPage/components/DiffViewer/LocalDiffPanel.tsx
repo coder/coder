@@ -1,9 +1,9 @@
 import { parsePatchFiles } from "@pierre/diffs";
 import type { WorkspaceAgentRepoChanges } from "api/typesGenerated";
 import type { FC, RefObject } from "react";
-import type { ChatMessageInputRef } from "./AgentChatInput";
-import { CommentableDiffViewer } from "./CommentableDiffViewer";
-import type { DiffStyle } from "./DiffViewer";
+import type { ChatMessageInputRef } from "../AgentChatInput";
+import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
+import type { DiffStyle } from "../DiffViewer/DiffViewer";
 
 interface LocalDiffPanelProps {
 	repo: WorkspaceAgentRepoChanges;

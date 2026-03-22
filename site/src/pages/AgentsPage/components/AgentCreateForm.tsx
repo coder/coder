@@ -24,15 +24,18 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
-import { AgentChatInput } from "./AgentChatInput";
+import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
 	getModelCatalogStatusMessage,
 	getModelSelectorPlaceholder,
 	getNormalizedModelRef,
 	hasConfiguredModelsInCatalog,
-} from "./modelOptions";
-import { formatUsageLimitMessage, isUsageLimitData } from "./usageLimitMessage";
-import { useFileAttachments } from "./useFileAttachments";
+} from "../utils/modelOptions";
+import {
+	formatUsageLimitMessage,
+	isUsageLimitData,
+} from "../utils/usageLimitMessage";
+import { AgentChatInput } from "./AgentChatInput";
 
 /** @internal Exported for testing. */
 export const emptyInputStorageKey = "agents.empty-input";

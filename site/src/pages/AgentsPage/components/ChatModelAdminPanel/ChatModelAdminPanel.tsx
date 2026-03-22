@@ -16,7 +16,7 @@ import { Spinner } from "components/Spinner/Spinner";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { cn } from "utils/cn";
-import { formatProviderLabel } from "../modelOptions";
+import { formatProviderLabel } from "../../utils/modelOptions";
 import { normalizeProvider, readOptionalString } from "./helpers";
 import { ModelsSection } from "./ModelsSection";
 import { ProvidersSection } from "./ProvidersSection";

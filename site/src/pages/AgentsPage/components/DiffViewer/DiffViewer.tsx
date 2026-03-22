@@ -24,7 +24,7 @@ import {
 	useState,
 } from "react";
 import { cn } from "utils/cn";
-import { changeColor, changeLabel } from "./diffColors";
+import { changeColor, changeLabel } from "../../utils/diffColors";
 
 // -------------------------------------------------------------------
 // Public interface

@@ -27,9 +27,9 @@ import type { FC } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { cn } from "utils/cn";
+import { parsePullRequestUrl } from "../../utils/pullRequest";
 import { useEmbedContext } from "../EmbedContext";
-import { PrStateIcon } from "../GitPanel";
-import { parsePullRequestUrl } from "../pullRequest";
+import { PrStateIcon } from "../GitPanel/GitPanel";
 
 interface SidebarPanelState {
 	showSidebarPanel: boolean;

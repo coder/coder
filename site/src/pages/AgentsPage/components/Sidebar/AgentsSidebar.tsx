@@ -68,9 +68,9 @@ import {
 import { Link, NavLink, useLocation, useParams } from "react-router";
 import { cn } from "utils/cn";
 import { shortRelativeTime } from "utils/time";
-import { getNormalizedModelRef } from "./modelOptions";
-import { getTimeGroup, TIME_GROUPS } from "./timeGroups";
-import { UsageIndicator } from "./UsageIndicator";
+import { getNormalizedModelRef } from "../../utils/modelOptions";
+import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
+import { UsageIndicator } from "../UsageIndicator";
 
 type SidebarView =
 	| { panel: "chats" }

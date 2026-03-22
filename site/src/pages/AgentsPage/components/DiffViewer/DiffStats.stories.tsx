@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { DiffStatBadge } from "./DiffStats";
+import { DiffStatBadge } from "../DiffViewer/DiffStats";
 
 const badgeMeta: Meta<typeof DiffStatBadge> = {
 	title: "pages/AgentsPage/DiffStatBadge",

@@ -3,14 +3,17 @@ import type * as TypesGen from "api/typesGenerated";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
-import { AgentCreateForm, type CreateChatOptions } from "./AgentCreateForm";
-import { AgentPageHeader } from "./AgentPageHeader";
-import { ChimeButton } from "./ChimeButton";
+import {
+	AgentCreateForm,
+	type CreateChatOptions,
+} from "./components/AgentCreateForm";
+import { AgentPageHeader } from "./components/AgentPageHeader";
+import { ChimeButton } from "./components/ChimeButton";
+import { WebPushButton } from "./components/WebPushButton";
 import {
 	buildModelConfigIDByModelID,
 	getModelOptionsFromCatalog,
-} from "./modelOptions";
-import { WebPushButton } from "./WebPushButton";
+} from "./utils/modelOptions";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 const nilUUID = "00000000-0000-0000-0000-000000000000";

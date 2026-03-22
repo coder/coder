@@ -10,7 +10,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { ChevronLeftIcon, InfoIcon } from "lucide-react";
 import { type FC, type FormEvent, useId, useState } from "react";
-import { formatProviderLabel } from "../modelOptions";
+import { formatProviderLabel } from "../../utils/modelOptions";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { readOptionalString } from "./helpers";
 import { ProviderIcon } from "./ProviderIcon";

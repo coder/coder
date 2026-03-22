@@ -4,7 +4,7 @@ import dayjs from "dayjs";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { AgentAnalyticsPageView } from "./AgentAnalyticsPageView";
-import { AgentPageHeader } from "./AgentPageHeader";
+import { AgentPageHeader } from "./components/AgentPageHeader";
 
 const createDateRange = () => {
 	const end = dayjs();

@@ -28,14 +28,14 @@ import {
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
-import { emptyInputStorageKey } from "./AgentCreateForm";
-import { maybePlayChime } from "./AgentDetail/useAgentChime";
 import { AgentsPageView } from "./AgentsPageView";
-import { resolveArchiveAndDeleteAction } from "./agentWorkspaceUtils";
-import { getModelOptionsFromCatalog } from "./modelOptions";
-import type { ChatDetailError } from "./usageLimitMessage";
-import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
-import { useAgentsPWA } from "./useAgentsPWA";
+import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { maybePlayChime } from "./components/AgentDetail/useAgentChime";
+import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
+import { useAgentsPWA } from "./hooks/useAgentsPWA";
+import { resolveArchiveAndDeleteAction } from "./utils/agentWorkspaceUtils";
+import { getModelOptionsFromCatalog } from "./utils/modelOptions";
+import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 // Type guard for SSE events from the chat list watch endpoint.
 // Shallow-compare two ChatDiffStatus objects by their meaningful

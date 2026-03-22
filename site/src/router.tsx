@@ -362,7 +362,7 @@ const AgentAnalyticsPage = lazy(
 import {
 	AgentDetailSkeleton,
 	AgentsPageSkeleton,
-} from "./pages/AgentsPage/AgentsSkeletons";
+} from "./pages/AgentsPage/components/AgentsSkeletons";
 
 const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
 const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));

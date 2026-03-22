@@ -14,13 +14,13 @@ import {
 import { type FC, type RefObject, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { cn } from "utils/cn";
-import type { ChatMessageInputRef } from "./AgentChatInput";
-import { CommentableDiffViewer } from "./CommentableDiffViewer";
-import { DiffStatBadge } from "./DiffStats";
-import type { DiffStyle } from "./DiffViewer";
-import { parsePullRequestUrl } from "./pullRequest";
+import { parsePullRequestUrl } from "../../utils/pullRequest";
+import type { ChatMessageInputRef } from "../AgentChatInput";
+import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
+import { DiffStatBadge } from "../DiffViewer/DiffStats";
+import type { DiffStyle } from "../DiffViewer/DiffViewer";
 
-export { InlinePromptInput } from "./CommentableDiffViewer";
+export { InlinePromptInput } from "../DiffViewer/CommentableDiffViewer";
 
 // -------------------------------------------------------------------
 // PR state badge

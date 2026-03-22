@@ -1,8 +1,8 @@
 import type { ChatCostSummary } from "api/typesGenerated";
 import { BarChart3Icon } from "lucide-react";
 import type { FC } from "react";
-import { ChatCostSummaryView } from "./ChatCostSummaryView";
-import { SectionHeader } from "./SectionHeader";
+import { ChatCostSummaryView } from "./components/ChatCostSummaryView";
+import { SectionHeader } from "./components/SectionHeader";
 
 interface AgentAnalyticsPageViewProps {
 	summary: ChatCostSummary | undefined;

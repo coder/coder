@@ -7,7 +7,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import type { UploadState } from "./AgentChatInput";
+import type { UploadState } from "../components/AgentChatInput";
 
 interface UseFileAttachmentsReturn {
 	attachments: File[];

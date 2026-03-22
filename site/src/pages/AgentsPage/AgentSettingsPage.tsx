@@ -1,8 +1,8 @@
 import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useParams } from "react-router";
-import { AgentPageHeader } from "./AgentPageHeader";
 import { AgentSettingsPageView } from "./AgentSettingsPageView";
+import { AgentPageHeader } from "./components/AgentPageHeader";
 
 const AgentSettingsPage: FC = () => {
 	const { section } = useParams();

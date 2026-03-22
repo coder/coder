@@ -5,7 +5,7 @@ import { PanelLeftIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC, ReactNode } from "react";
 import { NavLink, useOutletContext } from "react-router";
-import type { AgentsOutletContext } from "./AgentsPageView";
+import type { AgentsOutletContext } from "../AgentsPageView";
 
 interface AgentPageHeaderProps {
 	children?: ReactNode;

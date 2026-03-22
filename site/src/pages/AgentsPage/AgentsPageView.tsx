@@ -4,8 +4,11 @@ import type { FC } from "react";
 import { Outlet, useLocation } from "react-router";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
-import { AgentsSidebar, sidebarViewFromPath } from "./AgentsSidebar";
-import type { ChatDetailError } from "./usageLimitMessage";
+import {
+	AgentsSidebar,
+	sidebarViewFromPath,
+} from "./components/Sidebar/AgentsSidebar";
+import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 export interface AgentsOutletContext {
 	chatErrorReasons: Record<string, ChatDetailError>;

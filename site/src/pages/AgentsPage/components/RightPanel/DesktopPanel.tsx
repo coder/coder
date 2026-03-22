@@ -1,7 +1,7 @@
 import { Button } from "components/Button/Button";
 import { Spinner } from "components/Spinner/Spinner";
 import type { FC } from "react";
-import { useDesktopConnection } from "./useDesktopConnection";
+import { useDesktopConnection } from "../../hooks/useDesktopConnection";
 
 type DesktopConnectionStatus =
 	| "idle"

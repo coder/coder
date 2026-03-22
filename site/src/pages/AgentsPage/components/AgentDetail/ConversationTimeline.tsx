@@ -29,9 +29,9 @@ import {
 } from "react";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
+import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import { ImageThumbnail } from "../AgentChatInput";
 import { ImageLightbox } from "../ImageLightbox";
-import type { ChatDetailError } from "../usageLimitMessage";
 import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,

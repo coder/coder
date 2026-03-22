@@ -19,11 +19,15 @@ import {
 } from "lucide-react";
 import { type FC, type RefObject, useEffect, useRef, useState } from "react";
 import { cn } from "utils/cn";
-import type { ChatMessageInputRef } from "./AgentChatInput";
-import { DiffStatBadge } from "./DiffStats";
-import { type DiffStyle, loadDiffStyle, saveDiffStyle } from "./DiffViewer";
-import { LocalDiffPanel } from "./LocalDiffPanel";
-import { RemoteDiffPanel } from "./RemoteDiffPanel";
+import type { ChatMessageInputRef } from "../AgentChatInput";
+import { DiffStatBadge } from "../DiffViewer/DiffStats";
+import {
+	type DiffStyle,
+	loadDiffStyle,
+	saveDiffStyle,
+} from "../DiffViewer/DiffViewer";
+import { LocalDiffPanel } from "../DiffViewer/LocalDiffPanel";
+import { RemoteDiffPanel } from "../DiffViewer/RemoteDiffPanel";
 
 type GitView = { type: "remote" } | { type: "local"; repoRoot: string };
 
