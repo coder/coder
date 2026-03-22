@@ -11,6 +11,7 @@ import {
 } from "components/Select/Select";
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
+import { useUnsavedChangesWarning } from "hooks/useUnsavedChangesWarning";
 import {
 	ChevronDownIcon,
 	ChevronLeftIcon,
@@ -183,6 +184,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 			// here to avoid a double view-transition.
 		},
 	});
+	useUnsavedChangesWarning(form.dirty);
 
 	const getFieldHelpers = getFormHelpers(form);
 
