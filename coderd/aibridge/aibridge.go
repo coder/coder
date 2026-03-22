@@ -6,16 +6,15 @@ import (
 	"strings"
 )
 
-// HeaderCoderAuth is an internal header used to pass the Coder token
-// from AI Proxy to AI Bridge for authentication. This header is stripped
-// by AI Bridge before forwarding requests to upstream providers.
-const HeaderCoderAuth = "X-Coder-Token"
-
 // HeaderCoderBYOKToken is a header set by clients opting into BYOK
 // (Bring Your Own Key) mode. It carries the Coder session token so
 // that Authorization and X-Api-Key can carry the user's own LLM
 // credentials. When present, AI Bridge forwards the user's LLM
 // headers unchanged instead of injecting the centralized key.
+//
+// The AI Bridge proxy also sets this header automatically for clients
+// that use per-user LLM credentials but cannot set custom headers
+// (e.g. GitHub Copilot).
 const HeaderCoderBYOKToken = "X-Coder-AI-Governance-BYOK-Token" //nolint:gosec // This is a header name, not a credential.
 
 // IsBYOK reports whether the request is using BYOK mode, determined
@@ -25,15 +24,12 @@ func IsBYOK(header http.Header) bool {
 }
 
 // ExtractAuthToken extracts the Coder session token from HTTP headers.
-// It checks the BYOK header first (set by clients opting into BYOK),
-// then X-Coder-Token (set by AI Proxy), then falls back to
+// It checks the BYOK header first (set by clients opting into BYOK
+// or injected by the proxy for Copilot), then falls back to
 // Authorization: Bearer and X-Api-Key for direct centralized mode.
 // If none are present, an empty string is returned.
 func ExtractAuthToken(header http.Header) string {
 	if token := strings.TrimSpace(header.Get(HeaderCoderBYOKToken)); token != "" {
-		return token
-	}
-	if token := strings.TrimSpace(header.Get(HeaderCoderAuth)); token != "" {
 		return token
 	}
 	if auth := strings.TrimSpace(header.Get("Authorization")); auth != "" {

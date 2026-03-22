@@ -877,8 +877,10 @@ func (s *Server) checkBlockedIPAndDial(ctx context.Context, network, addr string
 }
 
 // handleRequest intercepts HTTP requests after MITM decryption.
-//   - Requests to known AI providers are rewritten to aibridged, with the Coder token
-//     (from ctx.UserData, set during CONNECT) set in the X-Coder-Token header.
+//   - Requests to known AI providers are rewritten to point at aibridged.
+//     In centralized mode the Coder session token is already in the
+//     Authorization header. For BYOK clients that cannot set custom
+//     headers (e.g. Copilot), the proxy injects the BYOK header.
 //   - Unknown hosts are passed through to the original upstream.
 func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
 	originalPath := req.URL.Path
@@ -956,17 +958,16 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	req.URL = aiBridgeParsedURL
 	req.Host = aiBridgeParsedURL.Host
 
-	// Set X-Coder-Token header for aibridged authentication.
-	// Using a separate header preserves the original request headers,
-	// which are forwarded to upstream providers.
-	req.Header.Set(agplaibridge.HeaderCoderAuth, reqCtx.CoderToken)
-
-	// If Authorization carries a bearer token that differs from the
-	// Coder session token, the client is using its own LLM credentials
-	// (e.g. Copilot's per-user GitHub token). Set the BYOK header to
-	// indicate that this request is using BYOK mode. Clients that
-	// support custom headers (Claude Code, Codex) set the BYOK header
-	// themselves; this handles clients that cannot.
+	// If Authorization carries a bearer token that differs from the Coder
+	// session token, the client is using its own LLM credentials (e.g.
+	// Copilot's per-user GitHub token). Set the BYOK header to indicate
+	// that this request is using BYOK mode. Clients that support custom
+	// headers (Claude Code, Codex) set the BYOK header themselves; this
+	// handles clients that cannot.
+	//
+	// In centralized mode, Authorization carries the Coder session token
+	// itself (sent by the client as ANTHROPIC_AUTH_TOKEN), so aibridged
+	// discovers it via ExtractAuthToken without any extra header.
 	if auth := req.Header.Get("Authorization"); auth != "" {
 		bearer := extractCoderTokenFromBearerAuth(auth)
 		if bearer != "" && bearer != reqCtx.CoderToken {

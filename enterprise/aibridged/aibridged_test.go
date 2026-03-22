@@ -184,19 +184,6 @@ func TestServeHTTP_StripCoderSessionToken(t *testing.T) {
 		expectAbsent  []string          // headers that must be gone
 	}{
 		{
-			// Proxy centralized: proxy sets X-Coder-Token, no other auth
-			// headers are present.
-			name: "proxy centralized",
-			reqHeaders: map[string]string{
-				agplaibridge.HeaderCoderAuth: "coder-token",
-			},
-			expectAbsent: []string{
-				agplaibridge.HeaderCoderAuth,
-				"Authorization",
-				"X-Api-Key",
-			},
-		},
-		{
 			// Direct centralized: client sends Coder token as
 			// Authorization: Bearer. All auth headers are stripped.
 			name: "direct centralized",
@@ -204,7 +191,20 @@ func TestServeHTTP_StripCoderSessionToken(t *testing.T) {
 				"Authorization": "Bearer coder-token",
 			},
 			expectAbsent: []string{
-				agplaibridge.HeaderCoderAuth,
+				"Authorization",
+				"X-Api-Key",
+			},
+		},
+		{
+			// Proxy centralized: client sends Coder token as
+			// Authorization: Bearer via proxy. Same as direct
+			// centralized — no BYOK header, so Authorization is
+			// stripped.
+			name: "proxy centralized",
+			reqHeaders: map[string]string{
+				"Authorization": "Bearer coder-token",
+			},
+			expectAbsent: []string{
 				"Authorization",
 				"X-Api-Key",
 			},
@@ -223,7 +223,6 @@ func TestServeHTTP_StripCoderSessionToken(t *testing.T) {
 			},
 			expectAbsent: []string{
 				agplaibridge.HeaderCoderBYOKToken,
-				agplaibridge.HeaderCoderAuth,
 			},
 		},
 		{
@@ -240,25 +239,22 @@ func TestServeHTTP_StripCoderSessionToken(t *testing.T) {
 			},
 			expectAbsent: []string{
 				agplaibridge.HeaderCoderBYOKToken,
-				agplaibridge.HeaderCoderAuth,
 			},
 		},
 		{
-			// BYOK via proxy: proxy injects X-Coder-Token, client set
-			// BYOK header + user's API key. Both X-Coder-Token and
-			// BYOK header are stripped; user credentials survive.
-			name: "byok via proxy",
+			// Copilot via proxy: the proxy detects that the user has
+			// their own LLM credentials and injects the BYOK header.
+			// The user's Copilot token in Authorization survives.
+			name: "copilot via proxy",
 			reqHeaders: map[string]string{
-				agplaibridge.HeaderCoderAuth:      "coder-token",
 				agplaibridge.HeaderCoderBYOKToken: "coder-token",
-				"X-Api-Key":                       "sk-ant-api03-user-key",
+				"Authorization":                   "Bearer ghu_copilot-user-token",
 			},
 			expectPresent: map[string]string{
-				"X-Api-Key": "sk-ant-api03-user-key",
+				"Authorization": "Bearer ghu_copilot-user-token",
 			},
 			expectAbsent: []string{
 				agplaibridge.HeaderCoderBYOKToken,
-				agplaibridge.HeaderCoderAuth,
 			},
 		},
 	}
@@ -317,31 +313,6 @@ func TestExtractAuthToken(t *testing.T) {
 			name: "none",
 		},
 		{
-			name:    "x-coder-token/empty",
-			headers: map[string]string{agplaibridge.HeaderCoderAuth: ""},
-		},
-		{
-			name:        "x-coder-token/ok",
-			headers:     map[string]string{agplaibridge.HeaderCoderAuth: "coder-token"},
-			expectedKey: "coder-token",
-		},
-		{
-			name: "x-coder-token/priority over authorization",
-			headers: map[string]string{
-				agplaibridge.HeaderCoderAuth: "coder-token",
-				"Authorization":              "Bearer other-token",
-			},
-			expectedKey: "coder-token",
-		},
-		{
-			name: "x-coder-token/priority over x-api-key",
-			headers: map[string]string{
-				agplaibridge.HeaderCoderAuth: "coder-token",
-				"X-Api-Key":                  "api-key",
-			},
-			expectedKey: "coder-token",
-		},
-		{
 			name:    "authorization/invalid",
 			headers: map[string]string{"authorization": "invalid"},
 		},
@@ -392,7 +363,6 @@ func TestExtractAuthToken(t *testing.T) {
 			name: "byok/priority over all",
 			headers: map[string]string{
 				agplaibridge.HeaderCoderBYOKToken: "coder-token",
-				agplaibridge.HeaderCoderAuth:      "proxy-token",
 				"Authorization":                   "Bearer oauth-token",
 				"X-Api-Key":                       "api-key",
 			},

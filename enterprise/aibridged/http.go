@@ -51,9 +51,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// aibridge library can treat the request as a normal LLM API call
 	// with no Coder-specific information.
 	//
-	// X-Coder-Token is always stripped (set by the AI proxy).
-	//
-	// In BYOK mode the token is in X-Coder-AI-Governance-BYOK-Token,
+	// In BYOK mode the token is in X-Coder-AI-Governance-BYOK-Token;
 	// Authorization and X-Api-Key carry the user's own LLM credentials
 	// and must be preserved.
 	//
@@ -61,7 +59,6 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// documented path) or X-Api-Key (legacy clients that set
 	// ANTHROPIC_API_KEY to their Coder session token). Both are
 	// stripped.
-	r.Header.Del(agplaibridge.HeaderCoderAuth)
 	if byok {
 		r.Header.Del(agplaibridge.HeaderCoderBYOKToken)
 	} else {
