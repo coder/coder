@@ -1,13 +1,13 @@
 import { chatCostSummary } from "api/queries/chats";
 import { useAuthContext } from "contexts/auth/AuthProvider";
-import dayjs from "dayjs";
+import dayjs, { type Dayjs } from "dayjs";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { AgentAnalyticsPageView } from "./AgentAnalyticsPageView";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 
-const createDateRange = () => {
-	const end = dayjs();
+const createDateRange = (now?: Dayjs) => {
+	const end = now ?? dayjs();
 	const start = end.subtract(30, "day");
 	return {
 		startDate: start.toISOString(),
@@ -16,9 +16,14 @@ const createDateRange = () => {
 	};
 };
 
-const AgentAnalyticsPage: FC = () => {
+interface AgentAnalyticsPageProps {
+	/** Override the current time for deterministic storybook snapshots. */
+	now?: Dayjs;
+}
+
+const AgentAnalyticsPage: FC<AgentAnalyticsPageProps> = ({ now }) => {
 	const { user } = useAuthContext();
-	const dateRange = createDateRange();
+	const dateRange = createDateRange(now);
 
 	const summaryQuery = useQuery({
 		...chatCostSummary(user?.id ?? "me", {

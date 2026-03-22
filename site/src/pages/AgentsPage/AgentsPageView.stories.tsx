@@ -10,6 +10,7 @@ import type * as TypesGen from "api/typesGenerated";
 import type { Chat } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import dayjs from "dayjs";
 import { useState } from "react";
 import {
 	expect,
@@ -126,13 +127,17 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...overrides,
 });
 
+// Use local noon so the rendered range label stays stable
+// across timezones.
+const fixedNow = dayjs("2026-03-12T12:00:00");
+
 const agentsRouting = {
 	path: "/agents",
 	useStoryElement: true,
 	children: [
 		{ path: "settings", element: <AgentSettingsPage /> },
 		{ path: "settings/:section", element: <AgentSettingsPage /> },
-		{ path: "analytics", element: <AgentAnalyticsPage /> },
+		{ path: "analytics", element: <AgentAnalyticsPage now={fixedNow} /> },
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
 	],
