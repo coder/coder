@@ -487,7 +487,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 const textareaClassName =
 	"max-h-[240px] w-full resize-none overflow-y-auto rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin]";
 
-interface SettingsPageContentProps {
+interface AgentSettingsPageViewProps {
 	activeSection: string;
 	canManageChatModelConfigs: boolean;
 	canSetSystemPrompt: boolean;
@@ -496,7 +496,7 @@ interface SettingsPageContentProps {
 	now?: dayjs.Dayjs;
 }
 
-export const SettingsPageContent: FC<SettingsPageContentProps> = ({
+export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	activeSection,
 	canManageChatModelConfigs,
 	canSetSystemPrompt,

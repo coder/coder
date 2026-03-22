@@ -1,7 +1,8 @@
 import { useAuthenticated } from "hooks";
 import type { FC } from "react";
 import { useParams } from "react-router";
-import { SettingsPageContent } from "./SettingsPageContent";
+import { AgentPageHeader } from "./AgentPageHeader";
+import { AgentSettingsPageView } from "./AgentSettingsPageView";
 
 const AgentSettingsPage: FC = () => {
 	const { section } = useParams();
@@ -10,11 +11,14 @@ const AgentSettingsPage: FC = () => {
 		permissions.editDeploymentConfig ||
 		user.roles.some((role) => role.name === "owner" || role.name === "admin");
 	return (
-		<SettingsPageContent
-			activeSection={section ?? "behavior"}
-			canManageChatModelConfigs={isAgentsAdmin}
-			canSetSystemPrompt={isAgentsAdmin}
-		/>
+		<>
+			<AgentPageHeader />
+			<AgentSettingsPageView
+				activeSection={section ?? "behavior"}
+				canManageChatModelConfigs={isAgentsAdmin}
+				canSetSystemPrompt={isAgentsAdmin}
+			/>
+		</>
 	);
 };
 

@@ -6,7 +6,7 @@ import { userByNameKey } from "api/queries/users";
 import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
-import { SettingsPageContent } from "./SettingsPageContent";
+import { AgentSettingsPageView } from "./AgentSettingsPageView";
 
 // ── Usage mock helpers ─────────────────────────────────────────
 
@@ -128,8 +128,8 @@ const fixedNow = dayjs("2026-03-12T00:00:00Z");
 // ── Meta ───────────────────────────────────────────────────────
 
 const meta = {
-	title: "pages/AgentsPage/SettingsPageContent",
-	component: SettingsPageContent,
+	title: "pages/AgentsPage/AgentSettingsPageView",
+	component: AgentSettingsPageView,
 	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
 		activeSection: "behavior",
@@ -161,10 +161,10 @@ const meta = {
 		});
 		spyOn(API, "updateChatWorkspaceTTL").mockResolvedValue();
 	},
-} satisfies Meta<typeof SettingsPageContent>;
+} satisfies Meta<typeof AgentSettingsPageView>;
 
 export default meta;
-type Story = StoryObj<typeof SettingsPageContent>;
+type Story = StoryObj<typeof AgentSettingsPageView>;
 
 // ── Behavior tab stories ───────────────────────────────────────
 
