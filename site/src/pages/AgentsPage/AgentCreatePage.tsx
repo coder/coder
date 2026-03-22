@@ -5,10 +5,12 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { AgentCreateForm, type CreateChatOptions } from "./AgentCreateForm";
 import { AgentPageHeader } from "./AgentPageHeader";
+import { ChimeButton } from "./ChimeButton";
 import {
 	getModelOptionsFromCatalog,
 	getNormalizedModelRef,
 } from "./modelOptions";
+import { WebPushButton } from "./WebPushButton";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 const nilUUID = "00000000-0000-0000-0000-000000000000";
@@ -73,7 +75,10 @@ const AgentCreatePage: FC = () => {
 
 	return (
 		<>
-			<AgentPageHeader />
+			<AgentPageHeader>
+				<ChimeButton />
+				<WebPushButton />
+			</AgentPageHeader>
 			<AgentCreateForm
 				onCreateChat={handleCreateChat}
 				isCreating={createMutation.isPending}

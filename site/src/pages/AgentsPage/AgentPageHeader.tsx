@@ -3,13 +3,15 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { PanelLeftIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 import { NavLink, useOutletContext } from "react-router";
 import type { AgentsOutletContext } from "./AgentsPageView";
-import { ChimeButton } from "./ChimeButton";
-import { WebPushButton } from "./WebPushButton";
 
-export const AgentPageHeader: FC = () => {
+interface AgentPageHeaderProps {
+	children?: ReactNode;
+}
+
+export const AgentPageHeader: FC<AgentPageHeaderProps> = ({ children }) => {
 	const { isSidebarCollapsed, onExpandSidebar } =
 		useOutletContext<AgentsOutletContext>();
 	const { appearance } = useDashboard();
@@ -36,10 +38,7 @@ export const AgentPageHeader: FC = () => {
 				</Button>
 			)}
 			<div className="flex min-w-0 flex-1 items-center" />
-			<div className="flex items-center gap-2">
-				<ChimeButton />
-				<WebPushButton />
-			</div>
+			{children && <div className="flex items-center gap-2">{children}</div>}
 		</div>
 	);
 };
