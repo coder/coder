@@ -11,7 +11,6 @@ import type { ReactNode } from "react";
 import { type FC, useEffect, useId, useRef, useState } from "react";
 import { cn } from "utils/cn";
 import { DesktopPanel } from "./DesktopPanel";
-import type { UseDesktopConnectionResult } from "./useDesktopConnection";
 
 /** A single tab definition for the sidebar panel. */
 export interface SidebarTab {
@@ -43,8 +42,6 @@ interface SidebarTabViewProps {
 	onClose?: () => void;
 	/** Desktop chat ID. Omitted if desktop is not available. */
 	desktopChatId?: string;
-	/** Optional override for the desktop connection. Used in stories. */
-	desktopConnectionOverride?: UseDesktopConnectionResult;
 }
 
 /** How far (px) each chevron click scrolls the tab strip. */
@@ -110,7 +107,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	chatTitle,
 	onClose,
 	desktopChatId,
-	desktopConnectionOverride,
 }) => {
 	const tabIdPrefix = useId();
 	const [activeTabId, setActiveTabId] = useState<string | null>(
@@ -324,11 +320,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 				className="min-h-0 flex-1"
 			>
 				{effectiveTabId === "desktop" && desktopChatId ? (
-					<DesktopPanel
-						chatId={desktopChatId}
-						isExpanded={isExpanded}
-						connectionOverride={desktopConnectionOverride}
-					/>
+					<DesktopPanel chatId={desktopChatId} />
 				) : (
 					activeTab?.content
 				)}
