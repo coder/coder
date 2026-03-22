@@ -1659,9 +1659,9 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 			ClientSessionID: sql.NullString{String: "member-session", Valid: true},
 		}, &endedAt)
 
-		// Member can see their own session.
-		res, err = memberClient.AIBridgeGetSessionThreads(ctx, "member-session", uuid.Nil, uuid.Nil, 0)
-		require.NoError(t, err)
-		require.Equal(t, "member-session", res.ID)
+		// Member cannot see their own session either (no read permission).
+		_, err = memberClient.AIBridgeGetSessionThreads(ctx, "member-session", uuid.Nil, uuid.Nil, 0)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 }
