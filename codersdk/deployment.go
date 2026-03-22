@@ -158,7 +158,7 @@ func (a Addon) Humanize() string {
 	case AddonAIGovernance:
 		return "AI Governance"
 	default:
-		return strings.Title(strings.ReplaceAll(string(a), "_", " "))
+		return cases.Title(language.English).String(strings.ReplaceAll(string(a), "_", " "))
 	}
 }
 
@@ -252,7 +252,7 @@ func (n FeatureName) Humanize() string {
 	case FeatureAIGovernanceUserLimit:
 		return "AI Governance User Limit"
 	default:
-		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
+		return cases.Title(language.English).String(strings.ReplaceAll(string(n), "_", " "))
 	}
 }
 
