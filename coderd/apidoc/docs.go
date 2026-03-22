@@ -4083,6 +4083,19 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "type": "string",
+                        "description": "Member search query",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "After ID",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "Page limit, if 0 returns all members",
                         "name": "limit",
@@ -17313,6 +17326,13 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
+                "last_seen_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "login_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -17326,13 +17346,32 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
+                "status": {
+                    "enum": [
+                        "active",
+                        "suspended"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.UserStatus"
+                        }
+                    ]
+                },
                 "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "user_created_at": {
                     "type": "string",
                     "format": "date-time"
                 },
                 "user_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "user_updated_at": {
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "username": {
                     "type": "string"
