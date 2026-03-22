@@ -7,8 +7,8 @@ import { AgentCreateForm, type CreateChatOptions } from "./AgentCreateForm";
 import { AgentPageHeader } from "./AgentPageHeader";
 import { ChimeButton } from "./ChimeButton";
 import {
+	buildModelConfigIDByModelID,
 	getModelOptionsFromCatalog,
-	getNormalizedModelRef,
 } from "./modelOptions";
 import { WebPushButton } from "./WebPushButton";
 
@@ -28,18 +28,9 @@ const AgentCreatePage: FC = () => {
 		chatModelsQuery.data,
 		chatModelConfigsQuery.data,
 	);
-	const modelConfigIDByModelID = (() => {
-		const byModelID = new Map<string, string>();
-		for (const config of chatModelConfigsQuery.data ?? []) {
-			const { provider, model } = getNormalizedModelRef(config);
-			if (!provider || !model) continue;
-			const colonRef = `${provider}:${model}`;
-			if (!byModelID.has(colonRef)) byModelID.set(colonRef, config.id);
-			const slashRef = `${provider}/${model}`;
-			if (!byModelID.has(slashRef)) byModelID.set(slashRef, config.id);
-		}
-		return byModelID;
-	})();
+	const modelConfigIDByModelID = buildModelConfigIDByModelID(
+		chatModelConfigsQuery.data,
+	);
 
 	const handleCreateChat = async (options: CreateChatOptions) => {
 		const { message, fileIDs, workspaceId, model } = options;

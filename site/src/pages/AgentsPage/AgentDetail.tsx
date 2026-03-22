@@ -47,10 +47,11 @@ import {
 } from "./AgentDetailView";
 import type { AgentsOutletContext } from "./AgentsPage";
 import {
+	buildModelConfigIDByModelID,
+	buildModelIDByConfigID,
 	getModelCatalogStatusMessage,
 	getModelOptionsFromCatalog,
 	getModelSelectorPlaceholder,
-	getNormalizedModelRef,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
 import { parsePullRequestUrl } from "./pullRequest";
@@ -297,25 +298,10 @@ const AgentDetail: FC = () => {
 		chatModelsQuery.data,
 		chatModelConfigsQuery.data,
 	);
-	const modelConfigIDByModelID = (() => {
-		const byModelID = new Map<string, string>();
-		for (const config of chatModelConfigsQuery.data ?? []) {
-			const { provider, model } = getNormalizedModelRef(config);
-			if (!provider || !model) continue;
-			const colonRef = `${provider}:${model}`;
-			if (!byModelID.has(colonRef)) byModelID.set(colonRef, config.id);
-			const slashRef = `${provider}/${model}`;
-			if (!byModelID.has(slashRef)) byModelID.set(slashRef, config.id);
-		}
-		return byModelID;
-	})();
-	const modelIDByConfigID = (() => {
-		const byConfigID = new Map<string, string>();
-		for (const [modelID, configID] of modelConfigIDByModelID.entries()) {
-			if (!byConfigID.has(configID)) byConfigID.set(configID, modelID);
-		}
-		return byConfigID;
-	})();
+	const modelConfigIDByModelID = buildModelConfigIDByModelID(
+		chatModelConfigsQuery.data,
+	);
+	const modelIDByConfigID = buildModelIDByConfigID(modelConfigIDByModelID);
 	const modelOptions = catalogModelOptions;
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
 	const modelCatalog = chatModelsQuery.data;

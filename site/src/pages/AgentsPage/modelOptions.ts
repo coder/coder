@@ -41,6 +41,41 @@ export const getNormalizedModelRef = (
 	};
 };
 
+/**
+ * Build a lookup from model reference strings (both "provider:model" and
+ * "provider/model" forms) to model config IDs.
+ */
+export const buildModelConfigIDByModelID = (
+	configs:
+		| readonly Pick<TypesGen.ChatModelConfig, "id" | "provider" | "model">[]
+		| undefined,
+): ReadonlyMap<string, string> => {
+	const byModelID = new Map<string, string>();
+	for (const config of configs ?? []) {
+		const { provider, model } = getNormalizedModelRef(config);
+		if (!provider || !model) continue;
+		const colonRef = `${provider}:${model}`;
+		if (!byModelID.has(colonRef)) byModelID.set(colonRef, config.id);
+		const slashRef = `${provider}/${model}`;
+		if (!byModelID.has(slashRef)) byModelID.set(slashRef, config.id);
+	}
+	return byModelID;
+};
+
+/**
+ * Build a reverse lookup from model config IDs back to model reference
+ * strings. Uses the first matching reference for each config ID.
+ */
+export const buildModelIDByConfigID = (
+	modelConfigIDByModelID: ReadonlyMap<string, string>,
+): ReadonlyMap<string, string> => {
+	const byConfigID = new Map<string, string>();
+	for (const [modelID, configID] of modelConfigIDByModelID.entries()) {
+		if (!byConfigID.has(configID)) byConfigID.set(configID, modelID);
+	}
+	return byConfigID;
+};
+
 const getCatalogProviders = (
 	catalog: ModelCatalogLike | null | undefined,
 ): readonly CatalogProviderLike[] => {
