@@ -11,6 +11,7 @@
 		"jest_workaround",
 		"ts-proto"
 	],
+	"tags": ["-lintignore"],
 	"jest": {
 		"entry": "./src/**/*.jest.{ts,tsx}"
 	}
