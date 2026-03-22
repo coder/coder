@@ -20,6 +20,7 @@ import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { useAuthenticated } from "hooks";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
@@ -40,13 +41,8 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 	const navigate = useNavigate();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { entitlements } = useDashboard();
-	const aiGovernanceUserFeature =
-		entitlements.features.ai_governance_user_limit;
-	const showAISeatColumn =
-		entitlements.has_license &&
-		aiGovernanceUserFeature.enabled &&
-		(aiGovernanceUserFeature.entitlement === "entitled" ||
-			aiGovernanceUserFeature.entitlement === "grace_period");
+	const featureVisibility = useFeatureVisibility();
+	const showAISeatColumn = featureVisibility.ai_governance_user_limit ?? false;
 
 	const groupsByUserIdQuery = useQuery(groupsByUserId());
 	const authMethodsQuery = useQuery(authMethods());

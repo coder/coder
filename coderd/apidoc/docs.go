@@ -15812,7 +15812,7 @@ const docTemplate = `{
                 "users": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.User"
+                        "$ref": "#/definitions/codersdk.UserWithAISeat"
                     }
                 }
             }
@@ -17325,6 +17325,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.SlimRole"
                     }
+                },
+                "has_ai_seat": {
+                    "type": "boolean"
                 },
                 "last_seen_at": {
                     "type": "string",
@@ -21244,6 +21247,84 @@ const docTemplate = `{
                 "date": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.UserWithAISeat": {
+            "type": "object",
+            "required": [
+                "created_at",
+                "email",
+                "id",
+                "username"
+            ],
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "email": {
+                    "type": "string",
+                    "format": "email"
+                },
+                "has_ai_seat": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "is_service_account": {
+                    "type": "boolean"
+                },
+                "last_seen_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "login_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "roles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.SlimRole"
+                    }
+                },
+                "status": {
+                    "enum": [
+                        "active",
+                        "suspended"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.UserStatus"
+                        }
+                    ]
+                },
+                "theme_preference": {
+                    "description": "Deprecated: this value should be retrieved from\n` + "`" + `codersdk.UserPreferenceSettings` + "`" + ` instead.",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },

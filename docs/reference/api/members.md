@@ -36,6 +36,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
         "organization_id": "string"
       }
     ],
+    "has_ai_seat": true,
     "last_seen_at": "2019-08-24T14:15:22Z",
     "login_type": "",
     "name": "string",
@@ -77,6 +78,7 @@ Status Code **200**
 | `»» display_name`    | string                                               | false    |              |             |
 | `»» name`            | string                                               | false    |              |             |
 | `»» organization_id` | string                                               | false    |              |             |
+| `» has_ai_seat`      | boolean                                              | false    |              |             |
 | `» last_seen_at`     | string(date-time)                                    | false    |              |             |
 | `» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)   | false    |              |             |
 | `» name`             | string                                               | false    |              |             |
@@ -593,6 +595,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
       "organization_id": "string"
     }
   ],
+  "has_ai_seat": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
   "name": "string",
@@ -799,6 +802,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/paginat
             "organization_id": "string"
           }
         ],
+        "has_ai_seat": true,
         "last_seen_at": "2019-08-24T14:15:22Z",
         "login_type": "",
         "name": "string",
@@ -844,6 +848,7 @@ Status Code **200**
 | `»»» display_name`    | string                                               | false    |              |             |
 | `»»» name`            | string                                               | false    |              |             |
 | `»»» organization_id` | string                                               | false    |              |             |
+| `»» has_ai_seat`      | boolean                                              | false    |              |             |
 | `»» last_seen_at`     | string(date-time)                                    | false    |              |             |
 | `»» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)   | false    |              |             |
 | `»» name`             | string                                               | false    |              |             |
