@@ -37,8 +37,6 @@ import type { ChatDetailError } from "./usageLimitMessage";
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
 import { useAgentsPWA } from "./useAgentsPWA";
 
-const EMPTY_MODEL_CONFIGS: TypesGen.ChatModelConfig[] = [];
-
 // Type guard for SSE events from the chat list watch endpoint.
 // Shallow-compare two ChatDiffStatus objects by their meaningful
 // fields, ignoring refreshed_at/stale_at which change on every poll.
@@ -502,7 +500,7 @@ const AgentsPage: FC = () => {
 				agentId={agentId}
 				chatList={chatList}
 				catalogModelOptions={catalogModelOptions}
-				modelConfigs={chatModelConfigsQuery.data ?? EMPTY_MODEL_CONFIGS}
+				modelConfigs={chatModelConfigsQuery.data ?? []}
 				logoUrl={appearance.logo_url}
 				handleNewAgent={handleNewAgent}
 				isCreating={false}

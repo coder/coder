@@ -14,7 +14,6 @@ import { WebPushButton } from "./WebPushButton";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 const nilUUID = "00000000-0000-0000-0000-000000000000";
-const EMPTY_MODEL_CONFIGS: TypesGen.ChatModelConfig[] = [];
 
 const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
@@ -80,7 +79,7 @@ const AgentCreatePage: FC = () => {
 				createError={createMutation.error}
 				modelCatalog={chatModelsQuery.data}
 				modelOptions={catalogModelOptions}
-				modelConfigs={chatModelConfigsQuery.data ?? EMPTY_MODEL_CONFIGS}
+				modelConfigs={chatModelConfigsQuery.data ?? []}
 				isModelCatalogLoading={chatModelsQuery.isLoading}
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
 				modelCatalogError={chatModelsQuery.error}
