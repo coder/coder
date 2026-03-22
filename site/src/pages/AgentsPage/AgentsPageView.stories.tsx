@@ -1,4 +1,8 @@
-import { MockUserOwner } from "testHelpers/entities";
+import {
+	MockNoPermissions,
+	MockPermissions,
+	MockUserOwner,
+} from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
@@ -141,6 +145,7 @@ const meta: Meta<typeof AgentsPageView> = {
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
+		permissions: MockPermissions,
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents" },
 			routing: agentsRouting,
@@ -503,6 +508,9 @@ export const OpensAnalyticsForNonAdmins: Story = {
 	args: {
 		isAgentsAdmin: false,
 	},
+	parameters: {
+		permissions: MockNoPermissions,
+	},
 	play: async ({ canvasElement }) => {
 		await openAnalyticsView(canvasElement);
 
@@ -536,6 +544,9 @@ export const OpensSettingsForAdmins: Story = {
 export const OpensSettingsForNonAdmins: Story = {
 	args: {
 		isAgentsAdmin: false,
+	},
+	parameters: {
+		permissions: MockNoPermissions,
 	},
 	play: async ({ canvasElement }) => {
 		await openSettingsView(canvasElement);
