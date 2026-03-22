@@ -193,6 +193,44 @@ const meta: Meta<typeof AgentsPageView> = {
 		spyOn(API, "updateUserChatCustomPrompt").mockResolvedValue({
 			custom_prompt: "",
 		});
+		// Mocks for child route pages that fetch their own data.
+		spyOn(API, "getChatModels").mockResolvedValue({
+			providers: [
+				{
+					provider: "openai",
+					available: true,
+					models: [
+						{
+							id: "openai:gpt-4o",
+							provider: "openai",
+							model: "gpt-4o",
+							display_name: "GPT-4o",
+						},
+					],
+				},
+			],
+		});
+		spyOn(API, "getChatModelConfigs").mockResolvedValue([
+			{
+				id: "config-openai-gpt-4o",
+				provider: "openai",
+				model: "gpt-4o",
+				display_name: "GPT-4o",
+				enabled: true,
+				is_default: false,
+				context_limit: 200000,
+				compression_threshold: 70,
+				created_at: "2026-02-18T00:00:00.000Z",
+				updated_at: "2026-02-18T00:00:00.000Z",
+			},
+		]);
+		spyOn(API, "getChatDesktopEnabled").mockResolvedValue({
+			enable_desktop: false,
+		});
+		spyOn(API, "getChatWorkspaceTTL").mockResolvedValue({
+			workspace_ttl_ms: 0,
+		});
+		spyOn(API, "updateChatWorkspaceTTL").mockResolvedValue();
 	},
 };
 
