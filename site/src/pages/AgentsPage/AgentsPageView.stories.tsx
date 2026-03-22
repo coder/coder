@@ -1,4 +1,8 @@
-import { MockUserOwner } from "testHelpers/entities";
+import {
+	MockNoPermissions,
+	MockPermissions,
+	MockUserOwner,
+} from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
@@ -18,6 +22,9 @@ import {
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import AgentAnalyticsPage from "./AgentAnalyticsPage";
+import AgentCreatePage from "./AgentCreatePage";
+import AgentSettingsPage from "./AgentSettingsPage";
 import { AgentsPageView } from "./AgentsPageView";
 
 const defaultModelOptions: ModelSelectorOption[] = [
@@ -103,9 +110,6 @@ const mockUsageUsers: TypesGen.ChatCostUsersResponse = {
 	],
 };
 
-// Use local noon so the rendered range label stays stable across timezones.
-const fixedAnalyticsNow = dayjs("2026-03-12T12:00:00");
-
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const todayTimestamp = new Date().toISOString();
 
@@ -123,16 +127,21 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...overrides,
 });
 
-const agentsRouting = [
-	{ path: "/agents/settings/:section", useStoryElement: true },
-	{ path: "/agents/settings", useStoryElement: true },
-	{ path: "/agents/analytics", useStoryElement: true },
-	{ path: "/agents/:agentId", useStoryElement: true },
-	{ path: "/agents", useStoryElement: true },
-] satisfies [
-	{ path: string; useStoryElement: boolean },
-	...{ path: string; useStoryElement: boolean }[],
-];
+// Use local noon so the rendered range label stays stable
+// across timezones.
+const fixedNow = dayjs("2026-03-12T12:00:00");
+
+const agentsRouting = {
+	path: "/agents",
+	useStoryElement: true,
+	children: [
+		{ path: "settings", element: <AgentSettingsPage /> },
+		{ path: "settings/:section", element: <AgentSettingsPage /> },
+		{ path: "analytics", element: <AgentAnalyticsPage now={fixedNow} /> },
+		{ path: ":agentId", element: <div /> },
+		{ index: true, element: <AgentCreatePage /> },
+	],
+};
 
 const meta: Meta<typeof AgentsPageView> = {
 	title: "pages/AgentsPage/AgentsPageView",
@@ -141,6 +150,7 @@ const meta: Meta<typeof AgentsPageView> = {
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
+		permissions: MockPermissions,
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents" },
 			routing: agentsRouting,
@@ -170,35 +180,11 @@ const meta: Meta<typeof AgentsPageView> = {
 		requestArchiveAndDeleteWorkspace: fn(),
 		onToggleSidebarCollapsed: fn(),
 		isAgentsAdmin: false,
-		analyticsNow: fixedAnalyticsNow,
 		archivedFilter: "active" as const,
 		onArchivedFilterChange: fn(),
 		hasNextPage: false,
 		onLoadMore: fn(),
 		isFetchingNextPage: false,
-		onCreateChat: fn(),
-		createError: undefined,
-		modelCatalog: {
-			providers: [
-				{
-					provider: "openai",
-					available: true,
-					models: [
-						{
-							id: "openai:gpt-4o",
-							provider: "openai",
-							model: "gpt-4o",
-							display_name: "GPT-4o",
-						},
-					],
-				},
-			],
-		},
-		isModelCatalogLoading: false,
-		isModelConfigsLoading: false,
-		modelCatalogError: undefined,
-		modelConfigIDByModelID: new Map(),
-		desktopEnabled: false,
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaces").mockResolvedValue({
@@ -217,6 +203,44 @@ const meta: Meta<typeof AgentsPageView> = {
 		spyOn(API, "updateUserChatCustomPrompt").mockResolvedValue({
 			custom_prompt: "",
 		});
+		// Mocks for child route pages that fetch their own data.
+		spyOn(API, "getChatModels").mockResolvedValue({
+			providers: [
+				{
+					provider: "openai",
+					available: true,
+					models: [
+						{
+							id: "openai:gpt-4o",
+							provider: "openai",
+							model: "gpt-4o",
+							display_name: "GPT-4o",
+						},
+					],
+				},
+			],
+		});
+		spyOn(API, "getChatModelConfigs").mockResolvedValue([
+			{
+				id: "config-openai-gpt-4o",
+				provider: "openai",
+				model: "gpt-4o",
+				display_name: "GPT-4o",
+				enabled: true,
+				is_default: false,
+				context_limit: 200000,
+				compression_threshold: 70,
+				created_at: "2026-02-18T00:00:00.000Z",
+				updated_at: "2026-02-18T00:00:00.000Z",
+			},
+		]);
+		spyOn(API, "getChatDesktopEnabled").mockResolvedValue({
+			enable_desktop: false,
+		});
+		spyOn(API, "getChatWorkspaceTTL").mockResolvedValue({
+			workspace_ttl_ms: 0,
+		});
+		spyOn(API, "updateChatWorkspaceTTL").mockResolvedValue();
 	},
 };
 
@@ -489,6 +513,9 @@ export const OpensAnalyticsForNonAdmins: Story = {
 	args: {
 		isAgentsAdmin: false,
 	},
+	parameters: {
+		permissions: MockNoPermissions,
+	},
 	play: async ({ canvasElement }) => {
 		await openAnalyticsView(canvasElement);
 
@@ -522,6 +549,9 @@ export const OpensSettingsForAdmins: Story = {
 export const OpensSettingsForNonAdmins: Story = {
 	args: {
 		isAgentsAdmin: false,
+	},
+	parameters: {
+		permissions: MockNoPermissions,
 	},
 	play: async ({ canvasElement }) => {
 		await openSettingsView(canvasElement);

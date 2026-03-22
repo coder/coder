@@ -2,12 +2,10 @@ import { API, watchChats } from "api/api";
 import { getErrorMessage } from "api/errors";
 import {
 	archiveChat,
-	chatDesktopEnabled,
 	chatDiffContentsKey,
 	chatKey,
 	chatModelConfigs,
 	chatModels,
-	createChat,
 	infiniteChats,
 	invalidateChatListQueries,
 	prependToInfiniteChatsCache,
@@ -30,24 +28,14 @@ import {
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
-import {
-	type CreateChatOptions,
-	emptyInputStorageKey,
-} from "./AgentCreateForm";
-import { maybePlayChime } from "./AgentDetail/useAgentChime";
 import { AgentsPageView } from "./AgentsPageView";
-import { resolveArchiveAndDeleteAction } from "./agentWorkspaceUtils";
-import {
-	getModelOptionsFromCatalog,
-	getNormalizedModelRef,
-} from "./modelOptions";
-import type { ChatDetailError } from "./usageLimitMessage";
-import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
-import { useAgentsPWA } from "./useAgentsPWA";
-
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-const nilUUID = "00000000-0000-0000-0000-000000000000";
-const EMPTY_MODEL_CONFIGS: TypesGen.ChatModelConfig[] = [];
+import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { maybePlayChime } from "./components/AgentDetail/useAgentChime";
+import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
+import { useAgentsPWA } from "./hooks/useAgentsPWA";
+import { resolveArchiveAndDeleteAction } from "./utils/agentWorkspaceUtils";
+import { getModelOptionsFromCatalog } from "./utils/modelOptions";
+import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 // Type guard for SSE events from the chat list watch endpoint.
 // Shallow-compare two ChatDiffStatus objects by their meaningful
@@ -93,11 +81,9 @@ const AgentsPage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { agentId } = useParams();
-	const { permissions, user } = useAuthenticated();
+	const { permissions } = useAuthenticated();
 	const { appearance } = useDashboard();
-	const isAgentsAdmin =
-		permissions.editDeploymentConfig ||
-		user.roles.some((role) => role.name === "owner" || role.name === "admin");
+	const isAgentsAdmin = permissions.editDeploymentConfig;
 
 	const [archivedFilter, setArchivedFilter] = useState<"active" | "archived">(
 		"active",
@@ -149,10 +135,12 @@ const AgentsPage: FC = () => {
 	const chatsQuery = useInfiniteQuery(
 		infiniteChats({ archived: archivedFilter === "archived" }),
 	);
+	// Model queries are kept here for the sidebar, which displays
+	// model info alongside each chat. Child routes that need models
+	// subscribe to the same queries independently — react-query
+	// deduplicates the requests.
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
-	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
-	const createMutation = useMutation(createChat(queryClient));
 	const archiveChatBase = archiveChat(queryClient);
 	const archiveAgentMutation = useMutation({
 		...archiveChatBase,
@@ -208,24 +196,6 @@ const AgentsPage: FC = () => {
 		chatModelsQuery.data,
 		chatModelConfigsQuery.data,
 	);
-	const modelConfigIDByModelID = (() => {
-		const byModelID = new Map<string, string>();
-		for (const config of chatModelConfigsQuery.data ?? []) {
-			const { provider, model } = getNormalizedModelRef(config);
-			if (!provider || !model) {
-				continue;
-			}
-			const colonRef = `${provider}:${model}`;
-			if (!byModelID.has(colonRef)) {
-				byModelID.set(colonRef, config.id);
-			}
-			const slashRef = `${provider}/${model}`;
-			if (!byModelID.has(slashRef)) {
-				byModelID.set(slashRef, config.id);
-			}
-		}
-		return byModelID;
-	})();
 	const setChatErrorReason = (chatId: string, reason: ChatDetailError) => {
 		const trimmedMessage = reason.message.trim();
 		if (!chatId || !trimmedMessage) {
@@ -317,35 +287,6 @@ const AgentsPage: FC = () => {
 	};
 	const handleToggleSidebarCollapsed = () =>
 		setIsSidebarCollapsed((prev) => !prev);
-	const handleCreateChat = async (options: CreateChatOptions) => {
-		const { message, fileIDs, workspaceId, model } = options;
-		const modelConfigID =
-			(model && modelConfigIDByModelID.get(model)) || nilUUID;
-		const content: TypesGen.ChatInputPart[] = [];
-		if (message.trim()) {
-			content.push({ type: "text", text: message });
-		}
-		if (fileIDs) {
-			for (const fileID of fileIDs) {
-				content.push({ type: "file", file_id: fileID });
-			}
-		}
-		const createdChat = await createMutation.mutateAsync({
-			content,
-			workspace_id: workspaceId,
-			model_config_id: modelConfigID,
-		});
-
-		if (typeof window !== "undefined") {
-			if (modelConfigID !== nilUUID) {
-				localStorage.setItem(lastModelConfigIDStorageKey, modelConfigID);
-			} else {
-				localStorage.removeItem(lastModelConfigIDStorageKey);
-			}
-		}
-
-		navigate(`/agents/${createdChat.id}`);
-	};
 
 	const handleNewAgent = () => {
 		// Only clear the draft when the user is already on the empty
@@ -559,10 +500,10 @@ const AgentsPage: FC = () => {
 				agentId={agentId}
 				chatList={chatList}
 				catalogModelOptions={catalogModelOptions}
-				modelConfigs={chatModelConfigsQuery.data ?? EMPTY_MODEL_CONFIGS}
+				modelConfigs={chatModelConfigsQuery.data ?? []}
 				logoUrl={appearance.logo_url}
 				handleNewAgent={handleNewAgent}
-				isCreating={createMutation.isPending}
+				isCreating={false}
 				isArchiving={isArchiving}
 				archivingChatId={archivingChatId}
 				isChatsLoading={chatsQuery.isLoading}
@@ -578,14 +519,6 @@ const AgentsPage: FC = () => {
 				requestUnarchiveAgent={requestUnarchiveAgent}
 				requestArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
-				onCreateChat={handleCreateChat}
-				createError={createMutation.error}
-				modelCatalog={chatModelsQuery.data}
-				isModelCatalogLoading={chatModelsQuery.isLoading}
-				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
-				modelCatalogError={chatModelsQuery.error}
-				modelConfigIDByModelID={modelConfigIDByModelID}
-				desktopEnabled={desktopEnabledQuery.data?.enable_desktop ?? false}
 				isAgentsAdmin={isAgentsAdmin}
 				hasNextPage={chatsQuery.hasNextPage}
 				onLoadMore={() => void chatsQuery.fetchNextPage()}

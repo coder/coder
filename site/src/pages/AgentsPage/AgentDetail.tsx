@@ -3,7 +3,10 @@ import { API, watchWorkspace } from "api/api";
 import { isApiError } from "api/errors";
 import {
 	chat,
+	chatDesktopEnabled,
 	chatMessagesForInfiniteScroll,
+	chatModelConfigs,
+	chatModels,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
@@ -33,24 +36,33 @@ import type { UrlTransform } from "streamdown";
 import { isMobileViewport } from "utils/mobile";
 import { pageTitle } from "utils/page";
 import { portForwardURL } from "utils/portForward";
-import type { ChatMessageInputRef } from "./AgentChatInput";
-import { useChatStore } from "./AgentDetail/ChatContext";
-import { getParentChatID, getWorkspaceAgent } from "./AgentDetail/chatHelpers";
-import { useWorkspaceCreationWatcher } from "./AgentDetail/useWorkspaceCreationWatcher";
+import type { AgentsOutletContext } from "./AgentsPage";
+import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import { useChatStore } from "./components/AgentDetail/ChatContext";
+import {
+	getParentChatID,
+	getWorkspaceAgent,
+} from "./components/AgentDetail/chatHelpers";
+import { useWorkspaceCreationWatcher } from "./components/AgentDetail/useWorkspaceCreationWatcher";
 import {
 	AgentDetailLoadingView,
 	AgentDetailNotFoundView,
 	AgentDetailView,
-} from "./AgentDetailView";
-import type { AgentsOutletContext } from "./AgentsPage";
+} from "./components/AgentDetailView";
+import { useGitWatcher } from "./hooks/useGitWatcher";
 import {
+	buildModelConfigIDByModelID,
+	buildModelIDByConfigID,
 	getModelCatalogStatusMessage,
+	getModelOptionsFromCatalog,
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
-} from "./modelOptions";
-import { parsePullRequestUrl } from "./pullRequest";
-import { formatUsageLimitMessage, isUsageLimitData } from "./usageLimitMessage";
-import { useGitWatcher } from "./useGitWatcher";
+} from "./utils/modelOptions";
+import { parsePullRequestUrl } from "./utils/pullRequest";
+import {
+	formatUsageLimitMessage,
+	isUsageLimitData,
+} from "./utils/usageLimitMessage";
 
 /** localStorage key controlling whether the right panel is visible. */
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
@@ -222,12 +234,6 @@ export function useConversationEditingState(deps: {
 const AgentDetail: FC = () => {
 	const navigate = useNavigate();
 	const { agentId } = useParams<{ agentId: string }>();
-	const outletContext = useOutletContext<AgentsOutletContext>();
-	const queryClient = useQueryClient();
-	const [selectedModel, setSelectedModel] = useState("");
-	const [pendingEditMessageId, setPendingEditMessageId] = useState<
-		number | null
-	>(null);
 	const {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -235,18 +241,14 @@ const AgentDetail: FC = () => {
 		requestArchiveAgent,
 		requestArchiveAndDeleteWorkspace,
 		requestUnarchiveAgent,
-		onOpenAnalytics,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
-		modelOptions,
-		modelConfigIDByModelID,
-		modelIDByConfigID,
-		modelConfigs,
-		modelCatalog,
-		isModelCatalogLoading,
-		modelCatalogError,
-		desktopEnabled,
-	} = outletContext;
+	} = useOutletContext<AgentsOutletContext>();
+	const queryClient = useQueryClient();
+	const [selectedModel, setSelectedModel] = useState("");
+	const [pendingEditMessageId, setPendingEditMessageId] = useState<
+		number | null
+	>(null);
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
@@ -292,6 +294,26 @@ const AgentDetail: FC = () => {
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
 	});
+
+	const chatModelsQuery = useQuery(chatModels());
+	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
+	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
+
+	const modelOptions = getModelOptionsFromCatalog(
+		chatModelsQuery.data,
+		chatModelConfigsQuery.data,
+	);
+	const modelConfigIDByModelID = buildModelConfigIDByModelID(
+		chatModelConfigsQuery.data,
+	);
+	const modelIDByConfigID = buildModelIDByConfigID(modelConfigIDByModelID);
+	const modelConfigs = chatModelConfigsQuery.data ?? [];
+	const modelCatalog = chatModelsQuery.data;
+	const isModelCatalogLoading = chatModelsQuery.isLoading;
+	const modelCatalogError = chatModelsQuery.error;
+
+	const handleOpenAnalytics = () => navigate("/agents/analytics");
 
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
@@ -839,7 +861,7 @@ const AgentDetail: FC = () => {
 			isInterruptPending={interruptMutation.isPending}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-			onOpenAnalytics={onOpenAnalytics}
+			onOpenAnalytics={handleOpenAnalytics}
 			showSidebarPanel={showSidebarPanel}
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}
