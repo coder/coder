@@ -83,11 +83,9 @@ const AgentsPage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { agentId } = useParams();
-	const { permissions, user } = useAuthenticated();
+	const { permissions } = useAuthenticated();
 	const { appearance } = useDashboard();
-	const isAgentsAdmin =
-		permissions.editDeploymentConfig ||
-		user.roles.some((role) => role.name === "owner" || role.name === "admin");
+	const isAgentsAdmin = permissions.editDeploymentConfig;
 
 	const [archivedFilter, setArchivedFilter] = useState<"active" | "archived">(
 		"active",

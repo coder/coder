@@ -6,10 +6,8 @@ import { AgentSettingsPageView } from "./AgentSettingsPageView";
 
 const AgentSettingsPage: FC = () => {
 	const { section } = useParams();
-	const { permissions, user } = useAuthenticated();
-	const isAgentsAdmin =
-		permissions.editDeploymentConfig ||
-		user.roles.some((role) => role.name === "owner" || role.name === "admin");
+	const { permissions } = useAuthenticated();
+	const isAgentsAdmin = permissions.editDeploymentConfig;
 	return (
 		<>
 			<AgentPageHeader />

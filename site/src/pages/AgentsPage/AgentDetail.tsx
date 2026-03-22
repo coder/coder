@@ -294,7 +294,7 @@ const AgentDetail: FC = () => {
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 
-	const catalogModelOptions = getModelOptionsFromCatalog(
+	const modelOptions = getModelOptionsFromCatalog(
 		chatModelsQuery.data,
 		chatModelConfigsQuery.data,
 	);
@@ -302,7 +302,6 @@ const AgentDetail: FC = () => {
 		chatModelConfigsQuery.data,
 	);
 	const modelIDByConfigID = buildModelIDByConfigID(modelConfigIDByModelID);
-	const modelOptions = catalogModelOptions;
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
 	const modelCatalog = chatModelsQuery.data;
 	const isModelCatalogLoading = chatModelsQuery.isLoading;
