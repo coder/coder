@@ -5560,6 +5560,25 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(ids).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead).Returns([]database.AIBridgeToolUsage{})
 	}))
 
+	s.Run("ListAIBridgeModelThoughtsByInterceptionIDs", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ids := []uuid.UUID{{1}}
+		db.EXPECT().ListAIBridgeModelThoughtsByInterceptionIDs(gomock.Any(), ids).Return([]database.AIBridgeModelThought{}, nil).AnyTimes()
+		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.AIBridgeModelThought{})
+	}))
+
+	s.Run("ListAIBridgeSessionThreads", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.ListAIBridgeSessionThreadsParams{}
+		db.EXPECT().ListAuthorizedAIBridgeSessionThreads(gomock.Any(), params, gomock.Any()).Return([]database.ListAIBridgeSessionThreadsRow{}, nil).AnyTimes()
+		check.Args(params).Asserts()
+	}))
+
+	s.Run("ListAuthorizedAIBridgeSessionThreads", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.ListAIBridgeSessionThreadsParams{}
+		db.EXPECT().ListAuthorizedAIBridgeSessionThreads(gomock.Any(), params, gomock.Any()).Return([]database.ListAIBridgeSessionThreadsRow{}, nil).AnyTimes()
+		// No asserts here because SQLFilter.
+		check.Args(params, emptyPreparedAuthorized{}).Asserts()
+	}))
+
 	s.Run("UpdateAIBridgeInterceptionEnded", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		intcID := uuid.UUID{1}
 		params := database.UpdateAIBridgeInterceptionEndedParams{ID: intcID}

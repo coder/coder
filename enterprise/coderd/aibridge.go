@@ -416,12 +416,7 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 		ids[i] = row.AIBridgeInterception.ID
 	}
 
-	// Batch fetch sub-resources using system context since parent
-	// authorization has already been applied.
-	//nolint:gocritic // System function: sub-resources inherit authorization from parent interception query.
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
-
-	tokenUsages, err := api.Database.ListAIBridgeTokenUsagesByInterceptionIDs(sysCtx, ids)
+	tokenUsages, err := api.Database.ListAIBridgeTokenUsagesByInterceptionIDs(ctx, ids)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching token usages.",
@@ -430,7 +425,7 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	toolUsages, err := api.Database.ListAIBridgeToolUsagesByInterceptionIDs(sysCtx, ids)
+	toolUsages, err := api.Database.ListAIBridgeToolUsagesByInterceptionIDs(ctx, ids)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching tool usages.",
@@ -439,7 +434,7 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	userPrompts, err := api.Database.ListAIBridgeUserPromptsByInterceptionIDs(sysCtx, ids)
+	userPrompts, err := api.Database.ListAIBridgeUserPromptsByInterceptionIDs(ctx, ids)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user prompts.",
@@ -448,7 +443,7 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	modelThoughts, err := api.Database.ListAIBridgeModelThoughtsByInterceptionIDs(sysCtx, ids)
+	modelThoughts, err := api.Database.ListAIBridgeModelThoughtsByInterceptionIDs(ctx, ids)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching model thoughts.",
