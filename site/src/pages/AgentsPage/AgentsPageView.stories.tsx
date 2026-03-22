@@ -6,7 +6,6 @@ import type * as TypesGen from "api/typesGenerated";
 import type { Chat } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import dayjs from "dayjs";
 import { useState } from "react";
 import {
 	expect,
@@ -19,6 +18,11 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { AgentsPageView } from "./AgentsPageView";
+import {
+	AgentsAnalyticsRoute,
+	AgentsIndexRoute,
+	AgentsSettingsRoute,
+} from "./AgentsRouteElements";
 
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
@@ -103,9 +107,6 @@ const mockUsageUsers: TypesGen.ChatCostUsersResponse = {
 	],
 };
 
-// Use local noon so the rendered range label stays stable across timezones.
-const fixedAnalyticsNow = dayjs("2026-03-12T12:00:00");
-
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const todayTimestamp = new Date().toISOString();
 
@@ -123,16 +124,17 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...overrides,
 });
 
-const agentsRouting = [
-	{ path: "/agents/settings/:section", useStoryElement: true },
-	{ path: "/agents/settings", useStoryElement: true },
-	{ path: "/agents/analytics", useStoryElement: true },
-	{ path: "/agents/:agentId", useStoryElement: true },
-	{ path: "/agents", useStoryElement: true },
-] satisfies [
-	{ path: string; useStoryElement: boolean },
-	...{ path: string; useStoryElement: boolean }[],
-];
+const agentsRouting = {
+	path: "/agents",
+	useStoryElement: true,
+	children: [
+		{ path: "settings", element: <AgentsSettingsRoute /> },
+		{ path: "settings/:section", element: <AgentsSettingsRoute /> },
+		{ path: "analytics", element: <AgentsAnalyticsRoute /> },
+		{ path: ":agentId", element: <div /> },
+		{ index: true, element: <AgentsIndexRoute /> },
+	],
+};
 
 const meta: Meta<typeof AgentsPageView> = {
 	title: "pages/AgentsPage/AgentsPageView",
@@ -170,7 +172,6 @@ const meta: Meta<typeof AgentsPageView> = {
 		requestArchiveAndDeleteWorkspace: fn(),
 		onToggleSidebarCollapsed: fn(),
 		isAgentsAdmin: false,
-		analyticsNow: fixedAnalyticsNow,
 		archivedFilter: "active" as const,
 		onArchivedFilterChange: fn(),
 		hasNextPage: false,

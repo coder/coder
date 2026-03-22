@@ -94,6 +94,13 @@ const AgentDetailLayout: FC = () => {
 							isModelCatalogLoading: false,
 							modelCatalogError: null,
 							desktopEnabled: false,
+							onCreateChat: () => Promise.resolve(),
+							isCreating: false,
+							createError: undefined,
+							isModelConfigsLoading: false,
+							logoUrl: "",
+							onExpandSidebar: () => {},
+							isAgentsAdmin: false,
 						} satisfies AgentsOutletContext
 					}
 				/>

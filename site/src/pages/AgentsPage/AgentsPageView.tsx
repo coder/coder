@@ -1,21 +1,12 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { CoderIcon } from "components/Icons/CoderIcon";
-import type { Dayjs } from "dayjs";
-import { PanelLeftIcon } from "lucide-react";
 import type { FC } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import { Outlet, useLocation, useNavigate } from "react-router";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
-import { AgentCreateForm, type CreateChatOptions } from "./AgentCreateForm";
+import type { CreateChatOptions } from "./AgentCreateForm";
 import { AgentsSidebar, sidebarViewFromPath } from "./AgentsSidebar";
-import { AnalyticsPageContent } from "./AnalyticsPageContent";
-import { ChimeButton } from "./ChimeButton";
-import { SettingsPageContent } from "./SettingsPageContent";
 import type { ChatDetailError } from "./usageLimitMessage";
-import { WebPushButton } from "./WebPushButton";
 
 type ChatModelOption = ModelSelectorOption;
 
@@ -40,6 +31,15 @@ export interface AgentsOutletContext {
 	isModelCatalogLoading: boolean;
 	modelCatalogError: unknown;
 	desktopEnabled: boolean;
+	// Fields used by the index route (create form).
+	onCreateChat: (options: CreateChatOptions) => Promise<void>;
+	isCreating: boolean;
+	createError: unknown;
+	isModelConfigsLoading: boolean;
+	logoUrl: string;
+	onExpandSidebar: () => void;
+	// Fields used by the settings route.
+	isAgentsAdmin: boolean;
 }
 
 interface AgentsPageViewProps {
@@ -82,7 +82,6 @@ interface AgentsPageViewProps {
 	isFetchingNextPage: boolean;
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange: (filter: "active" | "archived") => void;
-	analyticsNow?: Dayjs;
 }
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
@@ -122,7 +121,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	isFetchingNextPage,
 	archivedFilter,
 	onArchivedFilterChange,
-	analyticsNow,
 }) => {
 	const location = useLocation();
 	const navigate = useNavigate();
@@ -169,6 +167,13 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		isModelCatalogLoading,
 		modelCatalogError,
 		desktopEnabled,
+		onCreateChat,
+		isCreating,
+		createError,
+		isModelConfigsLoading,
+		logoUrl,
+		onExpandSidebar,
+		isAgentsAdmin,
 	};
 
 	return (
@@ -217,60 +222,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 						"order-1 md:order-none flex-none md:flex-1",
 				)}
 			>
-				{sidebarView.panel === "settings" ? (
-					<SettingsPageContent
-						activeSection={sidebarView.section}
-						canManageChatModelConfigs={isAgentsAdmin}
-						canSetSystemPrompt={isAgentsAdmin}
-					/>
-				) : sidebarView.panel === "analytics" ? (
-					<AnalyticsPageContent now={analyticsNow} />
-				) : agentId ? (
-					<Outlet key={agentId} context={outletContextValue} />
-				) : (
-					<>
-						<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
-							<NavLink
-								to="/workspaces"
-								className="inline-flex shrink-0 md:hidden"
-							>
-								{logoUrl ? (
-									<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
-								) : (
-									<CoderIcon className="h-6 w-6 fill-content-primary" />
-								)}
-							</NavLink>
-							{isSidebarCollapsed && (
-								<Button
-									variant="subtle"
-									size="icon"
-									onClick={onExpandSidebar}
-									aria-label="Expand sidebar"
-									className="hidden h-7 w-7 min-w-0 shrink-0 md:inline-flex"
-								>
-									<PanelLeftIcon />
-								</Button>
-							)}
-							<div className="flex min-w-0 flex-1 items-center" />
-							<div className="flex items-center gap-2">
-								<ChimeButton />
-								<WebPushButton />
-							</div>
-						</div>
-						<AgentCreateForm
-							onCreateChat={onCreateChat}
-							isCreating={isCreating}
-							createError={createError}
-							modelCatalog={modelCatalog}
-							modelOptions={catalogModelOptions}
-							modelConfigs={modelConfigs}
-							isModelCatalogLoading={isModelCatalogLoading}
-							isModelConfigsLoading={isModelConfigsLoading}
-							modelCatalogError={modelCatalogError}
-							onOpenAnalytics={handleOpenAnalytics}
-						/>
-					</>
-				)}
+				<Outlet context={outletContextValue} />
 			</div>
 		</div>
 	);
