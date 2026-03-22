@@ -79,8 +79,17 @@ export const Default: Story = {
 
 		expect(canvas.getByText("GPT-4o")).toBeInTheDocument();
 		expect(canvas.getByText("Claude Sonnet")).toBeInTheDocument();
+		expect(canvas.getByText("System default: 80%")).toBeInTheDocument();
+		expect(canvas.getByText("System default: 70%")).toBeInTheDocument();
 		expect(canvas.queryByText("GPT-3.5 (Disabled)")).not.toBeInTheDocument();
 
+		await userEvent.type(gpt4oInput, "100");
+		expect(
+			canvas.getByText(
+				"⚠ Setting 100% will disable auto-compaction for this model.",
+			),
+		).toBeInTheDocument();
+		await userEvent.clear(gpt4oInput);
 		await userEvent.type(gpt4oInput, "95");
 
 		const saveButtons = canvas.getAllByRole("button", { name: "Save" });

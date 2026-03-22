@@ -121,7 +121,8 @@ export const UserCompactionThresholdSettings: FC<
 			</p>
 			{enabledModelConfigs.length === 0 ? (
 				<p className="m-0 text-xs text-content-secondary">
-					No enabled chat models available.
+					No enabled chat models available. An administrator must configure chat
+					models before compaction thresholds can be set.
 				</p>
 			) : (
 				<div className="space-y-3">
@@ -132,6 +133,12 @@ export const UserCompactionThresholdSettings: FC<
 							drafts[modelConfig.id] ??
 							(existingOverride !== undefined ? String(existingOverride) : "");
 						const parsedDraftValue = parseThresholdDraft(draftValue);
+						const isThisModelMutating =
+							(saveThresholdMutation.isPending &&
+								saveThresholdMutation.variables?.modelConfigId ===
+									modelConfig.id) ||
+							(resetThresholdMutation.isPending &&
+								resetThresholdMutation.variables === modelConfig.id);
 						const isSaveDisabled =
 							draftValue.length === 0 ||
 							parsedDraftValue === null ||
@@ -149,7 +156,7 @@ export const UserCompactionThresholdSettings: FC<
 											{modelConfig.display_name}
 										</span>
 										<span className="ml-2 text-xs text-content-secondary">
-											Default: {modelConfig.compression_threshold}%
+											System default: {modelConfig.compression_threshold}%
 										</span>
 									</div>
 									<div className="flex flex-wrap items-center gap-2 sm:justify-end">
@@ -169,7 +176,7 @@ export const UserCompactionThresholdSettings: FC<
 												}));
 												clearRowError(modelConfig.id);
 											}}
-											disabled={isMutating}
+											disabled={isThisModelMutating}
 										/>
 										<span className="text-xs text-content-secondary">%</span>
 										<Button
@@ -213,7 +220,7 @@ export const UserCompactionThresholdSettings: FC<
 												size="sm"
 												variant="outline"
 												type="button"
-												disabled={isMutating}
+												disabled={isThisModelMutating}
 												onClick={() => {
 													clearRowError(modelConfig.id);
 													resetThresholdMutation.mutate(modelConfig.id, {
@@ -239,8 +246,16 @@ export const UserCompactionThresholdSettings: FC<
 									</div>
 								</div>
 								{rowErrors[modelConfig.id] && (
-									<p className="m-0 text-xs text-content-destructive">
+									<p
+										aria-live="polite"
+										className="m-0 text-xs text-content-destructive"
+									>
 										{rowErrors[modelConfig.id]}
+									</p>
+								)}
+								{draftValue === "100" && (
+									<p className="m-0 text-xs text-content-secondary">
+										⚠ Setting 100% will disable auto-compaction for this model.
 									</p>
 								)}
 							</div>
