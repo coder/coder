@@ -5065,6 +5065,66 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, memberThresholds.Thresholds)
 	})
+
+	t.Run("BoundaryValues", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		override, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
+			ThresholdPercent: 0,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 0, override.ThresholdPercent)
+
+		override, err = client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
+			ThresholdPercent: 100,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 100, override.ThresholdPercent)
+	})
+
+	t.Run("UpsertChangesValue", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, _ := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		_, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
+			ThresholdPercent: 50,
+		})
+		require.NoError(t, err)
+
+		override, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
+			ThresholdPercent: 75,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 75, override.ThresholdPercent)
+
+		thresholds, err := client.GetUserChatCompactionThresholds(ctx)
+		require.NoError(t, err)
+		require.Len(t, thresholds.Thresholds, 1)
+		require.EqualValues(t, 75, thresholds.Thresholds[0].ThresholdPercent)
+	})
+
+	t.Run("NonExistentModelConfig", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		fakeID := uuid.New()
+		_, err := client.UpdateUserChatCompactionThreshold(ctx, fakeID, codersdk.UpdateUserChatCompactionThresholdRequest{
+			ThresholdPercent: 50,
+		})
+		requireSDKError(t, err, http.StatusNotFound)
+	})
 }
 
 func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Error {
