@@ -443,13 +443,11 @@ export const updateUserChatCustomPrompt = (queryClient: QueryClient) => ({
 
 const userCompactionThresholdsKey = ["user-compaction-thresholds"] as const;
 
-/** @lintignore Pre-wired for the forthcoming settings UI. */
 export const userCompactionThresholds = () => ({
 	queryKey: userCompactionThresholdsKey,
 	queryFn: () => API.getUserChatCompactionThresholds(),
 });
 
-/** @lintignore Pre-wired for the forthcoming settings UI. */
 export const updateUserCompactionThreshold = (queryClient: QueryClient) => ({
 	mutationFn: (vars: {
 		modelConfigId: string;
@@ -462,7 +460,6 @@ export const updateUserCompactionThreshold = (queryClient: QueryClient) => ({
 	},
 });
 
-/** @lintignore Pre-wired for the forthcoming settings UI. */
 export const deleteUserCompactionThreshold = (queryClient: QueryClient) => ({
 	mutationFn: (modelConfigId: string) =>
 		API.deleteUserChatCompactionThreshold(modelConfigId),

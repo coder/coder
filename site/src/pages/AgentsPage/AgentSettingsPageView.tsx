@@ -3,6 +3,7 @@ import {
 	chatCostSummary,
 	chatCostUsers,
 	chatDesktopEnabled,
+	chatModelConfigs,
 	chatSystemPrompt,
 	chatUserCustomPrompt,
 	chatWorkspaceTTL,
@@ -62,6 +63,7 @@ import { InsightsContent } from "./components/InsightsContent";
 import { LimitsTab } from "./components/LimitsTab";
 import { MCPServerAdminPanel } from "./components/MCPServerAdminPanel";
 import { SectionHeader } from "./components/SectionHeader";
+import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
 const AdminBadge: FC = () => (
 	<TooltipProvider delayDuration={0}>
@@ -526,6 +528,7 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	} = useMutation(updateChatDesktopEnabled(queryClient));
 
 	const workspaceTTLQuery = useQuery(chatWorkspaceTTL());
+	const modelConfigsQuery = useQuery(chatModelConfigs());
 	const {
 		mutate: saveWorkspaceTTL,
 		isPending: isSavingWorkspaceTTL,
@@ -635,6 +638,11 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 								</p>
 							)}
 						</form>
+
+						<hr className="my-5 border-0 border-t border-solid border-border" />
+						<UserCompactionThresholdSettings
+							modelConfigs={modelConfigsQuery.data ?? []}
+						/>
 
 						{/* ── Admin system prompt (admin only) ── */}
 						{canSetSystemPrompt && (
