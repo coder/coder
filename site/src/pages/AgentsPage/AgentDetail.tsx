@@ -3,7 +3,10 @@ import { API, watchWorkspace } from "api/api";
 import { isApiError } from "api/errors";
 import {
 	chat,
+	chatDesktopEnabled,
 	chatMessagesForInfiniteScroll,
+	chatModelConfigs,
+	chatModels,
 	createChatMessage,
 	deleteChatQueuedMessage,
 	editChatMessage,
@@ -45,7 +48,9 @@ import {
 import type { AgentsOutletContext } from "./AgentsPage";
 import {
 	getModelCatalogStatusMessage,
+	getModelOptionsFromCatalog,
 	getModelSelectorPlaceholder,
+	getNormalizedModelRef,
 	hasConfiguredModelsInCatalog,
 } from "./modelOptions";
 import { parsePullRequestUrl } from "./pullRequest";
@@ -222,12 +227,6 @@ export function useConversationEditingState(deps: {
 const AgentDetail: FC = () => {
 	const navigate = useNavigate();
 	const { agentId } = useParams<{ agentId: string }>();
-	const outletContext = useOutletContext<AgentsOutletContext>();
-	const queryClient = useQueryClient();
-	const [selectedModel, setSelectedModel] = useState("");
-	const [pendingEditMessageId, setPendingEditMessageId] = useState<
-		number | null
-	>(null);
 	const {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -235,18 +234,14 @@ const AgentDetail: FC = () => {
 		requestArchiveAgent,
 		requestArchiveAndDeleteWorkspace,
 		requestUnarchiveAgent,
-		onOpenAnalytics,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
-		modelOptions,
-		modelConfigIDByModelID,
-		modelIDByConfigID,
-		modelConfigs,
-		modelCatalog,
-		isModelCatalogLoading,
-		modelCatalogError,
-		desktopEnabled,
-	} = outletContext;
+	} = useOutletContext<AgentsOutletContext>();
+	const queryClient = useQueryClient();
+	const [selectedModel, setSelectedModel] = useState("");
+	const [pendingEditMessageId, setPendingEditMessageId] = useState<
+		number | null
+	>(null);
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
 	const inputValueRef = useRef(
@@ -292,6 +287,42 @@ const AgentDetail: FC = () => {
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
 	});
+
+	const chatModelsQuery = useQuery(chatModels());
+	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
+	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
+
+	const catalogModelOptions = getModelOptionsFromCatalog(
+		chatModelsQuery.data,
+		chatModelConfigsQuery.data,
+	);
+	const modelConfigIDByModelID = (() => {
+		const byModelID = new Map<string, string>();
+		for (const config of chatModelConfigsQuery.data ?? []) {
+			const { provider, model } = getNormalizedModelRef(config);
+			if (!provider || !model) continue;
+			const colonRef = `${provider}:${model}`;
+			if (!byModelID.has(colonRef)) byModelID.set(colonRef, config.id);
+			const slashRef = `${provider}/${model}`;
+			if (!byModelID.has(slashRef)) byModelID.set(slashRef, config.id);
+		}
+		return byModelID;
+	})();
+	const modelIDByConfigID = (() => {
+		const byConfigID = new Map<string, string>();
+		for (const [modelID, configID] of modelConfigIDByModelID.entries()) {
+			if (!byConfigID.has(configID)) byConfigID.set(configID, modelID);
+		}
+		return byConfigID;
+	})();
+	const modelOptions = catalogModelOptions;
+	const modelConfigs = chatModelConfigsQuery.data ?? [];
+	const modelCatalog = chatModelsQuery.data;
+	const isModelCatalogLoading = chatModelsQuery.isLoading;
+	const modelCatalogError = chatModelsQuery.error;
+
+	const handleOpenAnalytics = () => navigate("/agents/analytics");
 
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
@@ -839,7 +870,7 @@ const AgentDetail: FC = () => {
 			isInterruptPending={interruptMutation.isPending}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-			onOpenAnalytics={onOpenAnalytics}
+			onOpenAnalytics={handleOpenAnalytics}
 			showSidebarPanel={showSidebarPanel}
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}

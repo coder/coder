@@ -17,10 +17,10 @@ import {
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import AgentCreatePage from "./AgentCreatePage";
 import { AgentsPageView } from "./AgentsPageView";
 import {
 	AgentsAnalyticsRoute,
-	AgentsIndexRoute,
 	AgentsSettingsRoute,
 } from "./AgentsRouteElements";
 
@@ -132,7 +132,7 @@ const agentsRouting = {
 		{ path: "settings/:section", element: <AgentsSettingsRoute /> },
 		{ path: "analytics", element: <AgentsAnalyticsRoute /> },
 		{ path: ":agentId", element: <div /> },
-		{ index: true, element: <AgentsIndexRoute /> },
+		{ index: true, element: <AgentCreatePage /> },
 	],
 };
 
@@ -177,29 +177,6 @@ const meta: Meta<typeof AgentsPageView> = {
 		hasNextPage: false,
 		onLoadMore: fn(),
 		isFetchingNextPage: false,
-		onCreateChat: fn(),
-		createError: undefined,
-		modelCatalog: {
-			providers: [
-				{
-					provider: "openai",
-					available: true,
-					models: [
-						{
-							id: "openai:gpt-4o",
-							provider: "openai",
-							model: "gpt-4o",
-							display_name: "GPT-4o",
-						},
-					],
-				},
-			],
-		},
-		isModelCatalogLoading: false,
-		isModelConfigsLoading: false,
-		modelCatalogError: undefined,
-		modelConfigIDByModelID: new Map(),
-		desktopEnabled: false,
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaces").mockResolvedValue({

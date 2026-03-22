@@ -1,14 +1,11 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import type { FC } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router";
+import { Outlet, useLocation } from "react-router";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
-import type { CreateChatOptions } from "./AgentCreateForm";
 import { AgentsSidebar, sidebarViewFromPath } from "./AgentsSidebar";
 import type { ChatDetailError } from "./usageLimitMessage";
-
-type ChatModelOption = ModelSelectorOption;
 
 export interface AgentsOutletContext {
 	chatErrorReasons: Record<string, ChatDetailError>;
@@ -22,30 +19,13 @@ export interface AgentsOutletContext {
 	) => void;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
-	onOpenAnalytics?: () => void;
-	modelOptions: readonly ModelSelectorOption[];
-	modelConfigIDByModelID: ReadonlyMap<string, string>;
-	modelIDByConfigID: ReadonlyMap<string, string>;
-	modelConfigs: readonly TypesGen.ChatModelConfig[];
-	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
-	isModelCatalogLoading: boolean;
-	modelCatalogError: unknown;
-	desktopEnabled: boolean;
-	// Fields used by the index route (create form).
-	onCreateChat: (options: CreateChatOptions) => Promise<void>;
-	isCreating: boolean;
-	createError: unknown;
-	isModelConfigsLoading: boolean;
-	logoUrl: string;
 	onExpandSidebar: () => void;
-	// Fields used by the settings route.
-	isAgentsAdmin: boolean;
 }
 
 interface AgentsPageViewProps {
 	agentId: string | undefined;
 	chatList: TypesGen.Chat[];
-	catalogModelOptions: readonly ChatModelOption[];
+	catalogModelOptions: readonly ModelSelectorOption[];
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	logoUrl: string;
 	handleNewAgent: () => void;
@@ -69,14 +49,6 @@ interface AgentsPageViewProps {
 	) => void;
 	onToggleSidebarCollapsed: () => void;
 	isAgentsAdmin: boolean;
-	onCreateChat: (options: CreateChatOptions) => Promise<void>;
-	createError: unknown;
-	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
-	isModelCatalogLoading: boolean;
-	isModelConfigsLoading: boolean;
-	modelCatalogError: unknown;
-	modelConfigIDByModelID: ReadonlyMap<string, string>;
-	desktopEnabled: boolean;
 	hasNextPage: boolean | undefined;
 	onLoadMore: () => void;
 	isFetchingNextPage: boolean;
@@ -108,14 +80,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	requestArchiveAndDeleteWorkspace,
 	onToggleSidebarCollapsed,
 	isAgentsAdmin,
-	onCreateChat,
-	createError,
-	modelCatalog,
-	isModelCatalogLoading,
-	isModelConfigsLoading,
-	modelCatalogError,
-	modelConfigIDByModelID,
-	desktopEnabled,
 	hasNextPage,
 	onLoadMore,
 	isFetchingNextPage,
@@ -123,12 +87,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	onArchivedFilterChange,
 }) => {
 	const location = useLocation();
-	const navigate = useNavigate();
 	const sidebarView = sidebarViewFromPath(location.pathname);
-
-	const handleOpenAnalytics = () => {
-		navigate("/agents/analytics");
-	};
 
 	// The sidebar expects plain string error messages, but the outlet
 	// context now carries structured ChatDetailError objects.
@@ -139,16 +98,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		]),
 	);
 
-	const modelIDByConfigID = (() => {
-		const byConfigID = new Map<string, string>();
-		for (const [modelID, configID] of modelConfigIDByModelID.entries()) {
-			if (!byConfigID.has(configID)) {
-				byConfigID.set(configID, modelID);
-			}
-		}
-		return byConfigID;
-	})();
-
 	const outletContextValue: AgentsOutletContext = {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -158,22 +107,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		requestArchiveAndDeleteWorkspace,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
-		onOpenAnalytics: handleOpenAnalytics,
-		modelOptions: catalogModelOptions,
-		modelConfigIDByModelID,
-		modelIDByConfigID,
-		modelConfigs,
-		modelCatalog,
-		isModelCatalogLoading,
-		modelCatalogError,
-		desktopEnabled,
-		onCreateChat,
-		isCreating,
-		createError,
-		isModelConfigsLoading,
-		logoUrl,
 		onExpandSidebar,
-		isAgentsAdmin,
 	};
 
 	return (

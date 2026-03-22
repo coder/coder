@@ -121,21 +121,7 @@ const AgentEmbedPage: FC = () => {
 		requestArchiveAndDeleteWorkspace,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
-		modelOptions: [],
-		modelConfigIDByModelID: new Map(),
-		modelIDByConfigID: new Map(),
-		modelConfigs: [],
-		modelCatalog: undefined,
-		isModelCatalogLoading: false,
-		modelCatalogError: null,
-		desktopEnabled: false,
-		onCreateChat: () => Promise.resolve(),
-		isCreating: false,
-		createError: undefined,
-		isModelConfigsLoading: false,
-		logoUrl: "",
 		onExpandSidebar: () => {},
-		isAgentsAdmin: false,
 	};
 	// When signed out and not already bootstrapping, listen for the
 	// postMessage from the parent frame carrying the session token.
