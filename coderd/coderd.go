@@ -51,7 +51,6 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
-	"github.com/coder/coder/v2/coderd/chatd"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -63,7 +62,6 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
-	"github.com/coder/coder/v2/coderd/gitsync"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -94,6 +92,8 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
@@ -767,6 +767,9 @@ func New(options *Options) *API {
 	}
 	api.agentProvider = stn
 
+	// Experimental: agents — chat daemon and git sync worker initialization.
+	// This glue code wires the experimental chat feature into the API server.
+	// Remove this block when the experiment is promoted or dropped.
 	maxChatsPerAcquire := options.DeploymentValues.AI.Chat.AcquireBatchSize.Value()
 	if maxChatsPerAcquire > math.MaxInt32 {
 		maxChatsPerAcquire = math.MaxInt32
@@ -1146,6 +1149,8 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		// Experimental: agents — chat API routes.
+		// All routes are under /api/experimental/chats and gated by ExperimentAgents.
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -2086,13 +2091,11 @@ type API struct {
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
-	// chatDaemon handles background processing of pending chats.
-	chatDaemon *chatd.Server
+	// Experimental: agents — chat daemon and git sync worker.
+	chatDaemon    *chatd.Server
+	gitSyncWorker *gitsync.Worker
 	// AISeatTracker records AI seat usage.
 	AISeatTracker aiseats.SeatTracker
-	// gitSyncWorker refreshes stale chat diff statuses in the
-	// background.
-	gitSyncWorker *gitsync.Worker
 
 	// ProfileCollector abstracts the runtime/pprof and runtime/trace
 	// calls used by the /debug/profile endpoint. Tests override this
