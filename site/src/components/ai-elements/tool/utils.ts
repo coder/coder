@@ -166,6 +166,7 @@ const SELECTION_OVERRIDE_CSS = [
 	"  --diffs-bg-selection-override: hsl(var(--content-link) / 0.08);",
 	"  --diffs-bg-selection-number-override: hsl(var(--content-link) / 0.13);",
 	"  --diffs-selection-number-fg: hsl(var(--content-link));",
+	"  --diffs-gap-style: 1px solid hsl(var(--border-default));",
 	"}",
 	// Direct rules that override both context and change-line
 	// selection backgrounds so every selected line looks the same.
@@ -239,7 +240,7 @@ const DIFF_HEADER_CSS = [
 	"  font-size: 13px;",
 	"  min-height: 32px !important;",
 	"  padding-block: 0 !important;",
-	"  padding-inline: 12px !important;",
+	"  padding-inline: 10px !important;",
 	"  border-bottom: 1px solid hsl(var(--border-default));",
 	"}",
 
@@ -284,6 +285,9 @@ const DIFF_HEADER_CSS = [
 	"[data-diffs-header] [data-metadata] {",
 	"  flex-direction: row-reverse;",
 	"  gap: 0 !important;",
+	"  border: 1px solid hsl(var(--border-default));",
+	"  border-radius: 3px;",
+	"  overflow: hidden;",
 	"}",
 	"[data-diffs-header] [data-additions-count],",
 	"[data-diffs-header] [data-deletions-count] {",
@@ -292,7 +296,7 @@ const DIFF_HEADER_CSS = [
 	"  font-weight: 500;",
 	"  line-height: 20px;",
 	"  padding-inline: 6px;",
-	"  border-radius: 3px;",
+	"  border-radius: 0;",
 	"}",
 	"[data-diffs-header] [data-additions-count] {",
 	"  color: hsl(var(--git-added-bright)) !important;",
@@ -301,14 +305,6 @@ const DIFF_HEADER_CSS = [
 	"[data-diffs-header] [data-deletions-count] {",
 	"  color: hsl(var(--git-deleted-bright)) !important;",
 	"  background-color: hsl(var(--surface-git-deleted));",
-	"}",
-	// Joined badge: flatten touching inner edges. DOM order is
-	// [deletions][additions]; row-reverse puts additions left.
-	"[data-deletions-count] + [data-additions-count] {",
-	"  border-radius: 3px 0 0 3px;",
-	"}",
-	"[data-deletions-count]:has(+ [data-additions-count]) {",
-	"  border-radius: 0 3px 3px 0;",
 	"}",
 ].join(" ");
 
