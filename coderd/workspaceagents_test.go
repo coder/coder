@@ -3407,10 +3407,12 @@ func TestReinit(t *testing.T) {
 		require.Equal(t, user.UserID, reinitEvent.UserID)
 	})
 
-	// Verifies that the durable claim check does NOT fire when the
-	// claim build's provisioner job is still running. The agent
-	// should wait for the pubsub event instead.
-	t.Run("claimed prebuild waits during in-progress claim build", func(t *testing.T) {
+	// Verifies that when the claim build completed with an error,
+	// the handler returns 500 so the agent retries with backoff
+	// instead of hanging forever waiting for a pubsub event that
+	// will never arrive (PublishWorkspaceClaim is only called on
+	// success).
+	t.Run("failed claim build returns 500", func(t *testing.T) {
 		t.Parallel()
 
 		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
@@ -3423,29 +3425,28 @@ func TestReinit(t *testing.T) {
 		// Create an unclaimed prebuild (build 1, completed).
 		r := setupPrebuildWorkspace(t, db, user.OrganizationID)
 
-		// Claim it: change owner + create build 2 (in-progress).
-		claimR := claimPrebuild(t, db, sqlDB, r.Workspace, user.UserID, r.TemplateVersion.ID, false)
+		// Claim it: create build 2 as completed (so agent rows
+		// exist and the token is valid for auth).
+		claimR := claimPrebuild(t, db, sqlDB, r.Workspace, user.UserID, r.TemplateVersion.ID, true)
 
-		agentCtx, agentCancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer agentCancel()
+		// Simulate a claim build failure: set an error on the
+		// provisioner job. This models the case where terraform
+		// apply partially succeeded (creating resources/agents)
+		// but ultimately errored.
+		_, err := sqlDB.Exec(
+			"UPDATE provisioner_jobs SET error = 'simulated claim failure' WHERE id = $1",
+			claimR.Build.JobID,
+		)
+		require.NoError(t, err)
+
+		agentCtx := testutil.Context(t, testutil.WaitShort)
 		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(claimR.AgentToken))
 
-		agentReinitializedCh := make(chan *agentsdk.ReinitializationEvent, 1)
-		go func() {
-			reinitEvent, err := agentClient.WaitForReinit(agentCtx)
-			if err == nil {
-				agentReinitializedCh <- reinitEvent
-			}
-		}()
-
-		// The agent should NOT receive a reinit event because the
-		// claim build's job is still in progress.
-		select {
-		case ev := <-agentReinitializedCh:
-			t.Fatalf("expected no reinit event, but got one: %+v", ev)
-		case <-time.After(200 * time.Millisecond):
-			// Expected: no reinit event within the timeout.
-		}
+		_, err = agentClient.WaitForReinit(agentCtx)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode())
 	})
 
 	// Verifies that a regular workspace (never a prebuild) gets a

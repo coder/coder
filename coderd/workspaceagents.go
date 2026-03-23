@@ -1514,10 +1514,15 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 				WorkspaceID: workspace.ID,
 				BuildNumber: 1,
 			})
-		if err != nil || firstBuild.InitiatorID != database.PrebuildsSystemUserID {
-			// Not a claimed prebuild — either a regular workspace
-			// or we couldn't determine the history. Return 409 so
-			// the agent stops reconnecting to this endpoint.
+		if err != nil {
+			log.Error(ctx, "failed to get first workspace build", slog.Error(err))
+			httpapi.InternalServerError(rw, xerrors.New("failed to get first workspace build"))
+			return
+		}
+		if firstBuild.InitiatorID != database.PrebuildsSystemUserID {
+			// Not a claimed prebuild — this is a regular workspace.
+			// Return 409 so the agent stops reconnecting to this
+			// endpoint.
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Workspace is not a prebuilt workspace waiting to be claimed.",
 				Detail:  "This endpoint is only for agents running in prebuilt workspaces.",
@@ -1542,20 +1547,43 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if job.CompletedAt.Valid && !job.Error.Valid {
-			// Claim build succeeded — pre-seed the channel and
-			// close it so the transmitter below delivers exactly
-			// one reinit event then exits cleanly.
-			reinitEvents <- agentsdk.ReinitializationEvent{
+			// Claim build succeeded — cancel the subscription
+			// (we no longer need pubsub) and pre-seed the
+			// channel so the transmitter delivers exactly one
+			// reinit event. Use a non-blocking send in case
+			// pubsub already delivered the event before we
+			// canceled.
+			cancelSub()
+			select {
+			case reinitEvents <- agentsdk.ReinitializationEvent{
 				WorkspaceID: workspace.ID,
 				Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
 				UserID:      workspace.OwnerID,
+			}:
+			default:
+				// Pubsub already delivered the event.
 			}
-			close(reinitEvents)
+			// Don't close the channel — the transmitter will
+			// send the buffered event and then block until ctx
+			// is canceled or the client disconnects.
+		} else if job.CompletedAt.Valid && job.Error.Valid {
+			// Claim build failed. Return an error so the agent
+			// retries with backoff instead of hanging forever
+			// waiting for a reinit event that will never arrive.
+			cancelSub()
+			log.Warn(ctx, "claim build failed",
+				slog.F("job_id", job.ID),
+				slog.F("error", job.Error.String))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Claim build failed.",
+				Detail:  job.Error.String,
+			})
+			return
 		}
 
-		// Claim build still in progress or failed — fall through
-		// to the transmitter. The pubsub subscription (set up
-		// above) will deliver the event when the build completes.
+		// Claim build still in progress — fall through to the
+		// transmitter. The pubsub subscription (set up above)
+		// will deliver the event when the build completes.
 	}
 
 	transmitter := agentsdk.NewSSEAgentReinitTransmitter(log, rw, r)
