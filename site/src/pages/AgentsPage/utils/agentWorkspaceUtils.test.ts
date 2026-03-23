@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	isWorkspaceAutoCreated,
 	resolveArchiveAndDeleteAction,
+	shouldNavigateAfterArchive,
 } from "./agentWorkspaceUtils";
 
 describe("isWorkspaceAutoCreated", () => {
@@ -79,4 +80,59 @@ describe("resolveArchiveAndDeleteAction", () => {
 			),
 		).rejects.toThrow("not found");
 	});
+});
+
+describe("shouldNavigateAfterArchive", () => {
+	it.each([
+		{
+			name: "user still viewing archived chat",
+			activeChatId: "abc-123",
+			archivedChatId: "abc-123",
+			expected: true,
+		},
+		{
+			name: "user navigated to a different chat",
+			activeChatId: "xyz-456",
+			archivedChatId: "abc-123",
+			expected: false,
+		},
+		{
+			name: "user navigated to /agents root (no active chat)",
+			activeChatId: undefined,
+			archivedChatId: "abc-123",
+			expected: false,
+		},
+		{
+			name: "user viewing sub-agent of archived parent",
+			activeChatId: "sub-agent-1",
+			archivedChatId: "parent-abc",
+			activeRootChatId: "parent-abc",
+			expected: true,
+		},
+		{
+			name: "user viewing sub-agent of a different parent",
+			activeChatId: "sub-agent-1",
+			archivedChatId: "parent-abc",
+			activeRootChatId: "parent-other",
+			expected: false,
+		},
+		{
+			name: "root chat ID not available (cache cleared)",
+			activeChatId: "sub-agent-1",
+			archivedChatId: "parent-abc",
+			activeRootChatId: undefined,
+			expected: false,
+		},
+	])(
+		"$name → $expected",
+		({ activeChatId, archivedChatId, activeRootChatId, expected }) => {
+			expect(
+				shouldNavigateAfterArchive(
+					activeChatId,
+					archivedChatId,
+					activeRootChatId,
+				),
+			).toBe(expected);
+		},
+	);
 });
