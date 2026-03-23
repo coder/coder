@@ -49,6 +49,7 @@ type Chat struct {
 	CreatedAt         time.Time       `json:"created_at" format:"date-time"`
 	UpdatedAt         time.Time       `json:"updated_at" format:"date-time"`
 	Archived          bool            `json:"archived"`
+	MCPServerIDs      []uuid.UUID     `json:"mcp_server_ids" format:"uuid"`
 }
 
 // ChatMessage represents a single message in a chat.
@@ -125,9 +126,18 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 // name = required, ? suffix = optional. Fields without a variants
 // tag are excluded from the generated union. See
 // scripts/apitypings/main.go for the codegen that reads these.
+//
+// omitempty rules (enforced by TestChatMessagePartVariantTags):
+//   - If a field is required (no ? suffix) in ANY variant, it
+//     must NOT use omitempty. Go would silently drop zero values
+//     that TypeScript expects to always be present.
+//   - If a field is optional (? suffix) in ALL of its variants,
+//     it MUST use omitempty. Sending zero values for fields that
+//     the frontend does not expect adds noise to the wire format
+//     and wastes space in persisted chat_messages rows.
 type ChatMessagePart struct {
 	Type        ChatMessagePartType `json:"type"`
-	Text        string              `json:"text,omitempty" variants:"text,reasoning"`
+	Text        string              `json:"text" variants:"text,reasoning"`
 	Signature   string              `json:"signature,omitempty"`
 	ToolCallID  string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
 	ToolName    string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
@@ -137,16 +147,16 @@ type ChatMessagePart struct {
 	ResultDelta string              `json:"result_delta,omitempty"`
 	IsError     bool                `json:"is_error,omitempty" variants:"tool-result?"`
 	SourceID    string              `json:"source_id,omitempty" variants:"source?"`
-	URL         string              `json:"url,omitempty" variants:"source"`
+	URL         string              `json:"url" variants:"source"`
 	Title       string              `json:"title,omitempty" variants:"source?"`
-	MediaType   string              `json:"media_type,omitempty" variants:"file"`
+	MediaType   string              `json:"media_type" variants:"file"`
 	Data        []byte              `json:"data,omitempty" variants:"file?"`
 	FileID      uuid.NullUUID       `json:"file_id,omitempty" format:"uuid" variants:"file?"`
-	FileName    string              `json:"file_name,omitempty" variants:"file-reference"`
-	StartLine   int                 `json:"start_line,omitempty" variants:"file-reference"`
-	EndLine     int                 `json:"end_line,omitempty" variants:"file-reference"`
+	FileName    string              `json:"file_name" variants:"file-reference"`
+	StartLine   int                 `json:"start_line" variants:"file-reference"`
+	EndLine     int                 `json:"end_line" variants:"file-reference"`
 	// The code content from the diff that was commented on.
-	Content string `json:"content,omitempty" variants:"file-reference"`
+	Content string `json:"content" variants:"file-reference"`
 	// ProviderMetadata holds provider-specific response metadata
 	// (e.g. Anthropic cache control hints) as raw JSON. Internal
 	// only: stripped by db2sdk before API responses.
@@ -258,6 +268,7 @@ type CreateChatRequest struct {
 	Content       []ChatInputPart `json:"content"`
 	WorkspaceID   *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
 	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  []uuid.UUID     `json:"mcp_server_ids,omitempty" format:"uuid"`
 }
 
 // UpdateChatRequest is the request to update a chat.
@@ -270,6 +281,7 @@ type UpdateChatRequest struct {
 type CreateChatMessageRequest struct {
 	Content       []ChatInputPart `json:"content"`
 	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
+	MCPServerIDs  *[]uuid.UUID    `json:"mcp_server_ids,omitempty" format:"uuid"`
 }
 
 // EditChatMessageRequest is the request to edit a user message in a chat.
@@ -345,6 +357,42 @@ type ChatDesktopEnabledResponse struct {
 // UpdateChatDesktopEnabledRequest is the request to update the desktop setting.
 type UpdateChatDesktopEnabledRequest struct {
 	EnableDesktop bool `json:"enable_desktop"`
+}
+
+// DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
+// Zero means disabled — the template's own autostop setting applies.
+const DefaultChatWorkspaceTTL = 0
+
+// ChatWorkspaceTTLResponse is the response for getting the chat
+// workspace TTL setting.
+type ChatWorkspaceTTLResponse struct {
+	// WorkspaceTTLMillis is the workspace TTL in milliseconds.
+	// Zero means disabled — the template's own autostop setting applies.
+	WorkspaceTTLMillis int64 `json:"workspace_ttl_ms"`
+}
+
+// UpdateChatWorkspaceTTLRequest is the request to update the chat
+// workspace TTL setting.
+type UpdateChatWorkspaceTTLRequest struct {
+	// WorkspaceTTLMillis is the workspace TTL in milliseconds.
+	// Zero means disabled — the template's own autostop setting applies.
+	WorkspaceTTLMillis int64 `json:"workspace_ttl_ms"`
+}
+
+// ParseChatWorkspaceTTL parses a stored TTL string, returning the
+// default when the value is empty.
+func ParseChatWorkspaceTTL(s string) (time.Duration, error) {
+	if s == "" {
+		return DefaultChatWorkspaceTTL, nil
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, xerrors.Errorf("invalid duration %q: %w", s, err)
+	}
+	if d < 0 {
+		return 0, xerrors.New("duration must be non-negative")
+	}
+	return d, nil
 }
 
 // ChatProviderConfigSource describes how a provider entry is sourced.
@@ -429,7 +477,7 @@ type ChatModelOpenAIProviderOptions struct {
 	MaxCompletionTokens *int64           `json:"max_completion_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
 	TextVerbosity       *string          `json:"text_verbosity,omitempty" description:"Controls the verbosity of the text response" enum:"low,medium,high"`
 	Prediction          map[string]any   `json:"prediction,omitempty" description:"Predicted output content to speed up responses" hidden:"true"`
-	Store               *bool            `json:"store,omitempty" description:"Whether to store the output for model distillation or evals" hidden:"true"`
+	Store               *bool            `json:"store,omitempty" description:"Whether to store the response on OpenAI for later retrieval via the API and dashboard logs"`
 	Metadata            map[string]any   `json:"metadata,omitempty" description:"Arbitrary metadata to attach to the request" hidden:"true"`
 	PromptCacheKey      *string          `json:"prompt_cache_key,omitempty" description:"Key for enabling cross-request prompt caching"`
 	SafetyIdentifier    *string          `json:"safety_identifier,omitempty" description:"Developer-specific safety identifier for the request" hidden:"true"`
@@ -1036,7 +1084,7 @@ type ListChatsOptions struct {
 }
 
 // ListChats returns all chats for the authenticated user.
-func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat, error) {
+func (c *ExperimentalClient) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat, error) {
 	var reqOpts []RequestOption
 	if opts != nil {
 		reqOpts = append(reqOpts, opts.Pagination.asRequestOption())
@@ -1061,7 +1109,7 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 }
 
 // ListChatModels returns the available chat model catalog.
-func (c *Client) ListChatModels(ctx context.Context) (ChatModelsResponse, error) {
+func (c *ExperimentalClient) ListChatModels(ctx context.Context) (ChatModelsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/models", nil)
 	if err != nil {
 		return ChatModelsResponse{}, err
@@ -1076,7 +1124,7 @@ func (c *Client) ListChatModels(ctx context.Context) (ChatModelsResponse, error)
 }
 
 // ListChatProviders returns admin-managed chat provider configs.
-func (c *Client) ListChatProviders(ctx context.Context) ([]ChatProviderConfig, error) {
+func (c *ExperimentalClient) ListChatProviders(ctx context.Context) ([]ChatProviderConfig, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/providers", nil)
 	if err != nil {
 		return nil, err
@@ -1091,7 +1139,7 @@ func (c *Client) ListChatProviders(ctx context.Context) ([]ChatProviderConfig, e
 }
 
 // CreateChatProvider creates an admin-managed chat provider config.
-func (c *Client) CreateChatProvider(ctx context.Context, req CreateChatProviderConfigRequest) (ChatProviderConfig, error) {
+func (c *ExperimentalClient) CreateChatProvider(ctx context.Context, req CreateChatProviderConfigRequest) (ChatProviderConfig, error) {
 	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/providers", req)
 	if err != nil {
 		return ChatProviderConfig{}, err
@@ -1106,7 +1154,7 @@ func (c *Client) CreateChatProvider(ctx context.Context, req CreateChatProviderC
 }
 
 // UpdateChatProvider updates an admin-managed chat provider config.
-func (c *Client) UpdateChatProvider(ctx context.Context, providerID uuid.UUID, req UpdateChatProviderConfigRequest) (ChatProviderConfig, error) {
+func (c *ExperimentalClient) UpdateChatProvider(ctx context.Context, providerID uuid.UUID, req UpdateChatProviderConfigRequest) (ChatProviderConfig, error) {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/providers/%s", providerID), req)
 	if err != nil {
 		return ChatProviderConfig{}, err
@@ -1121,7 +1169,7 @@ func (c *Client) UpdateChatProvider(ctx context.Context, providerID uuid.UUID, r
 }
 
 // DeleteChatProvider deletes an admin-managed chat provider config.
-func (c *Client) DeleteChatProvider(ctx context.Context, providerID uuid.UUID) error {
+func (c *ExperimentalClient) DeleteChatProvider(ctx context.Context, providerID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/providers/%s", providerID), nil)
 	if err != nil {
 		return err
@@ -1134,7 +1182,7 @@ func (c *Client) DeleteChatProvider(ctx context.Context, providerID uuid.UUID) e
 }
 
 // ListChatModelConfigs returns admin-managed chat model configs.
-func (c *Client) ListChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
+func (c *ExperimentalClient) ListChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/model-configs", nil)
 	if err != nil {
 		return nil, err
@@ -1149,7 +1197,7 @@ func (c *Client) ListChatModelConfigs(ctx context.Context) ([]ChatModelConfig, e
 }
 
 // CreateChatModelConfig creates an admin-managed chat model config.
-func (c *Client) CreateChatModelConfig(ctx context.Context, req CreateChatModelConfigRequest) (ChatModelConfig, error) {
+func (c *ExperimentalClient) CreateChatModelConfig(ctx context.Context, req CreateChatModelConfigRequest) (ChatModelConfig, error) {
 	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/model-configs", req)
 	if err != nil {
 		return ChatModelConfig{}, err
@@ -1164,7 +1212,7 @@ func (c *Client) CreateChatModelConfig(ctx context.Context, req CreateChatModelC
 }
 
 // UpdateChatModelConfig updates an admin-managed chat model config.
-func (c *Client) UpdateChatModelConfig(ctx context.Context, modelConfigID uuid.UUID, req UpdateChatModelConfigRequest) (ChatModelConfig, error) {
+func (c *ExperimentalClient) UpdateChatModelConfig(ctx context.Context, modelConfigID uuid.UUID, req UpdateChatModelConfigRequest) (ChatModelConfig, error) {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelConfigID), req)
 	if err != nil {
 		return ChatModelConfig{}, err
@@ -1179,7 +1227,7 @@ func (c *Client) UpdateChatModelConfig(ctx context.Context, modelConfigID uuid.U
 }
 
 // DeleteChatModelConfig deletes an admin-managed chat model config.
-func (c *Client) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.UUID) error {
+func (c *ExperimentalClient) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelConfigID), nil)
 	if err != nil {
 		return err
@@ -1195,7 +1243,7 @@ func (c *Client) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.U
 // user. Zero-valued StartDate or EndDate fields are omitted from the
 // request, letting the server apply its own defaults (typically the last
 // 30 days).
-func (c *Client) GetChatCostSummary(ctx context.Context, user string, opts ChatCostSummaryOptions) (ChatCostSummary, error) {
+func (c *ExperimentalClient) GetChatCostSummary(ctx context.Context, user string, opts ChatCostSummaryOptions) (ChatCostSummary, error) {
 	qp := url.Values{}
 	if !opts.StartDate.IsZero() {
 		qp.Set("start_date", opts.StartDate.Format(time.RFC3339))
@@ -1223,7 +1271,7 @@ func (c *Client) GetChatCostSummary(ctx context.Context, user string, opts ChatC
 // (admin only). Zero-valued StartDate or EndDate fields are omitted from
 // the request, letting the server apply its own defaults (typically the
 // last 30 days).
-func (c *Client) GetChatCostUsers(ctx context.Context, opts ChatCostUsersOptions) (ChatCostUsersResponse, error) {
+func (c *ExperimentalClient) GetChatCostUsers(ctx context.Context, opts ChatCostUsersOptions) (ChatCostUsersResponse, error) {
 	qp := url.Values{}
 	if !opts.StartDate.IsZero() {
 		qp.Set("start_date", opts.StartDate.Format(time.RFC3339))
@@ -1257,7 +1305,7 @@ func (c *Client) GetChatCostUsers(ctx context.Context, opts ChatCostUsersOptions
 }
 
 // GetChatSystemPrompt returns the deployment-wide chat system prompt.
-func (c *Client) GetChatSystemPrompt(ctx context.Context) (ChatSystemPrompt, error) {
+func (c *ExperimentalClient) GetChatSystemPrompt(ctx context.Context) (ChatSystemPrompt, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/system-prompt", nil)
 	if err != nil {
 		return ChatSystemPrompt{}, err
@@ -1271,7 +1319,7 @@ func (c *Client) GetChatSystemPrompt(ctx context.Context) (ChatSystemPrompt, err
 }
 
 // UpdateChatSystemPrompt updates the deployment-wide chat system prompt.
-func (c *Client) UpdateChatSystemPrompt(ctx context.Context, req ChatSystemPrompt) error {
+func (c *ExperimentalClient) UpdateChatSystemPrompt(ctx context.Context, req ChatSystemPrompt) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/system-prompt", req)
 	if err != nil {
 		return err
@@ -1284,7 +1332,7 @@ func (c *Client) UpdateChatSystemPrompt(ctx context.Context, req ChatSystemPromp
 }
 
 // GetUserChatCustomPrompt fetches the user's custom chat prompt.
-func (c *Client) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPrompt, error) {
+func (c *ExperimentalClient) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPrompt, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-prompt", nil)
 	if err != nil {
 		return UserChatCustomPrompt{}, err
@@ -1298,7 +1346,7 @@ func (c *Client) GetUserChatCustomPrompt(ctx context.Context) (UserChatCustomPro
 }
 
 // GetChatDesktopEnabled returns the deployment-wide desktop setting.
-func (c *Client) GetChatDesktopEnabled(ctx context.Context) (ChatDesktopEnabledResponse, error) {
+func (c *ExperimentalClient) GetChatDesktopEnabled(ctx context.Context) (ChatDesktopEnabledResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/desktop-enabled", nil)
 	if err != nil {
 		return ChatDesktopEnabledResponse{}, err
@@ -1312,7 +1360,7 @@ func (c *Client) GetChatDesktopEnabled(ctx context.Context) (ChatDesktopEnabledR
 }
 
 // UpdateChatDesktopEnabled updates the deployment-wide desktop setting.
-func (c *Client) UpdateChatDesktopEnabled(ctx context.Context, req UpdateChatDesktopEnabledRequest) error {
+func (c *ExperimentalClient) UpdateChatDesktopEnabled(ctx context.Context, req UpdateChatDesktopEnabledRequest) error {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/desktop-enabled", req)
 	if err != nil {
 		return err
@@ -1324,8 +1372,35 @@ func (c *Client) UpdateChatDesktopEnabled(ctx context.Context, req UpdateChatDes
 	return nil
 }
 
+// GetChatWorkspaceTTL returns the configured chat workspace TTL.
+func (c *ExperimentalClient) GetChatWorkspaceTTL(ctx context.Context) (ChatWorkspaceTTLResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/workspace-ttl", nil)
+	if err != nil {
+		return ChatWorkspaceTTLResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatWorkspaceTTLResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatWorkspaceTTLResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatWorkspaceTTL updates the chat workspace TTL setting.
+func (c *ExperimentalClient) UpdateChatWorkspaceTTL(ctx context.Context, req UpdateChatWorkspaceTTLRequest) error {
+	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/workspace-ttl", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // UpdateUserChatCustomPrompt updates the user's custom chat prompt.
-func (c *Client) UpdateUserChatCustomPrompt(ctx context.Context, req UserChatCustomPrompt) (UserChatCustomPrompt, error) {
+func (c *ExperimentalClient) UpdateUserChatCustomPrompt(ctx context.Context, req UserChatCustomPrompt) (UserChatCustomPrompt, error) {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/config/user-prompt", req)
 	if err != nil {
 		return UserChatCustomPrompt{}, err
@@ -1339,7 +1414,7 @@ func (c *Client) UpdateUserChatCustomPrompt(ctx context.Context, req UserChatCus
 }
 
 // CreateChat creates a new chat.
-func (c *Client) CreateChat(ctx context.Context, req CreateChatRequest) (Chat, error) {
+func (c *ExperimentalClient) CreateChat(ctx context.Context, req CreateChatRequest) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats", req)
 	if err != nil {
 		return Chat{}, err
@@ -1366,7 +1441,7 @@ type StreamChatOptions struct {
 // The returned channel includes initial snapshot events first, followed by
 // live updates. Callers must close the returned io.Closer to release the
 // websocket connection when done.
-func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamChatOptions) (<-chan ChatStreamEvent, io.Closer, error) {
+func (c *ExperimentalClient) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamChatOptions) (<-chan ChatStreamEvent, io.Closer, error) {
 	path := fmt.Sprintf("/api/experimental/chats/%s/stream", chatID)
 	if opts != nil && opts.AfterID != nil {
 		path += fmt.Sprintf("?after_id=%d", *opts.AfterID)
@@ -1489,7 +1564,7 @@ func (c *Client) StreamChat(ctx context.Context, chatID uuid.UUID, opts *StreamC
 }
 
 // GetChat returns a chat by ID.
-func (c *Client) GetChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
+func (c *ExperimentalClient) GetChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s", chatID), nil)
 	if err != nil {
 		return Chat{}, err
@@ -1511,7 +1586,7 @@ type ChatMessagesPaginationOptions struct {
 }
 
 // GetChatMessages returns the messages and queued messages for a chat.
-func (c *Client) GetChatMessages(ctx context.Context, chatID uuid.UUID, opts *ChatMessagesPaginationOptions) (ChatMessagesResponse, error) {
+func (c *ExperimentalClient) GetChatMessages(ctx context.Context, chatID uuid.UUID, opts *ChatMessagesPaginationOptions) (ChatMessagesResponse, error) {
 	reqOpts := []RequestOption{}
 	if opts != nil {
 		reqOpts = append(reqOpts, func(r *http.Request) {
@@ -1538,7 +1613,7 @@ func (c *Client) GetChatMessages(ctx context.Context, chatID uuid.UUID, opts *Ch
 }
 
 // UpdateChat patches a chat resource.
-func (c *Client) UpdateChat(ctx context.Context, chatID uuid.UUID, req UpdateChatRequest) error {
+func (c *ExperimentalClient) UpdateChat(ctx context.Context, chatID uuid.UUID, req UpdateChatRequest) error {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/%s", chatID), req)
 	if err != nil {
 		return err
@@ -1551,7 +1626,7 @@ func (c *Client) UpdateChat(ctx context.Context, chatID uuid.UUID, req UpdateCha
 }
 
 // CreateChatMessage adds a message to a chat.
-func (c *Client) CreateChatMessage(ctx context.Context, chatID uuid.UUID, req CreateChatMessageRequest) (CreateChatMessageResponse, error) {
+func (c *ExperimentalClient) CreateChatMessage(ctx context.Context, chatID uuid.UUID, req CreateChatMessageRequest) (CreateChatMessageResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/messages", chatID), req)
 	if err != nil {
 		return CreateChatMessageResponse{}, err
@@ -1565,7 +1640,7 @@ func (c *Client) CreateChatMessage(ctx context.Context, chatID uuid.UUID, req Cr
 }
 
 // EditChatMessage edits an existing user message in a chat and re-runs from there.
-func (c *Client) EditChatMessage(
+func (c *ExperimentalClient) EditChatMessage(
 	ctx context.Context,
 	chatID uuid.UUID,
 	messageID int64,
@@ -1589,7 +1664,7 @@ func (c *Client) EditChatMessage(
 }
 
 // InterruptChat cancels an in-flight chat run and leaves it waiting.
-func (c *Client) InterruptChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
+func (c *ExperimentalClient) InterruptChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/interrupt", chatID), nil)
 	if err != nil {
 		return Chat{}, err
@@ -1603,7 +1678,7 @@ func (c *Client) InterruptChat(ctx context.Context, chatID uuid.UUID) (Chat, err
 }
 
 // GetChatGitChanges returns git changes for a chat.
-func (c *Client) GetChatGitChanges(ctx context.Context, chatID uuid.UUID) ([]ChatGitChange, error) {
+func (c *ExperimentalClient) GetChatGitChanges(ctx context.Context, chatID uuid.UUID) ([]ChatGitChange, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/git-changes", chatID), nil)
 	if err != nil {
 		return nil, err
@@ -1617,7 +1692,7 @@ func (c *Client) GetChatGitChanges(ctx context.Context, chatID uuid.UUID) ([]Cha
 }
 
 // GetChatDiffContents returns resolved diff contents for a chat.
-func (c *Client) GetChatDiffContents(ctx context.Context, chatID uuid.UUID) (ChatDiffContents, error) {
+func (c *ExperimentalClient) GetChatDiffContents(ctx context.Context, chatID uuid.UUID) (ChatDiffContents, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/diff", chatID), nil)
 	if err != nil {
 		return ChatDiffContents{}, err
@@ -1631,7 +1706,7 @@ func (c *Client) GetChatDiffContents(ctx context.Context, chatID uuid.UUID) (Cha
 }
 
 // UploadChatFile uploads a file for use in chat messages.
-func (c *Client) UploadChatFile(ctx context.Context, organizationID uuid.UUID, contentType string, filename string, rd io.Reader) (UploadChatFileResponse, error) {
+func (c *ExperimentalClient) UploadChatFile(ctx context.Context, organizationID uuid.UUID, contentType string, filename string, rd io.Reader) (UploadChatFileResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/files?organization=%s", organizationID), rd, func(r *http.Request) {
 		r.Header.Set("Content-Type", contentType)
 		if filename != "" {
@@ -1650,7 +1725,7 @@ func (c *Client) UploadChatFile(ctx context.Context, organizationID uuid.UUID, c
 }
 
 // GetChatFile retrieves a previously uploaded chat file by ID.
-func (c *Client) GetChatFile(ctx context.Context, fileID uuid.UUID) ([]byte, string, error) {
+func (c *ExperimentalClient) GetChatFile(ctx context.Context, fileID uuid.UUID) ([]byte, string, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/files/%s", fileID), nil)
 	if err != nil {
 		return nil, "", err
@@ -1667,7 +1742,7 @@ func (c *Client) GetChatFile(ctx context.Context, fileID uuid.UUID) ([]byte, str
 }
 
 // GetChatUsageLimitConfig returns the deployment-wide chat usage limit config.
-func (c *Client) GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitConfigResponse, error) {
+func (c *ExperimentalClient) GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitConfigResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/usage-limits", nil)
 	if err != nil {
 		return ChatUsageLimitConfigResponse{}, err
@@ -1681,7 +1756,7 @@ func (c *Client) GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitCon
 }
 
 // UpdateChatUsageLimitConfig updates the deployment-wide usage limit config.
-func (c *Client) UpdateChatUsageLimitConfig(ctx context.Context, req ChatUsageLimitConfig) (ChatUsageLimitConfig, error) {
+func (c *ExperimentalClient) UpdateChatUsageLimitConfig(ctx context.Context, req ChatUsageLimitConfig) (ChatUsageLimitConfig, error) {
 	res, err := c.Request(ctx, http.MethodPut, "/api/experimental/chats/usage-limits", req)
 	if err != nil {
 		return ChatUsageLimitConfig{}, err
@@ -1695,7 +1770,7 @@ func (c *Client) UpdateChatUsageLimitConfig(ctx context.Context, req ChatUsageLi
 }
 
 // UpsertChatUsageLimitOverride creates or updates a per-user usage limit override.
-func (c *Client) UpsertChatUsageLimitOverride(ctx context.Context, userID uuid.UUID, req UpsertChatUsageLimitOverrideRequest) (ChatUsageLimitOverride, error) {
+func (c *ExperimentalClient) UpsertChatUsageLimitOverride(ctx context.Context, userID uuid.UUID, req UpsertChatUsageLimitOverrideRequest) (ChatUsageLimitOverride, error) {
 	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/usage-limits/overrides/%s", userID), req)
 	if err != nil {
 		return ChatUsageLimitOverride{}, err
@@ -1709,12 +1784,12 @@ func (c *Client) UpsertChatUsageLimitOverride(ctx context.Context, userID uuid.U
 }
 
 // UpdateChatUserUsageLimitOverride creates or updates a per-user usage limit override.
-func (c *Client) UpdateChatUserUsageLimitOverride(ctx context.Context, userID uuid.UUID, req UpdateChatUsageLimitOverrideRequest) (ChatUsageLimitOverride, error) {
+func (c *ExperimentalClient) UpdateChatUserUsageLimitOverride(ctx context.Context, userID uuid.UUID, req UpdateChatUsageLimitOverrideRequest) (ChatUsageLimitOverride, error) {
 	return c.UpsertChatUsageLimitOverride(ctx, userID, req)
 }
 
 // DeleteChatUsageLimitOverride removes a per-user usage limit override.
-func (c *Client) DeleteChatUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
+func (c *ExperimentalClient) DeleteChatUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/usage-limits/overrides/%s", userID), nil)
 	if err != nil {
 		return err
@@ -1727,13 +1802,13 @@ func (c *Client) DeleteChatUsageLimitOverride(ctx context.Context, userID uuid.U
 }
 
 // DeleteChatUserUsageLimitOverride removes a per-user usage limit override.
-func (c *Client) DeleteChatUserUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
+func (c *ExperimentalClient) DeleteChatUserUsageLimitOverride(ctx context.Context, userID uuid.UUID) error {
 	return c.DeleteChatUsageLimitOverride(ctx, userID)
 }
 
 // UpsertChatUsageLimitGroupOverride creates or updates a group-level
 // spend limit override. EXPERIMENTAL: This API is subject to change.
-func (c *Client) UpsertChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID, req UpsertChatUsageLimitGroupOverrideRequest) (ChatUsageLimitGroupOverride, error) {
+func (c *ExperimentalClient) UpsertChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID, req UpsertChatUsageLimitGroupOverrideRequest) (ChatUsageLimitGroupOverride, error) {
 	res, err := c.Request(ctx, http.MethodPut,
 		fmt.Sprintf("/api/experimental/chats/usage-limits/group-overrides/%s", groupID),
 		req,
@@ -1751,7 +1826,7 @@ func (c *Client) UpsertChatUsageLimitGroupOverride(ctx context.Context, groupID 
 
 // DeleteChatUsageLimitGroupOverride removes a group-level spend limit
 // override. EXPERIMENTAL: This API is subject to change.
-func (c *Client) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error {
+func (c *ExperimentalClient) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete,
 		fmt.Sprintf("/api/experimental/chats/usage-limits/group-overrides/%s", groupID),
 		nil,
@@ -1767,7 +1842,7 @@ func (c *Client) DeleteChatUsageLimitGroupOverride(ctx context.Context, groupID 
 }
 
 // GetMyChatUsageLimitStatus returns the current user's chat usage limit status.
-func (c *Client) GetMyChatUsageLimitStatus(ctx context.Context) (ChatUsageLimitStatus, error) {
+func (c *ExperimentalClient) GetMyChatUsageLimitStatus(ctx context.Context) (ChatUsageLimitStatus, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/usage-limits/status", nil)
 	if err != nil {
 		return ChatUsageLimitStatus{}, err

@@ -44,10 +44,14 @@ const AgentDetailLayout: FC = () => {
 							setChatErrorReason: () => {},
 							clearChatErrorReason: () => {},
 							requestArchiveAgent: () => {},
-							requestArchiveAndDeleteWorkspace: () => {},
+							requestArchiveAndDeleteWorkspace: (
+								_chatId: string,
+								_workspaceId: string,
+							) => {},
 							requestUnarchiveAgent: () => {},
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
+							onExpandSidebar: () => {},
 						} satisfies AgentsOutletContext
 					}
 				/>
@@ -106,6 +110,7 @@ const baseChatFields = {
 	owner_id: "owner-id",
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: "model-config-1",
+	mcp_server_ids: [],
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 	archived: false,
@@ -207,7 +212,9 @@ const meta: Meta<typeof AgentDetailLayout> = {
 		}),
 	},
 	beforeEach: () => {
+		localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 	},
 };
 
@@ -584,22 +591,6 @@ export const CompletedWithDiffPanel: Story = {
 	},
 };
 
-/** Right panel stays closed when no diff-status URL exists. */
-export const NoDiffUrl: Story = {
-	parameters: {
-		queries: buildQueries(
-			{
-				id: CHAT_ID,
-				...baseChatFields,
-				title: "No diff yet",
-				status: "completed",
-			},
-			{ messages: [], queued_messages: [], has_more: false },
-			{ diffUrl: undefined },
-		),
-	},
-};
-
 /** Subagent tool-call/result messages render subagent cards. */
 export const WithSubagentCards: Story = {
 	parameters: {
@@ -764,7 +755,7 @@ export const SidebarWithPRAndRepos: Story = {
 			{ diffUrl: "https://github.com/coder/coder/pull/456" },
 		),
 		webSocket: {
-			"/git/watch": [
+			"/stream/git": [
 				{
 					event: "message",
 					data: JSON.stringify({
@@ -945,7 +936,7 @@ export const SidebarWithSingleRepo: Story = {
 			{ diffUrl: undefined },
 		),
 		webSocket: {
-			"/git/watch": [
+			"/stream/git": [
 				{
 					event: "message",
 					data: JSON.stringify({

@@ -154,6 +154,15 @@ export const me = (metadata: MetadataState<User>) => {
 	});
 };
 
+export const userKey = (usernameOrId: string) => ["user", usernameOrId];
+
+export const user = (usernameOrId: string) => {
+	return {
+		queryKey: userKey(usernameOrId),
+		queryFn: () => API.getUser(usernameOrId),
+	};
+};
+
 export function apiKey(): UseQueryOptions<GenerateAPIKeyResponse> {
 	return {
 		queryKey: [...meKey, "apiKey"],

@@ -19,7 +19,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
-	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -28,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
@@ -223,6 +223,7 @@ func UserFromGroupMember(member database.GroupMember) database.User {
 		QuietHoursSchedule: member.UserQuietHoursSchedule,
 		Name:               member.UserName,
 		GithubComUserID:    member.UserGithubComUserID,
+		IsServiceAccount:   member.UserIsServiceAccount,
 	}
 }
 
@@ -232,6 +233,35 @@ func ReducedUserFromGroupMember(member database.GroupMember) codersdk.ReducedUse
 
 func ReducedUsersFromGroupMembers(members []database.GroupMember) []codersdk.ReducedUser {
 	return slice.List(members, ReducedUserFromGroupMember)
+}
+
+func UserFromGroupMemberRow(member database.GetGroupMembersByGroupIDPaginatedRow) database.User {
+	return database.User{
+		ID:                 member.UserID,
+		Email:              member.UserEmail,
+		Username:           member.UserUsername,
+		HashedPassword:     member.UserHashedPassword,
+		CreatedAt:          member.UserCreatedAt,
+		UpdatedAt:          member.UserUpdatedAt,
+		Status:             member.UserStatus,
+		RBACRoles:          member.UserRbacRoles,
+		LoginType:          member.UserLoginType,
+		AvatarURL:          member.UserAvatarUrl,
+		Deleted:            member.UserDeleted,
+		LastSeenAt:         member.UserLastSeenAt,
+		QuietHoursSchedule: member.UserQuietHoursSchedule,
+		Name:               member.UserName,
+		GithubComUserID:    member.UserGithubComUserID,
+		IsServiceAccount:   member.UserIsServiceAccount,
+	}
+}
+
+func ReducedUserFromGroupMemberRow(member database.GetGroupMembersByGroupIDPaginatedRow) codersdk.ReducedUser {
+	return ReducedUser(UserFromGroupMemberRow(member))
+}
+
+func ReducedUsersFromGroupMemberRows(members []database.GetGroupMembersByGroupIDPaginatedRow) []codersdk.ReducedUser {
+	return slice.List(members, ReducedUserFromGroupMemberRow)
 }
 
 func ReducedUsers(users []database.User) []codersdk.ReducedUser {

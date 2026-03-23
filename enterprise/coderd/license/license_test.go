@@ -852,6 +852,9 @@ func TestEntitlements(t *testing.T) {
 			GetActiveUserCount(gomock.Any(), false).
 			Return(int64(1), nil)
 		mDB.EXPECT().
+			GetActiveAISeatCount(gomock.Any()).
+			Return(int64(27), nil)
+		mDB.EXPECT().
 			GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Cond(func(params database.GetTotalUsageDCManagedAgentsV1Params) bool {
 				// gomock doesn't seem to compare times very nicely, so check
 				// them manually.
@@ -885,9 +888,71 @@ func TestEntitlements(t *testing.T) {
 		require.NotNil(t, managedAgentLimit.Actual)
 		require.EqualValues(t, 175, *managedAgentLimit.Actual)
 
+		aiGovernanceSeatLimit, ok := entitlements.Features[codersdk.FeatureAIGovernanceUserLimit]
+		require.True(t, ok)
+		require.NotNil(t, aiGovernanceSeatLimit.Actual)
+		require.EqualValues(t, 27, *aiGovernanceSeatLimit.Actual)
+		require.NotNil(t, aiGovernanceSeatLimit.Limit)
+		require.EqualValues(t, 100, *aiGovernanceSeatLimit.Limit)
+
 		// Usage exceeds the limit, so an exceeded warning should be present.
 		require.Len(t, entitlements.Warnings, 1)
 		require.Equal(t, codersdk.LicenseManagedAgentLimitExceededWarningText, entitlements.Warnings[0])
+	})
+
+	t.Run("AIGovernanceSeatLimitExceededWarning", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+
+		licenseOpts := (&coderdenttest.LicenseOptions{
+			FeatureSet: codersdk.FeatureSetPremium,
+			NotBefore:  dbtime.Now().Add(-time.Hour).Truncate(time.Second),
+			GraceAt:    dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second),
+			ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second),
+			Addons:     []codersdk.Addon{codersdk.AddonAIGovernance},
+			Features: license.Features{
+				codersdk.FeatureAIGovernanceUserLimit: 100,
+			},
+		}).
+			UserLimit(100)
+
+		lic := database.License{
+			ID:  1,
+			JWT: coderdenttest.GenerateLicense(t, *licenseOpts),
+			Exp: licenseOpts.ExpiresAt,
+		}
+
+		mDB.EXPECT().
+			GetUnexpiredLicenses(gomock.Any()).
+			Return([]database.License{lic}, nil)
+		mDB.EXPECT().
+			GetActiveUserCount(gomock.Any(), false).
+			Return(int64(1), nil)
+		mDB.EXPECT().
+			GetActiveAISeatCount(gomock.Any()).
+			Return(int64(127), nil)
+		mDB.EXPECT().
+			GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).
+			Return(int64(0), nil)
+		mDB.EXPECT().
+			GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
+			Return([]database.Template{}, nil)
+
+		entitlements, err := license.Entitlements(context.Background(), mDB, 1, 0, coderdenttest.Keys, all)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+
+		aiGovernanceSeatLimit, ok := entitlements.Features[codersdk.FeatureAIGovernanceUserLimit]
+		require.True(t, ok)
+		require.NotNil(t, aiGovernanceSeatLimit.Actual)
+		require.EqualValues(t, 127, *aiGovernanceSeatLimit.Actual)
+		require.NotNil(t, aiGovernanceSeatLimit.Limit)
+		require.EqualValues(t, 100, *aiGovernanceSeatLimit.Limit)
+
+		require.Len(t, entitlements.Warnings, 1)
+		require.Equal(t, "Your deployment has 127 active AI governance seats but is only licensed for 100.", entitlements.Warnings[0])
 	})
 }
 

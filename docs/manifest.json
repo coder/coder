@@ -137,9 +137,9 @@
 					"icon_path": "./images/icons/cloud.svg",
 					"children": [
 						{
-							"title": "AWS EC2",
-							"description": "Install Coder on AWS EC2",
-							"path": "./install/cloud/ec2.md"
+							"title": "AWS Marketplace",
+							"description": "Install Coder via AWS Marketplace",
+							"path": "./install/cloud/aws-marketplace.md"
 						},
 						{
 							"title": "GCP Compute Engine",

@@ -2,6 +2,7 @@ import TextField from "@mui/material/TextField";
 import { isApiValidationError } from "api/errors";
 import type {
 	Organization,
+	ShareableWorkspaceOwners,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
 import { Alert, AlertTitle } from "components/Alert/Alert";
@@ -17,6 +18,7 @@ import {
 	HorizontalForm,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
+import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
 import {
 	SettingsHeader,
 	SettingsHeaderTitle,
@@ -52,8 +54,8 @@ interface OrganizationSettingsPageViewProps {
 	onSubmit: (values: UpdateOrganizationRequest) => Promise<void>;
 	onDeleteOrganization: () => void;
 	workspaceSharingGloballyDisabled?: boolean;
-	workspaceSharingEnabled: boolean;
-	onToggleWorkspaceSharing: (enabled: boolean) => void;
+	shareableWorkspaceOwners: ShareableWorkspaceOwners;
+	onChangeShareableOwners: (value: ShareableWorkspaceOwners) => void;
 	isTogglingWorkspaceSharing: boolean;
 }
 
@@ -65,8 +67,8 @@ export const OrganizationSettingsPageView: FC<
 	onSubmit,
 	onDeleteOrganization,
 	workspaceSharingGloballyDisabled,
-	workspaceSharingEnabled,
-	onToggleWorkspaceSharing,
+	shareableWorkspaceOwners,
+	onChangeShareableOwners,
 	isTogglingWorkspaceSharing,
 }) => {
 	const form = useFormik<UpdateOrganizationRequest>({
@@ -83,8 +85,8 @@ export const OrganizationSettingsPageView: FC<
 	const getFieldHelpers = getFormHelpers(form, error);
 
 	const [isDeleting, setIsDeleting] = useState(false);
-	const [isDisableSharingDialogOpen, setIsDisableSharingDialogOpen] =
-		useState(false);
+	const [pendingSharingChange, setPendingSharingChange] =
+		useState<ShareableWorkspaceOwners | null>(null);
 
 	return (
 		<div className="w-full max-w-screen-2xl pb-10">
@@ -148,7 +150,7 @@ export const OrganizationSettingsPageView: FC<
 				</FormFooter>
 			</HorizontalForm>
 
-			{onToggleWorkspaceSharing && (
+			{onChangeShareableOwners && (
 				<HorizontalContainer className="mt-12">
 					<HorizontalSection
 						title={
@@ -172,7 +174,8 @@ export const OrganizationSettingsPageView: FC<
 								<Checkbox
 									id="workspace-sharing"
 									checked={
-										!workspaceSharingGloballyDisabled && workspaceSharingEnabled
+										!workspaceSharingGloballyDisabled &&
+										shareableWorkspaceOwners !== "none"
 									}
 									disabled={
 										workspaceSharingGloballyDisabled ||
@@ -180,23 +183,81 @@ export const OrganizationSettingsPageView: FC<
 									}
 									onCheckedChange={(checked) => {
 										if (checked) {
-											onToggleWorkspaceSharing(true);
+											// Default to service_accounts when enabling.
+											onChangeShareableOwners("service_accounts");
 										} else {
-											setIsDisableSharingDialogOpen(true);
+											setPendingSharingChange("none");
 										}
 									}}
 								/>
-								<div className="flex flex-col">
-									<label
-										htmlFor="workspace-sharing"
-										className="text-sm cursor-pointer"
-									>
-										Allow workspace sharing
-									</label>
-									<div className="text-sm text-content-secondary">
-										When enabled, workspace owners can share their workspaces
-										with other users in this organization.
+								<div className="flex flex-col gap-3">
+									<div className="flex flex-col">
+										<label
+											htmlFor="workspace-sharing"
+											className="text-sm cursor-pointer"
+										>
+											Allow workspace sharing
+										</label>
+										<div className="text-xs text-content-secondary">
+											When enabled, workspace owners can share their workspaces
+											with other users in this organization.
+										</div>
 									</div>
+									{shareableWorkspaceOwners !== "none" &&
+										!workspaceSharingGloballyDisabled && (
+											<RadioGroup
+												value={shareableWorkspaceOwners}
+												onValueChange={(value) => {
+													const newValue = value as ShareableWorkspaceOwners;
+													// Transitioning from "everyone" to "service_accounts"
+													// is destructive, so show the warning dialog.
+													// Otherwise, just change.
+													if (
+														shareableWorkspaceOwners === "everyone" &&
+														newValue === "service_accounts"
+													) {
+														setPendingSharingChange("service_accounts");
+													} else {
+														onChangeShareableOwners(newValue);
+													}
+												}}
+												disabled={isTogglingWorkspaceSharing}
+												className="ml-1"
+											>
+												<div className="flex items-start gap-2">
+													<RadioGroupItem
+														value="service_accounts"
+														id="sharing-service-accounts"
+														className="mt-0.5"
+													/>
+													<div className="flex flex-col">
+														<label
+															htmlFor="sharing-service-accounts"
+															className="text-sm cursor-pointer"
+														>
+															Only service accounts can share workspaces
+														</label>
+														<span className="text-xs text-content-secondary">
+															Service accounts are non-login accounts typically
+															used for automation, CI/CD pipelines, and
+															centrally-managed shared environments.
+														</span>
+													</div>
+												</div>
+												<div className="flex items-center gap-2">
+													<RadioGroupItem
+														value="everyone"
+														id="sharing-everyone"
+													/>
+													<label
+														htmlFor="sharing-everyone"
+														className="text-sm cursor-pointer"
+													>
+														All members can share workspaces
+													</label>
+												</div>
+											</RadioGroup>
+										)}
 								</div>
 							</div>
 						</div>
@@ -238,13 +299,16 @@ export const OrganizationSettingsPageView: FC<
 			/>
 
 			<DisableWorkspaceSharingDialog
-				isOpen={isDisableSharingDialogOpen}
+				isOpen={pendingSharingChange !== null}
 				organizationId={organization.id}
+				newSetting={pendingSharingChange ?? "none"}
 				onConfirm={async () => {
-					await onToggleWorkspaceSharing?.(false);
-					setIsDisableSharingDialogOpen(false);
+					if (pendingSharingChange !== null) {
+						await onChangeShareableOwners(pendingSharingChange);
+					}
+					setPendingSharingChange(null);
 				}}
-				onCancel={() => setIsDisableSharingDialogOpen(false)}
+				onCancel={() => setPendingSharingChange(null)}
 				isLoading={isTogglingWorkspaceSharing}
 			/>
 		</div>

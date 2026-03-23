@@ -70,7 +70,7 @@ type AgentConn interface {
 	ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error)
 	Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport, error)
 	Ping(ctx context.Context) (time.Duration, bool, *ipnstate.PingResult, error)
-	ProcessOutput(ctx context.Context, id string) (ProcessOutputResponse, error)
+	ProcessOutput(ctx context.Context, id string, opts *ProcessOutputOptions) (ProcessOutputResponse, error)
 	PrometheusMetrics(ctx context.Context) ([]byte, error)
 	ReconnectingPTY(ctx context.Context, id uuid.UUID, height uint16, width uint16, command string, initOpts ...AgentReconnectingPTYInitOption) (net.Conn, error)
 	DeleteDevcontainer(ctx context.Context, devcontainerID string) error
@@ -578,8 +578,10 @@ type DesktopAction struct {
 	Duration        *int    `json:"duration,omitempty"`
 	ScrollAmount    *int    `json:"scroll_amount,omitempty"`
 	ScrollDirection *string `json:"scroll_direction,omitempty"`
-	ScaledWidth     *int    `json:"scaled_width,omitempty"`
-	ScaledHeight    *int    `json:"scaled_height,omitempty"`
+	// ScaledWidth and ScaledHeight carry the declared model-facing desktop
+	// geometry used for screenshot sizing and coordinate mapping.
+	ScaledWidth  *int `json:"scaled_width,omitempty"`
+	ScaledHeight *int `json:"scaled_height,omitempty"`
 }
 
 // DesktopActionResponse is the response from the desktop action
@@ -713,6 +715,14 @@ type ProcessOutputResponse struct {
 	Truncated *ProcessTruncation `json:"truncated,omitempty"`
 	Running   bool               `json:"running"`
 	ExitCode  *int               `json:"exit_code,omitempty"`
+}
+
+// ProcessOutputOptions configures blocking behavior for
+// process output retrieval.
+type ProcessOutputOptions struct {
+	// Wait enables blocking mode. When true, the request
+	// blocks until the process exits or the context expires.
+	Wait bool
 }
 
 // ProcessTruncation describes how process output was truncated.
@@ -946,10 +956,14 @@ func (c *agentConn) ListProcesses(ctx context.Context) (ListProcessesResponse, e
 }
 
 // ProcessOutput returns the output of a tracked process on the agent.
-func (c *agentConn) ProcessOutput(ctx context.Context, id string) (ProcessOutputResponse, error) {
+func (c *agentConn) ProcessOutput(ctx context.Context, id string, opts *ProcessOutputOptions) (ProcessOutputResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/processes/"+id+"/output", nil)
+	path := "/api/v0/processes/" + id + "/output"
+	if opts != nil && opts.Wait {
+		path += "?wait=true"
+	}
+	res, err := c.apiRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return ProcessOutputResponse{}, xerrors.Errorf("do request: %w", err)
 	}

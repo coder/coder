@@ -12,7 +12,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { type FC, useMemo } from "react";
+import type { FC } from "react";
 import { cn } from "utils/cn";
 
 export interface ModelSelectorOption {
@@ -67,11 +67,8 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	dropdownAlign = "start",
 	contentClassName,
 }) => {
-	const selectedModel = useMemo(
-		() => options.find((option) => option.id === value),
-		[options, value],
-	);
-	const optionsByProvider = useMemo(() => {
+	const selectedModel = options.find((option) => option.id === value);
+	const optionsByProvider = (() => {
 		const grouped = new Map<string, ModelSelectorOption[]>();
 
 		for (const option of options) {
@@ -84,7 +81,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 		}
 
 		return Array.from(grouped.entries());
-	}, [options]);
+	})();
 	const isDisabled = disabled || options.length === 0;
 
 	return (

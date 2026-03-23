@@ -1,12 +1,24 @@
 import * as path from "node:path";
+import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import react from "@vitejs/plugin-react";
+import { playwright } from "@vitest/browser-playwright";
 import { visualizer } from "rollup-plugin-visualizer";
 import type { PluginOption } from "vite";
 import checker from "vite-plugin-checker";
 import { defineConfig } from "vitest/config";
 
 const plugins: PluginOption[] = [
-	react(),
+	react({
+		babel: {
+			plugins: [],
+			overrides: [
+				{
+					test: /src\/(pages\/AgentsPage|components\/ai-elements)\//,
+					plugins: ["babel-plugin-react-compiler"],
+				},
+			],
+		},
+	}),
 	checker({
 		typescript: true,
 	}),
@@ -210,10 +222,42 @@ export default defineConfig({
 		},
 	},
 	test: {
-		include: ["src/**/*.test.?(m)ts?(x)"],
-		globals: true,
-		environment: "jsdom",
-		setupFiles: ["@testing-library/jest-dom/vitest", "./test/vitestSetup.ts"],
-		silent: "passed-only",
+		projects: [
+			{
+				extends: true,
+				test: {
+					name: "unit",
+					include: ["src/**/*.test.?(m)ts?(x)"],
+					globals: true,
+					environment: "jsdom",
+					setupFiles: [
+						"@testing-library/jest-dom/vitest",
+						"./test/vitestSetup.ts",
+					],
+					silent: "passed-only",
+				},
+			},
+			// Storybook story tests via Playwright browser mode.
+			// Discovery handled by the storybookTest plugin via
+			// .storybook/main.ts `stories` config.
+			{
+				extends: true,
+				plugins: [
+					storybookTest({
+						configDir: path.join(__dirname, ".storybook"),
+					}),
+				],
+				test: {
+					name: "storybook",
+					browser: {
+						enabled: true,
+						headless: true,
+						provider: playwright(),
+						instances: [{ browser: "chromium" }],
+					},
+					setupFiles: [".storybook/vitest.setup.ts"],
+				},
+			},
+		],
 	},
 });

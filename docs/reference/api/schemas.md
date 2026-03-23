@@ -618,6 +618,9 @@
 
 ```json
 {
+  "allowed_private_cidrs": [
+    "string"
+  ],
   "cert_file": "string",
   "domain_allowlist": [
     "string"
@@ -634,17 +637,18 @@
 
 ### Properties
 
-| Name                | Type            | Required | Restrictions | Description |
-|---------------------|-----------------|----------|--------------|-------------|
-| `cert_file`         | string          | false    |              |             |
-| `domain_allowlist`  | array of string | false    |              |             |
-| `enabled`           | boolean         | false    |              |             |
-| `key_file`          | string          | false    |              |             |
-| `listen_addr`       | string          | false    |              |             |
-| `tls_cert_file`     | string          | false    |              |             |
-| `tls_key_file`      | string          | false    |              |             |
-| `upstream_proxy`    | string          | false    |              |             |
-| `upstream_proxy_ca` | string          | false    |              |             |
+| Name                    | Type            | Required | Restrictions | Description |
+|-------------------------|-----------------|----------|--------------|-------------|
+| `allowed_private_cidrs` | array of string | false    |              |             |
+| `cert_file`             | string          | false    |              |             |
+| `domain_allowlist`      | array of string | false    |              |             |
+| `enabled`               | boolean         | false    |              |             |
+| `key_file`              | string          | false    |              |             |
+| `listen_addr`           | string          | false    |              |             |
+| `tls_cert_file`         | string          | false    |              |             |
+| `tls_key_file`          | string          | false    |              |             |
+| `upstream_proxy`        | string          | false    |              |             |
+| `upstream_proxy_ca`     | string          | false    |              |             |
 
 ## codersdk.AIBridgeTokenUsage
 
@@ -745,6 +749,9 @@
 ```json
 {
   "aibridge_proxy": {
+    "allowed_private_cidrs": [
+      "string"
+    ],
     "cert_file": "string",
     "domain_allowlist": [
       "string"
@@ -2697,6 +2704,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "agent_stat_refresh_interval": 0,
     "ai": {
       "aibridge_proxy": {
+        "allowed_private_cidrs": [
+          "string"
+        ],
         "cert_file": "string",
         "domain_allowlist": [
           "string"
@@ -3272,6 +3282,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "agent_stat_refresh_interval": 0,
   "ai": {
     "aibridge_proxy": {
+      "allowed_private_cidrs": [
+        "string"
+      ],
       "cert_file": "string",
       "domain_allowlist": [
         "string"
@@ -4515,6 +4528,37 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
 | `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
 | `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+## codersdk.GroupMembersResponse
+
+```json
+{
+  "count": 0,
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                  | Required | Restrictions | Description |
+|---------|-------------------------------------------------------|----------|--------------|-------------|
+| `count` | integer                                               | false    |              |             |
+| `users` | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |             |
 
 ## codersdk.GroupSource
 
@@ -5768,6 +5812,20 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `iconUrl`    | string  | false    |              |             |
 | `signInText` | string  | false    |              |             |
 
+## codersdk.OIDCClaimsResponse
+
+```json
+{
+  "claims": {}
+}
+```
+
+### Properties
+
+| Name     | Type   | Required | Restrictions | Description                                                                                                                                                                 |
+|----------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `claims` | object | false    |              | Claims are the merged claims from the OIDC provider. These are the union of the ID token claims and the userinfo claims, where userinfo claims take precedence on conflict. |
+
 ## codersdk.OIDCConfig
 
 ```json
@@ -5958,6 +6016,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "organization_id": "string"
     }
   ],
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "login_type": "",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "roles": [
@@ -5967,8 +6027,11 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "organization_id": "string"
     }
   ],
+  "status": "active",
   "updated_at": "2019-08-24T14:15:22Z",
+  "user_created_at": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "user_updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -5981,12 +6044,23 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `created_at`      | string                                          | false    |              |             |
 | `email`           | string                                          | false    |              |             |
 | `global_roles`    | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
+| `last_seen_at`    | string                                          | false    |              |             |
+| `login_type`      | [codersdk.LoginType](#codersdklogintype)        | false    |              |             |
 | `name`            | string                                          | false    |              |             |
 | `organization_id` | string                                          | false    |              |             |
 | `roles`           | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
+| `status`          | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
 | `updated_at`      | string                                          | false    |              |             |
+| `user_created_at` | string                                          | false    |              |             |
 | `user_id`         | string                                          | false    |              |             |
+| `user_updated_at` | string                                          | false    |              |             |
 | `username`        | string                                          | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)              |
+|----------|-----------------------|
+| `status` | `active`, `suspended` |
 
 ## codersdk.OrganizationSyncSettings
 
@@ -6244,6 +6318,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
           "organization_id": "string"
         }
       ],
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "roles": [
@@ -6253,8 +6329,11 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
           "organization_id": "string"
         }
       ],
+      "status": "active",
       "updated_at": "2019-08-24T14:15:22Z",
+      "user_created_at": "2019-08-24T14:15:22Z",
       "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "user_updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ]

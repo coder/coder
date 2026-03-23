@@ -159,6 +159,28 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		},
 	});
 
+	// Retry workspace (stop-before-start for failed workspaces)
+	const retryWorkspaceMutation = useMutation({
+		...startWorkspace(workspace, queryClient),
+		mutationFn: ({
+			buildParameters,
+			logLevel,
+		}: {
+			buildParameters?: TypesGen.WorkspaceBuildParameter[];
+			logLevel?: TypesGen.ProvisionerLogLevel;
+		}) => {
+			return API.retryWorkspace(
+				workspace,
+				workspace.latest_build.template_version_id,
+				logLevel,
+				buildParameters,
+			);
+		},
+		onError: (error: unknown) => {
+			handleError(error);
+		},
+	});
+
 	// Toggle workspace favorite
 	const toggleFavoriteMutation = useMutation({
 		...toggleFavorite(workspace, queryClient),
@@ -246,7 +268,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		} else {
 			switch (workspace.latest_build.transition) {
 				case "start":
-					startWorkspaceMutation.mutate({
+					retryWorkspaceMutation.mutate({
 						logLevel,
 						buildParameters,
 					});

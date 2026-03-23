@@ -87,7 +87,7 @@ func TestChatUsageLimitExceededFrom(t *testing.T) {
 		serverURL, err := url.Parse(srv.URL)
 		require.NoError(t, err)
 
-		client := codersdk.New(serverURL)
+		client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
 		_, err = client.CreateChat(context.Background(), codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
@@ -121,7 +121,7 @@ func TestChatUsageLimitExceededFrom(t *testing.T) {
 		serverURL, err := url.Parse(srv.URL)
 		require.NoError(t, err)
 
-		client := codersdk.New(serverURL)
+		client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
 		_, err = client.CreateChat(context.Background(), codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
@@ -259,6 +259,46 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 		assert.True(t, coveredTypes[pt],
 			"ChatMessagePartType %q is not referenced by any variants tag; %s", pt, editHint)
 	}
+
+	// Enforce the omitempty <-> variants invariant:
+	//   required in any variant  => must NOT have omitempty
+	//   optional in all variants => MUST have omitempty
+	// See the struct comment on ChatMessagePart for rationale.
+	t.Run("omitempty must match variant optionality", func(t *testing.T) {
+		t.Parallel()
+
+		typ := reflect.TypeOf(codersdk.ChatMessagePart{})
+		for i := range typ.NumField() {
+			f := typ.Field(i)
+			varTag := f.Tag.Get("variants")
+			if varTag == "" {
+				continue
+			}
+
+			allOptional := true
+			for _, entry := range strings.Split(varTag, ",") {
+				if !strings.HasSuffix(entry, "?") {
+					allOptional = false
+					break
+				}
+			}
+
+			jsonTag := f.Tag.Get("json")
+			hasOmitEmpty := strings.Contains(jsonTag, "omitempty")
+
+			if !allOptional {
+				assert.False(t, hasOmitEmpty,
+					"field %s is required in at least one variant but has omitempty in its json tag; "+
+						"remove omitempty so Go does not silently drop the zero value that TypeScript expects to always be present",
+					f.Name)
+			} else {
+				assert.True(t, hasOmitEmpty,
+					"field %s is optional in all variants but is missing omitempty in its json tag; "+
+						"add omitempty to avoid sending zero values for fields the frontend does not expect",
+					f.Name)
+			}
+		}
+	})
 }
 
 func TestModelCostConfig_LegacyNumericJSON(t *testing.T) {
@@ -321,4 +361,36 @@ func TestChatCostSummary_JSONRoundTrip(t *testing.T) {
 	err = json.Unmarshal(raw, &decoded)
 	require.NoError(t, err)
 	require.Equal(t, original.TotalCostMicros, decoded.TotalCostMicros)
+}
+
+//nolint:tparallel,paralleltest
+func TestParseChatWorkspaceTTL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		want    time.Duration
+		wantErr bool
+	}{
+		{"Empty_ReturnsDefault", "", 0, false},
+		{"ValidDuration_Hours", "2h", 2 * time.Hour, false},
+		{"ValidDuration_HoursAndMinutes", "2h30m", 2*time.Hour + 30*time.Minute, false},
+		{"ValidDuration_Minutes", "90m", 90 * time.Minute, false},
+		{"Zero", "0s", 0, false},
+		{"Negative", "-1h", 0, true},
+		{"Invalid", "not-a-duration", 0, true},
+		{"LargeDuration", "720h", 720 * time.Hour, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := codersdk.ParseChatWorkspaceTTL(tc.input)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
 }

@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -35,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -1653,12 +1653,12 @@ func TestDefaultProxy(t *testing.T) {
 	require.NoError(t, err, "get def proxy")
 
 	require.Equal(t, defProxy.DisplayName, "Default")
-	require.Equal(t, defProxy.IconUrl, "/emojis/1f3e1.png")
+	require.Equal(t, defProxy.IconURL, "/emojis/1f3e1.png")
 
 	// Set the proxy values
 	args := database.UpsertDefaultProxyParams{
 		DisplayName: "displayname",
-		IconUrl:     "/icon.png",
+		IconURL:     "/icon.png",
 	}
 	err = db.UpsertDefaultProxy(ctx, args)
 	require.NoError(t, err, "insert def proxy")
@@ -1666,12 +1666,12 @@ func TestDefaultProxy(t *testing.T) {
 	defProxy, err = db.GetDefaultProxyConfig(ctx)
 	require.NoError(t, err, "get def proxy")
 	require.Equal(t, defProxy.DisplayName, args.DisplayName)
-	require.Equal(t, defProxy.IconUrl, args.IconUrl)
+	require.Equal(t, defProxy.IconURL, args.IconURL)
 
 	// Upsert values
 	args = database.UpsertDefaultProxyParams{
 		DisplayName: "newdisplayname",
-		IconUrl:     "/newicon.png",
+		IconURL:     "/newicon.png",
 	}
 	err = db.UpsertDefaultProxy(ctx, args)
 	require.NoError(t, err, "upsert def proxy")
@@ -1679,7 +1679,7 @@ func TestDefaultProxy(t *testing.T) {
 	defProxy, err = db.GetDefaultProxyConfig(ctx)
 	require.NoError(t, err, "get def proxy")
 	require.Equal(t, defProxy.DisplayName, args.DisplayName)
-	require.Equal(t, defProxy.IconUrl, args.IconUrl)
+	require.Equal(t, defProxy.IconURL, args.IconURL)
 
 	// Ensure other site configs are the same
 	found, err := db.GetDeploymentID(ctx)
@@ -9534,6 +9534,68 @@ func TestInsertChatMessages(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, modelConfigA.ID, gotChat.LastModelConfigID)
 	})
+
+	t.Run("BatchInsertMultipleMessages", func(t *testing.T) {
+		t.Parallel()
+
+		store, ctx, user, chat, _, modelConfigA := setupChat(t)
+
+		msgs, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+			ChatID:              chat.ID,
+			CreatedBy:           []uuid.UUID{user.ID, uuid.Nil, uuid.Nil},
+			ModelConfigID:       []uuid.UUID{modelConfigA.ID, modelConfigA.ID, modelConfigA.ID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleAssistant, database.ChatMessageRoleTool},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
+			Content:             []string{`"hello"`, `"response"`, `"tool result"`},
+			InputTokens:         []int64{10, 0, 0},
+			OutputTokens:        []int64{0, 20, 0},
+			TotalTokens:         []int64{10, 20, 0},
+			ReasoningTokens:     []int64{0, 5, 0},
+			CacheCreationTokens: []int64{0, 0, 0},
+			CacheReadTokens:     []int64{0, 0, 0},
+			ContextLimit:        []int64{0, 0, 0},
+			Compressed:          []bool{false, false, false},
+			TotalCostMicros:     []int64{0, 100, 0},
+			RuntimeMs:           []int64{0, 500, 0},
+		})
+		require.NoError(t, err)
+		require.Len(t, msgs, 3)
+
+		// Verify ordering and roles.
+		require.Equal(t, database.ChatMessageRoleUser, msgs[0].Role)
+		require.Equal(t, database.ChatMessageRoleAssistant, msgs[1].Role)
+		require.Equal(t, database.ChatMessageRoleTool, msgs[2].Role)
+
+		// Verify IDs are sequential.
+		require.Less(t, msgs[0].ID, msgs[1].ID)
+		require.Less(t, msgs[1].ID, msgs[2].ID)
+
+		// Verify nullable fields: user message has CreatedBy set.
+		require.True(t, msgs[0].CreatedBy.Valid)
+		require.Equal(t, user.ID, msgs[0].CreatedBy.UUID)
+		// Assistant and tool messages have NULL CreatedBy.
+		require.False(t, msgs[1].CreatedBy.Valid)
+		require.False(t, msgs[2].CreatedBy.Valid)
+
+		// Verify token fields stored as NULL when zero.
+		require.True(t, msgs[0].InputTokens.Valid)
+		require.Equal(t, int64(10), msgs[0].InputTokens.Int64)
+		require.False(t, msgs[0].OutputTokens.Valid) // 0 → NULL
+		require.True(t, msgs[1].OutputTokens.Valid)
+		require.Equal(t, int64(20), msgs[1].OutputTokens.Int64)
+
+		// Verify cost: assistant has cost, others NULL.
+		require.True(t, msgs[1].TotalCostMicros.Valid)
+		require.Equal(t, int64(100), msgs[1].TotalCostMicros.Int64)
+		require.False(t, msgs[0].TotalCostMicros.Valid)
+		require.False(t, msgs[2].TotalCostMicros.Valid)
+
+		// Verify runtime_ms on assistant message.
+		require.True(t, msgs[1].RuntimeMs.Valid)
+		require.Equal(t, int64(500), msgs[1].RuntimeMs.Int64)
+		require.False(t, msgs[0].RuntimeMs.Valid)
+	})
 }
 
 func TestGetChatMessagesForPromptByChatID(t *testing.T) {
@@ -9901,4 +9963,483 @@ func TestUpsertAISeats(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.False(t, alreadyExists)
+}
+
+func TestGetPRInsights(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	// setupChatInfra creates a fresh database with a user, chat provider,
+	// and model config. Returns the store, user ID, and model config ID.
+	setupChatInfra := func(t *testing.T) (database.Store, uuid.UUID, uuid.UUID) {
+		t.Helper()
+		store, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+		dbgen.Organization(t, store, database.Organization{})
+		user := dbgen.User(t, store, database.User{})
+
+		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+			Provider:    "anthropic",
+			DisplayName: "Anthropic",
+			APIKey:      "test-key",
+			Enabled:     true,
+		})
+		require.NoError(t, err)
+
+		mc, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+			Provider:             "anthropic",
+			Model:                "claude-4",
+			DisplayName:          "Claude 4",
+			CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+			Enabled:              true,
+			IsDefault:            true,
+			ContextLimit:         128000,
+			CompressionThreshold: 80,
+			Options:              json.RawMessage(`{}`),
+		})
+		require.NoError(t, err)
+
+		return store, user.ID, mc.ID
+	}
+
+	createChat := func(t *testing.T, store database.Store, userID, mcID uuid.UUID, title string) database.Chat {
+		t.Helper()
+		chat, err := store.InsertChat(context.Background(), database.InsertChatParams{
+			OwnerID:           userID,
+			LastModelConfigID: mcID,
+			Title:             title,
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	// insertCostMessage inserts a single assistant message with the
+	// given total_cost_micros value.
+	insertCostMessage := func(t *testing.T, store database.Store, chatID, userID, mcID uuid.UUID, costMicros int64) {
+		t.Helper()
+		_, err := store.InsertChatMessages(context.Background(), database.InsertChatMessagesParams{
+			ChatID:              chatID,
+			CreatedBy:           []uuid.UUID{userID},
+			ModelConfigID:       []uuid.UUID{mcID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+			Content:             []string{`[{"type":"text","text":"hello"}]`},
+			ContentVersion:      []int16{1},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+			InputTokens:         []int64{0},
+			OutputTokens:        []int64{0},
+			TotalTokens:         []int64{0},
+			ReasoningTokens:     []int64{0},
+			CacheCreationTokens: []int64{0},
+			CacheReadTokens:     []int64{0},
+			ContextLimit:        []int64{0},
+			Compressed:          []bool{false},
+			TotalCostMicros:     []int64{costMicros},
+			RuntimeMs:           []int64{0},
+		})
+		require.NoError(t, err)
+	}
+
+	// linkPR associates a chat with a pull request via
+	// UpsertChatDiffStatus.
+	linkPR := func(t *testing.T, store database.Store, chatID uuid.UUID, prURL, state, title string, additions, deletions, changed int32) {
+		t.Helper()
+		now := time.Now()
+		_, err := store.UpsertChatDiffStatus(context.Background(), database.UpsertChatDiffStatusParams{
+			ChatID:           chatID,
+			Url:              sql.NullString{String: prURL, Valid: true},
+			PullRequestState: sql.NullString{String: state, Valid: true},
+			PullRequestTitle: title,
+			Additions:        additions,
+			Deletions:        deletions,
+			ChangedFiles:     changed,
+			RefreshedAt:      now,
+			StaleAt:          now.Add(time.Hour),
+		})
+		require.NoError(t, err)
+	}
+
+	startDate := time.Now().Add(-24 * time.Hour)
+	endDate := time.Now().Add(time.Hour)
+	noOwner := uuid.NullUUID{}
+
+	t.Run("MultipleChatsSamePR_CostSummed", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		chatA := createChat(t, store, userID, mcID, "chat-A")
+		insertCostMessage(t, store, chatA.ID, userID, mcID, 5_000_000) // $5
+
+		chatB := createChat(t, store, userID, mcID, "chat-B")
+		insertCostMessage(t, store, chatB.ID, userID, mcID, 3_000_000) // $3
+
+		prURL := "https://github.com/org/repo/pull/123"
+		linkPR(t, store, chatA.ID, prURL, "merged", "fix: something", 100, 20, 5)
+		linkPR(t, store, chatB.ID, prURL, "merged", "fix: something", 100, 20, 5)
+
+		// Both chats reference the same PR. The pr_costs CTE sums
+		// cost across all chats for the same PR URL, so the total
+		// should be $5 + $3 = $8. The PR itself is counted once.
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), summary.TotalPrsCreated)
+		assert.Equal(t, int64(8_000_000), summary.TotalCostMicros)
+
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 1)
+		assert.Equal(t, int64(8_000_000), recent[0].CostMicros)
+	})
+
+	t.Run("DifferentPRs_NoDuplication", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		chatA := createChat(t, store, userID, mcID, "chat-A")
+		insertCostMessage(t, store, chatA.ID, userID, mcID, 5_000_000)
+		linkPR(t, store, chatA.ID, "https://github.com/org/repo/pull/1", "merged", "feat: A", 50, 10, 2)
+
+		chatB := createChat(t, store, userID, mcID, "chat-B")
+		insertCostMessage(t, store, chatB.ID, userID, mcID, 3_000_000)
+		linkPR(t, store, chatB.ID, "https://github.com/org/repo/pull/2", "open", "feat: B", 80, 30, 4)
+
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), summary.TotalPrsCreated)
+		assert.Equal(t, int64(8_000_000), summary.TotalCostMicros) // $5 + $3
+		assert.Equal(t, int64(1), summary.TotalPrsMerged)
+
+		// RecentPRs ordered by created_at DESC: chatB is newer.
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 2)
+		// Costs must not be mixed across different PRs.
+		assert.Equal(t, int64(3_000_000), recent[0].CostMicros) // PR 2 (newer)
+		assert.Equal(t, int64(5_000_000), recent[1].CostMicros) // PR 1 (older)
+	})
+
+	// createChildChat creates a chat with ParentChatID and RootChatID
+	// set, simulating a subagent/child chat in a tree.
+	createChildChat := func(t *testing.T, store database.Store, userID, mcID, parentID, rootID uuid.UUID, title string) database.Chat {
+		t.Helper()
+		chat, err := store.InsertChat(context.Background(), database.InsertChatParams{
+			OwnerID:           userID,
+			LastModelConfigID: mcID,
+			Title:             title,
+			ParentChatID:      uuid.NullUUID{UUID: parentID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: rootID, Valid: true},
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	t.Run("DuplicatePRUrl_CountedOnce", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		prURL := "https://github.com/org/repo/pull/99"
+		for i := 0; i < 3; i++ {
+			chat := createChat(t, store, userID, mcID, fmt.Sprintf("chat-%d", i))
+			insertCostMessage(t, store, chat.ID, userID, mcID, 1_000_000)
+			linkPR(t, store, chat.ID, prURL, "merged", "fix: same PR", 40, 10, 3)
+		}
+
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), summary.TotalPrsCreated)
+		assert.Equal(t, int64(1), summary.TotalPrsMerged)
+
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 1)
+	})
+
+	t.Run("ChildChatCostsIncluded", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		// Parent chat with a $5 cost.
+		parent := createChat(t, store, userID, mcID, "parent-chat")
+		insertCostMessage(t, store, parent.ID, userID, mcID, 5_000_000)
+
+		// Two child chats (subagents) with $2 each. Only the parent
+		// has a chat_diff_statuses entry, but the children's costs
+		// should be included via the tree join.
+		child1 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-1")
+		insertCostMessage(t, store, child1.ID, userID, mcID, 2_000_000)
+
+		child2 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-2")
+		insertCostMessage(t, store, child2.ID, userID, mcID, 2_000_000)
+
+		prURL := "https://github.com/org/repo/pull/42"
+		linkPR(t, store, parent.ID, prURL, "merged", "feat: tree cost", 60, 15, 3)
+
+		// Summary should reflect $5 + $2 + $2 = $9 total.
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), summary.TotalPrsCreated)
+		assert.Equal(t, int64(1), summary.TotalPrsMerged)
+		assert.Equal(t, int64(9_000_000), summary.TotalCostMicros)
+
+		// RecentPRs should return 1 row with the full tree cost.
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 1)
+		assert.Equal(t, int64(9_000_000), recent[0].CostMicros)
+	})
+
+	t.Run("SiblingPRs_NoCrossContamination", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		// Parent chat with $10 orchestration cost.
+		parent := createChat(t, store, userID, mcID, "parent")
+		insertCostMessage(t, store, parent.ID, userID, mcID, 10_000_000)
+
+		// Child C1 ($5) creates PR1.
+		c1 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-1")
+		insertCostMessage(t, store, c1.ID, userID, mcID, 5_000_000)
+		linkPR(t, store, c1.ID, "https://github.com/org/repo/pull/10", "merged", "feat: PR1", 50, 10, 2)
+
+		// Child C2 ($3) creates PR2.
+		c2 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-2")
+		insertCostMessage(t, store, c2.ID, userID, mcID, 3_000_000)
+		linkPR(t, store, c2.ID, "https://github.com/org/repo/pull/11", "open", "feat: PR2", 30, 5, 1)
+
+		// With direct-branch attribution:
+		//   PR1 cost = C1's own cost = $5 (parent NOT included — only children of C1)
+		//   PR2 cost = C2's own cost = $3
+		//   Total = $8 (no double-counting of parent or siblings)
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), summary.TotalPrsCreated)
+		assert.Equal(t, int64(8_000_000), summary.TotalCostMicros)
+
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 2)
+		// PR2 (newer) = $3, PR1 (older) = $5.
+		assert.Equal(t, int64(3_000_000), recent[0].CostMicros)
+		assert.Equal(t, int64(5_000_000), recent[1].CostMicros)
+	})
+
+	t.Run("ParentAndChildDifferentPRs_NoCrossContamination", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		// Parent P ($10) creates PR1.
+		parent := createChat(t, store, userID, mcID, "parent")
+		insertCostMessage(t, store, parent.ID, userID, mcID, 10_000_000)
+		linkPR(t, store, parent.ID, "https://github.com/org/repo/pull/20", "merged", "feat: parent PR", 80, 20, 4)
+
+		// Child C1 ($5) has its own PR2. Because C1 has its own
+		// chat_diff_statuses entry, its cost should NOT be included
+		// under PR1 — it belongs to PR2 only.
+		c1 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-1")
+		insertCostMessage(t, store, c1.ID, userID, mcID, 5_000_000)
+		linkPR(t, store, c1.ID, "https://github.com/org/repo/pull/21", "open", "feat: child PR", 30, 5, 1)
+
+		// Child C2 ($2) has NO cds entry — pure subagent.
+		// Its cost should be included under PR1 (the parent's PR).
+		c2 := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child-2")
+		insertCostMessage(t, store, c2.ID, userID, mcID, 2_000_000)
+
+		// PR1 cost = parent ($10) + C2 ($2) = $12 (C1 excluded)
+		// PR2 cost = C1 ($5)
+		// Total = $17 (actual spend: $10 + $5 + $2 = $17)
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), summary.TotalPrsCreated)
+		assert.Equal(t, int64(17_000_000), summary.TotalCostMicros)
+
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 2)
+		// PR2/C1 (newer) = $5, PR1/parent (older) = $12.
+		assert.Equal(t, int64(5_000_000), recent[0].CostMicros)
+		assert.Equal(t, int64(12_000_000), recent[1].CostMicros)
+	})
+
+	t.Run("EmptyURLNotCollapsed", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		// Two chats with empty-string URLs should be treated as
+		// separate PRs (NULLIF converts '' to NULL, falling back
+		// to c.id::text).
+		chatX := createChat(t, store, userID, mcID, "chat-X")
+		insertCostMessage(t, store, chatX.ID, userID, mcID, 4_000_000)
+		linkPR(t, store, chatX.ID, "", "open", "draft: X", 10, 2, 1)
+
+		chatY := createChat(t, store, userID, mcID, "chat-Y")
+		insertCostMessage(t, store, chatY.ID, userID, mcID, 6_000_000)
+		linkPR(t, store, chatY.ID, "", "merged", "draft: Y", 20, 5, 2)
+
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), summary.TotalPrsCreated)
+		assert.Equal(t, int64(10_000_000), summary.TotalCostMicros)
+
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 2)
+	})
+
+	t.Run("ParentAndChildSameURL_DedupedWithCombinedCost", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		// Parent P ($10) links to a PR.
+		parent := createChat(t, store, userID, mcID, "parent")
+		insertCostMessage(t, store, parent.ID, userID, mcID, 10_000_000)
+
+		// Child C ($5) also links to the same PR URL.
+		child := createChildChat(t, store, userID, mcID, parent.ID, parent.ID, "child")
+		insertCostMessage(t, store, child.ID, userID, mcID, 5_000_000)
+
+		prURL := "https://github.com/org/repo/pull/50"
+		linkPR(t, store, parent.ID, prURL, "merged", "feat: shared PR", 70, 15, 3)
+		linkPR(t, store, child.ID, prURL, "merged", "feat: shared PR", 70, 15, 3)
+
+		// Both parent and child have cds entries for the same URL.
+		// The PR should be counted once with combined cost $10 + $5 = $15.
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), summary.TotalPrsCreated)
+		assert.Equal(t, int64(15_000_000), summary.TotalCostMicros)
+
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 1)
+		assert.Equal(t, int64(15_000_000), recent[0].CostMicros)
+	})
+
+	t.Run("ZeroCostChat_StillCounted", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		// A chat linked to a PR but with NO chat_messages at all.
+		// The PR should still appear with zero cost.
+		chat := createChat(t, store, userID, mcID, "zero-cost-chat")
+		linkPR(t, store, chat.ID, "https://github.com/org/repo/pull/60", "open", "feat: no messages", 25, 5, 2)
+
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), summary.TotalPrsCreated)
+		assert.Equal(t, int64(0), summary.TotalCostMicros)
+
+		recent, err := store.GetPRInsightsRecentPRs(context.Background(), database.GetPRInsightsRecentPRsParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+			LimitVal:  20,
+		})
+		require.NoError(t, err)
+		require.Len(t, recent, 1)
+		assert.Equal(t, int64(0), recent[0].CostMicros)
+	})
+
+	t.Run("MergedCostMicros_OnlyCountsMerged", func(t *testing.T) {
+		t.Parallel()
+		store, userID, mcID := setupChatInfra(t)
+
+		// Merged PR with $5 cost.
+		chatMerged := createChat(t, store, userID, mcID, "chat-merged")
+		insertCostMessage(t, store, chatMerged.ID, userID, mcID, 5_000_000)
+		linkPR(t, store, chatMerged.ID, "https://github.com/org/repo/pull/70", "merged", "fix: merged", 40, 10, 2)
+
+		// Open PR with $3 cost.
+		chatOpen := createChat(t, store, userID, mcID, "chat-open")
+		insertCostMessage(t, store, chatOpen.ID, userID, mcID, 3_000_000)
+		linkPR(t, store, chatOpen.ID, "https://github.com/org/repo/pull/71", "open", "feat: open", 20, 5, 1)
+
+		// TotalCostMicros includes both ($5 + $3 = $8), but
+		// MergedCostMicros only includes the merged PR ($5).
+		summary, err := store.GetPRInsightsSummary(context.Background(), database.GetPRInsightsSummaryParams{
+			StartDate: startDate,
+			EndDate:   endDate,
+			OwnerID:   noOwner,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, int64(8_000_000), summary.TotalCostMicros)
+		assert.Equal(t, int64(5_000_000), summary.MergedCostMicros)
+	})
 }

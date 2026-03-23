@@ -29,6 +29,7 @@ import type {
 	DeleteExternalAuthByIDResponse,
 	DynamicParametersRequest,
 	PostWorkspaceUsageRequest,
+	UsersRequest,
 } from "./typesGenerated";
 import * as TypesGen from "./typesGenerated";
 
@@ -146,6 +147,10 @@ export const watchChat = (
 	if (afterMessageId !== undefined && afterMessageId > 0) {
 		params.set("after_id", afterMessageId.toString());
 	}
+	const token = API.getSessionToken();
+	if (token) {
+		params.set(SessionTokenCookie, token);
+	}
 	const query = params.toString();
 	const route = `/api/experimental/chats/${chatId}/stream${query ? `?${query}` : ""}`;
 	return new OneWayWebSocket({
@@ -154,17 +159,25 @@ export const watchChat = (
 };
 
 export const watchChats = (): OneWayWebSocket<TypesGen.ServerSentEvent> => {
+	const searchParams: Record<string, string> = {};
+	const token = API.getSessionToken();
+	if (token) {
+		searchParams[SessionTokenCookie] = token;
+	}
 	return new OneWayWebSocket({
 		apiRoute: "/api/experimental/chats/watch",
+		searchParams,
 	});
 };
 
 export const watchChatGit = (chatId: string): WebSocket => {
-	return createWebSocket(`/api/experimental/chats/${chatId}/git/watch`);
+	return createWebSocket(`/api/experimental/chats/${chatId}/stream/git`);
 };
 
 export const watchChatDesktop = (chatId: string): WebSocket => {
-	const socket = createWebSocket(`/api/experimental/chats/${chatId}/desktop`);
+	const socket = createWebSocket(
+		`/api/experimental/chats/${chatId}/stream/desktop`,
+	);
 	// RFB is a binary protocol — noVNC expects arraybuffer, not blob.
 	socket.binaryType = "arraybuffer";
 	return socket;
@@ -400,6 +413,7 @@ export type DeploymentConfig = Readonly<{
 
 const chatProviderConfigsPath = "/api/experimental/chats/providers";
 const chatModelConfigsPath = "/api/experimental/chats/model-configs";
+const mcpServerConfigsPath = "/api/experimental/mcp/servers";
 
 type ChatCostDateParams = {
 	start_date?: string;
@@ -422,6 +436,7 @@ type Claims = {
 	all_features: boolean;
 	// feature_set is omitted on legacy licenses
 	feature_set?: string;
+	addons?: string[];
 	version: number;
 	features: Record<string, number>;
 	require_telemetry?: boolean;
@@ -531,6 +546,13 @@ class ApiMethods {
 
 	getAuthenticatedUser = async () => {
 		const response = await this.axios.get<TypesGen.User>("/api/v2/users/me");
+		return response.data;
+	};
+
+	getUser = async (usernameOrId: string) => {
+		const response = await this.axios.get<TypesGen.User>(
+			`/api/v2/users/${encodeURIComponent(usernameOrId)}`,
+		);
 		return response.data;
 	};
 
@@ -1481,6 +1503,35 @@ class ApiMethods {
 		await this.waitForBuild(startBuild);
 	};
 
+	/**
+	 * Starts a workspace, but if the last build was a failed start,
+	 * stops it first to give it a clean slate and the best chance
+	 * of success.
+	 */
+	retryWorkspace = async (
+		workspace: TypesGen.Workspace,
+		templateVersionId: string,
+		logLevel?: TypesGen.ProvisionerLogLevel,
+		buildParameters?: TypesGen.WorkspaceBuildParameter[],
+	): Promise<TypesGen.WorkspaceBuild> => {
+		if (
+			workspace.latest_build.status === "failed" &&
+			workspace.latest_build.transition === "start"
+		) {
+			const stopBuild = await this.stopWorkspace(workspace.id, logLevel);
+			const awaitedStop = await this.waitForBuild(stopBuild);
+			if (awaitedStop?.status === "canceled") {
+				throw new Error("Cleanup stop was canceled");
+			}
+		}
+		return this.startWorkspace(
+			workspace.id,
+			templateVersionId,
+			logLevel,
+			buildParameters,
+		);
+	};
+
 	cancelTemplateVersionBuild = async (
 		templateVersionId: string,
 	): Promise<TypesGen.Response> => {
@@ -2094,10 +2145,28 @@ class ApiMethods {
 	getGroup = async (
 		organization: string,
 		groupName: string,
+		req: TypesGen.GroupRequest,
+		signal?: AbortSignal,
 	): Promise<TypesGen.Group> => {
-		const response = await this.axios.get(
+		const url = getURLWithSearchParams(
 			`/api/v2/organizations/${organization}/groups/${groupName}`,
+			req,
 		);
+		const response = await this.axios.get(url, { signal });
+		return response.data;
+	};
+
+	getGroupMembers = async (
+		organization: string,
+		groupName: string,
+		filter?: UsersRequest,
+		signal?: AbortSignal,
+	): Promise<TypesGen.GroupMembersResponse> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organization}/groups/${groupName}/members`,
+			filter,
+		);
+		const response = await this.axios.get(url.toString(), { signal });
 		return response.data;
 	};
 
@@ -2297,23 +2366,6 @@ class ApiMethods {
 			headers: { "Content-Type": file.type },
 		});
 
-		return response.data;
-	};
-
-	uploadChatFile = async (
-		file: File,
-		organizationId: string,
-	): Promise<TypesGen.UploadChatFileResponse> => {
-		const response = await this.axios.post(
-			`/api/experimental/chats/files?organization=${organizationId}`,
-			file,
-			{
-				headers: {
-					"Content-Type": file.type || "application/octet-stream",
-					"Content-Disposition": `attachment; filename="${file.name}"`,
-				},
-			},
-		);
 		return response.data;
 	};
 
@@ -2940,6 +2992,50 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getAIBridgeModels = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
+
+		const response = await this.axios.get<string[]>(url);
+		return response.data;
+	};
+}
+
+export type TaskFeedbackRating = "good" | "okay" | "bad";
+
+export type CreateTaskFeedbackRequest = {
+	rate: TaskFeedbackRating;
+	comment?: string;
+};
+
+// Experimental API methods call endpoints under the /api/experimental/ prefix.
+// These endpoints are not stable and may change or be removed at any time.
+//
+// All methods must be defined with arrow function syntax. See the docstring
+// above the ApiMethods class for a full explanation.
+class ExperimentalApiMethods {
+	constructor(protected readonly axios: AxiosInstance) {}
+
+	uploadChatFile = async (
+		file: File,
+		organizationId: string,
+	): Promise<TypesGen.UploadChatFileResponse> => {
+		const response = await this.axios.post(
+			`/api/experimental/chats/files?organization=${organizationId}`,
+			file,
+			{
+				headers: {
+					"Content-Type": file.type || "application/octet-stream",
+					// Use RFC 5987 encoding for the filename to support
+					// non-ASCII characters. Placing the raw name directly in
+					// the header causes XMLHttpRequest to throw because HTTP
+					// headers only allow ISO-8859-1 code points.
+					"Content-Disposition": `attachment; filename="file"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+				},
+			},
+		);
+		return response.data;
+	};
+
 	// Chat API methods
 	getChats = async (req?: {
 		after_id?: string;
@@ -3094,6 +3190,20 @@ class ApiMethods {
 		await this.axios.put("/api/experimental/chats/config/desktop-enabled", req);
 	};
 
+	getChatWorkspaceTTL =
+		async (): Promise<TypesGen.ChatWorkspaceTTLResponse> => {
+			const response = await this.axios.get<TypesGen.ChatWorkspaceTTLResponse>(
+				"/api/experimental/chats/config/workspace-ttl",
+			);
+			return response.data;
+		};
+
+	updateChatWorkspaceTTL = async (
+		req: TypesGen.UpdateChatWorkspaceTTLRequest,
+	): Promise<void> => {
+		await this.axios.put("/api/experimental/chats/config/workspace-ttl", req);
+	};
+
 	getUserChatCustomPrompt =
 		async (): Promise<TypesGen.UserChatCustomPrompt> => {
 			const response = await this.axios.get<TypesGen.UserChatCustomPrompt>(
@@ -3179,11 +3289,38 @@ class ApiMethods {
 			`${chatModelConfigsPath}/${encodeURIComponent(modelConfigId)}`,
 		);
 	};
-	getAIBridgeModels = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
 
-		const response = await this.axios.get<string[]>(url);
+	getMCPServerConfigs = async (): Promise<TypesGen.MCPServerConfig[]> => {
+		const response =
+			await this.axios.get<TypesGen.MCPServerConfig[]>(mcpServerConfigsPath);
 		return response.data;
+	};
+
+	createMCPServerConfig = async (
+		req: TypesGen.CreateMCPServerConfigRequest,
+	): Promise<TypesGen.MCPServerConfig> => {
+		const response = await this.axios.post<TypesGen.MCPServerConfig>(
+			mcpServerConfigsPath,
+			req,
+		);
+		return response.data;
+	};
+
+	updateMCPServerConfig = async (
+		id: string,
+		req: TypesGen.UpdateMCPServerConfigRequest,
+	): Promise<TypesGen.MCPServerConfig> => {
+		const response = await this.axios.patch<TypesGen.MCPServerConfig>(
+			`${mcpServerConfigsPath}/${encodeURIComponent(id)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteMCPServerConfig = async (id: string): Promise<void> => {
+		await this.axios.delete(
+			`${mcpServerConfigsPath}/${encodeURIComponent(id)}`,
+		);
 	};
 
 	getChatCostSummary = async (
@@ -3227,6 +3364,14 @@ class ApiMethods {
 				await this.axios.get<TypesGen.ChatUsageLimitConfigResponse>(
 					"/api/experimental/chats/usage-limits",
 				);
+			return response.data;
+		};
+
+	getChatUsageLimitStatus =
+		async (): Promise<TypesGen.ChatUsageLimitStatus> => {
+			const response = await this.axios.get<TypesGen.ChatUsageLimitStatus>(
+				"/api/experimental/chats/usage-limits/status",
+			);
 			return response.data;
 		};
 
@@ -3277,22 +3422,6 @@ class ApiMethods {
 		);
 		return response.data;
 	};
-}
-
-export type TaskFeedbackRating = "good" | "okay" | "bad";
-
-export type CreateTaskFeedbackRequest = {
-	rate: TaskFeedbackRating;
-	comment?: string;
-};
-
-// Experimental API methods call endpoints under the /api/experimental/ prefix.
-// These endpoints are not stable and may change or be removed at any time.
-//
-// All methods must be defined with arrow function syntax. See the docstring
-// above the ApiMethods class for a full explanation.
-class ExperimentalApiMethods {
-	constructor(protected readonly axios: AxiosInstance) {}
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,
@@ -3354,6 +3483,14 @@ function createWebSocket(
 	path: string,
 	params: URLSearchParams = new URLSearchParams(),
 ) {
+	// When running in an embedded context (e.g. VS Code webview),
+	// the session token is set via the API header but browsers
+	// cannot attach custom headers to WebSocket connections.
+	// Pass it as a query parameter instead.
+	const token = API.getSessionToken();
+	if (token) {
+		params.set(SessionTokenCookie, token);
+	}
 	const protocol = location.protocol === "https:" ? "wss:" : "ws:";
 	const socket = new WebSocket(
 		`${protocol}//${location.host}${path}?${params}`,
@@ -3366,6 +3503,7 @@ function createWebSocket(
 interface ClientApi extends ApiMethods {
 	getCsrfToken: () => string;
 	setSessionToken: (token: string) => void;
+	getSessionToken: () => string | undefined;
 	setHost: (host: string | undefined) => void;
 	getAxiosInstance: () => AxiosInstance;
 }
@@ -3387,6 +3525,12 @@ export class Api extends ApiMethods implements ClientApi {
 
 	setSessionToken = (token: string): void => {
 		this.axios.defaults.headers.common["Coder-Session-Token"] = token;
+	};
+
+	getSessionToken = (): string | undefined => {
+		return this.axios.defaults.headers.common["Coder-Session-Token"] as
+			| string
+			| undefined;
 	};
 
 	setHost = (host: string | undefined): void => {
