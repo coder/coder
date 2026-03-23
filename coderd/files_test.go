@@ -21,6 +21,10 @@ import (
 
 func TestPostFiles(t *testing.T) {
 	t.Parallel()
+
+	// Single instance shared across all sub-tests. Each sub-test
+	// creates independent resources with unique IDs so parallel
+	// execution is safe.
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 	t.Run("BadContentType", func(t *testing.T) {
@@ -86,6 +90,8 @@ func TestPostFiles(t *testing.T) {
 
 func TestDownload(t *testing.T) {
 	t.Parallel()
+
+	// Shared instance — see TestPostFiles for rationale.
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 	t.Run("NotFound", func(t *testing.T) {

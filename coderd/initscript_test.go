@@ -13,6 +13,10 @@ import (
 
 func TestInitScript(t *testing.T) {
 	t.Parallel()
+
+	// Single instance shared across all sub-tests. All operations
+	// are read-only (fetching init scripts) so parallel execution
+	// is safe.
 	client := coderdtest.New(t, nil)
 
 	t.Run("OK Windows amd64", func(t *testing.T) {
