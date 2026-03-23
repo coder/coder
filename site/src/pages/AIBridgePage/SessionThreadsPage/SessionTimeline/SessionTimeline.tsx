@@ -425,149 +425,146 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 	}, [hasNextPage, isFetchingNextPage, onFetchNextPage]);
 
 	return (
-		<div className="grid grid-cols-[20px_1rem_1px_1fr_auto_20px]">
-			{/* row 1: session start */}
-			<div className="row-start-1 col-start-2 relative">
-				<StatusIndicatorDot
-					variant="inactive"
-					size="sm"
-					className="absolute right-0 translate-x-1/2 translate-y-1/2"
-				/>
-			</div>
-			<div className="row-start-1 col-start-4 col-span-2 flex items-center">
-				<span className="text-content-secondary ml-4">Session started</span>
-			</div>
+		<div className="relative">
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button variant="outline" className="absolute top-0 right-0">
+						{sort === "oldest" ? "Sort by oldest" : "Sort by newest"}
+						<ChevronDownIcon />
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end">
+					<DropdownMenuRadioGroup
+						value={sort}
+						onValueChange={(v) => setSort(v as "oldest" | "newest")}
+					>
+						<DropdownMenuRadioItem value="oldest">
+							Sort by oldest
+						</DropdownMenuRadioItem>
+						<DropdownMenuRadioItem value="newest">
+							Sort by newest
+						</DropdownMenuRadioItem>
+					</DropdownMenuRadioGroup>
+				</DropdownMenuContent>
+			</DropdownMenu>
 
-			{/* row 2: vertical line and timeline sort dropdown */}
-			<div className="row-start-2 col-start-3 border-0 border-l border-solid border-surface-secondary">
-				{/* vertical line */}
-			</div>
-			<div className="invisible md:visible row-start-2 col-start-4 col-span-2 text-right">
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							variant="outline"
-							size="sm"
-							className="text-xs text-content-secondary"
-						>
-							{sort === "oldest" ? "Sort by oldest" : "Sort by newest"}
-							<ChevronDownIcon />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						<DropdownMenuRadioGroup
-							value={sort}
-							onValueChange={(v) => setSort(v as "oldest" | "newest")}
-						>
-							<DropdownMenuRadioItem value="oldest">
-								Sort by oldest
-							</DropdownMenuRadioItem>
-							<DropdownMenuRadioItem value="newest">
-								Sort by newest
-							</DropdownMenuRadioItem>
-						</DropdownMenuRadioGroup>
-					</DropdownMenuContent>
-				</DropdownMenu>
-			</div>
+			<div className="grid grid-cols-[20px_1rem_1px_1fr_auto_20px]">
+				{/* row 1: session start */}
+				<div className="row-start-1 col-start-2 relative">
+					<StatusIndicatorDot
+						variant="inactive"
+						size="sm"
+						className="absolute right-0 translate-x-1/2 translate-y-1/2"
+					/>
+				</div>
+				<div className="row-start-1 col-start-4 col-span-2 flex items-center">
+					<span className="text-content-secondary ml-4">Session started</span>
+				</div>
 
-			{/* row 3: sized intentionally to create the visual space above the timeline border */}
-			<div className="row-start-3 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-[20px]">
-				{/* vertical line */}
-			</div>
+				{/* row 2: vertical line and timeline sort dropdown */}
+				<div className="row-start-2 col-start-3 border-0 border-l border-solid border-surface-secondary">
+					{/* vertical line */}
+				</div>
 
-			{/* row 3/4: AI Governance tooltip */}
-			<div className="row-start-3 col-start-5 row-span-2 flex items-center text-xs text-content-secondary px-2">
-				AI Governance
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<InfoIcon className="size-icon-sm ml-2" />
-						</TooltipTrigger>
-						<TooltipContent className="max-w-64" align="end" side="top">
-							<div className="text-sm text-content-primary font-medium mb-1">
-								Controls and logs AI tooling so AI use stays secure, compliant,
-								and visible.
-							</div>
-							<div className="text-sm text-content-secondary">
-								<Link href={docs("/ai-coder/ai-governance")} target="_blank">
-									More about AI Governance
-								</Link>
-							</div>
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-			</div>
+				{/* row 3: sized intentionally to create the visual space above the timeline border */}
+				<div className="row-start-3 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-8">
+					{/* vertical line */}
+				</div>
 
-			{/* row 4:  */}
-			<div className="row-start-4 col-start-1 border-0 border-l border-t border-dashed border-border-success/40 rounded-tl-xl w-[20px] h-[20px]">
-				{/* top left rounded corner */}
-			</div>
-			<div className="row-start-4 col-start-2 border-0 border-t border-dashed border-border-success/40">
-				{/* horizontal border */}
-			</div>
-			<div className="row-start-4 col-start-3 border-0 border-l border-solid border-surface-secondary">
-				{/* vertical line */}
-			</div>
-			<div className="row-start-4 col-start-4 border-0 border-t border-dashed border-border-success/40">
-				{/* horizontal border */}
-			</div>
-			<div className="row-start-4 col-start-6 border-0 border-r border-t border-dashed border-border-success/40 rounded-tr-xl w-[20px] h-[20px]">
-				{/* top right rounded corner */}
-			</div>
+				{/* row 3/4: AI Governance tooltip */}
+				<div className="row-start-3 col-start-5 row-span-2 flex items-center text-xs text-content-secondary px-2 pt-3">
+					AI Governance
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<InfoIcon className="size-icon-sm ml-2" />
+							</TooltipTrigger>
+							<TooltipContent className="max-w-64" align="end" side="top">
+								<div className="text-sm text-content-primary font-medium mb-1">
+									Controls and logs AI tooling so AI use stays secure,
+									compliant, and visible.
+								</div>
+								<div className="text-sm text-content-secondary">
+									<Link href={docs("/ai-coder/ai-governance")} target="_blank">
+										More about AI Governance
+									</Link>
+								</div>
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				</div>
 
-			{/* row 5: threads */}
-			<div className="row-start-5 col-start-1 border-0 border-l border-dashed border-border-success/40">
-				{/* left vertical line */}
-			</div>
-			<div className="row-start-5 col-start-2 col-span-4">
-				{/* threads */}
-				{threads.map((thread) => (
-					<ThreadItem key={thread.id} thread={thread} initiator={initiator} />
-				))}
-				{/* infinite scroll sentinel — sits 200px below the last thread */}
-				<div ref={sentinelRef} />
-				{isFetchingNextPage && (
-					<div className="flex items-center justify-center py-4 text-sm text-content-secondary">
-						<Spinner loading size="sm" />
-					</div>
-				)}
-			</div>
-			<div className="row-start-5 col-start-6 border-0 border-r border-dashed border-border-success/40">
-				{/* right vertical line */}
-			</div>
+				{/* row 4:  */}
+				<div className="row-start-4 col-start-1 border-0 border-l border-t border-dashed border-surface-green rounded-tl-lg w-5 h-[20px]">
+					{/* top left rounded corner */}
+				</div>
+				<div className="row-start-4 col-start-2 border-0 border-t border-dashed border-surface-green">
+					{/* horizontal border */}
+				</div>
+				<div className="row-start-4 col-start-3 border-0 border-l border-solid border-surface-secondary">
+					{/* vertical line */}
+				</div>
+				<div className="row-start-4 col-start-4 border-0 border-t border-dashed border-surface-green">
+					{/* horizontal border */}
+				</div>
+				<div className="row-start-4 col-start-6 border-0 border-r border-t border-dashed border-surface-green rounded-tr-lg w-5 h-[20px]">
+					{/* top right rounded corner */}
+				</div>
 
-			{/* row 6: more design and session end */}
-			<div className="row-start-6 col-start-1 border-0 border-l border-b border-dashed border-border-success/40 rounded-bl-xl w-[20px] h-[20px]">
-				{/* bottom left rounded corner */}
-			</div>
-			<div className="row-start-6 col-start-2 border-0 border-b border-dashed border-border-success/40">
-				{/* horizontal line */}
-			</div>
-			<div className="row-start-6 col-start-3 border-0 border-l border-solid border-surface-secondary">
-				{/* vertical line */}
-			</div>
-			<div className="row-start-6 col-start-4 col-span-2 border-0 border-b border-dashed border-border-success/40">
-				{/* horizontal line */}
-			</div>
-			<div className="row-start-6 col-start-6 border-0 border-r border-b border-dashed border-border-success/40 rounded-br-xl w-[20px] h-[20px]">
-				{/* bottom right rounded corner */}
-			</div>
+				{/* row 5: threads */}
+				<div className="row-start-5 col-start-1 border-0 border-l border-dashed border-surface-green">
+					{/* left vertical line */}
+				</div>
+				<div className="row-start-5 col-start-2 col-span-4">
+					{/* threads */}
+					{threads.map((thread) => (
+						<ThreadItem key={thread.id} thread={thread} initiator={initiator} />
+					))}
+					{/* infinite scroll sentinel — sits 200px below the last thread */}
+					<div ref={sentinelRef} />
+					{isFetchingNextPage && (
+						<div className="flex items-center justify-center py-4 text-sm text-content-secondary">
+							<Spinner loading size="sm" />
+						</div>
+					)}
+				</div>
+				<div className="row-start-5 col-start-6 border-0 border-r border-dashed border-surface-green">
+					{/* right vertical line */}
+				</div>
 
-			{/* row 7: sized intentionally to create the visual space below the timeline border */}
-			<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-[20px]">
-				{/* vertical line */}
-			</div>
+				{/* row 6: more design and session end */}
+				<div className="row-start-6 col-start-1 border-0 border-l border-b border-dashed border-surface-green rounded-bl-lg w-5 h-[20px]">
+					{/* bottom left rounded corner */}
+				</div>
+				<div className="row-start-6 col-start-2 border-0 border-b border-dashed border-surface-green">
+					{/* horizontal line */}
+				</div>
+				<div className="row-start-6 col-start-3 border-0 border-l border-solid border-surface-secondary">
+					{/* vertical line */}
+				</div>
+				<div className="row-start-6 col-start-4 col-span-2 border-0 border-b border-dashed border-surface-green">
+					{/* horizontal line */}
+				</div>
+				<div className="row-start-6 col-start-6 border-0 border-r border-b border-dashed border-surface-green rounded-br-lg w-5 h-[20px]">
+					{/* bottom right rounded corner */}
+				</div>
 
-			{/* row 8: session start */}
-			<div className="row-start-8 col-start-2 relative">
-				<StatusIndicatorDot
-					variant="success"
-					size="sm"
-					className="absolute right-0 translate-x-1/2 translate-y-1/2"
-				/>
-			</div>
-			<div className="row-start-8 col-start-4 flex items-center">
-				<span className="text-success ml-4">Session ended</span>
+				{/* row 7: sized intentionally to create the visual space below the timeline border */}
+				<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-[20px]">
+					{/* vertical line */}
+				</div>
+
+				{/* row 8: session start */}
+				<div className="row-start-8 col-start-2 relative">
+					<StatusIndicatorDot
+						variant="success"
+						size="sm"
+						className="absolute right-0 translate-x-1/2 translate-y-1/2"
+					/>
+				</div>
+				<div className="row-start-8 col-start-4 flex items-center">
+					<span className="text-success ml-4">Session ended</span>
+				</div>
 			</div>
 		</div>
 	);
