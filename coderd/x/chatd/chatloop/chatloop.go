@@ -386,11 +386,30 @@ func Run(ctx context.Context, opts RunOptions) error {
 			lastUsage = result.usage
 			lastProviderMetadata = result.providerMetadata
 
-			// Append the step's response messages so that both
-			// inline and post-loop compaction see the full
-			// conversation including the latest assistant reply.
+			// When chain mode is active (PreviousResponseID set), exit
+			// it unconditionally after persisting the step. The initial
+			// prompt was filtered to system + new user content, so we
+			// must reload the full conversation before compaction or
+			// the next model call. The reload includes the just-persisted
+			// step, so only append directly when we do not reload.
 			stepMessages := result.toResponseMessages()
-			messages = append(messages, stepMessages...)
+			if hasPreviousResponseID(opts.ProviderOptions) {
+				clearPreviousResponseID(opts.ProviderOptions)
+				if opts.DisableChainMode != nil {
+					opts.DisableChainMode()
+				}
+				if opts.ReloadMessages != nil {
+					reloaded, reloadErr := opts.ReloadMessages(ctx)
+					if reloadErr != nil {
+						return xerrors.Errorf("reload messages after chain mode exit: %w", reloadErr)
+					}
+					messages = reloaded
+				} else {
+					messages = append(messages, stepMessages...)
+				}
+			} else {
+				messages = append(messages, stepMessages...)
+			}
 
 			// Inline compaction.
 			if opts.Compaction != nil && opts.ReloadMessages != nil {
@@ -412,27 +431,6 @@ func Run(ctx context.Context, opts RunOptions) error {
 					reloaded, reloadErr := opts.ReloadMessages(ctx)
 					if reloadErr != nil {
 						return xerrors.Errorf("reload messages after compaction: %w", reloadErr)
-					}
-					messages = reloaded
-				}
-			}
-
-			// When chain mode is active (PreviousResponseID set) and the
-			// model wants to continue with tool calls, exit chain mode.
-			// Step 2+ needs the full message history because the initial
-			// prompt was filtered to system + user only. We clear the
-			// stale PreviousResponseID, notify the caller to stop
-			// filtering reloaded prompts, and reload the full history
-			// (which now includes the just-persisted step 1).
-			if result.shouldContinue && hasPreviousResponseID(opts.ProviderOptions) {
-				clearPreviousResponseID(opts.ProviderOptions)
-				if opts.DisableChainMode != nil {
-					opts.DisableChainMode()
-				}
-				if opts.ReloadMessages != nil {
-					reloaded, reloadErr := opts.ReloadMessages(ctx)
-					if reloadErr != nil {
-						return xerrors.Errorf("reload messages after chain mode exit: %w", reloadErr)
 					}
 					messages = reloaded
 				}
