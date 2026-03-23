@@ -111,39 +111,55 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	chatsByWorkspace,
 }) => {
 	const dashboard = useDashboard();
+	const isLoading = !workspaces;
+	const isEmpty = workspaces && workspaces.length === 0;
+	const hideHeaders = isLoading || isEmpty;
 
 	return (
 		<Table>
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-1/3">
-						<div className="flex items-center gap-5">
-							<Checkbox
-								disabled={!workspaces || workspaces.length === 0}
-								checked={
-									workspaces &&
-									workspaces.length > 0 &&
-									checkedWorkspaces.length === workspaces.length
-								}
-								onCheckedChange={(checked) => {
-									if (!workspaces) {
-										return;
+						{isLoading ? (
+							<Skeleton variant="text" width={160} height={16} />
+						) : (
+							<div
+								className={cn(
+									"flex items-center gap-5",
+									isEmpty && "invisible",
+								)}
+							>
+								<Checkbox
+									disabled={!workspaces || workspaces.length === 0}
+									checked={
+										workspaces &&
+										workspaces.length > 0 &&
+										checkedWorkspaces.length === workspaces.length
 									}
+									onCheckedChange={(checked) => {
+										if (!workspaces) {
+											return;
+										}
 
-									if (!checked) {
-										onCheckChange([]);
-									} else {
-										onCheckChange(workspaces);
-									}
-								}}
-								aria-label="Select all workspaces"
-								className="my-0"
-							/>
-							Name
-						</div>
+										if (!checked) {
+											onCheckChange([]);
+										} else {
+											onCheckChange(workspaces);
+										}
+									}}
+									aria-label="Select all workspaces"
+									className="my-0"
+								/>
+								Name
+							</div>
+						)}
 					</TableHead>
-					<TableHead className="w-1/3">Template</TableHead>
-					<TableHead className="w-1/3">Status</TableHead>
+					<TableHead className={cn("w-1/3", hideHeaders && "invisible")}>
+						Template
+					</TableHead>
+					<TableHead className={cn("w-1/3", hideHeaders && "invisible")}>
+						Status
+					</TableHead>
 					<TableHead className="w-0">
 						<span className="sr-only">Actions</span>
 					</TableHead>
