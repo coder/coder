@@ -21794,7 +21794,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 const listUserChatCompactionThresholds = `-- name: ListUserChatCompactionThresholds :many
 SELECT user_id, key, value FROM user_configs
 WHERE user_id = $1
-	AND key LIKE 'chat\_compaction\_threshold\_pct:%' ESCAPE '\\'
+	AND key LIKE 'chat\_compaction\_threshold\_pct:%'
 ORDER BY key
 `
 
