@@ -33,7 +33,10 @@ import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { maybePlayChime } from "./components/AgentDetail/useAgentChime";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
-import { resolveArchiveAndDeleteAction } from "./utils/agentWorkspaceUtils";
+import {
+	resolveArchiveAndDeleteAction,
+	shouldNavigateAfterArchive,
+} from "./utils/agentWorkspaceUtils";
 import { getModelOptionsFromCatalog } from "./utils/modelOptions";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
@@ -262,7 +265,27 @@ const AgentsPage: FC = () => {
 				archiveAndDeleteMutation.mutate(
 					{ chatId, workspaceId },
 					{
-						onSettled: () => navigate("/agents"),
+						onSettled: () => {
+							const activeChatId = activeChatIDRef.current;
+							if (
+								shouldNavigateAfterArchive(
+									activeChatId,
+									chatId,
+									// Read root_chat_id from the per-chat
+									// cache, which survives WebSocket eviction
+									// of sub-agents (only the parent's chatKey
+									// is removed). Must be read at settle time
+									// so it reflects the user's current location.
+									activeChatId
+										? queryClient.getQueryData<TypesGen.Chat>(
+												chatKey(activeChatId),
+											)?.root_chat_id
+										: undefined,
+								)
+							) {
+								navigate("/agents");
+							}
+						},
 					},
 				);
 			} else {
@@ -274,10 +297,23 @@ const AgentsPage: FC = () => {
 	};
 	const handleConfirmArchiveAndDelete = () => {
 		if (pendingArchiveAndDelete && !isArchiving) {
+			const { chatId: archivedChatId } = pendingArchiveAndDelete;
 			archiveAndDeleteMutation.mutate(pendingArchiveAndDelete, {
 				onSettled: () => {
 					setPendingArchiveAndDelete(null);
-					navigate("/agents");
+					const activeChatId = activeChatIDRef.current;
+					if (
+						shouldNavigateAfterArchive(
+							activeChatId,
+							archivedChatId,
+							activeChatId
+								? queryClient.getQueryData<TypesGen.Chat>(chatKey(activeChatId))
+										?.root_chat_id
+								: undefined,
+						)
+					) {
+						navigate("/agents");
+					}
 				},
 			});
 		}
