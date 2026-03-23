@@ -255,6 +255,7 @@ const DIFF_HEADER_STYLE_CSS = [
 	"[data-diffs-header] [data-header-content]::before {",
 	"  font-size: 11px;",
 	"  font-weight: 600;",
+	"  line-height: 1;",
 	"  flex-shrink: 0;",
 	"}",
 	"[data-diffs-header][data-change-type='new'] [data-header-content]::before {",
