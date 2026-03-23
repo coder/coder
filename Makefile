@@ -611,7 +611,9 @@ lint/actions/actionlint:
 .PHONY: lint/actions/actionlint
 
 lint/actions/zizmor:
-	./scripts/zizmor.sh \
+	# Using a token will use trivy, which is no longer supported.
+	# So disable any use of a token for this target.
+	GH_TOKEN="" ./scripts/zizmor.sh \
 		--strict-collection \
 		--persona=regular \
 		.
