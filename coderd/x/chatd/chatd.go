@@ -1199,6 +1199,7 @@ type chatMessage struct {
 	contextLimit        int64
 	totalCostMicros     int64
 	runtimeMs           int64
+	providerResponseID  string
 }
 
 func newChatMessage(
@@ -1255,6 +1256,11 @@ func (m chatMessage) withRuntimeMs(ms int64) chatMessage {
 	return m
 }
 
+func (m chatMessage) withProviderResponseID(id string) chatMessage {
+	m.providerResponseID = id
+	return m
+}
+
 // appendChatMessage appends a single message to the batch insert params.
 func appendChatMessage(
 	params *database.InsertChatMessagesParams,
@@ -1276,6 +1282,7 @@ func appendChatMessage(
 	params.Compressed = append(params.Compressed, msg.compressed)
 	params.TotalCostMicros = append(params.TotalCostMicros, msg.totalCostMicros)
 	params.RuntimeMs = append(params.RuntimeMs, msg.runtimeMs)
+	params.ProviderResponseID = append(params.ProviderResponseID, msg.providerResponseID)
 }
 
 func insertUserMessageAndSetPending(
@@ -3092,7 +3099,8 @@ func (p *Server) runChat(
 					reasoningTokens, cacheCreationTokens, cacheReadTokens,
 				).withContextLimit(contextLimit).
 					withTotalCostMicros(totalCostVal).
-					withRuntimeMs(runtimeMs))
+					withRuntimeMs(runtimeMs).
+					withProviderResponseID(step.ProviderResponseID))
 			}
 
 			for _, resultContent := range toolResultContents {

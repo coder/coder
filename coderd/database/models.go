@@ -4227,6 +4227,7 @@ type ChatMessage struct {
 	TotalCostMicros     sql.NullInt64         `db:"total_cost_micros" json:"total_cost_micros"`
 	RuntimeMs           sql.NullInt64         `db:"runtime_ms" json:"runtime_ms"`
 	Deleted             bool                  `db:"deleted" json:"deleted"`
+	ProviderResponseID  sql.NullString        `db:"provider_response_id" json:"provider_response_id"`
 }
 
 type ChatModelConfig struct {

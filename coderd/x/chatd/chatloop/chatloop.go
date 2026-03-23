@@ -13,6 +13,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"charm.land/fantasy/schema"
 	"golang.org/x/xerrors"
 
@@ -39,9 +40,10 @@ var ErrInterrupted = xerrors.New("chat interrupted")
 // persistence layer is responsible for splitting these into
 // separate database messages by role.
 type PersistedStep struct {
-	Content      []fantasy.Content
-	Usage        fantasy.Usage
-	ContextLimit sql.NullInt64
+	Content            []fantasy.Content
+	Usage              fantasy.Usage
+	ContextLimit       sql.NullInt64
+	ProviderResponseID string
 	// Runtime is the wall-clock duration of this step,
 	// covering LLM streaming, tool execution, and retries.
 	// Zero indicates the duration was not measured (e.g.
@@ -368,10 +370,11 @@ func Run(ctx context.Context, opts RunOptions) error {
 			// check and here, fall back to the interrupt-safe
 			// path so partial content is not lost.
 			if err := opts.PersistStep(ctx, PersistedStep{
-				Content:      result.content,
-				Usage:        result.usage,
-				ContextLimit: contextLimit,
-				Runtime:      time.Since(stepStart),
+				Content:            result.content,
+				Usage:              result.usage,
+				ContextLimit:       contextLimit,
+				ProviderResponseID: extractOpenAIResponseID(result.providerMetadata),
+				Runtime:            time.Since(stepStart),
 			}); err != nil {
 				if errors.Is(err, ErrInterrupted) {
 					persistInterruptedStep(ctx, opts, &result)
@@ -971,6 +974,23 @@ func addAnthropicPromptCaching(messages []fantasy.Message) {
 			messages[i].ProviderOptions = providerOption
 		}
 	}
+}
+
+// extractOpenAIResponseID extracts the OpenAI Responses API response
+// ID from provider metadata. Returns an empty string if no OpenAI
+// Responses metadata is present.
+func extractOpenAIResponseID(metadata fantasy.ProviderMetadata) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+
+	for _, entry := range metadata {
+		if providerMetadata, ok := entry.(*fantasyopenai.ResponsesProviderMetadata); ok && providerMetadata != nil {
+			return providerMetadata.ResponseID
+		}
+	}
+
+	return ""
 }
 
 func extractContextLimit(metadata fantasy.ProviderMetadata) sql.NullInt64 {

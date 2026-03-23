@@ -1291,7 +1291,8 @@ CREATE TABLE chat_messages (
     content_version smallint NOT NULL,
     total_cost_micros bigint,
     runtime_ms bigint,
-    deleted boolean DEFAULT false NOT NULL
+    deleted boolean DEFAULT false NOT NULL,
+    provider_response_id text
 );
 
 CREATE SEQUENCE chat_messages_id_seq
