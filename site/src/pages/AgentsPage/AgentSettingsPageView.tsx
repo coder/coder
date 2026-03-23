@@ -528,7 +528,10 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	} = useMutation(updateChatDesktopEnabled(queryClient));
 
 	const workspaceTTLQuery = useQuery(chatWorkspaceTTL());
-	const modelConfigsQuery = useQuery(chatModelConfigs());
+	const modelConfigsQuery = useQuery({
+		...chatModelConfigs(),
+		enabled: activeSection === "behavior",
+	});
 	const {
 		mutate: saveWorkspaceTTL,
 		isPending: isSavingWorkspaceTTL,
