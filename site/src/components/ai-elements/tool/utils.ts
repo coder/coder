@@ -233,7 +233,7 @@ const SEPARATOR_CSS = [
 // conversation-inline diffs and the right-tab panel). This gives
 // every diff header the same font sizing, change-type badges,
 // and stat-count pills regardless of where it appears.
-const DIFF_HEADER_STYLE_CSS = [
+const DIFF_HEADER_CSS = [
 	// Header layout: consistent sizing and padding across contexts.
 	"[data-diffs-header] {",
 	"  font-size: 13px;",
@@ -252,10 +252,14 @@ const DIFF_HEADER_STYLE_CSS = [
 	// Replace the library's built-in SVG change-type icons with
 	// single-letter badges (A/D/M/R) via CSS-generated content.
 	"[data-change-icon] { display: none !important; }",
+	// Baseline-align the badge letter with the filename so their
+	// text baselines match despite different font sizes (11px vs
+	// 12px). Without this the box-centering default shifts the
+	// badge a fraction of a pixel above the title.
+	"[data-diffs-header] [data-header-content] { align-items: baseline; }",
 	"[data-diffs-header] [data-header-content]::before {",
 	"  font-size: 11px;",
 	"  font-weight: 600;",
-	"  line-height: 1;",
 	"  flex-shrink: 0;",
 	"}",
 	"[data-diffs-header][data-change-type='new'] [data-header-content]::before {",
@@ -311,7 +315,7 @@ const DIFF_HEADER_STYLE_CSS = [
 export const diffViewerCSS = [
 	"pre, [data-line]:not([data-selected-line]), [data-diffs-header] { background-color: transparent !important; }",
 	"[data-diffs-header] { border-left: 1px solid var(--border); }",
-	DIFF_HEADER_STYLE_CSS,
+	DIFF_HEADER_CSS,
 	SELECTION_OVERRIDE_CSS,
 	SEPARATOR_CSS,
 ].join(" ");
