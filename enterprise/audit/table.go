@@ -376,14 +376,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_at":          ActionIgnore, // Never changes.
 		"deleted_at":          ActionIgnore, // Changes, but is implicit when a delete event is fired.
 	},
-	&database.ChatUserSpendLimit{}: {
-		"user_id":            ActionTrack,
-		"spend_limit_micros": ActionTrack,
-	},
-	&database.ChatGroupSpendLimit{}: {
-		"group_id":           ActionTrack,
-		"spend_limit_micros": ActionTrack,
-	},
 }
 
 // auditMap converts a map of struct pointers to a map of struct names as

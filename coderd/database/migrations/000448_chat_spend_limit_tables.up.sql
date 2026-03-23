@@ -18,10 +18,10 @@ COMMENT ON TABLE chat_group_spend_limits IS 'Experimental (agents): Stores per-g
 
 -- Migrate existing data
 INSERT INTO chat_user_spend_limits (user_id, spend_limit_micros)
-	SELECT u.id, u.chat_spend_limit_micros FROM users u WHERE u.chat_spend_limit_micros IS NOT NULL;
+	SELECT u.id, u.chat_spend_limit_micros FROM users u;
 
 INSERT INTO chat_group_spend_limits (group_id, spend_limit_micros)
-	SELECT g.id, g.chat_spend_limit_micros FROM groups g WHERE g.chat_spend_limit_micros IS NOT NULL;
+	SELECT g.id, g.chat_spend_limit_micros FROM groups g;
 
 -- Drop old columns
 ALTER TABLE users DROP COLUMN chat_spend_limit_micros;

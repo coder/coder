@@ -1,8 +1,8 @@
 -- Restore old columns
 ALTER TABLE users ADD COLUMN chat_spend_limit_micros BIGINT;
-ALTER TABLE users ADD CONSTRAINT users_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros >= 0)));
+ALTER TABLE users ADD CONSTRAINT users_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0)));
 ALTER TABLE groups ADD COLUMN chat_spend_limit_micros BIGINT;
-ALTER TABLE groups ADD CONSTRAINT groups_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros >= 0)));
+ALTER TABLE groups ADD CONSTRAINT groups_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0)));
 
 -- Migrate data from chat_user_spend_limits to users
 UPDATE users u
