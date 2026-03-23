@@ -112,10 +112,12 @@ export const UserCompactionThresholdSettings: FC<
 
 	const enabledModelConfigs = modelConfigs.filter((config) => config.enabled);
 	const overridesByModelID = new Map(
-		(thresholdsQuery.data?.thresholds ?? []).map((threshold) => [
-			threshold.model_config_id,
-			threshold.threshold_percent,
-		]),
+		(thresholdsQuery.data?.thresholds ?? []).map(
+			(threshold: TypesGen.UserChatCompactionThreshold) => [
+				threshold.model_config_id,
+				threshold.threshold_percent,
+			],
+		),
 	);
 	if (thresholdsQuery.isLoading) {
 		return (

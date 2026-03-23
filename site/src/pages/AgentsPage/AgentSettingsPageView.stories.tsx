@@ -160,7 +160,10 @@ const meta = {
 			custom_prompt: "",
 		});
 		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([]);
-		spyOn(API.experimental, "getUserChatCompactionThresholds").mockResolvedValue({
+		spyOn(
+			API.experimental,
+			"getUserChatCompactionThresholds",
+		).mockResolvedValue({
 			thresholds: [],
 		});
 		spyOn(API.experimental, "getChatWorkspaceTTL").mockResolvedValue({

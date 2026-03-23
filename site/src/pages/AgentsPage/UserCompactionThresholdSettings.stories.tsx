@@ -62,14 +62,23 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
 	beforeEach: () => {
-		spyOn(API, "getUserChatCompactionThresholds").mockResolvedValue({
+		spyOn(
+			API.experimental,
+			"getUserChatCompactionThresholds",
+		).mockResolvedValue({
 			thresholds: [],
 		});
-		spyOn(API, "updateUserChatCompactionThreshold").mockResolvedValue({
+		spyOn(
+			API.experimental,
+			"updateUserChatCompactionThreshold",
+		).mockResolvedValue({
 			model_config_id: "model-1",
 			threshold_percent: 90,
 		});
-		spyOn(API, "deleteUserChatCompactionThreshold").mockResolvedValue();
+		spyOn(
+			API.experimental,
+			"deleteUserChatCompactionThreshold",
+		).mockResolvedValue(undefined);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -99,27 +108,35 @@ export const Default: Story = {
 
 		await userEvent.click(saveButtons[0]);
 		await waitFor(() => {
-			expect(API.updateUserChatCompactionThreshold).toHaveBeenCalledWith(
-				"model-1",
-				{ threshold_percent: 95 },
-			);
+			expect(
+				API.experimental.updateUserChatCompactionThreshold,
+			).toHaveBeenCalledWith("model-1", { threshold_percent: 95 });
 		});
 	},
 };
 
 export const WithOverrides: Story = {
 	beforeEach: () => {
-		spyOn(API, "getUserChatCompactionThresholds").mockResolvedValue({
+		spyOn(
+			API.experimental,
+			"getUserChatCompactionThresholds",
+		).mockResolvedValue({
 			thresholds: [
 				{ model_config_id: "model-1", threshold_percent: 90 },
 				{ model_config_id: "model-2", threshold_percent: 50 },
 			],
 		});
-		spyOn(API, "updateUserChatCompactionThreshold").mockResolvedValue({
+		spyOn(
+			API.experimental,
+			"updateUserChatCompactionThreshold",
+		).mockResolvedValue({
 			model_config_id: "model-1",
 			threshold_percent: 90,
 		});
-		spyOn(API, "deleteUserChatCompactionThreshold").mockResolvedValue();
+		spyOn(
+			API.experimental,
+			"deleteUserChatCompactionThreshold",
+		).mockResolvedValue(undefined);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -136,36 +153,49 @@ export const WithOverrides: Story = {
 		const resetButtons = canvas.getAllByRole("button", { name: "Reset" });
 		await userEvent.click(resetButtons[0]);
 		await waitFor(() => {
-			expect(API.deleteUserChatCompactionThreshold).toHaveBeenCalledWith(
-				"model-1",
-			);
+			expect(
+				API.experimental.deleteUserChatCompactionThreshold,
+			).toHaveBeenCalledWith("model-1");
 		});
 	},
 };
 
 export const Loading: Story = {
 	beforeEach: () => {
-		spyOn(API, "getUserChatCompactionThresholds").mockReturnValue(
+		spyOn(API.experimental, "getUserChatCompactionThresholds").mockReturnValue(
 			new Promise(() => {}),
 		);
-		spyOn(API, "updateUserChatCompactionThreshold").mockResolvedValue({
+		spyOn(
+			API.experimental,
+			"updateUserChatCompactionThreshold",
+		).mockResolvedValue({
 			model_config_id: "model-1",
 			threshold_percent: 90,
 		});
-		spyOn(API, "deleteUserChatCompactionThreshold").mockResolvedValue();
+		spyOn(
+			API.experimental,
+			"deleteUserChatCompactionThreshold",
+		).mockResolvedValue(undefined);
 	},
 };
 
 export const ErrorState: Story = {
 	name: "Error",
 	beforeEach: () => {
-		spyOn(API, "getUserChatCompactionThresholds").mockRejectedValue(
-			new globalThis.Error("Failed to load thresholds"),
-		);
-		spyOn(API, "updateUserChatCompactionThreshold").mockResolvedValue({
+		spyOn(
+			API.experimental,
+			"getUserChatCompactionThresholds",
+		).mockRejectedValue(new globalThis.Error("Failed to load thresholds"));
+		spyOn(
+			API.experimental,
+			"updateUserChatCompactionThreshold",
+		).mockResolvedValue({
 			model_config_id: "model-1",
 			threshold_percent: 90,
 		});
-		spyOn(API, "deleteUserChatCompactionThreshold").mockResolvedValue();
+		spyOn(
+			API.experimental,
+			"deleteUserChatCompactionThreshold",
+		).mockResolvedValue(undefined);
 	},
 };

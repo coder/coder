@@ -4955,7 +4955,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	t.Parallel()
 
 	client, _ := newChatClientWithDatabase(t)
-	firstUser := coderdtest.CreateFirstUser(t, client)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfig := createChatModelConfig(t, client)
 
 	t.Run("EmptyByDefault", func(t *testing.T) {
@@ -5074,7 +5074,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	t.Run("IsolatedPerUser", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 
 		override, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
 			ThresholdPercent: 75,

@@ -445,14 +445,18 @@ const userCompactionThresholdsKey = ["user-compaction-thresholds"] as const;
 
 export const userCompactionThresholds = () => ({
 	queryKey: userCompactionThresholdsKey,
-	queryFn: () => API.getUserChatCompactionThresholds(),
+	queryFn: () => API.experimental.getUserChatCompactionThresholds(),
 });
 
 export const updateUserCompactionThreshold = (queryClient: QueryClient) => ({
 	mutationFn: (vars: {
 		modelConfigId: string;
 		req: TypesGen.UpdateUserChatCompactionThresholdRequest;
-	}) => API.updateUserChatCompactionThreshold(vars.modelConfigId, vars.req),
+	}) =>
+		API.experimental.updateUserChatCompactionThreshold(
+			vars.modelConfigId,
+			vars.req,
+		),
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: userCompactionThresholdsKey,
@@ -462,7 +466,7 @@ export const updateUserCompactionThreshold = (queryClient: QueryClient) => ({
 
 export const deleteUserCompactionThreshold = (queryClient: QueryClient) => ({
 	mutationFn: (modelConfigId: string) =>
-		API.deleteUserChatCompactionThreshold(modelConfigId),
+		API.experimental.deleteUserChatCompactionThreshold(modelConfigId),
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: userCompactionThresholdsKey,
