@@ -83,7 +83,7 @@ func TestProposePlan(t *testing.T) {
 		largeContent := strings.Repeat("x", 32*1024+1)
 
 		mockConn.EXPECT().
-			ReadFile(gomock.Any(), "/home/coder/PLAN.md", int64(0), int64(0)).
+			ReadFile(gomock.Any(), "/home/coder/PLAN.md", int64(0), int64(32*1024+1)).
 			Return(io.NopCloser(strings.NewReader(largeContent)), "text/markdown", nil)
 
 		tool := newProposePlanTool(t, mockConn)
@@ -103,7 +103,7 @@ func TestProposePlan(t *testing.T) {
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
 		mockConn.EXPECT().
-			ReadFile(gomock.Any(), "/home/coder/docs/PLAN.md", int64(0), int64(0)).
+			ReadFile(gomock.Any(), "/home/coder/docs/PLAN.md", int64(0), int64(32*1024+1)).
 			Return(io.NopCloser(strings.NewReader("# Plan\n\nContent")), "text/markdown", nil)
 
 		tool := newProposePlanTool(t, mockConn)
@@ -128,7 +128,7 @@ func TestProposePlan(t *testing.T) {
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
 		mockConn.EXPECT().
-			ReadFile(gomock.Any(), "/home/coder/PLAN.md", int64(0), int64(0)).
+			ReadFile(gomock.Any(), "/home/coder/PLAN.md", int64(0), int64(32*1024+1)).
 			Return(nil, "", xerrors.New("file not found"))
 
 		tool := newProposePlanTool(t, mockConn)

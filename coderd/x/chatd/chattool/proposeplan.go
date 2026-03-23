@@ -52,7 +52,7 @@ func executeProposePlanTool(
 		return fantasy.NewTextErrorResponse("path must end with .md"), nil
 	}
 
-	rc, _, err := conn.ReadFile(ctx, path, 0, 0)
+	rc, _, err := conn.ReadFile(ctx, path, 0, maxProposePlanSize+1)
 	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
