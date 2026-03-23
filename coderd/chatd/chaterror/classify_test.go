@@ -107,6 +107,72 @@ func TestClassify(t *testing.T) {
 			},
 		},
 		{
+			name: "ExplicitStatus429ClassifiesAsRateLimit",
+			err:  xerrors.New("status 429 from upstream"),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider is rate limiting requests (HTTP 429). Please try again later.",
+				Kind:       chaterror.KindRateLimit,
+				Provider:   "",
+				Retryable:  true,
+				StatusCode: 429,
+			},
+		},
+		{
+			name: "RateLimitDoesNotBeatConfig",
+			err:  xerrors.New("status 429: invalid model"),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Kind:       chaterror.KindConfig,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 429,
+			},
+		},
+		{
+			name: "ServiceUnavailableClassifiesAsRetryableTimeout",
+			err:  xerrors.New("service unavailable"),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider did not respond in time. Please try again.",
+				Kind:       chaterror.KindTimeout,
+				Provider:   "",
+				Retryable:  true,
+				StatusCode: 0,
+			},
+		},
+		{
+			name: "TimeoutDoesNotBeatConfigViaStatusCode",
+			err:  xerrors.New("status 503: invalid model"),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Kind:       chaterror.KindConfig,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 503,
+			},
+		},
+		{
+			name: "TimeoutDoesNotBeatConfigViaMessage",
+			err:  xerrors.New("service unavailable: model not found"),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Kind:       chaterror.KindConfig,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 0,
+			},
+		},
+		{
+			name: "ConnectionRefusedUnsupportedModelClassifiesAsConfig",
+			err:  xerrors.New("connection refused: unsupported model"),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Kind:       chaterror.KindConfig,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 0,
+			},
+		},
+		{
 			name: "DeadlineExceededStaysNonRetryableTimeout",
 			err:  context.DeadlineExceeded,
 			want: chaterror.ClassifiedError{

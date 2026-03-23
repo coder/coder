@@ -100,6 +100,13 @@ func Classify(err error) ClassifiedError {
 		statusCode == 503 || statusCode == 504 ||
 		containsAny(lower, timeoutPatterns...)
 	genericRetryableMatch := statusCode == 500 || containsAny(lower, genericRetryablePatterns...)
+
+	// Config signals should beat ambiguous wrapper signals so
+	// transient-looking errors like "503 invalid model" fail fast.
+	// Overloaded stays ahead because 529/overloaded is a dedicated
+	// provider saturation signal, not a common transport wrapper.
+	// Strong auth still stays above config because bad credentials are
+	// the root cause when both signals appear.
 	rules := []struct {
 		match     bool
 		kind      string
@@ -121,12 +128,12 @@ func Classify(err error) ClassifiedError {
 			retryable: false,
 		},
 		{
-			match:     rateLimitMatch,
+			match:     rateLimitMatch && !configMatch,
 			kind:      KindRateLimit,
 			retryable: true,
 		},
 		{
-			match:     timeoutMatch,
+			match:     timeoutMatch && !configMatch,
 			kind:      KindTimeout,
 			retryable: !deadline,
 		},
