@@ -1,8 +1,9 @@
 package cli
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 
@@ -76,8 +77,8 @@ func fetchRuntimeResources(inv *serpent.Invocation, client *codersdk.Client, res
 				if err != nil {
 					cliui.Warnf(inv.Stderr, "Failed to get listening ports for agent %s: %v", agent.Name, err)
 				}
-				sort.Slice(lp.Ports, func(i, j int) bool {
-					return lp.Ports[i].Port < lp.Ports[j].Port
+				slices.SortFunc(lp.Ports, func(a, b codersdk.WorkspaceAgentListeningPort) int {
+					return cmp.Compare(a.Port, b.Port)
 				})
 				mu.Lock()
 				ports[agent.ID] = lp

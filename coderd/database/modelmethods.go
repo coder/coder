@@ -1,10 +1,10 @@
 package database
 
 import (
+	"cmp"
 	"database/sql"
 	"encoding/hex"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -95,8 +95,8 @@ func (g Group) Auditable(members []GroupMember) AuditableGroup {
 	}
 
 	// consistent ordering
-	sort.Slice(members, func(i, j int) bool {
-		return members[i].UserID.String() < members[j].UserID.String()
+	slices.SortFunc(members, func(a, b GroupMember) int {
+		return cmp.Compare(a.UserID.String(), b.UserID.String())
 	})
 
 	return AuditableGroup{

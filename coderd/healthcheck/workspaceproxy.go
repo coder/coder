@@ -3,7 +3,7 @@ package healthcheck
 import (
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
@@ -71,8 +71,8 @@ func (r *WorkspaceProxyReport) Run(ctx context.Context, opts *WorkspaceProxyRepo
 	}
 
 	// Stable sort based on create timestamp.
-	sort.Slice(r.WorkspaceProxies.Regions, func(i int, j int) bool {
-		return r.WorkspaceProxies.Regions[i].CreatedAt.Before(r.WorkspaceProxies.Regions[j].CreatedAt)
+	slices.SortFunc(r.WorkspaceProxies.Regions, func(a, b codersdk.WorkspaceProxy) int {
+		return a.CreatedAt.Compare(b.CreatedAt)
 	})
 
 	var total, healthy, warning int

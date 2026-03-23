@@ -3,7 +3,7 @@ package harness_test
 import (
 	"context"
 	"io"
-	"sort"
+	"slices"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -173,8 +173,8 @@ func Test_ShuffleExecutionStrategyWrapper(t *testing.T) {
 
 	sortedTimes := make([]time.Time, len(runs))
 	copy(sortedTimes, unsortedTimes)
-	sort.Slice(sortedTimes, func(i, j int) bool {
-		return sortedTimes[i].Before(sortedTimes[j])
+	slices.SortFunc(sortedTimes, func(a, b time.Time) int {
+		return a.Compare(b)
 	})
 
 	require.NotEqual(t, unsortedTimes, sortedTimes)

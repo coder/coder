@@ -2,8 +2,9 @@ package terraform
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -54,8 +55,8 @@ func appendSourceSnippets(buf *bytes.Buffer, diag *tfjson.Diagnostic) {
 			// "count" and "for_each", or within "for" expressions.
 			values := make([]tfjson.DiagnosticExpressionValue, len(snippet.Values))
 			copy(values, snippet.Values)
-			sort.Slice(values, func(i, j int) bool {
-				return values[i].Traversal < values[j].Traversal
+			slices.SortFunc(values, func(a, b tfjson.DiagnosticExpressionValue) int {
+				return cmp.Compare(a.Traversal, b.Traversal)
 			})
 
 			_, _ = buf.WriteString("    ├────────────────\n")

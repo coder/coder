@@ -1,10 +1,11 @@
 package database
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -96,8 +97,8 @@ type PGLocks []PGLock
 
 func (l PGLocks) String() string {
 	// Try to group things together by relation name.
-	sort.Slice(l, func(i, j int) bool {
-		return safeString(l[i].RelationName) < safeString(l[j].RelationName)
+	slices.SortFunc(l, func(a, b PGLock) int {
+		return cmp.Compare(safeString(a.RelationName), safeString(b.RelationName))
 	})
 
 	var out strings.Builder

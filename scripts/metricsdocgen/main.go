@@ -2,12 +2,13 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"flag"
 	"io"
 	"log"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	dto "github.com/prometheus/client_model/go"
@@ -123,8 +124,8 @@ func readAndMergeMetrics() ([]*dto.MetricFamily, error) {
 		metrics = append(metrics, m)
 	}
 
-	sort.Slice(metrics, func(i, j int) bool {
-		return *metrics[i].Name < *metrics[j].Name
+	slices.SortFunc(metrics, func(a, b *dto.MetricFamily) int {
+		return cmp.Compare(*a.Name, *b.Name)
 	})
 
 	return metrics, nil

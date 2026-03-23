@@ -1,11 +1,12 @@
 package codersdk
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclparse"
@@ -189,8 +190,8 @@ func convertMapIntoVariableValues(m map[string]string) []VariableValue {
 			Value: value,
 		})
 	}
-	sort.Slice(parsed, func(i, j int) bool {
-		return parsed[i].Name < parsed[j].Name
+	slices.SortFunc(parsed, func(a, b VariableValue) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 	return parsed
 }
@@ -265,8 +266,8 @@ func CombineVariableValues(valuesSets ...[]VariableValue) []VariableValue {
 		result = append(result, VariableValue{Name: name, Value: value})
 	}
 
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Name < result[j].Name
+	slices.SortFunc(result, func(a, b VariableValue) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 	return result
 }

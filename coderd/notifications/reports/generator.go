@@ -1,11 +1,11 @@
 package reports
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"io"
 	"slices"
-	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -325,8 +325,8 @@ func findTemplateAdmins(ctx context.Context, db database.Store, stats database.G
 			templateAdmins = append(templateAdmins, usersByIDs[entry.UserID])
 		}
 	}
-	sort.Slice(templateAdmins, func(i, j int) bool {
-		return templateAdmins[i].Username < templateAdmins[j].Username
+	slices.SortFunc(templateAdmins, func(a, b database.GetUsersRow) int {
+		return cmp.Compare(a.Username, b.Username)
 	})
 	return templateAdmins, nil
 }

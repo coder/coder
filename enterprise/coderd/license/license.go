@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"sort"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -803,8 +802,8 @@ func (p *licenseValidityPeriod) merged() [][2]time.Time {
 	// Sort the input periods by start time.
 	sorted := make([][2]time.Time, len(p.parts))
 	copy(sorted, p.parts)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i][0].Before(sorted[j][0])
+	slices.SortFunc(sorted, func(a, b [2]time.Time) int {
+		return a[0].Compare(b[0])
 	})
 
 	out := make([][2]time.Time, 0, len(sorted))

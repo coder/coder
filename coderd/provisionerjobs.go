@@ -1,13 +1,14 @@
 package coderd
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
-	"sort"
+	"slices"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -349,8 +350,8 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		}
 		apiResources = append(apiResources, convertWorkspaceResource(resource, agents, metadata))
 	}
-	sort.Slice(apiResources, func(i, j int) bool {
-		return apiResources[i].Name < apiResources[j].Name
+	slices.SortFunc(apiResources, func(a, b codersdk.WorkspaceResource) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	httpapi.Write(ctx, rw, http.StatusOK, apiResources)

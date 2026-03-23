@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 
 	"golang.org/x/xerrors"
 
@@ -74,8 +74,8 @@ func (r *RootCmd) templatePull() *serpent.Command {
 				}
 
 				// Sort the slice from newest to oldest template.
-				sort.SliceStable(versions, func(i, j int) bool {
-					return versions[i].CreatedAt.After(versions[j].CreatedAt)
+				slices.SortStableFunc(versions, func(a, b codersdk.TemplateVersion) int {
+					return b.CreatedAt.Compare(a.CreatedAt)
 				})
 
 				latestVersion = versions[0]

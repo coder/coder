@@ -3,8 +3,9 @@
 package cli
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -182,8 +183,8 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 				}
 
 				// Sort organizations by name so that test output is consistent.
-				sort.Slice(orgs, func(i, j int) bool {
-					return orgs[i].Name < orgs[j].Name
+				slices.SortFunc(orgs, func(a, b database.Organization) int {
+					return cmp.Compare(a.Name, b.Name)
 				})
 
 				_, _ = fmt.Fprintln(inv.Stderr, "Creating user...")

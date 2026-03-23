@@ -2,10 +2,11 @@ package cli_test
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
@@ -70,10 +71,8 @@ func setupTestSchedule(t *testing.T, sched *cron.Schedule) (ownerClient, memberC
 	require.Len(t, resp.Workspaces, 4)
 	// Ensure same order as in CLI output
 	ws = resp.Workspaces
-	sort.Slice(ws, func(i, j int) bool {
-		a := ws[i].OwnerName + "/" + ws[i].Name
-		b := ws[j].OwnerName + "/" + ws[j].Name
-		return a < b
+	slices.SortFunc(ws, func(a, b codersdk.Workspace) int {
+		return cmp.Compare(a.OwnerName+"/"+a.Name, b.OwnerName+"/"+b.Name)
 	})
 
 	return ownerClient, memberClient, db, ws
@@ -225,10 +224,8 @@ func TestScheduleShow(t *testing.T) {
 		require.NoError(t, json.Unmarshal(buf.Bytes(), &parsed))
 		require.Len(t, parsed, 4)
 		// Ensure same order as in CLI output
-		sort.Slice(parsed, func(i, j int) bool {
-			a := parsed[i]["workspace"]
-			b := parsed[j]["workspace"]
-			return a < b
+		slices.SortFunc(parsed, func(a, b map[string]string) int {
+			return cmp.Compare(a["workspace"], b["workspace"])
 		})
 		// 1st workspace: a-owner-ws1 has both autostart and autostop enabled.
 		assert.Equal(t, ws[0].OwnerName+"/"+ws[0].Name, parsed[0]["workspace"])

@@ -1,10 +1,11 @@
 package main
 
 import (
+	"cmp"
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/coder/coder/v2/enterprise/cli"
@@ -179,8 +180,8 @@ func main() {
 			}
 			// Sort children by title because wroteMap iteration is
 			// non-deterministic.
-			sort.Slice(child.Children, func(i, j int) bool {
-				return child.Children[i].Title < child.Children[j].Title
+			slices.SortFunc(child.Children, func(a, b route) int {
+				return cmp.Compare(a.Title, b.Title)
 			})
 		}
 	}

@@ -1,8 +1,9 @@
 package notify
 
 import (
+	"cmp"
 	"context"
-	"sort"
+	"slices"
 	"sync"
 	"time"
 
@@ -55,9 +56,7 @@ func WithTestClock(clk quartz.Clock) Option {
 func New(cond Condition, interval time.Duration, countdown []time.Duration, opts ...Option) *Notifier {
 	// Ensure countdown is sorted in descending order and contains no duplicates.
 	ct := unique(countdown)
-	sort.Slice(ct, func(i, j int) bool {
-		return ct[i] < ct[j]
-	})
+	slices.SortFunc(ct, cmp.Compare)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	n := &Notifier{

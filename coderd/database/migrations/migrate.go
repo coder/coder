@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -9,7 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -37,8 +38,8 @@ func calculateMigrationsHash(migrationsFs embed.FS) (string, error) {
 	}
 	sortedFiles := make([]fs.DirEntry, len(files))
 	copy(sortedFiles, files)
-	sort.Slice(sortedFiles, func(i, j int) bool {
-		return sortedFiles[i].Name() < sortedFiles[j].Name()
+	slices.SortFunc(sortedFiles, func(a, b fs.DirEntry) int {
+		return cmp.Compare(a.Name(), b.Name())
 	})
 
 	var builder strings.Builder

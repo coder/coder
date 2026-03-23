@@ -3,6 +3,7 @@
 package terraform_test
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,7 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -1205,8 +1206,8 @@ func TestProvision(t *testing.T) {
 
 func normalizeResources(resources []*proto.Resource) {
 	for _, resource := range resources {
-		sort.Slice(resource.Agents, func(i, j int) bool {
-			return resource.Agents[i].Name < resource.Agents[j].Name
+		slices.SortFunc(resource.Agents, func(a, b *proto.Agent) int {
+			return cmp.Compare(a.Name, b.Name)
 		})
 
 		for _, agent := range resource.Agents {
@@ -1217,8 +1218,8 @@ func normalizeResources(resources []*proto.Resource) {
 			agent.Auth = &proto.Agent_Token{}
 		}
 	}
-	sort.Slice(resources, func(i, j int) bool {
-		return resources[i].Name < resources[j].Name
+	slices.SortFunc(resources, func(a, b *proto.Resource) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 }
 

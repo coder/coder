@@ -3,12 +3,12 @@ package tfparse
 import (
 	"archive/zip"
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"io"
 	"os"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -249,8 +249,8 @@ func (p *Parser) TemplateVariables() ([]*proto.TemplateVariable, error) {
 	for _, v := range p.module.Variables {
 		variables = append(variables, v)
 	}
-	sort.Slice(variables, func(i, j int) bool {
-		return compareSourcePos(variables[i].Pos, variables[j].Pos)
+	slices.SortFunc(variables, func(a, b *tfconfig.Variable) int {
+		return compareSourcePos(a.Pos, b.Pos)
 	})
 
 	var templateVariables []*proto.TemplateVariable
@@ -542,11 +542,11 @@ func convertTerraformVariable(variable *tfconfig.Variable) (*proto.TemplateVaria
 	}, nil
 }
 
-func compareSourcePos(x, y tfconfig.SourcePos) bool {
-	if x.Filename != y.Filename {
-		return x.Filename < y.Filename
+func compareSourcePos(x, y tfconfig.SourcePos) int {
+	if c := cmp.Compare(x.Filename, y.Filename); c != 0 {
+		return c
 	}
-	return x.Line < y.Line
+	return cmp.Compare(x.Line, y.Line)
 }
 
 // CtyValueString converts a cty.Value to a string.

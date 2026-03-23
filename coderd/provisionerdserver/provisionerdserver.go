@@ -1,6 +1,7 @@
 package provisionerdserver
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -12,7 +13,6 @@ import (
 	"net/url"
 	"reflect"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -1464,8 +1464,8 @@ func (s *server) prepareForNotifyWorkspaceManualBuildFailed(ctx context.Context,
 			}
 		}
 	}
-	sort.Slice(templateAdmins, func(i, j int) bool {
-		return templateAdmins[i].Username < templateAdmins[j].Username
+	slices.SortFunc(templateAdmins, func(a, b database.GetUsersRow) int {
+		return cmp.Compare(a.Username, b.Username)
 	})
 
 	template, err := s.Database.GetTemplateByID(ctx, workspace.TemplateID)

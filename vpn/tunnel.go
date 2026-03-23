@@ -1,6 +1,7 @@
 package vpn
 
 import (
+	"cmp"
 	"context"
 	"database/sql/driver"
 	"encoding/json"
@@ -10,7 +11,7 @@ import (
 	"net/netip"
 	"net/url"
 	"reflect"
-	"sort"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -467,8 +468,8 @@ func (u *updater) createPeerUpdateLocked(update tailnet.WorkspaceUpdate) *PeerUp
 		for name := range agent.Hosts {
 			fqdn = append(fqdn, name.WithTrailingDot())
 		}
-		sort.Slice(fqdn, func(i, j int) bool {
-			return len(fqdn[i]) < len(fqdn[j])
+		slices.SortFunc(fqdn, func(a, b string) int {
+			return cmp.Compare(len(a), len(b))
 		})
 		out.DeletedAgents[i] = &Agent{
 			Id:            tailnet.UUIDToByteSlice(agent.ID),
@@ -492,8 +493,8 @@ func (u *updater) convertAgentsLocked(agents []*agentWithPing) []*Agent {
 		for name := range agent.Hosts {
 			fqdn = append(fqdn, name.WithTrailingDot())
 		}
-		sort.Slice(fqdn, func(i, j int) bool {
-			return len(fqdn[i]) < len(fqdn[j])
+		slices.SortFunc(fqdn, func(a, b string) int {
+			return cmp.Compare(len(a), len(b))
 		})
 		var lastPing *LastPing
 		if agent.lastPing != nil {
