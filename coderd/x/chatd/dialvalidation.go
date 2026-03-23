@@ -30,13 +30,14 @@ type dialOut struct {
 	err     error
 }
 
-// dialAttempt owns one in-flight dial goroutine and ensures any late-arriving
-// successful connection is released if the caller stops caring about the
-// result.
+// dialAttempt owns one in-flight dial goroutine. Callers either consume its
+// result or abandon the attempt, which drains any late result in the
+// background and releases a late-arriving successful connection.
 type dialAttempt struct {
 	cancel      context.CancelFunc
 	results     chan dialOut
 	resultTaken bool
+	abandoned   bool
 }
 
 func startDialAttempt(ctx context.Context, agentID uuid.UUID, dialFn DialFunc) *dialAttempt {
@@ -74,18 +75,14 @@ func (a *dialAttempt) take(result dialOut) dialOut {
 	return result
 }
 
-func (a *dialAttempt) cancelAndAwait() dialOut {
+// abandon cancels the dial and, if the caller never consumed the result,
+// drains it in the background. Safe to call more than once.
+func (a *dialAttempt) abandon() {
 	a.cancel()
-	result := <-a.results
-	a.resultTaken = true
-	return result
-}
-
-func (a *dialAttempt) cleanup() {
-	a.cancel()
-	if a.resultTaken {
+	if a.resultTaken || a.abandoned {
 		return
 	}
+	a.abandoned = true
 	// Launch a small goroutine to drain without blocking the caller. dialFn may
 	// take time to honor cancellation.
 	go func() {
@@ -107,8 +104,7 @@ func (a *dialAttempt) cleanup() {
 //   - The timer fires and validation finds a different agent, so the stale
 //     dial is canceled and the new agent is dialed instead.
 //   - The dial fails before delay, so validation runs immediately and either
-//     switches to a different agent or reports that the current one is
-//     unreachable.
+//     switches to a different agent or retries the current one once.
 func dialWithLazyValidation(
 	ctx context.Context,
 	agentID uuid.UUID,
@@ -121,7 +117,7 @@ func dialWithLazyValidation(
 		return xerrors.Errorf("dial with lazy validation: %w", err)
 	}
 	originalDial := startDialAttempt(ctx, agentID, dialFn)
-	defer originalDial.cleanup()
+	defer originalDial.abandon()
 
 	resultForAgent := func(dialedAgentID uuid.UUID, result dialOut, switched bool) DialResult {
 		return DialResult{
@@ -130,6 +126,13 @@ func dialWithLazyValidation(
 			AgentID:     dialedAgentID,
 			WasSwitched: switched,
 		}
+	}
+	dialAgent := func(targetAgentID uuid.UUID, switched bool) (DialResult, error) {
+		conn, release, err := dialFn(ctx, targetAgentID)
+		if err != nil {
+			return DialResult{}, wrapErr(err)
+		}
+		return resultForAgent(targetAgentID, dialOut{conn: conn, release: release}, switched), nil
 	}
 	preferReadyOriginalDial := func() (DialResult, bool) {
 		result, ok := originalDial.takeIfReady()
@@ -153,18 +156,6 @@ func dialWithLazyValidation(
 		}
 		return resultForAgent(agentID, result, false), nil
 	}
-	dialValidatedAgent := func(validatedAgentID uuid.UUID) (DialResult, error) {
-		conn, release, err := dialFn(ctx, validatedAgentID)
-		if err != nil {
-			return DialResult{}, wrapErr(err)
-		}
-		return DialResult{
-			Conn:        conn,
-			Release:     release,
-			AgentID:     validatedAgentID,
-			WasSwitched: true,
-		}, nil
-	}
 	validateBinding := func() (uuid.UUID, error) {
 		validatedAgentID, err := validateFn(ctx, workspaceID)
 		if err != nil {
@@ -172,25 +163,22 @@ func dialWithLazyValidation(
 		}
 		return validatedAgentID, nil
 	}
-	handleFastFailure := func() (DialResult, error) {
+	resolveFastFailure := func() (DialResult, error) {
 		validatedAgentID, err := validateBinding()
 		if err != nil {
 			return DialResult{}, err
 		}
 		// Phase 2 only runs after a fast failure from the original dial. When
-		// validation still points at the same agent, the binding is current and
-		// the agent is genuinely unreachable.
+		// validation still points at the same agent, the binding is current, so
+		// retry that agent once before giving up.
 		if validatedAgentID == agentID {
-			return DialResult{}, xerrors.New("agent is unreachable")
+			return dialAgent(agentID, false)
 		}
-		return dialValidatedAgent(validatedAgentID)
+		return dialAgent(validatedAgentID, true)
 	}
-	switchSlowDial := func(validatedAgentID uuid.UUID) (DialResult, error) {
-		staleResult := originalDial.cancelAndAwait()
-		if staleResult.err == nil && staleResult.release != nil {
-			staleResult.release()
-		}
-		return dialValidatedAgent(validatedAgentID)
+	switchToValidatedAgent := func(validatedAgentID uuid.UUID) (DialResult, error) {
+		originalDial.abandon()
+		return dialAgent(validatedAgentID, true)
 	}
 
 	timer := time.NewTimer(delay)
@@ -202,7 +190,7 @@ func dialWithLazyValidation(
 		if result.err == nil {
 			return resultForAgent(agentID, result, false), nil
 		}
-		return handleFastFailure()
+		return resolveFastFailure()
 
 	case <-timer.C:
 		validatedAgentID, validationErr := validateFn(ctx, workspaceID)
@@ -211,7 +199,7 @@ func dialWithLazyValidation(
 			// the original dial.
 			return waitForOriginalDial(ctx)
 		}
-		return switchSlowDial(validatedAgentID)
+		return switchToValidatedAgent(validatedAgentID)
 
 	case <-ctx.Done():
 		if ready, ok := preferReadyOriginalDial(); ok {
