@@ -397,15 +397,17 @@ const RepoHeader: FC<{
 					additions={diffStats.additions}
 					deletions={diffStats.deletions}
 				/>
-				<button
-					type="button"
+				<Button
+					variant="outline"
+					size="sm"
 					onClick={onCommit}
 					disabled={!repo.unified_diff}
-					className="inline-flex cursor-pointer items-center gap-1 rounded-sm border border-solid border-border-default bg-transparent px-2 text-[13px] font-medium leading-5 text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary disabled:pointer-events-none disabled:opacity-50"
+					className="min-w-0 h-auto rounded-sm text-[13px] leading-5 text-content-secondary hover:text-content-primary disabled:opacity-50"
 				>
+					{" "}
 					<CheckIcon className="size-3" />
 					Commit
-				</button>
+				</Button>{" "}
 			</div>
 		</div>
 	);

@@ -169,15 +169,15 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	return (
 		<div className="flex min-h-full flex-col">
 			{/* Back */}
-			<button
-				type="button"
+			<Button
+				variant="subtle"
+				size="sm"
 				onClick={onBack}
-				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
+				className="mb-4 min-w-0 h-auto gap-0.5 p-0 text-sm"
 			>
 				<ChevronLeftIcon className="h-4 w-4" />
 				Back
-			</button>
-
+			</Button>
 			{/* Provider header — editable name */}
 			<div className="flex items-center gap-3">
 				<ProviderIcon provider={provider} className="h-8 w-8" />

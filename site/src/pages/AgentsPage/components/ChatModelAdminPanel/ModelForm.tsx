@@ -233,14 +233,15 @@ export const ModelForm: FC<ModelFormProps> = ({
 	if (!selectedProviderState || modelConfigsUnavailable) {
 		return (
 			<div>
-				<button
-					type="button"
+				<Button
+					variant="subtle"
+					size="sm"
 					onClick={onCancel}
-					className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
+					className="mb-4 min-w-0 h-auto gap-0.5 p-0 text-sm"
 				>
 					<ChevronLeftIcon className="h-4 w-4" />
 					Back
-				</button>
+				</Button>{" "}
 				<h2 className="m-0 text-lg font-medium text-content-primary">
 					{isEditing ? "Edit Model" : "Add Model"}
 				</h2>
@@ -254,14 +255,15 @@ export const ModelForm: FC<ModelFormProps> = ({
 	if (!canManageModels && !isEditing) {
 		return (
 			<div>
-				<button
-					type="button"
+				<Button
+					variant="subtle"
+					size="sm"
 					onClick={onCancel}
-					className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
+					className="mb-4 min-w-0 h-auto gap-0.5 p-0 text-sm"
 				>
 					<ChevronLeftIcon className="h-4 w-4" />
 					Back
-				</button>
+				</Button>
 				<h2 className="m-0 text-lg font-medium text-content-primary">
 					Add Model
 				</h2>
@@ -287,15 +289,15 @@ export const ModelForm: FC<ModelFormProps> = ({
 	return (
 		<div className="flex min-h-full flex-col">
 			{/* Back */}
-			<button
-				type="button"
+			<Button
+				variant="subtle"
+				size="sm"
 				onClick={onCancel}
-				className="mb-4 inline-flex cursor-pointer items-center gap-0.5 bg-transparent border-0 p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
+				className="mb-4 min-w-0 h-auto gap-0.5 p-0 text-sm"
 			>
 				<ChevronLeftIcon className="h-4 w-4" />
 				Back
-			</button>
-
+			</Button>
 			{/* Header — editable display name */}
 			<div className="flex items-center gap-3">
 				{selectedProviderState && (
