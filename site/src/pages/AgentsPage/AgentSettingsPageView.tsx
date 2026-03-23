@@ -642,6 +642,8 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 						<hr className="my-5 border-0 border-t border-solid border-border" />
 						<UserCompactionThresholdSettings
 							modelConfigs={modelConfigsQuery.data ?? []}
+							modelConfigsError={modelConfigsQuery.error}
+							isLoadingModelConfigs={modelConfigsQuery.isLoading}
 						/>
 
 						{/* ── Admin system prompt (admin only) ── */}

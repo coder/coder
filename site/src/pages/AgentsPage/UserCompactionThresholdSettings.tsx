@@ -13,6 +13,8 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 
 interface UserCompactionThresholdSettingsProps {
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
+	modelConfigsError?: unknown;
+	isLoadingModelConfigs?: boolean;
 }
 
 const parseThresholdDraft = (value: string): number | null => {
@@ -31,7 +33,7 @@ const parseThresholdDraft = (value: string): number | null => {
 
 export const UserCompactionThresholdSettings: FC<
 	UserCompactionThresholdSettingsProps
-> = ({ modelConfigs }) => {
+> = ({ modelConfigs, modelConfigsError, isLoadingModelConfigs }) => {
 	const queryClient = useQueryClient();
 	const thresholdsQuery = useQuery(userCompactionThresholds());
 	const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -100,9 +102,6 @@ export const UserCompactionThresholdSettings: FC<
 			threshold.threshold_percent,
 		]),
 	);
-	const isMutating =
-		saveThresholdMutation.isPending || resetThresholdMutation.isPending;
-
 	if (thresholdsQuery.isLoading) {
 		return (
 			<div className="space-y-2">
@@ -150,7 +149,19 @@ export const UserCompactionThresholdSettings: FC<
 				Control when chat context is automatically summarized for each model.
 				Setting 100% means the chat will never auto-compact.
 			</p>
-			{enabledModelConfigs.length === 0 ? (
+			{isLoadingModelConfigs ? (
+				<div className="flex items-center gap-2 text-sm text-content-secondary">
+					<Spinner loading className="h-4 w-4" />
+					Loading models...
+				</div>
+			) : modelConfigsError ? (
+				<p className="m-0 text-xs text-content-destructive">
+					{getErrorMessage(
+						modelConfigsError,
+						"Failed to load model configurations.",
+					)}
+				</p>
+			) : enabledModelConfigs.length === 0 ? (
 				<p className="m-0 text-xs text-content-secondary">
 					No enabled chat models available. An administrator must configure chat
 					models before compaction thresholds can be set.
@@ -174,7 +185,7 @@ export const UserCompactionThresholdSettings: FC<
 							draftValue.length === 0 ||
 							parsedDraftValue === null ||
 							parsedDraftValue === existingOverride ||
-							isMutating;
+							isThisModelMutating;
 
 						return (
 							<div
