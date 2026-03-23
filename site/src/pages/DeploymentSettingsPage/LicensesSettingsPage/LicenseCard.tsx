@@ -18,6 +18,7 @@ import { ChevronDownIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { cn } from "utils/cn";
 import { AIGovernanceAddOnCard } from "./AIGovernanceAddOnCard";
+import { licenseShowsAiGovernanceAddOn } from "./aiGovernanceLicenseUtils";
 
 type LicenseCardProps = {
 	license: GetLicensesResponse;
@@ -61,9 +62,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 			? "Premium"
 			: "Enterprise";
 
-	const hasExplicitAiGovernanceAddOn = (license.claims.addons ?? []).includes(
-		"ai_governance",
-	);
+	const hasExplicitAiGovernanceAddOn = licenseShowsAiGovernanceAddOn(license);
 	const isAiGovernanceEntitlementInGracePeriod =
 		aiGovernanceUserFeature?.entitlement === "grace_period";
 	// Overage/display checks only apply to licenses that are currently effective.
