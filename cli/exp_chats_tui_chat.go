@@ -1,12 +1,16 @@
 package cli
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -33,9 +37,59 @@ type chatBlock struct {
 }
 
 type streamAccumulator struct {
-	parts   []codersdk.ChatMessagePart
-	role    codersdk.ChatMessageRole
-	pending bool
+	parts      []codersdk.ChatMessagePart
+	role       codersdk.ChatMessageRole
+	pending    bool
+	toolDeltas map[string]string
+}
+
+func (a *streamAccumulator) applyDelta(mp codersdk.ChatStreamMessagePart) {
+	a.pending = true
+	a.role = mp.Role
+	part := mp.Part
+
+	switch part.Type {
+	case codersdk.ChatMessagePartTypeText, codersdk.ChatMessagePartTypeReasoning:
+		if len(a.parts) > 0 && a.parts[len(a.parts)-1].Type == part.Type {
+			a.parts[len(a.parts)-1].Text += part.Text
+		} else {
+			a.parts = append(a.parts, part)
+		}
+	case codersdk.ChatMessagePartTypeToolCall:
+		if part.ArgsDelta != "" {
+			if a.toolDeltas == nil {
+				a.toolDeltas = make(map[string]string)
+			}
+			a.toolDeltas[part.ToolCallID] += part.ArgsDelta
+			found := false
+			for i, p := range a.parts {
+				if p.Type == codersdk.ChatMessagePartTypeToolCall && p.ToolCallID == part.ToolCallID {
+					a.parts[i].Args = json.RawMessage([]byte(a.toolDeltas[part.ToolCallID]))
+					found = true
+					break
+				}
+			}
+			if !found {
+				newPart := part
+				newPart.Args = json.RawMessage([]byte(a.toolDeltas[part.ToolCallID]))
+				newPart.ArgsDelta = ""
+				a.parts = append(a.parts, newPart)
+			}
+		} else {
+			a.parts = append(a.parts, part)
+		}
+	case codersdk.ChatMessagePartTypeToolResult:
+		a.parts = append(a.parts, part)
+	default:
+		a.parts = append(a.parts, part)
+	}
+}
+
+func (a *streamAccumulator) reset() {
+	a.parts = nil
+	a.role = ""
+	a.pending = false
+	a.toolDeltas = nil
 }
 
 func (a streamAccumulator) isPending() bool {
@@ -55,19 +109,72 @@ type chatViewModel struct {
 	accumulator streamAccumulator
 	width       int
 	height      int
+
+	ctx           context.Context
+	client        *codersdk.ExperimentalClient
+	workspaceID   *uuid.UUID
+	modelOverride *uuid.UUID
+
+	streaming     bool
+	streamCloser  io.Closer
+	streamEventCh <-chan codersdk.ChatStreamEvent
+	reconnecting  bool
+
+	chatStatus     codersdk.ChatStatus
+	lastUsage      *codersdk.ChatMessageUsage
+	queuedMessages []codersdk.ChatQueuedMessage
+
+	composerFocused bool
+	selectedBlock   int
+	expandedBlocks  map[int]bool
+	interrupting    bool
+
+	diffStatus   *codersdk.ChatDiffStatus
+	gitChanges   []codersdk.ChatGitChange
+	diffContents *codersdk.ChatDiffContents
+
+	modelPickerFlat   []codersdk.ChatModel
+	modelPickerCursor int
 }
 
-func newChatViewModel(styles tuiStyles) chatViewModel {
+func newChatViewModel(
+	ctx context.Context,
+	client *codersdk.ExperimentalClient,
+	workspaceID *uuid.UUID,
+	modelOverride *uuid.UUID,
+	styles tuiStyles,
+) chatViewModel {
 	composer := textinput.New()
 	composer.Placeholder = "Type a message..."
 	composer.Prompt = "> "
+	composer.Focus()
 
 	return chatViewModel{
-		styles:   styles,
-		loading:  true,
-		composer: composer,
-		viewport: viewport.New(0, 0),
+		ctx:             ctx,
+		client:          client,
+		workspaceID:     workspaceID,
+		modelOverride:   modelOverride,
+		styles:          styles,
+		loading:         true,
+		composerFocused: true,
+		expandedBlocks:  make(map[int]bool),
+		composer:        composer,
+		viewport:        viewport.New(0, 0),
 	}
+}
+
+func (m *chatViewModel) stopStream() {
+	if m.streamCloser != nil {
+		_ = m.streamCloser.Close()
+		m.streamCloser = nil
+		m.streamEventCh = nil
+		m.streaming = false
+	}
+}
+
+func (m chatViewModel) isInterruptible() bool {
+	return m.chatStatus == codersdk.ChatStatusPending ||
+		m.chatStatus == codersdk.ChatStatusRunning
 }
 
 func (m chatViewModel) Init() tea.Cmd {
@@ -130,6 +237,28 @@ func (m chatViewModel) stubContent() string {
 	_ = len(m.accumulator.parts)
 	_ = m.accumulator.role
 	_ = m.accumulator.isPending()
+	scratchAccumulator := streamAccumulator{}
+	scratchAccumulator.applyDelta(codersdk.ChatStreamMessagePart{
+		Part: codersdk.ChatMessagePart{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: "stub",
+			ArgsDelta:  "{}",
+		},
+	})
+	scratchAccumulator.reset()
+	_ = m.diffStatus
+	_ = m.isInterruptible()
+	_ = renderChatBlocks(m.styles, m.blocks, m.selectedBlock, m.expandedBlocks, m.composerFocused, m.width)
+	_ = renderStatusBar(
+		m.styles,
+		m.chat,
+		m.chatStatus,
+		m.lastUsage,
+		len(m.queuedMessages),
+		m.interrupting,
+		m.reconnecting,
+		m.width,
+	)
 	return "[Chat content will be rendered here]"
 }
 

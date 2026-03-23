@@ -7,17 +7,26 @@ import (
 )
 
 type tuiStyles struct {
-	title        lipgloss.Style
-	subtitle     lipgloss.Style
-	statusBar    lipgloss.Style
-	statusBadge  lipgloss.Style
-	selectedItem lipgloss.Style
-	normalItem   lipgloss.Style
-	dimmedText   lipgloss.Style
-	errorText    lipgloss.Style
-	searchInput  lipgloss.Style
-	separator    lipgloss.Style
-	helpText     lipgloss.Style
+	title         lipgloss.Style
+	subtitle      lipgloss.Style
+	statusBar     lipgloss.Style
+	statusBadge   lipgloss.Style
+	selectedItem  lipgloss.Style
+	normalItem    lipgloss.Style
+	dimmedText    lipgloss.Style
+	errorText     lipgloss.Style
+	searchInput   lipgloss.Style
+	separator     lipgloss.Style
+	helpText      lipgloss.Style
+	userMessage   lipgloss.Style
+	assistantMsg  lipgloss.Style
+	reasoning     lipgloss.Style
+	toolCallStyle lipgloss.Style
+	compaction    lipgloss.Style
+	warningText   lipgloss.Style
+	criticalText  lipgloss.Style
+	overlayBorder lipgloss.Style
+	composerStyle lipgloss.Style
 }
 
 func newTUIStyles() tuiStyles {
@@ -33,8 +42,17 @@ func newTUIStyles() tuiStyles {
 		searchInput: lipgloss.NewStyle().
 			BorderStyle(lipgloss.NormalBorder()).
 			BorderBottom(true),
-		separator: lipgloss.NewStyle().Faint(true),
-		helpText:  lipgloss.NewStyle().Faint(true),
+		separator:     lipgloss.NewStyle().Faint(true),
+		helpText:      lipgloss.NewStyle().Faint(true),
+		userMessage:   lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("6")),
+		assistantMsg:  lipgloss.NewStyle(),
+		reasoning:     lipgloss.NewStyle().Faint(true).Italic(true),
+		toolCallStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("3")),
+		compaction:    lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("5")),
+		warningText:   lipgloss.NewStyle().Foreground(lipgloss.Color("3")),
+		criticalText:  lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true),
+		overlayBorder: lipgloss.NewStyle().BorderStyle(lipgloss.RoundedBorder()).Padding(1),
+		composerStyle: lipgloss.NewStyle().BorderStyle(lipgloss.NormalBorder()).BorderTop(true),
 	}
 }
 

@@ -63,7 +63,7 @@ func newExpChatsTUIModel(
 		currentView:   currentView,
 		overlay:       overlayNone,
 		list:          newChatListModel(styles),
-		chat:          newChatViewModel(styles),
+		chat:          newChatViewModel(ctx, client, workspaceID, modelOverride, styles),
 		initialChatID: initialChatID,
 		workspaceID:   workspaceID,
 		modelOverride: modelOverride,
@@ -117,9 +117,41 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
+		if m.overlay == overlayModelPicker {
+			switch msg.String() {
+			case "up", "k":
+				if m.chat.modelPickerCursor > 0 {
+					m.chat.modelPickerCursor--
+				}
+				return m, nil
+			case "down", "j":
+				if m.chat.modelPickerCursor < len(m.chat.modelPickerFlat)-1 {
+					m.chat.modelPickerCursor++
+				}
+				return m, nil
+			case "enter":
+				if len(m.chat.modelPickerFlat) > 0 && m.chat.modelPickerCursor < len(m.chat.modelPickerFlat) {
+					selected := m.chat.modelPickerFlat[m.chat.modelPickerCursor]
+					parsed, err := uuid.Parse(selected.ID)
+					if err == nil {
+						m.chat.modelOverride = &parsed
+						m.modelOverride = &parsed
+					}
+					m.overlay = overlayNone
+				}
+				return m, nil
+			}
+			return m, nil
+		}
+
+		if m.overlay == overlayDiffDrawer {
+			return m, nil
+		}
+
 	case openSelectedChatMsg:
 		m.currentView = viewChat
-		m.chat = newChatViewModel(m.styles)
+		m.chat.stopStream()
+		m.chat = newChatViewModel(m.ctx, m.client, m.workspaceID, m.modelOverride, m.styles)
 		m.chat.width = m.width
 		m.chat.height = m.height
 		m.chat, _ = m.chat.Update(tea.WindowSizeMsg{Width: m.width, Height: m.height})
@@ -130,7 +162,8 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case openDraftChatMsg:
 		m.currentView = viewChat
-		m.chat = newChatViewModel(m.styles)
+		m.chat.stopStream()
+		m.chat = newChatViewModel(m.ctx, m.client, m.workspaceID, m.modelOverride, m.styles)
 		m.chat.draft = true
 		m.chat.loading = false
 		m.chat.width = m.width
@@ -140,6 +173,32 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case refreshChatsMsg:
 		return m, listChatsCmd(m.ctx, m.client)
+
+	case toggleModelPickerMsg:
+		if m.overlay == overlayModelPicker {
+			m.overlay = overlayNone
+		} else {
+			m.overlay = overlayModelPicker
+			if m.catalog == nil {
+				return m, listModelsCmd(m.ctx, m.client)
+			}
+		}
+		return m, nil
+
+	case toggleDiffDrawerMsg:
+		if m.overlay == overlayDiffDrawer {
+			m.overlay = overlayNone
+		} else {
+			m.overlay = overlayDiffDrawer
+			if m.chat.chat != nil && m.chat.gitChanges == nil {
+				chatID := m.chat.chat.ID
+				return m, tea.Batch(
+					loadGitChangesCmd(m.ctx, m.client, chatID),
+					loadDiffContentsCmd(m.ctx, m.client, chatID),
+				)
+			}
+		}
+		return m, nil
 
 	case chatsListedMsg:
 		var cmd tea.Cmd
@@ -151,15 +210,24 @@ func (m expChatsTUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.chat, cmd = m.chat.Update(msg)
 		return m, cmd
 
+	case chatStreamEventMsg, messageSentMsg, chatCreatedMsg, chatInterruptedMsg:
+		var cmd tea.Cmd
+		m.chat, cmd = m.chat.Update(msg)
+		return m, cmd
+
 	case modelsListedMsg:
 		if msg.err == nil {
 			catalog := msg.catalog
 			m.catalog = &catalog
 		}
-		return m, nil
+		var cmd tea.Cmd
+		m.chat, cmd = m.chat.Update(msg)
+		return m, cmd
 
 	case gitChangesMsg, diffContentsMsg:
-		return m, nil
+		var cmd tea.Cmd
+		m.chat, cmd = m.chat.Update(msg)
+		return m, cmd
 	}
 
 	var cmd tea.Cmd
@@ -181,5 +249,22 @@ func (m expChatsTUIModel) View() string {
 		body = m.chat.View()
 	}
 
-	return m.styles.title.Render("Coder Chats") + "\n" + body
+	base := m.styles.title.Render("Coder Chats") + "\n" + body
+
+	switch m.overlay {
+	case overlayModelPicker:
+		if m.catalog != nil {
+			selectedID := ""
+			if m.chat.modelOverride != nil {
+				selectedID = m.chat.modelOverride.String()
+			}
+			base += "\n" + renderModelPicker(m.styles, *m.catalog, selectedID, m.chat.modelPickerCursor, m.width, m.height)
+		}
+	case overlayDiffDrawer:
+		if m.chat.diffContents != nil {
+			base += "\n" + renderDiffDrawer(m.styles, *m.chat.diffContents, m.chat.gitChanges, m.width, m.height)
+		}
+	}
+
+	return base
 }

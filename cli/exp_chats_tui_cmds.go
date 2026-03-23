@@ -60,6 +60,10 @@ type chatStreamEventMsg struct {
 	err   error
 }
 
+type toggleModelPickerMsg struct{}
+
+type toggleDiffDrawerMsg struct{}
+
 func listChatsCmd(ctx context.Context, client *codersdk.ExperimentalClient) tea.Cmd {
 	return func() tea.Msg {
 		chats, err := client.ListChats(ctx, nil)
