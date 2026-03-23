@@ -132,10 +132,10 @@ They traverse the same Tailnet tunnel used by web terminals and IDE connections.
 | `read_file`      | Reads file contents with line-number pagination.                   |
 | `write_file`     | Writes content to a file.                                          |
 | `edit_files`     | Performs atomic search-and-replace edits across one or more files. |
-| `execute`        | Runs a shell command (foreground or background).                   |
-| `process_output` | Retrieves output from a background process.                        |
+| `execute`        | Runs a shell command, waiting for completion up to a timeout.      |
+| `process_output` | Retrieves output from a tracked process.                           |
 | `process_list`   | Lists all tracked processes in the workspace.                      |
-| `process_signal` | Sends a signal (SIGTERM or SIGKILL) to a background process.       |
+| `process_signal` | Sends a signal (SIGTERM or SIGKILL) to a tracked process.          |
 
 ### Platform tools
 

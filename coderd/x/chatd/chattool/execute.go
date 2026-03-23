@@ -78,9 +78,9 @@ type ProcessToolOptions struct {
 // ExecuteArgs are the parameters accepted by the execute tool.
 type ExecuteArgs struct {
 	Command         string  `json:"command" description:"The shell command to execute."`
-	Timeout         *string `json:"timeout,omitempty" description:"Timeout duration (e.g. '30s', '5m'). Default is 10s. Only applies to foreground commands."`
+	Timeout         *string `json:"timeout,omitempty" description:"How long to wait for completion (e.g. '30s', '5m'). Default is 10s. The process keeps running if this expires and you get a background_process_id to re-attach. Only applies to foreground commands."`
 	WorkDir         *string `json:"workdir,omitempty" description:"Working directory for the command."`
-	RunInBackground *bool   `json:"run_in_background,omitempty" description:"Run this command in the background without blocking. Use for long-running processes like dev servers, file watchers, or builds that run longer than 5 seconds. Do NOT use shell & to background processes — it will not work correctly. Always use this parameter instead."`
+	RunInBackground *bool   `json:"run_in_background,omitempty" description:"Run without blocking. Use for persistent processes (dev servers, file watchers) or when you want to continue working while a command runs and check the result later with process_output. For commands whose result you need before continuing, prefer foreground with a longer timeout. Do NOT use shell & to background processes — it will not work correctly. Always use this parameter instead."`
 }
 
 // Execute returns an AgentTool that runs a shell command in the
@@ -88,7 +88,7 @@ type ExecuteArgs struct {
 func Execute(options ExecuteOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"execute",
-		"Execute a shell command in the workspace. Use run_in_background=true for long-running processes (dev servers, file watchers, builds). Never use shell '&' for backgrounding. If the command fails or times out, the response may include a background_process_id; use process_output with that ID to retrieve the result.",
+		"Execute a shell command in the workspace. Runs the command and waits for completion up to the timeout (default 10s, override with the timeout parameter e.g. '30s', '5m'). If the command exceeds the timeout, the response includes a background_process_id; use process_output with that ID to re-attach and wait for the result. Use run_in_background=true for persistent processes (dev servers, file watchers) or when you want to continue other work while the command runs. Never use shell '&' for backgrounding.",
 		func(ctx context.Context, args ExecuteArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
@@ -389,11 +389,11 @@ type ProcessOutputArgs struct {
 }
 
 // ProcessOutput returns an AgentTool that retrieves the output
-// of a background process by its ID.
+// of a tracked process by its ID.
 func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"process_output",
-		"Retrieve output from a background process. "+
+		"Retrieve output from a tracked process by ID. "+
 			"Use the process_id returned by execute with "+
 			"run_in_background=true or from a timed-out "+
 			"execute's background_process_id. Blocks up to "+
@@ -401,7 +401,8 @@ func ProcessOutput(options ProcessToolOptions) fantasy.AgentTool {
 			"output and exit_code. If still running after "+
 			"the timeout, returns the output so far. Use "+
 			"wait_timeout to override the default 10s wait "+
-			"(e.g. '30s', or '0s' for an immediate snapshot).",
+			"(e.g. '30s', or '0s' for an immediate snapshot "+
+			"without waiting).",
 		func(ctx context.Context, args ProcessOutputArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
@@ -486,8 +487,7 @@ func ProcessList(options ProcessToolOptions) fantasy.AgentTool {
 		"List all tracked processes in the workspace. "+
 			"Returns process IDs, commands, status (running or "+
 			"exited), and exit codes. Use this to discover "+
-			"background processes or check which processes are "+
-			"still running.",
+			"processes or check which are still running.",
 		func(ctx context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
@@ -517,11 +517,11 @@ type ProcessSignalArgs struct {
 }
 
 // ProcessSignal returns an AgentTool that sends a signal to a
-// tracked process on the workspace agent.
+// tracked process on the workspace agent by its ID.
 func ProcessSignal(options ProcessToolOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"process_signal",
-		"Send a signal to a background process. "+
+		"Send a signal to a tracked process. "+
 			"Use \"terminate\" (SIGTERM) for graceful shutdown "+
 			"or \"kill\" (SIGKILL) to force stop. Use the "+
 			"process_id returned by execute with "+
