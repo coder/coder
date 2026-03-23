@@ -125,6 +125,25 @@ export const RightPanelSkeleton: FC = () => (
 );
 
 /**
+ * Skeleton placeholder for the chat input area. Matches the layout of
+ * the real AgentChatInput so the transition from Suspense fallback to
+ * the loaded component doesn't cause a vertical layout shift.
+ */
+const ChatInputSkeleton: FC = () => (
+	<div className="shrink-0 overflow-y-auto px-4 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+		<div className="mx-auto w-full max-w-3xl pb-0 sm:pb-4">
+			<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm">
+				<div className="min-h-[60px] sm:min-h-24 px-3 py-2" />
+				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
+					<Skeleton className="h-6 w-24 rounded" />
+					<Skeleton className="size-7 rounded-full" />
+				</div>
+			</div>
+		</div>
+	</div>
+);
+
+/**
  * Skeleton shown while the AgentDetail chunk is loading. Mimics a
  * top bar + chat conversation layout so the user sees navigable
  * structure during the brief Suspense fallback.
@@ -154,6 +173,7 @@ export const AgentDetailSkeleton: FC = () => {
 						</div>
 					</div>
 				</div>
+				<ChatInputSkeleton />
 			</div>
 			{rightPanel.open && (
 				<div
