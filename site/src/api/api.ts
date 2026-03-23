@@ -2369,27 +2369,6 @@ class ApiMethods {
 		return response.data;
 	};
 
-	uploadChatFile = async (
-		file: File,
-		organizationId: string,
-	): Promise<TypesGen.UploadChatFileResponse> => {
-		const response = await this.axios.post(
-			`/api/experimental/chats/files?organization=${organizationId}`,
-			file,
-			{
-				headers: {
-					"Content-Type": file.type || "application/octet-stream",
-					// Use RFC 5987 encoding for the filename to support
-					// non-ASCII characters. Placing the raw name directly in
-					// the header causes XMLHttpRequest to throw because HTTP
-					// headers only allow ISO-8859-1 code points.
-					"Content-Disposition": `attachment; filename="file"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
-				},
-			},
-		);
-		return response.data;
-	};
-
 	getTemplateVersionLogs = async (
 		versionId: string,
 	): Promise<TypesGen.ProvisionerJobLog[]> => {
@@ -3013,6 +2992,50 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getAIBridgeModels = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
+
+		const response = await this.axios.get<string[]>(url);
+		return response.data;
+	};
+}
+
+export type TaskFeedbackRating = "good" | "okay" | "bad";
+
+export type CreateTaskFeedbackRequest = {
+	rate: TaskFeedbackRating;
+	comment?: string;
+};
+
+// Experimental API methods call endpoints under the /api/experimental/ prefix.
+// These endpoints are not stable and may change or be removed at any time.
+//
+// All methods must be defined with arrow function syntax. See the docstring
+// above the ApiMethods class for a full explanation.
+class ExperimentalApiMethods {
+	constructor(protected readonly axios: AxiosInstance) {}
+
+	uploadChatFile = async (
+		file: File,
+		organizationId: string,
+	): Promise<TypesGen.UploadChatFileResponse> => {
+		const response = await this.axios.post(
+			`/api/experimental/chats/files?organization=${organizationId}`,
+			file,
+			{
+				headers: {
+					"Content-Type": file.type || "application/octet-stream",
+					// Use RFC 5987 encoding for the filename to support
+					// non-ASCII characters. Placing the raw name directly in
+					// the header causes XMLHttpRequest to throw because HTTP
+					// headers only allow ISO-8859-1 code points.
+					"Content-Disposition": `attachment; filename="file"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+				},
+			},
+		);
+		return response.data;
+	};
+
 	// Chat API methods
 	getChats = async (req?: {
 		after_id?: string;
@@ -3300,13 +3323,6 @@ class ApiMethods {
 		);
 	};
 
-	getAIBridgeModels = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
-
-		const response = await this.axios.get<string[]>(url);
-		return response.data;
-	};
-
 	getChatCostSummary = async (
 		user = "me",
 		params?: ChatCostDateParams,
@@ -3406,22 +3422,6 @@ class ApiMethods {
 		);
 		return response.data;
 	};
-}
-
-export type TaskFeedbackRating = "good" | "okay" | "bad";
-
-export type CreateTaskFeedbackRequest = {
-	rate: TaskFeedbackRating;
-	comment?: string;
-};
-
-// Experimental API methods call endpoints under the /api/experimental/ prefix.
-// These endpoints are not stable and may change or be removed at any time.
-//
-// All methods must be defined with arrow function syntax. See the docstring
-// above the ApiMethods class for a full explanation.
-class ExperimentalApiMethods {
-	constructor(protected readonly axios: AxiosInstance) {}
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,

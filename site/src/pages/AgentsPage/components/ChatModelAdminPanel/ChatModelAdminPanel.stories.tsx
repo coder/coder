@@ -54,33 +54,39 @@ const setupChatSpies = (state: {
 	modelConfigs: TypesGen.ChatModelConfig[];
 	modelCatalog: TypesGen.ChatModelsResponse;
 }) => {
-	spyOn(API, "getChatProviderConfigs").mockImplementation(async () => {
-		return state.providerConfigs;
-	});
-	spyOn(API, "getChatModelConfigs").mockImplementation(async () => {
-		return state.modelConfigs;
-	});
-	spyOn(API, "getChatModels").mockImplementation(async () => {
+	spyOn(API.experimental, "getChatProviderConfigs").mockImplementation(
+		async () => {
+			return state.providerConfigs;
+		},
+	);
+	spyOn(API.experimental, "getChatModelConfigs").mockImplementation(
+		async () => {
+			return state.modelConfigs;
+		},
+	);
+	spyOn(API.experimental, "getChatModels").mockImplementation(async () => {
 		return state.modelCatalog;
 	});
 
-	spyOn(API, "createChatProviderConfig").mockImplementation(async (req) => {
-		const created = createProviderConfig({
-			id: `provider-${Date.now()}`,
-			provider: req.provider,
-			display_name: req.display_name ?? "",
-			has_api_key: (req.api_key ?? "").trim().length > 0,
-			base_url: req.base_url ?? "",
-			source: "database",
-		});
-		state.providerConfigs = [
-			...state.providerConfigs.filter((p) => p.provider !== req.provider),
-			created,
-		];
-		return created;
-	});
+	spyOn(API.experimental, "createChatProviderConfig").mockImplementation(
+		async (req) => {
+			const created = createProviderConfig({
+				id: `provider-${Date.now()}`,
+				provider: req.provider,
+				display_name: req.display_name ?? "",
+				has_api_key: (req.api_key ?? "").trim().length > 0,
+				base_url: req.base_url ?? "",
+				source: "database",
+			});
+			state.providerConfigs = [
+				...state.providerConfigs.filter((p) => p.provider !== req.provider),
+				created,
+			];
+			return created;
+		},
+	);
 
-	spyOn(API, "updateChatProviderConfig").mockImplementation(
+	spyOn(API.experimental, "updateChatProviderConfig").mockImplementation(
 		async (providerConfigId, req) => {
 			const idx = state.providerConfigs.findIndex(
 				(p) => p.id === providerConfigId,
@@ -110,29 +116,31 @@ const setupChatSpies = (state: {
 		},
 	);
 
-	spyOn(API, "createChatModelConfig").mockImplementation(async (req) => {
-		const created = createModelConfig({
-			id: `model-${state.modelConfigs.length + 1}`,
-			provider: req.provider,
-			model: req.model,
-			display_name: req.display_name || req.model,
-			context_limit:
-				typeof req.context_limit === "number" &&
-				Number.isFinite(req.context_limit)
-					? req.context_limit
-					: 200000,
-			compression_threshold:
-				typeof req.compression_threshold === "number" &&
-				Number.isFinite(req.compression_threshold)
-					? req.compression_threshold
-					: 70,
-			model_config: req.model_config,
-		});
-		state.modelConfigs = [...state.modelConfigs, created];
-		return created;
-	});
+	spyOn(API.experimental, "createChatModelConfig").mockImplementation(
+		async (req) => {
+			const created = createModelConfig({
+				id: `model-${state.modelConfigs.length + 1}`,
+				provider: req.provider,
+				model: req.model,
+				display_name: req.display_name || req.model,
+				context_limit:
+					typeof req.context_limit === "number" &&
+					Number.isFinite(req.context_limit)
+						? req.context_limit
+						: 200000,
+				compression_threshold:
+					typeof req.compression_threshold === "number" &&
+					Number.isFinite(req.compression_threshold)
+						? req.compression_threshold
+						: 70,
+				model_config: req.model_config,
+			});
+			state.modelConfigs = [...state.modelConfigs, created];
+			return created;
+		},
+	);
 
-	spyOn(API, "deleteChatModelConfig").mockImplementation(
+	spyOn(API.experimental, "deleteChatModelConfig").mockImplementation(
 		async (modelConfigId) => {
 			state.modelConfigs = state.modelConfigs.filter(
 				(m) => m.id !== modelConfigId,
@@ -141,8 +149,10 @@ const setupChatSpies = (state: {
 	);
 
 	// Unused but mock to avoid errors.
-	spyOn(API, "deleteChatProviderConfig").mockResolvedValue(undefined);
-	spyOn(API, "updateChatModelConfig").mockResolvedValue(
+	spyOn(API.experimental, "deleteChatProviderConfig").mockResolvedValue(
+		undefined,
+	);
+	spyOn(API.experimental, "updateChatModelConfig").mockResolvedValue(
 		createModelConfig({
 			id: "stub",
 			provider: "stub",
@@ -311,9 +321,11 @@ export const CreateAndUpdateProvider: Story = {
 
 		// The create spy should have been called.
 		await waitFor(() => {
-			expect(API.createChatProviderConfig).toHaveBeenCalledTimes(1);
+			expect(API.experimental.createChatProviderConfig).toHaveBeenCalledTimes(
+				1,
+			);
 		});
-		expect(API.createChatProviderConfig).toHaveBeenCalledWith(
+		expect(API.experimental.createChatProviderConfig).toHaveBeenCalledWith(
 			expect.objectContaining({
 				provider: "openai",
 				api_key: "sk-provider-key",
@@ -342,9 +354,11 @@ export const CreateAndUpdateProvider: Story = {
 		await userEvent.click(body.getByRole("button", { name: "Save changes" }));
 
 		await waitFor(() => {
-			expect(API.updateChatProviderConfig).toHaveBeenCalledTimes(1);
+			expect(API.experimental.updateChatProviderConfig).toHaveBeenCalledTimes(
+				1,
+			);
 		});
-		expect(API.updateChatProviderConfig).toHaveBeenCalledWith(
+		expect(API.experimental.updateChatProviderConfig).toHaveBeenCalledWith(
 			expect.any(String),
 			expect.objectContaining({
 				api_key: "sk-updated-provider-key",
@@ -413,9 +427,9 @@ export const NoModelConfigByDefault: Story = {
 		// The submit button in ModelForm also says "Add model".
 		await userEvent.click(body.getByRole("button", { name: "Add model" }));
 		await waitFor(() => {
-			expect(API.createChatModelConfig).toHaveBeenCalledTimes(1);
+			expect(API.experimental.createChatModelConfig).toHaveBeenCalledTimes(1);
 		});
-		expect(API.createChatModelConfig).toHaveBeenCalledWith(
+		expect(API.experimental.createChatModelConfig).toHaveBeenCalledWith(
 			expect.objectContaining({
 				provider: "openai",
 				model: "gpt-5-pro",
@@ -423,7 +437,9 @@ export const NoModelConfigByDefault: Story = {
 		);
 		// Blank pricing fields should remain unset in the payload.
 		const callArgs = (
-			API.createChatModelConfig as unknown as ReturnType<typeof spyOn>
+			API.experimental.createChatModelConfig as unknown as ReturnType<
+				typeof spyOn
+			>
 		).mock.calls[0][0] as Record<string, unknown>;
 		expect(callArgs).not.toHaveProperty("model_config");
 	},
@@ -472,9 +488,9 @@ export const SubmitModelConfigExplicitly: Story = {
 
 		await userEvent.click(body.getByRole("button", { name: "Add model" }));
 		await waitFor(() => {
-			expect(API.createChatModelConfig).toHaveBeenCalledTimes(1);
+			expect(API.experimental.createChatModelConfig).toHaveBeenCalledTimes(1);
 		});
-		expect(API.createChatModelConfig).toHaveBeenCalledWith(
+		expect(API.experimental.createChatModelConfig).toHaveBeenCalledWith(
 			expect.objectContaining({
 				provider: "openai",
 				model: "gpt-5-pro-custom",
@@ -786,9 +802,11 @@ export const ModelDeleteConfirmed: Story = {
 
 		// The delete API should have been called.
 		await waitFor(() => {
-			expect(API.deleteChatModelConfig).toHaveBeenCalledTimes(1);
+			expect(API.experimental.deleteChatModelConfig).toHaveBeenCalledTimes(1);
 		});
-		expect(API.deleteChatModelConfig).toHaveBeenCalledWith("model-1");
+		expect(API.experimental.deleteChatModelConfig).toHaveBeenCalledWith(
+			"model-1",
+		);
 	},
 };
 
@@ -898,9 +916,11 @@ export const ProviderDeleteConfirmed: Story = {
 
 		// The delete API should have been called.
 		await waitFor(() => {
-			expect(API.deleteChatProviderConfig).toHaveBeenCalledTimes(1);
+			expect(API.experimental.deleteChatProviderConfig).toHaveBeenCalledTimes(
+				1,
+			);
 		});
-		expect(API.deleteChatProviderConfig).toHaveBeenCalledWith(
+		expect(API.experimental.deleteChatProviderConfig).toHaveBeenCalledWith(
 			"provider-openai",
 		);
 	},
@@ -940,6 +960,6 @@ export const ValidatesModelConfigFields: Story = {
 			expect(body.getByRole("button", { name: "Add model" })).toBeDisabled();
 		});
 		// No API call should have been made.
-		expect(API.createChatModelConfig).not.toHaveBeenCalled();
+		expect(API.experimental.createChatModelConfig).not.toHaveBeenCalled();
 	},
 };
