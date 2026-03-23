@@ -89,6 +89,36 @@ export const RetryRateLimited: Story = {
 	},
 };
 
+/** Invalid retry timestamps hide the countdown instead of rendering NaN. */
+export const RetryInvalidTimestamp: Story = {
+	args: {
+		streamState: null,
+		streamTools: [],
+		liveStatus: buildLiveStatus({
+			retryState: buildRetryState({
+				attempt: 3,
+				error: "Anthropic asked us to back off briefly before retrying.",
+				kind: "rate_limit",
+				delayMs: 3000,
+				retryingAt: "not-a-date",
+			}),
+			isAwaitingFirstStreamChunk: true,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /rate limited/i }),
+		).toBeVisible();
+		expect(canvas.getByText("rate_limit")).toBeVisible();
+		expect(canvas.getByText(/attempt 3/i)).toBeVisible();
+		await waitFor(() => {
+			expect(canvas.queryByText(/retrying in nan/i)).not.toBeInTheDocument();
+			expect(canvas.queryByText(/retrying in \d+s/i)).not.toBeInTheDocument();
+		});
+	},
+};
+
 /** Overloaded retries expose provider status links while retrying. */
 export const RetryOverloaded: Story = {
 	args: {

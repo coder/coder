@@ -75,6 +75,10 @@ const useRetryCountdown = (retryingAt: string | undefined): number => {
 		}
 
 		const targetMs = new Date(retryingAt).getTime();
+		if (!Number.isFinite(targetMs)) {
+			setSecondsLeft(0);
+			return;
+		}
 
 		const update = () => {
 			const remaining = Math.max(0, targetMs - Date.now());
