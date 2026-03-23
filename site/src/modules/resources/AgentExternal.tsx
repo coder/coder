@@ -27,6 +27,23 @@ const archsByOS: Record<OS, Arch[]> = {
 	windows: ["amd64", "arm64"],
 };
 
+const validOSes = Object.keys(osByLabel) as OS[];
+
+function toValidOS(value: string | undefined): OS {
+	if (value && (validOSes as string[]).includes(value)) {
+		return value as OS;
+	}
+	return "linux";
+}
+
+function toValidArch(os: OS, value: string | undefined): Arch {
+	const archs = archsByOS[os];
+	if (value && (archs as string[]).includes(value)) {
+		return value as Arch;
+	}
+	return archs[0];
+}
+
 function buildCommand(
 	baseURL: string,
 	token: string,
@@ -48,11 +65,10 @@ export const AgentExternal: FC<AgentExternalProps> = ({ agent, workspace }) => {
 		isError,
 	} = useQuery(workspaceAgentCredentials(workspace.id, agent.name));
 
-	const defaultOS = (agent.operating_system as OS) ?? "linux";
-	const defaultArch = (agent.architecture as Arch) ?? "amd64";
+	const defaultOS = toValidOS(agent.operating_system);
 	const [selectedOS, setSelectedOS] = useState<OS>(defaultOS);
 	const [selectedArch, setSelectedArch] = useState<Arch>(
-		archsByOS[defaultOS].includes(defaultArch) ? defaultArch : "amd64",
+		toValidArch(defaultOS, agent.architecture),
 	);
 
 	if (isLoading) {
@@ -64,9 +80,7 @@ export const AgentExternal: FC<AgentExternalProps> = ({ agent, workspace }) => {
 	}
 
 	const availableArchs = archsByOS[selectedOS];
-	const arch = availableArchs.includes(selectedArch)
-		? selectedArch
-		: availableArchs[0];
+	const arch = toValidArch(selectedOS, selectedArch);
 
 	const command =
 		credentials?.init_script_base_url
@@ -80,10 +94,7 @@ export const AgentExternal: FC<AgentExternalProps> = ({ agent, workspace }) => {
 
 	const handleOSChange = (os: OS) => {
 		setSelectedOS(os);
-		const archs = archsByOS[os];
-		if (!archs.includes(selectedArch)) {
-			setSelectedArch(archs[0]);
-		}
+		setSelectedArch(toValidArch(os, selectedArch));
 	};
 
 	return (
@@ -92,18 +103,22 @@ export const AgentExternal: FC<AgentExternalProps> = ({ agent, workspace }) => {
 				Please run the following command to attach an agent to the{" "}
 				{workspace.name} workspace:
 			</p>
-			<div className="flex flex-col gap-2">
+			<div className="flex flex-col gap-2" role="group" aria-label="Platform">
 				<div className="flex items-center gap-1.5">
-					<span className="text-xs text-content-secondary font-medium w-16">
+					<span
+						id="os-label"
+						className="text-xs text-content-secondary font-medium w-16"
+					>
 						OS
 					</span>
-					<div className="flex gap-1">
-						{(Object.keys(osByLabel) as OS[]).map((os) => (
+					<div className="flex gap-1" role="group" aria-labelledby="os-label">
+						{validOSes.map((os) => (
 							<Button
 								key={os}
 								size="sm"
 								variant={selectedOS === os ? "default" : "outline"}
 								onClick={() => handleOSChange(os)}
+								aria-pressed={selectedOS === os}
 							>
 								{osByLabel[os]}
 							</Button>
@@ -111,16 +126,24 @@ export const AgentExternal: FC<AgentExternalProps> = ({ agent, workspace }) => {
 					</div>
 				</div>
 				<div className="flex items-center gap-1.5">
-					<span className="text-xs text-content-secondary font-medium w-16">
+					<span
+						id="arch-label"
+						className="text-xs text-content-secondary font-medium w-16"
+					>
 						Arch
 					</span>
-					<div className="flex gap-1">
+					<div
+						className="flex gap-1"
+						role="group"
+						aria-labelledby="arch-label"
+					>
 						{availableArchs.map((a) => (
 							<Button
 								key={a}
 								size="sm"
 								variant={arch === a ? "default" : "outline"}
 								onClick={() => setSelectedArch(a)}
+								aria-pressed={arch === a}
 							>
 								{a}
 							</Button>
