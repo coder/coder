@@ -902,15 +902,32 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	acquireTrap := clock.Trap().NewTicker("chatd", "acquire")
 	defer acquireTrap.Close()
 
+	assertPendingWithoutQueuedMessages := func(chatID uuid.UUID) {
+		t.Helper()
+
+		queued, dbErr := db.GetChatQueuedMessages(ctx, chatID)
+		require.NoError(t, dbErr)
+		require.Empty(t, queued)
+
+		fromDB, dbErr := db.GetChatByID(ctx, chatID)
+		require.NoError(t, dbErr)
+		require.Equal(t, database.ChatStatusPending, fromDB.Status)
+		require.False(t, fromDB.WorkerID.Valid)
+	}
+
 	streamStarted := make(chan struct{})
 	interrupted := make(chan struct{})
+	secondRequestStarted := make(chan struct{})
+	thirdRequestStarted := make(chan struct{})
 	allowFinish := make(chan struct{})
 	var requestCount atomic.Int32
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
 		}
-		if requestCount.Add(1) == 1 {
+
+		switch requestCount.Add(1) {
+		case 1:
 			chunks := make(chan chattest.OpenAIChunk, 1)
 			go func() {
 				defer close(chunks)
@@ -929,7 +946,12 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 				<-allowFinish
 			}()
 			return chattest.OpenAIResponse{StreamingChunks: chunks}
+		case 2:
+			close(secondRequestStarted)
+		case 3:
+			close(thirdRequestStarted)
 		}
+
 		return chattest.OpenAIStreamingResponse(
 			chattest.OpenAITextChunks("done")...,
 		)
@@ -954,15 +976,7 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	require.NoError(t, err)
 
 	clock.Advance(acquireInterval).MustWait(ctx)
-
-	require.Eventually(t, func() bool {
-		select {
-		case <-streamStarted:
-			return true
-		default:
-			return false
-		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	testutil.TryReceive(ctx, t, streamStarted)
 
 	queuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:       chat.ID,
@@ -973,29 +987,11 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	require.True(t, queuedResult.Queued)
 	require.NotNil(t, queuedResult.QueuedMessage)
 
-	require.Eventually(t, func() bool {
-		select {
-		case <-interrupted:
-			return true
-		default:
-			return false
-		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	testutil.TryReceive(ctx, t, interrupted)
 
 	close(allowFinish)
-
-	require.Eventually(t, func() bool {
-		queued, dbErr := db.GetChatQueuedMessages(ctx, chat.ID)
-		if dbErr != nil || len(queued) != 0 {
-			return false
-		}
-
-		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
-		if dbErr != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusPending && !fromDB.WorkerID.Valid
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	chatd.WaitUntilIdleForTest(server)
+	assertPendingWithoutQueuedMessages(chat.ID)
 
 	// Keep the acquire loop frozen here so "queued" stays pending.
 	// That makes the later send queue because the chat is still busy,
@@ -1046,63 +1042,41 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	require.NoError(t, err)
 
 	clock.Advance(acquireInterval).MustWait(ctx)
-	require.Eventually(t, func() bool {
-		return requestCount.Load() >= 2
-	}, testutil.WaitMedium, testutil.IntervalFast)
-
-	require.Eventually(t, func() bool {
-		queued, dbErr := db.GetChatQueuedMessages(ctx, chat.ID)
-		if dbErr != nil || len(queued) != 0 {
-			return false
-		}
-
-		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
-		if dbErr != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusPending && !fromDB.WorkerID.Valid
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	testutil.TryReceive(ctx, t, secondRequestStarted)
+	chatd.WaitUntilIdleForTest(server)
+	assertPendingWithoutQueuedMessages(chat.ID)
 
 	clock.Advance(acquireInterval).MustWait(ctx)
+	testutil.TryReceive(ctx, t, thirdRequestStarted)
+	chatd.WaitUntilIdleForTest(server)
 
-	require.Eventually(t, func() bool {
-		queued, dbErr := db.GetChatQueuedMessages(ctx, chat.ID)
-		if dbErr != nil || len(queued) != 0 {
-			return false
-		}
+	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Empty(t, queued)
 
-		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
-		if dbErr != nil || fromDB.Status != database.ChatStatusWaiting {
-			return false
-		}
+	fromDB, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, fromDB.Status)
+	require.False(t, fromDB.WorkerID.Valid)
 
-		messages, dbErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-			ChatID:  chat.ID,
-			AfterID: 0,
-		})
-		if dbErr != nil {
-			return false
-		}
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
 
-		userTexts := make([]string, 0, 3)
-		for _, message := range messages {
-			if message.Role != database.ChatMessageRoleUser {
-				continue
-			}
-			sdkMessage := db2sdk.ChatMessage(message)
-			if len(sdkMessage.Content) != 1 {
-				continue
-			}
-			userTexts = append(userTexts, sdkMessage.Content[0].Text)
+	userTexts := make([]string, 0, 3)
+	for _, message := range messages {
+		if message.Role != database.ChatMessageRoleUser {
+			continue
 		}
-		if len(userTexts) != 3 {
-			return false
+		sdkMessage := db2sdk.ChatMessage(message)
+		if len(sdkMessage.Content) != 1 {
+			continue
 		}
-		return requestCount.Load() >= 3 &&
-			userTexts[0] == "hello" &&
-			userTexts[1] == "queued" &&
-			userTexts[2] == "later queued"
-	}, testutil.WaitLong, testutil.IntervalFast)
+		userTexts = append(userTexts, sdkMessage.Content[0].Text)
+	}
+	require.Equal(t, []string{"hello", "queued", "later queued"}, userTexts)
 }
 
 func TestEditMessageRejectsWhenUsageLimitReached(t *testing.T) {
