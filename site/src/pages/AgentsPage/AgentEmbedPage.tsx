@@ -9,8 +9,11 @@ import { type FC, useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Outlet, useParams } from "react-router";
 import type { AgentsOutletContext } from "./AgentsPage";
-import { bootstrapChatEmbedSession, EmbedProvider } from "./EmbedContext";
-import type { ChatDetailError } from "./usageLimitMessage";
+import {
+	bootstrapChatEmbedSession,
+	EmbedProvider,
+} from "./components/EmbedContext";
+import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type BootstrapMessage = {
 	type: "coder:vscode-auth-bootstrap";
@@ -121,16 +124,8 @@ const AgentEmbedPage: FC = () => {
 		requestArchiveAndDeleteWorkspace,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
-		modelOptions: [],
-		modelConfigIDByModelID: new Map(),
-		modelIDByConfigID: new Map(),
-		modelConfigs: [],
-		modelCatalog: undefined,
-		isModelCatalogLoading: false,
-		modelCatalogError: null,
-		desktopEnabled: false,
+		onExpandSidebar: () => {},
 	};
-
 	// When signed out and not already bootstrapping, listen for the
 	// postMessage from the parent frame carrying the session token.
 	const isAwaitingBootstrapMessage =

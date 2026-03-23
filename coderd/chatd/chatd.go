@@ -3272,14 +3272,17 @@ func (p *Server) runChat(
 	}
 
 	if isComputerUse {
+		desktopGeometry := workspacesdk.DefaultDesktopGeometry()
 		providerTools = append(providerTools, chatloop.ProviderTool{
 			Definition: chattool.ComputerUseProviderTool(
-				workspacesdk.DesktopDisplayWidth,
-				workspacesdk.DesktopDisplayHeight),
+				desktopGeometry.DeclaredWidth,
+				desktopGeometry.DeclaredHeight,
+			),
 			Runner: chattool.NewComputerUseTool(
-				workspacesdk.DesktopDisplayWidth,
-				workspacesdk.DesktopDisplayHeight,
-				workspaceCtx.getWorkspaceConn, quartz.NewReal(),
+				desktopGeometry.DeclaredWidth,
+				desktopGeometry.DeclaredHeight,
+				workspaceCtx.getWorkspaceConn,
+				quartz.NewReal(),
 			),
 		})
 	}

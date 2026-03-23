@@ -19,7 +19,8 @@ import (
 func TestComputerUseTool_Info(t *testing.T) {
 	t.Parallel()
 
-	tool := chattool.NewComputerUseTool(workspacesdk.DesktopDisplayWidth, workspacesdk.DesktopDisplayHeight, nil, quartz.NewReal())
+	geometry := workspacesdk.DefaultDesktopGeometry()
+	tool := chattool.NewComputerUseTool(geometry.DeclaredWidth, geometry.DeclaredHeight, nil, quartz.NewReal())
 	info := tool.Info()
 	assert.Equal(t, "computer", info.Name)
 	assert.NotEmpty(t, info.Description)
@@ -28,14 +29,25 @@ func TestComputerUseTool_Info(t *testing.T) {
 func TestComputerUseProviderTool(t *testing.T) {
 	t.Parallel()
 
-	def := chattool.ComputerUseProviderTool(workspacesdk.DesktopDisplayWidth, workspacesdk.DesktopDisplayHeight)
+	geometry := workspacesdk.DefaultDesktopGeometry()
+	def := chattool.ComputerUseProviderTool(geometry.DeclaredWidth, geometry.DeclaredHeight)
 	pdt, ok := def.(fantasy.ProviderDefinedTool)
 	require.True(t, ok, "ComputerUseProviderTool should return a ProviderDefinedTool")
 	assert.Contains(t, pdt.ID, "computer")
 	assert.Equal(t, "computer", pdt.Name)
-	// Verify display dimensions are passed through.
-	assert.Equal(t, int64(workspacesdk.DesktopDisplayWidth), pdt.Args["display_width_px"])
-	assert.Equal(t, int64(workspacesdk.DesktopDisplayHeight), pdt.Args["display_height_px"])
+	assert.Equal(t, int64(geometry.DeclaredWidth), pdt.Args["display_width_px"])
+	assert.Equal(t, int64(geometry.DeclaredHeight), pdt.Args["display_height_px"])
+}
+
+func TestComputerUseProviderTool_PrefersDeclaredGeometry(t *testing.T) {
+	t.Parallel()
+
+	geometry := workspacesdk.NewDesktopGeometry(1920, 1080)
+	def := chattool.ComputerUseProviderTool(geometry.DeclaredWidth, geometry.DeclaredHeight)
+	pdt, ok := def.(fantasy.ProviderDefinedTool)
+	require.True(t, ok, "ComputerUseProviderTool should return a ProviderDefinedTool")
+	assert.Equal(t, int64(1280), pdt.Args["display_width_px"])
+	assert.Equal(t, int64(720), pdt.Args["display_height_px"])
 }
 
 func TestComputerUseTool_Run_Screenshot(t *testing.T) {
@@ -43,18 +55,25 @@ func TestComputerUseTool_Run_Screenshot(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	geometry := workspacesdk.DefaultDesktopGeometry()
 
 	mockConn.EXPECT().ExecuteDesktopAction(
 		gomock.Any(),
-		gomock.Any(),
-	).Return(workspacesdk.DesktopActionResponse{
-		Output:           "screenshot",
-		ScreenshotData:   "base64png",
-		ScreenshotWidth:  1024,
-		ScreenshotHeight: 768,
-	}, nil)
+		gomock.AssignableToTypeOf(workspacesdk.DesktopAction{}),
+	).DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+		require.NotNil(t, action.ScaledWidth)
+		require.NotNil(t, action.ScaledHeight)
+		assert.Equal(t, geometry.DeclaredWidth, *action.ScaledWidth)
+		assert.Equal(t, geometry.DeclaredHeight, *action.ScaledHeight)
+		return workspacesdk.DesktopActionResponse{
+			Output:           "screenshot",
+			ScreenshotData:   "base64png",
+			ScreenshotWidth:  geometry.DeclaredWidth,
+			ScreenshotHeight: geometry.DeclaredHeight,
+		}, nil
+	})
 
-	tool := chattool.NewComputerUseTool(workspacesdk.DesktopDisplayWidth, workspacesdk.DesktopDisplayHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return mockConn, nil
 	}, quartz.NewReal())
 
@@ -77,27 +96,39 @@ func TestComputerUseTool_Run_LeftClick(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	geometry := workspacesdk.DefaultDesktopGeometry()
 
-	// Expect the action call first.
 	mockConn.EXPECT().ExecuteDesktopAction(
 		gomock.Any(),
-		gomock.Any(),
-	).Return(workspacesdk.DesktopActionResponse{
-		Output: "left_click performed",
-	}, nil)
+		gomock.AssignableToTypeOf(workspacesdk.DesktopAction{}),
+	).DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+		require.NotNil(t, action.Coordinate)
+		assert.Equal(t, [2]int{100, 200}, *action.Coordinate)
+		require.NotNil(t, action.ScaledWidth)
+		require.NotNil(t, action.ScaledHeight)
+		assert.Equal(t, geometry.DeclaredWidth, *action.ScaledWidth)
+		assert.Equal(t, geometry.DeclaredHeight, *action.ScaledHeight)
+		return workspacesdk.DesktopActionResponse{Output: "left_click performed"}, nil
+	})
 
-	// Then expect a screenshot (auto-screenshot after action).
 	mockConn.EXPECT().ExecuteDesktopAction(
 		gomock.Any(),
-		gomock.Any(),
-	).Return(workspacesdk.DesktopActionResponse{
-		Output:           "screenshot",
-		ScreenshotData:   "after-click",
-		ScreenshotWidth:  1024,
-		ScreenshotHeight: 768,
-	}, nil)
+		gomock.AssignableToTypeOf(workspacesdk.DesktopAction{}),
+	).DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+		assert.Equal(t, "screenshot", action.Action)
+		require.NotNil(t, action.ScaledWidth)
+		require.NotNil(t, action.ScaledHeight)
+		assert.Equal(t, geometry.DeclaredWidth, *action.ScaledWidth)
+		assert.Equal(t, geometry.DeclaredHeight, *action.ScaledHeight)
+		return workspacesdk.DesktopActionResponse{
+			Output:           "screenshot",
+			ScreenshotData:   "after-click",
+			ScreenshotWidth:  geometry.DeclaredWidth,
+			ScreenshotHeight: geometry.DeclaredHeight,
+		}, nil
+	})
 
-	tool := chattool.NewComputerUseTool(workspacesdk.DesktopDisplayWidth, workspacesdk.DesktopDisplayHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return mockConn, nil
 	}, quartz.NewReal())
 
@@ -118,18 +149,25 @@ func TestComputerUseTool_Run_Wait(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	// Expect a screenshot after the wait completes.
+	geometry := workspacesdk.DefaultDesktopGeometry()
+
 	mockConn.EXPECT().ExecuteDesktopAction(
 		gomock.Any(),
-		gomock.Any(),
-	).Return(workspacesdk.DesktopActionResponse{
-		Output:           "screenshot",
-		ScreenshotData:   "after-wait",
-		ScreenshotWidth:  1024,
-		ScreenshotHeight: 768,
-	}, nil)
+		gomock.AssignableToTypeOf(workspacesdk.DesktopAction{}),
+	).DoAndReturn(func(_ context.Context, action workspacesdk.DesktopAction) (workspacesdk.DesktopActionResponse, error) {
+		require.NotNil(t, action.ScaledWidth)
+		require.NotNil(t, action.ScaledHeight)
+		assert.Equal(t, geometry.DeclaredWidth, *action.ScaledWidth)
+		assert.Equal(t, geometry.DeclaredHeight, *action.ScaledHeight)
+		return workspacesdk.DesktopActionResponse{
+			Output:           "screenshot",
+			ScreenshotData:   "after-wait",
+			ScreenshotWidth:  geometry.DeclaredWidth,
+			ScreenshotHeight: geometry.DeclaredHeight,
+		}, nil
+	})
 
-	tool := chattool.NewComputerUseTool(workspacesdk.DesktopDisplayWidth, workspacesdk.DesktopDisplayHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	tool := chattool.NewComputerUseTool(geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return mockConn, nil
 	}, quartz.NewReal())
 
@@ -150,7 +188,8 @@ func TestComputerUseTool_Run_Wait(t *testing.T) {
 func TestComputerUseTool_Run_ConnError(t *testing.T) {
 	t.Parallel()
 
-	tool := chattool.NewComputerUseTool(workspacesdk.DesktopDisplayWidth, workspacesdk.DesktopDisplayHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	geometry := workspacesdk.DefaultDesktopGeometry()
+	tool := chattool.NewComputerUseTool(geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return nil, xerrors.New("workspace not available")
 	}, quartz.NewReal())
 
@@ -169,7 +208,8 @@ func TestComputerUseTool_Run_ConnError(t *testing.T) {
 func TestComputerUseTool_Run_InvalidInput(t *testing.T) {
 	t.Parallel()
 
-	tool := chattool.NewComputerUseTool(workspacesdk.DesktopDisplayWidth, workspacesdk.DesktopDisplayHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
+	geometry := workspacesdk.DefaultDesktopGeometry()
+	tool := chattool.NewComputerUseTool(geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return nil, xerrors.New("should not be called")
 	}, quartz.NewReal())
 

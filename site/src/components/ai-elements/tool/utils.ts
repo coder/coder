@@ -230,7 +230,11 @@ const SEPARATOR_CSS = [
 ].join(" ");
 
 export const diffViewerCSS = [
-	"pre, [data-line]:not([data-selected-line]), [data-diffs-header] { background-color: transparent !important; }",
+	// Make context lines transparent so they blend with the page,
+	// but preserve the library's colored backgrounds on changed
+	// lines (change-addition / change-deletion) so the line-level
+	// tint and word-level emphasis highlights remain visible.
+	"pre, [data-line]:not([data-selected-line]):not([data-line-type='change-addition']):not([data-line-type='change-deletion']), [data-diffs-header] { background-color: transparent !important; }",
 	"[data-diffs-header] { border-left: 1px solid var(--border); }",
 	SELECTION_OVERRIDE_CSS,
 	SEPARATOR_CSS,

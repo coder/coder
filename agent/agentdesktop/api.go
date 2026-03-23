@@ -2,7 +2,6 @@ package agentdesktop
 
 import (
 	"encoding/json"
-	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 	"github.com/coder/websocket"
 )
@@ -26,9 +26,9 @@ type DesktopAction struct {
 	Duration        *int    `json:"duration,omitempty"`
 	ScrollAmount    *int    `json:"scroll_amount,omitempty"`
 	ScrollDirection *string `json:"scroll_direction,omitempty"`
-	// ScaledWidth and ScaledHeight are the coordinate space the
-	// model is using. When provided, coordinates are linearly
-	// mapped from scaled → native before dispatching.
+	// ScaledWidth and ScaledHeight describe the declared model-facing desktop
+	// geometry. When provided, input coordinates are mapped from declared space
+	// to native desktop pixels before dispatching.
 	ScaledWidth  *int `json:"scaled_width,omitempty"`
 	ScaledHeight *int `json:"scaled_height,omitempty"`
 }
@@ -144,17 +144,8 @@ func (a *API) handleAction(rw http.ResponseWriter, r *http.Request) {
 		slog.F("elapsed_ms", a.clock.Since(handlerStart).Milliseconds()),
 	)
 
-	// Helper to scale a coordinate pair from the model's space to
-	// native display pixels.
-	scaleXY := func(x, y int) (int, int) {
-		if action.ScaledWidth != nil && *action.ScaledWidth > 0 {
-			x = scaleCoordinate(x, *action.ScaledWidth, cfg.Width)
-		}
-		if action.ScaledHeight != nil && *action.ScaledHeight > 0 {
-			y = scaleCoordinate(y, *action.ScaledHeight, cfg.Height)
-		}
-		return x, y
-	}
+	geometry := desktopGeometryForAction(cfg, action)
+	scaleXY := geometry.DeclaredPointToNative
 
 	var resp DesktopActionResponse
 
@@ -192,7 +183,7 @@ func (a *API) handleAction(rw http.ResponseWriter, r *http.Request) {
 		resp.Output = "type action performed"
 
 	case "cursor_position":
-		x, y, err := a.desktop.CursorPosition(ctx)
+		nativeX, nativeY, err := a.desktop.CursorPosition(ctx)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Cursor position failed.",
@@ -200,6 +191,7 @@ func (a *API) handleAction(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		x, y := geometry.NativePointToDeclared(nativeX, nativeY)
 		resp.Output = "x=" + strconv.Itoa(x) + ",y=" + strconv.Itoa(y)
 
 	case "mouse_move":
@@ -447,14 +439,10 @@ func (a *API) handleAction(rw http.ResponseWriter, r *http.Request) {
 		resp.Output = "hold_key action performed"
 
 	case "screenshot":
-		var opts ScreenshotOptions
-		if action.ScaledWidth != nil && *action.ScaledWidth > 0 {
-			opts.TargetWidth = *action.ScaledWidth
-		}
-		if action.ScaledHeight != nil && *action.ScaledHeight > 0 {
-			opts.TargetHeight = *action.ScaledHeight
-		}
-		result, err := a.desktop.Screenshot(ctx, opts)
+		result, err := a.desktop.Screenshot(ctx, ScreenshotOptions{
+			TargetWidth:  geometry.DeclaredWidth,
+			TargetHeight: geometry.DeclaredHeight,
+		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Screenshot failed.",
@@ -464,16 +452,8 @@ func (a *API) handleAction(rw http.ResponseWriter, r *http.Request) {
 		}
 		resp.Output = "screenshot"
 		resp.ScreenshotData = result.Data
-		if action.ScaledWidth != nil && *action.ScaledWidth > 0 && *action.ScaledWidth != cfg.Width {
-			resp.ScreenshotWidth = *action.ScaledWidth
-		} else {
-			resp.ScreenshotWidth = cfg.Width
-		}
-		if action.ScaledHeight != nil && *action.ScaledHeight > 0 && *action.ScaledHeight != cfg.Height {
-			resp.ScreenshotHeight = *action.ScaledHeight
-		} else {
-			resp.ScreenshotHeight = cfg.Height
-		}
+		resp.ScreenshotWidth = geometry.DeclaredWidth
+		resp.ScreenshotHeight = geometry.DeclaredHeight
 
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -512,6 +492,23 @@ func coordFromAction(action DesktopAction) (x, y int, err error) {
 	return action.Coordinate[0], action.Coordinate[1], nil
 }
 
+func desktopGeometryForAction(cfg DisplayConfig, action DesktopAction) workspacesdk.DesktopGeometry {
+	declaredWidth := cfg.Width
+	declaredHeight := cfg.Height
+	if action.ScaledWidth != nil && *action.ScaledWidth > 0 {
+		declaredWidth = *action.ScaledWidth
+	}
+	if action.ScaledHeight != nil && *action.ScaledHeight > 0 {
+		declaredHeight = *action.ScaledHeight
+	}
+	return workspacesdk.NewDesktopGeometryWithDeclared(
+		cfg.Width,
+		cfg.Height,
+		declaredWidth,
+		declaredHeight,
+	)
+}
+
 // missingFieldError is returned when a required field is absent from
 // a DesktopAction.
 type missingFieldError struct {
@@ -521,16 +518,4 @@ type missingFieldError struct {
 
 func (e *missingFieldError) Error() string {
 	return "Missing \"" + e.field + "\" for " + e.action + " action."
-}
-
-// scaleCoordinate maps a coordinate from scaled → native space.
-func scaleCoordinate(scaled, scaledDim, nativeDim int) int {
-	if scaledDim == 0 || scaledDim == nativeDim {
-		return scaled
-	}
-	native := (float64(scaled)+0.5)*float64(nativeDim)/float64(scaledDim) - 0.5
-	// Clamp to valid range.
-	native = math.Max(native, 0)
-	native = math.Min(native, float64(nativeDim-1))
-	return int(native)
 }
