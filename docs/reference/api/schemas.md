@@ -6016,6 +6016,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "organization_id": "string"
     }
   ],
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "login_type": "",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "roles": [
@@ -6025,8 +6027,11 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "organization_id": "string"
     }
   ],
+  "status": "active",
   "updated_at": "2019-08-24T14:15:22Z",
+  "user_created_at": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "user_updated_at": "2019-08-24T14:15:22Z",
   "username": "string"
 }
 ```
@@ -6039,12 +6044,23 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `created_at`      | string                                          | false    |              |             |
 | `email`           | string                                          | false    |              |             |
 | `global_roles`    | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
+| `last_seen_at`    | string                                          | false    |              |             |
+| `login_type`      | [codersdk.LoginType](#codersdklogintype)        | false    |              |             |
 | `name`            | string                                          | false    |              |             |
 | `organization_id` | string                                          | false    |              |             |
 | `roles`           | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
+| `status`          | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
 | `updated_at`      | string                                          | false    |              |             |
+| `user_created_at` | string                                          | false    |              |             |
 | `user_id`         | string                                          | false    |              |             |
+| `user_updated_at` | string                                          | false    |              |             |
 | `username`        | string                                          | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)              |
+|----------|-----------------------|
+| `status` | `active`, `suspended` |
 
 ## codersdk.OrganizationSyncSettings
 
@@ -6302,6 +6318,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
           "organization_id": "string"
         }
       ],
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "roles": [
@@ -6311,8 +6329,11 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
           "organization_id": "string"
         }
       ],
+      "status": "active",
       "updated_at": "2019-08-24T14:15:22Z",
+      "user_created_at": "2019-08-24T14:15:22Z",
       "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "user_updated_at": "2019-08-24T14:15:22Z",
       "username": "string"
     }
   ]

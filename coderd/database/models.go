@@ -4394,7 +4394,6 @@ type Group struct {
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 }
 
-// Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).
 type GroupMember struct {
 	UserID                 uuid.UUID     `db:"user_id" json:"user_id"`
 	UserEmail              string        `db:"user_email" json:"user_email"`
@@ -4412,6 +4411,7 @@ type GroupMember struct {
 	UserName               string        `db:"user_name" json:"user_name"`
 	UserGithubComUserID    sql.NullInt64 `db:"user_github_com_user_id" json:"user_github_com_user_id"`
 	UserIsSystem           bool          `db:"user_is_system" json:"user_is_system"`
+	UserIsServiceAccount   bool          `db:"user_is_service_account" json:"user_is_service_account"`
 	OrganizationID         uuid.UUID     `db:"organization_id" json:"organization_id"`
 	GroupName              string        `db:"group_name" json:"group_name"`
 	GroupID                uuid.UUID     `db:"group_id" json:"group_id"`

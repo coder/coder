@@ -437,14 +437,16 @@ func TestChatWithMCPServerIDs(t *testing.T) {
 	client := newMCPClient(t)
 	_ = coderdtest.CreateFirstUser(t, client)
 
+	expClient := codersdk.NewExperimentalClient(client)
+
 	// Create the chat model config required for creating a chat.
-	_ = createChatModelConfigForMCP(t, client)
+	_ = createChatModelConfigForMCP(t, expClient)
 
 	// Create an enabled MCP server config.
 	mcpConfig := createMCPServerConfig(t, client, "chat-mcp-server", true)
 
 	// Create a chat referencing the MCP server.
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,
@@ -458,7 +460,7 @@ func TestChatWithMCPServerIDs(t *testing.T) {
 	require.Contains(t, chat.MCPServerIDs, mcpConfig.ID)
 
 	// Fetch the chat and verify the MCP server IDs persist.
-	fetched, err := client.GetChat(ctx, chat.ID)
+	fetched, err := expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Contains(t, fetched.MCPServerIDs, mcpConfig.ID)
 }
@@ -466,7 +468,7 @@ func TestChatWithMCPServerIDs(t *testing.T) {
 // createChatModelConfigForMCP sets up a chat provider and model
 // config so that CreateChat succeeds. This mirrors the helper in
 // chats_test.go but is defined here to avoid coupling.
-func createChatModelConfigForMCP(t testing.TB, client *codersdk.Client) codersdk.ChatModelConfig {
+func createChatModelConfigForMCP(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
 	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitLong)

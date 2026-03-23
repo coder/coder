@@ -242,27 +242,51 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Members
 // @Param organization path string true "Organization ID"
+// @Param q query string false "Member search query"
+// @Param after_id query string false "After ID" format(uuid)
 // @Param limit query int false "Page limit, if 0 returns all members"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} []codersdk.PaginatedMembersResponse
 // @Router /organizations/{organization}/paginated-members [get]
 func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx                  = r.Context()
-		organization         = httpmw.OrganizationParam(r)
-		paginationParams, ok = ParsePagination(rw, r)
+		ctx          = r.Context()
+		organization = httpmw.OrganizationParam(r)
 	)
+
+	filterQuery := r.URL.Query().Get("q")
+	userFilterParams, filterErrs := searchquery.Users(filterQuery)
+	if len(filterErrs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid member search query.",
+			Validations: filterErrs,
+		})
+		return
+	}
+
+	paginationParams, ok := ParsePagination(rw, r)
 	if !ok {
 		return
 	}
 
 	paginatedMemberRows, err := api.Database.PaginatedOrganizationMembers(ctx, database.PaginatedOrganizationMembersParams{
-		OrganizationID: organization.ID,
-		IncludeSystem:  false,
-		// #nosec G115 - Pagination limits are small and fit in int32
-		LimitOpt: int32(paginationParams.Limit),
+		AfterID:         paginationParams.AfterID,
+		OrganizationID:  organization.ID,
+		IncludeSystem:   false,
+		Search:          userFilterParams.Search,
+		Name:            userFilterParams.Name,
+		Status:          userFilterParams.Status,
+		RbacRole:        userFilterParams.RbacRole,
+		LastSeenBefore:  userFilterParams.LastSeenBefore,
+		LastSeenAfter:   userFilterParams.LastSeenAfter,
+		CreatedAfter:    userFilterParams.CreatedAfter,
+		CreatedBefore:   userFilterParams.CreatedBefore,
+		GithubComUserID: userFilterParams.GithubComUserID,
+		LoginType:       userFilterParams.LoginType,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
+		// #nosec G115 - Pagination limits are small and fit in int32
+		LimitOpt: int32(paginationParams.Limit),
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
@@ -273,18 +297,21 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	memberRows := make([]database.OrganizationMembersRow, 0)
-	for _, pRow := range paginatedMemberRows {
-		row := database.OrganizationMembersRow{
+	memberRows := make([]database.OrganizationMembersRow, len(paginatedMemberRows))
+	for i, pRow := range paginatedMemberRows {
+		memberRows[i] = database.OrganizationMembersRow{
 			OrganizationMember: pRow.OrganizationMember,
 			Username:           pRow.Username,
 			AvatarURL:          pRow.AvatarURL,
 			Name:               pRow.Name,
 			Email:              pRow.Email,
 			GlobalRoles:        pRow.GlobalRoles,
+			LastSeenAt:         pRow.LastSeenAt,
+			Status:             pRow.Status,
+			LoginType:          pRow.LoginType,
+			UserCreatedAt:      pRow.UserCreatedAt,
+			UserUpdatedAt:      pRow.UserUpdatedAt,
 		}
-
-		memberRows = append(memberRows, row)
 	}
 
 	if len(paginatedMemberRows) == 0 {
@@ -501,6 +528,11 @@ func convertOrganizationMembersWithUserData(ctx context.Context, db database.Sto
 			Name:               rows[i].Name,
 			Email:              rows[i].Email,
 			GlobalRoles:        db2sdk.SlimRolesFromNames(rows[i].GlobalRoles),
+			LastSeenAt:         rows[i].LastSeenAt,
+			Status:             codersdk.UserStatus(rows[i].Status),
+			LoginType:          codersdk.LoginType(rows[i].LoginType),
+			UserCreatedAt:      rows[i].UserCreatedAt,
+			UserUpdatedAt:      rows[i].UserUpdatedAt,
 			OrganizationMember: convertedMembers[i],
 		})
 	}

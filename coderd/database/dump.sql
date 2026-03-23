@@ -1619,6 +1619,7 @@ CREATE VIEW group_members_expanded AS
     users.name AS user_name,
     users.github_com_user_id AS user_github_com_user_id,
     users.is_system AS user_is_system,
+    users.is_service_account AS user_is_service_account,
     groups.organization_id,
     groups.name AS group_name,
     all_members.group_id
@@ -1626,8 +1627,6 @@ CREATE VIEW group_members_expanded AS
      JOIN users ON ((users.id = all_members.user_id)))
      JOIN groups ON ((groups.id = all_members.group_id)))
   WHERE (users.deleted = false);
-
-COMMENT ON VIEW group_members_expanded IS 'Joins group members with user information, organization ID, group name. Includes both regular group members and organization members (as part of the "Everyone" group).';
 
 CREATE TABLE inbox_notifications (
     id uuid NOT NULL,
