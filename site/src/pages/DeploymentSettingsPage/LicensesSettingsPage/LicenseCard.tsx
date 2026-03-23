@@ -18,7 +18,10 @@ import { ChevronDownIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { cn } from "utils/cn";
 import { AIGovernanceAddOnCard } from "./AIGovernanceAddOnCard";
-import { licenseShowsAiGovernanceAddOn } from "./aiGovernanceLicenseUtils";
+import {
+	isLicenseApplicableForAiGovernanceOverage,
+	licenseShowsAiGovernanceAddOn,
+} from "./aiGovernanceLicenseUtils";
 
 type LicenseCardProps = {
 	license: GetLicensesResponse;
@@ -63,18 +66,18 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 			: "Enterprise";
 
 	const hasExplicitAiGovernanceAddOn = licenseShowsAiGovernanceAddOn(license);
-	const isAiGovernanceEntitlementInGracePeriod =
-		aiGovernanceUserFeature?.entitlement === "grace_period";
 	// Overage/display checks only apply to licenses that are currently effective.
-	const isLicenseApplicableForAiGovernanceOverage =
-		!isNotYetValid && (!isExpired || isAiGovernanceEntitlementInGracePeriod);
+	const isLicenseApplicable = isLicenseApplicableForAiGovernanceOverage(
+		license,
+		aiGovernanceUserFeature,
+	);
 	// A license "wins" when its AI governance limit matches the merged limit.
 	const isWinningAiGovernanceLicense =
 		aiGovernanceMergedLimit !== undefined &&
 		aiGovernanceLimit > 0 &&
 		aiGovernanceLimit === aiGovernanceMergedLimit;
 	const canUseAiGovernanceUsageForThisLicense =
-		isLicenseApplicableForAiGovernanceOverage &&
+		isLicenseApplicable &&
 		hasExplicitAiGovernanceAddOn &&
 		isWinningAiGovernanceLicense;
 	// Show the add-on as exceeded only for the winning, active add-on license.

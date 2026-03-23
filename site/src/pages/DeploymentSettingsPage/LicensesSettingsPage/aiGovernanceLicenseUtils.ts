@@ -1,5 +1,6 @@
 import type { GetLicensesResponse } from "api/api";
 import type { Feature } from "api/typesGenerated";
+import dayjs from "dayjs";
 
 function isPremiumLicense(license: GetLicensesResponse): boolean {
 	return license.claims.feature_set?.toLowerCase() === "premium";
@@ -18,10 +19,38 @@ export function licenseShowsAiGovernanceAddOn(
 	);
 }
 
+export function isLicenseApplicableForAiGovernanceOverage(
+	license: GetLicensesResponse,
+	aiGovernanceUserFeature: Feature | undefined,
+): boolean {
+	const isExpired = dayjs
+		.unix(license.claims.license_expires)
+		.isBefore(dayjs());
+	const isNotYetValid =
+		license.claims.nbf !== undefined &&
+		dayjs.unix(license.claims.nbf).isAfter(dayjs());
+	const isAiGovernanceEntitlementInGracePeriod =
+		aiGovernanceUserFeature?.entitlement === "grace_period";
+
+	return (
+		!isNotYetValid && (!isExpired || isAiGovernanceEntitlementInGracePeriod)
+	);
+}
+
 export function hasAiGovernanceAddOnLicense(
 	licenses: GetLicensesResponse[] | undefined,
+	aiGovernanceUserFeature: Feature | undefined,
 ): boolean {
-	return licenses?.some(licenseShowsAiGovernanceAddOn) ?? false;
+	return (
+		licenses?.some(
+			(license) =>
+				licenseShowsAiGovernanceAddOn(license) &&
+				isLicenseApplicableForAiGovernanceOverage(
+					license,
+					aiGovernanceUserFeature,
+				),
+		) ?? false
+	);
 }
 
 /**
@@ -30,10 +59,17 @@ export function hasAiGovernanceAddOnLicense(
  */
 function aiGovernanceLimitFromLicenses(
 	licenses: GetLicensesResponse[],
+	aiGovernanceUserFeature: Feature | undefined,
 ): number | undefined {
 	let best: number | undefined;
 	for (const license of licenses) {
-		if (!licenseShowsAiGovernanceAddOn(license)) {
+		if (
+			!licenseShowsAiGovernanceAddOn(license) ||
+			!isLicenseApplicableForAiGovernanceOverage(
+				license,
+				aiGovernanceUserFeature,
+			)
+		) {
 			continue;
 		}
 		const lim = license.claims.features?.ai_governance_user_limit;
@@ -58,7 +94,7 @@ export function effectiveAiGovernanceLimitForUsageCard(
 	licenses: GetLicensesResponse[] | undefined,
 ): number | undefined {
 	const limitFromClaims = licenses
-		? aiGovernanceLimitFromLicenses(licenses)
+		? aiGovernanceLimitFromLicenses(licenses, aiGovernanceUserFeature)
 		: undefined;
 	const limitFromEntitlements = aiGovernanceUserFeature?.limit;
 

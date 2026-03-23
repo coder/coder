@@ -16,7 +16,10 @@ interface AIGovernanceUsersConsumptionProps {
 export const AIGovernanceUsersConsumption: FC<
 	AIGovernanceUsersConsumptionProps
 > = ({ aiGovernanceUserFeature, licenses }) => {
-	const hasAddOnLicense = hasAiGovernanceAddOnLicense(licenses);
+	const hasAddOnLicense = hasAiGovernanceAddOnLicense(
+		licenses,
+		aiGovernanceUserFeature,
+	);
 	const effectiveLimit = effectiveAiGovernanceLimitForUsageCard(
 		aiGovernanceUserFeature,
 		licenses,
