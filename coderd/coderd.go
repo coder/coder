@@ -767,46 +767,45 @@ func New(options *Options) *API {
 	}
 	api.agentProvider = stn
 
-	// Experimental: agents — chat daemon and git sync worker initialization.
-	// This glue code wires the experimental chat feature into the API server.
-	// Remove this block when the experiment is promoted or dropped.
-	maxChatsPerAcquire := options.DeploymentValues.AI.Chat.AcquireBatchSize.Value()
-	if maxChatsPerAcquire > math.MaxInt32 {
-		maxChatsPerAcquire = math.MaxInt32
-	}
-	if maxChatsPerAcquire < math.MinInt32 {
-		maxChatsPerAcquire = math.MinInt32
-	}
+	{ // Experimental: agents — chat daemon and git sync worker initialization.
+		maxChatsPerAcquire := options.DeploymentValues.AI.Chat.AcquireBatchSize.Value()
+		if maxChatsPerAcquire > math.MaxInt32 {
+			maxChatsPerAcquire = math.MaxInt32
+		}
+		if maxChatsPerAcquire < math.MinInt32 {
+			maxChatsPerAcquire = math.MinInt32
+		}
 
-	api.chatDaemon = chatd.New(chatd.Config{
-		Logger:             options.Logger.Named("chatd"),
-		Database:           options.Database,
-		ReplicaID:          api.ID,
-		SubscribeFn:        options.ChatSubscribeFn,
-		MaxChatsPerAcquire: int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-		ProviderAPIKeys:    chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
-		AgentConn:          api.agentProvider.AgentConn,
-		CreateWorkspace:    api.chatCreateWorkspace,
-		StartWorkspace:     api.chatStartWorkspace,
-		Pubsub:             options.Pubsub,
-		WebpushDispatcher:  options.WebPushDispatcher,
-		UsageTracker:       options.WorkspaceUsageTracker,
-	})
-	gitSyncLogger := options.Logger.Named("gitsync")
-	refresher := gitsync.NewRefresher(
-		api.resolveGitProvider,
-		api.resolveChatGitAccessToken,
-		gitSyncLogger.Named("refresher"),
-		quartz.NewReal(),
-	)
-	api.gitSyncWorker = gitsync.NewWorker(options.Database,
-		refresher,
-		api.chatDaemon.PublishDiffStatusChange,
-		quartz.NewReal(),
-		gitSyncLogger,
-	)
-	// nolint:gocritic // chat diff worker needs to be able to CRUD chats.
-	go api.gitSyncWorker.Start(dbauthz.AsChatd(api.ctx))
+		api.chatDaemon = chatd.New(chatd.Config{
+			Logger:             options.Logger.Named("chatd"),
+			Database:           options.Database,
+			ReplicaID:          api.ID,
+			SubscribeFn:        options.ChatSubscribeFn,
+			MaxChatsPerAcquire: int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
+			ProviderAPIKeys:    chatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
+			AgentConn:          api.agentProvider.AgentConn,
+			CreateWorkspace:    api.chatCreateWorkspace,
+			StartWorkspace:     api.chatStartWorkspace,
+			Pubsub:             options.Pubsub,
+			WebpushDispatcher:  options.WebPushDispatcher,
+			UsageTracker:       options.WorkspaceUsageTracker,
+		})
+		gitSyncLogger := options.Logger.Named("gitsync")
+		refresher := gitsync.NewRefresher(
+			api.resolveGitProvider,
+			api.resolveChatGitAccessToken,
+			gitSyncLogger.Named("refresher"),
+			quartz.NewReal(),
+		)
+		api.gitSyncWorker = gitsync.NewWorker(options.Database,
+			refresher,
+			api.chatDaemon.PublishDiffStatusChange,
+			quartz.NewReal(),
+			gitSyncLogger,
+		)
+		// nolint:gocritic // chat diff worker needs to be able to CRUD chats.
+		go api.gitSyncWorker.Start(dbauthz.AsChatd(api.ctx))
+	}
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
 		api.lifecycleMetrics = agentapi.NewLifecycleMetrics(options.PrometheusRegistry)
@@ -1149,8 +1148,7 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		// Experimental: agents — chat API routes.
-		// All routes are under /api/experimental/chats and gated by ExperimentAgents.
+		// Experimental(agents): chat API routes gated by ExperimentAgents.
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -2091,8 +2089,9 @@ type API struct {
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
-	// Experimental: agents — chat daemon and git sync worker.
-	chatDaemon    *chatd.Server
+	// Experimental(agents): chatDaemon handles background processing of pending chats.
+	chatDaemon *chatd.Server
+	// Experimental(agents): gitSyncWorker refreshes stale chat diff statuses in the background.
 	gitSyncWorker *gitsync.Worker
 	// AISeatTracker records AI seat usage.
 	AISeatTracker aiseats.SeatTracker
