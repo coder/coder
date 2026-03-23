@@ -889,6 +889,13 @@ JOIN group_members_expanded gme ON gme.group_id = g.id
 WHERE gme.user_id = @user_id::uuid
   AND g.chat_spend_limit_micros IS NOT NULL;
 
+-- name: GetLatestChatsByWorkspaceIDs :many
+SELECT DISTINCT ON (workspace_id) *
+FROM chats
+WHERE archived = false
+  AND workspace_id = ANY(@workspace_ids::uuid[])
+ORDER BY workspace_id, updated_at DESC;
+
 -- name: ResolveUserChatSpendLimit :one
 -- Resolves the effective spend limit for a user using the hierarchy:
 -- 1. Individual user override (highest priority)

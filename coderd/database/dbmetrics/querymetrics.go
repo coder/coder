@@ -1560,6 +1560,14 @@ func (m queryMetricsStore) GetLastUpdateCheck(ctx context.Context) (string, erro
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetLatestChatsByWorkspaceIDs(ctx context.Context, workspaceIds []uuid.UUID) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestChatsByWorkspaceIDs(ctx, workspaceIds)
+	m.queryLatencies.WithLabelValues("GetLatestChatsByWorkspaceIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestChatsByWorkspaceIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetLatestCryptoKeyByFeature(ctx, feature)

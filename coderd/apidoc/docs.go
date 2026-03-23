@@ -1186,6 +1186,51 @@ const docTemplate = `{
                 ]
             }
         },
+        "/experimental/chats/by-workspace": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get latest chats by workspace IDs",
+                "operationId": "get-latest-chats-by-workspace-ids",
+                "parameters": [
+                    {
+                        "description": "Workspace IDs",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceChatIDsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/experimental/watch-all-workspacebuilds": {
             "get": {
                 "produces": [
@@ -22515,6 +22560,17 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ProvisionerTiming"
+                    }
+                }
+            }
+        },
+        "codersdk.WorkspaceChatIDsRequest": {
+            "type": "object",
+            "properties": {
+                "workspace_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 }
             }

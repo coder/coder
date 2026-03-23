@@ -2978,6 +2978,10 @@ func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	return q.db.GetLastUpdateCheck(ctx)
 }
 
+func (q *querier) GetLatestChatsByWorkspaceIDs(ctx context.Context, workspaceIds []uuid.UUID) ([]database.Chat, error) { //nolint:revive // sqlc-generated interface name
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetLatestChatsByWorkspaceIDs)(ctx, workspaceIds)
+}
+
 func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err

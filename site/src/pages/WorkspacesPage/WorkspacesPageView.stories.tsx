@@ -397,6 +397,23 @@ export const ShowWorkspaceTasks: Story = {
 	},
 };
 
+export const ShowWorkspaceChats: Story = {
+	args: {
+		workspaces: [
+			{
+				...MockWorkspace,
+				name: "regular-workspace",
+			},
+			{
+				...MockWorkspace,
+				id: "ws-with-chat",
+				name: "chat-workspace",
+			},
+		],
+		chatsByWorkspace: { "ws-with-chat": "some-chat-id" },
+	},
+};
+
 export const WithCheckedWorkspaces: Story = {
 	args: {
 		workspaces: allWorkspaces.slice(0, 5),

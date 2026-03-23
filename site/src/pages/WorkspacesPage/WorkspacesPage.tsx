@@ -12,6 +12,8 @@ import { pageTitle } from "utils/page";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { workspacePermissionsByOrganization } from "#/api/queries/organizations";
 import { templates, templateVersionRoot } from "#/api/queries/templates";
+import { workspaceChatIds } from "#/api/queries/chats";
+import type { Experiment } from "#/api/typesGenerated";
 import { workspaces } from "#/api/queries/workspaces";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
@@ -70,6 +72,8 @@ const WorkspacesPage: FC = () => {
 		},
 	});
 	const { permissions, user: me } = useAuthenticated();
+	const { experiments } = useDashboard();
+	const agentsEnabled = experiments.includes("agents" as Experiment);
 	const templatesQuery = useQuery(templates());
 	const workspacePermissionsQuery = useQuery(
 		workspacePermissionsByOrganization(
@@ -127,6 +131,15 @@ const WorkspacesPage: FC = () => {
 		refetchOnWindowFocus: "always",
 	});
 
+	const workspaceIds = useMemo(
+		() => data?.workspaces?.map((w) => w.id) ?? [],
+		[data?.workspaces],
+	);
+	const chatsByWorkspaceQuery = useQuery({
+		...workspaceChatIds(workspaceIds),
+		enabled: agentsEnabled && workspaceIds.length > 0,
+	});
+
 	const [activeBatchAction, setActiveBatchAction] = useState<BatchAction>();
 	const batchActions = useBatchActions({
 		onSuccess: async () => {
@@ -146,6 +159,7 @@ const WorkspacesPage: FC = () => {
 				canCreateTemplate={permissions.createTemplates}
 				canChangeVersions={permissions.updateTemplates}
 				checkedWorkspaces={checkedWorkspaces}
+				chatsByWorkspace={chatsByWorkspaceQuery.data}
 				onCheckChange={(newWorkspaces) => {
 					setCheckedWorkspaceIds((current) => {
 						const newIds = newWorkspaces.map((ws) => ws.id);

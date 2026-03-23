@@ -3025,6 +3025,16 @@ export type CreateTaskFeedbackRequest = {
 class ExperimentalApiMethods {
 	constructor(protected readonly axios: AxiosInstance) {}
 
+	getChatsByWorkspace = async (
+		req: TypesGen.WorkspaceChatIDsRequest,
+	): Promise<Record<string, string>> => {
+		const res = await this.axios.post(
+			"/api/experimental/chats/by-workspace",
+			req,
+		);
+		return res.data;
+	};
+
 	uploadChatFile = async (
 		file: File,
 		organizationId: string,

@@ -196,6 +196,51 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// chatsByWorkspace returns a mapping of workspace ID to the latest
+// non-archived chat ID for each requested workspace.
+//
+// @Summary Get latest chats by workspace IDs
+// @ID get-latest-chats-by-workspace-ids
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param request body codersdk.WorkspaceChatIDsRequest true "Workspace IDs"
+// @Success 200 {object} map[uuid.UUID]uuid.UUID
+// @Router /experimental/chats/by-workspace [post]
+// @x-apidocgen {"skip": true}
+func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req codersdk.WorkspaceChatIDsRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if len(req.WorkspaceIDs) == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, map[uuid.UUID]uuid.UUID{})
+		return
+	}
+
+	chats, err := api.Database.GetLatestChatsByWorkspaceIDs(ctx, req.WorkspaceIDs)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chats by workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	result := make(map[uuid.UUID]uuid.UUID, len(chats))
+	for _, chat := range chats {
+		if chat.WorkspaceID.Valid {
+			result[chat.WorkspaceID.UUID] = chat.ID
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, result)
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

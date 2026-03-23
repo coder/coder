@@ -96,6 +96,7 @@ interface WorkspacesTableProps {
 	canCreateTemplate: boolean;
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
+	chatsByWorkspace?: Record<string, string>;
 }
 
 export const WorkspacesTable: FC<WorkspacesTableProps> = ({
@@ -107,6 +108,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	canCreateTemplate,
 	onActionSuccess,
 	onActionError,
+	chatsByWorkspace,
 }) => {
 	const dashboard = useDashboard();
 
@@ -209,6 +211,11 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 												{workspace.task_id && (
 													<Badge size="xs" variant="default">
 														Task
+													</Badge>
+												)}
+												{chatsByWorkspace?.[workspace.id] && (
+													<Badge size="xs" variant="info">
+														Chat
 													</Badge>
 												)}
 											</Stack>

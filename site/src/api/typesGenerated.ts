@@ -8400,6 +8400,15 @@ export interface WorkspaceBuildsRequest extends Pagination {
 	readonly since?: string;
 }
 
+// From codersdk/chats.go
+/**
+ * WorkspaceChatIDsRequest is the request to get the latest
+ * chat IDs for a set of workspaces.
+ */
+export interface WorkspaceChatIDsRequest {
+	readonly workspace_ids: readonly string[];
+}
+
 // From codersdk/deployment.go
 export interface WorkspaceConnectionLatencyMS {
 	readonly P50: number;
