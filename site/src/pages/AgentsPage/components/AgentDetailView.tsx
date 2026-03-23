@@ -271,6 +271,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 				>
 					<div className="px-4">
 						<AgentDetailTimeline
+							chatID={agentId}
 							store={store}
 							persistedErrorReason={
 								chatErrorReasons[agentId] ??

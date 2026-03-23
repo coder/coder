@@ -198,8 +198,14 @@ describe("setStreamError / clearStreamError", () => {
 	it("stores and clears a stream error", () => {
 		const store = createChatStore();
 
-		store.setStreamError("connection lost");
-		expect(store.getSnapshot().streamError).toBe("connection lost");
+		store.setStreamError({
+			kind: "generic",
+			message: "connection lost",
+		});
+		expect(store.getSnapshot().streamError).toEqual({
+			kind: "generic",
+			message: "connection lost",
+		});
 
 		store.clearStreamError();
 		expect(store.getSnapshot().streamError).toBeNull();
@@ -207,13 +213,19 @@ describe("setStreamError / clearStreamError", () => {
 
 	it("does not notify when setting the same error", () => {
 		const store = createChatStore();
-		store.setStreamError("oops");
+		store.setStreamError({
+			kind: "generic",
+			message: "oops",
+		});
 
 		let notified = false;
 		store.subscribe(() => {
 			notified = true;
 		});
-		store.setStreamError("oops");
+		store.setStreamError({
+			kind: "generic",
+			message: "oops",
+		});
 
 		expect(notified).toBe(false);
 	});
@@ -239,10 +251,21 @@ describe("setRetryState / clearRetryState", () => {
 	it("stores and clears retry state", () => {
 		const store = createChatStore();
 
-		store.setRetryState({ attempt: 1, error: "rate limited" });
+		store.setRetryState({
+			attempt: 1,
+			error: "rate limited",
+			kind: "rate_limit",
+			provider: "anthropic",
+			delayMs: 3000,
+			retryingAt: "2025-01-01T00:00:30.000Z",
+		});
 		expect(store.getSnapshot().retryState).toEqual({
 			attempt: 1,
 			error: "rate limited",
+			kind: "rate_limit",
+			provider: "anthropic",
+			delayMs: 3000,
+			retryingAt: "2025-01-01T00:00:30.000Z",
 		});
 
 		store.clearRetryState();
@@ -430,8 +453,18 @@ describe("resetTransientState", () => {
 	it("clears streamState, streamError, retryState, and subagentOverrides", () => {
 		const store = createChatStore();
 		store.applyMessagePart({ type: "text", text: "stream" });
-		store.setStreamError("oops");
-		store.setRetryState({ attempt: 2, error: "rate limit" });
+		store.setStreamError({
+			kind: "generic",
+			message: "oops",
+		});
+		store.setRetryState({
+			attempt: 2,
+			error: "rate limit",
+			kind: "rate_limit",
+			provider: "anthropic",
+			delayMs: 5000,
+			retryingAt: "2025-01-01T00:01:00.000Z",
+		});
 		store.setSubagentStatusOverride("sub-1", "error");
 
 		store.resetTransientState();
@@ -447,7 +480,10 @@ describe("resetTransientState", () => {
 		const store = createChatStore();
 		store.replaceMessages([makeMessage(1, "user", "hello")]);
 		store.setQueuedMessages([makeQueuedMessage(10, "queued")]);
-		store.setStreamError("oops");
+		store.setStreamError({
+			kind: "generic",
+			message: "oops",
+		});
 
 		store.resetTransientState();
 

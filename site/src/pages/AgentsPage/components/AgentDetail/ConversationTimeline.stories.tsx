@@ -1,8 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type * as TypesGen from "api/typesGenerated";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
+import {
+	buildLiveStatus,
+	buildRetryState,
+	buildStreamRenderState,
+	textResponseStreamParts,
+} from "./storyFixtures";
 
 // 1×1 solid coral (#FF6B6B) PNG encoded as base64.
 const TEST_PNG_B64 =
@@ -16,61 +22,30 @@ const baseMessage = {
 	created_at: "2026-03-10T00:00:00.000Z",
 } as const;
 
-const TEXT_ATTACHMENT_RESPONSES = new Map<string, string>([
-	[
-		"storybook-test-text",
-		"Quarterly revenue increased 18% year over year after the new pricing rollout stabilized customer expansion.",
-	],
-	[
-		"storybook-text-only",
-		"Runbook note: restart the worker after updating the queue configuration to pick up the new concurrency limits.",
-	],
-	[
-		"storybook-text-1",
-		"First context file: deployment checklist and rollback instructions for the release candidate.",
-	],
-	[
-		"storybook-text-2",
-		"Second context file: service logs showing a transient timeout while the cache warmed up.",
-	],
-	[
-		"storybook-text-3",
-		"Third context file: local development configuration overrides for reproducing the issue.",
-	],
-]);
-
-const mockTextAttachmentFetch = () => {
-	const originalFetch = globalThis.fetch;
-	spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-		const url =
-			typeof input === "string"
-				? input
-				: input instanceof URL
-					? input.toString()
-					: input.url;
-
-		for (const [fileId, content] of TEXT_ATTACHMENT_RESPONSES) {
-			if (url.endsWith(fileId)) {
-				return new Response(content, { status: 200 });
-			}
-		}
-
-		return originalFetch(input, init);
-	});
-};
-
 const defaultArgs: Omit<
 	React.ComponentProps<typeof ConversationTimeline>,
 	"parsedMessages"
 > = {
 	isEmpty: false,
-	hasStreamOutput: false,
 	streamState: null,
 	streamTools: [],
+	liveStatus: buildLiveStatus(),
 	subagentTitles: new Map(),
 	subagentStatusOverrides: new Map(),
-	isAwaitingFirstStreamChunk: false,
 };
+
+const retryThenResumeMessages = buildMessages([
+	{
+		...baseMessage,
+		id: 1,
+		role: "user",
+		content: [
+			{ type: "text", text: "Please try again if the provider flakes." },
+		],
+	},
+]);
+
+const retryThenResumedStream = buildStreamRenderState(textResponseStreamParts);
 
 const meta: Meta<typeof ConversationTimeline> = {
 	title: "pages/AgentsPage/AgentDetail/ConversationTimeline",
@@ -82,9 +57,6 @@ const meta: Meta<typeof ConversationTimeline> = {
 			</div>
 		),
 	],
-	beforeEach: () => {
-		mockTextAttachmentFetch();
-	},
 };
 export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
@@ -196,109 +168,6 @@ export const UserMessageWithFileIdImage: Story = {
 	},
 };
 
-export const UserMessageWithTextAttachment: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: parseMessagesWithMergedTools([
-			{
-				...baseMessage,
-				id: 1,
-				role: "user",
-				content: [
-					{ type: "text", text: "Here is some context from our docs:" },
-					{
-						type: "file",
-						file_id: "storybook-test-text",
-						media_type: "text/plain",
-					},
-				],
-			},
-		]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const textButton = await canvas.findByRole("button", {
-			name: "View text attachment",
-		});
-		expect(textButton).toBeInTheDocument();
-		expect(textButton).toHaveTextContent(/Pasted text/i);
-		await userEvent.click(textButton);
-		expect(
-			await canvas.findByText(/Quarterly revenue increased 18%/i),
-		).toBeInTheDocument();
-	},
-};
-
-export const UserMessageWithMultipleTextAttachments: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: parseMessagesWithMergedTools([
-			{
-				...baseMessage,
-				id: 1,
-				created_at: "2025-01-15T10:00:00Z",
-				role: "user",
-				content: [
-					{ type: "text", text: "Here are several context files:" },
-					{
-						type: "file",
-						file_id: "storybook-text-1",
-						media_type: "text/plain",
-					},
-					{
-						type: "file",
-						file_id: "storybook-text-2",
-						media_type: "text/plain",
-					},
-					{
-						type: "file",
-						file_id: "storybook-text-3",
-						media_type: "text/plain",
-					},
-				],
-			},
-		]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const textButtons = await canvas.findAllByRole("button", {
-			name: "View text attachment",
-		});
-		expect(textButtons).toHaveLength(3);
-	},
-};
-
-export const UserMessageWithTextAttachmentOnly: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: parseMessagesWithMergedTools([
-			{
-				...baseMessage,
-				id: 1,
-				role: "user",
-				content: [
-					{
-						type: "file",
-						file_id: "storybook-text-only",
-						media_type: "text/plain",
-					},
-				],
-			},
-		]),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const textButton = await canvas.findByRole("button", {
-			name: "View text attachment",
-		});
-		expect(textButton).toHaveTextContent(/Pasted text/i);
-		await userEvent.click(textButton);
-		expect(
-			await canvas.findByText(/Runbook note: restart the worker/i),
-		).toBeInTheDocument();
-	},
-};
-
 /** Text-only messages must not produce spurious image thumbnails. */
 export const UserMessageTextOnly: Story = {
 	args: {
@@ -393,21 +262,24 @@ export const UsageLimitExceeded: Story = {
 	args: {
 		...defaultArgs,
 		parsedMessages: [],
-		detailError: {
-			kind: "usage-limit",
-			message:
-				"You've used $50.00 of your $50.00 spend limit. Your limit resets on July 1, 2025.",
-		},
-
+		liveStatus: buildLiveStatus({
+			persistedError: {
+				kind: "usage-limit",
+				message:
+					"You've used $50.00 of your $50.00 spend limit. Your limit resets on July 1, 2025.",
+			},
+		}),
+		onOpenAnalytics: fn(),
 		subagentTitles: new Map(),
 		subagentStatusOverrides: new Map(),
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/spend limit/i)).toBeVisible();
-		const link = canvas.getByRole("link", { name: /view usage/i });
-		expect(link).toBeVisible();
-		expect(link).toHaveAttribute("href", "/agents/analytics");
+		const btn = canvas.getByRole("button", { name: /view usage/i });
+		expect(btn).toBeVisible();
+		await userEvent.click(btn);
+		expect(args.onOpenAnalytics).toHaveBeenCalled();
 	},
 };
 
@@ -416,7 +288,13 @@ export const GenericErrorDoesNotShowUsageAction: Story = {
 	args: {
 		...defaultArgs,
 		parsedMessages: [],
-		detailError: { kind: "generic", message: "Provider request failed." },
+		liveStatus: buildLiveStatus({
+			persistedError: {
+				kind: "generic",
+				message: "Provider request failed.",
+			},
+		}),
+		onOpenAnalytics: fn(),
 		subagentTitles: new Map(),
 		subagentStatusOverrides: new Map(),
 	},
@@ -424,7 +302,7 @@ export const GenericErrorDoesNotShowUsageAction: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/provider request failed/i)).toBeVisible();
 		expect(
-			canvas.queryByRole("link", { name: /view usage/i }),
+			canvas.queryByRole("button", { name: /view usage/i }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -579,5 +457,202 @@ export const StickyUserMessageStructure: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("First prompt")).toBeVisible();
 		expect(canvas.getByText("Second prompt")).toBeVisible();
+	},
+};
+
+/** Retry errors render the shared mux-style callout with reason text. */
+export const RetryWithReason: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [],
+		liveStatus: buildLiveStatus({
+			retryState: buildRetryState({ attempt: 2 }),
+			isAwaitingFirstStreamChunk: true,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /retrying request/i }),
+		).toBeVisible();
+		expect(canvas.getByText(/transient upstream failure/i)).toBeVisible();
+		expect(canvas.getByText("generic")).toBeVisible();
+		expect(canvas.getByText(/attempt 2/i)).toBeVisible();
+	},
+};
+
+/** Overloaded terminal errors expose provider metadata and status links. */
+export const TerminalOverloadedError: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [],
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "overloaded",
+				message: "Anthropic is currently overloaded. Please try again shortly.",
+				provider: "anthropic",
+				retryable: true,
+				statusCode: 529,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /service overloaded/i }),
+		).toBeVisible();
+		expect(canvas.getByText("overloaded")).toBeVisible();
+		expect(canvas.getByText(/http 529/i)).toBeVisible();
+		expect(canvas.getByRole("link", { name: /status/i })).toBeVisible();
+	},
+};
+
+/** Store-driven stream errors render the shared terminal callout. */
+export const StreamErrorTerminalFailure: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: retryThenResumeMessages,
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "overloaded",
+				message: "Anthropic is currently overloaded. Please try again shortly.",
+				provider: "anthropic",
+				retryable: true,
+				statusCode: 529,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(/please try again if the provider flakes/i),
+		).toBeVisible();
+		const headings = screen.getAllByRole("heading", {
+			name: /service overloaded/i,
+		});
+		expect(headings).toHaveLength(1);
+		expect(headings[0]).toBeVisible();
+		expect(canvas.getByText("overloaded")).toBeVisible();
+		expect(canvas.getByText(/http 529/i)).toBeVisible();
+		const statusLink = canvas.getByRole("link", { name: /status/i });
+		expect(statusLink).toBeVisible();
+		expect(statusLink).toHaveAttribute("href", "https://status.anthropic.com");
+	},
+};
+
+/** Persisted generic errors yield to live streamed content. */
+export const PersistedGenericErrorDoesNotOverrideStreaming: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: retryThenResumeMessages,
+		streamState: retryThenResumedStream.streamState,
+		streamTools: retryThenResumedStream.streamTools,
+		liveStatus: buildLiveStatus({
+			streamState: retryThenResumedStream.streamState,
+			persistedError: {
+				kind: "generic",
+				message: "Stale persisted error.",
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText(/storybook streamed answer/i)).toBeVisible();
+		});
+		expect(
+			canvas.queryByRole("heading", { name: /request failed/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+/** Failed streams keep partial output visible alongside the terminal callout. */
+export const FailedStreamKeepsPartialOutputVisible: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: retryThenResumeMessages,
+		streamState: retryThenResumedStream.streamState,
+		streamTools: retryThenResumedStream.streamTools,
+		liveStatus: buildLiveStatus({
+			streamState: retryThenResumedStream.streamState,
+			streamError: {
+				kind: "generic",
+				message: "Provider request failed.",
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/storybook streamed answer/i)).toBeVisible();
+		expect(
+			canvas.getByRole("heading", { name: /request failed/i }),
+		).toBeVisible();
+		expect(canvas.getByText(/provider request failed/i)).toBeVisible();
+	},
+};
+
+/** Generic terminal errors keep the shared layout without usage/status CTAs. */
+export const TerminalGenericError: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [],
+		liveStatus: buildLiveStatus({
+			persistedError: {
+				kind: "generic",
+				message: "Provider request failed.",
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /request failed/i }),
+		).toBeVisible();
+		expect(canvas.getByText("generic")).toBeVisible();
+		expect(canvas.getByText(/provider request failed/i)).toBeVisible();
+		expect(
+			canvas.queryByRole("link", { name: /status/i }),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: /view usage/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+/** Delayed first chunks keep the thinking placeholder until the grace period expires. */
+export const DelayedFirstChunk: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: retryThenResumeMessages,
+		liveStatus: buildLiveStatus({ isAwaitingFirstStreamChunk: true }),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const matches = canvas.getAllByText(/thinking\.\.\./i);
+		expect(matches.length).toBeGreaterThanOrEqual(1);
+		expect(matches.some((el) => el.closest("[aria-hidden]") === null)).toBe(
+			true,
+		);
+		expect(
+			canvas.queryByRole("heading", { name: /retrying request/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+/** Once streaming resumes, the retry callout disappears and content remains. */
+export const RetryThenResumedStreaming: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: retryThenResumeMessages,
+		...retryThenResumedStream,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText(/storybook streamed answer/i)).toBeVisible();
+		});
+		expect(
+			canvas.queryByRole("heading", { name: /service overloaded/i }),
+		).not.toBeInTheDocument();
 	},
 };
