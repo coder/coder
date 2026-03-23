@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type * as TypesGen from "api/typesGenerated";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 
@@ -249,17 +249,16 @@ export const UsageLimitExceeded: Story = {
 			message:
 				"You've used $50.00 of your $50.00 spend limit. Your limit resets on July 1, 2025.",
 		},
-		onOpenAnalytics: fn(),
+
 		subagentTitles: new Map(),
 		subagentStatusOverrides: new Map(),
 	},
-	play: async ({ args, canvasElement }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/spend limit/i)).toBeVisible();
-		const btn = canvas.getByRole("button", { name: /view usage/i });
-		expect(btn).toBeVisible();
-		await userEvent.click(btn);
-		expect(args.onOpenAnalytics).toHaveBeenCalled();
+		const link = canvas.getByRole("link", { name: /view usage/i });
+		expect(link).toBeVisible();
+		expect(link).toHaveAttribute("href", "/agents/analytics");
 	},
 };
 
@@ -269,7 +268,6 @@ export const GenericErrorDoesNotShowUsageAction: Story = {
 		...defaultArgs,
 		parsedMessages: [],
 		detailError: { kind: "generic", message: "Provider request failed." },
-		onOpenAnalytics: fn(),
 		subagentTitles: new Map(),
 		subagentStatusOverrides: new Map(),
 	},
@@ -277,7 +275,7 @@ export const GenericErrorDoesNotShowUsageAction: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/provider request failed/i)).toBeVisible();
 		expect(
-			canvas.queryByRole("button", { name: /view usage/i }),
+			canvas.queryByRole("link", { name: /view usage/i }),
 		).not.toBeInTheDocument();
 	},
 };

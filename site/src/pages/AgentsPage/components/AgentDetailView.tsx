@@ -83,7 +83,6 @@ interface AgentDetailViewProps {
 	// Sidebar / panel state.
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
-	onOpenAnalytics?: () => void;
 
 	// Right panel state (owned by the parent so loading and
 	// loaded views share the same layout).
@@ -106,9 +105,6 @@ interface AgentDetailViewProps {
 	handleViewWorkspace: () => void;
 	handleOpenTerminal: () => void;
 	handleCommit: (repoRoot: string) => void;
-
-	// Navigation.
-	onNavigateToChat: (chatId: string) => void;
 
 	// Chat action handlers.
 	handleInterrupt: () => void;
@@ -158,7 +154,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	isInterruptPending,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
-	onOpenAnalytics,
 	showSidebarPanel,
 	onSetShowSidebarPanel,
 	prNumber,
@@ -171,7 +166,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	handleViewWorkspace,
 	handleOpenTerminal,
 	handleCommit,
-	onNavigateToChat,
 	handleInterrupt,
 	handleDeleteQueuedMessage,
 	handlePromoteQueuedMessage,
@@ -221,7 +215,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 					<AgentDetailTopBar
 						chatTitle={chatTitle}
 						parentChat={parentChat}
-						onOpenParentChat={(chatId) => onNavigateToChat(chatId)}
 						panel={{
 							showSidebarPanel,
 							onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
@@ -275,7 +268,6 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 									? { kind: "generic" as const, message: chatRecord.last_error }
 									: undefined)
 							}
-							onOpenAnalytics={onOpenAnalytics}
 							onEditUserMessage={editing.handleEditUserMessage}
 							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
@@ -408,7 +400,6 @@ export const AgentDetailLoadingView: FC<AgentDetailLoadingViewProps> = ({
 						onOpenTerminal: () => {},
 						sshCommand: undefined,
 					}}
-					onOpenParentChat={() => {}}
 					onArchiveAgent={() => {}}
 					onUnarchiveAgent={() => {}}
 					onArchiveAndDeleteWorkspace={() => {}}
@@ -482,7 +473,6 @@ export const AgentDetailNotFoundView: FC<AgentDetailNotFoundViewProps> = ({
 					onOpenTerminal: () => {},
 					sshCommand: undefined,
 				}}
-				onOpenParentChat={() => {}}
 				onArchiveAgent={() => {}}
 				onUnarchiveAgent={() => {}}
 				onArchiveAndDeleteWorkspace={() => {}}

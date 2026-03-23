@@ -68,8 +68,6 @@ const AgentCreatePage: FC = () => {
 		navigate(`/agents/${createdChat.id}`);
 	};
 
-	const handleOpenAnalytics = () => navigate("/agents/analytics");
-
 	return (
 		<>
 			<AgentPageHeader>
@@ -86,7 +84,6 @@ const AgentCreatePage: FC = () => {
 				isModelCatalogLoading={chatModelsQuery.isLoading}
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
 				modelCatalogError={chatModelsQuery.error}
-				onOpenAnalytics={handleOpenAnalytics}
 			/>
 		</>
 	);

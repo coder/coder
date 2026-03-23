@@ -42,7 +42,6 @@ const isChatMessage = (
 interface AgentDetailTimelineProps {
 	store: ChatStoreHandle;
 	persistedErrorReason: ChatDetailError | undefined;
-	onOpenAnalytics?: () => void;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -59,7 +58,6 @@ interface AgentDetailTimelineProps {
 const MessageListProvider: FC<AgentDetailTimelineProps> = ({
 	store,
 	persistedErrorReason,
-	onOpenAnalytics,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
@@ -102,7 +100,6 @@ const MessageListProvider: FC<AgentDetailTimelineProps> = ({
 			detailError={detailError}
 			latestMessageNeedsAssistantResponse={latestMessageNeedsAssistantResponse}
 			chatStatus={chatStatus}
-			onOpenAnalytics={onOpenAnalytics}
 			onEditUserMessage={onEditUserMessage}
 			editingMessageId={editingMessageId}
 			savingMessageId={savingMessageId}
@@ -123,7 +120,6 @@ const StreamingBridge: FC<{
 	detailError: ChatDetailError | undefined;
 	latestMessageNeedsAssistantResponse: boolean;
 	chatStatus: TypesGen.ChatStatus | null;
-	onOpenAnalytics?: () => void;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -142,7 +138,6 @@ const StreamingBridge: FC<{
 	detailError,
 	latestMessageNeedsAssistantResponse,
 	chatStatus,
-	onOpenAnalytics,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
@@ -168,7 +163,6 @@ const StreamingBridge: FC<{
 			retryState={retryState}
 			isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
 			detailError={detailError}
-			onOpenAnalytics={onOpenAnalytics}
 			onEditUserMessage={onEditUserMessage}
 			editingMessageId={editingMessageId}
 			savingMessageId={savingMessageId}
