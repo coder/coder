@@ -19,6 +19,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/apikey"
@@ -202,7 +203,7 @@ func TestAPIKey(t *testing.T) {
 		rw := httptest.NewRecorder()
 		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
-		db.EXPECT().GetAPIKeyByID(gomock.Any(), id).Return(database.APIKey{}, fmt.Errorf("db unavailable"))
+		db.EXPECT().GetAPIKeyByID(gomock.Any(), id).Return(database.APIKey{}, xerrors.New("db unavailable"))
 
 		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB:              db,
