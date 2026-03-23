@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -19,10 +20,11 @@ import (
 )
 
 type proposePlanResponse struct {
-	OK      bool   `json:"ok"`
-	Path    string `json:"path"`
-	Kind    string `json:"kind"`
-	Content string `json:"content"`
+	OK        bool   `json:"ok"`
+	Path      string `json:"path"`
+	Kind      string `json:"kind"`
+	FileID    string `json:"file_id"`
+	MediaType string `json:"media_type"`
 }
 
 func TestProposePlan(t *testing.T) {
@@ -33,7 +35,8 @@ func TestProposePlan(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
-		tool := newProposePlanTool(t, mockConn)
+		storeFile, _ := fakeStoreFile()
+		tool := newProposePlanTool(t, mockConn, storeFile)
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "propose_plan",
@@ -49,7 +52,8 @@ func TestProposePlan(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
-		tool := newProposePlanTool(t, mockConn)
+		storeFile, _ := fakeStoreFile()
+		tool := newProposePlanTool(t, mockConn, storeFile)
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "propose_plan",
@@ -65,7 +69,8 @@ func TestProposePlan(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
-		tool := newProposePlanTool(t, mockConn)
+		storeFile, _ := fakeStoreFile()
+		tool := newProposePlanTool(t, mockConn, storeFile)
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "propose_plan",
@@ -86,7 +91,8 @@ func TestProposePlan(t *testing.T) {
 			ReadFile(gomock.Any(), "/home/coder/PLAN.md", int64(0), int64(32*1024+1)).
 			Return(io.NopCloser(strings.NewReader(largeContent)), "text/markdown", nil)
 
-		tool := newProposePlanTool(t, mockConn)
+		storeFile, _ := fakeStoreFile()
+		tool := newProposePlanTool(t, mockConn, storeFile)
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "propose_plan",
@@ -106,7 +112,8 @@ func TestProposePlan(t *testing.T) {
 			ReadFile(gomock.Any(), "/home/coder/docs/PLAN.md", int64(0), int64(32*1024+1)).
 			Return(io.NopCloser(strings.NewReader("# Plan\n\nContent")), "text/markdown", nil)
 
-		tool := newProposePlanTool(t, mockConn)
+		storeFile, stored := fakeStoreFile()
+		tool := newProposePlanTool(t, mockConn, storeFile)
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "propose_plan",
@@ -119,7 +126,10 @@ func TestProposePlan(t *testing.T) {
 		assert.True(t, result.OK)
 		assert.Equal(t, "/home/coder/docs/PLAN.md", result.Path)
 		assert.Equal(t, "plan", result.Kind)
-		assert.Equal(t, "# Plan\n\nContent", result.Content)
+		assert.Equal(t, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", result.FileID)
+		assert.Equal(t, "text/markdown", result.MediaType)
+		assert.Equal(t, []byte("# Plan\n\nContent"), *stored)
+		assert.NotContains(t, resp.Content, "content")
 	})
 
 	t.Run("FileNotFound", func(t *testing.T) {
@@ -131,7 +141,8 @@ func TestProposePlan(t *testing.T) {
 			ReadFile(gomock.Any(), "/home/coder/PLAN.md", int64(0), int64(32*1024+1)).
 			Return(nil, "", xerrors.New("file not found"))
 
-		tool := newProposePlanTool(t, mockConn)
+		storeFile, _ := fakeStoreFile()
+		tool := newProposePlanTool(t, mockConn, storeFile)
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 			ID:    "call-1",
 			Name:  "propose_plan",
@@ -142,12 +153,36 @@ func TestProposePlan(t *testing.T) {
 		assert.Contains(t, resp.Content, "file not found")
 	})
 
+	t.Run("StoreFileError", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			ReadFile(gomock.Any(), "/home/coder/PLAN.md", int64(0), int64(32*1024+1)).
+			Return(io.NopCloser(strings.NewReader("# Plan")), "text/markdown", nil)
+
+		tool := newProposePlanTool(t, mockConn, func(_ context.Context, _ string, _ string, _ []byte) (uuid.UUID, error) {
+			return uuid.Nil, xerrors.New("storage unavailable")
+		})
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "propose_plan",
+			Input: `{"path":"/home/coder/PLAN.md"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "storage unavailable")
+	})
+
 	t.Run("WorkspaceConnectionError", func(t *testing.T) {
 		t.Parallel()
+		storeFile, _ := fakeStoreFile()
 		tool := chattool.ProposePlan(chattool.ProposePlanOptions{
 			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
 				return nil, xerrors.New("connection failed")
 			},
+			StoreFile: storeFile,
 		})
 
 		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -171,17 +206,51 @@ func TestProposePlan(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Contains(t, resp.Content, "not configured")
+		assert.Contains(t, resp.Content, "workspace connection resolver is not configured")
+	})
+
+	t.Run("NilStoreFile", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		tool := chattool.ProposePlan(chattool.ProposePlanOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "propose_plan",
+			Input: `{"path":"/home/coder/PLAN.md"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "file storage is not configured")
 	})
 }
 
-func newProposePlanTool(t *testing.T, mockConn *agentconnmock.MockAgentConn) fantasy.AgentTool {
+func newProposePlanTool(
+	t *testing.T,
+	mockConn *agentconnmock.MockAgentConn,
+	storeFile func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error),
+) fantasy.AgentTool {
 	t.Helper()
 	return chattool.ProposePlan(chattool.ProposePlanOptions{
 		GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
 			return mockConn, nil
 		},
+		StoreFile: storeFile,
 	})
+}
+
+func fakeStoreFile() (func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error), *[]byte) {
+	var stored []byte
+	return func(_ context.Context, _ string, _ string, data []byte) (uuid.UUID, error) {
+		stored = append([]byte(nil), data...)
+		return uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"), nil
+	}, &stored
 }
 
 func decodeProposePlanResponse(t *testing.T, resp fantasy.ToolResponse) proposePlanResponse {

@@ -3,9 +3,11 @@ package chattool
 import (
 	"context"
 	"io"
+	"path/filepath"
 	"strings"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -15,6 +17,7 @@ const maxProposePlanSize = 32 * 1024 // 32 KiB
 // ProposePlanOptions configures the propose_plan tool.
 type ProposePlanOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
+	StoreFile        func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error)
 }
 
 // ProposePlanArgs are the arguments for the propose_plan tool.
@@ -34,11 +37,14 @@ func ProposePlan(options ProposePlanOptions) fantasy.AgentTool {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
 			}
+			if options.StoreFile == nil {
+				return fantasy.NewTextErrorResponse("file storage is not configured"), nil
+			}
 			conn, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return executeProposePlanTool(ctx, conn, args)
+			return executeProposePlanTool(ctx, conn, args, options.StoreFile)
 		},
 	)
 }
@@ -47,6 +53,7 @@ func executeProposePlanTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	args ProposePlanArgs,
+	storeFile func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error),
 ) (fantasy.ToolResponse, error) {
 	path := strings.TrimSpace(args.Path)
 	if path == "" {
@@ -70,5 +77,16 @@ func executeProposePlanTool(
 		return fantasy.NewTextErrorResponse("plan file exceeds 32 KiB size limit"), nil
 	}
 
-	return toolResponse(map[string]any{"ok": true, "path": path, "kind": "plan", "content": string(data)}), nil
+	fileID, err := storeFile(ctx, filepath.Base(path), "text/markdown", data)
+	if err != nil {
+		return fantasy.NewTextErrorResponse("failed to store plan file: " + err.Error()), nil
+	}
+
+	return toolResponse(map[string]any{
+		"ok":         true,
+		"path":       path,
+		"kind":       "plan",
+		"file_id":    fileID.String(),
+		"media_type": "text/markdown",
+	}), nil
 }
