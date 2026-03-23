@@ -1268,6 +1268,9 @@ type chainModeInfo struct {
 	// previousResponseID is the provider response ID from the last
 	// assistant message, if any.
 	previousResponseID string
+	// modelConfigID is the model configuration used to produce the
+	// assistant message referenced by previousResponseID.
+	modelConfigID uuid.UUID
 	// trailingUserCount is the number of contiguous user messages
 	// at the end of the conversation that form the current turn.
 	trailingUserCount int
@@ -1292,8 +1295,12 @@ func resolveChainMode(messages []database.ChatMessage) chainModeInfo {
 			if messages[i].ProviderResponseID.Valid &&
 				messages[i].ProviderResponseID.String != "" {
 				info.previousResponseID = messages[i].ProviderResponseID.String
+				if messages[i].ModelConfigID.Valid {
+					info.modelConfigID = messages[i].ModelConfigID.UUID
+				}
 				return info
 			}
+			return info
 		case database.ChatMessageRoleTool:
 			continue
 		default:
@@ -3390,7 +3397,8 @@ func (p *Server) runChat(
 	// assistant and tool messages that the provider already has.
 	chainModeActive := chatprovider.IsResponsesStoreEnabled(providerOptions) &&
 		chainInfo.previousResponseID != "" &&
-		chainInfo.trailingUserCount > 0
+		chainInfo.trailingUserCount > 0 &&
+		chainInfo.modelConfigID == modelConfig.ID
 	if chainModeActive {
 		providerOptions = chatprovider.CloneWithPreviousResponseID(
 			providerOptions,
