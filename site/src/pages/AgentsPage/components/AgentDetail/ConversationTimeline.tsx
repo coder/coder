@@ -31,14 +31,14 @@ import {
 import { Link } from "react-router";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
-import type { ChatDetailError } from "../../utils/usageLimitMessage";
-import { ImageThumbnail } from "../AgentChatInput";
-import { ImageLightbox } from "../ImageLightbox";
-import { TextPreviewDialog } from "../TextPreviewDialog";
 import {
 	fetchTextAttachmentContent,
 	TEXT_ATTACHMENT_PREVIEW_LENGTH,
 } from "../../utils/fetchTextAttachment";
+import type { ChatDetailError } from "../../utils/usageLimitMessage";
+import { ImageThumbnail } from "../AgentChatInput";
+import { ImageLightbox } from "../ImageLightbox";
+import { TextPreviewDialog } from "../TextPreviewDialog";
 import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,

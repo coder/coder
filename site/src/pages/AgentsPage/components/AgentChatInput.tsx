@@ -38,15 +38,15 @@ import {
 } from "react";
 import { cn } from "utils/cn";
 import { isMobileViewport } from "utils/mobile";
+import {
+	fetchTextAttachmentContent,
+	TEXT_ATTACHMENT_PREVIEW_LENGTH,
+} from "../utils/fetchTextAttachment";
 import { formatProviderLabel } from "../utils/modelOptions";
 import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerPicker } from "./MCPServerPicker";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
-import {
-	fetchTextAttachmentContent,
-	TEXT_ATTACHMENT_PREVIEW_LENGTH,
-} from "./utils/fetchTextAttachment";
 
 export type { ChatMessageInputRef } from "components/ChatMessageInput/ChatMessageInput";
 
