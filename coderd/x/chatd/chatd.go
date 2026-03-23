@@ -3381,10 +3381,10 @@ func (p *Server) runChat(
 	// we set previous_response_id and send only system instructions
 	// plus the new user input, avoiding redundant replay of prior
 	// assistant and tool messages that the provider already has.
-	useChainMode := chatprovider.IsResponsesStoreEnabled(providerOptions) &&
+	chainModeActive := chatprovider.IsResponsesStoreEnabled(providerOptions) &&
 		chainInfo.previousResponseID != "" &&
 		chainInfo.trailingUserCount > 0
-	if useChainMode {
+	if chainModeActive {
 		providerOptions = chatprovider.CloneWithPreviousResponseID(
 			providerOptions,
 			chainInfo.previousResponseID,
@@ -3446,13 +3446,16 @@ func (p *Server) runChat(
 			if reloadUserPrompt != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, reloadUserPrompt)
 			}
-			if useChainMode {
+			if chainModeActive {
 				reloadedPrompt = filterPromptForChainMode(
 					reloadedPrompt,
 					chainInfo.trailingUserCount,
 				)
 			}
 			return reloadedPrompt, nil
+		},
+		DisableChainMode: func() {
+			chainModeActive = false
 		},
 
 		OnRetry: func(attempt int, retryErr error, delay time.Duration) {

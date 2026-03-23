@@ -82,8 +82,9 @@ type RunOptions struct {
 		role codersdk.ChatMessageRole,
 		part codersdk.ChatMessagePart,
 	)
-	Compaction     *CompactionOptions
-	ReloadMessages func(context.Context) ([]fantasy.Message, error)
+	Compaction       *CompactionOptions
+	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
+	DisableChainMode func()
 
 	// OnRetry is called before each retry attempt when the LLM
 	// stream fails with a retryable error. It provides the attempt
@@ -411,6 +412,27 @@ func Run(ctx context.Context, opts RunOptions) error {
 					reloaded, reloadErr := opts.ReloadMessages(ctx)
 					if reloadErr != nil {
 						return xerrors.Errorf("reload messages after compaction: %w", reloadErr)
+					}
+					messages = reloaded
+				}
+			}
+
+			// When chain mode is active (PreviousResponseID set) and the
+			// model wants to continue with tool calls, exit chain mode.
+			// Step 2+ needs the full message history because the initial
+			// prompt was filtered to system + user only. We clear the
+			// stale PreviousResponseID, notify the caller to stop
+			// filtering reloaded prompts, and reload the full history
+			// (which now includes the just-persisted step 1).
+			if result.shouldContinue && hasPreviousResponseID(opts.ProviderOptions) {
+				clearPreviousResponseID(opts.ProviderOptions)
+				if opts.DisableChainMode != nil {
+					opts.DisableChainMode()
+				}
+				if opts.ReloadMessages != nil {
+					reloaded, reloadErr := opts.ReloadMessages(ctx)
+					if reloadErr != nil {
+						return xerrors.Errorf("reload messages after chain mode exit: %w", reloadErr)
 					}
 					messages = reloaded
 				}
@@ -972,6 +994,37 @@ func addAnthropicPromptCaching(messages []fantasy.Message) {
 		}
 		if i > len(messages)-3 {
 			messages[i].ProviderOptions = providerOption
+		}
+	}
+}
+
+// hasPreviousResponseID checks whether the provider options contain
+// an OpenAI Responses entry with a non-empty PreviousResponseID.
+func hasPreviousResponseID(providerOptions fantasy.ProviderOptions) bool {
+	if providerOptions == nil {
+		return false
+	}
+
+	for _, entry := range providerOptions {
+		if options, ok := entry.(*fantasyopenai.ResponsesProviderOptions); ok {
+			return options.PreviousResponseID != nil &&
+				*options.PreviousResponseID != ""
+		}
+	}
+
+	return false
+}
+
+// clearPreviousResponseID removes PreviousResponseID from the OpenAI
+// Responses provider options entry, if present.
+func clearPreviousResponseID(providerOptions fantasy.ProviderOptions) {
+	if providerOptions == nil {
+		return
+	}
+
+	for _, entry := range providerOptions {
+		if options, ok := entry.(*fantasyopenai.ResponsesProviderOptions); ok {
+			options.PreviousResponseID = nil
 		}
 	}
 }
