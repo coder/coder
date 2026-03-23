@@ -5620,7 +5620,15 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 }
 
 func (q *querier) UpdateChatBuildAgentBindingIfWorkspaceMatches(ctx context.Context, arg database.UpdateChatBuildAgentBindingIfWorkspaceMatchesParams) (database.Chat, error) {
-	panic("not implemented")
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.Chat{}, err
+	}
+
+	return q.db.UpdateChatBuildAgentBindingIfWorkspaceMatches(ctx, arg)
 }
 
 func (q *querier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) (database.Chat, error) {
