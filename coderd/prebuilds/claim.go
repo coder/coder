@@ -56,8 +56,8 @@ func (p PubsubWorkspaceClaimListener) ListenForWorkspaceClaims(ctx context.Conte
 	cancelSub, err := p.ps.Subscribe(agentsdk.PrebuildClaimedChannel(workspaceID), func(inner context.Context, payload []byte) {
 		var event agentsdk.ReinitializationEvent
 		if err := json.Unmarshal(payload, &event); err != nil {
-			// Backward compatibility: treat payload as raw reason
-			// string from publishers that predate JSON encoding.
+			// Rolling upgrade: old publishers send the raw reason
+			// string instead of JSON.
 			event = agentsdk.ReinitializationEvent{
 				WorkspaceID: workspaceID,
 				Reason:      agentsdk.ReinitializationReason(payload),

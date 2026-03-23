@@ -1485,6 +1485,7 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, xerrors.New("failed to determine workspace from agent token"))
 		return
 	}
+	log = log.With(slog.F("workspace_id", workspace.ID))
 
 	log.Info(ctx, "agent waiting for reinit instruction")
 
@@ -1567,15 +1568,15 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 			// send the buffered event and then block until ctx
 			// is canceled or the client disconnects.
 		} else if job.CompletedAt.Valid && job.Error.Valid {
-			// Claim build failed. Return an error so the agent
-			// retries with backoff instead of hanging forever
-			// waiting for a reinit event that will never arrive.
+			// Claim build failed permanently. Return 409 so the
+			// agent treats this as terminal and stops retrying
+			// (WaitForReinitLoop exits on any 409).
 			cancelSub()
 			log.Warn(ctx, "claim build failed",
 				slog.F("job_id", job.ID),
 				slog.F("error", job.Error.String))
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Claim build failed.",
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Claim build failed permanently.",
 				Detail:  job.Error.String,
 			})
 			return
