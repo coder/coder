@@ -213,7 +213,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	const maxWorkspaceIDs = 200
+	const maxWorkspaceIDs = 25
 	if len(req.WorkspaceIDs) > maxWorkspaceIDs {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Too many workspace IDs, maximum is %d.", maxWorkspaceIDs),

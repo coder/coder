@@ -222,7 +222,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 															Agent
 														</Badge>
 													</Link>
-												)}{" "}
+												)}
 											</Stack>
 										}
 										subtitle={
