@@ -2542,10 +2542,6 @@ func normalizeChatCompressionThreshold(
 	return threshold, nil
 }
 
-func compactionThresholdKey(modelConfigID uuid.UUID) string {
-	return codersdk.ChatCompactionThresholdKeyPrefix + modelConfigID.String()
-}
-
 func parseCompactionThresholdKey(key string) (uuid.UUID, error) {
 	if !strings.HasPrefix(key, codersdk.ChatCompactionThresholdKeyPrefix) {
 		return uuid.Nil, xerrors.Errorf("invalid compaction threshold key: %q", key)
@@ -2950,7 +2946,7 @@ func (api *API) putUserChatCompactionThreshold(rw http.ResponseWriter, r *http.R
 
 	_, err = api.Database.UpdateUserChatCompactionThreshold(ctx, database.UpdateUserChatCompactionThresholdParams{
 		UserID:           apiKey.UserID,
-		Key:              compactionThresholdKey(modelConfigID),
+		Key:              codersdk.CompactionThresholdKey(modelConfigID),
 		ThresholdPercent: req.ThresholdPercent,
 	})
 	if err != nil {
@@ -2983,7 +2979,7 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 
 	if err := api.Database.DeleteUserChatCompactionThreshold(ctx, database.DeleteUserChatCompactionThresholdParams{
 		UserID: apiKey.UserID,
-		Key:    compactionThresholdKey(modelConfigID),
+		Key:    codersdk.CompactionThresholdKey(modelConfigID),
 	}); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Error deleting user chat compaction threshold.",

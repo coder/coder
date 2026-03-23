@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"sync"
 	"testing"
 	"time"
@@ -604,6 +605,85 @@ func TestPublishToStream_DropWarnRateLimiting(t *testing.T) {
 	subWarn = sink.Entries(filter(slog.LevelWarn, subMsg))
 	require.Len(t, subWarn, 3, "expected subscriber WARN immediately after counter reset")
 	requireFieldValue(t, subWarn[2], "dropped_count", int64(1))
+}
+
+func TestResolveUserCompactionThreshold(t *testing.T) {
+	t.Parallel()
+
+	userID := uuid.New()
+	modelConfigID := uuid.New()
+	expectedKey := codersdk.CompactionThresholdKey(modelConfigID)
+
+	tests := []struct {
+		name        string
+		dbReturn    string
+		dbErr       error
+		wantVal     int32
+		wantOK      bool
+		wantWarnLog bool
+	}{
+		{
+			name:   "NoRowsReturnsDefault",
+			dbErr:  sql.ErrNoRows,
+			wantOK: false,
+		},
+		{
+			name:     "ValidOverride",
+			dbReturn: "75",
+			wantVal:  75,
+			wantOK:   true,
+		},
+		{
+			name:     "OutOfRangeValue",
+			dbReturn: "101",
+			wantOK:   false,
+		},
+		{
+			name:     "NonIntegerValue",
+			dbReturn: "abc",
+			wantOK:   false,
+		},
+		{
+			name:        "UnexpectedDBError",
+			dbErr:       xerrors.New("connection refused"),
+			wantOK:      false,
+			wantWarnLog: true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			mockDB := dbmock.NewMockStore(ctrl)
+			sink := testutil.NewFakeSink(t)
+
+			srv := &Server{
+				db:     mockDB,
+				logger: sink.Logger(),
+			}
+
+			mockDB.EXPECT().GetUserChatCompactionThreshold(gomock.Any(), database.GetUserChatCompactionThresholdParams{
+				UserID: userID,
+				Key:    expectedKey,
+			}).Return(tc.dbReturn, tc.dbErr)
+
+			val, ok := srv.resolveUserCompactionThreshold(context.Background(), userID, modelConfigID)
+			require.Equal(t, tc.wantVal, val)
+			require.Equal(t, tc.wantOK, ok)
+
+			warns := sink.Entries(func(e slog.SinkEntry) bool {
+				return e.Level == slog.LevelWarn
+			})
+			if tc.wantWarnLog {
+				require.NotEmpty(t, warns, "expected a warning log entry")
+				return
+			}
+			require.Empty(t, warns, "unexpected warning log entry")
+		})
+	}
 }
 
 // requireFieldValue asserts that a SinkEntry contains a field with

@@ -26,6 +26,12 @@ import (
 // threshold settings.
 const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold_pct:"
 
+// CompactionThresholdKey returns the user-config key for a specific
+// model configuration's compaction threshold.
+func CompactionThresholdKey(modelConfigID uuid.UUID) string {
+	return ChatCompactionThresholdKeyPrefix + modelConfigID.String()
+}
+
 // ChatStatus represents the status of a chat.
 type ChatStatus string
 

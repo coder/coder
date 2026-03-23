@@ -2280,21 +2280,21 @@ func (s *MethodTestSuite) TestUser() {
 	}))
 	s.Run("ListUserChatCompactionThresholds", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		uc := database.UserConfig{UserID: u.ID, Key: "chat_compaction_threshold:00000000-0000-0000-0000-000000000001", Value: "75"}
+		uc := database.UserConfig{UserID: u.ID, Key: codersdk.ChatCompactionThresholdKeyPrefix + "00000000-0000-0000-0000-000000000001", Value: "75"}
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
 		dbm.EXPECT().ListUserChatCompactionThresholds(gomock.Any(), u.ID).Return([]database.UserConfig{uc}, nil).AnyTimes()
 		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns([]database.UserConfig{uc})
 	}))
 	s.Run("GetUserChatCompactionThreshold", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		arg := database.GetUserChatCompactionThresholdParams{UserID: u.ID, Key: "chat_compaction_threshold:00000000-0000-0000-0000-000000000001"}
+		arg := database.GetUserChatCompactionThresholdParams{UserID: u.ID, Key: codersdk.ChatCompactionThresholdKeyPrefix + "00000000-0000-0000-0000-000000000001"}
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
 		dbm.EXPECT().GetUserChatCompactionThreshold(gomock.Any(), arg).Return("75", nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionReadPersonal).Returns("75")
 	}))
 	s.Run("UpdateUserChatCompactionThreshold", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		uc := database.UserConfig{UserID: u.ID, Key: "chat_compaction_threshold:00000000-0000-0000-0000-000000000001", Value: "75"}
+		uc := database.UserConfig{UserID: u.ID, Key: codersdk.ChatCompactionThresholdKeyPrefix + "00000000-0000-0000-0000-000000000001", Value: "75"}
 		arg := database.UpdateUserChatCompactionThresholdParams{UserID: u.ID, Key: uc.Key, ThresholdPercent: 75}
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
 		dbm.EXPECT().UpdateUserChatCompactionThreshold(gomock.Any(), arg).Return(uc, nil).AnyTimes()
@@ -2302,7 +2302,7 @@ func (s *MethodTestSuite) TestUser() {
 	}))
 	s.Run("DeleteUserChatCompactionThreshold", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		arg := database.DeleteUserChatCompactionThresholdParams{UserID: u.ID, Key: "chat_compaction_threshold:00000000-0000-0000-0000-000000000001"}
+		arg := database.DeleteUserChatCompactionThresholdParams{UserID: u.ID, Key: codersdk.ChatCompactionThresholdKeyPrefix + "00000000-0000-0000-0000-000000000001"}
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
 		dbm.EXPECT().DeleteUserChatCompactionThreshold(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal)

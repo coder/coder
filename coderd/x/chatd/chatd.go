@@ -3730,15 +3730,23 @@ func (p *Server) resolveInstructions(
 // compaction threshold override. Returns the override value and
 // true if one exists and is valid, or 0 and false otherwise.
 func (p *Server) resolveUserCompactionThreshold(ctx context.Context, userID uuid.UUID, modelConfigID uuid.UUID) (int32, bool) {
-	key := codersdk.ChatCompactionThresholdKeyPrefix + modelConfigID.String()
 	raw, err := p.db.GetUserChatCompactionThreshold(ctx, database.GetUserChatCompactionThresholdParams{
 		UserID: userID,
-		Key:    key,
+		Key:    codersdk.CompactionThresholdKey(modelConfigID),
 	})
-	if err != nil {
-		// sql.ErrNoRows is the normal "not set" case.
+	if errors.Is(err, sql.ErrNoRows) {
 		return 0, false
 	}
+	if err != nil {
+		p.logger.Warn(ctx, "failed to fetch compaction threshold override",
+			slog.F("user_id", userID),
+			slog.F("model_config_id", modelConfigID),
+			slog.Error(err),
+		)
+		return 0, false
+	}
+	// Range 0..100 must stay in sync with handler validation in
+	// coderd/chats.go.
 	val, err := strconv.ParseInt(raw, 10, 32)
 	if err != nil || val < 0 || val > 100 {
 		return 0, false
