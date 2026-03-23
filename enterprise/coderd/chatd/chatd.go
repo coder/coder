@@ -445,7 +445,8 @@ func dialRelay(
 		token:     extractSessionToken(requestHeader),
 		replicaID: replicaID,
 	}
-	sourceEvents, sourceStream, err := sdkClient.StreamChat(relayCtx, chatID, &codersdk.StreamChatOptions{
+	expClient := codersdk.NewExperimentalClient(sdkClient)
+	sourceEvents, sourceStream, err := expClient.StreamChat(relayCtx, chatID, &codersdk.StreamChatOptions{
 		AfterID: ptr.Ref(int64(math.MaxInt64)),
 	})
 	if err != nil {

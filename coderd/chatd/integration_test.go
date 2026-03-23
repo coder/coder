@@ -42,9 +42,10 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 		DeploymentValues: deploymentValues,
 	})
 	_ = coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
 
 	// Configure an Anthropic provider with the real API key.
-	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 		Provider: "anthropic",
 		APIKey:   apiKey,
 		BaseURL:  baseURL,
@@ -54,7 +55,7 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 	// Create a model config that enables web_search.
 	contextLimit := int64(200000)
 	isDefault := true
-	_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 		Provider:     "anthropic",
 		Model:        "claude-sonnet-4-20250514",
 		ContextLimit: &contextLimit,
@@ -71,7 +72,7 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 
 	// --- Step 1: Send a message that triggers web_search ---
 	t.Log("Creating chat with web search query...")
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,
@@ -83,16 +84,16 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 	t.Logf("Chat created: %s (status=%s)", chat.ID, chat.Status)
 
 	// Stream events until the chat reaches a terminal status.
-	events, closer, err := client.StreamChat(ctx, chat.ID, nil)
+	events, closer, err := expClient.StreamChat(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	defer closer.Close()
 
 	waitForChatDone(ctx, t, events, "step 1")
 
 	// Verify the chat completed and messages were persisted.
-	chatData, err := client.GetChat(ctx, chat.ID)
+	chatData, err := expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	chatMsgs, err := client.GetChatMessages(ctx, chat.ID, nil)
+	chatMsgs, err := expClient.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	t.Logf("Chat status after step 1: %s, messages: %d",
 		chatData.Status, len(chatMsgs.Messages))
@@ -133,7 +134,7 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 	// by Anthropic because server_tool_use has no matching
 	// web_search_tool_result.
 	t.Log("Sending follow-up message...")
-	_, err = client.CreateChatMessage(ctx, chat.ID,
+	_, err = expClient.CreateChatMessage(ctx, chat.ID,
 		codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{
@@ -145,16 +146,16 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	// Stream the follow-up response.
-	events2, closer2, err := client.StreamChat(ctx, chat.ID, nil)
+	events2, closer2, err := expClient.StreamChat(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	defer closer2.Close()
 
 	waitForChatDone(ctx, t, events2, "step 2")
 
 	// Verify the follow-up completed and produced content.
-	chatData2, err := client.GetChat(ctx, chat.ID)
+	chatData2, err := expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	chatMsgs2, err := client.GetChatMessages(ctx, chat.ID, nil)
+	chatMsgs2, err := expClient.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	t.Logf("Chat status after step 2: %s, messages: %d",
 		chatData2.Status, len(chatMsgs2.Messages))
@@ -301,9 +302,10 @@ func TestOpenAIReasoningRoundTrip(t *testing.T) {
 		DeploymentValues: deploymentValues,
 	})
 	_ = coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
 
 	// Configure an OpenAI provider with the real API key.
-	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 		Provider: "openai",
 		APIKey:   apiKey,
 		BaseURL:  baseURL,
@@ -316,7 +318,7 @@ func TestOpenAIReasoningRoundTrip(t *testing.T) {
 	contextLimit := int64(200000)
 	isDefault := true
 	reasoningSummary := "auto"
-	_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 		Provider:     "openai",
 		Model:        "o4-mini",
 		ContextLimit: &contextLimit,
@@ -334,7 +336,7 @@ func TestOpenAIReasoningRoundTrip(t *testing.T) {
 
 	// --- Step 1: Send a message that triggers reasoning ---
 	t.Log("Creating chat with reasoning query...")
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,
@@ -346,16 +348,16 @@ func TestOpenAIReasoningRoundTrip(t *testing.T) {
 	t.Logf("Chat created: %s (status=%s)", chat.ID, chat.Status)
 
 	// Stream events until the chat reaches a terminal status.
-	events, closer, err := client.StreamChat(ctx, chat.ID, nil)
+	events, closer, err := expClient.StreamChat(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	defer closer.Close()
 
 	waitForChatDone(ctx, t, events, "step 1")
 
 	// Verify the chat completed and messages were persisted.
-	chatData, err := client.GetChat(ctx, chat.ID)
+	chatData, err := expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	chatMsgs, err := client.GetChatMessages(ctx, chat.ID, nil)
+	chatMsgs, err := expClient.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	t.Logf("Chat status after step 1: %s, messages: %d",
 		chatData.Status, len(chatMsgs.Messages))
@@ -382,7 +384,7 @@ func TestOpenAIReasoningRoundTrip(t *testing.T) {
 	//   Item 'rs_xxx' of type 'reasoning' was provided without its
 	//   required following item.
 	t.Log("Sending follow-up message...")
-	_, err = client.CreateChatMessage(ctx, chat.ID,
+	_, err = expClient.CreateChatMessage(ctx, chat.ID,
 		codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{
@@ -394,16 +396,16 @@ func TestOpenAIReasoningRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	// Stream the follow-up response.
-	events2, closer2, err := client.StreamChat(ctx, chat.ID, nil)
+	events2, closer2, err := expClient.StreamChat(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	defer closer2.Close()
 
 	waitForChatDone(ctx, t, events2, "step 2")
 
 	// Verify the follow-up completed and produced content.
-	chatData2, err := client.GetChat(ctx, chat.ID)
+	chatData2, err := expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	chatMsgs2, err := client.GetChatMessages(ctx, chat.ID, nil)
+	chatMsgs2, err := expClient.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	t.Logf("Chat status after step 2: %s, messages: %d",
 		chatData2.Status, len(chatMsgs2.Messages))
@@ -454,9 +456,10 @@ func TestOpenAIReasoningRoundTripStoreFalse(t *testing.T) {
 		DeploymentValues: deploymentValues,
 	})
 	_ = coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
 
 	// Configure an OpenAI provider with the real API key.
-	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 		Provider: "openai",
 		APIKey:   apiKey,
 		BaseURL:  baseURL,
@@ -468,7 +471,7 @@ func TestOpenAIReasoningRoundTripStoreFalse(t *testing.T) {
 	contextLimit := int64(200000)
 	isDefault := true
 	reasoningSummary := "auto"
-	_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 		Provider:     "openai",
 		Model:        "o4-mini",
 		ContextLimit: &contextLimit,
@@ -486,7 +489,7 @@ func TestOpenAIReasoningRoundTripStoreFalse(t *testing.T) {
 
 	// --- Step 1: Send a message that triggers reasoning ---
 	t.Log("Creating chat with reasoning query...")
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,
@@ -498,16 +501,16 @@ func TestOpenAIReasoningRoundTripStoreFalse(t *testing.T) {
 	t.Logf("Chat created: %s (status=%s)", chat.ID, chat.Status)
 
 	// Stream events until the chat reaches a terminal status.
-	events, closer, err := client.StreamChat(ctx, chat.ID, nil)
+	events, closer, err := expClient.StreamChat(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	defer closer.Close()
 
 	waitForChatDone(ctx, t, events, "step 1")
 
 	// Verify the chat completed and messages were persisted.
-	chatData, err := client.GetChat(ctx, chat.ID)
+	chatData, err := expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	chatMsgs, err := client.GetChatMessages(ctx, chat.ID, nil)
+	chatMsgs, err := expClient.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	t.Logf("Chat status after step 1: %s, messages: %d",
 		chatData.Status, len(chatMsgs.Messages))
@@ -531,7 +534,7 @@ func TestOpenAIReasoningRoundTripStoreFalse(t *testing.T) {
 	// This is the critical test: when Store is false, item IDs are
 	// ephemeral and cannot be looked up from OpenAI later.
 	t.Log("Sending follow-up message...")
-	_, err = client.CreateChatMessage(ctx, chat.ID,
+	_, err = expClient.CreateChatMessage(ctx, chat.ID,
 		codersdk.CreateChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{
@@ -548,16 +551,16 @@ func TestOpenAIReasoningRoundTripStoreFalse(t *testing.T) {
 	require.NoError(t, err)
 
 	// Stream the follow-up response.
-	events2, closer2, err := client.StreamChat(ctx, chat.ID, nil)
+	events2, closer2, err := expClient.StreamChat(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	defer closer2.Close()
 
 	waitForChatDone(ctx, t, events2, "step 2")
 
 	// Verify the follow-up completed and produced content.
-	chatData2, err := client.GetChat(ctx, chat.ID)
+	chatData2, err := expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	chatMsgs2, err := client.GetChatMessages(ctx, chat.ID, nil)
+	chatMsgs2, err := expClient.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	t.Logf("Chat status after step 2: %s, messages: %d",
 		chatData2.Status, len(chatMsgs2.Messages))

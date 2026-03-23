@@ -111,6 +111,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		IncludeProvisionerDaemon: true,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
 
 	agentToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -161,7 +162,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		)
 	})
 
-	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 		Provider: "openai-compat",
 		APIKey:   "test-api-key",
 		BaseURL:  openAIURL,
@@ -170,7 +171,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 
 	contextLimit := int64(4096)
 	isDefault := true
-	_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 		Provider:     "openai-compat",
 		Model:        "gpt-4o-mini",
 		ContextLimit: &contextLimit,
@@ -179,7 +180,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a root chat whose first model call will spawn a subagent.
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,
@@ -193,7 +194,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 	// The root chat finishes first, then the chatd server
 	// picks up and runs the child (subagent) chat.
 	require.Eventually(t, func() bool {
-		got, getErr := client.GetChat(ctx, chat.ID)
+		got, getErr := expClient.GetChat(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
@@ -1844,6 +1845,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		IncludeProvisionerDaemon: true,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
 
 	agentToken := uuid.NewString()
 	// Add a startup script so the agent spends time in the
@@ -1898,7 +1900,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		)
 	})
 
-	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 		Provider: "openai-compat",
 		APIKey:   "test-api-key",
 		BaseURL:  openAIURL,
@@ -1907,7 +1909,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 
 	contextLimit := int64(4096)
 	isDefault := true
-	_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 		Provider:     "openai-compat",
 		Model:        "gpt-4o-mini",
 		ContextLimit: &contextLimit,
@@ -1915,7 +1917,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,
@@ -1927,7 +1929,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 
 	var chatResult codersdk.Chat
 	require.Eventually(t, func() bool {
-		got, getErr := client.GetChat(ctx, chat.ID)
+		got, getErr := expClient.GetChat(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
@@ -1949,7 +1951,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, workspaceName, workspace.Name)
 
-	chatMsgs, err := client.GetChatMessages(ctx, chat.ID, nil)
+	chatMsgs, err := expClient.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
 
 	var foundCreateWorkspaceResult bool
@@ -2023,6 +2025,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 		IncludeProvisionerDaemon: true,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
 
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
@@ -2067,7 +2070,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 		)
 	})
 
-	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 		Provider: "openai-compat",
 		APIKey:   "test-api-key",
 		BaseURL:  openAIURL,
@@ -2076,7 +2079,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 
 	contextLimit := int64(4096)
 	isDefault := true
-	_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 		Provider:     "openai-compat",
 		Model:        "gpt-4o-mini",
 		ContextLimit: &contextLimit,
@@ -2085,7 +2088,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a chat with the stopped workspace pre-associated.
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		Content: []codersdk.ChatInputPart{
 			{
 				Type: codersdk.ChatInputPartTypeText,
@@ -2098,7 +2101,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 
 	var chatResult codersdk.Chat
 	require.Eventually(t, func() bool {
-		got, getErr := client.GetChat(ctx, chat.ID)
+		got, getErr := expClient.GetChat(ctx, chat.ID)
 		if getErr != nil {
 			return false
 		}
@@ -2120,7 +2123,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, codersdk.WorkspaceTransitionStart, updatedWorkspace.LatestBuild.Transition)
 
-	chatMsgs, err := client.GetChatMessages(ctx, chat.ID, nil)
+	chatMsgs, err := expClient.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
 
 	// Verify start_workspace tool result exists in the chat messages.

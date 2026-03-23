@@ -45,20 +45,22 @@ func chatDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
 	return values
 }
 
-func newChatClient(t testing.TB) *codersdk.Client {
+func newChatClient(t testing.TB) *codersdk.ExperimentalClient {
 	t.Helper()
 
-	return coderdtest.New(t, &coderdtest.Options{
+	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: chatDeploymentValues(t),
 	})
+	return codersdk.NewExperimentalClient(client)
 }
 
-func newChatClientWithDatabase(t testing.TB) (*codersdk.Client, database.Store) {
+func newChatClientWithDatabase(t testing.TB) (*codersdk.ExperimentalClient, database.Store) {
 	t.Helper()
 
-	return coderdtest.NewWithDatabase(t, &coderdtest.Options{
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		DeploymentValues: chatDeploymentValues(t),
 	})
+	return codersdk.NewExperimentalClient(client), db
 }
 
 func requireChatUsageLimitExceededError(
@@ -158,7 +160,7 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		user := coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -209,7 +211,7 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -234,8 +236,9 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
-		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: firstUser.OrganizationID,
@@ -264,13 +267,14 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
-		orgAdminClient, _ := coderdtest.CreateAnotherUser(
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		orgAdminClientRaw, _ := coderdtest.CreateAnotherUser(
 			t,
-			adminClient,
+			adminClient.Client,
 			firstUser.OrganizationID,
 			rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID),
 		)
+		orgAdminClient := codersdk.NewExperimentalClient(orgAdminClientRaw)
 
 		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: firstUser.OrganizationID,
@@ -299,7 +303,7 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		workspaceID := uuid.New()
 		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -324,7 +328,7 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -352,7 +356,7 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{
@@ -371,7 +375,7 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: nil,
@@ -386,7 +390,7 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{
@@ -406,7 +410,7 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{
@@ -426,7 +430,7 @@ func TestPostChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 		wantResetsAt := enableDailyChatUsageLimit(ctx, t, db, 100)
 
@@ -457,7 +461,7 @@ func TestListChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		firstChatA, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -480,7 +484,8 @@ func TestListChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		memberDBChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OwnerID:           member.ID,
 			LastModelConfigID: modelConfig.ID,
@@ -544,19 +549,18 @@ func TestListChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
-		unauthenticatedClient := codersdk.New(client.URL)
+		unauthenticatedClient := codersdk.NewExperimentalClient(codersdk.New(client.URL))
 		_, err := unauthenticatedClient.ListChats(ctx, nil)
 		requireSDKError(t, err, http.StatusUnauthorized)
 	})
-
 	t.Run("Pagination", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, _ := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		// Create 5 chats.
@@ -644,7 +648,7 @@ func TestListChatModels(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		models, err := client.ListChatModels(ctx)
@@ -675,9 +679,9 @@ func TestListChatModels(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
-		unauthenticatedClient := codersdk.New(client.URL)
+		unauthenticatedClient := codersdk.NewExperimentalClient(codersdk.New(client.URL))
 		_, err := unauthenticatedClient.ListChatModels(ctx)
 		requireSDKError(t, err, http.StatusUnauthorized)
 	})
@@ -691,7 +695,7 @@ func TestWatchChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
@@ -743,11 +747,12 @@ func TestWatchChats(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			DeploymentValues: chatDeploymentValues(t),
 		})
+		client := codersdk.NewExperimentalClient(rawClient)
 		db := api.Database
-		user := coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		// Insert a chat and a diff status row.
@@ -865,7 +870,7 @@ func TestWatchChats(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		unauthenticatedClient := codersdk.New(client.URL)
 		res, err := unauthenticatedClient.Request(
@@ -888,7 +893,7 @@ func TestListChatProviders(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		providers, err := client.ListChatProviders(ctx)
@@ -912,8 +917,9 @@ func TestListChatProviders(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
-		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		_, err := memberClient.ListChatProviders(ctx)
 		requireSDKError(t, err, http.StatusForbidden)
@@ -928,7 +934,7 @@ func TestCreateChatProvider(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:    "openai",
@@ -949,7 +955,7 @@ func TestCreateChatProvider(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider: "not-a-provider",
@@ -964,7 +970,7 @@ func TestCreateChatProvider(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider: "openai",
@@ -985,8 +991,9 @@ func TestCreateChatProvider(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
-		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		_, err := memberClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider: "openai",
@@ -1004,7 +1011,7 @@ func TestUpdateChatProvider(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider: "openai",
@@ -1031,7 +1038,7 @@ func TestUpdateChatProvider(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.UpdateChatProvider(ctx, uuid.New(), codersdk.UpdateChatProviderConfigRequest{
 			DisplayName: "missing",
@@ -1044,7 +1051,7 @@ func TestUpdateChatProvider(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		res, err := client.Request(
 			ctx,
@@ -1065,8 +1072,9 @@ func TestUpdateChatProvider(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
-		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		provider, err := adminClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider: "openai",
@@ -1089,7 +1097,7 @@ func TestDeleteChatProvider(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		provider, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider: "openai",
@@ -1112,7 +1120,7 @@ func TestDeleteChatProvider(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		err := client.DeleteChatProvider(ctx, uuid.New())
 		requireSDKError(t, err, http.StatusNotFound)
@@ -1123,7 +1131,7 @@ func TestDeleteChatProvider(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		res, err := client.Request(
 			ctx,
@@ -1144,8 +1152,9 @@ func TestDeleteChatProvider(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
-		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		provider, err := adminClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider: "openai",
@@ -1166,7 +1175,7 @@ func TestListChatModelConfigs(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		configs, err := client.ListChatModelConfigs(ctx)
@@ -1190,7 +1199,7 @@ func TestListChatModelConfigs(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider: "openai",
@@ -1232,9 +1241,10 @@ func TestListChatModelConfigs(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
 		modelConfig := createChatModelConfig(t, adminClient)
-		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		// Non-admin users should see only enabled model configs.
 		configs, err := memberClient.ListChatModelConfigs(ctx)
@@ -1261,7 +1271,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider: "openai",
@@ -1305,7 +1315,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider: "openai",
@@ -1338,7 +1348,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 			Provider: "openai",
@@ -1353,7 +1363,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		contextLimit := int64(4096)
 		_, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
@@ -1370,8 +1380,9 @@ func TestCreateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
-		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		_, err := adminClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider: "openai",
@@ -1397,7 +1408,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		contextLimit := int64(8192)
@@ -1431,7 +1442,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		_, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
@@ -1455,7 +1466,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.UpdateChatModelConfig(ctx, uuid.New(), codersdk.UpdateChatModelConfigRequest{
 			DisplayName: "missing",
@@ -1468,7 +1479,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		contextLimit := int64(0)
@@ -1484,7 +1495,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		res, err := client.Request(
 			ctx,
@@ -1505,8 +1516,9 @@ func TestUpdateChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
-		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		modelConfig := createChatModelConfig(t, adminClient)
 		_, err := memberClient.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
@@ -1524,7 +1536,7 @@ func TestDeleteChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		err := client.DeleteChatModelConfig(ctx, modelConfig.ID)
@@ -1542,7 +1554,7 @@ func TestDeleteChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		err := client.DeleteChatModelConfig(ctx, uuid.New())
 		requireSDKError(t, err, http.StatusNotFound)
@@ -1553,7 +1565,7 @@ func TestDeleteChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		res, err := client.Request(
 			ctx,
@@ -1574,8 +1586,9 @@ func TestDeleteChatModelConfig(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
-		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		modelConfig := createChatModelConfig(t, adminClient)
 		err := memberClient.DeleteChatModelConfig(ctx, modelConfig.ID)
@@ -1591,7 +1604,7 @@ func TestGetChat(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -1637,7 +1650,7 @@ func TestGetChat(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -1650,7 +1663,8 @@ func TestGetChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		otherClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, err = otherClient.GetChat(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 	})
@@ -1664,7 +1678,7 @@ func TestArchiveChat(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chatToArchive, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -1723,7 +1737,7 @@ func TestArchiveChat(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		err := client.UpdateChat(ctx, uuid.New(), codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
 		requireSDKError(t, err, http.StatusNotFound)
@@ -1734,7 +1748,7 @@ func TestArchiveChat(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		// Create a parent chat via the API.
@@ -1801,7 +1815,7 @@ func TestUnarchiveChat(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -1851,7 +1865,7 @@ func TestUnarchiveChat(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -1873,7 +1887,7 @@ func TestUnarchiveChat(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		err := client.UpdateChat(ctx, uuid.New(), codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
 		requireSDKError(t, err, http.StatusNotFound)
@@ -1888,7 +1902,7 @@ func TestPostChatMessages(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -1978,7 +1992,7 @@ func TestPostChatMessages(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -2009,7 +2023,7 @@ func TestPostChatMessages(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -2037,7 +2051,7 @@ func TestPostChatMessages(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		_, err := client.CreateChatMessage(ctx, uuid.New(), codersdk.CreateChatMessageRequest{
@@ -2056,7 +2070,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 	t.Parallel()
 
 	// createChat is a helper that creates a chat so we can post messages to it.
-	createChatForTest := func(t *testing.T, client *codersdk.Client) codersdk.Chat {
+	createChatForTest := func(t *testing.T, client *codersdk.ExperimentalClient) codersdk.Chat {
 		t.Helper()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -2074,7 +2088,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 		chat := createChatForTest(t, client)
 
@@ -2136,7 +2150,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 		chat := createChatForTest(t, client)
 
@@ -2189,7 +2203,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 		chat := createChatForTest(t, client)
 
@@ -2242,7 +2256,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 		chat := createChatForTest(t, client)
 
@@ -2295,7 +2309,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 		chat := createChatForTest(t, client)
 
@@ -2408,7 +2422,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 		chat := createChatForTest(t, client)
 
@@ -2430,7 +2444,7 @@ func TestChatMessageWithFileReferences(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		// File references should also work in the initial CreateChat call.
@@ -2460,7 +2474,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		// Upload a file.
@@ -2504,7 +2518,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		// Upload a file.
@@ -2564,7 +2578,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		// Upload a file.
@@ -2592,7 +2606,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		// Create a chat with text first.
@@ -2629,7 +2643,7 @@ func TestPatchChatMessage(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -2705,7 +2719,7 @@ func TestPatchChatMessage(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		// Upload a file.
@@ -2801,7 +2815,7 @@ func TestPatchChatMessage(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -2841,7 +2855,7 @@ func TestPatchChatMessage(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -2871,7 +2885,7 @@ func TestPatchChatMessage(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -2914,7 +2928,7 @@ func TestStreamChat(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		const initialMessage = "stream chat route initial message"
@@ -2966,7 +2980,7 @@ func TestStreamChat(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		unauthenticatedClient := codersdk.New(client.URL)
 		res, err := unauthenticatedClient.Request(
@@ -2989,7 +3003,7 @@ func TestInterruptChat(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
@@ -3031,7 +3045,7 @@ func TestInterruptChat(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.InterruptChat(ctx, uuid.New())
 		requireSDKError(t, err, http.StatusNotFound)
@@ -3045,7 +3059,7 @@ func TestGetChatDiffStatus(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			DeploymentValues: chatDeploymentValues(t),
 			ExternalAuthConfigs: []*externalauth.Config{
 				{
@@ -3055,9 +3069,10 @@ func TestGetChatDiffStatus(t *testing.T) {
 				},
 			},
 		})
+		client := codersdk.NewExperimentalClient(rawClient)
 		db := api.Database
 
-		user := coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		noCachedStatusChat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
@@ -3137,7 +3152,7 @@ func TestGetChatDiffStatus(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -3150,7 +3165,8 @@ func TestGetChatDiffStatus(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		otherClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, err = otherClient.GetChat(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 	})
@@ -3203,7 +3219,7 @@ func TestGetChatDiffStatus(t *testing.T) {
 		const providerID = "test-github"
 		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
 
-		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			DeploymentValues: chatDeploymentValues(t),
 			ExternalAuthConfigs: []*externalauth.Config{
 				fake.ExternalAuthConfig(t, providerID, nil, func(cfg *externalauth.Config) {
@@ -3215,19 +3231,19 @@ func TestGetChatDiffStatus(t *testing.T) {
 				}),
 			},
 		})
+		client := codersdk.NewExperimentalClient(rawClient)
 		db := api.Database
 
 		// Use the TLS mock server's HTTP client (which trusts its
 		// self-signed cert) for git provider API calls.
 		api.HTTPClient = ghAPI.Client()
-
-		user := coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		// Log in to the external auth provider so the user has an
 		// ExternalAuthLink row in the DB. This is what
 		// resolveChatGitAccessToken reads via GetExternalAuthLink.
-		fake.ExternalLogin(t, client)
+		fake.ExternalLogin(t, client.Client)
 
 		// Insert a chat owned by the user.
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
@@ -3290,7 +3306,7 @@ func TestGetChatDiffContents(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			DeploymentValues: chatDeploymentValues(t),
 			ExternalAuthConfigs: []*externalauth.Config{
 				{
@@ -3300,10 +3316,10 @@ func TestGetChatDiffContents(t *testing.T) {
 				},
 			},
 		})
+		client := codersdk.NewExperimentalClient(rawClient)
 		db := api.Database
-		user := coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
-
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
@@ -3341,7 +3357,7 @@ func TestGetChatDiffContents(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -3369,7 +3385,7 @@ func TestGetChatDiffContents(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -3382,7 +3398,8 @@ func TestGetChatDiffContents(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		otherClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, err = otherClient.GetChatDiffContents(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 	})
@@ -3396,7 +3413,7 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
@@ -3447,7 +3464,7 @@ func TestDeleteChatQueuedMessage(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
@@ -3481,7 +3498,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
@@ -3550,7 +3567,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 		enableDailyChatUsageLimit(ctx, t, db, 100)
 
@@ -3625,7 +3642,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client)
+		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
 		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
@@ -3659,8 +3676,8 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, _ := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
-		_, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 
 		res, err := client.Request(
 			ctx,
@@ -3682,7 +3699,7 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.UpsertChatUsageLimitOverride(ctx, uuid.New(), codersdk.UpsertChatUsageLimitOverrideRequest{
 			SpendLimitMicros: 7_000_000,
@@ -3696,7 +3713,7 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		err := client.DeleteChatUsageLimitOverride(ctx, uuid.New())
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
@@ -3708,8 +3725,8 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
-		_, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 
 		err := client.DeleteChatUsageLimitOverride(ctx, member.ID)
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
@@ -3721,8 +3738,8 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, _ := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
-		_, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 
 		_, err := client.UpsertChatUsageLimitOverride(ctx, member.ID, codersdk.UpsertChatUsageLimitOverrideRequest{
 			SpendLimitMicros: 5_000_000,
@@ -3750,8 +3767,8 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
-		_, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
 		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: member.ID})
 		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: database.PrebuildsSystemUserID})
@@ -3784,8 +3801,8 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
-		_, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
 		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: firstUser.UserID})
 		dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: group.ID, UserID: member.ID})
@@ -3818,7 +3835,7 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.UpsertChatUsageLimitGroupOverride(ctx, uuid.New(), codersdk.UpsertChatUsageLimitGroupOverrideRequest{
 			SpendLimitMicros: 7_000_000,
@@ -3832,7 +3849,7 @@ func TestChatUsageLimitOverrideRoutes(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		group := dbgen.Group(t, db, database.Group{OrganizationID: firstUser.OrganizationID})
 
 		err := client.DeleteChatUsageLimitGroupOverride(ctx, group.ID)
@@ -3848,7 +3865,7 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		// Valid PNG header + padding.
 		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
@@ -3861,7 +3878,7 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		data := append([]byte{0xFF, 0xD8, 0xFF, 0xE0}, make([]byte, 64)...)
 		resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/jpeg", "test.jpg", bytes.NewReader(data))
@@ -3873,7 +3890,7 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		// WebP: RIFF + 4-byte size + WEBP + padding.
 		data := append([]byte("RIFF"), make([]byte, 4)...)
@@ -3888,7 +3905,7 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "test.txt", bytes.NewReader([]byte("hello")))
 		requireSDKError(t, err, http.StatusBadRequest)
@@ -3898,7 +3915,7 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/svg+xml", "test.svg", bytes.NewReader([]byte("<svg></svg>")))
 		requireSDKError(t, err, http.StatusBadRequest)
@@ -3908,7 +3925,7 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		// Header says PNG but body is plain text.
 		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader([]byte("hello world")))
@@ -3919,7 +3936,7 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		// 10 MB + 1 byte, with valid PNG header to pass MIME check.
 		data := make([]byte, 10<<20+1)
@@ -3932,7 +3949,7 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		coderdtest.CreateFirstUser(t, client)
+		coderdtest.CreateFirstUser(t, client.Client)
 
 		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
 		res, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats/files", bytes.NewReader(data), func(r *http.Request) {
@@ -3949,7 +3966,7 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		coderdtest.CreateFirstUser(t, client)
+		coderdtest.CreateFirstUser(t, client.Client)
 
 		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
 		res, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats/files?organization=not-a-uuid", bytes.NewReader(data), func(r *http.Request) {
@@ -3966,7 +3983,7 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		coderdtest.CreateFirstUser(t, client)
+		coderdtest.CreateFirstUser(t, client.Client)
 
 		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
 		_, err := client.UploadChatFile(ctx, uuid.New(), "image/png", "test.png", bytes.NewReader(data))
@@ -3983,9 +4000,9 @@ func TestPostChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
-		unauthed := codersdk.New(client.URL)
+		unauthed := codersdk.NewExperimentalClient(codersdk.New(client.URL))
 		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
 		_, err := unauthed.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
 		requireSDKError(t, err, http.StatusUnauthorized)
@@ -3999,7 +4016,7 @@ func TestGetChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
 		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
@@ -4015,7 +4032,7 @@ func TestGetChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
 		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
@@ -4035,7 +4052,7 @@ func TestGetChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		longName := strings.Repeat("a", 300) + ".png"
 		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
@@ -4058,7 +4075,7 @@ func TestGetChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		// Upload with a non-ASCII filename using RFC 5987 encoding,
 		// which is what the frontend sends for Unicode filenames.
@@ -4082,7 +4099,7 @@ func TestGetChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		coderdtest.CreateFirstUser(t, client)
+		coderdtest.CreateFirstUser(t, client.Client)
 
 		_, _, err := client.GetChatFile(ctx, uuid.New())
 		requireSDKError(t, err, http.StatusNotFound)
@@ -4092,7 +4109,7 @@ func TestGetChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		coderdtest.CreateFirstUser(t, client)
+		coderdtest.CreateFirstUser(t, client.Client)
 
 		res, err := client.Request(ctx, http.MethodGet,
 			"/api/experimental/chats/files/not-a-uuid", nil)
@@ -4106,20 +4123,21 @@ func TestGetChatFile(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
 		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
 		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
 		require.NoError(t, err)
 
-		otherClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, _, err = otherClient.GetChatFile(ctx, uploaded.ID)
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 }
 
 type chatCostTestFixture struct {
-	Client            *codersdk.Client
+	Client            *codersdk.ExperimentalClient
 	DB                database.Store
 	ModelConfigID     uuid.UUID
 	ChatID            uuid.UUID
@@ -4141,7 +4159,7 @@ func seedChatCostFixture(t *testing.T) chatCostTestFixture {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, db := newChatClientWithDatabase(t)
-	firstUser := coderdtest.CreateFirstUser(t, client)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfig := createChatModelConfig(t, client)
 
 	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
@@ -4256,8 +4274,9 @@ func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 
 	seedCtx := testutil.Context(t, testutil.WaitLong)
 	client, db := newChatClientWithDatabase(t)
-	firstUser := coderdtest.CreateFirstUser(t, client)
-	memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 	modelConfig := createChatModelConfig(t, client)
 
 	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatParams{
@@ -4321,8 +4340,9 @@ func TestChatCostUsers(t *testing.T) {
 
 	seedCtx := testutil.Context(t, testutil.WaitLong)
 	client, db := newChatClientWithDatabase(t)
-	firstUser := coderdtest.CreateFirstUser(t, client)
-	memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 	firstUserRecord, err := db.GetUserByID(dbauthz.AsSystemRestricted(seedCtx), firstUser.UserID)
 	require.NoError(t, err)
 	modelConfig := createChatModelConfig(t, client)
@@ -4434,7 +4454,7 @@ func TestChatCostSummary_DateRange(t *testing.T) {
 
 	seedCtx := testutil.Context(t, testutil.WaitLong)
 	client, db := newChatClientWithDatabase(t)
-	firstUser := coderdtest.CreateFirstUser(t, client)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfig := createChatModelConfig(t, client)
 
 	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(seedCtx), database.InsertChatParams{
@@ -4499,7 +4519,7 @@ func TestChatCostSummary_UnpricedMessages(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, db := newChatClientWithDatabase(t)
-	firstUser := coderdtest.CreateFirstUser(t, client)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfig := createChatModelConfig(t, client)
 
 	chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
@@ -4612,7 +4632,7 @@ func TestWatchChatDesktop(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
 		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -4639,7 +4659,7 @@ func TestWatchChatDesktop(t *testing.T) {
 	})
 }
 
-func createChatModelConfig(t *testing.T, client *codersdk.Client) codersdk.ChatModelConfig {
+func createChatModelConfig(t *testing.T, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
 	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -4666,8 +4686,9 @@ func TestChatSystemPrompt(t *testing.T) {
 	t.Parallel()
 
 	adminClient := newChatClient(t)
-	firstUser := coderdtest.CreateFirstUser(t, adminClient)
-	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 	t.Run("ReturnsEmptyWhenUnset", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -4717,7 +4738,7 @@ func TestChatSystemPrompt(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		anonClient := codersdk.New(adminClient.URL)
+		anonClient := codersdk.NewExperimentalClient(codersdk.New(adminClient.URL))
 		_, err := anonClient.GetChatSystemPrompt(ctx)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
@@ -4744,7 +4765,7 @@ func TestChatDesktopEnabled(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
 
 		resp, err := adminClient.GetChatDesktopEnabled(ctx)
 		require.NoError(t, err)
@@ -4756,7 +4777,7 @@ func TestChatDesktopEnabled(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
 
 		err := adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
 			EnableDesktop: true,
@@ -4773,7 +4794,7 @@ func TestChatDesktopEnabled(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
 
 		// Set true first, then set false.
 		err := adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
@@ -4796,8 +4817,9 @@ func TestChatDesktopEnabled(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		adminClient := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
-		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		err := adminClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
 			EnableDesktop: true,
@@ -4814,8 +4836,9 @@ func TestChatDesktopEnabled(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		adminClient := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, adminClient)
-		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		err := memberClient.UpdateChatDesktopEnabled(ctx, codersdk.UpdateChatDesktopEnabledRequest{
 			EnableDesktop: true,
@@ -4828,9 +4851,9 @@ func TestChatDesktopEnabled(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		adminClient := newChatClient(t)
-		coderdtest.CreateFirstUser(t, adminClient)
+		coderdtest.CreateFirstUser(t, adminClient.Client)
 
-		anonClient := codersdk.New(adminClient.URL)
+		anonClient := codersdk.NewExperimentalClient(codersdk.New(adminClient.URL))
 		_, err := anonClient.GetChatDesktopEnabled(ctx)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
@@ -4843,9 +4866,10 @@ func TestChatWorkspaceTTL(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	adminClient := newChatClient(t)
-	firstUser := coderdtest.CreateFirstUser(t, adminClient)
-	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
-	anonClient := codersdk.New(adminClient.URL)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+	anonClient := codersdk.NewExperimentalClient(codersdk.New(adminClient.URL))
 
 	// Default value is 0 (disabled) when nothing has been configured.
 	resp, err := adminClient.GetChatWorkspaceTTL(ctx)
