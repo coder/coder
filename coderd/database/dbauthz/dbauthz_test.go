@@ -3164,13 +3164,7 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
 		ps := testutil.Fake(s.T(), faker, database.WorkspaceAgentPortShare{})
 		ps.WorkspaceID = ws.ID
-		arg := database.UpsertWorkspaceAgentPortShareParams{
-			WorkspaceID: ps.WorkspaceID,
-			AgentName:   ps.AgentName,
-			Port:        ps.Port,
-			ShareLevel:  ps.ShareLevel,
-			Protocol:    ps.Protocol,
-		}
+		arg := database.UpsertWorkspaceAgentPortShareParams(ps)
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
 		dbm.EXPECT().UpsertWorkspaceAgentPortShare(gomock.Any(), arg).Return(ps, nil).AnyTimes()
 		check.Args(arg).Asserts(ws, policy.ActionUpdate).Returns(ps)
