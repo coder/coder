@@ -29,6 +29,7 @@ import type {
 	DeleteExternalAuthByIDResponse,
 	DynamicParametersRequest,
 	PostWorkspaceUsageRequest,
+	UsersRequest,
 } from "./typesGenerated";
 import * as TypesGen from "./typesGenerated";
 
@@ -146,6 +147,10 @@ export const watchChat = (
 	if (afterMessageId !== undefined && afterMessageId > 0) {
 		params.set("after_id", afterMessageId.toString());
 	}
+	const token = API.getSessionToken();
+	if (token) {
+		params.set(SessionTokenCookie, token);
+	}
 	const query = params.toString();
 	const route = `/api/experimental/chats/${chatId}/stream${query ? `?${query}` : ""}`;
 	return new OneWayWebSocket({
@@ -154,8 +159,14 @@ export const watchChat = (
 };
 
 export const watchChats = (): OneWayWebSocket<TypesGen.ServerSentEvent> => {
+	const searchParams: Record<string, string> = {};
+	const token = API.getSessionToken();
+	if (token) {
+		searchParams[SessionTokenCookie] = token;
+	}
 	return new OneWayWebSocket({
 		apiRoute: "/api/experimental/chats/watch",
+		searchParams,
 	});
 };
 
@@ -2134,10 +2145,28 @@ class ApiMethods {
 	getGroup = async (
 		organization: string,
 		groupName: string,
+		req: TypesGen.GroupRequest,
+		signal?: AbortSignal,
 	): Promise<TypesGen.Group> => {
-		const response = await this.axios.get(
+		const url = getURLWithSearchParams(
 			`/api/v2/organizations/${organization}/groups/${groupName}`,
+			req,
 		);
+		const response = await this.axios.get(url, { signal });
+		return response.data;
+	};
+
+	getGroupMembers = async (
+		organization: string,
+		groupName: string,
+		filter?: UsersRequest,
+		signal?: AbortSignal,
+	): Promise<TypesGen.GroupMembersResponse> => {
+		const url = getURLWithSearchParams(
+			`/api/v2/organizations/${organization}/groups/${groupName}/members`,
+			filter,
+		);
+		const response = await this.axios.get(url.toString(), { signal });
 		return response.data;
 	};
 
@@ -2337,27 +2366,6 @@ class ApiMethods {
 			headers: { "Content-Type": file.type },
 		});
 
-		return response.data;
-	};
-
-	uploadChatFile = async (
-		file: File,
-		organizationId: string,
-	): Promise<TypesGen.UploadChatFileResponse> => {
-		const response = await this.axios.post(
-			`/api/experimental/chats/files?organization=${organizationId}`,
-			file,
-			{
-				headers: {
-					"Content-Type": file.type || "application/octet-stream",
-					// Use RFC 5987 encoding for the filename to support
-					// non-ASCII characters. Placing the raw name directly in
-					// the header causes XMLHttpRequest to throw because HTTP
-					// headers only allow ISO-8859-1 code points.
-					"Content-Disposition": `attachment; filename="file"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
-				},
-			},
-		);
 		return response.data;
 	};
 
@@ -2984,6 +2992,50 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getAIBridgeModels = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
+
+		const response = await this.axios.get<string[]>(url);
+		return response.data;
+	};
+}
+
+export type TaskFeedbackRating = "good" | "okay" | "bad";
+
+export type CreateTaskFeedbackRequest = {
+	rate: TaskFeedbackRating;
+	comment?: string;
+};
+
+// Experimental API methods call endpoints under the /api/experimental/ prefix.
+// These endpoints are not stable and may change or be removed at any time.
+//
+// All methods must be defined with arrow function syntax. See the docstring
+// above the ApiMethods class for a full explanation.
+class ExperimentalApiMethods {
+	constructor(protected readonly axios: AxiosInstance) {}
+
+	uploadChatFile = async (
+		file: File,
+		organizationId: string,
+	): Promise<TypesGen.UploadChatFileResponse> => {
+		const response = await this.axios.post(
+			`/api/experimental/chats/files?organization=${organizationId}`,
+			file,
+			{
+				headers: {
+					"Content-Type": file.type || "application/octet-stream",
+					// Use RFC 5987 encoding for the filename to support
+					// non-ASCII characters. Placing the raw name directly in
+					// the header causes XMLHttpRequest to throw because HTTP
+					// headers only allow ISO-8859-1 code points.
+					"Content-Disposition": `attachment; filename="file"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+				},
+			},
+		);
+		return response.data;
+	};
+
 	// Chat API methods
 	getChats = async (req?: {
 		after_id?: string;
@@ -3271,13 +3323,6 @@ class ApiMethods {
 		);
 	};
 
-	getAIBridgeModels = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
-
-		const response = await this.axios.get<string[]>(url);
-		return response.data;
-	};
-
 	getChatCostSummary = async (
 		user = "me",
 		params?: ChatCostDateParams,
@@ -3379,22 +3424,6 @@ class ApiMethods {
 	};
 }
 
-export type TaskFeedbackRating = "good" | "okay" | "bad";
-
-export type CreateTaskFeedbackRequest = {
-	rate: TaskFeedbackRating;
-	comment?: string;
-};
-
-// Experimental API methods call endpoints under the /api/experimental/ prefix.
-// These endpoints are not stable and may change or be removed at any time.
-//
-// All methods must be defined with arrow function syntax. See the docstring
-// above the ApiMethods class for a full explanation.
-class ExperimentalApiMethods {
-	constructor(protected readonly axios: AxiosInstance) {}
-}
-
 // This is a hard coded CSRF token/cookie pair for local development. In prod,
 // the GoLang webserver generates a random cookie with a new token for each
 // document request. For local development, we don't use the Go webserver for
@@ -3454,6 +3483,14 @@ function createWebSocket(
 	path: string,
 	params: URLSearchParams = new URLSearchParams(),
 ) {
+	// When running in an embedded context (e.g. VS Code webview),
+	// the session token is set via the API header but browsers
+	// cannot attach custom headers to WebSocket connections.
+	// Pass it as a query parameter instead.
+	const token = API.getSessionToken();
+	if (token) {
+		params.set(SessionTokenCookie, token);
+	}
 	const protocol = location.protocol === "https:" ? "wss:" : "ws:";
 	const socket = new WebSocket(
 		`${protocol}//${location.host}${path}?${params}`,
@@ -3466,6 +3503,7 @@ function createWebSocket(
 interface ClientApi extends ApiMethods {
 	getCsrfToken: () => string;
 	setSessionToken: (token: string) => void;
+	getSessionToken: () => string | undefined;
 	setHost: (host: string | undefined) => void;
 	getAxiosInstance: () => AxiosInstance;
 }
@@ -3487,6 +3525,12 @@ export class Api extends ApiMethods implements ClientApi {
 
 	setSessionToken = (token: string): void => {
 		this.axios.defaults.headers.common["Coder-Session-Token"] = token;
+	};
+
+	getSessionToken = (): string | undefined => {
+		return this.axios.defaults.headers.common["Coder-Session-Token"] as
+			| string
+			| undefined;
 	};
 
 	setHost = (host: string | undefined): void => {

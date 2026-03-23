@@ -714,6 +714,25 @@ func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UU
 	return members, json.NewDecoder(res.Body).Decode(&members)
 }
 
+// OrganizationMembers lists filtered and paginated members in an organization
+func (c *Client) OrganizationMembersPaginated(ctx context.Context, organizationID uuid.UUID, req UsersRequest) (PaginatedMembersResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/paginated-members", organizationID),
+		nil,
+		req.Pagination.asRequestOption(),
+		req.asRequestOption(),
+	)
+	if err != nil {
+		return PaginatedMembersResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return PaginatedMembersResponse{}, ReadBodyAsError(res)
+	}
+	var membersRes PaginatedMembersResponse
+	return membersRes, json.NewDecoder(res.Body).Decode(&membersRes)
+}
+
 // UpdateUserRoles grants the userID the specified roles.
 // Include ALL roles the user has.
 func (c *Client) UpdateUserRoles(ctx context.Context, user string, req UpdateRoles) (User, error) {

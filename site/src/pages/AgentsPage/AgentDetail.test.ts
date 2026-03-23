@@ -1,11 +1,11 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatMessageInputRef } from "./AgentChatInput";
 import {
 	draftInputStorageKeyPrefix,
 	useConversationEditingState,
 } from "./AgentDetail";
+import type { ChatMessageInputRef } from "./components/AgentChatInput";
 
 describe("useConversationEditingState", () => {
 	const chatID = "chat-abc-123";

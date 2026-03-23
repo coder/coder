@@ -578,8 +578,10 @@ type DesktopAction struct {
 	Duration        *int    `json:"duration,omitempty"`
 	ScrollAmount    *int    `json:"scroll_amount,omitempty"`
 	ScrollDirection *string `json:"scroll_direction,omitempty"`
-	ScaledWidth     *int    `json:"scaled_width,omitempty"`
-	ScaledHeight    *int    `json:"scaled_height,omitempty"`
+	// ScaledWidth and ScaledHeight carry the declared model-facing desktop
+	// geometry used for screenshot sizing and coordinate mapping.
+	ScaledWidth  *int `json:"scaled_width,omitempty"`
+	ScaledHeight *int `json:"scaled_height,omitempty"`
 }
 
 // DesktopActionResponse is the response from the desktop action

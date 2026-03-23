@@ -4083,6 +4083,19 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "type": "string",
+                        "description": "Member search query",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "After ID",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "Page limit, if 0 returns all members",
                         "name": "limit",
@@ -7956,29 +7969,6 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ]
-            }
-        },
-        "/users/me/session/token-to-cookie": {
-            "post": {
-                "description": "Converts the current session token into a Set-Cookie response.\nThis is used by embedded iframes (e.g. VS Code chat) that\nreceive a session token out-of-band via postMessage but need\ncookie-based auth for WebSocket connections.",
-                "tags": [
-                    "Authorization"
-                ],
-                "summary": "Set session token cookie",
-                "operationId": "set-session-token-cookie",
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
             }
         },
         "/users/oauth2/github/callback": {
@@ -17313,6 +17303,13 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
+                "last_seen_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "login_type": {
+                    "$ref": "#/definitions/codersdk.LoginType"
+                },
                 "name": {
                     "type": "string"
                 },
@@ -17326,13 +17323,32 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
+                "status": {
+                    "enum": [
+                        "active",
+                        "suspended"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.UserStatus"
+                        }
+                    ]
+                },
                 "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "user_created_at": {
                     "type": "string",
                     "format": "date-time"
                 },
                 "user_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "user_updated_at": {
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "username": {
                     "type": "string"

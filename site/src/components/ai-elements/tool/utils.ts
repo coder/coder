@@ -229,9 +229,97 @@ const SEPARATOR_CSS = [
 	"}",
 ].join(" ");
 
+// Shared header styling applied to all diff viewers (both the
+// conversation-inline diffs and the right-tab panel). This gives
+// every diff header the same font sizing, change-type badges,
+// and stat-count pills regardless of where it appears.
+const DIFF_HEADER_CSS = [
+	// Header layout: consistent sizing and padding across contexts.
+	"[data-diffs-header] {",
+	"  font-size: 13px;",
+	"  min-height: 32px !important;",
+	"  padding-block: 0 !important;",
+	"  padding-inline: 12px !important;",
+	"  border-bottom: 1px solid hsl(var(--border-default));",
+	"}",
+
+	// Title text: sans-serif, slightly smaller than header chrome.
+	"[data-diffs-header] [data-title] {",
+	"  font-size: 12px;",
+	"  color: hsl(var(--content-primary));",
+	"}",
+
+	// Replace the library's built-in SVG change-type icons with
+	// single-letter badges (A/D/M/R) via CSS-generated content.
+	"[data-change-icon] { display: none !important; }",
+	// Baseline-align the badge letter with the filename so their
+	// text baselines match despite different font sizes (11px vs
+	// 12px). Without this the box-centering default shifts the
+	// badge a fraction of a pixel above the title.
+	"[data-diffs-header] [data-header-content] { align-items: baseline; }",
+	"[data-diffs-header] [data-header-content]::before {",
+	"  font-size: 11px;",
+	"  font-weight: 600;",
+	"  flex-shrink: 0;",
+	"}",
+	"[data-diffs-header][data-change-type='new'] [data-header-content]::before {",
+	"  content: 'A';",
+	"  color: hsl(var(--git-added));",
+	"}",
+	"[data-diffs-header][data-change-type='change'] [data-header-content]::before {",
+	"  content: 'M';",
+	"  color: hsl(var(--git-modified));",
+	"}",
+	"[data-diffs-header][data-change-type='deleted'] [data-header-content]::before {",
+	"  content: 'D';",
+	"  color: hsl(var(--git-deleted));",
+	"}",
+	"[data-diffs-header][data-change-type='rename-pure'] [data-header-content]::before,",
+	"[data-diffs-header][data-change-type='rename-changed'] [data-header-content]::before {",
+	"  content: 'R';",
+	"  color: hsl(var(--git-modified));",
+	"}",
+
+	// Stat counts styled as compact pill badges.
+	"[data-diffs-header] [data-metadata] {",
+	"  flex-direction: row-reverse;",
+	"  gap: 0 !important;",
+	"}",
+	"[data-diffs-header] [data-additions-count],",
+	"[data-diffs-header] [data-deletions-count] {",
+	"  font-family: var(--diffs-font-family, var(--diffs-font-fallback));",
+	"  font-size: 12px;",
+	"  font-weight: 500;",
+	"  line-height: 20px;",
+	"  padding-inline: 6px;",
+	"  border-radius: 3px;",
+	"}",
+	"[data-diffs-header] [data-additions-count] {",
+	"  color: hsl(var(--git-added-bright)) !important;",
+	"  background-color: hsl(var(--surface-git-added));",
+	"}",
+	"[data-diffs-header] [data-deletions-count] {",
+	"  color: hsl(var(--git-deleted-bright)) !important;",
+	"  background-color: hsl(var(--surface-git-deleted));",
+	"}",
+	// Joined badge: flatten touching inner edges. DOM order is
+	// [deletions][additions]; row-reverse puts additions left.
+	"[data-deletions-count] + [data-additions-count] {",
+	"  border-radius: 3px 0 0 3px;",
+	"}",
+	"[data-deletions-count]:has(+ [data-additions-count]) {",
+	"  border-radius: 0 3px 3px 0;",
+	"}",
+].join(" ");
+
 export const diffViewerCSS = [
-	"pre, [data-line]:not([data-selected-line]), [data-diffs-header] { background-color: transparent !important; }",
+	// Make context lines transparent so they blend with the page,
+	// but preserve the library's colored backgrounds on changed
+	// lines (change-addition / change-deletion) so the line-level
+	// tint and word-level emphasis highlights remain visible.
+	"pre, [data-line]:not([data-selected-line]):not([data-line-type='change-addition']):not([data-line-type='change-deletion']), [data-diffs-header] { background-color: transparent !important; }",
 	"[data-diffs-header] { border-left: 1px solid var(--border); }",
+	DIFF_HEADER_CSS,
 	SELECTION_OVERRIDE_CSS,
 	SEPARATOR_CSS,
 ].join(" ");
