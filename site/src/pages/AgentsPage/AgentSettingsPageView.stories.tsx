@@ -484,21 +484,15 @@ export const UsageUserDrillIn: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Wait for the user list to load.
+		// Click Alice's row to drill into the detail view.
 		await userEvent.click(await body.findByText("Alice Liddell"));
 
-		// Wait for the detail view to mount before asserting on
-		// its header content.
-		await body.findByText("@alice");
+		// Wait for the detail view to mount. "User ID:" only
+		// renders in the detail panel, not the list.
+		await body.findByText(`User ID: ${mockUserProfile.id}`);
+
 		await expect(body.getByText("Alice Liddell")).toBeInTheDocument();
 		await expect(body.getByText("@alice")).toBeInTheDocument();
-
-		// The user profile was pre-seeded in the query cache via
-		// parameters.queries, so the detail header should show the
-		// user ID from that data.
-		await expect(
-			body.getByText(`User ID: ${mockUserProfile.id}`),
-		).toBeInTheDocument();
 
 		// The cost summary should have been fetched.
 		await waitFor(() => {
@@ -524,11 +518,12 @@ export const UsageUserDrillInAndBack: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Click Alice's row to drill in.
+		// Click Alice's row to drill into the detail view.
 		await userEvent.click(await body.findByText("Alice Liddell"));
 
-		// Wait for the detail view to appear.
-		await body.findByText("@alice");
+		// Wait for the detail view to mount. "User ID:" only
+		// renders in the detail panel, not the list.
+		await body.findByText(`User ID: ${mockUserProfile.id}`);
 
 		// Click Back to return to the list.
 		await userEvent.click(body.getByText("Back"));
