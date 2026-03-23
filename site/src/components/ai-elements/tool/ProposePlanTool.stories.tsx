@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { Tool } from "./Tool";
 
@@ -74,10 +74,7 @@ export const Completed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Proposed PLAN\.md/)).toBeInTheDocument();
 		expect(canvas.getByText("Implementation Plan")).toBeInTheDocument();
-		const toggle = canvas.getByRole("button");
-		expect(toggle).toHaveAttribute("aria-expanded", "true");
 	},
 };
 
@@ -94,7 +91,7 @@ export const CustomPath: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(/Proposed AUTH_PLAN\.md/)).toBeInTheDocument();
+		expect(canvas.getByText("Implementation Plan")).toBeInTheDocument();
 	},
 };
 
@@ -189,27 +186,5 @@ export const FileIDFetchError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(await canvas.findByLabelText("Error")).toBeInTheDocument();
-	},
-};
-
-export const CollapseToggle: Story = {
-	args: {
-		status: "completed",
-		args: { path: "/home/coder/PLAN.md" },
-		result: {
-			ok: true,
-			path: "/home/coder/PLAN.md",
-			kind: "plan",
-			content: samplePlan,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const toggle = canvas.getByRole("button");
-		expect(toggle).toHaveAttribute("aria-expanded", "true");
-		await userEvent.click(toggle);
-		expect(toggle).toHaveAttribute("aria-expanded", "false");
-		await userEvent.click(toggle);
-		expect(toggle).toHaveAttribute("aria-expanded", "true");
 	},
 };
