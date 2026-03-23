@@ -13,7 +13,6 @@ import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { workspacePermissionsByOrganization } from "#/api/queries/organizations";
 import { templates, templateVersionRoot } from "#/api/queries/templates";
 import { workspaceChatIds } from "#/api/queries/chats";
-import type { Experiment } from "#/api/typesGenerated";
 import { workspaces } from "#/api/queries/workspaces";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
@@ -73,7 +72,7 @@ const WorkspacesPage: FC = () => {
 	});
 	const { permissions, user: me } = useAuthenticated();
 	const { experiments } = useDashboard();
-	const agentsEnabled = experiments.includes("agents" as Experiment);
+	const agentsEnabled = experiments.includes("agents");
 	const templatesQuery = useQuery(templates());
 	const workspacePermissionsQuery = useQuery(
 		workspacePermissionsByOrganization(

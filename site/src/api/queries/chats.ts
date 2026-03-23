@@ -7,11 +7,14 @@ export const chatKey = (chatId: string) => ["chats", chatId] as const;
 export const chatMessagesKey = (chatId: string) =>
 	["chats", chatId, "messages"] as const;
 
-export const workspaceChatIds = (workspaceIds: string[]) => ({
-	queryKey: [...chatsKey, "by-workspace", workspaceIds],
-	queryFn: () => API.experimental.getChatsByWorkspace(workspaceIds),
-	enabled: workspaceIds.length > 0,
-});
+export const workspaceChatIds = (workspaceIds: string[]) => {
+	const sorted = [...workspaceIds].sort();
+	return {
+		queryKey: [...chatsKey, "by-workspace", sorted],
+		queryFn: () => API.experimental.getChatsByWorkspace(sorted),
+		enabled: workspaceIds.length > 0,
+	};
+};
 
 /**
  * Updates a single chat inside every page of the infinite chats query
