@@ -40,7 +40,10 @@ export const ProposePlanTool: React.FC<{
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<CircleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-destructive" />
+								<CircleAlertIcon
+									aria-label="Error"
+									className="h-3.5 w-3.5 shrink-0 text-content-destructive"
+								/>
 							</TooltipTrigger>
 							<TooltipContent>
 								{errorMessage || "Failed to propose plan"}

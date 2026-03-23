@@ -102,11 +102,19 @@ export const ErrorState: Story = {
 		status: "completed",
 		isError: true,
 		args: { path: "/home/coder/PLAN.md" },
-		result: { error: "Failed to read file: file not found" },
+		result: "Failed to read file: file not found",
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Proposed PLAN\.md/)).toBeInTheDocument();
+		const errorIcon = canvas.getByLabelText("Error");
+		expect(errorIcon).toBeInTheDocument();
+		await userEvent.hover(errorIcon);
+		expect(
+			await within(document.body).findByText(
+				"Failed to read file: file not found",
+			),
+		).toBeInTheDocument();
 	},
 };
 

@@ -377,7 +377,10 @@ const ProposePlanRenderer: FC<ToolRendererProps> = ({
 	const path = parsedArgs ? asString(parsedArgs.path) || "PLAN.md" : "PLAN.md";
 	const rec = asRecord(result);
 	const content = rec ? asString(rec.content) : "";
-	const errorMessage = isError && rec ? asString(rec.error) : undefined;
+	const errorMessage = isError
+		? (rec ? asString(rec.error) : undefined) ||
+			(typeof result === "string" ? result : undefined)
+		: undefined;
 
 	return (
 		<ProposePlanTool
