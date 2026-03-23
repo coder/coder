@@ -58,7 +58,7 @@ func executeProposePlanTool(
 	}
 	defer rc.Close()
 
-	data, err := io.ReadAll(io.LimitReader(rc, maxProposePlanSize+1))
+	data, err := io.ReadAll(rc)
 	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
