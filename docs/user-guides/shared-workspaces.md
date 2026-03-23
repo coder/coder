@@ -121,4 +121,4 @@ There are several sharing policy levels that can be selected on a per-organizati
 - **Service Accounts Only** – Only workspaces owned by service accounts can be shared with any individual or group in the same organization.
 - **Disabled** – Workspaces within the organization cannot be shared.
 
-The **Disabled** policy can also be applied to the entire deployment by [setting the `CODER_DISABLE_WORKSPACE_SHARING` environment variable, or by using the cooresponding command argument or config value](https://coder.com/docs/reference/cli/server#--disable-workspace-sharing).
+The **Disabled** policy can also be applied to the entire deployment by [setting the `CODER_DISABLE_WORKSPACE_SHARING` environment variable, or by using the corresponding command argument or config value](https://coder.com/docs/reference/cli/server#--disable-workspace-sharing).
