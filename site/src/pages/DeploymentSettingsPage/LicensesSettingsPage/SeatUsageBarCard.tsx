@@ -2,7 +2,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import type { FC } from "react";
 import { cn } from "utils/cn";
 
-export type SeatUsageBarCardProps = {
+type SeatUsageBarCardProps = {
 	title: string;
 	actual: number | undefined;
 	limit: number | undefined;

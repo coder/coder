@@ -28,7 +28,7 @@ export function hasAiGovernanceAddOnLicense(
  * Best-effort limit from license JWT claims when merged entitlements are not
  * yet available. Uses the same per-license field as the add-on card.
  */
-export function aiGovernanceLimitFromLicenses(
+function aiGovernanceLimitFromLicenses(
 	licenses: GetLicensesResponse[],
 ): number | undefined {
 	let best: number | undefined;
