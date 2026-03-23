@@ -10,7 +10,11 @@ const AgentSettingsPage: FC = () => {
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 	return (
 		<>
-			<AgentPageHeader />
+			<AgentPageHeader
+				mobileBack={
+					section ? { to: "/agents/settings", label: "Settings" } : undefined
+				}
+			/>
 			<AgentSettingsPageView
 				activeSection={section ?? "behavior"}
 				canManageChatModelConfigs={isAgentsAdmin}

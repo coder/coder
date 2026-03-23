@@ -36,7 +36,7 @@ const AgentAnalyticsPage: FC<AgentAnalyticsPageProps> = ({ now }) => {
 
 	return (
 		<>
-			<AgentPageHeader />
+			<AgentPageHeader mobileBack={{ to: "/agents", label: "Agents" }} />
 			<AgentAnalyticsPageView
 				summary={summaryQuery.data}
 				isLoading={summaryQuery.isLoading}

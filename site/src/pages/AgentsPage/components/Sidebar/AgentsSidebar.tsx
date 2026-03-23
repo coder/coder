@@ -74,7 +74,7 @@ import { UsageIndicator } from "../UsageIndicator";
 
 type SidebarView =
 	| { panel: "chats" }
-	| { panel: "settings"; section: string }
+	| { panel: "settings"; section: string | undefined }
 	| { panel: "analytics" };
 
 /**
@@ -86,7 +86,7 @@ export function sidebarViewFromPath(pathname: string): SidebarView {
 	}
 	const settingsMatch = pathname.match(/^\/agents\/settings(?:\/([^/]+))?/);
 	if (settingsMatch) {
-		return { panel: "settings", section: settingsMatch[1] || "behavior" };
+		return { panel: "settings", section: settingsMatch[1] };
 	}
 	return { panel: "chats" };
 }
@@ -689,7 +689,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			{/* ── Panel 1: Chats ── */}
 			<div
 				className={cn(
-					"absolute inset-0 flex flex-col transition-transform duration-200 ease-in-out",
+					"absolute inset-0 flex flex-col md:transition-transform md:duration-200 md:ease-in-out",
 					sidebarView.panel === "settings" && "-translate-x-full",
 				)}
 				aria-hidden={sidebarView.panel === "settings"}
@@ -923,21 +923,24 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			{/* ── Panel 2: Sub-navigation (Settings) ── */}{" "}
 			<div
 				className={cn(
-					"absolute inset-0 flex flex-col transition-transform duration-200 ease-in-out",
+					"absolute inset-0 flex flex-col md:transition-transform md:duration-200 md:ease-in-out",
 					sidebarView.panel !== "settings" && "translate-x-full",
 				)}
 				aria-hidden={sidebarView.panel !== "settings"}
 				inert={sidebarView.panel !== "settings" ? true : undefined}
 			>
 				{/* Back header */}
-				<div className="hidden border-b border-border-default px-2 py-2 md:block">
-					<div className="flex items-center justify-between">
+				<div className="border-b border-border-default px-2 pb-2 pt-3 md:py-2">
+					<div className="relative flex items-center">
+						<span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm font-medium text-content-primary">
+							{subNavTitle}
+						</span>
 						<Button
 							asChild
 							variant="subtle"
 							size="icon"
 							aria-label="Back to chats"
-							className="h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
+							className="relative z-10 h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
 						>
 							<Link
 								to={(location.state as { from?: string })?.from || "/agents"}
@@ -945,22 +948,18 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								<ChevronLeftIcon />
 							</Link>
 						</Button>
-						<span className="text-sm font-medium text-content-primary">
-							{subNavTitle}
-						</span>
-						<div className="flex items-center gap-0.5 -mr-1.5">
-							{onCollapse && (
-								<Button
-									variant="subtle"
-									size="icon"
-									onClick={onCollapse}
-									aria-label="Collapse sidebar"
-									className="h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
-								>
-									<PanelLeftCloseIcon />
-								</Button>
-							)}
-						</div>
+						<div className="flex-1" />
+						{onCollapse && (
+							<Button
+								variant="subtle"
+								size="icon"
+								onClick={onCollapse}
+								aria-label="Collapse sidebar"
+								className="relative z-10 hidden h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary md:inline-flex"
+							>
+								<PanelLeftCloseIcon />
+							</Button>
+						)}
 					</div>
 				</div>
 				{/* Sub-navigation items */}
@@ -969,7 +968,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						<SettingsNavItem
 							icon={UserIcon}
 							label="Behavior"
-							active={sidebarView.section === "behavior"}
+							active={
+								!sidebarView.section || sidebarView.section === "behavior"
+							}
 							to="/agents/settings/behavior"
 							state={location.state}
 						/>
