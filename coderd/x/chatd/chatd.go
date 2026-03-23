@@ -1261,6 +1261,82 @@ func (m chatMessage) withProviderResponseID(id string) chatMessage {
 	return m
 }
 
+// chainModeInfo holds the information needed to determine whether
+// a follow-up turn can use OpenAI's previous_response_id chaining
+// instead of replaying full conversation history.
+type chainModeInfo struct {
+	// previousResponseID is the provider response ID from the last
+	// assistant message, if any.
+	previousResponseID string
+	// trailingUserCount is the number of contiguous user messages
+	// at the end of the conversation that form the current turn.
+	trailingUserCount int
+}
+
+// resolveChainMode scans DB messages from the end to find the
+// latest assistant ProviderResponseID and count trailing user
+// messages for the current turn.
+func resolveChainMode(messages []database.ChatMessage) chainModeInfo {
+	var info chainModeInfo
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == database.ChatMessageRoleUser {
+			info.trailingUserCount++
+			continue
+		}
+		break
+	}
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == database.ChatMessageRoleAssistant &&
+			messages[i].ProviderResponseID.Valid &&
+			messages[i].ProviderResponseID.String != "" {
+			info.previousResponseID = messages[i].ProviderResponseID.String
+			break
+		}
+	}
+	return info
+}
+
+// filterPromptForChainMode keeps only system messages and the last
+// trailingUserCount user messages from the prompt. Assistant and tool
+// messages are dropped because the provider already has them via the
+// previous_response_id chain.
+func filterPromptForChainMode(
+	prompt []fantasy.Message,
+	trailingUserCount int,
+) []fantasy.Message {
+	if trailingUserCount <= 0 {
+		return prompt
+	}
+
+	totalUsers := 0
+	for _, msg := range prompt {
+		if msg.Role == "user" {
+			totalUsers++
+		}
+	}
+
+	usersToSkip := totalUsers - trailingUserCount
+	if usersToSkip < 0 {
+		usersToSkip = 0
+	}
+
+	filtered := make([]fantasy.Message, 0, len(prompt))
+	usersSeen := 0
+	for _, msg := range prompt {
+		switch msg.Role {
+		case "system":
+			filtered = append(filtered, msg)
+		case "user":
+			usersSeen++
+			if usersSeen > usersToSkip {
+				filtered = append(filtered, msg)
+			}
+		}
+	}
+
+	return filtered
+}
+
 // appendChatMessage appends a single message to the batch insert params.
 func appendChatMessage(
 	params *database.InsertChatMessagesParams,
@@ -2830,6 +2906,7 @@ func (p *Server) runChat(
 	if err := g.Wait(); err != nil {
 		return result, err
 	}
+	chainInfo := resolveChainMode(messages)
 	result.PushSummaryModel = model
 	result.ProviderKeys = providerKeys
 	// Fire title generation asynchronously so it doesn't block the
@@ -3294,13 +3371,34 @@ func (p *Server) runChat(
 			),
 		})
 	}
+
+	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(
+		model,
+		callConfig.ProviderOptions,
+	)
+	// When the OpenAI Responses API has store=true, the provider
+	// retains conversation history server-side. For follow-up turns,
+	// we set previous_response_id and send only system instructions
+	// plus the new user input, avoiding redundant replay of prior
+	// assistant and tool messages that the provider already has.
+	useChainMode := chatprovider.IsResponsesStoreEnabled(providerOptions) &&
+		chainInfo.previousResponseID != "" &&
+		chainInfo.trailingUserCount > 0
+	if useChainMode {
+		providerOptions = chatprovider.CloneWithPreviousResponseID(
+			providerOptions,
+			chainInfo.previousResponseID,
+		)
+		prompt = filterPromptForChainMode(prompt, chainInfo.trailingUserCount)
+	}
+
 	err = chatloop.Run(ctx, chatloop.RunOptions{
 		Model:    model,
 		Messages: prompt,
 		Tools:    tools, MaxSteps: maxChatSteps,
 
 		ModelConfig:     callConfig,
-		ProviderOptions: chatprovider.ProviderOptionsFromChatModelConfig(model, callConfig.ProviderOptions),
+		ProviderOptions: providerOptions,
 		ProviderTools:   providerTools,
 
 		ContextLimitFallback: modelConfigContextLimit,
@@ -3347,6 +3445,12 @@ func (p *Server) runChat(
 			}
 			if reloadUserPrompt != "" {
 				reloadedPrompt = chatprompt.InsertSystem(reloadedPrompt, reloadUserPrompt)
+			}
+			if useChainMode {
+				reloadedPrompt = filterPromptForChainMode(
+					reloadedPrompt,
+					chainInfo.trailingUserCount,
+				)
 			}
 			return reloadedPrompt, nil
 		},
