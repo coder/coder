@@ -18,7 +18,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func expChatsDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
+func expChatsCommandsDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
 	t.Helper()
 
 	values := coderdtest.DeploymentValues(t)
@@ -59,7 +59,7 @@ type expChatsTestClients struct {
 func newExpChatsCLIClient(t testing.TB) expChatsTestClients {
 	t.Helper()
 
-	adminClient := coderdtest.New(t, &coderdtest.Options{DeploymentValues: expChatsDeploymentValues(t)})
+	adminClient := coderdtest.New(t, &coderdtest.Options{DeploymentValues: expChatsCommandsDeploymentValues(t)})
 	owner := coderdtest.CreateFirstUser(t, adminClient)
 	userClient, user := coderdtest.CreateAnotherUser(t, adminClient, owner.OrganizationID)
 	return expChatsTestClients{
@@ -107,7 +107,7 @@ func TestExpChatsStart_NoPrompt(t *testing.T) {
 func TestExpChatsStart_WithPrompt(t *testing.T) {
 	t.Parallel()
 
-	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{DeploymentValues: expChatsDeploymentValues(t)})
+	adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{DeploymentValues: expChatsCommandsDeploymentValues(t)})
 	owner := coderdtest.CreateFirstUser(t, adminClient)
 	userClient, user := coderdtest.CreateAnotherUser(t, adminClient, owner.OrganizationID)
 	modelConfig := createTestChatModelConfig(t, adminClient)
