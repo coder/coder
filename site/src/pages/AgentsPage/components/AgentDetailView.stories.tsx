@@ -135,6 +135,10 @@ const meta: Meta<typeof AgentDetailView> = {
 		handleUnarchiveAgentAction: fn(),
 		handleArchiveAndDeleteWorkspaceAction: fn(),
 		scrollContainerRef: { current: null },
+		mcpServers: [],
+		selectedMCPServerIds: [],
+		onMCPSelectionChange: fn(),
+		onMCPAuthComplete: fn(),
 	},
 };
 

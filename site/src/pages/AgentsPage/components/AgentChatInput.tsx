@@ -1,3 +1,4 @@
+import type * as TypesGen from "api/typesGenerated";
 import type { ChatMessagePart, ChatQueuedMessage } from "api/typesGenerated";
 import {
 	ModelSelector,
@@ -38,6 +39,7 @@ import { cn } from "utils/cn";
 import { isMobileViewport } from "utils/mobile";
 import { formatProviderLabel } from "../utils/modelOptions";
 import { ImageLightbox } from "./ImageLightbox";
+import { MCPServerPicker } from "./MCPServerPicker";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 
 export type { ChatMessageInputRef } from "components/ChatMessageInput/ChatMessageInput";
@@ -112,6 +114,11 @@ interface AgentChatInputProps {
 	onRemoveAttachment?: (index: number) => void;
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
+	// MCP Server picker.
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	selectedMCPServerIds?: readonly string[];
+	onMCPSelectionChange?: (ids: string[]) => void;
+	onMCPAuthComplete?: (serverId: string) => void;
 }
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
 	typeof value === "number" && Number.isFinite(value) && value >= 0;
@@ -357,6 +364,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	onRemoveAttachment,
 	uploadStates,
 	previewUrls,
+	mcpServers,
+	selectedMCPServerIds,
+	onMCPSelectionChange,
+	onMCPAuthComplete,
 }) => {
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -648,6 +659,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							dropdownSide="top"
 							dropdownAlign="center"
 						/>
+						{mcpServers &&
+							mcpServers.length > 0 &&
+							onMCPSelectionChange &&
+							onMCPAuthComplete && (
+								<MCPServerPicker
+									servers={mcpServers}
+									selectedServerIds={[...(selectedMCPServerIds ?? [])]}
+									onSelectionChange={onMCPSelectionChange}
+									onAuthComplete={onMCPAuthComplete}
+									disabled={isDisabled}
+								/>
+							)}
 						{leftActions}
 						{inputStatusText && (
 							<span className="hidden text-xs text-content-secondary sm:inline">

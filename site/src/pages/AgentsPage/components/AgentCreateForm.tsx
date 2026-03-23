@@ -37,6 +37,7 @@ import {
 	isUsageLimitData,
 } from "../utils/usageLimitMessage";
 import { AgentChatInput } from "./AgentChatInput";
+import { getDefaultMCPSelection } from "./MCPServerPicker";
 
 /** @internal Exported for testing. */
 export const emptyInputStorageKey = "agents.empty-input";
@@ -50,6 +51,7 @@ export type CreateChatOptions = {
 	fileIDs?: string[];
 	workspaceId?: string;
 	model?: string;
+	mcpServerIds?: string[];
 };
 
 /**
@@ -116,6 +118,8 @@ interface AgentCreateFormProps {
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
 	modelCatalogError: unknown;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	onMCPAuthComplete?: (serverId: string) => void;
 }
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
@@ -128,6 +132,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isModelCatalogLoading,
 	isModelConfigsLoading,
 	modelCatalogError,
+	mcpServers,
+	onMCPAuthComplete,
 }) => {
 	const { organizations } = useDashboard();
 	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
@@ -242,11 +248,15 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// the shared input component re-rendering on every change.
 	const selectedWorkspaceIdRef = useRef(selectedWorkspaceId);
 	const selectedModelRef = useRef(selectedModel);
+	const [selectedMCPServerIds, setSelectedMCPServerIds] = useState<string[]>(
+		() => (mcpServers ? getDefaultMCPSelection(mcpServers) : []),
+	);
+	const selectedMCPServerIdsRef = useRef(selectedMCPServerIds);
 	useEffect(() => {
 		selectedWorkspaceIdRef.current = selectedWorkspaceId;
 		selectedModelRef.current = selectedModel;
+		selectedMCPServerIdsRef.current = selectedMCPServerIds;
 	});
-
 	const handleWorkspaceChange = (value: string) => {
 		if (value === autoCreateWorkspaceValue) {
 			setSelectedWorkspaceId(null);
@@ -273,6 +283,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			fileIDs,
 			workspaceId: selectedWorkspaceIdRef.current ?? undefined,
 			model: selectedModelRef.current || undefined,
+			mcpServerIds:
+				selectedMCPServerIdsRef.current.length > 0
+					? [...selectedMCPServerIdsRef.current]
+					: undefined,
 		}).catch(() => {
 			// Re-enable draft persistence so the user can edit
 			// and retry after a failed send attempt.
@@ -368,6 +382,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					onRemoveAttachment={handleRemoveAttachment}
 					uploadStates={uploadStates}
 					previewUrls={previewUrls}
+					mcpServers={mcpServers}
+					selectedMCPServerIds={selectedMCPServerIds}
+					onMCPSelectionChange={setSelectedMCPServerIds}
+					onMCPAuthComplete={onMCPAuthComplete}
 					leftActions={
 						<Popover
 							open={workspacePopoverOpen}
