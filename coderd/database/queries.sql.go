@@ -5722,31 +5722,24 @@ func (q *sqlQuerier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) error 
 	return err
 }
 
-const updateChatBuildAgentBindingIfWorkspaceMatches = `-- name: UpdateChatBuildAgentBindingIfWorkspaceMatches :one
+const updateChatBuildAgentBinding = `-- name: UpdateChatBuildAgentBinding :one
 UPDATE chats SET
     build_id = $1::uuid,
     agent_id = $2::uuid,
     updated_at = NOW()
 WHERE
-    id = $3::uuid AND
-    workspace_id IS NOT DISTINCT FROM $4::uuid
+    id = $3::uuid
 RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, build_id, agent_id
 `
 
-type UpdateChatBuildAgentBindingIfWorkspaceMatchesParams struct {
-	BuildID             uuid.NullUUID `db:"build_id" json:"build_id"`
-	AgentID             uuid.NullUUID `db:"agent_id" json:"agent_id"`
-	ID                  uuid.UUID     `db:"id" json:"id"`
-	ExpectedWorkspaceID uuid.UUID     `db:"expected_workspace_id" json:"expected_workspace_id"`
+type UpdateChatBuildAgentBindingParams struct {
+	BuildID uuid.NullUUID `db:"build_id" json:"build_id"`
+	AgentID uuid.NullUUID `db:"agent_id" json:"agent_id"`
+	ID      uuid.UUID     `db:"id" json:"id"`
 }
 
-func (q *sqlQuerier) UpdateChatBuildAgentBindingIfWorkspaceMatches(ctx context.Context, arg UpdateChatBuildAgentBindingIfWorkspaceMatchesParams) (Chat, error) {
-	row := q.db.QueryRowContext(ctx, updateChatBuildAgentBindingIfWorkspaceMatches,
-		arg.BuildID,
-		arg.AgentID,
-		arg.ID,
-		arg.ExpectedWorkspaceID,
-	)
+func (q *sqlQuerier) UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, updateChatBuildAgentBinding, arg.BuildID, arg.AgentID, arg.ID)
 	var i Chat
 	err := row.Scan(
 		&i.ID,

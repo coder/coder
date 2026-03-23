@@ -30,69 +30,6 @@ type dialOut struct {
 	err     error
 }
 
-// dialAttempt owns one in-flight dial goroutine. Callers either consume its
-// result or abandon the attempt, which drains any late result in the
-// background and releases a late-arriving successful connection.
-type dialAttempt struct {
-	cancel      context.CancelFunc
-	results     chan dialOut
-	resultTaken bool
-	abandoned   bool
-}
-
-func startDialAttempt(ctx context.Context, agentID uuid.UUID, dialFn DialFunc) *dialAttempt {
-	dialCtx, cancel := context.WithCancel(ctx)
-	results := make(chan dialOut, 1)
-	go func() {
-		conn, release, err := dialFn(dialCtx, agentID)
-		results <- dialOut{conn: conn, release: release, err: err}
-	}()
-	return &dialAttempt{cancel: cancel, results: results}
-}
-
-func (a *dialAttempt) await(ctx context.Context) (dialOut, error) {
-	select {
-	case result := <-a.results:
-		a.resultTaken = true
-		return result, nil
-	case <-ctx.Done():
-		return dialOut{}, ctx.Err()
-	}
-}
-
-func (a *dialAttempt) takeIfReady() (dialOut, bool) {
-	select {
-	case result := <-a.results:
-		a.resultTaken = true
-		return result, true
-	default:
-		return dialOut{}, false
-	}
-}
-
-func (a *dialAttempt) take(result dialOut) dialOut {
-	a.resultTaken = true
-	return result
-}
-
-// abandon cancels the dial and, if the caller never consumed the result,
-// drains it in the background. Safe to call more than once.
-func (a *dialAttempt) abandon() {
-	a.cancel()
-	if a.resultTaken || a.abandoned {
-		return
-	}
-	a.abandoned = true
-	// Launch a small goroutine to drain without blocking the caller. dialFn may
-	// take time to honor cancellation.
-	go func() {
-		result := <-a.results
-		if result.err == nil && result.release != nil {
-			result.release()
-		}
-	}()
-}
-
 // dialWithLazyValidation dials an agent and only consults the database if the
 // original dial is slow or fails quickly. This keeps the common path free of
 // latest-build lookups while still repairing stale bindings.
@@ -116,8 +53,30 @@ func dialWithLazyValidation(
 	wrapErr := func(err error) error {
 		return xerrors.Errorf("dial with lazy validation: %w", err)
 	}
-	originalDial := startDialAttempt(ctx, agentID, dialFn)
-	defer originalDial.abandon()
+
+	dialCtx, dialCancel := context.WithCancel(ctx)
+	results := make(chan dialOut, 1)
+	go func() {
+		conn, release, err := dialFn(dialCtx, agentID)
+		results <- dialOut{conn: conn, release: release, err: err}
+	}()
+
+	drained := false
+	defer func() {
+		dialCancel()
+		if drained {
+			return
+		}
+		// Drain without blocking the caller. dialFn may take time to honor
+		// cancellation, but any late-arriving successful connection still needs to
+		// be released.
+		go func() {
+			result := <-results
+			if result.err == nil && result.release != nil {
+				result.release()
+			}
+		}()
+	}()
 
 	resultForAgent := func(dialedAgentID uuid.UUID, result dialOut, switched bool) DialResult {
 		return DialResult{
@@ -135,26 +94,31 @@ func dialWithLazyValidation(
 		return resultForAgent(targetAgentID, dialOut{conn: conn, release: release}, switched), nil
 	}
 	preferReadyOriginalDial := func() (DialResult, bool) {
-		result, ok := originalDial.takeIfReady()
-		if !ok || result.err != nil {
+		select {
+		case result := <-results:
+			drained = true
+			if result.err != nil {
+				return DialResult{}, false
+			}
+			return resultForAgent(agentID, result, false), true
+		default:
 			return DialResult{}, false
 		}
-		return resultForAgent(agentID, result, false), true
 	}
 	waitForOriginalDial := func(waitCtx context.Context) (DialResult, error) {
-		result, err := originalDial.await(waitCtx)
-		if err != nil {
-			if waitCtx.Err() != nil {
-				if ready, ok := preferReadyOriginalDial(); ok {
-					return ready, nil
-				}
+		select {
+		case result := <-results:
+			drained = true
+			if result.err != nil {
+				return DialResult{}, wrapErr(result.err)
 			}
-			return DialResult{}, err
+			return resultForAgent(agentID, result, false), nil
+		case <-waitCtx.Done():
+			if ready, ok := preferReadyOriginalDial(); ok {
+				return ready, nil
+			}
+			return DialResult{}, waitCtx.Err()
 		}
-		if result.err != nil {
-			return DialResult{}, wrapErr(result.err)
-		}
-		return resultForAgent(agentID, result, false), nil
 	}
 	validateBinding := func() (uuid.UUID, error) {
 		validatedAgentID, err := validateFn(ctx, workspaceID)
@@ -168,16 +132,9 @@ func dialWithLazyValidation(
 		if err != nil {
 			return DialResult{}, err
 		}
-		// Phase 2 only runs after a fast failure from the original dial. When
-		// validation still points at the same agent, the binding is current, so
-		// retry that agent once before giving up.
 		if validatedAgentID == agentID {
 			return dialAgent(agentID, false)
 		}
-		return dialAgent(validatedAgentID, true)
-	}
-	switchToValidatedAgent := func(validatedAgentID uuid.UUID) (DialResult, error) {
-		originalDial.abandon()
 		return dialAgent(validatedAgentID, true)
 	}
 
@@ -185,8 +142,8 @@ func dialWithLazyValidation(
 	defer timer.Stop()
 
 	select {
-	case result := <-originalDial.results:
-		result = originalDial.take(result)
+	case result := <-results:
+		drained = true
 		if result.err == nil {
 			return resultForAgent(agentID, result, false), nil
 		}
@@ -199,7 +156,10 @@ func dialWithLazyValidation(
 			// the original dial.
 			return waitForOriginalDial(ctx)
 		}
-		return switchToValidatedAgent(validatedAgentID)
+		// The original dial is stale. Cancel it first, then let the deferred drain
+		// release any late result while we dial the validated agent immediately.
+		dialCancel()
+		return dialAgent(validatedAgentID, true)
 
 	case <-ctx.Done():
 		if ready, ok := preferReadyOriginalDial(); ok {

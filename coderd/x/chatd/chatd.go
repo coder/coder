@@ -220,17 +220,16 @@ func nullUUIDEqual(left, right uuid.NullUUID) bool {
 	return left.UUID == right.UUID
 }
 
-func (c *turnWorkspaceContext) persistBuildAgentBindingIfWorkspaceMatches(
+func (c *turnWorkspaceContext) persistBuildAgentBinding(
 	ctx context.Context,
 	chatSnapshot database.Chat,
 	buildID uuid.UUID,
 	agentID uuid.UUID,
-) (database.Chat, bool, error) {
-	updatedChat, err := c.server.db.UpdateChatBuildAgentBindingIfWorkspaceMatches(
+) (database.Chat, error) {
+	updatedChat, err := c.server.db.UpdateChatBuildAgentBinding(
 		ctx,
-		database.UpdateChatBuildAgentBindingIfWorkspaceMatchesParams{
-			ID:                  chatSnapshot.ID,
-			ExpectedWorkspaceID: chatSnapshot.WorkspaceID.UUID,
+		database.UpdateChatBuildAgentBindingParams{
+			ID: chatSnapshot.ID,
 			BuildID: uuid.NullUUID{
 				UUID:  buildID,
 				Valid: true,
@@ -241,29 +240,13 @@ func (c *turnWorkspaceContext) persistBuildAgentBindingIfWorkspaceMatches(
 			},
 		},
 	)
-	if err == nil {
-		c.setCurrentChat(updatedChat)
-		return updatedChat, true, nil
-	}
-	if !xerrors.Is(err, sql.ErrNoRows) {
-		return chatSnapshot, false, xerrors.Errorf(
+	if err != nil {
+		return chatSnapshot, xerrors.Errorf(
 			"update chat build/agent binding: %w", err,
 		)
 	}
-	if c.loadChatSnapshot == nil {
-		return chatSnapshot, false, xerrors.New(
-			"reload chat workspace state: snapshot loader is not configured",
-		)
-	}
-
-	refreshedChat, refreshErr := c.loadChatSnapshot(ctx, chatSnapshot.ID)
-	if refreshErr != nil {
-		return chatSnapshot, false, xerrors.Errorf(
-			"reload chat workspace state: %w", refreshErr,
-		)
-	}
-	c.setCurrentChat(refreshedChat)
-	return refreshedChat, false, nil
+	c.setCurrentChat(updatedChat)
+	return updatedChat, nil
 }
 
 func (c *turnWorkspaceContext) getWorkspaceAgent(ctx context.Context) (database.WorkspaceAgent, error) {
@@ -348,7 +331,7 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf("get latest workspace build: %w", err)
 		}
 
-		updatedChat, persisted, err := c.persistBuildAgentBindingIfWorkspaceMatches(
+		updatedChat, err := c.persistBuildAgentBinding(
 			ctx,
 			chatSnapshot,
 			build.ID,
@@ -357,12 +340,13 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 		if err != nil {
 			return chatSnapshot, database.WorkspaceAgent{}, err
 		}
-		if !persisted {
-			chatSnapshot = updatedChat
-			continue
-		}
 
 		chatSnapshot = updatedChat
+		latestChat, workspaceMatches := c.currentWorkspaceMatches(chatSnapshot.WorkspaceID)
+		if !workspaceMatches {
+			chatSnapshot = latestChat
+			continue
+		}
 		c.agent = agents[0]
 		c.agentLoaded = true
 		c.cachedWorkspaceID = chatSnapshot.WorkspaceID
@@ -374,6 +358,29 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 	)
 }
 
+// getWorkspaceConnLocked returns the cached connection when it still matches
+// the current workspace. When the workspace changed, it clears the stale
+// cached state and returns the release func for the caller to run after
+// unlocking.
+func (c *turnWorkspaceContext) getWorkspaceConnLocked() (workspacesdk.AgentConn, func()) {
+	if c.conn == nil {
+		return nil, nil
+	}
+
+	chatSnapshot := c.currentChatSnapshot()
+	if nullUUIDEqual(c.cachedWorkspaceID, chatSnapshot.WorkspaceID) {
+		return c.conn, nil
+	}
+
+	agentRelease := c.releaseConn
+	c.agent = database.WorkspaceAgent{}
+	c.agentLoaded = false
+	c.conn = nil
+	c.releaseConn = nil
+	c.cachedWorkspaceID = uuid.NullUUID{}
+	return nil, agentRelease
+}
+
 func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspacesdk.AgentConn, error) {
 	if c.server.agentConnFn == nil {
 		return nil, xerrors.New("workspace agent connector is not configured")
@@ -381,26 +388,13 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 
 	for attempt := 0; attempt < 2; attempt++ {
 		c.mu.Lock()
-		if c.conn != nil {
-			chatSnapshot := c.currentChatSnapshot()
-			if nullUUIDEqual(c.cachedWorkspaceID, chatSnapshot.WorkspaceID) {
-				currentConn := c.conn
-				c.mu.Unlock()
-				return currentConn, nil
-			}
-
-			agentRelease := c.releaseConn
-			c.agent = database.WorkspaceAgent{}
-			c.agentLoaded = false
-			c.conn = nil
-			c.releaseConn = nil
-			c.cachedWorkspaceID = uuid.NullUUID{}
-			c.mu.Unlock()
-			if agentRelease != nil {
-				agentRelease()
-			}
-		} else {
-			c.mu.Unlock()
+		currentConn, staleRelease := c.getWorkspaceConnLocked()
+		c.mu.Unlock()
+		if currentConn != nil {
+			return currentConn, nil
+		}
+		if staleRelease != nil {
+			staleRelease()
 		}
 
 		chatSnapshot, agent, err := c.ensureWorkspaceAgent(ctx)
@@ -445,7 +439,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 				return nil, xerrors.Errorf("get workspace agent by id: %w", err)
 			}
 
-			updatedChat, persisted, err := c.persistBuildAgentBindingIfWorkspaceMatches(
+			updatedChat, err := c.persistBuildAgentBinding(
 				ctx,
 				chatSnapshot,
 				build.ID,
@@ -456,14 +450,6 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 					agentRelease()
 				}
 				return nil, err
-			}
-			if !persisted {
-				if agentRelease != nil {
-					agentRelease()
-				}
-				c.clearCachedWorkspaceState()
-				chatSnapshot = updatedChat
-				continue
 			}
 			chatSnapshot = updatedChat
 
@@ -504,7 +490,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			c.mu.Unlock()
 			return agentConn, nil
 		}
-		currentConn := c.conn
+		currentConn = c.conn
 		c.mu.Unlock()
 
 		if agentRelease != nil {

@@ -7552,19 +7552,19 @@ func (mr *MockStoreMockRecorder) UpdateAPIKeyByID(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAPIKeyByID", reflect.TypeOf((*MockStore)(nil).UpdateAPIKeyByID), ctx, arg)
 }
 
-// UpdateChatBuildAgentBindingIfWorkspaceMatches mocks base method.
-func (m *MockStore) UpdateChatBuildAgentBindingIfWorkspaceMatches(ctx context.Context, arg database.UpdateChatBuildAgentBindingIfWorkspaceMatchesParams) (database.Chat, error) {
+// UpdateChatBuildAgentBinding mocks base method.
+func (m *MockStore) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateChatBuildAgentBindingIfWorkspaceMatches", ctx, arg)
+	ret := m.ctrl.Call(m, "UpdateChatBuildAgentBinding", ctx, arg)
 	ret0, _ := ret[0].(database.Chat)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// UpdateChatBuildAgentBindingIfWorkspaceMatches indicates an expected call of UpdateChatBuildAgentBindingIfWorkspaceMatches.
-func (mr *MockStoreMockRecorder) UpdateChatBuildAgentBindingIfWorkspaceMatches(ctx, arg any) *gomock.Call {
+// UpdateChatBuildAgentBinding indicates an expected call of UpdateChatBuildAgentBinding.
+func (mr *MockStoreMockRecorder) UpdateChatBuildAgentBinding(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatBuildAgentBindingIfWorkspaceMatches", reflect.TypeOf((*MockStore)(nil).UpdateChatBuildAgentBindingIfWorkspaceMatches), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatBuildAgentBinding", reflect.TypeOf((*MockStore)(nil).UpdateChatBuildAgentBinding), ctx, arg)
 }
 
 // UpdateChatByID mocks base method.

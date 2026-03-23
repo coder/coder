@@ -5619,7 +5619,7 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
 }
 
-func (q *querier) UpdateChatBuildAgentBindingIfWorkspaceMatches(ctx context.Context, arg database.UpdateChatBuildAgentBindingIfWorkspaceMatchesParams) (database.Chat, error) {
+func (q *querier) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {
 		return database.Chat{}, err
@@ -5628,7 +5628,7 @@ func (q *querier) UpdateChatBuildAgentBindingIfWorkspaceMatches(ctx context.Cont
 		return database.Chat{}, err
 	}
 
-	return q.db.UpdateChatBuildAgentBindingIfWorkspaceMatches(ctx, arg)
+	return q.db.UpdateChatBuildAgentBinding(ctx, arg)
 }
 
 func (q *querier) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) (database.Chat, error) {
