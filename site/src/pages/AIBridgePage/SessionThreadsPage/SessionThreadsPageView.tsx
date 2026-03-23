@@ -22,13 +22,21 @@ const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
 			<TooltipTrigger asChild>
 				<div className="flex-shrink-0 flex items-center">{children}</div>
 			</TooltipTrigger>
-			<TooltipContent side="top" align="start" className="max-w-xs">
-				<p className="text-sm">
+			<TooltipContent
+				side="top"
+				align="start"
+				className="max-w-xs flex flex-col gap-1 text-xs p-3"
+			>
+				<p className="m-0 leading-snug">
 					A session is a set of threads or interceptions logically grouped by a
 					session key issued by the client.
 				</p>
-				<p>
-					<Link href="TODO docs page" target="_blank">
+				<p className="m-0 leading-snug">
+					<Link
+						href="TODO docs page"
+						target="_blank"
+						className="text-xs m-0 p-0"
+					>
 						View session terminology
 					</Link>
 				</p>
@@ -76,13 +84,13 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 				</Button>
 			</nav>
 			<div className="flex flex-col md:flex-row md:items-start gap-6">
-				<aside className="md:w-72 md:shrink-0 p-3 border border-solid rounded-md">
-					<h4 className="text-sm font-semibold flex items-center m-0 mb-4">
+				<aside className="md:w-72 md:shrink-0 p-3 border border-solid rounded-md flex flex-col gap-3">
+					<h2 className="text-sm font-semibold flex items-center m-0">
 						Session summary
 						<SessionSummaryTooltip>
 							<InfoIcon className="ml-2 h-4 w-4 text-content-secondary" />
 						</SessionSummaryTooltip>
-					</h4>
+					</h2>
 					{loading && (
 						// TODO actual loader
 						<div className="text-content-secondary text-sm">Loading…</div>
