@@ -7486,11 +7486,12 @@ WHERE
 			user_created_at >= $10
 		ELSE true
 	END
-	 -- Filter by system type
+	-- Filter by system type
 	AND CASE
 		WHEN $11::bool THEN TRUE
 		ELSE user_is_system = false
 	END
+	-- Filter by github.com user ID
 	AND CASE
 		WHEN $12 :: bigint != 0 THEN
 			user_github_com_user_id = $12
@@ -7502,31 +7503,38 @@ WHERE
 			user_login_type = ANY($13 :: login_type[])
 		ELSE true
 	END
+	-- Filter by service account.
+	AND CASE
+		WHEN $14 :: boolean IS NOT NULL THEN
+			user_is_service_account = $14 :: boolean
+		ELSE true
+	END
 	-- End of filters
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(user_username) ASC OFFSET $14
+	LOWER(user_username) ASC OFFSET $15
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($15 :: int, 0)
+	NULLIF($16 :: int, 0)
 `
 
 type GetGroupMembersByGroupIDPaginatedParams struct {
-	GroupID         uuid.UUID    `db:"group_id" json:"group_id"`
-	AfterID         uuid.UUID    `db:"after_id" json:"after_id"`
-	Search          string       `db:"search" json:"search"`
-	Name            string       `db:"name" json:"name"`
-	Status          []UserStatus `db:"status" json:"status"`
-	RbacRole        []string     `db:"rbac_role" json:"rbac_role"`
-	LastSeenBefore  time.Time    `db:"last_seen_before" json:"last_seen_before"`
-	LastSeenAfter   time.Time    `db:"last_seen_after" json:"last_seen_after"`
-	CreatedBefore   time.Time    `db:"created_before" json:"created_before"`
-	CreatedAfter    time.Time    `db:"created_after" json:"created_after"`
-	IncludeSystem   bool         `db:"include_system" json:"include_system"`
-	GithubComUserID int64        `db:"github_com_user_id" json:"github_com_user_id"`
-	LoginType       []LoginType  `db:"login_type" json:"login_type"`
-	OffsetOpt       int32        `db:"offset_opt" json:"offset_opt"`
-	LimitOpt        int32        `db:"limit_opt" json:"limit_opt"`
+	GroupID          uuid.UUID    `db:"group_id" json:"group_id"`
+	AfterID          uuid.UUID    `db:"after_id" json:"after_id"`
+	Search           string       `db:"search" json:"search"`
+	Name             string       `db:"name" json:"name"`
+	Status           []UserStatus `db:"status" json:"status"`
+	RbacRole         []string     `db:"rbac_role" json:"rbac_role"`
+	LastSeenBefore   time.Time    `db:"last_seen_before" json:"last_seen_before"`
+	LastSeenAfter    time.Time    `db:"last_seen_after" json:"last_seen_after"`
+	CreatedBefore    time.Time    `db:"created_before" json:"created_before"`
+	CreatedAfter     time.Time    `db:"created_after" json:"created_after"`
+	IncludeSystem    bool         `db:"include_system" json:"include_system"`
+	GithubComUserID  int64        `db:"github_com_user_id" json:"github_com_user_id"`
+	LoginType        []LoginType  `db:"login_type" json:"login_type"`
+	IsServiceAccount sql.NullBool `db:"is_service_account" json:"is_service_account"`
+	OffsetOpt        int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt         int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetGroupMembersByGroupIDPaginatedRow struct {
@@ -7568,6 +7576,7 @@ func (q *sqlQuerier) GetGroupMembersByGroupIDPaginated(ctx context.Context, arg 
 		arg.IncludeSystem,
 		arg.GithubComUserID,
 		pq.Array(arg.LoginType),
+		arg.IsServiceAccount,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -12434,7 +12443,7 @@ const organizationMembers = `-- name: OrganizationMembers :many
 SELECT
 	organization_members.user_id, organization_members.organization_id, organization_members.created_at, organization_members.updated_at, organization_members.roles,
 	users.username, users.avatar_url, users.name, users.email, users.rbac_roles as "global_roles",
-	users.last_seen_at, users.status, users.login_type,
+	users.last_seen_at, users.status, users.login_type, users.is_service_account,
 	users.created_at as user_created_at, users.updated_at as user_updated_at
 FROM
 	organization_members
@@ -12484,6 +12493,7 @@ type OrganizationMembersRow struct {
 	LastSeenAt         time.Time          `db:"last_seen_at" json:"last_seen_at"`
 	Status             UserStatus         `db:"status" json:"status"`
 	LoginType          LoginType          `db:"login_type" json:"login_type"`
+	IsServiceAccount   bool               `db:"is_service_account" json:"is_service_account"`
 	UserCreatedAt      time.Time          `db:"user_created_at" json:"user_created_at"`
 	UserUpdatedAt      time.Time          `db:"user_updated_at" json:"user_updated_at"`
 }
@@ -12520,6 +12530,7 @@ func (q *sqlQuerier) OrganizationMembers(ctx context.Context, arg OrganizationMe
 			&i.LastSeenAt,
 			&i.Status,
 			&i.LoginType,
+			&i.IsServiceAccount,
 			&i.UserCreatedAt,
 			&i.UserUpdatedAt,
 		); err != nil {
@@ -12540,7 +12551,7 @@ const paginatedOrganizationMembers = `-- name: PaginatedOrganizationMembers :man
 SELECT
 	organization_members.user_id, organization_members.organization_id, organization_members.created_at, organization_members.updated_at, organization_members.roles,
 	users.username, users.avatar_url, users.name, users.email, users.rbac_roles as "global_roles",
-	users.last_seen_at, users.status, users.login_type,
+	users.last_seen_at, users.status, users.login_type, users.is_service_account,
 	users.created_at as user_created_at, users.updated_at as user_updated_at,
 	COUNT(*) OVER() AS count
 FROM
@@ -12645,31 +12656,38 @@ WHERE
 			users.login_type = ANY($13 :: login_type[])
 		ELSE true
 	END
+	-- Filter by service account.
+	AND CASE
+		WHEN $14 :: boolean IS NOT NULL THEN
+			users.is_service_account = $14 :: boolean
+		ELSE true
+	END
 	-- End of filters
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(users.username) ASC OFFSET $14
+	LOWER(users.username) ASC OFFSET $15
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($15 :: int, 0)
+	NULLIF($16 :: int, 0)
 `
 
 type PaginatedOrganizationMembersParams struct {
-	AfterID         uuid.UUID    `db:"after_id" json:"after_id"`
-	OrganizationID  uuid.UUID    `db:"organization_id" json:"organization_id"`
-	Search          string       `db:"search" json:"search"`
-	Name            string       `db:"name" json:"name"`
-	Status          []UserStatus `db:"status" json:"status"`
-	RbacRole        []string     `db:"rbac_role" json:"rbac_role"`
-	LastSeenBefore  time.Time    `db:"last_seen_before" json:"last_seen_before"`
-	LastSeenAfter   time.Time    `db:"last_seen_after" json:"last_seen_after"`
-	CreatedBefore   time.Time    `db:"created_before" json:"created_before"`
-	CreatedAfter    time.Time    `db:"created_after" json:"created_after"`
-	IncludeSystem   bool         `db:"include_system" json:"include_system"`
-	GithubComUserID int64        `db:"github_com_user_id" json:"github_com_user_id"`
-	LoginType       []LoginType  `db:"login_type" json:"login_type"`
-	OffsetOpt       int32        `db:"offset_opt" json:"offset_opt"`
-	LimitOpt        int32        `db:"limit_opt" json:"limit_opt"`
+	AfterID          uuid.UUID    `db:"after_id" json:"after_id"`
+	OrganizationID   uuid.UUID    `db:"organization_id" json:"organization_id"`
+	Search           string       `db:"search" json:"search"`
+	Name             string       `db:"name" json:"name"`
+	Status           []UserStatus `db:"status" json:"status"`
+	RbacRole         []string     `db:"rbac_role" json:"rbac_role"`
+	LastSeenBefore   time.Time    `db:"last_seen_before" json:"last_seen_before"`
+	LastSeenAfter    time.Time    `db:"last_seen_after" json:"last_seen_after"`
+	CreatedBefore    time.Time    `db:"created_before" json:"created_before"`
+	CreatedAfter     time.Time    `db:"created_after" json:"created_after"`
+	IncludeSystem    bool         `db:"include_system" json:"include_system"`
+	GithubComUserID  int64        `db:"github_com_user_id" json:"github_com_user_id"`
+	LoginType        []LoginType  `db:"login_type" json:"login_type"`
+	IsServiceAccount sql.NullBool `db:"is_service_account" json:"is_service_account"`
+	OffsetOpt        int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt         int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 type PaginatedOrganizationMembersRow struct {
@@ -12682,6 +12700,7 @@ type PaginatedOrganizationMembersRow struct {
 	LastSeenAt         time.Time          `db:"last_seen_at" json:"last_seen_at"`
 	Status             UserStatus         `db:"status" json:"status"`
 	LoginType          LoginType          `db:"login_type" json:"login_type"`
+	IsServiceAccount   bool               `db:"is_service_account" json:"is_service_account"`
 	UserCreatedAt      time.Time          `db:"user_created_at" json:"user_created_at"`
 	UserUpdatedAt      time.Time          `db:"user_updated_at" json:"user_updated_at"`
 	Count              int64              `db:"count" json:"count"`
@@ -12702,6 +12721,7 @@ func (q *sqlQuerier) PaginatedOrganizationMembers(ctx context.Context, arg Pagin
 		arg.IncludeSystem,
 		arg.GithubComUserID,
 		pq.Array(arg.LoginType),
+		arg.IsServiceAccount,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -12726,6 +12746,7 @@ func (q *sqlQuerier) PaginatedOrganizationMembers(ctx context.Context, arg Pagin
 			&i.LastSeenAt,
 			&i.Status,
 			&i.LoginType,
+			&i.IsServiceAccount,
 			&i.UserCreatedAt,
 			&i.UserUpdatedAt,
 			&i.Count,
@@ -21501,11 +21522,12 @@ WHERE
 			created_at >= $9
 		ELSE true
 	END
-  	AND CASE
-  	    WHEN $10::bool THEN TRUE
-  	    ELSE
-			is_system = false
+	-- Filter by system type
+	AND CASE
+		WHEN $10::bool THEN TRUE
+		ELSE is_system = false
 	END
+	-- Filter by github.com user ID
 	AND CASE
 		WHEN $11 :: bigint != 0 THEN
 			github_com_user_id = $11
@@ -21517,33 +21539,40 @@ WHERE
 			login_type = ANY($12 :: login_type[])
 		ELSE true
 	END
+	-- Filter by service account.
+	AND CASE
+		WHEN $13 :: boolean IS NOT NULL THEN
+			is_service_account = $13 :: boolean
+		ELSE true
+	END
 	-- End of filters
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
 	-- @authorize_filter
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $13
+	LOWER(username) ASC OFFSET $14
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($14 :: int, 0)
+	NULLIF($15 :: int, 0)
 `
 
 type GetUsersParams struct {
-	AfterID         uuid.UUID    `db:"after_id" json:"after_id"`
-	Search          string       `db:"search" json:"search"`
-	Name            string       `db:"name" json:"name"`
-	Status          []UserStatus `db:"status" json:"status"`
-	RbacRole        []string     `db:"rbac_role" json:"rbac_role"`
-	LastSeenBefore  time.Time    `db:"last_seen_before" json:"last_seen_before"`
-	LastSeenAfter   time.Time    `db:"last_seen_after" json:"last_seen_after"`
-	CreatedBefore   time.Time    `db:"created_before" json:"created_before"`
-	CreatedAfter    time.Time    `db:"created_after" json:"created_after"`
-	IncludeSystem   bool         `db:"include_system" json:"include_system"`
-	GithubComUserID int64        `db:"github_com_user_id" json:"github_com_user_id"`
-	LoginType       []LoginType  `db:"login_type" json:"login_type"`
-	OffsetOpt       int32        `db:"offset_opt" json:"offset_opt"`
-	LimitOpt        int32        `db:"limit_opt" json:"limit_opt"`
+	AfterID          uuid.UUID    `db:"after_id" json:"after_id"`
+	Search           string       `db:"search" json:"search"`
+	Name             string       `db:"name" json:"name"`
+	Status           []UserStatus `db:"status" json:"status"`
+	RbacRole         []string     `db:"rbac_role" json:"rbac_role"`
+	LastSeenBefore   time.Time    `db:"last_seen_before" json:"last_seen_before"`
+	LastSeenAfter    time.Time    `db:"last_seen_after" json:"last_seen_after"`
+	CreatedBefore    time.Time    `db:"created_before" json:"created_before"`
+	CreatedAfter     time.Time    `db:"created_after" json:"created_after"`
+	IncludeSystem    bool         `db:"include_system" json:"include_system"`
+	GithubComUserID  int64        `db:"github_com_user_id" json:"github_com_user_id"`
+	LoginType        []LoginType  `db:"login_type" json:"login_type"`
+	IsServiceAccount sql.NullBool `db:"is_service_account" json:"is_service_account"`
+	OffsetOpt        int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt         int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetUsersRow struct {
@@ -21585,6 +21614,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 		arg.IncludeSystem,
 		arg.GithubComUserID,
 		pq.Array(arg.LoginType),
+		arg.IsServiceAccount,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

@@ -4556,6 +4556,7 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 	readonly last_seen_at?: string;
 	readonly user_created_at: string;
 	readonly user_updated_at: string;
+	readonly is_service_account?: boolean;
 	readonly global_roles: readonly SlimRole[];
 }
 

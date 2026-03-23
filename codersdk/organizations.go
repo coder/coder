@@ -82,6 +82,7 @@ type OrganizationMemberWithUserData struct {
 	LastSeenAt         time.Time  `table:"last seen at" json:"last_seen_at,omitempty" format:"date-time"`
 	UserCreatedAt      time.Time  `table:"user created at" json:"user_created_at" format:"date-time"`
 	UserUpdatedAt      time.Time  `table:"user updated at" json:"user_updated_at" format:"date-time"`
+	IsServiceAccount   bool       `json:"is_service_account,omitempty"`
 	GlobalRoles        []SlimRole `json:"global_roles"`
 	OrganizationMember `table:"m,recursive_inline"`
 }

@@ -6016,6 +6016,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "organization_id": "string"
     }
   ],
+  "is_service_account": true,
   "last_seen_at": "2019-08-24T14:15:22Z",
   "login_type": "",
   "name": "string",
@@ -6038,23 +6039,24 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name              | Type                                            | Required | Restrictions | Description |
-|-------------------|-------------------------------------------------|----------|--------------|-------------|
-| `avatar_url`      | string                                          | false    |              |             |
-| `created_at`      | string                                          | false    |              |             |
-| `email`           | string                                          | false    |              |             |
-| `global_roles`    | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
-| `last_seen_at`    | string                                          | false    |              |             |
-| `login_type`      | [codersdk.LoginType](#codersdklogintype)        | false    |              |             |
-| `name`            | string                                          | false    |              |             |
-| `organization_id` | string                                          | false    |              |             |
-| `roles`           | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
-| `status`          | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
-| `updated_at`      | string                                          | false    |              |             |
-| `user_created_at` | string                                          | false    |              |             |
-| `user_id`         | string                                          | false    |              |             |
-| `user_updated_at` | string                                          | false    |              |             |
-| `username`        | string                                          | false    |              |             |
+| Name                 | Type                                            | Required | Restrictions | Description |
+|----------------------|-------------------------------------------------|----------|--------------|-------------|
+| `avatar_url`         | string                                          | false    |              |             |
+| `created_at`         | string                                          | false    |              |             |
+| `email`              | string                                          | false    |              |             |
+| `global_roles`       | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
+| `is_service_account` | boolean                                         | false    |              |             |
+| `last_seen_at`       | string                                          | false    |              |             |
+| `login_type`         | [codersdk.LoginType](#codersdklogintype)        | false    |              |             |
+| `name`               | string                                          | false    |              |             |
+| `organization_id`    | string                                          | false    |              |             |
+| `roles`              | array of [codersdk.SlimRole](#codersdkslimrole) | false    |              |             |
+| `status`             | [codersdk.UserStatus](#codersdkuserstatus)      | false    |              |             |
+| `updated_at`         | string                                          | false    |              |             |
+| `user_created_at`    | string                                          | false    |              |             |
+| `user_id`            | string                                          | false    |              |             |
+| `user_updated_at`    | string                                          | false    |              |             |
+| `username`           | string                                          | false    |              |             |
 
 #### Enumerated Values
 
@@ -6318,6 +6320,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
           "organization_id": "string"
         }
       ],
+      "is_service_account": true,
       "last_seen_at": "2019-08-24T14:15:22Z",
       "login_type": "",
       "name": "string",

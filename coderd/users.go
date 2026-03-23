@@ -353,17 +353,18 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 	}
 
 	userRows, err := api.Database.GetUsers(ctx, database.GetUsersParams{
-		AfterID:         paginationParams.AfterID,
-		Search:          params.Search,
-		Name:            params.Name,
-		Status:          params.Status,
-		RbacRole:        params.RbacRole,
-		LastSeenBefore:  params.LastSeenBefore,
-		LastSeenAfter:   params.LastSeenAfter,
-		CreatedAfter:    params.CreatedAfter,
-		CreatedBefore:   params.CreatedBefore,
-		GithubComUserID: params.GithubComUserID,
-		LoginType:       params.LoginType,
+		AfterID:          paginationParams.AfterID,
+		Search:           params.Search,
+		Name:             params.Name,
+		Status:           params.Status,
+		IsServiceAccount: params.IsServiceAccount,
+		RbacRole:         params.RbacRole,
+		LastSeenBefore:   params.LastSeenBefore,
+		LastSeenAfter:    params.LastSeenAfter,
+		CreatedAfter:     params.CreatedAfter,
+		CreatedBefore:    params.CreatedBefore,
+		GithubComUserID:  params.GithubComUserID,
+		LoginType:        params.LoginType,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
