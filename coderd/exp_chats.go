@@ -2831,16 +2831,9 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 	})
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Get user chat compaction thresholds
-// @ID get-user-chat-compaction-thresholds
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Chats
-// @Success 200 {object} codersdk.UserChatCompactionThresholds
-// @Router /chats/config/user-compaction-thresholds [get]
 // @x-apidocgen {"skip": true}
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatCompactionThresholds(rw http.ResponseWriter, r *http.Request) {
@@ -2899,19 +2892,9 @@ func (api *API) getUserChatCompactionThresholds(rw http.ResponseWriter, r *http.
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Set user chat compaction threshold for a model config
-// @ID put-user-chat-compaction-threshold
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Chats
-// @Param modelConfig path string true "Model config ID" format(uuid)
-// @Param request body codersdk.UpdateUserChatCompactionThresholdRequest true "Threshold request"
-// @Success 200 {object} codersdk.UserChatCompactionThreshold
-// @Router /chats/config/user-compaction-thresholds/{modelConfig} [put]
 // @x-apidocgen {"skip": true}
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) putUserChatCompactionThreshold(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -2979,16 +2962,9 @@ func (api *API) putUserChatCompactionThreshold(rw http.ResponseWriter, r *http.R
 	})
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Delete user chat compaction threshold for a model config
-// @ID delete-user-chat-compaction-threshold
-// @Security CoderSessionToken
-// @Tags Chats
-// @Param modelConfig path string true "Model config ID" format(uuid)
-// @Success 204
-// @Router /chats/config/user-compaction-thresholds/{modelConfig} [delete]
 // @x-apidocgen {"skip": true}
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()

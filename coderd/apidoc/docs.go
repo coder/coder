@@ -481,114 +481,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/chats/config/user-compaction-thresholds": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get user chat compaction thresholds",
-                "operationId": "get-user-chat-compaction-thresholds",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UserChatCompactionThresholds"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
-        "/chats/config/user-compaction-thresholds/{modelConfig}": {
-            "put": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Set user chat compaction threshold for a model config",
-                "operationId": "put-user-chat-compaction-threshold",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Model config ID",
-                        "name": "modelConfig",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Threshold request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateUserChatCompactionThresholdRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UserChatCompactionThreshold"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
-            "delete": {
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Delete user chat compaction threshold for a model config",
-                "operationId": "delete-user-chat-compaction-threshold",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Model config ID",
-                        "name": "modelConfig",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/chats/insights/pull-requests": {
             "get": {
                 "produces": [
@@ -20796,16 +20688,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.UpdateUserChatCompactionThresholdRequest": {
-            "type": "object",
-            "properties": {
-                "threshold_percent": {
-                    "type": "integer",
-                    "maximum": 100,
-                    "minimum": 0
-                }
-            }
-        },
         "codersdk.UpdateUserNotificationPreferences": {
             "type": "object",
             "properties": {
@@ -21186,29 +21068,6 @@ const docTemplate = `{
                 },
                 "theme_preference": {
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.UserChatCompactionThreshold": {
-            "type": "object",
-            "properties": {
-                "model_config_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "threshold_percent": {
-                    "type": "integer"
-                }
-            }
-        },
-        "codersdk.UserChatCompactionThresholds": {
-            "type": "object",
-            "properties": {
-                "thresholds": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.UserChatCompactionThreshold"
-                    }
                 }
             }
         },

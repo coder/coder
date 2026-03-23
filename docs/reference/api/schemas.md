@@ -9995,20 +9995,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |             |
 | `theme_preference` | string                                                 | true     |              |             |
 
-## codersdk.UpdateUserChatCompactionThresholdRequest
-
-```json
-{
-  "threshold_percent": 100
-}
-```
-
-### Properties
-
-| Name                | Type    | Required | Restrictions | Description |
-|---------------------|---------|----------|--------------|-------------|
-| `threshold_percent` | integer | false    |              |             |
-
 ## codersdk.UpdateUserNotificationPreferences
 
 ```json
@@ -10464,41 +10450,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |--------------------|--------------------------------------------------------|----------|--------------|-------------|
 | `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |             |
 | `theme_preference` | string                                                 | false    |              |             |
-
-## codersdk.UserChatCompactionThreshold
-
-```json
-{
-  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-  "threshold_percent": 0
-}
-```
-
-### Properties
-
-| Name                | Type    | Required | Restrictions | Description |
-|---------------------|---------|----------|--------------|-------------|
-| `model_config_id`   | string  | false    |              |             |
-| `threshold_percent` | integer | false    |              |             |
-
-## codersdk.UserChatCompactionThresholds
-
-```json
-{
-  "thresholds": [
-    {
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-      "threshold_percent": 0
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name         | Type                                                                                  | Required | Restrictions | Description |
-|--------------|---------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `thresholds` | array of [codersdk.UserChatCompactionThreshold](#codersdkuserchatcompactionthreshold) | false    |              |             |
 
 ## codersdk.UserLatency
 
