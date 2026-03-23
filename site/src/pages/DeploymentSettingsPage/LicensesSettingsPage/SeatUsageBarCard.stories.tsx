@@ -49,3 +49,16 @@ export const ErrorInvalidLimit: Story = {
 		limit: undefined,
 	},
 };
+
+export const Unlimited: Story = {
+	args: {
+		actual: 1923,
+		limit: undefined,
+		allowUnlimited: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("1,923")).toBeInTheDocument();
+		await expect(canvas.getByText("Unlimited")).toBeInTheDocument();
+	},
+};

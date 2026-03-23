@@ -173,6 +173,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 								title="Premium usage"
 								actual={userLimitActual}
 								limit={userLimitLimit}
+								allowUnlimited
 							/>
 							<AIGovernanceUsersConsumption
 								aiGovernanceUserFeature={aiGovernanceUserFeature}
