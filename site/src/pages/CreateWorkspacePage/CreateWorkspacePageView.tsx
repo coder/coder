@@ -114,6 +114,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	const [showPresetParameters, setShowPresetParameters] = useState(false);
 	const id = useId();
 	const workspaceNameInputRef = useRef<HTMLInputElement>(null);
+	const lastSentValuesRef = useRef<Map<string, string>>(new Map());
 	const rerollSuggestedName = useCallback(() => {
 		setSuggestedName(() => generateWorkspaceName());
 	}, []);
@@ -236,6 +237,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				}
 			}
 
+			lastSentValuesRef.current = new Map(Object.entries(formInputs));
 			sendMessage(formInputs, ownerId);
 		},
 		500,
@@ -346,6 +348,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		parameters,
 		formValues: form.values.rich_parameter_values ?? [],
 		setFieldValue: form.setFieldValue,
+		lastSentValues: lastSentValuesRef,
 	});
 
 	const disabled =

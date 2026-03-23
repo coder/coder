@@ -16,7 +16,7 @@ import {
 	getInitialParameterValues,
 	useValidationSchemaForDynamicParameters,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
-import type { FC } from "react";
+import { type FC, useRef } from "react";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import type { AutofillBuildParameter } from "utils/richParameters";
@@ -69,6 +69,8 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		workspace.template_require_active_version &&
 		!canChangeVersions;
 
+	const lastSentValuesRef = useRef<Map<string, string>>(new Map());
+
 	// Debounce websocket sends to avoid stale responses overwriting
 	// the form while the user is still typing.
 	const { debounced: sendDynamicParamsRequest } = useDebouncedFunction(
@@ -81,6 +83,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 				}
 			}
 			formInputs[parameter.name] = value;
+			lastSentValuesRef.current = new Map(Object.entries(formInputs));
 			sendMessage(formInputs);
 		},
 		500,
@@ -102,6 +105,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		parameters,
 		formValues: form.values.rich_parameter_values ?? [],
 		setFieldValue: form.setFieldValue,
+		lastSentValues: lastSentValuesRef,
 	});
 
 	// True when the form holds values the backend hasn't evaluated
