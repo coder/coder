@@ -284,7 +284,9 @@ const DIFF_HEADER_CSS = [
 	// Stat counts styled as compact pill badges.
 	"[data-diffs-header] [data-metadata] {",
 	"  flex-direction: row-reverse;",
+	"  align-items: stretch;",
 	"  gap: 0 !important;",
+	"  padding: 0;",
 	"  border: 1px solid hsl(var(--border-default));",
 	"  border-radius: 3px;",
 	"  overflow: hidden;",
