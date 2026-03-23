@@ -17,7 +17,7 @@ export const ProposePlanTool: React.FC<{
 	isError: boolean;
 	errorMessage?: string;
 }> = ({ content, path, status, isError, errorMessage }) => {
-	const hasContent = (content ?? "").trim().length > 0;
+	const hasContent = content.trim().length > 0;
 	const isRunning = status === "running";
 	const filename = (path || "PLAN.md").split("/").pop() || "PLAN.md";
 

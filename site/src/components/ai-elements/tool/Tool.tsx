@@ -378,7 +378,7 @@ const ProposePlanRenderer: FC<ToolRendererProps> = ({
 	const rec = asRecord(result);
 	const content = rec ? asString(rec.content) : "";
 	const errorMessage = isError
-		? (rec ? asString(rec.error) : undefined) ||
+		? (rec ? asString(rec.error || rec.message) : undefined) ||
 			(typeof result === "string" ? result : undefined)
 		: undefined;
 
