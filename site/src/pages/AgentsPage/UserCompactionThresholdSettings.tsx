@@ -205,7 +205,7 @@ export const UserCompactionThresholdSettings: FC<
 								<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 									<div className="flex-1">
 										<span className="text-sm font-medium text-content-primary">
-											{modelConfig.display_name}
+											{modelConfig.display_name || modelConfig.model}
 										</span>
 										<span className="ml-2 text-xs text-content-secondary">
 											System default: {modelConfig.compression_threshold}%
@@ -213,7 +213,7 @@ export const UserCompactionThresholdSettings: FC<
 									</div>
 									<div className="flex flex-wrap items-center gap-2 sm:justify-end">
 										<Input
-											aria-label={`${modelConfig.display_name} compaction threshold`}
+											aria-label={`${modelConfig.display_name || modelConfig.model} compaction threshold`}
 											type="number"
 											min={0}
 											max={100}
