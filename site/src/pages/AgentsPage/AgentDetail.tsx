@@ -232,6 +232,26 @@ export function useConversationEditingState(deps: {
 	};
 }
 
+/**
+ * Resolves the effective compaction threshold for a model configuration,
+ * preferring the user's override when set.
+ */
+function resolveCompressionThreshold(
+	modelConfigID: string | undefined,
+	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
+	modelConfigs: readonly TypesGen.ChatModelConfig[],
+): number | undefined {
+	if (!modelConfigID) return undefined;
+	const userOverride = userThresholds?.find(
+		(t) => t.model_config_id === modelConfigID,
+	);
+	if (userOverride) {
+		return userOverride.threshold_percent;
+	}
+	return modelConfigs.find((c) => c.id === modelConfigID)
+		?.compression_threshold;
+}
+
 const AgentDetail: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	const {
@@ -494,17 +514,11 @@ const AgentDetail: FC = () => {
 		return modelOptions[0]?.id ?? "";
 	})();
 
-	const compressionThreshold = (() => {
-		if (!chatLastModelConfigID) return undefined;
-		const userOverride = userThresholdsQuery.data?.thresholds.find(
-			(t) => t.model_config_id === chatLastModelConfigID,
-		);
-		if (userOverride) {
-			return userOverride.threshold_percent;
-		}
-		return modelConfigs.find((c) => c.id === chatLastModelConfigID)
-			?.compression_threshold;
-	})();
+	const compressionThreshold = resolveCompressionThreshold(
+		chatLastModelConfigID,
+		userThresholdsQuery.data?.thresholds,
+		modelConfigs,
+	);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
