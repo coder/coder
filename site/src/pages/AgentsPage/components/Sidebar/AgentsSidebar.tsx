@@ -17,6 +17,7 @@ import {
 } from "components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
 import { Spinner } from "components/Spinner/Spinner";
@@ -704,6 +705,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								<CoderIcon className="h-6 w-6 fill-content-primary" />
 							)}
 						</NavLink>
+						<FeatureStageBadge contentType="early_access" size="sm" />
 						<div className="flex items-center gap-0.5 -mr-1.5">
 							<Button
 								asChild
