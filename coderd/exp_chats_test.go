@@ -5074,7 +5074,8 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	t.Run("IsolatedPerUser", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		memberClient, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		override, err := client.UpdateUserChatCompactionThreshold(ctx, modelConfig.ID, codersdk.UpdateUserChatCompactionThresholdRequest{
 			ThresholdPercent: 75,

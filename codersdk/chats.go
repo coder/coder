@@ -1444,7 +1444,7 @@ func (c *ExperimentalClient) UpdateUserChatCustomPrompt(ctx context.Context, req
 
 // GetUserChatCompactionThresholds fetches the user's per-model chat
 // compaction thresholds.
-func (c *Client) GetUserChatCompactionThresholds(ctx context.Context) (UserChatCompactionThresholds, error) {
+func (c *ExperimentalClient) GetUserChatCompactionThresholds(ctx context.Context) (UserChatCompactionThresholds, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-compaction-thresholds", nil)
 	if err != nil {
 		return UserChatCompactionThresholds{}, err
@@ -1459,7 +1459,7 @@ func (c *Client) GetUserChatCompactionThresholds(ctx context.Context) (UserChatC
 
 // UpdateUserChatCompactionThreshold updates the user's per-model chat
 // compaction threshold.
-func (c *Client) UpdateUserChatCompactionThreshold(ctx context.Context, modelConfigID uuid.UUID, req UpdateUserChatCompactionThresholdRequest) (UserChatCompactionThreshold, error) {
+func (c *ExperimentalClient) UpdateUserChatCompactionThreshold(ctx context.Context, modelConfigID uuid.UUID, req UpdateUserChatCompactionThresholdRequest) (UserChatCompactionThreshold, error) {
 	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/config/user-compaction-thresholds/%s", modelConfigID), req)
 	if err != nil {
 		return UserChatCompactionThreshold{}, err
@@ -1474,7 +1474,7 @@ func (c *Client) UpdateUserChatCompactionThreshold(ctx context.Context, modelCon
 
 // DeleteUserChatCompactionThreshold deletes the user's per-model chat
 // compaction threshold override.
-func (c *Client) DeleteUserChatCompactionThreshold(ctx context.Context, modelConfigID uuid.UUID) error {
+func (c *ExperimentalClient) DeleteUserChatCompactionThreshold(ctx context.Context, modelConfigID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/config/user-compaction-thresholds/%s", modelConfigID), nil)
 	if err != nil {
 		return err
