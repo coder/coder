@@ -4950,6 +4950,665 @@ func TestChatWorkspaceTTL(t *testing.T) {
 	requireSDKError(t, err, http.StatusBadRequest)
 }
 
+func TestGetChatUIMessages(t *testing.T) {
+	t.Parallel()
+
+	// marshalParts is a test helper that encodes SDK chat message parts
+	// into a JSON string suitable for InsertChatMessages content.
+	marshalParts := func(t *testing.T, parts []codersdk.ChatMessagePart) string {
+		t.Helper()
+		encoded, err := chatprompt.MarshalParts(parts)
+		require.NoError(t, err)
+		return string(encoded.RawMessage)
+	}
+
+	// insertMessages is a test helper that batch-inserts messages into a
+	// chat. Each message is described by a role, content parts, and a
+	// created-by UUID (uuid.Nil for assistant/tool, user ID for user).
+	type testMsg struct {
+		role    database.ChatMessageRole
+		parts   []codersdk.ChatMessagePart
+		creator uuid.UUID
+	}
+	insertMessages := func(
+		t *testing.T,
+		ctx context.Context,
+		db database.Store,
+		chatID uuid.UUID,
+		modelConfigID uuid.UUID,
+		msgs []testMsg,
+	) []database.ChatMessage {
+		t.Helper()
+		n := len(msgs)
+		roles := make([]database.ChatMessageRole, n)
+		contents := make([]string, n)
+		creators := make([]uuid.UUID, n)
+		modelIDs := make([]uuid.UUID, n)
+		versions := make([]int16, n)
+		visibilities := make([]database.ChatMessageVisibility, n)
+		inputTokens := make([]int64, n)
+		outputTokens := make([]int64, n)
+		totalTokens := make([]int64, n)
+		reasoningTokens := make([]int64, n)
+		cacheCreationTokens := make([]int64, n)
+		cacheReadTokens := make([]int64, n)
+		contextLimits := make([]int64, n)
+		compressed := make([]bool, n)
+		totalCostMicros := make([]int64, n)
+		runtimeMs := make([]int64, n)
+		for i, m := range msgs {
+			roles[i] = m.role
+			contents[i] = marshalParts(t, m.parts)
+			creators[i] = m.creator
+			modelIDs[i] = modelConfigID
+			versions[i] = chatprompt.CurrentContentVersion
+			visibilities[i] = database.ChatMessageVisibilityBoth
+		}
+		results, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+			ChatID:              chatID,
+			CreatedBy:           creators,
+			ModelConfigID:       modelIDs,
+			Role:                roles,
+			Content:             contents,
+			ContentVersion:      versions,
+			Visibility:          visibilities,
+			InputTokens:         inputTokens,
+			OutputTokens:        outputTokens,
+			TotalTokens:         totalTokens,
+			ReasoningTokens:     reasoningTokens,
+			CacheCreationTokens: cacheCreationTokens,
+			CacheReadTokens:     cacheReadTokens,
+			ContextLimit:        contextLimits,
+			Compressed:          compressed,
+			TotalCostMicros:     totalCostMicros,
+			RuntimeMs:           runtimeMs,
+		})
+		require.NoError(t, err)
+		require.Len(t, results, n)
+		return results
+	}
+
+	t.Run("EmptyChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "empty-chat",
+		})
+		require.NoError(t, err)
+
+		resp, err := client.GetChatUIMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Empty(t, resp.Messages)
+		require.Empty(t, resp.WorkingBlocks)
+		require.False(t, resp.HasMore)
+	})
+
+	t.Run("SimpleQA", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "simple-qa",
+		})
+		require.NoError(t, err)
+
+		inserted := insertMessages(t, ctx, db, chat.ID, modelConfig.ID, []testMsg{
+			{
+				role:    database.ChatMessageRoleUser,
+				parts:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("Hello")},
+				creator: user.UserID,
+			},
+			{
+				role:    database.ChatMessageRoleAssistant,
+				parts:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("Hi there!")},
+				creator: uuid.Nil,
+			},
+		})
+
+		resp, err := client.GetChatUIMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, resp.Messages, 2)
+		require.Empty(t, resp.WorkingBlocks)
+		require.False(t, resp.HasMore)
+
+		// First message is the user message, second is assistant.
+		require.Equal(t, codersdk.ChatMessageRoleUser, resp.Messages[0].Role)
+		require.Equal(t, inserted[0].ID, resp.Messages[0].ID)
+		require.Equal(t, codersdk.ChatMessageRoleAssistant, resp.Messages[1].Role)
+		require.Equal(t, inserted[1].ID, resp.Messages[1].ID)
+
+		// Verify content was decoded.
+		require.Len(t, resp.Messages[0].Content, 1)
+		require.Equal(t, codersdk.ChatMessagePartTypeText, resp.Messages[0].Content[0].Type)
+		require.Equal(t, "Hello", resp.Messages[0].Content[0].Text)
+	})
+
+	t.Run("SingleToolCallTurn", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "single-tool-call",
+		})
+		require.NoError(t, err)
+
+		// User → assistant(text + tool-call) → tool(result) →
+		// assistant(final text).
+		inserted := insertMessages(t, ctx, db, chat.ID, modelConfig.ID, []testMsg{
+			{
+				role:    database.ChatMessageRoleUser,
+				parts:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("Read /foo")},
+				creator: user.UserID,
+			},
+			{
+				role: database.ChatMessageRoleAssistant,
+				parts: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("Let me check"),
+					codersdk.ChatMessageToolCall("call_1", "read_file", json.RawMessage(`{"path":"/foo"}`)),
+				},
+				creator: uuid.Nil,
+			},
+			{
+				role: database.ChatMessageRoleTool,
+				parts: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageToolResult("call_1", "read_file", json.RawMessage(`"file contents"`), false),
+				},
+				creator: uuid.Nil,
+			},
+			{
+				role:    database.ChatMessageRoleAssistant,
+				parts:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("Done, the file says...")},
+				creator: uuid.Nil,
+			},
+		})
+
+		resp, err := client.GetChatUIMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+
+		// Should return 3 boundary messages: user, first assistant,
+		// final assistant. The tool result is interior.
+		require.Len(t, resp.Messages, 3)
+		require.Equal(t, inserted[0].ID, resp.Messages[0].ID) // user
+		require.Equal(t, inserted[1].ID, resp.Messages[1].ID) // first assistant
+		require.Equal(t, inserted[3].ID, resp.Messages[2].ID) // final assistant
+
+		// One working block with interior_count=1 (the tool result).
+		require.Len(t, resp.WorkingBlocks, 1)
+		wb := resp.WorkingBlocks[0]
+		require.Equal(t, 1, wb.MessageCount)
+		require.Equal(t, inserted[1].ID, wb.AfterMessageID)
+		require.Equal(t, inserted[3].ID, wb.BeforeMessageID)
+		require.NotNil(t, wb.EndedAt, "completed turn should have ended_at")
+		require.False(t, resp.HasMore)
+	})
+
+	t.Run("MultipleToolCallSteps", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "multi-tool-call",
+		})
+		require.NoError(t, err)
+
+		// User → assistant(text + tool-call) → tool(result) →
+		// assistant(text + tool-call) → tool(result) →
+		// assistant(final text).
+		inserted := insertMessages(t, ctx, db, chat.ID, modelConfig.ID, []testMsg{
+			{
+				role:    database.ChatMessageRoleUser,
+				parts:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("Read two files")},
+				creator: user.UserID,
+			},
+			{
+				role: database.ChatMessageRoleAssistant,
+				parts: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("Reading first file"),
+					codersdk.ChatMessageToolCall("call_1", "read_file", json.RawMessage(`{"path":"/a"}`)),
+				},
+				creator: uuid.Nil,
+			},
+			{
+				role: database.ChatMessageRoleTool,
+				parts: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageToolResult("call_1", "read_file", json.RawMessage(`"content a"`), false),
+				},
+				creator: uuid.Nil,
+			},
+			{
+				role: database.ChatMessageRoleAssistant,
+				parts: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("Now the second"),
+					codersdk.ChatMessageToolCall("call_2", "read_file", json.RawMessage(`{"path":"/b"}`)),
+				},
+				creator: uuid.Nil,
+			},
+			{
+				role: database.ChatMessageRoleTool,
+				parts: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageToolResult("call_2", "read_file", json.RawMessage(`"content b"`), false),
+				},
+				creator: uuid.Nil,
+			},
+			{
+				role:    database.ChatMessageRoleAssistant,
+				parts:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("Both files read")},
+				creator: uuid.Nil,
+			},
+		})
+
+		resp, err := client.GetChatUIMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+
+		// 3 boundary messages: user, first assistant, final assistant.
+		require.Len(t, resp.Messages, 3)
+		require.Equal(t, inserted[0].ID, resp.Messages[0].ID) // user
+		require.Equal(t, inserted[1].ID, resp.Messages[1].ID) // first assistant
+		require.Equal(t, inserted[5].ID, resp.Messages[2].ID) // final assistant
+
+		// 1 working block with 3 interior messages (tool, assistant,
+		// tool).
+		require.Len(t, resp.WorkingBlocks, 1)
+		wb := resp.WorkingBlocks[0]
+		require.Equal(t, 3, wb.MessageCount)
+		require.Equal(t, inserted[1].ID, wb.AfterMessageID)
+		require.Equal(t, inserted[5].ID, wb.BeforeMessageID)
+		require.NotNil(t, wb.EndedAt)
+		require.False(t, resp.HasMore)
+	})
+
+	t.Run("MultipleTurnsPagination", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "multi-turn-pagination",
+		})
+		require.NoError(t, err)
+
+		// Turn 1: simple Q&A.
+		turn1 := insertMessages(t, ctx, db, chat.ID, modelConfig.ID, []testMsg{
+			{
+				role:    database.ChatMessageRoleUser,
+				parts:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("First question")},
+				creator: user.UserID,
+			},
+			{
+				role:    database.ChatMessageRoleAssistant,
+				parts:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("First answer")},
+				creator: uuid.Nil,
+			},
+		})
+
+		// Turn 2: Q&A with a tool call.
+		turn2 := insertMessages(t, ctx, db, chat.ID, modelConfig.ID, []testMsg{
+			{
+				role:    database.ChatMessageRoleUser,
+				parts:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("Second question")},
+				creator: user.UserID,
+			},
+			{
+				role: database.ChatMessageRoleAssistant,
+				parts: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("Checking"),
+					codersdk.ChatMessageToolCall("call_t2", "ls", json.RawMessage(`{}`)),
+				},
+				creator: uuid.Nil,
+			},
+			{
+				role: database.ChatMessageRoleTool,
+				parts: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageToolResult("call_t2", "ls", json.RawMessage(`"files"`), false),
+				},
+				creator: uuid.Nil,
+			},
+			{
+				role:    database.ChatMessageRoleAssistant,
+				parts:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("Here are the files")},
+				creator: uuid.Nil,
+			},
+		})
+
+		// Page 1: limit=1 should return only the latest turn (turn 2)
+		// and indicate more.
+		page1, err := client.GetChatUIMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+			Limit: 1,
+		})
+		require.NoError(t, err)
+		require.True(t, page1.HasMore)
+
+		// Turn 2 has 3 boundary messages.
+		require.Len(t, page1.Messages, 3)
+		require.Equal(t, turn2[0].ID, page1.Messages[0].ID) // user
+		require.Equal(t, turn2[1].ID, page1.Messages[1].ID) // first assistant
+		require.Equal(t, turn2[3].ID, page1.Messages[2].ID) // final assistant
+		require.Len(t, page1.WorkingBlocks, 1)
+
+		// Page 2: paginate before the turn-2 user message ID to get
+		// turn 1.
+		page2, err := client.GetChatUIMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+			BeforeID: turn2[0].ID,
+			Limit:    1,
+		})
+		require.NoError(t, err)
+		require.False(t, page2.HasMore)
+
+		// Turn 1 is simple Q&A — 2 messages, no working blocks.
+		require.Len(t, page2.Messages, 2)
+		require.Equal(t, turn1[0].ID, page2.Messages[0].ID)
+		require.Equal(t, turn1[1].ID, page2.Messages[1].ID)
+		require.Empty(t, page2.WorkingBlocks)
+	})
+
+	t.Run("StillWorkingNoFinalText", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Mark the chat as running so the working block stays active.
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "still-working",
+		})
+		require.NoError(t, err)
+
+		// User → assistant(text + tool-call) → tool(result) → no
+		// final assistant yet.
+		inserted := insertMessages(t, ctx, db, chat.ID, modelConfig.ID, []testMsg{
+			{
+				role:    database.ChatMessageRoleUser,
+				parts:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("Do something")},
+				creator: user.UserID,
+			},
+			{
+				role: database.ChatMessageRoleAssistant,
+				parts: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("On it"),
+					codersdk.ChatMessageToolCall("call_w", "run_cmd", json.RawMessage(`{"cmd":"make"}`)),
+				},
+				creator: uuid.Nil,
+			},
+			{
+				role: database.ChatMessageRoleTool,
+				parts: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageToolResult("call_w", "run_cmd", json.RawMessage(`"ok"`), false),
+				},
+				creator: uuid.Nil,
+			},
+		})
+
+		// Transition the chat to running so the working block stays
+		// open.
+		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusRunning,
+		})
+		require.NoError(t, err)
+
+		resp, err := client.GetChatUIMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+
+		// 2 boundary messages: user and first assistant. No final
+		// assistant exists.
+		require.Len(t, resp.Messages, 2)
+		require.Equal(t, inserted[0].ID, resp.Messages[0].ID)
+		require.Equal(t, inserted[1].ID, resp.Messages[1].ID)
+
+		// Working block should exist but without ended_at.
+		require.Len(t, resp.WorkingBlocks, 1)
+		wb := resp.WorkingBlocks[0]
+		require.Equal(t, 1, wb.MessageCount)
+		require.Equal(t, inserted[1].ID, wb.AfterMessageID)
+		require.Equal(t, int64(0), wb.BeforeMessageID, "before_message_id should be 0 when no final assistant")
+		require.Nil(t, wb.EndedAt, "active working block should not have ended_at")
+		require.False(t, resp.HasMore)
+	})
+
+	t.Run("OnlyToolCallNoInitialText", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "only-tool-call",
+		})
+		require.NoError(t, err)
+
+		// User → assistant(only tool-call, no text) → tool(result) →
+		// assistant(final text).
+		inserted := insertMessages(t, ctx, db, chat.ID, modelConfig.ID, []testMsg{
+			{
+				role:    database.ChatMessageRoleUser,
+				parts:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("Do it")},
+				creator: user.UserID,
+			},
+			{
+				role: database.ChatMessageRoleAssistant,
+				parts: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageToolCall("call_n", "write_file", json.RawMessage(`{"path":"/x"}`)),
+				},
+				creator: uuid.Nil,
+			},
+			{
+				role: database.ChatMessageRoleTool,
+				parts: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageToolResult("call_n", "write_file", json.RawMessage(`"done"`), false),
+				},
+				creator: uuid.Nil,
+			},
+			{
+				role:    database.ChatMessageRoleAssistant,
+				parts:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("File written")},
+				creator: uuid.Nil,
+			},
+		})
+
+		resp, err := client.GetChatUIMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+
+		// 3 boundary messages: user, first assistant (tool-call
+		// only), final assistant.
+		require.Len(t, resp.Messages, 3)
+		require.Equal(t, inserted[0].ID, resp.Messages[0].ID) // user
+		require.Equal(t, inserted[1].ID, resp.Messages[1].ID) // first assistant (tool-call only)
+		require.Equal(t, inserted[3].ID, resp.Messages[2].ID) // final assistant
+
+		// The first assistant has a tool-call, verify its content.
+		require.Len(t, resp.Messages[1].Content, 1)
+		require.Equal(t, codersdk.ChatMessagePartTypeToolCall, resp.Messages[1].Content[0].Type)
+
+		// Working block covers the tool result.
+		require.Len(t, resp.WorkingBlocks, 1)
+		wb := resp.WorkingBlocks[0]
+		require.Equal(t, 1, wb.MessageCount)
+		require.Equal(t, inserted[1].ID, wb.AfterMessageID)
+		require.Equal(t, inserted[3].ID, wb.BeforeMessageID)
+		require.NotNil(t, wb.EndedAt)
+		require.False(t, resp.HasMore)
+	})
+
+	t.Run("UserOnlyTurnNoAssistant", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := newChatClientWithDatabase(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		modelConfig := createChatModelConfig(t, client)
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "user-only",
+		})
+		require.NoError(t, err)
+
+		// Insert only a user message — no assistant response yet.
+		inserted := insertMessages(t, ctx, db, chat.ID, modelConfig.ID, []testMsg{
+			{role: database.ChatMessageRoleUser, parts: []codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeText, Text: "Hello?"},
+			}, creator: user.UserID},
+		})
+
+		resp, err := client.GetChatUIMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+
+		// Should return just the user message, no working blocks.
+		require.Len(t, resp.Messages, 1)
+		require.Equal(t, inserted[0].ID, resp.Messages[0].ID)
+		require.Equal(t, codersdk.ChatMessageRoleUser, resp.Messages[0].Role)
+		require.Empty(t, resp.WorkingBlocks)
+		require.False(t, resp.HasMore)
+	})
+
+	t.Run("SoftDeletedMessagesFiltered", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := newChatClientWithDatabase(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		modelConfig := createChatModelConfig(t, client)
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "soft-delete",
+		})
+		require.NoError(t, err)
+
+		// Insert a normal turn: user + assistant.
+		inserted := insertMessages(t, ctx, db, chat.ID, modelConfig.ID, []testMsg{
+			{role: database.ChatMessageRoleUser, parts: []codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeText, Text: "Hello"},
+			}, creator: user.UserID},
+			{role: database.ChatMessageRoleAssistant, parts: []codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeText, Text: "Hi there"},
+			}},
+		})
+
+		// Soft-delete the user message.
+		err = db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), inserted[0].ID)
+		require.NoError(t, err)
+
+		resp, err := client.GetChatUIMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+
+		// The deleted user message means no turn boundary, so no
+		// messages should be returned.
+		require.Empty(t, resp.Messages)
+		require.Empty(t, resp.WorkingBlocks)
+	})
+
+	t.Run("HistoricalTurnNotMarkedActive", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := newChatClientWithDatabase(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		modelConfig := createChatModelConfig(t, client)
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "historical",
+		})
+		require.NoError(t, err)
+
+		// Turn 1: complete turn with tool calls.
+		turn1 := insertMessages(t, ctx, db, chat.ID, modelConfig.ID, []testMsg{
+			{role: database.ChatMessageRoleUser, parts: []codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeText, Text: "Turn 1"},
+			}, creator: user.UserID},
+			{role: database.ChatMessageRoleAssistant, parts: []codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeText, Text: "Checking"},
+				{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "c1", ToolName: "read_file"},
+			}},
+			{role: database.ChatMessageRoleTool, parts: []codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeToolResult, ToolCallID: "c1", ToolName: "read_file"},
+			}},
+			{role: database.ChatMessageRoleAssistant, parts: []codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeText, Text: "Done with turn 1"},
+			}},
+		})
+
+		// Turn 2: incomplete turn (still working).
+		turn2 := insertMessages(t, ctx, db, chat.ID, modelConfig.ID, []testMsg{
+			{role: database.ChatMessageRoleUser, parts: []codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeText, Text: "Turn 2"},
+			}, creator: user.UserID},
+			{role: database.ChatMessageRoleAssistant, parts: []codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "c2", ToolName: "execute"},
+			}},
+			{role: database.ChatMessageRoleTool, parts: []codersdk.ChatMessagePart{
+				{Type: codersdk.ChatMessagePartTypeToolResult, ToolCallID: "c2", ToolName: "execute"},
+			}},
+		})
+
+		// Set chat to running.
+		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusRunning,
+		})
+		require.NoError(t, err)
+
+		// Page 2: fetch only turn 1 (the historical turn) by paginating
+		// past turn 2.
+		resp, err := client.GetChatUIMessages(ctx, chat.ID, &codersdk.ChatMessagesPaginationOptions{
+			BeforeID: turn2[0].ID, // cursor is turn 2's user message
+			Limit:    1,
+		})
+		require.NoError(t, err)
+
+		_ = turn1 // used for readability above
+
+		// Turn 1 should have a working block with EndedAt set even
+		// though the chat is running, because this is a historical
+		// turn (not the latest).
+		require.Len(t, resp.WorkingBlocks, 1)
+		wb := resp.WorkingBlocks[0]
+		require.NotNil(t, wb.EndedAt, "historical turn should have EndedAt even when chat is running")
+	})
+}
+
 func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Error {
 	t.Helper()
 

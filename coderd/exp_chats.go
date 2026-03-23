@@ -1143,6 +1143,79 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// getChatUIMessages returns boundary messages grouped by turn with
+// working-block metadata for collapsed tool-call sections.
+//
+// @Summary Get chat UI messages
+// @ID get-chat-ui-messages
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param before query int false "Cursor: user message ID to paginate before"
+// @Param limit query int false "Number of turns to return (max 50, default 20)"
+// @Success 200 {object} codersdk.ChatUIMessagesResponse
+// @Router /experimental/chats/{chat}/ui-messages [get]
+// @x-apidocgen {"skip": true}
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatUIMessages(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
+
+	queryParams := r.URL.Query()
+	parser := httpapi.NewQueryParamParser()
+	beforeID := parser.PositiveInt64(queryParams, 0, "before")
+	limit := parser.PositiveInt32(queryParams, 20, "limit")
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+	if limit < 1 || limit > 50 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid limit parameter (1-50).",
+		})
+		return
+	}
+
+	// Fetch limit+1 turns to detect whether more pages exist.
+	rows, err := api.Database.GetChatUIMessages(ctx, database.GetChatUIMessagesParams{
+		ChatID:   chatID,
+		BeforeID: beforeID,
+		LimitVal: limit + 1,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat UI messages.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Group rows into turns and build response.
+	isFirstPage := beforeID == 0
+	resp := buildUIMessagesResponse(rows, int(limit), chat.Status, isFirstPage)
+
+	// Only fetch queued messages on the first page.
+	if beforeID == 0 {
+		queuedMessages, err := api.Database.GetChatQueuedMessages(ctx, chatID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to get queued messages.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		resp.QueuedMessages = convertChatQueuedMessages(queuedMessages)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -3267,6 +3340,131 @@ func convertChatMessages(messages []database.ChatMessage) []codersdk.ChatMessage
 		result = append(result, convertChatMessage(m))
 	}
 	return result
+}
+
+// buildUIMessagesResponse groups GetChatUIMessagesRow results into
+// the ChatUIMessagesResponse structure. Each row is a boundary message
+// annotated with its turn's user message ID and working block stats.
+func buildUIMessagesResponse(rows []database.GetChatUIMessagesRow, limit int, chatStatus database.ChatStatus, isFirstPage bool) codersdk.ChatUIMessagesResponse {
+	type turnInfo struct {
+		messages         []codersdk.ChatMessage
+		interiorCount    int64
+		workStartedEpoch int64
+		workEndedEpoch   int64
+	}
+
+	// Group rows by turn (identified by turn_user_msg_id).
+	// Maintain insertion order.
+	turnOrder := []int64{}
+	turns := map[int64]*turnInfo{}
+
+	for _, row := range rows {
+		turnID := row.TurnUserMsgID
+		t, ok := turns[turnID]
+		if !ok {
+			t = &turnInfo{
+				interiorCount:    row.InteriorCount,
+				workStartedEpoch: row.WorkStartedAtEpoch,
+				workEndedEpoch:   row.WorkEndedAtEpoch,
+			}
+			turns[turnID] = t
+			turnOrder = append(turnOrder, turnID)
+		}
+
+		// Convert the row to a ChatMessage using the existing helper.
+		msg := db2sdk.ChatMessage(uiRowToChatMessage(row))
+		t.messages = append(t.messages, msg)
+	}
+
+	// Detect has_more: if we got more turns than the limit, trim.
+	hasMore := len(turnOrder) > limit
+	if hasMore {
+		turnOrder = turnOrder[:limit]
+	}
+
+	// Build flat message list and working blocks.
+	messages := []codersdk.ChatMessage{}
+	workingBlocks := []codersdk.ChatUIWorkingBlock{}
+
+	for _, turnID := range turnOrder {
+		t := turns[turnID]
+		isLatestTurn := isFirstPage && turnID == turnOrder[0]
+		isActive := isLatestTurn && (chatStatus == database.ChatStatusRunning || chatStatus == database.ChatStatusPending)
+
+		for _, msg := range t.messages {
+			messages = append(messages, msg)
+		}
+
+		// Build working block if there are interior messages.
+		if t.interiorCount > 0 {
+			var afterID, beforeID int64
+			if len(t.messages) > 0 {
+				// afterID is the first non-user message (first
+				// assistant), or the user message if there's only
+				// one message.
+				if len(t.messages) >= 2 {
+					afterID = t.messages[1].ID // first assistant
+				} else {
+					afterID = t.messages[0].ID // user message
+				}
+				// beforeID is the last message (final assistant),
+				// or 0 if still active.
+				if len(t.messages) >= 3 {
+					beforeID = t.messages[len(t.messages)-1].ID
+				}
+			}
+
+			startedAt := time.Unix(t.workStartedEpoch, 0)
+			wb := codersdk.ChatUIWorkingBlock{
+				AfterMessageID:  afterID,
+				BeforeMessageID: beforeID,
+				StartedAt:       startedAt,
+				MessageCount:    int(t.interiorCount),
+			}
+
+			if !isActive && t.workEndedEpoch > 0 {
+				endedAt := time.Unix(t.workEndedEpoch, 0)
+				wb.EndedAt = &endedAt
+			}
+
+			workingBlocks = append(workingBlocks, wb)
+		}
+	}
+
+	return codersdk.ChatUIMessagesResponse{
+		Messages:       messages,
+		WorkingBlocks:  workingBlocks,
+		QueuedMessages: []codersdk.ChatQueuedMessage{},
+		HasMore:        hasMore,
+	}
+}
+
+// uiRowToChatMessage converts a GetChatUIMessagesRow to a
+// database.ChatMessage so we can reuse the existing db2sdk.ChatMessage
+// converter.
+func uiRowToChatMessage(row database.GetChatUIMessagesRow) database.ChatMessage {
+	return database.ChatMessage{
+		ID:                  row.ID,
+		ChatID:              row.ChatID,
+		ModelConfigID:       row.ModelConfigID,
+		CreatedAt:           row.CreatedAt,
+		Role:                row.Role,
+		Content:             row.Content,
+		Visibility:          row.Visibility,
+		InputTokens:         row.InputTokens,
+		OutputTokens:        row.OutputTokens,
+		TotalTokens:         row.TotalTokens,
+		ReasoningTokens:     row.ReasoningTokens,
+		CacheCreationTokens: row.CacheCreationTokens,
+		CacheReadTokens:     row.CacheReadTokens,
+		ContextLimit:        row.ContextLimit,
+		Compressed:          row.Compressed,
+		CreatedBy:           row.CreatedBy,
+		ContentVersion:      row.ContentVersion,
+		TotalCostMicros:     row.TotalCostMicros,
+		RuntimeMs:           row.RuntimeMs,
+		Deleted:             row.Deleted,
+	}
 }
 
 func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {

@@ -252,6 +252,11 @@ type sqlcQuerier interface {
 	GetChatProviders(ctx context.Context) ([]ChatProvider, error)
 	GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
 	GetChatSystemPrompt(ctx context.Context) (string, error)
+	// Returns boundary messages (user, first assistant, last pure-text assistant)
+	// for each "turn" in a chat, plus lightweight working-block metadata.
+	// Interior tool-call/tool-result messages are omitted for efficiency.
+	// Pagination is by turn (user message ID) rather than raw message ID.
+	GetChatUIMessages(ctx context.Context, arg GetChatUIMessagesParams) ([]GetChatUIMessagesRow, error)
 	GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitConfig, error)
 	GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (GetChatUsageLimitGroupOverrideRow, error)
 	GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (GetChatUsageLimitUserOverrideRow, error)

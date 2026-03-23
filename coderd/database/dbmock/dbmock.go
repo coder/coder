@@ -2179,6 +2179,21 @@ func (mr *MockStoreMockRecorder) GetChatSystemPrompt(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatSystemPrompt", reflect.TypeOf((*MockStore)(nil).GetChatSystemPrompt), ctx)
 }
 
+// GetChatUIMessages mocks base method.
+func (m *MockStore) GetChatUIMessages(ctx context.Context, arg database.GetChatUIMessagesParams) ([]database.GetChatUIMessagesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatUIMessages", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChatUIMessagesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatUIMessages indicates an expected call of GetChatUIMessages.
+func (mr *MockStoreMockRecorder) GetChatUIMessages(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatUIMessages", reflect.TypeOf((*MockStore)(nil).GetChatUIMessages), ctx, arg)
+}
+
 // GetChatUsageLimitConfig mocks base method.
 func (m *MockStore) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsageLimitConfig, error) {
 	m.ctrl.T.Helper()

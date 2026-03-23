@@ -57,6 +57,7 @@ import {
 	type DateRangeValue,
 } from "../TemplatePage/TemplateInsightsPage/DateRange";
 import { ChatCostSummaryView } from "./components/ChatCostSummaryView";
+import { getCollapsedToolCallsEnabled, setCollapsedToolCallsEnabled } from "./components/AgentDetail/useCollapsedToolCalls";
 import { ChatModelAdminPanel } from "./components/ChatModelAdminPanel/ChatModelAdminPanel";
 import { InsightsContent } from "./components/InsightsContent";
 import { LimitsTab } from "./components/LimitsTab";
@@ -550,6 +551,9 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	const isTTLDirty = localTTLMs !== null && localTTLMs !== serverTTLMs;
 	const maxTTLMs = 30 * 24 * 60 * 60_000; // 30 days
 	const isTTLOverMax = ttlMs > maxTTLMs;
+	const [collapsedToolCalls, setCollapsedToolCalls] = useState(
+		() => getCollapsedToolCallsEnabled(),
+	);
 	const isDisabled =
 		isSavingSystemPrompt ||
 		isSavingUserPrompt ||
@@ -635,6 +639,28 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 								</p>
 							)}
 						</form>
+
+						{/* ── Collapse tool calls toggle ── */}
+						<hr className="my-5 border-0 border-t border-solid border-border" />
+						<div className="space-y-2">
+							<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+								Collapse tool calls
+							</h3>
+							<div className="flex items-center justify-between gap-4">
+								<p className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
+									Show a summary &ldquo;Working&rdquo; indicator instead
+									of individual tool calls during agent turns.
+								</p>
+								<Switch
+									checked={collapsedToolCalls}
+									onCheckedChange={(checked) => {
+										setCollapsedToolCallsEnabled(checked);
+										setCollapsedToolCalls(checked);
+									}}
+									aria-label="Collapse tool calls"
+								/>
+							</div>
+						</div>
 
 						{/* ── Admin system prompt (admin only) ── */}
 						{canSetSystemPrompt && (

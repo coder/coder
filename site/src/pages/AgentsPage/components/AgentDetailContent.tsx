@@ -1,7 +1,7 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { type FC, useEffect } from "react";
+import { type FC, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -41,6 +41,9 @@ const isChatMessage = (
 
 interface AgentDetailTimelineProps {
 	store: ChatStoreHandle;
+	chatId: string;
+	workingBlocks: readonly TypesGen.ChatUIWorkingBlock[];
+	collapsedToolCalls?: boolean;
 	persistedErrorReason: ChatDetailError | undefined;
 	onEditUserMessage?: (
 		messageId: number,
@@ -57,6 +60,9 @@ interface AgentDetailTimelineProps {
 // via a memo boundary so that streaming ticks don't re-parse history.
 const MessageListProvider: FC<AgentDetailTimelineProps> = ({
 	store,
+	chatId,
+	workingBlocks,
+	collapsedToolCalls,
 	persistedErrorReason,
 	onEditUserMessage,
 	editingMessageId,
@@ -92,6 +98,9 @@ const MessageListProvider: FC<AgentDetailTimelineProps> = ({
 	return (
 		<StreamingBridge
 			store={store}
+			chatId={chatId}
+			workingBlocks={workingBlocks}
+			collapsedToolCalls={collapsedToolCalls}
 			isEmpty={messages.length === 0}
 			parsedMessages={parsedMessages}
 			subagentTitles={subagentTitles}
@@ -112,6 +121,9 @@ const MessageListProvider: FC<AgentDetailTimelineProps> = ({
 // so that streamState changes don't invalidate parsedMessages above.
 const StreamingBridge: FC<{
 	store: ChatStoreHandle;
+	chatId: string;
+	workingBlocks: readonly TypesGen.ChatUIWorkingBlock[];
+	collapsedToolCalls?: boolean;
 	isEmpty: boolean;
 	parsedMessages: ParsedMessageEntry[];
 	subagentTitles: Map<string, string>;
@@ -130,6 +142,9 @@ const StreamingBridge: FC<{
 	urlTransform?: UrlTransform;
 }> = ({
 	store,
+	chatId,
+	workingBlocks,
+	collapsedToolCalls,
 	isEmpty,
 	parsedMessages,
 	subagentTitles,
@@ -145,6 +160,26 @@ const StreamingBridge: FC<{
 }) => {
 	const streamState = useChatSelector(store, selectStreamState);
 	const streamTools = buildStreamTools(streamState);
+
+	// Sticky flag: once the stream enters the "working" phase (any
+	// tool call seen), it stays true until the turn ends (status
+	// leaves running/pending). This prevents flicker between LLM
+	// steps when clearStreamState() briefly nulls streamState.
+	const streamHasToolCallsRef = useRef(false);
+	const currentHasTools =
+		collapsedToolCalls &&
+		streamState !== null &&
+		Object.keys(streamState.toolCalls).length > 0;
+	if (currentHasTools) {
+		streamHasToolCallsRef.current = true;
+	}
+	// Clear the latch when the turn ends.
+	const isRunning = chatStatus === "running" || chatStatus === "pending";
+	if (!isRunning) {
+		streamHasToolCallsRef.current = false;
+	}
+	const streamHasToolCalls = streamHasToolCallsRef.current;
+
 	const isAwaitingFirstStreamChunk =
 		!streamState &&
 		(chatStatus === "running" || chatStatus === "pending") &&
@@ -153,9 +188,13 @@ const StreamingBridge: FC<{
 
 	return (
 		<ConversationTimeline
+			chatId={chatId}
 			isEmpty={isEmpty}
 			parsedMessages={parsedMessages}
+			workingBlocks={workingBlocks}
+			chatStatus={chatStatus ?? undefined}
 			hasStreamOutput={hasStreamOutput}
+			streamHasToolCalls={streamHasToolCalls}
 			streamState={streamState}
 			streamTools={streamTools}
 			subagentTitles={subagentTitles}
@@ -168,9 +207,8 @@ const StreamingBridge: FC<{
 			savingMessageId={savingMessageId}
 			urlTransform={urlTransform}
 		/>
-	);
+		);
 };
-
 export const AgentDetailTimeline: FC<AgentDetailTimelineProps> = (props) => {
 	return <MessageListProvider {...props} />;
 };
