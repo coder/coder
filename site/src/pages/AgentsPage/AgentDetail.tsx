@@ -12,6 +12,7 @@ import {
 	editChatMessage,
 	interruptChat,
 	promoteChatQueuedMessage,
+	userCompactionThresholds,
 } from "api/queries/chats";
 import { deploymentSSHConfig } from "api/queries/deployment";
 import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
@@ -296,6 +297,7 @@ const AgentDetail: FC = () => {
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 
@@ -492,10 +494,17 @@ const AgentDetail: FC = () => {
 		return modelOptions[0]?.id ?? "";
 	})();
 
-	const compressionThreshold = chatLastModelConfigID
-		? modelConfigs.find((c) => c.id === chatLastModelConfigID)
-				?.compression_threshold
-		: undefined;
+	const compressionThreshold = (() => {
+		if (!chatLastModelConfigID) return undefined;
+		const userOverride = userThresholdsQuery.data?.thresholds.find(
+			(t) => t.model_config_id === chatLastModelConfigID,
+		);
+		if (userOverride) {
+			return userOverride.threshold_percent;
+		}
+		return modelConfigs.find((c) => c.id === chatLastModelConfigID)
+			?.compression_threshold;
+	})();
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
