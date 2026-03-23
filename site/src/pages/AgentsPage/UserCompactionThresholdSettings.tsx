@@ -34,24 +34,8 @@ export const UserCompactionThresholdSettings: FC<
 > = ({ modelConfigs }) => {
 	const queryClient = useQueryClient();
 	const thresholdsQuery = useQuery(userCompactionThresholds());
-	const saveThresholdMutation = useMutation(
-		updateUserCompactionThreshold(queryClient),
-	);
-	const resetThresholdMutation = useMutation(
-		deleteUserCompactionThreshold(queryClient),
-	);
 	const [drafts, setDrafts] = useState<Record<string, string>>({});
 	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
-
-	const enabledModelConfigs = modelConfigs.filter((config) => config.enabled);
-	const overridesByModelID = new Map(
-		(thresholdsQuery.data?.thresholds ?? []).map((threshold) => [
-			threshold.model_config_id,
-			threshold.threshold_percent,
-		]),
-	);
-	const isMutating =
-		saveThresholdMutation.isPending || resetThresholdMutation.isPending;
 
 	const clearDraft = (modelConfigID: string) => {
 		setDrafts((currentDrafts) => {
@@ -71,6 +55,53 @@ export const UserCompactionThresholdSettings: FC<
 			return nextErrors;
 		});
 	};
+
+	const saveOpts = updateUserCompactionThreshold(queryClient);
+	const saveThresholdMutation = useMutation({
+		...saveOpts,
+		onSuccess: async (_data, variables) => {
+			await saveOpts.onSuccess?.();
+			clearDraft(variables.modelConfigId);
+			clearRowError(variables.modelConfigId);
+		},
+		onError: (error, variables) => {
+			setRowErrors((currentErrors) => ({
+				...currentErrors,
+				[variables.modelConfigId]: getErrorMessage(
+					error,
+					"Failed to save compaction threshold.",
+				),
+			}));
+		},
+	});
+	const resetOpts = deleteUserCompactionThreshold(queryClient);
+	const resetThresholdMutation = useMutation({
+		...resetOpts,
+		onSuccess: async (_data, variables) => {
+			await resetOpts.onSuccess?.();
+			clearDraft(variables);
+			clearRowError(variables);
+		},
+		onError: (error, variables) => {
+			setRowErrors((currentErrors) => ({
+				...currentErrors,
+				[variables]: getErrorMessage(
+					error,
+					"Failed to reset compaction threshold.",
+				),
+			}));
+		},
+	});
+
+	const enabledModelConfigs = modelConfigs.filter((config) => config.enabled);
+	const overridesByModelID = new Map(
+		(thresholdsQuery.data?.thresholds ?? []).map((threshold) => [
+			threshold.model_config_id,
+			threshold.threshold_percent,
+		]),
+	);
+	const isMutating =
+		saveThresholdMutation.isPending || resetThresholdMutation.isPending;
 
 	if (thresholdsQuery.isLoading) {
 		return (
@@ -188,29 +219,12 @@ export const UserCompactionThresholdSettings: FC<
 													return;
 												}
 												clearRowError(modelConfig.id);
-												saveThresholdMutation.mutate(
-													{
-														modelConfigId: modelConfig.id,
-														req: {
-															threshold_percent: parsedDraftValue,
-														},
+												saveThresholdMutation.mutate({
+													modelConfigId: modelConfig.id,
+													req: {
+														threshold_percent: parsedDraftValue,
 													},
-													{
-														onSuccess: () => {
-															clearDraft(modelConfig.id);
-															clearRowError(modelConfig.id);
-														},
-														onError: (error) => {
-															setRowErrors((currentErrors) => ({
-																...currentErrors,
-																[modelConfig.id]: getErrorMessage(
-																	error,
-																	"Failed to save compaction threshold.",
-																),
-															}));
-														},
-													},
-												);
+												});
 											}}
 										>
 											Save
@@ -223,21 +237,7 @@ export const UserCompactionThresholdSettings: FC<
 												disabled={isThisModelMutating}
 												onClick={() => {
 													clearRowError(modelConfig.id);
-													resetThresholdMutation.mutate(modelConfig.id, {
-														onSuccess: () => {
-															clearDraft(modelConfig.id);
-															clearRowError(modelConfig.id);
-														},
-														onError: (error) => {
-															setRowErrors((currentErrors) => ({
-																...currentErrors,
-																[modelConfig.id]: getErrorMessage(
-																	error,
-																	"Failed to reset compaction threshold.",
-																),
-															}));
-														},
-													});
+													resetThresholdMutation.mutate(modelConfig.id);
 												}}
 											>
 												Reset
