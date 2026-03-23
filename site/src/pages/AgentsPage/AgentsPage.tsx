@@ -204,18 +204,25 @@ const AgentsPage: FC = () => {
 		if (!chatId || !trimmedMessage) {
 			return;
 		}
+		const nextReason: ChatDetailError = {
+			...reason,
+			message: trimmedMessage,
+		};
 		setChatErrorReasons((current) => {
 			const existing = current[chatId];
 			if (
 				existing &&
-				existing.kind === reason.kind &&
-				existing.message === trimmedMessage
+				existing.kind === nextReason.kind &&
+				existing.message === nextReason.message &&
+				existing.provider === nextReason.provider &&
+				existing.retryable === nextReason.retryable &&
+				existing.statusCode === nextReason.statusCode
 			) {
 				return current;
 			}
 			return {
 				...current,
-				[chatId]: { kind: reason.kind, message: trimmedMessage },
+				[chatId]: nextReason,
 			};
 		});
 	};

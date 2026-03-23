@@ -13,7 +13,6 @@ import {
 	interruptChat,
 	mcpServerConfigs,
 	promoteChatQueuedMessage,
-	userCompactionThresholds,
 } from "api/queries/chats";
 import { deploymentSSHConfig } from "api/queries/deployment";
 import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
@@ -32,7 +31,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useOutletContext, useParams } from "react-router";
+import { useNavigate, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import { isMobileViewport } from "utils/mobile";
@@ -40,7 +39,11 @@ import { pageTitle } from "utils/page";
 import { rewriteLocalhostURL } from "utils/portForward";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
-import { useChatStore } from "./components/AgentDetail/ChatContext";
+import {
+	selectChatStatus,
+	useChatSelector,
+	useChatStore,
+} from "./components/AgentDetail/ChatContext";
 import {
 	getParentChatID,
 	getWorkspaceAgent,
@@ -67,6 +70,7 @@ import {
 } from "./utils/modelOptions";
 import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
+	type ChatDetailError,
 	formatUsageLimitMessage,
 	isUsageLimitData,
 } from "./utils/usageLimitMessage";
@@ -96,17 +100,22 @@ export function useConversationEditingState(deps: {
 		? `${draftInputStorageKeyPrefix}${chatID}`
 		: null;
 	const [editorInitialValue, setEditorInitialValue] = useState(() => {
-		if (!draftStorageKey) {
+		if (typeof window === "undefined" || !draftStorageKey) {
 			return "";
 		}
 		return localStorage.getItem(draftStorageKey) ?? "";
 	});
 
-	// Sync the ref with the editor value so callers that read
-	// inputValueRef.current see the persisted draft. Uses a layout
-	// effect so the value is available before paint.
+	// Sync the ref with the initial draft value so callers that
+	// read inputValueRef.current see the persisted draft. Uses a
+	// layout effect so the value is available before paint.
+	const initialSyncDone = useRef(false);
 	useLayoutEffect(() => {
-		inputValueRef.current = editorInitialValue;
+		if (!initialSyncDone.current && editorInitialValue) {
+			initialSyncDone.current = true;
+			(inputValueRef as React.MutableRefObject<string>).current =
+				editorInitialValue;
+		}
 	}, [editorInitialValue, inputValueRef]);
 
 	// -- History editing state --
@@ -117,14 +126,6 @@ export function useConversationEditingState(deps: {
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
 		readonly ChatMessagePart[]
 	>([]);
-
-	// -- Queue editing state --
-	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
-		number | null
-	>(null);
-	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] = useState<
-		string | null
-	>(null);
 
 	const handleEditUserMessage = (
 		messageId: number,
@@ -151,6 +152,14 @@ export function useConversationEditingState(deps: {
 			chatInputRef.current?.insertText(draftBeforeHistoryEdit);
 		}
 	};
+
+	// -- Queue editing state --
+	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
+		number | null
+	>(null);
+	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] = useState<
+		string | null
+	>(null);
 
 	const handleStartQueueEdit = (
 		id: number,
@@ -231,28 +240,32 @@ export function useConversationEditingState(deps: {
 	};
 }
 
-/**
- * Resolves the effective compaction threshold for a model configuration,
- * preferring the user's override when set.
- */
-function resolveCompactionThreshold(
-	modelConfigID: string | undefined,
-	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
-	modelConfigs: readonly TypesGen.ChatModelConfig[],
-): number | undefined {
-	if (!modelConfigID) return undefined;
-	const config = modelConfigs.find((c) => c.id === modelConfigID);
-	if (!config) return undefined;
-	const userOverride = userThresholds?.find(
-		(t) => t.model_config_id === modelConfigID,
-	);
-	if (userOverride) {
-		return userOverride.threshold_percent;
+const getPersistedDetailError = ({
+	chatStatus,
+	chatRecord,
+	cachedError,
+}: {
+	chatStatus: TypesGen.ChatStatus | null;
+	chatRecord: TypesGen.Chat | undefined;
+	cachedError: ChatDetailError | undefined;
+}): ChatDetailError | undefined => {
+	if (cachedError?.kind === "usage-limit") {
+		return cachedError;
 	}
-	return config.compression_threshold;
-}
+	if (chatStatus === "error") {
+		if (cachedError) {
+			return cachedError;
+		}
+		const lastError = chatRecord?.last_error?.trim();
+		if (lastError) {
+			return { kind: "generic", message: lastError };
+		}
+	}
+	return undefined;
+};
 
 const AgentDetail: FC = () => {
+	const navigate = useNavigate();
 	const { agentId } = useParams<{ agentId: string }>();
 	const {
 		chatErrorReasons,
@@ -314,7 +327,6 @@ const AgentDetail: FC = () => {
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
-	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
@@ -346,6 +358,8 @@ const AgentDetail: FC = () => {
 	const modelCatalog = chatModelsQuery.data;
 	const isModelCatalogLoading = chatModelsQuery.isLoading;
 	const modelCatalogError = chatModelsQuery.error;
+
+	const handleOpenAnalytics = () => navigate("/agents/analytics");
 
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
@@ -477,6 +491,13 @@ const AgentDetail: FC = () => {
 		setChatErrorReason,
 		clearChatErrorReason,
 	});
+	const liveChatStatus =
+		useChatSelector(store, selectChatStatus) ?? chatRecord?.status ?? null;
+	const persistedError = getPersistedDetailError({
+		chatStatus: liveChatStatus,
+		chatRecord,
+		cachedError: agentId ? chatErrorReasons[agentId] : undefined,
+	});
 
 	// Git watcher: runs regardless of sidebar visibility, but only
 	// connects when the workspace agent is in the "connected" state
@@ -530,11 +551,10 @@ const AgentDetail: FC = () => {
 		return modelOptions[0]?.id ?? "";
 	})();
 
-	const compressionThreshold = resolveCompactionThreshold(
-		chatLastModelConfigID,
-		userThresholdsQuery.data?.thresholds,
-		modelConfigs,
-	);
+	const compressionThreshold = chatLastModelConfigID
+		? modelConfigs.find((c) => c.id === chatLastModelConfigID)
+				?.compression_threshold
+		: undefined;
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
@@ -568,15 +588,19 @@ const AgentDetail: FC = () => {
 			error.response?.status === 409 &&
 			isUsageLimitData(error.response.data)
 		) {
-			setChatErrorReason(agentId, {
+			const reason: ChatDetailError = {
 				kind: "usage-limit",
 				message: formatUsageLimitMessage(error.response.data),
-			});
+			};
+			store.setStreamError(reason);
+			setChatErrorReason(agentId, reason);
 		} else if (isApiError(error)) {
-			store.setStreamError({
+			const reason: ChatDetailError = {
 				kind: "generic",
 				message: error.message || "An unexpected error occurred.",
-			});
+			};
+			store.setStreamError(reason);
+			setChatErrorReason(agentId, reason);
 		}
 	};
 
@@ -786,12 +810,6 @@ const AgentDetail: FC = () => {
 			return;
 		}
 
-		// Prefer the active git repo root so VS Code opens to the
-		// actual project directory, falling back to the agent's
-		// configured directory.
-		const repoRoots = Array.from(gitWatcher.repositories.keys()).sort();
-		const folder = repoRoots[0] ?? workspaceAgent.expanded_directory;
-
 		generateKeyMutation.mutate(undefined, {
 			onSuccess: ({ key }) => {
 				location.href = getVSCodeHref(editor, {
@@ -799,7 +817,7 @@ const AgentDetail: FC = () => {
 					workspace: workspace.name,
 					token: key,
 					agent: workspaceAgent.name,
-					folder,
+					folder: workspaceAgent.expanded_directory,
 					chatId: agentId,
 				});
 			},
@@ -882,8 +900,7 @@ const AgentDetail: FC = () => {
 			agentId={agentId}
 			chatTitle={chatTitle}
 			parentChat={parentChat}
-			chatErrorReasons={chatErrorReasons}
-			chatRecord={chatRecord}
+			persistedError={persistedError}
 			isArchived={isArchived}
 			hasWorkspace={Boolean(workspaceId)}
 			store={store}
@@ -902,6 +919,7 @@ const AgentDetail: FC = () => {
 			isInterruptPending={interruptMutation.isPending}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+			onOpenAnalytics={handleOpenAnalytics}
 			showSidebarPanel={showSidebarPanel}
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}
@@ -914,6 +932,7 @@ const AgentDetail: FC = () => {
 			handleViewWorkspace={handleViewWorkspace}
 			handleOpenTerminal={handleOpenTerminal}
 			handleCommit={handleCommit}
+			onNavigateToChat={(chatId) => navigate(`/agents/${chatId}`)}
 			handleInterrupt={handleInterrupt}
 			handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 			handlePromoteQueuedMessage={handlePromoteQueuedMessage}
@@ -936,12 +955,4 @@ const AgentDetail: FC = () => {
 	);
 };
 
-// Keyed wrapper so that navigating between agents (changing the
-// :agentId param) fully remounts the component, resetting all
-// internal state — drafts, editing, queries — cleanly.
-const KeyedAgentDetail: FC = () => {
-	const { agentId } = useParams<{ agentId: string }>();
-	return <AgentDetail key={agentId} />;
-};
-
-export default KeyedAgentDetail;
+export default AgentDetail;
