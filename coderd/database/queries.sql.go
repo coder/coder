@@ -21157,6 +21157,20 @@ func (q *sqlQuerier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid
 	return items, nil
 }
 
+const deleteUserChatCompactionThreshold = `-- name: DeleteUserChatCompactionThreshold :exec
+DELETE FROM user_configs WHERE user_id = $1 AND key = $2
+`
+
+type DeleteUserChatCompactionThresholdParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Key    string    `db:"key" json:"key"`
+}
+
+func (q *sqlQuerier) DeleteUserChatCompactionThreshold(ctx context.Context, arg DeleteUserChatCompactionThresholdParams) error {
+	_, err := q.db.ExecContext(ctx, deleteUserChatCompactionThreshold, arg.UserID, arg.Key)
+	return err
+}
+
 const getActiveUserCount = `-- name: GetActiveUserCount :one
 SELECT
 	COUNT(*)
@@ -21335,6 +21349,23 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.ChatSpendLimitMicros,
 	)
 	return i, err
+}
+
+const getUserChatCompactionThreshold = `-- name: GetUserChatCompactionThreshold :one
+SELECT value AS threshold_percent FROM user_configs
+WHERE user_id = $1 AND key = $2
+`
+
+type GetUserChatCompactionThresholdParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Key    string    `db:"key" json:"key"`
+}
+
+func (q *sqlQuerier) GetUserChatCompactionThreshold(ctx context.Context, arg GetUserChatCompactionThresholdParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserChatCompactionThreshold, arg.UserID, arg.Key)
+	var threshold_percent string
+	err := row.Scan(&threshold_percent)
+	return threshold_percent, err
 }
 
 const getUserChatCustomPrompt = `-- name: GetUserChatCustomPrompt :one
@@ -21760,6 +21791,36 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 	return i, err
 }
 
+const listUserChatCompactionThresholds = `-- name: ListUserChatCompactionThresholds :many
+SELECT user_id, key, value FROM user_configs
+WHERE user_id = $1
+	AND key LIKE 'chat\_compaction\_threshold\_pct:%'
+ORDER BY key
+`
+
+func (q *sqlQuerier) ListUserChatCompactionThresholds(ctx context.Context, userID uuid.UUID) ([]UserConfig, error) {
+	rows, err := q.db.QueryContext(ctx, listUserChatCompactionThresholds, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserConfig
+	for rows.Next() {
+		var i UserConfig
+		if err := rows.Scan(&i.UserID, &i.Key, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateInactiveUsersToDormant = `-- name: UpdateInactiveUsersToDormant :many
 UPDATE
     users
@@ -21811,6 +21872,27 @@ func (q *sqlQuerier) UpdateInactiveUsersToDormant(ctx context.Context, arg Updat
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateUserChatCompactionThreshold = `-- name: UpdateUserChatCompactionThreshold :one
+INSERT INTO user_configs (user_id, key, value)
+VALUES ($1, $2, ($3::int)::text)
+ON CONFLICT ON CONSTRAINT user_configs_pkey
+DO UPDATE SET value = ($3::int)::text
+RETURNING user_id, key, value
+`
+
+type UpdateUserChatCompactionThresholdParams struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	Key              string    `db:"key" json:"key"`
+	ThresholdPercent int32     `db:"threshold_percent" json:"threshold_percent"`
+}
+
+func (q *sqlQuerier) UpdateUserChatCompactionThreshold(ctx context.Context, arg UpdateUserChatCompactionThresholdParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateUserChatCompactionThreshold, arg.UserID, arg.Key, arg.ThresholdPercent)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
 }
 
 const updateUserChatCustomPrompt = `-- name: UpdateUserChatCustomPrompt :one
