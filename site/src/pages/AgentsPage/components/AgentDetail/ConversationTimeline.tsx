@@ -27,6 +27,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { Link } from "react-router";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
@@ -846,7 +847,6 @@ interface ConversationTimelineProps {
 	retryState?: { attempt: number; error: string } | null;
 	isAwaitingFirstStreamChunk: boolean;
 	detailError?: ChatDetailError | null;
-	onOpenAnalytics?: () => void;
 	onEditUserMessage?: (
 		messageId: number,
 		text: string,
@@ -868,7 +868,6 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	retryState,
 	isAwaitingFirstStreamChunk,
 	detailError,
-	onOpenAnalytics,
 	onEditUserMessage,
 	editingMessageId,
 	savingMessageId,
@@ -877,7 +876,6 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	const shouldRenderStreamAfterMessages =
 		hasStreamOutput && parsedMessages.length > 0;
 	const isUsageLimitError = detailError?.kind === "usage-limit";
-	const showUsageAction = onOpenAnalytics !== undefined && isUsageLimitError;
 
 	// Build a set of message IDs that appear after the message
 	// currently being edited so they can be visually faded.
@@ -954,9 +952,9 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 					severity={isUsageLimitError ? "info" : "error"}
 					className="py-2"
 					actions={
-						showUsageAction && (
-							<Button variant="subtle" size="sm" onClick={onOpenAnalytics}>
-								View Usage
+						isUsageLimitError && (
+							<Button asChild variant="subtle" size="sm">
+								<Link to="/agents/analytics">View Usage</Link>
 							</Button>
 						)
 					}

@@ -30,7 +30,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useNavigate, useOutletContext, useParams } from "react-router";
+import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import { isMobileViewport } from "utils/mobile";
@@ -232,7 +232,6 @@ export function useConversationEditingState(deps: {
 }
 
 const AgentDetail: FC = () => {
-	const navigate = useNavigate();
 	const { agentId } = useParams<{ agentId: string }>();
 	const {
 		chatErrorReasons,
@@ -312,8 +311,6 @@ const AgentDetail: FC = () => {
 	const modelCatalog = chatModelsQuery.data;
 	const isModelCatalogLoading = chatModelsQuery.isLoading;
 	const modelCatalogError = chatModelsQuery.error;
-
-	const handleOpenAnalytics = () => navigate("/agents/analytics");
 
 	// Subscribe to live workspace updates so that agent status changes
 	// (e.g. connected/disconnected) are reflected without a page refresh.
@@ -861,7 +858,6 @@ const AgentDetail: FC = () => {
 			isInterruptPending={interruptMutation.isPending}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-			onOpenAnalytics={handleOpenAnalytics}
 			showSidebarPanel={showSidebarPanel}
 			onSetShowSidebarPanel={handleSetShowSidebarPanel}
 			prNumber={prNumber}
@@ -874,7 +870,6 @@ const AgentDetail: FC = () => {
 			handleViewWorkspace={handleViewWorkspace}
 			handleOpenTerminal={handleOpenTerminal}
 			handleCommit={handleCommit}
-			onNavigateToChat={(chatId) => navigate(`/agents/${chatId}`)}
 			handleInterrupt={handleInterrupt}
 			handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 			handlePromoteQueuedMessage={handlePromoteQueuedMessage}
