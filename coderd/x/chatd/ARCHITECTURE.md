@@ -267,6 +267,43 @@ significant gap that needs addressing before scale becomes a concern.
 
 ---
 
+## Organization Scoping — Pre-GA Blocker
+
+**Chats are not scoped to organizations.** This is a significant gap that must
+be resolved before GA.
+
+### Current state
+
+- The `chats` table has **no `organization_id` column**. Chats are owned by a
+  user (`owner_id`) but have no organizational boundary.
+- `chat_files` *does* have an `organization_id` FK, but this is the only
+  chat-related table with org awareness.
+- The `chatd` RBAC subject (`subjectChatd`) has **site-wide** permissions on
+  `ResourceChat` (create/read/update/delete) with no org-scoped `ByOrgID`
+  rules. It operates as a single global actor.
+- `chatd.go` calls `dbauthz.AsChatd(ctx)` exactly once (line 1413), bypassing
+  any per-user or per-org authorization for background processing.
+- Chat queries (`GetChatsByOwnerID`, `GetChatByID`, etc.) filter by `owner_id`
+  only, with no organization predicate.
+- The `chat_model_configs` and `chat_providers` tables are global deployment
+  config with no org dimension.
+
+### What needs to happen
+
+- Add `organization_id` to the `chats` table (migration + backfill for existing
+  rows).
+- Add org-scoped RBAC rules so users can only access chats within their
+  organization.
+- Decide whether `chat_model_configs` and `chat_providers` should be
+  per-organization or remain global deployment settings.
+- Decide whether usage limits (`chat_spend_limit_micros`) should be
+  per-organization or remain per-user/global.
+- Update the `chatd` RBAC subject to operate within org boundaries, or
+  document why site-wide access is necessary for the background worker.
+- Ensure subagent chats inherit the parent's organization.
+
+---
+
 ## Known Technical Debt
 
 1. **`chatd.go` needs decomposition.** At ~3,900 lines, this single file contains
