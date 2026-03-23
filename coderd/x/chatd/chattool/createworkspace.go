@@ -66,6 +66,7 @@ type CreateWorkspaceOptions struct {
 	AgentConnFn                    AgentConnFunc
 	AgentInactiveDisconnectTimeout time.Duration
 	WorkspaceMu                    *sync.Mutex
+	OnChatUpdated                  func(database.Chat)
 	Logger                         slog.Logger
 	AllowedTemplateIDs             func() map[uuid.UUID]bool
 }
@@ -213,7 +214,7 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 
 			// Persist the workspace binding on the chat.
 			if options.DB != nil && options.ChatID != uuid.Nil {
-				if _, err := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+				updatedChat, err := options.DB.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
 					ID: options.ChatID,
 					WorkspaceID: uuid.NullUUID{
 						UUID:  workspace.ID,
@@ -225,12 +226,15 @@ func CreateWorkspace(options CreateWorkspaceOptions) fantasy.AgentTool {
 					// tool-path binding is deferred to a follow-up PR.
 					BuildID: uuid.NullUUID{},
 					AgentID: uuid.NullUUID{},
-				}); err != nil {
+				})
+				if err != nil {
 					options.Logger.Error(ctx, "failed to persist chat workspace association",
 						slog.F("chat_id", options.ChatID),
 						slog.F("workspace_id", workspace.ID),
 						slog.Error(err),
 					)
+				} else if options.OnChatUpdated != nil {
+					options.OnChatUpdated(updatedChat)
 				}
 			}
 

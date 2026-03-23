@@ -255,11 +255,11 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 	gomock.InOrder(
 		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{workspaceAgent}, nil),
 		db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).Return(database.WorkspaceBuild{ID: buildID}, nil),
-		db.EXPECT().UpdateChatWorkspaceBinding(gomock.Any(), database.UpdateChatWorkspaceBindingParams{
-			WorkspaceID: chat.WorkspaceID,
-			BuildID:     uuid.NullUUID{UUID: buildID, Valid: true},
-			AgentID:     uuid.NullUUID{UUID: agentID, Valid: true},
-			ID:          chat.ID,
+		db.EXPECT().UpdateChatBuildAgentBindingIfWorkspaceMatches(gomock.Any(), database.UpdateChatBuildAgentBindingIfWorkspaceMatchesParams{
+			ExpectedWorkspaceID: workspaceID,
+			BuildID:             uuid.NullUUID{UUID: buildID, Valid: true},
+			AgentID:             uuid.NullUUID{UUID: agentID, Valid: true},
+			ID:                  chat.ID,
 		}).Return(updatedChat, nil),
 	)
 
@@ -315,11 +315,11 @@ func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), staleAgentID).Return(database.WorkspaceAgent{}, xerrors.New("missing agent")),
 		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{currentAgent}, nil),
 		db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).Return(database.WorkspaceBuild{ID: buildID}, nil),
-		db.EXPECT().UpdateChatWorkspaceBinding(gomock.Any(), database.UpdateChatWorkspaceBindingParams{
-			WorkspaceID: chat.WorkspaceID,
-			BuildID:     uuid.NullUUID{UUID: buildID, Valid: true},
-			AgentID:     uuid.NullUUID{UUID: currentAgentID, Valid: true},
-			ID:          chat.ID,
+		db.EXPECT().UpdateChatBuildAgentBindingIfWorkspaceMatches(gomock.Any(), database.UpdateChatBuildAgentBindingIfWorkspaceMatchesParams{
+			ExpectedWorkspaceID: workspaceID,
+			BuildID:             uuid.NullUUID{UUID: buildID, Valid: true},
+			AgentID:             uuid.NullUUID{UUID: currentAgentID, Valid: true},
+			ID:                  chat.ID,
 		}).Return(updatedChat, nil),
 	)
 
@@ -373,11 +373,11 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).Return([]database.WorkspaceAgent{currentAgent}, nil),
 		db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceID).Return(database.WorkspaceBuild{ID: buildID}, nil),
 		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), currentAgentID).Return(currentAgent, nil),
-		db.EXPECT().UpdateChatWorkspaceBinding(gomock.Any(), database.UpdateChatWorkspaceBindingParams{
-			WorkspaceID: chat.WorkspaceID,
-			BuildID:     uuid.NullUUID{UUID: buildID, Valid: true},
-			AgentID:     uuid.NullUUID{UUID: currentAgentID, Valid: true},
-			ID:          chat.ID,
+		db.EXPECT().UpdateChatBuildAgentBindingIfWorkspaceMatches(gomock.Any(), database.UpdateChatBuildAgentBindingIfWorkspaceMatchesParams{
+			ExpectedWorkspaceID: workspaceID,
+			BuildID:             uuid.NullUUID{UUID: buildID, Valid: true},
+			AgentID:             uuid.NullUUID{UUID: currentAgentID, Valid: true},
+			ID:                  chat.ID,
 		}).Return(updatedChat, nil),
 	)
 
@@ -413,6 +413,294 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	gotAgent, err := workspaceCtx.getWorkspaceAgent(ctx)
 	require.NoError(t, err)
 	require.Equal(t, currentAgent, gotAgent)
+}
+
+func TestTurnWorkspaceContext_SelectWorkspaceClearsCachedState(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	currentChat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  uuid.New(),
+			Valid: true,
+		},
+	}
+	updatedChat := database.Chat{
+		ID: currentChat.ID,
+		WorkspaceID: uuid.NullUUID{
+			UUID:  uuid.New(),
+			Valid: true,
+		},
+	}
+	cachedConn := agentconnmock.NewMockAgentConn(ctrl)
+	releaseCalls := 0
+
+	workspaceCtx := turnWorkspaceContext{
+		chatStateMu: &sync.Mutex{},
+		currentChat: &currentChat,
+	}
+	workspaceCtx.agent = database.WorkspaceAgent{ID: uuid.New()}
+	workspaceCtx.agentLoaded = true
+	workspaceCtx.conn = cachedConn
+	workspaceCtx.cachedWorkspaceID = currentChat.WorkspaceID
+	workspaceCtx.releaseConn = func() {
+		releaseCalls++
+	}
+
+	workspaceCtx.selectWorkspace(updatedChat)
+
+	require.Equal(t, updatedChat, currentChat)
+	require.Equal(t, 1, releaseCalls)
+
+	workspaceCtx.mu.Lock()
+	defer workspaceCtx.mu.Unlock()
+	require.Equal(t, database.WorkspaceAgent{}, workspaceCtx.agent)
+	require.False(t, workspaceCtx.agentLoaded)
+	require.Nil(t, workspaceCtx.conn)
+	require.Nil(t, workspaceCtx.releaseConn)
+	require.Equal(t, uuid.NullUUID{}, workspaceCtx.cachedWorkspaceID)
+}
+
+func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferentWorkspace(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceOneID := uuid.New()
+	workspaceTwoID := uuid.New()
+	buildID := uuid.New()
+	cachedAgent := database.WorkspaceAgent{ID: uuid.New()}
+	resolvedAgent := database.WorkspaceAgent{ID: uuid.New()}
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceTwoID,
+			Valid: true,
+		},
+	}
+	updatedChat := chat
+	updatedChat.BuildID = uuid.NullUUID{UUID: buildID, Valid: true}
+	updatedChat.AgentID = uuid.NullUUID{UUID: resolvedAgent.ID, Valid: true}
+
+	gomock.InOrder(
+		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceTwoID).Return([]database.WorkspaceAgent{resolvedAgent}, nil),
+		db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceTwoID).Return(database.WorkspaceBuild{ID: buildID}, nil),
+		db.EXPECT().UpdateChatBuildAgentBindingIfWorkspaceMatches(gomock.Any(), database.UpdateChatBuildAgentBindingIfWorkspaceMatchesParams{
+			ID:                  chat.ID,
+			ExpectedWorkspaceID: workspaceTwoID,
+			BuildID:             uuid.NullUUID{UUID: buildID, Valid: true},
+			AgentID:             uuid.NullUUID{UUID: resolvedAgent.ID, Valid: true},
+		}).Return(updatedChat, nil),
+	)
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           &Server{db: db},
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	workspaceCtx.agent = cachedAgent
+	workspaceCtx.agentLoaded = true
+	workspaceCtx.cachedWorkspaceID = uuid.NullUUID{UUID: workspaceOneID, Valid: true}
+	defer workspaceCtx.close()
+
+	chatSnapshot, agent, err := workspaceCtx.ensureWorkspaceAgent(ctx)
+	require.NoError(t, err)
+	require.Equal(t, updatedChat, chatSnapshot)
+	require.Equal(t, resolvedAgent, agent)
+	require.Equal(t, updatedChat, currentChat)
+}
+
+func TestTurnWorkspaceContext_LoadWorkspaceAgentRetriesWhenWorkspaceChangesDuringPersist(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceOneID := uuid.New()
+	workspaceTwoID := uuid.New()
+	buildOneID := uuid.New()
+	buildTwoID := uuid.New()
+	agentOne := database.WorkspaceAgent{ID: uuid.New()}
+	agentTwo := database.WorkspaceAgent{ID: uuid.New()}
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceOneID,
+			Valid: true,
+		},
+	}
+	reloadedChat := database.Chat{
+		ID: chat.ID,
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceTwoID,
+			Valid: true,
+		},
+	}
+	updatedChat := reloadedChat
+	updatedChat.BuildID = uuid.NullUUID{UUID: buildTwoID, Valid: true}
+	updatedChat.AgentID = uuid.NullUUID{UUID: agentTwo.ID, Valid: true}
+	loadCalls := 0
+
+	gomock.InOrder(
+		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceOneID).Return([]database.WorkspaceAgent{agentOne}, nil),
+		db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceOneID).Return(database.WorkspaceBuild{ID: buildOneID}, nil),
+		db.EXPECT().UpdateChatBuildAgentBindingIfWorkspaceMatches(gomock.Any(), database.UpdateChatBuildAgentBindingIfWorkspaceMatchesParams{
+			ID:                  chat.ID,
+			ExpectedWorkspaceID: workspaceOneID,
+			BuildID:             uuid.NullUUID{UUID: buildOneID, Valid: true},
+			AgentID:             uuid.NullUUID{UUID: agentOne.ID, Valid: true},
+		}).Return(database.Chat{}, sql.ErrNoRows),
+		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceTwoID).Return([]database.WorkspaceAgent{agentTwo}, nil),
+		db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceTwoID).Return(database.WorkspaceBuild{ID: buildTwoID}, nil),
+		db.EXPECT().UpdateChatBuildAgentBindingIfWorkspaceMatches(gomock.Any(), database.UpdateChatBuildAgentBindingIfWorkspaceMatchesParams{
+			ID:                  chat.ID,
+			ExpectedWorkspaceID: workspaceTwoID,
+			BuildID:             uuid.NullUUID{UUID: buildTwoID, Valid: true},
+			AgentID:             uuid.NullUUID{UUID: agentTwo.ID, Valid: true},
+		}).Return(updatedChat, nil),
+	)
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:      &Server{db: db},
+		chatStateMu: chatStateMu,
+		currentChat: &currentChat,
+		loadChatSnapshot: func(_ context.Context, id uuid.UUID) (database.Chat, error) {
+			loadCalls++
+			require.Equal(t, chat.ID, id)
+			return reloadedChat, nil
+		},
+	}
+	defer workspaceCtx.close()
+
+	chatSnapshot, agent, err := workspaceCtx.ensureWorkspaceAgent(ctx)
+	require.NoError(t, err)
+	require.Equal(t, updatedChat, chatSnapshot)
+	require.Equal(t, agentTwo, agent)
+	require.Equal(t, updatedChat, currentChat)
+	require.Equal(t, 1, loadCalls)
+}
+
+func TestTurnWorkspaceContextGetWorkspaceConnRetriesWhenWorkspaceChangesDuringSwitchPersist(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceOneID := uuid.New()
+	workspaceTwoID := uuid.New()
+	staleAgentID := uuid.New()
+	workspaceOneAgentID := uuid.New()
+	workspaceTwoAgentID := uuid.New()
+	buildOneID := uuid.New()
+	buildTwoID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceOneID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  staleAgentID,
+			Valid: true,
+		},
+	}
+	staleAgent := database.WorkspaceAgent{ID: staleAgentID}
+	workspaceOneAgent := database.WorkspaceAgent{ID: workspaceOneAgentID}
+	workspaceTwoAgent := database.WorkspaceAgent{ID: workspaceTwoAgentID}
+	reloadedChat := database.Chat{
+		ID: chat.ID,
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceTwoID,
+			Valid: true,
+		},
+	}
+	updatedChat := reloadedChat
+	updatedChat.BuildID = uuid.NullUUID{UUID: buildTwoID, Valid: true}
+	updatedChat.AgentID = uuid.NullUUID{UUID: workspaceTwoAgentID, Valid: true}
+	loadCalls := 0
+	discardedReleaseCalls := 0
+	finalReleaseCalls := 0
+
+	gomock.InOrder(
+		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), staleAgentID).Return(staleAgent, nil),
+		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceOneID).Return([]database.WorkspaceAgent{workspaceOneAgent}, nil),
+		db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceOneID).Return(database.WorkspaceBuild{ID: buildOneID}, nil),
+		db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), workspaceOneAgentID).Return(workspaceOneAgent, nil),
+		db.EXPECT().UpdateChatBuildAgentBindingIfWorkspaceMatches(gomock.Any(), database.UpdateChatBuildAgentBindingIfWorkspaceMatchesParams{
+			ID:                  chat.ID,
+			ExpectedWorkspaceID: workspaceOneID,
+			BuildID:             uuid.NullUUID{UUID: buildOneID, Valid: true},
+			AgentID:             uuid.NullUUID{UUID: workspaceOneAgentID, Valid: true},
+		}).Return(database.Chat{}, sql.ErrNoRows),
+		db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceTwoID).Return([]database.WorkspaceAgent{workspaceTwoAgent}, nil),
+		db.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspaceTwoID).Return(database.WorkspaceBuild{ID: buildTwoID}, nil),
+		db.EXPECT().UpdateChatBuildAgentBindingIfWorkspaceMatches(gomock.Any(), database.UpdateChatBuildAgentBindingIfWorkspaceMatchesParams{
+			ID:                  chat.ID,
+			ExpectedWorkspaceID: workspaceTwoID,
+			BuildID:             uuid.NullUUID{UUID: buildTwoID, Valid: true},
+			AgentID:             uuid.NullUUID{UUID: workspaceTwoAgentID, Valid: true},
+		}).Return(updatedChat, nil),
+	)
+
+	discardedConn := agentconnmock.NewMockAgentConn(ctrl)
+	finalConn := agentconnmock.NewMockAgentConn(ctrl)
+	finalConn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
+
+	server := &Server{db: db}
+	server.agentConnFn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		switch agentID {
+		case staleAgentID:
+			return nil, nil, xerrors.New("dial failed")
+		case workspaceOneAgentID:
+			return discardedConn, func() {
+				discardedReleaseCalls++
+			}, nil
+		case workspaceTwoAgentID:
+			return finalConn, func() {
+				finalReleaseCalls++
+			}, nil
+		default:
+			return nil, nil, xerrors.Errorf("unexpected agent ID %q", agentID)
+		}
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:      server,
+		chatStateMu: chatStateMu,
+		currentChat: &currentChat,
+		loadChatSnapshot: func(_ context.Context, id uuid.UUID) (database.Chat, error) {
+			loadCalls++
+			require.Equal(t, chat.ID, id)
+			return reloadedChat, nil
+		},
+	}
+
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.NoError(t, err)
+	require.Same(t, finalConn, gotConn)
+	require.Equal(t, updatedChat, currentChat)
+	require.Equal(t, 1, loadCalls)
+	require.Equal(t, 1, discardedReleaseCalls)
+	require.Equal(t, 0, finalReleaseCalls)
+
+	gotAgent, err := workspaceCtx.getWorkspaceAgent(ctx)
+	require.NoError(t, err)
+	require.Equal(t, workspaceTwoAgent, gotAgent)
+
+	workspaceCtx.close()
+	require.Equal(t, 1, finalReleaseCalls)
 }
 
 func TestSubscribeSkipsDatabaseCatchupForLocallyDeliveredMessage(t *testing.T) {

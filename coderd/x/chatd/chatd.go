@@ -160,18 +160,26 @@ type turnWorkspaceContext struct {
 	currentChat      *database.Chat
 	loadChatSnapshot func(context.Context, uuid.UUID) (database.Chat, error)
 
-	mu          sync.Mutex
-	agent       database.WorkspaceAgent
-	agentLoaded bool
-	conn        workspacesdk.AgentConn
-	releaseConn func()
+	mu                sync.Mutex
+	agent             database.WorkspaceAgent
+	agentLoaded       bool
+	conn              workspacesdk.AgentConn
+	releaseConn       func()
+	cachedWorkspaceID uuid.NullUUID
 }
 
 func (c *turnWorkspaceContext) close() {
+	c.clearCachedWorkspaceState()
+}
+
+func (c *turnWorkspaceContext) clearCachedWorkspaceState() {
 	c.mu.Lock()
 	releaseConn := c.releaseConn
+	c.agent = database.WorkspaceAgent{}
+	c.agentLoaded = false
 	c.conn = nil
 	c.releaseConn = nil
+	c.cachedWorkspaceID = uuid.NullUUID{}
 	c.mu.Unlock()
 
 	if releaseConn != nil {
@@ -183,6 +191,79 @@ func (c *turnWorkspaceContext) setCurrentChat(chat database.Chat) {
 	c.chatStateMu.Lock()
 	*c.currentChat = chat
 	c.chatStateMu.Unlock()
+}
+
+func (c *turnWorkspaceContext) currentChatSnapshot() database.Chat {
+	c.chatStateMu.Lock()
+	chatSnapshot := *c.currentChat
+	c.chatStateMu.Unlock()
+	return chatSnapshot
+}
+
+func (c *turnWorkspaceContext) selectWorkspace(chat database.Chat) {
+	c.setCurrentChat(chat)
+	c.clearCachedWorkspaceState()
+}
+
+func (c *turnWorkspaceContext) currentWorkspaceMatches(expected uuid.NullUUID) (database.Chat, bool) {
+	chatSnapshot := c.currentChatSnapshot()
+	return chatSnapshot, nullUUIDEqual(chatSnapshot.WorkspaceID, expected)
+}
+
+func nullUUIDEqual(left, right uuid.NullUUID) bool {
+	if left.Valid != right.Valid {
+		return false
+	}
+	if !left.Valid {
+		return true
+	}
+	return left.UUID == right.UUID
+}
+
+func (c *turnWorkspaceContext) persistBuildAgentBindingIfWorkspaceMatches(
+	ctx context.Context,
+	chatSnapshot database.Chat,
+	buildID uuid.UUID,
+	agentID uuid.UUID,
+) (database.Chat, bool, error) {
+	updatedChat, err := c.server.db.UpdateChatBuildAgentBindingIfWorkspaceMatches(
+		ctx,
+		database.UpdateChatBuildAgentBindingIfWorkspaceMatchesParams{
+			ID:                  chatSnapshot.ID,
+			ExpectedWorkspaceID: chatSnapshot.WorkspaceID.UUID,
+			BuildID: uuid.NullUUID{
+				UUID:  buildID,
+				Valid: true,
+			},
+			AgentID: uuid.NullUUID{
+				UUID:  agentID,
+				Valid: true,
+			},
+		},
+	)
+	if err == nil {
+		c.setCurrentChat(updatedChat)
+		return updatedChat, true, nil
+	}
+	if !xerrors.Is(err, sql.ErrNoRows) {
+		return chatSnapshot, false, xerrors.Errorf(
+			"update chat build/agent binding: %w", err,
+		)
+	}
+	if c.loadChatSnapshot == nil {
+		return chatSnapshot, false, xerrors.New(
+			"reload chat workspace state: snapshot loader is not configured",
+		)
+	}
+
+	refreshedChat, refreshErr := c.loadChatSnapshot(ctx, chatSnapshot.ID)
+	if refreshErr != nil {
+		return chatSnapshot, false, xerrors.Errorf(
+			"reload chat workspace state: %w", refreshErr,
+		)
+	}
+	c.setCurrentChat(refreshedChat)
+	return refreshedChat, false, nil
 }
 
 func (c *turnWorkspaceContext) getWorkspaceAgent(ctx context.Context) (database.WorkspaceAgent, error) {
@@ -197,10 +278,12 @@ func (c *turnWorkspaceContext) ensureWorkspaceAgent(
 	defer c.mu.Unlock()
 
 	if c.agentLoaded {
-		c.chatStateMu.Lock()
-		chatSnapshot := *c.currentChat
-		c.chatStateMu.Unlock()
-		return chatSnapshot, c.agent, nil
+		chatSnapshot := c.currentChatSnapshot()
+		if nullUUIDEqual(c.cachedWorkspaceID, chatSnapshot.WorkspaceID) {
+			return chatSnapshot, c.agent, nil
+		}
+		c.agent = database.WorkspaceAgent{}
+		c.agentLoaded = false
 	}
 
 	return c.loadWorkspaceAgentLocked(ctx)
@@ -209,186 +292,228 @@ func (c *turnWorkspaceContext) ensureWorkspaceAgent(
 func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 	ctx context.Context,
 ) (database.Chat, database.WorkspaceAgent, error) {
-	c.chatStateMu.Lock()
-	chatSnapshot := *c.currentChat
-	c.chatStateMu.Unlock()
+	chatSnapshot := c.currentChatSnapshot()
 
-	if !chatSnapshot.WorkspaceID.Valid {
-		refreshedChat, refreshErr := refreshChatWorkspaceSnapshot(
+	for attempt := 0; attempt < 2; attempt++ {
+		if !chatSnapshot.WorkspaceID.Valid {
+			refreshedChat, refreshErr := refreshChatWorkspaceSnapshot(
+				ctx,
+				chatSnapshot,
+				c.loadChatSnapshot,
+			)
+			if refreshErr != nil {
+				return chatSnapshot, database.WorkspaceAgent{}, refreshErr
+			}
+			if refreshedChat.WorkspaceID.Valid {
+				c.setCurrentChat(refreshedChat)
+				chatSnapshot = refreshedChat
+			}
+		}
+
+		if !chatSnapshot.WorkspaceID.Valid {
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("chat has no workspace")
+		}
+
+		if chatSnapshot.AgentID.Valid {
+			agent, err := c.server.db.GetWorkspaceAgentByID(ctx, chatSnapshot.AgentID.UUID)
+			if err == nil {
+				latestChat, workspaceMatches := c.currentWorkspaceMatches(chatSnapshot.WorkspaceID)
+				if !workspaceMatches {
+					chatSnapshot = latestChat
+					continue
+				}
+				c.agent = agent
+				c.agentLoaded = true
+				c.cachedWorkspaceID = chatSnapshot.WorkspaceID
+				return chatSnapshot, c.agent, nil
+			}
+			if !xerrors.Is(err, sql.ErrNoRows) {
+				c.server.logger.Warn(ctx, "agent binding lookup failed, re-resolving",
+					slog.F("agent_id", chatSnapshot.AgentID.UUID),
+					slog.Error(err),
+				)
+			}
+		}
+
+		agents, err := c.server.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
+			ctx,
+			chatSnapshot.WorkspaceID.UUID,
+		)
+		if err != nil || len(agents) == 0 {
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("chat has no workspace agent")
+		}
+
+		build, err := c.server.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, chatSnapshot.WorkspaceID.UUID)
+		if err != nil {
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf("get latest workspace build: %w", err)
+		}
+
+		updatedChat, persisted, err := c.persistBuildAgentBindingIfWorkspaceMatches(
 			ctx,
 			chatSnapshot,
-			c.loadChatSnapshot,
+			build.ID,
+			agents[0].ID,
 		)
-		if refreshErr != nil {
-			return chatSnapshot, database.WorkspaceAgent{}, refreshErr
+		if err != nil {
+			return chatSnapshot, database.WorkspaceAgent{}, err
 		}
-		if refreshedChat.WorkspaceID.Valid {
-			c.setCurrentChat(refreshedChat)
-			chatSnapshot = refreshedChat
+		if !persisted {
+			chatSnapshot = updatedChat
+			continue
 		}
+
+		chatSnapshot = updatedChat
+		c.agent = agents[0]
+		c.agentLoaded = true
+		c.cachedWorkspaceID = chatSnapshot.WorkspaceID
+		return chatSnapshot, c.agent, nil
 	}
 
-	if !chatSnapshot.WorkspaceID.Valid {
-		return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("chat has no workspace")
-	}
-
-	if chatSnapshot.AgentID.Valid {
-		agent, err := c.server.db.GetWorkspaceAgentByID(ctx, chatSnapshot.AgentID.UUID)
-		if err == nil {
-			c.agent = agent
-			c.agentLoaded = true
-			return chatSnapshot, c.agent, nil
-		}
-		if !xerrors.Is(err, sql.ErrNoRows) {
-			c.server.logger.Warn(ctx, "agent binding lookup failed, re-resolving",
-				slog.F("agent_id", chatSnapshot.AgentID.UUID),
-				slog.Error(err),
-			)
-		}
-	}
-
-	agents, err := c.server.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
-		ctx,
-		chatSnapshot.WorkspaceID.UUID,
+	return chatSnapshot, database.WorkspaceAgent{}, xerrors.New(
+		"chat workspace changed while resolving agent",
 	)
-	if err != nil || len(agents) == 0 {
-		return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("chat has no workspace agent")
-	}
-
-	build, err := c.server.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, chatSnapshot.WorkspaceID.UUID)
-	if err != nil {
-		return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf("get latest workspace build: %w", err)
-	}
-
-	chatSnapshot, err = c.server.db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
-		WorkspaceID: chatSnapshot.WorkspaceID,
-		BuildID: uuid.NullUUID{
-			UUID:  build.ID,
-			Valid: true,
-		},
-		AgentID: uuid.NullUUID{
-			UUID:  agents[0].ID,
-			Valid: true,
-		},
-		ID: chatSnapshot.ID,
-	})
-	if err != nil {
-		return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf("update chat workspace binding: %w", err)
-	}
-	c.setCurrentChat(chatSnapshot)
-
-	c.agent = agents[0]
-	c.agentLoaded = true
-	return chatSnapshot, c.agent, nil
 }
 
 func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspacesdk.AgentConn, error) {
-	c.mu.Lock()
-	if c.conn != nil {
-		currentConn := c.conn
-		c.mu.Unlock()
-		return currentConn, nil
-	}
-	c.mu.Unlock()
-
 	if c.server.agentConnFn == nil {
 		return nil, xerrors.New("workspace agent connector is not configured")
 	}
 
-	chatSnapshot, agent, err := c.ensureWorkspaceAgent(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	dialResult, err := dialWithLazyValidation(
-		ctx,
-		agent.ID,
-		chatSnapshot.WorkspaceID.UUID,
-		DialFunc(c.server.agentConnFn),
-		func(ctx context.Context, workspaceID uuid.UUID) (uuid.UUID, error) {
-			agents, err := c.server.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspaceID)
-			if err != nil || len(agents) == 0 {
-				return uuid.Nil, xerrors.New("chat has no workspace agent")
+	for attempt := 0; attempt < 2; attempt++ {
+		c.mu.Lock()
+		if c.conn != nil {
+			chatSnapshot := c.currentChatSnapshot()
+			if nullUUIDEqual(c.cachedWorkspaceID, chatSnapshot.WorkspaceID) {
+				currentConn := c.conn
+				c.mu.Unlock()
+				return currentConn, nil
 			}
-			return agents[0].ID, nil
-		},
-		workspaceDialValidationDelay,
-	)
-	if err != nil {
-		return nil, err
-	}
 
-	agentConn := dialResult.Conn
-	agentRelease := dialResult.Release
-	if dialResult.WasSwitched {
-		build, err := c.server.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, chatSnapshot.WorkspaceID.UUID)
-		if err != nil {
+			agentRelease := c.releaseConn
+			c.agent = database.WorkspaceAgent{}
+			c.agentLoaded = false
+			c.conn = nil
+			c.releaseConn = nil
+			c.cachedWorkspaceID = uuid.NullUUID{}
+			c.mu.Unlock()
 			if agentRelease != nil {
 				agentRelease()
 			}
-			return nil, xerrors.Errorf("get latest workspace build: %w", err)
+		} else {
+			c.mu.Unlock()
 		}
 
-		switchedAgent, err := c.server.db.GetWorkspaceAgentByID(ctx, dialResult.AgentID)
+		chatSnapshot, agent, err := c.ensureWorkspaceAgent(ctx)
 		if err != nil {
-			if agentRelease != nil {
-				agentRelease()
-			}
-			return nil, xerrors.Errorf("get workspace agent by id: %w", err)
+			return nil, err
 		}
 
-		chatSnapshot, err = c.server.db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
-			WorkspaceID: chatSnapshot.WorkspaceID,
-			BuildID: uuid.NullUUID{
-				UUID:  build.ID,
-				Valid: true,
+		dialResult, err := dialWithLazyValidation(
+			ctx,
+			agent.ID,
+			chatSnapshot.WorkspaceID.UUID,
+			DialFunc(c.server.agentConnFn),
+			func(ctx context.Context, workspaceID uuid.UUID) (uuid.UUID, error) {
+				agents, err := c.server.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspaceID)
+				if err != nil || len(agents) == 0 {
+					return uuid.Nil, xerrors.New("chat has no workspace agent")
+				}
+				return agents[0].ID, nil
 			},
-			AgentID: uuid.NullUUID{
-				UUID:  switchedAgent.ID,
-				Valid: true,
-			},
-			ID: chatSnapshot.ID,
-		})
+			workspaceDialValidationDelay,
+		)
 		if err != nil {
+			return nil, err
+		}
+
+		agentConn := dialResult.Conn
+		agentRelease := dialResult.Release
+		if dialResult.WasSwitched {
+			build, err := c.server.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, chatSnapshot.WorkspaceID.UUID)
+			if err != nil {
+				if agentRelease != nil {
+					agentRelease()
+				}
+				return nil, xerrors.Errorf("get latest workspace build: %w", err)
+			}
+
+			switchedAgent, err := c.server.db.GetWorkspaceAgentByID(ctx, dialResult.AgentID)
+			if err != nil {
+				if agentRelease != nil {
+					agentRelease()
+				}
+				return nil, xerrors.Errorf("get workspace agent by id: %w", err)
+			}
+
+			updatedChat, persisted, err := c.persistBuildAgentBindingIfWorkspaceMatches(
+				ctx,
+				chatSnapshot,
+				build.ID,
+				switchedAgent.ID,
+			)
+			if err != nil {
+				if agentRelease != nil {
+					agentRelease()
+				}
+				return nil, err
+			}
+			if !persisted {
+				if agentRelease != nil {
+					agentRelease()
+				}
+				c.clearCachedWorkspaceState()
+				chatSnapshot = updatedChat
+				continue
+			}
+			chatSnapshot = updatedChat
+
+			c.mu.Lock()
+			c.agent = switchedAgent
+			c.agentLoaded = true
+			c.cachedWorkspaceID = chatSnapshot.WorkspaceID
+			c.mu.Unlock()
+		}
+
+		if _, workspaceMatches := c.currentWorkspaceMatches(chatSnapshot.WorkspaceID); !workspaceMatches {
 			if agentRelease != nil {
 				agentRelease()
 			}
-			return nil, xerrors.Errorf("update chat workspace binding: %w", err)
+			c.clearCachedWorkspaceState()
+			continue
 		}
-		c.setCurrentChat(chatSnapshot)
 
 		c.mu.Lock()
-		c.agent = switchedAgent
-		c.agentLoaded = true
+		if c.conn == nil {
+			c.conn = agentConn
+			c.releaseConn = agentRelease
+			c.cachedWorkspaceID = chatSnapshot.WorkspaceID
+
+			var ancestorIDs []string
+			if chatSnapshot.ParentChatID.Valid {
+				ancestorIDs = append(ancestorIDs, chatSnapshot.ParentChatID.UUID.String())
+			}
+			ancestorJSON, marshalErr := json.Marshal(ancestorIDs)
+			if marshalErr != nil {
+				ancestorJSON = []byte("[]")
+			}
+			agentConn.SetExtraHeaders(http.Header{
+				workspacesdk.CoderChatIDHeader:          {chatSnapshot.ID.String()},
+				workspacesdk.CoderAncestorChatIDsHeader: {string(ancestorJSON)},
+			})
+
+			c.mu.Unlock()
+			return agentConn, nil
+		}
+		currentConn := c.conn
 		c.mu.Unlock()
+
+		if agentRelease != nil {
+			agentRelease()
+		}
+		return currentConn, nil
 	}
 
-	c.mu.Lock()
-	if c.conn == nil {
-		c.conn = agentConn
-		c.releaseConn = agentRelease
-
-		var ancestorIDs []string
-		if chatSnapshot.ParentChatID.Valid {
-			ancestorIDs = append(ancestorIDs, chatSnapshot.ParentChatID.UUID.String())
-		}
-		ancestorJSON, marshalErr := json.Marshal(ancestorIDs)
-		if marshalErr != nil {
-			ancestorJSON = []byte("[]")
-		}
-		agentConn.SetExtraHeaders(http.Header{
-			workspacesdk.CoderChatIDHeader:          {chatSnapshot.ID.String()},
-			workspacesdk.CoderAncestorChatIDsHeader: {string(ancestorJSON)},
-		})
-
-		c.mu.Unlock()
-		return agentConn, nil
-	}
-	currentConn := c.conn
-	c.mu.Unlock()
-
-	agentRelease()
-	return currentConn, nil
+	return nil, xerrors.New("chat workspace changed while connecting")
 }
 
 // AgentConnFunc provides access to workspace agent connections.
@@ -3543,6 +3668,7 @@ func (p *Server) runChat(
 				AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
 				AgentInactiveDisconnectTimeout: p.agentInactiveDisconnectTimeout,
 				WorkspaceMu:                    &workspaceMu,
+				OnChatUpdated:                  workspaceCtx.selectWorkspace,
 				Logger:                         p.logger,
 				AllowedTemplateIDs:             p.chatTemplateAllowlist,
 			}),

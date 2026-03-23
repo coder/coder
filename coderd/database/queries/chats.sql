@@ -318,6 +318,16 @@ UPDATE chats SET
 WHERE id = @id::uuid
 RETURNING *;
 
+-- name: UpdateChatBuildAgentBindingIfWorkspaceMatches :one
+UPDATE chats SET
+    build_id = sqlc.narg('build_id')::uuid,
+    agent_id = sqlc.narg('agent_id')::uuid,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid AND
+    workspace_id IS NOT DISTINCT FROM @expected_workspace_id::uuid
+RETURNING *;
+
 -- name: UpdateChatMCPServerIDs :one
 UPDATE
     chats

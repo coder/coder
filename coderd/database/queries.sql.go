@@ -5722,6 +5722,55 @@ func (q *sqlQuerier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) error 
 	return err
 }
 
+const updateChatBuildAgentBindingIfWorkspaceMatches = `-- name: UpdateChatBuildAgentBindingIfWorkspaceMatches :one
+UPDATE chats SET
+    build_id = $1::uuid,
+    agent_id = $2::uuid,
+    updated_at = NOW()
+WHERE
+    id = $3::uuid AND
+    workspace_id IS NOT DISTINCT FROM $4::uuid
+RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, build_id, agent_id
+`
+
+type UpdateChatBuildAgentBindingIfWorkspaceMatchesParams struct {
+	BuildID             uuid.NullUUID `db:"build_id" json:"build_id"`
+	AgentID             uuid.NullUUID `db:"agent_id" json:"agent_id"`
+	ID                  uuid.UUID     `db:"id" json:"id"`
+	ExpectedWorkspaceID uuid.UUID     `db:"expected_workspace_id" json:"expected_workspace_id"`
+}
+
+func (q *sqlQuerier) UpdateChatBuildAgentBindingIfWorkspaceMatches(ctx context.Context, arg UpdateChatBuildAgentBindingIfWorkspaceMatchesParams) (Chat, error) {
+	row := q.db.QueryRowContext(ctx, updateChatBuildAgentBindingIfWorkspaceMatches,
+		arg.BuildID,
+		arg.AgentID,
+		arg.ID,
+		arg.ExpectedWorkspaceID,
+	)
+	var i Chat
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Status,
+		&i.WorkerID,
+		&i.StartedAt,
+		&i.HeartbeatAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ParentChatID,
+		&i.RootChatID,
+		&i.LastModelConfigID,
+		&i.Archived,
+		&i.LastError,
+		&i.Mode,
+		&i.BuildID,
+		&i.AgentID,
+	)
+	return i, err
+}
+
 const updateChatByID = `-- name: UpdateChatByID :one
 UPDATE
     chats

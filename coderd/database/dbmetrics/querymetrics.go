@@ -4000,6 +4000,14 @@ func (m queryMetricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.Up
 	return r0
 }
 
+func (m queryMetricsStore) UpdateChatBuildAgentBindingIfWorkspaceMatches(ctx context.Context, arg database.UpdateChatBuildAgentBindingIfWorkspaceMatchesParams) (database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatBuildAgentBindingIfWorkspaceMatches(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatBuildAgentBindingIfWorkspaceMatches").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatBuildAgentBindingIfWorkspaceMatches").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateChatByID(ctx context.Context, arg database.UpdateChatByIDParams) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatByID(ctx, arg)
