@@ -128,7 +128,6 @@ const meta: Meta<typeof AgentDetailView> = {
 		handleViewWorkspace: fn(),
 		handleOpenTerminal: fn(),
 		handleCommit: fn(),
-		onNavigateToChat: fn(),
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
 		handlePromoteQueuedMessage: fn(),

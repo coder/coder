@@ -4,7 +4,6 @@ import { AgentDetailTopBar } from "./TopBar";
 
 const defaultProps = {
 	chatTitle: "Build authentication feature",
-	onOpenParentChat: () => {},
 	panel: {
 		showSidebarPanel: false,
 		onToggleSidebar: () => {},

@@ -23,6 +23,7 @@ import { Check, MonitorIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
+import { Link } from "react-router";
 import { toast } from "sonner";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
@@ -115,7 +116,6 @@ interface AgentCreateFormProps {
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
 	modelCatalogError: unknown;
-	onOpenAnalytics?: () => void;
 }
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
@@ -128,7 +128,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isModelCatalogLoading,
 	isModelConfigsLoading,
 	modelCatalogError,
-	onOpenAnalytics,
 }) => {
 	const { organizations } = useDashboard();
 	const { initialInputValue, handleContentChange, submitDraft, resetDraft } =
@@ -335,11 +334,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							severity="info"
 							className="py-2"
 							actions={
-								onOpenAnalytics && (
-									<Button variant="subtle" size="sm" onClick={onOpenAnalytics}>
-										View Usage
-									</Button>
-								)
+								<Button asChild variant="subtle" size="sm">
+									<Link to="/agents/analytics">View Usage</Link>
+								</Button>
 							}
 						>
 							{formatUsageLimitMessage(createError.response.data)}

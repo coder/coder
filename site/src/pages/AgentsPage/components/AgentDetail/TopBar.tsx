@@ -24,7 +24,7 @@ import {
 	Trash2Icon,
 } from "lucide-react";
 import type { FC } from "react";
-import { useNavigate } from "react-router";
+import { Link } from "react-router";
 import { toast } from "sonner";
 import { cn } from "utils/cn";
 import { parsePullRequestUrl } from "../../utils/pullRequest";
@@ -48,7 +48,6 @@ interface WorkspaceActions {
 type AgentDetailTopBarProps = {
 	chatTitle?: string;
 	parentChat?: TypesGen.Chat;
-	onOpenParentChat: (chatId: string) => void;
 	panel: SidebarPanelState;
 	workspace: WorkspaceActions;
 	onArchiveAgent: () => void;
@@ -64,7 +63,6 @@ type AgentDetailTopBarProps = {
 export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	chatTitle,
 	parentChat,
-	onOpenParentChat,
 	panel,
 	workspace,
 	onArchiveAgent,
@@ -76,7 +74,6 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 	onToggleSidebarCollapsed,
 	diffStatusData,
 }) => {
-	const navigate = useNavigate();
 	const { isEmbedded } = useEmbedContext();
 
 	const prUrl = diffStatusData?.url;
@@ -93,13 +90,14 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 			{/* Mobile back button */}
 			{!isEmbedded && (
 				<Button
+					asChild
 					variant="subtle"
 					size="icon"
-					onClick={() => navigate("/agents")}
-					aria-label="Back"
 					className="inline-flex h-7 w-7 min-w-0 shrink-0 md:hidden"
 				>
-					<ArrowLeftIcon />
+					<Link to="/agents" aria-label="Back">
+						<ArrowLeftIcon />
+					</Link>
 				</Button>
 			)}
 			{/* Desktop expand button: visible when sidebar is manually collapsed. */}
@@ -121,12 +119,14 @@ export const AgentDetailTopBar: FC<AgentDetailTopBarProps> = ({
 						{parentChat && (
 							<>
 								<Button
+									asChild
 									size="sm"
 									variant="subtle"
 									className="h-auto max-w-[16rem] rounded-sm px-1 py-0.5 text-sm text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
-									onClick={() => onOpenParentChat(parentChat.id)}
 								>
-									<span className="truncate">{parentChat.title}</span>
+									<Link to={`/agents/${parentChat.id}`}>
+										<span className="truncate">{parentChat.title}</span>
+									</Link>
 								</Button>
 								<ChevronRightIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary/70 -ml-0.5" />
 							</>
