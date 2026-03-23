@@ -3160,109 +3160,65 @@ func (s *MethodTestSuite) TestWorkspace() {
 }
 
 func (s *MethodTestSuite) TestWorkspacePortSharing() {
-	s.Run("UpsertWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      u.ID,
-		})
-		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			OwnerID:        u.ID,
-			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
-		})
-		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
-		//nolint:gosimple // casting is not a simplification
-		check.Args(database.UpsertWorkspaceAgentPortShareParams{
+	s.Run("UpsertWorkspaceAgentPortShare", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		ps := testutil.Fake(s.T(), faker, database.WorkspaceAgentPortShare{})
+		ps.WorkspaceID = ws.ID
+		arg := database.UpsertWorkspaceAgentPortShareParams{
 			WorkspaceID: ps.WorkspaceID,
 			AgentName:   ps.AgentName,
 			Port:        ps.Port,
 			ShareLevel:  ps.ShareLevel,
 			Protocol:    ps.Protocol,
-		}).Asserts(ws, policy.ActionUpdate).Returns(ps)
+		}
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().UpsertWorkspaceAgentPortShare(gomock.Any(), arg).Return(ps, nil).AnyTimes()
+		check.Args(arg).Asserts(ws, policy.ActionUpdate).Returns(ps)
 	}))
-	s.Run("GetWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      u.ID,
-		})
-		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			OwnerID:        u.ID,
-			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
-		})
-		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
-		check.Args(database.GetWorkspaceAgentPortShareParams{
+	s.Run("GetWorkspaceAgentPortShare", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		ps := testutil.Fake(s.T(), faker, database.WorkspaceAgentPortShare{})
+		ps.WorkspaceID = ws.ID
+		arg := database.GetWorkspaceAgentPortShareParams{
 			WorkspaceID: ps.WorkspaceID,
 			AgentName:   ps.AgentName,
 			Port:        ps.Port,
-		}).Asserts(ws, policy.ActionRead).Returns(ps)
+		}
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().GetWorkspaceAgentPortShare(gomock.Any(), arg).Return(ps, nil).AnyTimes()
+		check.Args(arg).Asserts(ws, policy.ActionRead).Returns(ps)
 	}))
-	s.Run("ListWorkspaceAgentPortShares", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      u.ID,
-		})
-		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			OwnerID:        u.ID,
-			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
-		})
-		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
+	s.Run("ListWorkspaceAgentPortShares", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		ps := testutil.Fake(s.T(), faker, database.WorkspaceAgentPortShare{})
+		ps.WorkspaceID = ws.ID
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().ListWorkspaceAgentPortShares(gomock.Any(), ws.ID).Return([]database.WorkspaceAgentPortShare{ps}, nil).AnyTimes()
 		check.Args(ws.ID).Asserts(ws, policy.ActionRead).Returns([]database.WorkspaceAgentPortShare{ps})
 	}))
-	s.Run("DeleteWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      u.ID,
-		})
-		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			OwnerID:        u.ID,
-			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
-		})
-		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
-		check.Args(database.DeleteWorkspaceAgentPortShareParams{
+	s.Run("DeleteWorkspaceAgentPortShare", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		ps := testutil.Fake(s.T(), faker, database.WorkspaceAgentPortShare{})
+		ps.WorkspaceID = ws.ID
+		arg := database.DeleteWorkspaceAgentPortShareParams{
 			WorkspaceID: ps.WorkspaceID,
 			AgentName:   ps.AgentName,
 			Port:        ps.Port,
-		}).Asserts(ws, policy.ActionUpdate).Returns()
+		}
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
+		dbm.EXPECT().DeleteWorkspaceAgentPortShare(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(ws, policy.ActionUpdate).Returns()
 	}))
-	s.Run("DeleteWorkspaceAgentPortSharesByTemplate", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      u.ID,
-		})
-		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			OwnerID:        u.ID,
-			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
-		})
-		_ = dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
+	s.Run("DeleteWorkspaceAgentPortSharesByTemplate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		tpl := testutil.Fake(s.T(), faker, database.Template{})
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+		dbm.EXPECT().DeleteWorkspaceAgentPortSharesByTemplate(gomock.Any(), tpl.ID).Return(nil).AnyTimes()
 		check.Args(tpl.ID).Asserts(tpl, policy.ActionUpdate).Returns()
 	}))
-	s.Run("ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate", s.Subtest(func(db database.Store, check *expects) {
-		u := dbgen.User(s.T(), db, database.User{})
-		org := dbgen.Organization(s.T(), db, database.Organization{})
-		tpl := dbgen.Template(s.T(), db, database.Template{
-			OrganizationID: org.ID,
-			CreatedBy:      u.ID,
-		})
-		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			OwnerID:        u.ID,
-			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
-		})
-		_ = dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
+	s.Run("ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		tpl := testutil.Fake(s.T(), faker, database.Template{})
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+		dbm.EXPECT().ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(gomock.Any(), tpl.ID).Return(nil).AnyTimes()
 		check.Args(tpl.ID).Asserts(tpl, policy.ActionUpdate).Returns()
 	}))
 }
