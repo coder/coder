@@ -12,14 +12,18 @@ import (
 
 const maxProposePlanSize = 32 * 1024 // 32 KiB
 
+// ProposePlanOptions configures the propose_plan tool.
 type ProposePlanOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
 }
 
+// ProposePlanArgs are the arguments for the propose_plan tool.
 type ProposePlanArgs struct {
 	Path string `json:"path"`
 }
 
+// ProposePlan returns a tool that presents a Markdown plan file from the
+// workspace for user review.
 func ProposePlan(options ProposePlanOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"propose_plan",

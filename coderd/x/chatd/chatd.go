@@ -3227,10 +3227,8 @@ func (p *Server) runChat(
 	// create workspaces or spawn further subagents — they should
 	// focus on completing their delegated task.
 	if !chat.ParentChatID.Valid {
+		// Workspace provisioning tools.
 		tools = append(tools,
-			chattool.ProposePlan(chattool.ProposePlanOptions{
-				GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			}),
 			chattool.ListTemplates(chattool.ListTemplatesOptions{
 				DB:      p.db,
 				OwnerID: chat.OwnerID,
@@ -3257,6 +3255,10 @@ func (p *Server) runChat(
 				WorkspaceMu: &workspaceMu,
 			}),
 		)
+		// Plan presentation tool.
+		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+		}))
 		tools = append(tools, p.subagentTools(ctx, func() database.Chat {
 			return chat
 		})...)

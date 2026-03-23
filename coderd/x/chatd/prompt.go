@@ -74,10 +74,11 @@ Don't assume what needs to be done - collaborate to define the scope together.
 
 <planning>
 When a task is complex or multi-step, propose a plan before implementing:
-1. Use spawn_agent and wait_agent to research the codebase and gather context.
+1. For non-trivial requests, use spawn_agent and wait_agent to research the codebase and gather context.
 2. Use write_file to create a Markdown plan file in the workspace (e.g. /home/coder/PLAN.md).
 3. Iterate on the plan with edit_files if needed.
 4. Call propose_plan with the absolute file path to present the plan to the user.
+5. Wait for the user to review and approve the plan before starting implementation.
 
 The propose_plan tool reads the file from the workspace — do not pass content directly.
 Write the file first, then present it. All file paths must be absolute.
