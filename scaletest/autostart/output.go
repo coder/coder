@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"sort"
+	"slices"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -56,9 +56,7 @@ func NewRunResults(runs []RunResult) RunResults {
 
 	// Calculate percentiles for end-to-end latency.
 	if len(endToEndLatencies) > 0 {
-		sort.Slice(endToEndLatencies, func(i, j int) bool {
-			return endToEndLatencies[i] < endToEndLatencies[j]
-		})
+		slices.Sort(endToEndLatencies)
 		results.EndToEndLatencyP50 = percentile(endToEndLatencies, 0.50)
 		results.EndToEndLatencyP95 = percentile(endToEndLatencies, 0.95)
 		results.EndToEndLatencyP99 = percentile(endToEndLatencies, 0.99)
@@ -66,9 +64,7 @@ func NewRunResults(runs []RunResult) RunResults {
 
 	// Calculate percentiles for trigger to completion latency.
 	if len(triggerToCompletionLatencies) > 0 {
-		sort.Slice(triggerToCompletionLatencies, func(i, j int) bool {
-			return triggerToCompletionLatencies[i] < triggerToCompletionLatencies[j]
-		})
+		slices.Sort(triggerToCompletionLatencies)
 		results.TriggerToCompletionP50 = percentile(triggerToCompletionLatencies, 0.50)
 		results.TriggerToCompletionP95 = percentile(triggerToCompletionLatencies, 0.95)
 		results.TriggerToCompletionP99 = percentile(triggerToCompletionLatencies, 0.99)

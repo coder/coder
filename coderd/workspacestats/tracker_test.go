@@ -2,7 +2,7 @@ package workspacestats_test
 
 import (
 	"bytes"
-	"sort"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -63,8 +63,8 @@ func TestTracker(t *testing.T) {
 	}
 
 	// Sort ids so mDB know what to expect.
-	sort.Slice(ids, func(i, j int) bool {
-		return bytes.Compare(ids[i][:], ids[j][:]) < 0
+	slices.SortFunc(ids, func(a, b uuid.UUID) int {
+		return bytes.Compare(a[:], b[:])
 	})
 
 	now = dbtime.Now()

@@ -1,12 +1,13 @@
 package agentproc
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -129,11 +130,14 @@ func (api *API) handleListProcesses(rw http.ResponseWriter, r *http.Request) {
 
 	// Sort by running state (running first), then by started_at
 	// descending so the most recent processes appear first.
-	sort.Slice(infos, func(i, j int) bool {
-		if infos[i].Running != infos[j].Running {
-			return infos[i].Running
+	slices.SortFunc(infos, func(a, b workspacesdk.ProcessInfo) int {
+		if a.Running != b.Running {
+			if a.Running {
+				return -1
+			}
+			return 1
 		}
-		return infos[i].StartedAt > infos[j].StartedAt
+		return cmp.Compare(b.StartedAt, a.StartedAt)
 	})
 
 	// Cap the response to avoid bloating LLM context.

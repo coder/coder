@@ -1,6 +1,7 @@
 package telemetry_test
 
 import (
+	stdcmp "cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -9,7 +10,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"slices"
-	"sort"
 	"testing"
 	"time"
 
@@ -359,12 +359,15 @@ func TestTelemetry(t *testing.T) {
 		}))
 
 		tvs := snapshot.TemplateVersions
-		sort.Slice(tvs, func(i, j int) bool {
+		slices.SortFunc(tvs, func(a, b telemetry.TemplateVersion) int {
 			// Sort by SourceExampleID presence (non-nil comes before nil)
-			if (tvs[i].SourceExampleID != nil) != (tvs[j].SourceExampleID != nil) {
-				return tvs[i].SourceExampleID != nil
+			if (a.SourceExampleID != nil) != (b.SourceExampleID != nil) {
+				if a.SourceExampleID != nil {
+					return -1
+				}
+				return 1
 			}
-			return false
+			return 0
 		})
 		require.Equal(t, tvs[0].SourceExampleID, &sourceExampleID)
 		require.Nil(t, tvs[1].SourceExampleID)
@@ -458,8 +461,8 @@ func TestTelemetry(t *testing.T) {
 		_, snapshot := collectSnapshot(ctx, t, db, nil)
 		require.Len(t, snapshot.WorkspaceModules, 2)
 		modules := snapshot.WorkspaceModules
-		sort.Slice(modules, func(i, j int) bool {
-			return modules[i].Source < modules[j].Source
+		slices.SortFunc(modules, func(a, b telemetry.WorkspaceModule) int {
+			return stdcmp.Compare(a.Source, b.Source)
 		})
 		require.Equal(t, modules[0].Source, "ed662ec0396db67e77119f14afcb9253574cc925b04a51d4374bcb1eae299f5d")
 		require.Equal(t, modules[0].Version, "92521fc3cbd964bdc9f584a991b89fddaa5754ed1cc96d6d42445338669c1305")

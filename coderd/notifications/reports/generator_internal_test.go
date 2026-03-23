@@ -1,9 +1,10 @@
 package reports
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
@@ -244,11 +245,11 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		templateAdmins := []uuid.UUID{templateAdmin1.ID, templateAdmin2.ID}
 
 		// Ensure consistent order for tests
-		sort.Slice(templateAdmins, func(i, j int) bool {
-			return templateAdmins[i].String() < templateAdmins[j].String()
+		slices.SortFunc(templateAdmins, func(a, b uuid.UUID) int {
+			return cmp.Compare(a.String(), b.String())
 		})
-		sort.Slice(sent, func(i, j int) bool {
-			return sent[i].UserID.String() < sent[j].UserID.String()
+		slices.SortFunc(sent, func(a, b *notificationstest.FakeNotification) int {
+			return cmp.Compare(a.UserID.String(), b.UserID.String())
 		})
 
 		for i, templateAdmin := range templateAdmins {
@@ -335,11 +336,11 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		templateAdmins = []uuid.UUID{templateAdmin1.ID, templateAdmin2.ID}
 
 		// Ensure consistent order for tests
-		sort.Slice(templateAdmins, func(i, j int) bool {
-			return templateAdmins[i].String() < templateAdmins[j].String()
+		slices.SortFunc(templateAdmins, func(a, b uuid.UUID) int {
+			return cmp.Compare(a.String(), b.String())
 		})
-		sort.Slice(sent, func(i, j int) bool {
-			return sent[i].UserID.String() < sent[j].UserID.String()
+		slices.SortFunc(sent, func(a, b *notificationstest.FakeNotification) int {
+			return cmp.Compare(a.UserID.String(), b.UserID.String())
 		})
 
 		for i, templateAdmin := range templateAdmins {

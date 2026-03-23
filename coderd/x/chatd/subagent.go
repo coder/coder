@@ -1,10 +1,11 @@
 package chatd
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -607,11 +608,11 @@ func latestSubagentAssistantMessage(
 		return "", xerrors.Errorf("get chat messages: %w", err)
 	}
 
-	sort.Slice(messages, func(i, j int) bool {
-		if messages[i].CreatedAt.Equal(messages[j].CreatedAt) {
-			return messages[i].ID < messages[j].ID
+	slices.SortFunc(messages, func(a, b database.ChatMessage) int {
+		if a.CreatedAt.Equal(b.CreatedAt) {
+			return cmp.Compare(a.ID, b.ID)
 		}
-		return messages[i].CreatedAt.Before(messages[j].CreatedAt)
+		return a.CreatedAt.Compare(b.CreatedAt)
 	})
 
 	for i := len(messages) - 1; i >= 0; i-- {
