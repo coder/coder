@@ -17,6 +17,7 @@ const DEFAULT_LIVE_STATUS_PARAMS: DeriveLiveStatusParams = {
 	streamState: null,
 	retryState: null,
 	streamError: null,
+	persistedError: null,
 	isAwaitingFirstStreamChunk: false,
 };
 

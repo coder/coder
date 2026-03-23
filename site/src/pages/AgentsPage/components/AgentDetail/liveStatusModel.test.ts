@@ -3,11 +3,14 @@ import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import { deriveLiveStatus } from "./liveStatusModel";
 import type { RetryState, StreamState } from "./types";
 
-const makeStreamState = (): StreamState => ({
+const makeStreamState = (
+	overrides: Partial<StreamState> = {},
+): StreamState => ({
 	blocks: [],
 	toolCalls: {},
 	toolResults: {},
 	sources: [],
+	...overrides,
 });
 
 const makeRetryState = (overrides: Partial<RetryState> = {}): RetryState => ({
@@ -38,6 +41,7 @@ const derive = (
 		streamState: null,
 		retryState: null,
 		streamError: null,
+		persistedError: null,
 		isAwaitingFirstStreamChunk: false,
 		...overrides,
 	});
@@ -45,6 +49,7 @@ const derive = (
 describe("deriveLiveStatus", () => {
 	const retryingStatus = {
 		phase: "retrying",
+		hasAccumulatedOutput: false,
 		title: "Retrying request",
 		kind: "generic",
 		message: "Retrying request shortly.",
@@ -55,6 +60,7 @@ describe("deriveLiveStatus", () => {
 	};
 	const failedStatus = {
 		phase: "failed",
+		hasAccumulatedOutput: false,
 		title: "Request failed",
 		kind: "generic",
 		message: "Chat processing failed.",
@@ -64,13 +70,48 @@ describe("deriveLiveStatus", () => {
 	};
 
 	it.each([
-		["idle", undefined, { phase: "idle" }],
-		["starting", { isAwaitingFirstStreamChunk: true }, { phase: "starting" }],
+		["idle", undefined, { phase: "idle", hasAccumulatedOutput: false }],
+		[
+			"starting",
+			{ isAwaitingFirstStreamChunk: true },
+			{ phase: "starting", hasAccumulatedOutput: false },
+		],
 		["retrying", { retryState: makeRetryState() }, retryingStatus],
 		["failed", { streamError: makeStreamError() }, failedStatus],
-		["streaming", { streamState: makeStreamState() }, { phase: "streaming" }],
+		[
+			"streaming",
+			{ streamState: makeStreamState() },
+			{ phase: "streaming", hasAccumulatedOutput: false },
+		],
 	])("returns %s", (_phase, overrides, expected) => {
 		expect(derive(overrides)).toEqual(expected);
+	});
+
+	it("uses the persisted error as the idle fallback", () => {
+		expect(derive({ persistedError: makeStreamError() })).toEqual(failedStatus);
+	});
+
+	it("keeps live stream state ahead of the persisted error fallback", () => {
+		expect(
+			derive({
+				streamState: makeStreamState(),
+				persistedError: makeStreamError({ kind: "timeout" }),
+			}),
+		).toEqual({ phase: "streaming", hasAccumulatedOutput: false });
+	});
+
+	it("tracks accumulated output on failed streams", () => {
+		expect(
+			derive({
+				streamState: makeStreamState({
+					blocks: [{ type: "response", text: "Partial response" }],
+				}),
+				streamError: makeStreamError(),
+			}),
+		).toEqual({
+			...failedStatus,
+			hasAccumulatedOutput: true,
+		});
 	});
 
 	it("prioritizes retrying over failed", () => {
@@ -78,6 +119,7 @@ describe("deriveLiveStatus", () => {
 			derive({
 				retryState: makeRetryState({ kind: "rate_limit" }),
 				streamError: makeStreamError({ kind: "timeout" }),
+				persistedError: makeStreamError({ kind: "generic" }),
 				isAwaitingFirstStreamChunk: true,
 			}),
 		).toMatchObject({ phase: "retrying", kind: "rate_limit" });
@@ -87,6 +129,7 @@ describe("deriveLiveStatus", () => {
 		expect(
 			derive({
 				streamError: makeStreamError({ kind: "timeout" }),
+				persistedError: makeStreamError({ kind: "generic" }),
 				isAwaitingFirstStreamChunk: true,
 			}),
 		).toMatchObject({ phase: "failed", kind: "timeout" });
@@ -98,6 +141,6 @@ describe("deriveLiveStatus", () => {
 				streamState: makeStreamState(),
 				isAwaitingFirstStreamChunk: true,
 			}),
-		).toEqual({ phase: "starting" });
+		).toEqual({ phase: "starting", hasAccumulatedOutput: false });
 	});
 });
