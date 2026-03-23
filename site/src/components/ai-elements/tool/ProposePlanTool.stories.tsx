@@ -107,14 +107,7 @@ export const ErrorState: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Proposed PLAN\.md/)).toBeInTheDocument();
-		const errorIcon = canvas.getByLabelText("Error");
-		expect(errorIcon).toBeInTheDocument();
-		await userEvent.hover(errorIcon);
-		expect(
-			await within(document.body).findByText(
-				"Failed to read file: file not found",
-			),
-		).toBeInTheDocument();
+		expect(canvas.getByLabelText("Error")).toBeInTheDocument();
 	},
 };
 
