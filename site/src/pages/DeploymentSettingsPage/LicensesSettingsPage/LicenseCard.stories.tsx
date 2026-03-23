@@ -6,7 +6,7 @@ import { expect, fn, within } from "storybook/test";
 
 import { LicenseCard } from "./LicenseCard";
 
-const FIXED_NOW = dayjs("2024-01-15T00:00:00Z");
+const FIXED_NOW = dayjs().startOf("day");
 const YESTERDAY = FIXED_NOW.subtract(1, "day").unix();
 const NEXT_WEEK = FIXED_NOW.add(7, "day").unix();
 
