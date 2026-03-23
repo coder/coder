@@ -207,6 +207,17 @@ The following filters are supported:
   RFC3339Nano format.
 - `login_type` - Represents the login type of the user. Refer to the [LoginType documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#LoginType) for a list of supported values
 
+## Edit a user's profile
+
+To edit a user's display name or username with the web UI:
+
+1. Log in as a user admin.
+2. Go to **Users**
+3. Find the user whose details you would like to edit
+4. Select **Edit** from the actions menu
+5. Make any desired changes
+6. Click **Save**
+
 ## Retrieve your list of Coder users
 
 <div class="tabs">
