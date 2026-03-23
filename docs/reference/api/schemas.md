@@ -12382,22 +12382,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `agent_script_timings`     | array of [codersdk.AgentScriptTiming](#codersdkagentscripttiming)         | false    |              | Agent script timings Consolidate agent-related timing metrics into a single struct when updating the API version |
 | `provisioner_timings`      | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming)         | false    |              |                                                                                                                  |
 
-## codersdk.WorkspaceChatIDsRequest
-
-```json
-{
-  "workspace_ids": [
-    "string"
-  ]
-}
-```
-
-### Properties
-
-| Name            | Type            | Required | Restrictions | Description |
-|-----------------|-----------------|----------|--------------|-------------|
-| `workspace_ids` | array of string | false    |              |             |
-
 ## codersdk.WorkspaceConnectionLatencyMS
 
 ```json

@@ -406,11 +406,11 @@ export const ShowWorkspaceChats: Story = {
 			},
 			{
 				...MockWorkspace,
-				id: "ws-with-chat",
-				name: "chat-workspace",
+				id: "ws-with-agent",
+				name: "agent-workspace",
 			},
 		],
-		chatsByWorkspace: { "ws-with-chat": "some-chat-id" },
+		chatsByWorkspace: { "ws-with-agent": "some-chat-id" },
 	},
 };
 

@@ -36,7 +36,7 @@ import {
 	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { cn } from "utils/cn";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { API } from "#/api/api";
@@ -214,10 +214,15 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													</Badge>
 												)}
 												{chatsByWorkspace?.[workspace.id] && (
-													<Badge size="xs" variant="info">
-														Chat
-													</Badge>
-												)}
+													<Link
+														to={`/agents/${chatsByWorkspace[workspace.id]}`}
+														onClick={(e) => e.stopPropagation()}
+													>
+														<Badge size="xs" variant="info" hover>
+															Agent
+														</Badge>
+													</Link>
+												)}{" "}
 											</Stack>
 										}
 										subtitle={

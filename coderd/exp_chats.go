@@ -196,23 +196,14 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// chatsByWorkspace returns a mapping of workspace ID to the latest
-// non-archived chat ID for each requested workspace.
-//
-// @Summary Get latest chats by workspace IDs
-// @ID get-latest-chats-by-workspace-ids
-// @Security CoderSessionToken
-// @Tags Chats
-// @Accept json
-// @Produce json
-// @Param request body codersdk.WorkspaceChatIDsRequest true "Workspace IDs"
-// @Success 200 {object} map[uuid.UUID]uuid.UUID
-// @Router /experimental/chats/by-workspace [post]
-// @x-apidocgen {"skip": true}
+// EXPERIMENTAL: chatsByWorkspace returns a mapping of workspace ID to
+// the latest non-archived chat ID for each requested workspace.
 func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var req codersdk.WorkspaceChatIDsRequest
+	var req struct {
+		WorkspaceIDs []uuid.UUID `json:"workspace_ids"`
+	}
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}

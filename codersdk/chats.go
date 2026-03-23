@@ -312,12 +312,6 @@ type ChatInputPart struct {
 	Content string `json:"content,omitempty"`
 }
 
-// WorkspaceChatIDsRequest is the request to get the latest
-// chat IDs for a set of workspaces.
-type WorkspaceChatIDsRequest struct {
-	WorkspaceIDs []uuid.UUID `json:"workspace_ids"`
-}
-
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
 	Content       []ChatInputPart   `json:"content"`
@@ -2037,7 +2031,12 @@ func (c *ExperimentalClient) GetMyChatUsageLimitStatus(ctx context.Context) (Cha
 // GetChatsByWorkspace returns a mapping of workspace ID to the latest
 // non-archived chat ID for each requested workspace. Workspaces with
 // no chats are omitted from the response.
-func (c *ExperimentalClient) GetChatsByWorkspace(ctx context.Context, req WorkspaceChatIDsRequest) (map[uuid.UUID]uuid.UUID, error) {
+func (c *ExperimentalClient) GetChatsByWorkspace(ctx context.Context, workspaceIDs []uuid.UUID) (map[uuid.UUID]uuid.UUID, error) {
+	req := struct {
+		WorkspaceIDs []uuid.UUID `json:"workspace_ids"`
+	}{
+		WorkspaceIDs: workspaceIDs,
+	}
 	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/by-workspace", req)
 	if err != nil {
 		return nil, err

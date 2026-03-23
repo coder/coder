@@ -3026,12 +3026,11 @@ class ExperimentalApiMethods {
 	constructor(protected readonly axios: AxiosInstance) {}
 
 	getChatsByWorkspace = async (
-		req: TypesGen.WorkspaceChatIDsRequest,
+		workspaceIds: readonly string[],
 	): Promise<Record<string, string>> => {
-		const res = await this.axios.post(
-			"/api/experimental/chats/by-workspace",
-			req,
-		);
+		const res = await this.axios.post("/api/experimental/chats/by-workspace", {
+			workspace_ids: workspaceIds,
+		});
 		return res.data;
 	};
 

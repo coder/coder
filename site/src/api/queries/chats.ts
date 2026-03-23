@@ -9,8 +9,7 @@ export const chatMessagesKey = (chatId: string) =>
 
 export const workspaceChatIds = (workspaceIds: string[]) => ({
 	queryKey: [...chatsKey, "by-workspace", workspaceIds],
-	queryFn: () =>
-		API.experimental.getChatsByWorkspace({ workspace_ids: workspaceIds }),
+	queryFn: () => API.experimental.getChatsByWorkspace(workspaceIds),
 	enabled: workspaceIds.length > 0,
 });
 
