@@ -22,6 +22,7 @@ import {
 import type { FC, ReactNode } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { cn } from "utils/cn";
+import { formatProviderLabel } from "../../utils/modelOptions";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelForm } from "./ModelForm";
@@ -320,6 +321,10 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 											)}
 										>
 											{modelConfig.display_name || modelConfig.model}
+										</span>
+										<span className="block truncate text-xs text-content-secondary">
+											{formatProviderLabel(modelConfig.provider)} &middot;{" "}
+											{modelConfig.model}
 										</span>
 										{showPricingWarning && (
 											<span className="mt-1 flex items-center gap-1 text-xs text-content-warning">
