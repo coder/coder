@@ -1,28 +1,18 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { CoderIcon } from "components/Icons/CoderIcon";
-import { PanelLeftIcon } from "lucide-react";
-import { type FC, useState } from "react";
-import { NavLink, Outlet } from "react-router";
+import type { FC } from "react";
+import { Outlet, useLocation } from "react-router";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
-import { AgentCreateForm, type CreateChatOptions } from "./AgentCreateForm";
-import { AgentsSidebar } from "./AgentsSidebar";
-import { ChimeButton } from "./ChimeButton";
 import {
-	ConfigureAgentsDialog,
-	type ConfigureAgentsSection,
-} from "./ConfigureAgentsDialog";
-import { UserAnalyticsDialog } from "./UserAnalyticsDialog";
-import { WebPushButton } from "./WebPushButton";
-
-type ChatModelOption = ModelSelectorOption;
+	AgentsSidebar,
+	sidebarViewFromPath,
+} from "./components/Sidebar/AgentsSidebar";
+import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 export interface AgentsOutletContext {
-	chatErrorReasons: Record<string, string>;
-	setChatErrorReason: (chatId: string, reason: string) => void;
+	chatErrorReasons: Record<string, ChatDetailError>;
+	setChatErrorReason: (chatId: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatId: string) => void;
 	requestArchiveAgent: (chatId: string) => void;
 	requestUnarchiveAgent: (chatId: string) => void;
@@ -32,12 +22,13 @@ export interface AgentsOutletContext {
 	) => void;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
+	onExpandSidebar: () => void;
 }
 
 interface AgentsPageViewProps {
 	agentId: string | undefined;
 	chatList: TypesGen.Chat[];
-	catalogModelOptions: readonly ChatModelOption[];
+	catalogModelOptions: readonly ModelSelectorOption[];
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	logoUrl: string;
 	handleNewAgent: () => void;
@@ -50,14 +41,17 @@ interface AgentsPageViewProps {
 	onCollapseSidebar: () => void;
 	isSidebarCollapsed: boolean;
 	onExpandSidebar: () => void;
-	outletContext: AgentsOutletContext;
+	chatErrorReasons: Record<string, ChatDetailError>;
+	setChatErrorReason: (chatId: string, reason: ChatDetailError) => void;
+	clearChatErrorReason: (chatId: string) => void;
+	requestArchiveAgent: (chatId: string) => void;
+	requestUnarchiveAgent: (chatId: string) => void;
+	requestArchiveAndDeleteWorkspace: (
+		chatId: string,
+		workspaceId: string,
+	) => void;
+	onToggleSidebarCollapsed: () => void;
 	isAgentsAdmin: boolean;
-	onCreateChat: (options: CreateChatOptions) => Promise<void>;
-	createError: unknown;
-	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
-	isModelCatalogLoading: boolean;
-	isModelConfigsLoading: boolean;
-	modelCatalogError: unknown;
 	hasNextPage: boolean | undefined;
 	onLoadMore: () => void;
 	isFetchingNextPage: boolean;
@@ -81,34 +75,44 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	onCollapseSidebar,
 	isSidebarCollapsed,
 	onExpandSidebar,
-	outletContext,
+	chatErrorReasons,
+	setChatErrorReason,
+	clearChatErrorReason,
+	requestArchiveAgent,
+	requestUnarchiveAgent,
+	requestArchiveAndDeleteWorkspace,
+	onToggleSidebarCollapsed,
 	isAgentsAdmin,
-	onCreateChat,
-	createError,
-	modelCatalog,
-	isModelCatalogLoading,
-	isModelConfigsLoading,
-	modelCatalogError,
 	hasNextPage,
 	onLoadMore,
 	isFetchingNextPage,
 	archivedFilter,
 	onArchivedFilterChange,
 }) => {
-	const {
+	const location = useLocation();
+	const sidebarView = sidebarViewFromPath(location.pathname);
+
+	// The sidebar expects plain string error messages, but the outlet
+	// context now carries structured ChatDetailError objects.
+	const sidebarChatErrorReasons = Object.fromEntries(
+		Object.entries(chatErrorReasons).map(([chatId, error]) => [
+			chatId,
+			error.message,
+		]),
+	);
+
+	const outletContextValue: AgentsOutletContext = {
 		chatErrorReasons,
+		setChatErrorReason,
+		clearChatErrorReason,
 		requestArchiveAgent,
 		requestUnarchiveAgent,
 		requestArchiveAndDeleteWorkspace,
-	} = outletContext;
-	const [isConfigureAgentsDialogOpen, setConfigureAgentsDialogOpen] =
-		useState(false);
-	const [configDialogKey, setConfigDialogKey] = useState(0);
-	const [configureAgentsInitialSection, setConfigureAgentsInitialSection] =
-		useState<ConfigureAgentsSection>("behavior");
-	const [isUserAnalyticsDialogOpen, setUserAnalyticsDialogOpen] =
-		useState(false);
-	const [analyticsDialogKey, setAnalyticsDialogKey] = useState(0);
+		isSidebarCollapsed,
+		onToggleSidebarCollapsed,
+		onExpandSidebar,
+	};
+
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
 			<title>{pageTitle("Agents")}</title>
@@ -123,14 +127,14 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 			>
 				<AgentsSidebar
 					chats={chatList}
-					chatErrorReasons={chatErrorReasons}
+					chatErrorReasons={sidebarChatErrorReasons}
 					modelOptions={catalogModelOptions}
 					modelConfigs={modelConfigs}
 					logoUrl={logoUrl}
 					onArchiveAgent={requestArchiveAgent}
 					onUnarchiveAgent={requestUnarchiveAgent}
 					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
-					onNewAgent={handleNewAgent}
+					onBeforeNewAgent={handleNewAgent}
 					isCreating={isCreating}
 					isArchiving={isArchiving}
 					archivingChatId={archivingChatId}
@@ -143,84 +147,20 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					archivedFilter={archivedFilter}
 					onArchivedFilterChange={onArchivedFilterChange}
 					onCollapse={onCollapseSidebar}
-					onOpenAnalytics={() => {
-						setAnalyticsDialogKey((key) => key + 1);
-						setUserAnalyticsDialogOpen(true);
-					}}
-					onOpenSettings={() => {
-						setConfigureAgentsInitialSection("behavior");
-						setConfigDialogKey((key) => key + 1);
-						setConfigureAgentsDialogOpen(true);
-					}}
+					isAdmin={isAgentsAdmin}
 				/>
 			</div>
 
 			<div
 				className={cn(
 					"flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
-					!agentId && "order-1 md:order-none flex-none md:flex-1",
+					!agentId &&
+						sidebarView.panel === "chats" &&
+						"order-1 md:order-none flex-none md:flex-1",
 				)}
 			>
-				{agentId ? (
-					<Outlet key={agentId} context={outletContext} />
-				) : (
-					<>
-						<div className="flex shrink-0 items-center gap-2 px-4 py-0.5">
-							<NavLink
-								to="/workspaces"
-								className="inline-flex shrink-0 md:hidden"
-							>
-								{logoUrl ? (
-									<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
-								) : (
-									<CoderIcon className="h-6 w-6 fill-content-primary" />
-								)}
-							</NavLink>
-							{isSidebarCollapsed && (
-								<Button
-									variant="subtle"
-									size="icon"
-									onClick={onExpandSidebar}
-									aria-label="Expand sidebar"
-									className="hidden h-7 w-7 min-w-0 shrink-0 md:inline-flex"
-								>
-									<PanelLeftIcon />
-								</Button>
-							)}
-							<div className="flex min-w-0 flex-1 items-center" />
-							<div className="flex items-center gap-2">
-								<ChimeButton />
-								<WebPushButton />
-							</div>
-						</div>
-						<AgentCreateForm
-							onCreateChat={onCreateChat}
-							isCreating={isCreating}
-							createError={createError}
-							modelCatalog={modelCatalog}
-							modelOptions={catalogModelOptions}
-							modelConfigs={modelConfigs}
-							isModelCatalogLoading={isModelCatalogLoading}
-							isModelConfigsLoading={isModelConfigsLoading}
-							modelCatalogError={modelCatalogError}
-						/>
-					</>
-				)}
+				<Outlet context={outletContextValue} />
 			</div>
-
-			<ConfigureAgentsDialog
-				key={configDialogKey}
-				open={isConfigureAgentsDialogOpen}
-				onOpenChange={setConfigureAgentsDialogOpen}
-				canManageChatModelConfigs={isAgentsAdmin}
-				canSetSystemPrompt={isAgentsAdmin}
-				initialSection={configureAgentsInitialSection}
-			/>
-			<UserAnalyticsDialog
-				key={analyticsDialogKey}
-				open={isUserAnalyticsDialogOpen}
-				onOpenChange={setUserAnalyticsDialogOpen}
-			/>
 		</div>
 	);
 };

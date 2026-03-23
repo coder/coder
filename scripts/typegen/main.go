@@ -20,6 +20,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	utilstrings "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -131,13 +132,9 @@ func generateCountries() ([]byte, error) {
 func pascalCaseName[T ~string](name T) string {
 	names := strings.Split(string(name), "_")
 	for i := range names {
-		names[i] = capitalize(names[i])
+		names[i] = utilstrings.Capitalize(names[i])
 	}
 	return strings.Join(names, "")
-}
-
-func capitalize(name string) string {
-	return strings.ToUpper(string(name[0])) + name[1:]
 }
 
 type Definition struct {
@@ -226,7 +223,7 @@ func generateRbacObjects(templateSource string) ([]byte, error) {
 	var errorList []error
 	var x int
 	tpl, err := template.New("object.gotmpl").Funcs(template.FuncMap{
-		"capitalize":     capitalize,
+		"capitalize":     utilstrings.Capitalize,
 		"pascalCaseName": pascalCaseName[string],
 		"actionsList": func() []ActionDetails {
 			return actionList

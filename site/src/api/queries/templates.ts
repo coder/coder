@@ -304,9 +304,15 @@ export const previousTemplateVersion = (
 	};
 };
 
+export const templateVersionPresetsKey = (versionId: string) => [
+	templateVersionRoot,
+	versionId,
+	"presets",
+];
+
 export const templateVersionPresets = (versionId: string) => {
 	return {
-		queryKey: [templateVersionRoot, versionId, "presets"],
+		queryKey: templateVersionPresetsKey(versionId),
 		queryFn: () => API.getTemplateVersionPresets(versionId),
 	};
 };

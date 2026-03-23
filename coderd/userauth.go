@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/site"
 )
 
 type MergedClaimsSource string
@@ -743,6 +744,43 @@ func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Set session token cookie
+// @Description Converts the current session token into a Set-Cookie response.
+// @Description This is used by embedded iframes (e.g. VS Code chat) that
+// @Description receive a session token out-of-band via postMessage but need
+// @Description cookie-based auth for WebSocket connections.
+// @ID set-session-token-cookie
+// @Security CoderSessionToken
+// @Tags Authorization
+// @Success 204
+// @Router /users/me/session/token-to-cookie [post]
+// @x-apidocgen {"skip": true}
+func (api *API) postSessionTokenCookie(rw http.ResponseWriter, r *http.Request) {
+	// Only accept the token from the Coder-Session-Token header.
+	// Other sources (query params, cookies) should not be allowed
+	// to bootstrap a new cookie.
+	token := r.Header.Get(codersdk.SessionTokenHeader)
+	if token == "" {
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Session token must be provided via the Coder-Session-Token header.",
+		})
+		return
+	}
+
+	apiKey := httpmw.APIKey(r)
+
+	cookie := api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
+		Name:     codersdk.SessionTokenCookie,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		// Expire the cookie when the underlying API key expires.
+		Expires: apiKey.ExpiresAt,
+	})
+	http.SetCookie(rw, cookie)
+	rw.WriteHeader(http.StatusNoContent)
+}
+
 // GithubOAuth2Team represents a team scoped to an organization.
 type GithubOAuth2Team struct {
 	Organization string
@@ -1343,12 +1381,21 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		verified, ok := verifiedRaw.(bool)
 		if ok && !verified {
 			if !api.OIDCConfig.IgnoreEmailVerified {
-				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-					Message: fmt.Sprintf("Verify the %q email address on your OIDC provider to authenticate!", email),
+				site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+					Status:     http.StatusForbidden,
+					HideStatus: true,
+					Title:      "Email not verified",
+					Description: fmt.Sprintf(
+						"Verify the %q email address on your OIDC provider to authenticate!",
+						email,
+					),
+					Actions: []site.Action{
+						{URL: "/login", Text: "Back to login"},
+					},
 				})
 				return
 			}
-			logger.Warn(ctx, "allowing unverified oidc email %q")
+			logger.Warn(ctx, "allowing unverified oidc email", slog.F("email", email))
 		}
 	}
 
@@ -1370,8 +1417,17 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		ok = false
 		emailSp := strings.Split(email, "@")
 		if len(emailSp) == 1 {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: fmt.Sprintf("Your email %q is not from an authorized domain! Please contact your administrator.", email),
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:     http.StatusForbidden,
+				HideStatus: true,
+				Title:      "Unauthorized email",
+				Description: fmt.Sprintf(
+					"Your email %q is not from an authorized domain! Please contact your administrator.",
+					email,
+				),
+				Actions: []site.Action{
+					{URL: "/login", Text: "Back to login"},
+				},
 			})
 			return
 		}
@@ -1385,8 +1441,17 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if !ok {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: fmt.Sprintf("Your email %q is not from an authorized domain! Please contact your administrator.", email),
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:     http.StatusForbidden,
+				HideStatus: true,
+				Title:      "Unauthorized email",
+				Description: fmt.Sprintf(
+					"Your email %q is not from an authorized domain! Please contact your administrator.",
+					email,
+				),
+				Actions: []site.Action{
+					{URL: "/login", Text: "Back to login"},
+				},
 			})
 			return
 		}
@@ -1406,7 +1471,6 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	if ok {
 		picture, _ = pictureRaw.(string)
 	}
-
 	ctx = slog.With(ctx, slog.F("email", email), slog.F("username", username), slog.F("name", name))
 
 	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), email)

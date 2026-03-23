@@ -3,6 +3,7 @@ package taskstatus
 import (
 	"context"
 	"io"
+	"math/rand"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,7 +44,8 @@ type Runner struct {
 	doneReporting bool
 
 	// testing only
-	clock quartz.Clock
+	clock       quartz.Clock
+	randFloat64 func() float64
 }
 
 var (
@@ -58,6 +60,7 @@ func NewRunner(coderClient *codersdk.Client, cfg Config) *Runner {
 		updater:     newAppStatusUpdater(coderClient),
 		cfg:         cfg,
 		clock:       quartz.NewReal(),
+		randFloat64: rand.Float64,
 		reportTimes: make(map[int]time.Time),
 	}
 }
@@ -221,13 +224,25 @@ func (r *Runner) reportTaskStatus(ctx context.Context) error {
 	startedReporting := r.clock.Now("reportTaskStatus", "startedReporting")
 	msgNo := 0
 
-	done := xerrors.New("done reporting task status") // sentinel error
-	waiter := r.clock.TickerFunc(ctx, r.cfg.ReportStatusPeriod, func() error {
+	getRandPeriod := func() time.Duration {
+		// vary the period by +-50% so that updates are not synchronized across runners, which would create
+		// artificially large instantaneous stress on Coder and the database.
+		p := (r.randFloat64() + 0.5) * r.cfg.ReportStatusPeriod.Seconds()
+		return time.Duration(p * float64(time.Second))
+	}
+	tmr := r.clock.NewTimer(getRandPeriod(), "reportTaskStatus")
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-tmr.C:
+			tmr.Reset(getRandPeriod(), "reportTaskStatus", "tick")
+		}
 		r.mu.Lock()
 		now := r.clock.Now("reportTaskStatus", "tick")
 		r.reportTimes[msgNo] = now
 		// It's important that we set doneReporting along with a final report, since the watchWorkspaceUpdates goroutine
-		// needs a update to wake up and check if we're done. We could introduce a secondary signaling channel, but
+		// needs an update to wake up and check if we're done. We could introduce a secondary signaling channel, but
 		// it adds a lot of complexity and will be hard to test. We expect the tick period to be much smaller than the
 		// report status duration, so one extra tick is not a big deal.
 		if now.After(startedReporting.Add(r.cfg.ReportStatusDuration)) {
@@ -249,15 +264,9 @@ func (r *Runner) reportTaskStatus(ctx context.Context) error {
 		// note that it's safe to read r.doneReporting here without a lock because we're the only goroutine that sets
 		// it.
 		if r.doneReporting {
-			return done // causes the ticker to exit due to the sentinel error
+			return nil
 		}
-		return nil
-	}, "reportTaskStatus")
-	err := waiter.Wait()
-	if xerrors.Is(err, done) {
-		return nil
 	}
-	return err
 }
 
 func parseStatusMessage(message string) (int, bool) {

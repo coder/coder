@@ -469,8 +469,8 @@ func TestWorker_MarkStale_UpsertAndPublish(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store := dbmock.NewMockStore(ctrl)
 
-	store.EXPECT().GetChatsByOwnerID(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, arg database.GetChatsByOwnerIDParams) ([]database.Chat, error) {
+	store.EXPECT().GetChats(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.GetChatsParams) ([]database.Chat, error) {
 			require.Equal(t, ownerID, arg.OwnerID)
 			return []database.Chat{
 				{ID: chat1, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
@@ -478,13 +478,12 @@ func TestWorker_MarkStale_UpsertAndPublish(t *testing.T) {
 				{ID: chatOther, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
 			}, nil
 		})
-	store.EXPECT().UpsertChatDiffStatusReference(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
-			mu.Lock()
-			upsertRefCalls = append(upsertRefCalls, arg)
-			mu.Unlock()
-			return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
-		}).Times(2)
+	store.EXPECT().UpsertChatDiffStatusReference(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg database.UpsertChatDiffStatusReferenceParams) (database.ChatDiffStatus, error) {
+		mu.Lock()
+		upsertRefCalls = append(upsertRefCalls, arg)
+		mu.Unlock()
+		return database.ChatDiffStatus{ChatID: arg.ChatID}, nil
+	}).Times(2)
 
 	pub := func(_ context.Context, chatID uuid.UUID) error {
 		mu.Lock()
@@ -527,7 +526,7 @@ func TestWorker_MarkStale_NoMatchingChats(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store := dbmock.NewMockStore(ctrl)
 
-	store.EXPECT().GetChatsByOwnerID(gomock.Any(), gomock.Any()).
+	store.EXPECT().GetChats(gomock.Any(), gomock.Any()).
 		Return([]database.Chat{
 			{ID: uuid.New(), OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
 			{ID: uuid.New(), OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
@@ -555,7 +554,7 @@ func TestWorker_MarkStale_UpsertFails_ContinuesNext(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store := dbmock.NewMockStore(ctrl)
 
-	store.EXPECT().GetChatsByOwnerID(gomock.Any(), gomock.Any()).
+	store.EXPECT().GetChats(gomock.Any(), gomock.Any()).
 		Return([]database.Chat{
 			{ID: chat1, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
 			{ID: chat2, OwnerID: ownerID, WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}},
@@ -590,7 +589,7 @@ func TestWorker_MarkStale_GetChatsFails(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store := dbmock.NewMockStore(ctrl)
 
-	store.EXPECT().GetChatsByOwnerID(gomock.Any(), gomock.Any()).
+	store.EXPECT().GetChats(gomock.Any(), gomock.Any()).
 		Return(nil, fmt.Errorf("db error"))
 
 	mClock := quartz.NewMock(t)

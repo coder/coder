@@ -342,7 +342,7 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.3.2"
+  version  = "1.4.1"
   agent_id = coder_agent.dev.id
 }
 
@@ -471,6 +471,12 @@ module "devcontainers-cli" {
   agent_id = coder_agent.dev.id
 }
 
+module "portabledesktop" {
+  source   = "dev.registry.coder.com/coder/portabledesktop/coder"
+  version  = "0.1.0"
+  agent_id = coder_agent.dev.id
+}
+
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
@@ -527,7 +533,7 @@ resource "coder_agent" "dev" {
     display_name = "/var/lib/docker Usage"
     key          = "var_lib_docker_usage"
     order        = 3
-    script       = "sudo du -sh /var/lib/docker | awk '{print $1}'"
+    script       = "sudo du -sh /var/lib/docker 2>/dev/null | awk '{print $1}'"
     interval     = 3600 # 1h to avoid thrashing disk
     timeout      = 60   # Longer than this is likely problematic
   }
@@ -911,7 +917,7 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.8.0"
+  version             = "4.8.1"
   enable_boundary     = true
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir

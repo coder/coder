@@ -16,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/codersdk"
@@ -118,9 +119,10 @@ type agentAppAttributes struct {
 }
 
 type agentEnvAttributes struct {
-	AgentID string `mapstructure:"agent_id"`
-	Name    string `mapstructure:"name"`
-	Value   string `mapstructure:"value"`
+	AgentID       string `mapstructure:"agent_id"`
+	Name          string `mapstructure:"name"`
+	Value         string `mapstructure:"value"`
+	MergeStrategy string `mapstructure:"merge_strategy"`
 }
 
 type agentScriptAttributes struct {
@@ -648,8 +650,9 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		}
 
 		env := &proto.Env{
-			Name:  attrs.Name,
-			Value: attrs.Value,
+			Name:          attrs.Name,
+			Value:         attrs.Value,
+			MergeStrategy: attrs.MergeStrategy,
 		}
 
 	envAgentLoop:
@@ -887,10 +890,12 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			}
 
 			if !param.Validation[0].MaxDisabled {
-				protoParam.ValidationMax = PtrInt32(param.Validation[0].Max)
+				// #nosec G115 - Safe conversion as the number is expected to be within int32 range
+				protoParam.ValidationMax = ptr.Ref(int32(param.Validation[0].Max))
 			}
 			if !param.Validation[0].MinDisabled {
-				protoParam.ValidationMin = PtrInt32(param.Validation[0].Min)
+				// #nosec G115 - Safe conversion as the number is expected to be within int32 range
+				protoParam.ValidationMin = ptr.Ref(int32(param.Validation[0].Min))
 			}
 			protoParam.ValidationMonotonic = param.Validation[0].Monotonic
 		}
@@ -1137,12 +1142,6 @@ func safeInt32Conversion(n int) int32 {
 	}
 	// #nosec G115 - Safe conversion, as we have explicitly checked that the number does not exceed math.MaxInt32.
 	return int32(n)
-}
-
-func PtrInt32(number int) *int32 {
-	// #nosec G115 - Safe conversion as the number is expected to be within int32 range
-	n := int32(number)
-	return &n
 }
 
 // sortedResourcesByType collects all resources of the given type from the

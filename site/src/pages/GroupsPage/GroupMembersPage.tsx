@@ -16,7 +16,9 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "components/EmptyState/EmptyState";
+import { UsersFilter } from "components/Filter/UsersFilter";
 import { LastSeen } from "components/LastSeen/LastSeen";
+import { PaginationContainer } from "components/PaginationWidget/PaginationContainer";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -27,10 +29,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
-import {
-	PaginationStatus,
-	TableToolbar,
-} from "components/TableToolbar/TableToolbar";
 import { MemberAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { EllipsisVertical, UserPlusIcon } from "lucide-react";
 import { isEveryoneGroup } from "modules/groups";
@@ -43,9 +41,11 @@ import type { GroupPageOutletContext } from "./GroupPage";
 const GroupMembersPage: FC = () => {
 	const {
 		group: groupData,
+		members,
 		organization,
 		permissions,
-		groupQuery,
+		membersQuery,
+		filterProps,
 	} = useOutletContext<GroupPageOutletContext>();
 	const queryClient = useQueryClient();
 	const addMemberMutation = useMutation(addMember(queryClient, organization));
@@ -57,87 +57,74 @@ const GroupMembersPage: FC = () => {
 
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">
-			{canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
-				<AddGroupMember
-					isLoading={addMemberMutation.isPending}
-					organizationId={groupData.organization_id}
-					onSubmit={async (member, reset) => {
-						try {
-							await addMemberMutation.mutateAsync({
-								groupId,
-								userId: member.user_id,
-							});
-							reset();
-							await groupQuery.refetch();
-						} catch (error) {
-							toast.error(getErrorMessage(error, "Failed to add member."), {
-								description: getErrorDetail(error),
-							});
-						}
-					}}
-				/>
-			)}
-			<TableToolbar>
-				<PaginationStatus
-					isLoading={false}
-					showing={groupData?.members.length ?? 0}
-					total={groupData?.members.length ?? 0}
-					label="members"
-				/>
-			</TableToolbar>
+			<div className="flex flex-row justify-between">
+				<UsersFilter {...filterProps} />
 
-			<Table>
-				<TableHeader>
-					<TableRow>
-						<TableHead className="w-2/5">User</TableHead>
-						<TableHead className="w-3/5">Status</TableHead>
-						<TableHead className="w-auto" />
-					</TableRow>
-				</TableHeader>
+				{canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
+					<AddGroupMember
+						isLoading={addMemberMutation.isPending}
+						organizationId={groupData.organization_id}
+						onSubmit={async (member, reset) => {
+							try {
+								await addMemberMutation.mutateAsync({
+									groupId,
+									userId: member.user_id,
+								});
+								reset();
+							} catch (error) {
+								toast.error(getErrorMessage(error, "Failed to add member."), {
+									description: getErrorDetail(error),
+								});
+							}
+						}}
+					/>
+				)}
+			</div>
 
-				<TableBody>
-					{groupData?.members.length === 0 ? (
+			<PaginationContainer query={membersQuery} paginationUnitLabel="members">
+				<Table>
+					<TableHeader>
 						<TableRow>
-							<TableCell colSpan={999}>
-								<EmptyState
-									message="No members yet"
-									description="Add a member using the controls above"
-								/>
-							</TableCell>
+							<TableHead className="w-2/5">User</TableHead>
+							<TableHead className="w-3/5">Status</TableHead>
+							<TableHead className="w-auto" />
 						</TableRow>
-					) : (
-						groupData?.members.map((member) => (
-							<GroupMemberRow
-								member={member}
-								group={groupData}
-								key={member.id}
-								canUpdate={canUpdateGroup}
-								onRemove={async () => {
-									const mutation = removeMemberMutation.mutateAsync(
-										{
+					</TableHeader>
+
+					<TableBody>
+						{members.length === 0 ? (
+							<TableRow>
+								<TableCell colSpan={999}>
+									<EmptyState message="No members found" />
+								</TableCell>
+							</TableRow>
+						) : (
+							members.map((member) => (
+								<GroupMemberRow
+									member={member}
+									group={groupData}
+									key={member.id}
+									canUpdate={canUpdateGroup}
+									onRemove={async () => {
+										const mutation = removeMemberMutation.mutateAsync({
 											groupId: groupData.id,
 											userId: member.id,
-										},
-										{
-											onSuccess: () => {
-												groupQuery.refetch();
-											},
-										},
-									);
-									toast.promise(mutation, {
-										loading: `Removing member "${member.username}" from "${groupData.name}"...`,
-										success: `Member "${member.username}" has been removed from "${groupData.name}" successfully.`,
-										error: (error) => ({
-											message: `Failed to remove member "${member.username}" from "${groupData.name}".`,
-											description: getErrorDetail(error),
-										}),
-									});
-								}}
-							/>
-						))
-					)}
-				</TableBody>
-			</Table>
+										});
+										toast.promise(mutation, {
+											loading: `Removing member "${member.username}" from "${groupData.name}"...`,
+											success: `Member "${member.username}" has been removed from "${groupData.name}" successfully.`,
+											error: (error) => ({
+												message: `Failed to remove member "${member.username}" from "${groupData.name}".`,
+												description: getErrorDetail(error),
+											}),
+										});
+									}}
+								/>
+							))
+						)}
+					</TableBody>
+				</Table>
+			</PaginationContainer>
 		</div>
 	);
 };

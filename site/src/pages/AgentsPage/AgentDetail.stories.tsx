@@ -13,7 +13,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import {
 	chatDiffContentsKey,
-	chatDiffStatusKey,
 	chatKey,
 	chatMessagesKey,
 	chatModelsKey,
@@ -45,10 +44,14 @@ const AgentDetailLayout: FC = () => {
 							setChatErrorReason: () => {},
 							clearChatErrorReason: () => {},
 							requestArchiveAgent: () => {},
-							requestArchiveAndDeleteWorkspace: () => {},
+							requestArchiveAndDeleteWorkspace: (
+								_chatId: string,
+								_workspaceId: string,
+							) => {},
 							requestUnarchiveAgent: () => {},
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
+							onExpandSidebar: () => {},
 						} satisfies AgentsOutletContext
 					}
 				/>
@@ -107,6 +110,7 @@ const baseChatFields = {
 	owner_id: "owner-id",
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: "model-config-1",
+	mcp_server_ids: [],
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 	archived: false,
@@ -137,37 +141,43 @@ const buildQueries = (
 	chat: TypesGen.Chat,
 	messagesData: TypesGen.ChatMessagesResponse,
 	opts?: { diffUrl?: string },
-) => [
-	{ key: chatKey(CHAT_ID), data: chat },
-	{ key: chatMessagesKey(CHAT_ID), data: messagesData },
-	{ key: chatsKey, data: [chat] },
-	{
-		key: chatDiffStatusKey(CHAT_ID),
-		data: {
-			chat_id: CHAT_ID,
-			url: opts?.diffUrl,
-			pull_request_title: "",
-			pull_request_draft: false,
-			changes_requested: false,
-			additions: opts?.diffUrl ? 4 : 0,
-			deletions: opts?.diffUrl ? 1 : 0,
-			changed_files: opts?.diffUrl ? 2 : 0,
-		} satisfies TypesGen.ChatDiffStatus,
-	},
-	{
-		key: chatDiffContentsKey(CHAT_ID),
-		data: {
-			chat_id: CHAT_ID,
-			diff: opts?.diffUrl ? sampleDiff : undefined,
-			pull_request_url: opts?.diffUrl,
-		} satisfies TypesGen.ChatDiffContents,
-	},
-	{
-		key: workspaceByIdKey(mockWorkspace.id),
-		data: mockWorkspace,
-	},
-	{ key: chatModelsKey, data: mockModelCatalog },
-];
+) => {
+	const diffStatus: TypesGen.ChatDiffStatus = {
+		chat_id: CHAT_ID,
+		url: opts?.diffUrl,
+		pull_request_title: "",
+		pull_request_draft: false,
+		changes_requested: false,
+		additions: opts?.diffUrl ? 4 : 0,
+		deletions: opts?.diffUrl ? 1 : 0,
+		changed_files: opts?.diffUrl ? 2 : 0,
+	};
+	const chatWithDiffStatus: TypesGen.Chat = {
+		...chat,
+		diff_status: diffStatus,
+	};
+	return [
+		{ key: chatKey(CHAT_ID), data: chatWithDiffStatus },
+		{
+			key: chatMessagesKey(CHAT_ID),
+			data: { pages: [messagesData], pageParams: [undefined] },
+		},
+		{ key: chatsKey, data: [chatWithDiffStatus] },
+		{
+			key: chatDiffContentsKey(CHAT_ID),
+			data: {
+				chat_id: CHAT_ID,
+				diff: opts?.diffUrl ? sampleDiff : undefined,
+				pull_request_url: opts?.diffUrl,
+			} satisfies TypesGen.ChatDiffContents,
+		},
+		{
+			key: workspaceByIdKey(mockWorkspace.id),
+			data: mockWorkspace,
+		},
+		{ key: chatModelsKey, data: mockModelCatalog },
+	];
+};
 
 /**
  * Wrap a chat stream event payload in the JSON string format that
@@ -202,7 +212,9 @@ const meta: Meta<typeof AgentDetailLayout> = {
 		}),
 	},
 	beforeEach: () => {
+		localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 	},
 };
 
@@ -530,6 +542,7 @@ export const WithMessageHistory: Story = {
 					},
 				],
 				queued_messages: [],
+				has_more: false,
 			},
 			{ diffUrl: undefined },
 		),
@@ -553,7 +566,7 @@ export const CompletedWithDiffPanel: Story = {
 				title: "Build a feature",
 				status: "completed",
 			},
-			{ messages: [], queued_messages: [] },
+			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: "https://github.com/coder/coder/pull/123" },
 		),
 	},
@@ -575,22 +588,6 @@ export const CompletedWithDiffPanel: Story = {
 		expect(body.getByText("Open in VS Code")).toBeInTheDocument();
 		expect(body.getByText("View Workspace")).toBeInTheDocument();
 		expect(body.getByText("Archive Agent")).toBeInTheDocument();
-	},
-};
-
-/** Right panel stays closed when no diff-status URL exists. */
-export const NoDiffUrl: Story = {
-	parameters: {
-		queries: buildQueries(
-			{
-				id: CHAT_ID,
-				...baseChatFields,
-				title: "No diff yet",
-				status: "completed",
-			},
-			{ messages: [], queued_messages: [] },
-			{ diffUrl: undefined },
-		),
 	},
 };
 
@@ -632,6 +629,7 @@ export const WithSubagentCards: Story = {
 					},
 				],
 				queued_messages: [],
+				has_more: false,
 			},
 			{ diffUrl: undefined },
 		),
@@ -646,8 +644,8 @@ export const WithSubagentCards: Story = {
 	},
 };
 
-/** Reasoning part renders collapsed and can be expanded on click. */
-export const WithReasoningCollapsed: Story = {
+/** Completed reasoning part renders inline. */
+export const WithReasoningInline: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
@@ -666,30 +664,23 @@ export const WithReasoningCollapsed: Story = {
 						content: [
 							{
 								type: "reasoning",
-								title: "Plan migration",
 								text: "Reasoning body",
 							},
 						],
 					},
 				],
 				queued_messages: [],
+				has_more: false,
 			},
 			{ diffUrl: undefined },
 		),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const user = userEvent.setup();
 
-		const reasoningToggle = await canvas.findByRole("button", {
-			name: "Plan migration",
-		});
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "false");
-
-		await user.click(reasoningToggle);
-
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "true");
+		// Reasoning text renders inline.
 		expect(canvas.getByText("Reasoning body")).toBeInTheDocument();
+		expect(canvas.queryByRole("button", { name: "Thinking" })).toBeNull();
 	},
 };
 
@@ -708,7 +699,7 @@ export const StreamedSubagentTitle: Story = {
 				title: "Streaming title",
 				status: "running",
 			},
-			{ messages: [], queued_messages: [] },
+			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
 		webSocket: {
@@ -760,11 +751,11 @@ export const SidebarWithPRAndRepos: Story = {
 				title: "Full sidebar demo",
 				status: "completed",
 			},
-			{ messages: [], queued_messages: [] },
+			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: "https://github.com/coder/coder/pull/456" },
 		),
 		webSocket: {
-			"/git/watch": [
+			"/stream/git": [
 				{
 					event: "message",
 					data: JSON.stringify({
@@ -941,11 +932,11 @@ export const SidebarWithSingleRepo: Story = {
 				title: "Single repo sidebar",
 				status: "completed",
 			},
-			{ messages: [], queued_messages: [] },
+			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
 		webSocket: {
-			"/git/watch": [
+			"/stream/git": [
 				{
 					event: "message",
 					data: JSON.stringify({
@@ -991,10 +982,9 @@ export const SidebarWithSingleRepo: Story = {
 	},
 };
 /**
- * Streaming reasoning part via WebSocket — renders collapsed and
- * can be expanded on click.
+ * Streaming reasoning part via WebSocket — renders inline text.
  */
-export const StreamedReasoningCollapsed: Story = {
+export const StreamedReasoning: Story = {
 	parameters: {
 		queries: buildQueries(
 			{
@@ -1003,7 +993,7 @@ export const StreamedReasoningCollapsed: Story = {
 				title: "Streaming reasoning title",
 				status: "running",
 			},
-			{ messages: [], queued_messages: [] },
+			{ messages: [], queued_messages: [], has_more: false },
 			{ diffUrl: undefined },
 		),
 		webSocket: {
@@ -1015,7 +1005,6 @@ export const StreamedReasoningCollapsed: Story = {
 						message_part: {
 							part: {
 								type: "reasoning",
-								title: "Plan migration",
 								text: "Streaming reasoning body",
 							},
 						},
@@ -1026,16 +1015,7 @@ export const StreamedReasoningCollapsed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const user = userEvent.setup();
 
-		const reasoningToggle = await canvas.findByRole("button", {
-			name: "Plan migration",
-		});
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "false");
-
-		await user.click(reasoningToggle);
-
-		expect(reasoningToggle).toHaveAttribute("aria-expanded", "true");
 		await expect(
 			canvas.findByText("Streaming reasoning body"),
 		).resolves.toBeInTheDocument();

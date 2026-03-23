@@ -17,7 +17,10 @@ import (
 	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // testMsg builds a database.ChatMessage for ParseContent tests.
@@ -1440,4 +1443,328 @@ func extractToolResultIDs(t *testing.T, msgs ...fantasy.Message) []string {
 		}
 	}
 	return ids
+}
+
+func TestNulEscapeRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Seed minimal dependencies for the DB round-trip path:
+	// user, provider, model config, chat.
+	user := dbgen.User(t, db, database.User{})
+
+	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:    "openai",
+		DisplayName: "openai",
+		APIKey:      "test-key",
+		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:     true,
+	})
+	require.NoError(t, err)
+
+	model, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "gpt-4o-mini",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 70,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "nul-roundtrip-test",
+	})
+	require.NoError(t, err)
+
+	textTests := []struct {
+		name   string
+		input  string
+		hasNul bool // Whether the input contains actual NUL bytes.
+	}{
+		// --- basic ---
+		{"NoNul", "hello world", false},
+		{"SingleNul", "a\x00b", true},
+		{"MultipleNuls", "a\x00b\x00c", true},
+		{"ConsecutiveNuls", "\x00\x00\x00", true},
+
+		// --- boundaries ---
+		{"EmptyString", "", false},
+		{"NulOnly", "\x00", true},
+		{"NulAtStart", "\x00hello", true},
+		{"NulAtEnd", "hello\x00", true},
+
+		// --- sentinel / marker in original data ---
+		// U+E000 is the sentinel character. The encoder must
+		// double it so it round-trips without being mistaken
+		// for an encoded NUL.
+		{"SentinelInOriginal", "a\uE000b", false},
+		{"ConsecutiveSentinels", "\uE000\uE000\uE000", false},
+		// U+E001 is the marker character used in the NUL pair.
+		{"MarkerCharInOriginal", "a\uE001b", false},
+		// U+E000 followed by U+E001 looks exactly like an
+		// encoded NUL in the encoded form, so the encoder must
+		// double the U+E000 to avoid confusion.
+		{"SentinelThenMarkerChar", "\uE000\uE001", false},
+		{"NulAndSentinel", "a\x00b\uE000c", true},
+		// Both orders: sentinel adjacent to NUL.
+		{"SentinelThenNul", "\uE000\x00", true},
+		{"NulThenSentinel", "\x00\uE000", true},
+		{"AlternatingSentinelNul", "\x00\uE000\x00\uE000", true},
+
+		// --- strings containing backslashes ---
+		// Backslashes are normal characters at the Go string
+		// level; no special handling needed (unlike the old
+		// JSON-byte approach).
+		{"BackslashU0000Text", "\\u0000", false},
+		{"BackslashThenNul", "\\\x00", true},
+
+		// --- literal text that looks like escape patterns ---
+		{"LiteralTextU0000", "the value is u0000 here", false},
+		{"LiteralTextUE000", "sentinel uE000 text", false},
+
+		// --- other control characters mixed with NUL ---
+		{"ControlCharsMixedWithNul", "\x01\x00\x02\x00\x1f", true},
+
+		// --- long / stress ---
+		{"LongNulRun", "\x00\x00\x00\x00\x00\x00\x00\x00", true},
+		// Simulated find -print0 output.
+		{"FindPrint0", "/usr/bin/ls\x00/usr/bin/cat\x00/usr/bin/grep\x00", true},
+	}
+
+	for _, tc := range textTests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			parts := []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText(tc.input),
+			}
+
+			encoded, err := chatprompt.MarshalParts(parts)
+			require.NoError(t, err)
+
+			// When the input has real NUL bytes, the stored JSON
+			// must not contain the \u0000 escape sequence.
+			if tc.hasNul {
+				require.NotContains(t, string(encoded.RawMessage), `\u0000`,
+					"encoded JSON must not contain \\u0000")
+			}
+
+			// In-memory round-trip through ParseContent.
+			msg := testMsgV1(codersdk.ChatMessageRoleAssistant, encoded)
+			decoded, err := chatprompt.ParseContent(msg)
+			require.NoError(t, err)
+
+			require.Len(t, decoded, 1)
+			require.Equal(t, tc.input, decoded[0].Text)
+
+			// Full DB round-trip: write to PostgreSQL jsonb, read
+			// back, and verify the value survives storage.
+			ctx := testutil.Context(t, testutil.WaitShort)
+			dbMsgs, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+				ChatID:              chat.ID,
+				CreatedBy:           []uuid.UUID{user.ID},
+				ModelConfigID:       []uuid.UUID{model.ID},
+				Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+				Content:             []string{string(encoded.RawMessage)},
+				ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+				Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+				InputTokens:         []int64{0},
+				OutputTokens:        []int64{0},
+				TotalTokens:         []int64{0},
+				ReasoningTokens:     []int64{0},
+				CacheCreationTokens: []int64{0},
+				CacheReadTokens:     []int64{0},
+				ContextLimit:        []int64{0},
+				Compressed:          []bool{false},
+				TotalCostMicros:     []int64{0},
+				RuntimeMs:           []int64{0},
+			})
+			require.NoError(t, err)
+			require.Len(t, dbMsgs, 1)
+
+			readBack, err := db.GetChatMessageByID(ctx, dbMsgs[0].ID)
+			require.NoError(t, err)
+
+			dbDecoded, err := chatprompt.ParseContent(readBack)
+			require.NoError(t, err)
+			require.Len(t, dbDecoded, 1)
+			require.Equal(t, tc.input, dbDecoded[0].Text)
+		})
+	}
+
+	// Tool result with NUL in the result JSON value.
+	t.Run("ToolResultWithNul", func(t *testing.T) {
+		t.Parallel()
+
+		resultJSON := json.RawMessage(`"output:\u0000done"`)
+		parts := []codersdk.ChatMessagePart{
+			codersdk.ChatMessageToolResult("call-1", "my_tool", resultJSON, false),
+		}
+
+		encoded, err := chatprompt.MarshalParts(parts)
+		require.NoError(t, err)
+		require.NotContains(t, string(encoded.RawMessage), `\u0000`,
+			"encoded JSON must not contain \\u0000")
+
+		msg := testMsgV1(codersdk.ChatMessageRoleTool, encoded)
+		decoded, err := chatprompt.ParseContent(msg)
+		require.NoError(t, err)
+		require.Len(t, decoded, 1)
+		// JSON re-serialization may reformat, so compare
+		// semantically.
+		assert.JSONEq(t, string(resultJSON), string(decoded[0].Result))
+	})
+
+	// Multiple parts in one message: one with NUL, one without.
+	t.Run("MultiPartMixed", func(t *testing.T) {
+		t.Parallel()
+
+		parts := []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("clean text"),
+			codersdk.ChatMessageText("has\x00nul"),
+		}
+
+		encoded, err := chatprompt.MarshalParts(parts)
+		require.NoError(t, err)
+		require.NotContains(t, string(encoded.RawMessage), `\u0000`,
+			"encoded JSON must not contain \\u0000")
+
+		msg := testMsgV1(codersdk.ChatMessageRoleAssistant, encoded)
+		decoded, err := chatprompt.ParseContent(msg)
+		require.NoError(t, err)
+		require.Len(t, decoded, 2)
+		require.Equal(t, "clean text", decoded[0].Text)
+		require.Equal(t, "has\x00nul", decoded[1].Text)
+	})
+}
+
+func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T) {
+	t.Parallel()
+
+	// Helper to build a DB message from SDK parts.
+	makeMsg := func(t *testing.T, role database.ChatMessageRole, parts []codersdk.ChatMessagePart) database.ChatMessage {
+		t.Helper()
+		encoded, err := chatprompt.MarshalParts(parts)
+		require.NoError(t, err)
+		return database.ChatMessage{
+			Role:           role,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content:        encoded,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		}
+	}
+
+	t.Run("UserRole", func(t *testing.T) {
+		t.Parallel()
+
+		parts := []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(""),                     // empty — filtered
+			codersdk.ChatMessageText("   \t\n "),             // whitespace — filtered
+			codersdk.ChatMessageReasoning(""),                // empty — filtered
+			codersdk.ChatMessageReasoning("  \n"),            // whitespace — filtered
+			codersdk.ChatMessageText("hello"),                // kept
+			codersdk.ChatMessageText("  hello  "),            // kept with original whitespace
+			codersdk.ChatMessageReasoning("thinking deeply"), // kept
+			codersdk.ChatMessageToolCall("call-1", "my_tool", json.RawMessage(`{"x":1}`)),
+			codersdk.ChatMessageToolResult("call-1", "my_tool", json.RawMessage(`{"ok":true}`), false),
+		}
+
+		prompt, err := chatprompt.ConvertMessagesWithFiles(
+			context.Background(),
+			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleUser, parts)},
+			nil,
+			slogtest.Make(t, nil),
+		)
+		require.NoError(t, err)
+		require.Len(t, prompt, 1)
+
+		resultParts := prompt[0].Content
+		require.Len(t, resultParts, 5, "expected 5 parts after filtering empty text/reasoning")
+
+		textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](resultParts[0])
+		require.True(t, ok, "expected TextPart at index 0")
+		require.Equal(t, "hello", textPart.Text)
+
+		// Leading/trailing whitespace is preserved — only
+		// all-whitespace parts are dropped.
+		paddedPart, ok := fantasy.AsMessagePart[fantasy.TextPart](resultParts[1])
+		require.True(t, ok, "expected TextPart at index 1")
+		require.Equal(t, "  hello  ", paddedPart.Text)
+
+		reasoningPart, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](resultParts[2])
+		require.True(t, ok, "expected ReasoningPart at index 2")
+		require.Equal(t, "thinking deeply", reasoningPart.Text)
+
+		toolCallPart, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](resultParts[3])
+		require.True(t, ok, "expected ToolCallPart at index 3")
+		require.Equal(t, "call-1", toolCallPart.ToolCallID)
+
+		toolResultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](resultParts[4])
+		require.True(t, ok, "expected ToolResultPart at index 4")
+		require.Equal(t, "call-1", toolResultPart.ToolCallID)
+	})
+
+	t.Run("AssistantRole", func(t *testing.T) {
+		t.Parallel()
+
+		parts := []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(""),          // empty — filtered
+			codersdk.ChatMessageText(" "),         // whitespace — filtered
+			codersdk.ChatMessageReasoning(""),     // empty — filtered
+			codersdk.ChatMessageText("  reply  "), // kept with whitespace
+			codersdk.ChatMessageToolCall("tc-1", "read_file", json.RawMessage(`{"path":"x"}`)),
+		}
+
+		prompt, err := chatprompt.ConvertMessagesWithFiles(
+			context.Background(),
+			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleAssistant, parts)},
+			nil,
+			slogtest.Make(t, nil),
+		)
+		require.NoError(t, err)
+		// 2 messages: assistant + synthetic tool result injected
+		// by injectMissingToolResults for the unmatched tool call.
+		require.Len(t, prompt, 2)
+
+		resultParts := prompt[0].Content
+		require.Len(t, resultParts, 2, "expected text + tool-call after filtering")
+
+		textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](resultParts[0])
+		require.True(t, ok, "expected TextPart")
+		require.Equal(t, "  reply  ", textPart.Text)
+
+		tcPart, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](resultParts[1])
+		require.True(t, ok, "expected ToolCallPart")
+		require.Equal(t, "tc-1", tcPart.ToolCallID)
+	})
+
+	t.Run("AllEmptyDropsMessage", func(t *testing.T) {
+		t.Parallel()
+
+		// When every part is filtered, the message itself should
+		// be dropped rather than appending an empty-content message.
+		parts := []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(""),
+			codersdk.ChatMessageText("   "),
+			codersdk.ChatMessageReasoning(""),
+		}
+
+		prompt, err := chatprompt.ConvertMessagesWithFiles(
+			context.Background(),
+			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleAssistant, parts)},
+			nil,
+			slogtest.Make(t, nil),
+		)
+		require.NoError(t, err)
+		require.Empty(t, prompt, "all-empty message should be dropped entirely")
+	})
 }

@@ -136,18 +136,10 @@ endif
 # the search path so that these exclusions match.
 FIND_EXCLUSIONS= \
 	-not \( \( -path '*/.git/*' -o -path './build/*' -o -path './vendor/*' -o -path './.coderv2/*' -o -path '*/node_modules/*' -o -path '*/out/*' -o -path './coderd/apidoc/*' -o -path '*/.next/*' -o -path '*/.terraform/*' -o -path './_gen/*' \) -prune \)
+
 # Source files used for make targets, evaluated on use.
 GO_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -not -name '*_test.go')
-# Same as GO_SRC_FILES but excluding certain files that have problematic
-# Makefile dependencies (e.g. pnpm).
-MOST_GO_SRC_FILES := $(shell \
-	find . \
-		$(FIND_EXCLUSIONS) \
-		-type f \
-		-name '*.go' \
-		-not -name '*_test.go' \
-		-not -wholename './agent/agentcontainers/dcspec/dcspec_gen.go' \
-)
+
 # All the shell files in the repo, excluding ignored files.
 SHELL_SRC_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.sh')
 
@@ -514,6 +506,12 @@ install: build/coder_$(VERSION)_$(GOOS)_$(GOARCH)$(GOOS_BIN_EXT)
 	cp "$<" "$$output_file"
 .PHONY: install
 
+# Only wildcard the go files in the develop directory to avoid rebuilds
+# when project files are changd. Technically changes to some imports may
+# not be detected, but it's unlikely to cause any issues.
+build/.bin/develop: go.mod go.sum $(wildcard scripts/develop/*.go)
+	CGO_ENABLED=0 go build -o $@ ./scripts/develop
+
 BOLD := $(shell tput bold 2>/dev/null)
 GREEN := $(shell tput setaf 2 2>/dev/null)
 RED := $(shell tput setaf 1 2>/dev/null)
@@ -523,6 +521,10 @@ RESET := $(shell tput sgr0 2>/dev/null)
 
 fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/biome fmt/markdown
 .PHONY: fmt
+
+# Subset of fmt that does not require Go or Node toolchains.
+fmt-light: fmt/shfmt fmt/terraform fmt/markdown
+.PHONY: fmt-light
 
 fmt/go:
 ifdef FILE
@@ -630,6 +632,10 @@ endif
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
 lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
+
+# Subset of lint that does not require Go or Node toolchains.
+lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos
+.PHONY: lint-light
 
 lint/site-icons:
 	./scripts/check_site_icons.sh
@@ -773,6 +779,25 @@ pre-commit:
 	echo "$(GREEN)✓ pre-commit passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
 .PHONY: pre-commit
 
+# Lightweight pre-commit for changes that don't touch Go or
+# TypeScript. Skips gen, lint/go, lint/ts, fmt/go, fmt/ts, and
+# the binary build. Used by the pre-commit hook when only docs,
+# shell, terraform, helm, or other fast-to-check files changed.
+pre-commit-light:
+	start=$$(date +%s)
+	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-commit-light.XXXXXX")
+	echo "$(BOLD)pre-commit-light$(RESET) ($$logdir)"
+	echo "fmt:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir fmt-light
+	$(check-unstaged)
+	echo "lint:"
+	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir lint-light
+	$(check-unstaged)
+	$(check-untracked)
+	rm -rf $$logdir
+	echo "$(GREEN)✓ pre-commit-light passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
+.PHONY: pre-commit-light
+
 pre-push:
 	start=$$(date +%s)
 	logdir=$$(mktemp -d "$${TMPDIR:-/tmp}/coder-pre-push.XXXXXX")
@@ -781,6 +806,7 @@ pre-push:
 	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
 		test \
 		test-js \
+		test-storybook \
 		site/out/index.html
 	rm -rf $$logdir
 	echo "$(GREEN)✓ pre-push passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
@@ -1314,6 +1340,11 @@ test-js: site/node_modules/.installed
 	cd site/
 	pnpm test:ci
 .PHONY: test-js
+
+test-storybook: site/node_modules/.installed
+	cd site/
+	pnpm exec vitest run --project=storybook
+.PHONY: test-storybook
 
 # sqlc-cloud-is-setup will fail if no SQLc auth token is set. Use this as a
 # dependency for any sqlc-cloud related targets.

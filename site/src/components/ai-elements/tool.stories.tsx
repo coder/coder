@@ -643,3 +643,112 @@ export const EditFilesError: Story = {
 		result: { error: "File not found" },
 	},
 };
+
+// ---------------------------------------------------------------------------
+// Computer tool stories
+// ---------------------------------------------------------------------------
+
+import { DESKTOP_SCREENSHOT_BASE64 } from "./tool/__fixtures__/desktopScreenshot";
+
+export const ComputerScreenshot: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		result: {
+			data: DESKTOP_SCREENSHOT_BASE64,
+			text: "",
+			mime_type: "image/jpeg",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Screenshot")).toBeInTheDocument();
+		const img = canvas.getByRole("img", {
+			name: "Screenshot from computer tool",
+		});
+		expect(img).toBeInTheDocument();
+		expect(img.getAttribute("src")).toContain("data:image/jpeg;base64,");
+		// Image should be wrapped in a link that opens in a new tab.
+		const link = img.closest("a");
+		expect(link).toHaveAttribute("target", "_blank");
+	},
+};
+
+export const ComputerRunning: Story = {
+	args: {
+		name: "computer",
+		status: "running",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Taking screenshot…")).toBeInTheDocument();
+		expect(canvasElement.querySelector(".animate-spin")).not.toBeNull();
+	},
+};
+
+export const ComputerTextFallback: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		result: {
+			data: "",
+			text: "Screen resolution: 1920x1080\nActive window: Terminal",
+			mime_type: "image/png",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Text-only results are collapsed by default (no image).
+		const toggle = canvas.getByRole("button", { name: /Screenshot/ });
+		expect(toggle).toBeInTheDocument();
+		expect(canvas.queryByRole("img")).toBeNull();
+
+		await userEvent.click(toggle);
+		expect(
+			canvas.getByText(/Screen resolution: 1920x1080/),
+		).toBeInTheDocument();
+	},
+};
+
+export const ComputerError: Story = {
+	args: {
+		name: "computer",
+		status: "error",
+		isError: true,
+		result: {
+			data: "",
+			text: "",
+			mime_type: "image/png",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Screenshot")).toBeInTheDocument();
+		// Icon and label should have the destructive color class.
+		const label = canvas.getByText("Screenshot");
+		expect(label.className).toContain("text-content-destructive");
+	},
+};
+
+export const ComputerArrayResult: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		result: [
+			{
+				type: "image",
+				data: DESKTOP_SCREENSHOT_BASE64,
+				mime_type: "image/jpeg",
+			},
+			{ type: "text", text: "Clicked on button" },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const img = canvas.getByRole("img", {
+			name: "Screenshot from computer tool",
+		});
+		expect(img).toBeInTheDocument();
+		expect(img.getAttribute("src")).toContain("data:image/jpeg;base64,");
+	},
+};

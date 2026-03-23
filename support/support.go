@@ -163,6 +163,11 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 	eg.Go(func() error {
 		dc, err := client.DeploymentConfig(ctx)
 		if err != nil {
+			if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized) {
+				log.Warn(ctx, "unable to fetch deployment config",
+					slog.F("status", cerr.StatusCode()))
+				return nil
+			}
 			return xerrors.Errorf("fetch deployment config: %w", err)
 		}
 		d.Config = dc
@@ -172,6 +177,11 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 	eg.Go(func() error {
 		hr, err := healthsdk.New(client).DebugHealth(ctx)
 		if err != nil {
+			if cerr, ok := codersdk.AsError(err); ok && (cerr.StatusCode() == http.StatusForbidden || cerr.StatusCode() == http.StatusUnauthorized) {
+				log.Warn(ctx, "unable to fetch health report",
+					slog.F("status", cerr.StatusCode()))
+				return nil
+			}
 			return xerrors.Errorf("fetch health report: %w", err)
 		}
 		d.HealthReport = &hr
@@ -365,6 +375,12 @@ func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) 
 			return xerrors.Errorf("fetch coordinator debug page: %w", err)
 		}
 		defer coordResp.Body.Close()
+		if coordResp.StatusCode == http.StatusForbidden || coordResp.StatusCode == http.StatusUnauthorized {
+			_, _ = io.Copy(io.Discard, coordResp.Body)
+			log.Warn(ctx, "unable to fetch coordinator debug page",
+				slog.F("status", coordResp.StatusCode))
+			return nil
+		}
 		bs, err := io.ReadAll(coordResp.Body)
 		if err != nil {
 			return xerrors.Errorf("read coordinator debug page: %w", err)
@@ -379,6 +395,12 @@ func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) 
 			return xerrors.Errorf("fetch tailnet debug page: %w", err)
 		}
 		defer tailResp.Body.Close()
+		if tailResp.StatusCode == http.StatusForbidden || tailResp.StatusCode == http.StatusUnauthorized {
+			_, _ = io.Copy(io.Discard, tailResp.Body)
+			log.Warn(ctx, "unable to fetch tailnet debug page",
+				slog.F("status", tailResp.StatusCode))
+			return nil
+		}
 		bs, err := io.ReadAll(tailResp.Body)
 		if err != nil {
 			return xerrors.Errorf("read tailnet debug page: %w", err)
@@ -976,11 +998,11 @@ func PprofInfoFromAgent(ctx context.Context, conn workspacesdk.AgentConn, log sl
 	return &p
 }
 
-// Run generates a support bundle with the given dependencies.
-func Run(ctx context.Context, d *Deps) (*Bundle, error) {
-	var b Bundle
-	if d.Client == nil {
-		return nil, xerrors.Errorf("developer error: missing client!")
+// CanGenerateFull checks if the user can generate a 'full' support bundle or
+// only has permissions to generate a 'partial' bundle.
+func CanGenerateFull(ctx context.Context, client *codersdk.Client) (bool, error) {
+	if client == nil {
+		return false, xerrors.Errorf("developer error: missing client!")
 	}
 
 	authChecks := map[string]codersdk.AuthorizationCheck{
@@ -992,6 +1014,28 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		},
 	}
 
+	authResp, err := client.AuthCheck(ctx, codersdk.AuthorizationRequest{Checks: authChecks})
+	if err != nil {
+		// If the auth check itself fails (e.g., 401 Unauthorized
+		// because there is no valid session), this is a hard error.
+		return false, xerrors.Errorf("check authorization: %w", err)
+	}
+	for _, v := range authResp {
+		if !v { // all checks must pass
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+// Run generates a support bundle with the given dependencies.
+func Run(ctx context.Context, d *Deps) (*Bundle, error) {
+	var b Bundle
+	if d.Client == nil {
+		return nil, xerrors.Errorf("developer error: missing client!")
+	}
+
 	// Ensure we capture logs from the client.
 	var logw strings.Builder
 	d.Log = d.Log.AppendSinks(sloghuman.Sink(&logw))
@@ -1000,15 +1044,12 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		b.Logs = strings.Split(logw.String(), "\n")
 	}()
 
-	authResp, err := d.Client.AuthCheck(ctx, codersdk.AuthorizationRequest{Checks: authChecks})
+	// No point running without auth as minimal information available.
+	me, err := d.Client.User(ctx, codersdk.Me)
 	if err != nil {
-		return &b, xerrors.Errorf("check authorization: %w", err)
+		return nil, err
 	}
-	for k, v := range authResp {
-		if !v {
-			return &b, xerrors.Errorf("failed authorization check: cannot %s", k)
-		}
-	}
+	d.Log.Info(ctx, "running as user", slog.F("me", me))
 
 	totalCap := d.WorkspacesTotalCap
 

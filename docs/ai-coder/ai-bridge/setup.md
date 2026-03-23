@@ -103,7 +103,7 @@ AI Bridge can relay traffic to other OpenAI- or Anthropic-compatible services or
 
 ## Data Retention
 
-AI Bridge records prompts, token usage, and tool invocations for auditing and
+AI Bridge records prompts, token usage, tool invocations, and model reasoning for auditing and
 monitoring purposes. By default, this data is retained for **60 days**.
 
 Configure retention using `--aibridge-retention` or `CODER_AIBRIDGE_RETENTION`:

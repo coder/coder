@@ -5,12 +5,22 @@ WHERE id = @id OR root_chat_id = @id;
 -- name: UnarchiveChatByID :exec
 UPDATE chats SET archived = false, updated_at = NOW() WHERE id = @id::uuid;
 
--- name: DeleteChatMessagesAfterID :exec
-DELETE FROM
+-- name: SoftDeleteChatMessagesAfterID :exec
+UPDATE
     chat_messages
+SET
+    deleted = true
 WHERE
     chat_id = @chat_id::uuid
     AND id > @after_id::bigint;
+
+-- name: SoftDeleteChatMessageByID :exec
+UPDATE
+    chat_messages
+SET
+    deleted = true
+WHERE
+    id = @id::bigint;
 
 -- name: GetChatByID :one
 SELECT
@@ -26,7 +36,8 @@ SELECT
 FROM
     chat_messages
 WHERE
-    id = @id::bigint;
+    id = @id::bigint
+    AND deleted = false;
 
 -- name: GetChatMessagesByChatID :many
 SELECT
@@ -37,8 +48,27 @@ WHERE
     chat_id = @chat_id::uuid
     AND id > @after_id::bigint
     AND visibility IN ('user', 'both')
+    AND deleted = false
 ORDER BY
     created_at ASC;
+
+-- name: GetChatMessagesByChatIDDescPaginated :many
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND CASE
+        WHEN @before_id::bigint > 0 THEN id < @before_id::bigint
+        ELSE true
+    END
+    AND visibility IN ('user', 'both')
+    AND deleted = false
+ORDER BY
+    id DESC
+LIMIT
+    COALESCE(NULLIF(@limit_val::int, 0), 50);
 
 -- name: GetChatMessagesForPromptByChatID :many
 WITH latest_compressed_summary AS (
@@ -49,6 +79,7 @@ WITH latest_compressed_summary AS (
     WHERE
         chat_id = @chat_id::uuid
         AND compressed = TRUE
+        AND deleted = false
         AND visibility = 'model'
     ORDER BY
         created_at DESC,
@@ -63,6 +94,7 @@ FROM
 WHERE
     chat_id = @chat_id::uuid
     AND visibility IN ('model', 'both')
+    AND deleted = false
     AND (
         (
             role = 'system'
@@ -96,13 +128,16 @@ ORDER BY
     created_at ASC,
     id ASC;
 
--- name: GetChatsByOwnerID :many
+-- name: GetChats :many
 SELECT
     *
 FROM
     chats
 WHERE
-    owner_id = @owner_id::uuid
+    CASE
+        WHEN @owner_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN chats.owner_id = @owner_id
+        ELSE true
+    END
     AND CASE
         WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
         ELSE chats.archived = sqlc.narg('archived') :: boolean
@@ -126,6 +161,8 @@ WHERE
         )
         ELSE true
     END
+    -- Authorize Filter clause will be injected below in GetAuthorizedChats
+    -- @authorize_filter
 ORDER BY
     -- Deterministic and consistent ordering of all rows, even if they share
     -- a timestamp. This is to ensure consistent pagination.
@@ -143,7 +180,8 @@ INSERT INTO chats (
     root_chat_id,
     last_model_config_id,
     title,
-    mode
+    mode,
+    mcp_server_ids
 ) VALUES (
     @owner_id::uuid,
     sqlc.narg('workspace_id')::uuid,
@@ -151,20 +189,40 @@ INSERT INTO chats (
     sqlc.narg('root_chat_id')::uuid,
     @last_model_config_id::uuid,
     @title::text,
-    sqlc.narg('mode')::chat_mode
+    sqlc.narg('mode')::chat_mode,
+    COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[])
 )
 RETURNING
     *;
 
--- name: InsertChatMessage :one
+-- name: InsertChatMessages :many
 WITH updated_chat AS (
     UPDATE
         chats
     SET
-        last_model_config_id = sqlc.narg('model_config_id')::uuid
+        last_model_config_id = (
+            SELECT val
+            FROM UNNEST(@model_config_id::uuid[])
+                WITH ORDINALITY AS t(val, ord)
+            WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
+            ORDER BY ord DESC
+            LIMIT 1
+        )
     WHERE
         id = @chat_id::uuid
-        AND sqlc.narg('model_config_id')::uuid IS NOT NULL
+        AND EXISTS (
+            SELECT 1
+            FROM UNNEST(@model_config_id::uuid[])
+            WHERE unnest != '00000000-0000-0000-0000-000000000000'::uuid
+        )
+        AND chats.last_model_config_id IS DISTINCT FROM (
+            SELECT val
+            FROM UNNEST(@model_config_id::uuid[])
+                WITH ORDINALITY AS t(val, ord)
+            WHERE val != '00000000-0000-0000-0000-000000000000'::uuid
+            ORDER BY ord DESC
+            LIMIT 1
+        )
 )
 INSERT INTO chat_messages (
     chat_id,
@@ -182,25 +240,27 @@ INSERT INTO chat_messages (
     cache_read_tokens,
     context_limit,
     compressed,
-    total_cost_micros
-) VALUES (
-    @chat_id::uuid,
-    sqlc.narg('created_by')::uuid,
-    sqlc.narg('model_config_id')::uuid,
-    @role::chat_message_role,
-    sqlc.narg('content')::jsonb,
-    @content_version::smallint,
-    @visibility::chat_message_visibility,
-    sqlc.narg('input_tokens')::bigint,
-    sqlc.narg('output_tokens')::bigint,
-    sqlc.narg('total_tokens')::bigint,
-    sqlc.narg('reasoning_tokens')::bigint,
-    sqlc.narg('cache_creation_tokens')::bigint,
-    sqlc.narg('cache_read_tokens')::bigint,
-    sqlc.narg('context_limit')::bigint,
-    COALESCE(sqlc.narg('compressed')::boolean, FALSE),
-    sqlc.narg('total_cost_micros')::bigint
+    total_cost_micros,
+    runtime_ms
 )
+SELECT
+    @chat_id::uuid,
+    NULLIF(UNNEST(@created_by::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF(UNNEST(@model_config_id::uuid[]), '00000000-0000-0000-0000-000000000000'::uuid),
+    UNNEST(@role::chat_message_role[]),
+    UNNEST(@content::text[])::jsonb,
+    UNNEST(@content_version::smallint[]),
+    UNNEST(@visibility::chat_message_visibility[]),
+    NULLIF(UNNEST(@input_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@output_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@total_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@reasoning_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@cache_creation_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@cache_read_tokens::bigint[]), 0),
+    NULLIF(UNNEST(@context_limit::bigint[]), 0),
+    UNNEST(@compressed::boolean[]),
+    NULLIF(UNNEST(@total_cost_micros::bigint[]), 0),
+    NULLIF(UNNEST(@runtime_ms::bigint[]), 0)
 RETURNING
     *;
 
@@ -231,6 +291,17 @@ UPDATE
     chats
 SET
     workspace_id = sqlc.narg('workspace_id')::uuid,
+    updated_at = NOW()
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: UpdateChatMCPServerIDs :one
+UPDATE
+    chats
+SET
+    mcp_server_ids = @mcp_server_ids::uuid[],
     updated_at = NOW()
 WHERE
     id = @id::uuid
@@ -453,6 +524,7 @@ FROM
 WHERE
     chat_id = @chat_id::uuid
     AND role = @role::chat_message_role
+    AND deleted = false
 ORDER BY
     created_at DESC, id DESC
 LIMIT
@@ -653,6 +725,7 @@ WITH chat_cost_users AS (
         AND (
             @username::text = ''
             OR u.username ILIKE '%' || @username::text || '%'
+            OR u.name ILIKE '%' || @username::text || '%'
         )
     GROUP BY
         c.owner_id,
@@ -682,3 +755,128 @@ LIMIT
     sqlc.arg('page_limit')::int
 OFFSET
     sqlc.arg('page_offset')::int;
+
+-- name: GetChatUsageLimitConfig :one
+SELECT * FROM chat_usage_limit_config WHERE singleton = TRUE LIMIT 1;
+
+-- name: UpsertChatUsageLimitConfig :one
+INSERT INTO chat_usage_limit_config (singleton, enabled, default_limit_micros, period, updated_at)
+VALUES (TRUE, @enabled::boolean, @default_limit_micros::bigint, @period::text, NOW())
+ON CONFLICT (singleton) DO UPDATE SET
+    enabled = EXCLUDED.enabled,
+    default_limit_micros = EXCLUDED.default_limit_micros,
+    period = EXCLUDED.period,
+    updated_at = NOW()
+RETURNING *;
+
+-- name: ListChatUsageLimitOverrides :many
+SELECT u.id AS user_id, u.username, u.name, u.avatar_url,
+       u.chat_spend_limit_micros AS spend_limit_micros
+FROM users u
+WHERE u.chat_spend_limit_micros IS NOT NULL
+ORDER BY u.username ASC;
+
+-- name: UpsertChatUsageLimitUserOverride :one
+UPDATE users
+SET chat_spend_limit_micros = @spend_limit_micros::bigint
+WHERE id = @user_id::uuid
+RETURNING id AS user_id, username, name, avatar_url, chat_spend_limit_micros AS spend_limit_micros;
+
+-- name: DeleteChatUsageLimitUserOverride :exec
+UPDATE users SET chat_spend_limit_micros = NULL WHERE id = @user_id::uuid;
+
+-- name: GetChatUsageLimitUserOverride :one
+SELECT id AS user_id, chat_spend_limit_micros AS spend_limit_micros
+FROM users
+WHERE id = @user_id::uuid AND chat_spend_limit_micros IS NOT NULL;
+
+-- name: GetUserChatSpendInPeriod :one
+SELECT COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_spend_micros
+FROM chat_messages cm
+JOIN chats c ON c.id = cm.chat_id
+WHERE c.owner_id = @user_id::uuid
+  AND cm.created_at >= @start_time::timestamptz
+  AND cm.created_at < @end_time::timestamptz
+  AND cm.total_cost_micros IS NOT NULL;
+
+-- name: CountEnabledModelsWithoutPricing :one
+-- Counts enabled, non-deleted model configs that lack both input and
+-- output pricing in their JSONB options.cost configuration.
+SELECT COUNT(*)::bigint AS count
+FROM chat_model_configs
+WHERE enabled = TRUE
+  AND deleted = FALSE
+  AND (
+    options->'cost' IS NULL
+    OR options->'cost' = 'null'::jsonb
+    OR (
+      (options->'cost'->>'input_price_per_million_tokens' IS NULL)
+      AND (options->'cost'->>'output_price_per_million_tokens' IS NULL)
+    )
+  );
+
+-- name: ListChatUsageLimitGroupOverrides :many
+SELECT
+    g.id AS group_id,
+    g.name AS group_name,
+    g.display_name AS group_display_name,
+    g.avatar_url AS group_avatar_url,
+    g.chat_spend_limit_micros AS spend_limit_micros,
+    (SELECT COUNT(*)
+        FROM group_members_expanded gme
+        WHERE gme.group_id = g.id
+          AND gme.user_is_system = FALSE) AS member_count
+FROM groups g
+WHERE g.chat_spend_limit_micros IS NOT NULL
+ORDER BY g.name ASC;
+
+-- name: UpsertChatUsageLimitGroupOverride :one
+UPDATE groups
+SET chat_spend_limit_micros = @spend_limit_micros::bigint
+WHERE id = @group_id::uuid
+RETURNING id AS group_id, name, display_name, avatar_url, chat_spend_limit_micros AS spend_limit_micros;
+
+-- name: DeleteChatUsageLimitGroupOverride :exec
+UPDATE groups SET chat_spend_limit_micros = NULL WHERE id = @group_id::uuid;
+
+-- name: GetChatUsageLimitGroupOverride :one
+SELECT id AS group_id, chat_spend_limit_micros AS spend_limit_micros
+FROM groups
+WHERE id = @group_id::uuid AND chat_spend_limit_micros IS NOT NULL;
+
+-- name: GetUserGroupSpendLimit :one
+-- Returns the minimum (most restrictive) group limit for a user.
+-- Returns -1 if the user has no group limits applied.
+SELECT COALESCE(MIN(g.chat_spend_limit_micros), -1)::bigint AS limit_micros
+FROM groups g
+JOIN group_members_expanded gme ON gme.group_id = g.id
+WHERE gme.user_id = @user_id::uuid
+  AND g.chat_spend_limit_micros IS NOT NULL;
+
+-- name: ResolveUserChatSpendLimit :one
+-- Resolves the effective spend limit for a user using the hierarchy:
+-- 1. Individual user override (highest priority)
+-- 2. Minimum group limit across all user's groups
+-- 3. Global default from config
+-- Returns -1 if limits are not enabled.
+SELECT CASE
+    -- If limits are disabled, return -1.
+    WHEN NOT cfg.enabled THEN -1
+    -- Individual override takes priority.
+    WHEN u.chat_spend_limit_micros IS NOT NULL THEN u.chat_spend_limit_micros
+    -- Group limit (minimum across all user's groups) is next.
+    WHEN gl.limit_micros IS NOT NULL THEN gl.limit_micros
+    -- Fall back to global default.
+    ELSE cfg.default_limit_micros
+END::bigint AS effective_limit_micros
+FROM chat_usage_limit_config cfg
+CROSS JOIN users u
+LEFT JOIN LATERAL (
+    SELECT MIN(g.chat_spend_limit_micros) AS limit_micros
+    FROM groups g
+    JOIN group_members_expanded gme ON gme.group_id = g.id
+    WHERE gme.user_id = @user_id::uuid
+      AND g.chat_spend_limit_micros IS NOT NULL
+) gl ON TRUE
+WHERE u.id = @user_id::uuid
+LIMIT 1;

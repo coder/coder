@@ -107,6 +107,16 @@ func (t *recorderTranslation) RecordToolUsage(ctx context.Context, req *aibridge
 	return err
 }
 
+func (t *recorderTranslation) RecordModelThought(ctx context.Context, req *aibridge.ModelThoughtRecord) error {
+	_, err := t.client.RecordModelThought(ctx, &proto.RecordModelThoughtRequest{
+		InterceptionId: req.InterceptionID,
+		Content:        req.Content,
+		Metadata:       marshalForProto(req.Metadata),
+		CreatedAt:      timestamppb.New(req.CreatedAt),
+	})
+	return err
+}
+
 // marshalForProto will attempt to convert from aibridge.Metadata into a proto-friendly map[string]*anypb.Any.
 // If any marshaling fails, rather return a map with the error details since we don't want to fail Record* funcs if metadata can't encode,
 // since it's, well, metadata.

@@ -77,6 +77,11 @@ type OrganizationMemberWithUserData struct {
 	Name               string     `table:"name" json:"name,omitempty"`
 	AvatarURL          string     `json:"avatar_url,omitempty"`
 	Email              string     `json:"email"`
+	Status             UserStatus `json:"status" enums:"active,suspended"`
+	LoginType          LoginType  `json:"login_type"`
+	LastSeenAt         time.Time  `table:"last seen at" json:"last_seen_at,omitempty" format:"date-time"`
+	UserCreatedAt      time.Time  `table:"user created at" json:"user_created_at" format:"date-time"`
+	UserUpdatedAt      time.Time  `table:"user updated at" json:"user_updated_at" format:"date-time"`
 	GlobalRoles        []SlimRole `json:"global_roles"`
 	OrganizationMember `table:"m,recursive_inline"`
 }

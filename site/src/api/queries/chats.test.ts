@@ -9,7 +9,6 @@ import {
 	chatCostUsers,
 	chatCostUsersKey,
 	chatDiffContentsKey,
-	chatDiffStatusKey,
 	chatKey,
 	chatMessagesKey,
 	chatsKey,
@@ -26,10 +25,9 @@ import {
 
 vi.mock("api/api", () => ({
 	API: {
-		archiveChat: vi.fn(),
+		updateChat: vi.fn(),
 		createChat: vi.fn(),
 		deleteChatQueuedMessage: vi.fn(),
-		unarchiveChat: vi.fn(),
 		getChats: vi.fn(),
 		getChatCostSummary: vi.fn(),
 		getChatCostUsers: vi.fn(),
@@ -75,6 +73,7 @@ const makeChat = (
 	id,
 	owner_id: "owner-1",
 	last_model_config_id: "model-1",
+	mcp_server_ids: [],
 	title: `Chat ${id}`,
 	status: "running",
 	created_at: "2025-01-01T00:00:00.000Z",
@@ -110,7 +109,6 @@ describe("invalidateChatListQueries", () => {
 		// Per-chat queries that should NOT be touched.
 		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
 		queryClient.setQueryData(chatMessagesKey(chatId), []);
-		queryClient.setQueryData(chatDiffStatusKey(chatId), {});
 		queryClient.setQueryData(chatDiffContentsKey(chatId), {});
 		queryClient.setQueryData(
 			chatCostSummaryKey("me", undefined),
@@ -138,10 +136,6 @@ describe("invalidateChatListQueries", () => {
 		expect(
 			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
 			"chatMessagesKey should NOT be invalidated",
-		).not.toBe(true);
-		expect(
-			queryClient.getQueryState(chatDiffStatusKey(chatId))?.isInvalidated,
-			"chatDiffStatusKey should NOT be invalidated",
 		).not.toBe(true);
 		expect(
 			queryClient.getQueryState(chatDiffContentsKey(chatId))?.isInvalidated,
@@ -213,7 +207,7 @@ describe("archiveChat optimistic update", () => {
 		const initialChats = [makeChat(chatId), makeChat("chat-2")];
 		seedInfiniteChats(queryClient, initialChats);
 
-		vi.mocked(API.archiveChat).mockResolvedValue();
+		vi.mocked(API.updateChat).mockResolvedValue();
 
 		const mutation = archiveChat(queryClient);
 		await mutation.onMutate(chatId);
@@ -231,7 +225,7 @@ describe("archiveChat optimistic update", () => {
 		seedInfiniteChats(queryClient, [makeChat(chatId)]);
 		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
 
-		vi.mocked(API.archiveChat).mockResolvedValue();
+		vi.mocked(API.updateChat).mockResolvedValue();
 
 		const mutation = archiveChat(queryClient);
 		await mutation.onMutate(chatId);
@@ -482,8 +476,6 @@ describe("mutation invalidation scope", () => {
 		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
 		// Messages: ["chats", chatId, "messages"]
 		queryClient.setQueryData(chatMessagesKey(chatId), []);
-		// Diff status: ["chats", chatId, "diff-status"]
-		queryClient.setQueryData(chatDiffStatusKey(chatId), { diffs: [] });
 		// Diff contents: ["chats", chatId, "diff-contents"]
 		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
 		// Cost summary: ["chats", "costSummary", "me", undefined]
@@ -496,7 +488,6 @@ describe("mutation invalidation scope", () => {
 	/** Keys that should NEVER be invalidated by chat message mutations
 	 *  because they are completely unrelated to the message flow. */
 	const unrelatedKeys = (chatId: string) => [
-		{ label: "diff-status", key: chatDiffStatusKey(chatId) },
 		{ label: "diff-contents", key: chatDiffContentsKey(chatId) },
 		{ label: "cost-summary", key: chatCostSummaryKey("me", undefined) },
 	];
@@ -761,5 +752,79 @@ describe("infiniteChats", () => {
 				"pageParam must be a number",
 			);
 		});
+	});
+});
+
+describe("diff_status_change invalidation scope", () => {
+	// These tests verify the CORRECT invalidation pattern for
+	// diff_status_change WebSocket events. The handler should
+	// invalidate only the individual chat detail and diff-contents
+	// queries — NOT the chat list (sidebar) or messages.
+
+	it("exact chatKey invalidation does not cascade to messages or diff-contents", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+
+		// Seed all the queries that are active on the /agents/:id page.
+		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
+		queryClient.setQueryData(chatMessagesKey(chatId), []);
+		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
+		queryClient.setQueryData(chatsKey, [makeChat(chatId)]);
+
+		// This is what the fixed handler does — exact: true.
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+			exact: true,
+		});
+
+		// chatKey itself should be invalidated.
+		expect(
+			queryClient.getQueryState(chatKey(chatId))?.isInvalidated,
+			"chatKey should be invalidated",
+		).toBe(true);
+
+		// Messages should NOT be invalidated.
+		expect(
+			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
+			"chatMessagesKey should NOT be invalidated by exact chatKey",
+		).not.toBe(true);
+
+		// Diff-contents should NOT be invalidated.
+		expect(
+			queryClient.getQueryState(chatDiffContentsKey(chatId))?.isInvalidated,
+			"chatDiffContentsKey should NOT be invalidated by exact chatKey",
+		).not.toBe(true);
+
+		// Chat list should NOT be invalidated.
+		expect(
+			queryClient.getQueryState(chatsKey)?.isInvalidated,
+			"chatsKey should NOT be invalidated by exact chatKey",
+		).not.toBe(true);
+	});
+
+	it("without exact: true, chatKey invalidation cascades to messages and diff-contents (the old bug)", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+
+		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
+		queryClient.setQueryData(chatMessagesKey(chatId), []);
+		queryClient.setQueryData(chatDiffContentsKey(chatId), { files: [] });
+
+		// This is what the OLD (broken) handler did — no exact: true.
+		await queryClient.invalidateQueries({
+			queryKey: chatKey(chatId),
+		});
+
+		// Without exact: true, ALL queries starting with ["chats", chatId]
+		// get invalidated, including messages and diff-contents.
+		expect(
+			queryClient.getQueryState(chatMessagesKey(chatId))?.isInvalidated,
+			"chatMessagesKey IS invalidated without exact: true (old bug)",
+		).toBe(true);
+
+		expect(
+			queryClient.getQueryState(chatDiffContentsKey(chatId))?.isInvalidated,
+			"chatDiffContentsKey IS invalidated without exact: true (old bug)",
+		).toBe(true);
 	});
 });

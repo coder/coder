@@ -12,7 +12,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { type FC, useMemo } from "react";
+import type { FC } from "react";
 import { cn } from "utils/cn";
 
 export interface ModelSelectorOption {
@@ -67,11 +67,8 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	dropdownAlign = "start",
 	contentClassName,
 }) => {
-	const selectedModel = useMemo(
-		() => options.find((option) => option.id === value),
-		[options, value],
-	);
-	const optionsByProvider = useMemo(() => {
+	const selectedModel = options.find((option) => option.id === value);
+	const optionsByProvider = (() => {
 		const grouped = new Map<string, ModelSelectorOption[]>();
 
 		for (const option of options) {
@@ -84,14 +81,14 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 		}
 
 		return Array.from(grouped.entries());
-	}, [options]);
+	})();
 	const isDisabled = disabled || options.length === 0;
 
 	return (
 		<Select value={value} onValueChange={onValueChange} disabled={isDisabled}>
 			<SelectTrigger
 				className={cn(
-					"h-8 w-auto gap-1.5 border-none bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
+					"h-8 w-auto gap-1.5 border-none bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
 					className,
 				)}
 			>

@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -144,14 +145,20 @@ func findToolByName(tools []fantasy.AgentTool, name string) fantasy.AgentTool {
 	return nil
 }
 
+func chatdTestContext(t *testing.T) context.Context {
+	t.Helper()
+	return dbauthz.AsChatd(testutil.Context(t, testutil.WaitLong))
+}
+
 func TestSpawnComputerUseAgent_NoAnthropicProvider(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
+	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
 	// No Anthropic key in ProviderAPIKeys.
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := chatdTestContext(t)
 	user, model := seedInternalChatDeps(ctx, t, db)
 
 	// Create a root parent chat.
@@ -176,12 +183,13 @@ func TestSpawnComputerUseAgent_NotAvailableForChildChats(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
+	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
 	// Provide an Anthropic key so the provider check passes.
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
 		Anthropic: "test-anthropic-key",
 	})
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := chatdTestContext(t)
 	user, model := seedInternalChatDeps(ctx, t, db)
 
 	// Create a root parent chat.
@@ -232,16 +240,42 @@ func TestSpawnComputerUseAgent_NotAvailableForChildChats(t *testing.T) {
 	assert.Contains(t, resp.Content, "delegated chats cannot create child subagents")
 }
 
+func TestSpawnComputerUseAgent_DesktopDisabled(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
+		Anthropic: "test-anthropic-key",
+	})
+
+	ctx := chatdTestContext(t)
+	user, model := seedInternalChatDeps(ctx, t, db)
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "parent-desktop-disabled",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat })
+	tool := findToolByName(tools, "spawn_computer_use_agent")
+	assert.Nil(t, tool, "spawn_computer_use_agent tool must be omitted when desktop is disabled")
+}
+
 func TestSpawnComputerUseAgent_UsesComputerUseModelNotParent(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
+	require.NoError(t, db.UpsertChatDesktopEnabled(chatdTestContext(t), true))
 	// Provide an Anthropic key so the tool can proceed.
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{
 		Anthropic: "test-anthropic-key",
 	})
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := chatdTestContext(t)
 	user, model := seedInternalChatDeps(ctx, t, db)
 
 	// The parent uses an OpenAI model.
@@ -297,4 +331,140 @@ func TestSpawnComputerUseAgent_UsesComputerUseModelNotParent(t *testing.T) {
 		"computer use model provider must differ from parent model provider")
 	assert.Equal(t, "anthropic", chattool.ComputerUseModelProvider)
 	assert.NotEmpty(t, chattool.ComputerUseModelName)
+}
+
+func TestIsSubagentDescendant(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, model := seedInternalChatDeps(ctx, t, db)
+
+	// Build a chain: root -> child -> grandchild.
+	root, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "root",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("root")},
+	})
+	require.NoError(t, err)
+
+	child, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID: user.ID,
+		ParentChatID: uuid.NullUUID{
+			UUID:  root.ID,
+			Valid: true,
+		},
+		RootChatID: uuid.NullUUID{
+			UUID:  root.ID,
+			Valid: true,
+		},
+		Title:              "child",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("child")},
+	})
+	require.NoError(t, err)
+
+	grandchild, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID: user.ID,
+		ParentChatID: uuid.NullUUID{
+			UUID:  child.ID,
+			Valid: true,
+		},
+		RootChatID: uuid.NullUUID{
+			UUID:  root.ID,
+			Valid: true,
+		},
+		Title:              "grandchild",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("grandchild")},
+	})
+	require.NoError(t, err)
+
+	// Build a separate, unrelated chain.
+	unrelated, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "unrelated-root",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("unrelated")},
+	})
+	require.NoError(t, err)
+
+	unrelatedChild, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID: user.ID,
+		ParentChatID: uuid.NullUUID{
+			UUID:  unrelated.ID,
+			Valid: true,
+		},
+		RootChatID: uuid.NullUUID{
+			UUID:  unrelated.ID,
+			Valid: true,
+		},
+		Title:              "unrelated-child",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("unrelated-child")},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		ancestor uuid.UUID
+		target   uuid.UUID
+		want     bool
+	}{
+		{
+			name:     "SameID",
+			ancestor: root.ID,
+			target:   root.ID,
+			want:     false,
+		},
+		{
+			name:     "DirectChild",
+			ancestor: root.ID,
+			target:   child.ID,
+			want:     true,
+		},
+		{
+			name:     "GrandChild",
+			ancestor: root.ID,
+			target:   grandchild.ID,
+			want:     true,
+		},
+		{
+			name:     "Unrelated",
+			ancestor: root.ID,
+			target:   unrelatedChild.ID,
+			want:     false,
+		},
+		{
+			name:     "RootChat",
+			ancestor: child.ID,
+			target:   root.ID,
+			want:     false,
+		},
+		{
+			name:     "BrokenChain",
+			ancestor: root.ID,
+			target:   uuid.New(),
+			want:     false,
+		},
+		{
+			name:     "NotDescendant",
+			ancestor: unrelated.ID,
+			target:   child.ID,
+			want:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := chatdTestContext(t)
+			got, err := isSubagentDescendant(ctx, db, tt.ancestor, tt.target)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }

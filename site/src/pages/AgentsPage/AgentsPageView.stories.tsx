@@ -1,10 +1,17 @@
-import { MockUserOwner } from "testHelpers/entities";
+import {
+	MockNoPermissions,
+	MockPermissions,
+	MockUserOwner,
+} from "testHelpers/entities";
 import { withAuthProvider, withDashboardProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { Chat } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import dayjs from "dayjs";
+import { useState } from "react";
 import {
 	expect,
 	fn,
@@ -15,6 +22,9 @@ import {
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import AgentAnalyticsPage from "./AgentAnalyticsPage";
+import AgentCreatePage from "./AgentCreatePage";
+import AgentSettingsPage from "./AgentSettingsPage";
 import { AgentsPageView } from "./AgentsPageView";
 
 const defaultModelOptions: ModelSelectorOption[] = [
@@ -109,6 +119,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	title: "Agent",
 	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
+	mcp_server_ids: [],
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
@@ -116,13 +127,21 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...overrides,
 });
 
-const agentsRouting = [
-	{ path: "/agents/:agentId", useStoryElement: true },
-	{ path: "/agents", useStoryElement: true },
-] satisfies [
-	{ path: string; useStoryElement: boolean },
-	...{ path: string; useStoryElement: boolean }[],
-];
+// Use local noon so the rendered range label stays stable
+// across timezones.
+const fixedNow = dayjs("2026-03-12T12:00:00");
+
+const agentsRouting = {
+	path: "/agents",
+	useStoryElement: true,
+	children: [
+		{ path: "settings", element: <AgentSettingsPage /> },
+		{ path: "settings/:section", element: <AgentSettingsPage /> },
+		{ path: "analytics", element: <AgentAnalyticsPage now={fixedNow} /> },
+		{ path: ":agentId", element: <div /> },
+		{ index: true, element: <AgentCreatePage /> },
+	],
+};
 
 const meta: Meta<typeof AgentsPageView> = {
 	title: "pages/AgentsPage/AgentsPageView",
@@ -131,6 +150,7 @@ const meta: Meta<typeof AgentsPageView> = {
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
+		permissions: MockPermissions,
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents" },
 			routing: agentsRouting,
@@ -152,26 +172,19 @@ const meta: Meta<typeof AgentsPageView> = {
 		onCollapseSidebar: fn(),
 		isSidebarCollapsed: false,
 		onExpandSidebar: fn(),
-		outletContext: {
-			chatErrorReasons: {},
-			setChatErrorReason: fn(),
-			clearChatErrorReason: fn(),
-			requestArchiveAgent: fn(),
-			requestUnarchiveAgent: fn(),
-			requestArchiveAndDeleteWorkspace: fn(),
-			isSidebarCollapsed: false,
-			onToggleSidebarCollapsed: fn(),
-		},
+		chatErrorReasons: {},
+		setChatErrorReason: fn(),
+		clearChatErrorReason: fn(),
+		requestArchiveAgent: fn(),
+		requestUnarchiveAgent: fn(),
+		requestArchiveAndDeleteWorkspace: fn(),
+		onToggleSidebarCollapsed: fn(),
 		isAgentsAdmin: false,
 		archivedFilter: "active" as const,
 		onArchivedFilterChange: fn(),
+		hasNextPage: false,
+		onLoadMore: fn(),
 		isFetchingNextPage: false,
-		onCreateChat: fn(),
-		createError: undefined,
-		modelCatalog: undefined,
-		isModelCatalogLoading: false,
-		isModelConfigsLoading: false,
-		modelCatalogError: undefined,
 	},
 	beforeEach: () => {
 		spyOn(API, "getWorkspaces").mockResolvedValue({
@@ -190,6 +203,44 @@ const meta: Meta<typeof AgentsPageView> = {
 		spyOn(API, "updateUserChatCustomPrompt").mockResolvedValue({
 			custom_prompt: "",
 		});
+		// Mocks for child route pages that fetch their own data.
+		spyOn(API, "getChatModels").mockResolvedValue({
+			providers: [
+				{
+					provider: "openai",
+					available: true,
+					models: [
+						{
+							id: "openai:gpt-4o",
+							provider: "openai",
+							model: "gpt-4o",
+							display_name: "GPT-4o",
+						},
+					],
+				},
+			],
+		});
+		spyOn(API, "getChatModelConfigs").mockResolvedValue([
+			{
+				id: "config-openai-gpt-4o",
+				provider: "openai",
+				model: "gpt-4o",
+				display_name: "GPT-4o",
+				enabled: true,
+				is_default: false,
+				context_limit: 200000,
+				compression_threshold: 70,
+				created_at: "2026-02-18T00:00:00.000Z",
+				updated_at: "2026-02-18T00:00:00.000Z",
+			},
+		]);
+		spyOn(API, "getChatDesktopEnabled").mockResolvedValue({
+			enable_desktop: false,
+		});
+		spyOn(API, "getChatWorkspaceTTL").mockResolvedValue({
+			workspace_ttl_ms: 0,
+		});
+		spyOn(API, "updateChatWorkspaceTTL").mockResolvedValue();
 	},
 };
 
@@ -265,16 +316,13 @@ export const SidebarCollapsed: Story = {
 				updated_at: todayTimestamp,
 			}),
 		],
-		outletContext: {
-			chatErrorReasons: {},
-			setChatErrorReason: fn(),
-			clearChatErrorReason: fn(),
-			requestArchiveAgent: fn(),
-			requestUnarchiveAgent: fn(),
-			requestArchiveAndDeleteWorkspace: fn(),
-			isSidebarCollapsed: true,
-			onToggleSidebarCollapsed: fn(),
-		},
+		chatErrorReasons: {},
+		setChatErrorReason: fn(),
+		clearChatErrorReason: fn(),
+		requestArchiveAgent: fn(),
+		requestUnarchiveAgent: fn(),
+		requestArchiveAndDeleteWorkspace: fn(),
+		onToggleSidebarCollapsed: fn(),
 	},
 };
 
@@ -313,6 +361,61 @@ export const ArchivingAgent: Story = {
 				updated_at: todayTimestamp,
 			}),
 		],
+	},
+};
+
+/**
+ * Standalone story for the delete-confirmation dialog with
+ * agents-specific copy (title, verb, info). The dialog now lives in
+ * AgentsPage (the container) rather than AgentsPageView, so we
+ * render it directly here to preserve interaction-test coverage.
+ */
+export const DeleteConfirmationDialog: Story = {
+	render: function Render() {
+		const [isOpen, setIsOpen] = useState(true);
+		const [isLoading, setIsLoading] = useState(false);
+		const onConfirm = fn();
+		return (
+			<DeleteDialog
+				key="my-workspace"
+				isOpen={isOpen}
+				onConfirm={() => {
+					onConfirm();
+					setIsLoading(true);
+				}}
+				onCancel={() => setIsOpen(false)}
+				entity="workspace"
+				name="my-workspace"
+				confirmLoading={isLoading}
+				title="Archive agent & delete workspace"
+				verb="Archiving and deleting"
+				info="This will archive the agent and permanently delete the associated workspace and all its resources."
+			/>
+		);
+	},
+	play: async () => {
+		const dialog = await screen.findByRole("dialog");
+		await expect(dialog).toBeInTheDocument();
+		await expect(
+			within(dialog).getByText("Archive agent & delete workspace"),
+		).toBeInTheDocument();
+
+		// Confirm button should be disabled before typing the workspace name.
+		const confirmButton = within(dialog).getByRole("button", {
+			name: /delete/i,
+		});
+		await expect(confirmButton).toBeDisabled();
+
+		// Type the workspace name to satisfy the confirmation guard.
+		const input = within(dialog).getByLabelText(/name of the workspace/i);
+		await userEvent.type(input, "my-workspace");
+		await expect(confirmButton).toBeEnabled();
+
+		// Click confirm and verify the callback fires, then enters loading state.
+		await userEvent.click(confirmButton);
+		await waitFor(() => {
+			expect(confirmButton).toBeDisabled();
+		});
 	},
 };
 
@@ -366,48 +469,27 @@ export const WithErrorReasons: Story = {
 				updated_at: todayTimestamp,
 			}),
 		],
-		outletContext: {
-			chatErrorReasons: {
-				"chat-1": "Model rate limited",
-				"chat-3": "Context window exceeded",
-			},
-			setChatErrorReason: fn(),
-			clearChatErrorReason: fn(),
-			requestArchiveAgent: fn(),
-			requestUnarchiveAgent: fn(),
-			requestArchiveAndDeleteWorkspace: fn(),
-			isSidebarCollapsed: false,
-			onToggleSidebarCollapsed: fn(),
+		chatErrorReasons: {
+			"chat-1": { kind: "generic", message: "Model rate limited" },
+			"chat-3": { kind: "generic", message: "Context window exceeded" },
 		},
+		setChatErrorReason: fn(),
+		clearChatErrorReason: fn(),
+		requestArchiveAgent: fn(),
+		requestUnarchiveAgent: fn(),
+		requestArchiveAndDeleteWorkspace: fn(),
+		onToggleSidebarCollapsed: fn(),
 	},
 };
 
-type ChatCostSummaryCall = [
-	user: string,
-	params?: {
-		start_date?: string;
-		end_date?: string;
-	},
-];
-
-const getChatCostSummaryCalls = (): ChatCostSummaryCall[] => {
-	return (
-		API.getChatCostSummary as typeof API.getChatCostSummary & {
-			mock: { calls: ChatCostSummaryCall[] };
-		}
-	).mock.calls;
+const openAnalyticsView = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	await userEvent.click(canvas.getByRole("link", { name: "Analytics" }));
 };
 
-const openAnalyticsDialog = async (canvasElement: HTMLElement) => {
+const openSettingsView = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
-	await userEvent.click(canvas.getByRole("button", { name: "Analytics" }));
-	return screen.findByRole("dialog", { name: "Analytics" });
-};
-
-const openSettingsDialog = async (canvasElement: HTMLElement) => {
-	const canvas = within(canvasElement);
-	await userEvent.click(canvas.getByRole("button", { name: "Settings" }));
-	return screen.findByRole("dialog", { name: "Settings" });
+	await userEvent.click(canvas.getByRole("link", { name: "Settings" }));
 };
 
 export const OpensAnalyticsForAdmins: Story = {
@@ -415,12 +497,15 @@ export const OpensAnalyticsForAdmins: Story = {
 		isAgentsAdmin: true,
 	},
 	play: async ({ canvasElement }) => {
-		const dialog = await openAnalyticsDialog(canvasElement);
+		await openAnalyticsView(canvasElement);
 
-		await expect(dialog).toBeInTheDocument();
-		expect(
-			screen.queryByRole("dialog", { name: "Settings" }),
-		).not.toBeInTheDocument();
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"Review your personal chat usage and cost breakdowns.",
+				),
+			).toBeInTheDocument();
+		});
 	},
 };
 
@@ -428,13 +513,19 @@ export const OpensAnalyticsForNonAdmins: Story = {
 	args: {
 		isAgentsAdmin: false,
 	},
+	parameters: {
+		permissions: MockNoPermissions,
+	},
 	play: async ({ canvasElement }) => {
-		const dialog = await openAnalyticsDialog(canvasElement);
+		await openAnalyticsView(canvasElement);
 
-		await expect(dialog).toBeInTheDocument();
-		expect(
-			screen.queryByRole("dialog", { name: "Settings" }),
-		).not.toBeInTheDocument();
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"Review your personal chat usage and cost breakdowns.",
+				),
+			).toBeInTheDocument();
+		});
 	},
 };
 
@@ -443,17 +534,15 @@ export const OpensSettingsForAdmins: Story = {
 		isAgentsAdmin: true,
 	},
 	play: async ({ canvasElement }) => {
-		const dialog = await openSettingsDialog(canvasElement);
+		await openSettingsView(canvasElement);
 
-		await expect(dialog).toBeInTheDocument();
-		await expect(
-			within(dialog).getByText(
-				"Custom instructions that shape how the agent responds in your chats.",
-			),
-		).toBeInTheDocument();
-		expect(
-			screen.queryByRole("dialog", { name: "Analytics" }),
-		).not.toBeInTheDocument();
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"Custom instructions that shape how the agent responds in your chats.",
+				),
+			).toBeInTheDocument();
+		});
 	},
 };
 
@@ -461,28 +550,40 @@ export const OpensSettingsForNonAdmins: Story = {
 	args: {
 		isAgentsAdmin: false,
 	},
+	parameters: {
+		permissions: MockNoPermissions,
+	},
 	play: async ({ canvasElement }) => {
-		const dialog = await openSettingsDialog(canvasElement);
+		await openSettingsView(canvasElement);
 
-		await expect(dialog).toBeInTheDocument();
-		await expect(
-			within(dialog).getByText(
-				"Custom instructions that shape how the agent responds in your chats.",
-			),
-		).toBeInTheDocument();
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"Custom instructions that shape how the agent responds in your chats.",
+				),
+			).toBeInTheDocument();
+		});
 	},
 };
 
-export const RemountsConfigureDialogWhenReopened: Story = {
+export const SettingsViewResets: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},
 	play: async ({ canvasElement }) => {
-		let dialog = await openSettingsDialog(canvasElement);
+		// Open settings
+		await openSettingsView(canvasElement);
 
-		await userEvent.click(
-			within(dialog).getByRole("button", { name: "Usage" }),
-		);
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"Custom instructions that shape how the agent responds in your chats.",
+				),
+			).toBeInTheDocument();
+		});
+
+		// Navigate to Usage section
+		await userEvent.click(screen.getByText("Usage"));
 		await waitFor(() => {
 			expect(
 				screen.getByText(
@@ -491,71 +592,18 @@ export const RemountsConfigureDialogWhenReopened: Story = {
 			).toBeInTheDocument();
 		});
 
-		await userEvent.click(
-			within(dialog).getByRole("button", { name: "Close" }),
-		);
+		// Go back to chats
+		const backButton = screen.getByLabelText("Back to chats from Settings");
+		await userEvent.click(backButton);
+
+		// Re-open settings, should reset to Behavior
+		await openSettingsView(canvasElement);
 		await waitFor(() => {
 			expect(
-				screen.queryByRole("dialog", { name: "Settings" }),
-			).not.toBeInTheDocument();
+				screen.getByText(
+					"Custom instructions that shape how the agent responds in your chats.",
+				),
+			).toBeInTheDocument();
 		});
-
-		dialog = await openSettingsDialog(canvasElement);
-
-		await expect(
-			within(dialog).getByText(
-				"Custom instructions that shape how the agent responds in your chats.",
-			),
-		).toBeInTheDocument();
-		expect(
-			screen.queryByText(
-				"Review deployment chat usage and drill into individual users.",
-			),
-		).not.toBeInTheDocument();
-	},
-};
-
-export const RemountsAnalyticsDialogWhenReopened: Story = {
-	args: {
-		isAgentsAdmin: true,
-	},
-	play: async ({ canvasElement }) => {
-		let dialog = await openAnalyticsDialog(canvasElement);
-
-		await expect(dialog).toBeInTheDocument();
-		await waitFor(() => {
-			expect(getChatCostSummaryCalls().length).toBeGreaterThan(0);
-		});
-		const initialCallCount = getChatCostSummaryCalls().length;
-		const initialEndDates = new Set(
-			getChatCostSummaryCalls()
-				.map(([, params]) => params?.end_date)
-				.filter((endDate): endDate is string => Boolean(endDate)),
-		);
-
-		await userEvent.click(
-			within(dialog).getByRole("button", { name: "Close" }),
-		);
-		await waitFor(() => {
-			expect(
-				screen.queryByRole("dialog", { name: "Analytics" }),
-			).not.toBeInTheDocument();
-		});
-
-		dialog = await openAnalyticsDialog(canvasElement);
-		await expect(dialog).toBeInTheDocument();
-		await waitFor(() => {
-			expect(getChatCostSummaryCalls().length).toBeGreaterThan(
-				initialCallCount,
-			);
-		});
-
-		const reopenedCalls = getChatCostSummaryCalls().slice(initialCallCount);
-		expect(
-			reopenedCalls.some(([, params]) => {
-				const endDate = params?.end_date;
-				return typeof endDate === "string" && !initialEndDates.has(endDate);
-			}),
-		).toBe(true);
 	},
 };
