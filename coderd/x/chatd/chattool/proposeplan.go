@@ -3,7 +3,6 @@ package chattool
 import (
 	"context"
 	"io"
-	"path/filepath"
 	"strings"
 
 	"charm.land/fantasy"
@@ -11,7 +10,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
-const maxProposePlanSize = 1024 * 1024 // 1 MiB
+const maxProposePlanSize = 32 * 1024 // 32 KiB
 
 type ProposePlanOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
@@ -52,9 +51,6 @@ func executeProposePlanTool(
 	if !strings.HasSuffix(path, ".md") {
 		return fantasy.NewTextErrorResponse("path must end with .md"), nil
 	}
-	if !filepath.IsAbs(path) {
-		return fantasy.NewTextErrorResponse("path must be absolute (e.g. /home/coder/PLAN.md)"), nil
-	}
 
 	rc, _, err := conn.ReadFile(ctx, path, 0, 0)
 	if err != nil {
@@ -67,7 +63,7 @@ func executeProposePlanTool(
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
 	if int64(len(data)) > maxProposePlanSize {
-		return fantasy.NewTextErrorResponse("plan file exceeds 1 MiB size limit"), nil
+		return fantasy.NewTextErrorResponse("plan file exceeds 32 KiB size limit"), nil
 	}
 
 	return toolResponse(map[string]any{"ok": true, "path": path, "kind": "plan", "content": string(data)}), nil
