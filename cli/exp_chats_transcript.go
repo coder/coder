@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -109,7 +110,7 @@ func fetchAllChatMessages(ctx context.Context, client *codersdk.Client, chatID u
 			return nil, err
 		}
 
-		allMessages = append(resp.Messages, allMessages...)
+		allMessages = append(allMessages, resp.Messages...)
 		if !resp.HasMore || len(resp.Messages) == 0 {
 			break
 		}
@@ -118,6 +119,21 @@ func fetchAllChatMessages(ctx context.Context, client *codersdk.Client, chatID u
 			BeforeID: resp.Messages[len(resp.Messages)-1].ID,
 		}
 	}
+
+	slices.SortStableFunc(allMessages, func(a, b codersdk.ChatMessage) int {
+		switch {
+		case a.CreatedAt.Before(b.CreatedAt):
+			return -1
+		case a.CreatedAt.After(b.CreatedAt):
+			return 1
+		case a.ID < b.ID:
+			return -1
+		case a.ID > b.ID:
+			return 1
+		default:
+			return 0
+		}
+	})
 
 	return allMessages, nil
 }

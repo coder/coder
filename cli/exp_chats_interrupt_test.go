@@ -53,7 +53,7 @@ func TestExpChatsInterrupt_Success(t *testing.T) {
 	require.Contains(t, lowerOutput, "status")
 	require.Contains(t, stdout, chat.ID.String())
 	require.Contains(t, stdout, chat.Title)
-	require.Contains(t, stdout, string(codersdk.ChatStatusWaiting))
+	require.Contains(t, stdout, string(codersdk.ChatStatusPending))
 
 	jsonStdout, jsonStderr, err := runExpChatsCommand(t, client, "exp", "chats", "interrupt", chat.ID.String(), "--output", "json")
 	require.NoError(t, err)
@@ -62,7 +62,7 @@ func TestExpChatsInterrupt_Success(t *testing.T) {
 	var interrupted codersdk.Chat
 	require.NoError(t, json.Unmarshal([]byte(jsonStdout), &interrupted))
 	require.Equal(t, chat.ID, interrupted.ID)
-	require.Equal(t, codersdk.ChatStatusWaiting, interrupted.Status)
+	require.Equal(t, codersdk.ChatStatusPending, interrupted.Status)
 }
 
 func TestExpChatsDiff_InvalidID(t *testing.T) {

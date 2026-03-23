@@ -105,7 +105,7 @@ func (r *RootCmd) chatsList() *serpent.Command {
 	cmd.Options = append(cmd.Options,
 		serpent.Option{
 			Name:          "search",
-			Description:   "Search chats.",
+			Description:   "Structured search query (for example archived:true).",
 			Flag:          "search",
 			FlagShorthand: "q",
 			Value:         serpent.StringOf(&search),

@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -65,7 +68,7 @@ func (r *RootCmd) chatsDiff() *serpent.Command {
 			ctx := inv.Context()
 
 			if output == "json" {
-				changes, err := client.GetChatGitChanges(ctx, chatID)
+				changes, err := getChatGitChangesOrEmpty(ctx, client, chatID)
 				if err != nil {
 					return xerrors.Errorf("get chat git changes %s: %w", chatID, err)
 				}
@@ -97,7 +100,7 @@ func (r *RootCmd) chatsDiff() *serpent.Command {
 				return err
 			}
 
-			changes, err := client.GetChatGitChanges(ctx, chatID)
+			changes, err := getChatGitChangesOrEmpty(ctx, client, chatID)
 			if err != nil {
 				return xerrors.Errorf("get chat git changes %s: %w", chatID, err)
 			}
@@ -117,6 +120,25 @@ func (r *RootCmd) chatsDiff() *serpent.Command {
 			return err
 		},
 	}
+}
+
+func getChatGitChangesOrEmpty(ctx context.Context, client *codersdk.Client, chatID uuid.UUID) ([]codersdk.ChatGitChange, error) {
+	changes, err := client.GetChatGitChanges(ctx, chatID)
+	if err == nil {
+		return changes, nil
+	}
+	if isMissingRouteError(err) {
+		return nil, nil
+	}
+	return nil, err
+}
+
+func isMissingRouteError(err error) bool {
+	sdkErr, ok := codersdk.AsError(err)
+	if !ok || sdkErr.StatusCode() != http.StatusNotFound {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(sdkErr.Message), "Route not found.")
 }
 
 func renderChatDiffSummary(diff codersdk.ChatDiffContents, changes []codersdk.ChatGitChange) string {

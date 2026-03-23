@@ -183,8 +183,12 @@ func TestExpChatsListSearch(t *testing.T) {
 	_ = coderdtest.CreateFirstUser(t, client)
 	_ = createExpChatModelConfig(t, client)
 
-	matchingChat := createExpChat(t, client, "searchable-needle chat")
-	_ = createExpChat(t, client, "different-haystack chat")
+	activeChat := createExpChat(t, client, "active chat")
+	archivedChat := createExpChat(t, client, "archived chat")
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	err := client.UpdateChat(ctx, archivedChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+	require.NoError(t, err)
 
 	stdout, stderr, err := runExpChatsCommand(
 		t,
@@ -193,7 +197,7 @@ func TestExpChatsListSearch(t *testing.T) {
 		"chats",
 		"list",
 		"--search",
-		"searchable-needle",
+		"archived:true",
 		"--output",
 		"json",
 	)
@@ -203,8 +207,9 @@ func TestExpChatsListSearch(t *testing.T) {
 	var chats []codersdk.Chat
 	require.NoError(t, json.Unmarshal([]byte(stdout), &chats))
 	require.Len(t, chats, 1)
-	require.Equal(t, matchingChat.ID, chats[0].ID)
-	require.Equal(t, matchingChat.Title, chats[0].Title)
+	require.Equal(t, archivedChat.ID, chats[0].ID)
+	require.Equal(t, archivedChat.Title, chats[0].Title)
+	require.NotEqual(t, activeChat.ID, chats[0].ID)
 }
 
 func TestExpChatsShow(t *testing.T) {
