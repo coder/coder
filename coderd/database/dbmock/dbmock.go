@@ -2195,10 +2195,10 @@ func (mr *MockStoreMockRecorder) GetChatUsageLimitConfig(ctx any) *gomock.Call {
 }
 
 // GetChatUsageLimitGroupOverride mocks base method.
-func (m *MockStore) GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (database.GetChatUsageLimitGroupOverrideRow, error) {
+func (m *MockStore) GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (database.ChatGroupSpendLimit, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetChatUsageLimitGroupOverride", ctx, groupID)
-	ret0, _ := ret[0].(database.GetChatUsageLimitGroupOverrideRow)
+	ret0, _ := ret[0].(database.ChatGroupSpendLimit)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -2210,10 +2210,10 @@ func (mr *MockStoreMockRecorder) GetChatUsageLimitGroupOverride(ctx, groupID any
 }
 
 // GetChatUsageLimitUserOverride mocks base method.
-func (m *MockStore) GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (database.GetChatUsageLimitUserOverrideRow, error) {
+func (m *MockStore) GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (database.ChatUserSpendLimit, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetChatUsageLimitUserOverride", ctx, userID)
-	ret0, _ := ret[0].(database.GetChatUsageLimitUserOverrideRow)
+	ret0, _ := ret[0].(database.ChatUserSpendLimit)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -8910,10 +8910,10 @@ func (mr *MockStoreMockRecorder) UpsertChatUsageLimitConfig(ctx, arg any) *gomoc
 }
 
 // UpsertChatUsageLimitGroupOverride mocks base method.
-func (m *MockStore) UpsertChatUsageLimitGroupOverride(ctx context.Context, arg database.UpsertChatUsageLimitGroupOverrideParams) (database.UpsertChatUsageLimitGroupOverrideRow, error) {
+func (m *MockStore) UpsertChatUsageLimitGroupOverride(ctx context.Context, arg database.UpsertChatUsageLimitGroupOverrideParams) (database.ChatGroupSpendLimit, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertChatUsageLimitGroupOverride", ctx, arg)
-	ret0, _ := ret[0].(database.UpsertChatUsageLimitGroupOverrideRow)
+	ret0, _ := ret[0].(database.ChatGroupSpendLimit)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -8925,10 +8925,10 @@ func (mr *MockStoreMockRecorder) UpsertChatUsageLimitGroupOverride(ctx, arg any)
 }
 
 // UpsertChatUsageLimitUserOverride mocks base method.
-func (m *MockStore) UpsertChatUsageLimitUserOverride(ctx context.Context, arg database.UpsertChatUsageLimitUserOverrideParams) (database.UpsertChatUsageLimitUserOverrideRow, error) {
+func (m *MockStore) UpsertChatUsageLimitUserOverride(ctx context.Context, arg database.UpsertChatUsageLimitUserOverrideParams) (database.ChatUserSpendLimit, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertChatUsageLimitUserOverride", ctx, arg)
-	ret0, _ := ret[0].(database.UpsertChatUsageLimitUserOverrideRow)
+	ret0, _ := ret[0].(database.ChatUserSpendLimit)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -7,16 +7,16 @@ type CheckConstraint string
 // CheckConstraint enums.
 const (
 	CheckAPIKeysAllowListNotEmpty                    CheckConstraint = "api_keys_allow_list_not_empty"                      // api_keys
+	CheckChatGroupSpendLimitsCheck                   CheckConstraint = "chat_group_spend_limits_check"                      // chat_group_spend_limits
 	CheckChatModelConfigsCompressionThresholdCheck   CheckConstraint = "chat_model_configs_compression_threshold_check"     // chat_model_configs
 	CheckChatModelConfigsContextLimitCheck           CheckConstraint = "chat_model_configs_context_limit_check"             // chat_model_configs
 	CheckChatProvidersProviderCheck                  CheckConstraint = "chat_providers_provider_check"                      // chat_providers
 	CheckChatUsageLimitConfigDefaultLimitMicrosCheck CheckConstraint = "chat_usage_limit_config_default_limit_micros_check" // chat_usage_limit_config
 	CheckChatUsageLimitConfigPeriodCheck             CheckConstraint = "chat_usage_limit_config_period_check"               // chat_usage_limit_config
 	CheckChatUsageLimitConfigSingletonCheck          CheckConstraint = "chat_usage_limit_config_singleton_check"            // chat_usage_limit_config
+	CheckChatUserSpendLimitsCheck                    CheckConstraint = "chat_user_spend_limits_check"                       // chat_user_spend_limits
 	CheckOrganizationIDNotZero                       CheckConstraint = "organization_id_not_zero"                           // custom_roles
-	CheckGroupsChatSpendLimitMicrosCheck             CheckConstraint = "groups_chat_spend_limit_micros_check"               // groups
 	CheckOneTimePasscodeSet                          CheckConstraint = "one_time_passcode_set"                              // users
-	CheckUsersChatSpendLimitMicrosCheck              CheckConstraint = "users_chat_spend_limit_micros_check"                // users
 	CheckUsersEmailNotEmpty                          CheckConstraint = "users_email_not_empty"                              // users
 	CheckUsersServiceAccountLoginType                CheckConstraint = "users_service_account_login_type"                   // users
 	CheckUsersUsernameMinLength                      CheckConstraint = "users_username_min_length"                          // users

@@ -1271,6 +1271,14 @@ CREATE TABLE chat_files (
     data bytea NOT NULL
 );
 
+CREATE TABLE chat_group_spend_limits (
+    group_id uuid NOT NULL,
+    spend_limit_micros bigint,
+    CONSTRAINT chat_group_spend_limits_check CHECK (((spend_limit_micros IS NULL) OR (spend_limit_micros > 0)))
+);
+
+COMMENT ON TABLE chat_group_spend_limits IS 'Experimental (agents): Stores per-group spend limits for chat usage. A NULL value indicates no limit.';
+
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
@@ -1376,6 +1384,14 @@ CREATE SEQUENCE chat_usage_limit_config_id_seq
     CACHE 1;
 
 ALTER SEQUENCE chat_usage_limit_config_id_seq OWNED BY chat_usage_limit_config.id;
+
+CREATE TABLE chat_user_spend_limits (
+    user_id uuid NOT NULL,
+    spend_limit_micros bigint,
+    CONSTRAINT chat_user_spend_limits_check CHECK (((spend_limit_micros IS NULL) OR (spend_limit_micros > 0)))
+);
+
+COMMENT ON TABLE chat_user_spend_limits IS 'Experimental (agents): Stores per-user spend limits for chat usage. A NULL value indicates no limit.';
 
 CREATE TABLE chats (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -1534,9 +1550,7 @@ CREATE TABLE groups (
     avatar_url text DEFAULT ''::text NOT NULL,
     quota_allowance integer DEFAULT 0 NOT NULL,
     display_name text DEFAULT ''::text NOT NULL,
-    source group_source DEFAULT 'user'::group_source NOT NULL,
-    chat_spend_limit_micros bigint,
-    CONSTRAINT groups_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0)))
+    source group_source DEFAULT 'user'::group_source NOT NULL
 );
 
 COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.';
@@ -1571,9 +1585,7 @@ CREATE TABLE users (
     one_time_passcode_expires_at timestamp with time zone,
     is_system boolean DEFAULT false NOT NULL,
     is_service_account boolean DEFAULT false NOT NULL,
-    chat_spend_limit_micros bigint,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL)))),
-    CONSTRAINT users_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0))),
     CONSTRAINT users_email_not_empty CHECK (((is_service_account = true) = (email = ''::text))),
     CONSTRAINT users_service_account_login_type CHECK (((is_service_account = false) OR (login_type = 'none'::login_type))),
     CONSTRAINT users_username_min_length CHECK ((length(username) >= 1))
@@ -3316,6 +3328,9 @@ ALTER TABLE ONLY chat_diff_statuses
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_group_spend_limits
+    ADD CONSTRAINT chat_group_spend_limits_pkey PRIMARY KEY (group_id);
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
@@ -3336,6 +3351,9 @@ ALTER TABLE ONLY chat_usage_limit_config
 
 ALTER TABLE ONLY chat_usage_limit_config
     ADD CONSTRAINT chat_usage_limit_config_singleton_key UNIQUE (singleton);
+
+ALTER TABLE ONLY chat_user_spend_limits
+    ADD CONSTRAINT chat_user_spend_limits_pkey PRIMARY KEY (user_id);
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
@@ -3997,6 +4015,9 @@ ALTER TABLE ONLY chat_files
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY chat_group_spend_limits
+    ADD CONSTRAINT chat_group_spend_limits_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
@@ -4020,6 +4041,9 @@ ALTER TABLE ONLY chat_providers
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_user_spend_limits
+    ADD CONSTRAINT chat_user_spend_limits_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_last_model_config_id_fkey FOREIGN KEY (last_model_config_id) REFERENCES chat_model_configs(id);

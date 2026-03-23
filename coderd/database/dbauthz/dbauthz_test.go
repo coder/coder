@@ -915,7 +915,7 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("GetChatUsageLimitGroupOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		groupID := uuid.New()
-		override := database.GetChatUsageLimitGroupOverrideRow{
+		override := database.ChatGroupSpendLimit{
 			GroupID:          groupID,
 			SpendLimitMicros: sql.NullInt64{Int64: 2_000_000, Valid: true},
 		}
@@ -924,7 +924,7 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("GetChatUsageLimitUserOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		userID := uuid.New()
-		override := database.GetChatUsageLimitUserOverrideRow{
+		override := database.ChatUserSpendLimit{
 			UserID:           userID,
 			SpendLimitMicros: sql.NullInt64{Int64: 3_000_000, Valid: true},
 		}
@@ -978,11 +978,8 @@ func (s *MethodTestSuite) TestChats() {
 			SpendLimitMicros: 7_000_000,
 			GroupID:          uuid.New(),
 		}
-		override := database.UpsertChatUsageLimitGroupOverrideRow{
+		override := database.ChatGroupSpendLimit{
 			GroupID:          arg.GroupID,
-			Name:             "group",
-			DisplayName:      "Group",
-			AvatarURL:        "",
 			SpendLimitMicros: sql.NullInt64{Int64: arg.SpendLimitMicros, Valid: true},
 		}
 		dbm.EXPECT().UpsertChatUsageLimitGroupOverride(gomock.Any(), arg).Return(override, nil).AnyTimes()
@@ -993,11 +990,8 @@ func (s *MethodTestSuite) TestChats() {
 			SpendLimitMicros: 8_000_000,
 			UserID:           uuid.New(),
 		}
-		override := database.UpsertChatUsageLimitUserOverrideRow{
+		override := database.ChatUserSpendLimit{
 			UserID:           arg.UserID,
-			Username:         "user",
-			Name:             "User",
-			AvatarURL:        "",
 			SpendLimitMicros: sql.NullInt64{Int64: arg.SpendLimitMicros, Valid: true},
 		}
 		dbm.EXPECT().UpsertChatUsageLimitUserOverride(gomock.Any(), arg).Return(override, nil).AnyTimes()

@@ -2662,16 +2662,16 @@ func (q *querier) GetChatUsageLimitConfig(ctx context.Context) (database.ChatUsa
 	return q.db.GetChatUsageLimitConfig(ctx)
 }
 
-func (q *querier) GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (database.GetChatUsageLimitGroupOverrideRow, error) {
+func (q *querier) GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (database.ChatGroupSpendLimit, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.GetChatUsageLimitGroupOverrideRow{}, err
+		return database.ChatGroupSpendLimit{}, err
 	}
 	return q.db.GetChatUsageLimitGroupOverride(ctx, groupID)
 }
 
-func (q *querier) GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (database.GetChatUsageLimitUserOverrideRow, error) {
+func (q *querier) GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (database.ChatUserSpendLimit, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
-		return database.GetChatUsageLimitUserOverrideRow{}, err
+		return database.ChatUserSpendLimit{}, err
 	}
 	return q.db.GetChatUsageLimitUserOverride(ctx, userID)
 }
@@ -6765,16 +6765,16 @@ func (q *querier) UpsertChatUsageLimitConfig(ctx context.Context, arg database.U
 	return q.db.UpsertChatUsageLimitConfig(ctx, arg)
 }
 
-func (q *querier) UpsertChatUsageLimitGroupOverride(ctx context.Context, arg database.UpsertChatUsageLimitGroupOverrideParams) (database.UpsertChatUsageLimitGroupOverrideRow, error) {
+func (q *querier) UpsertChatUsageLimitGroupOverride(ctx context.Context, arg database.UpsertChatUsageLimitGroupOverrideParams) (database.ChatGroupSpendLimit, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.UpsertChatUsageLimitGroupOverrideRow{}, err
+		return database.ChatGroupSpendLimit{}, err
 	}
 	return q.db.UpsertChatUsageLimitGroupOverride(ctx, arg)
 }
 
-func (q *querier) UpsertChatUsageLimitUserOverride(ctx context.Context, arg database.UpsertChatUsageLimitUserOverrideParams) (database.UpsertChatUsageLimitUserOverrideRow, error) {
+func (q *querier) UpsertChatUsageLimitUserOverride(ctx context.Context, arg database.UpsertChatUsageLimitUserOverrideParams) (database.ChatUserSpendLimit, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
-		return database.UpsertChatUsageLimitUserOverrideRow{}, err
+		return database.ChatUserSpendLimit{}, err
 	}
 	return q.db.UpsertChatUsageLimitUserOverride(ctx, arg)
 }

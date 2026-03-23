@@ -134,6 +134,10 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.AiSeatState:
 		return "AI Seat"
+	case database.ChatUserSpendLimit:
+		return "(Experimental) Agent User Spend Limit"
+	case database.ChatGroupSpendLimit:
+		return "(Experimental) Agent Group Spend Limit"
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
@@ -200,6 +204,10 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.AiSeatState:
 		return typed.UserID
+	case database.ChatUserSpendLimit:
+		return typed.UserID
+	case database.ChatGroupSpendLimit:
+		return typed.GroupID
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
 	}
@@ -257,6 +265,10 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeTask
 	case database.AiSeatState:
 		return database.ResourceTypeAiSeat
+	case database.ChatUserSpendLimit:
+		return database.ResourceTypeChatUserSpendLimit
+	case database.ChatGroupSpendLimit:
+		return database.ResourceTypeChatGroupSpendLimit
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}

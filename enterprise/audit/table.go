@@ -162,7 +162,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"one_time_passcode_expires_at": ActionTrack,
 		"is_system":                    ActionTrack, // Should never change, but track it anyway.
 		"is_service_account":           ActionTrack, // Should never change, but track it anyway.
-		"chat_spend_limit_micros":      ActionTrack,
 	},
 	&database.WorkspaceTable{}: {
 		"id":                 ActionTrack,
@@ -206,15 +205,14 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"has_external_agent":         ActionIgnore, // Never changes.
 	},
 	&database.AuditableGroup{}: {
-		"id":                      ActionTrack,
-		"name":                    ActionTrack,
-		"display_name":            ActionTrack,
-		"organization_id":         ActionIgnore, // Never changes.
-		"avatar_url":              ActionTrack,
-		"quota_allowance":         ActionTrack,
-		"members":                 ActionTrack,
-		"source":                  ActionIgnore,
-		"chat_spend_limit_micros": ActionTrack,
+		"id":              ActionTrack,
+		"name":            ActionTrack,
+		"display_name":    ActionTrack,
+		"organization_id": ActionIgnore, // Never changes.
+		"avatar_url":      ActionTrack,
+		"quota_allowance": ActionTrack,
+		"members":         ActionTrack,
+		"source":          ActionIgnore,
 	},
 	&database.APIKey{}: {
 		"id":               ActionIgnore,
@@ -377,6 +375,14 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"prompt":              ActionTrack,
 		"created_at":          ActionIgnore, // Never changes.
 		"deleted_at":          ActionIgnore, // Changes, but is implicit when a delete event is fired.
+	},
+	&database.ChatUserSpendLimit{}: {
+		"user_id":            ActionTrack,
+		"spend_limit_micros": ActionTrack,
+	},
+	&database.ChatGroupSpendLimit{}: {
+		"group_id":           ActionTrack,
+		"spend_limit_micros": ActionTrack,
 	},
 }
 
