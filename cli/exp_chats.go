@@ -37,6 +37,7 @@ func (r *RootCmd) chatsCommand() *serpent.Command {
 			r.chatsWatch(),
 			r.chatsInterrupt(),
 			r.chatsDiff(),
+			r.chatsTUI(),
 		},
 	}
 	return cmd

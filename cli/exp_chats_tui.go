@@ -1,0 +1,137 @@
+package cli
+
+import (
+	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
+)
+
+var (
+	_ = createChatCmd
+	_ = sendMessageCmd
+	_ = interruptChatCmd
+	_ = listModelsCmd
+	_ = loadGitChangesCmd
+	_ = loadDiffContentsCmd
+	_ = listenToStream
+	_ = renderToolCall
+	_ = renderToolResult
+	_ = renderCompaction
+	_ = renderDiffDrawer
+	_ = renderModelPicker
+)
+
+func installTUISignalHandler(p *tea.Program) func() {
+	ch := make(chan struct{})
+	go func() {
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+		defer func() {
+			signal.Stop(sig)
+			close(ch)
+		}()
+		for {
+			select {
+			case <-ch:
+				return
+			case <-sig:
+				p.Send(terminateTUIMsg{})
+			}
+		}
+	}()
+	return func() {
+		ch <- struct{}{}
+	}
+}
+
+func (r *RootCmd) chatsTUI() *serpent.Command {
+	var (
+		workspaceFlag string
+		modelFlag     string
+	)
+
+	return &serpent.Command{
+		Use:   "tui [chat-id]",
+		Short: "Interactive TUI for managing chats.",
+		Options: serpent.OptionSet{
+			{
+				Name:        "workspace",
+				Flag:        "workspace",
+				Description: "Associate the chat with a workspace by name, owner/name, or UUID.",
+				Value:       serpent.StringOf(&workspaceFlag),
+			},
+			{
+				Name:        "model",
+				Flag:        "model",
+				Description: "Choose a model by ID, provider/model, or display name.",
+				Value:       serpent.StringOf(&modelFlag),
+			},
+		},
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
+			expClient := codersdk.NewExperimentalClient(client)
+
+			if len(inv.Args) > 1 {
+				return xerrors.New("expected zero or one chat ID")
+			}
+
+			var initialChatID *uuid.UUID
+			if len(inv.Args) == 1 {
+				chatID, err := uuid.Parse(inv.Args[0])
+				if err != nil {
+					return xerrors.Errorf("invalid chat ID %q: %w", inv.Args[0], err)
+				}
+				initialChatID = &chatID
+			}
+
+			var workspaceID *uuid.UUID
+			if workspaceFlag != "" {
+				workspace, err := namedWorkspace(inv.Context(), client, workspaceFlag)
+				if err != nil {
+					return xerrors.Errorf("resolve workspace %q: %w", workspaceFlag, err)
+				}
+				workspaceID = &workspace.ID
+			}
+
+			modelID, err := resolveModel(inv.Context(), expClient, modelFlag)
+			if err != nil {
+				return err
+			}
+
+			model := newExpChatsTUIModel(inv.Context(), expClient, initialChatID, workspaceID, modelID)
+			program := tea.NewProgram(
+				model,
+				tea.WithoutSignalHandler(),
+				tea.WithContext(inv.Context()),
+				tea.WithInput(inv.Stdin),
+				tea.WithOutput(inv.Stdout),
+			)
+
+			closeSignalHandler := installTUISignalHandler(program)
+			defer closeSignalHandler()
+
+			runModel, err := program.Run()
+			if err != nil {
+				return err
+			}
+
+			if _, ok := runModel.(expChatsTUIModel); !ok {
+				return xerrors.New(fmt.Sprintf("unknown model found %T (%+v)", runModel, runModel))
+			}
+
+			return nil
+		},
+	}
+}
