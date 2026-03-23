@@ -731,8 +731,9 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, storeMode openAI
 		DeploymentValues: deploymentValues,
 	})
 	_ = coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
 
-	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 		Provider: "openai",
 		APIKey:   "test-api-key",
 		BaseURL:  openAIURL,
@@ -743,7 +744,7 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, storeMode openAI
 	isDefault := true
 	reasoningEffort := "medium"
 	reasoningSummary := "auto"
-	_, err = client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 		Provider:     "openai",
 		Model:        "o4-mini",
 		ContextLimit: &contextLimit,
@@ -762,7 +763,7 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, storeMode openAI
 	require.NoError(t, err)
 
 	t.Logf("Creating chat with reasoning + web search query (store=%t)...", store)
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "Search for the latest AI news and summarize it briefly.",
@@ -770,15 +771,15 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, storeMode openAI
 	})
 	require.NoError(t, err)
 
-	events, closer, err := client.StreamChat(ctx, chat.ID, nil)
+	events, closer, err := expClient.StreamChat(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	defer closer.Close()
 
 	waitForChatDone(ctx, t, events, "step 1")
 
-	chatData, err := client.GetChat(ctx, chat.ID)
+	chatData, err := expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	chatMsgs, err := client.GetChatMessages(ctx, chat.ID, nil)
+	chatMsgs, err := expClient.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	require.Equal(t, codersdk.ChatStatusWaiting, chatData.Status,
 		"chat should be in waiting status after step 1")
@@ -823,7 +824,7 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, storeMode openAI
 	require.True(t, foundText, "expected streamed assistant text to be persisted")
 
 	t.Log("Sending follow-up message...")
-	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+	_, err = expClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "What is the follow-up takeaway?",
@@ -836,15 +837,15 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, storeMode openAI
 	}
 	require.NoError(t, err)
 
-	events2, closer2, err := client.StreamChat(ctx, chat.ID, nil)
+	events2, closer2, err := expClient.StreamChat(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	defer closer2.Close()
 
 	waitForChatDone(ctx, t, events2, "step 2")
 
-	chatData2, err := client.GetChat(ctx, chat.ID)
+	chatData2, err := expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
-	chatMsgs2, err := client.GetChatMessages(ctx, chat.ID, nil)
+	chatMsgs2, err := expClient.GetChatMessages(ctx, chat.ID, nil)
 	require.NoError(t, err)
 	require.Equal(t, codersdk.ChatStatusWaiting, chatData2.Status,
 		"chat should be in waiting status after step 2")
