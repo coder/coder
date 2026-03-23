@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1589,7 +1589,7 @@ func claimFields(claims map[string]interface{}) []string {
 	for field := range claims {
 		fields = append(fields, field)
 	}
-	sort.Strings(fields)
+	slices.Sort(fields)
 	return fields
 }
 
@@ -1602,7 +1602,7 @@ func blankFields(claims map[string]interface{}) []string {
 			fields = append(fields, field)
 		}
 	}
-	sort.Strings(fields)
+	slices.Sort(fields)
 	return fields
 }
 

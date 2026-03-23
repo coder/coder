@@ -3,7 +3,6 @@ package rbac
 import (
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -176,7 +175,7 @@ func CompositeScopeNames() []string {
 	for k := range compositePerms {
 		out = append(out, string(k))
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out
 }
 

@@ -16,7 +16,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -1877,7 +1876,7 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 		}()
 	}
 	wg.Wait()
-	sort.Float64s(durations)
+	slices.Sort(durations)
 	durationsLength := len(durations)
 	switch {
 	case durationsLength == 0:
