@@ -61,7 +61,7 @@ RUN apt-get update && \
 	go install mvdan.cc/sh/v3/cmd/shfmt@v3.12.0 && \
 	# nfpm is used with `make build` to make release packages
 	go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1 && \
-	# yq v4 is used to process yaml files in coder v2.
+	# yq v4 for processing YAML files (renamed to yq4 for scripts/lib.sh).
 	go install github.com/mikefarah/yq/v4@v4.44.3 && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
 	# mockgen for generating mocks (v0.6.0+ required for Go 1.25)
@@ -290,8 +290,9 @@ ARG GOLANGCI_LINT_VERSION=1.64.8 \
 	COSIGN_VERSION=2.4.3 \
 	BUN_VERSION=1.2.15
 
-# golangci-lint performs static code analysis for our Go code
-RUN curl --silent --show-error --location --fail "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.tar.gz" | \
+RUN \
+	# golangci-lint performs static code analysis for our Go code
+	curl --silent --show-error --location --fail "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 "golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64/golangci-lint" && \
 	# Helm is necessary for deploying Coder
 	curl --silent --show-error --location --fail "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" | \
@@ -308,9 +309,6 @@ RUN curl --silent --show-error --location --fail "https://github.com/golangci/go
 	curl --silent --show-error --location --fail --output /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" && \
 	chmod a=rx /usr/local/bin/cosign && \
 	# Install Bun JavaScript runtime to /usr/local/bin
-	# Ensure unzip is installed right before using it and use multiple mirrors for reliability
-	(apt-get update || (sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && apt-get update)) && \
-	apt-get install -y unzip && \
 	curl --silent --show-error --location --fail "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip" --output /tmp/bun.zip && \
 	unzip -q /tmp/bun.zip -d /tmp && \
 	mv /tmp/bun-linux-x64/bun /usr/local/bin/ && \
