@@ -294,6 +294,7 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 		if (text.trim()) {
 			chatInputRef?.current?.insertText(text);
 		}
+		chatInputRef?.current?.focus();
 		setActiveCommentBox(null);
 	};
 
