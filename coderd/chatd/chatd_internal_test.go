@@ -420,6 +420,47 @@ func TestSubscribeFullRefreshStillUsesDatabaseCatchup(t *testing.T) {
 	requireNoStreamEvent(t, events, 200*time.Millisecond)
 }
 
+func TestSubscribeDeliversRetryEventViaPubsubOnce(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusPending}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return(nil, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+	)
+
+	server := newSubscribeTestServer(t, db)
+	_, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	retryingAt := time.Unix(1_700_000_000, 0).UTC()
+	expected := &codersdk.ChatStreamRetry{
+		Attempt:    1,
+		DelayMs:    (1500 * time.Millisecond).Milliseconds(),
+		Error:      "rate limit exceeded",
+		RetryingAt: retryingAt,
+	}
+
+	server.publishRetry(chatID, expected)
+
+	event := requireStreamRetryEvent(t, events)
+	require.Equal(t, expected, event.Retry)
+	requireNoStreamEvent(t, events, 200*time.Millisecond)
+}
+
 func newSubscribeTestServer(t *testing.T, db database.Store) *Server {
 	t.Helper()
 
@@ -441,6 +482,21 @@ func requireStreamMessageEvent(t *testing.T, events <-chan codersdk.ChatStreamEv
 		return event
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for chat stream message event")
+		return codersdk.ChatStreamEvent{}
+	}
+}
+
+func requireStreamRetryEvent(t *testing.T, events <-chan codersdk.ChatStreamEvent) codersdk.ChatStreamEvent {
+	t.Helper()
+
+	select {
+	case event, ok := <-events:
+		require.True(t, ok, "chat stream closed before delivering an event")
+		require.Equal(t, codersdk.ChatStreamEventTypeRetry, event.Type)
+		require.NotNil(t, event.Retry)
+		return event
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for chat stream retry event")
 		return codersdk.ChatStreamEvent{}
 	}
 }

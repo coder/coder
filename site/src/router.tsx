@@ -349,11 +349,20 @@ const ProvisionerJobsPage = lazy(
 const AgentsPage = lazy(() => import("./pages/AgentsPage/AgentsPage"));
 const AgentDetail = lazy(() => import("./pages/AgentsPage/AgentDetail"));
 const AgentEmbedPage = lazy(() => import("./pages/AgentsPage/AgentEmbedPage"));
+const AgentCreatePage = lazy(
+	() => import("./pages/AgentsPage/AgentCreatePage"),
+);
+const AgentSettingsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsPage"),
+);
+const AgentAnalyticsPage = lazy(
+	() => import("./pages/AgentsPage/AgentAnalyticsPage"),
+);
 
 import {
 	AgentDetailSkeleton,
 	AgentsPageSkeleton,
-} from "./pages/AgentsPage/AgentsSkeletons";
+} from "./pages/AgentsPage/components/AgentsSkeletons";
 
 const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
 const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
@@ -645,9 +654,10 @@ export const router = createBrowserRouter(
 						</Suspense>
 					}
 				>
-					<Route path="settings" />
-					<Route path="settings/:section" />
-					<Route path="analytics" />
+					<Route index element={<AgentCreatePage />} />
+					<Route path="settings" element={<AgentSettingsPage />} />
+					<Route path="settings/:section" element={<AgentSettingsPage />} />
+					<Route path="analytics" element={<AgentAnalyticsPage />} />{" "}
 					<Route
 						path=":agentId"
 						element={

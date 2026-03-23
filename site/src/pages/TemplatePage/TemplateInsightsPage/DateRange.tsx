@@ -35,6 +35,7 @@ interface DateRangeProps {
 
 export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
 	const selectionStatusRef = useRef<"idle" | "selecting">("idle");
+	const selectionSourceRef = useRef<"preset" | null>(null);
 	const [ranges, setRanges] = useState<RangesState>([
 		{
 			...value,
@@ -42,6 +43,20 @@ export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
 		},
 	]);
 	const [open, setOpen] = useState(false);
+
+	const applyRangeSelection = (range: RangesState[number]) => {
+		selectionStatusRef.current = "idle";
+		const startDate = range.startDate as Date;
+		const endDate = range.endDate as Date;
+		const now = new Date();
+		onChange({
+			startDate: dayjs(startDate).startOf("day").toDate(),
+			endDate: dayjs(endDate).isSame(dayjs(), "day")
+				? dayjs(now).startOf("hour").add(1, "hour").toDate()
+				: dayjs(endDate).startOf("day").add(1, "day").toDate(),
+		});
+		setOpen(false);
+	};
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -53,74 +68,77 @@ export const DateRange: FC<DateRangeProps> = ({ value, onChange }) => {
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent className="w-auto p-0 overflow-x-hidden">
-				<DateRangePicker
-					css={styles.wrapper}
-					onChange={(item) => {
-						const range = item.selection;
-						setRanges([range]);
-
-						// When it is the first selection, we don't want to close the popover
-						// We have to do that ourselves because the library doesn't provide a way to do it
-						if (selectionStatusRef.current === "idle") {
-							selectionStatusRef.current = "selecting";
-							return;
-						}
-
-						selectionStatusRef.current = "idle";
-						const startDate = range.startDate as Date;
-						const endDate = range.endDate as Date;
-						const now = new Date();
-						onChange({
-							startDate: dayjs(startDate).startOf("day").toDate(),
-							endDate: dayjs(endDate).isSame(dayjs(), "day")
-								? dayjs(now).startOf("hour").add(1, "hour").toDate()
-								: dayjs(endDate).startOf("day").add(1, "day").toDate(),
-						});
-						setOpen(false);
+				<div
+					onClickCapture={(event) => {
+						selectionSourceRef.current =
+							event.target instanceof HTMLElement &&
+							event.target.closest(".rdrStaticRange")
+								? "preset"
+								: null;
 					}}
-					moveRangeOnFirstSelection={false}
-					months={2}
-					ranges={ranges}
-					maxDate={new Date()}
-					direction="horizontal"
-					staticRanges={createStaticRanges([
-						{
-							label: "Today",
-							range: () => ({
-								startDate: new Date(),
-								endDate: new Date(),
-							}),
-						},
-						{
-							label: "Yesterday",
-							range: () => ({
-								startDate: dayjs().subtract(1, "day").toDate(),
-								endDate: dayjs().subtract(1, "day").toDate(),
-							}),
-						},
-						{
-							label: "Last 7 days",
-							range: () => ({
-								startDate: dayjs().subtract(6, "day").toDate(),
-								endDate: new Date(),
-							}),
-						},
-						{
-							label: "Last 14 days",
-							range: () => ({
-								startDate: dayjs().subtract(13, "day").toDate(),
-								endDate: new Date(),
-							}),
-						},
-						{
-							label: "Last 30 days",
-							range: () => ({
-								startDate: dayjs().subtract(29, "day").toDate(),
-								endDate: new Date(),
-							}),
-						},
-					])}
-				/>
+				>
+					<DateRangePicker
+						css={styles.wrapper}
+						onChange={(item) => {
+							const range = item.selection;
+							const isPresetSelection = selectionSourceRef.current === "preset";
+							selectionSourceRef.current = null;
+							setRanges([range]);
+
+							// When it is the first calendar selection, we don't want to
+							// close the popover. Presets already provide a complete range,
+							// so apply them immediately.
+							if (selectionStatusRef.current === "idle" && !isPresetSelection) {
+								selectionStatusRef.current = "selecting";
+								return;
+							}
+
+							applyRangeSelection(range);
+						}}
+						moveRangeOnFirstSelection={false}
+						months={2}
+						ranges={ranges}
+						maxDate={new Date()}
+						direction="horizontal"
+						staticRanges={createStaticRanges([
+							{
+								label: "Today",
+								range: () => ({
+									startDate: new Date(),
+									endDate: new Date(),
+								}),
+							},
+							{
+								label: "Yesterday",
+								range: () => ({
+									startDate: dayjs().subtract(1, "day").toDate(),
+									endDate: dayjs().subtract(1, "day").toDate(),
+								}),
+							},
+							{
+								label: "Last 7 days",
+								range: () => ({
+									startDate: dayjs().subtract(6, "day").toDate(),
+									endDate: new Date(),
+								}),
+							},
+							{
+								label: "Last 14 days",
+								range: () => ({
+									startDate: dayjs().subtract(13, "day").toDate(),
+									endDate: new Date(),
+								}),
+							},
+							{
+								label: "Last 30 days",
+								range: () => ({
+									startDate: dayjs().subtract(29, "day").toDate(),
+									endDate: new Date(),
+								}),
+							},
+						])}
+					/>
+				</div>
 			</PopoverContent>
 		</Popover>
 	);

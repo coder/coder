@@ -2224,6 +2224,21 @@ func (mr *MockStoreMockRecorder) GetChatUsageLimitUserOverride(ctx, userID any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatUsageLimitUserOverride", reflect.TypeOf((*MockStore)(nil).GetChatUsageLimitUserOverride), ctx, userID)
 }
 
+// GetChatWorkspaceTTL mocks base method.
+func (m *MockStore) GetChatWorkspaceTTL(ctx context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatWorkspaceTTL", ctx)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatWorkspaceTTL indicates an expected call of GetChatWorkspaceTTL.
+func (mr *MockStoreMockRecorder) GetChatWorkspaceTTL(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatWorkspaceTTL", reflect.TypeOf((*MockStore)(nil).GetChatWorkspaceTTL), ctx)
+}
+
 // GetChats mocks base method.
 func (m *MockStore) GetChats(ctx context.Context, arg database.GetChatsParams) ([]database.Chat, error) {
 	m.ctrl.T.Helper()
@@ -2687,6 +2702,21 @@ func (m *MockStore) GetGroupMembersByGroupID(ctx context.Context, arg database.G
 func (mr *MockStoreMockRecorder) GetGroupMembersByGroupID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupMembersByGroupID", reflect.TypeOf((*MockStore)(nil).GetGroupMembersByGroupID), ctx, arg)
+}
+
+// GetGroupMembersByGroupIDPaginated mocks base method.
+func (m *MockStore) GetGroupMembersByGroupIDPaginated(ctx context.Context, arg database.GetGroupMembersByGroupIDPaginatedParams) ([]database.GetGroupMembersByGroupIDPaginatedRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGroupMembersByGroupIDPaginated", ctx, arg)
+	ret0, _ := ret[0].([]database.GetGroupMembersByGroupIDPaginatedRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGroupMembersByGroupIDPaginated indicates an expected call of GetGroupMembersByGroupIDPaginated.
+func (mr *MockStoreMockRecorder) GetGroupMembersByGroupIDPaginated(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGroupMembersByGroupIDPaginated", reflect.TypeOf((*MockStore)(nil).GetGroupMembersByGroupIDPaginated), ctx, arg)
 }
 
 // GetGroupMembersCountByGroupID mocks base method.
@@ -8907,6 +8937,20 @@ func (m *MockStore) UpsertChatUsageLimitUserOverride(ctx context.Context, arg da
 func (mr *MockStoreMockRecorder) UpsertChatUsageLimitUserOverride(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatUsageLimitUserOverride", reflect.TypeOf((*MockStore)(nil).UpsertChatUsageLimitUserOverride), ctx, arg)
+}
+
+// UpsertChatWorkspaceTTL mocks base method.
+func (m *MockStore) UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertChatWorkspaceTTL", ctx, workspaceTtl)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertChatWorkspaceTTL indicates an expected call of UpsertChatWorkspaceTTL.
+func (mr *MockStoreMockRecorder) UpsertChatWorkspaceTTL(ctx, workspaceTtl any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatWorkspaceTTL", reflect.TypeOf((*MockStore)(nil).UpsertChatWorkspaceTTL), ctx, workspaceTtl)
 }
 
 // UpsertConnectionLog mocks base method.

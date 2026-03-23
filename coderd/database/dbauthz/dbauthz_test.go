@@ -656,6 +656,10 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatDesktopEnabled(gomock.Any()).Return(false, nil).AnyTimes()
 		check.Args().Asserts()
 	}))
+	s.Run("GetChatWorkspaceTTL", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetChatWorkspaceTTL(gomock.Any()).Return("1h", nil).AnyTimes()
+		check.Args().Asserts()
+	}))
 	s.Run("GetEnabledChatModelConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		configA := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
 		configB := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
@@ -868,6 +872,10 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("UpsertChatDesktopEnabled", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().UpsertChatDesktopEnabled(gomock.Any(), false).Return(nil).AnyTimes()
 		check.Args(false).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
+	s.Run("UpsertChatWorkspaceTTL", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().UpsertChatWorkspaceTTL(gomock.Any(), "1h").Return(nil).AnyTimes()
+		check.Args("1h").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
 	s.Run("GetUserChatSpendInPeriod", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetUserChatSpendInPeriodParams{
@@ -1177,6 +1185,15 @@ func (s *MethodTestSuite) TestGroup() {
 		gm := testutil.Fake(s.T(), faker, database.GroupMember{GroupID: g.ID, UserID: u.ID})
 		arg := database.GetGroupMembersByGroupIDParams{GroupID: g.ID, IncludeSystem: false}
 		dbm.EXPECT().GetGroupMembersByGroupID(gomock.Any(), arg).Return([]database.GroupMember{gm}, nil).AnyTimes()
+		check.Args(arg).Asserts(gm, policy.ActionRead)
+	}))
+
+	s.Run("GetGroupMembersByGroupIDPaginated", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		g := testutil.Fake(s.T(), faker, database.Group{})
+		u := testutil.Fake(s.T(), faker, database.User{})
+		gm := testutil.Fake(s.T(), faker, database.GetGroupMembersByGroupIDPaginatedRow{GroupID: g.ID, UserID: u.ID})
+		arg := database.GetGroupMembersByGroupIDPaginatedParams{GroupID: g.ID, IncludeSystem: false}
+		dbm.EXPECT().GetGroupMembersByGroupIDPaginated(gomock.Any(), arg).Return([]database.GetGroupMembersByGroupIDPaginatedRow{gm}, nil).AnyTimes()
 		check.Args(arg).Asserts(gm, policy.ActionRead)
 	}))
 
