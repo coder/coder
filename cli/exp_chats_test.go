@@ -37,7 +37,8 @@ func createExpChatModelConfig(t testing.TB, client *codersdk.Client) codersdk.Ch
 	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+	expClient := codersdk.NewExperimentalClient(client)
+	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 		Provider: "openai",
 		APIKey:   "test-api-key",
 	})
@@ -45,7 +46,7 @@ func createExpChatModelConfig(t testing.TB, client *codersdk.Client) codersdk.Ch
 
 	contextLimit := int64(4096)
 	isDefault := true
-	modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	modelConfig, err := expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 		Provider:     "openai",
 		Model:        "gpt-4o-mini",
 		ContextLimit: &contextLimit,
@@ -60,7 +61,8 @@ func createExpChat(t testing.TB, client *codersdk.Client, prompt string) codersd
 	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+	expClient := codersdk.NewExperimentalClient(client)
+	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
 			Text: prompt,
@@ -107,7 +109,7 @@ func TestExpChatsList(t *testing.T) {
 	archivedChat := createExpChat(t, client, "archived list chat")
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	err := client.UpdateChat(ctx, archivedChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+	err := codersdk.NewExperimentalClient(client).UpdateChat(ctx, archivedChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
 	require.NoError(t, err)
 
 	t.Run("Table", func(t *testing.T) {
@@ -187,7 +189,7 @@ func TestExpChatsListSearch(t *testing.T) {
 	archivedChat := createExpChat(t, client, "archived chat")
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	err := client.UpdateChat(ctx, archivedChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+	err := codersdk.NewExperimentalClient(client).UpdateChat(ctx, archivedChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
 	require.NoError(t, err)
 
 	stdout, stderr, err := runExpChatsCommand(

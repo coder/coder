@@ -65,15 +65,17 @@ func (r *RootCmd) chatsDiff() *serpent.Command {
 				return err
 			}
 
+			expClient := codersdk.NewExperimentalClient(client)
+
 			ctx := inv.Context()
 
 			if output == "json" {
-				changes, err := getChatGitChangesOrEmpty(ctx, client, chatID)
+				changes, err := getChatGitChangesOrEmpty(ctx, expClient, chatID)
 				if err != nil {
 					return xerrors.Errorf("get chat git changes %s: %w", chatID, err)
 				}
 
-				diff, err := client.GetChatDiffContents(ctx, chatID)
+				diff, err := expClient.GetChatDiffContents(ctx, chatID)
 				if err != nil {
 					return xerrors.Errorf("get chat diff %s: %w", chatID, err)
 				}
@@ -91,7 +93,7 @@ func (r *RootCmd) chatsDiff() *serpent.Command {
 			}
 
 			if raw {
-				diff, err := client.GetChatDiffContents(ctx, chatID)
+				diff, err := expClient.GetChatDiffContents(ctx, chatID)
 				if err != nil {
 					return xerrors.Errorf("get chat diff %s: %w", chatID, err)
 				}
@@ -100,7 +102,7 @@ func (r *RootCmd) chatsDiff() *serpent.Command {
 				return err
 			}
 
-			changes, err := getChatGitChangesOrEmpty(ctx, client, chatID)
+			changes, err := getChatGitChangesOrEmpty(ctx, expClient, chatID)
 			if err != nil {
 				return xerrors.Errorf("get chat git changes %s: %w", chatID, err)
 			}
@@ -109,7 +111,7 @@ func (r *RootCmd) chatsDiff() *serpent.Command {
 			if stat {
 				out = renderChatDiffStat(changes)
 			} else {
-				diff, err := client.GetChatDiffContents(ctx, chatID)
+				diff, err := expClient.GetChatDiffContents(ctx, chatID)
 				if err != nil {
 					return xerrors.Errorf("get chat diff %s: %w", chatID, err)
 				}
@@ -122,7 +124,7 @@ func (r *RootCmd) chatsDiff() *serpent.Command {
 	}
 }
 
-func getChatGitChangesOrEmpty(ctx context.Context, client *codersdk.Client, chatID uuid.UUID) ([]codersdk.ChatGitChange, error) {
+func getChatGitChangesOrEmpty(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID) ([]codersdk.ChatGitChange, error) {
 	changes, err := client.GetChatGitChanges(ctx, chatID)
 	if err == nil {
 		return changes, nil

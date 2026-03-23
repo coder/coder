@@ -89,6 +89,8 @@ func (r *RootCmd) chatsStart() *serpent.Command {
 				return err
 			}
 
+			expClient := codersdk.NewExperimentalClient(client)
+
 			ctx := inv.Context()
 
 			var workspaceID *uuid.UUID
@@ -100,12 +102,12 @@ func (r *RootCmd) chatsStart() *serpent.Command {
 				workspaceID = &workspace.ID
 			}
 
-			modelID, err := resolveModel(ctx, client, modelFlag)
+			modelID, err := resolveModel(ctx, expClient, modelFlag)
 			if err != nil {
 				return err
 			}
 
-			chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 				Content:       promptToContent(prompt),
 				WorkspaceID:   workspaceID,
 				ModelConfigID: modelID,
@@ -117,7 +119,7 @@ func (r *RootCmd) chatsStart() *serpent.Command {
 			if follow {
 				return watchChat(
 					ctx,
-					client,
+					expClient,
 					chat.ID,
 					nil,
 					chatWatchWriters{stdout: inv.Stdout, stderr: inv.Stderr},

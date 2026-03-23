@@ -132,13 +132,15 @@ func (r *RootCmd) chatsSend() *serpent.Command {
 				return err
 			}
 
+			expClient := codersdk.NewExperimentalClient(client)
+
 			ctx := inv.Context()
-			modelID, err := resolveModel(ctx, client, modelFlag)
+			modelID, err := resolveModel(ctx, expClient, modelFlag)
 			if err != nil {
 				return err
 			}
 
-			resp, err := client.CreateChatMessage(ctx, chatID, codersdk.CreateChatMessageRequest{
+			resp, err := expClient.CreateChatMessage(ctx, chatID, codersdk.CreateChatMessageRequest{
 				Content:       promptToContent(prompt),
 				ModelConfigID: modelID,
 			})
@@ -154,7 +156,7 @@ func (r *RootCmd) chatsSend() *serpent.Command {
 
 				return watchChat(
 					ctx,
-					client,
+					expClient,
 					chatID,
 					afterID,
 					chatWatchWriters{stdout: inv.Stdout, stderr: inv.Stderr},

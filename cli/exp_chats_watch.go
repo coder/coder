@@ -71,6 +71,8 @@ func (r *RootCmd) chatsWatch() *serpent.Command {
 				return err
 			}
 
+			expClient := codersdk.NewExperimentalClient(client)
+
 			var afterID *int64
 			if after > 0 {
 				afterID = &after
@@ -78,7 +80,7 @@ func (r *RootCmd) chatsWatch() *serpent.Command {
 
 			return watchChat(
 				inv.Context(),
-				client,
+				expClient,
 				chatID,
 				afterID,
 				chatWatchWriters{stdout: inv.Stdout, stderr: inv.Stderr},
@@ -94,7 +96,7 @@ func (r *RootCmd) chatsWatch() *serpent.Command {
 //nolint:revive // The helper mirrors the CLI's text-vs-JSON follow mode.
 func watchChat(
 	ctx context.Context,
-	client *codersdk.Client,
+	client *codersdk.ExperimentalClient,
 	chatID uuid.UUID,
 	afterID *int64,
 	out io.Writer,

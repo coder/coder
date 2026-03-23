@@ -62,7 +62,9 @@ func (r *RootCmd) chatsTranscript() *serpent.Command {
 				return err
 			}
 
-			allMessages, err := fetchAllChatMessages(inv.Context(), client, chatID)
+			expClient := codersdk.NewExperimentalClient(client)
+
+			allMessages, err := fetchAllChatMessages(inv.Context(), expClient, chatID)
 			if err != nil {
 				return xerrors.Errorf("get chat messages: %w", err)
 			}
@@ -98,7 +100,7 @@ func (r *RootCmd) chatsTranscript() *serpent.Command {
 	}
 }
 
-func fetchAllChatMessages(ctx context.Context, client *codersdk.Client, chatID uuid.UUID) ([]codersdk.ChatMessage, error) {
+func fetchAllChatMessages(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID) ([]codersdk.ChatMessage, error) {
 	var (
 		allMessages []codersdk.ChatMessage
 		opts        *codersdk.ChatMessagesPaginationOptions

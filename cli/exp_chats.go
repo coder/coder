@@ -74,7 +74,7 @@ func readPrompt(inv *serpent.Invocation) (string, error) {
 }
 
 //nolint:nilnil // A nil UUID indicates that no model override was provided.
-func resolveModel(ctx context.Context, client *codersdk.Client, modelFlag string) (*uuid.UUID, error) {
+func resolveModel(ctx context.Context, client *codersdk.ExperimentalClient, modelFlag string) (*uuid.UUID, error) {
 	if modelFlag == "" {
 		return nil, nil
 	}

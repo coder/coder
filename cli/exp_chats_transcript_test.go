@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
-	"github.com/coder/coder/v2/coderd/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -34,7 +34,8 @@ func newExpChatsTranscriptFixture(t *testing.T) expChatsTranscriptFixture {
 	_ = coderdtest.CreateFirstUser(t, client)
 	modelConfig := createTestChatModelConfig(t, client)
 
-	chat, err := client.CreateChat(testutil.Context(t, testutil.WaitLong), codersdk.CreateChatRequest{
+	expClient := codersdk.NewExperimentalClient(client)
+	chat, err := expClient.CreateChat(testutil.Context(t, testutil.WaitLong), codersdk.CreateChatRequest{
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "initial prompt",

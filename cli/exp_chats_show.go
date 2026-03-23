@@ -78,7 +78,9 @@ func (r *RootCmd) chatsShow() *serpent.Command {
 				return err
 			}
 
-			chat, err := client.GetChat(inv.Context(), chatID)
+			expClient := codersdk.NewExperimentalClient(client)
+
+			chat, err := expClient.GetChat(inv.Context(), chatID)
 			if err != nil {
 				return xerrors.Errorf("get chat %s: %w", chatID, err)
 			}

@@ -30,7 +30,8 @@ func createTestChatModelConfig(t *testing.T, client *codersdk.Client) codersdk.C
 	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+	expClient := codersdk.NewExperimentalClient(client)
+	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 		Provider: "openai",
 		APIKey:   "test-api-key",
 	})
@@ -38,7 +39,7 @@ func createTestChatModelConfig(t *testing.T, client *codersdk.Client) codersdk.C
 
 	contextLimit := int64(4096)
 	isDefault := true
-	modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+	modelConfig, err := expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 		Provider:     "openai",
 		Model:        "gpt-4o-mini",
 		ContextLimit: &contextLimit,
@@ -141,7 +142,7 @@ func TestExpChatsStart_WithPrompt(t *testing.T) {
 	require.Equal(t, modelConfig.ID, chat.LastModelConfigID)
 
 	require.Eventually(t, func() bool {
-		messages, err := userClient.GetChatMessages(ctx, chat.ID, nil)
+		messages, err := codersdk.NewExperimentalClient(userClient).GetChatMessages(ctx, chat.ID, nil)
 		if err != nil {
 			return false
 		}
@@ -194,7 +195,7 @@ func TestExpChatsSend_WithPromptArgs(t *testing.T) {
 	modelConfig := createTestChatModelConfig(t, clients.adminClient)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	chat, err := clients.userClient.CreateChat(ctx, codersdk.CreateChatRequest{
+	chat, err := codersdk.NewExperimentalClient(clients.userClient).CreateChat(ctx, codersdk.CreateChatRequest{
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "initial prompt",

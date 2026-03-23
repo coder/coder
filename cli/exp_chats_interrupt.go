@@ -62,7 +62,9 @@ func (r *RootCmd) chatsInterrupt() *serpent.Command {
 				return err
 			}
 
-			chat, err := client.InterruptChat(inv.Context(), chatID)
+			expClient := codersdk.NewExperimentalClient(client)
+
+			chat, err := expClient.InterruptChat(inv.Context(), chatID)
 			if err != nil {
 				return xerrors.Errorf("interrupt chat %s: %w", chatID, err)
 			}

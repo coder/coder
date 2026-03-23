@@ -70,6 +70,8 @@ func (r *RootCmd) chatsList() *serpent.Command {
 				return err
 			}
 
+			expClient := codersdk.NewExperimentalClient(client)
+
 			queryParts := make([]string, 0, 2)
 			if trimmedSearch := strings.TrimSpace(search); trimmedSearch != "" {
 				queryParts = append(queryParts, trimmedSearch)
@@ -78,7 +80,7 @@ func (r *RootCmd) chatsList() *serpent.Command {
 				queryParts = append(queryParts, "archived:true")
 			}
 
-			chats, err := client.ListChats(inv.Context(), &codersdk.ListChatsOptions{
+			chats, err := expClient.ListChats(inv.Context(), &codersdk.ListChatsOptions{
 				Query: strings.Join(queryParts, " "),
 				Pagination: codersdk.Pagination{
 					Limit: int(limit),

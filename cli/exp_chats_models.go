@@ -61,7 +61,9 @@ func (r *RootCmd) chatsModels() *serpent.Command {
 				return err
 			}
 
-			catalog, err := client.ListChatModels(inv.Context())
+			expClient := codersdk.NewExperimentalClient(client)
+
+			catalog, err := expClient.ListChatModels(inv.Context())
 			if err != nil {
 				return xerrors.Errorf("list chat models: %w", err)
 			}
