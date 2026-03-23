@@ -1,7 +1,7 @@
 import { chatCostSummary } from "api/queries/chats";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import dayjs, { type Dayjs } from "dayjs";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { AgentAnalyticsPageView } from "./AgentAnalyticsPageView";
 import { AgentPageHeader } from "./components/AgentPageHeader";
@@ -23,7 +23,8 @@ interface AgentAnalyticsPageProps {
 
 const AgentAnalyticsPage: FC<AgentAnalyticsPageProps> = ({ now }) => {
 	const { user } = useAuthContext();
-	const dateRange = createDateRange(now);
+	const [anchor] = useState<Dayjs>(() => dayjs());
+	const dateRange = createDateRange(now ?? anchor);
 
 	const summaryQuery = useQuery({
 		...chatCostSummary(user?.id ?? "me", {
