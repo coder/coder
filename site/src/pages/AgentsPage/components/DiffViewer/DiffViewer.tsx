@@ -3,6 +3,7 @@ import type {
 	DiffLineAnnotation,
 	FileDiffMetadata,
 	SelectedLineRange,
+	VirtualFileMetrics,
 } from "@pierre/diffs";
 import { Virtualizer } from "@pierre/diffs";
 import { FileDiff, VirtualizerContext } from "@pierre/diffs/react";
@@ -114,6 +115,7 @@ const STICKY_HEADER_CSS = [
 	"[data-diffs-header] {",
 	"  position: sticky; top: 0; z-index: 10;",
 	"  background-color: hsl(var(--surface-secondary)) !important;",
+	"  padding-block: 0 !important;",
 	"}",
 ].join(" ");
 
@@ -143,14 +145,30 @@ const FILE_TREE_WIDTH = 300;
 // -------------------------------------------------------------------
 
 /**
- * Estimated height per line in the diff viewer (px). Derived from
- * the --diffs-font-size (11px) and --diffs-line-height (1.5)
- * values set via DIFFS_FONT_STYLE, plus 1px for the border/gap.
+ * Estimated height per line in the diff viewer (px). The
+ * library's shadow DOM applies box-sizing: border-box to all
+ * elements, and code lines have no padding or border, so the
+ * rendered height equals the CSS line-height: 11px × 1.5 = 16.5.
  */
-const LINE_HEIGHT_PX = 17.5;
+const LINE_HEIGHT_PX = 16.5;
 
 /** Height of the file header row rendered by @pierre/diffs. */
 const HEADER_HEIGHT_PX = 36;
+
+/**
+ * Metrics that tell the @pierre/diffs virtualizer how tall each
+ * element actually is after our CSS overrides. Without these the
+ * library falls back to its built-in defaults (20 px lines,
+ * 44 px headers, 32 px separators) which are larger than our
+ * custom styling, causing visible blank buffers in the viewport.
+ */
+const VIRTUALIZER_METRICS: VirtualFileMetrics = {
+	hunkLineCount: 50,
+	lineHeight: LINE_HEIGHT_PX,
+	diffHeaderHeight: 32, // 32 px min-height (border-box includes borders)
+	hunkSeparatorHeight: 28, // height: 28px !important in SEPARATOR_CSS
+	fileGap: 2, // padding-bottom: max(0, gap-block - 6px) = 2px
+};
 
 /**
  * Estimate the rendered pixel height of a file diff so the
@@ -357,8 +375,7 @@ const DiffScrollContainer: FC<{
 	children: ReactNode;
 	className?: string;
 	diffViewportRef: React.RefObject<HTMLElement | null>;
-	onViewportHeight: (height: number) => void;
-}> = ({ children, className, diffViewportRef, onViewportHeight }) => {
+}> = ({ children, className, diffViewportRef }) => {
 	const [virtualizer] = useState(() => new Virtualizer());
 
 	// useCallback is required for correctness: in React 19 an
@@ -377,18 +394,12 @@ const DiffScrollContainer: FC<{
 			diffViewportRef.current = viewport;
 			virtualizer.setup(viewport);
 
-			onViewportHeight(viewport.clientHeight);
-			const ro = new ResizeObserver(([entry]) => {
-				onViewportHeight(entry.contentRect.height);
-			});
-			ro.observe(viewport);
 			return () => {
-				ro.disconnect();
 				virtualizer.cleanUp();
 				diffViewportRef.current = null;
 			};
 		},
-		[virtualizer, diffViewportRef, onViewportHeight],
+		[virtualizer, diffViewportRef],
 	);
 
 	return (
@@ -476,6 +487,7 @@ const LazyFileDiff = memo<{
 			<FileDiff
 				fileDiff={fileDiff}
 				options={options}
+				metrics={VIRTUALIZER_METRICS}
 				style={DIFFS_FONT_STYLE}
 				lineAnnotations={lineAnnotations}
 				renderAnnotation={renderAnnotationProp}
@@ -751,7 +763,6 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		}
 	}, [scrollToFile, onScrollToFileComplete]);
 
-	const [viewportHeight, setViewportHeight] = useState(0);
 	// ---------------------------------------------------------------
 	// Loading state
 	// ---------------------------------------------------------------
@@ -820,7 +831,6 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 					)}
 					<DiffScrollContainer
 						diffViewportRef={diffViewportRef}
-						onViewportHeight={setViewportHeight}
 						className={cn(
 							"min-w-0 flex-1",
 							showTree &&
@@ -833,7 +843,11 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 								<div
 									key={fileDiff.name}
 									ref={(el) => setFileRef(fileDiff.name, el)}
-									style={isLast ? { minHeight: viewportHeight } : undefined}
+									className={
+										i > 0
+											? "border-0 border-t border-solid border-border-default"
+											: undefined
+									}
 								>
 									<LazyFileDiff
 										fileDiff={fileDiff}

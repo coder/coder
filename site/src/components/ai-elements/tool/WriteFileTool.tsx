@@ -14,6 +14,7 @@ import { ToolCollapsible } from "./ToolCollapsible";
 import {
 	DIFFS_FONT_STYLE,
 	getDiffViewerOptions,
+	stripNoNewline,
 	type ToolStatus,
 } from "./utils";
 
@@ -73,7 +74,7 @@ export const WriteFileTool: React.FC<{
 					scrollBarClassName="w-1.5"
 				>
 					<FileDiff
-						fileDiff={diff}
+						fileDiff={stripNoNewline(diff)}
 						options={getDiffViewerOptions(isDark)}
 						style={DIFFS_FONT_STYLE}
 					/>
