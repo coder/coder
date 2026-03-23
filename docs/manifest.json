@@ -1199,6 +1199,12 @@
 					"state": ["early access"],
 					"children": [
 						{
+							"title": "Getting Started",
+							"description": "Enable Coder Agents, prepare your deployment, and run your first chat",
+							"path": "./ai-coder/agents/getting-started.md",
+							"state": ["early access"]
+						},
+						{
 							"title": "Early Access",
 							"description": "About the Coder Agents Early Access program",
 							"path": "./ai-coder/agents/early-access.md",
