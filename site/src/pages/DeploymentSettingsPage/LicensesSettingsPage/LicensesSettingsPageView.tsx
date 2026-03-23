@@ -30,6 +30,7 @@ import { SeatUsageBarCard } from "./SeatUsageBarCard";
 type Props = {
 	showConfetti: boolean;
 	isLoading: boolean;
+	hasUserLimitEntitlementData: boolean;
 	userLimitActual?: number;
 	userLimitLimit?: number;
 	licenses?: GetLicensesResponse[];
@@ -45,6 +46,7 @@ type Props = {
 const LicensesSettingsPageView: FC<Props> = ({
 	showConfetti,
 	isLoading,
+	hasUserLimitEntitlementData,
 	userLimitActual,
 	userLimitLimit,
 	licenses,
@@ -169,12 +171,14 @@ const LicensesSettingsPageView: FC<Props> = ({
 						/>
 
 						<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-							<SeatUsageBarCard
-								title="Premium usage"
-								actual={userLimitActual}
-								limit={userLimitLimit}
-								allowUnlimited
-							/>
+							{hasUserLimitEntitlementData && (
+								<SeatUsageBarCard
+									title="Premium usage"
+									actual={userLimitActual}
+									limit={userLimitLimit}
+									allowUnlimited
+								/>
+							)}
 							<AIGovernanceUsersConsumption
 								aiGovernanceUserFeature={aiGovernanceUserFeature}
 								licenses={licenses}

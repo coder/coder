@@ -12,6 +12,7 @@ const meta: Meta<typeof LicensesSettingsPageView> = {
 	args: {
 		showConfetti: false,
 		isLoading: false,
+		hasUserLimitEntitlementData: true,
 		userLimitActual: 1,
 		userLimitLimit: 10,
 		licenses: MockLicenseResponse,
@@ -60,6 +61,11 @@ export const ActiveAIGovernanceAddOnUsage: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("heading", { name: "Premium usage" }),
+		).toBeInTheDocument();
+		await expect(canvas.getByText("1,923")).toBeInTheDocument();
+		await expect(canvas.getByText("2,500")).toBeInTheDocument();
 		await expect(
 			canvas.getByRole("heading", { name: "AI governance add-on usage" }),
 		).toBeInTheDocument();
