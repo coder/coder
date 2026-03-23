@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -168,7 +169,7 @@ func writeDocs(sections [][]byte) error {
 		if mdFiles[j].title == "General" {
 			return false // ... < "General" - not sorted
 		}
-		return sort.StringsAreSorted([]string{mdFiles[i].title, mdFiles[j].title})
+		return slices.IsSorted([]string{mdFiles[i].title, mdFiles[j].title})
 	})
 
 	// Update manifest.json

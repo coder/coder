@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -97,7 +97,7 @@ func (s *MethodTestSuite) TearDownSuite() {
 				notCalled = append(notCalled, m)
 			}
 		}
-		sort.Strings(notCalled)
+		slices.Sort(notCalled)
 		for _, m := range notCalled {
 			t.Errorf("Method never called: %q", m)
 		}
