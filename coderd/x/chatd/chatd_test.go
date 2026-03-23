@@ -902,15 +902,6 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	acquireTrap := clock.Trap().NewTicker("chatd", "acquire")
 	defer acquireTrap.Close()
 
-	waitForSignal := func(name string, ch <-chan struct{}) {
-		t.Helper()
-		select {
-		case <-ch:
-		case <-ctx.Done():
-			t.Fatalf("timed out waiting for %s: %v", name, ctx.Err())
-		}
-	}
-
 	assertPendingWithoutQueuedMessages := func(chatID uuid.UUID) {
 		t.Helper()
 
@@ -985,7 +976,7 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	require.NoError(t, err)
 
 	clock.Advance(acquireInterval).MustWait(ctx)
-	waitForSignal("initial stream start", streamStarted)
+	testutil.TryReceive(ctx, t, streamStarted)
 
 	queuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:       chat.ID,
@@ -996,7 +987,7 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	require.True(t, queuedResult.Queued)
 	require.NotNil(t, queuedResult.QueuedMessage)
 
-	waitForSignal("chat interruption", interrupted)
+	testutil.TryReceive(ctx, t, interrupted)
 
 	close(allowFinish)
 	chatd.WaitUntilIdleForTest(server)
@@ -1051,12 +1042,12 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	require.NoError(t, err)
 
 	clock.Advance(acquireInterval).MustWait(ctx)
-	waitForSignal("second promoted request start", secondRequestStarted)
+	testutil.TryReceive(ctx, t, secondRequestStarted)
 	chatd.WaitUntilIdleForTest(server)
 	assertPendingWithoutQueuedMessages(chat.ID)
 
 	clock.Advance(acquireInterval).MustWait(ctx)
-	waitForSignal("third promoted request start", thirdRequestStarted)
+	testutil.TryReceive(ctx, t, thirdRequestStarted)
 	chatd.WaitUntilIdleForTest(server)
 
 	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
