@@ -773,7 +773,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if statusResp.Status != agentapisdk.StatusStable {
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+			return httperror.NewResponseError(http.StatusConflict, codersdk.Response{
 				Message: "Task app is not ready to accept input.",
 				Detail:  fmt.Sprintf("Status: %s", statusResp.Status),
 			})
