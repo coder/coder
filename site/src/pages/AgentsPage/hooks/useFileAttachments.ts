@@ -57,7 +57,10 @@ export function useFileAttachments(
 		setUploadStates((prev) => new Map(prev).set(file, { status: "uploading" }));
 		void (async () => {
 			try {
-				const result = await API.uploadChatFile(file, organizationId);
+				const result = await API.experimental.uploadChatFile(
+					file,
+					organizationId,
+				);
 				setUploadStates((prev) =>
 					new Map(prev).set(file, {
 						status: "uploaded",

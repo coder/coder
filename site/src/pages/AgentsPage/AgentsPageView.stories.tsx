@@ -191,20 +191,24 @@ const meta: Meta<typeof AgentsPageView> = {
 			workspaces: [],
 			count: 0,
 		});
-		spyOn(API, "getChatCostSummary").mockResolvedValue(mockAnalyticsSummary);
-		spyOn(API, "getChatCostUsers").mockResolvedValue(mockUsageUsers);
-		spyOn(API, "getChatSystemPrompt").mockResolvedValue({
+		spyOn(API.experimental, "getChatCostSummary").mockResolvedValue(
+			mockAnalyticsSummary,
+		);
+		spyOn(API.experimental, "getChatCostUsers").mockResolvedValue(
+			mockUsageUsers,
+		);
+		spyOn(API.experimental, "getChatSystemPrompt").mockResolvedValue({
 			system_prompt: "",
 		});
-		spyOn(API, "updateChatSystemPrompt").mockResolvedValue();
-		spyOn(API, "getUserChatCustomPrompt").mockResolvedValue({
+		spyOn(API.experimental, "updateChatSystemPrompt").mockResolvedValue();
+		spyOn(API.experimental, "getUserChatCustomPrompt").mockResolvedValue({
 			custom_prompt: "",
 		});
-		spyOn(API, "updateUserChatCustomPrompt").mockResolvedValue({
+		spyOn(API.experimental, "updateUserChatCustomPrompt").mockResolvedValue({
 			custom_prompt: "",
 		});
 		// Mocks for child route pages that fetch their own data.
-		spyOn(API, "getChatModels").mockResolvedValue({
+		spyOn(API.experimental, "getChatModels").mockResolvedValue({
 			providers: [
 				{
 					provider: "openai",
@@ -220,7 +224,7 @@ const meta: Meta<typeof AgentsPageView> = {
 				},
 			],
 		});
-		spyOn(API, "getChatModelConfigs").mockResolvedValue([
+		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([
 			{
 				id: "config-openai-gpt-4o",
 				provider: "openai",
@@ -234,13 +238,13 @@ const meta: Meta<typeof AgentsPageView> = {
 				updated_at: "2026-02-18T00:00:00.000Z",
 			},
 		]);
-		spyOn(API, "getChatDesktopEnabled").mockResolvedValue({
+		spyOn(API.experimental, "getChatDesktopEnabled").mockResolvedValue({
 			enable_desktop: false,
 		});
-		spyOn(API, "getChatWorkspaceTTL").mockResolvedValue({
+		spyOn(API.experimental, "getChatWorkspaceTTL").mockResolvedValue({
 			workspace_ttl_ms: 0,
 		});
-		spyOn(API, "updateChatWorkspaceTTL").mockResolvedValue();
+		spyOn(API.experimental, "updateChatWorkspaceTTL").mockResolvedValue();
 	},
 };
 
