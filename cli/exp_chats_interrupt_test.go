@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -48,7 +49,8 @@ func TestExpChatsInterrupt_Success(t *testing.T) {
 	stdout, stderr, err := runExpChatsCommand(t, client, "exp", "chats", "interrupt", chat.ID.String())
 	require.NoError(t, err)
 	require.Empty(t, stderr)
-	require.Contains(t, stdout, "status")
+	lowerOutput := strings.ToLower(stdout)
+	require.Contains(t, lowerOutput, "status")
 	require.Contains(t, stdout, chat.ID.String())
 	require.Contains(t, stdout, chat.Title)
 	require.Contains(t, stdout, string(codersdk.ChatStatusWaiting))

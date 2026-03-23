@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -116,9 +117,10 @@ func TestExpChatsList(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, stderr)
 
-		require.Contains(t, stdout, "id")
-		require.Contains(t, stdout, "title")
-		require.Contains(t, stdout, "status")
+		lowerOutput := strings.ToLower(stdout)
+		require.Contains(t, lowerOutput, "id")
+		require.Contains(t, lowerOutput, "title")
+		require.Contains(t, lowerOutput, "status")
 		require.Contains(t, stdout, activeChatA.ID.String())
 		require.Contains(t, stdout, activeChatB.ID.String())
 		require.Contains(t, stdout, activeChatA.Title)
@@ -221,8 +223,9 @@ func TestExpChatsShow(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, stderr)
 
-		require.Contains(t, stdout, "workspace id")
-		require.Contains(t, stdout, "last error")
+		lowerOutput := strings.ToLower(stdout)
+		require.Contains(t, lowerOutput, "workspace id")
+		require.Contains(t, lowerOutput, "last error")
 		require.Contains(t, stdout, chat.ID.String())
 		require.Contains(t, stdout, chat.Title)
 		require.Contains(t, stdout, string(chat.Status))
@@ -270,8 +273,9 @@ func TestExpChatsModels(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, stderr)
 
-		require.Contains(t, stdout, "display name")
-		require.Contains(t, stdout, "openai")
+		lowerOutput := strings.ToLower(stdout)
+		require.Contains(t, lowerOutput, "display name")
+		require.Contains(t, lowerOutput, "openai")
 		require.Contains(t, stdout, "gpt-4o-mini")
 		require.Contains(t, stdout, "true")
 	})
