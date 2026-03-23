@@ -51,7 +51,6 @@ import { useSearchParams } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatTokenCount } from "utils/analytics";
 import { formatCostMicros } from "utils/currency";
-import { humanDuration } from "utils/time";
 import {
 	DateRange,
 	type DateRangeValue,
@@ -546,15 +545,15 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 	const serverTTLMs = workspaceTTLQuery.data?.workspace_ttl_ms ?? 0;
 	const [localTTLMs, setLocalTTLMs] = useState<number | null>(null);
+	const [autostopToggled, setAutostopToggled] = useState<boolean | null>(null);
 	const ttlMs = localTTLMs ?? serverTTLMs;
+	const isAutostopEnabled = autostopToggled ?? serverTTLMs > 0;
 	const isTTLDirty = localTTLMs !== null && localTTLMs !== serverTTLMs;
 	const maxTTLMs = 30 * 24 * 60 * 60_000; // 30 days
 	const isTTLOverMax = ttlMs > maxTTLMs;
-	const isDisabled =
-		isSavingSystemPrompt ||
-		isSavingUserPrompt ||
-		isSavingDesktopEnabled ||
-		isSavingWorkspaceTTL;
+	const isPromptSaving = isSavingSystemPrompt || isSavingUserPrompt;
+	const isDesktopSaving = isSavingDesktopEnabled;
+	const isTTLSaving = isSavingWorkspaceTTL;
 	const isTTLLoading = workspaceTTLQuery.isLoading;
 
 	const handleSaveSystemPrompt = (event: FormEvent) => {
@@ -580,7 +579,12 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 		if (!isTTLDirty) return;
 		saveWorkspaceTTL(
 			{ workspace_ttl_ms: localTTLMs ?? 0 },
-			{ onSuccess: () => setLocalTTLMs(null) },
+			{
+				onSuccess: () => {
+					setLocalTTLMs(null);
+					setAutostopToggled(null);
+				},
+			},
 		);
 	};
 	return (
@@ -608,7 +612,7 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 								placeholder="Additional behavior, style, and tone preferences"
 								value={userPromptDraft}
 								onChange={(event) => setLocalUserEdit(event.target.value)}
-								disabled={isDisabled}
+								disabled={isPromptSaving}
 								minRows={1}
 							/>
 							<div className="flex justify-end gap-2">
@@ -617,14 +621,14 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 									variant="outline"
 									type="button"
 									onClick={() => setLocalUserEdit("")}
-									disabled={isDisabled || !userPromptDraft}
+									disabled={isPromptSaving || !userPromptDraft}
 								>
 									Clear
 								</Button>
 								<Button
 									size="sm"
 									type="submit"
-									disabled={isDisabled || !isUserPromptDirty}
+									disabled={isPromptSaving || !isUserPromptDirty}
 								>
 									Save
 								</Button>
@@ -659,7 +663,7 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 										placeholder="Additional behavior, style, and tone preferences for all users"
 										value={systemPromptDraft}
 										onChange={(event) => setLocalEdit(event.target.value)}
-										disabled={isDisabled}
+										disabled={isPromptSaving}
 										minRows={1}
 									/>
 									<div className="flex justify-end gap-2">
@@ -668,14 +672,14 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 											variant="outline"
 											type="button"
 											onClick={() => setLocalEdit("")}
-											disabled={isDisabled || !systemPromptDraft}
+											disabled={isPromptSaving || !systemPromptDraft}
 										>
 											Clear
 										</Button>
 										<Button
 											size="sm"
 											type="submit"
-											disabled={isDisabled || !isSystemPromptDirty}
+											disabled={isPromptSaving || !isSystemPromptDirty}
 										>
 											Save
 										</Button>
@@ -720,7 +724,7 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 												saveDesktopEnabled({ enable_desktop: checked })
 											}
 											aria-label="Enable"
-											disabled={isDisabled}
+											disabled={isDesktopSaving}
 										/>
 									</div>
 									{isSaveDesktopEnabledError && (
@@ -736,36 +740,77 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 								>
 									<div className="flex items-center gap-2">
 										<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-											Default Autostop
+											Workspace Autostop Fallback
 										</h3>
 										<AdminBadge />
 									</div>
-									<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-										{ttlMs === 0
-											? "Workspaces linked to chats will be stopped as configured by their templates. Active chats continuously extend the deadline."
-											: `Workspaces linked to chats will be stopped after ${humanDuration(ttlMs)} of inactivity. Active chats continuously extend the deadline.`}
-									</p>
-									<DurationField
-										label="Default autostop"
-										valueMs={ttlMs}
-										onChange={(v) => setLocalTTLMs(v)}
-										disabled={isDisabled || isTTLLoading}
-										error={isTTLOverMax}
-										helperText={
-											isTTLOverMax
-												? "Must not exceed 30 days (720 hours)."
-												: undefined
-										}
-									/>
-									<div className="flex justify-end">
-										<Button
-											size="sm"
-											type="submit"
-											disabled={isDisabled || !isTTLDirty || isTTLOverMax}
-										>
-											Save
-										</Button>
+									<div className="flex items-center justify-between gap-4">
+										<p className="!mt-0.5 m-0 flex-1 text-xs text-content-secondary">
+											Set a default autostop for agent-created workspaces that
+											don't have one defined in their template. Template-defined
+											autostop rules always take precedence. Active chats will
+											extend the stop time.
+										</p>
+										<Switch
+											checked={isAutostopEnabled}
+											onCheckedChange={(checked) => {
+												const resetState = () => {
+													setLocalTTLMs(null);
+													setAutostopToggled(null);
+												};
+												if (checked) {
+													const defaultTTL =
+														serverTTLMs > 0 ? serverTTLMs : 3_600_000;
+													setAutostopToggled(true);
+													setLocalTTLMs(defaultTTL);
+													saveWorkspaceTTL(
+														{ workspace_ttl_ms: defaultTTL },
+														{
+															onSuccess: resetState,
+															onError: resetState,
+														},
+													);
+												} else {
+													setAutostopToggled(false);
+													setLocalTTLMs(0);
+													saveWorkspaceTTL(
+														{ workspace_ttl_ms: 0 },
+														{
+															onSuccess: resetState,
+															onError: resetState,
+														},
+													);
+												}
+											}}
+											aria-label="Enable default autostop"
+											disabled={isTTLSaving || isTTLLoading}
+										/>
 									</div>
+									{isAutostopEnabled && (
+										<DurationField
+											valueMs={ttlMs}
+											onChange={(v) => setLocalTTLMs(v)}
+											inputProps={{ "aria-label": "Autostop duration" }}
+											disabled={isTTLSaving || isTTLLoading}
+											error={isTTLOverMax}
+											helperText={
+												isTTLOverMax
+													? "Must not exceed 30 days (720 hours)."
+													: undefined
+											}
+										/>
+									)}
+									{isAutostopEnabled && (
+										<div className="flex justify-end">
+											<Button
+												size="sm"
+												type="submit"
+												disabled={isTTLSaving || !isTTLDirty || isTTLOverMax}
+											>
+												Save
+											</Button>
+										</div>
+									)}
 									{isSaveWorkspaceTTLError && (
 										<p className="m-0 text-xs text-content-destructive">
 											Failed to save autostop setting.
