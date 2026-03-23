@@ -930,15 +930,38 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 				inert={sidebarView.panel !== "settings" ? true : undefined}
 			>
 				{/* Back header */}
-				<div className="hidden border-b border-border-default px-3 py-2.5 md:block">
-					<Link
-						to={(location.state as { from?: string })?.from || "/agents"}
-						className="flex items-center gap-1.5 rounded-md bg-transparent px-0 py-1 text-sm font-medium text-content-secondary no-underline cursor-pointer hover:text-content-primary transition-colors"
-						aria-label={`Back to chats from ${subNavTitle}`}
-					>
-						<ChevronLeftIcon className="h-4 w-4 shrink-0" />
-						{subNavTitle}
-					</Link>
+				<div className="hidden border-b border-border-default px-2 py-2 md:block">
+					<div className="flex items-center justify-between">
+						<Button
+							asChild
+							variant="subtle"
+							size="icon"
+							aria-label="Back to chats"
+							className="h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
+						>
+							<Link
+								to={(location.state as { from?: string })?.from || "/agents"}
+							>
+								<ChevronLeftIcon />
+							</Link>
+						</Button>
+						<span className="text-sm font-medium text-content-primary">
+							{subNavTitle}
+						</span>
+						<div className="flex items-center gap-0.5 -mr-1.5">
+							{onCollapse && (
+								<Button
+									variant="subtle"
+									size="icon"
+									onClick={onCollapse}
+									aria-label="Collapse sidebar"
+									className="h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
+								>
+									<PanelLeftCloseIcon />
+								</Button>
+							)}
+						</div>
+					</div>
 				</div>
 				{/* Sub-navigation items */}
 				{sidebarView.panel === "settings" && (

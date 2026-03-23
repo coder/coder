@@ -489,7 +489,10 @@ const openAnalyticsView = async (canvasElement: HTMLElement) => {
 
 const openSettingsView = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
-	await userEvent.click(canvas.getByRole("link", { name: "Settings" }));
+	const link = await waitFor(() =>
+		canvas.getByRole("link", { name: "Settings" }),
+	);
+	await userEvent.click(link);
 };
 
 export const OpensAnalyticsForAdmins: Story = {
@@ -593,7 +596,7 @@ export const SettingsViewResets: Story = {
 		});
 
 		// Go back to chats
-		const backButton = screen.getByLabelText("Back to chats from Settings");
+		const backButton = screen.getByLabelText("Back to chats");
 		await userEvent.click(backButton);
 
 		// Re-open settings, should reset to Behavior
