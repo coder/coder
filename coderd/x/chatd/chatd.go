@@ -3228,6 +3228,9 @@ func (p *Server) runChat(
 	// focus on completing their delegated task.
 	if !chat.ParentChatID.Valid {
 		tools = append(tools,
+			chattool.ProposePlan(chattool.ProposePlanOptions{
+				GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			}),
 			chattool.ListTemplates(chattool.ListTemplatesOptions{
 				DB:      p.db,
 				OwnerID: chat.OwnerID,
