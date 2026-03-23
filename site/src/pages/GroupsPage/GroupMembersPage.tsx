@@ -203,7 +203,9 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 						/>
 					}
 					title={member.username}
-					subtitle={member.email}
+					subtitle={
+						member.is_service_account ? "Service Account" : member.email
+					}
 				/>
 			</TableCell>
 			<TableCell

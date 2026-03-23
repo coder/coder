@@ -71,6 +71,7 @@ const WorkspaceProxyPage = lazy(
 const CreateUserPage = lazy(
 	() => import("./pages/CreateUserPage/CreateUserPage"),
 );
+const EditUserPage = lazy(() => import("./pages/EditUserPage/EditUserPage"));
 const WorkspaceBuildPage = lazy(
 	() => import("./pages/WorkspaceBuildPage/WorkspaceBuildPage"),
 );
@@ -551,8 +552,11 @@ export const router = createBrowserRouter(
 							</Route>
 						</Route>
 
-						<Route path="users" element={<UsersPage />} />
-						<Route path="users/create" element={<CreateUserPage />} />
+						<Route path="users">
+							<Route index element={<UsersPage />} />
+							<Route path="create" element={<CreateUserPage />} />
+							<Route path=":user" element={<EditUserPage />} />
+						</Route>
 
 						{groupsRouter()}
 

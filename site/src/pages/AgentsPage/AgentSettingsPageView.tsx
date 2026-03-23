@@ -11,7 +11,7 @@ import {
 	updateChatWorkspaceTTL,
 	updateUserChatCustomPrompt,
 } from "api/queries/chats";
-import { userByName } from "api/queries/users";
+import { user } from "api/queries/users";
 import type * as TypesGen from "api/typesGenerated";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
@@ -236,7 +236,7 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 
 	const selectedUserId = searchParams.get("user");
 	const selectedUserQuery = useQuery({
-		...userByName(selectedUserId ?? ""),
+		...user(selectedUserId ?? ""),
 		enabled: selectedUserId !== null,
 	});
 	const selectedUser = selectedUserQuery.data ?? null;

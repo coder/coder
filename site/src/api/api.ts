@@ -549,6 +549,13 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getUser = async (usernameOrId: string) => {
+		const response = await this.axios.get<TypesGen.User>(
+			`/api/v2/users/${encodeURIComponent(usernameOrId)}`,
+		);
+		return response.data;
+	};
+
 	getUserParameters = async (templateID: string) => {
 		const response = await this.axios.get<TypesGen.UserParameter[]>(
 			`/api/v2/users/me/autofill-parameters?template_id=${templateID}`,
@@ -636,13 +643,6 @@ class ApiMethods {
 			{ signal },
 		);
 
-		return response.data;
-	};
-
-	getUser = async (userIdOrName: string): Promise<TypesGen.User> => {
-		const response = await this.axios.get<TypesGen.User>(
-			`/api/v2/users/${encodeURIComponent(userIdOrName)}`,
-		);
 		return response.data;
 	};
 
