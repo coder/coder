@@ -4,7 +4,8 @@ import type {
 	FileDiffMetadata,
 	SelectedLineRange,
 } from "@pierre/diffs";
-import { FileDiff } from "@pierre/diffs/react";
+import { Virtualizer } from "@pierre/diffs";
+import { FileDiff, VirtualizerContext } from "@pierre/diffs/react";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
 	DIFFS_FONT_STYLE,
@@ -19,6 +20,7 @@ import {
 	type FC,
 	memo,
 	type ReactNode,
+	useCallback,
 	useEffect,
 	useRef,
 	useState,
@@ -330,6 +332,77 @@ const FileTreeNodeView: FC<{
 				</span>
 			)}
 		</button>
+	);
+};
+
+// -------------------------------------------------------------------
+// Virtualized scroll container
+// -------------------------------------------------------------------
+
+/**
+ * Wraps the diff list in a Radix ScrollArea and wires up the
+ * @pierre/diffs Virtualizer. Extracted into its own component so
+ * that the useCallback for ref-callback stability lives here
+ * instead of in DiffViewer. This lets the React Compiler skip
+ * only this small wrapper (where it can't preserve useCallback)
+ * while still optimizing the much larger parent.
+ *
+ * The ref callback is placed on a content div *inside* the
+ * ScrollArea, then walks up with closest() to the Radix viewport.
+ * React fires children's refs bottom-up during commit, so every
+ * VirtualizedFileDiff instance has already connected to the
+ * virtualizer by the time this ref fires and calls setup().
+ */
+const DiffScrollContainer: FC<{
+	children: ReactNode;
+	className?: string;
+	diffViewportRef: React.RefObject<HTMLElement | null>;
+	onViewportHeight: (height: number) => void;
+}> = ({ children, className, diffViewportRef, onViewportHeight }) => {
+	const [virtualizer] = useState(() => new Virtualizer());
+
+	// useCallback is required for correctness: in React 19 an
+	// unstable ref callback triggers old-cleanup → new-callback
+	// on every render, which calls virtualizer.cleanUp() and
+	// wipes the observer map. The compiler can't preserve this
+	// useCallback, but that only causes it to skip this small
+	// wrapper — not the entire DiffViewer.
+	const contentRef = useCallback(
+		(node: HTMLDivElement | null) => {
+			const viewport = node?.closest<HTMLElement>(
+				"[data-radix-scroll-area-viewport]",
+			);
+			if (!viewport) return;
+
+			diffViewportRef.current = viewport;
+			virtualizer.setup(viewport);
+
+			onViewportHeight(viewport.clientHeight);
+			const ro = new ResizeObserver(([entry]) => {
+				onViewportHeight(entry.contentRect.height);
+			});
+			ro.observe(viewport);
+			return () => {
+				ro.disconnect();
+				virtualizer.cleanUp();
+				diffViewportRef.current = null;
+			};
+		},
+		[virtualizer, diffViewportRef, onViewportHeight],
+	);
+
+	return (
+		<ScrollArea
+			className={className}
+			scrollBarClassName="w-1.5"
+			viewportClassName="[&>div]:!block"
+		>
+			<VirtualizerContext.Provider value={virtualizer}>
+				<div ref={contentRef} className="min-w-0 text-xs">
+					{children}
+				</div>
+			</VirtualizerContext.Provider>
+		</ScrollArea>
 	);
 };
 
@@ -678,34 +751,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		}
 	}, [scrollToFile, onScrollToFileComplete]);
 
-	// ---------------------------------------------------------------
-	// Viewport height for the last-file min-height trick: setting
-	// min-height on the last file wrapper lets CSS handle the
-	// "be at least viewport-tall" logic, removing the need for a
-	// separate spacer div and a second ResizeObserver. Uses a ref
-	// callback (same pattern as containerRef) so the measurement
-	// lands during commit — before useEffect-based scroll logic.
-	// ---------------------------------------------------------------
 	const [viewportHeight, setViewportHeight] = useState(0);
-	const [scrollAreaEl, setScrollAreaEl] = useState<HTMLDivElement | null>(null);
-
-	useEffect(() => {
-		const vp = scrollAreaEl?.querySelector<HTMLElement>(
-			"[data-radix-scroll-area-viewport]",
-		);
-		diffViewportRef.current = vp ?? null;
-		if (!vp) return;
-		setViewportHeight(vp.clientHeight);
-		const ro = new ResizeObserver(([entry]) => {
-			setViewportHeight(entry.contentRect.height);
-		});
-		ro.observe(vp);
-		return () => {
-			ro.disconnect();
-			diffViewportRef.current = null;
-		};
-	}, [scrollAreaEl]);
-
 	// ---------------------------------------------------------------
 	// Loading state
 	// ---------------------------------------------------------------
@@ -772,47 +818,41 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 							</nav>
 						</ScrollArea>
 					)}
-					{/* Diff list */}
-					<ScrollArea
+					<DiffScrollContainer
+						diffViewportRef={diffViewportRef}
+						onViewportHeight={setViewportHeight}
 						className={cn(
 							"min-w-0 flex-1",
 							showTree &&
 								"border-0 border-l border-t border-solid border-border-default rounded-tl-md",
 						)}
-						scrollBarClassName="w-1.5"
-						viewportClassName="[&>div]:!block"
-						ref={setScrollAreaEl}
 					>
-						<div className="min-w-0 text-xs">
-							{sortedFiles.map((fileDiff, i) => {
-								const isLast = i === sortedFiles.length - 1;
-								return (
-									<div
-										key={fileDiff.name}
-										ref={(el) => setFileRef(fileDiff.name, el)}
-										style={isLast ? { minHeight: viewportHeight } : undefined}
-									>
-										<LazyFileDiff
-											fileDiff={fileDiff}
-											options={
-												perFileOptions?.get(fileDiff.name) ?? fileOptions
-											}
-											lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
-											renderAnnotation={renderAnnotation}
-											selectedLines={
-												perFileSelectedLines?.get(fileDiff.name) ?? null
-											}
-										/>
-										{isLast && (
-											<div className="flex items-center justify-center py-4 text-xs text-content-secondary">
-												{`${sortedFiles.length} ${sortedFiles.length === 1 ? "file" : "files"} changed`}
-											</div>
-										)}
-									</div>
-								);
-							})}
-						</div>
-					</ScrollArea>
+						{sortedFiles.map((fileDiff, i) => {
+							const isLast = i === sortedFiles.length - 1;
+							return (
+								<div
+									key={fileDiff.name}
+									ref={(el) => setFileRef(fileDiff.name, el)}
+									style={isLast ? { minHeight: viewportHeight } : undefined}
+								>
+									<LazyFileDiff
+										fileDiff={fileDiff}
+										options={perFileOptions?.get(fileDiff.name) ?? fileOptions}
+										lineAnnotations={perFileAnnotations?.get(fileDiff.name)}
+										renderAnnotation={renderAnnotation}
+										selectedLines={
+											perFileSelectedLines?.get(fileDiff.name) ?? null
+										}
+									/>
+									{isLast && (
+										<div className="flex items-center justify-center py-4 text-xs text-content-secondary">
+											{`${sortedFiles.length} ${sortedFiles.length === 1 ? "file" : "files"} changed`}
+										</div>
+									)}
+								</div>
+							);
+						})}
+					</DiffScrollContainer>
 				</div>
 			)}
 		</div>
