@@ -76,17 +76,14 @@ func TestIsContextLimitKey(t *testing.T) {
 		{name: "MAX_CONTEXT_TOKENS screaming", key: "MAX_CONTEXT_TOKENS", want: true},
 		{name: "contextLimit camelCase", key: "contextLimit", want: true},
 
-		// Fallback heuristic: contains "context" + limit/window/length.
+		// Fallback heuristic: contains "context" + limit/window/length/tokens.
 		{name: "model_context_limit", key: "model_context_limit", want: true},
 		{name: "context_window_size", key: "context_window_size", want: true},
 		{name: "context_length_max", key: "context_length_max", want: true},
+		{name: "context_tokens_count", key: "context_tokens_count", want: true},
 
-		// Fallback heuristic: starts with "max" + contains "context".
-		// BUG(isContextLimitKey): "max_context_version" matches
-		// because it contains "context" and starts with "max",
-		// but a version field is not a context limit.
-		// TODO: Fix the heuristic and remove this skip.
-		{name: "max_context_version false positive", key: "max_context_version", want: false, skip: true}, // Non-matching keys.
+		// Non-matching keys.
+		{name: "max_context_version false positive", key: "max_context_version", want: false},
 		{name: "context_id no limit keyword", key: "context_id", want: false},
 		{name: "empty string", key: "", want: false},
 		{name: "unrelated key", key: "model_name", want: false},
