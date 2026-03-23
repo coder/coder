@@ -1,9 +1,16 @@
 package chatd_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -614,15 +621,28 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, storeMode openAI
 	ctx := testutil.Context(t, testutil.WaitLong)
 	store := storeMode == openAIStoreModeTrue
 
-	var streamRequestCount atomic.Int32
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+	type capturedOpenAIRequest struct {
+		Stream             bool          `json:"stream,omitempty"`
+		Store              *bool         `json:"store,omitempty"`
+		PreviousResponseID *string       `json:"previous_response_id,omitempty"`
+		Prompt             []interface{} `json:"input,omitempty"`
+	}
+
+	var (
+		streamRequestCount atomic.Int32
+		firstReq           *capturedOpenAIRequest
+		secondReq          *capturedOpenAIRequest
+		mu                 sync.Mutex
+	)
+	upstreamOpenAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("reasoning + web search title")
 		}
 
-		switch streamRequestCount.Add(1) {
-		case 1:
+		switch req.Header.Get("X-Request-Ordinal") {
+		case "1":
 			return chattest.OpenAIResponse{
+				ResponseID: "resp_first_test",
 				StreamingChunks: chattest.OpenAIStreamingResponse(
 					chattest.OpenAITextChunks("Here is what I found.")...,
 				).StreamingChunks,
@@ -640,6 +660,70 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, storeMode openAI
 			)
 		}
 	})
+	captureServer := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read OpenAI request body: %v", err)
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_ = r.Body.Close()
+
+		if r.URL.Path == "/responses" {
+			var captured capturedOpenAIRequest
+			if err := json.Unmarshal(body, &captured); err != nil {
+				t.Errorf("decode OpenAI request body: %v", err)
+				http.Error(rw, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if captured.Stream {
+				requestCount := streamRequestCount.Add(1)
+				r.Header.Set("X-Request-Ordinal", strconv.Itoa(int(requestCount)))
+
+				mu.Lock()
+				switch requestCount {
+				case 1:
+					firstReq = &captured
+				default:
+					secondReq = &captured
+				}
+				mu.Unlock()
+			}
+		}
+
+		upstreamReq, err := http.NewRequestWithContext(
+			r.Context(),
+			r.Method,
+			upstreamOpenAIURL+r.URL.RequestURI(),
+			bytes.NewReader(body),
+		)
+		if err != nil {
+			t.Errorf("create upstream OpenAI request: %v", err)
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		upstreamReq.Header = r.Header.Clone()
+
+		resp, err := http.DefaultClient.Do(upstreamReq)
+		if err != nil {
+			t.Errorf("forward OpenAI request: %v", err)
+			http.Error(rw, err.Error(), http.StatusBadGateway)
+			return
+		}
+		defer resp.Body.Close()
+
+		for key, values := range resp.Header {
+			for _, value := range values {
+				rw.Header().Add(key, value)
+			}
+		}
+		rw.WriteHeader(resp.StatusCode)
+		if _, err := io.Copy(rw, resp.Body); err != nil {
+			t.Errorf("copy OpenAI response body: %v", err)
+		}
+	}))
+	t.Cleanup(captureServer.Close)
+	openAIURL := captureServer.URL
 
 	deploymentValues := coderdtest.DeploymentValues(t)
 	deploymentValues.Experiments = []string{string(codersdk.ExperimentAgents)}
@@ -770,4 +854,48 @@ func runOpenAIReasoningWithWebSearchRoundTripTest(t *testing.T, storeMode openAI
 		"expected an assistant message with text after the follow-up")
 	require.Equal(t, int32(2), streamRequestCount.Load(),
 		"expected exactly two streamed OpenAI responses")
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	require.NotNil(t, firstReq, "expected first streaming request to be captured")
+	if store {
+		require.NotNil(t, firstReq.Store, "first request should have store field")
+		require.True(t, *firstReq.Store, "store should be true")
+	} else if firstReq.Store != nil {
+		require.False(t, *firstReq.Store, "store should be false")
+	}
+
+	require.NotNil(t, secondReq, "expected second streaming request to be captured")
+	foundAssistantReplay := false
+	for _, item := range secondReq.Prompt {
+		m, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		role, _ := m["role"].(string)
+		if role == "assistant" {
+			foundAssistantReplay = true
+		}
+		if store {
+			require.NotEqual(t, "assistant", role,
+				"store=true chain-mode prompt should not replay assistant messages")
+			require.NotEqual(t, "tool", role,
+				"store=true chain-mode prompt should not replay tool messages")
+		}
+	}
+
+	if store {
+		require.NotNil(t, secondReq.PreviousResponseID,
+			"store=true follow-up should set previous_response_id")
+		require.Equal(t, "resp_first_test", *secondReq.PreviousResponseID,
+			"previous_response_id should match the first response's ID")
+	} else {
+		if secondReq.PreviousResponseID != nil {
+			require.Empty(t, *secondReq.PreviousResponseID,
+				"store=false follow-up should not set previous_response_id")
+		}
+		require.True(t, foundAssistantReplay,
+			"store=false follow-up should replay prior assistant history")
+	}
 }
