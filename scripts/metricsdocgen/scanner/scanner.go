@@ -8,6 +8,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -17,7 +18,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -97,8 +98,8 @@ func main() {
 	}
 
 	// Sort metrics by name for consistent output across runs.
-	sort.Slice(metrics, func(i, j int) bool {
-		return metrics[i].Name < metrics[j].Name
+	slices.SortFunc(metrics, func(a, b Metric) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	writeMetrics(metrics, os.Stdout)

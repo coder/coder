@@ -1,8 +1,9 @@
 package chatprovider
 
 import (
+	"cmp"
 	"context"
-	"sort"
+	"slices"
 	"strings"
 
 	"charm.land/fantasy"
@@ -318,8 +319,8 @@ func newChatModel(provider, modelID, displayName string) codersdk.ChatModel {
 }
 
 func sortChatModels(models []codersdk.ChatModel) {
-	sort.Slice(models, func(i, j int) bool {
-		return models[i].Model < models[j].Model
+	slices.SortFunc(models, func(a, b codersdk.ChatModel) int {
+		return cmp.Compare(a.Model, b.Model)
 	})
 }
 

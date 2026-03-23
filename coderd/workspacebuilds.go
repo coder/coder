@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -9,7 +10,6 @@ import (
 	"math"
 	"net/http"
 	"slices"
-	"sort"
 	"strconv"
 	"time"
 
@@ -1243,11 +1243,11 @@ func (api *API) convertWorkspaceBuild(
 	resourceAgentsMinOrder := map[uuid.UUID]int32{} // map[resource.ID]minOrder
 	for _, resource := range resources {
 		agents := agentsByResourceID[resource.ID]
-		sort.Slice(agents, func(i, j int) bool {
-			if agents[i].DisplayOrder != agents[j].DisplayOrder {
-				return agents[i].DisplayOrder < agents[j].DisplayOrder
+		slices.SortFunc(agents, func(a, b database.WorkspaceAgent) int {
+			if c := cmp.Compare(a.DisplayOrder, b.DisplayOrder); c != 0 {
+				return c
 			}
-			return agents[i].Name < agents[j].Name
+			return cmp.Compare(a.Name, b.Name)
 		})
 
 		apiAgents := make([]codersdk.WorkspaceAgent, 0)
@@ -1272,13 +1272,13 @@ func (api *API) convertWorkspaceBuild(
 		metadata := append(make([]database.WorkspaceResourceMetadatum, 0), metadataByResourceID[resource.ID]...)
 		apiResources = append(apiResources, convertWorkspaceResource(resource, apiAgents, metadata))
 	}
-	sort.Slice(apiResources, func(i, j int) bool {
-		orderI := resourceAgentsMinOrder[apiResources[i].ID]
-		orderJ := resourceAgentsMinOrder[apiResources[j].ID]
-		if orderI != orderJ {
-			return orderI < orderJ
+	slices.SortFunc(apiResources, func(a, b codersdk.WorkspaceResource) int {
+		orderA := resourceAgentsMinOrder[a.ID]
+		orderB := resourceAgentsMinOrder[b.ID]
+		if c := cmp.Compare(orderA, orderB); c != 0 {
+			return c
 		}
-		return apiResources[i].Name < apiResources[j].Name
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	var presetID *uuid.UUID

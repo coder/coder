@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"sort"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -2306,8 +2306,8 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 			require.NoError(t, err)
 
 			// Sort non-expired workspaces by CreatedAt in ascending order (oldest first)
-			sort.Slice(nonExpiredWorkspaces, func(i, j int) bool {
-				return nonExpiredWorkspaces[i].CreatedAt.Before(nonExpiredWorkspaces[j].CreatedAt)
+			slices.SortFunc(nonExpiredWorkspaces, func(a, b database.WorkspaceTable) int {
+				return a.CreatedAt.Compare(b.CreatedAt)
 			})
 
 			// Verify the status of each non-expired workspace:

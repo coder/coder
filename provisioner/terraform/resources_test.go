@@ -1,6 +1,7 @@
 package terraform_test
 
 import (
+	stdcmp "cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -8,8 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
-	"strings"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -1794,41 +1794,41 @@ func TestExternalAgents(t *testing.T) {
 // sortResource ensures resources appear in a consistent ordering
 // to prevent tests from flaking.
 func sortResources(resources []*proto.Resource) {
-	sort.Slice(resources, func(i, j int) bool {
-		if resources[i].Name != resources[j].Name {
-			return resources[i].Name < resources[j].Name
+	slices.SortFunc(resources, func(a, b *proto.Resource) int {
+		if c := stdcmp.Compare(a.Name, b.Name); c != 0 {
+			return c
 		}
-		return resources[i].Type < resources[j].Type
+		return stdcmp.Compare(a.Type, b.Type)
 	})
 	for _, resource := range resources {
 		for _, agent := range resource.Agents {
-			sort.Slice(agent.Apps, func(i, j int) bool {
-				return agent.Apps[i].Slug < agent.Apps[j].Slug
+			slices.SortFunc(agent.Apps, func(a, b *proto.App) int {
+				return stdcmp.Compare(a.Slug, b.Slug)
 			})
-			sort.Slice(agent.ExtraEnvs, func(i, j int) bool {
-				return agent.ExtraEnvs[i].Name < agent.ExtraEnvs[j].Name
+			slices.SortFunc(agent.ExtraEnvs, func(a, b *proto.Env) int {
+				return stdcmp.Compare(a.Name, b.Name)
 			})
-			sort.Slice(agent.Scripts, func(i, j int) bool {
-				return agent.Scripts[i].DisplayName < agent.Scripts[j].DisplayName
+			slices.SortFunc(agent.Scripts, func(a, b *proto.Script) int {
+				return stdcmp.Compare(a.DisplayName, b.DisplayName)
 			})
-			sort.Slice(agent.Devcontainers, func(i, j int) bool {
-				return agent.Devcontainers[i].Name < agent.Devcontainers[j].Name
+			slices.SortFunc(agent.Devcontainers, func(a, b *proto.Devcontainer) int {
+				return stdcmp.Compare(a.Name, b.Name)
 			})
 			for _, dc := range agent.Devcontainers {
-				sort.Slice(dc.Apps, func(i, j int) bool {
-					return dc.Apps[i].Slug < dc.Apps[j].Slug
+				slices.SortFunc(dc.Apps, func(a, b *proto.App) int {
+					return stdcmp.Compare(a.Slug, b.Slug)
 				})
 			}
 		}
-		sort.Slice(resource.Agents, func(i, j int) bool {
-			return resource.Agents[i].Name < resource.Agents[j].Name
+		slices.SortFunc(resource.Agents, func(a, b *proto.Agent) int {
+			return stdcmp.Compare(a.Name, b.Name)
 		})
 	}
 }
 
 func sortExternalAuthProviders(providers []*proto.ExternalAuthProviderResource) {
-	sort.Slice(providers, func(i, j int) bool {
-		return strings.Compare(providers[i].Id, providers[j].Id) == -1
+	slices.SortFunc(providers, func(a, b *proto.ExternalAuthProviderResource) int {
+		return stdcmp.Compare(a.Id, b.Id)
 	})
 }
 

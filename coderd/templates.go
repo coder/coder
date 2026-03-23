@@ -1,12 +1,13 @@
 package coderd
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -1066,8 +1067,8 @@ func (api *API) convertTemplates(templates []database.Template) []codersdk.Templ
 	}
 
 	// Sort templates by ActiveUserCount DESC
-	sort.SliceStable(apiTemplates, func(i, j int) bool {
-		return apiTemplates[i].ActiveUserCount > apiTemplates[j].ActiveUserCount
+	slices.SortStableFunc(apiTemplates, func(a, b codersdk.Template) int {
+		return cmp.Compare(b.ActiveUserCount, a.ActiveUserCount)
 	})
 
 	return apiTemplates

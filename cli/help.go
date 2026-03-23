@@ -2,12 +2,12 @@ package cli
 
 import (
 	"bufio"
+	"cmp"
 	_ "embed"
 	"fmt"
 	"os"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 	"text/tabwriter"
 	"text/template"
@@ -208,8 +208,8 @@ var usageTemplate = func() *template.Template {
 					}
 
 					// Sort options lexicographically.
-					sort.Slice(cmd.Options, func(i, j int) bool {
-						return cmd.Options[i].Name < cmd.Options[j].Name
+					slices.SortFunc(cmd.Options, func(a, b serpent.Option) int {
+						return cmp.Compare(a.Name, b.Name)
 					})
 
 				optionLoop:
@@ -244,9 +244,9 @@ var usageTemplate = func() *template.Template {
 							Options:     serpent.OptionSet{opt},
 						})
 					}
-					sort.Slice(groups, func(i, j int) bool {
+					slices.SortFunc(groups, func(a, b optionGroup) int {
 						// Sort groups lexicographically.
-						return groups[i].Name < groups[j].Name
+						return cmp.Compare(a.Name, b.Name)
 					})
 
 					// Always show enterprise group last.

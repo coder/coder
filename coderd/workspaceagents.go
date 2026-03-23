@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -11,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1791,11 +1791,11 @@ func (api *API) watchWorkspaceAgentMetadata(
 
 func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadata {
 	// Sort the input database slice by DisplayOrder and then by Key before processing
-	sort.Slice(db, func(i, j int) bool {
-		if db[i].DisplayOrder == db[j].DisplayOrder {
-			return db[i].Key < db[j].Key
+	slices.SortFunc(db, func(a, b database.WorkspaceAgentMetadatum) int {
+		if c := cmp.Compare(a.DisplayOrder, b.DisplayOrder); c != 0 {
+			return c
 		}
-		return db[i].DisplayOrder < db[j].DisplayOrder
+		return cmp.Compare(a.Key, b.Key)
 	})
 
 	// An empty array is easier for clients to handle than a null.

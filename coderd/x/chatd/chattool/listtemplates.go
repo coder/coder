@@ -1,9 +1,10 @@
 package chattool
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
-	"sort"
+	"slices"
 	"strings"
 
 	"charm.land/fantasy"
@@ -84,8 +85,8 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 			}
 
 			// Sort by active developer count descending.
-			sort.SliceStable(templates, func(i, j int) bool {
-				return ownerCounts[templates[i].ID] > ownerCounts[templates[j].ID]
+			slices.SortStableFunc(templates, func(a, b database.Template) int {
+				return cmp.Compare(ownerCounts[b.ID], ownerCounts[a.ID])
 			})
 
 			// Paginate.

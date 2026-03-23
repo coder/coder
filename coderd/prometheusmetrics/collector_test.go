@@ -1,8 +1,8 @@
 package prometheusmetrics_test
 
 import (
+	"cmp"
 	"slices"
-	"sort"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -134,8 +134,8 @@ func collectAndSortMetrics(t *testing.T, collector prometheus.Collector, count i
 	}
 
 	// Ensure always the same order of metrics
-	sort.Slice(metrics, func(i, j int) bool {
-		return slices.IsSorted([]string{metrics[i].Label[0].GetValue(), metrics[j].Label[1].GetValue()})
+	slices.SortFunc(metrics, func(a, b *dto.Metric) int {
+		return cmp.Compare(a.Label[0].GetValue(), b.Label[1].GetValue())
 	})
 	return metrics
 }
