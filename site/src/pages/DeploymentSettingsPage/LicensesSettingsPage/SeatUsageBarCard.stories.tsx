@@ -6,7 +6,7 @@ const meta: Meta<typeof SeatUsageBarCard> = {
 	title: "pages/DeploymentSettingsPage/LicensesSettingsPage/SeatUsageBarCard",
 	component: SeatUsageBarCard,
 	args: {
-		title: "Premium usage",
+		title: "Seat usage",
 		actual: 1923,
 		limit: 2500,
 	},

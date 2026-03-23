@@ -62,7 +62,7 @@ export const ActiveAIGovernanceAddOnUsage: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByRole("heading", { name: "Premium usage" }),
+			canvas.getByRole("heading", { name: "Seat usage" }),
 		).toBeInTheDocument();
 		await expect(canvas.getByText("1,923")).toBeInTheDocument();
 		await expect(canvas.getByText("2,500")).toBeInTheDocument();

@@ -173,7 +173,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 						<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 							{hasUserLimitEntitlementData && (
 								<SeatUsageBarCard
-									title="Premium usage"
+									title="Seat usage"
 									actual={userLimitActual}
 									limit={userLimitLimit}
 									allowUnlimited
