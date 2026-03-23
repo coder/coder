@@ -1,0 +1,883 @@
+package cli //nolint:testpackage // Tests unexported chat TUI reducers.
+
+import (
+	"context"
+	"io"
+	"net/url"
+	"testing"
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
+)
+
+func TestExpChatsTUI(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TopLevelModelRouting", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("InitWithoutChatIDReturnsListBatch", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+
+			batch := mustBatchMsg(t, model.Init())
+			require.Len(t, batch, 2)
+			require.Equal(t, viewList, model.currentView)
+		})
+
+		t.Run("InitWithChatIDReturnsOpenAndHistoryBatch", func(t *testing.T) {
+			t.Parallel()
+
+			chatID := uuid.New()
+			model := newExpChatsTUIModel(context.Background(), nil, &chatID, nil, nil)
+
+			batch := mustBatchMsg(t, model.Init())
+			require.Len(t, batch, 2)
+			require.Equal(t, viewChat, model.currentView)
+		})
+
+		t.Run("EscFromModelPickerClosesOverlay", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewChat
+			model.overlay = overlayModelPicker
+
+			updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			updated := mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, viewChat, updated.currentView)
+			require.Equal(t, overlayNone, updated.overlay)
+		})
+
+		t.Run("EscFromDiffDrawerClosesOverlay", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewChat
+			model.overlay = overlayDiffDrawer
+
+			updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			updated := mustTUIModel(t, updatedModel, cmd)
+			require.Equal(t, viewChat, updated.currentView)
+			require.Equal(t, overlayNone, updated.overlay)
+		})
+
+		t.Run("EscFromChatViewReturnsToListAndRefreshes", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewChat
+			model.overlay = overlayNone
+
+			updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, viewList, updated.currentView)
+			require.True(t, updated.list.loading)
+			require.NotNil(t, cmd)
+		})
+
+		t.Run("EscFromListQuits", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.currentView = viewList
+
+			updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.True(t, updated.quitting)
+			_, ok := mustMsg(t, cmd).(tea.QuitMsg)
+			require.True(t, ok)
+		})
+
+		t.Run("CtrlCQuitsFromAnyState", func(t *testing.T) {
+			t.Parallel()
+
+			for name, view := range map[string]tuiView{
+				"List": viewList,
+				"Chat": viewChat,
+			} {
+				name := name
+				view := view
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+
+					model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+					model.currentView = view
+
+					updatedModel, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+					updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
+					require.True(t, updated.quitting)
+					_, ok := mustMsg(t, cmd).(tea.QuitMsg)
+					require.True(t, ok)
+				})
+			}
+		})
+
+		t.Run("OpenSelectedChatSwitchesToChatAndLoadsData", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			model.width = 100
+			model.height = 40
+
+			updatedModel, cmd := model.Update(openSelectedChatMsg{chatID: uuid.New()})
+			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, viewChat, updated.currentView)
+			require.True(t, updated.chat.loading)
+			require.Len(t, mustBatchMsg(t, cmd), 2)
+		})
+
+		t.Run("OpenDraftChatSwitchesToDraftMode", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+
+			updatedModel, cmd := model.Update(openDraftChatMsg{})
+			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, viewChat, updated.currentView)
+			require.True(t, updated.chat.draft)
+			require.False(t, updated.chat.loading)
+			require.Nil(t, cmd)
+		})
+
+		t.Run("ToggleModelPickerTogglesOverlay", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+
+			updatedModel, cmd := model.Update(toggleModelPickerMsg{})
+			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, overlayModelPicker, updated.overlay)
+			require.NotNil(t, cmd)
+
+			updatedModel, cmd = updated.Update(toggleModelPickerMsg{})
+			updated, cmd = mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, overlayNone, updated.overlay)
+			require.Nil(t, cmd)
+		})
+
+		t.Run("ToggleDiffDrawerTogglesOverlay", func(t *testing.T) {
+			t.Parallel()
+
+			model := newExpChatsTUIModel(context.Background(), nil, nil, nil, nil)
+			chat := testChat(codersdk.ChatStatusCompleted)
+			model.chat.chat = &chat
+
+			updatedModel, cmd := model.Update(toggleDiffDrawerMsg{})
+			updated, cmd := mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, overlayDiffDrawer, updated.overlay)
+			require.Len(t, mustBatchMsg(t, cmd), 2)
+
+			updatedModel, cmd = updated.Update(toggleDiffDrawerMsg{})
+			updated, cmd = mustTUIModelWithCmd(t, updatedModel, cmd)
+			require.Equal(t, overlayNone, updated.overlay)
+			require.Nil(t, cmd)
+		})
+	})
+
+	t.Run("ChatView/MessageReceiving", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("ChatOpenedStoresChatAndClearsLoading", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			diffStatus := &codersdk.ChatDiffStatus{ChatID: uuid.New()}
+			chat := testChat(codersdk.ChatStatusRunning)
+			chat.DiffStatus = diffStatus
+
+			updated, cmd := model.Update(chatOpenedMsg{chat: chat})
+			require.Nil(t, cmd)
+			require.NotNil(t, updated.chat)
+			require.Equal(t, chat.ID, updated.chat.ID)
+			require.Equal(t, codersdk.ChatStatusRunning, updated.chatStatus)
+			require.Equal(t, diffStatus, updated.diffStatus)
+			require.False(t, updated.loading)
+			require.Nil(t, updated.err)
+		})
+
+		t.Run("ChatOpenedErrorSetsErrAndClearsLoading", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+
+			updated, cmd := model.Update(chatOpenedMsg{err: xerrors.New("open failed")})
+			require.Nil(t, cmd)
+			require.NotNil(t, updated.err)
+			require.Equal(t, "open failed", updated.err.Error())
+			require.False(t, updated.loading)
+		})
+
+		t.Run("ChatHistoryStoresMessagesRebuildsBlocksAndTracksLastUsage", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			usageA := &codersdk.ChatMessageUsage{TotalTokens: int64Ref(10)}
+			usageB := &codersdk.ChatMessageUsage{TotalTokens: int64Ref(20)}
+			messages := []codersdk.ChatMessage{
+				testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "first"}),
+				func() codersdk.ChatMessage {
+					msg := testMessage(2, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "second"})
+					msg.Usage = usageA
+					return msg
+				}(),
+				func() codersdk.ChatMessage {
+					msg := testMessage(3, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeReasoning, Text: "third"})
+					msg.Usage = usageB
+					return msg
+				}(),
+			}
+
+			updated, cmd := model.Update(chatHistoryMsg{messages: messages})
+			require.Nil(t, cmd)
+			require.Equal(t, messages, updated.messages)
+			require.Len(t, updated.blocks, 3)
+			require.Equal(t, usageB, updated.lastUsage)
+			require.False(t, updated.loading)
+		})
+
+		t.Run("ChatHistoryErrorSetsErrAndClearsLoading", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+
+			updated, cmd := model.Update(chatHistoryMsg{err: xerrors.New("history failed")})
+			require.Nil(t, cmd)
+			require.NotNil(t, updated.err)
+			require.Equal(t, "history failed", updated.err.Error())
+			require.False(t, updated.loading)
+		})
+	})
+
+	t.Run("ChatView/StreamEvents", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("MessagePartTextAppendsAndRebuildsBlocks", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+
+			updated, _ := model.Update(chatStreamEventMsg{event: testTextPartEvent("hel")})
+			updated, cmd := updated.Update(chatStreamEventMsg{event: testTextPartEvent("lo")})
+			require.Nil(t, cmd)
+			require.True(t, updated.accumulator.isPending())
+			require.Len(t, updated.accumulator.parts, 1)
+			require.Equal(t, "hello", updated.accumulator.parts[0].Text)
+			require.Len(t, updated.blocks, 1)
+			require.Equal(t, "hello", updated.blocks[0].text)
+		})
+
+		t.Run("MessagePartToolCallDeltaAccumulatesArgs", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+
+			updated, _ := model.Update(chatStreamEventMsg{event: testToolCallDeltaEvent("tc-1", "search", `{"q":"hel`)})
+			updated, cmd := updated.Update(chatStreamEventMsg{event: testToolCallDeltaEvent("tc-1", "search", `lo"}`)})
+			require.Nil(t, cmd)
+			require.Len(t, updated.accumulator.parts, 1)
+			require.Equal(t, `{"q":"hello"}`, string(updated.accumulator.parts[0].Args))
+			require.Len(t, updated.blocks, 1)
+			require.Equal(t, blockToolCall, updated.blocks[0].kind)
+			require.Equal(t, `{"q":"hello"}`, updated.blocks[0].args)
+		})
+
+		t.Run("MessageFinalizesAndResetsAccumulator", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.reconnecting = true
+			model, _ = model.Update(chatStreamEventMsg{event: testTextPartEvent("partial")})
+			usage := &codersdk.ChatMessageUsage{OutputTokens: int64Ref(7)}
+			message := testMessage(9, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "final"})
+			message.Usage = usage
+
+			updated, cmd := model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
+				Type:    codersdk.ChatStreamEventTypeMessage,
+				Message: &message,
+			}})
+			require.Nil(t, cmd)
+			require.Len(t, updated.messages, 1)
+			require.False(t, updated.accumulator.isPending())
+			require.Nil(t, updated.accumulator.parts)
+			require.Equal(t, usage, updated.lastUsage)
+			require.False(t, updated.reconnecting)
+			require.Len(t, updated.blocks, 1)
+			require.Equal(t, "final", updated.blocks[0].text)
+		})
+
+		t.Run("StatusUpdatesChatStatus", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			chat := testChat(codersdk.ChatStatusWaiting)
+			model.chat = &chat
+			model.chatStatus = codersdk.ChatStatusWaiting
+
+			updated, cmd := model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
+				Type:   codersdk.ChatStreamEventTypeStatus,
+				Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatusRunning},
+			}})
+			require.Nil(t, cmd)
+			require.Equal(t, codersdk.ChatStatusRunning, updated.chatStatus)
+			require.NotNil(t, updated.chat)
+			require.Equal(t, codersdk.ChatStatusRunning, updated.chat.Status)
+		})
+
+		t.Run("ErrorSetsErr", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+
+			updated, cmd := model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
+				Type:  codersdk.ChatStreamEventTypeError,
+				Error: &codersdk.ChatStreamError{Message: "stream blew up"},
+			}})
+			require.Nil(t, cmd)
+			require.NotNil(t, updated.err)
+			require.Equal(t, "stream error: stream blew up", updated.err.Error())
+		})
+
+		t.Run("QueueUpdateReplacesQueuedMessages", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			queued := []codersdk.ChatQueuedMessage{
+				testQueuedMessage(1, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "queued text"}),
+			}
+
+			updated, cmd := model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
+				Type:           codersdk.ChatStreamEventTypeQueueUpdate,
+				QueuedMessages: queued,
+			}})
+			require.Nil(t, cmd)
+			require.Equal(t, queued, updated.queuedMessages)
+			require.Len(t, updated.blocks, 1)
+			require.Equal(t, "queued text", updated.blocks[0].text)
+		})
+
+		t.Run("RetrySetsReconnecting", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+
+			updated, cmd := model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
+				Type:  codersdk.ChatStreamEventTypeRetry,
+				Retry: &codersdk.ChatStreamRetry{Attempt: 2},
+			}})
+			require.Nil(t, cmd)
+			require.True(t, updated.reconnecting)
+		})
+
+		t.Run("EOFStopsStreamingAndAttemptsReconnectWhenInterruptible", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(failingExperimentalClient())
+			chat := testChat(codersdk.ChatStatusPending)
+			model.chat = &chat
+			model.chatStatus = codersdk.ChatStatusPending
+			model.streaming = true
+
+			updated, cmd := model.Update(chatStreamEventMsg{err: io.EOF})
+			require.Nil(t, cmd)
+			require.False(t, updated.streaming)
+			require.True(t, updated.reconnecting)
+			require.NotNil(t, updated.err)
+		})
+
+		t.Run("MessageEventsDeduplicateByID", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			message := testMessage(11, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hello"})
+
+			updated, _ := model.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
+				Type:    codersdk.ChatStreamEventTypeMessage,
+				Message: &message,
+			}})
+			updated, cmd := updated.Update(chatStreamEventMsg{event: codersdk.ChatStreamEvent{
+				Type:    codersdk.ChatStreamEventTypeMessage,
+				Message: &message,
+			}})
+			require.Nil(t, cmd)
+			require.Len(t, updated.messages, 1)
+		})
+	})
+
+	t.Run("ChatView/Sending", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("DeliveredMessageIsAddedAndBlocksRebuilt", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			message := testMessage(21, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "delivered"})
+
+			updated, cmd := model.Update(messageSentMsg{resp: codersdk.CreateChatMessageResponse{Message: &message}})
+			require.Nil(t, cmd)
+			require.Len(t, updated.messages, 1)
+			require.Len(t, updated.blocks, 1)
+			require.Equal(t, "delivered", updated.blocks[0].text)
+		})
+
+		t.Run("QueuedResponseUpdatesQueuedMessages", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			queued := testQueuedMessage(22, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "queued"})
+
+			updated, cmd := model.Update(messageSentMsg{resp: codersdk.CreateChatMessageResponse{
+				Queued:        true,
+				QueuedMessage: &queued,
+			}})
+			require.Nil(t, cmd)
+			require.Len(t, updated.queuedMessages, 1)
+			require.Len(t, updated.blocks, 1)
+			require.Equal(t, "queued", updated.blocks[0].text)
+		})
+
+		t.Run("SendErrorPreservesComposerText", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.composer.SetValue("keep me")
+
+			updated, cmd := model.Update(messageSentMsg{err: xerrors.New("send failed")})
+			require.Nil(t, cmd)
+			require.NotNil(t, updated.err)
+			require.Equal(t, "send failed", updated.err.Error())
+			require.Equal(t, "keep me", updated.composer.Value())
+		})
+	})
+
+	t.Run("ChatView/DraftPromotion", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("ChatCreatedPromotesDraft", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.draft = true
+			model.streaming = true
+			chat := testChat(codersdk.ChatStatusWaiting)
+
+			updated, cmd := model.Update(chatCreatedMsg{chat: chat})
+			require.Nil(t, cmd)
+			require.NotNil(t, updated.chat)
+			require.Equal(t, chat.ID, updated.chat.ID)
+			require.False(t, updated.draft)
+			require.Equal(t, codersdk.ChatStatusWaiting, updated.chatStatus)
+			require.Nil(t, updated.err)
+		})
+	})
+
+	t.Run("ChatView/Interrupts", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("InterruptedChatClearsInterruptingAndUpdatesStatus", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.interrupting = true
+			chat := testChat(codersdk.ChatStatusCompleted)
+
+			updated, cmd := model.Update(chatInterruptedMsg{chat: chat})
+			require.Nil(t, cmd)
+			require.False(t, updated.interrupting)
+			require.NotNil(t, updated.chat)
+			require.Equal(t, chat.ID, updated.chat.ID)
+			require.Equal(t, codersdk.ChatStatusCompleted, updated.chatStatus)
+		})
+
+		t.Run("InterruptedChatErrorClearsInterruptingAndSetsErr", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.interrupting = true
+
+			updated, cmd := model.Update(chatInterruptedMsg{err: xerrors.New("interrupt failed")})
+			require.Nil(t, cmd)
+			require.False(t, updated.interrupting)
+			require.NotNil(t, updated.err)
+			require.Equal(t, "interrupt failed", updated.err.Error())
+		})
+	})
+
+	t.Run("ChatView/Keyboard", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("TabTogglesComposerFocus", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			require.True(t, model.composerFocused)
+
+			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyTab})
+			require.False(t, updated.composerFocused)
+
+			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyTab})
+			require.True(t, updated.composerFocused)
+		})
+
+		t.Run("UpDownMoveSelectedBlockWithinBounds", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.composerFocused = false
+			model.blocks = []chatBlock{{kind: blockText}, {kind: blockText}, {kind: blockText}}
+			model.selectedBlock = 1
+
+			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyUp})
+			require.Equal(t, 0, updated.selectedBlock)
+
+			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyUp})
+			require.Equal(t, 0, updated.selectedBlock)
+
+			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyDown})
+			require.Equal(t, 1, updated.selectedBlock)
+
+			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyDown})
+			updated, _ = updated.Update(tea.KeyMsg{Type: tea.KeyDown})
+			require.Equal(t, 2, updated.selectedBlock)
+		})
+
+		t.Run("EnterAndSpaceToggleExpandedBlocks", func(t *testing.T) {
+			t.Parallel()
+
+			for name, key := range map[string]tea.KeyMsg{
+				"Enter": {Type: tea.KeyEnter},
+				"Space": {Type: tea.KeySpace},
+			} {
+				name := name
+				key := key
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+
+					model := newTestChatViewModel(nil)
+					model.composerFocused = false
+					model.blocks = []chatBlock{{kind: blockText}}
+					model.selectedBlock = 0
+
+					updated, _ := model.Update(key)
+					require.True(t, updated.expandedBlocks[0])
+
+					updated, _ = updated.Update(key)
+					require.False(t, updated.expandedBlocks[0])
+				})
+			}
+		})
+
+		t.Run("CtrlPSendsToggleModelPickerMsg", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.composerFocused = false
+
+			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
+			require.NotNil(t, cmd)
+			require.Equal(t, model.composerFocused, updated.composerFocused)
+			_, ok := mustMsg(t, cmd).(toggleModelPickerMsg)
+			require.True(t, ok)
+		})
+
+		t.Run("CtrlDSendsToggleDiffDrawerMsg", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.composerFocused = false
+
+			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
+			require.NotNil(t, cmd)
+			require.Equal(t, model.composerFocused, updated.composerFocused)
+			_, ok := mustMsg(t, cmd).(toggleDiffDrawerMsg)
+			require.True(t, ok)
+		})
+	})
+
+	t.Run("StreamAccumulator", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("ApplyDeltaTextAppends", func(t *testing.T) {
+			t.Parallel()
+
+			var accumulator streamAccumulator
+			accumulator.applyDelta(codersdk.ChatStreamMessagePart{
+				Role: codersdk.ChatMessageRoleAssistant,
+				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hel"},
+			})
+			accumulator.applyDelta(codersdk.ChatStreamMessagePart{
+				Role: codersdk.ChatMessageRoleAssistant,
+				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "lo"},
+			})
+
+			require.Len(t, accumulator.parts, 1)
+			require.Equal(t, "hello", accumulator.parts[0].Text)
+		})
+
+		t.Run("ApplyDeltaReasoningAppends", func(t *testing.T) {
+			t.Parallel()
+
+			var accumulator streamAccumulator
+			accumulator.applyDelta(codersdk.ChatStreamMessagePart{
+				Role: codersdk.ChatMessageRoleAssistant,
+				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeReasoning, Text: "thin"},
+			})
+			accumulator.applyDelta(codersdk.ChatStreamMessagePart{
+				Role: codersdk.ChatMessageRoleAssistant,
+				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeReasoning, Text: "king"},
+			})
+
+			require.Len(t, accumulator.parts, 1)
+			require.Equal(t, "thinking", accumulator.parts[0].Text)
+		})
+
+		t.Run("ApplyDeltaToolCallAccumulatesArgs", func(t *testing.T) {
+			t.Parallel()
+
+			var accumulator streamAccumulator
+			accumulator.applyDelta(codersdk.ChatStreamMessagePart{
+				Role: codersdk.ChatMessageRoleAssistant,
+				Part: codersdk.ChatMessagePart{
+					Type:       codersdk.ChatMessagePartTypeToolCall,
+					ToolCallID: "tool-1",
+					ToolName:   "search",
+					ArgsDelta:  `{"query":"he`,
+				},
+			})
+			accumulator.applyDelta(codersdk.ChatStreamMessagePart{
+				Role: codersdk.ChatMessageRoleAssistant,
+				Part: codersdk.ChatMessagePart{
+					Type:       codersdk.ChatMessagePartTypeToolCall,
+					ToolCallID: "tool-1",
+					ToolName:   "search",
+					ArgsDelta:  `llo"}`,
+				},
+			})
+
+			require.Len(t, accumulator.parts, 1)
+			require.Equal(t, `{"query":"hello"}`, string(accumulator.parts[0].Args))
+		})
+
+		t.Run("ResetClearsState", func(t *testing.T) {
+			t.Parallel()
+
+			accumulator := streamAccumulator{
+				parts:      []codersdk.ChatMessagePart{{Type: codersdk.ChatMessagePartTypeText, Text: "hello"}},
+				role:       codersdk.ChatMessageRoleAssistant,
+				pending:    true,
+				toolDeltas: map[string]string{"tool-1": `{}`},
+			}
+
+			accumulator.reset()
+			require.Nil(t, accumulator.parts)
+			require.Equal(t, codersdk.ChatMessageRole(""), accumulator.role)
+			require.False(t, accumulator.pending)
+			require.Nil(t, accumulator.toolDeltas)
+		})
+
+		t.Run("IsPendingAfterDelta", func(t *testing.T) {
+			t.Parallel()
+
+			var accumulator streamAccumulator
+			accumulator.applyDelta(codersdk.ChatStreamMessagePart{
+				Role: codersdk.ChatMessageRoleAssistant,
+				Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: "hello"},
+			})
+
+			require.True(t, accumulator.isPending())
+		})
+	})
+
+	t.Run("ChatList", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("ChatsListedStoresChats", func(t *testing.T) {
+			t.Parallel()
+
+			model := newChatListModel(newTUIStyles())
+			chats := []codersdk.Chat{testChat(codersdk.ChatStatusWaiting), testChat(codersdk.ChatStatusCompleted)}
+
+			updated, cmd := model.Update(chatsListedMsg{chats: chats})
+			require.Nil(t, cmd)
+			require.Equal(t, chats, updated.chats)
+			require.False(t, updated.loading)
+		})
+
+		t.Run("ChatsListedErrorStoresErr", func(t *testing.T) {
+			t.Parallel()
+
+			model := newChatListModel(newTUIStyles())
+
+			updated, cmd := model.Update(chatsListedMsg{err: xerrors.New("list failed")})
+			require.Nil(t, cmd)
+			require.NotNil(t, updated.err)
+			require.Equal(t, "list failed", updated.err.Error())
+			require.False(t, updated.loading)
+		})
+
+		t.Run("NavigationKeysMoveCursorWithinBounds", func(t *testing.T) {
+			t.Parallel()
+
+			chats := []codersdk.Chat{testChat(codersdk.ChatStatusWaiting), testChat(codersdk.ChatStatusPending), testChat(codersdk.ChatStatusCompleted)}
+			for name, key := range map[string]tea.KeyMsg{
+				"Up":   {Type: tea.KeyUp},
+				"Down": {Type: tea.KeyDown},
+				"J":    keyRunes("j"),
+				"K":    keyRunes("k"),
+			} {
+				name := name
+				key := key
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+
+					model := newChatListModel(newTUIStyles())
+					model.loading = false
+					model.chats = chats
+					model.cursor = 1
+
+					updated, _ := model.Update(key)
+					if name == "Up" || name == "K" {
+						require.Equal(t, 0, updated.cursor)
+						updated, _ = updated.Update(key)
+						require.Equal(t, 0, updated.cursor)
+					} else {
+						require.Equal(t, 2, updated.cursor)
+						updated, _ = updated.Update(key)
+						require.Equal(t, 2, updated.cursor)
+					}
+				})
+			}
+		})
+
+		t.Run("SlashFocusesSearch", func(t *testing.T) {
+			t.Parallel()
+
+			model := newChatListModel(newTUIStyles())
+			model.loading = false
+
+			updated, cmd := model.Update(keyRunes("/"))
+			require.Nil(t, cmd)
+			require.True(t, updated.searching)
+		})
+
+		t.Run("QTriggersQuit", func(t *testing.T) {
+			t.Parallel()
+
+			model := newChatListModel(newTUIStyles())
+			model.loading = false
+
+			updated, cmd := model.Update(keyRunes("q"))
+			require.Equal(t, model.cursor, updated.cursor)
+			_, ok := mustMsg(t, cmd).(tea.QuitMsg)
+			require.True(t, ok)
+		})
+	})
+}
+
+func mustTUIModel(t testing.TB, model tea.Model, cmd tea.Cmd) expChatsTUIModel {
+	t.Helper()
+
+	updated, ok := model.(expChatsTUIModel)
+	require.True(t, ok)
+	require.Nil(t, cmd)
+	return updated
+}
+
+func mustTUIModelWithCmd(t testing.TB, model tea.Model, cmd tea.Cmd) (expChatsTUIModel, tea.Cmd) {
+	t.Helper()
+
+	updated, ok := model.(expChatsTUIModel)
+	require.True(t, ok)
+	return updated, cmd
+}
+
+func mustMsg(t testing.TB, cmd tea.Cmd) tea.Msg {
+	t.Helper()
+	require.NotNil(t, cmd)
+	return cmd()
+}
+
+func mustBatchMsg(t testing.TB, cmd tea.Cmd) tea.BatchMsg {
+	t.Helper()
+
+	msg := mustMsg(t, cmd)
+	batch, ok := msg.(tea.BatchMsg)
+	require.True(t, ok)
+	return batch
+}
+
+func newTestChatViewModel(client *codersdk.ExperimentalClient) chatViewModel {
+	return newChatViewModel(context.Background(), client, nil, nil, newTUIStyles())
+}
+
+func testChat(status codersdk.ChatStatus) codersdk.Chat {
+	return codersdk.Chat{
+		ID:        uuid.New(),
+		Title:     "test chat",
+		Status:    status,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+}
+
+func testMessage(id int64, role codersdk.ChatMessageRole, parts ...codersdk.ChatMessagePart) codersdk.ChatMessage {
+	return codersdk.ChatMessage{
+		ID:        id,
+		ChatID:    uuid.New(),
+		CreatedAt: time.Now(),
+		Role:      role,
+		Content:   parts,
+	}
+}
+
+func testQueuedMessage(id int64, parts ...codersdk.ChatMessagePart) codersdk.ChatQueuedMessage {
+	return codersdk.ChatQueuedMessage{
+		ID:        id,
+		ChatID:    uuid.New(),
+		CreatedAt: time.Now(),
+		Content:   parts,
+	}
+}
+
+func testTextPartEvent(text string) codersdk.ChatStreamEvent {
+	return codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{
+			Role: codersdk.ChatMessageRoleAssistant,
+			Part: codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeText, Text: text},
+		},
+	}
+}
+
+func testToolCallDeltaEvent(toolCallID string, toolName string, delta string) codersdk.ChatStreamEvent {
+	return codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{
+			Role: codersdk.ChatMessageRoleAssistant,
+			Part: codersdk.ChatMessagePart{
+				Type:       codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID: toolCallID,
+				ToolName:   toolName,
+				ArgsDelta:  delta,
+			},
+		},
+	}
+}
+
+func failingExperimentalClient() *codersdk.ExperimentalClient {
+	return codersdk.NewExperimentalClient(codersdk.New(&url.URL{}))
+}
+
+func keyRunes(value string) tea.KeyMsg {
+	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(value)}
+}
+
+func int64Ref(v int64) *int64 {
+	return &v
+}
