@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { API } from "api/api";
+import { expect, spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { Tool } from "./Tool";
 
@@ -121,6 +122,73 @@ export const EmptyContent: Story = {
 			kind: "plan",
 			content: "",
 		},
+	},
+};
+
+export const FileIDLoading: Story = {
+	args: {
+		status: "completed",
+		args: { path: "/home/coder/PLAN.md" },
+		result: {
+			ok: true,
+			path: "/home/coder/PLAN.md",
+			kind: "plan",
+			file_id: "test-file-id-loading",
+			media_type: "text/markdown",
+		},
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatFileText").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Loading plan/)).toBeInTheDocument();
+	},
+};
+
+export const FileIDCompleted: Story = {
+	args: {
+		status: "completed",
+		args: { path: "/home/coder/PLAN.md" },
+		result: {
+			ok: true,
+			path: "/home/coder/PLAN.md",
+			kind: "plan",
+			file_id: "test-file-id-success",
+			media_type: "text/markdown",
+		},
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatFileText").mockResolvedValue(samplePlan);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Implementation Plan")).toBeInTheDocument();
+	},
+};
+
+export const FileIDFetchError: Story = {
+	args: {
+		status: "completed",
+		args: { path: "/home/coder/PLAN.md" },
+		result: {
+			ok: true,
+			path: "/home/coder/PLAN.md",
+			kind: "plan",
+			file_id: "test-file-id-error",
+			media_type: "text/markdown",
+		},
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatFileText").mockRejectedValue(
+			new Error("Failed to load plan"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByLabelText("Error")).toBeInTheDocument();
 	},
 };
 

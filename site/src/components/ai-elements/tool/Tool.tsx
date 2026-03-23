@@ -376,7 +376,8 @@ const ProposePlanRenderer: FC<ToolRendererProps> = ({
 	const parsedArgs = parseArgs(args);
 	const path = parsedArgs ? asString(parsedArgs.path) || "PLAN.md" : "PLAN.md";
 	const rec = asRecord(result);
-	const content = rec ? asString(rec.content) : "";
+	const content = rec && "content" in rec ? asString(rec.content) : undefined;
+	const fileID = rec && "file_id" in rec ? asString(rec.file_id) : undefined;
 	const errorMessage = isError
 		? (rec ? asString(rec.error || rec.message) : undefined) ||
 			(typeof result === "string" ? result : undefined)
@@ -385,6 +386,7 @@ const ProposePlanRenderer: FC<ToolRendererProps> = ({
 	return (
 		<ProposePlanTool
 			content={content}
+			fileID={fileID}
 			path={path}
 			status={status}
 			isError={isError}
