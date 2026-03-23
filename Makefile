@@ -1343,6 +1343,7 @@ test-js: site/node_modules/.installed
 
 test-storybook: site/node_modules/.installed
 	cd site/
+	pnpm playwright:install
 	pnpm exec vitest run --project=storybook
 .PHONY: test-storybook
 
