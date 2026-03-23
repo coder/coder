@@ -38,6 +38,7 @@ export const UserCompactionThresholdSettings: FC<
 	const thresholdsQuery = useQuery(userCompactionThresholds());
 	const [drafts, setDrafts] = useState<Record<string, string>>({});
 	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+	const [pendingModels, setPendingModels] = useState<Set<string>>(new Set());
 
 	const clearDraft = (modelConfigID: string) => {
 		setDrafts((currentDrafts) => {
@@ -75,6 +76,13 @@ export const UserCompactionThresholdSettings: FC<
 				),
 			}));
 		},
+		onSettled: async (_data, _error, variables) => {
+			setPendingModels((currentPendingModels) => {
+				const nextPendingModels = new Set(currentPendingModels);
+				nextPendingModels.delete(variables.modelConfigId);
+				return nextPendingModels;
+			});
+		},
 	});
 	const resetOpts = deleteUserCompactionThreshold(queryClient);
 	const resetThresholdMutation = useMutation({
@@ -92,6 +100,13 @@ export const UserCompactionThresholdSettings: FC<
 					"Failed to reset compaction threshold.",
 				),
 			}));
+		},
+		onSettled: async (_data, _error, variables) => {
+			setPendingModels((currentPendingModels) => {
+				const nextPendingModels = new Set(currentPendingModels);
+				nextPendingModels.delete(variables);
+				return nextPendingModels;
+			});
 		},
 	});
 
@@ -175,12 +190,7 @@ export const UserCompactionThresholdSettings: FC<
 							drafts[modelConfig.id] ??
 							(existingOverride !== undefined ? String(existingOverride) : "");
 						const parsedDraftValue = parseThresholdDraft(draftValue);
-						const isThisModelMutating =
-							(saveThresholdMutation.isPending &&
-								saveThresholdMutation.variables?.modelConfigId ===
-									modelConfig.id) ||
-							(resetThresholdMutation.isPending &&
-								resetThresholdMutation.variables === modelConfig.id);
+						const isThisModelMutating = pendingModels.has(modelConfig.id);
 						const isSaveDisabled =
 							draftValue.length === 0 ||
 							parsedDraftValue === null ||
@@ -230,6 +240,9 @@ export const UserCompactionThresholdSettings: FC<
 													return;
 												}
 												clearRowError(modelConfig.id);
+												setPendingModels((currentPendingModels) =>
+													new Set(currentPendingModels).add(modelConfig.id),
+												);
 												saveThresholdMutation.mutate({
 													modelConfigId: modelConfig.id,
 													req: {
@@ -248,6 +261,9 @@ export const UserCompactionThresholdSettings: FC<
 												disabled={isThisModelMutating}
 												onClick={() => {
 													clearRowError(modelConfig.id);
+													setPendingModels((currentPendingModels) =>
+														new Set(currentPendingModels).add(modelConfig.id),
+													);
 													resetThresholdMutation.mutate(modelConfig.id);
 												}}
 											>
