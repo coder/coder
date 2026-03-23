@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -182,17 +183,222 @@ func (m chatViewModel) Init() tea.Cmd {
 	return nil
 }
 
+// sendMessage trims the composer, builds the content, and dispatches
+// a create-chat or send-message command.
+func (m chatViewModel) sendMessage() (chatViewModel, tea.Cmd) {
+	text := strings.TrimSpace(m.composer.Value())
+	if text == "" {
+		return m, nil
+	}
+	m.composer.SetValue("")
+	content := promptToContent(text)
+
+	if m.draft {
+		req := codersdk.CreateChatRequest{
+			Content:       content,
+			WorkspaceID:   m.workspaceID,
+			ModelConfigID: m.modelOverride,
+		}
+		return m, createChatCmd(m.ctx, m.client, req)
+	}
+
+	if m.chat == nil {
+		return m, nil
+	}
+
+	req := codersdk.CreateChatMessageRequest{
+		Content:       content,
+		ModelConfigID: m.modelOverride,
+	}
+	return m, sendMessageCmd(m.ctx, m.client, m.chat.ID, req)
+}
+
+// startStream opens a streaming connection from the latest known message ID.
+func (m chatViewModel) startStream() (chatViewModel, tea.Cmd) {
+	if m.chat == nil || m.streaming {
+		return m, nil
+	}
+
+	var opts *codersdk.StreamChatOptions
+	if len(m.messages) > 0 {
+		lastID := m.messages[len(m.messages)-1].ID
+		opts = &codersdk.StreamChatOptions{AfterID: &lastID}
+	}
+
+	eventCh, closer, err := m.client.StreamChat(m.ctx, m.chat.ID, opts)
+	if err != nil {
+		m.err = err
+		return m, nil
+	}
+	m.streaming = true
+	m.streamCloser = closer
+	m.streamEventCh = eventCh
+	m.reconnecting = false
+	return m, listenToStream(m.streamEventCh)
+}
+
+// rebuildBlocks merges persisted messages + accumulator into renderable blocks.
+func (m *chatViewModel) rebuildBlocks() {
+	m.blocks = messagesToBlocks(m.messages)
+
+	if m.accumulator.isPending() {
+		for _, part := range m.accumulator.parts {
+			block := partToBlock(part, m.accumulator.role)
+			m.blocks = append(m.blocks, block)
+		}
+	}
+
+	for _, qm := range m.queuedMessages {
+		for _, part := range qm.Content {
+			if part.Type == codersdk.ChatMessagePartTypeText && part.Text != "" {
+				m.blocks = append(m.blocks, chatBlock{
+					kind: blockText,
+					role: codersdk.ChatMessageRoleUser,
+					text: part.Text,
+				})
+			}
+		}
+	}
+
+	if m.selectedBlock >= len(m.blocks) {
+		m.selectedBlock = max(len(m.blocks)-1, 0)
+	}
+}
+
+func partToBlock(part codersdk.ChatMessagePart, role codersdk.ChatMessageRole) chatBlock {
+	switch part.Type {
+	case codersdk.ChatMessagePartTypeReasoning:
+		return chatBlock{kind: blockReasoning, role: role, text: part.Text}
+	case codersdk.ChatMessagePartTypeToolCall:
+		if part.ToolName == "context_compaction" {
+			return chatBlock{
+				kind:     blockCompaction,
+				role:     role,
+				toolName: part.ToolName,
+				toolID:   part.ToolCallID,
+				args:     string(part.Args),
+			}
+		}
+		return chatBlock{
+			kind:     blockToolCall,
+			role:     role,
+			toolName: part.ToolName,
+			toolID:   part.ToolCallID,
+			args:     string(part.Args),
+		}
+	case codersdk.ChatMessagePartTypeToolResult:
+		if part.ToolName == "context_compaction" {
+			return chatBlock{
+				kind:     blockCompaction,
+				role:     role,
+				toolName: part.ToolName,
+				toolID:   part.ToolCallID,
+				result:   string(part.Result),
+				isError:  part.IsError,
+			}
+		}
+		return chatBlock{
+			kind:     blockToolResult,
+			role:     role,
+			toolName: part.ToolName,
+			toolID:   part.ToolCallID,
+			result:   string(part.Result),
+			isError:  part.IsError,
+		}
+	case codersdk.ChatMessagePartTypeSource:
+		title := part.Title
+		if title == "" {
+			title = part.URL
+		}
+		return chatBlock{kind: blockText, role: role, text: fmt.Sprintf("[Source: %s](%s)", title, part.URL)}
+	case codersdk.ChatMessagePartTypeFile:
+		return chatBlock{kind: blockText, role: role, text: fmt.Sprintf("[File: %s]", part.MediaType)}
+	case codersdk.ChatMessagePartTypeFileReference:
+		return chatBlock{kind: blockText, role: role, text: fmt.Sprintf("[%s L%d-%d]", part.FileName, part.StartLine, part.EndLine)}
+	default:
+		return chatBlock{kind: blockText, role: role, text: part.Text}
+	}
+}
+
+func (m *chatViewModel) addMessageIfNew(msg codersdk.ChatMessage) bool {
+	for _, existing := range m.messages {
+		if existing.ID == msg.ID {
+			return false
+		}
+	}
+	m.messages = append(m.messages, msg)
+	return true
+}
+
 func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		viewportHeight := m.height - 4
+		viewportHeight := m.height - 6
 		if viewportHeight < 0 {
 			viewportHeight = 0
 		}
 		m.viewport.Width = m.width
 		m.viewport.Height = viewportHeight
+		return m, nil
+
+	case tea.KeyMsg:
+		if msg.String() == "tab" {
+			m.composerFocused = !m.composerFocused
+			if m.composerFocused {
+				m.composer.Focus()
+			} else {
+				m.composer.Blur()
+			}
+			return m, nil
+		}
+
+		// Handle the tab string first because Ctrl+I and Tab often collide in
+		// terminals.
+
+		if m.composerFocused {
+			if msg.Type == tea.KeyEnter {
+				return m.sendMessage()
+			}
+			var cmd tea.Cmd
+			m.composer, cmd = m.composer.Update(msg)
+			return m, cmd
+		}
+
+		switch msg.String() {
+		case "up", "k":
+			if m.selectedBlock > 0 {
+				m.selectedBlock--
+			}
+			return m, nil
+		case "down", "j":
+			if m.selectedBlock < len(m.blocks)-1 {
+				m.selectedBlock++
+			}
+			return m, nil
+		case "enter", " ":
+			if m.selectedBlock >= 0 && m.selectedBlock < len(m.blocks) {
+				m.expandedBlocks[m.selectedBlock] = !m.expandedBlocks[m.selectedBlock]
+			}
+			return m, nil
+		}
+
+		if msg.Type == tea.KeyCtrlI {
+			if m.isInterruptible() && !m.interrupting && m.chat != nil {
+				m.interrupting = true
+				return m, interruptChatCmd(m.ctx, m.client, m.chat.ID)
+			}
+			return m, nil
+		}
+
+		switch msg.String() {
+		case "ctrl+p":
+			return m, func() tea.Msg { return toggleModelPickerMsg{} }
+		case "ctrl+d":
+			return m, func() tea.Msg { return toggleDiffDrawerMsg{} }
+		}
+
 		return m, nil
 
 	case chatOpenedMsg:
@@ -203,16 +409,111 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 		}
 		chat := msg.chat
 		m.chat = &chat
+		m.chatStatus = chat.Status
+		m.diffStatus = chat.DiffStatus
 		m.err = nil
 		m.loading = false
+		if len(m.messages) > 0 && !m.streaming {
+			return m.startStream()
+		}
 		return m, nil
 
 	case chatHistoryMsg:
-		m.messages = msg.messages
-		m.blocks = messagesToBlocks(msg.messages)
-		m.err = msg.err
 		if msg.err != nil {
+			m.err = msg.err
 			m.loading = false
+			return m, nil
+		}
+		m.messages = msg.messages
+		for i := len(m.messages) - 1; i >= 0; i-- {
+			if m.messages[i].Usage != nil {
+				m.lastUsage = m.messages[i].Usage
+				break
+			}
+		}
+		m.rebuildBlocks()
+		m.loading = false
+		if m.chat != nil && !m.streaming {
+			return m.startStream()
+		}
+		return m, nil
+
+	case chatCreatedMsg:
+		if msg.err != nil {
+			m.err = msg.err
+			return m, nil
+		}
+		chat := msg.chat
+		m.chat = &chat
+		m.chatStatus = chat.Status
+		m.diffStatus = chat.DiffStatus
+		m.draft = false
+		m.err = nil
+		return m.startStream()
+
+	case messageSentMsg:
+		if msg.err != nil {
+			m.err = msg.err
+			return m, nil
+		}
+		if msg.resp.Message != nil {
+			m.addMessageIfNew(*msg.resp.Message)
+		}
+		if msg.resp.Queued && msg.resp.QueuedMessage != nil {
+			m.queuedMessages = []codersdk.ChatQueuedMessage{*msg.resp.QueuedMessage}
+		}
+		m.rebuildBlocks()
+		return m, nil
+
+	case chatInterruptedMsg:
+		m.interrupting = false
+		if msg.err != nil {
+			m.err = msg.err
+			return m, nil
+		}
+		chat := msg.chat
+		m.chat = &chat
+		m.chatStatus = chat.Status
+		return m, nil
+
+	case chatStreamEventMsg:
+		if msg.err != nil {
+			m.streaming = false
+			m.streamCloser = nil
+			m.streamEventCh = nil
+			if m.isInterruptible() && m.chat != nil {
+				m.reconnecting = true
+				return m.startStream()
+			}
+			return m, nil
+		}
+		return m.handleStreamEvent(msg.event)
+
+	case modelsListedMsg:
+		if msg.err != nil {
+			return m, nil
+		}
+		m.modelPickerFlat = nil
+		for _, provider := range msg.catalog.Providers {
+			if provider.Available {
+				m.modelPickerFlat = append(m.modelPickerFlat, provider.Models...)
+			}
+		}
+		if m.modelPickerCursor >= len(m.modelPickerFlat) {
+			m.modelPickerCursor = max(len(m.modelPickerFlat)-1, 0)
+		}
+		return m, nil
+
+	case gitChangesMsg:
+		if msg.err == nil {
+			m.gitChanges = msg.changes
+		}
+		return m, nil
+
+	case diffContentsMsg:
+		if msg.err == nil {
+			diff := msg.diff
+			m.diffContents = &diff
 		}
 		return m, nil
 
@@ -221,45 +522,50 @@ func (m chatViewModel) Update(msg tea.Msg) (chatViewModel, tea.Cmd) {
 	}
 }
 
-func (m chatViewModel) stubContent() string {
-	for _, block := range m.blocks {
-		switch block.kind {
-		case blockText, blockReasoning, blockToolCall, blockToolResult, blockCompaction:
+func (m chatViewModel) handleStreamEvent(event codersdk.ChatStreamEvent) (chatViewModel, tea.Cmd) {
+	switch event.Type {
+	case codersdk.ChatStreamEventTypeMessagePart:
+		if event.MessagePart != nil {
+			m.accumulator.applyDelta(*event.MessagePart)
+			m.rebuildBlocks()
 		}
-		_ = block.role
-		_ = block.text
-		_ = block.toolName
-		_ = block.toolID
-		_ = block.args
-		_ = block.result
-		_ = block.isError
+
+	case codersdk.ChatStreamEventTypeMessage:
+		if event.Message != nil {
+			m.addMessageIfNew(*event.Message)
+			if event.Message.Usage != nil {
+				m.lastUsage = event.Message.Usage
+			}
+			m.accumulator.reset()
+			m.reconnecting = false
+			m.rebuildBlocks()
+		}
+
+	case codersdk.ChatStreamEventTypeStatus:
+		if event.Status != nil {
+			m.chatStatus = event.Status.Status
+			if m.chat != nil {
+				m.chat.Status = event.Status.Status
+			}
+		}
+
+	case codersdk.ChatStreamEventTypeQueueUpdate:
+		m.queuedMessages = event.QueuedMessages
+		m.rebuildBlocks()
+
+	case codersdk.ChatStreamEventTypeRetry:
+		m.reconnecting = true
+
+	case codersdk.ChatStreamEventTypeError:
+		if event.Error != nil {
+			m.err = xerrors.Errorf("stream error: %s", event.Error.Message)
+		}
 	}
-	_ = len(m.accumulator.parts)
-	_ = m.accumulator.role
-	_ = m.accumulator.isPending()
-	scratchAccumulator := streamAccumulator{}
-	scratchAccumulator.applyDelta(codersdk.ChatStreamMessagePart{
-		Part: codersdk.ChatMessagePart{
-			Type:       codersdk.ChatMessagePartTypeToolCall,
-			ToolCallID: "stub",
-			ArgsDelta:  "{}",
-		},
-	})
-	scratchAccumulator.reset()
-	_ = m.diffStatus
-	_ = m.isInterruptible()
-	_ = renderChatBlocks(m.styles, m.blocks, m.selectedBlock, m.expandedBlocks, m.composerFocused, m.width)
-	_ = renderStatusBar(
-		m.styles,
-		m.chat,
-		m.chatStatus,
-		m.lastUsage,
-		len(m.queuedMessages),
-		m.interrupting,
-		m.reconnecting,
-		m.width,
-	)
-	return "[Chat content will be rendered here]"
+
+	if m.streaming && m.streamEventCh != nil {
+		return m, listenToStream(m.streamEventCh)
+	}
+	return m, nil
 }
 
 func (m chatViewModel) View() string {
@@ -283,20 +589,66 @@ func (m chatViewModel) View() string {
 
 	statusLine := ""
 	if m.chat != nil {
-		statusLine = "Status: " + m.styles.statusColor(m.chat.Status).Render(string(m.chat.Status))
+		statusLine = "Status: " + m.styles.statusColor(m.chatStatus).Render(string(m.chatStatus))
 	}
+
+	transcript := renderChatBlocks(
+		m.styles,
+		m.blocks,
+		m.selectedBlock,
+		m.expandedBlocks,
+		m.composerFocused,
+		m.width,
+	)
+
+	if m.accumulator.isPending() || m.reconnecting {
+		indicator := "▍"
+		if m.reconnecting {
+			indicator = "reconnecting…"
+		}
+		transcript += "\n" + m.styles.dimmedText.Render(indicator)
+	}
+
+	m.viewport.SetContent(transcript)
+
+	statusBar := renderStatusBar(
+		m.styles,
+		m.chat,
+		m.chatStatus,
+		m.lastUsage,
+		len(m.queuedMessages),
+		m.interrupting,
+		m.reconnecting,
+		m.width,
+	)
+
+	composerView := m.styles.composerStyle.Render(m.composer.View())
+
+	helpParts := []string{"tab: switch focus", "esc: back"}
+	if m.composerFocused {
+		helpParts = append(helpParts, "enter: send")
+	} else {
+		helpParts = append(helpParts, "↑↓: navigate", "enter: expand/collapse")
+	}
+	if m.isInterruptible() {
+		helpParts = append(helpParts, "ctrl+i: interrupt")
+	}
+	helpParts = append(helpParts, "ctrl+p: models", "ctrl+d: diff")
+	helpRow := m.styles.helpText.Render(strings.Join(helpParts, " | "))
 
 	sections := []string{header}
 	if statusLine != "" {
 		sections = append(sections, statusLine)
 	}
-	sections = append(
-		sections,
-		m.styles.separator.Render(strings.Repeat("-", max(m.width, 1))),
-		m.styles.dimmedText.Render(m.stubContent()),
-		m.styles.separator.Render(strings.Repeat("-", max(m.width, 1))),
-		m.styles.helpText.Render("esc: back to list"),
+	sections = append(sections,
+		m.styles.separator.Render(strings.Repeat("─", max(m.width, 1))),
+		m.viewport.View(),
+		m.styles.separator.Render(strings.Repeat("─", max(m.width, 1))),
 	)
+	if statusBar != "" {
+		sections = append(sections, statusBar)
+	}
+	sections = append(sections, composerView, helpRow)
 
 	return strings.Join(sections, "\n")
 }
