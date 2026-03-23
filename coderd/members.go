@@ -17,7 +17,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
@@ -182,9 +181,8 @@ func (api *API) organizationMember(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var aiSeatSet map[uuid.UUID]struct{}
-	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) &&
-		api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
-		//nolint:gocritic // AI seat state is a system-level read gated by entitlement and admin authorization.
+	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
+		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
 		aiSeatSet, err = getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, []uuid.UUID{member.UserID})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
@@ -245,9 +243,8 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 		userIDs = append(userIDs, member.OrganizationMember.UserID)
 	}
 	var aiSeatSet map[uuid.UUID]struct{}
-	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) &&
-		api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
-		//nolint:gocritic // AI seat state is a system-level read gated by entitlement and admin authorization.
+	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
+		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
 		aiSeatSet, err = getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, userIDs)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
@@ -355,9 +352,8 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 		userIDs = append(userIDs, member.OrganizationMember.UserID)
 	}
 	var aiSeatSet map[uuid.UUID]struct{}
-	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) &&
-		api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
-		//nolint:gocritic // AI seat state is a system-level read gated by entitlement and admin authorization.
+	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
+		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
 		aiSeatSet, err = getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, userIDs)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)

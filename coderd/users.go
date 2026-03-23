@@ -330,9 +330,8 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var aiSeatUserIDs []uuid.UUID
-	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) &&
-		api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
-		//nolint:gocritic // AI seat state is a system-level read gated by entitlement and admin authorization.
+	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
+		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
 		aiSeatUserIDs, err = api.Database.GetUserAISeatStates(dbauthz.AsSystemRestricted(ctx), userIDs)
 		if xerrors.Is(err, sql.ErrNoRows) {
 			err = nil
@@ -745,7 +744,13 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	sdkUser := db2sdk.User(user, organizationIDs)
-	api.enrichUserAISeat(ctx, &sdkUser)
+	if err := api.enrichUserAISeat(ctx, &sdkUser); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching AI seat state.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, sdkUser)
 }
 
@@ -920,7 +925,13 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	sdkUser := db2sdk.User(updatedUserProfile, organizationIDs)
-	api.enrichUserAISeat(ctx, &sdkUser)
+	if err := api.enrichUserAISeat(ctx, &sdkUser); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching AI seat state.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, sdkUser)
 }
 
@@ -1023,7 +1034,13 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		}
 
 		sdkUser := db2sdk.User(targetUser, organizations)
-		api.enrichUserAISeat(ctx, &sdkUser)
+		if err := api.enrichUserAISeat(ctx, &sdkUser); err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching AI seat state.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusOK, sdkUser)
 	}
 }
@@ -1514,7 +1531,13 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	sdkUser := db2sdk.User(updatedUser, organizationIDs)
-	api.enrichUserAISeat(ctx, &sdkUser)
+	if err := api.enrichUserAISeat(ctx, &sdkUser); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching AI seat state.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, sdkUser)
 }
 
@@ -1730,9 +1753,9 @@ func findUserAdmins(ctx context.Context, store database.Store) ([]database.GetUs
 }
 
 // enrichUserAISeat sets HasAISeat on the user when the feature is entitled.
-func (api *API) enrichUserAISeat(ctx context.Context, user *codersdk.User) {
+func (api *API) enrichUserAISeat(ctx context.Context, user *codersdk.User) error {
 	if !api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
-		return
+		return nil
 	}
 
 	//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
@@ -1740,19 +1763,18 @@ func (api *API) enrichUserAISeat(ctx context.Context, user *codersdk.User) {
 		dbauthz.AsSystemRestricted(ctx),
 		[]uuid.UUID{user.ID},
 	)
-	if xerrors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		return
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return err
 	}
 
 	for _, uid := range aiSeatUserIDs {
 		if uid == user.ID {
 			user.HasAISeat = true
-			return
+			return nil
 		}
 	}
+
+	return nil
 }
 
 func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID, aiSeatSet map[uuid.UUID]struct{}) []codersdk.User {
