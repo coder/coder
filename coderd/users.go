@@ -330,8 +330,9 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var aiSeatUserIDs []uuid.UUID
-	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
-		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
+	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) &&
+		api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		//nolint:gocritic // AI seat state is a system-level read gated by entitlement and admin authorization.
 		aiSeatUserIDs, err = api.Database.GetUserAISeatStates(dbauthz.AsSystemRestricted(ctx), userIDs)
 		if xerrors.Is(err, sql.ErrNoRows) {
 			err = nil
@@ -743,7 +744,9 @@ func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(user, organizationIDs))
+	sdkUser := db2sdk.User(user, organizationIDs)
+	api.enrichUserAISeat(ctx, &sdkUser)
+	httpapi.Write(ctx, rw, http.StatusOK, sdkUser)
 }
 
 // Returns recent build parameters for the signed-in user.
@@ -916,7 +919,9 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUserProfile, organizationIDs))
+	sdkUser := db2sdk.User(updatedUserProfile, organizationIDs)
+	api.enrichUserAISeat(ctx, &sdkUser)
+	httpapi.Write(ctx, rw, http.StatusOK, sdkUser)
 }
 
 // @Summary Suspend user account
@@ -1017,7 +1022,9 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			return
 		}
 
-		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(targetUser, organizations))
+		sdkUser := db2sdk.User(targetUser, organizations)
+		api.enrichUserAISeat(ctx, &sdkUser)
+		httpapi.Write(ctx, rw, http.StatusOK, sdkUser)
 	}
 }
 
@@ -1506,7 +1513,9 @@ func (api *API) putUserRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(updatedUser, organizationIDs))
+	sdkUser := db2sdk.User(updatedUser, organizationIDs)
+	api.enrichUserAISeat(ctx, &sdkUser)
+	httpapi.Write(ctx, rw, http.StatusOK, sdkUser)
 }
 
 // Returns organizations the parameterized user has access to.
@@ -1718,6 +1727,32 @@ func findUserAdmins(ctx context.Context, store database.Store) ([]database.GetUs
 		return nil, xerrors.Errorf("get owners: %w", err)
 	}
 	return userAdmins, nil
+}
+
+// enrichUserAISeat sets HasAISeat on the user when the feature is entitled.
+func (api *API) enrichUserAISeat(ctx context.Context, user *codersdk.User) {
+	if !api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
+		return
+	}
+
+	//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
+	aiSeatUserIDs, err := api.Database.GetUserAISeatStates(
+		dbauthz.AsSystemRestricted(ctx),
+		[]uuid.UUID{user.ID},
+	)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		return
+	}
+
+	for _, uid := range aiSeatUserIDs {
+		if uid == user.ID {
+			user.HasAISeat = true
+			return
+		}
+	}
 }
 
 func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID, aiSeatSet map[uuid.UUID]struct{}) []codersdk.User {
