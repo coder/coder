@@ -219,11 +219,8 @@ seems like it should use `time.Sleep`, read through https://github.com/coder/qua
 - Commit format: `type(scope): message`
 - PR titles follow the same `type(scope): message` format.
 - When you use a scope, it must be a real filesystem path containing every
-  changed file. CI validates this — the title check will fail if any
-  changed file falls outside the scope directory.
+  changed file.
 - Use a broader path scope, or omit the scope, for cross-cutting changes.
-  If a PR touches `coderd/`, `codersdk/`, and `site/`, omit the scope
-  entirely: `feat: add per-user threshold overrides`.
 - Example: `fix(coderd/chatd): ...` for changes only in `coderd/chatd/`.
 
 ### Frontend Patterns
