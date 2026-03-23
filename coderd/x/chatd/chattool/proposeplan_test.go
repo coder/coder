@@ -76,6 +76,43 @@ func TestProposePlan(t *testing.T) {
 		assert.Contains(t, resp.Content, "path must end with .md")
 	})
 
+	t.Run("RelativePathRejected", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		tool := newProposePlanTool(t, mockConn)
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "propose_plan",
+			Input: `{"path":"PLAN.md"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "must be absolute")
+	})
+
+	t.Run("OversizedFileRejected", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		largeContent := strings.Repeat("x", 1024*1024+1)
+
+		mockConn.EXPECT().
+			ReadFile(gomock.Any(), "/home/coder/PLAN.md", int64(0), int64(0)).
+			Return(io.NopCloser(strings.NewReader(largeContent)), "text/markdown", nil)
+
+		tool := newProposePlanTool(t, mockConn)
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "propose_plan",
+			Input: `{"path":"/home/coder/PLAN.md"}`,
+		})
+		require.NoError(t, err)
+		assert.True(t, resp.IsError)
+		assert.Contains(t, resp.Content, "size limit")
+	})
+
 	t.Run("ValidPlanReadsFile", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
