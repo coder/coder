@@ -1043,7 +1043,7 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceAibridgeInterception.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner},
+				true: {owner, auditor},
 				false: {
 					memberMe,
 					orgAdmin, otherOrgAdmin,
