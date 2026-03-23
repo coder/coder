@@ -1079,7 +1079,8 @@ export interface Chat {
  * ChatCompactionThresholdKeyPrefix scopes per-model chat compaction
  * threshold settings.
  */
-export const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold:";
+export const ChatCompactionThresholdKeyPrefix =
+	"chat_compaction_threshold_pct:";
 
 // From codersdk/deployment.go
 export interface ChatConfig {

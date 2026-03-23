@@ -195,7 +195,8 @@ RETURNING *;
 
 -- name: ListUserChatCompactionThresholds :many
 SELECT user_id, key, value FROM user_configs
-WHERE user_id = @user_id AND key LIKE 'chat_compaction_threshold:%'
+WHERE user_id = @user_id
+	AND key LIKE 'chat\_compaction\_threshold\_pct:%' ESCAPE '\\'
 ORDER BY key;
 
 -- name: GetUserChatCompactionThreshold :one

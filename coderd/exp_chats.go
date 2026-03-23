@@ -2874,13 +2874,11 @@ func (api *API) getUserChatCompactionThresholds(rw http.ResponseWriter, r *http.
 			)
 			continue
 		}
-		if thresholdPercent < int64(minChatContextCompressionThreshold) ||
-			thresholdPercent > int64(maxChatContextCompressionThreshold) {
-			api.Logger.Warn(ctx, "skipping out-of-range user chat compaction threshold",
-				slog.F("key", row.Key),
-				slog.F("value", row.Value),
-			)
-			continue
+		if thresholdPercent < int64(minChatContextCompressionThreshold) {
+			thresholdPercent = int64(minChatContextCompressionThreshold)
+		}
+		if thresholdPercent > int64(maxChatContextCompressionThreshold) {
+			thresholdPercent = int64(maxChatContextCompressionThreshold)
 		}
 
 		resp.Thresholds = append(resp.Thresholds, codersdk.UserChatCompactionThreshold{

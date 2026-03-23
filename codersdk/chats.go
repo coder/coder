@@ -24,7 +24,7 @@ import (
 
 // ChatCompactionThresholdKeyPrefix scopes per-model chat compaction
 // threshold settings.
-const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold:"
+const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold_pct:"
 
 // ChatStatus represents the status of a chat.
 type ChatStatus string
