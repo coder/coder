@@ -1273,24 +1273,31 @@ type chainModeInfo struct {
 	trailingUserCount int
 }
 
-// resolveChainMode scans DB messages from the end to find the
-// latest assistant ProviderResponseID and count trailing user
-// messages for the current turn.
+// resolveChainMode scans DB messages from the end to count trailing user
+// messages for the current turn and detect whether the immediately
+// preceding assistant/tool block can chain from a provider response ID.
 func resolveChainMode(messages []database.ChatMessage) chainModeInfo {
 	var info chainModeInfo
-	for i := len(messages) - 1; i >= 0; i-- {
+	i := len(messages) - 1
+	for ; i >= 0; i-- {
 		if messages[i].Role == database.ChatMessageRoleUser {
 			info.trailingUserCount++
 			continue
 		}
 		break
 	}
-	for i := len(messages) - 1; i >= 0; i-- {
-		if messages[i].Role == database.ChatMessageRoleAssistant &&
-			messages[i].ProviderResponseID.Valid &&
-			messages[i].ProviderResponseID.String != "" {
-			info.previousResponseID = messages[i].ProviderResponseID.String
-			break
+	for ; i >= 0; i-- {
+		switch messages[i].Role {
+		case database.ChatMessageRoleAssistant:
+			if messages[i].ProviderResponseID.Valid &&
+				messages[i].ProviderResponseID.String != "" {
+				info.previousResponseID = messages[i].ProviderResponseID.String
+				return info
+			}
+		case database.ChatMessageRoleTool:
+			continue
+		default:
+			return info
 		}
 	}
 	return info
