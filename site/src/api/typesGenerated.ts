@@ -1919,6 +1919,7 @@ export interface ChatToolResultPart {
 	readonly mcp_server_config_id?: string;
 	readonly result?: Record<string, string>;
 	readonly is_error?: boolean;
+	readonly is_media?: boolean;
 	/**
 	 * ProviderExecuted indicates the tool call was executed by
 	 * the provider (e.g. Anthropic computer use).

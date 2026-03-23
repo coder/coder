@@ -157,6 +157,7 @@ type ChatMessagePart struct {
 	Result            json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
 	ResultDelta       string              `json:"result_delta,omitempty"`
 	IsError           bool                `json:"is_error,omitempty" variants:"tool-result?"`
+	IsMedia           bool                `json:"is_media,omitempty" variants:"tool-result?"`
 	SourceID          string              `json:"source_id,omitempty" variants:"source?"`
 	URL               string              `json:"url" variants:"source"`
 	Title             string              `json:"title,omitempty" variants:"source?"`
@@ -211,13 +212,17 @@ func ChatMessageToolCall(toolCallID, toolName string, args json.RawMessage) Chat
 }
 
 // ChatMessageToolResult builds a tool-result chat message part.
-func ChatMessageToolResult(toolCallID, toolName string, result json.RawMessage, isError bool) ChatMessagePart {
+// The isMedia flag marks the result as carrying binary media content
+// (e.g. a screenshot) so that round-trip reconstruction preserves
+// the media type instead of sending raw base64 as text tokens.
+func ChatMessageToolResult(toolCallID, toolName string, result json.RawMessage, isError bool, isMedia bool) ChatMessagePart {
 	return ChatMessagePart{
 		Type:       ChatMessagePartTypeToolResult,
 		ToolCallID: toolCallID,
 		ToolName:   toolName,
 		Result:     result,
 		IsError:    isError,
+		IsMedia:    isMedia,
 	}
 }
 

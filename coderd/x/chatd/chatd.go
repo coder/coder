@@ -3734,7 +3734,7 @@ func (p *Server) persistChatContextSummary(
 		return xerrors.Errorf("encode summary result payload: %w", err)
 	}
 	toolResult, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageToolResult(toolCallID, "chat_summarized", summaryResult, false),
+		codersdk.ChatMessageToolResult(toolCallID, "chat_summarized", summaryResult, false, false),
 	})
 	if err != nil {
 		return xerrors.Errorf("encode summary tool result: %w", err)
