@@ -212,6 +212,61 @@ After a chat completes, it automatically promotes the next queued message.
 
 ---
 
+## Chat Data Lifecycle
+
+There is currently **no retention or cleanup policy** for chat data. This is a
+significant gap that needs addressing before scale becomes a concern.
+
+### Current state
+
+| Data | Soft-delete? | Hard-delete? | Retention policy? |
+|---|---|---|---|
+| `chats` | Yes (`archived = true`) | No | None |
+| `chat_messages` | Yes (`deleted = true`, for edits) | No | None |
+| `chat_files` | No | No | None |
+| `chat_queued_messages` | N/A (deleted on consume) | Yes (on consume) | N/A |
+| `chat_diff_statuses` | No | `ON DELETE CASCADE` from chats | None |
+
+### Concerns at scale
+
+- **Unbounded growth.** Every chat and every message is retained forever.
+  Archived chats are hidden from the UI but remain in the database. Soft-deleted
+  messages (from edits) are never pruned. With automation-driven usage, this
+  could reach hundreds of thousands of chats with millions of messages.
+- **`chat_messages.content` is JSONB.** Tool results (especially `execute`
+  output, up to 32KB per tool call) are stored inline. A single long chat
+  session can produce tens of megabytes of message content.
+- **`chat_files` has no FK to `chats`.** Files are owned by user/org but not
+  linked to a specific chat. When a chat is archived, its referenced files
+  become orphans with no cleanup path. File data is stored as `BYTEA` directly
+  in the table.
+- **No partitioning.** `chat_messages` uses a `BIGSERIAL` primary key and is
+  indexed by `(chat_id)` and `(chat_id, created_at)`. At high row counts,
+  index maintenance and vacuum costs will grow.
+- **Compaction summaries don't reduce storage.** Compaction summarizes context
+  for the LLM but does not delete the original messages. The summary is added
+  as an additional system message, so compaction *increases* total storage.
+- **Subagent chats are invisible to users** but still consume storage. A parent
+  chat spawning multiple subagents creates additional chats and messages that
+  are never surfaced in the UI and have no independent cleanup path.
+
+### Questions to resolve
+
+- Should there be a configurable retention period after which archived chats
+  (and their messages) are hard-deleted?
+- Should soft-deleted messages (from edits) be pruned after some period?
+- Should compaction have an option to tombstone the original messages it
+  summarized, reducing storage while preserving the summary?
+- Should `chat_files` have a FK to `chats` or at least a `last_referenced_at`
+  column to enable orphan cleanup?
+- Should subagent chats have a shorter retention than user-facing chats?
+- Do we need `chat_messages` table partitioning (e.g. by `created_at` range)
+  for large deployments?
+- Is there a role for an async background job (similar to workspace
+  auto-deletion) that prunes old chat data?
+
+---
+
 ## Known Technical Debt
 
 1. **`chatd.go` needs decomposition.** At ~3,900 lines, this single file contains
