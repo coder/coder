@@ -3408,11 +3408,9 @@ func TestReinit(t *testing.T) {
 	})
 
 	// Verifies that when the claim build completed with an error,
-	// the handler returns 500 so the agent retries with backoff
-	// instead of hanging forever waiting for a pubsub event that
-	// will never arrive (PublishWorkspaceClaim is only called on
-	// success).
-	t.Run("failed claim build returns 500", func(t *testing.T) {
+	// the handler returns 409 so the agent treats it as terminal
+	// and stops retrying (WaitForReinitLoop exits on any 409).
+	t.Run("failed claim build returns terminal 409", func(t *testing.T) {
 		t.Parallel()
 
 		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
@@ -3446,7 +3444,7 @@ func TestReinit(t *testing.T) {
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode())
+		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
 	})
 
 	// Verifies that a regular workspace (never a prebuild) gets a

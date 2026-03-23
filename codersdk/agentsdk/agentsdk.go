@@ -756,6 +756,7 @@ func WaitForReinitLoop(ctx context.Context, logger slog.Logger, client *Client) 
 	reinitEvents := make(chan ReinitializationEvent)
 
 	go func() {
+		defer close(reinitEvents)
 		for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 			logger.Debug(ctx, "waiting for agent reinitialization instructions")
 			reinitEvent, err := client.WaitForReinit(ctx)
@@ -763,7 +764,6 @@ func WaitForReinitLoop(ctx context.Context, logger slog.Logger, client *Client) 
 				var sdkErr *codersdk.Error
 				if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusConflict {
 					logger.Info(ctx, "workspace is not a prebuilt workspace, not waiting for reinit")
-					close(reinitEvents)
 					return
 				}
 				logger.Error(ctx, "failed to wait for agent reinitialization instructions", slog.Error(err))
@@ -772,7 +772,6 @@ func WaitForReinitLoop(ctx context.Context, logger slog.Logger, client *Client) 
 			retrier.Reset()
 			select {
 			case <-ctx.Done():
-				close(reinitEvents)
 				return
 			case reinitEvents <- *reinitEvent:
 			}
