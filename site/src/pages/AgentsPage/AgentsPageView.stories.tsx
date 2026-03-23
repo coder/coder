@@ -9,7 +9,19 @@ import { API } from "api/api";
 import type * as TypesGen from "api/typesGenerated";
 import type { Chat } from "api/typesGenerated";
 import type { ModelSelectorOption } from "components/ai-elements";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { Button } from "components/Button/Button";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "components/Dialog/Dialog";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
+import { Spinner } from "components/Spinner/Spinner";
 import dayjs from "dayjs";
 import { useState } from "react";
 import {
@@ -375,22 +387,76 @@ export const DeleteConfirmationDialog: Story = {
 		const [isOpen, setIsOpen] = useState(true);
 		const [isLoading, setIsLoading] = useState(false);
 		const onConfirm = fn();
+		const [confirmText, setConfirmText] = useState("");
 		return (
-			<DeleteDialog
-				key="my-workspace"
-				isOpen={isOpen}
-				onConfirm={() => {
-					onConfirm();
-					setIsLoading(true);
+			<Dialog
+				open={isOpen}
+				onOpenChange={(open) => {
+					if (!open) setIsOpen(false);
 				}}
-				onCancel={() => setIsOpen(false)}
-				entity="workspace"
-				name="my-workspace"
-				confirmLoading={isLoading}
-				title="Archive agent & delete workspace"
-				verb="Archiving and deleting"
-				info="This will archive the agent and permanently delete the associated workspace and all its resources."
-			/>
+			>
+				<DialogContent variant="destructive">
+					<DialogHeader>
+						<DialogTitle>Archive agent &amp; delete workspace</DialogTitle>
+						<DialogDescription asChild>
+							<div className="flex flex-col gap-4">
+								<p>Archiving and deleting this workspace is irreversible!</p>
+								<div className="rounded-md border border-solid border-border-destructive bg-surface-destructive px-4 py-2 text-content-primary">
+									This will archive the agent and permanently delete the
+									associated workspace and all its resources.
+								</div>
+								<p>
+									Type{" "}
+									<strong className="text-content-primary">my-workspace</strong>{" "}
+									below to confirm.
+								</p>
+							</div>
+						</DialogDescription>
+					</DialogHeader>
+					<form
+						onSubmit={(e) => {
+							e.preventDefault();
+							if (confirmText === "my-workspace") {
+								onConfirm();
+								setIsLoading(true);
+							}
+						}}
+					>
+						<div className="flex flex-col gap-2">
+							<Label htmlFor="delete-confirm-name">
+								Name of the workspace to delete
+							</Label>
+							<Input
+								id="delete-confirm-name"
+								autoFocus
+								autoComplete="off"
+								placeholder="my-workspace"
+								value={confirmText}
+								onChange={(e) => setConfirmText(e.target.value)}
+								data-testid="delete-dialog-name-confirmation"
+							/>
+						</div>
+					</form>
+					<DialogFooter>
+						<DialogClose asChild>
+							<Button variant="outline" disabled={isLoading}>
+								Cancel
+							</Button>
+						</DialogClose>
+						<Button
+							variant="destructive"
+							disabled={confirmText !== "my-workspace" || isLoading}
+							onClick={() => {
+								onConfirm();
+								setIsLoading(true);
+							}}
+						>
+							<Spinner loading={isLoading} />
+							Delete
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		);
 	},
 	play: async () => {

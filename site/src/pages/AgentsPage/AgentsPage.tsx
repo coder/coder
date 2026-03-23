@@ -15,7 +15,19 @@ import {
 } from "api/queries/chats";
 import { workspaceById } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { Button } from "components/Button/Button";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "components/Dialog/Dialog";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
+import { Spinner } from "components/Spinner/Spinner";
 import { useAuthenticated } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useEffect, useRef, useState } from "react";
@@ -493,6 +505,8 @@ const AgentsPage: FC = () => {
 
 	const deleteDialogOpen =
 		pendingArchiveAndDelete !== null && Boolean(pendingWorkspaceName);
+	const [deleteConfirmText, setDeleteConfirmText] = useState("");
+	const deleteConfirmed = deleteConfirmText === pendingWorkspaceName;
 
 	return (
 		<>
@@ -526,19 +540,80 @@ const AgentsPage: FC = () => {
 				archivedFilter={archivedFilter}
 				onArchivedFilterChange={setArchivedFilter}
 			/>
-			<DeleteDialog
-				key={pendingWorkspaceName}
-				isOpen={deleteDialogOpen}
-				onConfirm={handleConfirmArchiveAndDelete}
-				onCancel={() => setPendingArchiveAndDelete(null)}
-				entity="workspace"
-				name={pendingWorkspaceName}
-				confirmLoading={archiveAndDeleteMutation.isPending}
-				title="Archive agent & delete workspace"
-				verb="Archiving and deleting"
-				info="This will archive the agent and permanently delete the associated workspace and all its resources."
-			/>
+			<Dialog
+				open={deleteDialogOpen}
+				onOpenChange={(open) => {
+					if (!open) {
+						setPendingArchiveAndDelete(null);
+						setDeleteConfirmText("");
+					}
+				}}
+			>
+				<DialogContent variant="destructive">
+					<DialogHeader>
+						<DialogTitle>Archive agent &amp; delete workspace</DialogTitle>
+						<DialogDescription asChild>
+							<div className="flex flex-col gap-4">
+								<p>Archiving and deleting this workspace is irreversible!</p>
+								<div className="rounded-md border border-solid border-border-destructive bg-surface-destructive px-4 py-2 text-content-primary">
+									This will archive the agent and permanently delete the
+									associated workspace and all its resources.
+								</div>
+								<p>
+									Type{" "}
+									<strong className="text-content-primary">
+										{pendingWorkspaceName}
+									</strong>{" "}
+									below to confirm.
+								</p>
+							</div>
+						</DialogDescription>
+					</DialogHeader>
+					<form
+						onSubmit={(e) => {
+							e.preventDefault();
+							if (deleteConfirmed) {
+								handleConfirmArchiveAndDelete();
+							}
+						}}
+					>
+						<div className="flex flex-col gap-2">
+							<Label htmlFor="delete-confirm-name">
+								Name of the workspace to delete
+							</Label>
+							<Input
+								id="delete-confirm-name"
+								autoFocus
+								autoComplete="off"
+								placeholder={pendingWorkspaceName}
+								value={deleteConfirmText}
+								onChange={(e) => setDeleteConfirmText(e.target.value)}
+								data-testid="delete-dialog-name-confirmation"
+							/>
+						</div>
+					</form>
+					<DialogFooter>
+						<DialogClose asChild>
+							<Button
+								variant="outline"
+								disabled={archiveAndDeleteMutation.isPending}
+							>
+								Cancel
+							</Button>
+						</DialogClose>
+						<Button
+							variant="destructive"
+							disabled={!deleteConfirmed || archiveAndDeleteMutation.isPending}
+							onClick={handleConfirmArchiveAndDelete}
+						>
+							<Spinner loading={archiveAndDeleteMutation.isPending} />
+							Delete
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</>
 	);
 };
+
 export default AgentsPage;
