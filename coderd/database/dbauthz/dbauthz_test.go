@@ -819,6 +819,19 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpdateChatStatus(gomock.Any(), arg).Return(chat, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
 	}))
+	s.Run("UpdateChatBuildAgentBindingIfWorkspaceMatches", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.UpdateChatBuildAgentBindingIfWorkspaceMatchesParams{
+			ID:                  chat.ID,
+			ExpectedWorkspaceID: uuid.New(),
+			BuildID:             uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			AgentID:             uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		}
+		updatedChat := testutil.Fake(s.T(), faker, database.Chat{ID: chat.ID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatBuildAgentBindingIfWorkspaceMatches(gomock.Any(), arg).Return(updatedChat, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(updatedChat)
+	}))
 	s.Run("UpdateChatWorkspaceBinding", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatWorkspaceBindingParams{
