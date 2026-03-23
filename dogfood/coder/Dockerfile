@@ -287,7 +287,8 @@ ARG GOLANGCI_LINT_VERSION=1.64.8 \
 	HELM_VERSION=3.12.0 \
 	KUBECTX_VERSION=0.9.4 \
 	SYFT_VERSION=1.20.0 \
-	COSIGN_VERSION=2.4.3
+	COSIGN_VERSION=2.4.3 \
+	BUN_VERSION=1.2.15
 
 # golangci-lint performs static code analysis for our Go code
 RUN curl --silent --show-error --location --fail "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.tar.gz" | \
@@ -305,7 +306,17 @@ RUN curl --silent --show-error --location --fail "https://github.com/golangci/go
 	tar --extract --gzip --directory=/usr/local/bin --file=- syft && \
 	# Sigstore Cosign for artifact signing and attestation
 	curl --silent --show-error --location --fail --output /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" && \
-	chmod a=rx /usr/local/bin/cosign
+	chmod a=rx /usr/local/bin/cosign && \
+	# Install Bun JavaScript runtime to /usr/local/bin
+	# Ensure unzip is installed right before using it and use multiple mirrors for reliability
+	(apt-get update || (sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && apt-get update)) && \
+	apt-get install -y unzip && \
+	curl --silent --show-error --location --fail "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip" --output /tmp/bun.zip && \
+	unzip -q /tmp/bun.zip -d /tmp && \
+	mv /tmp/bun-linux-x64/bun /usr/local/bin/ && \
+	chmod a=rx /usr/local/bin/bun && \
+	rm -rf /tmp/bun.zip /tmp/bun-linux-x64 && \
+	apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Add coder user and allow use of docker/sudo
 RUN useradd coder \
