@@ -2372,13 +2372,11 @@ func sortDatabaseUsers(users []database.User) {
 	})
 }
 
-func onlyUsernames[U codersdk.User | codersdk.UserWithAISeat | database.User](users []U) []string {
+func onlyUsernames[U codersdk.User | database.User](users []U) []string {
 	var out []string
 	for _, u := range users {
 		switch u := (any(u)).(type) {
 		case codersdk.User:
-			out = append(out, u.Username)
-		case codersdk.UserWithAISeat:
 			out = append(out, u.Username)
 		case database.User:
 			out = append(out, u.Username)
@@ -2419,13 +2417,18 @@ func TestUserHasAISeatFieldExposure(t *testing.T) {
 	require.Contains(t, string(listBody), "has_ai_seat",
 		"GET /users response must include has_ai_seat field")
 
-	// Single-user endpoints should NOT include has_ai_seat.
+	// Single-user endpoints should include has_ai_seat, defaulting to false.
 	singleRes, err := client.Request(ctx, http.MethodGet, "/api/v2/users/me", nil)
 	require.NoError(t, err)
 	defer singleRes.Body.Close()
 	require.Equal(t, http.StatusOK, singleRes.StatusCode)
 	var singleBody json.RawMessage
 	require.NoError(t, json.NewDecoder(singleRes.Body).Decode(&singleBody))
-	require.NotContains(t, string(singleBody), "has_ai_seat",
-		"GET /users/me response must not include has_ai_seat field")
+	require.Contains(t, string(singleBody), "has_ai_seat",
+		"GET /users/me response must include has_ai_seat field")
+
+	var singleUser codersdk.User
+	require.NoError(t, json.Unmarshal(singleBody, &singleUser))
+	require.False(t, singleUser.HasAISeat,
+		"GET /users/me should default has_ai_seat to false when user has no AI seat")
 }

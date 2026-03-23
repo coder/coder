@@ -55,7 +55,7 @@ func TestUserList(t *testing.T) {
 
 		<-doneChan
 
-		var users []codersdk.UserWithAISeat
+		var users []codersdk.User
 		err := json.Unmarshal(buf.Bytes(), &users)
 		require.NoError(t, err, "unmarshal JSON output")
 		require.Len(t, users, 2)

@@ -10,7 +10,7 @@ import { deploymentConfigQueryKey } from "api/queries/deployment";
 import { groupsQueryKey } from "api/queries/groups";
 import { rolesQueryKey } from "api/queries/roles";
 import { authMethodsQueryKey, usersKey } from "api/queries/users";
-import type { User, UserWithAISeat } from "api/typesGenerated";
+import type { User } from "api/typesGenerated";
 import { MockGroups } from "pages/UsersPage/storybookData/groups";
 import { MockRoles } from "pages/UsersPage/storybookData/roles";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
@@ -399,6 +399,6 @@ export const UpdateUserRoleError: Story = {
 	},
 };
 
-function replaceUser(users: UserWithAISeat[], index: number, user: User) {
+function replaceUser(users: User[], index: number, user: User) {
 	return users.map((u, i) => (i === index ? { ...u, ...user } : u));
 }

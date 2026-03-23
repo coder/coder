@@ -23,7 +23,7 @@ const Language = {
 } as const;
 
 interface UsersTableProps {
-	users: readonly TypesGen.UserWithAISeat[] | undefined;
+	users: readonly TypesGen.User[] | undefined;
 	roles: TypesGen.AssignableRoles[] | undefined;
 	groupsByUserId: GroupsByUserId | undefined;
 	isUpdatingUserRoles?: boolean;

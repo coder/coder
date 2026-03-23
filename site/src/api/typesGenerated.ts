@@ -3291,7 +3291,7 @@ export interface GetUserStatusCountsResponse {
 
 // From codersdk/users.go
 export interface GetUsersResponse {
-	readonly users: readonly UserWithAISeat[];
+	readonly users: readonly User[];
 	readonly count: number;
 }
 
@@ -7324,6 +7324,7 @@ export interface UsageStatsConfig {
 export interface User extends ReducedUser {
 	readonly organization_ids: readonly string[];
 	readonly roles: readonly SlimRole[];
+	readonly has_ai_seat: boolean;
 }
 
 // From codersdk/insights.go
@@ -7485,14 +7486,6 @@ export interface UserStatusChangeCount {
 }
 
 export const UserStatuses: UserStatus[] = ["active", "dormant", "suspended"];
-
-// From codersdk/users.go
-/**
- * UserWithAISeat is a user returned by list endpoints with AI seat metadata.
- */
-export interface UserWithAISeat extends User {
-	readonly has_ai_seat: boolean;
-}
 
 // From codersdk/users.go
 export interface UsersRequest extends Pagination {

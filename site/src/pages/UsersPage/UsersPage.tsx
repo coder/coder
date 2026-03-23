@@ -20,7 +20,6 @@ import { isNonInitialPage } from "components/PaginationWidget/utils";
 import { useAuthenticated } from "hooks";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
@@ -41,8 +40,14 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 	const navigate = useNavigate();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { entitlements } = useDashboard();
-	const featureVisibility = useFeatureVisibility();
-	const showAISeatColumn = featureVisibility.ai_governance_user_limit ?? false;
+	const aiGovernanceUserLimit = entitlements.features.ai_governance_user_limit;
+	// Keep this column visible even if usage exceeds the licensed limit so admins
+	// can identify who is consuming AI seats while remediating overages.
+	const showAISeatColumn =
+		entitlements.has_license &&
+		aiGovernanceUserLimit.enabled &&
+		(aiGovernanceUserLimit.entitlement === "entitled" ||
+			aiGovernanceUserLimit.entitlement === "grace_period");
 
 	const groupsByUserIdQuery = useQuery(groupsByUserId());
 	const authMethodsQuery = useQuery(authMethods());

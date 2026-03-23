@@ -17,7 +17,7 @@ import { Link as RouterLink } from "react-router";
 import { UsersTable } from "./UsersTable/UsersTable";
 
 interface UsersPageViewProps {
-	users?: readonly TypesGen.UserWithAISeat[];
+	users?: readonly TypesGen.User[];
 	roles?: TypesGen.AssignableRoles[];
 	isUpdatingUserRoles?: boolean;
 	canEditUsers: boolean;
