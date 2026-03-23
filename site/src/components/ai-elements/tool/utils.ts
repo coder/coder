@@ -295,7 +295,7 @@ const DIFF_HEADER_CSS = [
 	"  font-size: 12px;",
 	"  font-weight: 500;",
 	"  line-height: 20px;",
-	"  padding-inline: 6px;",
+	"  padding-inline: 4px;",
 	"  border-radius: 0;",
 	"}",
 	"[data-diffs-header] [data-additions-count] {",
