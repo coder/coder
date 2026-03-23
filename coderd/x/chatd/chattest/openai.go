@@ -24,6 +24,7 @@ type OpenAIResponse struct {
 	Response        *OpenAICompletion
 	Reasoning       *OpenAIReasoningItem
 	WebSearch       *OpenAIWebSearchCall
+	ResponseID      string         // If set, used as the response ID in streamed events; otherwise auto-generated.
 	Error           *ErrorResponse // If set, server returns this HTTP error instead of streaming/JSON.
 }
 
@@ -45,11 +46,13 @@ type OpenAIWebSearchCall struct {
 // OpenAIRequest represents an OpenAI chat completion request.
 type OpenAIRequest struct {
 	*http.Request
-	Model    string          `json:"model"`
-	Messages []OpenAIMessage `json:"messages"`
-	Stream   bool            `json:"stream,omitempty"`
-	Tools    []OpenAITool    `json:"tools,omitempty"`
-	Prompt   []interface{}   `json:"prompt,omitempty"` // For responses API
+	Model              string          `json:"model"`
+	Messages           []OpenAIMessage `json:"messages"`
+	Stream             bool            `json:"stream,omitempty"`
+	Tools              []OpenAITool    `json:"tools,omitempty"`
+	Prompt             []interface{}   `json:"prompt,omitempty"` // For responses API
+	Store              *bool           `json:"store,omitempty"`
+	PreviousResponseID *string         `json:"previous_response_id,omitempty"`
 	// TODO: encoding/json ignores inline tags. Add custom UnmarshalJSON to capture unknown keys.
 	Options map[string]interface{} `json:",inline"` //nolint:revive
 }
@@ -350,7 +353,10 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	responseID := fmt.Sprintf("resp_%s", uuid.New().String()[:8])
+	responseID := resp.ResponseID
+	if responseID == "" {
+		responseID = fmt.Sprintf("resp_%s", uuid.New().String()[:8])
+	}
 	responseModel := "gpt-4"
 	sequenceNumber := int64(0)
 	textOffset := 0
