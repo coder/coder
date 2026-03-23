@@ -441,7 +441,9 @@ export const updateUserChatCustomPrompt = (queryClient: QueryClient) => ({
 	},
 });
 
-const userCompactionThresholdsKey = ["user-compaction-thresholds"] as const;
+const userCompactionThresholdsKey = [
+	"chat-user-compaction-thresholds",
+] as const;
 
 export const userCompactionThresholds = () => ({
 	queryKey: userCompactionThresholdsKey,

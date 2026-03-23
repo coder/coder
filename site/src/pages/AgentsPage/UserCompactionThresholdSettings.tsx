@@ -274,6 +274,11 @@ export const UserCompactionThresholdSettings: FC<
 										)}
 									</div>
 								</div>
+								{draftValue.length > 0 && parsedDraftValue === null && (
+									<p className="m-0 text-xs text-content-destructive">
+										Enter a whole number between 0 and 100.
+									</p>
+								)}
 								{rowErrors[modelConfig.id] && (
 									<p
 										aria-live="polite"

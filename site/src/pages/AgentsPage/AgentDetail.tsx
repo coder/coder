@@ -236,20 +236,21 @@ export function useConversationEditingState(deps: {
  * Resolves the effective compaction threshold for a model configuration,
  * preferring the user's override when set.
  */
-function resolveCompressionThreshold(
+function resolveCompactionThreshold(
 	modelConfigID: string | undefined,
 	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
 	modelConfigs: readonly TypesGen.ChatModelConfig[],
 ): number | undefined {
 	if (!modelConfigID) return undefined;
+	const config = modelConfigs.find((c) => c.id === modelConfigID);
+	if (!config) return undefined;
 	const userOverride = userThresholds?.find(
 		(t) => t.model_config_id === modelConfigID,
 	);
 	if (userOverride) {
 		return userOverride.threshold_percent;
 	}
-	return modelConfigs.find((c) => c.id === modelConfigID)
-		?.compression_threshold;
+	return config.compression_threshold;
 }
 
 const AgentDetail: FC = () => {
@@ -514,7 +515,7 @@ const AgentDetail: FC = () => {
 		return modelOptions[0]?.id ?? "";
 	})();
 
-	const compressionThreshold = resolveCompressionThreshold(
+	const compressionThreshold = resolveCompactionThreshold(
 		chatLastModelConfigID,
 		userThresholdsQuery.data?.thresholds,
 		modelConfigs,
