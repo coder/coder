@@ -92,6 +92,14 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
 
+	// Mobile can't fit the sidebar nav and content side by side,
+	// so we show one or the other depending on the route depth.
+	const isSettingsIndex =
+		sidebarView.panel === "settings" && !sidebarView.section;
+	const isSettingsDetail =
+		sidebarView.panel === "settings" && Boolean(sidebarView.section);
+	const isAnalytics = sidebarView.panel === "analytics";
+
 	// The sidebar expects plain string error messages, but the outlet
 	// context now carries structured ChatDetailError objects.
 	const sidebarChatErrorReasons = Object.fromEntries(
@@ -121,7 +129,9 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					"md:h-full md:w-[320px] md:min-h-0 md:border-b-0",
 					agentId
 						? "hidden md:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
-						: "order-2 md:order-none flex-1 min-h-0 border-t border-border-default md:flex-none md:border-t-0",
+						: isSettingsDetail || isAnalytics
+							? "hidden md:block shrink-0"
+							: "order-2 md:order-none flex-1 min-h-0 border-t border-border-default md:flex-none md:border-t-0",
 					isSidebarCollapsed && "md:hidden",
 				)}
 			>
@@ -150,11 +160,12 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					isAdmin={isAgentsAdmin}
 				/>
 			</div>
-
 			<div
 				className={cn(
-					"flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
+					"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
+					isSettingsIndex ? "hidden md:flex" : "flex",
 					!agentId &&
+						!isSettingsDetail &&
 						sidebarView.panel === "chats" &&
 						"order-1 md:order-none flex-none md:flex-1",
 				)}
