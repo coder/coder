@@ -487,9 +487,10 @@ export const UsageUserDrillIn: Story = {
 		// Wait for the user list to load.
 		await userEvent.click(await body.findByText("Alice Liddell"));
 
-		// The detail view should show the user header with name
-		// and username subtitle.
-		await expect(await body.findByText("Alice Liddell")).toBeInTheDocument();
+		// Wait for the detail view to mount before asserting on
+		// its header content.
+		await body.findByText("@alice");
+		await expect(body.getByText("Alice Liddell")).toBeInTheDocument();
 		await expect(body.getByText("@alice")).toBeInTheDocument();
 
 		// The user profile was pre-seeded in the query cache via
