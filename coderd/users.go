@@ -329,17 +329,20 @@ func (api *API) users(rw http.ResponseWriter, r *http.Request) {
 		organizationIDsByUserID[organizationIDsByMemberIDsRow.UserID] = organizationIDsByMemberIDsRow.OrganizationIDs
 	}
 
-	//nolint:gocritic // Query spans many users, so handlers use system-restricted context.
-	aiSeatUserIDs, err := api.Database.GetUserAISeatStates(dbauthz.AsSystemRestricted(ctx), userIDs)
-	if xerrors.Is(err, sql.ErrNoRows) {
-		err = nil
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching AI seat states.",
-			Detail:  err.Error(),
-		})
-		return
+	var aiSeatUserIDs []uuid.UUID
+	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
+		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
+		aiSeatUserIDs, err = api.Database.GetUserAISeatStates(dbauthz.AsSystemRestricted(ctx), userIDs)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			err = nil
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching AI seat states.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 	aiSeatSet := make(map[uuid.UUID]struct{}, len(aiSeatUserIDs))
 	for _, uid := range aiSeatUserIDs {

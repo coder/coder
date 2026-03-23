@@ -180,11 +180,14 @@ func (api *API) organizationMember(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//nolint:gocritic // Member responses need system-restricted reads across user IDs.
-	aiSeatSet, err := getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, []uuid.UUID{member.UserID})
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
+	var aiSeatSet map[uuid.UUID]struct{}
+	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
+		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
+		aiSeatSet, err = getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, []uuid.UUID{member.UserID})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
 	}
 
 	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, rows, aiSeatSet)
@@ -239,11 +242,14 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 	for _, member := range members {
 		userIDs = append(userIDs, member.OrganizationMember.UserID)
 	}
-	//nolint:gocritic // Member responses need system-restricted reads across user IDs.
-	aiSeatSet, err := getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, userIDs)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
+	var aiSeatSet map[uuid.UUID]struct{}
+	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
+		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
+		aiSeatSet, err = getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, userIDs)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
 	}
 
 	resp, err := convertOrganizationMembersWithUserData(ctx, api.Database, members, aiSeatSet)
@@ -345,11 +351,14 @@ func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 	for _, member := range memberRows {
 		userIDs = append(userIDs, member.OrganizationMember.UserID)
 	}
-	//nolint:gocritic // Member responses need system-restricted reads across user IDs.
-	aiSeatSet, err := getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, userIDs)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
+	var aiSeatSet map[uuid.UUID]struct{}
+	if api.Entitlements.Enabled(codersdk.FeatureAIGovernanceUserLimit) {
+		//nolint:gocritic // AI seat state is a system-level read gated by entitlement.
+		aiSeatSet, err = getAISeatSetByUserIDs(dbauthz.AsSystemRestricted(ctx), api.Database, userIDs)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
 	}
 
 	members, err := convertOrganizationMembersWithUserData(ctx, api.Database, memberRows, aiSeatSet)
