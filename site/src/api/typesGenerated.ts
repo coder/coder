@@ -3007,6 +3007,12 @@ export interface ExternalAPIKeyScopes {
 export interface ExternalAgentCredentials {
 	readonly command: string;
 	readonly agent_token: string;
+	/**
+	 * InitScriptBaseURL is the base URL for the init script endpoint,
+	 * e.g. "https://coder.example.com/api/v2/init-script". Append
+	 * "/{os}/{arch}" to get the full URL for a specific platform.
+	 */
+	readonly init_script_base_url: string;
 }
 
 // From codersdk/externalauth.go

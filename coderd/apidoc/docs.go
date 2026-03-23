@@ -15518,6 +15518,10 @@ const docTemplate = `{
                 },
                 "command": {
                     "type": "string"
+                },
+                "init_script_base_url": {
+                    "description": "InitScriptBaseURL is the base URL for the init script endpoint,\ne.g. \"https://coder.example.com/api/v2/init-script\". Append\n\"/{os}/{arch}\" to get the full URL for a specific platform.",
+                    "type": "string"
                 }
             }
         },

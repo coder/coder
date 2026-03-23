@@ -384,6 +384,7 @@ func TestWorkspaceExternalAgentCredentials(t *testing.T) {
 		require.Equal(t, r.AgentToken, credentials.AgentToken)
 		expectedCommand := fmt.Sprintf("curl -fsSL \"%s/api/v2/init-script/linux/amd64\" | CODER_AGENT_TOKEN=%q sh", client.URL, r.AgentToken)
 		require.Equal(t, expectedCommand, credentials.Command)
+		require.Equal(t, fmt.Sprintf("%s/api/v2/init-script", client.URL), credentials.InitScriptBaseURL)
 	})
 
 	t.Run("Success - windows", func(t *testing.T) {
@@ -415,6 +416,7 @@ func TestWorkspaceExternalAgentCredentials(t *testing.T) {
 		require.Equal(t, r.AgentToken, credentials.AgentToken)
 		expectedCommand := fmt.Sprintf("$env:CODER_AGENT_TOKEN=%q; iwr -useb \"%s/api/v2/init-script/windows/amd64\" | iex", r.AgentToken, client.URL)
 		require.Equal(t, expectedCommand, credentials.Command)
+		require.Equal(t, fmt.Sprintf("%s/api/v2/init-script", client.URL), credentials.InitScriptBaseURL)
 	})
 
 	t.Run("WithInstanceID - should return 404", func(t *testing.T) {

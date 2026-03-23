@@ -85,14 +85,16 @@ func (api *API) workspaceExternalAgentCredentials(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	initScriptURL := fmt.Sprintf("%s/api/v2/init-script/%s/%s", api.AccessURL.String(), agent.OperatingSystem, agent.Architecture)
+	initScriptBaseURL := fmt.Sprintf("%s/api/v2/init-script", api.AccessURL.String())
+	initScriptURL := fmt.Sprintf("%s/%s/%s", initScriptBaseURL, agent.OperatingSystem, agent.Architecture)
 	command := fmt.Sprintf("curl -fsSL %q | CODER_AGENT_TOKEN=%q sh", initScriptURL, agent.AuthToken.String())
 	if agent.OperatingSystem == "windows" {
 		command = fmt.Sprintf("$env:CODER_AGENT_TOKEN=%q; iwr -useb %q | iex", agent.AuthToken.String(), initScriptURL)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ExternalAgentCredentials{
-		AgentToken: agent.AuthToken.String(),
-		Command:    command,
+		AgentToken:        agent.AuthToken.String(),
+		Command:           command,
+		InitScriptBaseURL: initScriptBaseURL,
 	})
 }

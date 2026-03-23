@@ -773,8 +773,12 @@ func (c *Client) DeleteWorkspaceACL(ctx context.Context, workspaceID uuid.UUID) 
 
 // ExternalAgentCredentials contains the credentials needed for an external agent to connect to Coder.
 type ExternalAgentCredentials struct {
-	Command    string `json:"command"`
-	AgentToken string `json:"agent_token"`
+	Command           string `json:"command"`
+	AgentToken        string `json:"agent_token"`
+	// InitScriptBaseURL is the base URL for the init script endpoint,
+	// e.g. "https://coder.example.com/api/v2/init-script". Append
+	// "/{os}/{arch}" to get the full URL for a specific platform.
+	InitScriptBaseURL string `json:"init_script_base_url"`
 }
 
 func (c *Client) WorkspaceExternalAgentCredentials(ctx context.Context, workspaceID uuid.UUID, agentName string) (ExternalAgentCredentials, error) {
