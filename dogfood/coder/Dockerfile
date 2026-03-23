@@ -1,3 +1,7 @@
+# ========================================
+# Builder stages
+# ========================================
+
 # 1.93.1
 FROM rust:slim@sha256:7d3701660d2aa7101811ba0c54920021452aa60e5bae073b79c2b137a432b2f4 AS rust-utils
 # Install rust helper programs
@@ -83,7 +87,10 @@ RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/d
 	unzip protoc.zip && \
 	rm protoc.zip
 
-FROM ubuntu:jammy@sha256:3ba65aa20f86a0fad9df2b2c259c613df006b2e6d0bfcc8a146afb8c525a9751
+# ========================================
+# base: build and test essentials
+# ========================================
+FROM ubuntu:jammy@sha256:3ba65aa20f86a0fad9df2b2c259c613df006b2e6d0bfcc8a146afb8c525a9751 AS base
 
 SHELL ["/bin/bash", "-c"]
 
@@ -114,15 +121,9 @@ RUN mkdir -p /etc/sudoers.d && \
 RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && \
 	sed -i 's|http://security.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list && \
 	apt-get update --quiet && apt-get install --yes \
-	ansible \
 	apt-transport-https \
 	apt-utils \
-	asciinema \
 	bash \
-	bash-completion \
-	bat \
-	bats \
-	bind9-dnsutils \
 	build-essential \
 	ca-certificates \
 	containerd.io \
@@ -131,57 +132,28 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	docker-ce \
 	docker-ce-cli \
 	docker-compose-plugin \
-	exa \
-	fd-find \
-	file \
-	fish \
 	gettext-base \
 	git \
 	gnupg \
 	google-cloud-sdk \
-	helix \
-	htop \
-	httpie \
-	inetutils-tools \
 	iproute2 \
-	iputils-ping \
-	iputils-tracepath \
 	jq \
 	kubectl \
 	language-pack-en \
-	less \
 	libgbm-dev \
 	libssl-dev \
 	lsb-release \
-	lsof \
-	man \
-	meld \
-	ncdu \
-	neovim \
-	net-tools \
-	openjdk-11-jdk-headless \
 	openssh-server \
 	openssl \
 	pkg-config \
 	postgresql-16 \
-	python3 \
-	python3-pip \
-	ripgrep \
 	rsync \
 	screen \
 	shellcheck \
-	strace \
 	sudo \
-	tcptraceroute \
-	termshark \
-	tmux \
-	traceroute \
 	unzip \
-	vim \
 	wget \
-	xauth \
 	zip \
-	zsh \
 	zstd && \
 	# Delete package cache to avoid consuming space in layer
 	apt-get clean && \
@@ -198,14 +170,6 @@ RUN chmod a+x /usr/local/bin/configure-chrome-flags.sh && \
 	wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
 	apt-get install --yes ./google-chrome-stable_current_amd64.deb && \
 	rm google-chrome-stable_current_amd64.deb
-
-# Install Rust via rustup. Using rustup ensures we get a current stable
-# toolchain.
-ENV RUSTUP_HOME=/usr/local/rustup \
-	CARGO_HOME=/usr/local/cargo
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-	sh -s -- -y --default-toolchain stable --profile minimal
-ENV PATH=$CARGO_HOME/bin:$PATH
 
 # NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.14.5.
 # Installing the same version here to match.
@@ -227,20 +191,6 @@ RUN GH_CLI_VERSION=$(curl -s "https://api.github.com/repos/cli/cli/releases/late
 	curl -L https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_amd64.deb -o gh.deb && \
 	dpkg -i gh.deb && \
 	rm gh.deb
-
-# Install Lazygit
-# See https://github.com/jesseduffield/lazygit#ubuntu
-RUN LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"v*([^"]+)".*/\1/') && \
-	curl -Lo lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz" && \
-	tar xf lazygit.tar.gz -C /usr/local/bin lazygit && \
-	rm lazygit.tar.gz
-
-# Install doctl
-# See https://docs.digitalocean.com/reference/doctl/how-to/install
-RUN DOCTL_VERSION=$(curl -s "https://api.github.com/repos/digitalocean/doctl/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') && \
-	curl -L https://github.com/digitalocean/doctl/releases/download/v${DOCTL_VERSION}/doctl-${DOCTL_VERSION}-linux-amd64.tar.gz -o doctl.tar.gz && \
-	tar xf doctl.tar.gz -C /usr/local/bin doctl && \
-	rm doctl.tar.gz
 
 ARG NVM_INSTALL_SHA=bdea8c52186c4dd12657e77e7515509cda5bf9fa5a2f0046bce749e62645076d
 # Install frontend utilities
@@ -285,7 +235,6 @@ RUN systemctl enable \
 # preferred/recommended installation method.
 ARG GOLANGCI_LINT_VERSION=1.64.8 \
 	HELM_VERSION=3.12.0 \
-	KUBECTX_VERSION=0.9.4 \
 	SYFT_VERSION=1.20.0 \
 	COSIGN_VERSION=2.4.3 \
 	BUN_VERSION=1.2.15
@@ -296,11 +245,6 @@ RUN curl --silent --show-error --location --fail "https://github.com/golangci/go
 	# Helm is necessary for deploying Coder
 	curl --silent --show-error --location --fail "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 linux-amd64/helm && \
-	# kubens and kubectx for managing Kubernetes namespaces and contexts
-	curl --silent --show-error --location --fail "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubectx_v${KUBECTX_VERSION}_linux_x86_64.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/bin --file=- kubectx && \
-	curl --silent --show-error --location --fail "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubens_v${KUBECTX_VERSION}_linux_x86_64.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/bin --file=- kubens && \
 	# Anchore Syft for SBOM generation
 	curl --silent --show-error --location --fail "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- syft && \
@@ -342,7 +286,6 @@ ENV PATH=$PATH:/usr/local/go/bin
 RUN update-alternatives --install /usr/local/bin/gofmt gofmt /usr/local/go/bin/gofmt 100
 
 COPY --from=go /tmp/bin /usr/local/bin
-COPY --from=rust-utils /tmp/bin /usr/local/bin
 COPY --from=proto /tmp/bin /usr/local/bin
 COPY --from=proto /tmp/include /usr/local/bin/include
 
@@ -353,11 +296,6 @@ USER coder
 # home volume.
 ENV PATH="/home/coder/go/bin:${PATH}"
 
-# Override CARGO_HOME so cargo registry/cache writes go to the coder
-# user's home directory instead of the root-owned /usr/local/cargo.
-# The rustup-installed binaries remain on PATH via /usr/local/cargo/bin.
-ENV CARGO_HOME="/home/coder/.cargo"
-
 # This setting prevents Go from using the public checksum database for
 # our module path prefixes. It is required because these are in private
 # repositories that require authentication.
@@ -367,3 +305,90 @@ ENV GOPRIVATE="coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder"
 
 # Increase memory allocation to NodeJS
 ENV NODE_OPTIONS="--max-old-space-size=8192"
+
+# ========================================
+# full: developer tools (default target)
+# ========================================
+FROM base AS full
+
+USER root
+
+# Developer-convenience packages: editors, shells, network diagnostics,
+# file utilities, and assorted dev tools. None of these are required
+# for building or testing Coder.
+RUN apt-get update --quiet && apt-get install --yes \
+	ansible \
+	asciinema \
+	bash-completion \
+	bat \
+	bats \
+	bind9-dnsutils \
+	exa \
+	fd-find \
+	file \
+	fish \
+	helix \
+	htop \
+	httpie \
+	inetutils-tools \
+	iputils-ping \
+	iputils-tracepath \
+	less \
+	lsof \
+	man \
+	meld \
+	ncdu \
+	neovim \
+	net-tools \
+	python3 \
+	python3-pip \
+	ripgrep \
+	strace \
+	tcptraceroute \
+	termshark \
+	tmux \
+	traceroute \
+	vim \
+	xauth \
+	zsh && \
+	apt-get clean && \
+	rm -rf /var/lib/apt/lists/*
+
+# Install Rust via rustup. Using rustup ensures we get a current stable
+# toolchain.
+ENV RUSTUP_HOME=/usr/local/rustup \
+	CARGO_HOME=/usr/local/cargo
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+	sh -s -- -y --default-toolchain stable --profile minimal
+ENV PATH=$CARGO_HOME/bin:$PATH
+
+# Install Lazygit
+# See https://github.com/jesseduffield/lazygit#ubuntu
+RUN LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"v*([^"]+)".*/\1/') && \
+	curl -Lo lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz" && \
+	tar xf lazygit.tar.gz -C /usr/local/bin lazygit && \
+	rm lazygit.tar.gz
+
+# Install doctl
+# See https://docs.digitalocean.com/reference/doctl/how-to/install
+RUN DOCTL_VERSION=$(curl -s "https://api.github.com/repos/digitalocean/doctl/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') && \
+	curl -L https://github.com/digitalocean/doctl/releases/download/v${DOCTL_VERSION}/doctl-${DOCTL_VERSION}-linux-amd64.tar.gz -o doctl.tar.gz && \
+	tar xf doctl.tar.gz -C /usr/local/bin doctl && \
+	rm doctl.tar.gz
+
+# kubens and kubectx for managing Kubernetes namespaces and contexts
+ARG KUBECTX_VERSION=0.9.4
+RUN curl --silent --show-error --location --fail "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubectx_v${KUBECTX_VERSION}_linux_x86_64.tar.gz" | \
+	tar --extract --gzip --directory=/usr/local/bin --file=- kubectx && \
+	curl --silent --show-error --location --fail "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubens_v${KUBECTX_VERSION}_linux_x86_64.tar.gz" | \
+	tar --extract --gzip --directory=/usr/local/bin --file=- kubens
+
+# Rust dev tools (jj, typos, watchexec)
+COPY --from=rust-utils /tmp/bin /usr/local/bin
+
+USER coder
+
+# Override CARGO_HOME so cargo registry/cache writes go to the coder
+# user's home directory instead of the root-owned /usr/local/cargo.
+# The rustup-installed binaries remain on PATH via /usr/local/cargo/bin.
+ENV CARGO_HOME="/home/coder/.cargo"
