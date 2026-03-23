@@ -2924,7 +2924,12 @@ func (api *API) putUserChatCompactionThreshold(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	modelConfig, err := api.Database.GetChatModelConfigByID(ctx, modelConfigID)
+	// Use system context because GetChatModelConfigByID requires
+	// deployment-config read access, which non-admin users lack.
+	// The user is only checking if the model exists and is enabled
+	// before writing their own personal preference.
+	//nolint:gocritic // Non-admin users need this lookup to save their own setting.
+	modelConfig, err := api.Database.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), modelConfigID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
