@@ -3028,8 +3028,6 @@ const (
 	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
 	ResourceTypeTask                        ResourceType = "task"
 	ResourceTypeAiSeat                      ResourceType = "ai_seat"
-	ResourceTypeChatUserSpendLimit          ResourceType = "chat_user_spend_limit"
-	ResourceTypeChatGroupSpendLimit         ResourceType = "chat_group_spend_limit"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
