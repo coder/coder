@@ -29,24 +29,39 @@ export const DefaultOrg: Story = {
 	},
 };
 
-export const WithWorkspaceSharingEnabled: Story = {
+export const SharingDisabled: Story = {
 	args: {
-		workspaceSharingEnabled: true,
-		onToggleWorkspaceSharing: action("onToggleWorkspaceSharing"),
+		shareableWorkspaceOwners: "none",
+		onChangeShareableOwners: action("onChangeShareableOwners"),
 	},
 };
 
-export const WithWorkspaceSharingDisabled: Story = {
+export const SharingServiceAccountsOnly: Story = {
 	args: {
-		workspaceSharingEnabled: false,
-		onToggleWorkspaceSharing: action("onToggleWorkspaceSharing"),
+		shareableWorkspaceOwners: "service_accounts",
+		onChangeShareableOwners: action("onChangeShareableOwners"),
+	},
+};
+
+export const SharingEveryone: Story = {
+	args: {
+		shareableWorkspaceOwners: "everyone",
+		onChangeShareableOwners: action("onChangeShareableOwners"),
+	},
+};
+
+export const SharingGloballyDisabled: Story = {
+	args: {
+		shareableWorkspaceOwners: "none",
+		workspaceSharingGloballyDisabled: true,
+		onChangeShareableOwners: action("onChangeShareableOwners"),
 	},
 };
 
 export const DisableSharingDialog: Story = {
 	args: {
-		workspaceSharingEnabled: true,
-		onToggleWorkspaceSharing: action("onToggleWorkspaceSharing"),
+		shareableWorkspaceOwners: "everyone",
+		onChangeShareableOwners: action("onChangeShareableOwners"),
 	},
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
@@ -55,5 +70,20 @@ export const DisableSharingDialog: Story = {
 			name: /allow workspace sharing/i,
 		});
 		await user.click(checkbox);
+	},
+};
+
+export const RestrictToServiceAccountsDialog: Story = {
+	args: {
+		shareableWorkspaceOwners: "everyone",
+		onChangeShareableOwners: action("onChangeShareableOwners"),
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const body = within(canvasElement.ownerDocument.body);
+		const radio = await body.findByRole("radio", {
+			name: /only service accounts/i,
+		});
+		await user.click(radio);
 	},
 };
