@@ -3,13 +3,7 @@ import { chatMessagesKey, updateInfiniteChatsCache } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
 import { asNumber, asString } from "components/ai-elements/runtimeTypeUtils";
 
-import {
-	useCallback,
-	useEffect,
-	useRef,
-	useState,
-	useSyncExternalStore,
-} from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { type InfiniteData, useQueryClient } from "react-query";
 import type { OneWayMessageEvent } from "utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
@@ -581,10 +575,7 @@ export const useChatSelector = <T>(
 	store: ChatStore,
 	selector: (state: ChatStoreState) => T,
 ): T => {
-	const getSnapshot = useCallback(
-		() => selector(store.getSnapshot()),
-		[selector, store],
-	);
+	const getSnapshot = () => selector(store.getSnapshot());
 	return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
 };
 
@@ -619,7 +610,7 @@ export const useChatStore = (
 	// after a refetch producing new objects) vs. just getting a new
 	// array reference because an unrelated field like queued_messages
 	// was updated in the query cache. Element-level reference
-	// comparison works because useMemo(flatMap) preserves message
+	// comparison works because the flattening step preserves message
 	// object references when only non-message fields change in the
 	// page, while a genuine refetch returns new objects from the
 	// server.
