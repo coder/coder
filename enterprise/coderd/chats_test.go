@@ -73,7 +73,7 @@ func TestChatStreamRelay(t *testing.T) {
 		})
 
 		//nolint:gocritic // Test uses owner client to configure chat providers.
-		provider, err := firstClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		provider, err := codersdk.NewExperimentalClient(firstClient).CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:    "openai",
 			DisplayName: "OpenAI",
 			APIKey:      "test",
@@ -82,7 +82,7 @@ func TestChatStreamRelay(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatProviderConfigSourceDatabase, provider.Source)
 
-		model, err := firstClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		model, err := codersdk.NewExperimentalClient(firstClient).CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 			Provider:             provider.Provider,
 			Model:                "gpt-4",
 			DisplayName:          "GPT-4",
@@ -92,7 +92,7 @@ func TestChatStreamRelay(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create a chat on the first replica
-		chat, err := firstClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		chat, err := codersdk.NewExperimentalClient(firstClient).CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "Test chat for relay",
@@ -115,15 +115,15 @@ func TestChatStreamRelay(t *testing.T) {
 			return true
 		}, testutil.WaitLong, testutil.IntervalFast)
 
-		var localClient *codersdk.Client
-		var relayClient *codersdk.Client
+		var localClient *codersdk.ExperimentalClient
+		var relayClient *codersdk.ExperimentalClient
 		switch runningChat.WorkerID.UUID {
 		case firstReplicaID:
-			localClient = firstClient
-			relayClient = secondClient
+			localClient = codersdk.NewExperimentalClient(firstClient)
+			relayClient = codersdk.NewExperimentalClient(secondClient)
 		case secondReplicaID:
-			localClient = secondClient
-			relayClient = firstClient
+			localClient = codersdk.NewExperimentalClient(secondClient)
+			relayClient = codersdk.NewExperimentalClient(firstClient)
 		default:
 			require.FailNowf(
 				t,
@@ -263,7 +263,7 @@ func TestChatStreamRelay(t *testing.T) {
 		})
 
 		//nolint:gocritic // Test uses owner client to configure chat providers.
-		provider, err := firstClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		provider, err := codersdk.NewExperimentalClient(firstClient).CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:    "openai",
 			DisplayName: "OpenAI",
 			APIKey:      "test",
@@ -271,7 +271,7 @@ func TestChatStreamRelay(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		model, err := firstClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		model, err := codersdk.NewExperimentalClient(firstClient).CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 			Provider:             provider.Provider,
 			Model:                "gpt-4",
 			DisplayName:          "GPT-4",
@@ -281,7 +281,7 @@ func TestChatStreamRelay(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create a chat on the first replica.
-		chat, err := firstClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		chat, err := codersdk.NewExperimentalClient(firstClient).CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "Test chat for TLS relay",
@@ -304,15 +304,15 @@ func TestChatStreamRelay(t *testing.T) {
 			return true
 		}, testutil.WaitLong, testutil.IntervalFast)
 
-		var localClient *codersdk.Client
-		var relayClient *codersdk.Client
+		var localClient *codersdk.ExperimentalClient
+		var relayClient *codersdk.ExperimentalClient
 		switch runningChat.WorkerID.UUID {
 		case firstReplicaID:
-			localClient = firstClient
-			relayClient = secondClient
+			localClient = codersdk.NewExperimentalClient(firstClient)
+			relayClient = codersdk.NewExperimentalClient(secondClient)
 		case secondReplicaID:
-			localClient = secondClient
-			relayClient = firstClient
+			localClient = codersdk.NewExperimentalClient(secondClient)
+			relayClient = codersdk.NewExperimentalClient(firstClient)
 		default:
 			require.FailNowf(
 				t,
@@ -434,7 +434,7 @@ func TestChatStreamRelay(t *testing.T) {
 		})
 
 		//nolint:gocritic // Test uses owner client to configure providers.
-		provider, err := firstClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		provider, err := codersdk.NewExperimentalClient(firstClient).CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:    "openai",
 			DisplayName: "OpenAI",
 			APIKey:      "test",
@@ -442,7 +442,7 @@ func TestChatStreamRelay(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		model, err := firstClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		model, err := codersdk.NewExperimentalClient(firstClient).CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 			Provider:             provider.Provider,
 			Model:                "gpt-4",
 			DisplayName:          "GPT-4",
@@ -451,7 +451,7 @@ func TestChatStreamRelay(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		chat, err := firstClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		chat, err := codersdk.NewExperimentalClient(firstClient).CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "Test cookie-only relay",
@@ -474,15 +474,15 @@ func TestChatStreamRelay(t *testing.T) {
 			return true
 		}, testutil.WaitLong, testutil.IntervalFast)
 
-		var localClient *codersdk.Client
-		var relayClient *codersdk.Client
+		var localClient *codersdk.ExperimentalClient
+		var relayClient *codersdk.ExperimentalClient
 		switch runningChat.WorkerID.UUID {
 		case firstReplicaID:
-			localClient = firstClient
-			relayClient = secondClient
+			localClient = codersdk.NewExperimentalClient(firstClient)
+			relayClient = codersdk.NewExperimentalClient(secondClient)
 		case secondReplicaID:
-			localClient = secondClient
-			relayClient = firstClient
+			localClient = codersdk.NewExperimentalClient(secondClient)
+			relayClient = codersdk.NewExperimentalClient(firstClient)
 		default:
 			require.FailNowf(
 				t,
@@ -606,7 +606,7 @@ func TestChatStreamRelay(t *testing.T) {
 		})
 
 		//nolint:gocritic // Test uses owner client to configure providers.
-		provider, err := firstClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		provider, err := codersdk.NewExperimentalClient(firstClient).CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:    "openai",
 			DisplayName: "OpenAI",
 			APIKey:      "test",
@@ -614,7 +614,7 @@ func TestChatStreamRelay(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		model, err := firstClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		model, err := codersdk.NewExperimentalClient(firstClient).CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 			Provider:             provider.Provider,
 			Model:                "gpt-4",
 			DisplayName:          "GPT-4",
@@ -623,7 +623,7 @@ func TestChatStreamRelay(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		chat, err := firstClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		chat, err := codersdk.NewExperimentalClient(firstClient).CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "Test host-prefix relay",
@@ -646,15 +646,15 @@ func TestChatStreamRelay(t *testing.T) {
 			return true
 		}, testutil.WaitLong, testutil.IntervalFast)
 
-		var localClient *codersdk.Client
-		var relayClient *codersdk.Client
+		var localClient *codersdk.ExperimentalClient
+		var relayClient *codersdk.ExperimentalClient
 		switch runningChat.WorkerID.UUID {
 		case firstReplicaID:
-			localClient = firstClient
-			relayClient = secondClient
+			localClient = codersdk.NewExperimentalClient(firstClient)
+			relayClient = codersdk.NewExperimentalClient(secondClient)
 		case secondReplicaID:
-			localClient = secondClient
-			relayClient = firstClient
+			localClient = codersdk.NewExperimentalClient(secondClient)
+			relayClient = codersdk.NewExperimentalClient(firstClient)
 		default:
 			require.FailNowf(
 				t,
@@ -753,7 +753,7 @@ func TestChatStreamRelay(t *testing.T) {
 		})
 
 		//nolint:gocritic // Test uses owner client to configure chat providers.
-		provider, err := firstClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
+		provider, err := codersdk.NewExperimentalClient(firstClient).CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
 			Provider:    "openai",
 			DisplayName: "OpenAI",
 			APIKey:      "test",
@@ -761,7 +761,7 @@ func TestChatStreamRelay(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		model, err := firstClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+		model, err := codersdk.NewExperimentalClient(firstClient).CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 			Provider:             provider.Provider,
 			Model:                "gpt-4",
 			DisplayName:          "GPT-4",
@@ -771,7 +771,7 @@ func TestChatStreamRelay(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create a chat on the first replica.
-		chat, err := firstClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		chat, err := codersdk.NewExperimentalClient(firstClient).CreateChat(ctx, codersdk.CreateChatRequest{
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: "Test chat for buffered relay",
@@ -794,15 +794,15 @@ func TestChatStreamRelay(t *testing.T) {
 			return true
 		}, testutil.WaitLong, testutil.IntervalFast)
 
-		var localClient *codersdk.Client
-		var relayClient *codersdk.Client
+		var localClient *codersdk.ExperimentalClient
+		var relayClient *codersdk.ExperimentalClient
 		switch runningChat.WorkerID.UUID {
 		case firstReplicaID:
-			localClient = firstClient
-			relayClient = secondClient
+			localClient = codersdk.NewExperimentalClient(firstClient)
+			relayClient = codersdk.NewExperimentalClient(secondClient)
 		case secondReplicaID:
-			localClient = secondClient
-			relayClient = firstClient
+			localClient = codersdk.NewExperimentalClient(secondClient)
+			relayClient = codersdk.NewExperimentalClient(firstClient)
 		default:
 			require.FailNowf(
 				t,
@@ -950,9 +950,10 @@ func TestChatModelConfigDefault(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	client, _ := coderdenttest.New(t, nil)
+	expClient := codersdk.NewExperimentalClient(client)
 
 	//nolint:gocritic // Test uses owner client to configure chat providers.
-	provider, err := client.CreateChatProvider(
+	provider, err := expClient.CreateChatProvider(
 		ctx,
 		codersdk.CreateChatProviderConfigRequest{
 			Provider:    "openai",
@@ -968,7 +969,7 @@ func TestChatModelConfigDefault(t *testing.T) {
 	trueValue := true
 	falseValue := false
 
-	firstModel, err := client.CreateChatModelConfig(
+	firstModel, err := expClient.CreateChatModelConfig(
 		ctx,
 		codersdk.CreateChatModelConfigRequest{
 			Provider:             provider.Provider,
@@ -982,7 +983,7 @@ func TestChatModelConfigDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, firstModel.IsDefault)
 
-	secondModel, err := client.CreateChatModelConfig(
+	secondModel, err := expClient.CreateChatModelConfig(
 		ctx,
 		codersdk.CreateChatModelConfigRequest{
 			Provider:             provider.Provider,
@@ -996,14 +997,14 @@ func TestChatModelConfigDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, secondModel.IsDefault)
 
-	modelConfigs, err := client.ListChatModelConfigs(ctx)
+	modelConfigs, err := expClient.ListChatModelConfigs(ctx)
 	require.NoError(t, err)
 	firstStored := findChatModelConfigByID(t, modelConfigs, firstModel.ID)
 	secondStored := findChatModelConfigByID(t, modelConfigs, secondModel.ID)
 	require.False(t, firstStored.IsDefault)
 	require.True(t, secondStored.IsDefault)
 
-	updatedFirst, err := client.UpdateChatModelConfig(
+	updatedFirst, err := expClient.UpdateChatModelConfig(
 		ctx,
 		firstModel.ID,
 		codersdk.UpdateChatModelConfigRequest{
@@ -1013,14 +1014,14 @@ func TestChatModelConfigDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, updatedFirst.IsDefault)
 
-	modelConfigs, err = client.ListChatModelConfigs(ctx)
+	modelConfigs, err = expClient.ListChatModelConfigs(ctx)
 	require.NoError(t, err)
 	firstStored = findChatModelConfigByID(t, modelConfigs, firstModel.ID)
 	secondStored = findChatModelConfigByID(t, modelConfigs, secondModel.ID)
 	require.True(t, firstStored.IsDefault)
 	require.False(t, secondStored.IsDefault)
 
-	updatedFirst, err = client.UpdateChatModelConfig(
+	updatedFirst, err = expClient.UpdateChatModelConfig(
 		ctx,
 		firstModel.ID,
 		codersdk.UpdateChatModelConfigRequest{
@@ -1030,7 +1031,7 @@ func TestChatModelConfigDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, updatedFirst.IsDefault)
 
-	modelConfigs, err = client.ListChatModelConfigs(ctx)
+	modelConfigs, err = expClient.ListChatModelConfigs(ctx)
 	require.NoError(t, err)
 	firstStored = findChatModelConfigByID(t, modelConfigs, firstModel.ID)
 	secondStored = findChatModelConfigByID(t, modelConfigs, secondModel.ID)
