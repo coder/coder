@@ -278,7 +278,7 @@ describe("getDiffViewerOptions", () => {
 		expect(opts.theme).toBe("github-dark-high-contrast");
 		expect(opts.diffStyle).toBe("unified");
 		expect(opts.diffIndicators).toBe("bars");
-		expect(opts.overflow).toBe("scroll");
+		expect(opts.overflow).toBe("wrap");
 		expect(opts.unsafeCSS).toBe(diffViewerCSS);
 	});
 

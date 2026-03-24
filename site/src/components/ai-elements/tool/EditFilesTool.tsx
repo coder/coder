@@ -15,6 +15,7 @@ import {
 	DIFFS_FONT_STYLE,
 	type EditFilesFileEntry,
 	getDiffViewerOptions,
+	stripNoNewline,
 	type ToolStatus,
 } from "./utils";
 
@@ -94,7 +95,7 @@ export const EditFilesTool: React.FC<{
 							scrollBarClassName="w-1.5"
 						>
 							<FileDiff
-								fileDiff={diff}
+								fileDiff={stripNoNewline(diff)}
 								options={getDiffViewerOptions(isDark)}
 								style={DIFFS_FONT_STYLE}
 							/>

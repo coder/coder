@@ -35,6 +35,7 @@ import {
 	mapSubagentStatusToToolStatus,
 	parseArgs,
 	parseEditFilesArgs,
+	stripNoNewline,
 	type ToolStatus,
 	toProviderLabel,
 } from "./utils";
@@ -449,8 +450,9 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					scrollBarClassName="w-1.5"
 				>
 					<FileDiff
-						fileDiff={writeFileDiff}
+						fileDiff={stripNoNewline(writeFileDiff)}
 						options={getDiffViewerOptions(isDark)}
+						style={DIFFS_FONT_STYLE}
 					/>
 				</ScrollArea>
 			) : fileContent ? (
