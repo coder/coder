@@ -62,9 +62,8 @@ import {
 } from "./components/MCPServerPicker";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import {
-	buildModelConfigIDByModelID,
-	buildModelIDByConfigID,
-	getModelOptionsFromCatalog,
+	getModelCatalogStatusMessage,
+	getModelOptionsFromConfigs,
 	getModelSelectorPlaceholder,
 	hasConfiguredModelsInCatalog,
 } from "./utils/modelOptions";
@@ -373,14 +372,10 @@ const AgentDetail: FC = () => {
 		void mcpServersQuery.refetch();
 	};
 
-	const modelOptions = getModelOptionsFromCatalog(
+	const modelOptions = getModelOptionsFromConfigs(
+		chatModelConfigsQuery.data,
 		chatModelsQuery.data,
-		chatModelConfigsQuery.data,
 	);
-	const modelConfigIDByModelID = buildModelConfigIDByModelID(
-		chatModelConfigsQuery.data,
-	);
-	const modelIDByConfigID = buildModelIDByConfigID(modelConfigIDByModelID);
 	const modelConfigs = chatModelConfigsQuery.data ?? [];
 	const modelCatalog = chatModelsQuery.data;
 	const isModelCatalogLoading = chatModelsQuery.isLoading;
@@ -560,17 +555,14 @@ const AgentDetail: FC = () => {
 	// explicit choice against the current model options, falling
 	// back to the chat's last model or the first available option.
 	const effectiveSelectedModel = (() => {
-		if (
-			selectedModel &&
-			modelOptions.some((model) => model.id === selectedModel)
-		) {
+		if (selectedModel && modelOptions.some((o) => o.id === selectedModel)) {
 			return selectedModel;
 		}
-		if (chatLastModelConfigID) {
-			const fromChat = modelIDByConfigID.get(chatLastModelConfigID);
-			if (fromChat && modelOptions.some((model) => model.id === fromChat)) {
-				return fromChat;
-			}
+		if (
+			chatLastModelConfigID &&
+			modelOptions.some((o) => o.id === chatLastModelConfigID)
+		) {
+			return chatLastModelConfigID;
 		}
 		return modelOptions[0]?.id ?? "";
 	})();
@@ -692,10 +684,7 @@ const AgentDetail: FC = () => {
 			}
 			return;
 		}
-		const selectedModelConfigID =
-			(effectiveSelectedModel &&
-				modelConfigIDByModelID.get(effectiveSelectedModel)) ||
-			undefined;
+		const selectedModelConfigID = effectiveSelectedModel || undefined;
 		const request: TypesGen.CreateChatMessageRequest = {
 			content,
 			model_config_id: selectedModelConfigID,
