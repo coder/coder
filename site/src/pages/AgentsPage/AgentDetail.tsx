@@ -92,22 +92,17 @@ export function useConversationEditingState(deps: {
 		? `${draftInputStorageKeyPrefix}${chatID}`
 		: null;
 	const [editorInitialValue, setEditorInitialValue] = useState(() => {
-		if (typeof window === "undefined" || !draftStorageKey) {
+		if (!draftStorageKey) {
 			return "";
 		}
 		return localStorage.getItem(draftStorageKey) ?? "";
 	});
 
-	// Sync the ref with the initial draft value so callers that
-	// read inputValueRef.current see the persisted draft. Uses a
-	// layout effect so the value is available before paint.
-	const initialSyncDone = useRef(false);
+	// Sync the ref with the editor value so callers that read
+	// inputValueRef.current see the persisted draft. Uses a layout
+	// effect so the value is available before paint.
 	useLayoutEffect(() => {
-		if (!initialSyncDone.current && editorInitialValue) {
-			initialSyncDone.current = true;
-			(inputValueRef as React.MutableRefObject<string>).current =
-				editorInitialValue;
-		}
+		inputValueRef.current = editorInitialValue;
 	}, [editorInitialValue, inputValueRef]);
 
 	// -- History editing state --
@@ -118,6 +113,14 @@ export function useConversationEditingState(deps: {
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
 		readonly ChatMessagePart[]
 	>([]);
+
+	// -- Queue editing state --
+	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
+		number | null
+	>(null);
+	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] = useState<
+		string | null
+	>(null);
 
 	const handleEditUserMessage = (
 		messageId: number,
@@ -144,14 +147,6 @@ export function useConversationEditingState(deps: {
 			chatInputRef.current?.insertText(draftBeforeHistoryEdit);
 		}
 	};
-
-	// -- Queue editing state --
-	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
-		number | null
-	>(null);
-	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] = useState<
-		string | null
-	>(null);
 
 	const handleStartQueueEdit = (
 		id: number,
@@ -918,4 +913,12 @@ const AgentDetail: FC = () => {
 	);
 };
 
-export default AgentDetail;
+// Keyed wrapper so that navigating between agents (changing the
+// :agentId param) fully remounts the component, resetting all
+// internal state — drafts, editing, queries — cleanly.
+const KeyedAgentDetail: FC = () => {
+	const { agentId } = useParams<{ agentId: string }>();
+	return <AgentDetail key={agentId} />;
+};
+
+export default KeyedAgentDetail;
