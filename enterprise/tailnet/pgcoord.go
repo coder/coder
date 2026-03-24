@@ -1461,8 +1461,12 @@ func (q *querier) listenTunnel(_ context.Context, msg []byte, err error) {
 }
 
 func (q *querier) listenReadyForHandshake(_ context.Context, msg []byte, err error) {
-	if err != nil && !xerrors.Is(err, pubsub.ErrDroppedMessages) {
-		q.logger.Warn(q.ctx, "unhandled pubsub error", slog.Error(err))
+	if err != nil {
+		if xerrors.Is(err, pubsub.ErrDroppedMessages) {
+			q.logger.Warn(q.ctx, "pubsub dropped ready-for-handshake messages")
+		} else {
+			q.logger.Warn(q.ctx, "unhandled pubsub error", slog.Error(err))
+		}
 		return
 	}
 
