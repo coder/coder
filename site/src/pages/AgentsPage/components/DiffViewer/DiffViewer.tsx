@@ -19,7 +19,6 @@ import { ChevronRightIcon } from "lucide-react";
 import {
 	type ComponentProps,
 	type FC,
-	memo,
 	type ReactNode,
 	useCallback,
 	useEffect,
@@ -408,11 +407,11 @@ const DiffScrollContainer: FC<{
 			scrollBarClassName="w-1.5"
 			viewportClassName="[&>div]:!block"
 		>
-			<VirtualizerContext.Provider value={virtualizer}>
+			<VirtualizerContext value={virtualizer}>
 				<div ref={contentRef} className="min-w-0 text-xs">
 					{children}
 				</div>
-			</VirtualizerContext.Provider>
+			</VirtualizerContext>
 		</ScrollArea>
 	);
 };
@@ -430,72 +429,72 @@ const DiffScrollContainer: FC<{
  * FileDiff that the user has already scrolled past, which avoids
  * layout shifts and repeated highlighting work.
  */
-const LazyFileDiff = memo<{
+interface LazyFileDiffProps {
 	fileDiff: FileDiffMetadata;
 	options: ComponentProps<typeof FileDiff>["options"];
 	lineAnnotations?: DiffLineAnnotation<string>[];
 	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
 	selectedLines?: SelectedLineRange | null;
-}>(
-	({
-		fileDiff,
-		options,
-		lineAnnotations,
-		renderAnnotation: renderAnnotationProp,
-		selectedLines,
-	}) => {
-		const placeholderRef = useRef<HTMLDivElement>(null);
-		const [visible, setVisible] = useState(false);
+}
 
-		useEffect(() => {
-			const el = placeholderRef.current;
-			if (!el || visible) {
-				return;
-			}
-			const observer = new IntersectionObserver(
-				([entry]) => {
-					if (entry.isIntersecting) {
-						setVisible(true);
-						observer.disconnect();
-					}
-				},
-				// Pre-load files that are within one viewport-height of
-				// the visible area so they are ready before the user
-				// scrolls to them.
-				{ rootMargin: "100% 0px" },
-			);
-			observer.observe(el);
-			return () => observer.disconnect();
-		}, [visible]);
+const LazyFileDiff: FC<LazyFileDiffProps> = ({
+	fileDiff,
+	options,
+	lineAnnotations,
+	renderAnnotation: renderAnnotationProp,
+	selectedLines,
+}) => {
+	const placeholderRef = useRef<HTMLDivElement>(null);
+	const [visible, setVisible] = useState(false);
 
-		if (!visible) {
-			return (
-				<div
-					ref={placeholderRef}
-					style={{ height: estimateDiffHeight(fileDiff) }}
-					className="p-4 space-y-2"
-				>
-					<Skeleton className="h-4 w-48" />
-					<Skeleton className="h-3 w-full" />
-					<Skeleton className="h-3 w-full" />
-					<Skeleton className="h-3 w-3/4" />
-				</div>
-			);
+	useEffect(() => {
+		const el = placeholderRef.current;
+		if (!el || visible) {
+			return;
 		}
-
-		return (
-			<FileDiff
-				fileDiff={fileDiff}
-				options={options}
-				metrics={VIRTUALIZER_METRICS}
-				style={DIFFS_FONT_STYLE}
-				lineAnnotations={lineAnnotations}
-				renderAnnotation={renderAnnotationProp}
-				selectedLines={selectedLines}
-			/>
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				if (entry.isIntersecting) {
+					setVisible(true);
+					observer.disconnect();
+				}
+			},
+			// Pre-load files that are within one viewport-height of
+			// the visible area so they are ready before the user
+			// scrolls to them.
+			{ rootMargin: "100% 0px" },
 		);
-	},
-);
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, [visible]);
+
+	if (!visible) {
+		return (
+			<div
+				ref={placeholderRef}
+				style={{ height: estimateDiffHeight(fileDiff) }}
+				className="p-4 space-y-2"
+			>
+				<Skeleton className="h-4 w-48" />
+				<Skeleton className="h-3 w-full" />
+				<Skeleton className="h-3 w-full" />
+				<Skeleton className="h-3 w-3/4" />
+			</div>
+		);
+	}
+
+	return (
+		<FileDiff
+			fileDiff={fileDiff}
+			options={options}
+			metrics={VIRTUALIZER_METRICS}
+			style={DIFFS_FONT_STYLE}
+			lineAnnotations={lineAnnotations}
+			renderAnnotation={renderAnnotationProp}
+			selectedLines={selectedLines}
+		/>
+	);
+};
 
 // -------------------------------------------------------------------
 // Main component

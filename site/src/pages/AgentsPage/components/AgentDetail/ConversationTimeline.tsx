@@ -21,7 +21,6 @@ import { FileTextIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
-	memo,
 	type ReactNode,
 	useEffect,
 	useLayoutEffect,
@@ -371,7 +370,7 @@ function renderBlockList({
 	return { elements, renderedToolIDs };
 }
 
-const ChatMessageItem = memo<{
+interface ChatMessageItemProps {
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
 	onEditUserMessage?: (
@@ -387,250 +386,246 @@ const ChatMessageItem = memo<{
 	// overlay to indicate truncated content.
 	fadeFromBottom?: boolean;
 	urlTransform?: UrlTransform;
-}>(
-	({
-		message,
-		parsed,
-		onEditUserMessage,
-		editingMessageId,
-		savingMessageId,
-		isAfterEditingMessage = false,
-		fadeFromBottom = false,
+}
+
+const ChatMessageItem: FC<ChatMessageItemProps> = ({
+	message,
+	parsed,
+	onEditUserMessage,
+	editingMessageId,
+	savingMessageId,
+	isAfterEditingMessage = false,
+	fadeFromBottom = false,
+	urlTransform,
+}) => {
+	const isUser = message.role === "user";
+	const isSavingMessage = savingMessageId === message.id;
+	const [previewImage, setPreviewImage] = useState<string | null>(null);
+	const [previewText, setPreviewText] = useState<string | null>(null);
+	const toolByID = new Map(parsed.tools.map((tool) => [tool.id, tool]));
+
+	if (
+		parsed.toolResults.length > 0 &&
+		parsed.toolCalls.length === 0 &&
+		parsed.markdown === "" &&
+		parsed.reasoning === ""
+	) {
+		return null;
+	}
+
+	// Hide messages that consist entirely of provider-executed
+	// tool results. The parser skips these parts, so the parsed
+	// output is empty and would show a "no renderable content"
+	// fallback.
+	const parts = message.content ?? [];
+	if (
+		parts.length > 0 &&
+		parts.every((p) => p.type === "tool-result" && p.provider_executed)
+	) {
+		return null;
+	}
+
+	const hasRenderableContent =
+		parsed.blocks.length > 0 ||
+		parsed.tools.length > 0 ||
+		parsed.sources.length > 0;
+	// Pre-compute the inline content for user messages so we
+	// avoid a filter + map inside the JSX return path.
+	const userInlineContent = isUser
+		? parsed.blocks.filter(
+				(
+					b,
+				): b is
+					| Extract<RenderBlock, { type: "response" }>
+					| Extract<RenderBlock, { type: "file-reference" }> =>
+					b.type === "response" || b.type === "file-reference",
+			)
+		: [];
+
+	const userFileBlocks = isUser
+		? parsed.blocks.filter(
+				(b): b is Extract<RenderBlock, { type: "file" }> => b.type === "file",
+			)
+		: [];
+
+	const hasUserMessageBody =
+		userInlineContent.length > 0 || Boolean(parsed.markdown?.trim());
+	const hasFileBlocks = userFileBlocks.length > 0;
+
+	const conversationItemProps: { role: "user" | "assistant" } = {
+		role: isUser ? "user" : "assistant",
+	};
+	const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
+		blocks: parsed.blocks,
+		toolByID,
+		keyPrefix: String(message.id),
+		onImageClick: setPreviewImage,
+		onTextFileClick: (content) => setPreviewText(content),
 		urlTransform,
-	}) => {
-		const isUser = message.role === "user";
-		const isSavingMessage = savingMessageId === message.id;
-		const [previewImage, setPreviewImage] = useState<string | null>(null);
-		const [previewText, setPreviewText] = useState<string | null>(null);
-		const toolByID = new Map(parsed.tools.map((tool) => [tool.id, tool]));
+	});
+	const remainingTools = parsed.tools.filter(
+		(tool) => !renderedToolIDs.has(tool.id),
+	);
 
-		if (
-			parsed.toolResults.length > 0 &&
-			parsed.toolCalls.length === 0 &&
-			parsed.markdown === "" &&
-			parsed.reasoning === ""
-		) {
-			return null;
-		}
-
-		// Hide messages that consist entirely of provider-executed
-		// tool results. The parser skips these parts, so the parsed
-		// output is empty and would show a "no renderable content"
-		// fallback.
-		const parts = message.content ?? [];
-		if (
-			parts.length > 0 &&
-			parts.every((p) => p.type === "tool-result" && p.provider_executed)
-		) {
-			return null;
-		}
-
-		const hasRenderableContent =
-			parsed.blocks.length > 0 ||
-			parsed.tools.length > 0 ||
-			parsed.sources.length > 0;
-		// Pre-compute the inline content for user messages so we
-		// avoid a filter + map inside the JSX return path.
-		const userInlineContent = isUser
-			? parsed.blocks.filter(
-					(
-						b,
-					): b is
-						| Extract<RenderBlock, { type: "response" }>
-						| Extract<RenderBlock, { type: "file-reference" }> =>
-						b.type === "response" || b.type === "file-reference",
-				)
-			: [];
-
-		const userFileBlocks = isUser
-			? parsed.blocks.filter(
-					(b): b is Extract<RenderBlock, { type: "file" }> => b.type === "file",
-				)
-			: [];
-
-		const hasUserMessageBody =
-			userInlineContent.length > 0 || Boolean(parsed.markdown?.trim());
-		const hasFileBlocks = userFileBlocks.length > 0;
-
-		const conversationItemProps: { role: "user" | "assistant" } = {
-			role: isUser ? "user" : "assistant",
-		};
-		const { elements: orderedBlocks, renderedToolIDs } = renderBlockList({
-			blocks: parsed.blocks,
-			toolByID,
-			keyPrefix: String(message.id),
-			onImageClick: setPreviewImage,
-			onTextFileClick: (content) => setPreviewText(content),
-			urlTransform,
-		});
-		const remainingTools = parsed.tools.filter(
-			(tool) => !renderedToolIDs.has(tool.id),
-		);
-
-		return (
-			<div
-				className={cn(
-					isAfterEditingMessage && "opacity-40 pointer-events-none",
-					"transition-opacity duration-200",
-				)}
-			>
-				<ConversationItem {...conversationItemProps}>
-					{isUser ? (
-						<Message className="w-full max-w-none">
-							<MessageContent
-								className={cn(
-									"group/msg rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
-									editingMessageId === message.id &&
-										"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
-									isSavingMessage && "ring-2 ring-content-secondary/40",
-									fadeFromBottom && "relative overflow-hidden",
+	return (
+		<div
+			className={cn(
+				isAfterEditingMessage && "opacity-40 pointer-events-none",
+				"transition-opacity duration-200",
+			)}
+		>
+			<ConversationItem {...conversationItemProps}>
+				{isUser ? (
+					<Message className="w-full max-w-none">
+						<MessageContent
+							className={cn(
+								"group/msg rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
+								editingMessageId === message.id &&
+									"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
+								isSavingMessage && "ring-2 ring-content-secondary/40",
+								fadeFromBottom && "relative overflow-hidden",
+							)}
+							style={
+								fadeFromBottom
+									? { maxHeight: "var(--clip-h, none)" }
+									: undefined
+							}
+						>
+							<div className="flex flex-col gap-1.5">
+								{(hasUserMessageBody || hasFileBlocks) && (
+									<div className="flex items-start gap-2">
+										{hasUserMessageBody && (
+											<span className="min-w-0 flex-1">
+												{userInlineContent.length > 0
+													? userInlineContent.map((block, i) =>
+															block.type === "response" ? (
+																<Fragment key={i}>{block.text}</Fragment>
+															) : (
+																<FileReferenceChip
+																	key={i}
+																	fileName={block.file_name}
+																	startLine={block.start_line}
+																	endLine={block.end_line}
+																	className="mx-1"
+																/>
+															),
+														)
+													: parsed.markdown || ""}
+											</span>
+										)}
+										{isSavingMessage && (
+											<Spinner
+												className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-secondary"
+												aria-label="Saving message edit"
+												loading
+											/>
+										)}
+										{onEditUserMessage && !isSavingMessage && (
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<button
+														type="button"
+														className="mt-0.5 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-content-secondary opacity-0 transition-opacity hover:bg-surface-tertiary hover:text-content-primary focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link group-hover/msg:opacity-100"
+														aria-label="Edit message"
+														onClick={() => {
+															const fileBlocks = parsed.blocks.filter(
+																(
+																	b,
+																): b is Extract<
+																	RenderBlock,
+																	{ type: "file" }
+																> =>
+																	b.type === "file" &&
+																	(b.media_type.startsWith("image/") ||
+																		b.media_type === "text/plain"),
+															);
+															onEditUserMessage(
+																message.id,
+																parsed.markdown || "",
+																fileBlocks.length > 0 ? fileBlocks : undefined,
+															);
+														}}
+													>
+														<PencilIcon className="size-3.5" />
+													</button>
+												</TooltipTrigger>
+												<TooltipContent side="top">Edit message</TooltipContent>
+											</Tooltip>
+										)}
+									</div>
 								)}
-								style={
-									fadeFromBottom
-										? { maxHeight: "var(--clip-h, none)" }
-										: undefined
-								}
-							>
-								<div className="flex flex-col gap-1.5">
-									{(hasUserMessageBody || hasFileBlocks) && (
-										<div className="flex items-start gap-2">
-											{hasUserMessageBody && (
-												<span className="min-w-0 flex-1">
-													{userInlineContent.length > 0
-														? userInlineContent.map((block, i) =>
-																block.type === "response" ? (
-																	<Fragment key={i}>{block.text}</Fragment>
-																) : (
-																	<FileReferenceChip
-																		key={i}
-																		fileName={block.file_name}
-																		startLine={block.start_line}
-																		endLine={block.end_line}
-																		className="mx-1"
-																	/>
-																),
-															)
-														: parsed.markdown || ""}
-												</span>
-											)}
-											{isSavingMessage && (
-												<Spinner
-													className="mt-0.5 h-3.5 w-3.5 shrink-0 text-content-secondary"
-													aria-label="Saving message edit"
-													loading
-												/>
-											)}
-											{onEditUserMessage && !isSavingMessage && (
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<button
-															type="button"
-															className="mt-0.5 inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-content-secondary opacity-0 transition-opacity hover:bg-surface-tertiary hover:text-content-primary focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link group-hover/msg:opacity-100"
-															aria-label="Edit message"
-															onClick={() => {
-																const fileBlocks = parsed.blocks.filter(
-																	(
-																		b,
-																	): b is Extract<
-																		RenderBlock,
-																		{ type: "file" }
-																	> =>
-																		b.type === "file" &&
-																		(b.media_type.startsWith("image/") ||
-																			b.media_type === "text/plain"),
-																);
-																onEditUserMessage(
-																	message.id,
-																	parsed.markdown || "",
-																	fileBlocks.length > 0
-																		? fileBlocks
-																		: undefined,
-																);
-															}}
-														>
-															<PencilIcon className="size-3.5" />
-														</button>
-													</TooltipTrigger>
-													<TooltipContent side="top">
-														Edit message
-													</TooltipContent>
-												</Tooltip>
-											)}
-										</div>
-									)}
-									{(() => {
-										if (userFileBlocks.length === 0) return null;
-										return (
-											<div
-												className={cn(
-													hasUserMessageBody && "mt-2",
-													"flex flex-wrap gap-2",
-												)}
-											>
-												{userFileBlocks.map((block, i) =>
-													renderFileBlock({
-														block,
-														key: `user-file-${block.file_id ?? i}`,
-														onImageClick: setPreviewImage,
-														onTextFileClick: setPreviewText,
-													}),
-												)}
-											</div>
-										);
-									})()}
-									{fadeFromBottom && (
+								{(() => {
+									if (userFileBlocks.length === 0) return null;
+									return (
 										<div
-											className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
-											style={{
-												background:
-													"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
-											}}
-										/>
-									)}
-								</div>
-							</MessageContent>
-						</Message>
-					) : (
-						<Message className="w-full">
-							<MessageContent className="whitespace-normal">
-								<div className="space-y-3">
-									{orderedBlocks}
-									{remainingTools.map((tool) => (
-										<Tool
-											key={tool.id}
-											name={tool.name}
-											args={tool.args}
-											result={tool.result}
-											status={tool.status}
-											isError={tool.isError}
-										/>
-									))}
-									{!hasRenderableContent && (
-										<div className="text-xs text-content-secondary">
-											Message has no renderable content.
+											className={cn(
+												hasUserMessageBody && "mt-2",
+												"flex flex-wrap gap-2",
+											)}
+										>
+											{userFileBlocks.map((block, i) =>
+												renderFileBlock({
+													block,
+													key: `user-file-${block.file_id ?? i}`,
+													onImageClick: setPreviewImage,
+													onTextFileClick: setPreviewText,
+												}),
+											)}
 										</div>
-									)}
-								</div>
-							</MessageContent>
-						</Message>
-					)}
-				</ConversationItem>
-				{previewImage && (
-					<ImageLightbox
-						src={previewImage}
-						onClose={() => setPreviewImage(null)}
-					/>
+									);
+								})()}
+								{fadeFromBottom && (
+									<div
+										className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 max-h-12"
+										style={{
+											background:
+												"linear-gradient(to top, hsl(var(--surface-secondary)), transparent)",
+										}}
+									/>
+								)}
+							</div>
+						</MessageContent>
+					</Message>
+				) : (
+					<Message className="w-full">
+						<MessageContent className="whitespace-normal">
+							<div className="space-y-3">
+								{orderedBlocks}
+								{remainingTools.map((tool) => (
+									<Tool
+										key={tool.id}
+										name={tool.name}
+										args={tool.args}
+										result={tool.result}
+										status={tool.status}
+										isError={tool.isError}
+									/>
+								))}
+								{!hasRenderableContent && (
+									<div className="text-xs text-content-secondary">
+										Message has no renderable content.
+									</div>
+								)}
+							</div>
+						</MessageContent>
+					</Message>
 				)}
-				{previewText !== null && (
-					<TextPreviewDialog
-						content={previewText}
-						onClose={() => setPreviewText(null)}
-					/>
-				)}
-			</div>
-		);
-	},
-);
+			</ConversationItem>
+			{previewImage && (
+				<ImageLightbox
+					src={previewImage}
+					onClose={() => setPreviewImage(null)}
+				/>
+			)}
+			{previewText !== null && (
+				<TextPreviewDialog
+					content={previewText}
+					onClose={() => setPreviewText(null)}
+				/>
+			)}
+		</div>
+	);
+};
 
 export const StreamingOutput: FC<{
 	streamState: StreamState | null;
