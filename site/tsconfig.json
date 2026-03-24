@@ -6,7 +6,7 @@
 		"isolatedModules": true,
 		"jsx": "react-jsx",
 		"jsxImportSource": "@emotion/react",
-		"lib": ["dom", "dom.iterable", "esnext"],
+		"lib": ["dom", "esnext"],
 		"module": "preserve",
 		"moduleResolution": "bundler",
 		"noEmit": true,
@@ -27,7 +27,10 @@
 		"baseUrl": "src/",
 		"paths": {
 			"#/*": ["*"]
-		}
+		},
+		// baseUrl is deprecated and will be removed in TypeScript 7.0. Migration is
+		// in progress.
+		"ignoreDeprecations": "6.0"
 	},
 	"include": ["**/*.ts", "**/*.tsx"],
 	"exclude": ["node_modules/"]
