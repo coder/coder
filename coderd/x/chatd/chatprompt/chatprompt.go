@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"mime"
 	"regexp"
 	"strings"
 
@@ -18,10 +19,19 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+const syntheticPasteInlineBudget = 16 * 1024
+
+const syntheticPasteInlinePrefix = "[pasted-text] The user pasted text into the chat UI. The frontend collapsed it into an attachment, so the content is inlined below for direct model consumption.\n\n"
+
+const syntheticPasteTruncationWarning = "\n\n[pasted-text] The pasted text was truncated to 16384 bytes before sending to the model."
+
 var toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
+
+var syntheticPasteFileNamePattern = regexp.MustCompile(`^pasted-text-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.txt$`)
 
 // FileData holds resolved file content for LLM prompt building.
 type FileData struct {
+	Name      string
 	Data      []byte
 	MediaType string
 }
@@ -1120,6 +1130,43 @@ func safeToolCallArgs(input string) json.RawMessage {
 	return raw
 }
 
+// TODO: Replace filename-based detection with explicit origin metadata.
+func isSyntheticPaste(name string, mediaType string) bool {
+	if !syntheticPasteFileNamePattern.MatchString(name) {
+		return false
+	}
+	parsedMediaType, _, err := mime.ParseMediaType(mediaType)
+	if err == nil {
+		mediaType = parsedMediaType
+	}
+	if strings.HasPrefix(mediaType, "text/") {
+		return true
+	}
+	switch mediaType {
+	case "application/json", "application/xml", "application/javascript", "application/x-yaml":
+		return true
+	default:
+		return false
+	}
+}
+
+func formatSyntheticPasteText(name string, body []byte) string {
+	const syntheticPasteNameLabel = "Synthetic attachment name: "
+	const syntheticPasteNameSuffix = "\n\n"
+
+	var sb strings.Builder
+	sb.Grow(len(syntheticPasteInlinePrefix) + len(name) + min(len(body), syntheticPasteInlineBudget) + len(syntheticPasteTruncationWarning) + len(syntheticPasteNameLabel) + len(syntheticPasteNameSuffix))
+	_, _ = sb.WriteString(syntheticPasteInlinePrefix)
+	if name != "" {
+		_, _ = fmt.Fprintf(&sb, "%s%s%s", syntheticPasteNameLabel, name, syntheticPasteNameSuffix)
+	}
+	_, _ = sb.WriteString(string(body[:min(len(body), syntheticPasteInlineBudget)]))
+	if len(body) > syntheticPasteInlineBudget {
+		_, _ = sb.WriteString(syntheticPasteTruncationWarning)
+	}
+	return sb.String()
+}
+
 // fileReferencePartToText formats a file-reference SDK part as
 // plain text for LLM consumption. LLMs don't understand
 // file-reference natively, so we convert to a readable text
@@ -1220,13 +1267,22 @@ func partsToMessageParts(
 		case codersdk.ChatMessagePartTypeFile:
 			data := part.Data
 			mediaType := part.MediaType
+			var name string
 			if part.FileID.Valid {
 				if fd, ok := resolved[part.FileID.UUID]; ok {
 					data = fd.Data
+					name = fd.Name
 					if mediaType == "" {
 						mediaType = fd.MediaType
 					}
 				}
+			}
+			if isSyntheticPaste(name, mediaType) {
+				result = append(result, fantasy.TextPart{
+					Text:            formatSyntheticPasteText(name, data),
+					ProviderOptions: providerMetadataToOptions(logger, part.ProviderMetadata),
+				})
+				continue
 			}
 			result = append(result, fantasy.FilePart{
 				Data:            data,
