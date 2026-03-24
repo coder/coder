@@ -96,13 +96,15 @@ export const UploadError: Story = {
 	})(),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		const overlay = canvas.getByLabelText("Upload error");
 		expect(overlay).toBeInTheDocument();
 		await userEvent.hover(overlay);
-		expect(
-			await body.findByText(/Upload failed: server error/i),
-		).toBeInTheDocument();
+		// After hover, the tooltip renders the error message. Use
+		// getAllByText because the text appears in both the tooltip
+		// trigger overlay and the tooltip content popover.
+		const body = within(canvasElement.ownerDocument.body);
+		const matches = await body.findAllByText(/Upload failed: server error/i);
+		expect(matches.length).toBeGreaterThanOrEqual(1);
 	},
 };
 
