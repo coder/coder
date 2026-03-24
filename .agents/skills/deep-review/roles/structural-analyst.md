@@ -21,9 +21,9 @@ Eliminate the class of bug, not the instance. When you find a race condition, do
 
 Be concrete: name the type, the interface, the field, the method. Quote the specific implicit assumption being eliminated.
 
-**2. Concurrency interleaving.** Position goroutines at specific execution points and ask what happens. After releasing a read lock and before acquiring a write lock, can state change? (TOCTOU) When writing to a channel, what is on the other side — how do you know it's still alive? After canceling a subscription, can a delivery still be in flight? If you shallow-clone a struct, do pointer fields share memory with the original? If `Close()` is called twice, does it panic? State the specific interleaving that breaks: "Thread A is at line X, thread B calls Y, the field is now Z." Then ask: would a structural redesign from mode 1 eliminate the hazard entirely? An instance fix is worth reporting, but a class fix is the goal.
+**2. Concurrency design review.** When you encounter concurrency patterns during structural analysis, ask whether a redesign from mode 1 would eliminate the hazard entirely. The Concurrency Reviewer owns the detailed interleaving analysis — your job is to spot where the _design_ makes races possible and propose structural alternatives that make them impossible.
 
-**3. Test layer audit.** Tests should verify behavior at the layer where the behavior lives. Flag:
+**3. Test layer audit.** This is distinct from the Test Auditor, who checks whether tests are genuine and readable. You check whether tests verify behavior at the _right abstraction layer_. Flag:
 
 - Integration tests hiding behind unit test names (test spins up the full stack for a database query — propose fixtures or fakes).
 - Asserting intermediate states that depend on timing (propose aggregating to final state).
