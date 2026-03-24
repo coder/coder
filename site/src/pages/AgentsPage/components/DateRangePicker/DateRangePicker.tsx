@@ -88,9 +88,8 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 }) => {
 	const [open, setOpen] = useState(false);
 
-	// Internal selection state for the two-month calendar. Kept separate
-	// from the committed `value` so that a single click doesn't immediately
-	// fire `onChange`.
+	// Internal selection state kept separate from the committed value
+	// so the user can freely adjust the range before applying.
 	const [selection, setSelection] = useState<DayPickerDateRange | undefined>(
 		() => ({
 			from: value.startDate,
@@ -98,27 +97,24 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 		}),
 	);
 
-	const commit = (from: Date, to: Date) => {
-		onChange(toBoundary(from, to));
+	const commit = () => {
+		if (selection?.from && selection?.to) {
+			onChange(toBoundary(selection.from, selection.to));
+		}
 		setOpen(false);
 	};
 
 	const handlePreset = (preset: DateRangePreset) => {
 		const { from, to } = preset.range();
 		setSelection({ from, to });
-		commit(from, to);
+		// Presets are a complete selection — commit immediately.
+		onChange(toBoundary(from, to));
+		setOpen(false);
 	};
 
 	const handleCalendarSelect = (range: DayPickerDateRange | undefined) => {
 		if (!range) return;
 		setSelection(range);
-
-		// react-day-picker fires onChange on every click. A complete
-		// range (both `from` and `to` present and different) means the
-		// user finished their two-click selection.
-		if (range.from && range.to && range.from !== range.to) {
-			commit(range.from, range.to);
-		}
 	};
 
 	// Sync local selection when the popover opens so it reflects the
@@ -129,6 +125,12 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 		}
 		setOpen(next);
 	};
+
+	const canApply =
+		selection?.from &&
+		selection?.to &&
+		(selection.from.getTime() !== value.startDate.getTime() ||
+			selection.to.getTime() !== value.endDate.getTime());
 
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
@@ -145,11 +147,9 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 				align="end"
 				onOpenAutoFocus={(e) => e.preventDefault()}
 			>
-				{" "}
 				<div className="flex">
 					{/* Presets sidebar */}
 					<div className="flex flex-col border-r border-border-default p-2 text-sm">
-						{" "}
 						{presets.map((preset) => (
 							<button
 								key={preset.label}
@@ -167,15 +167,57 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 						))}
 					</div>
 
-					{/* Two-month calendar */}
-					<div className="p-2">
-						<Calendar
-							mode="range"
-							selected={selection}
-							onSelect={handleCalendarSelect}
-							numberOfMonths={2}
-							disabled={{ after: new Date() }}
-						/>
+					{/* Calendar + footer */}
+					<div className="flex flex-col">
+						{/* Selected range display */}
+						<div className="flex items-center gap-2 border-b border-border-default px-4 py-2 text-sm">
+							<span
+								className={cn(
+									"rounded-md px-2 py-1 tabular-nums",
+									selection?.from
+										? "bg-surface-secondary text-content-primary"
+										: "text-content-secondary",
+								)}
+							>
+								{selection?.from
+									? dayjs(selection.from).format("MMM D, YYYY")
+									: "Start date"}
+							</span>
+							<MoveRightIcon className="size-3.5 text-content-secondary" />
+							<span
+								className={cn(
+									"rounded-md px-2 py-1 tabular-nums",
+									selection?.to
+										? "bg-surface-secondary text-content-primary"
+										: "text-content-secondary",
+								)}
+							>
+								{selection?.to
+									? dayjs(selection.to).format("MMM D, YYYY")
+									: "End date"}
+							</span>
+						</div>
+
+						{/* Two-month calendar */}
+						<div className="p-2">
+							<Calendar
+								mode="range"
+								selected={selection}
+								onSelect={handleCalendarSelect}
+								numberOfMonths={2}
+								disabled={{ after: new Date() }}
+							/>
+						</div>
+
+						{/* Apply footer */}
+						<div className="flex items-center justify-end gap-2 border-t border-border-default px-4 py-2">
+							<Button variant="subtle" size="sm" onClick={() => setOpen(false)}>
+								Cancel
+							</Button>
+							<Button size="sm" onClick={commit} disabled={!canApply}>
+								Apply
+							</Button>
+						</div>
 					</div>
 				</div>
 			</PopoverContent>

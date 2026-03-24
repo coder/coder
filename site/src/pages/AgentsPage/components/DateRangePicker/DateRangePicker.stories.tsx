@@ -37,8 +37,7 @@ export const Open: Story = {
 		await userEvent.click(trigger);
 
 		await waitFor(() => {
-			const presets = screen.getByText("Last 7 days");
-			expect(presets).toBeInTheDocument();
+			expect(screen.getByText("Last 7 days")).toBeInTheDocument();
 		});
 
 		// All preset labels should be visible.
@@ -46,6 +45,15 @@ export const Open: Story = {
 		expect(screen.getByText("Yesterday")).toBeInTheDocument();
 		expect(screen.getByText("Last 14 days")).toBeInTheDocument();
 		expect(screen.getByText("Last 30 days")).toBeInTheDocument();
+
+		// The selected range should be displayed above the calendar.
+		expect(
+			screen.getByText(dayjs(defaultValue.startDate).format("MMM D, YYYY")),
+		).toBeInTheDocument();
+
+		// Cancel and Apply buttons should be visible.
+		expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
 	},
 };
 
@@ -97,10 +105,41 @@ export const SelectCalendarRange: Story = {
 			expect(screen.getByText("Today")).toBeInTheDocument();
 		});
 
-		// Find day buttons in the calendar grid. These are rendered
-		// as buttons inside table cells by react-day-picker.
+		// The calendar should render day cells.
 		const dayButtons = body.getAllByRole("gridcell");
 		expect(dayButtons.length).toBeGreaterThan(0);
+
+		// Apply button should be disabled until the range changes.
+		const applyButton = screen.getByRole("button", { name: "Apply" });
+		expect(applyButton).toBeDisabled();
+	},
+};
+
+export const CancelClosesWithoutApplying: Story = {
+	render: function CancelStory() {
+		const [value, setValue] = useState<DateRangeValue>(defaultValue);
+		return <DateRangePicker value={value} onChange={setValue} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const trigger = canvas.getByRole("button");
+		const originalText = trigger.textContent;
+		await userEvent.click(trigger);
+
+		// Click Cancel.
+		const cancelButton = await screen.findByRole("button", {
+			name: "Cancel",
+		});
+		await userEvent.click(cancelButton);
+
+		// Popover should close.
+		await waitFor(() => {
+			expect(screen.queryByText("Cancel")).toBeNull();
+		});
+
+		// The trigger text should remain unchanged.
+		expect(canvas.getByRole("button").textContent).toBe(originalText);
 	},
 };
 
