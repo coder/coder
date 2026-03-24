@@ -19,6 +19,7 @@ import type { ChatMessageInputRef } from "../AgentChatInput";
 import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
+import { getDiffCacheKeyPrefix } from "../DiffViewer/diffCacheKey";
 
 export { InlinePromptInput } from "../DiffViewer/CommentableDiffViewer";
 
@@ -89,33 +90,22 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	});
 
 	const diffContent = diffContentsQuery.data?.diff;
-	const [diffVersion, setDiffVersion] = useState(0);
-	const [prevDiffContent, setPrevDiffContent] = useState<string | undefined>(
-		undefined,
-	);
-	if (diffContent !== prevDiffContent) {
-		setPrevDiffContent(diffContent);
-		setDiffVersion((v) => v + 1);
-	}
-
 	const parsedFiles = (() => {
 		if (!diffContent) {
 			return [] as FileDiffMetadata[];
 		}
 		try {
-			// The cacheKeyPrefix enables the worker pool's LRU cache
-			// so highlighted ASTs are reused across re-renders instead
-			// of being re-computed on every render cycle. We include a
-			// version counter derived from the diff content so that when
-			// the diff changes (e.g. new commits pushed) the old cached
-			// highlight AST is not reused with mismatched line indices,
-			// which would cause DiffHunksRenderer.processDiffResult to
-			// throw. Unlike dataUpdatedAt, this counter only increments
-			// when the actual diff string changes, avoiding unnecessary
-			// recomputation on refetches with identical content.
+			// The @pierre/diffs worker pool only keys cached highlighted
+			// ASTs by `cacheKey`, so the key must change whenever the diff
+			// query updates. React Query's `dataUpdatedAt` survives panel
+			// remounts, which prevents stale cache hits from pairing a new
+			// FileDiffMetadata with an older highlighted AST.
 			const patches = parsePatchFiles(
 				diffContent,
-				`chat-${chatId}-v${diffVersion}`,
+				getDiffCacheKeyPrefix(
+					`chat-${chatId}`,
+					diffContentsQuery.dataUpdatedAt,
+				),
 			);
 			return patches.flatMap((p) => p.files);
 		} catch {
