@@ -56,25 +56,31 @@ type msgOrErr struct {
 // last element with an error so that the subscriber can get notified that some
 // messages were dropped, all without blocking.
 type msgQueue struct {
-	ctx    context.Context
-	cond   *sync.Cond
-	q      [BufferSize]msgOrErr
-	front  int
-	size   int
-	closed bool
-	l      Listener
-	le     ListenerWithErr
+	ctx       context.Context
+	cond      *sync.Cond
+	q         [BufferSize]msgOrErr
+	front     int
+	size      int
+	closed    bool
+	l         Listener
+	le        ListenerWithErr
+	onDropped func()
 }
 
 func newMsgQueue(ctx context.Context, l Listener, le ListenerWithErr) *msgQueue {
+	return newMsgQueueWithDroppedCallback(ctx, l, le, nil)
+}
+
+func newMsgQueueWithDroppedCallback(ctx context.Context, l Listener, le ListenerWithErr, onDropped func()) *msgQueue {
 	if l == nil && le == nil {
 		panic("l or le must be non-nil")
 	}
 	q := &msgQueue{
-		ctx:  ctx,
-		cond: sync.NewCond(&sync.Mutex{}),
-		l:    l,
-		le:   le,
+		ctx:       ctx,
+		cond:      sync.NewCond(&sync.Mutex{}),
+		l:         l,
+		le:        le,
+		onDropped: onDropped,
 	}
 	go q.run()
 	return q
@@ -131,6 +137,7 @@ func (q *msgQueue) enqueue(msg []byte) {
 		back := (q.front + BufferSize - 1) % BufferSize
 		q.q[back].msg = nil
 		q.q[back].err = ErrDroppedMessages
+		q.onDroppedSignal()
 		return
 	}
 	// queue is not full, insert the message
@@ -139,6 +146,12 @@ func (q *msgQueue) enqueue(msg []byte) {
 	q.q[next].err = nil
 	q.size++
 	q.cond.Broadcast()
+}
+
+func (q *msgQueue) onDroppedSignal() {
+	if q.onDropped != nil {
+		q.onDropped()
+	}
 }
 
 func (q *msgQueue) close() {
@@ -160,6 +173,7 @@ func (q *msgQueue) dropped() {
 		back := (q.front + BufferSize - 1) % BufferSize
 		q.q[back].msg = nil
 		q.q[back].err = ErrDroppedMessages
+		q.onDroppedSignal()
 		return
 	}
 	// queue is not full, insert the error
@@ -168,6 +182,7 @@ func (q *msgQueue) dropped() {
 	q.q[next].err = ErrDroppedMessages
 	q.size++
 	q.cond.Broadcast()
+	q.onDroppedSignal()
 }
 
 // pqListener is an interface that represents a *pq.Listener for testing
@@ -222,6 +237,7 @@ type PGPubsub struct {
 	publishedBytesTotal prometheus.Counter
 	receivedBytesTotal  prometheus.Counter
 	disconnectionsTotal prometheus.Counter
+	droppedSignalsTotal prometheus.Counter
 	connected           prometheus.Gauge
 
 	latencyMeasurer       *LatencyMeasurer
@@ -235,11 +251,11 @@ const BufferSize = 2048
 
 // Subscribe calls the listener when an event matching the name is received.
 func (p *PGPubsub) Subscribe(event string, listener Listener) (cancel func(), err error) {
-	return p.subscribeQueue(event, newMsgQueue(context.Background(), listener, nil))
+	return p.subscribeQueue(event, newMsgQueueWithDroppedCallback(context.Background(), listener, nil, p.recordDroppedSignal))
 }
 
 func (p *PGPubsub) SubscribeWithErr(event string, listener ListenerWithErr) (cancel func(), err error) {
-	return p.subscribeQueue(event, newMsgQueue(context.Background(), nil, listener))
+	return p.subscribeQueue(event, newMsgQueueWithDroppedCallback(context.Background(), nil, listener, p.recordDroppedSignal))
 }
 
 func (p *PGPubsub) subscribeQueue(event string, newQ *msgQueue) (cancel func(), err error) {
@@ -442,6 +458,10 @@ func (p *PGPubsub) recordReconnect() {
 	}
 }
 
+func (p *PGPubsub) recordDroppedSignal() {
+	p.droppedSignalsTotal.Inc()
+}
+
 // logDialer is a pq.Dialer and pq.DialerContext that logs when it starts
 // connecting and when the TCP connection is established.
 type logDialer struct {
@@ -535,6 +555,7 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 				p.connected.Set(1.0)
 			case pq.ListenerEventDisconnected:
 				p.logger.Error(ctx, "pubsub disconnected from postgres", slog.Error(err))
+				p.disconnectionsTotal.Inc()
 				p.connected.Set(0)
 			case pq.ListenerEventReconnected:
 				p.logger.Info(ctx, "pubsub reconnected to postgres")
@@ -622,6 +643,7 @@ func (p *PGPubsub) Describe(descs chan<- *prometheus.Desc) {
 	p.publishedBytesTotal.Describe(descs)
 	p.receivedBytesTotal.Describe(descs)
 	p.disconnectionsTotal.Describe(descs)
+	p.droppedSignalsTotal.Describe(descs)
 	p.connected.Describe(descs)
 
 	// implicit metrics
@@ -645,6 +667,7 @@ func (p *PGPubsub) Collect(metrics chan<- prometheus.Metric) {
 	p.publishedBytesTotal.Collect(metrics)
 	p.receivedBytesTotal.Collect(metrics)
 	p.disconnectionsTotal.Collect(metrics)
+	p.droppedSignalsTotal.Collect(metrics)
 	p.connected.Collect(metrics)
 
 	// implicit metrics
@@ -709,7 +732,7 @@ func newWithoutListener(logger slog.Logger, db *sql.DB) *PGPubsub {
 			Namespace: "coder",
 			Subsystem: "pubsub",
 			Name:      "messages_total",
-			Help:      "Total number of messages received from postgres",
+			Help:      "Total number of messages received from the pubsub backend",
 		}, []string{"size"}),
 		publishedBytesTotal: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "coder",
@@ -727,13 +750,19 @@ func newWithoutListener(logger slog.Logger, db *sql.DB) *PGPubsub {
 			Namespace: "coder",
 			Subsystem: "pubsub",
 			Name:      "disconnections_total",
-			Help:      "Total number of times we disconnected unexpectedly from postgres",
+			Help:      "Total number of times the pubsub backend disconnected unexpectedly",
+		}),
+		droppedSignalsTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "coder",
+			Subsystem: "pubsub",
+			Name:      "dropped_signals_total",
+			Help:      "Total number of ErrDroppedMessages signals emitted to subscribers",
 		}),
 		connected: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "coder",
 			Subsystem: "pubsub",
 			Name:      "connected",
-			Help:      "Whether we are connected (1) or not connected (0) to postgres",
+			Help:      "Whether we are connected (1) or not connected (0) to the pubsub backend",
 		}),
 	}
 }

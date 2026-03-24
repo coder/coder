@@ -731,10 +731,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.OIDCConfig = oc
 			}
 
-			// We'll read from this channel in the select below that tracks shutdown.  If it remains
+			// We'll read from these channels in the select below that tracks shutdown. If either remains
 			// nil, that case of the select will just never fire, but it's important not to have a
-			// "bare" read on this channel.
-			var pubsubWatchdogTimeout <-chan struct{}
+			// "bare" read on the channel.
+			var featurePubsubWatchdogTimeout <-chan struct{}
+			var pgPubsubWatchdogTimeout <-chan struct{}
 
 			maxOpenConns := int(vals.PostgresConnMaxOpen.Value())
 			maxIdleConns, err := codersdk.ComputeMaxIdleConns(maxOpenConns, vals.PostgresConnMaxIdle.Value())
@@ -763,18 +764,37 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			options.Database = database.New(sqlDB)
-			ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
+			pgPubsub, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
 			if err != nil {
-				return xerrors.Errorf("create pubsub: %w", err)
+				return xerrors.Errorf("create postgres pubsub: %w", err)
 			}
-			options.Pubsub = ps
+			options.PGPubsub = pgPubsub
+			options.Pubsub = pgPubsub
+			defer options.PGPubsub.Close()
+
+			if redisURL := strings.TrimSpace(os.Getenv("CODER_REDIS_URL")); redisURL != "" {
+				redisPubsub, err := pubsub.NewRedis(ctx, logger.Named("redis_pubsub"), redisURL)
+				if err != nil {
+					return xerrors.Errorf("create redis pubsub: %w", err)
+				}
+				options.Pubsub = redisPubsub
+				defer redisPubsub.Close()
+			}
 			if options.DeploymentValues.Prometheus.Enable {
-				options.PrometheusRegistry.MustRegister(ps)
+				collector, ok := options.Pubsub.(prometheus.Collector)
+				if !ok {
+					return xerrors.Errorf("pubsub collector missing for %T", options.Pubsub)
+				}
+				options.PrometheusRegistry.MustRegister(collector)
 			}
-			defer options.Pubsub.Close()
-			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), ps)
-			pubsubWatchdogTimeout = psWatchdog.Timeout()
-			defer psWatchdog.Close()
+			featurePubsubWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), options.Pubsub)
+			featurePubsubWatchdogTimeout = featurePubsubWatchdog.Timeout()
+			defer featurePubsubWatchdog.Close()
+			if options.PGPubsub != options.Pubsub {
+				pgPubsubWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pgpswatch"), options.PGPubsub)
+				pgPubsubWatchdogTimeout = pgPubsubWatchdog.Timeout()
+				defer pgPubsubWatchdog.Close()
+			}
 
 			if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
 				options.Database = dbmetrics.NewQueryMetrics(options.Database, options.Logger, options.PrometheusRegistry)
@@ -1171,8 +1191,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit\n"))
 			case <-tunnelDone:
 				exitErr = xerrors.New("dev tunnel closed unexpectedly")
-			case <-pubsubWatchdogTimeout:
-				exitErr = xerrors.New("pubsub Watchdog timed out")
+			case <-featurePubsubWatchdogTimeout:
+				exitErr = xerrors.New("feature pubsub watchdog timed out")
+			case <-pgPubsubWatchdogTimeout:
+				exitErr = xerrors.New("postgres pubsub watchdog timed out")
 			case exitErr = <-errCh:
 			}
 			if exitErr != nil && !xerrors.Is(exitErr, context.Canceled) {
