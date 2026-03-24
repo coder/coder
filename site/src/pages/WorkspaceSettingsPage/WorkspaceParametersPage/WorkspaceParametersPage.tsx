@@ -22,7 +22,7 @@ import {
 	type WorkspacePermissions,
 	workspaceChecks,
 } from "../../../modules/workspaces/permissions";
-import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
+import { useWorkspaceSettings } from "../useWorkspaceSettings";
 import {
 	WorkspaceParametersForm,
 	type WorkspaceParametersFormValues,
