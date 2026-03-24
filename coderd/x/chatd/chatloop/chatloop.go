@@ -13,6 +13,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"charm.land/fantasy/schema"
 	"golang.org/x/xerrors"
 
@@ -39,9 +40,10 @@ var ErrInterrupted = xerrors.New("chat interrupted")
 // persistence layer is responsible for splitting these into
 // separate database messages by role.
 type PersistedStep struct {
-	Content      []fantasy.Content
-	Usage        fantasy.Usage
-	ContextLimit sql.NullInt64
+	Content            []fantasy.Content
+	Usage              fantasy.Usage
+	ContextLimit       sql.NullInt64
+	ProviderResponseID string
 	// Runtime is the wall-clock duration of this step,
 	// covering LLM streaming, tool execution, and retries.
 	// Zero indicates the duration was not measured (e.g.
@@ -80,8 +82,9 @@ type RunOptions struct {
 		role codersdk.ChatMessageRole,
 		part codersdk.ChatMessagePart,
 	)
-	Compaction     *CompactionOptions
-	ReloadMessages func(context.Context) ([]fantasy.Message, error)
+	Compaction       *CompactionOptions
+	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
+	DisableChainMode func()
 
 	// OnRetry is called before each retry attempt when the LLM
 	// stream fails with a retryable error. It provides the attempt
@@ -245,6 +248,18 @@ func Run(ctx context.Context, opts RunOptions) error {
 	messages := opts.Messages
 	var lastUsage fantasy.Usage
 	var lastProviderMetadata fantasy.ProviderMetadata
+	needsFullHistoryReload := false
+	reloadFullHistory := func(stage string) error {
+		if opts.ReloadMessages == nil {
+			return nil
+		}
+		reloaded, err := opts.ReloadMessages(ctx)
+		if err != nil {
+			return xerrors.Errorf("reload messages %s: %w", stage, err)
+		}
+		messages = reloaded
+		return nil
+	}
 
 	totalSteps := 0
 	// When totalSteps reaches MaxSteps the inner loop exits immediately
@@ -368,10 +383,11 @@ func Run(ctx context.Context, opts RunOptions) error {
 			// check and here, fall back to the interrupt-safe
 			// path so partial content is not lost.
 			if err := opts.PersistStep(ctx, PersistedStep{
-				Content:      result.content,
-				Usage:        result.usage,
-				ContextLimit: contextLimit,
-				Runtime:      time.Since(stepStart),
+				Content:            result.content,
+				Usage:              result.usage,
+				ContextLimit:       contextLimit,
+				ProviderResponseID: extractOpenAIResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
+				Runtime:            time.Since(stepStart),
 			}); err != nil {
 				if errors.Is(err, ErrInterrupted) {
 					persistInterruptedStep(ctx, opts, &result)
@@ -382,14 +398,41 @@ func Run(ctx context.Context, opts RunOptions) error {
 			lastUsage = result.usage
 			lastProviderMetadata = result.providerMetadata
 
-			// Append the step's response messages so that both
-			// inline and post-loop compaction see the full
-			// conversation including the latest assistant reply.
+			// When chain mode is active (PreviousResponseID set), exit
+			// it after persisting the first chained step. Continuation
+			// steps include tool-result messages, which fantasy rejects
+			// when previous_response_id is set, so we must leave chain
+			// mode and reload the full history before the next call.
 			stepMessages := result.toResponseMessages()
-			messages = append(messages, stepMessages...)
+			if hasPreviousResponseID(opts.ProviderOptions) {
+				clearPreviousResponseID(opts.ProviderOptions)
+				if opts.DisableChainMode != nil {
+					opts.DisableChainMode()
+				}
+				switch {
+				case opts.ReloadMessages != nil:
+					if err := reloadFullHistory("after chain mode exit"); err != nil {
+						return err
+					}
+					needsFullHistoryReload = false
+				default:
+					messages = append(messages, stepMessages...)
+					needsFullHistoryReload = false
+				}
+			} else {
+				messages = append(messages, stepMessages...)
+			}
+
+			if needsFullHistoryReload && !result.shouldContinue &&
+				opts.ReloadMessages != nil {
+				if err := reloadFullHistory("before final compaction after chain mode exit"); err != nil {
+					return err
+				}
+				needsFullHistoryReload = false
+			}
 
 			// Inline compaction.
-			if opts.Compaction != nil && opts.ReloadMessages != nil {
+			if !needsFullHistoryReload && opts.Compaction != nil && opts.ReloadMessages != nil {
 				did, compactErr := tryCompact(
 					ctx,
 					opts.Model,
@@ -405,14 +448,11 @@ func Run(ctx context.Context, opts RunOptions) error {
 				if did {
 					alreadyCompacted = true
 					compactedOnFinalStep = true
-					reloaded, reloadErr := opts.ReloadMessages(ctx)
-					if reloadErr != nil {
-						return xerrors.Errorf("reload messages after compaction: %w", reloadErr)
+					if err := reloadFullHistory("after compaction"); err != nil {
+						return err
 					}
-					messages = reloaded
 				}
 			}
-
 			if !result.shouldContinue {
 				stoppedByModel = true
 				break
@@ -423,9 +463,16 @@ func Run(ctx context.Context, opts RunOptions) error {
 			compactedOnFinalStep = false
 		}
 
+		if needsFullHistoryReload && stoppedByModel && opts.ReloadMessages != nil {
+			if err := reloadFullHistory("before post-run compaction after chain mode exit"); err != nil {
+				return err
+			}
+			needsFullHistoryReload = false
+		}
+
 		// Post-run compaction safety net: if we never compacted
 		// during the loop, try once at the end.
-		if !alreadyCompacted && opts.Compaction != nil && opts.ReloadMessages != nil {
+		if !needsFullHistoryReload && !alreadyCompacted && opts.Compaction != nil && opts.ReloadMessages != nil {
 			did, err := tryCompact(
 				ctx,
 				opts.Model,
@@ -971,6 +1018,85 @@ func addAnthropicPromptCaching(messages []fantasy.Message) {
 			messages[i].ProviderOptions = providerOption
 		}
 	}
+}
+
+// hasPreviousResponseID checks whether the provider options contain
+// an OpenAI Responses entry with a non-empty PreviousResponseID.
+func hasPreviousResponseID(providerOptions fantasy.ProviderOptions) bool {
+	if providerOptions == nil {
+		return false
+	}
+
+	for _, entry := range providerOptions {
+		if options, ok := entry.(*fantasyopenai.ResponsesProviderOptions); ok {
+			return options.PreviousResponseID != nil &&
+				*options.PreviousResponseID != ""
+		}
+	}
+
+	return false
+}
+
+// clearPreviousResponseID removes PreviousResponseID from the OpenAI
+// Responses provider options entry, if present.
+func clearPreviousResponseID(providerOptions fantasy.ProviderOptions) {
+	if providerOptions == nil {
+		return
+	}
+
+	for _, entry := range providerOptions {
+		if options, ok := entry.(*fantasyopenai.ResponsesProviderOptions); ok {
+			options.PreviousResponseID = nil
+		}
+	}
+}
+
+// extractOpenAIResponseID extracts the OpenAI Responses API response
+// ID from provider metadata. Returns an empty string if no OpenAI
+// Responses metadata is present.
+func extractOpenAIResponseID(metadata fantasy.ProviderMetadata) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+
+	for _, entry := range metadata {
+		if providerMetadata, ok := entry.(*fantasyopenai.ResponsesProviderMetadata); ok && providerMetadata != nil {
+			return providerMetadata.ResponseID
+		}
+	}
+
+	return ""
+}
+
+// extractOpenAIResponseIDIfStored returns the OpenAI response ID
+// only when the provider options indicate store=true. Response IDs
+// from store=false turns are not persisted server-side and cannot
+// be used for chaining.
+func extractOpenAIResponseIDIfStored(
+	providerOptions fantasy.ProviderOptions,
+	metadata fantasy.ProviderMetadata,
+) string {
+	if !isResponsesStoreEnabled(providerOptions) {
+		return ""
+	}
+
+	return extractOpenAIResponseID(metadata)
+}
+
+// isResponsesStoreEnabled checks whether the OpenAI Responses
+// provider options explicitly enable store=true.
+func isResponsesStoreEnabled(providerOptions fantasy.ProviderOptions) bool {
+	if providerOptions == nil {
+		return false
+	}
+
+	for _, entry := range providerOptions {
+		if options, ok := entry.(*fantasyopenai.ResponsesProviderOptions); ok {
+			return options.Store != nil && *options.Store
+		}
+	}
+
+	return false
 }
 
 func extractContextLimit(metadata fantasy.ProviderMetadata) sql.NullInt64 {

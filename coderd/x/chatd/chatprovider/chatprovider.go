@@ -1063,6 +1063,46 @@ func ProviderOptionsFromChatModelConfig(
 	return result
 }
 
+// IsResponsesStoreEnabled checks if the OpenAI Responses provider
+// options are present and have Store set to true. When true, the
+// provider stores conversation history server-side, enabling
+// follow-up chaining via PreviousResponseID.
+func IsResponsesStoreEnabled(opts fantasy.ProviderOptions) bool {
+	if opts == nil {
+		return false
+	}
+	raw, ok := opts[fantasyopenai.Name]
+	if !ok {
+		return false
+	}
+	respOpts, ok := raw.(*fantasyopenai.ResponsesProviderOptions)
+	if !ok || respOpts == nil {
+		return false
+	}
+	return respOpts.Store != nil && *respOpts.Store
+}
+
+// CloneWithPreviousResponseID shallow-clones the provider options
+// map and the OpenAI Responses entry, setting PreviousResponseID
+// on the clone. The original map and entry are not mutated.
+func CloneWithPreviousResponseID(
+	opts fantasy.ProviderOptions,
+	previousResponseID string,
+) fantasy.ProviderOptions {
+	cloned := make(fantasy.ProviderOptions, len(opts))
+	for k, v := range opts {
+		cloned[k] = v
+	}
+	if raw, ok := cloned[fantasyopenai.Name]; ok {
+		if respOpts, ok := raw.(*fantasyopenai.ResponsesProviderOptions); ok && respOpts != nil {
+			clone := *respOpts
+			clone.PreviousResponseID = &previousResponseID
+			cloned[fantasyopenai.Name] = &clone
+		}
+	}
+	return cloned
+}
+
 func openAIProviderOptionsFromChatConfig(
 	model fantasy.LanguageModel,
 	options *codersdk.ChatModelOpenAIProviderOptions,

@@ -4623,7 +4623,7 @@ func (q *sqlQuerier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds [
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id
 FROM
     chat_messages
 WHERE
@@ -4655,13 +4655,14 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 		&i.TotalCostMicros,
 		&i.RuntimeMs,
 		&i.Deleted,
+		&i.ProviderResponseID,
 	)
 	return i, err
 }
 
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id
 FROM
     chat_messages
 WHERE
@@ -4708,6 +4709,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 			&i.TotalCostMicros,
 			&i.RuntimeMs,
 			&i.Deleted,
+			&i.ProviderResponseID,
 		); err != nil {
 			return nil, err
 		}
@@ -4724,7 +4726,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 
 const getChatMessagesByChatIDDescPaginated = `-- name: GetChatMessagesByChatIDDescPaginated :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id
 FROM
     chat_messages
 WHERE
@@ -4777,6 +4779,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, a
 			&i.TotalCostMicros,
 			&i.RuntimeMs,
 			&i.Deleted,
+			&i.ProviderResponseID,
 		); err != nil {
 			return nil, err
 		}
@@ -4809,7 +4812,7 @@ WITH latest_compressed_summary AS (
         1
 )
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id
 FROM
     chat_messages
 WHERE
@@ -4880,6 +4883,7 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 			&i.TotalCostMicros,
 			&i.RuntimeMs,
 			&i.Deleted,
+			&i.ProviderResponseID,
 		); err != nil {
 			return nil, err
 		}
@@ -5085,7 +5089,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]Chat, 
 
 const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id
 FROM
     chat_messages
 WHERE
@@ -5127,6 +5131,7 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 		&i.TotalCostMicros,
 		&i.RuntimeMs,
 		&i.Deleted,
+		&i.ProviderResponseID,
 	)
 	return i, err
 }
@@ -5339,7 +5344,8 @@ INSERT INTO chat_messages (
     context_limit,
     compressed,
     total_cost_micros,
-    runtime_ms
+    runtime_ms,
+    provider_response_id
 )
 SELECT
     $1::uuid,
@@ -5358,9 +5364,10 @@ SELECT
     NULLIF(UNNEST($14::bigint[]), 0),
     UNNEST($15::boolean[]),
     NULLIF(UNNEST($16::bigint[]), 0),
-    NULLIF(UNNEST($17::bigint[]), 0)
+    NULLIF(UNNEST($17::bigint[]), 0),
+    NULLIF(UNNEST($18::text[]), '')
 RETURNING
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id
 `
 
 type InsertChatMessagesParams struct {
@@ -5381,6 +5388,7 @@ type InsertChatMessagesParams struct {
 	Compressed          []bool                  `db:"compressed" json:"compressed"`
 	TotalCostMicros     []int64                 `db:"total_cost_micros" json:"total_cost_micros"`
 	RuntimeMs           []int64                 `db:"runtime_ms" json:"runtime_ms"`
+	ProviderResponseID  []string                `db:"provider_response_id" json:"provider_response_id"`
 }
 
 func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessagesParams) ([]ChatMessage, error) {
@@ -5402,6 +5410,7 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 		pq.Array(arg.Compressed),
 		pq.Array(arg.TotalCostMicros),
 		pq.Array(arg.RuntimeMs),
+		pq.Array(arg.ProviderResponseID),
 	)
 	if err != nil {
 		return nil, err
@@ -5431,6 +5440,7 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 			&i.TotalCostMicros,
 			&i.RuntimeMs,
 			&i.Deleted,
+			&i.ProviderResponseID,
 		); err != nil {
 			return nil, err
 		}
@@ -5789,7 +5799,7 @@ SET
 WHERE
     id = $3::bigint
 RETURNING
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id
 `
 
 type UpdateChatMessageByIDParams struct {
@@ -5822,6 +5832,7 @@ func (q *sqlQuerier) UpdateChatMessageByID(ctx context.Context, arg UpdateChatMe
 		&i.TotalCostMicros,
 		&i.RuntimeMs,
 		&i.Deleted,
+		&i.ProviderResponseID,
 	)
 	return i, err
 }
