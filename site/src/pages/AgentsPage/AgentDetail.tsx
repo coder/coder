@@ -25,14 +25,7 @@ import {
 	getVSCodeHref,
 	openAppInNewWindow,
 } from "modules/apps/apps";
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -406,33 +399,30 @@ const AgentDetail: FC = () => {
 	const wsName = workspace?.name;
 	const wsOwner = workspace?.owner_name;
 
-	const urlTransform: UrlTransform = useCallback(
-		(url) => {
-			if (!proxyHost || !agentName || !wsName || !wsOwner) {
+	const urlTransform: UrlTransform = (url) => {
+		if (!proxyHost || !agentName || !wsName || !wsOwner) {
+			return url;
+		}
+		try {
+			const parsed = new URL(url);
+			if (!localHosts.has(parsed.hostname)) {
 				return url;
 			}
-			try {
-				const parsed = new URL(url);
-				if (!localHosts.has(parsed.hostname)) {
-					return url;
-				}
-				const protocol = parsed.protocol.replace(":", "") as "http" | "https";
-				return portForwardURL(
-					proxyHost,
-					resolveLocalhostPort(parsed.port, parsed.protocol),
-					agentName,
-					wsName,
-					wsOwner,
-					protocol,
-					parsed.pathname,
-					parsed.search,
-				);
-			} catch {
-				return url;
-			}
-		},
-		[proxyHost, agentName, wsName, wsOwner],
-	);
+			const protocol = parsed.protocol.replace(":", "") as "http" | "https";
+			return portForwardURL(
+				proxyHost,
+				resolveLocalhostPort(parsed.port, parsed.protocol),
+				agentName,
+				wsName,
+				wsOwner,
+				protocol,
+				parsed.pathname,
+				parsed.search,
+			);
+		} catch {
+			return url;
+		}
+	};
 
 	const chatRecord = chatQuery.data;
 
