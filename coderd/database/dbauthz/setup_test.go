@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/gob"
 	"errors"
+	"flag"
 	"fmt"
 	"reflect"
 	"slices"
@@ -90,6 +91,16 @@ func (s *MethodTestSuite) SetupSuite() {
 // TearDownSuite asserts that all methods were called at least once.
 func (s *MethodTestSuite) TearDownSuite() {
 	s.Run("Accounting", func() {
+		// testify/suite's -testify.m flag filters which suite methods
+		// run, but TearDownSuite still executes. Skip the Accounting
+		// check when filtering to avoid misleading "method never
+		// called" errors for every method that was filtered out.
+		if f := flag.Lookup("testify.m"); f != nil {
+			if f.Value.String() != "" {
+				s.T().Skip("Skipping Accounting check: -testify.m flag is set")
+			}
+		}
+
 		t := s.T()
 		notCalled := []string{}
 		for m, c := range s.methodAccounting {
