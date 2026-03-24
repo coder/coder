@@ -361,6 +361,43 @@ func TestConnectAll_ToolInfoParameters(t *testing.T) {
 	assert.Contains(t, info.Required, "input")
 }
 
+// TestConnectAll_NilRequiredBecomesEmptySlice verifies that a tool
+// whose inputSchema omits "required" produces an empty slice instead
+// of nil.  A nil slice serializes to JSON null, which OpenAI rejects
+// with "None is not of type 'array'".
+func TestConnectAll_NilRequiredBecomesEmptySlice(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	// noRequiredTool defines a tool with no required parameters.
+	noRequiredTool := mcpserver.ServerTool{
+		Tool: mcp.NewTool("optional_only",
+			mcp.WithDescription("A tool with no required fields"),
+			mcp.WithString("note", mcp.Description("An optional note")),
+		),
+		Handler: func(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return mcp.NewToolResultText("ok"), nil
+		},
+	}
+
+	ts := newTestMCPServer(t, noRequiredTool)
+	cfg := makeConfig("srv", ts.URL)
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil)
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	info := tools[0].Info()
+	// Required must be a non-nil empty slice, not nil.
+	require.NotNil(t, info.Required, "Required should never be nil")
+	assert.Empty(t, info.Required, "Required should be empty for tools without required fields")
+
+	// Verify it serializes to [] not null.
+	bs, err := json.Marshal(info.Required)
+	require.NoError(t, err)
+	assert.Equal(t, "[]", string(bs))
+}
+
 // TestConnectAll_APIKeyAuth verifies that api_key auth sends the
 // configured header and value on every request.
 func TestConnectAll_APIKeyAuth(t *testing.T) {

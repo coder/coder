@@ -968,7 +968,11 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 		inputSchema := map[string]any{
 			"type":       "object",
 			"properties": info.Parameters,
-			"required":   info.Required,
+		}
+		// Only include "required" when non-empty so that a nil slice
+		// never serializes to null, which OpenAI rejects.
+		if len(info.Required) > 0 {
+			inputSchema["required"] = info.Required
 		}
 		schema.Normalize(inputSchema)
 		prepared = append(prepared, fantasy.FunctionTool{
