@@ -413,7 +413,7 @@ const AgentDetail: FC = () => {
 		// If the chat has MCP server IDs recorded (even empty, meaning
 		// the user deliberately opted out), use those.
 		if (chatRecord?.mcp_server_ids) {
-			return [...chatRecord.mcp_server_ids];
+			return chatRecord.mcp_server_ids;
 		}
 		// Otherwise, compute defaults from server availability.
 		return getDefaultMCPSelection(mcpServers);

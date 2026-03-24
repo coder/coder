@@ -95,7 +95,7 @@ const AgentCreatePage: FC = () => {
 				modelCatalogError={chatModelsQuery.error}
 				mcpServers={mcpServersQuery.data ?? []}
 				onMCPAuthComplete={() => void mcpServersQuery.refetch()}
-			/>{" "}
+			/>
 		</>
 	);
 };

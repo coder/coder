@@ -53,22 +53,12 @@ const MCPIcon: FC<{ iconUrl: string; name: string; className?: string }> = ({
 	name,
 	className,
 }) => {
-	if (iconUrl) {
-		return (
-			<div
-				className={cn(
-					"flex shrink-0 items-center justify-center rounded-full bg-surface-secondary",
-					className,
-				)}
-			>
-				<ExternalImage
-					src={iconUrl}
-					alt={`${name} icon`}
-					className="h-3/5 w-3/5"
-				/>
-			</div>
-		);
-	}
+	const icon = iconUrl ? (
+		<ExternalImage src={iconUrl} alt={`${name} icon`} className="h-3/5 w-3/5" />
+	) : (
+		<ServerIcon className="h-3/5 w-3/5 text-content-secondary" />
+	);
+
 	return (
 		<div
 			className={cn(
@@ -76,7 +66,7 @@ const MCPIcon: FC<{ iconUrl: string; name: string; className?: string }> = ({
 				className,
 			)}
 		>
-			<ServerIcon className="h-3/5 w-3/5 text-content-secondary" />
+			{icon}
 		</div>
 	);
 };
@@ -174,7 +164,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 		return () => window.removeEventListener("message", handler);
 	}, [onAuthComplete]);
 
-	// Clean up popup ref when it closes.
+	// Poll for popup close and clean up on unmount.
 	useEffect(() => {
 		if (!connectingServerId || !popupRef.current) return;
 		const interval = setInterval(() => {
@@ -183,7 +173,15 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 				popupRef.current = null;
 			}
 		}, 500);
-		return () => clearInterval(interval);
+		return () => {
+			clearInterval(interval);
+			// Close the popup if the component unmounts while
+			// an auth flow is still in progress.
+			if (popupRef.current && !popupRef.current.closed) {
+				popupRef.current.close();
+				popupRef.current = null;
+			}
+		};
 	}, [connectingServerId]);
 
 	const handleToggle = (serverId: string, checked: boolean) => {
@@ -265,7 +263,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 													{isConnecting ? (
 														<Spinner loading className="h-2.5 w-2.5" />
 													) : null}
-													Auth{" "}
+													Auth
 												</Button>
 											) : (
 												<Switch
@@ -276,7 +274,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 													disabled={disabled || isForceOn}
 													aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
 												/>
-											)}{" "}
+											)}
 										</div>
 									</TooltipTrigger>
 									<TooltipContent

@@ -248,22 +248,16 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// the shared input component re-rendering on every change.
 	const selectedWorkspaceIdRef = useRef(selectedWorkspaceId);
 	const selectedModelRef = useRef(selectedModel);
-	const [selectedMCPServerIds, setSelectedMCPServerIds] = useState<string[]>(
-		() => (mcpServers ? getDefaultMCPSelection(mcpServers) : []),
+	const [userMCPServerIds, setUserMCPServerIds] = useState<string[] | null>(
+		null,
 	);
-	// Seed default selection once the MCP server query resolves.
-	const mcpDefaultsApplied = useRef(false);
-	useEffect(() => {
-		if (!mcpDefaultsApplied.current && mcpServers && mcpServers.length > 0) {
-			mcpDefaultsApplied.current = true;
-			setSelectedMCPServerIds(getDefaultMCPSelection(mcpServers));
-		}
-	}, [mcpServers]);
-	const selectedMCPServerIdsRef = useRef(selectedMCPServerIds);
+	const effectiveMCPServerIds =
+		userMCPServerIds ?? getDefaultMCPSelection(mcpServers ?? []);
+	const selectedMCPServerIdsRef = useRef(effectiveMCPServerIds);
 	useEffect(() => {
 		selectedWorkspaceIdRef.current = selectedWorkspaceId;
 		selectedModelRef.current = selectedModel;
-		selectedMCPServerIdsRef.current = selectedMCPServerIds;
+		selectedMCPServerIdsRef.current = effectiveMCPServerIds;
 	});
 	const handleWorkspaceChange = (value: string) => {
 		if (value === autoCreateWorkspaceValue) {
@@ -391,8 +385,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					uploadStates={uploadStates}
 					previewUrls={previewUrls}
 					mcpServers={mcpServers}
-					selectedMCPServerIds={selectedMCPServerIds}
-					onMCPSelectionChange={setSelectedMCPServerIds}
+					selectedMCPServerIds={effectiveMCPServerIds}
+					onMCPSelectionChange={setUserMCPServerIds}
 					onMCPAuthComplete={onMCPAuthComplete}
 					leftActions={
 						<Popover
