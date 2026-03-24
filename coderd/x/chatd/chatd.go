@@ -3017,6 +3017,16 @@ func (p *Server) runChat(
 		defer mcpCleanup()
 	}
 
+	// Build a lookup from tool name to MCP server config ID
+	// so we can annotate persisted parts with the originating
+	// server.
+	toolNameToConfigID := make(map[string]uuid.UUID)
+	for _, t := range mcpTools {
+		if mcp, ok := t.(mcpclient.MCPToolIdentifier); ok {
+			toolNameToConfigID[t.Info().Name] = mcp.MCPServerConfigID()
+		}
+	}
+
 	if instruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, instruction)
 	}
@@ -3079,7 +3089,13 @@ func (p *Server) runChat(
 		if len(assistantBlocks) > 0 {
 			sdkParts := make([]codersdk.ChatMessagePart, 0, len(assistantBlocks))
 			for _, block := range assistantBlocks {
-				sdkParts = append(sdkParts, chatprompt.PartFromContent(block))
+				part := chatprompt.PartFromContent(block)
+				if part.ToolName != "" {
+					if configID, ok := toolNameToConfigID[part.ToolName]; ok {
+						part.MCPServerConfigID = uuid.NullUUID{UUID: configID, Valid: true}
+					}
+				}
+				sdkParts = append(sdkParts, part)
 			}
 			finalAssistantText = strings.TrimSpace(contentBlocksToText(sdkParts))
 			var marshalErr error
@@ -3092,6 +3108,11 @@ func (p *Server) runChat(
 		toolResultContents := make([]pqtype.NullRawMessage, len(toolResults))
 		for i, tr := range toolResults {
 			trPart := chatprompt.PartFromContent(tr)
+			if trPart.ToolName != "" {
+				if configID, ok := toolNameToConfigID[trPart.ToolName]; ok {
+					trPart.MCPServerConfigID = uuid.NullUUID{UUID: configID, Valid: true}
+				}
+			}
 			var marshalErr error
 			toolResultContents[i], marshalErr = chatprompt.MarshalParts([]codersdk.ChatMessagePart{trPart})
 			if marshalErr != nil {

@@ -555,6 +555,23 @@ export const buildEditDiff = (
 	return parsed[0].files[0];
 };
 
+/**
+ * Converts an MCP-prefixed tool name into a human-readable label.
+ * E.g. "linear__list_issues" with slug "linear" → "List issues"
+ */
+export function humanizeMCPToolName(
+	slug: string,
+	prefixedName: string,
+): string {
+	const prefix = `${slug}__`;
+	const raw = prefixedName.startsWith(prefix)
+		? prefixedName.slice(prefix.length)
+		: prefixedName;
+	// Replace underscores with spaces, capitalize first letter.
+	const words = raw.replace(/_/g, " ").trim();
+	return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 // Re-export runtime type utils used by sub-components so they
 // can import from a single location.
 export { asNumber, asRecord, asString } from "../runtimeTypeUtils";

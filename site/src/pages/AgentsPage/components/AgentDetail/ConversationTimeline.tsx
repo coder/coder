@@ -97,6 +97,7 @@ type RenderBlockListParams = {
 	isStreaming?: boolean;
 	subagentTitles?: Map<string, string>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onImageClick?: (src: string) => void;
 	onTextFileClick?: (content: string) => void;
 	urlTransform?: UrlTransform;
@@ -265,6 +266,7 @@ function renderBlockList({
 	isStreaming = false,
 	subagentTitles,
 	subagentStatusOverrides,
+	mcpServers,
 	onImageClick,
 	onTextFileClick,
 	urlTransform,
@@ -329,6 +331,7 @@ function renderBlockList({
 								isError={false}
 								subagentTitles={subagentTitles}
 								subagentStatusOverrides={subagentStatusOverrides}
+								mcpServers={mcpServers}
 							/>
 						);
 					}
@@ -345,6 +348,8 @@ function renderBlockList({
 							subagentStatusOverrides={
 								isStreaming ? subagentStatusOverrides : undefined
 							}
+							mcpServerConfigId={tool.mcpServerConfigId}
+							mcpServers={mcpServers}
 						/>
 					);
 				}
@@ -386,6 +391,7 @@ interface ChatMessageItemProps {
 	// overlay to indicate truncated content.
 	fadeFromBottom?: boolean;
 	urlTransform?: UrlTransform;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
 
 const ChatMessageItem: FC<ChatMessageItemProps> = ({
@@ -397,6 +403,7 @@ const ChatMessageItem: FC<ChatMessageItemProps> = ({
 	isAfterEditingMessage = false,
 	fadeFromBottom = false,
 	urlTransform,
+	mcpServers,
 }) => {
 	const isUser = message.role === "user";
 	const isSavingMessage = savingMessageId === message.id;
@@ -462,6 +469,7 @@ const ChatMessageItem: FC<ChatMessageItemProps> = ({
 		onImageClick: setPreviewImage,
 		onTextFileClick: (content) => setPreviewText(content),
 		urlTransform,
+		mcpServers,
 	});
 	const remainingTools = parsed.tools.filter(
 		(tool) => !renderedToolIDs.has(tool.id),
@@ -599,6 +607,8 @@ const ChatMessageItem: FC<ChatMessageItemProps> = ({
 										result={tool.result}
 										status={tool.status}
 										isError={tool.isError}
+										mcpServerConfigId={tool.mcpServerConfigId}
+										mcpServers={mcpServers}
 									/>
 								))}
 								{!hasRenderableContent && (
@@ -635,6 +645,7 @@ export const StreamingOutput: FC<{
 	showInitialPlaceholder?: boolean;
 	retryState?: { attempt: number; error: string } | null;
 	urlTransform?: UrlTransform;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }> = ({
 	streamState,
 	streamTools,
@@ -643,6 +654,7 @@ export const StreamingOutput: FC<{
 	showInitialPlaceholder = false,
 	retryState,
 	urlTransform,
+	mcpServers,
 }) => {
 	const conversationItemProps = { role: "assistant" as const };
 	const toolByID = new Map(streamTools.map((tool) => [tool.id, tool]));
@@ -655,6 +667,7 @@ export const StreamingOutput: FC<{
 		subagentTitles,
 		subagentStatusOverrides,
 		urlTransform,
+		mcpServers,
 	});
 	const remainingTools = streamTools.filter(
 		(tool) => !renderedToolIDs.has(tool.id),
@@ -696,6 +709,8 @@ export const StreamingOutput: FC<{
 								isError={tool.isError}
 								subagentTitles={subagentTitles}
 								subagentStatusOverrides={subagentStatusOverrides}
+								mcpServerConfigId={tool.mcpServerConfigId}
+								mcpServers={mcpServers}
 							/>
 						))}
 					</div>
@@ -989,6 +1004,7 @@ interface ConversationTimelineProps {
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
 	urlTransform?: UrlTransform;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
 
 export const ConversationTimeline: FC<ConversationTimelineProps> = ({
@@ -1006,6 +1022,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 	editingMessageId,
 	savingMessageId,
 	urlTransform,
+	mcpServers,
 }) => {
 	const shouldRenderStreamAfterMessages =
 		hasStreamOutput && parsedMessages.length > 0;
@@ -1054,6 +1071,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 								savingMessageId={savingMessageId}
 								urlTransform={urlTransform}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+								mcpServers={mcpServers}
 							/>
 						),
 					)}
@@ -1066,6 +1084,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 							showInitialPlaceholder={isAwaitingFirstStreamChunk}
 							retryState={retryState}
 							urlTransform={urlTransform}
+							mcpServers={mcpServers}
 						/>
 					)}
 					{hasStreamOutput && parsedMessages.length === 0 && (
@@ -1077,6 +1096,7 @@ export const ConversationTimeline: FC<ConversationTimelineProps> = ({
 							showInitialPlaceholder={isAwaitingFirstStreamChunk}
 							retryState={retryState}
 							urlTransform={urlTransform}
+							mcpServers={mcpServers}
 						/>
 					)}
 				</div>

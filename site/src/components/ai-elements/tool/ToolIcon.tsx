@@ -1,3 +1,4 @@
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import {
 	BotIcon,
 	ClipboardListIcon,
@@ -11,12 +12,28 @@ import {
 import type React from "react";
 import { cn } from "utils/cn";
 
-export const ToolIcon: React.FC<{ name: string; isError: boolean }> = ({
-	name,
-	isError,
-}) => {
+export const ToolIcon: React.FC<{
+	name: string;
+	isError: boolean;
+	iconUrl?: string;
+}> = ({ name, isError, iconUrl }) => {
 	const color = isError ? "text-content-destructive" : "text-content-secondary";
 	const base = cn("h-4 w-4 shrink-0", color);
+
+	// If an MCP icon URL is provided, render it.
+	if (iconUrl) {
+		return (
+			<div
+				className={cn(
+					"flex h-4 w-4 shrink-0 items-center justify-center",
+					"rounded-full bg-surface-secondary",
+				)}
+			>
+				<ExternalImage src={iconUrl} alt={`${name} icon`} className="h-3 w-3" />
+			</div>
+		);
+	}
+
 	switch (name) {
 		case "execute":
 		case "process_output":

@@ -282,6 +282,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 							editingMessageId={editing.editingMessageId}
 							savingMessageId={pendingEditMessageId}
 							urlTransform={urlTransform}
+							mcpServers={mcpServers}
 						/>
 					</div>
 				</ScrollAnchoredContainer>
