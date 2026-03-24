@@ -188,7 +188,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				deleteErr := api.Database.DeleteMCPServerConfigByID(ctx, inserted.ID)
 				if deleteErr != nil {
 					api.Logger.Warn(ctx, "failed to clean up MCP server config after OAuth2 discovery failure",
-						slog.F("id", inserted.ID),
+						slog.F("config_id", inserted.ID),
 						slog.Error(deleteErr),
 					)
 				}
