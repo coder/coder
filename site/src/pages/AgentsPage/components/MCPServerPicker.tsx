@@ -301,9 +301,14 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 										)}
 										<span className="mt-1 block text-content-secondary leading-tight">
 											{availabilityLabel(server.availability)}
-											{server.auth_type !== "none" &&
-												` · ${server.auth_connected ? "Authenticated" : "Not authenticated"}`}
 										</span>
+										{server.auth_type !== "none" && (
+											<span className="block text-content-secondary leading-tight">
+												{server.auth_connected
+													? "Authenticated"
+													: "Not authenticated"}
+											</span>
+										)}
 									</TooltipContent>
 								</Tooltip>
 							);
