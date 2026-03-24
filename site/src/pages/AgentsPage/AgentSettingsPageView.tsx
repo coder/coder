@@ -52,12 +52,12 @@ import { useSearchParams } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatTokenCount } from "utils/analytics";
 import { formatCostMicros } from "utils/currency";
-import {
-	DateRange,
-	type DateRangeValue,
-} from "../TemplatePage/TemplateInsightsPage/DateRange";
 import { ChatCostSummaryView } from "./components/ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./components/ChatModelAdminPanel/ChatModelAdminPanel";
+import {
+	DateRangePicker,
+	type DateRangeValue,
+} from "./components/DateRangePicker/DateRangePicker";
 import { InsightsContent } from "./components/InsightsContent";
 import { LimitsTab } from "./components/LimitsTab";
 import { MCPServerAdminPanel } from "./components/MCPServerAdminPanel";
@@ -260,7 +260,10 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 			}
 			badge={<AdminBadge />}
 			action={
-				<DateRange value={displayDateRange} onChange={onDateRangeChange} />
+				<DateRangePicker
+					value={displayDateRange}
+					onChange={onDateRangeChange}
+				/>
 			}
 		/>
 	);

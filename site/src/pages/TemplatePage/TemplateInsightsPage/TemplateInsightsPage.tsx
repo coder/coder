@@ -41,6 +41,10 @@ import {
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
 import { RequirePermission } from "modules/permissions/RequirePermission";
+import {
+	DateRangePicker as DailyPicker,
+	type DateRangeValue,
+} from "pages/AgentsPage/components/DateRangePicker/DateRangePicker";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
@@ -62,7 +66,6 @@ import {
 	subtractTime,
 } from "utils/time";
 import { getTemplatePageTitle } from "../utils";
-import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
 import { numberOfWeeksOptions, WeekPicker } from "./WeekPicker";
