@@ -668,9 +668,9 @@ export const ComputerScreenshot: Story = {
 		});
 		expect(img).toBeInTheDocument();
 		expect(img.getAttribute("src")).toContain("data:image/jpeg;base64,");
-		// Image should be wrapped in a link that opens in a new tab.
-		const link = img.closest("a");
-		expect(link).toHaveAttribute("target", "_blank");
+		// Image should be wrapped in a button that opens the lightbox.
+		const button = img.closest("button");
+		expect(button).toBeInTheDocument();
 	},
 };
 
