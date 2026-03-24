@@ -223,15 +223,12 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 					aria-label="MCP Servers"
 					className="group flex h-8 cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 				>
-					{activeServers.length > 0 ? (
-						<TriggerIconStack servers={activeServers} />
-					) : (
-						<PlugIcon className="h-3.5 w-3.5" />
-					)}
-					<span className="hidden sm:inline">
-						{activeServers.length > 0 ? `${activeServers.length} MCP` : "MCP"}
-					</span>
-					<ChevronDownIcon className="h-3.5 w-3.5 text-content-secondary transition-colors group-hover:text-content-primary" />
+						<span className="hidden sm:inline">MCP</span>
+						{activeServers.length > 0 ? (
+							<TriggerIconStack servers={activeServers} />
+						) : (
+							<PlugIcon className="h-3.5 w-3.5" />
+						)}					<ChevronDownIcon className="h-3.5 w-3.5 text-content-secondary transition-colors group-hover:text-content-primary" />
 				</button>
 			</PopoverTrigger>
 			<PopoverContent align="start" className="w-64 p-0">
