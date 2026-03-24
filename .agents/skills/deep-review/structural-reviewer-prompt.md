@@ -1,10 +1,6 @@
 Get the diff for the review target specified in your prompt, then review it.
 
-Write all findings to the output file specified in your prompt.
-Create the directory if it doesn’t exist. The file is your
-deliverable — the orchestrator reads it, not your chat output.
-Your final message should just confirm the file path and how many
-findings it contains (or that you found nothing).
+Write all findings to the output file specified in your prompt. Create the directory if it doesn’t exist. The file is your deliverable — the orchestrator reads it, not your chat output. Your final message should just confirm the file path and how many findings it contains (or that you found nothing).
 
 - **PR:** `gh pr diff {number}`
 - **Branch:** `git diff origin/main...{branch}`
@@ -14,9 +10,7 @@ You can report two kinds of things:
 
 **Findings** — concrete problems with evidence.
 
-**Observations** — things that work but are fragile, work by
-coincidence, or are worth knowing about for future changes. These
-aren’t bugs, they’re context. Mark them with `Obs`.
+**Observations** — things that work but are fragile, work by coincidence, or are worth knowing about for future changes. These aren’t bugs, they’re context. Mark them with `Obs`.
 
 Use this structure in the file for each finding:
 

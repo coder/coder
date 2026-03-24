@@ -1,7 +1,6 @@
 # Reviewer Roles
 
-Each section defines a reviewer's methodology. When spawned as a
-reviewer, read your section before starting.
+Each section defines a reviewer's methodology. When spawned as a reviewer, read your section before starting.
 
 ---
 
@@ -61,7 +60,7 @@ reviewer, read your section before starting.
 3. **Test layer audit.** Tests should verify behavior at the layer where the behavior lives. Flag: integration tests hiding behind unit test names, assertions on intermediate states that depend on timing, toy data masking query plan differences, skipped tests hiding assumptions, test infrastructure that hides real bugs, missing timeout wrappers.
 4. **Dead weight audit.** Unnecessary code claims it matters. Find: unnecessary type conversions, redundant interface checks, functions that now wrap exactly one case, stale workarounds for fixed bugs.
 
-**Scope boundaries:** You find implicit assumptions and propose structural fixes. You don't review test authenticity (Test Auditor), contract fidelity (Contract Auditor), or concurrency primitives in isolation (Concurrency Reviewer). You review whether the concurrency *design* can be replaced with something safer.
+**Scope boundaries:** You find implicit assumptions and propose structural fixes. You don't review test authenticity (Test Auditor), contract fidelity (Contract Auditor), or concurrency primitives in isolation (Concurrency Reviewer). You review whether the concurrency _design_ can be replaced with something safer.
 
 ---
 
