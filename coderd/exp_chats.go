@@ -216,7 +216,6 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Success 200
-// @Router /experimental/chats/by-workspace [post]
 // @x-apidocgen {"skip": true}
 func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
