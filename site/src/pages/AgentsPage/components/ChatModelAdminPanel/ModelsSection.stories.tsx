@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type * as TypesGen from "api/typesGenerated";
 import { TooltipProvider } from "components/Tooltip/Tooltip";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelsSection } from "./ModelsSection";
 
@@ -73,10 +73,23 @@ type Story = StoryObj<typeof ModelsSection>;
 
 export const ShowsPricingWarning: Story = {
 	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
 		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("Model pricing is not defined"),
-		).toBeInTheDocument();
+
+		// The warning icon should be visible in the subtitle line.
+		const warningIcon =
+			canvas.getByRole("img", { hidden: true }) ||
+			canvas.container.querySelector(".text-content-warning");
+		expect(warningIcon).toBeTruthy();
+
+		// Hovering the icon reveals the tooltip text.
+		const trigger = canvas.container.querySelector(".text-content-warning");
+		if (trigger) {
+			await userEvent.hover(trigger);
+			await expect(
+				await body.findByText("Model pricing is not defined"),
+			).toBeInTheDocument();
+		}
 	},
 };
 
@@ -96,8 +109,8 @@ export const HidesPricingWarningForExplicitZeroPricing: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByText("Model pricing is not defined"),
-		).not.toBeInTheDocument();
+		// No warning icon should be present.
+		const warningIcon = canvas.container.querySelector(".text-content-warning");
+		expect(warningIcon).toBeNull();
 	},
 };
