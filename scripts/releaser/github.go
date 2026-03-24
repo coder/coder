@@ -3,7 +3,7 @@ package main
 import (
 	"errors"
 	"os/exec"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -180,7 +180,7 @@ func ghBuildPRMetadataMap(commits []commitEntry) (*prMetadataMaps, error) {
 		var labels []string
 		if parts[3] != "" {
 			labels = strings.Split(parts[3], ",")
-			sort.Strings(labels)
+			slices.Sort(labels)
 		}
 		meta := prMetadata{
 			Labels: labels,

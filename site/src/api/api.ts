@@ -3221,6 +3221,32 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getUserChatCompactionThresholds =
+		async (): Promise<TypesGen.UserChatCompactionThresholds> => {
+			const response =
+				await this.axios.get<TypesGen.UserChatCompactionThresholds>(
+					"/api/experimental/chats/config/user-compaction-thresholds",
+				);
+			return response.data;
+		};
+	updateUserChatCompactionThreshold = async (
+		modelConfigId: string,
+		req: TypesGen.UpdateUserChatCompactionThresholdRequest,
+	): Promise<TypesGen.UserChatCompactionThreshold> => {
+		const response = await this.axios.put<TypesGen.UserChatCompactionThreshold>(
+			`/api/experimental/chats/config/user-compaction-thresholds/${encodeURIComponent(modelConfigId)}`,
+			req,
+		);
+		return response.data;
+	};
+	deleteUserChatCompactionThreshold = async (
+		modelConfigId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/experimental/chats/config/user-compaction-thresholds/${encodeURIComponent(modelConfigId)}`,
+		);
+	};
+
 	getChatProviderConfigs = async (): Promise<TypesGen.ChatProviderConfig[]> => {
 		const response = await this.axios.get<TypesGen.ChatProviderConfig[]>(
 			chatProviderConfigsPath,

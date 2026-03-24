@@ -6,6 +6,10 @@ import { expect, fn, within } from "storybook/test";
 
 import { LicenseCard } from "./LicenseCard";
 
+const FIXED_NOW = dayjs().startOf("day");
+const YESTERDAY = FIXED_NOW.subtract(1, "day").unix();
+const NEXT_WEEK = FIXED_NOW.add(7, "day").unix();
+
 const meta: Meta<typeof LicenseCard> = {
 	title: "pages/DeploymentSettingsPage/LicensesSettingsPage/LicenseCard",
 	component: LicenseCard,
@@ -172,7 +176,7 @@ export const ExpiredAIGovernanceOverageShowsExpired: Story = {
 			...MockLicenseResponse[1],
 			claims: {
 				...MockLicenseResponse[1].claims,
-				license_expires: dayjs().subtract(1, "day").unix(),
+				license_expires: YESTERDAY,
 				features: {
 					...MockLicenseResponse[1].claims.features,
 					ai_governance_user_limit: 1000,
@@ -204,7 +208,7 @@ export const ExpiredAIGovernanceInGracePeriodShowsExceeded: Story = {
 			...MockLicenseResponse[1],
 			claims: {
 				...MockLicenseResponse[1].claims,
-				license_expires: dayjs().subtract(1, "day").unix(),
+				license_expires: YESTERDAY,
 				features: {
 					...MockLicenseResponse[1].claims.features,
 					ai_governance_user_limit: 1000,
@@ -234,7 +238,7 @@ export const NotYetValid: Story = {
 			...MockLicenseResponse[1],
 			claims: {
 				...MockLicenseResponse[1].claims,
-				nbf: dayjs().add(7, "day").unix(),
+				nbf: NEXT_WEEK,
 			},
 		},
 	},
@@ -250,7 +254,7 @@ export const FutureAIGovernanceOverageShowsStartsOn: Story = {
 			...MockLicenseResponse[1],
 			claims: {
 				...MockLicenseResponse[1].claims,
-				nbf: dayjs().add(7, "day").unix(),
+				nbf: NEXT_WEEK,
 				features: {
 					...MockLicenseResponse[1].claims.features,
 					ai_governance_user_limit: 1000,
@@ -282,7 +286,7 @@ export const FutureAIGovernanceUsageShowsNoCurrentSeats: Story = {
 			...MockLicenseResponse[1],
 			claims: {
 				...MockLicenseResponse[1].claims,
-				nbf: dayjs().add(7, "day").unix(),
+				nbf: NEXT_WEEK,
 				features: {
 					...MockLicenseResponse[1].claims.features,
 					ai_governance_user_limit: 1000,

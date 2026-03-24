@@ -401,6 +401,49 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 	return filter, parser.Errors
 }
 
+func AIBridgeSessions(ctx context.Context, db database.Store, query string, page codersdk.Pagination, actorID uuid.UUID, afterSessionID string) (database.ListAIBridgeSessionsParams, []codersdk.ValidationError) {
+	// nolint:exhaustruct // Empty values just means "don't filter by that field".
+	filter := database.ListAIBridgeSessionsParams{
+		AfterSessionID: afterSessionID,
+		// #nosec G115 - Safe conversion for pagination limit which is expected to be within int32 range
+		Limit: int32(page.Limit),
+		// #nosec G115 - Safe conversion for pagination offset which is expected to be within int32 range
+		Offset: int32(page.Offset),
+	}
+
+	if query == "" {
+		return filter, nil
+	}
+
+	values, errors := searchTerms(query, func(string, url.Values) error {
+		// Do not specify a default search key; let's be explicit to prevent user confusion.
+		return xerrors.New("no search key specified")
+	})
+	if len(errors) > 0 {
+		return filter, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter.InitiatorID = parseUser(ctx, db, parser, values, "initiator", actorID)
+	filter.Provider = parser.String(values, "", "provider")
+	filter.Model = parser.String(values, "", "model")
+	filter.Client = parser.String(values, "", "client")
+	filter.SessionID = parser.String(values, "", "session_id")
+
+	// Time must be between started_after and started_before.
+	filter.StartedAfter = parser.Time3339Nano(values, time.Time{}, "started_after")
+	filter.StartedBefore = parser.Time3339Nano(values, time.Time{}, "started_before")
+	if !filter.StartedBefore.IsZero() && !filter.StartedAfter.IsZero() && !filter.StartedBefore.After(filter.StartedAfter) {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  "started_before",
+			Detail: `Query param "started_before" has invalid value: "started_before" must be after "started_after" if set`,
+		})
+	}
+
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
 func AIBridgeModels(query string, page codersdk.Pagination) (database.ListAIBridgeModelsParams, []codersdk.ValidationError) {
 	// nolint:exhaustruct // Empty values just means "don't filter by that field".
 	filter := database.ListAIBridgeModelsParams{

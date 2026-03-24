@@ -2542,6 +2542,17 @@ func normalizeChatCompressionThreshold(
 	return threshold, nil
 }
 
+func parseCompactionThresholdKey(key string) (uuid.UUID, error) {
+	if !strings.HasPrefix(key, codersdk.ChatCompactionThresholdKeyPrefix) {
+		return uuid.Nil, xerrors.Errorf("invalid compaction threshold key: %q", key)
+	}
+	id, err := uuid.Parse(key[len(codersdk.ChatCompactionThresholdKeyPrefix):])
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("invalid model config ID in key %q: %w", key, err)
+	}
+	return id, nil
+}
+
 const (
 	// maxChatFileSize is the maximum size of a chat file upload (10 MB).
 	maxChatFileSize = 10 << 20
@@ -2814,6 +2825,170 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCustomPrompt{
 		CustomPrompt: updatedConfig.Value,
 	})
+}
+
+// @Summary Get user chat compaction thresholds
+// @x-apidocgen {"skip": true}
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getUserChatCompactionThresholds(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	rows, err := api.Database.ListUserChatCompactionThresholds(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error listing user chat compaction thresholds.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	resp := codersdk.UserChatCompactionThresholds{
+		Thresholds: make([]codersdk.UserChatCompactionThreshold, 0, len(rows)),
+	}
+	for _, row := range rows {
+		modelConfigID, err := parseCompactionThresholdKey(row.Key)
+		if err != nil {
+			api.Logger.Warn(ctx, "skipping malformed user chat compaction threshold key",
+				slog.F("key", row.Key),
+				slog.F("value", row.Value),
+				slog.Error(err),
+			)
+			continue
+		}
+
+		thresholdPercent, err := strconv.ParseInt(row.Value, 10, 32)
+		if err != nil {
+			api.Logger.Warn(ctx, "skipping malformed user chat compaction threshold value",
+				slog.F("key", row.Key),
+				slog.F("value", row.Value),
+				slog.Error(err),
+			)
+			continue
+		}
+		if thresholdPercent < int64(minChatContextCompressionThreshold) ||
+			thresholdPercent > int64(maxChatContextCompressionThreshold) {
+			api.Logger.Warn(ctx, "skipping out-of-range user chat compaction threshold",
+				slog.F("key", row.Key),
+				slog.F("value", row.Value),
+			)
+			continue
+		}
+
+		resp.Thresholds = append(resp.Thresholds, codersdk.UserChatCompactionThreshold{
+			ModelConfigID:    modelConfigID,
+			ThresholdPercent: int32(thresholdPercent),
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+// @Summary Set user chat compaction threshold for a model config
+// @x-apidocgen {"skip": true}
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) putUserChatCompactionThreshold(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	modelConfigID, ok := parseChatModelConfigID(rw, r)
+	if !ok {
+		return
+	}
+
+	var req codersdk.UpdateUserChatCompactionThresholdRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if req.ThresholdPercent < minChatContextCompressionThreshold ||
+		req.ThresholdPercent > maxChatContextCompressionThreshold {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "threshold_percent is out of range.",
+			Detail: fmt.Sprintf(
+				"threshold_percent must be between %d and %d, got %d.",
+				minChatContextCompressionThreshold,
+				maxChatContextCompressionThreshold,
+				req.ThresholdPercent,
+			),
+		})
+		return
+	}
+
+	// Use system context because GetChatModelConfigByID requires
+	// deployment-config read access, which non-admin users lack.
+	// The user is only checking if the model exists and is enabled
+	// before writing their own personal preference.
+	//nolint:gocritic // Non-admin users need this lookup to save their own setting.
+	modelConfig, err := api.Database.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), modelConfigID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat model config.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !modelConfig.Enabled {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Model config is disabled.",
+		})
+		return
+	}
+
+	_, err = api.Database.UpdateUserChatCompactionThreshold(ctx, database.UpdateUserChatCompactionThresholdParams{
+		UserID:           apiKey.UserID,
+		Key:              codersdk.CompactionThresholdKey(modelConfigID),
+		ThresholdPercent: req.ThresholdPercent,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error updating user chat compaction threshold.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserChatCompactionThreshold{
+		ModelConfigID:    modelConfigID,
+		ThresholdPercent: req.ThresholdPercent,
+	})
+}
+
+// @Summary Delete user chat compaction threshold for a model config
+// @x-apidocgen {"skip": true}
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx    = r.Context()
+		apiKey = httpmw.APIKey(r)
+	)
+
+	modelConfigID, ok := parseChatModelConfigID(rw, r)
+	if !ok {
+		return
+	}
+
+	if err := api.Database.DeleteUserChatCompactionThreshold(ctx, database.DeleteUserChatCompactionThresholdParams{
+		UserID: apiKey.UserID,
+		Key:    codersdk.CompactionThresholdKey(modelConfigID),
+	}); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error deleting user chat compaction threshold.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 func (api *API) resolvedChatSystemPrompt(ctx context.Context) string {

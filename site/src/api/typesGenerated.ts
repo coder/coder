@@ -75,6 +75,12 @@ export interface AIBridgeListInterceptionsResponse {
 	readonly results: readonly AIBridgeInterception[];
 }
 
+// From codersdk/aibridge.go
+export interface AIBridgeListSessionsResponse {
+	readonly count: number;
+	readonly sessions: readonly AIBridgeSession[];
+}
+
 // From codersdk/deployment.go
 export interface AIBridgeOpenAIConfig {
 	readonly base_url: string;
@@ -93,6 +99,28 @@ export interface AIBridgeProxyConfig {
 	readonly upstream_proxy: string;
 	readonly upstream_proxy_ca: string;
 	readonly allowed_private_cidrs: string;
+}
+
+// From codersdk/aibridge.go
+export interface AIBridgeSession {
+	readonly id: string;
+	readonly initiator: MinimalUser;
+	readonly providers: readonly string[];
+	readonly models: readonly string[];
+	readonly client: string | null;
+	// empty interface{} type, falling back to unknown
+	readonly metadata: Record<string, unknown>;
+	readonly started_at: string;
+	readonly ended_at?: string;
+	readonly threads: number;
+	readonly token_usage_summary: AIBridgeSessionTokenUsageSummary;
+	readonly last_prompt?: string;
+}
+
+// From codersdk/aibridge.go
+export interface AIBridgeSessionTokenUsageSummary {
+	readonly input_tokens: number;
+	readonly output_tokens: number;
 }
 
 // From codersdk/aibridge.go
@@ -1073,6 +1101,14 @@ export interface Chat {
 	readonly archived: boolean;
 	readonly mcp_server_ids: readonly string[];
 }
+
+// From codersdk/chats.go
+/**
+ * ChatCompactionThresholdKeyPrefix scopes per-model chat compaction
+ * threshold settings.
+ */
+export const ChatCompactionThresholdKeyPrefix =
+	"chat_compaction_threshold_pct:";
 
 // From codersdk/deployment.go
 export interface ChatConfig {
@@ -7119,6 +7155,15 @@ export interface UpdateUserAppearanceSettingsRequest {
 	readonly terminal_font: TerminalFontName;
 }
 
+// From codersdk/chats.go
+/**
+ * UpdateUserChatCompactionThresholdRequest sets a user's per-model
+ * chat compaction threshold override.
+ */
+export interface UpdateUserChatCompactionThresholdRequest {
+	readonly threshold_percent: number;
+}
+
 // From codersdk/notifications.go
 export interface UpdateUserNotificationPreferences {
 	readonly template_disabled_map: Record<string, boolean>;
@@ -7369,6 +7414,25 @@ export interface UserActivityInsightsResponse {
 export interface UserAppearanceSettings {
 	readonly theme_preference: string;
 	readonly terminal_font: TerminalFontName;
+}
+
+// From codersdk/chats.go
+/**
+ * UserChatCompactionThreshold is a user's per-model chat compaction
+ * threshold override.
+ */
+export interface UserChatCompactionThreshold {
+	readonly model_config_id: string;
+	readonly threshold_percent: number;
+}
+
+// From codersdk/chats.go
+/**
+ * UserChatCompactionThresholds wraps the user's per-model chat
+ * compaction threshold overrides.
+ */
+export interface UserChatCompactionThresholds {
+	readonly thresholds: readonly UserChatCompactionThreshold[];
 }
 
 // From codersdk/chats.go

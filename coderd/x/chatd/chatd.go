@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -3150,8 +3151,14 @@ func (p *Server) runChat(
 	// "Summarizing..." tool call with the "Summarized" tool
 	// result.
 	compactionToolCallID := "chat_summarized_" + uuid.NewString()
+	effectiveThreshold := modelConfig.CompressionThreshold
+	thresholdSource := "model_default"
+	if override, ok := p.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID); ok {
+		effectiveThreshold = override
+		thresholdSource = "user_override"
+	}
 	compactionOptions := &chatloop.CompactionOptions{
-		ThresholdPercent: modelConfig.CompressionThreshold,
+		ThresholdPercent: effectiveThreshold,
 		ContextLimit:     modelConfig.ContextLimit,
 		Persist: func(
 			persistCtx context.Context,
@@ -3168,6 +3175,7 @@ func (p *Server) runChat(
 			}
 			logger.Info(persistCtx, "chat context summarized",
 				slog.F("chat_id", chat.ID),
+				slog.F("threshold_source", thresholdSource),
 				slog.F("threshold_percent", result.ThresholdPercent),
 				slog.F("usage_percent", result.UsagePercent),
 				slog.F("context_tokens", result.ContextTokens),
@@ -3716,6 +3724,34 @@ func (p *Server) resolveInstructions(
 	p.instructionCacheMu.Unlock()
 
 	return instruction
+}
+
+// resolveUserCompactionThreshold looks up the user's per-model
+// compaction threshold override. Returns the override value and
+// true if one exists and is valid, or 0 and false otherwise.
+func (p *Server) resolveUserCompactionThreshold(ctx context.Context, userID uuid.UUID, modelConfigID uuid.UUID) (int32, bool) {
+	raw, err := p.db.GetUserChatCompactionThreshold(ctx, database.GetUserChatCompactionThresholdParams{
+		UserID: userID,
+		Key:    codersdk.CompactionThresholdKey(modelConfigID),
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, false
+	}
+	if err != nil {
+		p.logger.Warn(ctx, "failed to fetch compaction threshold override",
+			slog.F("user_id", userID),
+			slog.F("model_config_id", modelConfigID),
+			slog.Error(err),
+		)
+		return 0, false
+	}
+	// Range 0..100 must stay in sync with handler validation in
+	// coderd/chats.go.
+	val, err := strconv.ParseInt(raw, 10, 32)
+	if err != nil || val < 0 || val > 100 {
+		return 0, false
+	}
+	return int32(val), true
 }
 
 // resolveUserPrompt fetches the user's custom chat prompt from the

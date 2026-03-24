@@ -193,6 +193,26 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'chat_custom_prompt'
 RETURNING *;
 
+-- name: ListUserChatCompactionThresholds :many
+SELECT user_id, key, value FROM user_configs
+WHERE user_id = @user_id
+	AND key LIKE 'chat\_compaction\_threshold\_pct:%'
+ORDER BY key;
+
+-- name: GetUserChatCompactionThreshold :one
+SELECT value AS threshold_percent FROM user_configs
+WHERE user_id = @user_id AND key = @key;
+
+-- name: UpdateUserChatCompactionThreshold :one
+INSERT INTO user_configs (user_id, key, value)
+VALUES (@user_id, @key, (@threshold_percent::int)::text)
+ON CONFLICT ON CONSTRAINT user_configs_pkey
+DO UPDATE SET value = (@threshold_percent::int)::text
+RETURNING *;
+
+-- name: DeleteUserChatCompactionThreshold :exec
+DELETE FROM user_configs WHERE user_id = @user_id AND key = @key;
+
 -- name: GetUserTaskNotificationAlertDismissed :one
 SELECT
 	value::boolean as task_notification_alert_dismissed

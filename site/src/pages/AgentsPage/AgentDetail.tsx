@@ -12,6 +12,7 @@ import {
 	editChatMessage,
 	interruptChat,
 	promoteChatQueuedMessage,
+	userCompactionThresholds,
 } from "api/queries/chats";
 import { deploymentSSHConfig } from "api/queries/deployment";
 import { workspaceById, workspaceByIdKey } from "api/queries/workspaces";
@@ -91,22 +92,17 @@ export function useConversationEditingState(deps: {
 		? `${draftInputStorageKeyPrefix}${chatID}`
 		: null;
 	const [editorInitialValue, setEditorInitialValue] = useState(() => {
-		if (typeof window === "undefined" || !draftStorageKey) {
+		if (!draftStorageKey) {
 			return "";
 		}
 		return localStorage.getItem(draftStorageKey) ?? "";
 	});
 
-	// Sync the ref with the initial draft value so callers that
-	// read inputValueRef.current see the persisted draft. Uses a
-	// layout effect so the value is available before paint.
-	const initialSyncDone = useRef(false);
+	// Sync the ref with the editor value so callers that read
+	// inputValueRef.current see the persisted draft. Uses a layout
+	// effect so the value is available before paint.
 	useLayoutEffect(() => {
-		if (!initialSyncDone.current && editorInitialValue) {
-			initialSyncDone.current = true;
-			(inputValueRef as React.MutableRefObject<string>).current =
-				editorInitialValue;
-		}
+		inputValueRef.current = editorInitialValue;
 	}, [editorInitialValue, inputValueRef]);
 
 	// -- History editing state --
@@ -117,6 +113,14 @@ export function useConversationEditingState(deps: {
 	const [editingFileBlocks, setEditingFileBlocks] = useState<
 		readonly ChatMessagePart[]
 	>([]);
+
+	// -- Queue editing state --
+	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
+		number | null
+	>(null);
+	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] = useState<
+		string | null
+	>(null);
 
 	const handleEditUserMessage = (
 		messageId: number,
@@ -143,14 +147,6 @@ export function useConversationEditingState(deps: {
 			chatInputRef.current?.insertText(draftBeforeHistoryEdit);
 		}
 	};
-
-	// -- Queue editing state --
-	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
-		number | null
-	>(null);
-	const [draftBeforeQueueEdit, setDraftBeforeQueueEdit] = useState<
-		string | null
-	>(null);
 
 	const handleStartQueueEdit = (
 		id: number,
@@ -231,6 +227,27 @@ export function useConversationEditingState(deps: {
 	};
 }
 
+/**
+ * Resolves the effective compaction threshold for a model configuration,
+ * preferring the user's override when set.
+ */
+function resolveCompactionThreshold(
+	modelConfigID: string | undefined,
+	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
+	modelConfigs: readonly TypesGen.ChatModelConfig[],
+): number | undefined {
+	if (!modelConfigID) return undefined;
+	const config = modelConfigs.find((c) => c.id === modelConfigID);
+	if (!config) return undefined;
+	const userOverride = userThresholds?.find(
+		(t) => t.model_config_id === modelConfigID,
+	);
+	if (userOverride) {
+		return userOverride.threshold_percent;
+	}
+	return config.compression_threshold;
+}
+
 const AgentDetail: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	const {
@@ -296,6 +313,7 @@ const AgentDetail: FC = () => {
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 
@@ -492,10 +510,11 @@ const AgentDetail: FC = () => {
 		return modelOptions[0]?.id ?? "";
 	})();
 
-	const compressionThreshold = chatLastModelConfigID
-		? modelConfigs.find((c) => c.id === chatLastModelConfigID)
-				?.compression_threshold
-		: undefined;
+	const compressionThreshold = resolveCompactionThreshold(
+		chatLastModelConfigID,
+		userThresholdsQuery.data?.thresholds,
+		modelConfigs,
+	);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
@@ -894,4 +913,12 @@ const AgentDetail: FC = () => {
 	);
 };
 
-export default AgentDetail;
+// Keyed wrapper so that navigating between agents (changing the
+// :agentId param) fully remounts the component, resetting all
+// internal state — drafts, editing, queries — cleanly.
+const KeyedAgentDetail: FC = () => {
+	const { agentId } = useParams<{ agentId: string }>();
+	return <AgentDetail key={agentId} />;
+};
+
+export default KeyedAgentDetail;
