@@ -1277,6 +1277,11 @@ func partsToMessageParts(
 					}
 				}
 			}
+			// Providers only accept a small set of MIME types in file
+			// content blocks, typically images and PDFs. A synthetic
+			// paste sent as a text/plain FilePart is dropped or rejected,
+			// so the model sees nothing. Converting it to TextPart keeps
+			// the pasted content visible to every provider.
 			if isSyntheticPaste(name, mediaType) {
 				result = append(result, fantasy.TextPart{
 					Text:            formatSyntheticPasteText(name, data),
