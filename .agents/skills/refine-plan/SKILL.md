@@ -33,7 +33,7 @@ NEVER include thinking output or other stream-of-consciousness prose mid-plan.
 
 ### 2. Push Back on Unclear Requirements
 
-When requirements are ambiguous, ask questions before proceeding. Use your question/clarification tool to pause and ask the user.
+When requirements are ambiguous, ask questions before proceeding.
 
 ### 3. Tests Define Requirements
 
