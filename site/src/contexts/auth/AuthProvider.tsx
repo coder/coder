@@ -28,6 +28,7 @@ export type AuthContextValue = {
 	isSignedIn: boolean;
 	isSigningIn: boolean;
 	isUpdatingProfile: boolean;
+	isError: boolean;
 	user: User | undefined;
 	permissions: Permissions | undefined;
 	signInError: unknown;
@@ -41,12 +42,26 @@ export const AuthContext = createContext<AuthContextValue | undefined>(
 	undefined,
 );
 
+// Don't retry 401s — the user is genuinely not authenticated.
+const shouldRetryAuth = (failureCount: number, error: unknown): boolean => {
+	if (isApiError(error) && error.response.status === 401) {
+		return false;
+	}
+	return failureCount < 3;
+};
+const authRetryDelay = (attempt: number) =>
+	Math.min(1000 * 2 ** attempt, 10000);
+
 export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const userMetadataState = metadata.user;
 
 	const meOptions = me(userMetadataState);
-	const userQuery = useQuery(meOptions);
+	const userQuery = useQuery({
+		...meOptions,
+		retry: shouldRetryAuth,
+		retryDelay: authRetryDelay,
+	});
 	const hasFirstUserQuery = useQuery(hasFirstUser(userMetadataState));
 
 	const permissionsQuery = useQuery({
@@ -55,6 +70,8 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 			metadata.permissions,
 		),
 		enabled: userQuery.data !== undefined,
+		retry: shouldRetryAuth,
+		retryDelay: authRetryDelay,
 	});
 
 	const queryClient = useQueryClient();
@@ -84,6 +101,18 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	const isSignedIn = userQuery.isSuccess && userQuery.data !== undefined;
 	const isSigningIn = loginMutation.isPending;
 	const isUpdatingProfile = updateProfileMutation.isPending;
+	// Non-401 errors from the user query (e.g. network timeout, 500,
+	// 502) represent a transient failure, not a sign-out. Exposing
+	// this lets RequireAuth show a recoverable error screen instead
+	// of crashing through to the error boundary.
+	const isError =
+		(userQuery.isError && !isSignedOut) ||
+		(userQuery.isSuccess &&
+			permissionsQuery.isError &&
+			!(
+				isApiError(permissionsQuery.error) &&
+				permissionsQuery.error.response.status === 401
+			));
 
 	const signOut = useCallback(() => {
 		logoutMutation.mutate();
@@ -118,6 +147,7 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 				isSignedIn,
 				isSigningIn,
 				isUpdatingProfile,
+				isError,
 				signOut,
 				signIn,
 				updateProfile,

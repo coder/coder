@@ -1,5 +1,7 @@
 import { API } from "api/api";
 import { isApiError } from "api/errors";
+import { Button } from "components/Button/Button";
+import { CoderIcon } from "components/Icons/CoderIcon";
 import { Loader } from "components/Loader/Loader";
 import { ProxyProvider as ProductionProxyProvider } from "contexts/ProxyContext";
 import { DashboardProvider as ProductionDashboardProvider } from "modules/dashboard/DashboardProvider";
@@ -26,7 +28,7 @@ export const RequireAuth: FC<RequireAuthProps> = ({
 	ProxyProvider = ProductionProxyProvider,
 }) => {
 	const location = useLocation();
-	const { signOut, isSigningOut, isSignedOut, isSignedIn, isLoading } =
+	const { signOut, isSigningOut, isSignedOut, isSignedIn, isLoading, isError } =
 		useAuthContext();
 
 	useEffect(() => {
@@ -71,6 +73,10 @@ export const RequireAuth: FC<RequireAuthProps> = ({
 		);
 	}
 
+	if (isError) {
+		return <ConnectionErrorScreen />;
+	}
+
 	// Authenticated pages have access to some contexts for knowing enabled experiments
 	// and where to route workspace connections.
 	return (
@@ -79,5 +85,39 @@ export const RequireAuth: FC<RequireAuthProps> = ({
 				<Outlet />
 			</ProxyProvider>
 		</DashboardProvider>
+	);
+};
+
+/**
+ * Full-screen error shown when the user API call fails with a non-401
+ * error (network timeout, 500, 502, etc.). Gives the user a simple
+ * retry action instead of crashing to the global error boundary.
+ */
+const ConnectionErrorScreen: FC = () => {
+	return (
+		<div className="bg-surface-primary text-center w-full h-full flex justify-center items-center absolute inset-0">
+			<main className="flex gap-6 w-full max-w-prose p-4 flex-col flex-nowrap">
+				<div className="flex gap-2 flex-col items-center">
+					<CoderIcon className="w-11 h-11" />
+					<div className="text-content-primary flex flex-col gap-1">
+						<h1 className="text-2xl font-semibold m-0">Unable to connect</h1>
+						<p className="leading-6 m-0 text-content-secondary text-sm">
+							We&apos;re having trouble reaching the server. This may be a
+							temporary network issue.
+						</p>
+					</div>
+				</div>
+
+				<div className="flex flex-row flex-nowrap justify-center gap-2">
+					<Button
+						className="min-w-32"
+						onClick={() => window.location.reload()}
+						data-testid="retry-button"
+					>
+						Retry
+					</Button>
+				</div>
+			</main>
+		</div>
 	);
 };
