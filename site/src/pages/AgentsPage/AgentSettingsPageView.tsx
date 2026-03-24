@@ -547,10 +547,12 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	const [localTTLMs, setLocalTTLMs] = useState<number | null>(null);
 	const [autostopToggled, setAutostopToggled] = useState<boolean | null>(null);
 	const ttlMs = localTTLMs ?? serverTTLMs;
-	const isAutostopEnabled = autostopToggled ?? serverTTLMs > 0;
+	const isAutostopEnabled =
+		autostopToggled ?? (localTTLMs !== null ? localTTLMs > 0 : serverTTLMs > 0);
 	const isTTLDirty = localTTLMs !== null && localTTLMs !== serverTTLMs;
 	const maxTTLMs = 30 * 24 * 60 * 60_000; // 30 days
 	const isTTLOverMax = ttlMs > maxTTLMs;
+	const isTTLZero = isAutostopEnabled && ttlMs === 0;
 	const isPromptSaving = isSavingSystemPrompt || isSavingUserPrompt;
 	const isDesktopSaving = isSavingDesktopEnabled;
 	const isTTLSaving = isSavingWorkspaceTTL;
@@ -576,7 +578,7 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 
 	const handleSaveChatWorkspaceTTL = (event: FormEvent) => {
 		event.preventDefault();
-		if (!isTTLDirty) return;
+		if (!isTTLDirty || isTTLSaving) return;
 		saveWorkspaceTTL(
 			{ workspace_ttl_ms: localTTLMs ?? 0 },
 			{
@@ -584,6 +586,7 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 					setLocalTTLMs(null);
 					setAutostopToggled(null);
 				},
+				onError: () => setAutostopToggled(null),
 			},
 		);
 	};
@@ -759,6 +762,8 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 													setAutostopToggled(null);
 												};
 												if (checked) {
+													// Defensive: restore server value if query cache is
+													// stale; otherwise default to 1 hour.
 													const defaultTTL =
 														serverTTLMs > 0 ? serverTTLMs : 3_600_000;
 													setAutostopToggled(true);
@@ -790,13 +795,15 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 										<DurationField
 											valueMs={ttlMs}
 											onChange={(v) => setLocalTTLMs(v)}
-											inputProps={{ "aria-label": "Autostop duration" }}
+											label="Autostop duration"
 											disabled={isTTLSaving || isTTLLoading}
-											error={isTTLOverMax}
+											error={isTTLOverMax || isTTLZero}
 											helperText={
-												isTTLOverMax
-													? "Must not exceed 30 days (720 hours)."
-													: undefined
+												isTTLZero
+													? "Duration must be greater than zero."
+													: isTTLOverMax
+														? "Must not exceed 30 days (720 hours)."
+														: undefined
 											}
 										/>
 									)}
@@ -805,7 +812,12 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 											<Button
 												size="sm"
 												type="submit"
-												disabled={isTTLSaving || !isTTLDirty || isTTLOverMax}
+												disabled={
+													isTTLSaving ||
+													!isTTLDirty ||
+													isTTLOverMax ||
+													isTTLZero
+												}
 											>
 												Save
 											</Button>

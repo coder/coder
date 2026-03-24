@@ -216,11 +216,7 @@ export const DefaultAutostopDefault: Story = {
 		expect(toggle).not.toBeChecked();
 
 		// Duration field should not be visible when disabled.
-		expect(
-			within(
-				canvas.getByText("Workspace Autostop Fallback").closest("form")!,
-			).queryByRole("textbox"),
-		).toBeNull();
+		expect(canvas.queryByLabelText("Autostop duration")).toBeNull();
 	},
 };
 
@@ -241,9 +237,7 @@ export const DefaultAutostopCustomValue: Story = {
 		expect(toggle).toBeChecked();
 
 		// Duration field should be visible with 2 hours.
-		const durationInput = within(
-			(await canvas.findByText("Workspace Autostop Fallback")).closest("form")!,
-		).getByRole("textbox");
+		const durationInput = await canvas.findByLabelText("Autostop duration");
 		expect(durationInput).toHaveValue("2");
 	},
 };
@@ -275,16 +269,14 @@ export const DefaultAutostopSave: Story = {
 			});
 		});
 
-		const ttlForm = (
-			await canvas.findByText("Workspace Autostop Fallback")
-		).closest("form")!;
-		const durationInput = within(ttlForm).getByRole("textbox");
+		const durationInput = await canvas.findByLabelText("Autostop duration");
 		expect(durationInput).toHaveValue("1");
 
 		// Change to 3 hours — Save button should appear.
 		await userEvent.clear(durationInput);
 		await userEvent.type(durationInput, "3");
 
+		const ttlForm = durationInput.closest("form")!;
 		const saveButton = within(ttlForm).getByRole("button", { name: "Save" });
 		await waitFor(() => {
 			expect(saveButton).toBeEnabled();
@@ -295,6 +287,13 @@ export const DefaultAutostopSave: Story = {
 			expect(API.experimental.updateChatWorkspaceTTL).toHaveBeenCalledWith({
 				workspace_ttl_ms: 10_800_000,
 			});
+		});
+
+		// Verify the isTTLZero guard: clearing to 0 should disable Save
+		// because the toggle is still ON.
+		await userEvent.clear(durationInput);
+		await waitFor(() => {
+			expect(saveButton).toBeDisabled();
 		});
 	},
 };
@@ -320,9 +319,7 @@ export const DefaultAutostopExceedsMax: Story = {
 		});
 		await userEvent.click(toggle);
 
-		const durationInput = within(
-			(await canvas.findByText("Workspace Autostop Fallback")).closest("form")!,
-		).getByRole("textbox");
+		const durationInput = await canvas.findByLabelText("Autostop duration");
 		const ttlForm = durationInput.closest("form")!;
 
 		// Enter 721 hours (exceeds 30-day / 720h limit).
@@ -372,11 +369,7 @@ export const DefaultAutostopToggleOff: Story = {
 
 		// Duration field should no longer be visible.
 		await waitFor(() => {
-			expect(
-				within(
-					canvas.getByText("Workspace Autostop Fallback").closest("form")!,
-				).queryByRole("textbox"),
-			).toBeNull();
+			expect(canvas.queryByLabelText("Autostop duration")).toBeNull();
 		});
 	},
 };
@@ -397,15 +390,103 @@ export const DefaultAutostopSaveDisabled: Story = {
 		expect(toggle).toBeChecked();
 
 		// Duration field should show 2 hours.
-		const ttlForm = (
-			await canvas.findByText("Workspace Autostop Fallback")
-		).closest("form")!;
-		const durationInput = within(ttlForm).getByRole("textbox");
+		const durationInput = await canvas.findByLabelText("Autostop duration");
 		expect(durationInput).toHaveValue("2");
 
 		// Save button should exist but be disabled (no changes made).
+		const ttlForm = durationInput.closest("form")!;
 		const saveButton = within(ttlForm).getByRole("button", { name: "Save" });
 		expect(saveButton).toBeDisabled();
+	},
+};
+
+export const DefaultAutostopToggleFailure: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatWorkspaceTTL").mockResolvedValue({
+			workspace_ttl_ms: 0,
+		});
+		spyOn(API.experimental, "updateChatWorkspaceTTL").mockRejectedValue(
+			new Error("Server error"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Toggle starts OFF since TTL is 0.
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable default autostop",
+		});
+		expect(toggle).not.toBeChecked();
+
+		// Click toggle ON.
+		await userEvent.click(toggle);
+
+		// Verify the mutation was called with the 1-hour default.
+		await waitFor(() => {
+			expect(API.experimental.updateChatWorkspaceTTL).toHaveBeenCalledWith({
+				workspace_ttl_ms: 3_600_000,
+			});
+		});
+
+		// The onError handler resets state, reverting the toggle.
+		await waitFor(() => {
+			expect(toggle).not.toBeChecked();
+		});
+
+		// Error message should be visible.
+		expect(
+			canvas.getByText("Failed to save autostop setting."),
+		).toBeInTheDocument();
+
+		// DurationField should not be visible since toggle reverted to OFF.
+		expect(canvas.queryByLabelText("Autostop duration")).toBeNull();
+	},
+};
+
+export const DefaultAutostopToggleOffFailure: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatWorkspaceTTL").mockResolvedValue({
+			workspace_ttl_ms: 7_200_000,
+		});
+		spyOn(API.experimental, "updateChatWorkspaceTTL").mockRejectedValue(
+			new Error("Server error"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Toggle starts ON since TTL > 0.
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable default autostop",
+		});
+		expect(toggle).toBeChecked();
+
+		// Duration should show 2 hours initially.
+		const durationInput = await canvas.findByLabelText("Autostop duration");
+		expect(durationInput).toHaveValue("2");
+
+		// Click toggle OFF.
+		await userEvent.click(toggle);
+
+		// Verify the mutation was called with 0 to disable.
+		await waitFor(() => {
+			expect(API.experimental.updateChatWorkspaceTTL).toHaveBeenCalledWith({
+				workspace_ttl_ms: 0,
+			});
+		});
+
+		// The onError handler resets state, reverting the toggle to ON.
+		await waitFor(() => {
+			expect(toggle).toBeChecked();
+		});
+
+		// Error message should be visible.
+		expect(
+			canvas.getByText("Failed to save autostop setting."),
+		).toBeInTheDocument();
+
+		// DurationField should still be visible with 2 hours.
+		expect(canvas.getByLabelText("Autostop duration")).toHaveValue("2");
 	},
 };
 

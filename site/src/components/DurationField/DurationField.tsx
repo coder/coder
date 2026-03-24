@@ -64,7 +64,6 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
 		valueMs: parentValueMs,
 		onChange,
 		helperText,
-		inputProps: externalInputProps,
 		...textFieldProps
 	} = props;
 	const [state, dispatch] = useReducer(reducer, initState(parentValueMs));
@@ -106,7 +105,6 @@ export const DurationField: FC<DurationFieldProps> = (props) => {
 					}}
 					inputProps={{
 						step: 1,
-						...externalInputProps,
 					}}
 				/>
 				<Select
