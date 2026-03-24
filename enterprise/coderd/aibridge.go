@@ -395,58 +395,62 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 	}
 	session := sessions[0]
 
-	// Fetch paginated session threads.
-	threadRows, err := api.Database.ListAIBridgeSessionThreads(ctx, database.ListAIBridgeSessionThreadsParams{
-		SessionID: sessionIDParam,
-		AfterID:   afterID,
-		BeforeID:  beforeID,
-		Limit:     limit,
+	// Fetch paginated session threads and their sub-resources inside
+	// a repeatable-read transaction so the data is consistent.
+	var (
+		threadRows    []database.ListAIBridgeSessionThreadsRow
+		tokenUsages   []database.AIBridgeTokenUsage
+		toolUsages    []database.AIBridgeToolUsage
+		userPrompts   []database.AIBridgeUserPrompt
+		modelThoughts []database.AIBridgeModelThought
+	)
+	err = api.Database.InTx(func(db database.Store) error {
+		var err error
+		threadRows, err = db.ListAIBridgeSessionThreads(ctx, database.ListAIBridgeSessionThreadsParams{
+			SessionID: sessionIDParam,
+			AfterID:   afterID,
+			BeforeID:  beforeID,
+			Limit:     limit,
+		})
+		if err != nil {
+			return xerrors.Errorf("list session threads: %w", err)
+		}
+
+		// Collect interception IDs for batch sub-resource fetching.
+		ids := make([]uuid.UUID, len(threadRows))
+		for i, row := range threadRows {
+			ids[i] = row.AIBridgeInterception.ID
+		}
+
+		tokenUsages, err = db.ListAIBridgeTokenUsagesByInterceptionIDs(ctx, ids)
+		if err != nil {
+			return xerrors.Errorf("list token usages: %w", err)
+		}
+
+		toolUsages, err = db.ListAIBridgeToolUsagesByInterceptionIDs(ctx, ids)
+		if err != nil {
+			return xerrors.Errorf("list tool usages: %w", err)
+		}
+
+		userPrompts, err = db.ListAIBridgeUserPromptsByInterceptionIDs(ctx, ids)
+		if err != nil {
+			return xerrors.Errorf("list user prompts: %w", err)
+		}
+
+		modelThoughts, err = db.ListAIBridgeModelThoughtsByInterceptionIDs(ctx, ids)
+		if err != nil {
+			return xerrors.Errorf("list model thoughts: %w", err)
+		}
+
+		return nil
+	}, &database.TxOptions{
+		Isolation:    sql.LevelRepeatableRead,
+		ReadOnly:     true,
+		TxIdentifier: "aibridge_get_session_threads",
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error listing session threads.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// Collect interception IDs for batch sub-resource fetching.
-	ids := make([]uuid.UUID, len(threadRows))
-	for i, row := range threadRows {
-		ids[i] = row.AIBridgeInterception.ID
-	}
-
-	tokenUsages, err := api.Database.ListAIBridgeTokenUsagesByInterceptionIDs(ctx, ids)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching token usages.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	toolUsages, err := api.Database.ListAIBridgeToolUsagesByInterceptionIDs(ctx, ids)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching tool usages.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	userPrompts, err := api.Database.ListAIBridgeUserPromptsByInterceptionIDs(ctx, ids)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching user prompts.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	modelThoughts, err := api.Database.ListAIBridgeModelThoughtsByInterceptionIDs(ctx, ids)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching model thoughts.",
+			Message: "Internal error fetching session threads.",
 			Detail:  err.Error(),
 		})
 		return

@@ -5329,10 +5329,7 @@ func (q *querier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Contex
 }
 
 func (q *querier) ListAIBridgeModelThoughtsByInterceptionIDs(ctx context.Context, interceptionIDs []uuid.UUID) ([]database.AIBridgeModelThought, error) {
-	// This function is a system function until we implement a join
-	// for aibridge interceptions. AI Bridge interception subresources
-	// use the same authorization call as their parent.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
 		return nil, err
 	}
 	return q.db.ListAIBridgeModelThoughtsByInterceptionIDs(ctx, interceptionIDs)
