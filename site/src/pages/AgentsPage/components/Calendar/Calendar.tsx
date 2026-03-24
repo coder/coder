@@ -54,22 +54,23 @@ function Calendar({
 					"absolute inset-x-0 top-0 flex w-full items-center justify-between gap-1",
 					defaultClassNames.nav,
 				),
-					button_previous: cn(
-						"h-[--cell-size] w-[--cell-size] select-none p-0",
-						"inline-flex items-center justify-center rounded-md",
-						"bg-transparent border-0 cursor-pointer",
-						"text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
-						"aria-disabled:opacity-50",
-						defaultClassNames.button_previous,
-					),
-					button_next: cn(
-						"h-[--cell-size] w-[--cell-size] select-none p-0",
-						"inline-flex items-center justify-center rounded-md",
-						"bg-transparent border-0 cursor-pointer",
-						"text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
-						"aria-disabled:opacity-50",
-						defaultClassNames.button_next,
-					),				month_caption: cn(
+				button_previous: cn(
+					"h-[--cell-size] w-[--cell-size] select-none p-0",
+					"inline-flex items-center justify-center rounded-md",
+					"bg-transparent border-0 cursor-pointer",
+					"text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
+					"aria-disabled:opacity-50",
+					defaultClassNames.button_previous,
+				),
+				button_next: cn(
+					"h-[--cell-size] w-[--cell-size] select-none p-0",
+					"inline-flex items-center justify-center rounded-md",
+					"bg-transparent border-0 cursor-pointer",
+					"text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
+					"aria-disabled:opacity-50",
+					defaultClassNames.button_next,
+				),
+				month_caption: cn(
 					"flex h-[--cell-size] w-full items-center justify-center px-[--cell-size]",
 					defaultClassNames.month_caption,
 				),
@@ -89,7 +90,8 @@ function Calendar({
 					"select-none font-medium text-sm text-content-primary",
 					defaultClassNames.caption_label,
 				),
-				table: "w-full border-collapse border-0 [&_td]:border-0 [&_th]:border-0",
+				table:
+					"w-full border-collapse border-0 [&_td]:border-0 [&_th]:border-0",
 				weekdays: cn("flex", defaultClassNames.weekdays),
 				weekday: cn(
 					"text-content-secondary flex-1 select-none rounded-md text-[0.8rem] font-normal",

@@ -140,18 +140,25 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 					<span>{dayjs(value.endDate).format("MMM D, YYYY")}</span>
 				</Button>
 			</PopoverTrigger>
-			<PopoverContent className="w-auto p-0 overflow-hidden" align="end">
+			<PopoverContent
+				className="w-auto p-0 overflow-hidden"
+				align="end"
+				onOpenAutoFocus={(e) => e.preventDefault()}
+			>
+				{" "}
 				<div className="flex">
 					{/* Presets sidebar */}
-					<div className="flex flex-col border-r border-solid border-border-default p-2 text-sm">
+					<div className="flex flex-col border-r border-border-default p-2 text-sm">
+						{" "}
 						{presets.map((preset) => (
 							<button
 								key={preset.label}
 								type="button"
 								onClick={() => handlePreset(preset)}
 								className={cn(
-									"cursor-pointer rounded-md border-none bg-transparent px-3 py-1.5 text-left text-sm",
+									"cursor-pointer rounded-md border-none outline-none bg-transparent px-3 py-1.5 text-left text-sm",
 									"text-content-secondary hover:bg-surface-secondary hover:text-content-primary",
+									"focus-visible:ring-2 focus-visible:ring-content-link",
 									"transition-colors whitespace-nowrap",
 								)}
 							>
