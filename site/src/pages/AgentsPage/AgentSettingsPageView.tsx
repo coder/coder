@@ -51,6 +51,7 @@ import {
 import { useSearchParams } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import { formatTokenCount } from "utils/analytics";
+import { cn } from "utils/cn";
 import { formatCostMicros } from "utils/currency";
 import { ChatCostSummaryView } from "./components/ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./components/ChatModelAdminPanel/ChatModelAdminPanel";
@@ -488,8 +489,10 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 	);
 };
 
-const textareaClassName =
-	"max-h-[240px] w-full resize-none overflow-y-auto rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin]";
+const textareaMaxHeight = 240;
+const textareaBaseClassName =
+	"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30";
+const textareaOverflowClassName = "overflow-y-auto [scrollbar-width:thin]";
 
 interface AgentSettingsPageViewProps {
 	activeSection: string;
@@ -547,6 +550,10 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	const serverUserPrompt = userPromptQuery.data?.custom_prompt ?? "";
 	const [localUserEdit, setLocalUserEdit] = useState<string | null>(null);
 	const userPromptDraft = localUserEdit ?? serverUserPrompt;
+
+	const [isUserPromptOverflowing, setIsUserPromptOverflowing] = useState(false);
+	const [isSystemPromptOverflowing, setIsSystemPromptOverflowing] =
+		useState(false);
 
 	const isSystemPromptDirty = localEdit !== null && localEdit !== serverPrompt;
 	const isUserPromptDirty =
@@ -642,10 +649,16 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 								Applied to all your chats. Only visible to you.
 							</p>
 							<TextareaAutosize
-								className={textareaClassName}
+								className={cn(
+									textareaBaseClassName,
+									isUserPromptOverflowing && textareaOverflowClassName,
+								)}
 								placeholder="Additional behavior, style, and tone preferences"
 								value={userPromptDraft}
 								onChange={(event) => setLocalUserEdit(event.target.value)}
+								onHeightChange={(height) =>
+									setIsUserPromptOverflowing(height >= textareaMaxHeight)
+								}
 								disabled={isPromptSaving}
 								minRows={1}
 							/>
@@ -700,21 +713,26 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 										built-in default is used.
 									</p>
 									<TextareaAutosize
-										className={textareaClassName}
+										className={cn(
+											textareaBaseClassName,
+											isSystemPromptOverflowing && textareaOverflowClassName,
+										)}
 										placeholder="Additional behavior, style, and tone preferences for all users"
 										value={systemPromptDraft}
 										onChange={(event) => setLocalEdit(event.target.value)}
+										onHeightChange={(height) =>
+											setIsSystemPromptOverflowing(height >= textareaMaxHeight)
+										}
 										disabled={isPromptSaving}
 										minRows={1}
 									/>
 									<div className="flex justify-end gap-2">
-										<Button
-											size="sm"
-											variant="outline"
-											type="button"
-											onClick={() => setLocalEdit("")}
-											disabled={isPromptSaving || !systemPromptDraft}
-										>
+											<Button
+												size="sm"
+												variant="outline"
+												type="button"
+												onClick={() => setLocalEdit("")}
+												disabled={isPromptSaving || !systemPromptDraft}										>
 											Clear
 										</Button>
 										<Button
