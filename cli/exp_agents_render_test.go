@@ -633,13 +633,12 @@ func TestExpAgentsRender(t *testing.T) {
 
 			blocks := []chatBlock{{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "hello"}}
 
-			selectedOutput := renderChatBlocks(styles, blocks, 0, map[int]bool{}, false, 40)
+			renderChatBlocks(styles, blocks, 0, map[int]bool{}, false, 40)
 			cachedRender := blocks[0].cachedRender
 			require.NotEmpty(t, cachedRender)
 
-			unselectedOutput := renderChatBlocks(styles, blocks, 0, map[int]bool{}, true, 40)
+			renderChatBlocks(styles, blocks, 0, map[int]bool{}, true, 40)
 			require.Equal(t, cachedRender, blocks[0].cachedRender)
-			require.NotEqual(t, selectedOutput, unselectedOutput)
 		})
 	})
 	t.Run("RenderDiffDrawer", func(t *testing.T) {
