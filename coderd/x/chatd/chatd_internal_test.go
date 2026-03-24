@@ -1041,7 +1041,7 @@ func TestSubscribeUsesDurableCacheWhenLocalMessageWasNotDelivered(t *testing.T) 
 
 	server.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
 		AfterMessageID: 1,
-	})
+	}, chatStreamNotifyReasonMessagePersisted)
 
 	event := requireStreamMessageEvent(t, events)
 	require.Equal(t, int64(2), event.Message.ID)
@@ -1090,7 +1090,7 @@ func TestSubscribeQueriesDatabaseWhenDurableCacheMisses(t *testing.T) {
 
 	server.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
 		AfterMessageID: 1,
-	})
+	}, chatStreamNotifyReasonMessagePersisted)
 
 	event := requireStreamMessageEvent(t, events)
 	require.Equal(t, int64(2), event.Message.ID)

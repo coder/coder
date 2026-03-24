@@ -22,8 +22,9 @@ type workspaceBuildRunner interface {
 }
 
 type Runner struct {
-	client *codersdk.Client
-	cfg    Config
+	client     *codersdk.Client
+	chatClient *codersdk.ExperimentalClient
+	cfg        Config
 
 	archiveChat             func(ctx context.Context, chatID uuid.UUID) error
 	newWorkspaceBuildRunner func(client *codersdk.Client, cfg workspacebuild.Config) workspaceBuildRunner
@@ -50,12 +51,14 @@ var (
 )
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
+	chatClient := codersdk.NewExperimentalClient(client)
 	return &Runner{
-		client: client,
-		cfg:    cfg,
+		client:     client,
+		chatClient: chatClient,
+		cfg:        cfg,
 		archiveChat: func(ctx context.Context, chatID uuid.UUID) error {
 			archived := true
-			return client.UpdateChat(ctx, chatID, codersdk.UpdateChatRequest{Archived: &archived})
+			return chatClient.UpdateChat(ctx, chatID, codersdk.UpdateChatRequest{Archived: &archived})
 		},
 		newWorkspaceBuildRunner: func(client *codersdk.Client, cfg workspacebuild.Config) workspaceBuildRunner {
 			return workspacebuild.NewRunner(client, cfg)
@@ -119,7 +122,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error)
 		r.storeResults(finalStatus, failureStage, totalDuration, sawAnyFirstOutput, retryCount, eventCount, turnsCompleted)
 	}()
 
-	chat, err := r.client.CreateChat(ctx, codersdk.CreateChatRequest{
+	chat, err := r.chatClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		WorkspaceID:   &workspaceID,
 		ModelConfigID: r.cfg.ModelConfigID,
 		Content: []codersdk.ChatInputPart{{
@@ -139,7 +142,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error)
 	r.setChatID(chat.ID)
 	_, _ = fmt.Fprintf(logs, "created chat %s in %s\n", chat.ID, createDuration)
 
-	events, closer, err := r.client.StreamChat(ctx, chat.ID, nil)
+	events, closer, err := r.chatClient.StreamChat(ctx, chat.ID, nil)
 	if err != nil {
 		failureStage = failureStageStreamOpen
 		r.cfg.Metrics.ChatStreamErrorsTotal.WithLabelValues(r.cfg.MetricLabelValues...).Inc()
@@ -202,7 +205,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) (err error)
 				sawTurnFirstOutput = false
 				turnStartTime = time.Now()
 				messageStartTime := turnStartTime
-				_, err = r.client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				_, err = r.chatClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
 					Content: []codersdk.ChatInputPart{{
 						Type: codersdk.ChatInputPartTypeText,
 						Text: r.cfg.FollowUpPrompt,
