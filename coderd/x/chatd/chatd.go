@@ -3267,8 +3267,7 @@ func (p *Server) runChat(
 					return uuid.Nil, xerrors.New("chat has no workspace")
 				}
 
-				//nolint:gocritic // System-restricted context needed to read workspace for org ID.
-				ws, err := p.db.GetWorkspaceByID(dbauthz.AsSystemRestricted(ctx), chatSnapshot.WorkspaceID.UUID)
+				ws, err := p.db.GetWorkspaceByID(ctx, chatSnapshot.WorkspaceID.UUID)
 				if err != nil {
 					return uuid.Nil, xerrors.Errorf("resolve workspace: %w", err)
 				}

@@ -31,7 +31,7 @@ func ProposePlan(options ProposePlanOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"propose_plan",
 		"Present a Markdown plan file from the workspace for user review. "+
-			"The file must already exist — use write_file to create it or edit_files to refine it before calling this tool. "+
+			"The file must already exist with a .md extension — use write_file to create it or edit_files to refine it before calling this tool. "+
 			"Pass the absolute file path (e.g. /home/coder/PLAN.md). The tool reads the content from the workspace.",
 		func(ctx context.Context, args ProposePlanArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
