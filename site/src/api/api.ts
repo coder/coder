@@ -396,11 +396,6 @@ type SearchParamOptions = TypesGen.Pagination & {
 	q?: string;
 };
 
-type InfiniteScrollParamOptions = TypesGen.Pagination & {
-	// after_id is already defined in Pagination
-	before_id?: string;
-};
-
 type RestartWorkspaceParameters = Readonly<{
 	workspace: TypesGen.Workspace;
 	buildParameters?: TypesGen.WorkspaceBuildParameter[];
