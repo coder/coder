@@ -334,7 +334,7 @@ func (q *sqlQuerier) CountAIBridgeInterceptions(ctx context.Context, arg CountAI
 
 const countAIBridgeSessions = `-- name: CountAIBridgeSessions :one
 SELECT
-	COUNT(DISTINCT aibridge_interceptions.session_id)
+	COUNT(DISTINCT (aibridge_interceptions.session_id, aibridge_interceptions.initiator_id))
 FROM
 	aibridge_interceptions
 WHERE
@@ -1194,8 +1194,11 @@ WITH filtered_interceptions AS (
 ),
 session_tokens AS (
 	-- Aggregate token usage across all interceptions in each session.
+	-- Group by (session_id, initiator_id) to avoid merging sessions from
+	-- different users who happen to share the same client_session_id.
 	SELECT
 		fi.session_id,
+		fi.initiator_id,
 		COALESCE(SUM(tu.input_tokens), 0)::bigint AS input_tokens,
 		COALESCE(SUM(tu.output_tokens), 0)::bigint AS output_tokens
 		-- TODO: add extra token types once https://github.com/coder/aibridge/issues/150 lands.
@@ -1204,17 +1207,19 @@ session_tokens AS (
 	LEFT JOIN
 		aibridge_token_usages tu ON fi.id = tu.interception_id
 	GROUP BY
-		fi.session_id
+		fi.session_id, fi.initiator_id
 ),
 session_root AS (
-	-- Build one summary row per session. The ARRAY_AGG with ORDER BY picks
-	-- values from the chronologically first interception for fields that
-	-- should represent the session as a whole (initiator, client, metadata).
-	-- Threads are counted as distinct root interception IDs: an interception
-	-- with a NULL thread_root_id is itself a thread root.
+	-- Build one summary row per session. Group by (session_id, initiator_id)
+	-- to avoid merging sessions from different users who happen to share the
+	-- same client_session_id. The ARRAY_AGG with ORDER BY picks values from
+	-- the chronologically first interception for fields that should represent
+	-- the session as a whole (client, metadata). Threads are counted as
+	-- distinct root interception IDs: an interception with a NULL
+	-- thread_root_id is itself a thread root.
 	SELECT
 		fi.session_id,
-		(ARRAY_AGG(fi.initiator_id ORDER BY fi.started_at, fi.id))[1] AS initiator_id,
+		fi.initiator_id,
 		(ARRAY_AGG(fi.client ORDER BY fi.started_at, fi.id))[1] AS client,
 		(ARRAY_AGG(fi.metadata ORDER BY fi.started_at, fi.id))[1] AS metadata,
 		ARRAY_AGG(DISTINCT fi.provider ORDER BY fi.provider) AS providers,
@@ -1227,7 +1232,7 @@ session_root AS (
 	FROM
 		filtered_interceptions fi
 	GROUP BY
-		fi.session_id
+		fi.session_id, fi.initiator_id
 )
 SELECT
 	sr.session_id,
@@ -1250,7 +1255,7 @@ FROM
 JOIN
 	visible_users ON visible_users.id = sr.initiator_id
 LEFT JOIN
-	session_tokens st ON st.session_id = sr.session_id
+	session_tokens st ON st.session_id = sr.session_id AND st.initiator_id = sr.initiator_id
 LEFT JOIN LATERAL (
 	-- Lateral join to efficiently fetch only the most recent user prompt
 	-- across all interceptions in the session, avoiding a full aggregation.

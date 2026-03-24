@@ -1040,6 +1040,76 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.Equal(t, i2.ID.String(), res.Sessions[0].ID)
 	})
 
+	t.Run("SessionIDCollisionAcrossUsers", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, user2 := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		now := dbtime.Now()
+
+		// Two users share the same client_session_id. They must be
+		// treated as distinct sessions.
+		sharedSessionID := "shared-session-id"
+		u1EndedAt := now.Add(time.Minute)
+		u1Interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           "claude-4",
+			StartedAt:       now,
+			Client:          sql.NullString{String: "claude-code", Valid: true},
+			ClientSessionID: sql.NullString{String: sharedSessionID, Valid: true},
+		}, &u1EndedAt)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: u1Interception.ID,
+			InputTokens:    100,
+			OutputTokens:   50,
+			CreatedAt:      now,
+		})
+
+		u2EndedAt := now.Add(-time.Hour + time.Minute)
+		u2Interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     user2.ID,
+			Provider:        "openai",
+			Model:           "gpt-4",
+			StartedAt:       now.Add(-time.Hour),
+			Client:          sql.NullString{String: "cursor", Valid: true},
+			ClientSessionID: sql.NullString{String: sharedSessionID, Valid: true},
+		}, &u2EndedAt)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: u2Interception.ID,
+			InputTokens:    200,
+			OutputTokens:   75,
+			CreatedAt:      now.Add(-time.Hour),
+		})
+
+		// Admin should see two distinct sessions despite the shared
+		// session_id, each with the correct user and token counts.
+		//nolint:gocritic // Owner role is irrelevant; testing collision behavior.
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.EqualValues(t, 2, res.Count)
+		require.Len(t, res.Sessions, 2)
+
+		// Both sessions share the same ID string but belong to
+		// different users.
+		require.Equal(t, sharedSessionID, res.Sessions[0].ID)
+		require.Equal(t, sharedSessionID, res.Sessions[1].ID)
+		require.NotEqual(t, res.Sessions[0].Initiator.ID, res.Sessions[1].Initiator.ID)
+
+		// Verify token counts are not merged across users.
+		for _, s := range res.Sessions {
+			if s.Initiator.ID == firstUser.UserID {
+				require.EqualValues(t, 100, s.TokenUsageSummary.InputTokens)
+				require.EqualValues(t, 50, s.TokenUsageSummary.OutputTokens)
+			} else {
+				require.EqualValues(t, 200, s.TokenUsageSummary.InputTokens)
+				require.EqualValues(t, 75, s.TokenUsageSummary.OutputTokens)
+			}
+		}
+	})
+
 	t.Run("InflightSessions", func(t *testing.T) {
 		t.Parallel()
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
