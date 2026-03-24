@@ -65,7 +65,7 @@ import { getTemplatePageTitle } from "../utils";
 import {
 	DateRangePicker as DailyPicker,
 	type DateRangeValue,
-} from "components/DateRangePicker/DateRangePicker";
+} from "pages/AgentsPage/components/DateRangePicker/DateRangePicker";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
 import { numberOfWeeksOptions, WeekPicker } from "./WeekPicker";

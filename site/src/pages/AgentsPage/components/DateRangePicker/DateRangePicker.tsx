@@ -4,7 +4,7 @@
  * component with one that matches the native design language.
  */
 import { Button } from "components/Button/Button";
-import { Calendar } from "components/Calendar/Calendar";
+import { Calendar } from "../Calendar/Calendar";
 import {
 	Popover,
 	PopoverContent,
