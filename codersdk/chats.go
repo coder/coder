@@ -146,25 +146,26 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 //     the frontend does not expect adds noise to the wire format
 //     and wastes space in persisted chat_messages rows.
 type ChatMessagePart struct {
-	Type        ChatMessagePartType `json:"type"`
-	Text        string              `json:"text" variants:"text,reasoning"`
-	Signature   string              `json:"signature,omitempty"`
-	ToolCallID  string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
-	ToolName    string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
-	Args        json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
-	ArgsDelta   string              `json:"args_delta,omitempty" variants:"tool-call?"`
-	Result      json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
-	ResultDelta string              `json:"result_delta,omitempty"`
-	IsError     bool                `json:"is_error,omitempty" variants:"tool-result?"`
-	SourceID    string              `json:"source_id,omitempty" variants:"source?"`
-	URL         string              `json:"url" variants:"source"`
-	Title       string              `json:"title,omitempty" variants:"source?"`
-	MediaType   string              `json:"media_type" variants:"file"`
-	Data        []byte              `json:"data,omitempty" variants:"file?"`
-	FileID      uuid.NullUUID       `json:"file_id,omitempty" format:"uuid" variants:"file?"`
-	FileName    string              `json:"file_name" variants:"file-reference"`
-	StartLine   int                 `json:"start_line" variants:"file-reference"`
-	EndLine     int                 `json:"end_line" variants:"file-reference"`
+	Type              ChatMessagePartType `json:"type"`
+	Text              string              `json:"text" variants:"text,reasoning"`
+	Signature         string              `json:"signature,omitempty"`
+	ToolCallID        string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
+	ToolName          string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
+	MCPServerConfigID uuid.NullUUID       `json:"mcp_server_config_id,omitempty" format:"uuid" variants:"tool-call?,tool-result?"`
+	Args              json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
+	ArgsDelta         string              `json:"args_delta,omitempty" variants:"tool-call?"`
+	Result            json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
+	ResultDelta       string              `json:"result_delta,omitempty"`
+	IsError           bool                `json:"is_error,omitempty" variants:"tool-result?"`
+	SourceID          string              `json:"source_id,omitempty" variants:"source?"`
+	URL               string              `json:"url" variants:"source"`
+	Title             string              `json:"title,omitempty" variants:"source?"`
+	MediaType         string              `json:"media_type" variants:"file"`
+	Data              []byte              `json:"data,omitempty" variants:"file?"`
+	FileID            uuid.NullUUID       `json:"file_id,omitempty" format:"uuid" variants:"file?"`
+	FileName          string              `json:"file_name" variants:"file-reference"`
+	StartLine         int                 `json:"start_line" variants:"file-reference"`
+	EndLine           int                 `json:"end_line" variants:"file-reference"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content" variants:"file-reference"`
 	// ProviderMetadata holds provider-specific response metadata

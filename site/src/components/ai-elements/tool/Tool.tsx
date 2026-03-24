@@ -1,5 +1,6 @@
 import { useTheme } from "@emotion/react";
 import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
+import type * as TypesGen from "api/typesGenerated";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
 import { cn } from "utils/cn";
@@ -52,6 +53,10 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	subagentTitles?: Map<string, string>;
 	/** Maps sub-agent chat IDs to real-time status updates from stream events. */
 	subagentStatusOverrides?: Map<string, string>;
+	/** MCP server config ID associated with this tool call. */
+	mcpServerConfigId?: string;
+	/** Available MCP server configs for icon/name lookup. */
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
 
 // Props passed to each tool-specific renderer function. Each renderer
@@ -64,6 +69,8 @@ type ToolRendererProps = {
 	isError: boolean;
 	subagentTitles?: Map<string, string>;
 	subagentStatusOverrides?: Map<string, string>;
+	mcpServerConfigId?: string;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
 };
 
 // ---------------------------------------------------------------------------
@@ -451,6 +458,8 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	args,
 	result,
 	isError,
+	mcpServerConfigId,
+	mcpServers,
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
@@ -466,11 +475,25 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			}
 		: fileViewerOpts;
 
+	// Look up MCP server config for icon and slug.
+	const mcpServer = mcpServerConfigId
+		? mcpServers?.find((s) => s.id === mcpServerConfigId)
+		: undefined;
+
 	return (
 		<>
 			<div className="flex items-center gap-2">
-				<ToolIcon name={name} isError={status === "error" || isError} />
-				<ToolLabel name={name} args={args} result={result} />
+				<ToolIcon
+					name={name}
+					isError={status === "error" || isError}
+					iconUrl={mcpServer?.icon_url}
+				/>
+				<ToolLabel
+					name={name}
+					args={args}
+					result={result}
+					mcpSlug={mcpServer?.slug}
+				/>
 			</div>
 			{writeFileDiff ? (
 				<ScrollArea
@@ -557,6 +580,8 @@ export const Tool = memo(
 		isError = false,
 		subagentTitles,
 		subagentStatusOverrides,
+		mcpServerConfigId,
+		mcpServers,
 		ref,
 		...props
 	}: ToolProps) => {
@@ -583,6 +608,8 @@ export const Tool = memo(
 					isError={isError}
 					subagentTitles={subagentTitles}
 					subagentStatusOverrides={subagentStatusOverrides}
+					mcpServerConfigId={mcpServerConfigId}
+					mcpServers={mcpServers}
 				/>
 			</div>
 		);

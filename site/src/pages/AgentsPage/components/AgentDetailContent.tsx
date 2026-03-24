@@ -51,6 +51,7 @@ interface AgentDetailTimelineProps {
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
 	urlTransform?: UrlTransform;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }
 
 // Reads only message-related store state (stable during streaming).
@@ -63,6 +64,7 @@ const MessageListProvider: FC<AgentDetailTimelineProps> = ({
 	editingMessageId,
 	savingMessageId,
 	urlTransform,
+	mcpServers,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -105,6 +107,7 @@ const MessageListProvider: FC<AgentDetailTimelineProps> = ({
 			editingMessageId={editingMessageId}
 			savingMessageId={savingMessageId}
 			urlTransform={urlTransform}
+			mcpServers={mcpServers}
 		/>
 	);
 };
@@ -129,6 +132,7 @@ const StreamingBridge: FC<{
 	editingMessageId?: number | null;
 	savingMessageId?: number | null;
 	urlTransform?: UrlTransform;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }> = ({
 	store,
 	isEmpty,
@@ -143,6 +147,7 @@ const StreamingBridge: FC<{
 	editingMessageId,
 	savingMessageId,
 	urlTransform,
+	mcpServers,
 }) => {
 	const streamState = useChatSelector(store, selectStreamState);
 	const streamTools = buildStreamTools(streamState);
@@ -170,6 +175,7 @@ const StreamingBridge: FC<{
 				editingMessageId={editingMessageId}
 				savingMessageId={savingMessageId}
 				urlTransform={urlTransform}
+				mcpServers={mcpServers}
 			/>
 		</Profiler>
 	);
