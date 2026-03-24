@@ -15,7 +15,6 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import {
-	CheckCircleIcon,
 	ChevronDownIcon,
 	LockIcon,
 	PlugIcon,
@@ -258,11 +257,6 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 											{isForceOn && (
 												<LockIcon className="h-3 w-3 shrink-0 text-content-secondary" />
 											)}
-											{server.auth_type === "oauth2" &&
-												server.auth_connected &&
-												isSelected && (
-													<CheckCircleIcon className="h-3.5 w-3.5 shrink-0 text-content-success" />
-												)}
 											{needsAuth && isSelected ? (
 												<Button
 													variant="outline"
