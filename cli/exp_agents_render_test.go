@@ -571,8 +571,77 @@ func TestExpAgentsRender(t *testing.T) {
 			output := renderChatBlocks(styles, []chatBlock{block}, 0, map[int]bool{}, true, 40)
 			require.Equal(t, blockView, output)
 		})
-	})
 
+		t.Run("BlockCacheReusedOnSameWidthAndExpansion", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{
+				{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "hello"},
+				{kind: blockReasoning, role: codersdk.ChatMessageRoleAssistant, text: "thinking through the answer"},
+			}
+			expandedBlocks := map[int]bool{1: true}
+
+			first := renderChatBlocks(styles, blocks, 0, expandedBlocks, true, 40)
+			require.NotEmpty(t, blocks[0].cachedRender)
+			require.NotEmpty(t, blocks[1].cachedRender)
+
+			cachedRenders := []string{blocks[0].cachedRender, blocks[1].cachedRender}
+			second := renderChatBlocks(styles, blocks, 0, expandedBlocks, true, 40)
+			require.Equal(t, first, second)
+			require.Equal(t, cachedRenders[0], blocks[0].cachedRender)
+			require.Equal(t, cachedRenders[1], blocks[1].cachedRender)
+		})
+
+		t.Run("BlockCacheInvalidatedOnWidthChange", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{{
+				kind: blockText,
+				role: codersdk.ChatMessageRoleUser,
+				text: strings.Repeat("cache invalidation ", 8),
+			}}
+
+			renderChatBlocks(styles, blocks, 0, map[int]bool{}, true, 60)
+			firstCache := blocks[0].cachedRender
+			require.NotEmpty(t, firstCache)
+
+			renderChatBlocks(styles, blocks, 0, map[int]bool{}, true, 40)
+			require.NotEqual(t, firstCache, blocks[0].cachedRender)
+		})
+
+		t.Run("BlockCacheInvalidatedOnExpansionChange", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{{
+				kind: blockReasoning,
+				role: codersdk.ChatMessageRoleAssistant,
+				text: "line one\nline two\nline three\nline four",
+			}}
+			expandedBlocks := map[int]bool{}
+
+			renderChatBlocks(styles, blocks, 0, expandedBlocks, true, 40)
+			firstCache := blocks[0].cachedRender
+			require.NotEmpty(t, firstCache)
+
+			expandedBlocks[0] = true
+			renderChatBlocks(styles, blocks, 0, expandedBlocks, true, 40)
+			require.NotEqual(t, firstCache, blocks[0].cachedRender)
+		})
+
+		t.Run("SelectionStylingDoesNotPoisonCache", func(t *testing.T) {
+			t.Parallel()
+
+			blocks := []chatBlock{{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "hello"}}
+
+			selectedOutput := renderChatBlocks(styles, blocks, 0, map[int]bool{}, false, 40)
+			cachedRender := blocks[0].cachedRender
+			require.NotEmpty(t, cachedRender)
+
+			unselectedOutput := renderChatBlocks(styles, blocks, 0, map[int]bool{}, true, 40)
+			require.Equal(t, cachedRender, blocks[0].cachedRender)
+			require.NotEqual(t, selectedOutput, unselectedOutput)
+		})
+	})
 	t.Run("RenderDiffDrawer", func(t *testing.T) {
 		t.Parallel()
 
@@ -677,12 +746,16 @@ func TestExpAgentsRender(t *testing.T) {
 		t.Parallel()
 
 		styles := newTUIStyles()
-		output := plainText(renderAssistantMarkdown(styles, "- first\n- second", 60))
-		require.Contains(t, output, "• first")
-		require.Contains(t, output, "• second")
-		require.NotContains(t, output, "- first")
-	})
 
+		t.Run("UsesExplicitDarkStyle", func(t *testing.T) {
+			t.Parallel()
+
+			output := plainText(renderAssistantMarkdown(styles, "- first\n- second", 60, nil))
+			require.Contains(t, output, "• first")
+			require.Contains(t, output, "• second")
+			require.NotContains(t, output, "- first")
+		})
+	})
 	t.Run("ViewHelpFitsNarrowTerminals", func(t *testing.T) {
 		t.Parallel()
 

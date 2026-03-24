@@ -658,6 +658,168 @@ func TestExpAgents(t *testing.T) {
 		})
 	})
 
+	t.Run("ChatView/RendererCaching", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("SameWidthReusesRenderer", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.width = 80
+
+			rendererA := (&model).getOrCreateMarkdownRenderer(80)
+			rendererB := (&model).getOrCreateMarkdownRenderer(80)
+			require.NotNil(t, rendererA)
+			require.Same(t, rendererA, rendererB)
+		})
+
+		t.Run("DifferentWidthRecreatesRenderer", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.width = 80
+
+			rendererA := (&model).getOrCreateMarkdownRenderer(80)
+			rendererB := (&model).getOrCreateMarkdownRenderer(60)
+			require.NotNil(t, rendererA)
+			require.NotNil(t, rendererB)
+			require.NotSame(t, rendererA, rendererB)
+		})
+	})
+
+	t.Run("ChatView/TranscriptSync", func(t *testing.T) {
+		t.Parallel()
+
+		newTranscriptModel := func() chatViewModel {
+			model := newTestChatViewModel(nil)
+			model.width = 80
+			model.blocks = []chatBlock{
+				{kind: blockText, role: codersdk.ChatMessageRoleUser, text: "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi"},
+				{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "assistant reply"},
+			}
+			model.selectedBlock = 0
+			model.composerFocused = false
+			return model
+		}
+
+		t.Run("RepeatedViewDoesNotRefreshViewport", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTranscriptModel()
+			(&model).syncViewportContent()
+			firstTranscript := model.lastTranscript
+			require.NotEmpty(t, firstTranscript)
+
+			(&model).syncViewportContent()
+			require.Equal(t, firstTranscript, model.lastTranscript)
+		})
+
+		t.Run("BlockChangeRefreshesViewport", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTranscriptModel()
+			(&model).syncViewportContent()
+			firstTranscript := model.lastTranscript
+
+			model.blocks = append(model.blocks, chatBlock{kind: blockText, role: codersdk.ChatMessageRoleAssistant, text: "new block"})
+			(&model).syncViewportContent()
+			require.NotEqual(t, firstTranscript, model.lastTranscript)
+		})
+
+		t.Run("SelectionChangeRefreshesViewport", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTranscriptModel()
+			(&model).syncViewportContent()
+			firstTranscript := model.lastTranscript
+
+			model.selectedBlock = 1
+			(&model).syncViewportContent()
+			require.NotEqual(t, firstTranscript, model.lastTranscript)
+		})
+
+		t.Run("WidthChangeRefreshesViewport", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTranscriptModel()
+			(&model).syncViewportContent()
+			firstTranscript := model.lastTranscript
+
+			model.width = 60
+			(&model).syncViewportContent()
+			require.NotEqual(t, firstTranscript, model.lastTranscript)
+		})
+
+		t.Run("ComposerFocusChangeRefreshesViewport", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTranscriptModel()
+			(&model).syncViewportContent()
+			firstTranscript := model.lastTranscript
+
+			model.composerFocused = true
+			(&model).syncViewportContent()
+			require.NotEqual(t, firstTranscript, model.lastTranscript)
+		})
+	})
+
+	t.Run("ChatView/BlockCachePreservation", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("UnchangedBlocksKeepCache", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.width = 80
+			model.messages = []codersdk.ChatMessage{
+				testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{
+					Type: codersdk.ChatMessagePartTypeText,
+					Text: "cached block content",
+				}),
+			}
+
+			model.rebuildBlocks()
+			require.Len(t, model.blocks, 1)
+			cachedRender := model.blocks[0].cachedRender
+			require.NotEmpty(t, cachedRender)
+
+			model.rebuildBlocks()
+			require.Len(t, model.blocks, 1)
+			require.Equal(t, cachedRender, model.blocks[0].cachedRender)
+		})
+
+		t.Run("ChangedBlockLosesCache", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.width = 80
+			model.messages = []codersdk.ChatMessage{
+				testMessage(1, codersdk.ChatMessageRoleUser, codersdk.ChatMessagePart{
+					Type: codersdk.ChatMessagePartTypeText,
+					Text: "stable block",
+				}),
+			}
+			model.accumulator = streamAccumulator{
+				pending: true,
+				role:    codersdk.ChatMessageRoleAssistant,
+				parts: []codersdk.ChatMessagePart{{
+					Type: codersdk.ChatMessagePartTypeText,
+					Text: "partial response",
+				}},
+			}
+
+			model.rebuildBlocks()
+			require.Len(t, model.blocks, 2)
+			cachedRender := model.blocks[len(model.blocks)-1].cachedRender
+			require.NotEmpty(t, cachedRender)
+
+			model.accumulator.parts[0].Text = "partial response updated"
+			model.rebuildBlocks()
+			require.Len(t, model.blocks, 2)
+			require.NotEqual(t, cachedRender, model.blocks[len(model.blocks)-1].cachedRender)
+		})
+	})
+
 	t.Run("StreamAccumulator", func(t *testing.T) {
 		t.Parallel()
 
