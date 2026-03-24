@@ -869,3 +869,44 @@ export const TemplatesSection: Story = {
 		canSetSystemPrompt: true,
 	},
 };
+
+const manyTemplates = [
+	{ id: "t-01", name: "docker-dev", display_name: "Docker Development" },
+	{
+		id: "t-02",
+		name: "kubernetes-prod",
+		display_name: "Kubernetes Production",
+	},
+	{ id: "t-03", name: "aws-windows", display_name: "AWS Windows Desktop" },
+	{ id: "t-04", name: "gcp-linux", display_name: "GCP Linux Workspace" },
+	{ id: "t-05", name: "azure-dotnet", display_name: "Azure .NET Environment" },
+	{ id: "t-06", name: "ml-jupyter", display_name: "ML Jupyter Notebook" },
+	{
+		id: "t-07",
+		name: "data-eng-spark",
+		display_name: "Data Engineering (Spark)",
+	},
+	{
+		id: "t-08",
+		name: "frontend-vite",
+		display_name: "Frontend (Vite + React)",
+	},
+	{ id: "t-09", name: "golang-api", display_name: "Go API Service" },
+	{ id: "t-10", name: "rust-embedded", display_name: "Rust Embedded" },
+	{ id: "t-11", name: "java-spring", display_name: "Java Spring Boot" },
+	{ id: "t-12", name: "ios-xcode", display_name: "iOS (Xcode Cloud)" },
+].map((t) => ({ ...MockTemplate, ...t }));
+
+export const TemplatesManySelected: Story = {
+	args: {
+		activeSection: "templates",
+		canManageChatModelConfigs: true,
+		canSetSystemPrompt: true,
+	},
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockResolvedValue(manyTemplates);
+		spyOn(API.experimental, "getChatTemplateAllowlist").mockResolvedValue({
+			template_ids: manyTemplates.slice(0, 8).map((t) => t.id),
+		});
+	},
+};
