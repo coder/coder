@@ -19,11 +19,14 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-const syntheticPasteInlineBudget = 16 * 1024
+const syntheticPasteInlineBudget = 128 * 1024
 
 const syntheticPasteInlinePrefix = "[pasted-text] The user pasted text into the chat UI. The frontend collapsed it into an attachment, so the content is inlined below for direct model consumption.\n\n"
 
-const syntheticPasteTruncationWarning = "\n\n[pasted-text] The pasted text was truncated to 16384 bytes before sending to the model."
+var syntheticPasteTruncationWarning = fmt.Sprintf(
+	"\n\n[pasted-text] The pasted text was truncated to %d bytes before sending to the model.",
+	syntheticPasteInlineBudget,
+)
 
 var toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 

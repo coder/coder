@@ -1796,7 +1796,7 @@ func TestConvertMessagesWithFiles_PasteTextTruncatesAtBudget(t *testing.T) {
 	t.Parallel()
 
 	fileID := uuid.New()
-	body := bytes.Repeat([]byte("x"), 20000)
+	body := bytes.Repeat([]byte("x"), 200000)
 	prompt := convertSingleResolvedFileMessage(t, fileID, chatprompt.FileData{
 		Name:      "pasted-text-2025-01-01-12-00-00.txt",
 		Data:      body,
@@ -1808,16 +1808,16 @@ func TestConvertMessagesWithFiles_PasteTextTruncatesAtBudget(t *testing.T) {
 
 	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
 	require.True(t, ok, "expected TextPart")
-	require.Contains(t, textPart.Text, "The pasted text was truncated to 16384 bytes")
+	require.Contains(t, textPart.Text, "The pasted text was truncated to 131072 bytes")
 
 	const attachmentHeader = "Synthetic attachment name: pasted-text-2025-01-01-12-00-00.txt\n\n"
 	bodyStart := strings.Index(textPart.Text, attachmentHeader)
 	require.NotEqual(t, -1, bodyStart, "expected synthetic attachment header")
 	bodyStart += len(attachmentHeader)
 
-	warningIndex := strings.Index(textPart.Text, "\n\n[pasted-text] The pasted text was truncated to 16384 bytes before sending to the model.")
+	warningIndex := strings.Index(textPart.Text, "\n\n[pasted-text] The pasted text was truncated to 131072 bytes before sending to the model.")
 	require.NotEqual(t, -1, warningIndex, "expected truncation warning")
-	require.Equal(t, string(body[:16384]), textPart.Text[bodyStart:warningIndex])
+	require.Equal(t, string(body[:128*1024]), textPart.Text[bodyStart:warningIndex])
 }
 
 func TestConvertMessagesWithFiles_BinaryPasteNameStillStaysFilePart(t *testing.T) {
