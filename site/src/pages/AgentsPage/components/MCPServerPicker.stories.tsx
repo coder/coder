@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type * as TypesGen from "api/typesGenerated";
 import { fn } from "storybook/test";
-import { MCPServerPicker, getDefaultMCPSelection } from "./MCPServerPicker";
+import { getDefaultMCPSelection, MCPServerPicker } from "./MCPServerPicker";
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -260,5 +260,26 @@ export const OptionalOAuthNeedsAuth: Story = {
 	args: {
 		servers: [slackServer],
 		selectedServerIds: [slackServer.id],
+	},
+};
+
+/** Trigger shows overlapping icon stack when multiple servers are active. */
+export const MultipleActiveIcons: Story = {
+	args: {
+		servers: [sentryServer, linearServer, githubServerConnected, datadogServer],
+		selectedServerIds: [
+			sentryServer.id,
+			linearServer.id,
+			githubServerConnected.id,
+			datadogServer.id,
+		],
+	},
+};
+
+/** More than 3 active servers shows +N overflow badge. */
+export const IconStackOverflow: Story = {
+	args: {
+		servers: allServers,
+		selectedServerIds: allServers.map((s) => s.id),
 	},
 };
