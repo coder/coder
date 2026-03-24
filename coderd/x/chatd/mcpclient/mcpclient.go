@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -214,17 +215,27 @@ func createTransport(
 	cfg database.MCPServerConfig,
 	headers map[string]string,
 ) (transport.Interface, error) {
+	// Each connection gets its own HTTP client with a dedicated
+	// transport so that httptest.Server.Close() (which calls
+	// CloseIdleConnections on http.DefaultTransport) does not
+	// disrupt unrelated connections during parallel tests.
+	httpClient := &http.Client{
+		Transport: http.DefaultTransport.(*http.Transport).Clone(),
+	}
+
 	switch cfg.Transport {
 	case "sse":
 		return transport.NewSSE(
 			cfg.Url,
 			transport.WithHeaders(headers),
+			transport.WithHTTPClient(httpClient),
 		)
 	case "", "streamable_http":
 		// Default to streamable HTTP, the newer transport.
 		return transport.NewStreamableHTTP(
 			cfg.Url,
 			transport.WithHTTPHeaders(headers),
+			transport.WithHTTPBasicClient(httpClient),
 		)
 	default:
 		return nil, xerrors.Errorf(
