@@ -50,18 +50,16 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// never forwarded to upstream providers. After stripping, the
 	// aibridge library can treat the request as a normal LLM API call
 	// with no Coder-specific information.
-	//
-	// In BYOK mode the token is in X-Coder-AI-Governance-BYOK-Token;
-	// Authorization and X-Api-Key carry the user's own LLM credentials
-	// and must be preserved.
-	//
-	// In centralized mode the token may be in Authorization (the
-	// documented path) or X-Api-Key (legacy clients that set
-	// ANTHROPIC_API_KEY to their Coder session token). Both are
-	// stripped.
 	if byok {
+		// In BYOK mode the token is in X-Coder-AI-Governance-BYOK-Token;
+		// Authorization and X-Api-Key carry the user's own LLM credentials
+		// and must be preserved.
 		r.Header.Del(agplaibridge.HeaderCoderBYOKToken)
 	} else {
+		// In centralized mode the token may be in Authorization (the
+		// documented path) or X-Api-Key (legacy clients that set
+		// ANTHROPIC_API_KEY to their Coder session token). Both are
+		// stripped.
 		r.Header.Del("Authorization")
 		r.Header.Del("X-Api-Key")
 	}
