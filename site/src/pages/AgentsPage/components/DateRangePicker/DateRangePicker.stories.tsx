@@ -47,9 +47,10 @@ export const Open: Story = {
 		expect(screen.getByText("Last 30 days")).toBeInTheDocument();
 
 		// The selected range should be displayed above the calendar.
-		expect(
-			screen.getByText(dayjs(defaultValue.startDate).format("MMM D, YYYY")),
-		).toBeInTheDocument();
+		// The start date appears in both the trigger and the range
+		// display, so expect two instances.
+		const startDateLabel = dayjs(defaultValue.startDate).format("MMM D, YYYY");
+		expect(screen.getAllByText(startDateLabel)).toHaveLength(2);
 
 		// Cancel and Apply buttons should be visible.
 		expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
