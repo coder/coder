@@ -48,9 +48,9 @@ export const SessionSummaryTable = ({
 		<dl
 			className={cn(
 				"text-xs text-content-secondary m-0",
-				"grid grid-cols-[auto_1fr] gap-y-1.5 [&_dd]:ml-2 [&_dd]:text-content-primary",
+				"grid grid-cols-[auto_1fr] gap-y-0.5 [&_dd]:ml-0 [&_dd]:text-content-primary",
 				"[&_dd]:h-6 [&_dd]:flex [&_dd]:min-w-0 [&_dd]:items-center [&_dd]:justify-end",
-				"[&_dt]:h-6 [&_dt]:inline-flex [&_dt]:items-center",
+				"[&_dt]:h-6 [&_dt]:inline-flex [&_dt]:items-center [&_dt]:font-normal",
 			)}
 		>
 			<dt>Session ID</dt>

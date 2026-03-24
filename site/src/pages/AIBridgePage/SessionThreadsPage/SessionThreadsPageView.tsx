@@ -84,7 +84,7 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 				</Button>
 			</nav>
 			<div className="flex flex-col md:flex-row md:items-start gap-6">
-				<aside className="md:w-72 md:shrink-0 p-3 border border-solid rounded-md flex flex-col gap-3">
+				<aside className="md:w-64 md:shrink-0 px-3 py-2.5 border border-solid rounded-md flex flex-col gap-1">
 					<h2 className="text-sm font-semibold flex items-center m-0">
 						Session summary
 						<SessionSummaryTooltip>
