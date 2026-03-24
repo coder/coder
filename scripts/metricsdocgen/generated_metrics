@@ -82,7 +82,7 @@ coder_derp_server_unknown_frames_total 0
 # HELP coder_derp_server_watchers Current watchers.
 # TYPE coder_derp_server_watchers gauge
 coder_derp_server_watchers 0
-# HELP coder_pubsub_connected Whether we are connected (1) or not connected (0) to postgres
+# HELP coder_pubsub_connected Whether we are connected (1) or not connected (0) to the pubsub backend
 # TYPE coder_pubsub_connected gauge
 coder_pubsub_connected 0
 # HELP coder_pubsub_current_events The current number of pubsub event channels listened for
@@ -91,16 +91,19 @@ coder_pubsub_current_events 0
 # HELP coder_pubsub_current_subscribers The current number of active pubsub subscribers
 # TYPE coder_pubsub_current_subscribers gauge
 coder_pubsub_current_subscribers 0
-# HELP coder_pubsub_disconnections_total Total number of times we disconnected unexpectedly from postgres
+# HELP coder_pubsub_disconnections_total Total number of times the pubsub backend disconnected unexpectedly
 # TYPE coder_pubsub_disconnections_total counter
 coder_pubsub_disconnections_total 0
+# HELP coder_pubsub_dropped_signals_total Total number of ErrDroppedMessages signals emitted to subscribers
+# TYPE coder_pubsub_dropped_signals_total counter
+coder_pubsub_dropped_signals_total 0
 # HELP coder_pubsub_latency_measure_errs_total The number of pubsub latency measurement failures
 # TYPE coder_pubsub_latency_measure_errs_total counter
 coder_pubsub_latency_measure_errs_total 0
 # HELP coder_pubsub_latency_measures_total The number of pubsub latency measurements
 # TYPE coder_pubsub_latency_measures_total counter
 coder_pubsub_latency_measures_total 0
-# HELP coder_pubsub_messages_total Total number of messages received from postgres
+# HELP coder_pubsub_messages_total Total number of messages received from the pubsub backend
 # TYPE coder_pubsub_messages_total counter
 coder_pubsub_messages_total{size=""} 0
 # HELP coder_pubsub_published_bytes_total Total number of bytes successfully published across all publishes

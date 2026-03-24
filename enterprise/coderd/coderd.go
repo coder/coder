@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -794,6 +795,13 @@ type API struct {
 	aiSeatTracker         *aiseats.SeatTracker
 }
 
+func (api *API) pgCoordPubsub() pubsub.Pubsub {
+	if api.Options != nil && api.Options.PGPubsub != nil {
+		return api.Options.PGPubsub
+	}
+	return api.Pubsub
+}
+
 // writeEntitlementWarningsHeader writes the entitlement warnings to the response header
 // for all authenticated users with roles. If there are no warnings, this header will not be written.
 //
@@ -943,7 +951,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		if initial, changed, enabled := featureChanged(codersdk.FeatureHighAvailability); shouldUpdate(initial, changed, enabled) {
 			var coordinator agpltailnet.Coordinator
 			if enabled {
-				haCoordinator, err := tailnet.NewPGCoord(api.ctx, api.Logger, api.Pubsub, api.Database)
+				haCoordinator, err := tailnet.NewPGCoord(api.ctx, api.Logger, api.pgCoordPubsub(), api.Database)
 				if err != nil {
 					api.Logger.Error(ctx, "unable to set up high availability coordinator", slog.Error(err))
 					// If we try to setup the HA coordinator and it fails, nothing

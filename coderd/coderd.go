@@ -159,7 +159,11 @@ type Options struct {
 	Logger           slog.Logger
 	Database         database.Store
 	Pubsub           pubsub.Pubsub
-	RuntimeConfig    *runtimeconfig.Manager
+	// PGPubsub allows components that must remain on PostgreSQL-backed pubsub,
+	// such as PGCoord, to bypass the primary Pubsub backend. When nil, callers
+	// should fall back to Pubsub.
+	PGPubsub      pubsub.Pubsub
+	RuntimeConfig *runtimeconfig.Manager
 
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
