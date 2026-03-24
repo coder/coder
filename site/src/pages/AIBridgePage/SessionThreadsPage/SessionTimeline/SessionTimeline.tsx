@@ -302,26 +302,32 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 
 	return (
 		<>
-			<div className="border border-surface-secondary border-solid rounded-md flex flex-col lg:flex-row gap-4 p-4">
+			<div className="border border-surface-secondary border-solid rounded-md flex flex-col lg:flex-row gap-6 p-2">
 				{/* left column: avatar and username */}
-				<div className="flex flex-row items-items-start gap-2">
+				<div className="flex flex-row items-items-start gap-1">
 					<Avatar
 						src={initiator.avatar_url}
 						fallback={initiator.name ?? initiator.username}
 						size="sm"
 						className="flex-shrink-0"
 					/>
-					<span className="text-sm text-content-primary">
+					<span className="text-xs text-content-secondary font-normal py-1">
 						{initiator.username}
 					</span>
 				</div>
 
 				{/* center column: prompt */}
-				<div className="flex-grow">
-					<div className="text-sm text-content-secondary">Prompt</div>
-					<p className="text-sm text-content-primary bg-surface-secondary leading-relaxed rounded-md p-3 overflow-auto m-0 text-pretty">
-						{thread.prompt}
-					</p>
+				<div className="flex-grow flex flex-col gap-1">
+					{thread.prompt && (
+						<>
+							<div className="text-xs text-content-secondary font-normal my-1">
+								Prompt
+							</div>
+							<p className="text-xs text-content-primary bg-surface-secondary leading-relaxed rounded-md p-3 overflow-auto m-0 text-pretty">
+								{thread.prompt}
+							</p>
+						</>
+					)}
 				</div>
 
 				{/* right column: details */}
@@ -351,7 +357,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 					</div>
 
 					<AgenticLoopTable
-						className="lg:max-w-64 flex-1 m-4"
+						className="lg:max-w-64 flex-1 my-3 mx-2"
 						duration={durationInMs}
 						toolCalls={thread.agentic_actions?.length ?? 0}
 						inputTokens={thread.token_usage.input_tokens}
@@ -453,12 +459,13 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				<div className="row-start-1 col-start-2 relative">
 					<StatusIndicatorDot
 						variant="inactive"
-						size="sm"
 						className="absolute right-0 translate-x-1/2 translate-y-1/2"
 					/>
 				</div>
 				<div className="row-start-1 col-start-4 col-span-2 flex items-center">
-					<span className="text-content-secondary ml-4">Session started</span>
+					<span className="text-content-secondary ml-4 py-1 text-sm">
+						Session started
+					</span>
 				</div>
 
 				{/* row 2: vertical line and timeline sort dropdown */}
@@ -558,12 +565,13 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				<div className="row-start-8 col-start-2 relative">
 					<StatusIndicatorDot
 						variant="success"
-						size="sm"
 						className="absolute right-0 translate-x-1/2 translate-y-1/2"
 					/>
 				</div>
 				<div className="row-start-8 col-start-4 flex items-center">
-					<span className="text-success ml-4">Session ended</span>
+					<span className="text-content-success ml-4 text-sm py-1">
+						Session completed
+					</span>
 				</div>
 			</div>
 		</div>

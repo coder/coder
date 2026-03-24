@@ -19,7 +19,7 @@ export const AgenticLoopTable: FC<AgenticLoopTableProps> = ({
 	className,
 }) => {
 	return (
-		<div className={cn(className, "text-sm text-content-secondary")}>
+		<div className={cn("text-xs text-content-secondary", className)}>
 			<div className="flex items-center justify-between">
 				<span className="pr-4">In / out tokens</span>
 				<TokenBadges inputTokens={inputTokens} outputTokens={outputTokens} />

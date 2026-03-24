@@ -31,13 +31,13 @@ export const PromptTable: FC<PromptTableProps> = ({
 	return (
 		<dl
 			className={cn(
-				"text-sm text-content-secondary m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 items-center",
-				"[&_dt]:pr-4 [&_dt]:whitespace-nowrap",
-				"[&_dd]:m-0 [&_dd]:min-w-0 [&_dd]:text-content-primary",
+				"text-xs text-content-secondary m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 items-center",
+				"[&_dt]:pr-4 [&_dt]:whitespace-nowrap py-1",
+				"[&_dd]:m-0 [&_dd]:min-w-0",
 				className,
 			)}
 		>
-			<dt className="text-sm">Timestamp</dt>
+			<dt>Timestamp</dt>
 			<dd className="text-right" title={formatDate(timestamp)}>
 				<span className="block font-mono whitespace-nowrap truncate">
 					{formatDate(timestamp)}
