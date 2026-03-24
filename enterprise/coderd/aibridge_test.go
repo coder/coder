@@ -585,6 +585,41 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		}
 	})
 
+	t.Run("FilterByMe/MemberCannotReadOwn", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		ownerClient, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
+
+		now := dbtime.Now()
+		// Create an interception initiated by the member.
+		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: member.ID,
+			StartedAt:   now,
+		}, nil)
+
+		// Member cannot read their own interceptions, even when
+		// filtering by "me".
+		res, err := memberClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+			Initiator: codersdk.Me,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 0, res.Count)
+		require.Empty(t, res.Results)
+	})
+
 	t.Run("FilterErrors", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
@@ -1001,6 +1036,30 @@ func TestAIBridgeListSessions(t *testing.T) {
 		// Filter by session_id with no match.
 		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
 			SessionID: "nonexistent-session-id",
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 0, res.Count)
+		require.Empty(t, res.Sessions)
+	})
+
+	t.Run("FilterByMe/MemberCannotReadOwn", func(t *testing.T) {
+		t.Parallel()
+		ownerClient, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
+
+		now := dbtime.Now()
+		// Create an interception (session) initiated by the member.
+		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: member.ID,
+			StartedAt:   now,
+		}, nil)
+
+		// Member cannot read their own sessions, even when
+		// filtering by "me".
+		res, err := memberClient.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Initiator: codersdk.Me,
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, 0, res.Count)

@@ -162,6 +162,51 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		requireHasInterceptions(t, out.Bytes(), []uuid.UUID{goodInterception.ID})
 	})
 
+	t.Run("FilterByMe", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = true
+		ownerClient, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		now := dbtime.Now()
+
+		// Create an interception initiated by the member.
+		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: member.ID,
+			StartedAt:   now,
+		}, nil)
+
+		args := []string{
+			"aibridge",
+			"interceptions",
+			"list",
+			"--initiator", codersdk.Me,
+		}
+		inv, root := newCLI(t, args...)
+		clitest.SetupConfig(t, memberClient, root)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		out := bytes.NewBuffer(nil)
+		inv.Stdout = out
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// Member cannot read their own interceptions.
+		requireHasInterceptions(t, out.Bytes(), []uuid.UUID{})
+	})
+
 	t.Run("Pagination", func(t *testing.T) {
 		t.Parallel()
 
