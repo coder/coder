@@ -429,11 +429,17 @@ func newMCPTool(
 }
 
 func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
+	// Ensure Required is never nil so that it serializes to [] instead
+	// of null. OpenAI rejects null for the JSON Schema "required" field.
+	required := t.required
+	if required == nil {
+		required = []string{}
+	}
 	return fantasy.ToolInfo{
 		Name:        t.prefixedName,
 		Description: t.description,
 		Parameters:  t.parameters,
-		Required:    t.required,
+		Required:    required,
 		Parallel:    true,
 	}
 }
