@@ -250,7 +250,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 											{isForceOn && (
 												<LockIcon className="h-3 w-3 shrink-0 text-content-secondary" />
 											)}
-											{needsAuth && isSelected ? (
+											{needsAuth ? (
 												<Button
 													variant="outline"
 													size="sm"
@@ -276,7 +276,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 													disabled={disabled || isForceOn}
 													aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
 												/>
-											)}
+											)}{" "}
 										</div>
 									</TooltipTrigger>
 									<TooltipContent
