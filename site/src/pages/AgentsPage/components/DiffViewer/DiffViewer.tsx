@@ -7,14 +7,6 @@ import type {
 } from "@pierre/diffs";
 import { Virtualizer } from "@pierre/diffs";
 import { FileDiff, VirtualizerContext } from "@pierre/diffs/react";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import {
-	DIFFS_FONT_STYLE,
-	getDiffViewerOptions,
-} from "components/ai-elements/tool/utils";
-import { FileIcon } from "components/FileIcon/FileIcon";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
-import { Skeleton } from "components/Skeleton/Skeleton";
 import { ChevronRightIcon } from "lucide-react";
 import {
 	type ComponentProps,
@@ -26,6 +18,14 @@ import {
 	useState,
 } from "react";
 import { cn } from "utils/cn";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import {
+	DIFFS_FONT_STYLE,
+	getDiffViewerOptions,
+} from "#/components/ai-elements/tool/utils";
+import { FileIcon } from "#/components/FileIcon/FileIcon";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { changeColor, changeLabel } from "../../utils/diffColors";
 
 // -------------------------------------------------------------------

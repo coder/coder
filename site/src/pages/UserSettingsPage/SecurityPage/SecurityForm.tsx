@@ -1,14 +1,14 @@
 import TextField from "@mui/material/TextField";
-import { Alert } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { Form, FormFields } from "components/Form/Form";
-import { PasswordField } from "components/PasswordField/PasswordField";
-import { Spinner } from "components/Spinner/Spinner";
 import { type FormikContextType, useFormik } from "formik";
 import type { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import * as Yup from "yup";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { Form, FormFields } from "#/components/Form/Form";
+import { PasswordField } from "#/components/PasswordField/PasswordField";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 interface SecurityFormValues {
 	old_password: string;

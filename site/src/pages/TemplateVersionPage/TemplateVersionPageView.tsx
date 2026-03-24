@@ -1,15 +1,4 @@
 import type { TemplateVersion } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { Loader } from "components/Loader/Loader";
-import { Margins } from "components/Margins/Margins";
-import {
-	PageHeader,
-	PageHeaderCaption,
-	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
-import { Stack } from "components/Stack/Stack";
-import { Stats, StatsItem } from "components/Stats/Stats";
 import { EditIcon, ExternalLinkIcon, PlusIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
@@ -18,6 +7,17 @@ import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import { createDayString } from "utils/createDayString";
 import type { TemplateVersionFiles } from "utils/templateVersion";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { Loader } from "#/components/Loader/Loader";
+import { Margins } from "#/components/Margins/Margins";
+import {
+	PageHeader,
+	PageHeaderCaption,
+	PageHeaderTitle,
+} from "#/components/PageHeader/PageHeader";
+import { Stack } from "#/components/Stack/Stack";
+import { Stats, StatsItem } from "#/components/Stats/Stats";
 
 export interface TemplateVersionPageViewProps {
 	organizationName: string;

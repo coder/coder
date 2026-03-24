@@ -5,10 +5,10 @@ import {
 	validateExternalAuth,
 } from "api/queries/externalAuth";
 import type { ExternalAuthLinkProvider } from "api/typesGenerated";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { Section } from "../Section";
 import { ExternalAuthPageView } from "./ExternalAuthPageView";
 

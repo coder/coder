@@ -1,5 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
-import { asRecord, asString } from "components/ai-elements/runtimeTypeUtils";
+import { asRecord, asString } from "#/components/ai-elements/runtimeTypeUtils";
 import { appendTextBlock } from "./blockUtils";
 import type {
 	MergedTool,

@@ -1,6 +1,9 @@
 import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import type { ComponentProps, FC } from "react";
+import {
+	PageHeader,
+	PageHeaderTitle,
+} from "#/components/PageHeader/PageHeader";
 import { TemplateSettingsForm } from "./TemplateSettingsForm";
 
 interface TemplateSettingsPageViewProps {

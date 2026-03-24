@@ -12,16 +12,22 @@ import type {
 	RBACResource,
 	Role,
 } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { FormFields, FormFooter, VerticalForm } from "components/Form/Form";
+import { useFormik } from "formik";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { type ChangeEvent, type FC, useState } from "react";
+import { useNavigate } from "react-router";
+import { getFormHelpers, nameValidator } from "utils/formUtils";
+import * as Yup from "yup";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { FormFields, FormFooter, VerticalForm } from "#/components/Form/Form";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -30,13 +36,7 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { useFormik } from "formik";
-import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { type ChangeEvent, type FC, useState } from "react";
-import { useNavigate } from "react-router";
-import { getFormHelpers, nameValidator } from "utils/formUtils";
-import * as Yup from "yup";
+} from "#/components/Table/Table";
 
 const validationSchema = Yup.object({
 	name: nameValidator("Name"),

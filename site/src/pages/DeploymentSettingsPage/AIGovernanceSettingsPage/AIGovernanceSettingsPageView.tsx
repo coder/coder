@@ -1,17 +1,17 @@
 import type { SerpentOption } from "api/typesGenerated";
-import { Alert, AlertDescription, AlertTitle } from "components/Alert/Alert";
-import { Link } from "components/Link/Link";
-import { PaywallAIGovernance } from "components/Paywall/PaywallAIGovernance";
+import type { FC } from "react";
+import { deploymentGroupHasParent } from "utils/deployOptions";
+import { docs } from "utils/docs";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { Link } from "#/components/Link/Link";
+import { PaywallAIGovernance } from "#/components/Paywall/PaywallAIGovernance";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
-import type { FC } from "react";
-import { deploymentGroupHasParent } from "utils/deployOptions";
-import { docs } from "utils/docs";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Stack } from "#/components/Stack/Stack";
 import OptionsTable from "../OptionsTable";
 
 type AIGovernanceSettingsPageViewProps = {

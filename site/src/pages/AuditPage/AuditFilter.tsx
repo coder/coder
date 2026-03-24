@@ -1,18 +1,4 @@
 import { AuditActions, ResourceTypes } from "api/typesGenerated";
-import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
-import {
-	type UseFilterMenuOptions,
-	useFilterMenu,
-} from "components/Filter/menu";
-import {
-	SelectFilter,
-	type SelectFilterOption,
-} from "components/Filter/SelectFilter";
-import {
-	DEFAULT_USER_FILTER_WIDTH,
-	type UserFilterMenu,
-	UserMenu,
-} from "components/Filter/UserFilter";
 import capitalize from "lodash/capitalize";
 import {
 	type OrganizationsFilterMenu,
@@ -20,6 +6,24 @@ import {
 } from "modules/tableFiltering/options";
 import type { FC } from "react";
 import { docs } from "utils/docs";
+import {
+	Filter,
+	MenuSkeleton,
+	type useFilter,
+} from "#/components/Filter/Filter";
+import {
+	type UseFilterMenuOptions,
+	useFilterMenu,
+} from "#/components/Filter/menu";
+import {
+	SelectFilter,
+	type SelectFilterOption,
+} from "#/components/Filter/SelectFilter";
+import {
+	DEFAULT_USER_FILTER_WIDTH,
+	type UserFilterMenu,
+	UserMenu,
+} from "#/components/Filter/UserFilter";
 
 const PRESET_FILTERS = [
 	{

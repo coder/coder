@@ -1,22 +1,4 @@
 import type * as TypesGen from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import {
-	ConversationItem,
-	Message,
-	MessageContent,
-	Response,
-	Shimmer,
-	Tool,
-} from "components/ai-elements";
-import { WebSearchSources } from "components/ai-elements/tool";
-import { Button } from "components/Button/Button";
-import { FileReferenceChip } from "components/ChatMessageInput/FileReferenceNode";
-import { Spinner } from "components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { FileTextIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
@@ -30,6 +12,24 @@ import {
 import { Link } from "react-router";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
+import { Alert } from "#/components/Alert/Alert";
+import {
+	ConversationItem,
+	Message,
+	MessageContent,
+	Response,
+	Shimmer,
+	Tool,
+} from "#/components/ai-elements";
+import { WebSearchSources } from "#/components/ai-elements/tool";
+import { Button } from "#/components/Button/Button";
+import { FileReferenceChip } from "#/components/ChatMessageInput/FileReferenceNode";
+import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import {
 	decodeInlineTextAttachment,
 	fetchTextAttachmentContent,

@@ -1,5 +1,5 @@
-import { Badge } from "components/Badge/Badge";
-import { Stack } from "components/Stack/Stack";
+import { Badge } from "#/components/Badge/Badge";
+import { Stack } from "#/components/Stack/Stack";
 
 export const EnabledBadge: React.FC = () => {
 	return (

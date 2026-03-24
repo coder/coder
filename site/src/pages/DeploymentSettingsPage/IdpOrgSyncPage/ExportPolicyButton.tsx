@@ -1,10 +1,10 @@
 import { getErrorDetail } from "api/errors";
 import type { OrganizationSyncSettings } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
 import { saveAs } from "file-saver";
 import { Download } from "lucide-react";
 import { type FC, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "#/components/Button/Button";
 
 interface ExportPolicyButtonProps {
 	syncSettings: OrganizationSyncSettings | undefined;

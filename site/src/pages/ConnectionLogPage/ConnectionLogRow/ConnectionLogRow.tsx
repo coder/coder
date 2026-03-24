@@ -1,19 +1,19 @@
 import type { ConnectionLog } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
-import { Link } from "components/Link/Link";
-import { StatusPill } from "components/StatusPill/StatusPill";
-import { TableCell } from "components/Table/Table";
-import { TimelineEntry } from "components/Timeline/TimelineEntry";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { InfoIcon, NetworkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import userAgentParser from "ua-parser-js";
 import { connectionTypeIsWeb } from "utils/connection";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Link } from "#/components/Link/Link";
+import { StatusPill } from "#/components/StatusPill/StatusPill";
+import { TableCell } from "#/components/Table/Table";
+import { TimelineEntry } from "#/components/Timeline/TimelineEntry";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { ConnectionLogDescription } from "./ConnectionLogDescription/ConnectionLogDescription";
 
 interface ConnectionLogRowProps {

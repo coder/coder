@@ -1,12 +1,12 @@
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { CircleAlertIcon, ExternalLinkIcon, LoaderIcon } from "lucide-react";
 import type React from "react";
 import { Link } from "react-router";
 import { cn } from "utils/cn";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { asRecord, asString, type ToolStatus } from "./utils";
 
 /**

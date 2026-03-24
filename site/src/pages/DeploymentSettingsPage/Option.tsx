@@ -1,8 +1,8 @@
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { DisabledBadge, EnabledBadge } from "components/Badges/Badges";
 import { WrenchIcon } from "lucide-react";
 import type { FC, HTMLAttributes, PropsWithChildren } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { DisabledBadge, EnabledBadge } from "#/components/Badges/Badges";
 
 export const OptionName: FC<PropsWithChildren> = ({ children }) => {
 	return (
@@ -165,13 +165,13 @@ const styles = {
 	}),
 
 	option: css`
-    font-size: 14px;
-    font-family: ${MONOSPACE_FONT_FAMILY};
-    overflow-wrap: anywhere;
-    user-select: all;
+		font-size: 14px;
+		font-family: ${MONOSPACE_FONT_FAMILY};
+		overflow-wrap: anywhere;
+		user-select: all;
 
-    & ul {
-      padding: 16px;
-    }
-  `,
+		& ul {
+			padding: 16px;
+		}
+	`,
 } satisfies Record<string, Interpolation<Theme>>;

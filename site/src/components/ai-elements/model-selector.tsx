@@ -1,3 +1,5 @@
+import type { FC } from "react";
+import { cn } from "utils/cn";
 import {
 	Select,
 	SelectContent,
@@ -5,15 +7,13 @@ import {
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "components/Select/Select";
+} from "#/components/Select/Select";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import type { FC } from "react";
-import { cn } from "utils/cn";
+} from "#/components/Tooltip/Tooltip";
 
 export interface ModelSelectorOption {
 	id: string;

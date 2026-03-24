@@ -1,22 +1,22 @@
 import type * as TypesGen from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { ChevronDownIcon, LockIcon, ServerIcon } from "lucide-react";
+import { type FC, useEffect, useRef, useState } from "react";
+import { cn } from "utils/cn";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { Spinner } from "components/Spinner/Spinner";
-import { Switch } from "components/Switch/Switch";
+} from "#/components/Popover/Popover";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { ChevronDownIcon, LockIcon, ServerIcon } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
-import { cn } from "utils/cn";
+} from "#/components/Tooltip/Tooltip";
 
 // ── Types ──────────────────────────────────────────────────────
 

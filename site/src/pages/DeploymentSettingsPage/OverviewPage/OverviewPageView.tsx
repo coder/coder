@@ -3,17 +3,17 @@ import type {
 	Experiment,
 	SerpentOption,
 } from "api/typesGenerated";
-import { Link } from "components/Link/Link";
+import type { FC } from "react";
+import { useDeploymentOptions } from "utils/deployOptions";
+import { docs } from "utils/docs";
+import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
-import type { FC } from "react";
-import { useDeploymentOptions } from "utils/deployOptions";
-import { docs } from "utils/docs";
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Stack } from "#/components/Stack/Stack";
 import { Alert, AlertTitle } from "../../../components/Alert/Alert";
 import OptionsTable from "../OptionsTable";
 import { UserEngagementChart } from "./UserEngagementChart";

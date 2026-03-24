@@ -4,36 +4,6 @@ import type {
 	PreviewParameterOption,
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { Checkbox } from "components/Checkbox/Checkbox";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { MemoizedMarkdown } from "components/Markdown/Markdown";
-import {
-	MultiSelectCombobox,
-	type Option,
-} from "components/MultiSelectCombobox/MultiSelectCombobox";
-import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "components/Select/Select";
-import { Slider } from "components/Slider/Slider";
-import { Stack } from "components/Stack/Stack";
-import { Switch } from "components/Switch/Switch";
-import { TagInput } from "components/TagInput/TagInput";
-import { Textarea } from "components/Textarea/Textarea";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import {
 	CircleAlert,
 	Eye,
@@ -48,6 +18,36 @@ import { type FC, useId, useRef, useState } from "react";
 import { cn } from "utils/cn";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
+import {
+	MultiSelectCombobox,
+	type Option,
+} from "#/components/MultiSelectCombobox/MultiSelectCombobox";
+import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
+import { Slider } from "#/components/Slider/Slider";
+import { Stack } from "#/components/Stack/Stack";
+import { Switch } from "#/components/Switch/Switch";
+import { TagInput } from "#/components/TagInput/TagInput";
+import { Textarea } from "#/components/Textarea/Textarea";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 interface DynamicParameterProps {
 	parameter: PreviewParameter;

@@ -1,18 +1,3 @@
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
-} from "components/Command/Command";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/Popover/Popover";
-import { Spinner } from "components/Spinner/Spinner";
 import { Check, X } from "lucide-react";
 import {
 	type KeyboardEvent,
@@ -21,6 +6,21 @@ import {
 	useState,
 } from "react";
 import { cn } from "utils/cn";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "#/components/Command/Command";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 interface AutocompleteProps<TOption> {
 	value: TOption | null;

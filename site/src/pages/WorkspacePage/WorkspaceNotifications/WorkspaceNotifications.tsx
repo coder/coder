@@ -6,13 +6,13 @@ import type {
 	Workspace,
 	WorkspaceBuild,
 } from "api/typesGenerated";
-import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
 import { type FC, useEffect, useState } from "react";
+import { MemoizedInlineMarkdown } from "#/components/Markdown/Markdown";
 
 dayjs.extend(relativeTime);
 

@@ -1,7 +1,7 @@
 import {
 	type AuthContextValue,
 	useAuthContext,
-} from "contexts/auth/AuthProvider";
+} from "#/contexts/auth/AuthProvider";
 
 type RequireKeys<T, R extends keyof T> = Omit<T, R> & {
 	[K in keyof Pick<T, R>]-?: NonNullable<T[K]>;

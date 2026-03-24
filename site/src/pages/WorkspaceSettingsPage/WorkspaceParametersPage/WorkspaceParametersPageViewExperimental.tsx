@@ -3,11 +3,6 @@ import type {
 	Workspace,
 	WorkspaceBuildParameter,
 } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { Button } from "components/Button/Button";
-import { Label } from "components/Label/Label";
-import { Link } from "components/Link/Link";
-import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import { useDebouncedFunction } from "hooks/debounce";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
@@ -20,6 +15,11 @@ import type { FC } from "react";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import type { AutofillBuildParameter } from "utils/richParameters";
+import { Alert } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
+import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 type WorkspaceParametersPageViewExperimentalProps = {
 	workspace: Workspace;

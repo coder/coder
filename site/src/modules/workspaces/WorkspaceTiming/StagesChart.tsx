@@ -1,12 +1,12 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import type { TimingStage } from "api/typesGenerated";
+import { CircleAlertIcon, InfoIcon } from "lucide-react";
+import type { FC } from "react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { CircleAlertIcon, InfoIcon } from "lucide-react";
-import type { FC } from "react";
+} from "#/components/Tooltip/Tooltip";
 import { Bar, ClickableBar } from "./Chart/Bar";
 import { Blocks } from "./Chart/Blocks";
 import { Chart, ChartContent } from "./Chart/Chart";

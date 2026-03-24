@@ -1,15 +1,15 @@
 import type { TemplateVersionExternalAuth } from "api/typesGenerated";
-import { Badge } from "components/Badge/Badge";
-import { Button } from "components/Button/Button";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { Spinner } from "components/Spinner/Spinner";
+import { Check, Redo } from "lucide-react";
+import type { FC } from "react";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { Check, Redo } from "lucide-react";
-import type { FC } from "react";
+} from "#/components/Tooltip/Tooltip";
 
 interface ExternalAuthButtonProps {
 	auth: TemplateVersionExternalAuth;

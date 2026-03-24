@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { SelectFilterOption } from "components/Filter/SelectFilter";
 import { useState } from "react";
 import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import type { SelectFilterOption } from "#/components/Filter/SelectFilter";
 import {
 	Combobox,
 	ComboboxButton,

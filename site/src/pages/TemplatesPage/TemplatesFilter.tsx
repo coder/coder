@@ -1,18 +1,18 @@
 import { API } from "api/api";
 import type { Organization } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import type { FC } from "react";
+import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	Filter,
 	MenuSkeleton,
 	type UseFilterResult,
-} from "components/Filter/Filter";
-import { useFilterMenu } from "components/Filter/menu";
+} from "#/components/Filter/Filter";
+import { useFilterMenu } from "#/components/Filter/menu";
 import {
 	SelectFilter,
 	type SelectFilterOption,
-} from "components/Filter/SelectFilter";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import type { FC } from "react";
+} from "#/components/Filter/SelectFilter";
 import {
 	DEFAULT_USER_FILTER_WIDTH,
 	type UserFilterMenu,

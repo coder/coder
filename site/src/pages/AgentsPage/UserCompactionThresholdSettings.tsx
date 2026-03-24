@@ -5,11 +5,11 @@ import {
 	userCompactionThresholds,
 } from "api/queries/chats";
 import type * as TypesGen from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { Input } from "components/Input/Input";
-import { Spinner } from "components/Spinner/Spinner";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { Button } from "#/components/Button/Button";
+import { Input } from "#/components/Input/Input";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 interface UserCompactionThresholdSettingsProps {
 	modelConfigs: readonly TypesGen.ChatModelConfig[];

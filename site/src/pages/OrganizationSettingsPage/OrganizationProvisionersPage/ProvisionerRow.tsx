@@ -2,13 +2,6 @@ import type {
 	ProvisionerDaemon,
 	ProvisionerDaemonStatus,
 } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import {
-	StatusIndicator,
-	StatusIndicatorDot,
-	type StatusIndicatorProps,
-} from "components/StatusIndicator/StatusIndicator";
-import { TableCell, TableRow } from "components/Table/Table";
 import { ChevronRightIcon } from "lucide-react";
 import { JobStatusIndicator } from "modules/provisioners/JobStatusIndicator";
 import {
@@ -21,6 +14,13 @@ import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
 import { relativeTime } from "utils/time";
+import { Button } from "#/components/Button/Button";
+import {
+	StatusIndicator,
+	StatusIndicatorDot,
+	type StatusIndicatorProps,
+} from "#/components/StatusIndicator/StatusIndicator";
+import { TableCell, TableRow } from "#/components/Table/Table";
 import { ProvisionerVersion } from "./ProvisionerVersion";
 
 const variantByStatus: Record<

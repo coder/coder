@@ -1,20 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
 import type { ChatMessagePart, ChatQueuedMessage } from "api/typesGenerated";
-import {
-	ModelSelector,
-	type ModelSelectorOption,
-} from "components/ai-elements";
-import { Button } from "components/Button/Button";
-import {
-	ChatMessageInput,
-	type ChatMessageInputRef,
-} from "components/ChatMessageInput/ChatMessageInput";
-import { Spinner } from "components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { useSpeechRecognition } from "hooks/useSpeechRecognition";
 import {
 	AlertTriangleIcon,
@@ -39,6 +24,21 @@ import {
 import { cn } from "utils/cn";
 import { isMobileViewport } from "utils/mobile";
 import {
+	ModelSelector,
+	type ModelSelectorOption,
+} from "#/components/ai-elements";
+import { Button } from "#/components/Button/Button";
+import {
+	ChatMessageInput,
+	type ChatMessageInputRef,
+} from "#/components/ChatMessageInput/ChatMessageInput";
+import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import {
 	fetchTextAttachmentContent,
 	formatTextAttachmentPreview,
 } from "../utils/fetchTextAttachment";
@@ -48,7 +48,7 @@ import { MCPServerPicker } from "./MCPServerPicker";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 
-export type { ChatMessageInputRef } from "components/ChatMessageInput/ChatMessageInput";
+export type { ChatMessageInputRef } from "#/components/ChatMessageInput/ChatMessageInput";
 
 export type UploadState = {
 	status: "uploading" | "uploaded" | "error";

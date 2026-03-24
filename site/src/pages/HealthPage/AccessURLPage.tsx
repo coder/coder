@@ -1,7 +1,7 @@
 import type { HealthcheckReport } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
 import { useOutletContext } from "react-router";
 import { pageTitle } from "utils/page";
+import { Alert } from "#/components/Alert/Alert";
 import {
 	GridData,
 	GridDataLabel,

@@ -3,20 +3,6 @@
  * @see {@link https://shadcnui-expansions.typeart.cc/docs/multiple-selector}
  */
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import { Avatar } from "components/Avatar/Avatar";
-import { Badge } from "components/Badge/Badge";
-import {
-	Command,
-	CommandGroup,
-	CommandItem,
-	CommandList,
-} from "components/Command/Command";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import { useDebouncedValue } from "hooks/debounce";
 import { Info, X } from "lucide-react";
 import {
@@ -32,6 +18,20 @@ import {
 	useState,
 } from "react";
 import { cn } from "utils/cn";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Avatar } from "#/components/Avatar/Avatar";
+import { Badge } from "#/components/Badge/Badge";
+import {
+	Command,
+	CommandGroup,
+	CommandItem,
+	CommandList,
+} from "#/components/Command/Command";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 export interface Option {
 	value: string;
