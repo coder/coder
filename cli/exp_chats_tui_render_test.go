@@ -683,6 +683,46 @@ func TestExpChatsTUIRender(t *testing.T) {
 		require.NotContains(t, output, "- first")
 	})
 
+	t.Run("ViewHelpFitsNarrowTerminals", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("ListViewShortensHelpAt80Columns", func(t *testing.T) {
+			t.Parallel()
+
+			list := newChatListModel(newTUIStyles())
+			list.loading = false
+			list.width = 80
+			list.chats = []codersdk.Chat{testChat(codersdk.ChatStatusCompleted)}
+
+			output := plainText(list.View())
+			lines := strings.Split(output, "\n")
+			helpLine := lines[len(lines)-1]
+			require.LessOrEqual(t, lipgloss.Width(helpLine), 80)
+			require.Contains(t, helpLine, "q quit")
+		})
+
+		t.Run("ChatViewShortensHelpAt80Columns", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			chat := testChat(codersdk.ChatStatusRunning)
+			model.loading = false
+			model.width = 80
+			model.height = 24
+			model.chat = &chat
+			model.chatStatus = chat.Status
+			model.composerFocused = false
+
+			output := plainText(model.View())
+			lines := strings.Split(output, "\n")
+			helpLine := lines[len(lines)-1]
+			require.LessOrEqual(t, lipgloss.Width(helpLine), 80)
+			require.Contains(t, helpLine, "ctrl+p")
+			require.Contains(t, helpLine, "ctrl+d")
+			require.NotContains(t, helpLine, "enter: expand/collapse")
+		})
+	})
+
 	t.Run("UtilityRenderers", func(t *testing.T) {
 		t.Parallel()
 

@@ -202,7 +202,13 @@ func (m chatListModel) View() string {
 		} else {
 			lines = append(lines, m.styles.dimmedText.Render("No chats yet. Press n to start a new chat."))
 		}
-		lines = append(lines, m.styles.helpText.Render("/: search • n: new chat • r: refresh • q: quit"))
+		help := fitHelpText(
+			m.width,
+			"/: search • n: new chat • r: refresh • q: quit",
+			"/ search • n new • r refresh • q quit",
+			"/ • n • r • q",
+		)
+		lines = append(lines, m.styles.helpText.Render(help))
 		return strings.Join(lines, "\n")
 	}
 
@@ -228,7 +234,14 @@ func (m chatListModel) View() string {
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, m.styles.helpText.Render("↑/k: up • ↓/j: down • enter: open • /: search • n: new chat • r: refresh • q: quit"))
+	help := fitHelpText(
+		m.width,
+		"↑/k: up • ↓/j: down • enter: open • /: search • n: new chat • r: refresh • q: quit",
+		"↑/k up • ↓/j down • ↵ open • / search • n new • r refresh • q quit",
+		"↑↓ nav • ↵ open • / search • n new • q quit",
+		"↑↓ • ↵ • / • n • q",
+	)
+	lines = append(lines, m.styles.helpText.Render(help))
 	return strings.Join(lines, "\n")
 }
 

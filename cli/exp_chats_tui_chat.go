@@ -624,17 +624,33 @@ func (m chatViewModel) View() string {
 
 	composerView := m.styles.composerStyle.Render(m.composer.View())
 
-	helpParts := []string{"tab: switch focus", "esc: back"}
+	longHelpParts := []string{"tab: switch focus", "esc: back"}
+	shortHelpParts := []string{"tab focus", "esc back"}
+	compactHelpParts := []string{"tab", "esc"}
 	if m.composerFocused {
-		helpParts = append(helpParts, "enter: send")
+		longHelpParts = append(longHelpParts, "enter: send")
+		shortHelpParts = append(shortHelpParts, "↵ send")
+		compactHelpParts = append(compactHelpParts, "↵")
 	} else {
-		helpParts = append(helpParts, "↑↓: navigate", "enter: expand/collapse")
+		longHelpParts = append(longHelpParts, "↑↓: navigate", "enter: expand/collapse")
+		shortHelpParts = append(shortHelpParts, "↑↓ nav", "↵ toggle")
+		compactHelpParts = append(compactHelpParts, "↑↓", "↵")
 	}
 	if m.isInterruptible() {
-		helpParts = append(helpParts, "ctrl+i: interrupt")
+		longHelpParts = append(longHelpParts, "ctrl+i: interrupt")
+		shortHelpParts = append(shortHelpParts, "ctrl+i")
+		compactHelpParts = append(compactHelpParts, "^I")
 	}
-	helpParts = append(helpParts, "ctrl+p: models", "ctrl+d: diff")
-	helpRow := m.styles.helpText.Render(strings.Join(helpParts, " | "))
+	longHelpParts = append(longHelpParts, "ctrl+p: models", "ctrl+d: diff")
+	shortHelpParts = append(shortHelpParts, "ctrl+p", "ctrl+d")
+	compactHelpParts = append(compactHelpParts, "^P", "^D")
+	helpRow := fitHelpText(
+		m.width,
+		strings.Join(longHelpParts, " | "),
+		strings.Join(shortHelpParts, " │ "),
+		strings.Join(compactHelpParts, " "),
+	)
+	helpRow = m.styles.helpText.Render(helpRow)
 
 	sections := []string{header}
 	if statusLine != "" {

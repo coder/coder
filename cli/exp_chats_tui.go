@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -52,6 +53,43 @@ func installTUISignalHandler(p *tea.Program) func() {
 	return func() {
 		ch <- struct{}{}
 	}
+}
+
+func fitHelpText(width int, candidates ...string) string {
+	if len(candidates) == 0 {
+		return ""
+	}
+	if width <= 0 {
+		return candidates[0]
+	}
+	for _, candidate := range candidates {
+		if lipgloss.Width(candidate) <= width {
+			return candidate
+		}
+	}
+	return truncateHelpText(candidates[len(candidates)-1], width)
+}
+
+func truncateHelpText(text string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if lipgloss.Width(text) <= width {
+		return text
+	}
+	if width == 1 {
+		return "…"
+	}
+
+	runes := []rune(text)
+	for len(runes) > 0 {
+		truncated := strings.TrimRight(string(runes), " •|│:") + "…"
+		if lipgloss.Width(truncated) <= width {
+			return truncated
+		}
+		runes = runes[:len(runes)-1]
+	}
+	return "…"
 }
 
 func (r *RootCmd) chatsTUI() *serpent.Command {
@@ -123,6 +161,7 @@ func (r *RootCmd) chatsTUI() *serpent.Command {
 			model := newExpChatsTUIModel(inv.Context(), expClient, initialChatID, workspaceID, modelID)
 			program := tea.NewProgram(
 				model,
+				tea.WithAltScreen(),
 				tea.WithoutSignalHandler(),
 				tea.WithContext(inv.Context()),
 				tea.WithInput(inv.Stdin),
