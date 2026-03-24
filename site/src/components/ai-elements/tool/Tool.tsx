@@ -476,10 +476,9 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		: fileViewerOpts;
 
 	// Look up MCP server config for icon and slug.
-	const mcpServer =
-		mcpServerConfigId && mcpServers
-			? mcpServers.find((s) => s.id === mcpServerConfigId)
-			: undefined;
+	const mcpServer = mcpServerConfigId
+		? mcpServers?.find((s) => s.id === mcpServerConfigId)
+		: undefined;
 
 	return (
 		<>
