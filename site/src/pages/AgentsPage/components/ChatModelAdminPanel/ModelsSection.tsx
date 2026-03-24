@@ -22,6 +22,7 @@ import {
 import type { FC, ReactNode } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { cn } from "utils/cn";
+import { formatProviderLabel } from "../../utils/modelOptions";
 import { SectionHeader } from "../SectionHeader";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelForm } from "./ModelForm";
@@ -321,12 +322,20 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 										>
 											{modelConfig.display_name || modelConfig.model}
 										</span>
-										{showPricingWarning && (
-											<span className="mt-1 flex items-center gap-1 text-xs text-content-warning">
-												<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0" />
-												Model pricing is not defined
-											</span>
-										)}
+										<span className="flex items-center gap-1 truncate text-xs text-content-secondary">
+											{formatProviderLabel(modelConfig.provider)} &middot;{" "}
+											{modelConfig.model}
+											{showPricingWarning && (
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-warning" />
+													</TooltipTrigger>
+													<TooltipContent>
+														Model pricing is not defined
+													</TooltipContent>
+												</Tooltip>
+											)}
+										</span>{" "}
 									</div>
 									{modelConfig.enabled === false && (
 										<Badge size="xs" variant="warning">
