@@ -155,9 +155,12 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 	// Filter to enabled servers only.
 	const enabledServers = servers.filter((s) => s.enabled);
 
-	// Servers that count as active (force_on or user-selected).
+	// Servers shown in the trigger icon stack: selected and
+	// fully ready (no outstanding auth required).
 	const activeServers = enabledServers.filter(
-		(s) => s.availability === "force_on" || selectedServerIds.includes(s.id),
+		(s) =>
+			(s.availability === "force_on" || selectedServerIds.includes(s.id)) &&
+			!(s.auth_type === "oauth2" && !s.auth_connected),
 	);
 
 	// Listen for OAuth2 completion postMessage from popup.
