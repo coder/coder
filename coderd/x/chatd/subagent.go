@@ -466,7 +466,7 @@ func (p *Server) awaitSubagentCompletion(
 	if timeout <= 0 {
 		timeout = defaultSubagentWaitTimeout
 	}
-	timer := time.NewTimer(timeout)
+	timer := p.clock.NewTimer(timeout, "chatd", "subagent_await")
 	defer timer.Stop()
 
 	// When pubsub is available, subscribe for fast status
@@ -499,7 +499,7 @@ func (p *Server) awaitSubagentCompletion(
 		}
 	}
 
-	ticker := time.NewTicker(pollInterval)
+	ticker := p.clock.NewTicker(pollInterval, "chatd", "subagent_poll")
 	defer ticker.Stop()
 
 	for {
