@@ -38,6 +38,10 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	logger := s.logger.With(slog.F("path", r.URL.Path))
 
 	byok := agplaibridge.IsBYOK(r.Header)
+	authMode := "centralized"
+	if byok {
+		authMode = "byok"
+	}
 
 	key := strings.TrimSpace(agplaibridge.ExtractAuthToken(r.Header))
 	if key == "" {
@@ -73,7 +77,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	resp, err := client.IsAuthorized(ctx, &proto.IsAuthorizedRequest{Key: key})
 	if err != nil {
-		logger.Warn(ctx, "key authorization check failed", slog.Error(err))
+		logger.Warn(ctx, "key authorization check failed", slog.Error(err), slog.F("auth_mode", authMode))
 		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
 		return
 	}
