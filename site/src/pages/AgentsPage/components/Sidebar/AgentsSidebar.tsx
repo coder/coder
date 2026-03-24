@@ -628,6 +628,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		visibleChatIDs.has(chatID),
 	);
 
+	// Pre-compute the first non-empty time group so the filter
+	// dropdown renders next to it without needing a mutable IIFE.
+	const firstNonEmptyGroup = TIME_GROUPS.find((group) =>
+		visibleRootIDs.some((id) => {
+			const chat = chatById.get(id);
+			return chat !== undefined && getTimeGroup(chat.updated_at) === group;
+		}),
+	);
+
 	// Auto-expand ancestors of the active chat so it's always visible.
 	// Only runs when activeChatId changes — not on every parentById
 	// recalculation — so user-initiated collapse is preserved.
@@ -801,80 +810,75 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									<div>
 										{visibleRootIDs.length > 0 && (
 											<div className="pb-2">
-												{(() => {
-													let isFirstRenderedGroup = true;
-													return TIME_GROUPS.map((group) => {
-														const groupChats = visibleRootIDs
-															.map((id) => chatById.get(id))
-															.filter(
-																(chat): chat is Chat =>
-																	chat !== undefined &&
-																	getTimeGroup(chat.updated_at) === group,
-															);
-														if (groupChats.length === 0) return null;
-														const isFirstGroup = isFirstRenderedGroup;
-														isFirstRenderedGroup = false;
-														return (
-															<div
-																key={group}
-																className="[&:not(:first-child)]:mt-3"
-															>
-																<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-																	<span>{group}</span>
-																	{isFirstGroup && (
-																		<DropdownMenu>
-																			<DropdownMenuTrigger asChild>
-																				<Button
-																					variant="subtle"
-																					size="icon"
-																					aria-label="Filter agents"
-																					className={cn(
-																						"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-																						archivedFilter === "archived" &&
-																							"text-content-primary",
-																					)}
-																				>
-																					<FilterIcon />
-																				</Button>
-																			</DropdownMenuTrigger>
-																			<DropdownMenuContent align="end">
-																				<DropdownMenuItem
-																					onSelect={() =>
-																						onArchivedFilterChange?.("active")
-																					}
-																				>
-																					Active
-																					{archivedFilter === "active" && (
-																						<CheckIcon className="ml-auto h-3.5 w-3.5" />
-																					)}
-																				</DropdownMenuItem>
-																				<DropdownMenuItem
-																					onSelect={() =>
-																						onArchivedFilterChange?.("archived")
-																					}
-																				>
-																					Archived
-																					{archivedFilter === "archived" && (
-																						<CheckIcon className="ml-auto h-3.5 w-3.5" />
-																					)}
-																				</DropdownMenuItem>
-																			</DropdownMenuContent>
-																		</DropdownMenu>
-																	)}
-																</div>
-																<div className="flex flex-col gap-0.5">
-																	{groupChats.map((chat) => (
-																		<ChatTreeNode
-																			key={chat.id}
-																			chat={chat}
-																			isChildNode={false}
-																		/>
-																	))}
-																</div>
-															</div>
+												{TIME_GROUPS.map((group) => {
+													const groupChats = visibleRootIDs
+														.map((id) => chatById.get(id))
+														.filter(
+															(chat): chat is Chat =>
+																chat !== undefined &&
+																getTimeGroup(chat.updated_at) === group,
 														);
-													});
-												})()}
+													if (groupChats.length === 0) return null;
+													return (
+														<div
+															key={group}
+															className="[&:not(:first-child)]:mt-3"
+														>
+															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+																<span>{group}</span>
+																{group === firstNonEmptyGroup && (
+																	<DropdownMenu>
+																		<DropdownMenuTrigger asChild>
+																			<Button
+																				variant="subtle"
+																				size="icon"
+																				aria-label="Filter agents"
+																				className={cn(
+																					"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
+																					archivedFilter === "archived" &&
+																						"text-content-primary",
+																				)}
+																			>
+																				<FilterIcon />
+																			</Button>
+																		</DropdownMenuTrigger>
+																		<DropdownMenuContent align="end">
+																			<DropdownMenuItem
+																				onSelect={() =>
+																					onArchivedFilterChange?.("active")
+																				}
+																			>
+																				Active
+																				{archivedFilter === "active" && (
+																					<CheckIcon className="ml-auto h-3.5 w-3.5" />
+																				)}
+																			</DropdownMenuItem>
+																			<DropdownMenuItem
+																				onSelect={() =>
+																					onArchivedFilterChange?.("archived")
+																				}
+																			>
+																				Archived
+																				{archivedFilter === "archived" && (
+																					<CheckIcon className="ml-auto h-3.5 w-3.5" />
+																				)}
+																			</DropdownMenuItem>
+																		</DropdownMenuContent>
+																	</DropdownMenu>
+																)}
+															</div>
+															<div className="flex flex-col gap-0.5">
+																{groupChats.map((chat) => (
+																	<ChatTreeNode
+																		key={chat.id}
+																		chat={chat}
+																		isChildNode={false}
+																	/>
+																))}
+															</div>
+														</div>
+													);
+												})}{" "}
 											</div>
 										)}
 									</div>
