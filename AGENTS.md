@@ -228,9 +228,6 @@ seems like it should use `time.Sleep`, read through https://github.com/coder/qua
 - Prefer existing shared UI components and utilities over custom
   implementations. Reuse common primitives such as loading, table, and error
   handling components when they fit the use case.
-- Avoid `as unknown as` double-casts in TypeScript code and tests. Prefer real
-  DOM constructors, typed helpers, or narrower interfaces. If a cast is truly
-  unavoidable, use the smallest single cast you can justify and comment why.
 - Use Storybook stories for all component and page testing, including
   visual presentation, user interactions, keyboard navigation, focus
   management, and accessibility behavior. Do not create standalone

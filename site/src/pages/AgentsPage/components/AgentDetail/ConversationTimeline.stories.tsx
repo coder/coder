@@ -40,7 +40,8 @@ const TEXT_ATTACHMENT_RESPONSES = new Map<string, string>([
 ]);
 
 const mockTextAttachmentFetch = () => {
-	spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+	const originalFetch = globalThis.fetch;
+	spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
 		const url =
 			typeof input === "string"
 				? input
@@ -54,7 +55,7 @@ const mockTextAttachmentFetch = () => {
 			}
 		}
 
-		return new Response("Not found", { status: 404 });
+		return originalFetch(input, init);
 	});
 };
 

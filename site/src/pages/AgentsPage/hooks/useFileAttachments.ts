@@ -98,7 +98,9 @@ export function useFileAttachments(
 		setPreviewUrls((prev) => {
 			const next = new Map(prev);
 			for (const file of files) {
-				next.set(file, URL.createObjectURL(file));
+				if (file.type !== "text/plain") {
+					next.set(file, URL.createObjectURL(file));
+				}
 			}
 			return next;
 		});
