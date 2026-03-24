@@ -24,7 +24,10 @@
 			"vitest/globals",
 			"novnc__novnc"
 		],
-		"baseUrl": "src/"
+		"baseUrl": "src/",
+		"paths": {
+			"#/*": ["*"]
+		}
 	},
 	"include": ["**/*.ts", "**/*.tsx"],
 	"exclude": ["node_modules/"]
