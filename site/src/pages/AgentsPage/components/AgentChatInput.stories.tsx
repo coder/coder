@@ -441,8 +441,17 @@ export const WithMCPNoneActive: Story = {
 	args: {
 		...mcpDefaults,
 		mcpServers: [
-			{ ...sentryMCP, availability: "default_off" },
-			{ ...linearMCP, availability: "default_off" },
+			{
+				...sentryMCP,
+				availability: "default_off",
+				auth_connected: false,
+			},
+			{
+				...linearMCP,
+				availability: "default_off",
+				auth_type: "oauth2",
+				auth_connected: false,
+			},
 		],
 		selectedMCPServerIds: [],
 	},
