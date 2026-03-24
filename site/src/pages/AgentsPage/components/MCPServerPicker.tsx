@@ -14,12 +14,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import {
-	ChevronDownIcon,
-	LockIcon,
-	PlugIcon,
-	ServerIcon,
-} from "lucide-react";
+import { ChevronDownIcon, LockIcon, PlugIcon, ServerIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { cn } from "utils/cn";
 
