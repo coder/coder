@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"html/template"
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
+	"github.com/coder/coder/v2/scaletest/workspacebuild"
 )
 
 type Runner struct {
@@ -77,6 +79,22 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	}
 	templ, err := r.client.CreateTemplate(ctx, r.cfg.OrganizationID, templateReq)
 	if err != nil {
+		// If the template already exists from a previous failed run, look it up so
+		// Cleanup() can delete it and the rerun doesn't leave orphaned resources.
+		var sdkErr *codersdk.Error
+		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusConflict {
+			existing, listErr := r.client.Templates(ctx, codersdk.TemplateFilter{
+				OrganizationID: r.cfg.OrganizationID,
+				ExactName:      templateName,
+			})
+			if listErr == nil && len(existing) > 0 {
+				r.template = existing[0]
+				logger.Warn(ctx, "template already exists from a previous run, will be cleaned up",
+					slog.F("template_name", r.template.Name),
+					slog.F("template_id", r.template.ID),
+				)
+			}
+		}
 		r.cfg.Metrics.AddError(templateName, "create_template")
 		return xerrors.Errorf("create template: %w", err)
 	}
@@ -305,15 +323,96 @@ func (r *Runner) Cleanup(ctx context.Context, _ string, logs io.Writer) error {
 	logs = loadtestutil.NewSyncWriter(logs)
 	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
 
-	logger.Info(ctx, "deleting template", slog.F("template_name", r.template.Name))
+	// If Run failed before the template was created, there is nothing to clean up.
+	if r.template.ID == uuid.Nil {
+		logger.Info(ctx, "template was never created, skipping cleanup")
+		return nil
+	}
 
-	err := r.client.DeleteTemplate(ctx, r.template.ID)
+	// Workspaces must be deleted before the template can be deleted.
+	workspaces, err := allWorkspacesForTemplate(ctx, r.client, r.template.Name)
 	if err != nil {
+		return xerrors.Errorf("list workspaces for template %q: %w", r.template.Name, err)
+	}
+
+	logger.Info(ctx, "deleting workspaces for template", slog.F("count", len(workspaces)), slog.F("template_name", r.template.Name))
+
+	// Retry failed workspace deletions up to maxDeletionAttempts times to
+	// handle transient errors (e.g. a delete build that fails due to a
+	// provisioner hiccup).
+	const maxDeletionAttempts = 3
+	remaining := workspaces
+	for attempt := range maxDeletionAttempts {
+		if len(remaining) == 0 {
+			break
+		}
+		if attempt > 0 {
+			logger.Info(ctx, "retrying workspace deletions",
+				slog.F("attempt", attempt+1),
+				slog.F("remaining", len(remaining)),
+				slog.F("template_name", r.template.Name),
+			)
+		}
+		var failed []codersdk.Workspace
+		for _, ws := range remaining {
+			cr := workspacebuild.NewCleanupRunner(r.client, ws.ID)
+			if err := cr.Run(ctx, ws.ID.String(), logs); err != nil {
+				logger.Warn(ctx, "failed to delete workspace",
+					slog.F("workspace_id", ws.ID),
+					slog.F("workspace_name", ws.Name),
+					slog.Error(err),
+				)
+				failed = append(failed, ws)
+			}
+		}
+		remaining = failed
+	}
+
+	if len(remaining) > 0 {
+		ids := make([]string, len(remaining))
+		for i, ws := range remaining {
+			ids[i] = ws.ID.String()
+		}
+		logger.Error(ctx, "CLEANUP INCOMPLETE: could not delete all workspaces after retries; template deletion will likely fail",
+			slog.F("template_name", r.template.Name),
+			slog.F("remaining_count", len(remaining)),
+			slog.F("remaining_workspace_ids", ids),
+		)
+	}
+
+	// Always attempt template deletion even if some workspaces could not be
+	// removed. The delete call will fail with a 400 if workspaces remain, but
+	// the error — combined with the log above — makes the state clear to the
+	// operator.
+	logger.Info(ctx, "deleting template", slog.F("template_name", r.template.Name))
+	if err := r.client.DeleteTemplate(ctx, r.template.ID); err != nil {
 		return xerrors.Errorf("delete template: %w", err)
 	}
 
 	logger.Info(ctx, "template deleted successfully", slog.F("template_name", r.template.Name))
 	return nil
+}
+
+// allWorkspacesForTemplate returns all workspaces belonging to templateName,
+// paginating through results until exhausted.
+func allWorkspacesForTemplate(ctx context.Context, client *codersdk.Client, templateName string) ([]codersdk.Workspace, error) {
+	const pageSize = 100
+	var workspaces []codersdk.Workspace
+	for page := 0; ; page++ {
+		resp, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Template: templateName,
+			Offset:   page * pageSize,
+			Limit:    pageSize,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("list workspaces page %d: %w", page, err)
+		}
+		workspaces = append(workspaces, resp.Workspaces...)
+		if len(resp.Workspaces) < pageSize {
+			break
+		}
+	}
+	return workspaces, nil
 }
 
 //go:embed tf/main.tf.tpl
