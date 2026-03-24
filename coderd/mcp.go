@@ -1,12 +1,15 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -198,7 +201,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 					slog.Error(err),
 				)
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "OAuth2 auto-discovery failed. Provide oauth2_client_id, oauth2_auth_url, and oauth2_token_url manually, or ensure the MCP server supports RFC 9728 (Protected Resource Metadata) and RFC 7591 (Dynamic Client Registration).",
+					Message: "This MCP server requires manual OAuth2 configuration.",
 					Detail:  err.Error(),
 				})
 				return
@@ -1072,13 +1075,10 @@ type mcpOAuth2Discovery struct {
 	scopes       string // space-separated
 }
 
-// discoverAndRegisterMCPOAuth2 uses the mcp-go library's OAuthHandler to
-// perform the MCP OAuth2 discovery and Dynamic Client Registration flow:
-//
-//  1. Discover the authorization server via Protected Resource Metadata
-//     (RFC 9728) and Authorization Server Metadata (RFC 8414).
-//  2. Register a client via Dynamic Client Registration (RFC 7591).
-//  3. Return the discovered endpoints and generated credentials.
+// discoverAndRegisterMCPOAuth2 discovers the authorization server via
+// Protected Resource Metadata (RFC 9728) and Authorization Server
+// Metadata (RFC 8414), then registers a client via Dynamic Client
+// Registration (RFC 7591).
 func discoverAndRegisterMCPOAuth2(ctx context.Context, mcpServerURL, callbackURL string) (*mcpOAuth2Discovery, error) {
 	// Per the MCP spec, the authorization base URL is the MCP server
 	// URL with the path component discarded (scheme + host only).
@@ -1109,18 +1109,161 @@ func discoverAndRegisterMCPOAuth2(ctx context.Context, mcpServerURL, callbackURL
 		return nil, xerrors.New("authorization server does not advertise a registration_endpoint (dynamic client registration may not be supported)")
 	}
 
-	// Step 2: Register a client via Dynamic Client Registration (RFC 7591).
-	if err := oauthHandler.RegisterClient(ctx, "Coder"); err != nil {
+	// Step 2: Register a client via Dynamic Client Registration
+	// (RFC 7591).  We perform this ourselves rather than using
+	// mcp-go's RegisterClient because it always registers as a
+	// public client (token_endpoint_auth_method="none").  Many
+	// authorization servers restrict public clients to loopback
+	// redirect URIs per RFC 8252, which rejects the non-loopback
+	// callback URL that Coder uses.  Registering as a confidential
+	// client lets the server generate a secret and typically
+	// relaxes redirect-URI restrictions.
+	authMethod := pickTokenEndpointAuthMethod(metadata.TokenEndpointAuthMethodsSupported)
+
+	// If the server only supports public clients and Coder's
+	// callback URL is not a loopback address, DCR will fail.
+	// Most OAuth2 providers that only support public clients
+	// restrict redirect URIs to loopback addresses (RFC 8252
+	// section 7.3), which only works for desktop MCP clients
+	// like Claude and VS Code that run on the user's machine.
+	// Server-side clients like Coder need a non-loopback
+	// callback, which requires creating an OAuth2 app in the
+	// provider's dashboard and supplying the credentials
+	// manually.
+	if authMethod == "none" && !callbackURLIsLoopback(callbackURL) {
+		return nil, xerrors.Errorf(
+			"this MCP server's authorization provider only supports "+
+				"automatic setup for desktop MCP clients (like Claude "+
+				"or VS Code). To connect from Coder, create an OAuth2 "+
+				"application in the provider's dashboard with %s as "+
+				"the redirect URI, then add this MCP server with the "+
+				"oauth2_client_id, oauth2_auth_url, and oauth2_token_url "+
+				"fields set manually (discovered auth_url: %s, "+
+				"token_url: %s)",
+			callbackURL,
+			metadata.AuthorizationEndpoint,
+			metadata.TokenEndpoint,
+		)
+	}
+	result, err := registerDynamicOAuth2Client(ctx, metadata.RegistrationEndpoint, callbackURL, authMethod)
+	if err != nil {
 		return nil, xerrors.Errorf("dynamic client registration: %w", err)
 	}
 
 	scopes := strings.Join(metadata.ScopesSupported, " ")
 
 	return &mcpOAuth2Discovery{
-		clientID:     oauthHandler.GetClientID(),
-		clientSecret: oauthHandler.GetClientSecret(),
+		clientID:     result.clientID,
+		clientSecret: result.clientSecret,
 		authURL:      metadata.AuthorizationEndpoint,
 		tokenURL:     metadata.TokenEndpoint,
 		scopes:       scopes,
+	}, nil
+}
+
+// callbackURLIsLoopback reports whether the callback URL points
+// at a loopback address (localhost, 127.0.0.1, or [::1]).
+func callbackURLIsLoopback(callbackURL string) bool {
+	parsed, err := url.Parse(callbackURL)
+	if err != nil {
+		return false
+	}
+	h := parsed.Hostname()
+	return h == "localhost" || h == "127.0.0.1" || h == "::1"
+}
+
+// pickTokenEndpointAuthMethod selects the best auth method for
+// Dynamic Client Registration.  It prefers confidential-client
+// methods because many authorization servers restrict public
+// clients ("none") to loopback-only redirect URIs per RFC 8252.
+// If the server does not advertise supported methods, it defaults
+// to client_secret_post (a safe confidential-client method).
+func pickTokenEndpointAuthMethod(supported []string) string {
+	// Prefer confidential methods in order of preference.
+	for _, method := range []string{"client_secret_post", "client_secret_basic"} {
+		if len(supported) == 0 || slices.Contains(supported, method) {
+			return method
+		}
+	}
+	// Fall back to "none" (public client) if the server only
+	// supports that.
+	if slices.Contains(supported, "none") {
+		return "none"
+	}
+	// Default to client_secret_post when we cannot determine the
+	// server's capabilities.
+	return "client_secret_post"
+}
+
+// dcrClientResponse is the relevant subset of an RFC 7591 Dynamic
+// Client Registration response.
+type dcrClientResponse struct {
+	clientID     string
+	clientSecret string
+}
+
+// registerDynamicOAuth2Client sends an RFC 7591 Dynamic Client
+// Registration request and returns the generated credentials.
+func registerDynamicOAuth2Client(ctx context.Context, registrationEndpoint, callbackURL, authMethod string) (*dcrClientResponse, error) {
+	regRequest := map[string]any{
+		"client_name":                "Coder",
+		"redirect_uris":              []string{callbackURL},
+		"token_endpoint_auth_method": authMethod,
+		"grant_types":                []string{"authorization_code", "refresh_token"},
+		"response_types":             []string{"code"},
+	}
+
+	reqBody, err := json.Marshal(regRequest)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal registration request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, registrationEndpoint, bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, xerrors.Errorf("create registration request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, xerrors.Errorf("send registration request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, xerrors.Errorf("read registration response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		// Try to parse as an RFC 7591 error.
+		var oauthErr struct {
+			Error            string `json:"error"`
+			ErrorDescription string `json:"error_description"`
+		}
+		if jsonErr := json.Unmarshal(body, &oauthErr); jsonErr == nil && oauthErr.Error != "" {
+			if oauthErr.ErrorDescription != "" {
+				return nil, xerrors.Errorf("registration request failed: OAuth error: %s - %s", oauthErr.Error, oauthErr.ErrorDescription)
+			}
+			return nil, xerrors.Errorf("registration request failed: OAuth error: %s", oauthErr.Error)
+		}
+		return nil, xerrors.Errorf("registration request failed with status %d: %s", resp.StatusCode, body)
+	}
+
+	var regResponse struct {
+		ClientID     string `json:"client_id"`
+		ClientSecret string `json:"client_secret,omitempty"`
+	}
+	if err := json.Unmarshal(body, &regResponse); err != nil {
+		return nil, xerrors.Errorf("decode registration response: %w", err)
+	}
+	if regResponse.ClientID == "" {
+		return nil, xerrors.New("registration response missing client_id")
+	}
+
+	return &dcrClientResponse{
+		clientID:     regResponse.ClientID,
+		clientSecret: regResponse.ClientSecret,
 	}, nil
 }

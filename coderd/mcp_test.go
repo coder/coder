@@ -543,7 +543,8 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 					return
 				}
 
-				// Decode the registration body and capture redirect_uris.
+				// Decode the registration body and capture
+				// redirect_uris and token_endpoint_auth_method.
 				var body map[string]interface{}
 				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 					http.Error(w, "bad json", http.StatusBadRequest)
@@ -554,7 +555,13 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 						registeredRedirectURI <- uri
 					}
 				}
-
+				// Reject public clients (token_endpoint_auth_method="none")				// to simulate strict auth servers per RFC 8252.
+				if authMethod, ok := body["token_endpoint_auth_method"].(string); ok && authMethod == "none" {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"error":"invalid_redirect_uri","error_description":"The provided redirect URIs are not approved for use by this authorization server."}`))
+					return
+				}
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusCreated)
 				_, _ = w.Write([]byte(`{
@@ -644,6 +651,90 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 			"redirect URI path should contain a valid UUID segment")
 	})
 
+	// Regression test: verify that Coder registers as a confidential
+	// client rather than a public client during Dynamic Client
+	// Registration.  Public clients (token_endpoint_auth_method=none)
+	// are restricted to loopback redirect URIs by many auth servers
+	// per RFC 8252, which causes failures for server-side Coder
+	// callbacks.
+	t.Run("RegistersAsConfidentialClient", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		registeredAuthMethod := make(chan string, 1)
+
+		authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-authorization-server":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"issuer": "` + "http://" + r.Host + `",
+					"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
+					"token_endpoint": "` + "http://" + r.Host + `/token",
+					"registration_endpoint": "` + "http://" + r.Host + `/register",
+					"response_types_supported": ["code"],
+					"token_endpoint_auth_methods_supported": ["client_secret_post", "client_secret_basic"],
+					"scopes_supported": ["read"]
+				}`))
+			case "/register":
+				var body map[string]interface{}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					http.Error(w, "bad json", http.StatusBadRequest)
+					return
+				}
+				if method, ok := body["token_endpoint_auth_method"].(string); ok {
+					registeredAuthMethod <- method
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(`{"client_id":"conf-id","client_secret":"conf-secret"}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(authServer.Close)
+
+		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/.well-known/oauth-protected-resource" {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"resource": "` + "http://" + r.Host + `",
+					"authorization_servers": ["` + authServer.URL + `"]
+				}`))
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		t.Cleanup(mcpServer.Close)
+
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:   "Confidential Client Test",
+			Slug:          "confidential-client",
+			Transport:     "streamable_http",
+			URL:           mcpServer.URL + "/v1/mcp",
+			AuthType:      "oauth2",
+			Availability:  "default_on",
+			Enabled:       true,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.NoError(t, err)
+
+		var authMethod string
+		select {
+		case authMethod = <-registeredAuthMethod:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for registration auth method")
+		}
+
+		assert.Equal(t, "client_secret_post", authMethod,
+			"DCR should register as a confidential client to avoid redirect URI restrictions on public clients")
+	})
+
 	t.Run("PartialOAuth2FieldsRejected", func(t *testing.T) {
 		t.Parallel()
 
@@ -702,7 +793,7 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "auto-discovery failed")
+		require.Contains(t, sdkErr.Message, "manual OAuth2 configuration")
 	})
 
 	t.Run("ManualConfigStillWorks", func(t *testing.T) {
