@@ -37,7 +37,7 @@ import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import { isMobileViewport } from "utils/mobile";
 import { pageTitle } from "utils/page";
-import { portForwardURL } from "utils/portForward";
+import { rewriteLocalhostURL } from "utils/portForward";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { useChatStore } from "./components/AgentDetail/ChatContext";
@@ -69,8 +69,6 @@ import {
 
 /** localStorage key controlling whether the right panel is visible. */
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
-
-const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 /** @internal Exported for testing. */
@@ -401,24 +399,7 @@ const AgentDetail: FC = () => {
 		if (!proxyHost || !agentName || !wsName || !wsOwner) {
 			return url;
 		}
-		try {
-			const parsed = new URL(url);
-			if (!localHosts.has(parsed.hostname)) {
-				return url;
-			}
-			return portForwardURL(
-				proxyHost,
-				Number.parseInt(parsed.port, 10),
-				agentName,
-				wsName,
-				wsOwner,
-				"http",
-				parsed.pathname,
-				parsed.search,
-			);
-		} catch {
-			return url;
-		}
+		return rewriteLocalhostURL(url, proxyHost, agentName, wsName, wsOwner);
 	};
 
 	const chatRecord = chatQuery.data;
