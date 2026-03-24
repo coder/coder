@@ -251,6 +251,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [selectedMCPServerIds, setSelectedMCPServerIds] = useState<string[]>(
 		() => (mcpServers ? getDefaultMCPSelection(mcpServers) : []),
 	);
+	// Seed default selection once the MCP server query resolves.
+	const mcpDefaultsApplied = useRef(false);
+	useEffect(() => {
+		if (!mcpDefaultsApplied.current && mcpServers && mcpServers.length > 0) {
+			mcpDefaultsApplied.current = true;
+			setSelectedMCPServerIds(getDefaultMCPSelection(mcpServers));
+		}
+	}, [mcpServers]);
 	const selectedMCPServerIdsRef = useRef(selectedMCPServerIds);
 	useEffect(() => {
 		selectedWorkspaceIdRef.current = selectedWorkspaceId;

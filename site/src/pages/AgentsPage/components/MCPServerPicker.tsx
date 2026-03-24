@@ -21,7 +21,7 @@ import {
 	PlugIcon,
 	ServerIcon,
 } from "lucide-react";
-import { type FC, useCallback, useEffect, useRef, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { cn } from "utils/cn";
 
 // ── Types ──────────────────────────────────────────────────────
@@ -166,6 +166,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 	// Listen for OAuth2 completion postMessage from popup.
 	useEffect(() => {
 		const handler = (event: MessageEvent) => {
+			if (event.origin !== window.location.origin) return;
 			if (
 				event.data?.type === "mcp-oauth2-complete" &&
 				typeof event.data.serverID === "string"
@@ -191,18 +192,15 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 		return () => clearInterval(interval);
 	}, [connectingServerId]);
 
-	const handleToggle = useCallback(
-		(serverId: string, checked: boolean) => {
-			if (checked) {
-				onSelectionChange([...selectedServerIds, serverId]);
-			} else {
-				onSelectionChange(selectedServerIds.filter((id) => id !== serverId));
-			}
-		},
-		[selectedServerIds, onSelectionChange],
-	);
+	const handleToggle = (serverId: string, checked: boolean) => {
+		if (checked) {
+			onSelectionChange([...selectedServerIds, serverId]);
+		} else {
+			onSelectionChange(selectedServerIds.filter((id) => id !== serverId));
+		}
+	};
 
-	const handleConnect = useCallback((server: TypesGen.MCPServerConfig) => {
+	const handleConnect = (server: TypesGen.MCPServerConfig) => {
 		setConnectingServerId(server.id);
 		const connectUrl = `/api/experimental/mcp/servers/${encodeURIComponent(server.id)}/oauth2/connect`;
 		popupRef.current = window.open(
@@ -210,7 +208,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 			"_blank",
 			"width=900,height=600",
 		);
-	}, []);
+	};
 
 	if (enabledServers.length === 0) {
 		return null;
@@ -230,7 +228,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 						<TriggerIconStack servers={activeServers} />
 					) : (
 						<PlugIcon className="h-3.5 w-3.5" />
-					)}{" "}
+					)}
 					<ChevronDownIcon className="h-3.5 w-3.5 text-content-secondary transition-colors group-hover:text-content-primary" />
 				</button>
 			</PopoverTrigger>
@@ -274,7 +272,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 														e.stopPropagation();
 														handleConnect(server);
 													}}
-													disabled={disabled || isConnecting}
+													disabled={disabled || connectingServerId !== null}
 													aria-label={`Authenticate with ${server.display_name}`}
 												>
 													{isConnecting ? (
@@ -290,7 +288,6 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 													}
 													disabled={disabled || isForceOn}
 													aria-label={`${isSelected ? "Disable" : "Enable"} ${server.display_name}`}
-													className="scale-[0.8]"
 												/>
 											)}
 										</div>

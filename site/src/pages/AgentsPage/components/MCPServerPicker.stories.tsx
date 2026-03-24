@@ -141,7 +141,7 @@ const meta: Meta<typeof MCPServerPicker> = {
 	},
 	decorators: [
 		(Story) => (
-			<div style={{ padding: 40 }}>
+			<div className="p-10">
 				<Story />
 			</div>
 		),

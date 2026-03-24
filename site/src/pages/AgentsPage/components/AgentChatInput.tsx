@@ -648,7 +648,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 					<div className="flex min-w-0 items-center gap-2">
-						{" "}
 						<ModelSelector
 							value={selectedModel}
 							onValueChange={onModelChange}
@@ -665,7 +664,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							onMCPAuthComplete && (
 								<MCPServerPicker
 									servers={mcpServers}
-									selectedServerIds={[...(selectedMCPServerIds ?? [])]}
+									selectedServerIds={selectedMCPServerIds ?? []}
 									onSelectionChange={onMCPSelectionChange}
 									onAuthComplete={onMCPAuthComplete}
 									disabled={isDisabled}
