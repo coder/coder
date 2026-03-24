@@ -259,7 +259,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 				)}
 
 				<div className="flex justify-end gap-2">
-					<Button onClick={onCancel} variant="outline">
+					<Button onClick={onCancel} variant="outline" disabled={isSubmitting}>
 						Cancel
 					</Button>
 					<Button
