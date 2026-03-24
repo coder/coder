@@ -179,33 +179,47 @@ const getModelDisplayName = (
 	modelConfigs: readonly ChatModelConfig[],
 	modelOptions: readonly ModelSelectorOption[],
 ) => {
-	if (!lastModelConfigID) {
+	const normalizedModelConfigID = asString(lastModelConfigID).trim();
+	if (!normalizedModelConfigID) {
 		return "Default model";
 	}
+
+	const modelOption = modelOptions.find(
+		(option) => option.id === normalizedModelConfigID,
+	);
+	if (modelOption?.displayName) {
+		return modelOption.displayName;
+	}
+
 	const modelConfig = modelConfigs.find(
-		(config) => config.id === lastModelConfigID,
+		(config) => config.id === normalizedModelConfigID,
 	);
 	if (!modelConfig) {
+		const legacyModelOption = modelOptions.find(
+			(option) =>
+				`${option.provider}:${option.model}` === normalizedModelConfigID,
+		);
+		if (legacyModelOption?.displayName) {
+			return legacyModelOption.displayName;
+		}
 		return "Default model";
 	}
-	const { provider, model } = getNormalizedModelRef(modelConfig);
+
 	const displayName = asString(modelConfig.display_name).trim();
-	if (!provider || !model) {
-		return displayName || "Default model";
-	}
-
-	// Try to find a matching option with a display name.
-	const match = modelOptions.find(
-		(opt) =>
-			opt.id === `${provider}:${model}` ||
-			(opt.provider === provider && opt.model === model),
-	);
-	if (match?.displayName) {
-		return match.displayName;
-	}
-
 	if (displayName) {
 		return displayName;
+	}
+
+	const { provider, model } = getNormalizedModelRef(modelConfig);
+	if (!provider || !model) {
+		return "Default model";
+	}
+
+	const fallbackModelOption = modelOptions.find(
+		(option) => option.provider === provider && option.model === model,
+	);
+	if (fallbackModelOption?.displayName) {
+		return fallbackModelOption.displayName;
 	}
 
 	return model;
