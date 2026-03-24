@@ -16,7 +16,7 @@ import {
 	type TimeUnit,
 } from "utils/time";
 
-export type DurationFieldProps = {
+type DurationFieldProps = {
 	valueMs: number;
 	onChange: (value: number) => void;
 	label?: string;
