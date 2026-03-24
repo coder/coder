@@ -13,7 +13,7 @@ const EmbedContext = createContext<EmbedContextValue>({
 	isEmbedded: false,
 });
 
-export const EmbedProvider = EmbedContext.Provider;
+export { EmbedContext };
 
 export const useEmbedContext = () => useContext(EmbedContext);
 

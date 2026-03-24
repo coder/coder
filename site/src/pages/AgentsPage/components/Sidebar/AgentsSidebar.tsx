@@ -59,7 +59,6 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	createContext,
 	type FC,
-	memo,
 	useContext,
 	useEffect,
 	useRef,
@@ -354,7 +353,7 @@ interface ChatTreeNodeProps {
 	readonly isChildNode: boolean;
 }
 
-const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
+const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const {
 		chatTree,
 		chatById,
@@ -578,7 +577,7 @@ const ChatTreeNode = memo<ChatTreeNodeProps>(({ chat, isChildNode }) => {
 			)}
 		</div>
 	);
-});
+};
 
 export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const {
@@ -786,7 +785,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								</div>
 							</>
 						) : (
-							<ChatTreeContext.Provider value={chatTreeCtx}>
+							<ChatTreeContext value={chatTreeCtx}>
 								{visibleRootIDs.length === 0 ? (
 									<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
 										<p className="m-0">
@@ -889,7 +888,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 										isFetchingNextPage={isFetchingNextPage}
 									/>
 								)}
-							</ChatTreeContext.Provider>
+							</ChatTreeContext>
 						)}
 					</div>
 				</ScrollArea>

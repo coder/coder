@@ -11,7 +11,7 @@ import { Outlet, useParams } from "react-router";
 import type { AgentsOutletContext } from "./AgentsPage";
 import {
 	bootstrapChatEmbedSession,
-	EmbedProvider,
+	EmbedContext,
 } from "./components/EmbedContext";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
@@ -178,13 +178,13 @@ const AgentEmbedPage: FC = () => {
 
 	if (auth.isSignedIn) {
 		return (
-			<EmbedProvider value={{ isEmbedded: true }}>
+			<EmbedContext value={{ isEmbedded: true }}>
 				<DashboardProvider>
 					<ProxyProvider>
 						<Outlet context={outletContext} />
 					</ProxyProvider>
 				</DashboardProvider>
-			</EmbedProvider>
+			</EmbedContext>
 		);
 	}
 
