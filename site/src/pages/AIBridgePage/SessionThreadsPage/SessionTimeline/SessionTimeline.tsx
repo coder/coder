@@ -14,6 +14,11 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { Link } from "components/Link/Link";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
 import { Spinner } from "components/Spinner/Spinner";
 import { StatusIndicatorDot } from "components/StatusIndicator/StatusIndicator";
 import {
@@ -23,6 +28,13 @@ import {
 	LoaderIcon,
 } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
+import { cn } from "utils/cn";
+import { docs } from "utils/docs";
+import { TokenBadges } from "../../TokenBadges";
+import { prettyFormatJSON } from "../../utils";
+import { AgenticLoopTable } from "./AgenticLoopTable";
+import { PromptTable } from "./PromptTable";
+import { ToolCallTable } from "./ToolCallTable";
 
 const EXPANDABLE_COLLAPSE_HEIGHT = 50;
 
@@ -76,19 +88,6 @@ const ExpandableText: FC<ExpandableTextProps> = ({ text, className }) => {
 		</div>
 	);
 };
-
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/Popover/Popover";
-import { cn } from "utils/cn";
-import { docs } from "utils/docs";
-import { TokenBadges } from "../../TokenBadges";
-import { prettyFormatJSON } from "../../utils";
-import { AgenticLoopTable } from "./AgenticLoopTable";
-import { PromptTable } from "./PromptTable";
-import { ToolCallTable } from "./ToolCallTable";
 
 interface CollapseButtonProps {
 	isOpen: boolean;
