@@ -3004,19 +3004,6 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getAIBridgeSession = async (
-		sessionId: string,
-		options: InfiniteScrollParamOptions,
-	) => {
-		const url = getURLWithSearchParams(
-			`/api/v2/aibridge/sessions/${sessionId}`,
-			options,
-		);
-		const response =
-			await this.axios.get<TypesGen.AIBridgeSessionThreadsResponse>(url);
-		return response.data;
-	};
-
 	getAIBridgeModels = async (options: SearchParamOptions) => {
 		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
 
