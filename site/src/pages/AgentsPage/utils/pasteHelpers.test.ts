@@ -106,6 +106,10 @@ describe("isLargePaste", () => {
 		expect(isLargePaste("Hello world")).toBe(false);
 	});
 
+	it("returns false for empty text", () => {
+		expect(isLargePaste("")).toBe(false);
+	});
+
 	it("returns false for 9 lines of short text", () => {
 		const text = Array(9).fill("short line").join("\n");
 		expect(isLargePaste(text)).toBe(false);
@@ -123,6 +127,14 @@ describe("isLargePaste", () => {
 
 	it("returns false for 999 characters on one line", () => {
 		const text = "x".repeat(999);
+		expect(isLargePaste(text)).toBe(false);
+	});
+
+	it("returns false when text has 9 lines and 999 characters", () => {
+		const text = [...Array(8).fill("x".repeat(110)), "x".repeat(111)].join(
+			"\n",
+		);
+		expect(text.length).toBe(999);
 		expect(isLargePaste(text)).toBe(false);
 	});
 
