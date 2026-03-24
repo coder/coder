@@ -21,7 +21,7 @@ import { AIGovernanceAddOnCard } from "./AIGovernanceAddOnCard";
 import {
 	isLicenseApplicableForAiGovernanceOverage,
 	licenseShowsAiGovernanceAddOn,
-} from "./aiGovernanceLicenseUtils";
+} from "./AIGovernanceLicensing";
 
 type LicenseCardProps = {
 	license: GetLicensesResponse;

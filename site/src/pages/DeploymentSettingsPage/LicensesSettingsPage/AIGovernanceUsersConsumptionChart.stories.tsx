@@ -20,6 +20,40 @@ const licenseWithAiGovernanceAddOn: GetLicensesResponse = {
 	},
 };
 
+const higherApplicableAiGovernanceLicense: GetLicensesResponse = {
+	id: 43,
+	uploaded_at: "1660104000",
+	expires_at: "3420244800",
+	uuid: "license-ai-gov-addon-higher",
+	claims: {
+		trial: false,
+		all_features: true,
+		feature_set: "premium",
+		version: 1,
+		addons: ["ai_governance"],
+		features: { ai_governance_user_limit: 900 },
+		license_expires: 3420244800,
+		nbf: 1660104000,
+	},
+};
+
+const nonApplicableAiGovernanceLicense: GetLicensesResponse = {
+	id: 44,
+	uploaded_at: "1660104000",
+	expires_at: "3420244800",
+	uuid: "license-ai-gov-addon-non-applicable",
+	claims: {
+		trial: false,
+		all_features: true,
+		feature_set: "enterprise",
+		version: 1,
+		addons: ["ai_governance"],
+		features: { ai_governance_user_limit: 1200 },
+		license_expires: 3420244800,
+		nbf: 1660104000,
+	},
+};
+
 const meta: Meta<typeof AIGovernanceUsersConsumption> = {
 	title:
 		"pages/DeploymentSettingsPage/LicensesSettingsPage/AIGovernanceUsersConsumptionChart",
@@ -88,6 +122,26 @@ export const UsageBarFromLicenseClaims: Story = {
 		await expect(
 			canvas.getByRole("heading", { name: "AI governance add-on usage" }),
 		).toBeInTheDocument();
+	},
+};
+
+/** Picks the highest applicable limit when multiple licenses are present. */
+export const UsageBarUsesHighestApplicableLicenseLimit: Story = {
+	args: {
+		aiGovernanceUserFeature: {
+			enabled: false,
+			entitlement: "not_entitled",
+		},
+		licenses: [
+			licenseWithAiGovernanceAddOn,
+			higherApplicableAiGovernanceLicense,
+			nonApplicableAiGovernanceLicense,
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("900")).toBeInTheDocument();
+		await expect(canvas.queryByText("1,200")).not.toBeInTheDocument();
 	},
 };
 

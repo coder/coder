@@ -5,7 +5,7 @@ import type { FC } from "react";
 import {
 	effectiveAiGovernanceLimitForUsageCard,
 	hasAiGovernanceAddOnLicense,
-} from "./aiGovernanceLicenseUtils";
+} from "./AIGovernanceLicensing";
 import { SeatUsageBarCard } from "./SeatUsageBarCard";
 
 interface AIGovernanceUsersConsumptionProps {

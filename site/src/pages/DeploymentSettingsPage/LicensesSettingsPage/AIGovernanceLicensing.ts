@@ -15,7 +15,7 @@ export function licenseShowsAiGovernanceAddOn(
 ): boolean {
 	return (
 		isPremiumLicense(license) &&
-		(license.claims.addons ?? []).includes("ai_governance")
+		Boolean(license.claims.addons?.includes("ai_governance"))
 	);
 }
 
@@ -61,26 +61,18 @@ function aiGovernanceLimitFromLicenses(
 	licenses: GetLicensesResponse[],
 	aiGovernanceUserFeature: Feature | undefined,
 ): number | undefined {
-	let best: number | undefined;
-	for (const license of licenses) {
-		if (
-			!licenseShowsAiGovernanceAddOn(license) ||
-			!isLicenseApplicableForAiGovernanceOverage(
-				license,
-				aiGovernanceUserFeature,
-			)
-		) {
-			continue;
-		}
-		const lim = license.claims.features?.ai_governance_user_limit;
-		if (lim === undefined) {
-			continue;
-		}
-		if (best === undefined || lim > best) {
-			best = lim;
-		}
-	}
-	return best;
+	const limits = licenses
+		.filter(
+			(license) =>
+				licenseShowsAiGovernanceAddOn(license) &&
+				isLicenseApplicableForAiGovernanceOverage(
+					license,
+					aiGovernanceUserFeature,
+				),
+		)
+		.map((license) => license.claims.features?.ai_governance_user_limit)
+		.filter((limit): limit is number => limit !== undefined);
+	return limits.length > 0 ? Math.max(...limits) : undefined;
 }
 
 /**
