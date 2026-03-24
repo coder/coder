@@ -302,7 +302,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 
 	return (
 		<>
-			<div className="border border-border border-solid rounded-md flex flex-col lg:flex-row gap-4 p-4">
+			<div className="border border-surface-secondary border-solid rounded-md flex flex-col lg:flex-row gap-4 p-4">
 				{/* left column: avatar and username */}
 				<div className="flex flex-row items-items-start gap-2">
 					<Avatar
@@ -337,7 +337,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 
 			<BracketConnector
 				firstRowHeight="60px"
-				contentClassName="border border-border border-dashed rounded-md my-4"
+				contentClassName="border border-surface-secondary border-dashed rounded-md my-4"
 			>
 				{/* Agentic loop */}
 				<div className="flex flex-col lg:flex-row lg:items-center justify-between">
