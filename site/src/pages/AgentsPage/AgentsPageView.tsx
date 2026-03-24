@@ -162,15 +162,18 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 			</div>
 			<div
 				className={cn(
-					"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
+					"min-h-0 min-w-0 flex-1 flex-col",
 					isSettingsIndex ? "hidden md:flex" : "flex",
 					!agentId &&
 						!isSettingsDetail &&
 						sidebarView.panel === "chats" &&
 						"order-1 md:order-none flex-none md:flex-1",
+					"md:p-2",
 				)}
 			>
-				<Outlet context={outletContextValue} />
+				<div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface-secondary md:rounded-xl">
+					<Outlet context={outletContextValue} />
+				</div>
 			</div>
 		</div>
 	);

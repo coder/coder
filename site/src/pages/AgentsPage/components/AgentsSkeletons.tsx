@@ -33,7 +33,7 @@ function getRightPanelState(): { open: boolean; width: number } {
 export const AgentsPageSkeleton: FC = () => (
 	<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
 		<div className="order-2 md:order-none flex-1 min-h-0 border-t border-border-default md:flex-none md:border-t-0 md:h-full md:w-[320px] md:min-h-0 md:border-b-0">
-			<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
+			<div className="relative flex h-full w-full min-h-0 overflow-hidden">
 				<div className="absolute inset-0 flex flex-col">
 					<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 md:block">
 						<div className="mb-2.5 flex items-center justify-between">
@@ -69,7 +69,9 @@ export const AgentsPageSkeleton: FC = () => (
 				</div>
 			</div>
 		</div>
-		<div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary order-1 md:order-none" />
+		<div className="flex min-h-0 min-w-0 flex-1 flex-col order-1 md:order-none md:p-2">
+			<div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface-secondary md:rounded-xl" />
+		</div>
 	</div>
 );
 
@@ -109,7 +111,7 @@ export const ChatConversationSkeleton: FC = () => (
  * a few content lines.
  */
 export const RightPanelSkeleton: FC = () => (
-	<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
+	<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-secondary">
 		{/* Skeleton tab bar */}
 		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-3 py-1">
 			<Skeleton className="h-6 w-12 rounded-md" />

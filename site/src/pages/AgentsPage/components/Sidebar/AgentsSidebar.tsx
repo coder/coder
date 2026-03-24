@@ -685,7 +685,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const subNavTitle = "Settings";
 
 	return (
-		<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
+		<div className="relative flex h-full w-full min-h-0 overflow-hidden">
 			{/* ── Panel 1: Chats ── */}
 			<div
 				className={cn(

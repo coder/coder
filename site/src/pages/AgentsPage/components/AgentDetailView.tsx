@@ -254,7 +254,7 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 					)}
 					<div
 						aria-hidden
-						className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
+						className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-secondary"
 						style={{
 							maskImage:
 								"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
