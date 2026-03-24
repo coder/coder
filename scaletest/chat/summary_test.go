@@ -36,6 +36,8 @@ func TestNewSummary(t *testing.T) {
 			RunID:              "run-shared",
 			WorkspaceMode:      chat.WorkspaceModeSharedWorkspace,
 			WorkspaceID:        &workspaceID,
+			WorkspaceCount:     1,
+			ChatsPerWorkspace:  25,
 			ModelConfigID:      &modelConfigID,
 			Count:              25,
 			Turns:              10,
@@ -51,6 +53,8 @@ func TestNewSummary(t *testing.T) {
 		require.Equal(t, workspaceID, *summary.WorkspaceID)
 		require.Nil(t, summary.TemplateID)
 		require.Empty(t, summary.TemplateName)
+		require.EqualValues(t, 1, summary.WorkspaceCount)
+		require.EqualValues(t, 25, summary.ChatsPerWorkspace)
 		require.Zero(t, summary.CreatedWorkspaceCount)
 		require.True(t, summary.FollowUpDelayEnabled)
 		require.Equal(t, followUpReleasedAt, *summary.FollowUpPhaseReleasedAt)
@@ -63,6 +67,8 @@ func TestNewSummary(t *testing.T) {
 		compactJSON, err := summary.CompactJSON()
 		require.NoError(t, err)
 		require.Contains(t, string(compactJSON), `"workspace_mode":"shared_workspace"`)
+		require.Contains(t, string(compactJSON), `"workspace_count":1`)
+		require.Contains(t, string(compactJSON), `"chats_per_workspace":25`)
 	})
 
 	t.Run("TemplateMode", func(t *testing.T) {
@@ -73,7 +79,9 @@ func TestNewSummary(t *testing.T) {
 			WorkspaceMode:         chat.WorkspaceModeTemplate,
 			TemplateID:            &templateID,
 			TemplateName:          "starter-template",
-			CreatedWorkspaceCount: 25,
+			WorkspaceCount:        5,
+			ChatsPerWorkspace:     5,
+			CreatedWorkspaceCount: 5,
 			ModelConfigID:         &modelConfigID,
 			Count:                 25,
 			Turns:                 1,
@@ -87,13 +95,17 @@ func TestNewSummary(t *testing.T) {
 		require.NotNil(t, summary.TemplateID)
 		require.Equal(t, templateID, *summary.TemplateID)
 		require.Equal(t, "starter-template", summary.TemplateName)
-		require.EqualValues(t, 25, summary.CreatedWorkspaceCount)
+		require.EqualValues(t, 5, summary.WorkspaceCount)
+		require.EqualValues(t, 5, summary.ChatsPerWorkspace)
+		require.EqualValues(t, 5, summary.CreatedWorkspaceCount)
 		require.False(t, summary.FollowUpDelayEnabled)
 		require.Empty(t, summary.FollowUpPromptFingerprint)
 
 		compactJSON, err := summary.CompactJSON()
 		require.NoError(t, err)
 		require.Contains(t, string(compactJSON), `"template_name":"starter-template"`)
-		require.Contains(t, string(compactJSON), `"created_workspace_count":25`)
+		require.Contains(t, string(compactJSON), `"workspace_count":5`)
+		require.Contains(t, string(compactJSON), `"chats_per_workspace":5`)
+		require.Contains(t, string(compactJSON), `"created_workspace_count":5`)
 	})
 }
