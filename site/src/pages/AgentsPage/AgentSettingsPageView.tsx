@@ -16,7 +16,6 @@ import { user } from "api/queries/users";
 import type * as TypesGen from "api/typesGenerated";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
-import { DurationField } from "components/DurationField/DurationField";
 import { Link } from "components/Link/Link";
 import { PaginationAmount } from "components/PaginationWidget/PaginationAmount";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
@@ -58,6 +57,7 @@ import {
 	DateRangePicker,
 	type DateRangeValue,
 } from "./components/DateRangePicker/DateRangePicker";
+import { DurationField } from "./components/DurationField/DurationField";
 import { InsightsContent } from "./components/InsightsContent";
 import { LimitsTab } from "./components/LimitsTab";
 import { MCPServerAdminPanel } from "./components/MCPServerAdminPanel";
