@@ -97,13 +97,15 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 		try {
 			// The @pierre/diffs worker pool only keys cached highlighted
 			// ASTs by `cacheKey`, so the key must change whenever the diff
-			// text changes, including across component remounts. Deriving
-			// the prefix from the diff content avoids stale cache hits that
-			// can pair a new FileDiffMetadata with an old highlighted AST
-			// and trigger DiffHunksRenderer.processDiffResult errors.
+			// query updates. React Query's `dataUpdatedAt` survives panel
+			// remounts, which prevents stale cache hits from pairing a new
+			// FileDiffMetadata with an older highlighted AST.
 			const patches = parsePatchFiles(
 				diffContent,
-				getDiffCacheKeyPrefix(`chat-${chatId}`, diffContent),
+				getDiffCacheKeyPrefix(
+					`chat-${chatId}`,
+					diffContentsQuery.dataUpdatedAt,
+				),
 			);
 			return patches.flatMap((p) => p.files);
 		} catch {
