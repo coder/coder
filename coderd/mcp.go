@@ -118,9 +118,81 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		// Metadata (RFC 9728) and Authorization Server Metadata
 		// (RFC 8414), then register a client dynamically.
 		if req.OAuth2ClientID == "" && req.OAuth2AuthURL == "" && req.OAuth2TokenURL == "" {
-			callbackURL := fmt.Sprintf("%s/api/experimental/mcp/servers/{id}/oauth2/callback", api.AccessURL.String())
+			// Auto-discovery flow: we need the config ID first to
+			// build the correct callback URL.  Insert the record
+			// with empty OAuth2 fields, perform discovery, then
+			// update.
+			customHeadersJSON, err := marshalCustomHeaders(req.CustomHeaders)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid custom headers.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+
+			inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
+				DisplayName:             strings.TrimSpace(req.DisplayName),
+				Slug:                    strings.TrimSpace(req.Slug),
+				Description:             strings.TrimSpace(req.Description),
+				IconURL:                 strings.TrimSpace(req.IconURL),
+				Transport:               strings.TrimSpace(req.Transport),
+				Url:                     strings.TrimSpace(req.URL),
+				AuthType:                strings.TrimSpace(req.AuthType),
+				OAuth2ClientID:          "",
+				OAuth2ClientSecret:      "",
+				OAuth2ClientSecretKeyID: sql.NullString{},
+				OAuth2AuthURL:           "",
+				OAuth2TokenURL:          "",
+				OAuth2Scopes:            "",
+				APIKeyHeader:            strings.TrimSpace(req.APIKeyHeader),
+				APIKeyValue:             strings.TrimSpace(req.APIKeyValue),
+				APIKeyValueKeyID:        sql.NullString{},
+				CustomHeaders:           customHeadersJSON,
+				CustomHeadersKeyID:      sql.NullString{},
+				ToolAllowList:           coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
+				ToolDenyList:            coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
+				Availability:            strings.TrimSpace(req.Availability),
+				Enabled:                 req.Enabled,
+				CreatedBy:               apiKey.UserID,
+				UpdatedBy:               apiKey.UserID,
+			})
+			if err != nil {
+				switch {
+				case database.IsUniqueViolation(err):
+					httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+						Message: "MCP server config already exists.",
+						Detail:  err.Error(),
+					})
+					return
+				case database.IsCheckViolation(err):
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: "Invalid MCP server config.",
+						Detail:  err.Error(),
+					})
+					return
+				default:
+					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+						Message: "Failed to create MCP server config.",
+						Detail:  err.Error(),
+					})
+					return
+				}
+			}
+
+			// Now build the callback URL with the actual ID.
+			callbackURL := fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), inserted.ID)
 			result, err := discoverAndRegisterMCPOAuth2(ctx, strings.TrimSpace(req.URL), callbackURL)
 			if err != nil {
+				// Clean up: delete the partially created config.
+				deleteErr := api.Database.DeleteMCPServerConfigByID(ctx, inserted.ID)
+				if deleteErr != nil {
+					api.Logger.Warn(ctx, "failed to clean up MCP server config after OAuth2 discovery failure",
+						slog.F("config_id", inserted.ID),
+						slog.Error(deleteErr),
+					)
+				}
+
 				api.Logger.Warn(ctx, "mcp oauth2 auto-discovery failed",
 					slog.F("url", req.URL),
 					slog.Error(err),
@@ -131,13 +203,51 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				})
 				return
 			}
-			req.OAuth2ClientID = result.clientID
-			req.OAuth2ClientSecret = result.clientSecret
-			req.OAuth2AuthURL = result.authURL
-			req.OAuth2TokenURL = result.tokenURL
-			if req.OAuth2Scopes == "" {
-				req.OAuth2Scopes = result.scopes
+
+			// Determine scopes: use the request value if provided,
+			// otherwise fall back to the discovered value.
+			oauth2Scopes := strings.TrimSpace(req.OAuth2Scopes)
+			if oauth2Scopes == "" {
+				oauth2Scopes = result.scopes
 			}
+
+			// Update the record with discovered OAuth2 credentials.
+			updated, err := api.Database.UpdateMCPServerConfig(ctx, database.UpdateMCPServerConfigParams{
+				ID:                      inserted.ID,
+				DisplayName:             inserted.DisplayName,
+				Slug:                    inserted.Slug,
+				Description:             inserted.Description,
+				IconURL:                 inserted.IconURL,
+				Transport:               inserted.Transport,
+				Url:                     inserted.Url,
+				AuthType:                inserted.AuthType,
+				OAuth2ClientID:          result.clientID,
+				OAuth2ClientSecret:      result.clientSecret,
+				OAuth2ClientSecretKeyID: sql.NullString{},
+				OAuth2AuthURL:           result.authURL,
+				OAuth2TokenURL:          result.tokenURL,
+				OAuth2Scopes:            oauth2Scopes,
+				APIKeyHeader:            inserted.APIKeyHeader,
+				APIKeyValue:             inserted.APIKeyValue,
+				APIKeyValueKeyID:        inserted.APIKeyValueKeyID,
+				CustomHeaders:           inserted.CustomHeaders,
+				CustomHeadersKeyID:      inserted.CustomHeadersKeyID,
+				ToolAllowList:           inserted.ToolAllowList,
+				ToolDenyList:            inserted.ToolDenyList,
+				Availability:            inserted.Availability,
+				Enabled:                 inserted.Enabled,
+				UpdatedBy:               apiKey.UserID,
+			})
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to update MCP server config with OAuth2 credentials.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+
+			httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfig(updated))
+			return
 		} else if req.OAuth2ClientID == "" || req.OAuth2AuthURL == "" || req.OAuth2TokenURL == "" {
 			// Partial manual config: all three fields are required together.
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

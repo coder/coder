@@ -147,6 +147,7 @@ deduped AS (
         cds.deletions,
         cmc.id AS model_config_id,
         cmc.display_name,
+        cmc.model,
         cmc.provider
     FROM chat_diff_statuses cds
     JOIN chats c ON c.id = cds.chat_id
@@ -159,7 +160,7 @@ deduped AS (
 )
 SELECT
     d.model_config_id,
-    COALESCE(d.display_name, 'Unknown')::text AS display_name,
+    COALESCE(NULLIF(d.display_name, ''), NULLIF(d.model, ''), 'Unknown')::text AS display_name,
     COALESCE(d.provider, 'unknown')::text AS provider,
     COUNT(*)::bigint AS total_prs,
     COUNT(*) FILTER (WHERE d.pull_request_state = 'merged')::bigint AS merged_prs,
@@ -169,7 +170,7 @@ SELECT
     COALESCE(SUM(pc.cost_micros) FILTER (WHERE d.pull_request_state = 'merged'), 0)::bigint AS merged_cost_micros
 FROM deduped d
 JOIN pr_costs pc ON pc.pr_key = d.pr_key
-GROUP BY d.model_config_id, d.display_name, d.provider
+GROUP BY d.model_config_id, d.display_name, d.model, d.provider
 ORDER BY total_prs DESC;
 
 -- name: GetPRInsightsRecentPRs :many
@@ -227,7 +228,7 @@ deduped AS (
         cds.author_login,
         cds.author_avatar_url,
         COALESCE(cds.base_branch, '')::text AS base_branch,
-        COALESCE(cmc.display_name, cmc.model, 'Unknown')::text AS model_display_name,
+        COALESCE(NULLIF(cmc.display_name, ''), NULLIF(cmc.model, ''), 'Unknown')::text AS model_display_name,
         c.created_at
     FROM chat_diff_statuses cds
     JOIN chats c ON c.id = cds.chat_id

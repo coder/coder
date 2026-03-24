@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type * as TypesGen from "api/typesGenerated";
 import type { ChatMessageInputRef } from "components/ChatMessageInput/ChatMessageInput";
 import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
@@ -342,4 +343,116 @@ export const AttachmentsOnly: Story = {
 			initialValue: "",
 		};
 	})(),
+};
+
+// ── MCP server fixtures ────────────────────────────────────────
+
+const now = "2026-03-19T12:00:00.000Z";
+
+const makeMCPServer = (
+	overrides: Partial<TypesGen.MCPServerConfig> &
+		Pick<TypesGen.MCPServerConfig, "id" | "display_name" | "slug">,
+): TypesGen.MCPServerConfig => ({
+	id: overrides.id,
+	display_name: overrides.display_name,
+	slug: overrides.slug,
+	description: overrides.description ?? "",
+	icon_url: overrides.icon_url ?? "",
+	transport: overrides.transport ?? "streamable_http",
+	url: overrides.url ?? "https://mcp.example.com/sse",
+	auth_type: overrides.auth_type ?? "none",
+	oauth2_client_id: overrides.oauth2_client_id,
+	has_oauth2_secret: overrides.has_oauth2_secret ?? false,
+	oauth2_auth_url: overrides.oauth2_auth_url,
+	oauth2_token_url: overrides.oauth2_token_url,
+	oauth2_scopes: overrides.oauth2_scopes,
+	api_key_header: overrides.api_key_header,
+	has_api_key: overrides.has_api_key ?? false,
+	has_custom_headers: overrides.has_custom_headers ?? false,
+	tool_allow_list: overrides.tool_allow_list ?? [],
+	tool_deny_list: overrides.tool_deny_list ?? [],
+	availability: overrides.availability ?? "default_on",
+	enabled: overrides.enabled ?? true,
+	created_at: overrides.created_at ?? now,
+	updated_at: overrides.updated_at ?? now,
+	auth_connected: overrides.auth_connected ?? false,
+});
+
+const sentryMCP = makeMCPServer({
+	id: "mcp-sentry",
+	display_name: "Sentry",
+	slug: "sentry",
+	icon_url: "/icon/widgets.svg",
+	availability: "force_on",
+	auth_type: "oauth2",
+	auth_connected: true,
+	enabled: true,
+});
+
+const linearMCP = makeMCPServer({
+	id: "mcp-linear",
+	display_name: "Linear",
+	slug: "linear",
+	availability: "default_on",
+	auth_type: "api_key",
+	enabled: true,
+});
+
+const githubMCP = makeMCPServer({
+	id: "mcp-github",
+	display_name: "GitHub",
+	slug: "github",
+	icon_url: "/icon/github.svg",
+	availability: "default_on",
+	auth_type: "oauth2",
+	auth_connected: false,
+	enabled: true,
+});
+
+const githubMCPConnected = { ...githubMCP, auth_connected: true };
+
+const mcpDefaults = {
+	onMCPSelectionChange: fn(),
+	onMCPAuthComplete: fn(),
+};
+
+// ── MCP stories ────────────────────────────────────────────────
+
+/** Input with multiple MCP servers selected — shows icon stack in toolbar. */
+export const WithMCPServers: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+	},
+};
+
+/** MCP server needing OAuth — shows Auth button instead of toggle. */
+export const WithMCPNeedingAuth: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [sentryMCP, githubMCP],
+		selectedMCPServerIds: [sentryMCP.id, githubMCP.id],
+	},
+};
+
+/** No MCP servers active — shows only "MCP" label with chevron. */
+export const WithMCPNoneActive: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [
+			{
+				...sentryMCP,
+				availability: "default_off",
+				auth_connected: false,
+			},
+			{
+				...linearMCP,
+				availability: "default_off",
+				auth_type: "oauth2",
+				auth_connected: false,
+			},
+		],
+		selectedMCPServerIds: [],
+	},
 };

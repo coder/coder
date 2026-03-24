@@ -1119,6 +1119,8 @@ jobs:
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
+        with:
+          use-cache: false
 
       - name: Install rcodesign
         run: |

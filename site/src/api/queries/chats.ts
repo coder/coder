@@ -697,7 +697,7 @@ export const deleteChatUsageLimitGroupOverride = (
 
 // ── MCP Server Configs ───────────────────────────────────────
 
-const mcpServerConfigsKey = ["mcp-server-configs"] as const;
+export const mcpServerConfigsKey = ["mcp-server-configs"] as const;
 
 export const mcpServerConfigs = () => ({
 	queryKey: mcpServerConfigsKey,

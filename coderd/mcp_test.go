@@ -509,6 +509,141 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		require.Equal(t, "read write", created.OAuth2Scopes)
 	})
 
+	// Regression test: verify that during dynamic client registration
+	// the redirect_uris sent to the authorization server contain the
+	// real config UUID, NOT the literal string "{id}".  Before the
+	// fix, the callback URL was built before the config row existed,
+	// so it contained "{id}" literally, which caused "redirect URIs
+	// not approved" errors when the user later tried to connect.
+	t.Run("RedirectURIContainsRealConfigID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Buffered channel so the handler never blocks.
+		registeredRedirectURI := make(chan string, 1)
+
+		// Stand up a mock auth server that captures the redirect_uris
+		// from the RFC 7591 Dynamic Client Registration request.
+		authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-authorization-server":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"issuer": "` + "http://" + r.Host + `",
+					"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
+					"token_endpoint": "` + "http://" + r.Host + `/token",
+					"registration_endpoint": "` + "http://" + r.Host + `/register",
+					"response_types_supported": ["code"],
+					"scopes_supported": ["read", "write"]
+				}`))
+			case "/register":
+				if r.Method != http.MethodPost {
+					http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
+
+				// Decode the registration body and capture redirect_uris.
+				var body map[string]interface{}
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					http.Error(w, "bad json", http.StatusBadRequest)
+					return
+				}
+				if uris, ok := body["redirect_uris"].([]interface{}); ok && len(uris) > 0 {
+					if uri, ok := uris[0].(string); ok {
+						registeredRedirectURI <- uri
+					}
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(`{
+					"client_id": "test-client-id",
+					"client_secret": "test-client-secret"
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(authServer.Close)
+
+		// Stand up a mock MCP server that returns RFC 9728 Protected
+		// Resource Metadata pointing to the auth server.
+		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/.well-known/oauth-protected-resource" {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"resource": "` + "http://" + r.Host + `",
+					"authorization_servers": ["` + authServer.URL + `"]
+				}`))
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		t.Cleanup(mcpServer.Close)
+
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		// Create config with auth_type=oauth2 but no OAuth2 fields to
+		// trigger auto-discovery and dynamic client registration.
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:   "Redirect URI Test",
+			Slug:          "redirect-uri-test",
+			Transport:     "streamable_http",
+			URL:           mcpServer.URL + "/v1/mcp",
+			AuthType:      "oauth2",
+			Availability:  "default_on",
+			Enabled:       true,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "test-client-id", created.OAuth2ClientID)
+		require.True(t, created.HasOAuth2Secret)
+
+		// The registration request has already completed by the time
+		// CreateMCPServerConfig returns, so the URI is in the channel.
+		var redirectURI string
+		select {
+		case redirectURI = <-registeredRedirectURI:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for registration redirect URI")
+		}
+
+		// Core assertion: the redirect URI must NOT contain the
+		// literal placeholder "{id}".  Before the fix the callback
+		// URL was built before the database insert, so it had
+		// "{id}" where the UUID should be.
+		require.NotContains(t, redirectURI, "{id}",
+			"redirect URI sent during registration must not contain the literal \"{id}\" placeholder")
+
+		// Verify the redirect URI contains the real config UUID that
+		// was assigned by the database.
+		require.Contains(t, redirectURI, created.ID.String(),
+			"redirect URI should contain the actual config UUID")
+
+		// Sanity-check the full path structure.
+		require.Contains(t, redirectURI,
+			"/api/experimental/mcp/servers/"+created.ID.String()+"/oauth2/callback",
+			"redirect URI should have the expected callback path")
+
+		// Double-check that the ID segment is a valid UUID (not some
+		// other placeholder or malformed value).
+		pathParts := strings.Split(redirectURI, "/")
+		var foundUUID bool
+		for _, part := range pathParts {
+			if _, err := uuid.Parse(part); err == nil {
+				foundUUID = true
+				require.Equal(t, created.ID.String(), part,
+					"UUID in redirect URI path should match created config ID")
+				break
+			}
+		}
+		require.True(t, foundUUID,
+			"redirect URI path should contain a valid UUID segment")
+	})
+
 	t.Run("PartialOAuth2FieldsRejected", func(t *testing.T) {
 		t.Parallel()
 

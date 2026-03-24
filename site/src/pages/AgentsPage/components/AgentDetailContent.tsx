@@ -209,6 +209,10 @@ interface AgentDetailInputProps {
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
 	editingFileBlocks?: readonly TypesGen.ChatMessagePart[];
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	selectedMCPServerIds?: readonly string[];
+	onMCPSelectionChange?: (ids: string[]) => void;
+	onMCPAuthComplete?: (serverId: string) => void;
 }
 
 export const AgentDetailInput: FC<AgentDetailInputProps> = ({
@@ -237,6 +241,10 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 	isEditingHistoryMessage,
 	onCancelHistoryEdit,
 	editingFileBlocks,
+	mcpServers,
+	selectedMCPServerIds,
+	onMCPSelectionChange,
+	onMCPAuthComplete,
 }) => {
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
@@ -374,6 +382,10 @@ export const AgentDetailInput: FC<AgentDetailInputProps> = ({
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			inputStatusText={inputStatusText}
 			modelCatalogStatusMessage={modelCatalogStatusMessage}
+			mcpServers={mcpServers}
+			selectedMCPServerIds={selectedMCPServerIds}
+			onMCPSelectionChange={onMCPSelectionChange}
+			onMCPAuthComplete={onMCPAuthComplete}
 		/>
 	);
 };

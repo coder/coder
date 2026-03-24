@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -369,20 +370,21 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			StartedAt:   now.Add(-time.Hour),
 		}, &now)
 
-		// Admin can see all interceptions.
-		res, err := adminClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
+		// Members cannot read AIBridge interceptions, not even their
+		// own (i2 is owned by secondUser).
+		res, err := secondUserClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
+		require.NoError(t, err)
+		require.EqualValues(t, 0, res.Count)
+		require.Empty(t, res.Results)
+
+		// Owner can see all interceptions, including secondUser's,
+		// proving the data exists and the member was filtered out.
+		res, err = adminClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
 		require.NoError(t, err)
 		require.EqualValues(t, 2, res.Count)
 		require.Len(t, res.Results, 2)
 		require.Equal(t, i1.ID, res.Results[0].ID)
 		require.Equal(t, i2.ID, res.Results[1].ID)
-
-		// Second user can only see their own interceptions.
-		res, err = secondUserClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
-		require.NoError(t, err)
-		require.EqualValues(t, 1, res.Count)
-		require.Len(t, res.Results, 1)
-		require.Equal(t, i2.ID, res.Results[0].ID)
 	})
 
 	t.Run("Filter", func(t *testing.T) {
@@ -581,6 +583,41 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				require.Equal(t, wantIDs, gotIDs)
 			})
 		}
+	})
+
+	t.Run("FilterByMe/MemberCannotReadOwn", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		ownerClient, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
+
+		now := dbtime.Now()
+		// Create an interception initiated by the member.
+		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: member.ID,
+			StartedAt:   now,
+		}, nil)
+
+		// Member cannot read their own interceptions, even when
+		// filtering by "me".
+		res, err := memberClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+			Initiator: codersdk.Me,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 0, res.Count)
+		require.Empty(t, res.Results)
 	})
 
 	t.Run("FilterErrors", func(t *testing.T) {
@@ -1005,12 +1042,36 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.Empty(t, res.Sessions)
 	})
 
+	t.Run("FilterByMe/MemberCannotReadOwn", func(t *testing.T) {
+		t.Parallel()
+		ownerClient, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
+
+		now := dbtime.Now()
+		// Create an interception (session) initiated by the member.
+		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: member.ID,
+			StartedAt:   now,
+		}, nil)
+
+		// Member cannot read their own sessions, even when
+		// filtering by "me".
+		res, err := memberClient.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Initiator: codersdk.Me,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 0, res.Count)
+		require.Empty(t, res.Sessions)
+	})
+
 	t.Run("Authorized", func(t *testing.T) {
 		t.Parallel()
 		adminClient, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		secondUserClient, secondUser := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+		auditorClient, auditorUser := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID, rbac.RoleAuditor())
 
 		now := dbtime.Now()
 		i1EndedAt := now.Add(time.Minute)
@@ -1019,25 +1080,17 @@ func TestAIBridgeListSessions(t *testing.T) {
 			StartedAt:   now,
 		}, &i1EndedAt)
 		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: secondUser.ID,
+			InitiatorID: auditorUser.ID,
 			StartedAt:   now.Add(-time.Hour),
 		}, &now)
 
-		// Admin can see all sessions.
-		//nolint:gocritic // Intentionally testing admin/owner visibility.
-		res, err := adminClient.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		// Site-level auditors can see all sessions.
+		res, err := auditorClient.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
 		require.NoError(t, err)
 		require.EqualValues(t, 2, res.Count)
 		require.Len(t, res.Sessions, 2)
 		require.Equal(t, i1.ID.String(), res.Sessions[0].ID)
 		require.Equal(t, i2.ID.String(), res.Sessions[1].ID)
-
-		// Second user can only see their own sessions.
-		res, err = secondUserClient.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
-		require.NoError(t, err)
-		require.EqualValues(t, 1, res.Count)
-		require.Len(t, res.Sessions, 1)
-		require.Equal(t, i2.ID.String(), res.Sessions[0].ID)
 	})
 
 	t.Run("SessionIDCollisionAcrossUsers", func(t *testing.T) {

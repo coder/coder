@@ -126,6 +126,12 @@ interface AgentDetailViewProps {
 
 	urlTransform?: UrlTransform;
 
+	// MCP server state.
+	mcpServers: readonly TypesGen.MCPServerConfig[];
+	selectedMCPServerIds: readonly string[];
+	onMCPSelectionChange: (ids: string[]) => void;
+	onMCPAuthComplete: (serverId: string) => void;
+
 	// Desktop chat ID (optional).
 	desktopChatId?: string;
 }
@@ -177,6 +183,10 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 	isFetchingMoreMessages,
 	onFetchMoreMessages,
 	urlTransform,
+	mcpServers,
+	selectedMCPServerIds,
+	onMCPSelectionChange,
+	onMCPAuthComplete,
 	desktopChatId,
 }) => {
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
@@ -302,6 +312,10 @@ export const AgentDetailView: FC<AgentDetailViewProps> = ({
 						isEditingHistoryMessage={editing.editingMessageId !== null}
 						onCancelHistoryEdit={editing.handleCancelHistoryEdit}
 						editingFileBlocks={editing.editingFileBlocks}
+						mcpServers={mcpServers}
+						selectedMCPServerIds={selectedMCPServerIds}
+						onMCPSelectionChange={onMCPSelectionChange}
+						onMCPAuthComplete={onMCPAuthComplete}
 					/>
 				</div>
 			</div>
