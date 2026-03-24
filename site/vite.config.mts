@@ -210,6 +210,9 @@ export default defineConfig({
 			// In profiling builds, swap the production react-dom client
 			// bundle for the profiling variant so that <Profiler>
 			// onRender receives actual timing data.
+			// Note: react-dom/profiling is a superset of react-dom/client
+			// (16 vs 3 exports). If a future React major changes this
+			// relationship, the alias may need updating.
 			...(isProfilingBuild
 				? { "react-dom/client": "react-dom/profiling" }
 				: {}),
