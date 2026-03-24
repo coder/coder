@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { AttachmentPreview, type UploadState } from "./AgentChatInput";
 
 // Tiny 1x1 transparent PNG as data URI for previews.
@@ -22,6 +22,7 @@ const meta: Meta<typeof AttachmentPreview> = {
 	args: {
 		onRemove: fn(),
 		onPreview: fn(),
+		onTextPreview: fn(),
 	},
 };
 
@@ -39,6 +40,13 @@ export const SingleImage: Story = {
 			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
 		};
 	})(),
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const thumbnail = await canvas.findByRole("img", { name: "photo.png" });
+		expect(thumbnail).toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("button", { name: "photo.png" }));
+		expect(args.onPreview).toHaveBeenCalledWith(TINY_PNG);
+	},
 };
 
 export const MultipleImages: Story = {
@@ -69,6 +77,10 @@ export const Uploading: Story = {
 			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
 		};
 	})(),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByTitle("Loading spinner")).toBeInTheDocument();
+	},
 };
 
 export const UploadError: Story = {
@@ -82,6 +94,16 @@ export const UploadError: Story = {
 			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
 		};
 	})(),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const overlay = canvas.getByLabelText("Upload error");
+		expect(overlay).toBeInTheDocument();
+		await userEvent.hover(overlay);
+		expect(
+			await body.findByText(/Upload failed: server error/i),
+		).toBeInTheDocument();
+	},
 };
 
 export const FileTooLarge: Story = {
@@ -137,6 +159,18 @@ export const TextAttachment: Story = {
 			]),
 		};
 	})(),
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const textCard = await canvas.findByRole("button", {
+			name: "View text attachment",
+		});
+		expect(textCard).toHaveTextContent(/This is the pasted text content\./i);
+		await userEvent.click(textCard);
+		expect(args.onTextPreview).toHaveBeenCalledWith(
+			"This is the pasted text content.\nIt has multiple lines.\nAnd should be displayed in a readable card format.",
+			"clipboard.txt",
+		);
+	},
 };
 
 export const ThreeTextAttachments: Story = {
@@ -168,6 +202,17 @@ export const ThreeTextAttachments: Story = {
 			]),
 		};
 	})(),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findAllByRole("button", { name: "View text attachment" }),
+		).toHaveLength(3);
+		expect(
+			canvas.getByText(
+				/First pasted document with several lines of content\./i,
+			),
+		).toBeInTheDocument();
+	},
 };
 
 export const ThreeMixedAttachments: Story = {
@@ -216,6 +261,15 @@ export const MixedImageAndText: Story = {
 			]),
 		};
 	})(),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByRole("img", { name: "photo.png" }),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByRole("button", { name: "View text attachment" }),
+		).toBeInTheDocument();
+	},
 };
 
 export const TextAttachmentUploading: Story = {

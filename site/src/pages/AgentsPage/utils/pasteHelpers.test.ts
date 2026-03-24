@@ -5,7 +5,7 @@ import {
 	getPasteDataTransfer,
 	getPastedPlainText,
 	isLargePaste,
-} from "./pasteHelpers";
+} from "../../../components/ChatMessageInput/pasteHelpers";
 
 beforeAll(() => {
 	if (typeof File.prototype.text !== "function") {
