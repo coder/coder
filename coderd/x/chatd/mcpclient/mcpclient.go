@@ -288,6 +288,12 @@ func buildAuthHeaders(
 		if tokenType == "" {
 			tokenType = "Bearer"
 		}
+		// RFC 6750 says the scheme is case-insensitive, but
+		// some servers (e.g. Linear) reject lowercase
+		// "bearer". Normalize to the canonical form.
+		if strings.EqualFold(tokenType, "bearer") {
+			tokenType = "Bearer"
+		}
 		headers["Authorization"] = tokenType + " " + tok.AccessToken
 	case "api_key":
 		if cfg.APIKeyHeader != "" && cfg.APIKeyValue != "" {
