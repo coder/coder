@@ -882,6 +882,43 @@ func TestEditFiles(t *testing.T) {
 			expected: map[string]string{filepath.Join(tmpdir, "ra-exact"): "qux bar qux baz qux"},
 		},
 		{
+			// replace_all with fuzzy trailing-whitespace match.
+			name:     "ReplaceAllFuzzyTrailing",
+			contents: map[string]string{filepath.Join(tmpdir, "ra-fuzzy-trail"): "hello   \nworld\nhello   \nagain"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "ra-fuzzy-trail"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							Search:     "hello\n",
+							Replace:    "bye\n",
+							ReplaceAll: true,
+						},
+					},
+				},
+			},
+			expected: map[string]string{filepath.Join(tmpdir, "ra-fuzzy-trail"): "bye\nworld\nbye\nagain"},
+		},
+		{
+			// replace_all with fuzzy indent match (pass 3).
+			name:     "ReplaceAllFuzzyIndent",
+			contents: map[string]string{filepath.Join(tmpdir, "ra-fuzzy-indent"): "\t\talpha\n\t\tbeta\n\t\talpha\n\t\tgamma"},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "ra-fuzzy-indent"),
+					Edits: []workspacesdk.FileEdit{
+						{
+							// Search uses different indentation (spaces instead of tabs).
+							Search:     "    alpha\n",
+							Replace:    "\t\tREPLACED\n",
+							ReplaceAll: true,
+						},
+					},
+				},
+			},
+			expected: map[string]string{filepath.Join(tmpdir, "ra-fuzzy-indent"): "\t\tREPLACED\n\t\tbeta\n\t\tREPLACED\n\t\tgamma"},
+		},
+		{
 			name:     "MixedWhitespaceMultiline",
 			contents: map[string]string{filepath.Join(tmpdir, "mixed-ws"): "func main() {\n\tresult := compute()\n\tfmt.Println(result)\n}"},
 			edits: []workspacesdk.FileEdits{
