@@ -1,4 +1,4 @@
-export type PasteCommandEvent = ClipboardEvent | InputEvent | KeyboardEvent;
+export type PasteCommandEvent = ClipboardEvent | InputEvent;
 
 /**
  * Returns clipboard-style data transfer content from the different event
@@ -59,11 +59,5 @@ export function createPasteFile(text: string): File {
 		now.getDate(),
 	)}-${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
 	const fileName = `pasted-text-${timestamp}.txt`;
-	const file = new File([text], fileName, { type: "text/plain" });
-	if (typeof file.text !== "function") {
-		Object.defineProperty(file, "text", {
-			value: async () => text,
-		});
-	}
-	return file;
+	return new File([text], fileName, { type: "text/plain" });
 }

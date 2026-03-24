@@ -68,6 +68,36 @@ const DisableFormattingPlugin: FC = memo(function DisableFormattingPlugin() {
 	return null;
 });
 
+function insertPlainTextIntoEditor(editor: LexicalEditor, text: string) {
+	editor.update(() => {
+		const selection = $getSelection();
+		if ($isRangeSelection(selection)) {
+			selection.insertText(text);
+			return;
+		}
+		const root = $getRoot();
+		const lastChild = root.getLastChild();
+		if (lastChild) {
+			if (lastChild.getType() === "paragraph") {
+				const paragraph = lastChild as ParagraphNode;
+				const textNode = $createTextNode(text);
+				paragraph.append(textNode);
+				textNode.selectEnd();
+			} else {
+				const textNode = $createTextNode(text);
+				lastChild.insertAfter(textNode);
+				textNode.selectEnd();
+			}
+		} else {
+			const paragraph = $createParagraphNode();
+			const textNode = $createTextNode(text);
+			paragraph.append(textNode);
+			root.append(paragraph);
+			textNode.selectEnd();
+		}
+	});
+}
+
 // Intercepts paste events and inserts clipboard content as plain text,
 // stripping any rich-text formatting. Image files and large pasted text
 // are forwarded to the parent via the onFilePaste callback instead.
@@ -84,9 +114,10 @@ const PasteSanitizationPlugin: FC<{
 }) {
 	const [editor] = useLexicalComposerContext();
 	const plainTextPasteRef = useRef(false);
+	const plainTextPasteTimeoutRef = useRef<number | null>(null);
 
 	useEffect(() => {
-		return mergeRegister(
+		const unregister = mergeRegister(
 			// Detect Cmd/Ctrl+Shift+V so the PASTE_COMMAND handler
 			// can bypass attachment conversion for that shortcut.
 			editor.registerCommand(
@@ -98,8 +129,12 @@ const PasteSanitizationPlugin: FC<{
 						event.key.toLowerCase() === "v"
 					) {
 						plainTextPasteRef.current = true;
-						setTimeout(() => {
+						if (plainTextPasteTimeoutRef.current !== null) {
+							window.clearTimeout(plainTextPasteTimeoutRef.current);
+						}
+						plainTextPasteTimeoutRef.current = window.setTimeout(() => {
 							plainTextPasteRef.current = false;
+							plainTextPasteTimeoutRef.current = null;
 						}, 500);
 					}
 					return false;
@@ -112,9 +147,14 @@ const PasteSanitizationPlugin: FC<{
 				(event: PasteCommandEvent | null) => {
 					if (!event) return false;
 
+					const isPlainTextPaste = plainTextPasteRef.current;
+					plainTextPasteRef.current = false;
+					if (plainTextPasteTimeoutRef.current !== null) {
+						window.clearTimeout(plainTextPasteTimeoutRef.current);
+						plainTextPasteTimeoutRef.current = null;
+					}
 					const isNativePaste = "clipboardData" in event;
 					const dataTransfer = getPasteDataTransfer(event);
-					const isPlainTextPaste = plainTextPasteRef.current;
 
 					// Some browsers deliver paste as beforeinput with
 					// payload on `event.data` / `dataTransfer` instead of
@@ -135,35 +175,8 @@ const PasteSanitizationPlugin: FC<{
 							onFilePaste(createPasteFile(text));
 							return true;
 						}
-						plainTextPasteRef.current = false;
 						event.preventDefault();
-						editor.update(() => {
-							const selection = $getSelection();
-							if ($isRangeSelection(selection)) {
-								selection.insertText(text);
-								return;
-							}
-							const root = $getRoot();
-							const lastChild = root.getLastChild();
-							if (lastChild) {
-								if (lastChild.getType() === "paragraph") {
-									const paragraph = lastChild as ParagraphNode;
-									const textNode = $createTextNode(text);
-									paragraph.append(textNode);
-									textNode.selectEnd();
-								} else {
-									const textNode = $createTextNode(text);
-									lastChild.insertAfter(textNode);
-									textNode.selectEnd();
-								}
-							} else {
-								const paragraph = $createParagraphNode();
-								const textNode = $createTextNode(text);
-								paragraph.append(textNode);
-								root.append(paragraph);
-								textNode.selectEnd();
-							}
-						});
+						insertPlainTextIntoEditor(editor, text);
 						return true;
 					}
 					// Native paste event (ClipboardEvent).
@@ -196,49 +209,28 @@ const PasteSanitizationPlugin: FC<{
 						onFilePaste &&
 						isLargePaste(text)
 					) {
-						plainTextPasteRef.current = false;
 						event.preventDefault();
 						onFilePaste(createPasteFile(text));
 						return true;
 					}
 
 					// Small paste (or Cmd+Shift+V): insert as plain text.
-					plainTextPasteRef.current = false;
 					event.preventDefault();
-
-					editor.update(() => {
-						const selection = $getSelection();
-						if ($isRangeSelection(selection)) {
-							selection.insertText(text);
-						} else {
-							const root = $getRoot();
-							const lastChild = root.getLastChild();
-							if (lastChild) {
-								if (lastChild.getType() === "paragraph") {
-									const paragraph = lastChild as ParagraphNode;
-									const textNode = $createTextNode(text);
-									paragraph.append(textNode);
-									textNode.selectEnd();
-								} else {
-									const textNode = $createTextNode(text);
-									lastChild.insertAfter(textNode);
-									textNode.selectEnd();
-								}
-							} else {
-								const paragraph = $createParagraphNode();
-								const textNode = $createTextNode(text);
-								paragraph.append(textNode);
-								root.append(paragraph);
-								textNode.selectEnd();
-							}
-						}
-					});
+					insertPlainTextIntoEditor(editor, text);
 
 					return true;
 				},
 				COMMAND_PRIORITY_HIGH,
 			),
 		);
+
+		return () => {
+			if (plainTextPasteTimeoutRef.current !== null) {
+				window.clearTimeout(plainTextPasteTimeoutRef.current);
+				plainTextPasteTimeoutRef.current = null;
+			}
+			unregister();
+		};
 	}, [allowTextAttachmentPaste, editor, onFilePaste]);
 
 	return null;
