@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -2579,7 +2579,7 @@ func allowedChatFileMIMETypesStr() string {
 			types = append(types, t)
 		}
 	}
-	sort.Strings(types)
+	slices.Sort(types)
 	return strings.Join(types, ", ")
 }
 

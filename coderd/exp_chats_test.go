@@ -4086,6 +4086,7 @@ func TestGetChatFile(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		require.Equal(t, "private, max-age=31536000, immutable", res.Header.Get("Cache-Control"))
+		require.Equal(t, "nosniff", res.Header.Get("X-Content-Type-Options"))
 		require.Contains(t, res.Header.Get("Content-Disposition"), "inline")
 		require.Contains(t, res.Header.Get("Content-Disposition"), "test.png")
 	})
