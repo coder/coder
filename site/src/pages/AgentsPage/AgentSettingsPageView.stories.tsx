@@ -862,14 +862,6 @@ export const NoWarningForCleanPrompt: Story = {
 
 // ── Templates tab stories ──────────────────────────────────────
 
-export const TemplatesSection: Story = {
-	args: {
-		activeSection: "templates",
-		canManageChatModelConfigs: true,
-		canSetSystemPrompt: true,
-	},
-};
-
 const manyTemplates = [
 	{ id: "t-01", name: "docker-dev", display_name: "Docker Development" },
 	{
@@ -891,22 +883,102 @@ const manyTemplates = [
 		name: "frontend-vite",
 		display_name: "Frontend (Vite + React)",
 	},
-	{ id: "t-09", name: "golang-api", display_name: "Go API Service" },
-	{ id: "t-10", name: "rust-embedded", display_name: "Rust Embedded" },
-	{ id: "t-11", name: "java-spring", display_name: "Java Spring Boot" },
-	{ id: "t-12", name: "ios-xcode", display_name: "iOS (Xcode Cloud)" },
 ].map((t) => ({ ...MockTemplate, ...t }));
 
-export const TemplatesManySelected: Story = {
+export const TemplateAllowlist: Story = {
 	args: {
 		activeSection: "templates",
 		canManageChatModelConfigs: true,
 		canSetSystemPrompt: true,
 	},
 	beforeEach: () => {
+		// Track saved allowlist state across mock calls so the
+		// refetch after save returns the updated value.
+		let savedIDs: string[] = [];
+
 		spyOn(API, "getTemplates").mockResolvedValue(manyTemplates);
-		spyOn(API.experimental, "getChatTemplateAllowlist").mockResolvedValue({
-			template_ids: manyTemplates.slice(0, 8).map((t) => t.id),
+		spyOn(API.experimental, "getChatTemplateAllowlist").mockImplementation(
+			async () => ({ template_ids: savedIDs }),
+		);
+		spyOn(API.experimental, "updateChatTemplateAllowlist").mockImplementation(
+			async (req) => {
+				savedIDs = [...req.template_ids];
+			},
+		);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("starts empty", async () => {
+			// Status text confirms no restrictions.
+			await canvas.findByText(/no templates selected/i);
+			// Save is disabled — nothing to save.
+			const saveBtn = await canvas.findByRole("button", { name: "Save" });
+			expect(saveBtn).toBeDisabled();
+		});
+
+		await step("select one template and save", async () => {
+			// Open the combobox.
+			const input = canvas.getByPlaceholderText("Select templates...");
+			await userEvent.click(input);
+			// Pick the first template from the dropdown.
+			await userEvent.click(
+				await canvas.findByRole("option", { name: "Docker Development" }),
+			);
+			// Badge pill should appear and status should update.
+			await waitFor(() => {
+				expect(canvas.getByText("1 template selected")).toBeInTheDocument();
+			});
+			// Save should now be enabled.
+			const saveBtn = canvas.getByRole("button", { name: "Save" });
+			expect(saveBtn).toBeEnabled();
+			await userEvent.click(saveBtn);
+			await waitFor(() => {
+				expect(
+					API.experimental.updateChatTemplateAllowlist,
+				).toHaveBeenCalledWith({ template_ids: ["t-01"] });
+			});
+		});
+
+		await step("add the remaining seven and save", async () => {
+			// Open the combobox again.
+			const input = canvas.getByLabelText("Select allowed templates");
+			await userEvent.click(input);
+			// Select the other seven templates one by one.
+			for (const name of [
+				"Kubernetes Production",
+				"AWS Windows Desktop",
+				"GCP Linux Workspace",
+				"Azure .NET Environment",
+				"ML Jupyter Notebook",
+				"Data Engineering (Spark)",
+				"Frontend (Vite + React)",
+			]) {
+				await userEvent.click(await canvas.findByRole("option", { name }));
+			}
+			// All eight should now be selected.
+			await waitFor(() => {
+				expect(canvas.getByText("8 templates selected")).toBeInTheDocument();
+			});
+			// Save.
+			const saveBtn = canvas.getByRole("button", { name: "Save" });
+			await userEvent.click(saveBtn);
+			await waitFor(() => {
+				expect(
+					API.experimental.updateChatTemplateAllowlist,
+				).toHaveBeenLastCalledWith({
+					template_ids: expect.arrayContaining([
+						"t-01",
+						"t-02",
+						"t-03",
+						"t-04",
+						"t-05",
+						"t-06",
+						"t-07",
+						"t-08",
+					]),
+				});
+			});
 		});
 	},
 };
