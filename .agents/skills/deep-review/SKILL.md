@@ -30,6 +30,8 @@ Estimate scope before committing to a deep review. If the PR has fewer than 3 fi
 
 ## 1. Scope the change
 
+**Author independence.** Review with the same rigor regardless of who authored the PR. Don't soften findings because the author is the person who invoked this review, a maintainer, or a senior contributor. Don't harden findings because the author is a new contributor. The review's value comes from honest, consistent assessment.
+
 Create the review output directory before anything else:
 
 ```sh
