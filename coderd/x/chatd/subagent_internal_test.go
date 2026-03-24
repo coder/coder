@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -17,10 +18,13 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestComputerUseSubagentSystemPrompt(t *testing.T) {
@@ -76,6 +80,16 @@ func newInternalTestServer(
 	ps pubsub.Pubsub,
 	keys chatprovider.ProviderAPIKeys,
 ) *Server {
+	return newInternalTestServerWithClock(t, db, ps, keys, nil)
+}
+
+func newInternalTestServerWithClock(
+	t *testing.T,
+	db database.Store,
+	ps pubsub.Pubsub,
+	keys chatprovider.ProviderAPIKeys,
+	clk quartz.Clock,
+) *Server {
 	t.Helper()
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -84,6 +98,7 @@ func newInternalTestServer(
 		Database:  db,
 		ReplicaID: uuid.New(),
 		Pubsub:    ps,
+		Clock:     clk,
 		// Use a very long interval so the background loop
 		// does not interfere with test assertions.
 		PendingChatAcquireInterval: testutil.WaitLong,
@@ -467,4 +482,355 @@ func TestIsSubagentDescendant(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// createParentChildChats creates a parent and child chat pair for
+// subagent tests. The child starts in pending status.
+func createParentChildChats(
+	ctx context.Context,
+	t *testing.T,
+	server *Server,
+	user database.User,
+	model database.ChatModelConfig,
+) (parent database.Chat, child database.Chat) {
+	t.Helper()
+
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OwnerID:            user.ID,
+		Title:              "parent-" + t.Name(),
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	child, err = server.CreateChat(ctx, CreateOptions{
+		OwnerID: user.ID,
+		ParentChatID: uuid.NullUUID{
+			UUID:  parent.ID,
+			Valid: true,
+		},
+		RootChatID: uuid.NullUUID{
+			UUID:  parent.ID,
+			Valid: true,
+		},
+		Title:              "child-" + t.Name(),
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("do work")},
+	})
+	require.NoError(t, err)
+
+	return parent, child
+}
+
+// setChatStatus transitions a chat to the given status.
+func setChatStatus(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	chatID uuid.UUID,
+	status database.ChatStatus,
+	lastError string,
+) {
+	t.Helper()
+
+	params := database.UpdateChatStatusParams{
+		ID:     chatID,
+		Status: status,
+	}
+	if lastError != "" {
+		params.LastError = sql.NullString{String: lastError, Valid: true}
+	}
+	_, err := db.UpdateChatStatus(ctx, params)
+	require.NoError(t, err)
+}
+
+// insertAssistantMessage inserts an assistant message with v1 content
+// into a chat.
+func insertAssistantMessage(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	chatID uuid.UUID,
+	modelID uuid.UUID,
+	text string,
+) {
+	t.Helper()
+
+	parts := []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)}
+	data, err := json.Marshal(parts)
+	require.NoError(t, err)
+
+	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              chatID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+		Content:             []string{string(data)},
+		ContentVersion:      []int16{chatprompt.ContentVersionV1},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{0},
+		RuntimeMs:           []int64{0},
+	})
+	require.NoError(t, err)
+}
+
+func TestAwaitSubagentCompletion(t *testing.T) {
+	t.Parallel()
+
+	// Shared fixtures for subtests that use a real clock. Each
+	// subtest creates its own parent+child chats (unique IDs)
+	// so they don't collide. Mock-clock subtests need their own
+	// DB and server because the Server's background tickers
+	// also use the mock clock.
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	ctx := chatdTestContext(t)
+	user, model := seedInternalChatDeps(ctx, t, db)
+
+	t.Run("NotDescendant", func(t *testing.T) {
+		t.Parallel()
+		ctx := chatdTestContext(t)
+
+		parent, _ := createParentChildChats(ctx, t, server, user, model)
+
+		unrelated, err := server.CreateChat(ctx, CreateOptions{
+			OwnerID:            user.ID,
+			Title:              "unrelated",
+			ModelConfigID:      model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("other")},
+		})
+		require.NoError(t, err)
+
+		_, _, err = server.awaitSubagentCompletion(
+			ctx, parent.ID, unrelated.ID, time.Second,
+		)
+		require.ErrorIs(t, err, ErrSubagentNotDescendant)
+	})
+
+	t.Run("AlreadyWaiting", func(t *testing.T) {
+		t.Parallel()
+		ctx := chatdTestContext(t)
+
+		parent, child := createParentChildChats(ctx, t, server, user, model)
+
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+		insertAssistantMessage(ctx, t, db, child.ID, model.ID, "task complete")
+
+		gotChat, report, err := server.awaitSubagentCompletion(
+			ctx, parent.ID, child.ID, time.Second,
+		)
+		require.NoError(t, err)
+		assert.Equal(t, child.ID, gotChat.ID)
+		assert.Equal(t, database.ChatStatusWaiting, gotChat.Status)
+		assert.Equal(t, "task complete", report)
+	})
+
+	t.Run("AlreadyError", func(t *testing.T) {
+		t.Parallel()
+		ctx := chatdTestContext(t)
+
+		parent, child := createParentChildChats(ctx, t, server, user, model)
+
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusError, "something broke")
+		insertAssistantMessage(ctx, t, db, child.ID, model.ID, "partial work done")
+
+		_, _, err := server.awaitSubagentCompletion(
+			ctx, parent.ID, child.ID, time.Second,
+		)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "partial work done")
+	})
+
+	t.Run("AlreadyErrorNoReport", func(t *testing.T) {
+		t.Parallel()
+		ctx := chatdTestContext(t)
+
+		parent, child := createParentChildChats(ctx, t, server, user, model)
+
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusError, "crash")
+
+		_, _, err := server.awaitSubagentCompletion(
+			ctx, parent.ID, child.ID, time.Second,
+		)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "agent reached error status")
+	})
+
+	t.Run("CompletesViaPoll", func(t *testing.T) {
+		t.Parallel()
+
+		// Use nil pubsub so awaitSubagentCompletion falls back to
+		// the fast 200ms poll interval.
+		db, _ := dbtestutil.NewDB(t)
+		mClock := quartz.NewMock(t)
+		server := newInternalTestServerWithClock(t, db, nil, chatprovider.ProviderAPIKeys{}, mClock)
+		ctx := chatdTestContext(t)
+		user, model := seedInternalChatDeps(ctx, t, db)
+
+		parent, child := createParentChildChats(ctx, t, server, user, model)
+
+		// Set the trap BEFORE starting the goroutine so we
+		// deterministically catch the ticker creation.
+		tickTrap := mClock.Trap().NewTicker("chatd", "subagent_poll")
+
+		type awaitResult struct {
+			chat   database.Chat
+			report string
+			err    error
+		}
+		resultCh := make(chan awaitResult, 1)
+		go func() {
+			chat, report, err := server.awaitSubagentCompletion(
+				ctx, parent.ID, child.ID, 5*time.Second,
+			)
+			resultCh <- awaitResult{chat, report, err}
+		}()
+
+		// Wait for the poll ticker to be created, confirming
+		// the function passed its initial check and entered
+		// the loop. Then release the call.
+		tickTrap.MustWait(ctx).MustRelease(ctx)
+		tickTrap.Close()
+
+		// Now set the state and advance the clock to the next
+		// tick so the poll detects the transition.
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+		insertAssistantMessage(ctx, t, db, child.ID, model.ID, "poll result")
+		mClock.Advance(subagentAwaitPollInterval).MustWait(ctx)
+
+		result := testutil.RequireReceive(ctx, t, resultCh)
+		require.NoError(t, result.err)
+		assert.Equal(t, child.ID, result.chat.ID)
+		assert.Equal(t, "poll result", result.report)
+	})
+
+	t.Run("CompletesViaPubsub", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		mClock := quartz.NewMock(t)
+		server := newInternalTestServerWithClock(t, db, ps, chatprovider.ProviderAPIKeys{}, mClock)
+		ctx := chatdTestContext(t)
+		user, model := seedInternalChatDeps(ctx, t, db)
+
+		parent, child := createParentChildChats(ctx, t, server, user, model)
+
+		// Trap the fallback poll ticker to know when the
+		// function has subscribed to pubsub and entered
+		// its select loop.
+		tickTrap := mClock.Trap().NewTicker("chatd", "subagent_poll")
+
+		type awaitResult struct {
+			chat   database.Chat
+			report string
+			err    error
+		}
+		resultCh := make(chan awaitResult, 1)
+		go func() {
+			chat, report, err := server.awaitSubagentCompletion(
+				ctx, parent.ID, child.ID, 5*time.Second,
+			)
+			resultCh <- awaitResult{chat, report, err}
+		}()
+
+		// Wait for the ticker to be created (confirms pubsub
+		// subscription is set up and select loop entered).
+		tickTrap.MustWait(ctx).MustRelease(ctx)
+		tickTrap.Close()
+
+		// Transition child and publish. The pubsub notification
+		// wakes the function without needing a clock advance.
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+		insertAssistantMessage(ctx, t, db, child.ID, model.ID, "pubsub result")
+		_ = ps.Publish(
+			coderdpubsub.ChatStreamNotifyChannel(child.ID),
+			[]byte("done"),
+		)
+
+		result := testutil.RequireReceive(ctx, t, resultCh)
+		require.NoError(t, result.err)
+		assert.Equal(t, child.ID, result.chat.ID)
+		assert.Equal(t, "pubsub result", result.report)
+	})
+
+	t.Run("Timeout", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		mClock := quartz.NewMock(t)
+		server := newInternalTestServerWithClock(t, db, ps, chatprovider.ProviderAPIKeys{}, mClock)
+		ctx := chatdTestContext(t)
+		user, model := seedInternalChatDeps(ctx, t, db)
+
+		parent, child := createParentChildChats(ctx, t, server, user, model)
+
+		// Trap the timeout timer to know when the function
+		// has entered its poll loop.
+		timerTrap := mClock.Trap().NewTimer("chatd", "subagent_await")
+
+		type awaitResult struct {
+			err error
+		}
+		resultCh := make(chan awaitResult, 1)
+		go func() {
+			_, _, err := server.awaitSubagentCompletion(
+				ctx, parent.ID, child.ID, time.Second,
+			)
+			resultCh <- awaitResult{err}
+		}()
+
+		// Wait for the timer to be created, release it.
+		timerTrap.MustWait(ctx).MustRelease(ctx)
+		timerTrap.Close()
+
+		// Advance to the timeout. With pubsub, the fallback
+		// poll is at 5s, so the 1s timer fires first.
+		mClock.Advance(time.Second).MustWait(ctx)
+
+		result := testutil.RequireReceive(ctx, t, resultCh)
+		require.Error(t, result.err)
+		assert.Contains(t, result.err.Error(), "timed out waiting for delegated subagent completion")
+	})
+
+	t.Run("ContextCanceled", func(t *testing.T) {
+		t.Parallel()
+		ctx := chatdTestContext(t)
+
+		parent, child := createParentChildChats(ctx, t, server, user, model)
+
+		// Use a short-lived context instead of goroutine + sleep.
+		shortCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)
+		defer cancel()
+
+		_, _, err := server.awaitSubagentCompletion(
+			shortCtx, parent.ID, child.ID, 5*time.Second,
+		)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+	})
+
+	t.Run("ZeroTimeoutUsesDefault", func(t *testing.T) {
+		t.Parallel()
+		ctx := chatdTestContext(t)
+
+		parent, child := createParentChildChats(ctx, t, server, user, model)
+
+		// Pre-complete the child so it returns immediately.
+		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
+		insertAssistantMessage(ctx, t, db, child.ID, model.ID, "zero timeout ok")
+
+		gotChat, report, err := server.awaitSubagentCompletion(
+			ctx, parent.ID, child.ID, 0,
+		)
+		require.NoError(t, err)
+		assert.Equal(t, child.ID, gotChat.ID)
+		assert.Equal(t, "zero timeout ok", report)
+	})
 }
