@@ -128,7 +128,7 @@ const InlineTextAttachmentButton: FC<{
 		<button
 			type="button"
 			aria-label="View text attachment"
-			className="inline-flex max-w-sm items-start gap-2 rounded-md border-0 bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary"
+			className="inline-flex max-w-sm items-start gap-2 rounded-md border-0 bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
 			onClick={(e) => {
 				e.stopPropagation();
 				onPreview?.(content);

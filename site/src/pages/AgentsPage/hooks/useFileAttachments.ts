@@ -15,7 +15,7 @@ interface UseFileAttachmentsReturn {
 	uploadStates: Map<File, UploadState>;
 	previewUrls: Map<File, string>;
 	handleAttach: (files: File[]) => void;
-	handleRemoveAttachment: (index: number) => void;
+	handleRemoveAttachment: (attachment: number | File) => void;
 	startUpload: (file: File) => void;
 	resetAttachments: () => void;
 	setAttachments: Dispatch<SetStateAction<File[]>>;
@@ -137,28 +137,32 @@ export function useFileAttachments(
 		}
 	};
 
-	const handleRemoveAttachment = (index: number) => {
+	const handleRemoveAttachment = (attachment: number | File) => {
 		setAttachments((prev) => {
-			const removed = prev[index];
-			if (removed) {
-				setUploadStates((prevStates) => {
-					const next = new Map(prevStates);
-					next.delete(removed);
-					return next;
-				});
-				setPreviewUrls((prevUrls) => {
-					const url = prevUrls.get(removed);
-					if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
-					const next = new Map(prevUrls);
-					next.delete(removed);
-					return next;
-				});
-				setTextContents((prevContents) => {
-					const next = new Map(prevContents);
-					next.delete(removed);
-					return next;
-				});
+			const index =
+				typeof attachment === "number" ? attachment : prev.indexOf(attachment);
+			if (index === -1) {
+				return prev;
 			}
+
+			const removed = prev[index];
+			setUploadStates((prevStates) => {
+				const next = new Map(prevStates);
+				next.delete(removed);
+				return next;
+			});
+			setPreviewUrls((prevUrls) => {
+				const url = prevUrls.get(removed);
+				if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+				const next = new Map(prevUrls);
+				next.delete(removed);
+				return next;
+			});
+			setTextContents((prevContents) => {
+				const next = new Map(prevContents);
+				next.delete(removed);
+				return next;
+			});
 			return prev.filter((_, i) => i !== index);
 		});
 	};

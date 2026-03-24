@@ -3,11 +3,13 @@ import type { FC } from "react";
 
 interface TextPreviewDialogProps {
 	content: string;
+	fileName?: string;
 	onClose: () => void;
 }
 
 export const TextPreviewDialog: FC<TextPreviewDialogProps> = ({
 	content,
+	fileName,
 	onClose,
 }) => {
 	return (
@@ -17,7 +19,7 @@ export const TextPreviewDialog: FC<TextPreviewDialogProps> = ({
 				aria-describedby={undefined}
 			>
 				<DialogTitle className="px-4 py-3 border-b border-border-default text-sm font-medium">
-					Pasted text
+					{fileName ?? "Pasted text"}
 				</DialogTitle>
 				<div className="overflow-auto p-4 max-h-[calc(85vh-3rem)]">
 					<pre className="whitespace-pre-wrap break-words text-sm text-content-primary font-mono m-0">

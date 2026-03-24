@@ -117,7 +117,7 @@ interface AgentChatInputProps {
 	contextUsage?: AgentContextUsage | null;
 	attachments?: readonly File[];
 	onAttach?: (files: File[]) => void;
-	onRemoveAttachment?: (index: number) => void;
+	onRemoveAttachment?: (attachment: number | File) => void;
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
 	textContents?: Map<File, string>;
@@ -269,7 +269,7 @@ export const ImageThumbnail: FC<{
 /** Renders a horizontal strip of attachment thumbnails above the input. */
 export const AttachmentPreview: FC<{
 	attachments: readonly File[];
-	onRemove: (index: number) => void;
+	onRemove: (attachment: number | File) => void;
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
 	onPreview?: (url: string) => void;
@@ -286,18 +286,42 @@ export const AttachmentPreview: FC<{
 	onTextPreview,
 	onInlineText,
 }) => {
+	const textAttachmentLoadControllerRef = useRef<AbortController | null>(null);
+
+	useEffect(() => {
+		return () => textAttachmentLoadControllerRef.current?.abort();
+	}, []);
+
 	if (attachments.length === 0) return null;
 
 	const loadTextAttachmentContent = async (
 		content: string | undefined,
 		fileId: string | undefined,
 	): Promise<string | undefined> => {
+		textAttachmentLoadControllerRef.current?.abort();
 		if (content !== undefined || !fileId) {
+			textAttachmentLoadControllerRef.current = null;
 			return content;
 		}
+		const controller = new AbortController();
+		textAttachmentLoadControllerRef.current = controller;
 		try {
-			return await fetchTextAttachmentContent(fileId);
-		} catch {
+			const fetchedContent = await fetchTextAttachmentContent(
+				fileId,
+				controller.signal,
+			);
+			if (textAttachmentLoadControllerRef.current === controller) {
+				textAttachmentLoadControllerRef.current = null;
+			}
+			return fetchedContent;
+		} catch (err) {
+			if (textAttachmentLoadControllerRef.current === controller) {
+				textAttachmentLoadControllerRef.current = null;
+			}
+			if (err instanceof Error && err.name === "AbortError") {
+				return undefined;
+			}
+			console.error("Failed to load text attachment:", err);
 			return undefined;
 		}
 	};
@@ -331,7 +355,8 @@ export const AttachmentPreview: FC<{
 						) : hasTextAttachment ? (
 							<button
 								type="button"
-								className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary"
+								aria-label="View text attachment"
+								className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
 								onClick={async () => {
 									const nextContent = await loadTextAttachmentContent(
 										textContent,
@@ -363,7 +388,6 @@ export const AttachmentPreview: FC<{
 								}}
 								className="absolute -bottom-2 -right-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
 								aria-label="Paste inline"
-								tabIndex={-1}
 							>
 								<ClipboardPasteIcon className="h-3.5 w-3.5" />
 							</button>
@@ -449,6 +473,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
+	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
+		null,
+	);
 
 	const [hasFileReferences, setHasFileReferences] = useState(false);
 
@@ -487,14 +514,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	};
 
 	const handleInlineText = (file: File, nextContent?: string) => {
-		const index = attachments.indexOf(file);
-		if (index === -1) return;
 		const content = nextContent ?? textContents?.get(file);
 		if (content === undefined) return;
 		const editor = internalRef.current;
 		if (!editor) return;
 		editor.insertText(content);
-		onRemoveAttachment?.(index);
+		onRemoveAttachment?.(file);
 	};
 
 	const handleTextPreview = (content: string, fileName: string) => {
@@ -502,6 +527,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			onTextPreview(content, fileName);
 		} else {
 			setPreviewText(content);
+			setPreviewTextFileName(fileName);
 		}
 	};
 
@@ -897,7 +923,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			{previewText !== null && (
 				<TextPreviewDialog
 					content={previewText}
-					onClose={() => setPreviewText(null)}
+					fileName={previewTextFileName ?? undefined}
+					onClose={() => {
+						setPreviewText(null);
+						setPreviewTextFileName(null);
+					}}
 				/>
 			)}
 		</>
