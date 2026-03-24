@@ -59,5 +59,12 @@ export function createPasteFile(text: string): File {
 		now.getDate(),
 	)}-${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
 	const fileName = `pasted-text-${timestamp}.txt`;
-	return new File([text], fileName, { type: "text/plain" });
+	const file = new File([text], fileName, { type: "text/plain" });
+	// Defensive: jsdom's File does not inherit Blob.prototype.text().
+	if (typeof file.text !== "function") {
+		Object.defineProperty(file, "text", {
+			value: () => Promise.resolve(text),
+		});
+	}
+	return file;
 }
