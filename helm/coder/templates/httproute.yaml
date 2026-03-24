@@ -24,3 +24,4 @@ spec:
     {{- with .Values.coder.httproute.wildcardHost }}
     - {{ . | quote }}
     {{- end }}
+{{- end }}
