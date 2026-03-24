@@ -81,6 +81,21 @@ function toBoundary(from: Date, to: Date): DateRangeValue {
 	return { startDate: start, endDate: end };
 }
 
+/**
+ * Reverse the boundary normalization so the calendar highlights the
+ * inclusive end date the user originally selected, not the exclusive
+ * API boundary. Midnight boundaries get shifted back by one day;
+ * sub-day boundaries (today's rounded-up hour) stay on the same day.
+ */
+function fromBoundary(value: DateRangeValue): DayPickerDateRange {
+	const from = dayjs(value.startDate).startOf("day").toDate();
+	const endDayjs = dayjs(value.endDate);
+	const to = endDayjs.isSame(endDayjs.startOf("day"))
+		? endDayjs.subtract(1, "day").toDate()
+		: endDayjs.toDate();
+	return { from, to };
+}
+
 export const DateRangePicker: FC<DateRangePickerProps> = ({
 	value,
 	onChange,
@@ -89,12 +104,10 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	const [open, setOpen] = useState(false);
 
 	// Internal selection state kept separate from the committed value
-	// so the user can freely adjust the range before applying.
+	// so the user can freely adjust the range before applying. This
+	// uses raw calendar dates (inclusive), not the API boundary format.
 	const [selection, setSelection] = useState<DayPickerDateRange | undefined>(
-		() => ({
-			from: value.startDate,
-			to: value.endDate,
-		}),
+		() => fromBoundary(value),
 	);
 
 	const commit = () => {
@@ -118,19 +131,23 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 	};
 
 	// Sync local selection when the popover opens so it reflects the
-	// latest committed value.
+	// latest committed value. Reverse the boundary normalization so
+	// the calendar highlights the correct inclusive dates.
 	const handleOpenChange = (next: boolean) => {
 		if (next) {
-			setSelection({ from: value.startDate, to: value.endDate });
+			setSelection(fromBoundary(value));
 		}
 		setOpen(next);
 	};
 
+	// Compare in the same coordinate space (raw calendar dates) so
+	// re-selecting the identical range doesn't enable Apply.
+	const committed = fromBoundary(value);
 	const canApply =
 		selection?.from &&
 		selection?.to &&
-		(selection.from.getTime() !== value.startDate.getTime() ||
-			selection.to.getTime() !== value.endDate.getTime());
+		(selection.from.getTime() !== committed.from?.getTime() ||
+			selection.to.getTime() !== committed.to?.getTime());
 
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
@@ -143,7 +160,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
-				className="w-auto p-0 overflow-hidden"
+				className="w-auto p-0 overflow-x-hidden overflow-y-auto"
 				align="end"
 				onOpenAutoFocus={(e) => e.preventDefault()}
 			>

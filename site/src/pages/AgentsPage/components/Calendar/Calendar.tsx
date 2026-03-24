@@ -138,10 +138,16 @@ function Calendar({
 				...classNames,
 			}}
 			components={{
-				Chevron: ({ className, orientation, ...chevronProps }) => {
+				Chevron: ({
+					className,
+					orientation,
+					size: _size,
+					disabled: _disabled,
+					...rest
+				}) => {
 					const Icon =
 						orientation === "left" ? ChevronLeftIcon : ChevronRightIcon;
-					return <Icon className={cn("size-4", className)} {...chevronProps} />;
+					return <Icon className={cn("size-4", className)} {...rest} />;
 				},
 				DayButton: CalendarDayButton,
 				WeekNumber: ({ children, ...weekProps }) => (
