@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type * as TypesGen from "api/typesGenerated";
-import type { ChatMessageInputRef } from "components/ChatMessageInput/ChatMessageInput";
 import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import type { ChatMessageInputRef } from "#/components/ChatMessageInput/ChatMessageInput";
 import { AgentChatInput, type UploadState } from "./AgentChatInput";
 
 const defaultModelOptions = [

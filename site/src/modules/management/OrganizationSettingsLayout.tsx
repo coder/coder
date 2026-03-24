@@ -1,15 +1,5 @@
 import { organizationsPermissions } from "api/queries/organizations";
 import type { Organization } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
-import {
-	Breadcrumb,
-	BreadcrumbItem,
-	BreadcrumbList,
-	BreadcrumbPage,
-	BreadcrumbSeparator,
-} from "components/Breadcrumb/Breadcrumb";
-import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	canViewOrganization,
@@ -19,6 +9,16 @@ import NotFoundPage from "pages/404Page/404Page";
 import { createContext, type FC, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from "#/components/Breadcrumb/Breadcrumb";
+import { Loader } from "#/components/Loader/Loader";
 
 export const OrganizationSettingsContext = createContext<
 	OrganizationSettingsValue | undefined

@@ -1,9 +1,5 @@
 import TextField from "@mui/material/TextField";
 import type { UpdateUserProfileRequest } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { Form, FormFields } from "components/Form/Form";
-import { Spinner } from "components/Spinner/Spinner";
 import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
 import {
@@ -12,6 +8,10 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { Form, FormFields } from "#/components/Form/Form";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 export const Language = {
 	usernameLabel: "Username",

@@ -1,8 +1,10 @@
 import type { BannerConfig } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Link } from "components/Link/Link";
+import { PlusIcon } from "lucide-react";
+import { type FC, useState } from "react";
+import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Link } from "#/components/Link/Link";
 import {
 	Table,
 	TableBody,
@@ -10,9 +12,7 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { PlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+} from "#/components/Table/Table";
 import { AnnouncementBannerDialog } from "./AnnouncementBannerDialog";
 import { AnnouncementBannerItem } from "./AnnouncementBannerItem";
 

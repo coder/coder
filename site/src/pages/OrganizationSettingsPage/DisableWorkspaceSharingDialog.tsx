@@ -1,6 +1,8 @@
 import { API } from "api/api";
 import type { ShareableWorkspaceOwners } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
+import type { FC } from "react";
+import { useQuery } from "react-query";
+import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
 	DialogContent,
@@ -8,11 +10,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "components/Dialog/Dialog";
-import { Skeleton } from "components/Skeleton/Skeleton";
-import { Spinner } from "components/Spinner/Spinner";
-import type { FC } from "react";
-import { useQuery } from "react-query";
+} from "#/components/Dialog/Dialog";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { Spinner } from "#/components/Spinner/Spinner";
 
 interface DisableWorkspaceSharingDialogProps {
 	isOpen: boolean;

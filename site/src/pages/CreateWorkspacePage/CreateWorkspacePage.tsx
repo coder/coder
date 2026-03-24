@@ -15,7 +15,6 @@ import type {
 	PreviewParameter,
 	Workspace,
 } from "api/typesGenerated";
-import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { getInitialParameterValues } from "modules/workspaces/DynamicParameter/DynamicParameter";
@@ -32,6 +31,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
+import { Loader } from "#/components/Loader/Loader";
 import { AutoCreateConsentDialog } from "./AutoCreateConsentDialog";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 import {

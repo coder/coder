@@ -1,12 +1,12 @@
 import { type Theme, useTheme } from "@emotion/react";
+import { ExternalLinkIcon } from "lucide-react";
+import { type FC, useState } from "react";
+import { Link } from "react-router";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { ExternalLinkIcon } from "lucide-react";
-import { type FC, useState } from "react";
-import { Link } from "react-router";
+} from "#/components/Tooltip/Tooltip";
 import { Bar } from "./Chart/Bar";
 import {
 	Chart,

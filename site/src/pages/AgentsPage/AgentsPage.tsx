@@ -15,7 +15,6 @@ import {
 } from "api/queries/chats";
 import { workspaceById } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "hooks";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useEffect, useRef, useState } from "react";
@@ -28,6 +27,7 @@ import {
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { createReconnectingWebSocket } from "utils/reconnectingWebSocket";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { maybePlayChime } from "./components/AgentDetail/useAgentChime";

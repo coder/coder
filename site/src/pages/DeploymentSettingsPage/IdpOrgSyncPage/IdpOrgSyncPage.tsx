@@ -4,10 +4,6 @@ import {
 	organizationIdpSyncSettings,
 	patchOrganizationSyncSettings,
 } from "api/queries/idpsync";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { Link } from "components/Link/Link";
-import { Loader } from "components/Loader/Loader";
-import { PaywallPremium } from "components/Paywall/PaywallPremium";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useEffect, useState } from "react";
@@ -15,6 +11,10 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
+import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
+import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpOrgSyncPageView } from "./IdpOrgSyncPageView";
 

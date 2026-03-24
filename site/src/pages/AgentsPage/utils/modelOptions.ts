@@ -1,6 +1,6 @@
 import type * as TypesGen from "api/typesGenerated";
-import type { ModelSelectorOption } from "components/ai-elements";
-import { asNumber, asString } from "components/ai-elements/runtimeTypeUtils";
+import type { ModelSelectorOption } from "#/components/ai-elements";
+import { asNumber, asString } from "#/components/ai-elements/runtimeTypeUtils";
 
 type RuntimeModelRef = {
 	readonly provider?: unknown;

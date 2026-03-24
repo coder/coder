@@ -1,8 +1,8 @@
-import { Button } from "components/Button/Button";
 import { useAuthenticated } from "hooks/useAuthenticated";
 import { SquareArrowOutUpRightIcon } from "lucide-react";
 import { Link as RouterLink } from "react-router";
 import { docs } from "utils/docs";
+import { Button } from "#/components/Button/Button";
 
 export const TaskWildcardWarning = () => {
 	const { permissions } = useAuthenticated();

@@ -10,13 +10,13 @@ import type {
 	Experiment,
 	Organization,
 } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "hooks";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { canViewAnyOrganization } from "modules/permissions";
 import { createContext, type FC, type PropsWithChildren } from "react";
 import { useQuery } from "react-query";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
 import { selectFeatureVisibility } from "./entitlements";
 
 export interface DashboardValue {

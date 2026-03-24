@@ -1,4 +1,6 @@
 import type { WorkspaceAgent } from "api/typesGenerated";
+import { RotateCcwIcon } from "lucide-react";
+import { type FC, useState } from "react";
 import {
 	HelpTooltip,
 	HelpTooltipAction,
@@ -7,10 +9,8 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
-} from "components/HelpTooltip/HelpTooltip";
-import { Stack } from "components/Stack/Stack";
-import { RotateCcwIcon } from "lucide-react";
-import { type FC, useState } from "react";
+} from "#/components/HelpTooltip/HelpTooltip";
+import { Stack } from "#/components/Stack/Stack";
 import { agentVersionStatus } from "../../utils/workspace";
 
 type AgentOutdatedTooltipProps = {

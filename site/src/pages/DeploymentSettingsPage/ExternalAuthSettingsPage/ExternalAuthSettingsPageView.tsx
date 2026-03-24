@@ -1,13 +1,15 @@
 import { css } from "@emotion/react";
 import type { DeploymentValues, ExternalAuthConfig } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { PremiumBadge } from "components/Badges/Badges";
+import type { FC } from "react";
+import { docs } from "utils/docs";
+import { Alert } from "#/components/Alert/Alert";
+import { PremiumBadge } from "#/components/Badges/Badges";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
+} from "#/components/SettingsHeader/SettingsHeader";
 import {
 	Table,
 	TableBody,
@@ -15,9 +17,7 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import type { FC } from "react";
-import { docs } from "utils/docs";
+} from "#/components/Table/Table";
 
 type ExternalAuthSettingsPageViewProps = {
 	config: DeploymentValues;
@@ -64,16 +64,16 @@ export const ExternalAuthSettingsPageView: FC<
 
 			<Table
 				css={css`
-            & td {
-              padding-top: 24px;
-              padding-bottom: 24px;
-            }
+					& td {
+						padding-top: 24px;
+						padding-bottom: 24px;
+					}
 
-            & td:last-child,
-            & th:last-child {
-              padding-left: 32px;
-            }
-          `}
+					& td:last-child,
+					& th:last-child {
+						padding-left: 32px;
+					}
+				`}
 			>
 				<TableHeader>
 					<TableRow>

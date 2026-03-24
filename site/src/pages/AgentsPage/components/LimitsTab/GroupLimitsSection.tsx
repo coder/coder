@@ -1,11 +1,15 @@
 import { getErrorMessage } from "api/errors";
 import type { Group } from "api/typesGenerated";
-import { Autocomplete } from "components/Autocomplete/Autocomplete";
-import { AvatarData } from "components/Avatar/AvatarData";
-import { Button } from "components/Button/Button";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
-import { Spinner } from "components/Spinner/Spinner";
+import { Check } from "lucide-react";
+import { getGroupSubtitle } from "modules/groups";
+import { type FC, useId } from "react";
+import { formatCostMicros, isPositiveFiniteDollarAmount } from "utils/currency";
+import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
+import { AvatarData } from "#/components/Avatar/AvatarData";
+import { Button } from "#/components/Button/Button";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
 	TableBody,
@@ -13,11 +17,7 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { Check } from "lucide-react";
-import { getGroupSubtitle } from "modules/groups";
-import { type FC, useId } from "react";
-import { formatCostMicros, isPositiveFiniteDollarAmount } from "utils/currency";
+} from "#/components/Table/Table";
 import { SectionHeader } from "../SectionHeader";
 
 interface GroupLimitsSectionProps {

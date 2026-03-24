@@ -1,13 +1,13 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Stack from "@mui/material/Stack";
-import { Pill } from "components/Pill/Pill";
+import type { FC } from "react";
+import { isUUID } from "utils/uuid";
+import { Pill } from "#/components/Pill/Pill";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import type { FC } from "react";
-import { isUUID } from "utils/uuid";
+} from "#/components/Tooltip/Tooltip";
 
 interface PillListProps {
 	roles: readonly string[];

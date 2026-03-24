@@ -1,21 +1,21 @@
 import { css } from "@emotion/css";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
-import { Button } from "components/Button/Button";
-import {
-	FormFields,
-	FormFooter,
-	FormSection,
-	HorizontalForm,
-} from "components/Form/Form";
-import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import type { FormikContextType } from "formik";
 import { type FC, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
+import { Button } from "#/components/Button/Button";
+import {
+	FormFields,
+	FormFooter,
+	FormSection,
+	HorizontalForm,
+} from "#/components/Form/Form";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Stack } from "#/components/Stack/Stack";
 import {
 	type CreateTokenData,
 	customLifetimeDay,
@@ -169,6 +169,6 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 
 const classNames = {
 	sectionInfo: css`
-    min-width: 300px;
-  `,
+		min-width: 300px;
+	`,
 };

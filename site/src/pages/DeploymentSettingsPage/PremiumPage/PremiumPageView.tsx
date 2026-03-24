@@ -1,8 +1,8 @@
-import { Button } from "components/Button/Button";
-import { Link } from "components/Link/Link";
 import { Activity, Coins, Expand, SquareArrowOutUpRight } from "lucide-react";
 import type { FC } from "react";
 import { docs } from "utils/docs";
+import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
 
 type PremiumPageViewProps = { isEnterprise: boolean };
 

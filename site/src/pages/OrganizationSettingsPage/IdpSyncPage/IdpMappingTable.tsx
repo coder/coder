@@ -1,15 +1,15 @@
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Link } from "components/Link/Link";
+import type { FC } from "react";
+import { docs } from "utils/docs";
+import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Link } from "#/components/Link/Link";
 import {
 	Table,
 	TableBody,
 	TableCell,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import type { FC } from "react";
-import { docs } from "utils/docs";
+} from "#/components/Table/Table";
 
 interface IdpMappingTableProps {
 	type: "Role" | "Group";

@@ -1,7 +1,7 @@
 import type { Workspace } from "api/typesGenerated";
-import { TopbarButton } from "components/FullPageLayout/Topbar";
 import { BugIcon } from "lucide-react";
 import type { FC } from "react";
+import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import { BuildParametersPopover } from "./BuildParametersPopover";
 import type { ActionButtonProps } from "./Buttons";
 

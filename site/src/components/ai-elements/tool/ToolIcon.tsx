@@ -1,4 +1,3 @@
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import {
 	BotIcon,
 	ClipboardListIcon,
@@ -12,6 +11,7 @@ import {
 import type React from "react";
 import { useState } from "react";
 import { cn } from "utils/cn";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 export const ToolIcon: React.FC<{
 	name: string;

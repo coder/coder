@@ -4,8 +4,8 @@ import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import TextField from "@mui/material/TextField";
 import type { TemplateVersionVariable } from "api/typesGenerated";
-import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
+import { Stack } from "#/components/Stack/Stack";
 
 const isBoolean = (variable: TemplateVersionVariable) => {
 	return variable.type === "bool";

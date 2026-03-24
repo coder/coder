@@ -5,25 +5,6 @@ import type {
 	ShareableWorkspaceOwners,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
-import { Alert, AlertTitle } from "components/Alert/Alert";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { Checkbox } from "components/Checkbox/Checkbox";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
-import {
-	FormFields,
-	FormFooter,
-	FormSection,
-	HorizontalForm,
-} from "components/Form/Form";
-import { IconField } from "components/IconField/IconField";
-import { RadioGroup, RadioGroupItem } from "components/RadioGroup/RadioGroup";
-import {
-	SettingsHeader,
-	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import {
@@ -33,6 +14,25 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
+import { Alert, AlertTitle } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { Checkbox } from "#/components/Checkbox/Checkbox";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
+import {
+	FormFields,
+	FormFooter,
+	FormSection,
+	HorizontalForm,
+} from "#/components/Form/Form";
+import { IconField } from "#/components/IconField/IconField";
+import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { DisableWorkspaceSharingDialog } from "./DisableWorkspaceSharingDialog";
 import { HorizontalContainer, HorizontalSection } from "./Horizontal";
 

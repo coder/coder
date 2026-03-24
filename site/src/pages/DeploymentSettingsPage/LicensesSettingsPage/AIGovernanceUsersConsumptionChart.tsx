@@ -1,7 +1,7 @@
 import type { GetLicensesResponse } from "api/api";
 import type { Feature } from "api/typesGenerated";
-import { Link } from "components/Link/Link";
 import type { FC } from "react";
+import { Link } from "#/components/Link/Link";
 import {
 	effectiveAiGovernanceLimitForUsageCard,
 	hasAiGovernanceAddOnLicense,

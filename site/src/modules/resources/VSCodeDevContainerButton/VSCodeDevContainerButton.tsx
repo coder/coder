@@ -2,10 +2,10 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { API } from "api/api";
 import type { DisplayApp } from "api/typesGenerated";
-import { ChevronDownIcon } from "components/AnimatedIcons/ChevronDown";
-import { VSCodeIcon } from "components/Icons/VSCodeIcon";
-import { VSCodeInsidersIcon } from "components/Icons/VSCodeInsidersIcon";
 import { type FC, useRef, useState } from "react";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
+import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 

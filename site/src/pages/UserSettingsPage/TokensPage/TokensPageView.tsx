@@ -1,9 +1,13 @@
 import { useTheme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
 import type { APIKeyWithOwner } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { Stack } from "components/Stack/Stack";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { TrashIcon } from "lucide-react";
+import type { FC, ReactNode } from "react";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
+import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -11,13 +15,9 @@ import {
 	TableHead,
 	TableHeader,
 	TableRow,
-} from "components/Table/Table";
-import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import { TrashIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
+} from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 
 dayjs.extend(relativeTime);
 

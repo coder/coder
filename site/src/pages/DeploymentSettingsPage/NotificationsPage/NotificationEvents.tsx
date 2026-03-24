@@ -12,14 +12,6 @@ import {
 	updateNotificationTemplateMethod,
 } from "api/queries/notifications";
 import type { DeploymentValues } from "api/typesGenerated";
-import { Alert } from "components/Alert/Alert";
-import { Button } from "components/Button/Button";
-import { Stack } from "components/Stack/Stack";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import {
 	castNotificationMethod,
 	methodIcons,
@@ -30,6 +22,14 @@ import { type FC, Fragment } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { docs } from "utils/docs";
+import { Alert } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
+import { Stack } from "#/components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 type NotificationEventsProps = {
 	defaultMethod: NotificationMethod;

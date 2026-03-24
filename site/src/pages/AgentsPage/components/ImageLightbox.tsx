@@ -1,5 +1,5 @@
-import { Dialog, DialogContent, DialogTitle } from "components/Dialog/Dialog";
 import type { FC } from "react";
+import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 
 interface ImageLightboxProps {
 	src: string;

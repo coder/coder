@@ -1,13 +1,13 @@
 import type { BuildInfoResponse, Experiment } from "api/typesGenerated";
-import {
-	Sidebar as BaseSidebar,
-	SettingsSidebarNavItem as SidebarNavItem,
-} from "components/Sidebar/Sidebar";
-import { Stack } from "components/Stack/Stack";
 import { ArrowUpRight } from "lucide-react";
 import type { Permissions } from "modules/permissions";
 import type { FC } from "react";
 import { isDevBuild } from "utils/buildInfo";
+import {
+	Sidebar as BaseSidebar,
+	SettingsSidebarNavItem as SidebarNavItem,
+} from "#/components/Sidebar/Sidebar";
+import { Stack } from "#/components/Stack/Stack";
 
 interface DeploymentSidebarViewProps {
 	/** Site-wide permissions. */

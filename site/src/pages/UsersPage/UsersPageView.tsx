@@ -1,19 +1,19 @@
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { UsersFilter } from "components/Filter/UsersFilter";
+import { UserPlusIcon } from "lucide-react";
+import type { ComponentProps, FC } from "react";
+import { Link as RouterLink } from "react-router";
+import { Button } from "#/components/Button/Button";
+import { UsersFilter } from "#/components/Filter/UsersFilter";
 import {
 	PaginationContainer,
 	type PaginationResult,
-} from "components/PaginationWidget/PaginationContainer";
+} from "#/components/PaginationWidget/PaginationContainer";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { UserPlusIcon } from "lucide-react";
-import type { ComponentProps, FC } from "react";
-import { Link as RouterLink } from "react-router";
+} from "#/components/SettingsHeader/SettingsHeader";
 import { UsersTable } from "./UsersTable/UsersTable";
 
 interface UsersPageViewProps {

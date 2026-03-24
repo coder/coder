@@ -6,19 +6,6 @@ import {
 	groupPermissions,
 } from "api/queries/groups";
 import type { Group, ReducedUser } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Button } from "components/Button/Button";
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { useFilter } from "components/Filter/Filter";
-import type { UsersFilter } from "components/Filter/UsersFilter";
-import { Loader } from "components/Loader/Loader";
-import type { PaginationResult } from "components/PaginationWidget/PaginationContainer";
-import {
-	SettingsHeader,
-	SettingsHeaderDescription,
-	SettingsHeaderTitle,
-} from "components/SettingsHeader/SettingsHeader";
-import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { TrashIcon } from "lucide-react";
 import { type ComponentProps, type FC, useState } from "react";
@@ -32,6 +19,19 @@ import {
 } from "react-router";
 import { toast } from "sonner";
 import { pageTitle } from "utils/page";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { useFilter } from "#/components/Filter/Filter";
+import type { UsersFilter } from "#/components/Filter/UsersFilter";
+import { Loader } from "#/components/Loader/Loader";
+import type { PaginationResult } from "#/components/PaginationWidget/PaginationContainer";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
+import { TabLink, Tabs, TabsList } from "#/components/Tabs/Tabs";
 
 export type GroupPageOutletContext = {
 	group: Group;

@@ -13,7 +13,6 @@ import type {
 	PatchTemplateVersionRequest,
 	TemplateVersion,
 } from "api/typesGenerated";
-import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { type FC, useEffect, useState } from "react";
@@ -29,6 +28,7 @@ import { existsFile, type FileTree, traverse } from "utils/filetree";
 import { pageTitle } from "utils/page";
 import { TarReader, TarWriter } from "utils/tar";
 import { createTemplateVersionFileTree } from "utils/templateVersion";
+import { Loader } from "#/components/Loader/Loader";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
 const TemplateVersionEditorPage: FC = () => {

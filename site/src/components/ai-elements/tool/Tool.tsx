@@ -1,9 +1,9 @@
 import { useTheme } from "@emotion/react";
 import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
 import type * as TypesGen from "api/typesGenerated";
-import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
 import { cn } from "utils/cn";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";

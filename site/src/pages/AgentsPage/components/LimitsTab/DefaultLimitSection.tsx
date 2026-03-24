@@ -1,22 +1,22 @@
 import type { ChatUsageLimitPeriod } from "api/typesGenerated";
-import { Input } from "components/Input/Input";
-import { Label } from "components/Label/Label";
+import { InfoIcon, TriangleAlertIcon } from "lucide-react";
+import { type FC, type ReactNode, useId } from "react";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "components/Select/Select";
-import { Switch } from "components/Switch/Switch";
+} from "#/components/Select/Select";
+import { Switch } from "#/components/Switch/Switch";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import { InfoIcon, TriangleAlertIcon } from "lucide-react";
-import { type FC, type ReactNode, useId } from "react";
+} from "#/components/Tooltip/Tooltip";
 import { SectionHeader } from "../SectionHeader";
 
 interface DefaultLimitSectionProps {

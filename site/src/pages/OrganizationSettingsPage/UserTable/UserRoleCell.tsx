@@ -15,15 +15,15 @@
  */
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import type { LoginType, SlimRole } from "api/typesGenerated";
-import { Pill } from "components/Pill/Pill";
-import { TableCell } from "components/Table/Table";
+import type { FC } from "react";
+import { Pill } from "#/components/Pill/Pill";
+import { TableCell } from "#/components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import type { FC } from "react";
+} from "#/components/Tooltip/Tooltip";
 import { EditRolesButton } from "./EditRolesButton";
 
 type UserRoleCellProps = {

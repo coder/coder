@@ -1,5 +1,5 @@
-import { TableRow, type TableRowProps } from "components/Table/Table";
 import { cn } from "utils/cn";
+import { TableRow, type TableRowProps } from "#/components/Table/Table";
 
 interface TimelineEntryProps extends TableRowProps {
 	ref?: React.Ref<HTMLTableRowElement>;

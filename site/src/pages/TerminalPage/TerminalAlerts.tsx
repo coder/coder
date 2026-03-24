@@ -1,15 +1,15 @@
 import type { WorkspaceAgent } from "api/typesGenerated";
-import {
-	Alert,
-	type AlertColor,
-	type AlertProps,
-} from "components/Alert/Alert";
-import { Button } from "components/Button/Button";
-import { Link } from "components/Link/Link";
 import { RefreshCwIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
+import {
+	Alert,
+	type AlertColor,
+	type AlertProps,
+} from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
 import type { ConnectionStatus } from "./types";
 
 type TerminalAlertsProps = {

@@ -1,23 +1,28 @@
 import type { ConnectionLog } from "api/typesGenerated";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { EmptyState } from "components/EmptyState/EmptyState";
-import { Margins } from "components/Margins/Margins";
+import type { ComponentProps, FC } from "react";
+import { docs } from "utils/docs";
+import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
+} from "#/components/PageHeader/PageHeader";
 import {
 	PaginationContainer,
 	type PaginationResult,
-} from "components/PaginationWidget/PaginationContainer";
-import { PaywallPremium } from "components/Paywall/PaywallPremium";
-import { Stack } from "components/Stack/Stack";
-import { Table, TableBody, TableCell, TableRow } from "components/Table/Table";
-import { TableLoader } from "components/TableLoader/TableLoader";
-import { Timeline } from "components/Timeline/Timeline";
-import type { ComponentProps, FC } from "react";
-import { docs } from "utils/docs";
+} from "#/components/PaginationWidget/PaginationContainer";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { Stack } from "#/components/Stack/Stack";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableRow,
+} from "#/components/Table/Table";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { Timeline } from "#/components/Timeline/Timeline";
 import { ConnectionLogFilter } from "./ConnectionLogFilter";
 import { ConnectionLogHelpTooltip } from "./ConnectionLogHelpTooltip";
 import { ConnectionLogRow } from "./ConnectionLogRow/ConnectionLogRow";

@@ -1,10 +1,10 @@
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import type { Task } from "api/typesGenerated";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import type { FC } from "react";
 import { QueryClient, useMutation } from "react-query";
 import { toast } from "sonner";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 
 type TaskDeleteDialogProps = {
 	open: boolean;

@@ -1,7 +1,7 @@
 import { css, useTheme } from "@emotion/react";
-import { TableCell, TableRow } from "components/Table/Table";
 import type { FC } from "react";
 import { formatDate } from "utils/time";
+import { TableCell, TableRow } from "#/components/Table/Table";
 import { createDisplayDate } from "./utils";
 
 export interface TimelineDateRow {
@@ -14,10 +14,10 @@ export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
 	return (
 		<TableRow
 			css={css`
-        &:not(:first-of-type) td {
-          border-top: 1px solid ${theme.palette.divider};
-        }
-      `}
+				&:not(:first-of-type) td {
+					border-top: 1px solid ${theme.palette.divider};
+				}
+			`}
 		>
 			<TableCell
 				css={{

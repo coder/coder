@@ -1,13 +1,13 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Stack from "@mui/material/Stack";
 import type { Permission } from "api/typesGenerated";
-import { Pill } from "components/Pill/Pill";
+import type { FC } from "react";
+import { Pill } from "#/components/Pill/Pill";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import type { FC } from "react";
+} from "#/components/Tooltip/Tooltip";
 
 function getUniqueResourceTypes(jsonObject: readonly Permission[]) {
 	const resourceTypes = jsonObject.map((item) => item.resource_type);

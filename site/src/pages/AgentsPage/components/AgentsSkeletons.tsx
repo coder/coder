@@ -1,6 +1,6 @@
-import { Skeleton } from "components/Skeleton/Skeleton";
 import type { FC } from "react";
 import { cn } from "utils/cn";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 
 /** localStorage keys shared with the agents panel components. */
 const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";

@@ -1,11 +1,4 @@
 import type { ChatMessagePart, ChatQueuedMessage } from "api/typesGenerated";
-import { Button } from "components/Button/Button";
-import { Spinner } from "components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
 import {
 	ArrowUpIcon,
 	CornerDownLeftIcon,
@@ -15,6 +8,13 @@ import {
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { cn } from "utils/cn";
+import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 interface QueuedMessagesListProps {
 	messages: readonly ChatQueuedMessage[];
