@@ -216,6 +216,7 @@ const meta: Meta<typeof AgentDetailLayout> = {
 	beforeEach: () => {
 		localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 		spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 	},
 };

@@ -308,20 +308,6 @@ const AgentDetail: FC = () => {
 		string[] | null
 	>(null);
 
-	// Initialize MCP selection from chat record or defaults.
-	const effectiveMCPServerIds = (() => {
-		if (selectedMCPServerIds !== null) {
-			return selectedMCPServerIds;
-		}
-		// If the chat has MCP server IDs recorded (even empty, meaning
-		// the user deliberately opted out), use those.
-		if (chatRecord?.mcp_server_ids) {
-			return [...chatRecord.mcp_server_ids];
-		}
-		// Otherwise, compute defaults from server availability.
-		return getDefaultMCPSelection(mcpServers);
-	})();
-
 	const handleMCPSelectionChange = (ids: string[]) => {
 		setSelectedMCPServerIds(ids);
 	};
@@ -418,6 +404,21 @@ const AgentDetail: FC = () => {
 	};
 
 	const chatRecord = chatQuery.data;
+
+	// Initialize MCP selection from chat record or defaults.
+	const effectiveMCPServerIds = (() => {
+		if (selectedMCPServerIds !== null) {
+			return selectedMCPServerIds;
+		}
+		// If the chat has MCP server IDs recorded (even empty, meaning
+		// the user deliberately opted out), use those.
+		if (chatRecord?.mcp_server_ids) {
+			return [...chatRecord.mcp_server_ids];
+		}
+		// Otherwise, compute defaults from server availability.
+		return getDefaultMCPSelection(mcpServers);
+	})();
+
 	// Flatten paginated messages into chronological order.
 	// Pages arrive newest-first per page, and pages[0] is the
 	// most recent page.
