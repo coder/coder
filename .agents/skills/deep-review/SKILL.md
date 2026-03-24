@@ -128,8 +128,7 @@ Spawn all Tier 1 and Tier 2 reviewers in parallel. Give each reviewer a referenc
 Read `AGENTS.md` in this repository before starting.
 
 You are the {Role Name} reviewer. Read your methodology in
-`.agents/skills/deep-review/roles.md` under the "{Role Name}"
-section.
+`.agents/skills/deep-review/roles/{role-name}.md`.
 
 Follow the review instructions in
 `.agents/skills/deep-review/structural-reviewer-prompt.md`.
@@ -144,8 +143,7 @@ Output file: {REVIEW_DIR}/{role-name}.md
 Read `AGENTS.md` in this repository before starting.
 
 You are the {Role Name} reviewer. Read your methodology in
-`.agents/skills/deep-review/roles.md` under the "{Role Name}"
-section.
+`.agents/skills/deep-review/roles/{role-name}.md`.
 
 Follow the review instructions in
 `.agents/skills/deep-review/nit-reviewer-prompt.md`.
