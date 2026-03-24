@@ -25,17 +25,6 @@ export const getProviderDisplayName = (provider: string) => {
 	}
 };
 
-// FIXME the current AIBridgeProviderIcon uses the claude icon for the
-// anthropic provider. while it's still in use in the RequestLogsPage, we need
-// to hack around it here, but when we delete that page, we can just swap the
-// icon
-export const getProviderIconName = (provider: string) => {
-	if (provider === "anthropic") {
-		return "anthropic-neue";
-	}
-	return provider;
-};
-
 export const prettyFormatJSON = (input: string) => {
 	let formattedInput = input;
 

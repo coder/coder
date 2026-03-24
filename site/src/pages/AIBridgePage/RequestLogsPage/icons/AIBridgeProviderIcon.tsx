@@ -22,13 +22,6 @@ export const AIBridgeProviderIcon = ({
 		case "anthropic":
 			return (
 				<ExternalImage
-					src="/icon/claude.svg"
-					className={cn(iconClassName, className)}
-				/>
-			);
-		case "anthropic-neue":
-			return (
-				<ExternalImage
 					src="/icon/anthropic.svg"
 					className={cn(iconClassName, className)}
 				/>
