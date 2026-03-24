@@ -13,6 +13,7 @@ import { docs } from "utils/docs";
 
 const userFilterQuery = {
 	active: "status:active",
+	serviceAccount: "service_account:true",
 	all: "",
 };
 
@@ -51,6 +52,7 @@ type StatusFilterMenu = ReturnType<typeof useStatusFilterMenu>;
 
 const PRESET_FILTERS = [
 	{ query: userFilterQuery.active, name: "Active users" },
+	{ query: userFilterQuery.serviceAccount, name: "Service accounts" },
 	{ query: userFilterQuery.all, name: "All users" },
 ];
 

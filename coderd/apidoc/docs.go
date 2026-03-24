@@ -17426,6 +17426,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.SlimRole"
                     }
                 },
+                "is_service_account": {
+                    "type": "boolean"
+                },
                 "last_seen_at": {
                     "type": "string",
                     "format": "date-time"

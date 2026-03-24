@@ -491,19 +491,20 @@ func (api *API) groupMembers(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	members, err := api.Database.GetGroupMembersByGroupIDPaginated(ctx, database.GetGroupMembersByGroupIDPaginatedParams{
-		AfterID:         paginationParams.AfterID,
-		GroupID:         group.ID,
-		IncludeSystem:   false,
-		Search:          userFilterParams.Search,
-		Name:            userFilterParams.Name,
-		Status:          userFilterParams.Status,
-		RbacRole:        userFilterParams.RbacRole,
-		LastSeenBefore:  userFilterParams.LastSeenBefore,
-		LastSeenAfter:   userFilterParams.LastSeenAfter,
-		CreatedAfter:    userFilterParams.CreatedAfter,
-		CreatedBefore:   userFilterParams.CreatedBefore,
-		GithubComUserID: userFilterParams.GithubComUserID,
-		LoginType:       userFilterParams.LoginType,
+		AfterID:          paginationParams.AfterID,
+		GroupID:          group.ID,
+		IncludeSystem:    false,
+		Search:           userFilterParams.Search,
+		Name:             userFilterParams.Name,
+		Status:           userFilterParams.Status,
+		IsServiceAccount: userFilterParams.IsServiceAccount,
+		RbacRole:         userFilterParams.RbacRole,
+		LastSeenBefore:   userFilterParams.LastSeenBefore,
+		LastSeenAfter:    userFilterParams.LastSeenAfter,
+		CreatedAfter:     userFilterParams.CreatedAfter,
+		CreatedBefore:    userFilterParams.CreatedBefore,
+		GithubComUserID:  userFilterParams.GithubComUserID,
+		LoginType:        userFilterParams.LoginType,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
