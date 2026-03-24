@@ -40,7 +40,7 @@ import { cn } from "utils/cn";
 import { isMobileViewport } from "utils/mobile";
 import {
 	fetchTextAttachmentContent,
-	TEXT_ATTACHMENT_PREVIEW_LENGTH,
+	formatTextAttachmentPreview,
 } from "../utils/fetchTextAttachment";
 import { formatProviderLabel } from "../utils/modelOptions";
 import { ImageLightbox } from "./ImageLightbox";
@@ -343,9 +343,7 @@ export const AttachmentPreview: FC<{
 								}}
 							>
 								<span className="line-clamp-3 w-full font-mono text-2xs text-content-secondary">
-									{Array.from(textContent ?? "Pasted text")
-										.slice(0, TEXT_ATTACHMENT_PREVIEW_LENGTH)
-										.join("")}
+									{formatTextAttachmentPreview(textContent ?? "")}
 								</span>
 							</button>
 						) : (
@@ -453,7 +451,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const [previewText, setPreviewText] = useState<string | null>(null);
 
 	const [hasFileReferences, setHasFileReferences] = useState(false);
-	const allowTextAttachmentPaste = true;
 
 	const speech = useSpeechRecognition();
 	const [preRecordingValue, setPreRecordingValue] = useState<string>("");
@@ -494,13 +491,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		if (index === -1) return;
 		const content = nextContent ?? textContents?.get(file);
 		if (content === undefined) return;
-		internalRef.current?.insertText(content);
+		const editor = internalRef.current;
+		if (!editor) return;
+		editor.insertText(content);
 		onRemoveAttachment?.(index);
 	};
 
-	const handleTextPreview = (content: string, _fileName: string) => {
+	const handleTextPreview = (content: string, fileName: string) => {
 		if (onTextPreview) {
-			onTextPreview(content, _fileName);
+			onTextPreview(content, fileName);
 		} else {
 			setPreviewText(content);
 		}
@@ -737,7 +736,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				<ChatMessageInput
 					ref={internalRef}
 					onFilePaste={onAttach ? handleFilePaste : undefined}
-					allowTextAttachmentPaste={allowTextAttachmentPaste}
 					aria-label="Chat message"
 					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[15px] leading-6 text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 					placeholder={placeholder}

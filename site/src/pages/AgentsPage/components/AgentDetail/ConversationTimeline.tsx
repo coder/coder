@@ -32,8 +32,9 @@ import { Link } from "react-router";
 import type { UrlTransform } from "streamdown";
 import { cn } from "utils/cn";
 import {
+	decodeInlineTextAttachment,
 	fetchTextAttachmentContent,
-	TEXT_ATTACHMENT_PREVIEW_LENGTH,
+	formatTextAttachmentPreview,
 } from "../../utils/fetchTextAttachment";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import { ImageThumbnail } from "../AgentChatInput";
@@ -119,25 +120,6 @@ const SmoothedResponse: FC<{
 	return <Response urlTransform={urlTransform}>{visibleText}</Response>;
 };
 
-const formatTextAttachmentPreview = (content: string | null): string => {
-	const normalized = content?.replace(/\s+/g, " ").trim() ?? "";
-	if (normalized.length === 0) {
-		return "Pasted text";
-	}
-	return normalized.slice(0, TEXT_ATTACHMENT_PREVIEW_LENGTH);
-};
-
-const decodeInlineTextAttachment = (content: string): string => {
-	try {
-		const decoded = atob(content);
-		const bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0));
-		return new TextDecoder().decode(bytes);
-	} catch (err) {
-		console.warn("Failed to decode inline text attachment:", err);
-		return content;
-	}
-};
-
 const InlineTextAttachmentButton: FC<{
 	content: string;
 	onPreview?: (content: string) => void;
@@ -208,6 +190,67 @@ const TextAttachmentButton: FC<{
 				onPreview?.(fetchedContent);
 			}}
 		/>
+	);
+};
+
+type FileRenderBlock = Extract<RenderBlock, { type: "file" }>;
+
+type RenderFileBlockParams = {
+	block: FileRenderBlock;
+	key: string;
+	onImageClick?: (src: string) => void;
+	onTextFileClick?: (content: string) => void;
+};
+
+const renderFileBlock = ({
+	block,
+	key,
+	onImageClick,
+	onTextFileClick,
+}: RenderFileBlockParams): ReactNode => {
+	if (block.media_type === "text/plain") {
+		if (block.file_id) {
+			return (
+				<TextAttachmentButton
+					key={key}
+					fileId={block.file_id}
+					onPreview={onTextFileClick}
+				/>
+			);
+		}
+		if (block.data != null) {
+			return (
+				<InlineTextAttachmentButton
+					key={key}
+					content={decodeInlineTextAttachment(block.data)}
+					onPreview={onTextFileClick}
+				/>
+			);
+		}
+	}
+	if (!block.media_type.startsWith("image/")) {
+		return null;
+	}
+	const src = block.file_id
+		? `/api/experimental/chats/files/${block.file_id}`
+		: `data:${block.media_type};base64,${block.data}`;
+	return (
+		<button
+			key={key}
+			type="button"
+			aria-label="View image"
+			className="inline-block rounded-md border-0 bg-transparent p-0"
+			onClick={(e) => {
+				e.stopPropagation();
+				onImageClick?.(src);
+			}}
+		>
+			<ImageThumbnail
+				previewUrl={src}
+				name="Attached image"
+				className="cursor-pointer transition-opacity hover:opacity-80"
+			/>
+		</button>
 	);
 };
 
@@ -307,50 +350,12 @@ function renderBlockList({
 					);
 				}
 				case "file":
-					if (block.media_type.startsWith("image/")) {
-						const src = block.file_id
-							? `/api/experimental/chats/files/${block.file_id}`
-							: `data:${block.media_type};base64,${block.data}`;
-						return (
-							<button
-								key={`${keyPrefix}-file-${index}`}
-								type="button"
-								aria-label="View image"
-								className="inline-block rounded-md border-0 bg-transparent p-0"
-								onClick={(e) => {
-									e.stopPropagation();
-									onImageClick?.(src);
-								}}
-							>
-								<ImageThumbnail
-									previewUrl={src}
-									name="Attached image"
-									className="cursor-pointer transition-opacity hover:opacity-80"
-								/>
-							</button>
-						);
-					}
-					if (block.media_type === "text/plain") {
-						if (block.file_id) {
-							return (
-								<TextAttachmentButton
-									key={`${keyPrefix}-file-${block.file_id}`}
-									fileId={block.file_id}
-									onPreview={onTextFileClick}
-								/>
-							);
-						}
-						if (block.data != null) {
-							return (
-								<InlineTextAttachmentButton
-									key={`${keyPrefix}-file-inline-${index}`}
-									content={decodeInlineTextAttachment(block.data)}
-									onPreview={onTextFileClick}
-								/>
-							);
-						}
-					}
-					return null;
+					return renderFileBlock({
+						block,
+						key: `${keyPrefix}-file-${block.file_id ?? index}`,
+						onImageClick,
+						onTextFileClick,
+					});
 				case "sources":
 					return (
 						<WebSearchSources
@@ -443,7 +448,7 @@ const ChatMessageItem = memo<{
 				)
 			: [];
 
-		const hasUserTextContent =
+		const hasUserMessageBody =
 			userInlineContent.length > 0 || Boolean(parsed.markdown?.trim());
 		const hasFileBlocks = userFileBlocks.length > 0;
 
@@ -487,9 +492,9 @@ const ChatMessageItem = memo<{
 								}
 							>
 								<div className="flex flex-col gap-1.5">
-									{(hasUserTextContent || hasFileBlocks) && (
+									{(hasUserMessageBody || hasFileBlocks) && (
 										<div className="flex items-start gap-2">
-											{hasUserTextContent && (
+											{hasUserMessageBody && (
 												<span className="min-w-0 flex-1">
 													{userInlineContent.length > 0
 														? userInlineContent.map((block, i) =>
@@ -558,60 +563,18 @@ const ChatMessageItem = memo<{
 										return (
 											<div
 												className={cn(
-													hasUserTextContent && "mt-2",
+													hasUserMessageBody && "mt-2",
 													"flex flex-wrap gap-2",
 												)}
 											>
-												{userFileBlocks.map((block, i) => {
-													if (block.media_type === "text/plain") {
-														if (block.file_id) {
-															return (
-																<TextAttachmentButton
-																	key={`user-file-${block.file_id}`}
-																	fileId={block.file_id}
-																	onPreview={(content) =>
-																		setPreviewText(content)
-																	}
-																/>
-															);
-														}
-														if (block.data != null) {
-															return (
-																<InlineTextAttachmentButton
-																	key={`user-file-inline-${i}`}
-																	content={decodeInlineTextAttachment(
-																		block.data,
-																	)}
-																	onPreview={(content) =>
-																		setPreviewText(content)
-																	}
-																/>
-															);
-														}
-													}
-													if (!block.media_type.startsWith("image/"))
-														return null;
-													const src = block.file_id
-														? `/api/experimental/chats/files/${block.file_id}`
-														: `data:${block.media_type};base64,${block.data}`;
-													return (
-														<button
-															key={`user-file-${i}`}
-															type="button"
-															className="inline-block rounded-md border-0 bg-transparent p-0"
-															onClick={(e) => {
-																e.stopPropagation();
-																setPreviewImage(src);
-															}}
-														>
-															<ImageThumbnail
-																previewUrl={src}
-																name="Attached image"
-																className="cursor-pointer transition-opacity hover:opacity-80"
-															/>
-														</button>
-													);
-												})}
+												{userFileBlocks.map((block, i) =>
+													renderFileBlock({
+														block,
+														key: `user-file-${block.file_id ?? i}`,
+														onImageClick: setPreviewImage,
+														onTextFileClick: setPreviewText,
+													}),
+												)}
 											</div>
 										);
 									})()}
