@@ -231,7 +231,8 @@ export const UserCompactionThresholdSettings: FC<
 										/>
 										<span className="text-xs text-content-secondary">%</span>
 											<Button
-												size="xs"
+												size="sm"
+												className="h-7"
 												type="button"
 												disabled={isSaveDisabled}											onClick={() => {
 												if (parsedDraftValue === null) {
@@ -253,7 +254,8 @@ export const UserCompactionThresholdSettings: FC<
 										</Button>
 										{hasOverride && (
 												<Button
-													size="xs"
+													size="sm"
+													className="h-7"
 													variant="outline"
 													type="button"
 													disabled={isThisModelMutating}												onClick={() => {
