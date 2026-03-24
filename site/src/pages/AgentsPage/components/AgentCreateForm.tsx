@@ -129,7 +129,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			? initialLastModelConfigID
 			: "";
 	const defaultModelID = (() => {
-		const defaultModelConfig = modelConfigs.find((config) => config.is_default);
+		const defaultModelConfig = Array.isArray(modelConfigs)
+			? modelConfigs.find((config) => config.is_default)
+			: undefined;
 		if (!defaultModelConfig) {
 			return "";
 		}
