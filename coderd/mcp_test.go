@@ -473,17 +473,21 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		t.Cleanup(authServer.Close)
 
 		// Stand up a mock MCP server that serves RFC 9728 Protected
-		// Resource Metadata pointing to the auth server above.
+		// Resource Metadata at the path-aware well-known URL.
+		// The URL used for the config ends with /v1/mcp, so the
+		// path-aware metadata URL is
+		// /.well-known/oauth-protected-resource/v1/mcp.
 		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/.well-known/oauth-protected-resource" {
+			switch r.URL.Path {
+			case "/.well-known/oauth-protected-resource/v1/mcp":
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = w.Write([]byte(`{
 					"resource": "` + "http://" + r.Host + `",
 					"authorization_servers": ["` + authServer.URL + `"]
 				}`))
-				return
+			default:
+				http.NotFound(w, r)
 			}
-			http.NotFound(w, r)
 		}))
 		t.Cleanup(mcpServer.Close)
 
@@ -509,6 +513,275 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		require.Equal(t, authServer.URL+"/authorize", created.OAuth2AuthURL)
 		require.Equal(t, authServer.URL+"/token", created.OAuth2TokenURL)
 		require.Equal(t, "read write", created.OAuth2Scopes)
+	})
+
+	// Verify that when both path-aware and root-level protected
+	// resource metadata are available, the path-aware URL takes
+	// priority. Each points to a different auth server so we can
+	// distinguish which one was actually used.
+	t.Run("PathAwareTakesPriority", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Auth server that returns "path-scope" as the supported
+		// scope.
+		pathAuthServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-authorization-server":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"issuer": "` + "http://" + r.Host + `",
+					"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
+					"token_endpoint": "` + "http://" + r.Host + `/token",
+					"registration_endpoint": "` + "http://" + r.Host + `/register",
+					"response_types_supported": ["code"],
+					"scopes_supported": ["path-scope"]
+				}`))
+			case "/register":
+				if r.Method != http.MethodPost {
+					http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(`{
+					"client_id": "path-client-id",
+					"client_secret": "path-client-secret"
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(pathAuthServer.Close)
+
+		// Auth server that returns "root-scope" as the supported
+		// scope.
+		rootAuthServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-authorization-server":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"issuer": "` + "http://" + r.Host + `",
+					"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
+					"token_endpoint": "` + "http://" + r.Host + `/token",
+					"registration_endpoint": "` + "http://" + r.Host + `/register",
+					"response_types_supported": ["code"],
+					"scopes_supported": ["root-scope"]
+				}`))
+			case "/register":
+				if r.Method != http.MethodPost {
+					http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(`{
+					"client_id": "root-client-id",
+					"client_secret": "root-client-secret"
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(rootAuthServer.Close)
+
+		// MCP server serves different protected resource metadata at
+		// path-aware vs root URLs, each pointing to a different auth
+		// server.
+		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-protected-resource/v1/mcp":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"resource": "` + "http://" + r.Host + `/v1/mcp",
+					"authorization_servers": ["` + pathAuthServer.URL + `"]
+				}`))
+			case "/.well-known/oauth-protected-resource":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"resource": "` + "http://" + r.Host + `",
+					"authorization_servers": ["` + rootAuthServer.URL + `"]
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(mcpServer.Close)
+
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:   "Priority Test",
+			Slug:          "priority-test",
+			Transport:     "streamable_http",
+			URL:           mcpServer.URL + "/v1/mcp",
+			AuthType:      "oauth2",
+			Availability:  "default_on",
+			Enabled:       true,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.NoError(t, err)
+		// The path-aware auth server returns "path-scope", the root
+		// auth server returns "root-scope". If path-aware takes
+		// priority, we get "path-scope".
+		require.Equal(t, "path-client-id", created.OAuth2ClientID)
+		require.Equal(t, "path-scope", created.OAuth2Scopes)
+	})
+
+	// Verify discovery works when the protected resource metadata
+	// is only available at the root-level well-known URL (no path
+	// component). This covers servers that don't use path-aware
+	// metadata.
+	t.Run("RootLevelFallback", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-authorization-server":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"issuer": "` + r.Host + `",
+					"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
+					"token_endpoint": "` + "http://" + r.Host + `/token",
+					"registration_endpoint": "` + "http://" + r.Host + `/register",
+					"response_types_supported": ["code"],
+					"scopes_supported": ["all"]
+				}`))
+			case "/register":
+				if r.Method != http.MethodPost {
+					http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(`{
+					"client_id": "root-client-id",
+					"client_secret": "root-client-secret"
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(authServer.Close)
+
+		// MCP server only serves metadata at the root well-known
+		// URL, NOT at the path-aware location.
+		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-protected-resource":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"resource": "` + "http://" + r.Host + `",
+					"authorization_servers": ["` + authServer.URL + `"]
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(mcpServer.Close)
+
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:   "Root Fallback Server",
+			Slug:          "root-fallback",
+			Transport:     "streamable_http",
+			URL:           mcpServer.URL + "/v1/mcp",
+			AuthType:      "oauth2",
+			Availability:  "default_on",
+			Enabled:       true,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "root-client-id", created.OAuth2ClientID)
+		require.True(t, created.HasOAuth2Secret)
+		require.Equal(t, authServer.URL+"/authorize", created.OAuth2AuthURL)
+		require.Equal(t, authServer.URL+"/token", created.OAuth2TokenURL)
+		require.Equal(t, "all", created.OAuth2Scopes)
+	})
+
+	// Verify that when the authorization server issuer URL has a
+	// path component (e.g. https://github.com/login/oauth), the
+	// discovery uses the path-aware metadata URL per RFC 8414 §3.1.
+	t.Run("PathAwareAuthServerMetadata", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Auth server that serves metadata at the path-aware URL.
+		// The issuer URL is http://host/login/oauth, so the
+		// metadata URL should be
+		// /.well-known/oauth-authorization-server/login/oauth.
+		authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-authorization-server/login/oauth":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"issuer": "` + "http://" + r.Host + `/login/oauth",
+					"authorization_endpoint": "` + "http://" + r.Host + `/login/oauth/authorize",
+					"token_endpoint": "` + "http://" + r.Host + `/login/oauth/token",
+					"registration_endpoint": "` + "http://" + r.Host + `/register",
+					"response_types_supported": ["code"],
+					"scopes_supported": ["repo", "read:org"]
+				}`))
+			case "/register":
+				if r.Method != http.MethodPost {
+					http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(`{
+					"client_id": "path-aware-client-id"
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(authServer.Close)
+
+		// MCP server that points to an auth server with a path
+		// in its issuer URL (like GitHub's /login/oauth).
+		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-protected-resource/mcp":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"resource": "` + "http://" + r.Host + `/mcp",
+					"authorization_servers": ["` + authServer.URL + `/login/oauth"]
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(mcpServer.Close)
+
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:   "Path-Aware Auth",
+			Slug:          "path-aware-auth",
+			Transport:     "streamable_http",
+			URL:           mcpServer.URL + "/mcp",
+			AuthType:      "oauth2",
+			Availability:  "default_on",
+			Enabled:       true,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "path-aware-client-id", created.OAuth2ClientID)
+		require.Equal(t, authServer.URL+"/login/oauth/authorize", created.OAuth2AuthURL)
+		require.Equal(t, authServer.URL+"/login/oauth/token", created.OAuth2TokenURL)
+		require.Equal(t, "repo read:org", created.OAuth2Scopes)
 	})
 
 	// Regression test: verify that during dynamic client registration
@@ -572,15 +845,17 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		// Stand up a mock MCP server that returns RFC 9728 Protected
 		// Resource Metadata pointing to the auth server.
 		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/.well-known/oauth-protected-resource" {
+			switch r.URL.Path {
+			case "/.well-known/oauth-protected-resource/v1/mcp",
+				"/.well-known/oauth-protected-resource":
 				w.Header().Set("Content-Type", "application/json")
 				_, _ = w.Write([]byte(`{
 					"resource": "` + "http://" + r.Host + `",
 					"authorization_servers": ["` + authServer.URL + `"]
 				}`))
-				return
+			default:
+				http.NotFound(w, r)
 			}
-			http.NotFound(w, r)
 		}))
 		t.Cleanup(mcpServer.Close)
 
@@ -1054,4 +1329,515 @@ func createChatModelConfigForMCP(t testing.TB, client *codersdk.ExperimentalClie
 	})
 	require.NoError(t, err)
 	return modelConfig
+}
+
+func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EmptyAuthorizationServers", func(t *testing.T) {
+		t.Parallel()
+
+		// When the path-aware PRM returns an empty
+		// authorization_servers array, discovery should fall
+		// back to the root-level PRM.
+		t.Run("RootFallback", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/.well-known/oauth-authorization-server":
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{
+						"issuer": "` + "http://" + r.Host + `",
+						"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
+						"token_endpoint": "` + "http://" + r.Host + `/token",
+						"registration_endpoint": "` + "http://" + r.Host + `/register",
+						"response_types_supported": ["code"],
+						"scopes_supported": ["fallback-scope"]
+					}`))
+				case "/register":
+					if r.Method != http.MethodPost {
+						http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+						return
+					}
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusCreated)
+					_, _ = w.Write([]byte(`{
+						"client_id": "fallback-client-id",
+						"client_secret": "fallback-client-secret"
+					}`))
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(authServer.Close)
+
+			mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/.well-known/oauth-protected-resource/v1/mcp":
+					// Path-aware: empty authorization_servers.
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{
+						"resource": "` + "http://" + r.Host + `/v1/mcp",
+						"authorization_servers": []
+					}`))
+				case "/.well-known/oauth-protected-resource":
+					// Root: valid authorization_servers.
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{
+						"resource": "` + "http://" + r.Host + `",
+						"authorization_servers": ["` + authServer.URL + `"]
+					}`))
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(mcpServer.Close)
+
+			client := newMCPClient(t)
+			_ = coderdtest.CreateFirstUser(t, client)
+
+			created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+				DisplayName:   "Empty Auth Servers Fallback",
+				Slug:          "empty-as-fallback",
+				Transport:     "streamable_http",
+				URL:           mcpServer.URL + "/v1/mcp",
+				AuthType:      "oauth2",
+				Availability:  "default_on",
+				Enabled:       true,
+				ToolAllowList: []string{},
+				ToolDenyList:  []string{},
+			})
+			require.NoError(t, err)
+			require.Equal(t, "fallback-client-id", created.OAuth2ClientID)
+			require.Equal(t, authServer.URL+"/authorize", created.OAuth2AuthURL)
+			require.Equal(t, authServer.URL+"/token", created.OAuth2TokenURL)
+			require.Equal(t, "fallback-scope", created.OAuth2Scopes)
+		})
+
+		// When both path-aware and root PRM return empty
+		// authorization_servers, discovery should fail.
+		t.Run("BothEmpty", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/.well-known/oauth-protected-resource/v1/mcp",
+					"/.well-known/oauth-protected-resource":
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{
+						"resource": "` + "http://" + r.Host + `",
+						"authorization_servers": []
+					}`))
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(mcpServer.Close)
+
+			client := newMCPClient(t)
+			_ = coderdtest.CreateFirstUser(t, client)
+
+			_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+				DisplayName:   "Both Empty",
+				Slug:          "both-empty-as",
+				Transport:     "streamable_http",
+				URL:           mcpServer.URL + "/v1/mcp",
+				AuthType:      "oauth2",
+				Availability:  "default_on",
+				Enabled:       true,
+				ToolAllowList: []string{},
+				ToolDenyList:  []string{},
+			})
+			require.Error(t, err)
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+			require.Contains(t, sdkErr.Message, "auto-discovery failed")
+		})
+	})
+
+	// When the path-aware PRM returns malformed JSON,
+	// discovery should fall back to the root-level PRM.
+	t.Run("MalformedJSONFromDiscovery", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-authorization-server":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"issuer": "` + "http://" + r.Host + `",
+					"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
+					"token_endpoint": "` + "http://" + r.Host + `/token",
+					"registration_endpoint": "` + "http://" + r.Host + `/register",
+					"response_types_supported": ["code"],
+					"scopes_supported": ["json-fallback"]
+				}`))
+			case "/register":
+				if r.Method != http.MethodPost {
+					http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(`{
+					"client_id": "json-fallback-client",
+					"client_secret": "json-fallback-secret"
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(authServer.Close)
+
+		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-protected-resource/v1/mcp":
+				// Return valid HTTP 200 but invalid JSON.
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`not json`))
+			case "/.well-known/oauth-protected-resource":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"resource": "` + "http://" + r.Host + `",
+					"authorization_servers": ["` + authServer.URL + `"]
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(mcpServer.Close)
+
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:   "Malformed JSON Fallback",
+			Slug:          "malformed-json",
+			Transport:     "streamable_http",
+			URL:           mcpServer.URL + "/v1/mcp",
+			AuthType:      "oauth2",
+			Availability:  "default_on",
+			Enabled:       true,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "json-fallback-client", created.OAuth2ClientID)
+		require.Equal(t, authServer.URL+"/authorize", created.OAuth2AuthURL)
+		require.Equal(t, authServer.URL+"/token", created.OAuth2TokenURL)
+		require.Equal(t, "json-fallback", created.OAuth2Scopes)
+	})
+
+	// When the path-aware auth server metadata is missing required
+	// endpoints, discovery should fall back to the root-level
+	// metadata URL.
+	t.Run("AuthServerMetadataMissingEndpoints", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Auth server that returns incomplete metadata at the
+		// path-aware URL but complete metadata at the root URL.
+		authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-authorization-server/auth":
+				// Path-aware: missing required endpoints.
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"issuer": "` + "http://" + r.Host + `/auth"
+				}`))
+			case "/.well-known/oauth-authorization-server":
+				// Root-level: complete metadata.
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"issuer": "` + "http://" + r.Host + `",
+					"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
+					"token_endpoint": "` + "http://" + r.Host + `/token",
+					"registration_endpoint": "` + "http://" + r.Host + `/register",
+					"response_types_supported": ["code"],
+					"scopes_supported": ["endpoint-fallback"]
+				}`))
+			case "/register":
+				if r.Method != http.MethodPost {
+					http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(`{
+					"client_id": "endpoint-fallback-client",
+					"client_secret": "endpoint-fallback-secret"
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(authServer.Close)
+
+		// PRM points to auth server with a path (/auth) so that
+		// discoverAuthServerMetadata tries the path-aware URL first.
+		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-protected-resource/v1/mcp":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"resource": "` + "http://" + r.Host + `/v1/mcp",
+					"authorization_servers": ["` + authServer.URL + `/auth"]
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(mcpServer.Close)
+
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:   "Missing Endpoints Fallback",
+			Slug:          "missing-endpoints",
+			Transport:     "streamable_http",
+			URL:           mcpServer.URL + "/v1/mcp",
+			AuthType:      "oauth2",
+			Availability:  "default_on",
+			Enabled:       true,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "endpoint-fallback-client", created.OAuth2ClientID)
+		require.Equal(t, authServer.URL+"/authorize", created.OAuth2AuthURL)
+		require.Equal(t, authServer.URL+"/token", created.OAuth2TokenURL)
+		require.Equal(t, "endpoint-fallback", created.OAuth2Scopes)
+	})
+
+	// When both RFC 8414 metadata URLs (path-aware and root) fail,
+	// discovery should fall back to the OIDC well-known URL.
+	// The auth server issuer has a path (/login/oauth) so the
+	// OIDC URL is {issuer}/.well-known/openid-configuration =
+	// /login/oauth/.well-known/openid-configuration.
+	t.Run("OIDCFallback", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/login/oauth/.well-known/openid-configuration":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"issuer": "` + "http://" + r.Host + `/login/oauth",
+					"authorization_endpoint": "` + "http://" + r.Host + `/login/oauth/authorize",
+					"token_endpoint": "` + "http://" + r.Host + `/login/oauth/token",
+					"registration_endpoint": "` + "http://" + r.Host + `/register",
+					"response_types_supported": ["code"],
+					"scopes_supported": ["oidc-scope"]
+				}`))
+			case "/register":
+				if r.Method != http.MethodPost {
+					http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(`{
+					"client_id": "oidc-client-id",
+					"client_secret": "oidc-client-secret"
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(authServer.Close)
+
+		// PRM points to auth server with a path (/login/oauth)
+		// so that RFC 8414 URLs are tried first and fail.
+		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-protected-resource/v1/mcp":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"resource": "` + "http://" + r.Host + `/v1/mcp",
+					"authorization_servers": ["` + authServer.URL + `/login/oauth"]
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(mcpServer.Close)
+
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:   "OIDC Fallback",
+			Slug:          "oidc-fallback",
+			Transport:     "streamable_http",
+			URL:           mcpServer.URL + "/v1/mcp",
+			AuthType:      "oauth2",
+			Availability:  "default_on",
+			Enabled:       true,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "oidc-client-id", created.OAuth2ClientID)
+		require.Equal(t, authServer.URL+"/login/oauth/authorize", created.OAuth2AuthURL)
+		require.Equal(t, authServer.URL+"/login/oauth/token", created.OAuth2TokenURL)
+		require.Equal(t, "oidc-scope", created.OAuth2Scopes)
+	})
+
+	// When the registration endpoint returns a response
+	// without a client_id, the entire discovery flow should
+	// fail.
+	t.Run("RegistrationMissingClientID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-authorization-server":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"issuer": "` + "http://" + r.Host + `",
+					"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
+					"token_endpoint": "` + "http://" + r.Host + `/token",
+					"registration_endpoint": "` + "http://" + r.Host + `/register",
+					"response_types_supported": ["code"]
+				}`))
+			case "/register":
+				if r.Method != http.MethodPost {
+					http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
+				// Return response with client_secret but no
+				// client_id.
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(`{
+					"client_secret": "secret-without-id"
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(authServer.Close)
+
+		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-protected-resource/v1/mcp":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"resource": "` + "http://" + r.Host + `/v1/mcp",
+					"authorization_servers": ["` + authServer.URL + `"]
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(mcpServer.Close)
+
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:   "Missing Client ID",
+			Slug:          "missing-client-id",
+			Transport:     "streamable_http",
+			URL:           mcpServer.URL + "/v1/mcp",
+			AuthType:      "oauth2",
+			Availability:  "default_on",
+			Enabled:       true,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "auto-discovery failed")
+	})
+
+	// Regression test for the exact scenario that motivated the PR:
+	// an MCP server URL with a trailing slash (like
+	// https://api.githubcopilot.com/mcp/).
+	t.Run("TrailingSlashURL", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-authorization-server":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"issuer": "` + "http://" + r.Host + `",
+					"authorization_endpoint": "` + "http://" + r.Host + `/authorize",
+					"token_endpoint": "` + "http://" + r.Host + `/token",
+					"registration_endpoint": "` + "http://" + r.Host + `/register",
+					"response_types_supported": ["code"],
+					"scopes_supported": ["read"]
+				}`))
+			case "/register":
+				if r.Method != http.MethodPost {
+					http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(`{
+					"client_id": "trailing-slash-client",
+					"client_secret": "trailing-slash-secret"
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(authServer.Close)
+
+		// Serve protected resource metadata at the path-aware URL
+		// WITH the trailing slash: /.well-known/oauth-protected-resource/mcp/
+		mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/oauth-protected-resource/mcp/":
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"resource": "` + "http://" + r.Host + `/mcp/",
+					"authorization_servers": ["` + authServer.URL + `"]
+				}`))
+			default:
+				http.NotFound(w, r)
+			}
+		}))
+		t.Cleanup(mcpServer.Close)
+
+		client := newMCPClient(t)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		// URL has a trailing slash, matching the GitHub Copilot URL
+		// pattern: https://api.githubcopilot.com/mcp/
+		created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:   "Trailing Slash",
+			Slug:          "trailing-slash",
+			Transport:     "streamable_http",
+			URL:           mcpServer.URL + "/mcp/",
+			AuthType:      "oauth2",
+			Availability:  "default_on",
+			Enabled:       true,
+			ToolAllowList: []string{},
+			ToolDenyList:  []string{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, "trailing-slash-client", created.OAuth2ClientID)
+		require.True(t, created.HasOAuth2Secret)
+	})
 }
