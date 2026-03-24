@@ -114,6 +114,28 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 
 	const handleCalendarSelect = (range: DayPickerDateRange | undefined) => {
 		if (!range) return;
+
+		// react-day-picker resets the range on every click when both
+		// endpoints are set (from is the clicked date, to is cleared).
+		// Instead of forcing two clicks, adjust the nearest endpoint
+		// so a single click is enough to tweak the range.
+		if (range.from && !range.to && selection?.from && selection?.to) {
+			const clicked = range.from.getTime();
+			const distToStart = Math.abs(clicked - selection.from.getTime());
+			const distToEnd = Math.abs(clicked - selection.to.getTime());
+
+			if (distToStart <= distToEnd) {
+				const newFrom = range.from;
+				const newTo = newFrom <= selection.to ? selection.to : newFrom;
+				setSelection({ from: newFrom, to: newTo });
+			} else {
+				const newTo = range.from;
+				const newFrom = newTo >= selection.from ? selection.from : newTo;
+				setSelection({ from: newFrom, to: newTo });
+			}
+			return;
+		}
+
 		setSelection(range);
 	};
 
