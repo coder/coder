@@ -2461,6 +2461,7 @@ func (p *Server) chatFileResolver() chatprompt.FileResolver {
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
 			result[f.ID] = chatprompt.FileData{
+				Name:      f.Name,
 				Data:      f.Data,
 				MediaType: f.Mimetype,
 			}
