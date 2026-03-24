@@ -5,7 +5,6 @@ import { useMutation, useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { API } from "#/api/api";
 import { DetailedError } from "#/api/errors";
-import { checkAuthorization } from "#/api/queries/authCheck";
 import type {
 	DynamicParametersRequest,
 	DynamicParametersResponse,
@@ -26,15 +25,11 @@ import { useEffectEvent } from "#/hooks/hookPolyfills";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
-import {
-	type WorkspacePermissions,
-	workspaceChecks,
-} from "../../../modules/workspaces/permissions";
 import { useWorkspaceSettings } from "../useWorkspaceSettings";
 import { WorkspaceParametersPageViewExperimental } from "./WorkspaceParametersPageViewExperimental";
 
 const WorkspaceParametersPageExperimental: FC = () => {
-	const { workspace } = useWorkspaceSettings();
+	const { permissions, workspace } = useWorkspaceSettings();
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const templateVersionId = searchParams.get("templateVersionId") ?? undefined;
@@ -190,12 +185,6 @@ const WorkspaceParametersPageExperimental: FC = () => {
 		},
 	});
 
-	const checks = workspace ? workspaceChecks(workspace) : {};
-	const permissionsQuery = useQuery({
-		...checkAuthorization({ checks }),
-		enabled: workspace !== undefined,
-	});
-	const permissions = permissionsQuery.data as WorkspacePermissions | undefined;
 	const canChangeVersions = Boolean(permissions?.updateWorkspaceVersion);
 
 	const handleSubmit = (values: {
