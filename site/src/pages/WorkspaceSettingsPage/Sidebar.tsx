@@ -11,7 +11,7 @@ import {
 	SidebarHeader,
 	SidebarNavItem,
 } from "#/components/Sidebar/Sidebar";
-import { useWorkspaceSettings } from "./WorkspaceSettingsLayout";
+import { useWorkspaceSettings } from "./useWorkspaceSettings";
 
 export const Sidebar: React.FC = () => {
 	const { owner, workspace, permissions } = useWorkspaceSettings();
