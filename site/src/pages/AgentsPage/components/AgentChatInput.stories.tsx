@@ -345,6 +345,103 @@ export const AttachmentsOnly: Story = {
 	})(),
 };
 
+const LARGE_PASTE_MARKER = "__PASTE_MARKER_TEST__";
+
+const largePasteText = Array.from({ length: 12 }, (_, i) =>
+	i === 6 ? LARGE_PASTE_MARKER : `line ${i + 1} of pasted content`,
+).join("\n");
+
+function dispatchPasteWithText(element: HTMLElement, text: string): void {
+	const dt = new DataTransfer();
+	dt.setData("text/plain", text);
+	const event = new ClipboardEvent("paste", {
+		bubbles: true,
+		cancelable: true,
+	});
+	Object.defineProperty(event, "clipboardData", {
+		value: dt,
+		writable: false,
+	});
+	element.dispatchEvent(event);
+}
+
+function getPasteTarget(container: HTMLElement): HTMLElement {
+	const element = container.querySelector(
+		'[data-testid="chat-message-input"]',
+	) as HTMLElement;
+	if (element?.getAttribute("contenteditable") === "true") {
+		return element;
+	}
+
+	const contentEditable = element?.querySelector(
+		'[contenteditable="true"]',
+	) as HTMLElement;
+	return contentEditable ?? element;
+}
+
+export const LargePasteCreatesAttachmentPreview: Story = {
+	args: {
+		attachments: [],
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const target = getPasteTarget(canvasElement);
+		await waitFor(() => {
+			expect(target.getAttribute("contenteditable")).toBe("true");
+		});
+		target.focus();
+
+		dispatchPasteWithText(target, largePasteText);
+
+		await waitFor(() => {
+			expect(args.onAttach).toHaveBeenCalledTimes(1);
+		});
+
+		const callArgs = (args.onAttach as ReturnType<typeof fn>).mock.calls[0];
+		const files = callArgs[0] as File[];
+		expect(files).toHaveLength(1);
+		expect(files[0].type).toBe("text/plain");
+		expect(files[0].name).toMatch(
+			/^pasted-text-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.txt$/,
+		);
+		expect(target.textContent).not.toContain(LARGE_PASTE_MARKER);
+	},
+};
+
+export const CtrlShiftVBypassesAttachmentCollapse: Story = {
+	args: {
+		attachments: [],
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const target = getPasteTarget(canvasElement);
+		await waitFor(() => {
+			expect(target.getAttribute("contenteditable")).toBe("true");
+		});
+		target.focus();
+
+		const keyDown = new KeyboardEvent("keydown", {
+			key: "v",
+			code: "KeyV",
+			shiftKey: true,
+			ctrlKey: true,
+			metaKey: false,
+			bubbles: true,
+			cancelable: true,
+		});
+		target.dispatchEvent(keyDown);
+		dispatchPasteWithText(target, largePasteText);
+
+		await waitFor(() => {
+			expect(target.textContent).toContain(LARGE_PASTE_MARKER);
+		});
+
+		expect(args.onAttach).not.toHaveBeenCalled();
+	},
+};
+
 // ── MCP server fixtures ────────────────────────────────────────
 
 const now = "2026-03-19T12:00:00.000Z";
