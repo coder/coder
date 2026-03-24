@@ -245,6 +245,23 @@ const meta: Meta<typeof AgentsPageView> = {
 			workspace_ttl_ms: 0,
 		});
 		spyOn(API.experimental, "updateChatWorkspaceTTL").mockResolvedValue();
+		spyOn(API.experimental, "getChatUsageLimitConfig").mockResolvedValue({
+			spend_limit_micros: 50_000_000,
+			period: "month",
+			updated_at: "2026-03-01T00:00:00Z",
+			unpriced_model_count: 0,
+			overrides: [],
+			group_overrides: [],
+		});
+		spyOn(API.experimental, "getChatUsageLimitStatus").mockResolvedValue({
+			is_limited: false,
+			current_spend: 0,
+		});
+		spyOn(API, "getGroups").mockResolvedValue([]);
+		spyOn(
+			API.experimental,
+			"getUserChatCompactionThresholds",
+		).mockResolvedValue({ thresholds: [] });
 	},
 };
 
@@ -591,11 +608,11 @@ export const SettingsViewResets: Story = {
 		});
 
 		// Navigate to Usage section
-		await userEvent.click(screen.getByText("Usage"));
+		await userEvent.click(screen.getByText("Usage & Limits"));
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Review deployment chat usage and drill into individual users.",
+					"Manage deployment spend limits and review chat usage.",
 				),
 			).toBeInTheDocument();
 		});

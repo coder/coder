@@ -68,7 +68,7 @@ const editingGroupOverride = {
 };
 
 const meta: Meta<typeof GroupLimitsSection> = {
-	title: "pages/AgentsPage/LimitsTab/GroupLimitsSection",
+	title: "pages/AgentsPage/UsageLimitsTab/GroupLimitsSection",
 	component: GroupLimitsSection,
 	args: {
 		groupOverrides: mockGroupOverrides,

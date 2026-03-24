@@ -9,9 +9,10 @@ import {
 } from "api/queries/chats";
 import { groups } from "api/queries/groups";
 import type { ChatUsageLimitPeriod, Group, User } from "api/typesGenerated";
-import { ShieldIcon } from "lucide-react";
+import type { Dayjs } from "dayjs";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useSearchParams } from "react-router";
 import {
 	dollarsToMicros,
 	isPositiveFiniteDollarAmount,
@@ -19,15 +20,19 @@ import {
 } from "utils/currency";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+import { AdminBadge } from "../AdminBadge";
+import type { DateRangeValue } from "../DateRangePicker/DateRangePicker";
+import { SectionHeader } from "../SectionHeader";
 import { DefaultLimitSection } from "./DefaultLimitSection";
 import { GroupLimitsSection } from "./GroupLimitsSection";
 import { normalizeChatUsageLimitPeriod } from "./limitsFormLogic";
+import {
+	formatUsageDateRange,
+	getDefaultUsageDateRange,
+	UsageUsersSection,
+	usageEndDateSearchParam,
+	usageStartDateSearchParam,
+} from "./UsageUsersSection";
 import { UserOverridesSection } from "./UserOverridesSection";
 
 interface DefaultLimitFormValues {
@@ -51,22 +56,6 @@ interface DefaultLimitControllerProps {
 	}) => ReactNode;
 }
 
-const AdminBadge: FC = () => (
-	<TooltipProvider delayDuration={0}>
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<span className="inline-flex cursor-default items-center gap-1 rounded bg-surface-tertiary/60 px-1.5 py-px text-[11px] font-medium text-content-secondary">
-					<ShieldIcon className="h-3 w-3" />
-					Admin
-				</span>
-			</TooltipTrigger>
-			<TooltipContent side="right">
-				Only visible to deployment administrators.
-			</TooltipContent>
-		</Tooltip>
-	</TooltipProvider>
-);
-
 const DefaultLimitController: FC<DefaultLimitControllerProps> = ({
 	initialValues,
 	onSave,
@@ -85,7 +74,6 @@ const DefaultLimitController: FC<DefaultLimitControllerProps> = ({
 		if (enabled && !isPositiveFiniteDollarAmount(amountDollars)) {
 			return;
 		}
-
 		await onSave({ enabled, period, amountDollars });
 	};
 
@@ -101,8 +89,18 @@ const DefaultLimitController: FC<DefaultLimitControllerProps> = ({
 	});
 };
 
-export const LimitsTab: FC = () => {
+// ── Main component ─────────────────────────────────────────────────
+
+interface UsageLimitsTabProps {
+	now?: Dayjs;
+}
+
+export const UsageLimitsTab: FC<UsageLimitsTabProps> = ({ now }) => {
 	const queryClient = useQueryClient();
+	const [searchParams, setSearchParams] = useSearchParams();
+
+	// ── Limit config queries & mutations ───────────────────────────
+
 	const configQuery = useQuery(chatUsageLimitConfig());
 	const updateConfigMutation = useMutation(
 		updateChatUsageLimitConfig(queryClient),
@@ -121,11 +119,15 @@ export const LimitsTab: FC = () => {
 		deleteChatUsageLimitGroupOverride(queryClient),
 	);
 
+	// ── Limit form state ───────────────────────────────────────────
+
 	const [showGroupForm, setShowGroupForm] = useState(false);
 	const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
 	const [groupAmount, setGroupAmount] = useState("");
 	const [showUserForm, setShowUserForm] = useState(false);
-	const [selectedUser, setSelectedUser] = useState<User | null>(null);
+	const [selectedOverrideUser, setSelectedOverrideUser] = useState<User | null>(
+		null,
+	);
 	const [userOverrideAmount, setUserOverrideAmount] = useState("");
 	const [editingUserOverride, setEditingUserOverride] = useState<{
 		user_id: string;
@@ -141,13 +143,74 @@ export const LimitsTab: FC = () => {
 		member_count: number;
 	} | null>(null);
 
+	// ── Usage date range state ─────────────────────────────────────
+
+	const startDateParam =
+		searchParams.get(usageStartDateSearchParam)?.trim() ?? "";
+	const endDateParam = searchParams.get(usageEndDateSearchParam)?.trim() ?? "";
+	const [defaultDateRange] = useState(() => getDefaultUsageDateRange(now));
+
+	let dateRange = defaultDateRange;
+	let hasExplicitDateRange = false;
+
+	if (startDateParam && endDateParam) {
+		const parsedStartDate = new Date(startDateParam);
+		const parsedEndDate = new Date(endDateParam);
+
+		if (
+			!Number.isNaN(parsedStartDate.getTime()) &&
+			!Number.isNaN(parsedEndDate.getTime()) &&
+			parsedStartDate.getTime() <= parsedEndDate.getTime()
+		) {
+			dateRange = {
+				startDate: parsedStartDate,
+				endDate: parsedEndDate,
+			};
+			hasExplicitDateRange = true;
+		}
+	}
+
+	const dateRangeParams = {
+		start_date: dateRange.startDate.toISOString(),
+		end_date: dateRange.endDate.toISOString(),
+	};
+	const { endDate } = dateRange;
+	const isExclusiveMidnightEnd =
+		hasExplicitDateRange &&
+		endDate.getHours() === 0 &&
+		endDate.getMinutes() === 0 &&
+		endDate.getSeconds() === 0 &&
+		endDate.getMilliseconds() === 0;
+	const displayDateRange = isExclusiveMidnightEnd
+		? {
+				startDate: dateRange.startDate,
+				endDate: new Date(endDate.getTime() - 1),
+			}
+		: dateRange;
+	const dateRangeLabel = formatUsageDateRange(dateRange, {
+		endDateIsExclusive: hasExplicitDateRange,
+	});
+
+	const onDateRangeChange = (value: DateRangeValue) => {
+		setSearchParams((prev) => {
+			const next = new URLSearchParams(prev);
+			next.set(usageStartDateSearchParam, value.startDate.toISOString());
+			next.set(usageEndDateSearchParam, value.endDate.toISOString());
+			return next;
+		});
+	};
+
+	// ── Derived limit config values ────────────────────────────────
+
+	const configData = configQuery.data;
+
 	const defaultLimitValues: DefaultLimitFormValues = (() => {
-		const spendLimitMicros = configQuery.data?.spend_limit_micros;
+		const spendLimitMicros = configData?.spend_limit_micros;
 		const enabled = spendLimitMicros !== null && spendLimitMicros !== undefined;
 
 		return {
 			enabled,
-			period: normalizeChatUsageLimitPeriod(configQuery.data?.period),
+			period: normalizeChatUsageLimitPeriod(configData?.period),
 			amountDollars:
 				enabled && spendLimitMicros !== null && spendLimitMicros !== undefined
 					? microsToDollars(spendLimitMicros).toString()
@@ -155,20 +218,20 @@ export const LimitsTab: FC = () => {
 		};
 	})();
 	const defaultLimitKey = JSON.stringify({
-		spend_limit_micros: configQuery.data?.spend_limit_micros ?? null,
+		spend_limit_micros: configData?.spend_limit_micros ?? null,
 		period: defaultLimitValues.period,
 	});
 	const existingGroupIds = new Set(
-		(configQuery.data?.group_overrides ?? []).map((g) => g.group_id),
+		(configData?.group_overrides ?? []).map((g) => g.group_id),
 	);
 	const existingUserIds = new Set(
-		(configQuery.data?.overrides ?? []).map((o) => o.user_id),
+		(configData?.overrides ?? []).map((o) => o.user_id),
 	);
 	const availableGroups = (groupsQuery.data ?? []).filter(
 		(g) => !existingGroupIds.has(g.id),
 	);
-	const selectedUserAlreadyOverridden = selectedUser
-		? existingUserIds.has(selectedUser.id)
+	const selectedUserAlreadyOverridden = selectedOverrideUser
+		? existingUserIds.has(selectedOverrideUser.id)
 		: false;
 	const groupAutocompleteNoOptionsText = groupsQuery.isLoading
 		? "Loading groups..."
@@ -177,6 +240,8 @@ export const LimitsTab: FC = () => {
 			: availableGroups.length === 0
 				? "All groups already have overrides"
 				: "No groups available";
+
+	// ── Limit mutation handlers ────────────────────────────────────
 
 	const resetUpdateConfigMutation = () => {
 		if (!updateConfigMutation.isPending) {
@@ -213,7 +278,7 @@ export const LimitsTab: FC = () => {
 			username: override.username,
 			avatar_url: override.avatar_url,
 		});
-		setSelectedUser(null);
+		setSelectedOverrideUser(null);
 		setUserOverrideAmount(
 			override.spend_limit_micros !== null
 				? microsToDollars(override.spend_limit_micros).toString()
@@ -261,12 +326,13 @@ export const LimitsTab: FC = () => {
 				updated_at: new Date().toISOString(),
 			});
 		} catch {
-			// Keep the current form state so the inline mutation error is visible.
+			// Keep form state so the inline mutation error is visible.
 		}
 	};
 
 	const handleAddOverride = async () => {
-		const targetUserID = editingUserOverride?.user_id ?? selectedUser?.id;
+		const targetUserID =
+			editingUserOverride?.user_id ?? selectedOverrideUser?.id;
 
 		if (!targetUserID || !isPositiveFiniteDollarAmount(userOverrideAmount)) {
 			return;
@@ -274,14 +340,16 @@ export const LimitsTab: FC = () => {
 		try {
 			await upsertOverrideMutation.mutateAsync({
 				userID: targetUserID,
-				req: { spend_limit_micros: dollarsToMicros(userOverrideAmount) },
+				req: {
+					spend_limit_micros: dollarsToMicros(userOverrideAmount),
+				},
 			});
 			setEditingUserOverride(null);
-			setSelectedUser(null);
+			setSelectedOverrideUser(null);
 			setUserOverrideAmount("");
 			setShowUserForm(false);
 		} catch {
-			// Keep the current form state so the inline mutation error is visible.
+			// Keep form state so the inline mutation error is visible.
 		}
 	};
 
@@ -301,7 +369,7 @@ export const LimitsTab: FC = () => {
 			setGroupAmount("");
 			setShowGroupForm(false);
 		} catch {
-			// Keep the current form state so the inline mutation error is visible.
+			// Keep form state so the inline mutation error is visible.
 		}
 	};
 
@@ -309,7 +377,7 @@ export const LimitsTab: FC = () => {
 		try {
 			await deleteGroupOverrideMutation.mutateAsync(groupID);
 		} catch {
-			// Keep the current UI state so the inline mutation error is visible.
+			// Keep UI state so the inline mutation error is visible.
 		}
 	};
 
@@ -317,9 +385,11 @@ export const LimitsTab: FC = () => {
 		try {
 			await deleteOverrideMutation.mutateAsync(userID);
 		} catch {
-			// Keep the current UI state so the inline mutation error is visible.
+			// Keep UI state so the inline mutation error is visible.
 		}
 	};
+
+	// ── Loading state ──────────────────────────────────────────────
 
 	if (configQuery.isLoading) {
 		return (
@@ -330,6 +400,8 @@ export const LimitsTab: FC = () => {
 			</div>
 		);
 	}
+
+	// ── Error state ────────────────────────────────────────────────
 
 	if (configQuery.isError) {
 		return (
@@ -356,9 +428,27 @@ export const LimitsTab: FC = () => {
 		);
 	}
 
-	const groupOverrides = configQuery.data?.group_overrides ?? [];
-	const overrides = configQuery.data?.overrides ?? [];
-	const unpricedModelCount = configQuery.data?.unpriced_model_count ?? 0;
+	// ── Shared props for UsageUsersSection ──────────────────────────
+
+	const usersSectionProps = {
+		dateRangeParams,
+		dateRangeLabel,
+		displayDateRange,
+		onDateRangeChange,
+		configData,
+	};
+	// ── Drill-in: selected user detail view ────────────────────────
+
+	const selectedUserId = searchParams.get("user");
+	if (selectedUserId) {
+		return <UsageUsersSection {...usersSectionProps} />;
+	}
+
+	// ── Normal view: combined usage + limits ───────────────────────
+
+	const groupOverrides = configData?.group_overrides ?? [];
+	const overrides = configData?.overrides ?? [];
+	const unpricedModelCount = configData?.unpriced_model_count ?? 0;
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -380,8 +470,14 @@ export const LimitsTab: FC = () => {
 					<>
 						<div className="flex-1 overflow-y-auto pb-24 [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]">
 							<div className="space-y-10">
+								{/* ── Section: header with date picker ── */}
+								<SectionHeader
+									label="Usage & Limits"
+									description="Manage deployment spend limits and review chat usage."
+									badge={<AdminBadge className="ml-auto" />}
+								/>
+								{/* ── Section: default spend limit ── */}
 								<DefaultLimitSection
-									adminBadge={<AdminBadge />}
 									enabled={enabled}
 									onEnabledChange={(nextEnabled) => {
 										resetUpdateConfigMutation();
@@ -399,6 +495,39 @@ export const LimitsTab: FC = () => {
 									}}
 									unpricedModelCount={unpricedModelCount}
 								/>
+
+								{/* ── Sticky save bar for default limit ── */}
+								<div className="sticky bottom-0 z-10 flex shrink-0 flex-col gap-2 border-t border-border bg-surface-primary py-3 sm:flex-row sm:items-center sm:justify-between">
+									<div className="min-h-4 text-xs">
+										{updateConfigMutation.isError && (
+											<p className="m-0 text-content-destructive">
+												{getErrorMessage(
+													updateConfigMutation.error,
+													"Failed to save the default spend limit.",
+												)}
+											</p>
+										)}
+										{updateConfigMutation.isSuccess && (
+											<p className="m-0 text-content-success">Saved!</p>
+										)}
+									</div>
+									<Button
+										size="sm"
+										type="button"
+										onClick={() => void saveDefault()}
+										disabled={updateConfigMutation.isPending || !isAmountValid}
+									>
+										{updateConfigMutation.isPending ? (
+											<Spinner loading className="h-4 w-4" />
+										) : null}
+										Save default limit
+									</Button>
+								</div>
+
+								{/* ── Separator ── */}
+								<hr className="border-0 border-t border-solid border-border" />
+
+								{/* ── Section: Group limits ── */}
 								<GroupLimitsSection
 									groupOverrides={groupOverrides}
 									showGroupForm={showGroupForm}
@@ -430,12 +559,14 @@ export const LimitsTab: FC = () => {
 									}
 									groupsError={groupsQuery.isError ? groupsQuery.error : null}
 								/>
+
+								{/* ── Section: Per-user overrides ── */}
 								<UserOverridesSection
 									overrides={overrides}
 									showUserForm={showUserForm}
 									onShowUserFormChange={handleShowUserFormChange}
-									selectedUser={selectedUser}
-									onSelectedUserChange={setSelectedUser}
+									selectedUser={selectedOverrideUser}
+									onSelectedUserChange={setSelectedOverrideUser}
 									userOverrideAmount={userOverrideAmount}
 									onUserOverrideAmountChange={setUserOverrideAmount}
 									selectedUserAlreadyOverridden={
@@ -458,34 +589,13 @@ export const LimitsTab: FC = () => {
 											: null
 									}
 								/>
-							</div>
-						</div>
 
-						<div className="sticky bottom-0 flex shrink-0 flex-col gap-2 border-t border-border bg-surface-primary py-3 sm:flex-row sm:items-center sm:justify-between">
-							<div className="min-h-4 text-xs">
-								{updateConfigMutation.isError && (
-									<p className="m-0 text-content-destructive">
-										{getErrorMessage(
-											updateConfigMutation.error,
-											"Failed to save the default spend limit.",
-										)}
-									</p>
-								)}
-								{updateConfigMutation.isSuccess && (
-									<p className="m-0 text-content-success">Saved!</p>
-								)}
-							</div>
-							<Button
-								size="sm"
-								type="button"
-								onClick={() => void saveDefault()}
-								disabled={updateConfigMutation.isPending || !isAmountValid}
-							>
-								{updateConfigMutation.isPending ? (
-									<Spinner loading className="h-4 w-4" />
-								) : null}
-								Save default limit
-							</Button>
+								{/* ── Separator ── */}
+								<hr className="border-0 border-t border-solid border-border" />
+
+								{/* ── Section: Users usage table ── */}
+								<UsageUsersSection {...usersSectionProps} />
+							</div>{" "}
 						</div>
 					</>
 				)}

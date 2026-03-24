@@ -38,7 +38,7 @@ const mockOverrides = [
 ];
 
 const meta: Meta<typeof UserOverridesSection> = {
-	title: "pages/AgentsPage/LimitsTab/UserOverridesSection",
+	title: "pages/AgentsPage/UsageLimitsTab/UserOverridesSection",
 	component: UserOverridesSection,
 	args: {
 		overrides: mockOverrides,
