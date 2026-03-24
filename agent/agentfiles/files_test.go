@@ -969,8 +969,10 @@ func TestEditFiles(t *testing.T) {
 					},
 				},
 			},
+			// No files should be modified when any edit fails
+			// (atomic multi-file semantics).
 			expected: map[string]string{
-				filepath.Join(tmpdir, "file8"): "edited8 8",
+				filepath.Join(tmpdir, "file8"): "file 8",
 			},
 			// Higher status codes will override lower ones, so in this case the 404
 			// takes priority over the 403.
@@ -980,8 +982,44 @@ func TestEditFiles(t *testing.T) {
 				"file9: file does not exist",
 			},
 		},
+		{
+			// Valid edits on files A and C, but file B has a
+			// search miss. None should be written.
+			name: "AtomicMultiFile_OneFailsNoneWritten",
+			contents: map[string]string{
+				filepath.Join(tmpdir, "atomic-a"): "aaa",
+				filepath.Join(tmpdir, "atomic-b"): "bbb",
+				filepath.Join(tmpdir, "atomic-c"): "ccc",
+			},
+			edits: []workspacesdk.FileEdits{
+				{
+					Path: filepath.Join(tmpdir, "atomic-a"),
+					Edits: []workspacesdk.FileEdit{
+						{Search: "aaa", Replace: "AAA"},
+					},
+				},
+				{
+					Path: filepath.Join(tmpdir, "atomic-b"),
+					Edits: []workspacesdk.FileEdit{
+						{Search: "NOTFOUND", Replace: "XXX"},
+					},
+				},
+				{
+					Path: filepath.Join(tmpdir, "atomic-c"),
+					Edits: []workspacesdk.FileEdit{
+						{Search: "ccc", Replace: "CCC"},
+					},
+				},
+			},
+			errCode: http.StatusBadRequest,
+			errors:  []string{"search string not found"},
+			expected: map[string]string{
+				filepath.Join(tmpdir, "atomic-a"): "aaa",
+				filepath.Join(tmpdir, "atomic-b"): "bbb",
+				filepath.Join(tmpdir, "atomic-c"): "ccc",
+			},
+		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
