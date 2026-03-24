@@ -105,8 +105,12 @@ export function useFileAttachments(
 		// Read text content for preview, but skip oversized files.
 		for (const file of files) {
 			if (file.type === "text/plain" && file.size <= maxSize) {
-				void file
-					.text()
+				// Defensive: some test environments lack File.prototype.text().
+				const readText =
+					typeof file.text === "function"
+						? file.text()
+						: new Response(file).text();
+				void readText
 					.then((content) => {
 						setTextContents((prev) => {
 							const next = new Map(prev);
