@@ -3901,13 +3901,25 @@ func TestPostChatFile(t *testing.T) {
 		require.NotEqual(t, uuid.Nil, resp.ID)
 	})
 
+	t.Run("Success/TextPlain", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		data := []byte("This is a test paste.\nWith multiple lines.\n")
+		resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "test.txt", bytes.NewReader(data))
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, resp.ID)
+	})
+
 	t.Run("UnsupportedContentType", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
-		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "test.txt", bytes.NewReader([]byte("hello")))
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "application/pdf", "test.pdf", bytes.NewReader([]byte("%PDF-1.7")))
 		requireSDKError(t, err, http.StatusBadRequest)
 	})
 
@@ -3929,9 +3941,32 @@ func TestPostChatFile(t *testing.T) {
 
 		// Header says PNG but body is plain text.
 		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader([]byte("hello world")))
-		requireSDKError(t, err, http.StatusBadRequest)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "does not match")
 	})
 
+	t.Run("ContentSniffingRejectsPNGAsText", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		// Valid 1x1 PNG declared as text/plain should still be rejected.
+		data := []byte{
+			0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+			0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+			0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+			0x08, 0x04, 0x00, 0x00, 0x00, 0xB5, 0x1C, 0x0C,
+			0x02, 0x00, 0x00, 0x00, 0x0B, 0x49, 0x44, 0x41,
+			0x54, 0x78, 0xDA, 0x63, 0xFC, 0xFF, 0x1F, 0x00,
+			0x03, 0x03, 0x02, 0x00, 0xEF, 0x9A, 0x1A, 0x2A,
+			0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44,
+			0xAE, 0x42, 0x60, 0x82,
+		}
+		_, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "test.txt", bytes.NewReader(data))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "does not match")
+	})
 	t.Run("TooLarge", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -3945,6 +3980,18 @@ func TestPostChatFile(t *testing.T) {
 		require.Error(t, err)
 	})
 
+	t.Run("Success/TextPlainHTMLLikeContent", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		data := []byte("<!DOCTYPE html>\n<html><body><p>Paste me as plain text.</p></body></html>\n")
+		resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "snippet.txt", bytes.NewReader(data))
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, resp.ID)
+	})
+
 	t.Run("MissingOrganization", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -3955,6 +4002,7 @@ func TestPostChatFile(t *testing.T) {
 		res, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats/files", bytes.NewReader(data), func(r *http.Request) {
 			r.Header.Set("Content-Type", "image/png")
 		})
+
 		require.NoError(t, err)
 		defer res.Body.Close()
 		err = codersdk.ReadBodyAsError(res)
@@ -4028,6 +4076,22 @@ func TestGetChatFile(t *testing.T) {
 		require.Equal(t, data, got)
 	})
 
+	t.Run("Success/TextPlain", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		data := []byte("This is a test paste.\nWith multiple lines.\n")
+		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "test.txt", bytes.NewReader(data))
+		require.NoError(t, err)
+
+		got, contentType, err := client.GetChatFile(ctx, uploaded.ID)
+		require.NoError(t, err)
+		require.Equal(t, "text/plain", contentType)
+		require.Equal(t, data, got)
+	})
+
 	t.Run("CacheHeaders", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -4044,6 +4108,7 @@ func TestGetChatFile(t *testing.T) {
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		require.Equal(t, "private, max-age=31536000, immutable", res.Header.Get("Cache-Control"))
+		require.Equal(t, "nosniff", res.Header.Get("X-Content-Type-Options"))
 		require.Contains(t, res.Header.Get("Content-Disposition"), "inline")
 		require.Contains(t, res.Header.Get("Content-Disposition"), "test.png")
 	})

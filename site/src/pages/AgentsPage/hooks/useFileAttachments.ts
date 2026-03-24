@@ -11,10 +11,11 @@ import type { UploadState } from "../components/AgentChatInput";
 
 interface UseFileAttachmentsReturn {
 	attachments: File[];
+	textContents: Map<File, string>;
 	uploadStates: Map<File, UploadState>;
 	previewUrls: Map<File, string>;
 	handleAttach: (files: File[]) => void;
-	handleRemoveAttachment: (index: number) => void;
+	handleRemoveAttachment: (attachment: number | File) => void;
 	startUpload: (file: File) => void;
 	resetAttachments: () => void;
 	setAttachments: Dispatch<SetStateAction<File[]>>;
@@ -30,6 +31,9 @@ export function useFileAttachments(
 		() => new Map<File, UploadState>(),
 	);
 	const [previewUrls, setPreviewUrls] = useState(() => new Map<File, string>());
+	const [textContents, setTextContents] = useState(
+		() => new Map<File, string>(),
+	);
 
 	// Revoke blob URLs on unmount to prevent memory leaks.
 	const previewUrlsRef = useRef(previewUrls);
@@ -67,12 +71,13 @@ export function useFileAttachments(
 						fileId: result.id,
 					}),
 				);
-				// Pre-warm the browser HTTP cache so the timeline
-				// can render this image instantly after send. The
-				// server responds with Cache-Control: private,
-				// immutable, so the <img src> never hits the
-				// network again.
-				void fetch(`/api/experimental/chats/files/${result.id}`);
+				// Pre-warm the browser HTTP cache for images so the
+				// timeline can render them instantly after send. We
+				// intentionally skip text attachments because the
+				// composer already has the text content locally.
+				if (file.type.startsWith("image/")) {
+					void fetch(`/api/experimental/chats/files/${result.id}`);
+				}
 			} catch (err: unknown) {
 				const message = getErrorMessage(err, "Upload failed");
 				const detail = getErrorDetail(err);
@@ -93,10 +98,33 @@ export function useFileAttachments(
 		setPreviewUrls((prev) => {
 			const next = new Map(prev);
 			for (const file of files) {
-				next.set(file, URL.createObjectURL(file));
+				if (file.type !== "text/plain") {
+					next.set(file, URL.createObjectURL(file));
+				}
 			}
 			return next;
 		});
+		// Read text content for preview, but skip oversized files.
+		for (const file of files) {
+			if (file.type === "text/plain" && file.size <= maxSize) {
+				// Defensive: some test environments lack File.prototype.text().
+				const readText =
+					typeof file.text === "function"
+						? file.text()
+						: new Response(file).text();
+				void readText
+					.then((content) => {
+						setTextContents((prev) => {
+							const next = new Map(prev);
+							next.set(file, content);
+							return next;
+						});
+					})
+					.catch((err) => {
+						console.error("Failed to read text file content:", err);
+					});
+			}
+		}
 		for (const file of files) {
 			if (file.size > maxSize) {
 				setUploadStates((prev) =>
@@ -111,23 +139,32 @@ export function useFileAttachments(
 		}
 	};
 
-	const handleRemoveAttachment = (index: number) => {
+	const handleRemoveAttachment = (attachment: number | File) => {
 		setAttachments((prev) => {
-			const removed = prev[index];
-			if (removed) {
-				setUploadStates((prevStates) => {
-					const next = new Map(prevStates);
-					next.delete(removed);
-					return next;
-				});
-				setPreviewUrls((prevUrls) => {
-					const url = prevUrls.get(removed);
-					if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
-					const next = new Map(prevUrls);
-					next.delete(removed);
-					return next;
-				});
+			const index =
+				typeof attachment === "number" ? attachment : prev.indexOf(attachment);
+			if (index === -1) {
+				return prev;
 			}
+
+			const removed = prev[index];
+			setUploadStates((prevStates) => {
+				const next = new Map(prevStates);
+				next.delete(removed);
+				return next;
+			});
+			setPreviewUrls((prevUrls) => {
+				const url = prevUrls.get(removed);
+				if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+				const next = new Map(prevUrls);
+				next.delete(removed);
+				return next;
+			});
+			setTextContents((prevContents) => {
+				const next = new Map(prevContents);
+				next.delete(removed);
+				return next;
+			});
 			return prev.filter((_, i) => i !== index);
 		});
 	};
@@ -137,12 +174,14 @@ export function useFileAttachments(
 			if (url.startsWith("blob:")) URL.revokeObjectURL(url);
 		}
 		setPreviewUrls(new Map());
+		setTextContents(new Map());
 		setUploadStates(new Map());
 		setAttachments([]);
 	};
 
 	return {
 		attachments,
+		textContents,
 		uploadStates,
 		previewUrls,
 		handleAttach,

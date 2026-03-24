@@ -305,6 +305,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 
 	const {
 		attachments,
+		textContents,
 		uploadStates,
 		previewUrls,
 		handleAttach,
@@ -384,6 +385,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					onRemoveAttachment={handleRemoveAttachment}
 					uploadStates={uploadStates}
 					previewUrls={previewUrls}
+					textContents={textContents}
 					mcpServers={mcpServers}
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={setUserMCPServerIds}

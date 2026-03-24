@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -2567,7 +2568,19 @@ var allowedChatFileMIMETypes = map[string]bool{
 	"image/jpeg":    true,
 	"image/gif":     true,
 	"image/webp":    true,
+	"text/plain":    true,
 	"image/svg+xml": false, // SVG can contain scripts.
+}
+
+func allowedChatFileMIMETypesStr() string {
+	var types []string
+	for t, allowed := range allowedChatFileMIMETypes {
+		if allowed {
+			types = append(types, t)
+		}
+	}
+	slices.Sort(types)
+	return strings.Join(types, ", ")
 }
 
 var (
@@ -3042,7 +3055,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	if allowed, ok := allowedChatFileMIMETypes[contentType]; !ok || !allowed {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unsupported file type.",
-			Detail:  "Allowed types: image/png, image/jpeg, image/gif, image/webp.",
+			Detail:  fmt.Sprintf("Allowed types: %s.", allowedChatFileMIMETypesStr()),
 		})
 		return
 	}
@@ -3061,13 +3074,32 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify the actual content matches a safe image type so that
+	// Verify the actual content matches an allowed file type so that
 	// a client cannot spoof Content-Type to serve active content.
 	detected := detectChatFileType(peek)
+	if mediaType, _, err := mime.ParseMediaType(detected); err == nil {
+		detected = mediaType
+	}
+	if contentType == "text/plain" && strings.HasPrefix(detected, "text/") {
+		detected = "text/plain"
+	}
 	if allowed, ok := allowedChatFileMIMETypes[detected]; !ok || !allowed {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unsupported file type.",
-			Detail:  "Allowed types: image/png, image/jpeg, image/gif, image/webp.",
+			Detail:  fmt.Sprintf("Allowed types: %s.", allowedChatFileMIMETypesStr()),
+		})
+		return
+	}
+	// The mismatch check below is security-critical: it prevents a text
+	// body from being uploaded under an image Content-Type (or vice
+	// versa) now that both text/plain and image types are in the
+	// allowlist. Combined with the X-Content-Type-Options: nosniff
+	// header applied globally, this ensures browsers respect the
+	// stored MIME type.
+	if detected != contentType {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "File content type does not match Content-Type header.",
+			Detail:  fmt.Sprintf("Header declared %q but file content was detected as %q.", contentType, detected),
 		})
 		return
 	}
