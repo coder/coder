@@ -5161,6 +5161,7 @@ func TestUserChatCompactionThresholds(t *testing.T) {
 	})
 }
 
+//nolint:tparallel // Subtests share a single coderdtest instance and run sequentially.
 func TestChatTemplateAllowlist(t *testing.T) {
 	t.Parallel()
 

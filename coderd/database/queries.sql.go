@@ -17517,6 +17517,8 @@ SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_template_allowlist'), '') :: text AS template_allowlist
 `
 
+// GetChatTemplateAllowlist returns the JSON-encoded template allowlist.
+// Returns an empty string when no allowlist has been configured (all templates allowed).
 func (q *sqlQuerier) GetChatTemplateAllowlist(ctx context.Context) (string, error) {
 	row := q.db.QueryRowContext(ctx, getChatTemplateAllowlist)
 	var template_allowlist string
