@@ -218,7 +218,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 	require.GreaterOrEqual(t, len(recorded), 2,
 		"expected at least 2 streamed LLM calls (root + subagent)")
 
-	workspaceTools := []string{"list_templates", "read_template", "create_workspace"}
+	workspaceTools := []string{"propose_plan", "list_templates", "read_template", "create_workspace"}
 	subagentTools := []string{"spawn_agent", "wait_agent", "message_agent", "close_agent"}
 
 	// Identify root and subagent calls. Root chat calls include

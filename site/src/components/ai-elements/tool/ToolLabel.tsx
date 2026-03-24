@@ -160,6 +160,15 @@ export const ToolLabel: React.FC<{
 					Screenshot
 				</span>
 			);
+		case "propose_plan": {
+			const path = parsed ? asString(parsed.path) || "PLAN.md" : "PLAN.md";
+			const filename = path.split("/").pop() || "PLAN.md";
+			return (
+				<span className="truncate text-sm text-content-secondary">
+					{filename}
+				</span>
+			);
+		}
 		default:
 			return (
 				<span className="truncate text-sm text-content-secondary">{name}</span>

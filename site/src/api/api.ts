@@ -3036,6 +3036,14 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getChatFileText = async (fileId: string): Promise<string> => {
+		const response = await this.axios.get(
+			`/api/experimental/chats/files/${fileId}`,
+			{ responseType: "text" },
+		);
+		return response.data as string;
+	};
+
 	// Chat API methods
 	getChats = async (req?: {
 		after_id?: string;

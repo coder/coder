@@ -14,6 +14,7 @@ import {
 } from "./ExecuteTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
+import { ProposePlanTool } from "./ProposePlanTool";
 import { ReadFileTool } from "./ReadFileTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
 import { SubagentTool } from "./SubagentTool";
@@ -367,6 +368,34 @@ const ChatSummarizedRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+const ProposePlanRenderer: FC<ToolRendererProps> = ({
+	args,
+	status,
+	result,
+	isError,
+}) => {
+	const parsedArgs = parseArgs(args);
+	const path = parsedArgs ? asString(parsedArgs.path) || "PLAN.md" : "PLAN.md";
+	const rec = asRecord(result);
+	const content = rec && "content" in rec ? asString(rec.content) : undefined;
+	const fileID = rec && "file_id" in rec ? asString(rec.file_id) : undefined;
+	const errorMessage = isError
+		? (rec ? asString(rec.error || rec.message) : undefined) ||
+			(typeof result === "string" ? result : undefined)
+		: undefined;
+
+	return (
+		<ProposePlanTool
+			content={content}
+			fileID={fileID}
+			path={path}
+			status={status}
+			isError={isError}
+			errorMessage={errorMessage}
+		/>
+	);
+};
+
 const ComputerRenderer: FC<ToolRendererProps> = ({
 	status,
 	result,
@@ -510,6 +539,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	message_agent: SubagentRenderer,
 	close_agent: SubagentRenderer,
 	chat_summarized: ChatSummarizedRenderer,
+	propose_plan: ProposePlanRenderer,
 	computer: ComputerRenderer,
 };
 
@@ -536,7 +566,9 @@ export const Tool = memo(
 			<div
 				ref={ref}
 				className={cn(
-					name === "execute" || name === "process_output"
+					name === "execute" ||
+						name === "process_output" ||
+						name === "propose_plan"
 						? "w-full py-0.5"
 						: "py-0.5",
 					className,

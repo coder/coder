@@ -1,5 +1,6 @@
 import {
 	BotIcon,
+	ClipboardListIcon,
 	FileIcon,
 	FilePenIcon,
 	MonitorIcon,
@@ -31,6 +32,8 @@ export const ToolIcon: React.FC<{ name: string; isError: boolean }> = ({
 			return <PlusCircleIcon className={base} />;
 		case "chat_summarized":
 			return <BotIcon className={base} />;
+		case "propose_plan":
+			return <ClipboardListIcon className={base} />;
 		case "computer":
 			return <MonitorIcon className={base} />;
 		default:

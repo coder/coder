@@ -3334,6 +3334,7 @@ func (p *Server) runChat(
 	// create workspaces or spawn further subagents — they should
 	// focus on completing their delegated task.
 	if !chat.ParentChatID.Valid {
+		// Workspace provisioning tools.
 		tools = append(tools,
 			chattool.ListTemplates(chattool.ListTemplatesOptions{
 				DB:      p.db,
@@ -3361,6 +3362,37 @@ func (p *Server) runChat(
 				WorkspaceMu: &workspaceMu,
 			}),
 		)
+		// Plan presentation tool.
+		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
+			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			StoreFile: func(ctx context.Context, name string, mediaType string, data []byte) (uuid.UUID, error) {
+				workspaceCtx.chatStateMu.Lock()
+				chatSnapshot := *workspaceCtx.currentChat
+				workspaceCtx.chatStateMu.Unlock()
+
+				if !chatSnapshot.WorkspaceID.Valid {
+					return uuid.Nil, xerrors.New("chat has no workspace")
+				}
+
+				ws, err := p.db.GetWorkspaceByID(ctx, chatSnapshot.WorkspaceID.UUID)
+				if err != nil {
+					return uuid.Nil, xerrors.Errorf("resolve workspace: %w", err)
+				}
+
+				row, err := p.db.InsertChatFile(ctx, database.InsertChatFileParams{
+					OwnerID:        chatSnapshot.OwnerID,
+					OrganizationID: ws.OrganizationID,
+					Name:           name,
+					Mimetype:       mediaType,
+					Data:           data,
+				})
+				if err != nil {
+					return uuid.Nil, xerrors.Errorf("insert chat file: %w", err)
+				}
+
+				return row.ID, nil
+			},
+		}))
 		tools = append(tools, p.subagentTools(ctx, func() database.Chat {
 			return chat
 		})...)
