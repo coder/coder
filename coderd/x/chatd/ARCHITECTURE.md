@@ -17,6 +17,141 @@ streamed back to the user.
 
 ---
 
+## Architecture Diagram
+
+```mermaid
+flowchart TB
+    %% ── External actors ──────────────────────────────────
+    User(["User / Frontend"])
+    LLM["LLM Provider<br/><small>Anthropic · OpenAI · Google<br/>Azure · Bedrock · OpenRouter<br/>Vercel · OpenAI-Compat</small>"]
+    MCP["External MCP Servers"]
+    WA["Workspace Agent<br/><small>shell · files · desktop</small>"]
+
+    %% ── Persistence ──────────────────────────────────────
+    DB[("PostgreSQL<br/><small>chats · chat_messages<br/>chat_files · chat_model_configs<br/>chat_providers · chat_queued_messages</small>")]
+    PS(["Pubsub<br/><small>cross-replica events</small>"])
+
+    %% ── API layer ────────────────────────────────────────
+    subgraph API ["coderd HTTP API"]
+        REST["REST Handlers<br/><small>/api/experimental/chats/*</small>"]
+        SSE["SSE Streams<br/><small>watchChat · watchChats</small>"]
+    end
+
+    %% ── chatd Server ─────────────────────────────────────
+    subgraph chatd ["chatd.Server"]
+        direction TB
+
+        ACQ["Acquire Loop<br/><small>poll DB every 1s<br/>batch up to 10 chats</small>"]
+        HB["Heartbeat<br/><small>every 30s</small>"]
+        STALE["Stale Recovery<br/><small>reclaim after 5min</small>"]
+        QUEUE["Message Queue<br/><small>up to 20 queued msgs<br/>auto-promote on complete</small>"]
+
+        subgraph processChat ["processChat goroutine"]
+            direction TB
+            RC["runChat<br/><small>resolve model · load messages<br/>build prompt · connect tools</small>"]
+
+            subgraph chatloop ["chatloop.Run  ×  up to 1200 steps"]
+                direction TB
+                STREAM["LLM Stream<br/><small>fantasy.Stream()</small>"]
+                TOOLS["Tool Execution<br/><small>parallel tool calls</small>"]
+                PERSIST["Persist Step<br/><small>assistant + tool results → DB</small>"]
+                COMPACT["Compaction Check<br/><small>if context > 70% limit<br/>summarize & reload</small>"]
+                RETRY["Retry Logic<br/><small>exponential backoff<br/>up to 25 attempts</small>"]
+
+                STREAM -->|"text · reasoning · tool_calls"| TOOLS
+                TOOLS -->|"tool results"| PERSIST
+                PERSIST --> COMPACT
+                COMPACT -->|"continue?"| STREAM
+                STREAM -.->|"retryable error"| RETRY
+                RETRY -.->|"backoff"| STREAM
+            end
+
+            RC --> chatloop
+        end
+
+        ACQ -->|"acquire pending"| processChat
+        HB -.->|"update heartbeat_at"| DB
+        STALE -.->|"reset orphaned chats"| DB
+    end
+
+    %% ── Tool subsystem ───────────────────────────────────
+    subgraph tools ["Tools"]
+        direction TB
+        FT["File Tools<br/><small>read · write · edit</small>"]
+        ET["Execute Tool<br/><small>shell commands<br/>fg/bg · process mgmt</small>"]
+        WT["Workspace Tools<br/><small>list/read templates<br/>create/start workspace</small>"]
+        CU["Computer Use<br/><small>Anthropic-only<br/>screenshots · clicks</small>"]
+        SA["Subagent Tools<br/><small>spawn · wait · message · close</small>"]
+        MT["MCP Tools<br/><small>slug__toolName prefix<br/>allow/deny filtering</small>"]
+    end
+
+    %% ── Supporting packages ──────────────────────────────
+    subgraph support ["Supporting Packages"]
+        direction LR
+        CP["chatprompt<br/><small>DB ↔ SDK ↔ LLM<br/>message conversion</small>"]
+        CV["chatprovider<br/><small>ModelCatalog<br/>API key mgmt</small>"]
+        CC["chatcost<br/><small>microdollar<br/>cost calc</small>"]
+        UL["usagelimit<br/><small>spend limits<br/>fail-open</small>"]
+        QG["quickgen<br/><small>title generation<br/>push summaries</small>"]
+    end
+
+    %% ── Connections ──────────────────────────────────────
+    User -->|"send message<br/>create chat"| REST
+    User <-.->|"stream events"| SSE
+    REST -->|"insert message<br/>set status=pending"| DB
+    REST -->|"notify"| PS
+    SSE <-.->|"subscribe"| PS
+
+    ACQ -->|"SELECT pending"| DB
+    PERSIST -->|"INSERT messages"| DB
+    PERSIST -->|"publish message_part"| PS
+    RC -->|"load messages"| DB
+    RC -->|"check limits"| UL
+    RC -->|"resolve model"| CV
+    RC -->|"convert messages"| CP
+    STREAM <-->|"generate / stream"| LLM
+    COMPACT -->|"summarize"| LLM
+    QG -->|"title / summary"| LLM
+
+    TOOLS --> FT & ET & CU
+    FT & ET & CU <-->|"agent HTTP API"| WA
+    TOOLS --> WT
+    WT -->|"create/start"| DB
+    TOOLS --> SA
+    SA -->|"create child chat"| DB
+    TOOLS --> MT
+    MT <-->|"SSE / streamable HTTP"| MCP
+
+    CC -.->|"calculate after persist"| PERSIST
+
+    %% ── Styling ──────────────────────────────────────────
+    classDef external fill:#e8f4f8,stroke:#2196F3,color:#000
+    classDef storage fill:#fff3e0,stroke:#FF9800,color:#000
+    classDef api fill:#e8f5e9,stroke:#4CAF50,color:#000
+    classDef core fill:#f3e5f5,stroke:#9C27B0,color:#000
+    classDef tool fill:#fce4ec,stroke:#E91E63,color:#000
+    classDef support fill:#e0f2f1,stroke:#009688,color:#000
+    classDef loop fill:#ede7f6,stroke:#673AB7,color:#000
+
+    class User,LLM,MCP,WA external
+    class DB,PS storage
+    class REST,SSE api
+    class ACQ,HB,STALE,QUEUE,RC core
+    class FT,ET,WT,CU,SA,MT tool
+    class CP,CV,CC,UL,QG support
+    class STREAM,TOOLS,PERSIST,COMPACT,RETRY loop
+```
+
+### Reading the diagram
+
+- **Solid arrows** show the primary request/data flow.
+- **Dashed arrows** show background or secondary flows (heartbeats, pubsub, cost calculation).
+- The **chatloop** box is the inner step-stream loop that repeats up to `maxChatSteps` times per chat turn.
+- **Tools** fan out to the workspace agent (file/exec/desktop), the database (workspace management), child chats (subagents), and external MCP servers.
+- The **supporting packages** are stateless helpers used by `runChat` and the persist layer.
+
+---
+
 ## Package Layout
 
 ```
