@@ -68,7 +68,7 @@ const AdminBadge: FC = () => (
 	<TooltipProvider delayDuration={0}>
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<span className="inline-flex cursor-default items-center gap-1 rounded bg-surface-tertiary/60 px-2 py-0 text-[11px] font-medium text-content-secondary">
+				<span className="inline-flex cursor-default items-center gap-1 rounded bg-surface-tertiary/60 px-2 py-0.5 text-[11px] leading-none font-medium text-content-secondary">
 					<ShieldIcon className="h-3 w-3" />
 					Admin
 				</span>
