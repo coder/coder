@@ -37,6 +37,7 @@ import {
 	useState,
 } from "react";
 import { cn } from "utils/cn";
+import { countInvisibleCharacters } from "utils/invisibleUnicode";
 import { isMobileViewport } from "utils/mobile";
 import {
 	fetchTextAttachmentContent,
@@ -565,9 +566,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		Boolean(initialValue?.trim()),
 	);
 
+	const [invisibleCharCount, setInvisibleCharCount] = useState(0);
+
 	const handleContentChange = (content: string, hasRefs: boolean) => {
 		setHasContent(Boolean(content.trim()));
 		setHasFileReferences(hasRefs);
+		setInvisibleCharCount(countInvisibleCharacters(content));
 		onContentChange?.(content);
 	};
 
@@ -771,6 +775,25 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					disabled={isDisabled || isLoading}
 					autoFocus
 				/>
+
+				{/* Warn about invisible Unicode in the message text.
+				 * Unlike the admin/user prompt textareas (which strip
+				 * invisible chars server-side on save), the chat input
+				 * is the user's free-form message — we don't silently
+				 * mutate it. Instead we surface a warning so the user
+				 * can make an informed decision. This guards against
+				 * social engineering attacks where a user is tricked
+				 * into pasting a "prompt" containing hidden LLM
+				 * instructions encoded as zero-width characters. */}
+				{invisibleCharCount > 0 && (
+					<div className="px-3 pb-1">
+						<p className="m-0 text-xs text-content-warning">
+							This message contains {invisibleCharCount} invisible Unicode
+							character{invisibleCharCount !== 1 ? "s" : ""} that could hide
+							content.
+						</p>
+					</div>
+				)}
 
 				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 					<div className="flex min-w-0 items-center gap-2">
