@@ -31,6 +31,15 @@ type ChatModelConfigLike =
 	| Pick<TypesGen.ChatModelConfig, "provider" | "model" | "context_limit">
 	| (RuntimeModelRef & Pick<TypesGen.ChatModelConfig, "context_limit">);
 
+type ModelOptionConfigLike =
+	| TypesGen.ChatModelConfig
+	| (RuntimeModelRef & {
+			readonly id?: unknown;
+			readonly display_name?: unknown;
+			readonly enabled?: unknown;
+			readonly context_limit?: unknown;
+	  });
+
 export const getNormalizedModelRef = (
 	value: ModelRefLike,
 ): { readonly provider: string; readonly model: string } => {
@@ -107,6 +116,67 @@ export const hasConfiguredModelsInCatalog = (
 	catalog: ModelCatalogLike | null | undefined,
 ): boolean => {
 	return getCatalogProviders(catalog).some(isProviderConfiguredInCatalog);
+};
+
+const getAvailableProviders = (
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): ReadonlySet<string> => {
+	const availableProviders = new Set<string>();
+	for (const provider of getCatalogProviders(catalog)) {
+		if (provider.available !== true) {
+			continue;
+		}
+		const providerName = asString(provider.provider).trim().toLowerCase();
+		if (providerName) {
+			availableProviders.add(providerName);
+		}
+	}
+	return availableProviders;
+};
+
+export const getModelOptionsFromConfigs = (
+	configs: readonly TypesGen.ChatModelConfig[] | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): readonly ModelSelectorOption[] => {
+	if (!configs || !catalog) {
+		return [];
+	}
+
+	const availableProviders = getAvailableProviders(catalog);
+	const options: ModelSelectorOption[] = [];
+
+	for (const config of configs as readonly ModelOptionConfigLike[]) {
+		if (config.enabled !== true) {
+			continue;
+		}
+
+		const configID = asString(config.id).trim();
+		const { provider, model } = getNormalizedModelRef(config);
+		if (!configID || !provider || !model) {
+			continue;
+		}
+		if (!availableProviders.has(provider)) {
+			continue;
+		}
+
+		const displayName = asString(config.display_name).trim() || model;
+		const contextLimit = asNumber(config.context_limit);
+		options.push({
+			id: configID,
+			provider,
+			model,
+			displayName,
+			...(contextLimit !== undefined ? { contextLimit } : {}),
+		});
+	}
+
+	return options.sort((a, b) => {
+		const providerCompare = a.provider.localeCompare(b.provider);
+		if (providerCompare !== 0) {
+			return providerCompare;
+		}
+		return a.displayName.localeCompare(b.displayName);
+	});
 };
 
 export const getModelOptionsFromCatalog = (
