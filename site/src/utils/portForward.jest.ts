@@ -1,7 +1,7 @@
 import {
-	localHosts,
 	portForwardURL,
 	resolveLocalhostPort,
+	rewriteLocalhostURL,
 } from "./portForward";
 
 describe("port forward URL", () => {
@@ -82,30 +82,116 @@ describe("resolveLocalhostPort", () => {
 	it("defaults to 443 for https when port is empty", () => {
 		expect(resolveLocalhostPort("", "https:")).toBe(443);
 	});
-
-	it("works with protocol without colon", () => {
-		expect(resolveLocalhostPort("", "http")).toBe(80);
-	});
-
-	it("works with protocol without colon for https", () => {
-		expect(resolveLocalhostPort("", "https")).toBe(443);
-	});
 });
 
-describe("localHosts", () => {
-	it("contains localhost", () => {
-		expect(localHosts.has("localhost")).toBe(true);
+describe("rewriteLocalhostURL", () => {
+	const proxyHost = "*.proxy-host.tld";
+	const agent = "my-agent";
+	const workspace = "my-workspace";
+	const username = "my-username";
+
+	it("rewrites http://localhost:3000/path", () => {
+		const result = rewriteLocalhostURL(
+			"http://localhost:3000/path",
+			proxyHost,
+			agent,
+			workspace,
+			username,
+		);
+		expect(result).toEqual(
+			"http://3000--my-agent--my-workspace--my-username.proxy-host.tld/path",
+		);
 	});
 
-	it("contains 127.0.0.1", () => {
-		expect(localHosts.has("127.0.0.1")).toBe(true);
+	it("rewrites https://localhost:8443/path with s suffix", () => {
+		const result = rewriteLocalhostURL(
+			"https://localhost:8443/path",
+			proxyHost,
+			agent,
+			workspace,
+			username,
+		);
+		expect(result).toEqual(
+			"http://8443s--my-agent--my-workspace--my-username.proxy-host.tld/path",
+		);
 	});
 
-	it("contains 0.0.0.0", () => {
-		expect(localHosts.has("0.0.0.0")).toBe(true);
+	it("defaults to port 80 when no port is specified", () => {
+		const result = rewriteLocalhostURL(
+			"http://localhost/path",
+			proxyHost,
+			agent,
+			workspace,
+			username,
+		);
+		expect(result).toEqual(
+			"http://80--my-agent--my-workspace--my-username.proxy-host.tld/path",
+		);
 	});
 
-	it("does not contain example.com", () => {
-		expect(localHosts.has("example.com")).toBe(false);
+	it("defaults to port 443 for https without explicit port", () => {
+		const result = rewriteLocalhostURL(
+			"https://localhost/path",
+			proxyHost,
+			agent,
+			workspace,
+			username,
+		);
+		expect(result).toEqual(
+			"http://443s--my-agent--my-workspace--my-username.proxy-host.tld/path",
+		);
+	});
+
+	it("rewrites 127.0.0.1", () => {
+		const result = rewriteLocalhostURL(
+			"http://127.0.0.1:5000/api",
+			proxyHost,
+			agent,
+			workspace,
+			username,
+		);
+		expect(result).toEqual(
+			"http://5000--my-agent--my-workspace--my-username.proxy-host.tld/api",
+		);
+	});
+
+	it("rewrites 0.0.0.0", () => {
+		const result = rewriteLocalhostURL(
+			"http://0.0.0.0:8080/",
+			proxyHost,
+			agent,
+			workspace,
+			username,
+		);
+		expect(result).toEqual(
+			"http://8080--my-agent--my-workspace--my-username.proxy-host.tld/",
+		);
+	});
+
+	it("preserves query params", () => {
+		const result = rewriteLocalhostURL(
+			"http://localhost:3000/path?key=value",
+			proxyHost,
+			agent,
+			workspace,
+			username,
+		);
+		expect(result).toEqual(
+			"http://3000--my-agent--my-workspace--my-username.proxy-host.tld/path?key=value",
+		);
+	});
+
+	it("returns non-localhost URLs unchanged", () => {
+		const url = "https://example.com/page";
+		expect(
+			rewriteLocalhostURL(url, proxyHost, agent, workspace, username),
+		).toBe(url);
+	});
+
+	it("returns invalid URLs unchanged", () => {
+		const url = "not-a-url";
+		expect(
+			rewriteLocalhostURL(url, proxyHost, agent, workspace, username),
+		).toBe(url);
 	});
 });

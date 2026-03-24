@@ -37,11 +37,7 @@ import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import { isMobileViewport } from "utils/mobile";
 import { pageTitle } from "utils/page";
-import {
-	localHosts,
-	portForwardURL,
-	resolveLocalhostPort,
-} from "utils/portForward";
+import { rewriteLocalhostURL } from "utils/portForward";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { useChatStore } from "./components/AgentDetail/ChatContext";
@@ -403,25 +399,7 @@ const AgentDetail: FC = () => {
 		if (!proxyHost || !agentName || !wsName || !wsOwner) {
 			return url;
 		}
-		try {
-			const parsed = new URL(url);
-			if (!localHosts.has(parsed.hostname)) {
-				return url;
-			}
-			const protocol = parsed.protocol.replace(":", "") as "http" | "https";
-			return portForwardURL(
-				proxyHost,
-				resolveLocalhostPort(parsed.port, parsed.protocol),
-				agentName,
-				wsName,
-				wsOwner,
-				protocol,
-				parsed.pathname,
-				parsed.search,
-			);
-		} catch {
-			return url;
-		}
+		return rewriteLocalhostURL(url, proxyHost, agentName, wsName, wsOwner);
 	};
 
 	const chatRecord = chatQuery.data;

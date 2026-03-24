@@ -1,10 +1,16 @@
 import type { WorkspaceAgentPortShareProtocol } from "api/typesGenerated";
 
-export const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
+const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 
 /**
  * Parse a port string from a URL, falling back to the protocol default
- * (80 for http, 443 for https) when the port is empty (i.e. not specified).
+ * (80 for http, 443 for https) when the port is empty (i.e. not
+ * specified).
+ *
+ * @param portStr - The port string from `URL.port` (empty when the URL
+ *   uses the protocol's default port).
+ * @param protocol - The protocol string from `URL.protocol`, which
+ *   always includes a trailing colon (e.g. `"https:"`).
  */
 export const resolveLocalhostPort = (
 	portStr: string,
@@ -13,7 +19,7 @@ export const resolveLocalhostPort = (
 	if (portStr) {
 		return Number.parseInt(portStr, 10);
 	}
-	return protocol === "https:" || protocol === "https" ? 443 : 80;
+	return protocol === "https:" ? 443 : 80;
 };
 
 export const portForwardURL = (
@@ -40,6 +46,42 @@ export const portForwardURL = (
 		url.search = search;
 	}
 	return url.toString();
+};
+
+/**
+ * Rewrite a localhost URL to use the workspace port-forward subdomain.
+ * Returns the original URL unchanged when it is not a recognized
+ * localhost address or when parsing fails.
+ */
+export const rewriteLocalhostURL = (
+	url: string,
+	proxyHost: string,
+	agentName: string,
+	workspaceName: string,
+	username: string,
+): string => {
+	try {
+		const parsed = new URL(url);
+		if (!localHosts.has(parsed.hostname)) {
+			return url;
+		}
+		const protocol = parsed.protocol.replace(
+			":",
+			"",
+		) as WorkspaceAgentPortShareProtocol;
+		return portForwardURL(
+			proxyHost,
+			resolveLocalhostPort(parsed.port, parsed.protocol),
+			agentName,
+			workspaceName,
+			username,
+			protocol,
+			parsed.pathname,
+			parsed.search,
+		);
+	} catch {
+		return url;
+	}
 };
 
 // openMaybePortForwardedURL tries to open the provided URI through the
@@ -71,31 +113,7 @@ export const openMaybePortForwardedURL = (
 		return;
 	}
 
-	try {
-		const url = new URL(uri);
-		if (!localHosts.has(url.hostname)) {
-			open(uri);
-			return;
-		}
-		const protocol = url.protocol.replace(
-			":",
-			"",
-		) as WorkspaceAgentPortShareProtocol;
-		open(
-			portForwardURL(
-				proxyHost,
-				resolveLocalhostPort(url.port, url.protocol),
-				agentName,
-				workspaceName,
-				username,
-				protocol,
-				url.pathname,
-				url.search,
-			),
-		);
-	} catch (_ex) {
-		open(uri);
-	}
+	open(rewriteLocalhostURL(uri, proxyHost, agentName, workspaceName, username));
 };
 
 export const saveWorkspaceListeningPortsProtocol = (
