@@ -1081,7 +1081,7 @@ jobs:
     needs:
       - changes
     if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
+    runs-on: ubuntu-latest
     permissions:
       # Necessary to push docker images to ghcr.io.
       packages: write
