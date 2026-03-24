@@ -18,7 +18,6 @@ import {
 	CheckCircleIcon,
 	ChevronDownIcon,
 	LockIcon,
-	LogInIcon,
 	PlugIcon,
 	ServerIcon,
 } from "lucide-react";
@@ -263,24 +262,21 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 													<CheckCircleIcon className="h-3.5 w-3.5 shrink-0 text-content-success" />
 												)}
 											{needsAuth && isSelected ? (
-												<Button
-													variant="outline"
-													size="sm"
-													className="h-5 shrink-0 gap-1 px-1.5 text-[10px]"
-													onClick={(e) => {
-														e.stopPropagation();
-														handleConnect(server);
-													}}
-													disabled={disabled || isConnecting}
-													aria-label={`Authenticate with ${server.display_name}`}
-												>
-													{isConnecting ? (
-														<Spinner loading className="h-2.5 w-2.5" />
-													) : (
-														<LogInIcon className="h-2.5 w-2.5" />
-													)}
-													Auth
-												</Button>
+													<Button
+														variant="outline"
+														size="sm"
+														className="h-5 shrink-0 px-1.5 text-[10px] border-border/50"
+														onClick={(e) => {
+															e.stopPropagation();
+															handleConnect(server);
+														}}
+														disabled={disabled || isConnecting}
+														aria-label={`Authenticate with ${server.display_name}`}
+													>
+														{isConnecting ? (
+															<Spinner loading className="h-2.5 w-2.5" />
+														) : null}
+														Auth												</Button>
 											) : (
 												<Switch
 													checked={isSelected}
