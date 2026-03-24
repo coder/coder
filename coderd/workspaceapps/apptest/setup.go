@@ -567,7 +567,7 @@ func doWithRetries(t require.TestingT, client *codersdk.Client, req *http.Reques
 	require.Eventually(t, func() bool {
 		// nolint // only requests which are not passed upstream have a body closed
 		resp, err = client.HTTPClient.Do(req)
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
+		if resp != nil && resp.StatusCode == http.StatusBadGateway {
 			if resp.Body != nil {
 				resp.Body.Close()
 			}
@@ -585,7 +585,7 @@ func requestWithRetries(ctx context.Context, t testing.TB, client *codersdk.Clie
 	require.Eventually(t, func() bool {
 		// nolint // only requests which are not passed upstream have a body closed
 		resp, err = client.Request(ctx, method, urlOrPath, body, opts...)
-		if resp != nil && resp.StatusCode == http.StatusNotFound {
+		if resp != nil && resp.StatusCode == http.StatusBadGateway {
 			if resp.Body != nil {
 				resp.Body.Close()
 			}
