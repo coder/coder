@@ -1110,79 +1110,41 @@ func AIBridgeSessionThreads(
 	modelThoughts []database.AIBridgeModelThought,
 ) codersdk.AIBridgeSessionThreadsResponse {
 	// Index subresources by interception ID.
-	tokensByInterception := make(map[uuid.UUID][]database.AIBridgeTokenUsage)
+	tokensByInterception := make(map[uuid.UUID][]database.AIBridgeTokenUsage, len(interceptions))
 	for _, tu := range tokenUsages {
 		tokensByInterception[tu.InterceptionID] = append(tokensByInterception[tu.InterceptionID], tu)
 	}
-	toolsByInterception := make(map[uuid.UUID][]database.AIBridgeToolUsage)
+	toolsByInterception := make(map[uuid.UUID][]database.AIBridgeToolUsage, len(interceptions))
 	for _, tu := range toolUsages {
 		toolsByInterception[tu.InterceptionID] = append(toolsByInterception[tu.InterceptionID], tu)
 	}
-	promptsByInterception := make(map[uuid.UUID][]database.AIBridgeUserPrompt)
+	promptsByInterception := make(map[uuid.UUID][]database.AIBridgeUserPrompt, len(interceptions))
 	for _, up := range userPrompts {
 		promptsByInterception[up.InterceptionID] = append(promptsByInterception[up.InterceptionID], up)
 	}
-	thoughtsByInterception := make(map[uuid.UUID][]database.AIBridgeModelThought)
+	thoughtsByInterception := make(map[uuid.UUID][]database.AIBridgeModelThought, len(interceptions))
 	for _, mt := range modelThoughts {
 		thoughtsByInterception[mt.InterceptionID] = append(thoughtsByInterception[mt.InterceptionID], mt)
 	}
 
-	// Group interceptions into threads by thread_root_id.
-	type threadData struct {
-		threadID      uuid.UUID
-		startedAt     time.Time
-		interceptions []database.AIBridgeInterception
-	}
-	threadOrder := make([]uuid.UUID, 0)
-	threadMap := make(map[uuid.UUID]*threadData)
+	// Group interceptions by thread_id, preserving the
+	// chronological order returned by the SQL query.
+	interceptionsByThread := make(map[uuid.UUID][]database.AIBridgeInterception, len(interceptions))
+	var threadIDs []uuid.UUID
 	for _, row := range interceptions {
-		intc := row.AIBridgeInterception
-		threadID := intc.ID
-		if intc.ThreadRootID.Valid {
-			threadID = intc.ThreadRootID.UUID
+		if _, ok := interceptionsByThread[row.ThreadID]; !ok {
+			threadIDs = append(threadIDs, row.ThreadID)
 		}
-		td, ok := threadMap[threadID]
-		if !ok {
-			td = &threadData{threadID: threadID, startedAt: intc.StartedAt}
-			threadMap[threadID] = td
-			threadOrder = append(threadOrder, threadID)
-		}
-		if intc.StartedAt.Before(td.startedAt) {
-			td.startedAt = intc.StartedAt
-		}
-		td.interceptions = append(td.interceptions, intc)
+		interceptionsByThread[row.ThreadID] = append(interceptionsByThread[row.ThreadID], row.AIBridgeInterception)
 	}
 
-	// Sort threads by started_at DESC to match the SQL pagination
-	// order (newest threads first).
-	slices.SortFunc(threadOrder, func(a, b uuid.UUID) int {
-		ta, tb := threadMap[a].startedAt, threadMap[b].startedAt
-		if ta.After(tb) {
-			return -1
-		}
-		if ta.Before(tb) {
-			return 1
-		}
-		// Break ties by thread ID DESC for consistency with SQL.
-		switch {
-		case a.String() > b.String():
-			return -1
-		case a.String() < b.String():
-			return 1
-		default:
-			return 0
-		}
-	})
-
-	// Build threads.
-	threads := make([]codersdk.AIBridgeThread, 0, len(threadOrder))
+	// Build threads and track page time bounds.
+	threads := make([]codersdk.AIBridgeThread, 0, len(threadIDs))
 	var pageStartedAt, pageEndedAt *time.Time
-	for _, threadID := range threadOrder {
-		td := threadMap[threadID]
-		thread := buildAIBridgeThread(td.threadID, td.interceptions, tokensByInterception, toolsByInterception, promptsByInterception, thoughtsByInterception)
-
-		// Track page time bounds from thread interceptions.
-		for _, intc := range td.interceptions {
+	for _, threadID := range threadIDs {
+		intcs := interceptionsByThread[threadID]
+		thread := buildAIBridgeThread(threadID, intcs, tokensByInterception, toolsByInterception, promptsByInterception, thoughtsByInterception)
+		for _, intc := range intcs {
 			if pageStartedAt == nil || intc.StartedAt.Before(*pageStartedAt) {
 				t := intc.StartedAt
 				pageStartedAt = &t

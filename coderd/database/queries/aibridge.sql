@@ -598,11 +598,13 @@ OFFSET @offset_
 WITH session_interceptions AS (
 	SELECT
 		aibridge_interceptions.*,
+		-- If an interceptions `thread_root_id` is empty, then it itself must be the thread root.
 		COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id
 	FROM
 		aibridge_interceptions
 	WHERE
 		aibridge_interceptions.session_id = @session_id::text
+		-- Remove inflight interceptions (ones which lack an ended_at value).
 		AND aibridge_interceptions.ended_at IS NOT NULL
 		-- Authorize Filter clause will be injected below
 		-- @authorize_filter
@@ -625,7 +627,7 @@ paginated_threads AS (
 	WHERE
 		CASE
 			WHEN @after_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-				(tr.started_at, tr.thread_id) < (
+				(tr.started_at, tr.thread_id) > (
 					(SELECT started_at FROM thread_roots WHERE thread_id = @after_id),
 					@after_id::uuid
 				)
@@ -634,7 +636,7 @@ paginated_threads AS (
 		END
 		AND CASE
 			WHEN @before_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-				(tr.started_at, tr.thread_id) > (
+				(tr.started_at, tr.thread_id) < (
 					(SELECT started_at FROM thread_roots WHERE thread_id = @before_id),
 					@before_id::uuid
 				)
@@ -642,22 +644,26 @@ paginated_threads AS (
 			ELSE true
 		END
 	ORDER BY
-		tr.started_at DESC,
-		tr.thread_id DESC
+		tr.started_at ASC,
+		tr.thread_id ASC
 	LIMIT COALESCE(NULLIF(@limit_::integer, 0), 50)
 )
 SELECT
+	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
 	sqlc.embed(aibridge_interceptions),
 	sqlc.embed(visible_users)
 FROM
 	aibridge_interceptions
 JOIN
 	visible_users ON visible_users.id = aibridge_interceptions.initiator_id
+JOIN
+	paginated_threads pt ON pt.thread_id = COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id)
 WHERE
 	aibridge_interceptions.session_id = @session_id::text
-	AND COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) IN (SELECT thread_id FROM paginated_threads)
 	AND aibridge_interceptions.ended_at IS NOT NULL
 ORDER BY
+	pt.started_at ASC,
+	pt.thread_id ASC,
 	aibridge_interceptions.started_at ASC,
 	aibridge_interceptions.id ASC
 ;

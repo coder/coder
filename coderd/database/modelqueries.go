@@ -1078,6 +1078,7 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessionThreads(ctx context.Context, a
 	for rows.Next() {
 		var i ListAIBridgeSessionThreadsRow
 		if err := rows.Scan(
+			&i.ThreadID,
 			&i.AIBridgeInterception.ID,
 			&i.AIBridgeInterception.InitiatorID,
 			&i.AIBridgeInterception.Provider,

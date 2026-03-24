@@ -1624,19 +1624,19 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Threads, 3)
 
-		// Threads are ordered by started_at DESC.
-		require.Equal(t, threadIDs[2], res.Threads[0].ID)
+		// Threads are ordered by started_at ASC (chronological).
+		require.Equal(t, threadIDs[0], res.Threads[0].ID)
 		require.Equal(t, threadIDs[1], res.Threads[1].ID)
-		require.Equal(t, threadIDs[0], res.Threads[2].ID)
+		require.Equal(t, threadIDs[2], res.Threads[2].ID)
 
-		// Page with limit 1: should get only the newest thread.
+		// Page with limit 1: should get only the oldest thread.
 		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, uuid.Nil, 1)
 		require.NoError(t, err)
 		require.Len(t, res.Threads, 1)
-		require.Equal(t, threadIDs[2], res.Threads[0].ID)
+		require.Equal(t, threadIDs[0], res.Threads[0].ID)
 
 		// Page forward using after_id: get next thread.
-		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", threadIDs[2], uuid.Nil, 1)
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", threadIDs[0], uuid.Nil, 1)
 		require.NoError(t, err)
 		require.Len(t, res.Threads, 1)
 		require.Equal(t, threadIDs[1], res.Threads[0].ID)
@@ -1645,30 +1645,29 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", threadIDs[1], uuid.Nil, 1)
 		require.NoError(t, err)
 		require.Len(t, res.Threads, 1)
-		require.Equal(t, threadIDs[0], res.Threads[0].ID)
+		require.Equal(t, threadIDs[2], res.Threads[0].ID)
 
 		// No more threads.
-		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", threadIDs[0], uuid.Nil, 1)
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", threadIDs[2], uuid.Nil, 1)
 		require.NoError(t, err)
 		require.Empty(t, res.Threads)
 
-		// before_id filters to threads newer than the given ID.
-		// Results are still ordered DESC, so limit matters.
-		// before_id=oldest → returns both newer threads, DESC.
-		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, threadIDs[0], 0)
+		// before_id filters to threads older than the given ID.
+		// before_id=newest → returns both older threads, ASC.
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, threadIDs[2], 0)
 		require.NoError(t, err)
 		require.Len(t, res.Threads, 2)
-		require.Equal(t, threadIDs[2], res.Threads[0].ID)
+		require.Equal(t, threadIDs[0], res.Threads[0].ID)
 		require.Equal(t, threadIDs[1], res.Threads[1].ID)
 
-		// before_id=middle → returns only the newest thread.
+		// before_id=middle → returns only the oldest thread.
 		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, threadIDs[1], 0)
 		require.NoError(t, err)
 		require.Len(t, res.Threads, 1)
-		require.Equal(t, threadIDs[2], res.Threads[0].ID)
+		require.Equal(t, threadIDs[0], res.Threads[0].ID)
 
-		// before_id=newest → no newer threads exist.
-		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, threadIDs[2], 0)
+		// before_id=oldest → no older threads exist.
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, threadIDs[0], 0)
 		require.NoError(t, err)
 		require.Empty(t, res.Threads)
 

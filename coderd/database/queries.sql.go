@@ -1189,11 +1189,13 @@ const listAIBridgeSessionThreads = `-- name: ListAIBridgeSessionThreads :many
 WITH session_interceptions AS (
 	SELECT
 		aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id,
+		-- If an interceptions ` + "`" + `thread_root_id` + "`" + ` is empty, then it itself must be the thread root.
 		COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id
 	FROM
 		aibridge_interceptions
 	WHERE
 		aibridge_interceptions.session_id = $1::text
+		-- Remove inflight interceptions (ones which lack an ended_at value).
 		AND aibridge_interceptions.ended_at IS NOT NULL
 		-- Authorize Filter clause will be injected below
 		-- @authorize_filter
@@ -1216,7 +1218,7 @@ paginated_threads AS (
 	WHERE
 		CASE
 			WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-				(tr.started_at, tr.thread_id) < (
+				(tr.started_at, tr.thread_id) > (
 					(SELECT started_at FROM thread_roots WHERE thread_id = $2),
 					$2::uuid
 				)
@@ -1225,7 +1227,7 @@ paginated_threads AS (
 		END
 		AND CASE
 			WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
-				(tr.started_at, tr.thread_id) > (
+				(tr.started_at, tr.thread_id) < (
 					(SELECT started_at FROM thread_roots WHERE thread_id = $3),
 					$3::uuid
 				)
@@ -1233,22 +1235,26 @@ paginated_threads AS (
 			ELSE true
 		END
 	ORDER BY
-		tr.started_at DESC,
-		tr.thread_id DESC
+		tr.started_at ASC,
+		tr.thread_id ASC
 	LIMIT COALESCE(NULLIF($4::integer, 0), 50)
 )
 SELECT
+	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
 	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id,
 	visible_users.id, visible_users.username, visible_users.name, visible_users.avatar_url
 FROM
 	aibridge_interceptions
 JOIN
 	visible_users ON visible_users.id = aibridge_interceptions.initiator_id
+JOIN
+	paginated_threads pt ON pt.thread_id = thread_id
 WHERE
 	aibridge_interceptions.session_id = $1::text
-	AND COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) IN (SELECT thread_id FROM paginated_threads)
 	AND aibridge_interceptions.ended_at IS NOT NULL
 ORDER BY
+	pt.started_at ASC,
+	pt.thread_id ASC,
 	aibridge_interceptions.started_at ASC,
 	aibridge_interceptions.id ASC
 `
@@ -1261,6 +1267,7 @@ type ListAIBridgeSessionThreadsParams struct {
 }
 
 type ListAIBridgeSessionThreadsRow struct {
+	ThreadID             uuid.UUID            `db:"thread_id" json:"thread_id"`
 	AIBridgeInterception AIBridgeInterception `db:"aibridge_interception" json:"aibridge_interception"`
 	VisibleUser          VisibleUser          `db:"visible_user" json:"visible_user"`
 }
@@ -1282,6 +1289,7 @@ func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIB
 	for rows.Next() {
 		var i ListAIBridgeSessionThreadsRow
 		if err := rows.Scan(
+			&i.ThreadID,
 			&i.AIBridgeInterception.ID,
 			&i.AIBridgeInterception.InitiatorID,
 			&i.AIBridgeInterception.Provider,
