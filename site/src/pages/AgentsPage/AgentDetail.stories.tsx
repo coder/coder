@@ -17,6 +17,7 @@ import {
 	chatMessagesKey,
 	chatModelsKey,
 	chatsKey,
+	mcpServerConfigsKey,
 } from "api/queries/chats";
 import { workspaceByIdKey } from "api/queries/workspaces";
 import type * as TypesGen from "api/typesGenerated";
@@ -176,6 +177,7 @@ const buildQueries = (
 			data: mockWorkspace,
 		},
 		{ key: chatModelsKey, data: mockModelCatalog },
+		{ key: mcpServerConfigsKey, data: [] },
 	];
 };
 
