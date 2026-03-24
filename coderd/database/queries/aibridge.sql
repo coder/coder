@@ -592,6 +592,86 @@ LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
 OFFSET @offset_
 ;
 
+-- name: ListAIBridgeSessionThreads :many
+-- Returns all interceptions belonging to paginated threads within a session.
+-- Threads are paginated by (started_at, thread_id) cursor.
+WITH session_interceptions AS (
+	SELECT
+		aibridge_interceptions.*,
+		COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id
+	FROM
+		aibridge_interceptions
+	WHERE
+		aibridge_interceptions.session_id = @session_id::text
+		AND aibridge_interceptions.ended_at IS NOT NULL
+		-- Authorize Filter clause will be injected below
+		-- @authorize_filter
+),
+thread_roots AS (
+	SELECT
+		si.thread_id,
+		MIN(si.started_at) AS started_at
+	FROM
+		session_interceptions si
+	GROUP BY
+		si.thread_id
+),
+paginated_threads AS (
+	SELECT
+		tr.thread_id,
+		tr.started_at
+	FROM
+		thread_roots tr
+	WHERE
+		CASE
+			WHEN @after_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+				(tr.started_at, tr.thread_id) < (
+					(SELECT started_at FROM thread_roots WHERE thread_id = @after_id),
+					@after_id::uuid
+				)
+			)
+			ELSE true
+		END
+		AND CASE
+			WHEN @before_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+				(tr.started_at, tr.thread_id) > (
+					(SELECT started_at FROM thread_roots WHERE thread_id = @before_id),
+					@before_id::uuid
+				)
+			)
+			ELSE true
+		END
+	ORDER BY
+		tr.started_at DESC,
+		tr.thread_id DESC
+	LIMIT COALESCE(NULLIF(@limit_::integer, 0), 50)
+)
+SELECT
+	sqlc.embed(aibridge_interceptions),
+	sqlc.embed(visible_users)
+FROM
+	aibridge_interceptions
+JOIN
+	visible_users ON visible_users.id = aibridge_interceptions.initiator_id
+WHERE
+	aibridge_interceptions.session_id = @session_id::text
+	AND COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) IN (SELECT thread_id FROM paginated_threads)
+	AND aibridge_interceptions.ended_at IS NOT NULL
+ORDER BY
+	aibridge_interceptions.started_at ASC,
+	aibridge_interceptions.id ASC
+;
+
+-- name: ListAIBridgeModelThoughtsByInterceptionIDs :many
+SELECT
+	*
+FROM
+	aibridge_model_thoughts
+WHERE
+	interception_id = ANY(@interception_ids::uuid[])
+ORDER BY
+	created_at ASC;
+
 -- name: ListAIBridgeModels :many
 SELECT
 	model

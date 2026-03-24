@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"database/sql"
+	"encoding/json"
 	"io"
 	"net/http"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -52,18 +54,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 	t.Run("EmptyDB", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, _ := coderdenttest.New(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 		//nolint:gocritic // Owner role is irrelevant here.
 		res, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
@@ -73,18 +64,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		user1, err := client.User(ctx, codersdk.Me)
@@ -192,18 +172,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 	t.Run("Pagination", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		allInterceptionIDs := make([]uuid.UUID, 0, 20)
@@ -308,18 +277,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 	t.Run("InflightInterceptions", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		now := dbtime.Now()
@@ -342,18 +300,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 	t.Run("Authorized", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		adminClient, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		adminClient, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		secondUserClient, secondUser := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -369,36 +316,26 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			StartedAt:   now.Add(-time.Hour),
 		}, &now)
 
-		// Admin can see all interceptions.
-		res, err := adminClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
+		// Members cannot read AIBridge interceptions, not even their
+		// own (i2 is owned by secondUser).
+		res, err := secondUserClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
+		require.NoError(t, err)
+		require.EqualValues(t, 0, res.Count)
+		require.Empty(t, res.Results)
+
+		// Owner can see all interceptions, including secondUser's,
+		// proving the data exists and the member was filtered out.
+		res, err = adminClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
 		require.NoError(t, err)
 		require.EqualValues(t, 2, res.Count)
 		require.Len(t, res.Results, 2)
 		require.Equal(t, i1.ID, res.Results[0].ID)
 		require.Equal(t, i2.ID, res.Results[1].ID)
-
-		// Second user can only see their own interceptions.
-		res, err = secondUserClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
-		require.NoError(t, err)
-		require.EqualValues(t, 1, res.Count)
-		require.Len(t, res.Results, 1)
-		require.Equal(t, i2.ID, res.Results[0].ID)
 	})
 
 	t.Run("Filter", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		user1, err := client.User(ctx, codersdk.Me)
@@ -585,18 +522,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 	t.Run("FilterErrors", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
+		client, _ := coderdenttest.New(t, aibridgeOpts(t))
 
 		// No need to insert any test data, we're just testing the filter
 		// errors.
@@ -1010,7 +936,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 		adminClient, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		secondUserClient, secondUser := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+		auditorClient, auditorUser := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID, rbac.RoleAuditor())
 
 		now := dbtime.Now()
 		i1EndedAt := now.Add(time.Minute)
@@ -1019,25 +945,17 @@ func TestAIBridgeListSessions(t *testing.T) {
 			StartedAt:   now,
 		}, &i1EndedAt)
 		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: secondUser.ID,
+			InitiatorID: auditorUser.ID,
 			StartedAt:   now.Add(-time.Hour),
 		}, &now)
 
-		// Admin can see all sessions.
-		//nolint:gocritic // Intentionally testing admin/owner visibility.
-		res, err := adminClient.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		// Site-level auditors can see all sessions.
+		res, err := auditorClient.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
 		require.NoError(t, err)
 		require.EqualValues(t, 2, res.Count)
 		require.Len(t, res.Sessions, 2)
 		require.Equal(t, i1.ID.String(), res.Sessions[0].ID)
 		require.Equal(t, i2.ID.String(), res.Sessions[1].ID)
-
-		// Second user can only see their own sessions.
-		res, err = secondUserClient.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
-		require.NoError(t, err)
-		require.EqualValues(t, 1, res.Count)
-		require.Len(t, res.Sessions, 1)
-		require.Equal(t, i2.ID.String(), res.Sessions[0].ID)
 	})
 
 	t.Run("SessionIDCollisionAcrossUsers", func(t *testing.T) {
@@ -1412,4 +1330,338 @@ func TestAIBridgeConcurrencyLimiting(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("timed out waiting for first request to complete")
 	}
+}
+
+func TestAIBridgeGetSessionThreads(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+		ownerClient, firstUser := coderdenttest.New(t, aibridgeOpts(t))
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := memberClient.AIBridgeGetSessionThreads(ctx, "nonexistent-session-id", uuid.Nil, uuid.Nil, 0)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("LookupByClientSessionID", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           "claude-4",
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "my-session", Valid: true},
+		}, &endedAt)
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "my-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, "my-session", res.ID)
+		require.Len(t, res.Threads, 1)
+		require.Equal(t, "claude-4", res.Threads[0].Model)
+		require.Equal(t, "anthropic", res.Threads[0].Provider)
+	})
+
+	t.Run("LookupByUUIDClientSessionID", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Use a UUID as the client_session_id. The handler must
+		// not confuse this with an interception ID.
+		uuidSessionID := uuid.New().String()
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           "claude-4",
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: uuidSessionID, Valid: true},
+		}, &endedAt)
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, uuidSessionID, uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, uuidSessionID, res.ID)
+		require.Len(t, res.Threads, 1)
+	})
+
+	t.Run("LookupByInterceptionUUID", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: firstUser.UserID,
+			Provider:    "openai",
+			Model:       "gpt-4",
+			StartedAt:   now,
+		}, &endedAt)
+
+		// Look up by UUID.
+		res, err := client.AIBridgeGetSessionThreads(ctx, i1.ID.String(), uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, i1.ID.String(), res.ID)
+		require.Len(t, res.Threads, 1)
+	})
+
+	t.Run("ThreadsWithAgenticActions", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+
+		// Create a session with one thread. Root interception + child
+		// interception sharing thread_root_id.
+		rootEndedAt := now.Add(time.Minute)
+		root := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           "claude-4",
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "thread-session", Valid: true},
+		}, &rootEndedAt)
+
+		childEndedAt := now.Add(2 * time.Minute)
+		child := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:                firstUser.UserID,
+			Provider:                   "anthropic",
+			Model:                      "claude-4",
+			StartedAt:                  now.Add(time.Minute),
+			ClientSessionID:            sql.NullString{String: "thread-session", Valid: true},
+			ThreadRootInterceptionID:   uuid.NullUUID{UUID: root.ID, Valid: true},
+			ThreadParentInterceptionID: uuid.NullUUID{UUID: root.ID, Valid: true},
+		}, &childEndedAt)
+
+		// Add a user prompt on the root.
+		dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
+			InterceptionID: root.ID,
+			Prompt:         "implement login feature",
+			CreatedAt:      now,
+		})
+
+		// Add token usage on root with metadata.
+		providerRespID := "resp-1"
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID:     root.ID,
+			ProviderResponseID: providerRespID,
+			InputTokens:        100,
+			OutputTokens:       50,
+			Metadata:           json.RawMessage(`{"cache_read_input": 20, "cache_creation_input": 10}`),
+			CreatedAt:          now,
+		})
+
+		// Add a tool usage on root.
+		dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
+			InterceptionID:     root.ID,
+			ProviderResponseID: providerRespID,
+			Tool:               "read_file",
+			Input:              `{"path": "/main.go"}`,
+			CreatedAt:          now.Add(time.Second),
+		})
+
+		// Add model thought for the root interception.
+		dbgen.AIBridgeModelThought(t, db, database.InsertAIBridgeModelThoughtParams{
+			InterceptionID: root.ID,
+			Content:        "Let me read the main file first.",
+			CreatedAt:      now.Add(time.Second),
+		})
+
+		// Add token usage on child.
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID:     child.ID,
+			ProviderResponseID: "resp-2",
+			InputTokens:        200,
+			OutputTokens:       100,
+			Metadata:           json.RawMessage(`{"cache_read_input": 30}`),
+			CreatedAt:          now.Add(time.Minute),
+		})
+
+		// Add another tool usage on child.
+		dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
+			InterceptionID:     child.ID,
+			ProviderResponseID: "resp-2",
+			Tool:               "write_file",
+			Input:              `{"path": "/login.go"}`,
+			CreatedAt:          now.Add(time.Minute + time.Second),
+		})
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "thread-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, "thread-session", res.ID)
+		require.Len(t, res.Threads, 1)
+
+		thread := res.Threads[0]
+		require.Equal(t, root.ID, thread.ID)
+		require.NotNil(t, thread.Prompt)
+		require.Equal(t, "implement login feature", *thread.Prompt)
+		require.Equal(t, "claude-4", thread.Model)
+		require.Equal(t, "anthropic", thread.Provider)
+
+		// Thread-level token aggregation.
+		require.EqualValues(t, 300, thread.TokenUsage.InputTokens)
+		require.EqualValues(t, 150, thread.TokenUsage.OutputTokens)
+		require.NotEmpty(t, thread.TokenUsage.Metadata)
+		require.EqualValues(t, int64(50), thread.TokenUsage.Metadata["cache_read_input"])
+		require.EqualValues(t, int64(10), thread.TokenUsage.Metadata["cache_creation_input"])
+
+		// Two agentic actions (one per interception with tool calls).
+		require.Len(t, thread.AgenticActions, 2)
+
+		action1 := thread.AgenticActions[0]
+		require.Len(t, action1.ToolCalls, 1)
+		require.Equal(t, "read_file", action1.ToolCalls[0].Tool)
+		require.Len(t, action1.Thinking, 1)
+		require.Equal(t, "Let me read the main file first.", action1.Thinking[0].Text)
+		// Token usage for root interception.
+		require.EqualValues(t, 100, action1.TokenUsage.InputTokens)
+		require.EqualValues(t, 50, action1.TokenUsage.OutputTokens)
+
+		action2 := thread.AgenticActions[1]
+		require.Len(t, action2.ToolCalls, 1)
+		require.Equal(t, "write_file", action2.ToolCalls[0].Tool)
+		require.Empty(t, action2.Thinking)
+
+		// Session-level token aggregation.
+		require.EqualValues(t, 300, res.TokenUsageSummary.InputTokens)
+		require.EqualValues(t, 150, res.TokenUsageSummary.OutputTokens)
+	})
+
+	t.Run("MultiThreadPagination", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+
+		// Create a session with 3 threads. Each thread is a standalone
+		// interception sharing client_session_id.
+		threadIDs := make([]uuid.UUID, 3)
+		for i := range 3 {
+			endedAt := now.Add(time.Duration(i)*time.Hour + time.Minute)
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:     firstUser.UserID,
+				Provider:        "anthropic",
+				Model:           "claude-4",
+				StartedAt:       now.Add(time.Duration(i) * time.Hour),
+				ClientSessionID: sql.NullString{String: "multi-thread-session", Valid: true},
+			}, &endedAt)
+			threadIDs[i] = intc.ID
+		}
+
+		// Get all threads (no pagination).
+		res, err := client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Len(t, res.Threads, 3)
+
+		// Threads are ordered by started_at DESC.
+		require.Equal(t, threadIDs[2], res.Threads[0].ID)
+		require.Equal(t, threadIDs[1], res.Threads[1].ID)
+		require.Equal(t, threadIDs[0], res.Threads[2].ID)
+
+		// Page with limit 1: should get only the newest thread.
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, uuid.Nil, 1)
+		require.NoError(t, err)
+		require.Len(t, res.Threads, 1)
+		require.Equal(t, threadIDs[2], res.Threads[0].ID)
+
+		// Page forward using after_id: get next thread.
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", threadIDs[2], uuid.Nil, 1)
+		require.NoError(t, err)
+		require.Len(t, res.Threads, 1)
+		require.Equal(t, threadIDs[1], res.Threads[0].ID)
+
+		// Page forward again.
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", threadIDs[1], uuid.Nil, 1)
+		require.NoError(t, err)
+		require.Len(t, res.Threads, 1)
+		require.Equal(t, threadIDs[0], res.Threads[0].ID)
+
+		// No more threads.
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", threadIDs[0], uuid.Nil, 1)
+		require.NoError(t, err)
+		require.Empty(t, res.Threads)
+
+		// before_id filters to threads newer than the given ID.
+		// Results are still ordered DESC, so limit matters.
+		// before_id=oldest → returns both newer threads, DESC.
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, threadIDs[0], 0)
+		require.NoError(t, err)
+		require.Len(t, res.Threads, 2)
+		require.Equal(t, threadIDs[2], res.Threads[0].ID)
+		require.Equal(t, threadIDs[1], res.Threads[1].ID)
+
+		// before_id=middle → returns only the newest thread.
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, threadIDs[1], 0)
+		require.NoError(t, err)
+		require.Len(t, res.Threads, 1)
+		require.Equal(t, threadIDs[2], res.Threads[0].ID)
+
+		// before_id=newest → no newer threads exist.
+		res, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", uuid.Nil, threadIDs[2], 0)
+		require.NoError(t, err)
+		require.Empty(t, res.Threads)
+
+		// Combining after_id and before_id is rejected.
+		_, err = client.AIBridgeGetSessionThreads(ctx, "multi-thread-session", threadIDs[2], threadIDs[0], 0)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("Authorization", func(t *testing.T) {
+		t.Parallel()
+		ownerClient, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+
+		// Create a session owned by the owner.
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "anthropic",
+			Model:           "claude-4",
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "owner-session", Valid: true},
+		}, &endedAt)
+
+		// Owner can see their own session.
+		res, err := ownerClient.AIBridgeGetSessionThreads(ctx, "owner-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, "owner-session", res.ID)
+
+		// Member cannot see the owner's session.
+		_, err = memberClient.AIBridgeGetSessionThreads(ctx, "owner-session", uuid.Nil, uuid.Nil, 0)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
+		// Create a session owned by the member.
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     member.ID,
+			Provider:        "anthropic",
+			Model:           "claude-4",
+			StartedAt:       now,
+			ClientSessionID: sql.NullString{String: "member-session", Valid: true},
+		}, &endedAt)
+
+		// Member cannot see their own session either (no read permission).
+		_, err = memberClient.AIBridgeGetSessionThreads(ctx, "member-session", uuid.Nil, uuid.Nil, 0)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
 }
