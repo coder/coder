@@ -440,7 +440,10 @@ export const WithMCPNeedingAuth: Story = {
 export const WithMCPNoneActive: Story = {
 	args: {
 		...mcpDefaults,
-		mcpServers: [sentryMCP, linearMCP],
+		mcpServers: [
+			{ ...sentryMCP, availability: "default_off" },
+			{ ...linearMCP, availability: "default_off" },
+		],
 		selectedMCPServerIds: [],
 	},
 };
