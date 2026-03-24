@@ -12,7 +12,7 @@ import {
 } from "components/Popover/Popover";
 import dayjs from "dayjs";
 import { CalendarIcon, MoveRightIcon } from "lucide-react";
-import { type FC, useCallback, useState } from "react";
+import { type FC, useState } from "react";
 import type { DateRange as DayPickerDateRange } from "react-day-picker";
 import { cn } from "utils/cn";
 
@@ -98,49 +98,37 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 		}),
 	);
 
-	const commit = useCallback(
-		(from: Date, to: Date) => {
-			onChange(toBoundary(from, to));
-			setOpen(false);
-		},
-		[onChange],
-	);
+	const commit = (from: Date, to: Date) => {
+		onChange(toBoundary(from, to));
+		setOpen(false);
+	};
 
-	const handlePreset = useCallback(
-		(preset: DateRangePreset) => {
-			const { from, to } = preset.range();
-			setSelection({ from, to });
-			commit(from, to);
-		},
-		[commit],
-	);
+	const handlePreset = (preset: DateRangePreset) => {
+		const { from, to } = preset.range();
+		setSelection({ from, to });
+		commit(from, to);
+	};
 
-	const handleCalendarSelect = useCallback(
-		(range: DayPickerDateRange | undefined) => {
-			if (!range) return;
-			setSelection(range);
+	const handleCalendarSelect = (range: DayPickerDateRange | undefined) => {
+		if (!range) return;
+		setSelection(range);
 
-			// react-day-picker fires onChange on every click. A complete
-			// range (both `from` and `to` present and different) means the
-			// user finished their two-click selection.
-			if (range.from && range.to && range.from !== range.to) {
-				commit(range.from, range.to);
-			}
-		},
-		[commit],
-	);
+		// react-day-picker fires onChange on every click. A complete
+		// range (both `from` and `to` present and different) means the
+		// user finished their two-click selection.
+		if (range.from && range.to && range.from !== range.to) {
+			commit(range.from, range.to);
+		}
+	};
 
 	// Sync local selection when the popover opens so it reflects the
 	// latest committed value.
-	const handleOpenChange = useCallback(
-		(next: boolean) => {
-			if (next) {
-				setSelection({ from: value.startDate, to: value.endDate });
-			}
-			setOpen(next);
-		},
-		[value],
-	);
+	const handleOpenChange = (next: boolean) => {
+		if (next) {
+			setSelection({ from: value.startDate, to: value.endDate });
+		}
+		setOpen(next);
+	};
 
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
