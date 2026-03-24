@@ -15,13 +15,13 @@ import {
 	scheduleToAutostart,
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import { ttlMsToAutostop } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
-import { useWorkspaceSettings } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
+import { useWorkspaceSettings } from "#/pages/WorkspaceSettingsPage/useWorkspaceSettings";
 import {
 	formValuesToAutostartRequest,
 	formValuesToTTLRequest,

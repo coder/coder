@@ -7,7 +7,7 @@ import type { FC } from "react";
 import { useQuery } from "react-query";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
-import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
+import { useWorkspaceSettings } from "../useWorkspaceSettings";
 import { WorkspaceSharingPageView } from "./WorkspaceSharingPageView";
 
 const WorkspaceSharingPage: FC = () => {
