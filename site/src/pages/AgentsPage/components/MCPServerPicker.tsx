@@ -26,7 +26,7 @@ import { cn } from "utils/cn";
 
 // ── Types ──────────────────────────────────────────────────────
 
-export interface MCPServerPickerProps {
+interface MCPServerPickerProps {
 	/** All MCP server configs from the API. Will be filtered to enabled only. */
 	servers: readonly TypesGen.MCPServerConfig[];
 	/** Currently selected server IDs. */
@@ -222,12 +222,13 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 					aria-label="MCP Servers"
 					className="group flex h-8 cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 				>
-						<span className="hidden sm:inline">MCP</span>
-						{activeServers.length > 0 ? (
-							<TriggerIconStack servers={activeServers} />
-						) : (
-							<PlugIcon className="h-3.5 w-3.5" />
-						)}					<ChevronDownIcon className="h-3.5 w-3.5 text-content-secondary transition-colors group-hover:text-content-primary" />
+					<span className="hidden sm:inline">MCP</span>
+					{activeServers.length > 0 ? (
+						<TriggerIconStack servers={activeServers} />
+					) : (
+						<PlugIcon className="h-3.5 w-3.5" />
+					)}{" "}
+					<ChevronDownIcon className="h-3.5 w-3.5 text-content-secondary transition-colors group-hover:text-content-primary" />
 				</button>
 			</PopoverTrigger>
 			<PopoverContent align="start" className="w-64 p-0">
@@ -262,21 +263,22 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 													<CheckCircleIcon className="h-3.5 w-3.5 shrink-0 text-content-success" />
 												)}
 											{needsAuth && isSelected ? (
-													<Button
-														variant="outline"
-														size="sm"
-														className="h-5 shrink-0 px-1 text-[10px] border-border/50"
-														onClick={(e) => {
-															e.stopPropagation();
-															handleConnect(server);
-														}}
-														disabled={disabled || isConnecting}
-														aria-label={`Authenticate with ${server.display_name}`}
-													>
-														{isConnecting ? (
-															<Spinner loading className="h-2.5 w-2.5" />
-														) : null}
-														Auth												</Button>
+												<Button
+													variant="outline"
+													size="sm"
+													className="h-5 shrink-0 px-1 text-[10px] border-border/50"
+													onClick={(e) => {
+														e.stopPropagation();
+														handleConnect(server);
+													}}
+													disabled={disabled || isConnecting}
+													aria-label={`Authenticate with ${server.display_name}`}
+												>
+													{isConnecting ? (
+														<Spinner loading className="h-2.5 w-2.5" />
+													) : null}
+													Auth{" "}
+												</Button>
 											) : (
 												<Switch
 													checked={isSelected}
