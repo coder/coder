@@ -53,9 +53,9 @@ import TextareaAutosize from "react-textarea-autosize";
 import { formatTokenCount } from "utils/analytics";
 import { formatCostMicros } from "utils/currency";
 import {
-	DateRange,
+	DateRangePicker,
 	type DateRangeValue,
-} from "../TemplatePage/TemplateInsightsPage/DateRange";
+} from "components/DateRangePicker/DateRangePicker";
 import { ChatCostSummaryView } from "./components/ChatCostSummaryView";
 import { ChatModelAdminPanel } from "./components/ChatModelAdminPanel/ChatModelAdminPanel";
 import { InsightsContent } from "./components/InsightsContent";
@@ -260,7 +260,10 @@ const UsageContent: FC<UsageContentProps> = ({ now }) => {
 			}
 			badge={<AdminBadge />}
 			action={
-				<DateRange value={displayDateRange} onChange={onDateRangeChange} />
+				<DateRangePicker
+					value={displayDateRange}
+					onChange={onDateRangeChange}
+				/>
 			}
 		/>
 	);

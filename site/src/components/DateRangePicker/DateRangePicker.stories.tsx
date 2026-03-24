@@ -1,0 +1,140 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import dayjs from "dayjs";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import { useState } from "react";
+import { DateRangePicker, type DateRangeValue } from "./DateRangePicker";
+
+const fixedNow = dayjs("2025-03-15T12:00:00Z");
+
+const defaultValue: DateRangeValue = {
+	startDate: fixedNow.subtract(30, "day").toDate(),
+	endDate: fixedNow.toDate(),
+};
+
+const meta: Meta<typeof DateRangePicker> = {
+	title: "components/DateRangePicker",
+	component: DateRangePicker,
+};
+
+export default meta;
+type Story = StoryObj<typeof DateRangePicker>;
+
+export const Closed: Story = {
+	args: {
+		value: defaultValue,
+		onChange: () => {},
+	},
+};
+
+export const Open: Story = {
+	args: {
+		value: defaultValue,
+		onChange: () => {},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("button");
+		await userEvent.click(trigger);
+
+		await waitFor(() => {
+			const presets = screen.getByText("Last 7 days");
+			expect(presets).toBeInTheDocument();
+		});
+
+		// All preset labels should be visible.
+		expect(screen.getByText("Today")).toBeInTheDocument();
+		expect(screen.getByText("Yesterday")).toBeInTheDocument();
+		expect(screen.getByText("Last 14 days")).toBeInTheDocument();
+		expect(screen.getByText("Last 30 days")).toBeInTheDocument();
+	},
+};
+
+export const SelectPreset: Story = {
+	render: function SelectPresetStory() {
+		const [value, setValue] = useState<DateRangeValue>(defaultValue);
+		return <DateRangePicker value={value} onChange={setValue} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		const trigger = canvas.getByRole("button");
+		await userEvent.click(trigger);
+
+		const preset = await body.findByText("Last 7 days");
+		await userEvent.click(preset);
+
+		// Popover should close after selecting a preset.
+		await waitFor(() => {
+			expect(screen.queryByText("Last 7 days")).toBeNull();
+		});
+
+		// The trigger button text should have changed to reflect a
+		// narrower range than the original 30-day default.
+		const updatedTrigger = canvas.getByRole("button");
+		expect(updatedTrigger.textContent).not.toContain(
+			dayjs(defaultValue.startDate).format("MMM D, YYYY"),
+		);
+	},
+};
+
+export const SelectCalendarRange: Story = {
+	render: function SelectCalendarRangeStory() {
+		const [value, setValue] = useState<DateRangeValue>({
+			startDate: new Date("2025-03-01"),
+			endDate: new Date("2025-03-15"),
+		});
+		return <DateRangePicker value={value} onChange={setValue} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(canvas.getByRole("button"));
+
+		// Wait for the calendar to render.
+		await waitFor(() => {
+			expect(screen.getByText("Today")).toBeInTheDocument();
+		});
+
+		// Find day buttons in the calendar grid. These are rendered
+		// as buttons inside table cells by react-day-picker.
+		const dayButtons = body.getAllByRole("gridcell");
+		expect(dayButtons.length).toBeGreaterThan(0);
+	},
+};
+
+export const CustomPresets: Story = {
+	args: {
+		value: defaultValue,
+		onChange: () => {},
+		presets: [
+			{
+				label: "This week",
+				range: () => ({
+					from: dayjs().startOf("week").toDate(),
+					to: new Date(),
+				}),
+			},
+			{
+				label: "This month",
+				range: () => ({
+					from: dayjs().startOf("month").toDate(),
+					to: new Date(),
+				}),
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+
+		await waitFor(() => {
+			expect(screen.getByText("This week")).toBeInTheDocument();
+			expect(screen.getByText("This month")).toBeInTheDocument();
+		});
+
+		// Default presets should not be present.
+		expect(screen.queryByText("Last 7 days")).toBeNull();
+	},
+};

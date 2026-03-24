@@ -62,7 +62,10 @@ import {
 	subtractTime,
 } from "utils/time";
 import { getTemplatePageTitle } from "../utils";
-import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
+import {
+	DateRangePicker as DailyPicker,
+	type DateRangeValue,
+} from "components/DateRangePicker/DateRangePicker";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
 import { numberOfWeeksOptions, WeekPicker } from "./WeekPicker";
