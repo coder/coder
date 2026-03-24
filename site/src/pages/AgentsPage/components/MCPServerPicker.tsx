@@ -231,7 +231,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 					<ChevronDownIcon className="h-3.5 w-3.5 text-content-secondary transition-colors group-hover:text-content-primary" />
 				</button>
 			</PopoverTrigger>
-			<PopoverContent align="start" className="w-64 p-0">
+			<PopoverContent align="start" className="w-52 p-0">
 				<TooltipProvider delayDuration={300}>
 					<div className="max-h-64 overflow-y-auto py-1 [scrollbar-width:thin]">
 						{enabledServers.map((server) => {
@@ -261,7 +261,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 												<Button
 													variant="outline"
 													size="sm"
-													className="h-4 shrink-0 px-0.5 text-[10px] leading-none border-border/50"
+													className="h-4 shrink-0 w-fit px-0.5 text-[10px] leading-none border-border/50"
 													onClick={(e) => {
 														e.stopPropagation();
 														handleConnect(server);
