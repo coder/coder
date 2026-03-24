@@ -173,6 +173,15 @@ func (b *Batcher) run(ctx context.Context) {
 	}
 }
 
+// conflictKey represents the unique constraint columns used by
+// the upsert query. Entries sharing the same key cannot appear
+// in a single INSERT … ON CONFLICT DO UPDATE statement.
+type conflictKey struct {
+	ConnectionID uuid.UUID
+	WorkspaceID  uuid.UUID
+	AgentName    string
+}
+
 func (b *Batcher) flush(ctx context.Context) {
 	count := len(b.batch)
 	if count == 0 {
@@ -181,26 +190,73 @@ func (b *Batcher) flush(ctx context.Context) {
 
 	b.log.Debug(ctx, "flushing connection log batch", slog.F("count", count))
 
-	var (
-		ids              = make([]uuid.UUID, 0, count)
-		connectTime      = make([]time.Time, 0, count)
-		organizationID   = make([]uuid.UUID, 0, count)
-		workspaceOwnerID = make([]uuid.UUID, 0, count)
-		workspaceID      = make([]uuid.UUID, 0, count)
-		workspaceName    = make([]string, 0, count)
-		agentName        = make([]string, 0, count)
-		connType         = make([]database.ConnectionType, 0, count)
-		code             = make([]int32, 0, count)
-		ip               = make([]pqtype.Inet, 0, count)
-		userAgent        = make([]string, 0, count)
-		userID           = make([]uuid.UUID, 0, count)
-		slugOrPort       = make([]string, 0, count)
-		connectionID     = make([]uuid.UUID, 0, count)
-		disconnectReason = make([]string, 0, count)
-		disconnectTime   = make([]time.Time, 0, count)
-	)
+	// Deduplicate by conflict key so PostgreSQL never sees the
+	// same row twice in one INSERT … ON CONFLICT DO UPDATE.
+	// Entries with a NULL connection_id (web events) are exempt
+	// because NULL != NULL in SQL unique constraints.
+	deduped := make(map[conflictKey]database.UpsertConnectionLogParams, count)
+	var nullConnIDEntries []database.UpsertConnectionLogParams
 
 	for _, item := range b.batch {
+		if !item.ConnectionID.Valid {
+			nullConnIDEntries = append(nullConnIDEntries, item)
+			continue
+		}
+		key := conflictKey{
+			ConnectionID: item.ConnectionID.UUID,
+			WorkspaceID:  item.WorkspaceID,
+			AgentName:    item.AgentName,
+		}
+		existing, ok := deduped[key]
+		if !ok {
+			deduped[key] = item
+			continue
+		}
+		// Prefer disconnect over connect (superset of info).
+		// If same status, prefer the later event.
+		if item.ConnectionStatus == database.ConnectionStatusDisconnected &&
+			existing.ConnectionStatus != database.ConnectionStatusDisconnected {
+			deduped[key] = item
+		} else if item.Time.After(existing.Time) {
+			deduped[key] = item
+		}
+	}
+
+	// Rebuild batch from deduplicated entries.
+	items := make([]database.UpsertConnectionLogParams, 0, len(deduped)+len(nullConnIDEntries))
+	for _, item := range deduped {
+		items = append(items, item)
+	}
+	items = append(items, nullConnIDEntries...)
+
+	dedupedCount := len(items)
+	if dedupedCount < count {
+		b.log.Debug(ctx, "deduplicated connection log batch",
+			slog.F("original", count),
+			slog.F("deduped", dedupedCount),
+		)
+	}
+
+	var (
+		ids              = make([]uuid.UUID, 0, dedupedCount)
+		connectTime      = make([]time.Time, 0, dedupedCount)
+		organizationID   = make([]uuid.UUID, 0, dedupedCount)
+		workspaceOwnerID = make([]uuid.UUID, 0, dedupedCount)
+		workspaceID      = make([]uuid.UUID, 0, dedupedCount)
+		workspaceName    = make([]string, 0, dedupedCount)
+		agentName        = make([]string, 0, dedupedCount)
+		connType         = make([]database.ConnectionType, 0, dedupedCount)
+		code             = make([]int32, 0, dedupedCount)
+		ip               = make([]pqtype.Inet, 0, dedupedCount)
+		userAgent        = make([]string, 0, dedupedCount)
+		userID           = make([]uuid.UUID, 0, dedupedCount)
+		slugOrPort       = make([]string, 0, dedupedCount)
+		connectionID     = make([]uuid.UUID, 0, dedupedCount)
+		disconnectReason = make([]string, 0, dedupedCount)
+		disconnectTime   = make([]time.Time, 0, dedupedCount)
+	)
+
+	for _, item := range items {
 		ids = append(ids, item.ID)
 		connectTime = append(connectTime, item.Time)
 		organizationID = append(organizationID, item.OrganizationID)
