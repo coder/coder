@@ -15,12 +15,10 @@ import (
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"charm.land/fantasy/schema"
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
-	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -237,32 +235,14 @@ func Run(ctx context.Context, opts RunOptions) error {
 		opts.MaxSteps = 1
 	}
 
-	tools := buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
-
-	// Build a lookup from tool name to MCP server config ID
-	// so we can annotate published parts with the originating
-	// server.
-	toolNameToConfigID := make(map[string]uuid.UUID)
-	for _, t := range opts.Tools {
-		if mcp, ok := t.(mcpclient.MCPToolIdentifier); ok {
-			toolNameToConfigID[t.Info().Name] = mcp.MCPServerConfigID()
-		}
-	}
-
 	publishMessagePart := func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
-		// Annotate tool-call and tool-result parts with their
-		// MCP server config ID when the tool originates from
-		// an MCP server.
-		if part.ToolName != "" {
-			if configID, ok := toolNameToConfigID[part.ToolName]; ok {
-				part.MCPServerConfigID = uuid.NullUUID{UUID: configID, Valid: true}
-			}
-		}
 		if opts.PublishMessagePart == nil {
 			return
 		}
 		opts.PublishMessagePart(role, part)
 	}
+
+	tools := buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
 	applyAnthropicCaching := shouldApplyAnthropicPromptCaching(opts.Model)
 
 	messages := opts.Messages

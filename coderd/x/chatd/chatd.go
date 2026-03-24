@@ -3484,6 +3484,11 @@ func (p *Server) runChat(
 			role codersdk.ChatMessageRole,
 			part codersdk.ChatMessagePart,
 		) {
+			if part.ToolName != "" {
+				if configID, ok := toolNameToConfigID[part.ToolName]; ok {
+					part.MCPServerConfigID = uuid.NullUUID{UUID: configID, Valid: true}
+				}
+			}
 			p.publishMessagePart(chat.ID, role, part)
 		},
 		Compaction: compactionOptions,

@@ -567,8 +567,11 @@ export function humanizeMCPToolName(
 	const raw = prefixedName.startsWith(prefix)
 		? prefixedName.slice(prefix.length)
 		: prefixedName;
-	// Replace underscores with spaces, capitalize first letter.
-	const words = raw.replace(/_/g, " ").trim();
+	// Replace runs of underscores with a single space, then trim.
+	const words = raw.replace(/_+/g, " ").trim();
+	if (!words) {
+		return prefixedName;
+	}
 	return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
