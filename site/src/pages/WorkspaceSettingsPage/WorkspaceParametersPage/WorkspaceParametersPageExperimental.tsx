@@ -286,6 +286,15 @@ const WorkspaceParametersPageExperimental: FC = () => {
 					isSubmitting={
 						startWithParameters.isPending || restartWithParameters.isPending
 					}
+					submitLabel={
+						restartWithParameters.isPending
+							? "Stopping workspace"
+							: startWithParameters.isPending
+								? "Starting workspace"
+								: workspace.latest_build.status === "running"
+									? "Update and restart"
+									: "Update and start"
+					}
 					onSubmit={handleSubmit}
 					onCancel={() =>
 						navigate(`/@${workspace.owner_name}/${workspace.name}`)
