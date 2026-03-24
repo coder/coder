@@ -1710,7 +1710,7 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
 		}
 		defer conn.Close()
 
-		err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{
+		_, err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{
 			Files: []workspacesdk.FileEdits{
 				{
 					Path:  args.Path,
@@ -1792,7 +1792,7 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
 		}
 		defer conn.Close()
 
-		err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: args.Files})
+		_, err = conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: args.Files})
 		if err != nil {
 			return codersdk.Response{}, err
 		}

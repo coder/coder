@@ -1395,3 +1395,67 @@ func TestReadFileLines(t *testing.T) {
 		})
 	}
 }
+
+func TestEditFiles_ResponseStructure(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	fs := newTestFs(afero.NewMemMapFs(), func(_, _ string) error { return nil })
+	api := agentfiles.NewAPI(logger, fs, nil)
+
+	exactPath := filepath.Join(tmpdir, "resp-exact")
+	err := afero.WriteFile(fs, exactPath, []byte("hello world"), 0o644)
+	require.NoError(t, err)
+
+	fuzzyPath := filepath.Join(tmpdir, "resp-fuzzy")
+	err = afero.WriteFile(fs, fuzzyPath, []byte("\t\tindented line\n"), 0o644)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	body := workspacesdk.FileEditRequest{
+		Files: []workspacesdk.FileEdits{
+			{
+				Path: exactPath,
+				Edits: []workspacesdk.FileEdit{
+					{Search: "hello", Replace: "goodbye"},
+				},
+			},
+			{
+				// Search with wrong indent to trigger fuzzy pass 3.
+				Path: fuzzyPath,
+				Edits: []workspacesdk.FileEdit{
+					// Search with spaces instead of tabs to force fuzzy
+					// pass 3 (indent-tolerant match).
+					{Search: "    indented line\n", Replace: "\t\tchanged line\n"},
+				},
+			},
+		},
+	}
+	buf := bytes.NewBuffer(nil)
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false)
+	err = enc.Encode(body)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+	api.Routes().ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp workspacesdk.FileEditResponse
+	err = json.NewDecoder(w.Body).Decode(&resp)
+	require.NoError(t, err)
+
+	require.Len(t, resp.Files, 2)
+
+	require.Equal(t, exactPath, resp.Files[0].Path)
+	require.Equal(t, 1, resp.Files[0].EditsApplied)
+	require.Equal(t, "exact", resp.Files[0].Strategy)
+
+	require.Equal(t, fuzzyPath, resp.Files[1].Path)
+	require.Equal(t, 1, resp.Files[1].EditsApplied)
+	require.Equal(t, "fuzzy_indent", resp.Files[1].Strategy)
+}

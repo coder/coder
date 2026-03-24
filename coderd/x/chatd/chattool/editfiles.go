@@ -2,6 +2,7 @@ package chattool
 
 import (
 	"context"
+	"encoding/json"
 
 	"charm.land/fantasy"
 
@@ -43,8 +44,13 @@ func executeEditFilesTool(
 		return fantasy.NewTextErrorResponse("files is required"), nil
 	}
 
-	if err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: args.Files}); err != nil {
+	resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{Files: args.Files})
+	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
-	return toolResponse(map[string]any{"ok": true}), nil
+	data, err := json.Marshal(resp)
+	if err != nil {
+		return fantasy.NewTextErrorResponse("failed to marshal response: " + err.Error()), nil
+	}
+	return fantasy.NewTextResponse(string(data)), nil
 }

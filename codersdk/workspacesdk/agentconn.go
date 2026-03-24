@@ -81,7 +81,7 @@ type AgentConn interface {
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
-	EditFiles(ctx context.Context, edits FileEditRequest) error
+	EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error)
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
 	SSHClientOnPort(ctx context.Context, port uint16) (*ssh.Client, error)
@@ -923,6 +923,25 @@ type FileEditRequest struct {
 	Files []FileEdits `json:"files"`
 }
 
+// FileEditResult describes the outcome of edits applied to a single
+// file.
+type FileEditResult struct {
+	// Path is the absolute file path that was edited.
+	Path string `json:"path"`
+	// EditsApplied is the number of edits successfully applied.
+	EditsApplied int `json:"edits_applied"`
+	// Strategy is the loosest match strategy used across all edits
+	// (exact < fuzzy_trailing_whitespace < fuzzy_indent).
+	Strategy string `json:"strategy,omitempty"`
+}
+
+// FileEditResponse is the response from the edit-files endpoint.
+type FileEditResponse struct {
+	// Files contains per-file results for every successfully edited
+	// file.
+	Files []FileEditResult `json:"files"`
+}
+
 // StartProcess starts a new process on the workspace agent.
 func (c *agentConn) StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
@@ -995,24 +1014,24 @@ func (c *agentConn) SignalProcess(ctx context.Context, id string, signal string)
 }
 
 // EditFiles performs search and replace edits on one or more files.
-func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) error {
+func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
 	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/edit-files", edits)
 	if err != nil {
-		return xerrors.Errorf("do request: %w", err)
+		return FileEditResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return codersdk.ReadBodyAsError(res)
+		return FileEditResponse{}, codersdk.ReadBodyAsError(res)
 	}
 
-	var m codersdk.Response
-	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
-		return xerrors.Errorf("decode response body: %w", err)
+	var resp FileEditResponse
+	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
+		return FileEditResponse{}, xerrors.Errorf("decode response body: %w", err)
 	}
-	return nil
+	return resp, nil
 }
 
 // apiRequest makes a request to the workspace agent's HTTP API server.

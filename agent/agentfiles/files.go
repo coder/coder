@@ -363,14 +363,18 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 
 	var combinedErr error
 	status := http.StatusOK
+	var results []workspacesdk.FileEditResult
 	for _, edit := range req.Files {
-		s, err := api.editFile(r.Context(), edit.Path, edit.Edits)
+		s, result, err := api.editFile(r.Context(), edit.Path, edit.Edits)
 		// Keep the highest response status, so 500 will be preferred over 400, etc.
 		if s > status {
 			status = s
 		}
 		if err != nil {
 			combinedErr = errors.Join(combinedErr, err)
+		}
+		if result != nil {
+			results = append(results, *result)
 		}
 	}
 
@@ -392,22 +396,22 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
-		Message: "Successfully edited file(s)",
+	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.FileEditResponse{
+		Files: results,
 	})
 }
 
-func (api *API) editFile(ctx context.Context, path string, edits []workspacesdk.FileEdit) (int, error) {
+func (api *API) editFile(ctx context.Context, path string, edits []workspacesdk.FileEdit) (int, *workspacesdk.FileEditResult, error) {
 	if path == "" {
-		return http.StatusBadRequest, xerrors.New("\"path\" is required")
+		return http.StatusBadRequest, nil, xerrors.New("\"path\" is required")
 	}
 
 	if !filepath.IsAbs(path) {
-		return http.StatusBadRequest, xerrors.Errorf("file path must be absolute: %q", path)
+		return http.StatusBadRequest, nil, xerrors.Errorf("file path must be absolute: %q", path)
 	}
 
 	if len(edits) == 0 {
-		return http.StatusBadRequest, xerrors.New("must specify at least one edit")
+		return http.StatusBadRequest, nil, xerrors.New("must specify at least one edit")
 	}
 
 	f, err := api.filesystem.Open(path)
@@ -419,35 +423,50 @@ func (api *API) editFile(ctx context.Context, path string, edits []workspacesdk.
 		case errors.Is(err, os.ErrPermission):
 			status = http.StatusForbidden
 		}
-		return status, err
+		return status, nil, err
 	}
 	defer f.Close()
 
 	stat, err := f.Stat()
 	if err != nil {
-		return http.StatusInternalServerError, err
+		return http.StatusInternalServerError, nil, err
 	}
 
 	if stat.IsDir() {
-		return http.StatusBadRequest, xerrors.Errorf("open %s: not a file", path)
+		return http.StatusBadRequest, nil, xerrors.Errorf("open %s: not a file", path)
 	}
 
 	data, err := io.ReadAll(f)
 	if err != nil {
-		return http.StatusInternalServerError, xerrors.Errorf("read %s: %w", path, err)
+		return http.StatusInternalServerError, nil, xerrors.Errorf("read %s: %w", path, err)
 	}
 	content := string(data)
 
+	// Track the "loosest" strategy across all edits so callers can
+	// detect when any edit needed fuzzy matching.
+	var worstStrategy string
 	for _, edit := range edits {
+		var strategy string
 		var err error
-		content, err = fuzzyReplace(content, edit)
+		content, strategy, err = fuzzyReplace(content, edit)
 		if err != nil {
-			return http.StatusBadRequest, xerrors.Errorf("edit %s: %w", path, err)
+			return http.StatusBadRequest, nil, xerrors.Errorf("edit %s: %w", path, err)
+		}
+		if strategyRank(strategy) > strategyRank(worstStrategy) {
+			worstStrategy = strategy
 		}
 	}
 
 	m := stat.Mode()
-	return api.atomicWrite(ctx, path, &m, strings.NewReader(content))
+	s, err := api.atomicWrite(ctx, path, &m, strings.NewReader(content))
+	if err != nil {
+		return s, nil, err
+	}
+	return s, &workspacesdk.FileEditResult{
+		Path:         path,
+		EditsApplied: len(edits),
+		Strategy:     worstStrategy,
+	}, nil
 }
 
 // atomicWrite writes content from r to path via a temp file in the
@@ -510,6 +529,22 @@ func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode,
 	return 0, nil
 }
 
+// strategyRank returns a numeric rank for match strategies so the
+// "loosest" (most fuzzy) strategy can be tracked across multiple
+// edits: exact < fuzzy_trailing_whitespace < fuzzy_indent.
+func strategyRank(s string) int {
+	switch s {
+	case "exact":
+		return 1
+	case "fuzzy_trailing_whitespace":
+		return 2
+	case "fuzzy_indent":
+		return 3
+	default:
+		return 0
+	}
+}
+
 // fuzzyReplace attempts to find `search` inside `content` and replace it
 // with `replace`. It uses a cascading match strategy inspired by
 // openai/codex's apply_patch:
@@ -527,24 +562,24 @@ func (api *API) atomicWrite(ctx context.Context, path string, mode *os.FileMode,
 // When a fuzzy match is found (passes 2 or 3), the replacement is still
 // applied at the byte offsets of the original content so that surrounding
 // text (including indentation of untouched lines) is preserved.
-func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
+func fuzzyReplace(content string, edit workspacesdk.FileEdit) (result string, strategy string, err error) {
 	search := edit.Search
 	replace := edit.Replace
 
 	// Pass 1 – exact substring match.
 	if strings.Contains(content, search) {
 		if edit.ReplaceAll {
-			return strings.ReplaceAll(content, search, replace), nil
+			return strings.ReplaceAll(content, search, replace), "exact", nil
 		}
 		count := strings.Count(content, search)
 		if count > 1 {
-			return "", xerrors.Errorf("search string matches %d occurrences "+
+			return "", "", xerrors.Errorf("search string matches %d occurrences "+
 				"(expected exactly 1). Include more surrounding "+
 				"context to make the match unique, or set "+
 				"replace_all to true", count)
 		}
 		// Exactly one match.
-		return strings.Replace(content, search, replace, 1), nil
+		return strings.Replace(content, search, replace, 1), "exact", nil
 	}
 
 	// For line-level fuzzy matching we split both content and search
@@ -570,13 +605,13 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 	if start, end, ok := seekLines(contentLines, searchLines, trimRight); ok {
 		if !edit.ReplaceAll {
 			if count := countLineMatches(contentLines, searchLines, trimRight); count > 1 {
-				return "", xerrors.Errorf("search string matches %d occurrences "+
+				return "", "", xerrors.Errorf("search string matches %d occurrences "+
 					"(expected exactly 1). Include more surrounding "+
 					"context to make the match unique, or set "+
 					"replace_all to true", count)
 			}
 		}
-		return spliceLines(contentLines, start, end, replace), nil
+		return spliceLines(contentLines, start, end, replace), "fuzzy_trailing_whitespace", nil
 	}
 
 	// Pass 3 – trim all leading and trailing whitespace
@@ -584,16 +619,16 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 	if start, end, ok := seekLines(contentLines, searchLines, trimAll); ok {
 		if !edit.ReplaceAll {
 			if count := countLineMatches(contentLines, searchLines, trimAll); count > 1 {
-				return "", xerrors.Errorf("search string matches %d occurrences "+
+				return "", "", xerrors.Errorf("search string matches %d occurrences "+
 					"(expected exactly 1). Include more surrounding "+
 					"context to make the match unique, or set "+
 					"replace_all to true", count)
 			}
 		}
-		return spliceLines(contentLines, start, end, replace), nil
+		return spliceLines(contentLines, start, end, replace), "fuzzy_indent", nil
 	}
 
-	return "", xerrors.New("search string not found in file. Verify the search " +
+	return "", "", xerrors.New("search string not found in file. Verify the search " +
 		"string matches the file content exactly, including whitespace " +
 		"and indentation")
 }
