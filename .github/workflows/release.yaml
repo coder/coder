@@ -61,7 +61,7 @@ jobs:
   release:
     name: Build and publish
     needs: [check-perms]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-16-cores
     permissions:
       # Required to publish a release
       contents: write
