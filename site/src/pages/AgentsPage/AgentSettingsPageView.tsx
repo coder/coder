@@ -727,12 +727,13 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 										minRows={1}
 									/>
 									<div className="flex justify-end gap-2">
-											<Button
-												size="sm"
-												variant="outline"
-												type="button"
-												onClick={() => setLocalEdit("")}
-												disabled={isPromptSaving || !systemPromptDraft}										>
+										<Button
+											size="sm"
+											variant="outline"
+											type="button"
+											onClick={() => setLocalEdit("")}
+											disabled={isPromptSaving || !systemPromptDraft}
+										>
 											Clear
 										</Button>
 										<Button
