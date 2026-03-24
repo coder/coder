@@ -401,9 +401,9 @@ const openModelActionsMenu = async (
 	if (!row) {
 		throw new Error(`Could not find row for model ${modelName}`);
 	}
-	const actionsButton = within(row).getByRole("button", {
+	const actionsButton = within(row).getAllByRole("button", {
 		name: "Model actions",
-	});
+	})[0];
 	await userEvent.click(actionsButton);
 };
 
