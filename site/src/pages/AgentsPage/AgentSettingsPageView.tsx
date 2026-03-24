@@ -1,4 +1,3 @@
-import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import {
 	chatCostSummary,
@@ -15,6 +14,7 @@ import {
 	updateChatWorkspaceTTL,
 	updateUserChatCustomPrompt,
 } from "api/queries/chats";
+import { templates } from "api/queries/templates";
 import { user } from "api/queries/users";
 import type * as TypesGen from "api/typesGenerated";
 import dayjs from "dayjs";
@@ -950,10 +950,7 @@ const TemplateAllowlistSection: FC = () => {
 	const queryClient = useQueryClient();
 
 	// Fetch all available templates.
-	const templatesQuery = useQuery({
-		queryKey: ["templates"],
-		queryFn: () => API.getTemplates(),
-	});
+	const templatesQuery = useQuery(templates());
 
 	// Fetch current allowlist.
 	const allowlistQuery = useQuery(chatTemplateAllowlist());
