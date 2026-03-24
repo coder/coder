@@ -216,7 +216,7 @@ export const DefaultAutostopDefault: Story = {
 		expect(toggle).not.toBeChecked();
 
 		// Duration field should not be visible when disabled.
-		expect(canvas.queryByLabelText("Autostop duration")).toBeNull();
+		expect(canvas.queryByLabelText("Autostop Fallback")).toBeNull();
 	},
 };
 
@@ -237,7 +237,7 @@ export const DefaultAutostopCustomValue: Story = {
 		expect(toggle).toBeChecked();
 
 		// Duration field should be visible with 2 hours.
-		const durationInput = await canvas.findByLabelText("Autostop duration");
+		const durationInput = await canvas.findByLabelText("Autostop Fallback");
 		expect(durationInput).toHaveValue("2");
 	},
 };
@@ -269,7 +269,7 @@ export const DefaultAutostopSave: Story = {
 			});
 		});
 
-		const durationInput = await canvas.findByLabelText("Autostop duration");
+		const durationInput = await canvas.findByLabelText("Autostop Fallback");
 		expect(durationInput).toHaveValue("1");
 
 		// Change to 3 hours — Save button should appear.
@@ -319,7 +319,7 @@ export const DefaultAutostopExceedsMax: Story = {
 		});
 		await userEvent.click(toggle);
 
-		const durationInput = await canvas.findByLabelText("Autostop duration");
+		const durationInput = await canvas.findByLabelText("Autostop Fallback");
 		const ttlForm = durationInput.closest("form")!;
 
 		// Enter 721 hours (exceeds 30-day / 720h limit).
@@ -369,7 +369,7 @@ export const DefaultAutostopToggleOff: Story = {
 
 		// Duration field should no longer be visible.
 		await waitFor(() => {
-			expect(canvas.queryByLabelText("Autostop duration")).toBeNull();
+			expect(canvas.queryByLabelText("Autostop Fallback")).toBeNull();
 		});
 	},
 };
@@ -390,7 +390,7 @@ export const DefaultAutostopSaveDisabled: Story = {
 		expect(toggle).toBeChecked();
 
 		// Duration field should show 2 hours.
-		const durationInput = await canvas.findByLabelText("Autostop duration");
+		const durationInput = await canvas.findByLabelText("Autostop Fallback");
 		expect(durationInput).toHaveValue("2");
 
 		// Save button should exist but be disabled (no changes made).
@@ -439,7 +439,7 @@ export const DefaultAutostopToggleFailure: Story = {
 		).toBeInTheDocument();
 
 		// DurationField should not be visible since toggle reverted to OFF.
-		expect(canvas.queryByLabelText("Autostop duration")).toBeNull();
+		expect(canvas.queryByLabelText("Autostop Fallback")).toBeNull();
 	},
 };
 
@@ -462,7 +462,7 @@ export const DefaultAutostopToggleOffFailure: Story = {
 		expect(toggle).toBeChecked();
 
 		// Duration should show 2 hours initially.
-		const durationInput = await canvas.findByLabelText("Autostop duration");
+		const durationInput = await canvas.findByLabelText("Autostop Fallback");
 		expect(durationInput).toHaveValue("2");
 
 		// Click toggle OFF.
@@ -486,7 +486,7 @@ export const DefaultAutostopToggleOffFailure: Story = {
 		).toBeInTheDocument();
 
 		// DurationField should still be visible with 2 hours.
-		expect(canvas.getByLabelText("Autostop duration")).toHaveValue("2");
+		expect(canvas.getByLabelText("Autostop Fallback")).toHaveValue("2");
 	},
 };
 

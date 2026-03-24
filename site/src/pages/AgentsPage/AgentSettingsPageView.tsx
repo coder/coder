@@ -547,8 +547,7 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 	const [localTTLMs, setLocalTTLMs] = useState<number | null>(null);
 	const [autostopToggled, setAutostopToggled] = useState<boolean | null>(null);
 	const ttlMs = localTTLMs ?? serverTTLMs;
-	const isAutostopEnabled =
-		autostopToggled ?? (localTTLMs !== null ? localTTLMs > 0 : serverTTLMs > 0);
+	const isAutostopEnabled = autostopToggled ?? serverTTLMs > 0;
 	const isTTLDirty = localTTLMs !== null && localTTLMs !== serverTTLMs;
 	const maxTTLMs = 30 * 24 * 60 * 60_000; // 30 days
 	const isTTLOverMax = ttlMs > maxTTLMs;
@@ -794,8 +793,15 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 									{isAutostopEnabled && (
 										<DurationField
 											valueMs={ttlMs}
-											onChange={(v) => setLocalTTLMs(v)}
-											label="Autostop duration"
+											onChange={(v) => {
+												setLocalTTLMs(v);
+												// Latch the toggle open while the user is editing
+												// so a background refetch cannot unmount the field.
+												if (autostopToggled === null) {
+													setAutostopToggled(true);
+												}
+											}}
+											label="Autostop Fallback"
 											disabled={isTTLSaving || isTTLLoading}
 											error={isTTLOverMax || isTTLZero}
 											helperText={
