@@ -3379,6 +3379,10 @@ func (p *Server) runChat(
 	} else if raw != "" {
 		var ids []string
 		if jsonErr := json.Unmarshal([]byte(raw), &ids); jsonErr != nil {
+			// Note: the API endpoint (GET /template-allowlist) returns
+			// HTTP 500 for corrupt JSON, giving admins visibility into
+			// the problem. The runtime path here deliberately fails open
+			// so that a corrupt allowlist doesn't block all chats.
 			p.logger.Error(ctx, "failed to parse template allowlist JSON, all templates will be allowed",
 				slog.F("raw", raw), slog.Error(jsonErr))
 		} else {
