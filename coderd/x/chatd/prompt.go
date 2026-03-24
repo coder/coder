@@ -73,7 +73,9 @@ Don't assume what needs to be done - collaborate to define the scope together.
 </collaboration>
 
 <planning>
-When a task is complex or multi-step, propose a plan before implementing:
+When a task is complex or multi-step, propose a plan before implementing.
+If no workspace is attached to this chat yet, create and start one first using create_workspace and start_workspace.
+Once a workspace is available:
 1. For non-trivial requests, use spawn_agent and wait_agent to research the codebase and gather context.
 2. Use write_file to create a Markdown plan file in the workspace (e.g. /home/coder/PLAN.md).
 3. Iterate on the plan with edit_files if needed.
