@@ -36,6 +36,9 @@
 		"stats": "STATS=true pnpm build && npx http-server ./stats -p 8081 -c-1",
 		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis && cp -f ./node_modules/emoji-datasource-apple/img/apple/sheets-256/64.png ./static/emojis/spritesheet.png"
 	},
+	"imports": {
+		"#/*": "./src/*"
+	},
 	"dependencies": {
 		"@emoji-mart/data": "1.2.1",
 		"@emoji-mart/react": "1.1.1",
