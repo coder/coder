@@ -262,7 +262,8 @@ const DIFF_HEADER_CSS = [
 	// text baselines match despite different font sizes (11px vs
 	// 12px). Without this the box-centering default shifts the
 	// badge a fraction of a pixel above the title.
-	"[data-diffs-header] [data-header-content] { align-items: baseline; }",
+	"[data-diffs-header] [data-header-content] { align-items: baseline; overflow: hidden; }",
+	"[data-diffs-header] [data-rename-icon] { align-self: center; }",
 	"[data-diffs-header] [data-header-content]::before {",
 	"  font-size: 11px;",
 	"  font-weight: 600;",
@@ -288,6 +289,7 @@ const DIFF_HEADER_CSS = [
 
 	// Stat counts styled as compact pill badges.
 	"[data-diffs-header] [data-metadata] {",
+	"  flex-shrink: 0;",
 	"  flex-direction: row-reverse;",
 	"  align-items: stretch;",
 	"  gap: 0 !important;",
