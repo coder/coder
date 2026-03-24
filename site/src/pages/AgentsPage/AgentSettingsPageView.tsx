@@ -575,16 +575,39 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 		);
 	};
 
+	const resetAutostopState = () => {
+		setLocalTTLMs(null);
+		setAutostopToggled(null);
+	};
+
+	const handleToggleAutostop = (checked: boolean) => {
+		if (checked) {
+			// Defensive: restore server value if query cache is
+			// stale; otherwise default to 1 hour.
+			const defaultTTL = serverTTLMs > 0 ? serverTTLMs : 3_600_000;
+			setAutostopToggled(true);
+			setLocalTTLMs(defaultTTL);
+			saveWorkspaceTTL(
+				{ workspace_ttl_ms: defaultTTL },
+				{ onSuccess: resetAutostopState, onError: resetAutostopState },
+			);
+		} else {
+			setAutostopToggled(false);
+			setLocalTTLMs(0);
+			saveWorkspaceTTL(
+				{ workspace_ttl_ms: 0 },
+				{ onSuccess: resetAutostopState, onError: resetAutostopState },
+			);
+		}
+	};
+
 	const handleSaveChatWorkspaceTTL = (event: FormEvent) => {
 		event.preventDefault();
 		if (!isTTLDirty || isTTLSaving) return;
 		saveWorkspaceTTL(
 			{ workspace_ttl_ms: localTTLMs ?? 0 },
 			{
-				onSuccess: () => {
-					setLocalTTLMs(null);
-					setAutostopToggled(null);
-				},
+				onSuccess: resetAutostopState,
 				onError: () => setAutostopToggled(null),
 			},
 		);
@@ -755,40 +778,10 @@ export const AgentSettingsPageView: FC<AgentSettingsPageViewProps> = ({
 										</p>
 										<Switch
 											checked={isAutostopEnabled}
-											onCheckedChange={(checked) => {
-												const resetState = () => {
-													setLocalTTLMs(null);
-													setAutostopToggled(null);
-												};
-												if (checked) {
-													// Defensive: restore server value if query cache is
-													// stale; otherwise default to 1 hour.
-													const defaultTTL =
-														serverTTLMs > 0 ? serverTTLMs : 3_600_000;
-													setAutostopToggled(true);
-													setLocalTTLMs(defaultTTL);
-													saveWorkspaceTTL(
-														{ workspace_ttl_ms: defaultTTL },
-														{
-															onSuccess: resetState,
-															onError: resetState,
-														},
-													);
-												} else {
-													setAutostopToggled(false);
-													setLocalTTLMs(0);
-													saveWorkspaceTTL(
-														{ workspace_ttl_ms: 0 },
-														{
-															onSuccess: resetState,
-															onError: resetState,
-														},
-													);
-												}
-											}}
+											onCheckedChange={handleToggleAutostop}
 											aria-label="Enable default autostop"
 											disabled={isTTLSaving || isTTLLoading}
-										/>
+										/>{" "}
 									</div>
 									{isAutostopEnabled && (
 										<DurationField
