@@ -362,7 +362,6 @@ export const AttachmentPreview: FC<{
 									onInlineText?.(file, nextContent);
 								}}
 								className="absolute -bottom-2 -right-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
-								aria-label="Paste inline"
 								tabIndex={-1}
 							>
 								<ClipboardPasteIcon className="h-3.5 w-3.5" />
