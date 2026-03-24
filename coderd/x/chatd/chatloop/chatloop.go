@@ -248,6 +248,18 @@ func Run(ctx context.Context, opts RunOptions) error {
 	messages := opts.Messages
 	var lastUsage fantasy.Usage
 	var lastProviderMetadata fantasy.ProviderMetadata
+	needsFullHistoryReload := false
+	reloadFullHistory := func(stage string) error {
+		if opts.ReloadMessages == nil {
+			return nil
+		}
+		reloaded, err := opts.ReloadMessages(ctx)
+		if err != nil {
+			return xerrors.Errorf("reload messages %s: %w", stage, err)
+		}
+		messages = reloaded
+		return nil
+	}
 
 	totalSteps := 0
 	// When totalSteps reaches MaxSteps the inner loop exits immediately
@@ -387,32 +399,43 @@ func Run(ctx context.Context, opts RunOptions) error {
 			lastProviderMetadata = result.providerMetadata
 
 			// When chain mode is active (PreviousResponseID set), exit
-			// it unconditionally after persisting the step. The initial
-			// prompt was filtered to system + new user content, so we
-			// must reload the full conversation before compaction or
-			// the next model call. The reload includes the just-persisted
-			// step, so only append directly when we do not reload.
+			// it after persisting the first chained step. If the
+			// model needs local tool results to continue, keep replaying
+			// only the current turn until we reach a non-continuing
+			// step; reloading full history immediately would replay older
+			// provider-executed outputs on the continuation step.
 			stepMessages := result.toResponseMessages()
 			if hasPreviousResponseID(opts.ProviderOptions) {
 				clearPreviousResponseID(opts.ProviderOptions)
 				if opts.DisableChainMode != nil {
 					opts.DisableChainMode()
 				}
-				if opts.ReloadMessages != nil {
-					reloaded, reloadErr := opts.ReloadMessages(ctx)
-					if reloadErr != nil {
-						return xerrors.Errorf("reload messages after chain mode exit: %w", reloadErr)
+				switch {
+				case result.shouldContinue:
+					messages = append(messages, stepMessages...)
+					needsFullHistoryReload = true
+				case opts.ReloadMessages != nil:
+					if err := reloadFullHistory("after chain mode exit"); err != nil {
+						return err
 					}
-					messages = reloaded
-				} else {
+					needsFullHistoryReload = false
+				default:
 					messages = append(messages, stepMessages...)
 				}
 			} else {
 				messages = append(messages, stepMessages...)
 			}
 
+			if needsFullHistoryReload && !result.shouldContinue &&
+				opts.ReloadMessages != nil {
+				if err := reloadFullHistory("before final compaction after chain mode exit"); err != nil {
+					return err
+				}
+				needsFullHistoryReload = false
+			}
+
 			// Inline compaction.
-			if opts.Compaction != nil && opts.ReloadMessages != nil {
+			if !needsFullHistoryReload && opts.Compaction != nil && opts.ReloadMessages != nil {
 				did, compactErr := tryCompact(
 					ctx,
 					opts.Model,
@@ -428,14 +451,11 @@ func Run(ctx context.Context, opts RunOptions) error {
 				if did {
 					alreadyCompacted = true
 					compactedOnFinalStep = true
-					reloaded, reloadErr := opts.ReloadMessages(ctx)
-					if reloadErr != nil {
-						return xerrors.Errorf("reload messages after compaction: %w", reloadErr)
+					if err := reloadFullHistory("after compaction"); err != nil {
+						return err
 					}
-					messages = reloaded
 				}
 			}
-
 			if !result.shouldContinue {
 				stoppedByModel = true
 				break
@@ -446,9 +466,16 @@ func Run(ctx context.Context, opts RunOptions) error {
 			compactedOnFinalStep = false
 		}
 
+		if needsFullHistoryReload && stoppedByModel && opts.ReloadMessages != nil {
+			if err := reloadFullHistory("before post-run compaction after chain mode exit"); err != nil {
+				return err
+			}
+			needsFullHistoryReload = false
+		}
+
 		// Post-run compaction safety net: if we never compacted
 		// during the loop, try once at the end.
-		if !alreadyCompacted && opts.Compaction != nil && opts.ReloadMessages != nil {
+		if !needsFullHistoryReload && !alreadyCompacted && opts.Compaction != nil && opts.ReloadMessages != nil {
 			did, err := tryCompact(
 				ctx,
 				opts.Model,
