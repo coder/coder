@@ -261,7 +261,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 												<Button
 													variant="outline"
 													size="sm"
-													className="h-5 w-fit min-w-0 shrink-0 gap-0 px-1.5 text-[10px] leading-none border-border/50"
+													className="h-6 w-fit min-w-0 shrink-0 gap-0 px-2 text-[10px] leading-none border-border/50"
 													onClick={(e) => {
 														e.stopPropagation();
 														handleConnect(server);
