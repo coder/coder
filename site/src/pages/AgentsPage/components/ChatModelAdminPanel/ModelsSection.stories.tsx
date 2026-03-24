@@ -74,18 +74,14 @@ type Story = StoryObj<typeof ModelsSection>;
 export const ShowsPricingWarning: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
-		const canvas = within(canvasElement);
 
 		// The warning icon should be visible in the subtitle line.
-		const warningIcon =
-			canvas.getByRole("img", { hidden: true }) ||
-			canvas.container.querySelector(".text-content-warning");
+		const warningIcon = canvasElement.querySelector(".text-content-warning");
 		expect(warningIcon).toBeTruthy();
 
 		// Hovering the icon reveals the tooltip text.
-		const trigger = canvas.container.querySelector(".text-content-warning");
-		if (trigger) {
-			await userEvent.hover(trigger);
+		if (warningIcon) {
+			await userEvent.hover(warningIcon);
 			await expect(
 				await body.findByText("Model pricing is not defined"),
 			).toBeInTheDocument();
@@ -108,9 +104,8 @@ export const HidesPricingWarningForExplicitZeroPricing: Story = {
 		],
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
 		// No warning icon should be present.
-		const warningIcon = canvas.container.querySelector(".text-content-warning");
+		const warningIcon = canvasElement.querySelector(".text-content-warning");
 		expect(warningIcon).toBeNull();
 	},
 };
