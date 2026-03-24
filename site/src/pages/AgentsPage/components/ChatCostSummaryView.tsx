@@ -217,7 +217,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 								{usageLimitStatusText}
 							</p>
 							<p className="text-content-secondary">
-								Resets{" "}{usageLimitResetAt}
+								Resets {usageLimitResetAt}
 							</p>
 						</div>
 					</div>

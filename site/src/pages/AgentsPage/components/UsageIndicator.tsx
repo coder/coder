@@ -95,7 +95,7 @@ export const UsageIndicator: FC = () => {
 
 				{data.period_end && (
 					<div className="px-2 pb-2 text-xs text-content-secondary">
-						Resets{" "}{dayjs(data.period_end).format("MMM D, YYYY")}
+						Resets {dayjs(data.period_end).format("MMM D, YYYY")}
 					</div>
 				)}
 
