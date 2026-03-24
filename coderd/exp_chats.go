@@ -2783,7 +2783,7 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 func (api *API) getChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 	raw, err := api.Database.GetChatTemplateAllowlist(ctx)
@@ -2812,7 +2812,7 @@ func (api *API) getChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request
 func (api *API) putChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 

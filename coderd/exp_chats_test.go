@@ -5213,7 +5213,7 @@ func TestChatTemplateAllowlist(t *testing.T) {
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, admin.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		_, err := memberClient.GetChatTemplateAllowlist(ctx)
-		requireSDKError(t, err, http.StatusForbidden)
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
@@ -5221,9 +5221,9 @@ func TestChatTemplateAllowlist(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, admin.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-		// Uses a random UUID — hits 403 before template validation.
+		// Uses a random UUID — hits 404 before template validation.
 		err := memberClient.UpdateChatTemplateAllowlist(ctx, codersdk.ChatTemplateAllowlist{TemplateIDs: []string{uuid.NewString()}})
-		requireSDKError(t, err, http.StatusForbidden)
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	//nolint:paralleltest // Sequential: subtests share a single coderdtest instance.
