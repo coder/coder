@@ -436,7 +436,7 @@ export const WithMCPNeedingAuth: Story = {
 	},
 };
 
-/** No MCP servers active — shows plain plug icon. */
+/** No MCP servers active — shows only "MCP" label with chevron. */
 export const WithMCPNoneActive: Story = {
 	args: {
 		...mcpDefaults,

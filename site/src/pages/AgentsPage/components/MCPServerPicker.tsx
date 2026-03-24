@@ -14,7 +14,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { ChevronDownIcon, LockIcon, PlugIcon, ServerIcon } from "lucide-react";
+import { ChevronDownIcon, LockIcon, ServerIcon } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { cn } from "utils/cn";
 
@@ -218,10 +218,8 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 					className="group flex h-8 cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					<span className="hidden sm:inline">MCP</span>
-					{activeServers.length > 0 ? (
+					{activeServers.length > 0 && (
 						<TriggerIconStack servers={activeServers} />
-					) : (
-						<PlugIcon className="h-3.5 w-3.5" />
 					)}
 					<ChevronDownIcon className="h-3.5 w-3.5 text-content-secondary transition-colors group-hover:text-content-primary" />
 				</button>
