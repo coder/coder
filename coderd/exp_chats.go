@@ -2794,8 +2794,16 @@ func (api *API) getChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
+	ids, parseErr := parseChatTemplateAllowlist(raw)
+	if parseErr != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Stored template allowlist is corrupt.",
+			Detail:  parseErr.Error(),
+		})
+		return
+	}
 	resp := codersdk.ChatTemplateAllowlist{
-		TemplateIDs: parseChatTemplateAllowlist(raw),
+		TemplateIDs: ids,
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
@@ -2834,6 +2842,18 @@ func (api *API) putChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request
 		}
 	}
 
+	// Verify all template IDs refer to existing templates.
+	for _, canonical := range deduped {
+		parsed, _ := uuid.Parse(canonical) // already validated above
+		if _, err := api.Database.GetTemplateByID(ctx, parsed); err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Template not found.",
+				Detail:  fmt.Sprintf("Template %s does not exist.", canonical),
+			})
+			return
+		}
+	}
+
 	raw, err := json.Marshal(deduped)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2858,19 +2878,20 @@ func (api *API) putChatTemplateAllowlist(rw http.ResponseWriter, r *http.Request
 
 // parseChatTemplateAllowlist parses the raw JSON string from the
 // database into a list of template ID strings. Returns an empty
-// slice if the value is empty or invalid.
-func parseChatTemplateAllowlist(raw string) []string {
+// slice when the value is empty. Returns an error when the stored
+// JSON is corrupt or otherwise cannot be unmarshalled.
+func parseChatTemplateAllowlist(raw string) ([]string, error) {
 	if raw == "" {
-		return []string{}
+		return []string{}, nil
 	}
 	var ids []string
 	if err := json.Unmarshal([]byte(raw), &ids); err != nil {
-		return []string{}
+		return nil, xerrors.Errorf("unmarshal template allowlist: %w", err)
 	}
 	if ids == nil {
-		return []string{}
+		return []string{}, nil
 	}
-	return ids
+	return ids, nil
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.

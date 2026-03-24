@@ -161,6 +161,8 @@ SET value = CASE
 END
 WHERE site_configs.key = 'agents_desktop_enabled';
 
+-- GetChatTemplateAllowlist returns the JSON-encoded template allowlist.
+-- Returns '' when no allowlist has been configured (all templates allowed).
 -- name: GetChatTemplateAllowlist :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_template_allowlist'), '') :: text AS template_allowlist;

@@ -17,7 +17,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestListTemplates(t *testing.T) {
+func TestTemplateAllowlistEnforcement(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _ := dbtestutil.NewDB(t)
@@ -40,109 +40,144 @@ func TestListTemplates(t *testing.T) {
 		Name:           "template-beta",
 	})
 
-	// No allowlist — returns all templates.
-	tool := chattool.ListTemplates(chattool.ListTemplatesOptions{
-		DB:      db,
-		OwnerID: user.ID,
-	})
-	resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c1", Name: "list_templates", Input: "{}"})
-	require.NoError(t, err)
-	var result map[string]any
-	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-	templates := result["templates"].([]any)
-	require.Len(t, templates, 2)
+	t.Run("ListTemplates", func(t *testing.T) {
+		t.Run("NoAllowlist", func(t *testing.T) {
+			tool := chattool.ListTemplates(chattool.ListTemplatesOptions{
+				DB:      db,
+				OwnerID: user.ID,
+			})
+			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c1", Name: "list_templates", Input: "{}"})
+			require.NoError(t, err)
+			var result map[string]any
+			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+			templates := result["templates"].([]any)
+			require.Len(t, templates, 2)
+		})
 
-	// Empty allowlist — same as no allowlist.
-	tool = chattool.ListTemplates(chattool.ListTemplatesOptions{
-		DB:                 db,
-		OwnerID:            user.ID,
-		AllowedTemplateIDs: map[uuid.UUID]bool{},
-	})
-	resp, err = tool.Run(ctx, fantasy.ToolCall{ID: "c2", Name: "list_templates", Input: "{}"})
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-	templates = result["templates"].([]any)
-	require.Len(t, templates, 2)
+		t.Run("EmptyAllowlist", func(t *testing.T) {
+			tool := chattool.ListTemplates(chattool.ListTemplatesOptions{
+				DB:                 db,
+				OwnerID:            user.ID,
+				AllowedTemplateIDs: map[uuid.UUID]bool{},
+			})
+			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c2", Name: "list_templates", Input: "{}"})
+			require.NoError(t, err)
+			var result map[string]any
+			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+			templates := result["templates"].([]any)
+			require.Len(t, templates, 2)
+		})
 
-	// Allowlist with one match — returns only that template.
-	tool = chattool.ListTemplates(chattool.ListTemplatesOptions{
-		DB:                 db,
-		OwnerID:            user.ID,
-		AllowedTemplateIDs: map[uuid.UUID]bool{t1.ID: true},
-	})
-	resp, err = tool.Run(ctx, fantasy.ToolCall{ID: "c3", Name: "list_templates", Input: "{}"})
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-	templates = result["templates"].([]any)
-	require.Len(t, templates, 1)
-	m := templates[0].(map[string]any)
-	require.Equal(t, t1.ID.String(), m["id"].(string))
+		t.Run("OneMatch", func(t *testing.T) {
+			tool := chattool.ListTemplates(chattool.ListTemplatesOptions{
+				DB:                 db,
+				OwnerID:            user.ID,
+				AllowedTemplateIDs: map[uuid.UUID]bool{t1.ID: true},
+			})
+			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c3", Name: "list_templates", Input: "{}"})
+			require.NoError(t, err)
+			var result map[string]any
+			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+			templates := result["templates"].([]any)
+			require.Len(t, templates, 1)
+			m := templates[0].(map[string]any)
+			require.Equal(t, t1.ID.String(), m["id"].(string))
+		})
 
-	// Allowlist with no matches — returns empty.
-	tool = chattool.ListTemplates(chattool.ListTemplatesOptions{
-		DB:                 db,
-		OwnerID:            user.ID,
-		AllowedTemplateIDs: map[uuid.UUID]bool{uuid.New(): true},
+		t.Run("NoMatches", func(t *testing.T) {
+			tool := chattool.ListTemplates(chattool.ListTemplatesOptions{
+				DB:                 db,
+				OwnerID:            user.ID,
+				AllowedTemplateIDs: map[uuid.UUID]bool{uuid.New(): true},
+			})
+			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c4", Name: "list_templates", Input: "{}"})
+			require.NoError(t, err)
+			var result map[string]any
+			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+			templates := result["templates"].([]any)
+			require.Empty(t, templates)
+		})
 	})
-	resp, err = tool.Run(ctx, fantasy.ToolCall{ID: "c4", Name: "list_templates", Input: "{}"})
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-	templates = result["templates"].([]any)
-	require.Empty(t, templates)
 
-	// ReadTemplate: allowed template succeeds.
-	readTool := chattool.ReadTemplate(chattool.ReadTemplateOptions{
-		DB:                 db,
-		OwnerID:            user.ID,
-		AllowedTemplateIDs: map[uuid.UUID]bool{t1.ID: true},
-	})
-	input := `{"template_id":"` + t1.ID.String() + `"}`
-	resp, err = readTool.Run(ctx, fantasy.ToolCall{ID: "c5", Name: "read_template", Input: input})
-	require.NoError(t, err)
-	require.False(t, resp.IsError)
-	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-	tmplInfo := result["template"].(map[string]any)
-	require.Equal(t, t1.ID.String(), tmplInfo["id"].(string))
+	t.Run("ReadTemplate", func(t *testing.T) {
+		t.Run("Allowed", func(t *testing.T) {
+			tool := chattool.ReadTemplate(chattool.ReadTemplateOptions{
+				DB:                 db,
+				OwnerID:            user.ID,
+				AllowedTemplateIDs: map[uuid.UUID]bool{t1.ID: true},
+			})
+			input := `{"template_id":"` + t1.ID.String() + `"}`
+			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c5", Name: "read_template", Input: input})
+			require.NoError(t, err)
+			require.False(t, resp.IsError)
+			var result map[string]any
+			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+			tmplInfo := result["template"].(map[string]any)
+			require.Equal(t, t1.ID.String(), tmplInfo["id"].(string))
+		})
 
-	// ReadTemplate: disallowed template returns "not found".
-	readTool = chattool.ReadTemplate(chattool.ReadTemplateOptions{
-		DB:                 db,
-		OwnerID:            user.ID,
-		AllowedTemplateIDs: map[uuid.UUID]bool{uuid.New(): true},
-	})
-	input = `{"template_id":"` + t2.ID.String() + `"}`
-	resp, err = readTool.Run(ctx, fantasy.ToolCall{ID: "c6", Name: "read_template", Input: input})
-	require.NoError(t, err)
-	require.True(t, resp.IsError)
-	require.Contains(t, resp.Content, "not found")
+		t.Run("Disallowed", func(t *testing.T) {
+			tool := chattool.ReadTemplate(chattool.ReadTemplateOptions{
+				DB:                 db,
+				OwnerID:            user.ID,
+				AllowedTemplateIDs: map[uuid.UUID]bool{uuid.New(): true},
+			})
+			input := `{"template_id":"` + t2.ID.String() + `"}`
+			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c6", Name: "read_template", Input: input})
+			require.NoError(t, err)
+			require.True(t, resp.IsError)
+			require.Contains(t, resp.Content, "not found")
+		})
 
-	// ReadTemplate: no allowlist allows any template.
-	readTool = chattool.ReadTemplate(chattool.ReadTemplateOptions{
-		DB:      db,
-		OwnerID: user.ID,
+		t.Run("NoAllowlist", func(t *testing.T) {
+			tool := chattool.ReadTemplate(chattool.ReadTemplateOptions{
+				DB:      db,
+				OwnerID: user.ID,
+			})
+			input := `{"template_id":"` + t2.ID.String() + `"}`
+			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c7", Name: "read_template", Input: input})
+			require.NoError(t, err)
+			require.False(t, resp.IsError)
+		})
 	})
-	input = `{"template_id":"` + t2.ID.String() + `"}`
-	resp, err = readTool.Run(ctx, fantasy.ToolCall{ID: "c7", Name: "read_template", Input: input})
-	require.NoError(t, err)
-	require.False(t, resp.IsError)
 
-	// CreateWorkspace: disallowed template returns "not found"
-	// without invoking the create function.
-	createCalled := false
-	createTool := chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
-		DB:                 db,
-		OwnerID:            user.ID,
-		AllowedTemplateIDs: map[uuid.UUID]bool{uuid.New(): true},
-		CreateFn: func(_ context.Context, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
-			createCalled = true
-			t.Fatal("CreateFn should not be called for blocked template")
-			return codersdk.Workspace{}, nil
-		},
+	t.Run("CreateWorkspace", func(t *testing.T) {
+		t.Run("Allowed", func(t *testing.T) {
+			createCalled := false
+			tool := chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
+				DB:                 db,
+				OwnerID:            user.ID,
+				AllowedTemplateIDs: map[uuid.UUID]bool{t1.ID: true},
+				CreateFn: func(_ context.Context, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+					createCalled = true
+					return codersdk.Workspace{}, nil
+				},
+			})
+			input := `{"template_id":"` + t1.ID.String() + `"}`
+			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c8a", Name: "create_workspace", Input: input})
+			require.NoError(t, err)
+			require.True(t, createCalled, "CreateFn should be called for allowed template")
+			require.False(t, resp.IsError)
+		})
+
+		t.Run("Disallowed", func(t *testing.T) {
+			createCalled := false
+			tool := chattool.CreateWorkspace(chattool.CreateWorkspaceOptions{
+				DB:                 db,
+				OwnerID:            user.ID,
+				AllowedTemplateIDs: map[uuid.UUID]bool{uuid.New(): true},
+				CreateFn: func(_ context.Context, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+					createCalled = true
+					t.Fatal("CreateFn should not be called for blocked template")
+					return codersdk.Workspace{}, nil
+				},
+			})
+			input := `{"template_id":"` + t1.ID.String() + `"}`
+			resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "c8", Name: "create_workspace", Input: input})
+			require.NoError(t, err)
+			require.True(t, resp.IsError)
+			require.Contains(t, resp.Content, "not found")
+			require.False(t, createCalled, "CreateFn should not be called for blocked template")
+		})
 	})
-	input = `{"template_id":"` + t1.ID.String() + `"}`
-	resp, err = createTool.Run(ctx, fantasy.ToolCall{ID: "c8", Name: "create_workspace", Input: input})
-	require.NoError(t, err)
-	require.True(t, resp.IsError)
-	require.Contains(t, resp.Content, "not found")
-	require.False(t, createCalled, "CreateFn should not be called for blocked template")
 }

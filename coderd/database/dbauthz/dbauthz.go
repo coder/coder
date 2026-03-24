@@ -2674,6 +2674,10 @@ func (q *querier) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	return q.db.GetChatSystemPrompt(ctx)
 }
 
+// GetChatTemplateAllowlist requires deployment-config read permission,
+// unlike the peer getters (GetChatDesktopEnabled, etc.) which only
+// check actor presence. The allowlist is admin-configuration that
+// should not be readable by non-admin users via the HTTP API.
 func (q *querier) GetChatTemplateAllowlist(ctx context.Context) (string, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return "", err

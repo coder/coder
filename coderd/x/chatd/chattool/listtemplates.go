@@ -3,6 +3,8 @@ package chattool
 import (
 	"context"
 	"database/sql"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
@@ -65,10 +67,7 @@ func ListTemplates(options ListTemplatesOptions) fantasy.AgentTool {
 			}
 
 			if len(options.AllowedTemplateIDs) > 0 {
-				filterParams.IDs = make([]uuid.UUID, 0, len(options.AllowedTemplateIDs))
-				for id := range options.AllowedTemplateIDs {
-					filterParams.IDs = append(filterParams.IDs, id)
-				}
+				filterParams.IDs = slices.Collect(maps.Keys(options.AllowedTemplateIDs))
 			}
 
 			templates, err := options.DB.GetTemplatesWithFilter(ctx, filterParams)

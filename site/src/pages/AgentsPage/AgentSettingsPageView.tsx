@@ -21,7 +21,7 @@ import dayjs from "dayjs";
 import { useDebouncedValue } from "hooks/debounce";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ChevronLeftIcon, ShieldIcon } from "lucide-react";
-import { type FC, type FormEvent, useMemo, useState } from "react";
+import { type FC, type FormEvent, useState } from "react";
 import {
 	keepPreviousData,
 	useMutation,
@@ -964,39 +964,27 @@ const TemplateAllowlistSection: FC = () => {
 	const [localSelection, setLocalSelection] = useState<Option[] | null>(null);
 
 	// Map all templates to MultiSelectCombobox options.
-	const allOptions: Option[] = useMemo(
-		() =>
-			(templatesQuery.data ?? []).map((t) => ({
-				value: t.id,
-				label: t.display_name || t.name,
-				icon: t.icon,
-			})),
-		[templatesQuery.data],
-	);
+	const allOptions: Option[] = (templatesQuery.data ?? []).map((t) => ({
+		value: t.id,
+		label: t.display_name || t.name,
+		icon: t.icon,
+	}));
 
 	// Build a lookup from template ID to Option for resolving server IDs.
-	const optionsByID = useMemo(
-		() => new Map(allOptions.map((o) => [o.value, o])),
-		[allOptions],
-	);
+	const optionsByID = new Map(allOptions.map((o) => [o.value, o]));
 
 	// Resolve the server-side allowlist IDs into Option objects.
-	const serverSelection: Option[] = useMemo(
-		() =>
-			(allowlistQuery.data?.template_ids ?? [])
-				.map((id) => optionsByID.get(id))
-				.filter((o): o is Option => o !== undefined),
-		[allowlistQuery.data, optionsByID],
-	);
+	const serverSelection: Option[] = (allowlistQuery.data?.template_ids ?? [])
+		.map((id) => optionsByID.get(id))
+		.filter((o) => o !== undefined);
 
 	const currentSelection = localSelection ?? serverSelection;
 
-	const isDirty = useMemo(() => {
-		if (localSelection === null) return false;
-		if (localSelection.length !== serverSelection.length) return true;
-		const serverSet = new Set(serverSelection.map((o) => o.value));
-		return localSelection.some((o) => !serverSet.has(o.value));
-	}, [localSelection, serverSelection]);
+	const serverSet = new Set(serverSelection.map((o) => o.value));
+	const isDirty =
+		localSelection !== null &&
+		(localSelection.length !== serverSet.size ||
+			localSelection.some((o) => !serverSet.has(o.value)));
 
 	const handleSave = (event: FormEvent) => {
 		event.preventDefault();
