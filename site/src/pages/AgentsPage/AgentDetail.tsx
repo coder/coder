@@ -25,7 +25,14 @@ import {
 	getVSCodeHref,
 	openAppInNewWindow,
 } from "modules/apps/apps";
-import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+	type FC,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -37,7 +44,11 @@ import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import { isMobileViewport } from "utils/mobile";
 import { pageTitle } from "utils/page";
-import { portForwardURL } from "utils/portForward";
+import {
+	localHosts,
+	portForwardURL,
+	resolveLocalhostPort,
+} from "utils/portForward";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { useChatStore } from "./components/AgentDetail/ChatContext";
@@ -69,8 +80,6 @@ import {
 
 /** localStorage key controlling whether the right panel is visible. */
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
-
-const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 /** @internal Exported for testing. */
@@ -397,29 +406,33 @@ const AgentDetail: FC = () => {
 	const wsName = workspace?.name;
 	const wsOwner = workspace?.owner_name;
 
-	const urlTransform: UrlTransform = (url) => {
-		if (!proxyHost || !agentName || !wsName || !wsOwner) {
-			return url;
-		}
-		try {
-			const parsed = new URL(url);
-			if (!localHosts.has(parsed.hostname)) {
+	const urlTransform: UrlTransform = useCallback(
+		(url) => {
+			if (!proxyHost || !agentName || !wsName || !wsOwner) {
 				return url;
 			}
-			return portForwardURL(
-				proxyHost,
-				Number.parseInt(parsed.port, 10),
-				agentName,
-				wsName,
-				wsOwner,
-				"http",
-				parsed.pathname,
-				parsed.search,
-			);
-		} catch {
-			return url;
-		}
-	};
+			try {
+				const parsed = new URL(url);
+				if (!localHosts.has(parsed.hostname)) {
+					return url;
+				}
+				const protocol = parsed.protocol.replace(":", "") as "http" | "https";
+				return portForwardURL(
+					proxyHost,
+					resolveLocalhostPort(parsed.port, parsed.protocol),
+					agentName,
+					wsName,
+					wsOwner,
+					protocol,
+					parsed.pathname,
+					parsed.search,
+				);
+			} catch {
+				return url;
+			}
+		},
+		[proxyHost, agentName, wsName, wsOwner],
+	);
 
 	const chatRecord = chatQuery.data;
 

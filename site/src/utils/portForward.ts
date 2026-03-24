@@ -1,5 +1,21 @@
 import type { WorkspaceAgentPortShareProtocol } from "api/typesGenerated";
 
+export const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
+
+/**
+ * Parse a port string from a URL, falling back to the protocol default
+ * (80 for http, 443 for https) when the port is empty (i.e. not specified).
+ */
+export const resolveLocalhostPort = (
+	portStr: string,
+	protocol: string,
+): number => {
+	if (portStr) {
+		return Number.parseInt(portStr, 10);
+	}
+	return protocol === "https:" || protocol === "https" ? 443 : 80;
+};
+
 export const portForwardURL = (
 	host: string,
 	port: number,
@@ -57,19 +73,22 @@ export const openMaybePortForwardedURL = (
 
 	try {
 		const url = new URL(uri);
-		const localHosts = ["0.0.0.0", "127.0.0.1", "localhost"];
-		if (!localHosts.includes(url.hostname)) {
+		if (!localHosts.has(url.hostname)) {
 			open(uri);
 			return;
 		}
+		const protocol = url.protocol.replace(
+			":",
+			"",
+		) as WorkspaceAgentPortShareProtocol;
 		open(
 			portForwardURL(
 				proxyHost,
-				Number.parseInt(url.port, 10),
+				resolveLocalhostPort(url.port, url.protocol),
 				agentName,
 				workspaceName,
 				username,
-				url.protocol.replace(":", "") as WorkspaceAgentPortShareProtocol,
+				protocol,
 				url.pathname,
 				url.search,
 			),
