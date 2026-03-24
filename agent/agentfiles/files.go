@@ -626,30 +626,15 @@ func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
 	}
 
 	// Pass 2 – trim trailing whitespace on each line.
-	if start, end, ok := seekLines(contentLines, searchLines, trimRight); ok {
-		if !edit.ReplaceAll {
-			if count := countLineMatches(contentLines, searchLines, trimRight); count > 1 {
-				return "", xerrors.Errorf("search string matches %d occurrences "+
-					"(expected exactly 1). Include more surrounding "+
-					"context to make the match unique, or set "+
-					"replace_all to true", count)
-			}
-		}
-		return spliceLines(contentLines, start, end, replace), nil
+	if result, matched, err := fuzzyReplaceLines(contentLines, searchLines, replace, trimRight, edit.ReplaceAll); matched {
+		return result, err
 	}
 
 	// Pass 3 – trim all leading and trailing whitespace
-	// (indentation-tolerant).
-	if start, end, ok := seekLines(contentLines, searchLines, trimAll); ok {
-		if !edit.ReplaceAll {
-			if count := countLineMatches(contentLines, searchLines, trimAll); count > 1 {
-				return "", xerrors.Errorf("search string matches %d occurrences "+
-					"(expected exactly 1). Include more surrounding "+
-					"context to make the match unique, or set "+
-					"replace_all to true", count)
-			}
-		}
-		return spliceLines(contentLines, start, end, replace), nil
+	// (indentation-tolerant). The replacement is inserted verbatim;
+	// callers must provide correctly indented replacement text.
+	if result, matched, err := fuzzyReplaceLines(contentLines, searchLines, replace, trimAll, edit.ReplaceAll); matched {
+		return result, err
 	}
 
 	return "", xerrors.New("search string not found in file. Verify the search " +
@@ -711,4 +696,73 @@ func spliceLines(contentLines []string, start, end int, replacement string) stri
 		_, _ = b.WriteString(l)
 	}
 	return b.String()
+}
+
+// fuzzyReplaceLines handles fuzzy matching passes (2 and 3) for
+// fuzzyReplace. When replaceAll is false and there are multiple
+// matches, an error is returned. When replaceAll is true, all
+// non-overlapping matches are replaced.
+//
+// Returns (result, true, nil) on success, ("", false, nil) when
+// searchLines don't match at all, or ("", true, err) when the match
+// is ambiguous.
+//
+//nolint:revive // replaceAll is a direct pass-through of the user's flag, not a control coupling.
+func fuzzyReplaceLines(
+	contentLines, searchLines []string,
+	replace string,
+	eq func(a, b string) bool,
+	replaceAll bool,
+) (string, bool, error) {
+	start, end, ok := seekLines(contentLines, searchLines, eq)
+	if !ok {
+		return "", false, nil
+	}
+
+	if !replaceAll {
+		if count := countLineMatches(contentLines, searchLines, eq); count > 1 {
+			return "", true, xerrors.Errorf("search string matches %d occurrences "+
+				"(expected exactly 1). Include more surrounding "+
+				"context to make the match unique, or set "+
+				"replace_all to true", count)
+		}
+		return spliceLines(contentLines, start, end, replace), true, nil
+	}
+
+	// Replace all: collect all match positions, then apply from last
+	// to first to preserve indices.
+	type lineMatch struct{ start, end int }
+	var matches []lineMatch
+	for i := 0; i <= len(contentLines)-len(searchLines); {
+		found := true
+		for j, sLine := range searchLines {
+			if !eq(contentLines[i+j], sLine) {
+				found = false
+				break
+			}
+		}
+		if found {
+			matches = append(matches, lineMatch{i, i + len(searchLines)})
+			i += len(searchLines) // skip past this match
+		} else {
+			i++
+		}
+	}
+
+	// Apply replacements from last to first.
+	repLines := strings.SplitAfter(replace, "\n")
+	for i := len(matches) - 1; i >= 0; i-- {
+		m := matches[i]
+		newLines := make([]string, 0, m.start+len(repLines)+(len(contentLines)-m.end))
+		newLines = append(newLines, contentLines[:m.start]...)
+		newLines = append(newLines, repLines...)
+		newLines = append(newLines, contentLines[m.end:]...)
+		contentLines = newLines
+	}
+
+	var b strings.Builder
+	for _, l := range contentLines {
+		_, _ = b.WriteString(l)
+	}
+	return b.String(), true, nil
 }
