@@ -616,6 +616,34 @@ func TestExpChatsTUI(t *testing.T) {
 			require.True(t, ok)
 		})
 
+		t.Run("CtrlPComposerFocusedSendsToggleModelPickerMsg", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.composer.SetValue("draft")
+
+			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
+			require.NotNil(t, cmd)
+			require.True(t, updated.composerFocused)
+			require.Equal(t, "draft", updated.composer.Value())
+			_, ok := mustMsg(t, cmd).(toggleModelPickerMsg)
+			require.True(t, ok)
+		})
+
+		t.Run("CtrlDComposerFocusedSendsToggleDiffDrawerMsg", func(t *testing.T) {
+			t.Parallel()
+
+			model := newTestChatViewModel(nil)
+			model.composer.SetValue("draft")
+
+			updated, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlD})
+			require.NotNil(t, cmd)
+			require.True(t, updated.composerFocused)
+			require.Equal(t, "draft", updated.composer.Value())
+			_, ok := mustMsg(t, cmd).(toggleDiffDrawerMsg)
+			require.True(t, ok)
+		})
+
 		t.Run("CtrlDSendsToggleDiffDrawerMsg", func(t *testing.T) {
 			t.Parallel()
 
