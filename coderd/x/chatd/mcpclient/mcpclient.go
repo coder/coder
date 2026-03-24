@@ -219,8 +219,11 @@ func createTransport(
 	// transport so that httptest.Server.Close() (which calls
 	// CloseIdleConnections on http.DefaultTransport) does not
 	// disrupt unrelated connections during parallel tests.
-	httpClient := &http.Client{
-		Transport: http.DefaultTransport.(*http.Transport).Clone(),
+	var httpClient *http.Client
+	if dt, ok := http.DefaultTransport.(*http.Transport); ok {
+		httpClient = &http.Client{Transport: dt.Clone()}
+	} else {
+		httpClient = &http.Client{}
 	}
 
 	switch cfg.Transport {
