@@ -385,11 +385,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					onRemoveAttachment={handleRemoveAttachment}
 					uploadStates={uploadStates}
 					previewUrls={previewUrls}
-						textContents={textContents}
-						mcpServers={mcpServers}
-						selectedMCPServerIds={effectiveMCPServerIds}
-						onMCPSelectionChange={setUserMCPServerIds}
-						onMCPAuthComplete={onMCPAuthComplete}
+					textContents={textContents}
+					mcpServers={mcpServers}
+					selectedMCPServerIds={effectiveMCPServerIds}
+					onMCPSelectionChange={setUserMCPServerIds}
+					onMCPAuthComplete={onMCPAuthComplete}
 					leftActions={
 						<Popover
 							open={workspacePopoverOpen}

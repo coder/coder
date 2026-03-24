@@ -8,7 +8,9 @@ export function formatTextAttachmentPreview(
 	text: string,
 	maxLength = TEXT_ATTACHMENT_PREVIEW_LENGTH,
 ): string {
-	const normalized = text.replace(/\s+/g, " ").trim();
+	// Truncate before normalizing to keep cost bounded for large files.
+	const truncated = text.slice(0, maxLength * 4);
+	const normalized = truncated.replace(/\s+/g, " ").trim();
 	const preview = Array.from(normalized).slice(0, maxLength).join("");
 	return preview || "Pasted text";
 }
