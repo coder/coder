@@ -6,14 +6,15 @@
  * project's existing design tokens so it matches every other primitive
  * in the component library.
  */
+
+import { Button, type ButtonProps } from "components/Button/Button";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import {
-	DayPicker,
 	type DayButton,
+	DayPicker,
 	getDefaultClassNames,
 } from "react-day-picker";
-import { Button, type ButtonProps } from "components/Button/Button";
 import { cn } from "utils/cn";
 
 function Calendar({

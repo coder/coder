@@ -4,7 +4,6 @@
  * component with one that matches the native design language.
  */
 import { Button } from "components/Button/Button";
-import { Calendar } from "../Calendar/Calendar";
 import {
 	Popover,
 	PopoverContent,
@@ -15,6 +14,7 @@ import { CalendarIcon, MoveRightIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import type { DateRange as DayPickerDateRange } from "react-day-picker";
 import { cn } from "utils/cn";
+import { Calendar } from "../Calendar/Calendar";
 
 export type DateRangeValue = {
 	startDate: Date;
