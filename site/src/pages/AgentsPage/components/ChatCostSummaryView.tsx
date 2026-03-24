@@ -94,10 +94,10 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 			: 0;
 	const usageProgressBarClass =
 		usageProgressPercentage > 90
-			? "bg-surface-red"
+			? "bg-content-destructive"
 			: usageProgressPercentage >= 75
-				? "bg-surface-orange"
-				: "bg-surface-green";
+				? "bg-content-warning"
+				: "bg-content-success";
 	const usageLimitExceeded =
 		showUsageLimitCard && usageLimitCurrentSpend >= usageLimitSpendMicros;
 	const usageLimitStatusText = usageLimitExceeded

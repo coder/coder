@@ -96,7 +96,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 						</Link>
 					</Button>
 				</div>
-			)}
+			)}{" "}
 			{children && <div className="flex items-center gap-2">{children}</div>}
 		</div>
 	);

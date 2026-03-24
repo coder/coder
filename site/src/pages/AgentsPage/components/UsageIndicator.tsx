@@ -102,7 +102,7 @@ export const UsageIndicator: FC = () => {
 				<DropdownMenuSeparator />
 
 				<DropdownMenuItem asChild>
-					<Link to="/agents/analytics">View details</Link>
+					<Link to="/agents/analytics">View usage</Link>
 				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
