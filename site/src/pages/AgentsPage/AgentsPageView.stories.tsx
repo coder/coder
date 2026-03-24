@@ -486,11 +486,6 @@ export const WithErrorReasons: Story = {
 	},
 };
 
-const openAnalyticsView = async (canvasElement: HTMLElement) => {
-	const canvas = within(canvasElement);
-	await userEvent.click(canvas.getByRole("link", { name: "Analytics" }));
-};
-
 const openSettingsView = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
 	const link = await waitFor(() =>
@@ -503,9 +498,13 @@ export const OpensAnalyticsForAdmins: Story = {
 	args: {
 		isAgentsAdmin: true,
 	},
-	play: async ({ canvasElement }) => {
-		await openAnalyticsView(canvasElement);
-
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/analytics" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async () => {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
@@ -522,10 +521,12 @@ export const OpensAnalyticsForNonAdmins: Story = {
 	},
 	parameters: {
 		permissions: MockNoPermissions,
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/analytics" },
+			routing: agentsRouting,
+		}),
 	},
-	play: async ({ canvasElement }) => {
-		await openAnalyticsView(canvasElement);
-
+	play: async () => {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
