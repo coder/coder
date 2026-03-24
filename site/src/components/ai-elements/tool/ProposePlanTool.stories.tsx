@@ -69,12 +69,16 @@ export const Completed: Story = {
 			ok: true,
 			path: "/home/coder/PLAN.md",
 			kind: "plan",
-			content: samplePlan,
+			file_id: "test-file-id-completed",
+			media_type: "text/markdown",
 		},
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatFileText").mockResolvedValue(samplePlan);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("Implementation Plan")).toBeInTheDocument();
+		expect(await canvas.findByText("Implementation Plan")).toBeInTheDocument();
 	},
 };
 
@@ -86,12 +90,16 @@ export const CustomPath: Story = {
 			ok: true,
 			path: "/home/coder/docs/AUTH_PLAN.md",
 			kind: "plan",
-			content: samplePlan,
+			file_id: "test-file-id-custom-path",
+			media_type: "text/markdown",
 		},
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatFileText").mockResolvedValue(samplePlan);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("Implementation Plan")).toBeInTheDocument();
+		expect(await canvas.findByText("Implementation Plan")).toBeInTheDocument();
 	},
 };
 
@@ -117,8 +125,16 @@ export const EmptyContent: Story = {
 			ok: true,
 			path: "/home/coder/PLAN.md",
 			kind: "plan",
-			content: "",
+			file_id: "test-file-id-empty-content",
+			media_type: "text/markdown",
 		},
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatFileText").mockResolvedValue("");
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("No plan content.")).toBeInTheDocument();
 	},
 };
 

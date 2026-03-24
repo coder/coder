@@ -37,6 +37,7 @@ export const ProposePlanTool: React.FC<{
 			return API.experimental.getChatFileText(fileID);
 		},
 		enabled: Boolean(fileID) && !hasInlineContent,
+		staleTime: Number.POSITIVE_INFINITY,
 	});
 
 	const fetchError = fileQuery.isError
@@ -55,37 +56,44 @@ export const ProposePlanTool: React.FC<{
 
 	return (
 		<div className="w-full">
-			{(isRunning || effectiveError) && (
-				<div className="flex items-center gap-1.5 py-0.5">
-					<span
-						className={cn(
-							"text-sm",
-							effectiveError
-								? "text-content-destructive"
-								: "text-content-secondary",
-						)}
-					>
-						{isRunning ? `Proposing ${filename}…` : `Proposed ${filename}`}
-					</span>
-					{effectiveError && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<CircleAlertIcon
-									aria-label="Error"
-									className="h-3.5 w-3.5 shrink-0 text-content-destructive"
-								/>
-							</TooltipTrigger>
-							<TooltipContent>
-								{effectiveErrorMessage || "Failed to propose plan"}
-							</TooltipContent>
-						</Tooltip>
+			<div className="flex items-center gap-1.5 py-0.5">
+				<span
+					className={cn(
+						"text-sm",
+						effectiveError
+							? "text-content-destructive"
+							: "text-content-secondary",
 					)}
-					{isRunning && (
-						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
-					)}
-				</div>
+				>
+					{isRunning ? `Proposing ${filename}…` : `Proposed ${filename}`}
+				</span>
+				{effectiveError && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<CircleAlertIcon
+								aria-label="Error"
+								className="h-3.5 w-3.5 shrink-0 text-content-destructive"
+							/>
+						</TooltipTrigger>
+						<TooltipContent>
+							{effectiveErrorMessage || "Failed to propose plan"}
+						</TooltipContent>
+					</Tooltip>
+				)}
+				{isRunning && (
+					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+				)}
+			</div>
+			{displayContent ? (
+				<Response>{displayContent}</Response>
+			) : (
+				!fetchLoading &&
+				!effectiveError && (
+					<p className="text-sm text-content-secondary italic">
+						No plan content.
+					</p>
+				)
 			)}
-			{displayContent && <Response>{displayContent}</Response>}
 			{fetchLoading && (
 				<div className="flex items-center gap-1.5 py-2 text-sm text-content-secondary">
 					<LoaderIcon className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
