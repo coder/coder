@@ -743,10 +743,24 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 	// The callback URL is on our server; after the exchange we store
 	// the token and close the popup.
 	state := uuid.New().String()
+	callbackPath := fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID)
 	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     "mcp_oauth2_state_" + config.ID.String(),
 		Value:    state,
-		Path:     fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID),
+		Path:     callbackPath,
+		MaxAge:   600, // 10 minutes
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	}))
+
+	// PKCE (RFC 7636) is required by many OAuth2 providers (e.g.
+	// Linear). We always send it because it is harmless when the
+	// server ignores it and essential when it does not.
+	verifier := oauth2.GenerateVerifier()
+	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
+		Name:     "mcp_oauth2_verifier_" + config.ID.String(),
+		Value:    verifier,
+		Path:     callbackPath,
 		MaxAge:   600, // 10 minutes
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
@@ -759,14 +773,14 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 			AuthURL:  config.OAuth2AuthURL,
 			TokenURL: config.OAuth2TokenURL,
 		},
-		RedirectURL: fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), config.ID),
+		RedirectURL: fmt.Sprintf("%s%s", api.AccessURL.String(), callbackPath),
 	}
 	var scopes []string
 	if config.OAuth2Scopes != "" {
 		scopes = strings.Split(config.OAuth2Scopes, " ")
 	}
 	oauth2Config.Scopes = scopes
-	authURL := oauth2Config.AuthCodeURL(state)
+	authURL := oauth2Config.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
 	http.Redirect(rw, r, authURL, http.StatusTemporaryRedirect)
 }
 
@@ -848,10 +862,26 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	// Clear the state cookie.
+	callbackPath := fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID)
 	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     "mcp_oauth2_state_" + config.ID.String(),
 		Value:    "",
-		Path:     fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID),
+		Path:     callbackPath,
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	}))
+
+	// Recover the PKCE code_verifier set during the connect step.
+	var exchangeOpts []oauth2.AuthCodeOption
+	if verifierCookie, err := r.Cookie("mcp_oauth2_verifier_" + config.ID.String()); err == nil {
+		exchangeOpts = append(exchangeOpts, oauth2.VerifierOption(verifierCookie.Value))
+	}
+	// Clear the verifier cookie regardless of whether it was present.
+	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
+		Name:     "mcp_oauth2_verifier_" + config.ID.String(),
+		Value:    "",
+		Path:     callbackPath,
 		MaxAge:   -1,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
@@ -865,7 +895,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 			AuthURL:  config.OAuth2AuthURL,
 			TokenURL: config.OAuth2TokenURL,
 		},
-		RedirectURL: fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), config.ID),
+		RedirectURL: fmt.Sprintf("%s%s", api.AccessURL.String(), callbackPath),
 	}
 	var scopes []string
 	if config.OAuth2Scopes != "" {
@@ -875,8 +905,13 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 
 	// Use the deployment's HTTP client for the token exchange to
 	// respect proxy settings and avoid using http.DefaultClient.
-	exchangeCtx := context.WithValue(ctx, oauth2.HTTPClient, api.HTTPClient)
-	token, err := oauth2Config.Exchange(exchangeCtx, code)
+	// Guard against nil so the oauth2 library falls back to the
+	// default client instead of panicking.
+	exchangeCtx := ctx
+	if api.HTTPClient != nil {
+		exchangeCtx = context.WithValue(ctx, oauth2.HTTPClient, api.HTTPClient)
+	}
+	token, err := oauth2Config.Exchange(exchangeCtx, code, exchangeOpts...)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
 			Message: "Failed to exchange authorization code for token.",
