@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	promtest "github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -64,7 +63,7 @@ func TestChatStreamCatchupMetrics(t *testing.T) {
 		require.True(t, ok)
 		t.Cleanup(cancel)
 
-		insertMetricsChatMessage(ctx, t, db, chat.ID, "assistant", "second reply")
+		insertMetricsChatMessage(ctx, t, db, chat.ID, chat.LastModelConfigID, "assistant", "second reply")
 		publishMetricsNotify(t, ps, chat.ID, coderdpubsub.ChatStreamNotifyMessage{AfterMessageID: firstMessage.ID})
 
 		require.Eventually(t, func() bool {
@@ -79,7 +78,7 @@ func TestChatStreamCatchupMetrics(t *testing.T) {
 		server, db, ps := newMetricsTestServer(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		chat, _ := createMetricsTestChat(ctx, t, server, db)
-		insertMetricsChatMessage(ctx, t, db, chat.ID, "assistant", "second reply")
+		insertMetricsChatMessage(ctx, t, db, chat.ID, chat.LastModelConfigID, "assistant", "second reply")
 		_, _, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
 		require.True(t, ok)
 		t.Cleanup(cancel)
@@ -171,22 +170,34 @@ func createMetricsTestChat(ctx context.Context, t *testing.T, server *Server, db
 	return chat, messages[0]
 }
 
-func insertMetricsChatMessage(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID, role database.ChatMessageRole, content string) database.ChatMessage {
+func insertMetricsChatMessage(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID, modelConfigID uuid.UUID, role database.ChatMessageRole, content string) database.ChatMessage {
 	t.Helper()
 
-	message, err := db.InsertChatMessage(ctx, database.InsertChatMessageParams{
-		ChatID:         chatID,
-		Role:           role,
-		ContentVersion: chatprompt.CurrentContentVersion,
-		Visibility:     database.ChatMessageVisibilityBoth,
-		Compressed:     sql.NullBool{Bool: false, Valid: true},
-		Content: pqtype.NullRawMessage{
-			RawMessage: json.RawMessage(`"` + content + `"`),
-			Valid:      true,
-		},
+	parts, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(content)})
+	require.NoError(t, err)
+
+	messages, err := db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              chatID,
+		CreatedBy:           []uuid.UUID{uuid.Nil},
+		ModelConfigID:       []uuid.UUID{modelConfigID},
+		Role:                []database.ChatMessageRole{role},
+		Content:             []string{string(parts.RawMessage)},
+		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{0},
+		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
-	return message
+	require.Len(t, messages, 1)
+	return messages[0]
 }
 
 func publishMetricsNotify(t *testing.T, ps dbpubsub.Pubsub, chatID uuid.UUID, notify coderdpubsub.ChatStreamNotifyMessage) {

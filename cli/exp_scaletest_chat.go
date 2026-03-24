@@ -109,6 +109,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				return err
 			}
 
+			experimentalClient := codersdk.NewExperimentalClient(client)
 			var modelConfigID *uuid.UUID
 			if llmMockURL != "" {
 				_, _ = fmt.Fprintf(inv.Stderr, "Bootstrapping mock LLM provider at %s...\n", llmMockURL)
@@ -116,7 +117,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				// Try to create a DB-backed openai-compat provider. If one
 				// already exists the server returns 409 and we proceed.
 				enabled := true
-				_, err = client.CreateChatProvider(testCtx, codersdk.CreateChatProviderConfigRequest{
+				_, err = experimentalClient.CreateChatProvider(testCtx, codersdk.CreateChatProviderConfigRequest{
 					Provider:    "openai-compat",
 					DisplayName: scaletestProviderDisplayName,
 					APIKey:      "scaletest-api-key",
@@ -134,7 +135,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 					_, _ = fmt.Fprintf(inv.Stderr, "Created openai-compat provider pointing at %s\n", llmMockURL)
 				}
 
-				modelConfigs, err := client.ListChatModelConfigs(testCtx)
+				modelConfigs, err := experimentalClient.ListChatModelConfigs(testCtx)
 				if err != nil {
 					return xerrors.Errorf("list chat model configs: %w", err)
 				}
@@ -154,7 +155,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 					enabled := true
 					isDefault := false
 					contextLimit := int64(4096)
-					created, err := client.CreateChatModelConfig(testCtx, codersdk.CreateChatModelConfigRequest{
+					created, err := experimentalClient.CreateChatModelConfig(testCtx, codersdk.CreateChatModelConfigRequest{
 						Provider:     "openai-compat",
 						Model:        scaletestModelName,
 						DisplayName:  scaletestModelDisplayName,
