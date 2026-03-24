@@ -118,7 +118,7 @@ Tier 2 file filters:
 
 ## 3. Spawn reviewers
 
-Each reviewer writes findings to `$REVIEW_DIR/{role-name}.md`. The orchestrator does not read reviewer findings from the subagent return text — it reads the files in step 4.
+Each reviewer writes findings to `$REVIEW_DIR/{role-name}.md` where `{role-name}` is the kebab-cased role name (e.g. `test-auditor`, `go-architect`). For Modernization Reviewer instances, qualify with the language: `modernization-reviewer-go.md`, `modernization-reviewer-ts.md`, `modernization-reviewer-react.md`. The orchestrator does not read reviewer findings from the subagent return text — it reads the files in step 4.
 
 Spawn all Tier 1 and Tier 2 reviewers in parallel. Give each reviewer a reference (PR number, branch name), not the diff content. The reviewer fetches the diff itself. Reviewers are read-only — no worktrees needed.
 
