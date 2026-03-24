@@ -1,6 +1,8 @@
 package coderd_test
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -731,6 +733,266 @@ func TestMCPServerConfigsOAuth2AutoDiscovery(t *testing.T) {
 		require.Equal(t, "manual-client-id", created.OAuth2ClientID)
 		require.Equal(t, "https://auth.example.com/authorize", created.OAuth2AuthURL)
 		require.Equal(t, "https://auth.example.com/token", created.OAuth2TokenURL)
+	})
+}
+
+// nolint:bodyclose
+func TestMCPServerOAuth2PKCE(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ConnectSetsPKCEParams", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newMCPClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		// Create an OAuth2 MCP server config.
+		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:    "PKCE Test",
+			Slug:           "pkce-test",
+			Transport:      "streamable_http",
+			URL:            "https://mcp.example.com/pkce",
+			AuthType:       "oauth2",
+			OAuth2ClientID: "test-client",
+			OAuth2AuthURL:  "https://auth.example.com/authorize",
+			OAuth2TokenURL: "https://auth.example.com/token",
+			Availability:   "default_on",
+			Enabled:        true,
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+		})
+		require.NoError(t, err)
+
+		// Prevent the HTTP client from following redirects so we
+		// can inspect the response headers and cookies directly.
+		memberClient.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+
+		connectURL, err := memberClient.URL.Parse(
+			"/api/experimental/mcp/servers/" + created.ID.String() + "/oauth2/connect",
+		)
+		require.NoError(t, err)
+
+		req, err := http.NewRequestWithContext(ctx, "GET", connectURL.String(), nil)
+		require.NoError(t, err)
+		req.AddCookie(&http.Cookie{
+			Name:  codersdk.SessionTokenCookie,
+			Value: memberClient.SessionToken(),
+		})
+
+		res, err := memberClient.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		require.Equal(t, http.StatusTemporaryRedirect, res.StatusCode)
+
+		// The redirect URL must contain PKCE query parameters.
+		location, err := res.Location()
+		require.NoError(t, err)
+		query := location.Query()
+		require.Equal(t, "S256", query.Get("code_challenge_method"),
+			"connect redirect must include code_challenge_method=S256")
+		require.NotEmpty(t, query.Get("code_challenge"),
+			"connect redirect must include a code_challenge")
+
+		// A verifier cookie must be set.
+		var verifierCookie *http.Cookie
+		for _, c := range res.Cookies() {
+			if c.Name == "mcp_oauth2_verifier_"+created.ID.String() {
+				verifierCookie = c
+				break
+			}
+		}
+		require.NotNil(t, verifierCookie, "response must set a PKCE verifier cookie")
+		require.NotEmpty(t, verifierCookie.Value)
+
+		// Verify the code_challenge matches SHA256(verifier).
+		h := sha256.Sum256([]byte(verifierCookie.Value))
+		expectedChallenge := base64.RawURLEncoding.EncodeToString(h[:])
+		require.Equal(t, expectedChallenge, query.Get("code_challenge"),
+			"code_challenge must equal base64url(SHA256(verifier))")
+	})
+
+	t.Run("CallbackSendsVerifier", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Track the code_verifier received by the mock token endpoint.
+		receivedVerifier := make(chan string, 1)
+
+		tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/token" && r.Method == http.MethodPost {
+				if err := r.ParseForm(); err == nil {
+					receivedVerifier <- r.FormValue("code_verifier")
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"access_token": "test-access-token",
+					"token_type": "Bearer",
+					"expires_in": 3600,
+					"refresh_token": "test-refresh-token"
+				}`))
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		t.Cleanup(tokenServer.Close)
+
+		adminClient := newMCPClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:    "PKCE Callback Test",
+			Slug:           "pkce-callback",
+			Transport:      "streamable_http",
+			URL:            "https://mcp.example.com/pkce-cb",
+			AuthType:       "oauth2",
+			OAuth2ClientID: "test-client",
+			OAuth2AuthURL:  "https://auth.example.com/authorize",
+			OAuth2TokenURL: tokenServer.URL + "/token",
+			Availability:   "default_on",
+			Enabled:        true,
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+		})
+		require.NoError(t, err)
+
+		memberClient.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+
+		// Simulate the callback with a known state and verifier.
+		state := "test-state-value"
+		verifier := "test-verifier-value-that-is-at-least-43-chars-long-for-pkce-spec"
+
+		callbackURL, err := memberClient.URL.Parse(
+			"/api/experimental/mcp/servers/" + created.ID.String() + "/oauth2/callback",
+		)
+		require.NoError(t, err)
+		q := callbackURL.Query()
+		q.Set("code", "test-auth-code")
+		q.Set("state", state)
+		callbackURL.RawQuery = q.Encode()
+
+		req, err := http.NewRequestWithContext(ctx, "GET", callbackURL.String(), nil)
+		require.NoError(t, err)
+		req.AddCookie(&http.Cookie{
+			Name:  codersdk.SessionTokenCookie,
+			Value: memberClient.SessionToken(),
+		})
+		req.AddCookie(&http.Cookie{
+			Name:  "mcp_oauth2_state_" + created.ID.String(),
+			Value: state,
+		})
+		req.AddCookie(&http.Cookie{
+			Name:  "mcp_oauth2_verifier_" + created.ID.String(),
+			Value: verifier,
+		})
+
+		res, err := memberClient.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		require.Equal(t, http.StatusOK, res.StatusCode,
+			"callback should succeed when given valid state, verifier, and code")
+
+		// Verify the mock token endpoint received the code_verifier.
+		var gotVerifier string
+		select {
+		case gotVerifier = <-receivedVerifier:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for token exchange")
+		}
+		require.Equal(t, verifier, gotVerifier,
+			"token exchange must send the PKCE code_verifier")
+
+		// Verify the verifier cookie is cleared in the response.
+		for _, c := range res.Cookies() {
+			if c.Name == "mcp_oauth2_verifier_"+created.ID.String() {
+				require.Equal(t, -1, c.MaxAge,
+					"verifier cookie must be cleared after callback")
+			}
+		}
+	})
+
+	t.Run("CallbackWithoutVerifierStillWorks", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Token endpoint that does not require a code_verifier.
+		tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/token" && r.Method == http.MethodPost {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{
+					"access_token": "no-pkce-token",
+					"token_type": "Bearer"
+				}`))
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		t.Cleanup(tokenServer.Close)
+
+		adminClient := newMCPClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		created, err := adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+			DisplayName:    "No PKCE Callback",
+			Slug:           "no-pkce-callback",
+			Transport:      "streamable_http",
+			URL:            "https://mcp.example.com/no-pkce",
+			AuthType:       "oauth2",
+			OAuth2ClientID: "test-client",
+			OAuth2AuthURL:  "https://auth.example.com/authorize",
+			OAuth2TokenURL: tokenServer.URL + "/token",
+			Availability:   "default_on",
+			Enabled:        true,
+			ToolAllowList:  []string{},
+			ToolDenyList:   []string{},
+		})
+		require.NoError(t, err)
+
+		memberClient.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+
+		// Call the callback without a verifier cookie to verify
+		// backwards compatibility with providers that don't use PKCE.
+		state := "test-state-no-pkce"
+		callbackURL, err := memberClient.URL.Parse(
+			"/api/experimental/mcp/servers/" + created.ID.String() + "/oauth2/callback",
+		)
+		require.NoError(t, err)
+		q := callbackURL.Query()
+		q.Set("code", "test-auth-code")
+		q.Set("state", state)
+		callbackURL.RawQuery = q.Encode()
+
+		req, err := http.NewRequestWithContext(ctx, "GET", callbackURL.String(), nil)
+		require.NoError(t, err)
+		req.AddCookie(&http.Cookie{
+			Name:  codersdk.SessionTokenCookie,
+			Value: memberClient.SessionToken(),
+		})
+		req.AddCookie(&http.Cookie{
+			Name:  "mcp_oauth2_state_" + created.ID.String(),
+			Value: state,
+		})
+		// Deliberately omit the verifier cookie.
+
+		res, err := memberClient.HTTPClient.Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		require.Equal(t, http.StatusOK, res.StatusCode,
+			"callback without verifier cookie should still succeed")
 	})
 }
 
