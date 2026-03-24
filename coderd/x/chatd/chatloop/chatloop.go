@@ -321,13 +321,14 @@ func Run(ctx context.Context, opts RunOptions) error {
 				if streamErr != nil {
 					return streamErr
 				}
+				defer attempt.release()
 				var processErr error
 				result, processErr = processStepStream(
 					attempt.ctx,
 					attempt.stream,
 					publishMessagePart,
 				)
-				return attempt.cleanup(processErr)
+				return attempt.finish(processErr)
 			}, func(
 				attempt int,
 				retryErr error,
@@ -504,12 +505,14 @@ func Run(ctx context.Context, opts RunOptions) error {
 }
 
 // guardedAttempt owns an attempt-scoped context and startup guard
-// around a provider stream. cleanup stops the guard and canonicalizes
-// startup timeout errors before the retry loop classifies them.
+// around a provider stream. release is idempotent and frees the
+// attempt-scoped timer/context. finish canonicalizes startup timeout
+// errors before the retry loop classifies them.
 type guardedAttempt struct {
 	ctx     context.Context
 	stream  fantasy.StreamResponse
-	cleanup func(error) error
+	release func()
+	finish  func(error) error
 }
 
 // startupGuard arbitrates whether an attempt times out during
@@ -542,10 +545,6 @@ func (g *startupGuard) Disarm() {
 	})
 }
 
-func (g *startupGuard) Stop() {
-	g.timer.Stop()
-}
-
 func classifyStartupTimeout(
 	attemptCtx context.Context,
 	provider string,
@@ -572,12 +571,18 @@ func guardedStream(
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
 	guard := newStartupGuard(timeout, cancelAttempt)
+	var releaseOnce sync.Once
+	release := func() {
+		releaseOnce.Do(func() {
+			guard.Disarm()
+			cancelAttempt(nil)
+		})
+	}
 
 	stream, err := openStream(attemptCtx)
 	if err != nil {
-		guard.Stop()
 		err = classifyStartupTimeout(attemptCtx, provider, err)
-		cancelAttempt(nil)
+		release()
 		return guardedAttempt{}, err
 	}
 
@@ -591,11 +596,9 @@ func guardedStream(
 				}
 			}
 		}),
-		cleanup: func(err error) error {
-			guard.Stop()
-			err = classifyStartupTimeout(attemptCtx, provider, err)
-			cancelAttempt(nil)
-			return err
+		release: release,
+		finish: func(err error) error {
+			return classifyStartupTimeout(attemptCtx, provider, err)
 		},
 	}, nil
 }

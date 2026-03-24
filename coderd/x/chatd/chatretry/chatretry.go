@@ -36,17 +36,6 @@ func IsRetryable(err error) bool {
 	return chaterror.Classify(err).Retryable
 }
 
-// StatusCodeRetryable returns true for HTTP status codes that
-// indicate a transient failure worth retrying.
-func StatusCodeRetryable(code int) bool {
-	switch code {
-	case 408, 429, 500, 502, 503, 504, 529:
-		return true
-	default:
-		return false
-	}
-}
-
 // Delay returns the backoff duration for the given 0-indexed attempt.
 // Uses exponential backoff: min(InitialDelay * 2^attempt, MaxDelay).
 // Matches the backoff curve used in coder/mux.

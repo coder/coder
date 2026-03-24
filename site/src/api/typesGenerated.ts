@@ -1778,7 +1778,7 @@ export interface ChatStreamError {
 	/**
 	 * Retryable reports whether the underlying error is transient.
 	 */
-	readonly retryable?: boolean;
+	readonly retryable: boolean;
 	/**
 	 * StatusCode is the best-effort upstream HTTP status code.
 	 */
@@ -1853,10 +1853,6 @@ export interface ChatStreamRetry {
 	 * Provider identifies the upstream model provider when known.
 	 */
 	readonly provider?: string;
-	/**
-	 * Retryable reports whether the underlying error is transient.
-	 */
-	readonly retryable?: boolean;
 	/**
 	 * StatusCode is the best-effort upstream HTTP status code.
 	 */

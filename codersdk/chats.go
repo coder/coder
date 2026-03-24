@@ -784,7 +784,7 @@ type ChatStreamError struct {
 	// Provider identifies the upstream model provider when known.
 	Provider string `json:"provider,omitempty"`
 	// Retryable reports whether the underlying error is transient.
-	Retryable bool `json:"retryable,omitempty"`
+	Retryable bool `json:"retryable"`
 	// StatusCode is the best-effort upstream HTTP status code.
 	StatusCode int `json:"status_code,omitempty"`
 }
@@ -802,8 +802,6 @@ type ChatStreamRetry struct {
 	Kind string `json:"kind,omitempty"`
 	// Provider identifies the upstream model provider when known.
 	Provider string `json:"provider,omitempty"`
-	// Retryable reports whether the underlying error is transient.
-	Retryable bool `json:"retryable,omitempty"`
 	// StatusCode is the best-effort upstream HTTP status code.
 	StatusCode int `json:"status_code,omitempty"`
 	// RetryingAt is the timestamp when the retry will be attempted.

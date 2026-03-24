@@ -53,7 +53,6 @@ func TestStreamRetryPayloadUsesNormalizedClassification(t *testing.T) {
 	require.Equal(t, "retry me", payload.Error)
 	require.Equal(t, chaterror.KindGeneric, payload.Kind)
 	require.Equal(t, "openai", payload.Provider)
-	require.True(t, payload.Retryable)
 	require.Equal(t, 503, payload.StatusCode)
 	require.WithinDuration(t, startedAt.Add(delay), payload.RetryingAt, time.Second)
 }

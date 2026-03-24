@@ -12,7 +12,7 @@ type providerHint struct {
 }
 
 var (
-	statusCodePattern       = regexp.MustCompile(`(?i)(?:status(?:\s+code)?|http)\s*[:=]?\s*(\d{3})`)
+	statusCodePattern       = regexp.MustCompile(`(?:status(?:\s+code)?|http)\s*[:=]?\s*(\d{3})`)
 	standaloneStatusPattern = regexp.MustCompile(`\b(?:401|403|408|429|500|502|503|504|529)\b`)
 	providerHints           = []providerHint{
 		{provider: "openai-compat", patterns: []string{"openai-compat", "openai compatible"}},
@@ -71,8 +71,13 @@ func extractStatusCode(lower string) int {
 		}
 		return 0
 	}
-	if match := standaloneStatusPattern.FindString(lower); match != "" {
-		if code, err := strconv.Atoi(match); err == nil {
+	for _, loc := range standaloneStatusPattern.FindAllStringIndex(lower, -1) {
+		// Skip values in host:port text. A later standalone status code in the
+		// same message may still be valid, so keep scanning.
+		if loc[0] > 0 && lower[loc[0]-1] == ':' {
+			continue
+		}
+		if code, err := strconv.Atoi(lower[loc[0]:loc[1]]); err == nil {
 			return code
 		}
 		return 0

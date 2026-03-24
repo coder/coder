@@ -455,7 +455,6 @@ func TestSubscribeDeliversRetryEventViaPubsubOnce(t *testing.T) {
 		Error:      "OpenAI is rate limiting requests (HTTP 429). Please try again later.",
 		Kind:       chaterror.KindRateLimit,
 		Provider:   "openai",
-		Retryable:  true,
 		StatusCode: 429,
 		RetryingAt: retryingAt,
 	}

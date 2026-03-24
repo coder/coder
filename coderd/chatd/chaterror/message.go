@@ -31,7 +31,7 @@ func userFacingMessage(classified ClassifiedError) string {
 			)
 		}
 		if classified.Retryable {
-			return fmt.Sprintf("%s did not respond in time. Please try again.", subject)
+			return fmt.Sprintf("%s is temporarily unavailable. Please try again later.", subject)
 		}
 		return "The request timed out before it completed. Please try again."
 	case KindStartupTimeout:

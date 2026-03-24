@@ -18,6 +18,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const activeToolName = "read_file"
@@ -180,10 +181,29 @@ func TestStartupGuard_DisarmAndFireRace(t *testing.T) {
 
 		guard.onTimeout()
 		guard.Disarm()
-		guard.Stop()
 
 		require.LessOrEqual(t, cancels.Load(), int32(1))
 	}
+}
+
+func TestStartupGuard_DisarmPreservesPermanentError(t *testing.T) {
+	t.Parallel()
+
+	attemptCtx, cancelAttempt := context.WithCancelCause(context.Background())
+	defer cancelAttempt(nil)
+
+	guard := newStartupGuard(time.Hour, cancelAttempt)
+	guard.Disarm()
+	guard.onTimeout()
+
+	classified := chaterror.Classify(classifyStartupTimeout(
+		attemptCtx,
+		"openai",
+		xerrors.New("invalid model"),
+	))
+	require.Equal(t, chaterror.KindConfig, classified.Kind)
+	require.False(t, classified.Retryable)
+	require.Nil(t, context.Cause(attemptCtx))
 }
 
 func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
@@ -361,6 +381,49 @@ func TestRun_FirstPartDisarmsStartupTimeout(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, attempts)
 	require.False(t, retried)
+}
+
+func TestRun_PanicInPublishMessagePartReleasesAttempt(t *testing.T) {
+	t.Parallel()
+
+	attemptReleased := make(chan struct{})
+	model := &loopTestModel{
+		provider: "openai",
+		streamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			go func() {
+				<-ctx.Done()
+				close(attemptReleased)
+			}()
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "boom"},
+			}), nil
+		},
+	}
+
+	defer func() {
+		r := recover()
+		require.NotNil(t, r)
+		select {
+		case <-attemptReleased:
+		case <-time.After(time.Second):
+			t.Fatal("attempt context was not released after panic")
+		}
+	}()
+
+	_ = Run(context.Background(), RunOptions{
+		Model:                model,
+		MaxSteps:             1,
+		ContextLimitFallback: 4096,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		PublishMessagePart: func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {
+			panic("publish panic")
+		},
+	})
+
+	t.Fatal("expected Run to panic")
 }
 
 func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {

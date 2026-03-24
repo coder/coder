@@ -33,7 +33,6 @@ func StreamRetryPayload(
 		Error:      classified.Message,
 		Kind:       classified.Kind,
 		Provider:   classified.Provider,
-		Retryable:  classified.Retryable,
 		StatusCode: classified.StatusCode,
 		RetryingAt: time.Now().Add(delay),
 	}

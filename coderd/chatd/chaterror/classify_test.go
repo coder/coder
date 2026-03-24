@@ -132,7 +132,7 @@ func TestClassify(t *testing.T) {
 			name: "ServiceUnavailableClassifiesAsRetryableTimeout",
 			err:  xerrors.New("service unavailable"),
 			want: chaterror.ClassifiedError{
-				Message:    "The AI provider did not respond in time. Please try again.",
+				Message:    "The AI provider is temporarily unavailable. Please try again later.",
 				Kind:       chaterror.KindTimeout,
 				Provider:   "",
 				Retryable:  true,
@@ -189,6 +189,99 @@ func TestClassify(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tt.want, chaterror.Classify(tt.err))
+		})
+	}
+}
+
+func TestClassify_PatternCoverage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		err       string
+		wantKind  string
+		wantRetry bool
+	}{
+		{name: "OverloadedLiteral", err: "overloaded", wantKind: chaterror.KindOverloaded, wantRetry: true},
+		{name: "RateLimitLiteral", err: "rate limit", wantKind: chaterror.KindRateLimit, wantRetry: true},
+		{name: "RateLimitUnderscoreLiteral", err: "rate_limit", wantKind: chaterror.KindRateLimit, wantRetry: true},
+		{name: "RateLimitedLiteral", err: "rate limited", wantKind: chaterror.KindRateLimit, wantRetry: true},
+		{name: "RateLimitedHyphenLiteral", err: "rate-limited", wantKind: chaterror.KindRateLimit, wantRetry: true},
+		{name: "TooManyRequestsLiteral", err: "too many requests", wantKind: chaterror.KindRateLimit, wantRetry: true},
+		{name: "TimeoutLiteral", err: "timeout", wantKind: chaterror.KindTimeout, wantRetry: true},
+		{name: "TimedOutLiteral", err: "timed out", wantKind: chaterror.KindTimeout, wantRetry: true},
+		{name: "ServiceUnavailableLiteral", err: "service unavailable", wantKind: chaterror.KindTimeout, wantRetry: true},
+		{name: "UnavailableLiteral", err: "unavailable", wantKind: chaterror.KindTimeout, wantRetry: true},
+		{name: "ConnectionResetLiteral", err: "connection reset", wantKind: chaterror.KindTimeout, wantRetry: true},
+		{name: "ConnectionRefusedLiteral", err: "connection refused", wantKind: chaterror.KindTimeout, wantRetry: true},
+		{name: "EOFLiteral", err: "eof", wantKind: chaterror.KindTimeout, wantRetry: true},
+		{name: "BrokenPipeLiteral", err: "broken pipe", wantKind: chaterror.KindTimeout, wantRetry: true},
+		{name: "BadGatewayLiteral", err: "bad gateway", wantKind: chaterror.KindTimeout, wantRetry: true},
+		{name: "GatewayTimeoutLiteral", err: "gateway timeout", wantKind: chaterror.KindTimeout, wantRetry: true},
+		{name: "AuthenticationLiteral", err: "authentication", wantKind: chaterror.KindAuth, wantRetry: false},
+		{name: "UnauthorizedLiteral", err: "unauthorized", wantKind: chaterror.KindAuth, wantRetry: false},
+		{name: "InvalidAPIKeyLiteral", err: "invalid api key", wantKind: chaterror.KindAuth, wantRetry: false},
+		{name: "InvalidAPIKeyUnderscoreLiteral", err: "invalid_api_key", wantKind: chaterror.KindAuth, wantRetry: false},
+		{name: "QuotaLiteral", err: "quota", wantKind: chaterror.KindAuth, wantRetry: false},
+		{name: "BillingLiteral", err: "billing", wantKind: chaterror.KindAuth, wantRetry: false},
+		{name: "InsufficientQuotaLiteral", err: "insufficient_quota", wantKind: chaterror.KindAuth, wantRetry: false},
+		{name: "PaymentRequiredLiteral", err: "payment required", wantKind: chaterror.KindAuth, wantRetry: false},
+		{name: "ForbiddenLiteral", err: "forbidden", wantKind: chaterror.KindAuth, wantRetry: false},
+		{name: "InvalidModelLiteral", err: "invalid model", wantKind: chaterror.KindConfig, wantRetry: false},
+		{name: "ModelNotFoundLiteral", err: "model not found", wantKind: chaterror.KindConfig, wantRetry: false},
+		{name: "ModelNotFoundUnderscoreLiteral", err: "model_not_found", wantKind: chaterror.KindConfig, wantRetry: false},
+		{name: "UnsupportedModelLiteral", err: "unsupported model", wantKind: chaterror.KindConfig, wantRetry: false},
+		{name: "ContextLengthExceededLiteral", err: "context length exceeded", wantKind: chaterror.KindConfig, wantRetry: false},
+		{name: "ContextExceededLiteral", err: "context_exceeded", wantKind: chaterror.KindConfig, wantRetry: false},
+		{name: "MaximumContextLengthLiteral", err: "maximum context length", wantKind: chaterror.KindConfig, wantRetry: false},
+		{name: "MalformedConfigLiteral", err: "malformed config", wantKind: chaterror.KindConfig, wantRetry: false},
+		{name: "MalformedConfigurationLiteral", err: "malformed configuration", wantKind: chaterror.KindConfig, wantRetry: false},
+		{name: "ServerErrorLiteral", err: "server error", wantKind: chaterror.KindGeneric, wantRetry: true},
+		{name: "InternalServerErrorLiteral", err: "internal server error", wantKind: chaterror.KindGeneric, wantRetry: true},
+		{name: "ChatInterruptedLiteral", err: "chat interrupted", wantKind: chaterror.KindGeneric, wantRetry: false},
+		{name: "RequestInterruptedLiteral", err: "request interrupted", wantKind: chaterror.KindGeneric, wantRetry: false},
+		{name: "OperationInterruptedLiteral", err: "operation interrupted", wantKind: chaterror.KindGeneric, wantRetry: false},
+		{name: "Status408", err: "status 408", wantKind: chaterror.KindTimeout, wantRetry: true},
+		{name: "Status500", err: "status 500", wantKind: chaterror.KindGeneric, wantRetry: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(xerrors.New(tt.err))
+			require.Equal(t, tt.wantKind, classified.Kind)
+			require.Equal(t, tt.wantRetry, classified.Retryable)
+		})
+	}
+}
+
+func TestClassify_TransportFailuresUseBroaderRetryMessage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  string
+	}{
+		{name: "TimeoutLiteral", err: "timeout"},
+		{name: "EOFLiteral", err: "eof"},
+		{name: "BrokenPipeLiteral", err: "broken pipe"},
+		{name: "ConnectionResetLiteral", err: "connection reset"},
+		{name: "ConnectionRefusedLiteral", err: "connection refused"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(xerrors.New(tt.err))
+			require.Equal(t, chaterror.KindTimeout, classified.Kind)
+			require.True(t, classified.Retryable)
+			require.Equal(
+				t,
+				"The AI provider is temporarily unavailable. Please try again later.",
+				classified.Message,
+			)
 		})
 	}
 }

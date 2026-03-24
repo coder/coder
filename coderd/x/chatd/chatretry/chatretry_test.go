@@ -40,7 +40,7 @@ func TestIsRetryableDelegatesToClassification(t *testing.T) {
 	}
 }
 
-func TestStatusCodeRetryable(t *testing.T) {
+func TestRetryabilityFromClassifyStatusCodes(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -64,10 +64,11 @@ func TestStatusCodeRetryable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("Status%d", tt.code), func(t *testing.T) {
 			t.Parallel()
-			got := chatretry.StatusCodeRetryable(tt.code)
-			if got != tt.retryable {
-				t.Errorf("StatusCodeRetryable(%d) = %v, want %v", tt.code, got, tt.retryable)
-			}
+
+			err := xerrors.Errorf("status %d from upstream", tt.code)
+			classified := chaterror.Classify(err)
+			require.Equal(t, tt.retryable, classified.Retryable)
+			require.Equal(t, classified.Retryable, chatretry.IsRetryable(err))
 		})
 	}
 }
