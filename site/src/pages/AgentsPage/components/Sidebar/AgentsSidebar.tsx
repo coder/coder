@@ -780,11 +780,22 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							<ChatTreeContext.Provider value={chatTreeCtx}>
 								{visibleRootIDs.length === 0 ? (
 									<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-										{normalizedSearch
-											? "No matching agents"
-											: archivedFilter === "archived"
-												? "No archived agents"
-												: "No agents yet"}
+										<p className="m-0">
+											{normalizedSearch
+												? "No matching agents"
+												: archivedFilter === "archived"
+													? "No archived agents"
+													: "No agents yet"}
+										</p>
+										{archivedFilter === "archived" && (
+											<button
+												type="button"
+												className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+												onClick={() => onArchivedFilterChange?.("active")}
+											>
+												← Back to active
+											</button>
+										)}
 									</div>
 								) : (
 									<div>
