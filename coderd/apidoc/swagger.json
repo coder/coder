@@ -1031,6 +1031,28 @@
 				]
 			}
 		},
+		"/experimental/chats/by-workspace": {
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Chats"],
+				"summary": "Get latest chats by workspace IDs",
+				"operationId": "get-latest-chats-by-workspace-ids",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/experimental/watch-all-workspacebuilds": {
 			"get": {
 				"produces": ["application/json"],

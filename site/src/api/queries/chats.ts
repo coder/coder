@@ -7,8 +7,10 @@ export const chatKey = (chatId: string) => ["chats", chatId] as const;
 export const chatMessagesKey = (chatId: string) =>
 	["chats", chatId, "messages"] as const;
 
-export const workspaceChatIds = (workspaceIds: string[]) => {
-	const sorted = [...workspaceIds].sort();
+const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
+
+export const chatsByWorkspace = (workspaceIds: string[]) => {
+	const sorted = workspaceIds.toSorted();
 	return {
 		queryKey: [...chatsKey, "by-workspace", sorted],
 		queryFn: () => API.experimental.getChatsByWorkspace(sorted),
@@ -249,6 +251,9 @@ export const archiveChat = (queryClient: QueryClient) => ({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
+		await queryClient.invalidateQueries({
+			queryKey: chatsByWorkspaceKeyPrefix,
+		});
 	},
 });
 
@@ -308,6 +313,9 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 		await queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
 			exact: true,
+		});
+		await queryClient.invalidateQueries({
+			queryKey: chatsByWorkspaceKeyPrefix,
 		});
 	},
 });

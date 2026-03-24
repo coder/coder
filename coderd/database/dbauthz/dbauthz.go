@@ -2724,6 +2724,10 @@ func (q *querier) GetChats(ctx context.Context, arg database.GetChatsParams) ([]
 	return q.db.GetAuthorizedChats(ctx, arg, prep)
 }
 
+func (q *querier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByWorkspaceIDs)(ctx, ids)
+}
+
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
 	// Just like with the audit logs query, shortcut if the user is an owner.
 	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog)
@@ -2976,10 +2980,6 @@ func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return q.db.GetLastUpdateCheck(ctx)
-}
-
-func (q *querier) GetLatestChatsByWorkspaceIDs(ctx context.Context, workspaceIds []uuid.UUID) ([]database.Chat, error) { //nolint:revive // sqlc-generated interface name
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetLatestChatsByWorkspaceIDs)(ctx, workspaceIds)
 }
 
 func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {

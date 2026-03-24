@@ -5289,6 +5289,134 @@ func TestChatTemplateAllowlist(t *testing.T) {
 	})
 }
 
+func TestGetChatsByWorkspace(t *testing.T) {
+	t.Parallel()
+
+	client, db := newChatClientWithDatabase(t)
+	user := coderdtest.CreateFirstUser(t, client.Client)
+	modelConfig := createChatModelConfig(t, client)
+
+	// Helper to create a workspace owned by the test user.
+	newWorkspace := func() dbfake.WorkspaceBuildBuilder {
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent()
+	}
+
+	// Helper to insert a chat linked to a workspace.
+	insertChat := func(ctx context.Context, title string, workspaceID uuid.UUID) database.Chat {
+		chat, err := db.InsertChat(dbauthz.AsSystemRestricted(ctx), database.InsertChatParams{
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             title,
+			WorkspaceID:       uuid.NullUUID{UUID: workspaceID, Valid: true},
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	t.Run("EmptyRequestReturnsEmptyMap", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		result, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{})
+		require.NoError(t, err)
+		require.Empty(t, result)
+	})
+
+	t.Run("WorkspaceWithNoChatsOmitted", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ws := newWorkspace().Do()
+
+		result, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{ws.Workspace.ID})
+		require.NoError(t, err)
+		require.Empty(t, result)
+	})
+
+	t.Run("ReturnsChatLinkedToWorkspace", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ws := newWorkspace().Do()
+		chat := insertChat(ctx, "workspace chat", ws.Workspace.ID)
+
+		result, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{ws.Workspace.ID})
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		require.Equal(t, chat.ID, result[ws.Workspace.ID])
+	})
+
+	t.Run("ArchivedChatsExcluded", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ws := newWorkspace().Do()
+		chat := insertChat(ctx, "soon to be archived", ws.Workspace.ID)
+
+		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		require.NoError(t, err)
+
+		result, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{ws.Workspace.ID})
+		require.NoError(t, err)
+		require.Empty(t, result)
+	})
+
+	t.Run("ReturnsLatestNonArchivedChat", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ws := newWorkspace().Do()
+
+		// Insert an older chat and archive it.
+		olderChat := insertChat(ctx, "older archived", ws.Workspace.ID)
+		err := client.UpdateChat(ctx, olderChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+		require.NoError(t, err)
+
+		// Insert a newer chat that stays active.
+		newerChat := insertChat(ctx, "newer active", ws.Workspace.ID)
+
+		result, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{ws.Workspace.ID})
+		require.NoError(t, err)
+		require.Len(t, result, 1)
+		require.Equal(t, newerChat.ID, result[ws.Workspace.ID])
+	})
+
+	t.Run("MultipleWorkspaces", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		wsA := newWorkspace().Do()
+		wsB := newWorkspace().Do()
+		wsC := newWorkspace().Do()
+
+		chatA := insertChat(ctx, "chat for workspace A", wsA.Workspace.ID)
+		chatB := insertChat(ctx, "chat for workspace B", wsB.Workspace.ID)
+
+		// Query all three workspaces; C has no chats.
+		result, err := client.GetChatsByWorkspace(ctx, []uuid.UUID{
+			wsA.Workspace.ID,
+			wsB.Workspace.ID,
+			wsC.Workspace.ID,
+		})
+		require.NoError(t, err)
+		require.Len(t, result, 2)
+		require.Equal(t, chatA.ID, result[wsA.Workspace.ID])
+		require.Equal(t, chatB.ID, result[wsB.Workspace.ID])
+		_, hasC := result[wsC.Workspace.ID]
+		require.False(t, hasC, "workspace C should not appear in result")
+	})
+
+	t.Run("RejectsTooManyWorkspaceIDs", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ids := make([]uuid.UUID, 26)
+		for i := range ids {
+			ids[i] = uuid.New()
+		}
+
+		_, err := client.GetChatsByWorkspace(ctx, ids)
+		require.Error(t, err)
+		requireSDKError(t, err, http.StatusBadRequest)
+	})
+}
+
 func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Error {
 	t.Helper()
 

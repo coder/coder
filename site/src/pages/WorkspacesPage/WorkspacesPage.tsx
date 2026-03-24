@@ -12,7 +12,7 @@ import { pageTitle } from "utils/page";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { workspacePermissionsByOrganization } from "#/api/queries/organizations";
 import { templates, templateVersionRoot } from "#/api/queries/templates";
-import { workspaceChatIds } from "#/api/queries/chats";
+import { chatsByWorkspace } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import { useFilter } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
@@ -135,7 +135,7 @@ const WorkspacesPage: FC = () => {
 		[data?.workspaces],
 	);
 	const chatsByWorkspaceQuery = useQuery({
-		...workspaceChatIds(workspaceIds),
+		...chatsByWorkspace(workspaceIds),
 		enabled: agentsEnabled && workspaceIds.length > 0,
 	});
 

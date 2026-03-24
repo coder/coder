@@ -198,6 +198,24 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 
 // EXPERIMENTAL: chatsByWorkspace returns a mapping of workspace ID to
 // the latest non-archived chat ID for each requested workspace.
+// The query returns all matching chats and RBAC post-filters them;
+// the handler then picks the latest per workspace in Go. This avoids
+// the DISTINCT ON + post-filter bug where the sole candidate is
+// silently dropped when the caller can't read it.
+//
+// TODO: move aggregation to a SQL view with proper in-query authz
+// so we can return a single row per workspace without this two-pass
+// approach.
+//
+// @Summary Get latest chats by workspace IDs
+// @ID get-latest-chats-by-workspace-ids
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Success 200
+// @Router /experimental/chats/by-workspace [post]
+// @x-apidocgen {"skip": true}
 func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -213,6 +231,8 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// maxWorkspaceIDs is coupled to DEFAULT_RECORDS_PER_PAGE (25) in
+	// the frontend. If the page size changes, this limit should too.
 	const maxWorkspaceIDs = 25
 	if len(req.WorkspaceIDs) > maxWorkspaceIDs {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -221,7 +241,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chats, err := api.Database.GetLatestChatsByWorkspaceIDs(ctx, req.WorkspaceIDs)
+	chats, err := api.Database.GetChatsByWorkspaceIDs(ctx, req.WorkspaceIDs)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to get chats by workspace.",
@@ -230,10 +250,15 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The SQL orders by (workspace_id, updated_at DESC), so the first
+	// chat seen per workspace after RBAC filtering is the latest
+	// readable one.
 	result := make(map[uuid.UUID]uuid.UUID, len(chats))
 	for _, chat := range chats {
 		if chat.WorkspaceID.Valid {
-			result[chat.WorkspaceID.UUID] = chat.ID
+			if _, exists := result[chat.WorkspaceID.UUID]; !exists {
+				result[chat.WorkspaceID.UUID] = chat.ID
+			}
 		}
 	}
 

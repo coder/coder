@@ -214,14 +214,14 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 													</Badge>
 												)}
 												{chatsByWorkspace?.[workspace.id] && (
-													<Link
-														to={`/agents/${chatsByWorkspace[workspace.id]}`}
-														onClick={(e) => e.stopPropagation()}
-													>
-														<Badge size="xs" variant="info" hover>
+													<Badge size="xs" variant="info" hover asChild>
+														<Link
+															to={`/agents/${chatsByWorkspace[workspace.id]}`}
+															onClick={(e) => e.stopPropagation()}
+														>
 															Agent
-														</Badge>
-													</Link>
+														</Link>
+													</Badge>
 												)}
 											</Stack>
 										}
