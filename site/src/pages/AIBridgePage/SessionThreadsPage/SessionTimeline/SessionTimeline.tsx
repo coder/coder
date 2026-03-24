@@ -17,12 +17,6 @@ import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { StatusIndicatorDot } from "components/StatusIndicator/StatusIndicator";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "components/Tooltip/Tooltip";
-import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	InfoIcon,
@@ -83,6 +77,11 @@ const ExpandableText: FC<ExpandableTextProps> = ({ text, className }) => {
 	);
 };
 
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { TokenBadges } from "../../TokenBadges";
@@ -108,6 +107,7 @@ const CollapseButton: FC<CollapseButtonProps> = ({
 		variant="subtle"
 		onClick={onClick}
 		className="border-none bg-transparent text-content-secondary flex items-center"
+		size="sm"
 	>
 		{isOpen ? (
 			<ChevronDownIcon className="size-3.5 flex-shrink-0" />
@@ -145,7 +145,7 @@ const BracketConnector: FC<BracketConnectorProps> = ({
 			{/* top rounded line */}
 		</div>
 		{!hideBottomLine && (
-			<div className="row-start-2 col-start-2 border-0 border-t border-l border-solid border-surface-secondary rounded-tl-lg">
+			<div className="row-start-2 col-start-2 border-0 border-t border-l border-solid border-surface-secondary rounded-tl-lg -mt-px">
 				{/* bottom rounded line */}
 			</div>
 		)}
@@ -245,7 +245,7 @@ const AgenticLoopCompletedBlock: FC<AgenticLoopCompletedBlockProps> = ({
 				</CollapseButton>
 			</div>
 			{isOpen && (
-				<div className="mb-4 ml-5 mr-4 flex flex-col gap-2 lg:w-1/2 text-xs text-content-secondary">
+				<div className="mb-4 ml-3 mr-4 flex flex-col gap-2 lg:w-1/2 text-xs text-content-secondary">
 					<div className="flex items-center justify-between">
 						<span className="font-medium">In / out tokens</span>
 						<TokenBadges
@@ -347,7 +347,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 			>
 				{/* Agentic loop */}
 				<div className="flex flex-col lg:flex-row lg:items-center justify-between">
-					<div className="">
+					<div>
 						<CollapseButton
 							isOpen={agenticLoopOpen}
 							onClick={() => setAgenticLoopOpen(!agenticLoopOpen)}
@@ -454,15 +454,15 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				</DropdownMenuContent>
 			</DropdownMenu>
 
-			<div className="grid grid-cols-[20px_1rem_1px_1fr_auto_20px]">
+			<div className="grid grid-cols-[16px_1rem_1px_1fr_auto_16px]">
 				{/* row 1: session start */}
-				<div className="row-start-1 col-start-2 relative">
+				<div className="row-start-1 col-start-2 relative h-10 py-1">
 					<StatusIndicatorDot
 						variant="inactive"
 						className="absolute right-0 translate-x-1/2 translate-y-1/2"
 					/>
 				</div>
-				<div className="row-start-1 col-start-4 col-span-2 flex items-center">
+				<div className="row-start-1 col-start-4 col-span-2 flex items-center h-10">
 					<span className="text-content-secondary ml-4 py-1 text-sm">
 						Session started
 					</span>
@@ -474,35 +474,33 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				</div>
 
 				{/* row 3: sized intentionally to create the visual space above the timeline border */}
-				<div className="row-start-3 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-8">
+				<div className="row-start-3 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-6">
 					{/* vertical line */}
 				</div>
 
 				{/* row 3/4: AI Governance tooltip */}
-				<div className="row-start-3 col-start-5 row-span-2 flex items-center text-xs text-content-secondary px-2 pt-3">
+				<div className="row-start-3 col-start-5 row-span-2 flex items-center text-xs text-content-secondary px-2 pt-1">
 					AI Governance
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<InfoIcon className="size-icon-sm ml-2" />
-							</TooltipTrigger>
-							<TooltipContent className="max-w-64" align="end" side="top">
-								<div className="text-sm text-content-primary font-medium mb-1">
-									Controls and logs AI tooling so AI use stays secure,
-									compliant, and visible.
-								</div>
-								<div className="text-sm text-content-secondary">
-									<Link href={docs("/ai-coder/ai-governance")} target="_blank">
-										More about AI Governance
-									</Link>
-								</div>
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+					<Popover>
+						<PopoverTrigger asChild>
+							<InfoIcon className="size-icon-sm p-0.5 ml-1" />
+						</PopoverTrigger>
+						<PopoverContent className="max-w-64" align="end" side="top">
+							<div className="text-sm text-content-primary font-medium mb-1">
+								Controls and logs AI tooling so AI use stays secure, compliant,
+								and visible.
+							</div>
+							<div className="text-sm text-content-secondary">
+								<Link href={docs("/ai-coder/ai-governance")} target="_blank">
+									More about AI Governance
+								</Link>
+							</div>
+						</PopoverContent>
+					</Popover>
 				</div>
 
 				{/* row 4:  */}
-				<div className="row-start-4 col-start-1 border-0 border-l border-t border-dashed border-surface-green rounded-tl-lg w-5 h-[20px]">
+				<div className="row-start-4 col-start-1 border-0 border-l border-t border-dashed border-surface-green rounded-tl-lg size-4">
 					{/* top left rounded corner */}
 				</div>
 				<div className="row-start-4 col-start-2 border-0 border-t border-dashed border-surface-green">
@@ -514,7 +512,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				<div className="row-start-4 col-start-4 border-0 border-t border-dashed border-surface-green">
 					{/* horizontal border */}
 				</div>
-				<div className="row-start-4 col-start-6 border-0 border-r border-t border-dashed border-surface-green rounded-tr-lg w-5 h-[20px]">
+				<div className="row-start-4 col-start-6 border-0 border-r border-t border-dashed border-surface-green rounded-tr-lg size-4">
 					{/* top right rounded corner */}
 				</div>
 
@@ -540,7 +538,7 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				</div>
 
 				{/* row 6: more design and session end */}
-				<div className="row-start-6 col-start-1 border-0 border-l border-b border-dashed border-surface-green rounded-bl-lg w-5 h-[20px]">
+				<div className="row-start-6 col-start-1 border-0 border-l border-b border-dashed border-surface-green rounded-bl-lg size-4">
 					{/* bottom left rounded corner */}
 				</div>
 				<div className="row-start-6 col-start-2 border-0 border-b border-dashed border-surface-green">
@@ -552,12 +550,12 @@ export const SessionTimeline: FC<SessionTimelineProps> = ({
 				<div className="row-start-6 col-start-4 col-span-2 border-0 border-b border-dashed border-surface-green">
 					{/* horizontal line */}
 				</div>
-				<div className="row-start-6 col-start-6 border-0 border-r border-b border-dashed border-surface-green rounded-br-lg w-5 h-[20px]">
+				<div className="row-start-6 col-start-6 border-0 border-r border-b border-dashed border-surface-green rounded-br-lg size-4">
 					{/* bottom right rounded corner */}
 				</div>
 
 				{/* row 7: sized intentionally to create the visual space below the timeline border */}
-				<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-[20px]">
+				<div className="row-start-7 col-start-3 border-0 border-l border-t border-solid border-surface-secondary h-4">
 					{/* vertical line */}
 				</div>
 
