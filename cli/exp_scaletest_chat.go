@@ -4,7 +4,9 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -39,7 +41,8 @@ type chatWorkspaceSelection struct {
 
 func (r *RootCmd) scaletestChat() *serpent.Command {
 	var (
-		count              int64
+		workspaceCount     int64
+		chatsPerWorkspace  int64
 		workspaceID        string
 		template           string
 		prompt             string
@@ -59,17 +62,13 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "chat",
 		Short: "Run a chat scale test against the Coder API",
-		Long:  "Creates N concurrent chats against either one shared pre-existing workspace or one workspace per chat from a template, then streams each conversation to completion.",
+		Long:  "Creates chats-per-workspace concurrent chats against each selected workspace. Use --workspace-id to target one existing workspace or --template with --workspace-count to pre-create workspaces before the chat storm begins.",
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 
 			outputs, err := output.parse()
 			if err != nil {
 				return xerrors.Errorf("could not parse --output flags: %w", err)
-			}
-
-			if count < 1 {
-				return xerrors.Errorf("--count must be at least 1")
 			}
 
 			if turns < 1 {
@@ -82,7 +81,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			if summaryOutput == "-" {
 				return xerrors.Errorf("--summary-output must be a file path, not stdout")
 			}
-			if err := validateChatWorkspaceSelection(workspaceID, template); err != nil {
+			if err := validateChatWorkspaceSelection(workspaceID, template, workspaceCount, chatsPerWorkspace); err != nil {
 				return err
 			}
 
@@ -198,179 +197,272 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			}()
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 
-			readyWG := &sync.WaitGroup{}
-			startChan := make(chan struct{})
-			var followUpReadyWG *sync.WaitGroup
-			var startFollowUpChan chan struct{}
-			if followUpStartDelay > 0 && turns > 1 {
-				followUpReadyWG = &sync.WaitGroup{}
-				startFollowUpChan = make(chan struct{})
-			}
-
-			th := harness.NewTestHarness(
-				timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}),
-				cleanupStrategy.toStrategy(),
+			var (
+				workspaceHarness         *harness.TestHarness
+				workspaceHarnessFinished bool
+				chatHarness              *harness.TestHarness
+				chatHarnessFinished      bool
+				workspaceIDs             []uuid.UUID
+				results                  harness.Results
 			)
 
-			for i := range count {
-				readyWG.Add(1)
-				if followUpReadyWG != nil {
-					followUpReadyWG.Add(1)
-				}
-				cfg := chat.Config{
-					RunID:                  runID,
-					Prompt:                 prompt,
-					ModelConfigID:          modelConfigID,
-					Turns:                  int(turns),
-					FollowUpPrompt:         followUpPrompt,
-					FollowUpStartDelay:     followUpStartDelay,
-					ReadyWaitGroup:         readyWG,
-					StartChan:              startChan,
-					FollowUpReadyWaitGroup: followUpReadyWG,
-					StartFollowUpChan:      startFollowUpChan,
-					Metrics:                metrics,
-					MetricLabelValues:      append([]string(nil), metricLabelValues...),
-				}
-				if workspaceSelection.WorkspaceID != nil {
-					cfg.WorkspaceID = *workspaceSelection.WorkspaceID
-				}
+			runErr := func() error {
 				if workspaceSelection.WorkspaceBuildConfig != nil {
-					cfg.Workspace = *workspaceSelection.WorkspaceBuildConfig
-				}
-				if err := cfg.Validate(); err != nil {
-					return xerrors.Errorf("validate config for runner %d: %w", i, err)
+					_, _ = fmt.Fprintf(inv.Stderr, "Creating %d workspaces from template %q before starting chats...\n", workspaceCount, workspaceSelection.TemplateName)
+					workspaceHarness = harness.NewTestHarness(
+						timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}),
+						cleanupStrategy.toStrategy(),
+					)
+
+					workspaceRunners := make([]*chatTemplateWorkspaceRunner, 0, int(workspaceCount))
+					for i := range workspaceCount {
+						runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
+						if err != nil {
+							return xerrors.Errorf("duplicate client for workspace runner %d: %w", i, err)
+						}
+						runner := newChatTemplateWorkspaceRunner(runnerClient, *workspaceSelection.WorkspaceBuildConfig)
+						workspaceRunners = append(workspaceRunners, runner)
+						workspaceHarness.AddRun("workspace", fmt.Sprintf("workspace-%d", i), runner)
+					}
+
+					if err := workspaceHarness.Run(testCtx); err != nil {
+						workspaceHarnessFinished = true
+						return xerrors.Errorf("create template workspaces: %w", err)
+					}
+					workspaceHarnessFinished = true
+
+					workspaceResults := workspaceHarness.Results()
+					if workspaceResults.TotalFail > 0 {
+						return xerrors.Errorf("workspace provisioning failed: %d/%d workspace builds failed", workspaceResults.TotalFail, workspaceResults.TotalRuns)
+					}
+
+					workspaceIDs, err = chatTemplateWorkspaceIDs(workspaceRunners)
+					if err != nil {
+						return err
+					}
+					if int64(len(workspaceIDs)) != workspaceCount {
+						return xerrors.Errorf("workspace provisioning completed with %d workspaces, expected %d", len(workspaceIDs), workspaceCount)
+					}
+					_, _ = fmt.Fprintf(inv.Stderr, "Created %d workspaces from template %q\n", len(workspaceIDs), workspaceSelection.TemplateName)
+				} else {
+					workspaceIDs = []uuid.UUID{*workspaceSelection.WorkspaceID}
 				}
 
-				runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
-				if err != nil {
-					return xerrors.Errorf("duplicate client for runner %d: %w", i, err)
+				totalChats := int64(len(workspaceIDs)) * chatsPerWorkspace
+				readyWG := &sync.WaitGroup{}
+				startChan := make(chan struct{})
+				var followUpReadyWG *sync.WaitGroup
+				var startFollowUpChan chan struct{}
+				if followUpStartDelay > 0 && turns > 1 {
+					followUpReadyWG = &sync.WaitGroup{}
+					startFollowUpChan = make(chan struct{})
 				}
-				var runner harness.Runnable = chat.NewRunner(runnerClient, cfg)
-				if tracingEnabled {
-					runner = &runnableTraceWrapper{
-						tracer:   tracer,
-						runner:   runner,
-						spanName: "ChatRun",
+
+				chatHarness = harness.NewTestHarness(
+					timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}),
+					cleanupStrategy.toStrategy(),
+				)
+
+				for workspaceIndex, targetWorkspaceID := range workspaceIDs {
+					for chatIndex := range chatsPerWorkspace {
+						readyWG.Add(1)
+						if followUpReadyWG != nil {
+							followUpReadyWG.Add(1)
+						}
+						cfg := chat.Config{
+							RunID:                  runID,
+							WorkspaceID:            targetWorkspaceID,
+							Prompt:                 prompt,
+							ModelConfigID:          modelConfigID,
+							Turns:                  int(turns),
+							FollowUpPrompt:         followUpPrompt,
+							FollowUpStartDelay:     followUpStartDelay,
+							ReadyWaitGroup:         readyWG,
+							StartChan:              startChan,
+							FollowUpReadyWaitGroup: followUpReadyWG,
+							StartFollowUpChan:      startFollowUpChan,
+							Metrics:                metrics,
+							MetricLabelValues:      append([]string(nil), metricLabelValues...),
+						}
+						if err := cfg.Validate(); err != nil {
+							return xerrors.Errorf("validate config for workspace %d chat %d: %w", workspaceIndex, chatIndex, err)
+						}
+
+						runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
+						if err != nil {
+							return xerrors.Errorf("duplicate client for workspace %d chat %d: %w", workspaceIndex, chatIndex, err)
+						}
+						var runner harness.Runnable = chat.NewRunner(runnerClient, cfg)
+						if tracingEnabled {
+							runner = &runnableTraceWrapper{
+								tracer:   tracer,
+								runner:   runner,
+								spanName: "ChatRun",
+							}
+						}
+						chatHarness.AddRun("chat", fmt.Sprintf("workspace-%d-chat-%d", workspaceIndex, chatIndex), runner)
 					}
 				}
-				th.AddRun("chat", fmt.Sprintf("chat-%d", i), runner)
-			}
 
-			_, _ = fmt.Fprintln(inv.Stderr, "Starting chat scale test...")
-			done := make(chan error, 1)
-			go func() {
-				done <- th.Run(testCtx)
-			}()
-
-			readyDone := make(chan struct{})
-			go func() {
-				readyWG.Wait()
-				close(readyDone)
-			}()
-			select {
-			case <-readyDone:
-				_, _ = fmt.Fprintf(inv.Stderr, "All %d runners ready, starting chat storm...\n", count)
-			case <-time.After(5 * time.Minute):
-				return xerrors.Errorf("timed out waiting for runners to become ready")
-			case <-testCtx.Done():
-				return testCtx.Err()
-			}
-			loadStartedAt := time.Now().UTC()
-			close(startChan)
-
-			var followUpPhaseReleasedAt *time.Time
-			if followUpReadyWG != nil {
-				followUpReadyDone := make(chan struct{})
+				_, _ = fmt.Fprintf(inv.Stderr, "Starting chat scale test with %d chats across %d workspaces...\n", totalChats, len(workspaceIDs))
+				done := make(chan error, 1)
 				go func() {
-					followUpReadyWG.Wait()
-					close(followUpReadyDone)
+					done <- chatHarness.Run(testCtx)
+				}()
+
+				waitForChatHarness := func() error {
+					err := <-done
+					chatHarnessFinished = true
+					return err
+				}
+
+				readyDone := make(chan struct{})
+				go func() {
+					readyWG.Wait()
+					close(readyDone)
 				}()
 				select {
-				case <-followUpReadyDone:
-					_, _ = fmt.Fprintf(inv.Stderr, "All %d runners finished the initial turn, waiting %s before follow-up turns...\n", count, followUpStartDelay)
-				case <-time.After(10 * time.Minute):
-					return xerrors.Errorf("timed out waiting for runners to finish the initial turn")
+				case <-readyDone:
+					_, _ = fmt.Fprintf(inv.Stderr, "All %d chat runners ready across %d workspaces, starting chat storm...\n", totalChats, len(workspaceIDs))
+				case <-time.After(5 * time.Minute):
+					testCancel()
+					if err := waitForChatHarness(); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+						_, _ = fmt.Fprintf(inv.Stderr, "chat harness exited after readiness timeout: %+v\n", err)
+					}
+					return xerrors.Errorf("timed out waiting for chat runners to become ready")
 				case <-testCtx.Done():
+					if err := waitForChatHarness(); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+						_, _ = fmt.Fprintf(inv.Stderr, "chat harness exited after context cancellation: %+v\n", err)
+					}
 					return testCtx.Err()
 				}
-				if followUpStartDelay > 0 {
+				loadStartedAt := time.Now().UTC()
+				close(startChan)
+
+				var followUpPhaseReleasedAt *time.Time
+				if followUpReadyWG != nil {
+					followUpReadyDone := make(chan struct{})
+					go func() {
+						followUpReadyWG.Wait()
+						close(followUpReadyDone)
+					}()
 					select {
+					case <-followUpReadyDone:
+						_, _ = fmt.Fprintf(inv.Stderr, "All %d chat runners finished the initial turn, waiting %s before follow-up turns...\n", totalChats, followUpStartDelay)
+					case <-time.After(10 * time.Minute):
+						testCancel()
+						if err := waitForChatHarness(); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+							_, _ = fmt.Fprintf(inv.Stderr, "chat harness exited after follow-up timeout: %+v\n", err)
+						}
+						return xerrors.Errorf("timed out waiting for chat runners to finish the initial turn")
 					case <-testCtx.Done():
+						if err := waitForChatHarness(); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+							_, _ = fmt.Fprintf(inv.Stderr, "chat harness exited after context cancellation: %+v\n", err)
+						}
 						return testCtx.Err()
-					case <-time.After(followUpStartDelay):
+					}
+					if followUpStartDelay > 0 {
+						select {
+						case <-testCtx.Done():
+							if err := waitForChatHarness(); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+								_, _ = fmt.Fprintf(inv.Stderr, "chat harness exited after context cancellation: %+v\n", err)
+							}
+							return testCtx.Err()
+						case <-time.After(followUpStartDelay):
+						}
+					}
+					releasedAt := time.Now().UTC()
+					followUpPhaseReleasedAt = &releasedAt
+					close(startFollowUpChan)
+				}
+
+				if err := waitForChatHarness(); err != nil {
+					return xerrors.Errorf("run harness: %w", err)
+				}
+				loadCompletedAt := time.Now().UTC()
+
+				results = chatHarness.Results()
+				summaryCfg := chat.SummaryConfig{
+					RunID:                 runID,
+					WorkspaceID:           workspaceSelection.WorkspaceID,
+					TemplateID:            workspaceSelection.TemplateID,
+					TemplateName:          workspaceSelection.TemplateName,
+					WorkspaceCount:        int64(len(workspaceIDs)),
+					ChatsPerWorkspace:     chatsPerWorkspace,
+					CreatedWorkspaceCount: int64(len(workspaceIDs)),
+					ModelConfigID:         modelConfigID,
+					Count:                 totalChats,
+					Turns:                 int(turns),
+					Prompt:                prompt,
+					FollowUpPrompt:        followUpPrompt,
+					FollowUpStartDelay:    followUpStartDelay,
+					LLMMockURL:            llmMockURL,
+					OutputSpecs:           scaletestOutputSpecs(outputs),
+				}
+				if workspaceSelection.WorkspaceBuildConfig != nil {
+					summaryCfg.WorkspaceMode = chat.WorkspaceModeTemplate
+				} else {
+					summaryCfg.WorkspaceMode = chat.WorkspaceModeSharedWorkspace
+					summaryCfg.CreatedWorkspaceCount = 0
+				}
+				summary := chat.NewSummary(summaryCfg, results, loadStartedAt, loadCompletedAt, followUpPhaseReleasedAt)
+				summaryJSON, err := summary.CompactJSON()
+				if err != nil {
+					return xerrors.Errorf("marshal chat scaletest summary: %w", err)
+				}
+				_, _ = fmt.Fprintf(inv.Stderr, "CHAT_SCALETEST_SUMMARY=%s\n", summaryJSON)
+				if summaryOutput != "" {
+					if err := summary.Write(summaryOutput); err != nil {
+						return xerrors.Errorf("write chat scaletest summary to %q: %w", summaryOutput, err)
+					}
+					_, _ = fmt.Fprintf(inv.Stderr, "Wrote chat scaletest summary to %s\n", summaryOutput)
+				}
+
+				for _, o := range outputs {
+					if err := o.write(results, inv.Stdout); err != nil {
+						return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
 					}
 				}
-				releasedAt := time.Now().UTC()
-				followUpPhaseReleasedAt = &releasedAt
-				close(startFollowUpChan)
-			}
 
-			if err := <-done; err != nil {
-				return xerrors.Errorf("run harness: %w", err)
+				return nil
+			}()
+			cleanupChatHarness := chatHarness
+			if !chatHarnessFinished {
+				cleanupChatHarness = nil
 			}
-			loadCompletedAt := time.Now().UTC()
-
-			res := th.Results()
-			summaryCfg := chat.SummaryConfig{
-				RunID:              runID,
-				WorkspaceID:        workspaceSelection.WorkspaceID,
-				TemplateID:         workspaceSelection.TemplateID,
-				TemplateName:       workspaceSelection.TemplateName,
-				ModelConfigID:      modelConfigID,
-				Count:              count,
-				Turns:              int(turns),
-				Prompt:             prompt,
-				FollowUpPrompt:     followUpPrompt,
-				FollowUpStartDelay: followUpStartDelay,
-				LLMMockURL:         llmMockURL,
-				OutputSpecs:        scaletestOutputSpecs(outputs),
+			cleanupWorkspaceHarness := workspaceHarness
+			if !workspaceHarnessFinished {
+				cleanupWorkspaceHarness = nil
 			}
-			if workspaceSelection.WorkspaceBuildConfig != nil {
-				summaryCfg.WorkspaceMode = chat.WorkspaceModeTemplate
-				summaryCfg.CreatedWorkspaceCount = countCreatedTemplateWorkspaces(res)
-			} else {
-				summaryCfg.WorkspaceMode = chat.WorkspaceModeSharedWorkspace
-			}
-			summary := chat.NewSummary(summaryCfg, res, loadStartedAt, loadCompletedAt, followUpPhaseReleasedAt)
-			summaryJSON, err := summary.CompactJSON()
-			if err != nil {
-				return xerrors.Errorf("marshal chat scaletest summary: %w", err)
-			}
-			_, _ = fmt.Fprintf(inv.Stderr, "CHAT_SCALETEST_SUMMARY=%s\n", summaryJSON)
-			if summaryOutput != "" {
-				if err := summary.Write(summaryOutput); err != nil {
-					return xerrors.Errorf("write chat scaletest summary to %q: %w", summaryOutput, err)
+			cleanupErr := cleanupChatScaleTestResources(ctx, cleanupStrategy, inv.Stderr, cleanupChatHarness, cleanupWorkspaceHarness)
+			if cleanupErr != nil {
+				if runErr != nil {
+					return errors.Join(runErr, cleanupErr)
 				}
-				_, _ = fmt.Fprintf(inv.Stderr, "Wrote chat scaletest summary to %s\n", summaryOutput)
+				return cleanupErr
+			}
+			if runErr != nil {
+				return runErr
 			}
 
-			for _, o := range outputs {
-				if err := o.write(res, inv.Stdout); err != nil {
-					return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
-				}
+			if results.TotalFail > 0 {
+				return xerrors.Errorf("scale test failed: %d/%d runs failed", results.TotalFail, results.TotalRuns)
 			}
-
-			_, _ = fmt.Fprintln(inv.Stderr, "Cleaning up (archiving chats)...")
-			cleanupCtx, cleanupCancel := cleanupStrategy.toContext(ctx)
-			defer cleanupCancel()
-			if err := th.Cleanup(cleanupCtx); err != nil {
-				return xerrors.Errorf("cleanup: %w", err)
-			}
-
-			if res.TotalFail > 0 {
-				return xerrors.Errorf("scale test failed: %d/%d runs failed", res.TotalFail, res.TotalRuns)
-			}
-			_, _ = fmt.Fprintf(inv.Stderr, "Scale test passed: %d/%d runs succeeded\n", res.TotalPass, res.TotalRuns)
+			_, _ = fmt.Fprintf(inv.Stderr, "Scale test passed: %d/%d runs succeeded\n", results.TotalPass, results.TotalRuns)
 			return nil
 		},
 	}
 
 	cmd.Options = serpent.OptionSet{
 		{
-			Flag:        "count",
-			Description: "Number of concurrent chats to create.",
-			Default:     "10",
-			Value:       serpent.Int64Of(&count),
+			Flag:        "workspace-count",
+			Description: "Number of workspaces to create before starting chats. Required with --template and rejected with --workspace-id.",
+			Value:       serpent.Int64Of(&workspaceCount),
+		},
+		{
+			Flag:        "chats-per-workspace",
+			Description: "Number of chats to run against each selected workspace. Required and must be greater than 0.",
+			Value:       serpent.Int64Of(&chatsPerWorkspace),
 		},
 		{
 			Flag:        "workspace-id",
@@ -379,7 +471,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 		},
 		{
 			Flag:        "template",
-			Description: "Template name or UUID. When set, each runner creates one workspace and waits at the start barrier before the chat storm begins.",
+			Description: "Template name or UUID. When set, the command first creates --workspace-count workspaces and then fans out chats across them.",
 			Value:       serpent.StringOf(&template),
 		},
 		{
@@ -426,15 +518,30 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 	return cmd
 }
 
-func validateChatWorkspaceSelection(workspaceID string, template string) error {
+func validateChatWorkspaceSelection(workspaceID string, template string, workspaceCount int64, chatsPerWorkspace int64) error {
 	switch {
 	case workspaceID == "" && template == "":
 		return xerrors.Errorf("exactly one of --workspace-id or --template is required")
 	case workspaceID != "" && template != "":
 		return xerrors.Errorf("--workspace-id and --template are mutually exclusive")
-	default:
+	}
+
+	if chatsPerWorkspace < 1 {
+		return xerrors.Errorf("--chats-per-workspace must be at least 1")
+	}
+
+	if template != "" {
+		if workspaceCount < 1 {
+			return xerrors.Errorf("--workspace-count must be at least 1 when --template is set")
+		}
 		return nil
 	}
+
+	if workspaceCount != 0 {
+		return xerrors.Errorf("--workspace-count may only be used with --template")
+	}
+
+	return nil
 }
 
 func resolveChatWorkspaceSelection(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, organizationIDs []uuid.UUID, workspaceID string, template string, parameterFlags workspaceParameterFlags) (chatWorkspaceSelection, error) {
@@ -510,21 +617,6 @@ func prepareChatTemplateWorkspaceConfig(inv *serpent.Invocation, client *codersd
 	return cfg, nil
 }
 
-func countCreatedTemplateWorkspaces(results harness.Results) int64 {
-	var count int64
-	for _, run := range results.Runs {
-		if run.Metrics == nil {
-			continue
-		}
-		workspaceID, ok := run.Metrics["workspace_id"].(string)
-		if !ok || workspaceID == "" || workspaceID == uuid.Nil.String() {
-			continue
-		}
-		count++
-	}
-	return count
-}
-
 func workspaceHasAgents(workspace codersdk.Workspace) bool {
 	for _, resource := range workspace.LatestBuild.Resources {
 		if len(resource.Agents) > 0 {
@@ -544,4 +636,76 @@ func scaletestOutputSpecs(outputs []scaleTestOutput) []string {
 		specs = append(specs, spec)
 	}
 	return specs
+}
+
+func cleanupChatScaleTestResources(ctx context.Context, cleanupStrategy *scaletestStrategyFlags, stderr io.Writer, chatHarness *harness.TestHarness, workspaceHarness *harness.TestHarness) error {
+	if chatHarness == nil && workspaceHarness == nil {
+		return nil
+	}
+
+	cleanupCtx, cleanupCancel := cleanupStrategy.toContext(ctx)
+	defer cleanupCancel()
+
+	var cleanupErr error
+	if chatHarness != nil {
+		_, _ = fmt.Fprintln(stderr, "Cleaning up (archiving chats)...")
+		if err := chatHarness.Cleanup(cleanupCtx); err != nil {
+			cleanupErr = errors.Join(cleanupErr, xerrors.Errorf("cleanup chats: %w", err))
+		}
+	}
+	if workspaceHarness != nil {
+		_, _ = fmt.Fprintln(stderr, "Cleaning up created workspaces...")
+		if err := workspaceHarness.Cleanup(cleanupCtx); err != nil {
+			cleanupErr = errors.Join(cleanupErr, xerrors.Errorf("cleanup workspaces: %w", err))
+		}
+	}
+
+	return cleanupErr
+}
+
+type chatTemplateWorkspaceRunner struct {
+	runner *workspacebuild.Runner
+
+	mu          sync.Mutex
+	workspaceID uuid.UUID
+}
+
+func newChatTemplateWorkspaceRunner(client *codersdk.Client, cfg workspacebuild.Config) *chatTemplateWorkspaceRunner {
+	return &chatTemplateWorkspaceRunner{
+		runner: workspacebuild.NewRunner(client, cfg),
+	}
+}
+
+func (r *chatTemplateWorkspaceRunner) Run(ctx context.Context, id string, logs io.Writer) error {
+	workspace, err := r.runner.RunReturningWorkspace(ctx, id, logs)
+	if err != nil {
+		return err
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.workspaceID = workspace.ID
+	return nil
+}
+
+func (r *chatTemplateWorkspaceRunner) Cleanup(ctx context.Context, id string, logs io.Writer) error {
+	return r.runner.Cleanup(ctx, id, logs)
+}
+
+func (r *chatTemplateWorkspaceRunner) WorkspaceID() uuid.UUID {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.workspaceID
+}
+
+func chatTemplateWorkspaceIDs(runners []*chatTemplateWorkspaceRunner) ([]uuid.UUID, error) {
+	workspaceIDs := make([]uuid.UUID, 0, len(runners))
+	for i, runner := range runners {
+		workspaceID := runner.WorkspaceID()
+		if workspaceID == uuid.Nil {
+			return nil, xerrors.Errorf("workspace runner %d did not record a created workspace ID", i)
+		}
+		workspaceIDs = append(workspaceIDs, workspaceID)
+	}
+	return workspaceIDs, nil
 }

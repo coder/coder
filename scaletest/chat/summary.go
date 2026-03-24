@@ -28,6 +28,8 @@ type SummaryConfig struct {
 	WorkspaceID           *uuid.UUID
 	TemplateID            *uuid.UUID
 	TemplateName          string
+	WorkspaceCount        int64
+	ChatsPerWorkspace     int64
 	CreatedWorkspaceCount int64
 	ModelConfigID         *uuid.UUID
 	Count                 int64
@@ -48,6 +50,8 @@ type Summary struct {
 	WorkspaceID               *uuid.UUID     `json:"workspace_id,omitempty"`
 	TemplateID                *uuid.UUID     `json:"template_id,omitempty"`
 	TemplateName              string         `json:"template_name,omitempty"`
+	WorkspaceCount            int64          `json:"workspace_count"`
+	ChatsPerWorkspace         int64          `json:"chats_per_workspace"`
 	CreatedWorkspaceCount     int64          `json:"created_workspace_count,omitempty"`
 	ModelConfigID             *uuid.UUID     `json:"model_config_id,omitempty"`
 	Count                     int64          `json:"count"`
@@ -87,6 +91,8 @@ func NewSummary(cfg SummaryConfig, results harness.Results, startedAt, completed
 		CompletedAt:           completedAt.UTC(),
 		WorkspaceMode:         cfg.WorkspaceMode,
 		TemplateName:          cfg.TemplateName,
+		WorkspaceCount:        cfg.WorkspaceCount,
+		ChatsPerWorkspace:     cfg.ChatsPerWorkspace,
 		CreatedWorkspaceCount: cfg.CreatedWorkspaceCount,
 		ModelConfigID:         cfg.ModelConfigID,
 		Count:                 cfg.Count,
